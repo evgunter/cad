@@ -38,7 +38,84 @@ pub enum TangentLocus<T: Real> {
         gap: MarginDiag,
         /// The locus direction (the shared ruling / axis direction).
         dir: Vec3<T>,
+        /// Which arm decided it ([`tangent_line_on`] rebuilds the line
+        /// from the two carriers and this alone).
+        side: LineSide,
     },
+}
+
+/// **Which closed-form arm a tangent line is**: a plane and a cylinder
+/// along a ruling, or two parallel cylinders tangent externally or one
+/// inside the other. Symmetric in the two carriers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum LineSide {
+    /// A plane and a cylinder, along a ruling.
+    Ruling,
+    /// Two parallel cylinders, each outside the other.
+    External,
+    /// Two parallel cylinders, one inside the other.
+    Internal,
+}
+
+/// **The tangent line of two carriers whose arm is decided already**
+/// ([`TangentLocus::Line`]'s `side`), built from the carriers alone with
+/// nothing decided: a plane and a cylinder touch along the axis'
+/// projection onto the plane, and two parallel cylinders along the line
+/// through the first axis' origin offset toward the second axis by
+/// `r1 / (r1 ± r2)` of the axes' separation (`+` external, `−`
+/// internal), which is the first radius toward the second axis
+/// externally and away from it where the first cylinder is the smaller
+/// one inside. `origin + t·dir`, `dir` the first ruled carrier's axis.
+/// `None` where the carriers' kinds are not `side`'s.
+#[must_use]
+pub fn tangent_line_on<T: Real>(
+    a: &Surface<T>,
+    b: &Surface<T>,
+    side: LineSide,
+) -> Option<(Point3<T>, Vec3<T>)> {
+    match (a, b, side) {
+        (
+            &Surface::Plane {
+                origin: q,
+                normal: n,
+                ..
+            },
+            &Surface::Cylinder { origin, axis, .. },
+            LineSide::Ruling,
+        )
+        | (
+            &Surface::Cylinder { origin, axis, .. },
+            &Surface::Plane {
+                origin: q,
+                normal: n,
+                ..
+            },
+            LineSide::Ruling,
+        ) => Some((origin - n * (origin - q).dot(n), axis)),
+        (
+            &Surface::Cylinder {
+                origin: o1,
+                axis: a1,
+                radius: r1,
+                ..
+            },
+            &Surface::Cylinder {
+                origin: o2,
+                radius: r2,
+                ..
+            },
+            LineSide::External | LineSide::Internal,
+        ) => {
+            let d = o2 - o1;
+            let w = d - a1 * d.dot(a1);
+            let across = match side {
+                LineSide::Internal => r1 - r2,
+                LineSide::Ruling | LineSide::External => r1 + r2,
+            };
+            Some((o1 + w * (r1 / across), a1))
+        }
+        _ => None,
+    }
 }
 
 /// Typed refusal of [`tangent_locus`] (closed enum, D3 style).
@@ -340,9 +417,12 @@ fn plane_cylinder_locus<T: Decide>(
         }
     };
     match ruled_section(pc, frame, parallel, band).map_err(TangentLocusError::Escalated)? {
-        Some(RuledSection::TangentLine { origin, dir, gap }) => {
-            Ok(TangentLocus::Line { origin, gap, dir })
-        }
+        Some(RuledSection::TangentLine { origin, dir, gap }) => Ok(TangentLocus::Line {
+            origin,
+            gap,
+            dir,
+            side: LineSide::Ruling,
+        }),
         Some(RuledSection::ParallelLines { .. }) => Err(TangentLocusError::NotTangent {
             apart: false,
             predicate: gap,
@@ -413,6 +493,7 @@ fn cylinders_locus<T: Decide>(
             origin: foot1 + w.normalize() * r1,
             gap: gap.jointly(parallel),
             dir: a1,
+            side: LineSide::External,
         }),
         CylinderGap::NotTangent { apart, predicate } => {
             Err(TangentLocusError::NotTangent { apart, predicate })
@@ -453,6 +534,7 @@ fn cylinders_locus<T: Decide>(
                 origin: foot1 + w.normalize() * (sign * r1),
                 gap: gap.jointly(parallel),
                 dir: a1,
+                side: LineSide::Internal,
             })
         }
     }

@@ -956,7 +956,7 @@ fn check_partners(
         let probe = probe_sector(far);
         let mut pairs = Vec::new();
         for (m, other) in others.iter().enumerate() {
-            match wedge_classes(std::slice::from_ref(&probe), other, band) {
+            match super::wedge_read(std::slice::from_ref(&probe), other, band) {
                 Ok(read) => pairs.push(crate::boolean::vtxfac::PairRead {
                     partner: VertexKey::from(key(7001 + m as u64)),
                     side: None,
@@ -973,14 +973,18 @@ fn check_partners(
                 .or_default() += 1;
             continue;
         }
-        let unread = pairs.iter().any(|p| p.read.is_none());
+        let unread = pairs.iter().any(|p| p.read.is_err());
         let rows = match crate::boolean::vtxfac::pair_classes(
             Operand::A,
             vertex,
             std::slice::from_ref(&probe),
             &pairs,
+            // Every face here is a polygon cone's, a plane.
+            &|_| Ok(super::FaceShape::Plane),
             band,
-        ) {
+        )
+        .map(|(rows, _)| rows)
+        {
             Err(BooleanError::VertexReadTwice { .. }) if unread => {
                 counts.unread += 1;
                 continue;

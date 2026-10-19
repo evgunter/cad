@@ -1,57 +1,53 @@
 ---
 id: local-rustdoc-with-the-gate-flags-fails-where-the-hosted-gate-passes
 kind: issue
-title: cargo doc with doc-gate.sh's own lint set fails locally on main's text that the hosted rustdoc gate passes; the cause is unexplained
-status: open
+title: the hosted rustdoc gate was red every night from 2026-10-02 on broken intra-doc links across six crates
+status: closed
 opened: 2026-10-01
-priority: P3
+closed: 2026-10-15
+priority: P2
 cost: E
 ---
 
-Found by CLEAVE's mint-doors lane (PR 3720) while checking its own
-prose, then confirmed by the CLEAVE orchestrator. It is not fixed
-there.
+The nightly job `rustdoc (gate, every root)` (`scripts/doc-gate.sh`)
+was red every night from 2026-10-02 through nightly 61 (run
+38687151370, job 116264822459). The cause was rustdoc lint errors in
+kernel prose: 78 reported sites over editor-core, geom-core, geom-brep, topo,
+sweep, mesh, pncad, profile and viewer, almost all unresolved
+intra-doc links to items renamed, deleted, made test-only, or out of
+scope, plus a few redundant explicit targets and fn/module
+ambiguities. Branch `ciw/rustdoc-gate-red` fixed every one
+mechanically (qualify the path, disambiguate, or unlink to code text);
+its PR body carries the site list. `scripts/doc-gate.sh --selftest`
+followed by `scripts/doc-gate.sh` then passes locally, every pass.
 
-## Measured (local, 2026-10-01, main's own text)
+## Why the list kept growing
 
-`scripts/doc-gate.sh` defines the lint set
-`RUSTDOC_LINTS="-D warnings -A rustdoc::private_intra_doc_links"`
-(the `RUSTDOC_LINTS=` line) and runs
-`cargo doc --no-deps --document-private-items "$@"` (`doc_pass_with`).
-The workspace pass adds `--workspace --all-features`. Run locally with
-those flags:
+Each pass is one `cargo doc` invocation, and cargo stops scheduling
+new crates after the first one rustdoc rejects ("build failed, waiting
+for other jobs to finish"). A red pass therefore reports only the
+crates that happened to run before the first failure, and fixing those
+uncovers the next ones. The 2026-10-12 note's list was one such
+partial reading; the full set came out over five local rounds, four of them run with
+`--keep-going`, which the gate itself does not pass.
 
-- `-p topo -p sweep --all-features` fails in `crates/topo/src/boolean/join.rs`
-  (lines ~181, ~212): `` [`JoinLane::Split`] `` and
-  `` [`JoinLane::BoolPlanar`] `` are unresolved. `JoinLane` is imported
-  only inside a nested `use` further down the file, at its use site,
-  not where the doc is.
-- `--workspace` fails in `crates/sweep/src/blend/battery.rs:5`
-  (`` [`super::decide`] ``: no item `decide` in module `blend`) and in
-  `crates/editor-core/src/mate/solve.rs:444` (`solve_cluster`).
+## The original local/hosted discrepancy is moot
 
-Yet the hosted nightly job `rustdoc (gate, every root)` passed on
-`0dbfa319` at 16:07 on 2026-10-01 (job 110459257131), and all three
-links are present at `0dbfa319` (`git show 0dbfa319:<path>`).
+The row was opened because a local run failed on 2026-10-01 text that
+the hosted gate passed (job 110459257131 on `0dbfa319` logs `doc-gate
+OK`). From 2026-10-02 the hosted gate failed on the same class of
+sites as local runs, and on nightly 61 the hosted `--no-default-features`
+passes reject the same lines a local run rejects
+(`crates/topo/src/boolean/ops.rs`'s two redundant `ValidationError`
+targets, `crates/geom-core/src/linalg/svd.rs`'s `Real`). Both sides run
+the pinned 1.97.0 toolchain (`rust-toolchain.toml`) and the same
+script. Why the one 2026-10-01 hosted run was green was not
+established; with the gate now agreeing with itself on both sides and
+green, nothing turns on it.
 
-## What is unexplained
+## Filed from here
 
-Either the hosted gate runs different flags, toolchain or targets from
-what `doc-gate.sh` reads as, or the local run differs in some way
-nobody has identified (a different toolchain, a stale lint set, the
-private-items pass). Until that is known, a broken intra-doc link in
-kernel text may pass the nightly unseen, or a local run of the gate
-gives a red that CI does not reproduce. Start by diffing the hosted
-job's log (the exact `cargo doc` lines and `rustc -V`) against a local
-`scripts/doc-gate.sh` run.
-
-- 2026-10-12 (ENCL orchestrator, nightly triage): this row's premise is now false. The HOSTED rustdoc gate (nightly job `rustdoc (gate, every root)`) has been red every night since 2026-10-02. Repro: `scripts/doc-gate.sh`.
-  - **Workspace pass:**
-    - `crates/geom-core/src/spline/net.rs`: unresolved `equal_split_plan` (knot/nurbs; from 2ac0994f80).
-    - `crates/geom-core/src/sym/revalue.rs`: `record`, `super::SymOp::Opaque` and `super::SymOp::Hull`.
-    - `crates/sweep/src/blend/battery.rs`: `super::decide`.
-    - `crates/geom-core/src/linalg/svd.rs`: a redundant explicit link target `[Real](crate::real::Real)`.
-  - **`--no-default-features` passes:**
-    - `crates/editor-core/src/meta/ser.rs`: `MAX_NESTING` and `MAX_PRODUCER_NESTING`.
-    - `crates/topo/src/boolean/ops.rs`: `ValidationError::ScaffoldAtRest` and `JoinableVertexAtRest`.
-  - The fix is mechanical (qualify or unlink), and the site list may grow once the first failing pass is fixed. The row's title and priority should follow: a red main gate is above P3.
+- `module-docs-on-both-sides-resolve-their-inner-links-in-the-parent`:
+  three of the sites were `//!` links that rustdoc resolved in the
+  parent module's scope, a latent class that can resolve to the wrong
+  item with the gate green.

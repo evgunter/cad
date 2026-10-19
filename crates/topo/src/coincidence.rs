@@ -98,6 +98,10 @@ pub enum Relation {
     SurfaceTangent,
     /// The two cells' carriers' axes of revolution are one line.
     Coaxial,
+    /// The two cells' carriers have one radius.
+    SameRadius,
+    /// The two cells' carriers' axes of revolution meet in one point.
+    AxesMeet,
     /// The two cells' carriers are ruled along one direction, so one
     /// cross-section plane sections both into curves that do not vary
     /// along it (a cylinder and a plane parallel to its axis).
@@ -120,6 +124,8 @@ impl Relation {
             | Self::OnCarrier
             | Self::CommonFoot
             | Self::Coaxial
+            | Self::SameRadius
+            | Self::AxesMeet
             | Self::CoRuled => None,
         }
     }
@@ -144,6 +150,10 @@ pub enum DecisionSite {
     /// The cylinder×sphere pair's coaxial classification: the sphere's
     /// centre on the cylinder's axis.
     CoaxialSphere,
+    /// The cylinder pair's crossing classification: two walls of one
+    /// radius whose axes meet, cut by each other in the two
+    /// bisector-plane ellipses.
+    CrossingCylinders,
     /// A split's ON verdict at a vertex whose neighbourhood leaves it
     /// with two or more runs on one side, so pieces of one side touch
     /// there.
@@ -213,6 +223,28 @@ pub struct Coincidence {
     pub margin: MarginDiag,
     /// How that margin's Zero was discharged.
     pub discharge: Discharge,
+}
+
+impl Coincidence {
+    /// The row's A-operand face and B-operand face, where it relates
+    /// one face of each operand, in that order; `None` for any other
+    /// pair of cells.
+    #[must_use]
+    pub fn face_pair(&self) -> Option<(crate::FaceKey, crate::FaceKey)> {
+        match self.cells {
+            [
+                RowCell::Input {
+                    input: Operand::A,
+                    cell: Cell::Face(a),
+                },
+                RowCell::Input {
+                    input: Operand::B,
+                    cell: Cell::Face(b),
+                },
+            ] => Some((a, b)),
+            _ => None,
+        }
+    }
 }
 
 /// **One decision a contact record cites** (D1 (ii)): the coincidence

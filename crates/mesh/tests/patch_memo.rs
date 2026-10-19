@@ -570,12 +570,7 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
         };
         let cache: PcurveCache<f64> = cache.clone();
         let shifted = match cache.pcurve().clone() {
-            Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
-                p0: Point2::new(p0.x + TAU, p0.y),
-                pa,
-                pb,
-                pl,
-            },
+            image @ Pcurve::Harmonic { .. } => image.shift_branch(1.0, TAU),
             Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
                 p0: Point2::new(p0.x + TAU, p0.y),
                 pl,
@@ -727,8 +722,8 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
     let mut weights = net.weights().to_vec();
     weights[0] *= 1.0 + 1.0 / 64.0;
     let moved = geom::NurbsSurface::new(
-        net.knots_u().clone(),
-        net.knots_v().clone(),
+        net.knots_u_f64_interim().clone(),
+        net.knots_v_f64_interim().clone(),
         net.control().to_vec(),
         weights,
     )

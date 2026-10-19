@@ -21,14 +21,14 @@
 //!
 //! A piece that settles neither way is halved, until its ball is within
 //! the band's coincidence threshold (the boundary reading), a fixed
-//! depth, or [`crate::bisect`]'s piece budget. A reading that runs out
+//! depth, or [`geom_core::bisect`]'s piece budget. A reading that runs out
 //! of depth or budget is not a reading in the band: the walk names it
 //! as the edge it could not cross ([`super::containment::Uncrossable`]).
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, SupSpeed, Vec3};
 
-use crate::bisect::{Step, bisect};
 use crate::validate::{decide, definitely_positive as positive};
+use geom_core::bisect::{Step, bisect};
 
 /// The rows a caller reads a spiric edge's boundary under — its own, so
 /// each caller's population stays separable in the telemetry.
@@ -125,33 +125,6 @@ impl<T: Decide> SpiricArc<T> {
         [self.point(self.span.0), self.point(self.span.1)]
     }
 
-    /// **Whether the arc definitely clears the segment `a → b`**: every
-    /// piece's ball definitely clear of the segment on `row` (the
-    /// distance from the ball's centre to the closed segment less its
-    /// radius, metres), halving each piece that is not. `false` where a
-    /// piece outlasts the depth or the piece budget first — the arc may
-    /// meet the segment, and no answer says where.
-    pub(crate) fn clears_segment(
-        &self,
-        a: Point3<T>,
-        b: Point3<T>,
-        row: &'static str,
-        band: Band,
-    ) -> bool {
-        let walk = bisect([self.root()], |p| {
-            let ball = self.bounds(&p);
-            let gap = crate::sector_shape::point_segment_distance(a, b, ball.center);
-            if positive(row, gap - ball.reach, band) {
-                return Step::Settled;
-            }
-            if p.depth >= MAX_DEPTH {
-                return Step::Stop(TooDeep);
-            }
-            Step::Halve(self.halves(p))
-        });
-        matches!(walk, Ok(None))
-    }
-
     /// The whole arc as one piece.
     fn root(&self) -> Piece<T> {
         let (va, vb) = self.span;
@@ -183,7 +156,7 @@ impl<T: Decide> SpiricArc<T> {
         Bounds {
             h,
             center: self.point(vm),
-            reach: crate::bisect::reach(SupSpeed::new(speed), (p.va, p.vb)),
+            reach: geom_core::bisect::reach(SupSpeed::new(speed), (p.va, p.vb)),
             accel,
         }
     }
@@ -213,22 +186,22 @@ impl<T: Decide> SpiricArc<T> {
 
     /// **Where `q` sits against the arc.** `End` within the band of an
     /// end; `On` within the band of a point of the arc; `Off` once every
-    /// piece's ball is definitely clear of `q`; `Unsettled` where a
-    /// piece outlasts the depth or the piece budget before its ball is
-    /// within the band — no reading in the band, and no answer.
+    /// piece's ball is definitely clear of `q`.
     ///
     /// # Errors
     ///
-    /// An in-band distance to an end; or, where a piece whose ball is
-    /// within the band's coincidence threshold is settled neither way
-    /// and no other piece puts `q` on the arc, the in-band margin it was
-    /// read on.
+    /// [`SpiricRefusal::Escalated`]: an in-band distance to an end; or,
+    /// where a piece whose ball is within the band's coincidence
+    /// threshold is settled neither way and no other piece puts `q` on
+    /// the arc, the in-band margin it was read on.
+    /// [`SpiricRefusal::Unsettled`] where a piece outlasts the depth or
+    /// the piece budget before its ball is within the band.
     pub(crate) fn contact(
         &self,
         q: Point3<T>,
         rows: SpiricRows,
         band: Band,
-    ) -> Result<SpiricHit, Indeterminate> {
+    ) -> Result<SpiricHit, SpiricRefusal> {
         for end in self.ends() {
             if decide(rows.end, Margin::norm3(q - end), band)? == Sign::Zero {
                 return Ok(SpiricHit::End);
@@ -276,13 +249,12 @@ impl<T: Decide> SpiricArc<T> {
             Err(_) => exhausted = true,
         }
         if let Some(diag) = in_band {
-            return Err(diag);
+            return Err(SpiricRefusal::Escalated(diag));
         }
-        Ok(if exhausted {
-            SpiricHit::Unsettled
-        } else {
-            SpiricHit::Off
-        })
+        if exhausted {
+            return Err(SpiricRefusal::Unsettled);
+        }
+        Ok(SpiricHit::Off)
     }
 
     /// **How many times the ray `q + d·t`, `t > 0`, crosses the arc**,
@@ -365,8 +337,22 @@ pub(crate) enum SpiricHit {
     On(geom_core::MarginDiag),
     /// Within the band of one of the arc's two ends.
     End,
-    /// A piece outlasted the reading's depth or budget: not placed.
+}
+
+/// Why [`SpiricArc::contact`] places no point.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum SpiricRefusal {
+    /// A decision fell in the band's gap.
+    Escalated(Indeterminate),
+    /// A piece outlasted the reading's depth or budget before its ball
+    /// came within the band.
     Unsettled,
+}
+
+impl From<Indeterminate> for SpiricRefusal {
+    fn from(diag: Indeterminate) -> Self {
+        Self::Escalated(diag)
+    }
 }
 
 #[cfg(test)]

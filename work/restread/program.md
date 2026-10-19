@@ -2,7 +2,7 @@
 id: restread
 kind: program
 title: RESTREAD — the census's near-band reads in its crossing and edge-on-face lanes, the cross-solid curved pairs, and the P1 point and seam readings
-status: ready
+status: active
 opened: 2026-10-09
 area: kernel
 prefix: restread/

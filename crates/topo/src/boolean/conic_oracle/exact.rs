@@ -11,18 +11,21 @@
 //! `F` times `(1 + t²)ᵏ` is a polynomial `G(t)` of degree `2k` (`k = 2`
 //! on a quadric, `4` on a torus) that shares `F`'s sign. Its real roots
 //! with a sign change are isolated between consecutive roots of its
-//! derivative, recursively, and bisected; `F`'s extremes in `θ` are the
-//! roots of `G′(1 + t²) − 2k·t·G` found the same way. The anchor `φ₀` is
-//! the quarter turn whose opposite point is farthest from the surface,
-//! so no crossing sits near the substitution's pole.
+//! derivative, recursively, and bisected; the residual's extremes in `θ`
+//! are found the same way, as `F`'s (the roots of `G′(1 + t²) − 2k·t·G`)
+//! on a quadric and from the residual's own slope on a torus. The anchor
+//! `φ₀` is the quarter turn whose opposite point is farthest from the
+//! surface, so no crossing sits near the substitution's pole.
 
 use core::f64::consts::{FRAC_PI_2, TAU};
 
 use geom_core::{Point3, Vec3};
 
 /// A double-double: the unevaluated sum `hi + lo`, `|lo| ≤ ulp(hi)/2`.
+/// Also the spiric box rows' exact reference (`boolean::boxes`'
+/// `spiric_f_reference`).
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct Dd {
+pub(in crate::boolean) struct Dd {
     hi: f64,
     lo: f64,
 }
@@ -47,11 +50,11 @@ fn quick_two_sum(a: f64, b: f64) -> Dd {
 impl Dd {
     const ZERO: Self = Self { hi: 0.0, lo: 0.0 };
 
-    fn of(x: f64) -> Self {
+    pub(in crate::boolean) fn of(x: f64) -> Self {
         Self { hi: x, lo: 0.0 }
     }
 
-    fn add(self, o: Self) -> Self {
+    pub(in crate::boolean) fn add(self, o: Self) -> Self {
         let s = two_sum(self.hi, o.hi);
         let t = two_sum(self.lo, o.lo);
         let s = quick_two_sum(s.hi, s.lo + t.hi);
@@ -65,11 +68,11 @@ impl Dd {
         }
     }
 
-    fn sub(self, o: Self) -> Self {
+    pub(in crate::boolean) fn sub(self, o: Self) -> Self {
         self.add(o.neg())
     }
 
-    fn mul(self, o: Self) -> Self {
+    pub(in crate::boolean) fn mul(self, o: Self) -> Self {
         let p = self.hi * o.hi;
         let e = self.hi.mul_add(o.hi, -p);
         quick_two_sum(p, e + (self.hi * o.lo + self.lo * o.hi))
@@ -88,7 +91,7 @@ impl Dd {
         quick_two_sum(q1, q2).add(Self::of(q3))
     }
 
-    fn sqrt(self) -> Self {
+    pub(in crate::boolean) fn sqrt(self) -> Self {
         if self.hi <= 0.0 {
             return Self::ZERO;
         }
@@ -107,7 +110,7 @@ impl Dd {
         }
     }
 
-    fn to_f64(self) -> f64 {
+    pub(in crate::boolean) fn to_f64(self) -> f64 {
         self.hi + self.lo
     }
 }
@@ -194,10 +197,15 @@ fn trimmed(mut a: Poly) -> Poly {
 /// monotone) and the Cauchy bound, then bisected to the double-double's
 /// resolution.
 fn sign_change_roots(p: &[Dd]) -> Vec<Dd> {
+    roots_and_turns(p).0
+}
+
+/// [`sign_change_roots`] of `p`, and those of `p′` it was isolated by.
+fn roots_and_turns(p: &[Dd]) -> (Vec<Dd>, Vec<Dd>) {
     let p = trimmed(p.to_vec());
     match p.len() {
-        0 | 1 => return Vec::new(),
-        2 => return vec![p[0].neg().div(p[1])],
+        0 | 1 => return (Vec::new(), Vec::new()),
+        2 => return (vec![p[0].neg().div(p[1])], Vec::new()),
         _ => {}
     }
     let lead = p[p.len() - 1].to_f64().abs();
@@ -206,8 +214,9 @@ fn sign_change_roots(p: &[Dd]) -> Vec<Dd> {
             .iter()
             .map(|x| x.to_f64().abs() / lead)
             .fold(0.0, f64::max);
+    let turns = sign_change_roots(&p_derivative(&p));
     let mut ends = vec![Dd::of(-bound)];
-    ends.extend(sign_change_roots(&p_derivative(&p)));
+    ends.extend(turns.iter().copied());
     ends.push(Dd::of(bound));
     let mut out = Vec::new();
     for w in ends.windows(2) {
@@ -229,7 +238,7 @@ fn sign_change_roots(p: &[Dd]) -> Vec<Dd> {
         }
         out.push(a.add(b).scale(0.5));
     }
-    out
+    (out, turns)
 }
 
 /// The surfaces the oracle reads, each from its stored anchor.
@@ -244,10 +253,16 @@ enum Form {
 pub(in crate::boolean) struct Truth {
     /// Each crossing's parameter, in `[0, 2π)`, ascending.
     pub(in crate::boolean) roots: Vec<f64>,
-    /// The least `|d|` of the true signed distance over `F`'s extremes
-    /// along the carrier (`∞` with none): a pose is outside a band `K·ε`
-    /// deep when this is at least `K·ε`.
+    /// The least `|d|` of the true signed distance over the residual's
+    /// extremes along the carrier (`∞` with none).
     pub(in crate::boolean) depth: f64,
+    /// The least `|d + d²/2r|` over the same extremes, `r` the radius
+    /// the surface's linearized residual divides by (a sphere's or a
+    /// wall's, a torus's tube): the least value at an extreme of the
+    /// residual `geom_brep::implicit_residual` classifies against the
+    /// band, which agrees with `d` only to first order. A pose is outside
+    /// a band `K·ε` deep when this is at least `K·ε`.
+    pub(in crate::boolean) residual_depth: f64,
 }
 
 /// The true crossings of `carrier`, a circle or an ellipse, with `surface`,
@@ -271,10 +286,10 @@ pub(in crate::boolean) fn truth(
         geom::Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
-        } => (center, axis, (major, minor), u_ref),
+        } => (center, axis, (semi_u, semi_v), u_ref),
         _ => panic!("the exact oracle reads circles and ellipses"),
     };
     let (anchor, form) = match *surface {
@@ -326,19 +341,24 @@ pub(in crate::boolean) fn truth(
         let (fa, fb) = frame(k);
         core::array::from_fn(|i| vec![w[i].add(fa[i]), fb[i].scale(2.0), w[i].sub(fa[i])])
     };
-    // `G = F·(1 + t²)ᵏ` and `k`, for the anchor's `q̃`.
-    let g_of = |q: &[Poly; 3]| -> (Poly, usize) {
-        let s = p_add(
+    let p2 = p_mul(&one_plus, &one_plus);
+    // `|q̃|²` and, along a unit `ax`, `q̃·ax`.
+    let square = |q: &[Poly; 3]| {
+        p_add(
             &p_add(&p_mul(&q[0], &q[0]), &p_mul(&q[1], &q[1])),
             &p_mul(&q[2], &q[2]),
-        );
-        let p2 = p_mul(&one_plus, &one_plus);
-        let along = |ax: V3| {
-            p_add(
-                &p_add(&p_scale(&q[0], ax[0]), &p_scale(&q[1], ax[1])),
-                &p_scale(&q[2], ax[2]),
-            )
-        };
+        )
+    };
+    let along = |q: &[Poly; 3], ax: V3| {
+        p_add(
+            &p_add(&p_scale(&q[0], ax[0]), &p_scale(&q[1], ax[1])),
+            &p_scale(&q[2], ax[2]),
+        )
+    };
+    // `G = F·(1 + t²)ᵏ` and `k`, for the anchor's `q̃`.
+    let g_of = |q: &[Poly; 3]| -> (Poly, usize) {
+        let s = square(q);
+        let along = |ax: V3| along(q, ax);
         match form {
             Form::Sphere { r } => (p_add(&s, &p_scale(&p2, r.mul(r).neg())), 2),
             Form::Wall { axis, r } => {
@@ -361,7 +381,7 @@ pub(in crate::boolean) fn truth(
     };
     // The anchor whose pole `φ₀ + π` (the leading coefficient) reads
     // farthest from zero.
-    let (k, (g, half)) = (0..4)
+    let (k, (g, _)) = (0..4)
         .map(|k| (k, g_of(&q_tilde(k))))
         .max_by(|x, y| {
             let lead = |g: &Poly| g.last().map_or(0.0, |c| c.to_f64().abs());
@@ -372,40 +392,96 @@ pub(in crate::boolean) fn truth(
     let theta = |t: Dd| (phi0 + 2.0 * t.to_f64().atan()).rem_euclid(TAU);
     let mut roots: Vec<f64> = sign_change_roots(&g).into_iter().map(theta).collect();
     roots.sort_by(f64::total_cmp);
-    // `F`'s extremes in `θ`: `dF/dθ ∝ G′(1 + t²) − 2k·t·G`, read about
-    // every anchor, so an extreme at one anchor's pole is found at
-    // another's.
+    // The signed distance and the linearized residual `d + d²/2r`.
     let distance = |q: &[Poly; 3], t: Dd| {
         let den = Dd::of(1.0).add(t.mul(t));
         let p: V3 = core::array::from_fn(|i| p_eval(&q[i], t).div(den));
         let s = dot(p, p);
-        match form {
-            Form::Sphere { r } => s.sqrt().sub(r),
+        let (d, r) = match form {
+            Form::Sphere { r } => (s.sqrt().sub(r), r),
             Form::Wall { axis, r } => {
                 let h = dot(p, axis);
-                s.sub(h.mul(h)).sqrt().sub(r)
+                (s.sub(h.mul(h)).sqrt().sub(r), r)
             }
             Form::Torus { axis, big, small } => {
                 let h = dot(p, axis);
                 let rho = s.sub(h.mul(h)).sqrt().sub(big);
-                rho.mul(rho).add(h.mul(h)).sqrt().sub(small)
+                (rho.mul(rho).add(h.mul(h)).sqrt().sub(small), small)
             }
-        }
-        .to_f64()
+        };
+        (d.to_f64(), d.add(d.mul(d).div(r.scale(2.0))).to_f64())
     };
-    let depth = (0..4)
+    // `dX/dθ ∝ X̃′(1 + t²) − 2j·t·X̃` for `X = X̃/(1 + t²)ʲ`.
+    let turn = |x: &[Dd], j: usize| {
+        p_add(
+            &p_mul(&p_derivative(x), &one_plus),
+            &p_mul(&[Dd::ZERO, Dd::of(-2.0 * j as f64)], x),
+        )
+    };
+    // The residual's extremes in `θ`, read about every anchor, so an
+    // extreme at one anchor's pole is found at another's. On a sphere or
+    // a wall the residual is `F/2r` and they are `F`'s. On a torus
+    // `F = 2r·res·Q`, `Q = (ρ + R)² + h² − r²` at a distance `ρ` from the
+    // axis and a height `h`, and `F`'s extremes are not the residual's:
+    // the residual's slope has the sign of `E = ρ·d|p|²/dθ − R·dρ²/dθ`
+    // (times positive factors), whose zeros are among the real roots of
+    // `E` times its mirror `ρ·d|p|²/dθ + R·dρ²/dθ` — a polynomial, every
+    // root of which is a sign change of it or of its derivative. The
+    // extremes are the roots across which `E` changes sign.
+    let (depth, residual_depth) = (0..4)
         .flat_map(|k| {
             let q = q_tilde(k);
-            let (g, _) = g_of(&q);
-            let slope = p_add(
-                &p_mul(&p_derivative(&g), &one_plus),
-                &p_mul(&[Dd::ZERO, Dd::of(-2.0 * half as f64)], &g),
-            );
-            sign_change_roots(&slope)
-                .into_iter()
-                .map(|t| distance(&q, t).abs())
-                .collect::<Vec<_>>()
+            let at = match form {
+                Form::Sphere { .. } | Form::Wall { .. } => {
+                    let (g, half) = g_of(&q);
+                    sign_change_roots(&turn(&g, half))
+                }
+                Form::Torus { axis, big, .. } => {
+                    let s = square(&q);
+                    let h = along(&q, axis);
+                    let perp = p_add(&s, &p_scale(&p_mul(&h, &h), Dd::of(-1.0)));
+                    let (ds, dperp) = (turn(&s, 2), turn(&perp, 2));
+                    let both = p_add(
+                        &p_mul(&perp, &p_mul(&ds, &ds)),
+                        &p_scale(&p_mul(&p2, &p_mul(&dperp, &dperp)), big.mul(big).neg()),
+                    );
+                    let slope = |t: Dd| {
+                        let rho_ds = p_eval(&perp, t).sqrt().mul(p_eval(&ds, t));
+                        let r_dperp = big.mul(p_eval(&one_plus, t)).mul(p_eval(&dperp, t));
+                        rho_ds.sub(r_dperp).signum()
+                    };
+                    let (mut cuts, turns) = roots_and_turns(&both);
+                    cuts.extend(turns);
+                    cuts.sort_by(|x, y| x.hi.total_cmp(&y.hi).then(x.lo.total_cmp(&y.lo)));
+                    // `E`'s sign on each stretch between cuts, from the one
+                    // before the first to the one past the last.
+                    let one = Dd::of(1.0);
+                    let probes = cuts.first().map(|&c| c.sub(one)).into_iter().chain(
+                        cuts.windows(2)
+                            .map(|w| w[0].add(w[1]).scale(0.5))
+                            .chain(cuts.last().map(|&c| c.add(one))),
+                    );
+                    let mut extremes = Vec::new();
+                    let mut last = 0;
+                    for (i, sign) in probes.map(slope).enumerate() {
+                        if sign != 0 {
+                            if last != 0 && sign != last {
+                                extremes.push(cuts[i - 1]);
+                            }
+                            last = sign;
+                        }
+                    }
+                    extremes
+                }
+            };
+            at.into_iter().map(|t| distance(&q, t)).collect::<Vec<_>>()
         })
-        .fold(f64::INFINITY, f64::min);
-    Truth { roots, depth }
+        .fold((f64::INFINITY, f64::INFINITY), |(d, f), (dt, ft)| {
+            (d.min(dt.abs()), f.min(ft.abs()))
+        });
+    Truth {
+        roots,
+        depth,
+        residual_depth,
+    }
 }

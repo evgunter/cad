@@ -18,24 +18,35 @@ use geom_core::{Bounds, Interval, Tol};
 
 use super::*;
 
-fn band() -> Band {
+pub(super) fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-fn zero() -> f64 {
+pub(super) fn zero() -> f64 {
     band().zero()
 }
 
-fn lift_pcurve(p: &Pcurve<f64>) -> Pcurve<Interval> {
+pub(super) fn lift_pcurve(p: &Pcurve<f64>) -> Pcurve<Interval> {
     let f = Interval::from_f64;
-    let v = |q: Vec2<f64>| Vec2::new(f(q.x), f(q.y));
     match *p {
-        Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
-            p0: Point2::new(f(p0.x), f(p0.y)),
-            pa: v(pa),
-            pb: v(pb),
-            pl: v(pl),
-        },
+        Pcurve::Harmonic { u, v: w } => {
+            let lift = |c: Channel<f64>| match c {
+                Channel::Angle { phase, winding } => Channel::Angle {
+                    phase: f(phase),
+                    winding,
+                },
+                Channel::Free { c, a, b, l } => Channel::Free {
+                    c: f(c),
+                    a: f(a),
+                    b: f(b),
+                    l: f(l),
+                },
+            };
+            Pcurve::Harmonic {
+                u: lift(u),
+                v: lift(w),
+            }
+        }
         Pcurve::FocalSection(FocalImage {
             u0,
             t0,
@@ -63,7 +74,7 @@ fn lift_pcurve(p: &Pcurve<f64>) -> Pcurve<Interval> {
 /// sampled residual is over half the band, and the `f64` envelope stays
 /// under the band and covers the residual up to the samples' own
 /// rounding (coordinates of unit size, a few ulps each).
-fn certifies(
+pub(super) fn certifies(
     what: &str,
     stored: &Pcurve<f64>,
     (t0, t1): (f64, f64),
@@ -97,7 +108,7 @@ fn certifies(
 /// band, the `f64` envelope covers it inside the band up to the
 /// samples' own rounding (coordinates of unit size, a few ulps each),
 /// and the `Interval` envelope's upper end covers it too.
-fn covers(
+pub(super) fn covers(
     what: &str,
     stored: &Pcurve<f64>,
     (t0, t1): (f64, f64),
@@ -128,7 +139,12 @@ fn covers(
     );
 }
 
-fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -> Curve3<f64> {
+pub(super) fn circle(
+    center: Point3<f64>,
+    axis: Vec3<f64>,
+    radius: f64,
+    u_ref: Vec3<f64>,
+) -> Curve3<f64> {
     Curve3::Circle {
         center,
         axis,
@@ -141,7 +157,7 @@ fn circle(center: Point3<f64>, axis: Vec3<f64>, radius: f64, u_ref: Vec3<f64>) -
 /// `(1, −1, 0)/√2`: both `a·z` and `b·z` are `radius·sin φ/√2`, so its
 /// axial deviation from the untilted circle is `radius·sin φ` while the
 /// coefficient sum reads `√2` times that.
-fn tilted_circle(center: Point3<f64>, radius: f64, phi: f64) -> Curve3<f64> {
+pub(super) fn tilted_circle(center: Point3<f64>, radius: f64, phi: f64) -> Curve3<f64> {
     let k = Vec3::new(FRAC_1_SQRT_2, -FRAC_1_SQRT_2, 0.0);
     let (s, c) = phi.sin_cos();
     let turn = |v: Vec3<f64>| v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c));
@@ -183,19 +199,16 @@ fn plane_a_skew_unequal_pair_reads_its_singular_value() {
         u_ref,
     };
     let carrier = circle(origin, normal, 0.5, u_ref);
-    let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &plane, band()).unwrap()
+    let Some((p0, pa, pb, pl)) = chart_pcurve(&carrier, &plane, band())
+        .unwrap()
+        .harmonic_form()
     else {
         panic!("a circle on a plane images harmonic")
     };
     let (da, db) = (Vec2::new(1.0, 0.0), Vec2::new(0.8, 0.3));
     let sigma = harmonic_sup(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.8, 0.3, 0.0));
     let k = 0.8 * zero() / sigma;
-    let stored = Pcurve::Harmonic {
-        p0,
-        pa: pa + da * k,
-        pb: pb + db * k,
-        pl,
-    };
+    let stored = Pcurve::free_harmonic(p0, pa + da * k, pb + db * k, pl);
     certifies("plane, skew pair", &stored, (0.0, TAU), &carrier, &plane);
 }
 
@@ -219,8 +232,8 @@ fn cylinder_meridian_a_radial_circle_reads_once() {
     let carrier = Curve3::Ellipse {
         center: Point3::new(r, 0.0, 1.0),
         axis: u_ref.cross(Vec3::unit_y()),
-        major: a.norm(),
-        minor: d,
+        semi_u: a.norm(),
+        semi_v: d,
         u_ref,
     };
     let image = chart_pcurve(&carrier, &cyl, band()).unwrap();
@@ -305,20 +318,8 @@ fn moving_classes_still_windings_read_their_drift_once() {
         u_ref: Vec3::unit_x(),
     };
     for (what, surface, derivation) in [
-        (
-            "cylinder",
-            &cyl,
-            Derivation::CylinderMoving {
-                beta: Winding::Zero,
-            },
-        ),
-        (
-            "torus",
-            &torus,
-            Derivation::TorusParallel {
-                beta: Winding::Zero,
-            },
-        ),
+        ("cylinder", &cyl, Derivation::CylinderMoving { beta: 0 }),
+        ("torus", &torus, Derivation::TorusParallel { beta: 0 }),
     ] {
         let mut terms = EnvelopeTerms::new();
         incidence(form, surface, derivation, 1.0, &mut terms);
@@ -377,9 +378,10 @@ fn a_tilted_parallel_reads_its_tilt_once() {
 }
 
 /// `scalar`, check 4's fidelity: a cylinder rim's stored image with
-/// its `cos t` and `sin t` coefficients each moved `δ/√2`, in the
-/// axial channel and in the azimuth channel (`δ/(r·√2)`), so the image
-/// stands up to `δ` off the one re-derived.
+/// its axial channel's `cos t` and `sin t` coefficients each moved
+/// `δ/√2`, so the image stands up to `δ` off the one re-derived. (The
+/// azimuth is an angle channel, a phase and its windings, with no
+/// `cos`/`sin` part to move.)
 #[test]
 fn fidelity_a_drifted_pair_reads_once() {
     let r = 0.5;
@@ -390,22 +392,24 @@ fn fidelity_a_drifted_pair_reads_once() {
         u_ref: Vec3::unit_x(),
     };
     let carrier = circle(Point3::origin(), Vec3::unit_z(), r, Vec3::unit_x());
-    let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap() else {
-        panic!("a rim images harmonic")
+    let Pcurve::Harmonic {
+        u,
+        v: Channel::Free { c, a, b, l },
+    } = chart_pcurve(&carrier, &cyl, band()).unwrap()
+    else {
+        panic!("a rim images harmonic, its axial channel free")
     };
     let d = 0.85 * zero() * FRAC_1_SQRT_2;
-    for (what, step) in [
-        ("fidelity v", Vec2::new(0.0, d)),
-        ("fidelity u", Vec2::new(d / r, 0.0)),
-    ] {
-        let stored = Pcurve::Harmonic {
-            p0,
-            pa: pa + step,
-            pb: pb + step,
-            pl,
-        };
-        certifies(what, &stored, (0.0, PI), &carrier, &cyl);
-    }
+    let stored = Pcurve::Harmonic {
+        u,
+        v: Channel::Free {
+            c,
+            a: a + d,
+            b: b + d,
+            l,
+        },
+    };
+    certifies("fidelity v", &stored, (0.0, PI), &carrier, &cyl);
 }
 
 /// `vector` and `scalar`, a cone's focal section with its stored `va`

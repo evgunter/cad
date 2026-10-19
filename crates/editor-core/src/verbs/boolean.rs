@@ -37,10 +37,12 @@ use verbs::{Verb, VerbRecord};
 use crate::names::{self, NamingError};
 use crate::node::RecipeNodeId;
 
-/// A two-operand verb's naming emitter: this node's id, the result
-/// body, the birth record, and the two operands' naming contexts, in.
+/// A two-operand verb's naming emitter: this node's id, the op, the
+/// result body, the birth record, and the two operands' naming
+/// contexts, in.
 pub(crate) type PairEmitter<T> = fn(
     RecipeNodeId,
+    BooleanOp,
     &Body<T>,
     &BooleanNaming,
     &names::OperandCtx<'_, T>,
@@ -70,8 +72,9 @@ pub(crate) struct PairVerb<T: Decide> {
     pub(crate) foreign_record: &'static str,
 }
 
-/// The boolean's record, out of its channel arm: three non-body
-/// halves of the kernel's `BooleanBody`, each the kernel's own type.
+/// The boolean's record, out of its channel arm: its kind, contacts
+/// and naming, each the kernel's own type (the pair verb reads no
+/// other field of `BooleanBody`).
 pub(crate) struct BooleanRecord {
     /// How the result body came to be.
     pub(crate) kind: BooleanResultKind,

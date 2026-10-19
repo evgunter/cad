@@ -14,7 +14,6 @@
 use crate::euler::FaceSurface;
 use crate::fixtures::mvfs_state;
 use geom::Surface;
-use geom_core::Band;
 
 /// **`UncertifiableSurface` is the placeholder state's verdict and no
 /// other state's.** Check 1 reads a `Nurbs` payload's `NetState` and
@@ -34,7 +33,6 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
     // measures — check 1's silence on the masquerade — is unchanged. The
     // public structural door cannot stand in here: the mvfs fixture fails
     // an earlier tier there before check 1 is reached.
-    let band = Band::new(1e-9, 1e-8).unwrap();
     let tol = geom_core::Tol::witness();
     let run = |s: Surface<f64>| {
         let mut st = mvfs_state();
@@ -50,7 +48,6 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
         let mut marks = slotmap::SecondaryMap::new();
         crate::validate::tier3_local_checks_marked::<f64>(
             &st.body,
-            band,
             &mut marks,
             tol,
             crate::validate::PlusVCheck::NotMade,

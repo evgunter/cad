@@ -375,7 +375,7 @@ fn a_given_tangency_through_both_interiors_records_the_face_face_touch() {
         "plate ∪ rod: one verdict, the tangency"
     );
     let verdict = decided.verdicts[0];
-    let given: Vec<topo::GivenPair> = vec![verdict.given_at(verdict.a())];
+    let given: Vec<topo::GluedPair> = vec![verdict.given_at(topo::Operand::A, verdict.a())];
     let decision = *decided
         .coincidences
         .iter()

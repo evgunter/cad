@@ -17,17 +17,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use editor_core::{
-    Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocRef,
-    DocumentId, EntityKind, Frame, MateFrame, MatePrimitive, MintRefusal, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, assemble, product_recorded,
+    AssemblyError, Attribution, CapEnd, ContactClass, Coord, DocEdit, DocRef, DocumentId,
+    EntityKind, Frame, MateRef, MintRefusal, Node, ProfileDoc, RecipeNodeId, RoleSeg, SlideAxis,
+    StableName, Value, assemble, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{insert, len, on_frame, run, step};
+use fixture::{insert, len, mated_instance, on_frame, run};
 use geom_core::Tol;
 
 // ---- Evaluation through the shared part store ----
@@ -72,11 +71,12 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 
 /// The same reading, one level deeper: `instance`'s part is ITSELF an
 /// assembly, and the face wanted is the cap of the cube inside the
-/// sub-instance `sub` of that assembly, as the copy its world
-/// placement `copy` defines (A10), `body` the cube part's body.
+/// sub-instance `sub` of that assembly — an instance is a placement,
+/// so its copy carries the face under the instance's own wrapper —
+/// `body` the cube part's body.
 fn in_part_in_part(
     instance: RecipeNodeId,
-    (sub, copy): (RecipeNodeId, RecipeNodeId),
+    sub: RecipeNodeId,
     body: RecipeNodeId,
     cap: CapEnd,
 ) -> StableName {
@@ -84,46 +84,79 @@ fn in_part_in_part(
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: in_part(sub, body, cap).in_copy(copy).into(),
+            of: in_part(sub, body, cap).into(),
         }],
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
-        .expect("a definite frame")
-}
-
 /// A `Rest` mate declaring `a`'s TOP face against `b`'s BOTTOM face,
-/// seating `b` at height `seat` by frame coincidence. `seat = 1.0`
-/// puts `b`'s bottom exactly on `a`'s top (the unit cube is z ∈ [0,1]);
-/// anything larger leaves a definite gap and the declaration is FALSE.
-fn rest_mate(a: StableName, b: StableName, seat: f64) -> AuthoredNode {
-    classed_mate(a, b, seat, ContactClass::Rest)
+/// standing `b` `apart` beside `a` ([`Seat`]). `apart = 0.0` puts `b`'s
+/// bottom square on `a`'s top (the unit cube is z ∈ [0,1]); `2.0`
+/// leaves the two faces coplanar with a unit of clear air between them,
+/// and the declaration is FALSE.
+fn rest_mate(a: StableName, b: StableName, apart: f64) -> Seat {
+    classed_mate(a, b, apart, ContactClass::Rest)
 }
 
 /// [`rest_mate`]'s shape at an arbitrary class — the totality rows need
-/// a `Tangent` declaration, whose class mints no record at rest.
-fn classed_mate(a: StableName, b: StableName, seat: f64, class: ContactClass) -> AuthoredNode {
-    Node::Mate {
-        a: crate::fixture::head(a).into(),
-        b: crate::fixture::head(b).into(),
-        class,
-        alignment: Alignment {
-            a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
-            b: frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Aligned,
-            clocking: None,
-        },
+/// a `Tangent` declaration, whose class mints no record at rest: `b`'s
+/// face's plane on `a`'s, facing it.
+fn classed_mate(a: StableName, b: StableName, apart: f64, class: ContactClass) -> Seat {
+    Seat {
+        mate: fixture::rest(fixture::head(b), fixture::head(a), class),
+        apart,
     }
 }
 
+/// **A rest and how far beside its target it stands**: the copy's
+/// own origin slid `apart` along x from the target's in the rested
+/// plane. `0.0` stands the two unit cubes square, face to face; `2.0`
+/// leaves the faces coplanar with a unit of clear air between their
+/// trims, so the declaration is FALSE.
+struct Seat {
+    mate: editor_core::Mate<Formula>,
+    apart: f64,
+}
+
+/// `seat`'s mate added to `placement`'s bundle with the three freedoms
+/// a plane mate leaves set: a slide of `apart` along x, none along y,
+/// and no spin, so it pins the copy.
+fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, MateRef) {
+    let (doc, m) = fixture::constrain_at(doc, placement, seat.mate);
+    let doc = [
+        (Coord::Slide(SlideAxis::X), len(seat.apart)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Spin, fixture::ang(0.0)),
+    ]
+    .into_iter()
+    .fold(doc, |doc, (coord, by)| {
+        fixture::step(
+            doc,
+            DocEdit::AddValue {
+                placement: m.placement,
+                value: Box::new(Value {
+                    mate: m.id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+        )
+        .0
+    });
+    (doc, m)
+}
+
+/// [`seated_at`] on the placement the seat's `on` reads.
+fn seated(doc: ProfileDoc, seat: Seat) -> (ProfileDoc, MateRef) {
+    let placement = fixture::placed_by(&doc, &seat.mate);
+    seated_at(doc, placement, seat)
+}
+
 /// A reference that resolves to NO product face: the part's body has
-/// caps, but node 99 does not exist in it at all. The mate is still a
-/// LIVE value — the reference is resolved at the mint door, not the
-/// solve one — so it reaches [`mint`](editor_core::assemble) and is
-/// refused there, which is what the totality rows need.
+/// caps, but node 99 does not exist in it at all. The constraint is
+/// admitted — the door reads the name, not the part's faces — and the
+/// placement it is in refuses at evaluation.
 fn dangling(instance: RecipeNodeId) -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -142,69 +175,85 @@ fn dangling(instance: RecipeNodeId) -> StableName {
 /// **Issue 946's inner document**: a stand whose validity DEPENDS on
 /// its mate — two cubes seated one on the other, the contact declared
 /// by the mate and by nothing else. Its own `assemble` is green at
-/// `seat = 1.0`; at a larger seat the declaration is false. `body` is
-/// `part`'s body.
+/// `apart = 0.0`; standing the upper cube beside the lower one, the
+/// declaration is false ([`Seat`]). `body` is `part`'s body.
 ///
-/// Returns the document, its two instance ids, and its mate's id.
+/// Returns the document, its two instance ids (the lower pinned to the
+/// world, the upper placed by the mate), and its mate's address.
 fn stand(
     label: &str,
     part: DocRef,
     body: RecipeNodeId,
-    seat: f64,
-) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
-    let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let mut ids = Vec::new();
-    for _ in 0..2 {
-        let (next, id) = insert(doc, Node::instantiate_part(part));
+    apart: f64,
+    store: &PartStore,
+) -> (ProfileDoc, Vec<RecipeNodeId>, MateRef) {
+    classed_stand(label, part, body, apart, ContactClass::Rest, store)
+}
+
+/// [`stand`] with its mate declaring `class`.
+fn classed_stand(
+    label: &str,
+    part: DocRef,
+    body: RecipeNodeId,
+    apart: f64,
+    class: ContactClass,
+    store: &PartStore,
+) -> (ProfileDoc, Vec<RecipeNodeId>, MateRef) {
+    let (doc, ids) = seated_row(label, part, 2, store);
+    let (doc, mate) = seated(
+        doc,
+        classed_mate(
+            in_part(ids[0], body, CapEnd::End),
+            in_part(ids[1], body, CapEnd::Start),
+            apart,
+            class,
+        ),
+    );
+    (doc, ids, mate)
+}
+
+/// `count` instances of `part`: the first pinned to the world, the rest
+/// with empty bundles, each a loose copy until a mate places it.
+fn seated_row(
+    label: &str,
+    part: DocRef,
+    count: usize,
+    store: &PartStore,
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (mut doc, first) = fixture::insert_pinned(
+        doc,
+        Node::instantiate_part(part),
+        &with_resolver(store.clone()),
+    );
+    let mut ids = vec![first];
+    for _ in 1..count {
+        let (next, id) = insert(doc, mated_instance(part));
         doc = next;
         ids.push(id);
     }
-    let doc = crate::fixture::place_all(doc, &ids);
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(rest_mate(
-                in_part(ids[0], body, CapEnd::End),
-                in_part(ids[1], body, CapEnd::Start),
-                seat,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    (doc, ids, mate.expect("the mate mints"))
+    (doc, ids)
 }
 
-/// `count` instances of `part`, each displaced `spacing * i` along +x
-/// so the copies stay disjoint (ASM-2B row 4's shape).
+/// `count` instances of `part`, each pinned `spacing * i` along +x so
+/// the copies stay disjoint (ASM-2B row 4's shape).
 fn row_of(
     label: &str,
     part: DocRef,
     count: usize,
     spacing: f64,
+    store: &PartStore,
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let o = with_resolver(store.clone());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for i in 0..count {
-        let (next, id) = insert(doc, Node::instantiate_part(part));
-        doc = next;
-        if i > 0 {
-            #[allow(clippy::cast_precision_loss)]
-            let dx = spacing * i as f64;
-            let (next, _) = step(
-                doc,
-                DocEdit::SetOffset {
-                    instance: id,
-                    offset: Some(editor_core::Placement::literal(&Frame::translation([
-                        dx, 0.0, 0.0,
-                    ]))),
-                    fresh: Vec::new(),
-                },
-            );
-            doc = next;
-        }
+        let (next, id) = insert(doc, mated_instance(part));
+        #[allow(clippy::cast_precision_loss)]
+        let dx = spacing * i as f64;
+        doc = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
         ids.push(id);
     }
-    let doc = crate::fixture::place_all(doc, &ids);
     (doc, ids)
 }
 
@@ -237,9 +286,9 @@ fn findings(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Vec<S
 fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-cube"), Tol::witness());
-    let (inner, _, _) = stand("mate6-stand", part, body, 1.0);
+    let (inner, _, _) = stand("mate6-stand", part, body, 0.0, &store);
     let inner_ref = store.insert(inner, Tol::witness());
-    let (outer, ids) = row_of("mate6-row", inner_ref, 3, 4.0);
+    let (outer, ids) = row_of("mate6-row", inner_ref, 3, 4.0, &store);
 
     let ev = run(&outer, &with_resolver(store));
     let gathered = product_recorded(&outer, &ev, Tol::witness()).expect("the row gathers");
@@ -277,12 +326,12 @@ fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
 fn the_carry_survives_a_second_nesting_level() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-deep-cube"), Tol::witness());
-    let (inner, _, _) = stand("mate6-deep-stand", part, body, 1.0);
+    let (inner, _, _) = stand("mate6-deep-stand", part, body, 0.0, &store);
     let inner_ref = store.insert(inner, Tol::witness());
     // The MID document is a pair of stands, side by side and disjoint.
-    let (mid, _) = row_of("mate6-deep-mid", inner_ref, 2, 4.0);
+    let (mid, _) = row_of("mate6-deep-mid", inner_ref, 2, 4.0, &store);
     let mid_ref = store.insert(mid, Tol::witness());
-    let (outer, _) = row_of("mate6-deep-outer", mid_ref, 2, 12.0);
+    let (outer, _) = row_of("mate6-deep-outer", mid_ref, 2, 12.0, &store);
 
     let ev = run(&outer, &with_resolver(store));
     let gathered = product_recorded(&outer, &ev, Tol::witness()).expect("the deep row gathers");
@@ -303,18 +352,18 @@ fn the_carry_survives_a_second_nesting_level() {
 
 /// INVARIANT (**the ruling's soundness clause**): carrying a
 /// declaration is not trusting it. An inner document whose OWN mate
-/// declares a seat its geometry does not make — the two cubes are a
-/// half-unit apart — gathers and instantiates fine, and the outer
-/// census REFUTES the carried declaration, never passes it silently.
+/// declares a seat its geometry does not make — the two cubes' faces
+/// coplanar with a unit of clear air between them — gathers and
+/// instantiates fine, and the outer census REFUTES the carried
+/// declaration, never passes it silently.
 ///
 /// **Which refuting arm** is the geometry's to choose, and this row
-/// reads the one that fires rather than naming it in advance: parallel
-/// faces a definite half-unit apart are counter-EVIDENCE, so the census
-/// answers `ContactContradicted` — the stronger sibling of
-/// `StaleContactDeclaration`, which is the *absence* of a witness. Both
-/// are the refuting direction and both are findings against the
-/// document; a row that demanded the weaker one would be asserting the
-/// fixture, not the invariant.
+/// reads the one that fires rather than naming it in advance: a rest
+/// makes its two faces coplanar, so no counter-evidence separates their
+/// carriers, and what refutes is the *absence* of a witness — one
+/// carrier whose trims are definitely disjoint, `StaleContactDeclaration`.
+/// A row that demanded another arm would be asserting the fixture, not
+/// the invariant.
 ///
 /// The finding NAMES the mate that authored the declaration, and the
 /// document and instance it reached this gate through: attribution is
@@ -326,10 +375,10 @@ fn the_carry_survives_a_second_nesting_level() {
 fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-gap-cube"), Tol::witness());
-    let (inner, _, inner_mate) = stand("mate6-gap-stand", part, body, 1.5);
+    let (inner, _, inner_mate) = stand("mate6-gap-stand", part, body, 2.0, &store);
     let inner_id = inner.id();
     let inner_ref = store.insert(inner, Tol::witness());
-    let (outer, instances) = row_of("mate6-gap-row", inner_ref, 1, 4.0);
+    let (outer, instances) = row_of("mate6-gap-row", inner_ref, 1, 4.0, &store);
 
     let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
@@ -337,21 +386,12 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
     // The arm that FIRES is asserted, not "either refuting arm": the
     // invariant this row defends is that the outer census re-verifies
     // what it consumed, and that is what makes the refutation loud
-    // either way — but a fixture whose faces are a definite half-unit
-    // apart is definite COUNTER-EVIDENCE, so `ContactContradicted` is
-    // the arm the kernel's own vocabulary assigns it.
-    //
-    // Drift-acceptance, stated: if this ever lands
-    // `StaleContactDeclaration` instead, that is a change in the
-    // kernel's refutation vocabulary — a real event, and one that
-    // should reach a reader as a failing row here rather than pass
-    // unnoticed under a disjunction. Update it deliberately, with the
-    // reason, and give `attribute`'s staleness arm the acceptance row
-    // it has never had.
+    // either way — but faces on one carrier whose trims are a unit
+    // apart have no witness, so `StaleContactDeclaration` is the arm
+    // the kernel's own vocabulary assigns it.
     assert!(
-        raised.iter().any(|f| f.contains("ContactContradicted")),
-        "the outer census re-verifies what it consumed, with definite \
-         counter-evidence: {raised:?}"
+        raised.iter().any(|f| f.contains("StaleContactDeclaration")),
+        "the outer census re-verifies what it consumed, and finds no witness: {raised:?}"
     );
     let Err(AssemblyError::AtRest { findings }) = &result else {
         panic!("a refuted declaration is a finding against the document: {result:?}");
@@ -386,33 +426,21 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
 fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-outer-cube"), Tol::witness());
-    let (inner, subs, _) = stand("mate6-outer-stand", part, body, 1.0);
-    let copies = inner.placements();
+    let (inner, subs, _) = stand("mate6-outer-stand", part, body, 0.0, &store);
     let inner_ref = store.insert(inner, Tol::witness());
 
-    // Two stands, and an OUTER mate seating the second stand's lower
-    // cube on the first stand's upper cube — at a seat half a unit too
-    // high, so the declaration is false of the geometry it places.
-    let mut doc = ProfileDoc::empty(DocumentId::derive("mate6-outer-row"), Tol::witness());
-    let mut ids = Vec::new();
-    for _ in 0..2 {
-        let (next, id) = insert(doc, Node::instantiate_part(inner_ref));
-        doc = next;
-        ids.push(id);
-    }
-    let doc = crate::fixture::place_all(doc, &ids);
-    let (doc, mate) = step(
+    // Two stands, and an OUTER mate resting the second stand's lower
+    // cube on the first stand's upper cube's plane — two units beside it,
+    // so the declaration is false of the geometry it places.
+    let (doc, ids) = seated_row("mate6-outer-row", inner_ref, 2, &store);
+    let (doc, mate) = seated(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(rest_mate(
-                in_part_in_part(ids[0], (subs[1], copies[1]), body, CapEnd::End),
-                in_part_in_part(ids[1], (subs[0], copies[0]), body, CapEnd::Start),
-                2.5,
-            )),
-            fresh: Vec::new(),
-        },
+        rest_mate(
+            in_part_in_part(ids[0], subs[1], body, CapEnd::End),
+            in_part_in_part(ids[1], subs[0], body, CapEnd::Start),
+            2.0,
+        ),
     );
-    let mate = mate.expect("the outer mate mints");
 
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the pair gathers");
@@ -444,7 +472,7 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
 fn assemble_gates_the_gathers_own_record_set_and_mints_nothing() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-once-cube"), Tol::witness());
-    let (doc, _, mate) = stand("mate6-once-stand", part, body, 1.0);
+    let (doc, _, mate) = stand("mate6-once-stand", part, body, 0.0, &store);
 
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the stand gathers");
@@ -475,7 +503,7 @@ fn assemble_gates_the_gathers_own_record_set_and_mints_nothing() {
 fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
     let mut store = PartStore::default();
     let (part, _) = store.insert_part(cube_part("mate6-bare-cube"), Tol::witness());
-    let (doc, _) = row_of("mate6-bare-row", part, 3, 4.0);
+    let (doc, _) = row_of("mate6-bare-row", part, 3, 4.0, &store);
 
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the bare row gathers");
@@ -500,28 +528,22 @@ fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
 fn mint_makes_face_face_records_and_nothing_else() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-shape-cube"), Tol::witness());
-    let (doc, ids) = row_of("mate6-shape-row", part, 3, 4.0);
-    let (doc, _) = step(
+    let (doc, ids) = seated_row("mate6-shape-row", part, 3, &store);
+    let (doc, _) = seated(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(rest_mate(
-                in_part(ids[0], body, CapEnd::End),
-                in_part(ids[1], body, CapEnd::Start),
-                1.0,
-            )),
-            fresh: Vec::new(),
-        },
+        rest_mate(
+            in_part(ids[0], body, CapEnd::End),
+            in_part(ids[1], body, CapEnd::Start),
+            0.0,
+        ),
     );
-    let (doc, _) = step(
+    let (doc, _) = seated(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(rest_mate(
-                in_part(ids[1], body, CapEnd::End),
-                in_part(ids[2], body, CapEnd::Start),
-                1.0,
-            )),
-            fresh: Vec::new(),
-        },
+        rest_mate(
+            in_part(ids[1], body, CapEnd::End),
+            in_part(ids[2], body, CapEnd::Start),
+            0.0,
+        ),
     );
 
     let ev = run(&doc, &with_resolver(store));
@@ -549,25 +571,15 @@ fn mint_makes_face_face_records_and_nothing_else() {
 fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-tangent-cube"), Tol::witness());
-    let (doc, ids, _) = stand("mate6-tangent-stand", part, body, 1.0);
-    let mut node = rest_mate(
-        in_part(ids[0], body, CapEnd::End),
-        in_part(ids[1], body, CapEnd::Start),
-        1.0,
+    // The stand, seated by a Tangent mate rather than a Rest one.
+    let (doc, _, tangent) = classed_stand(
+        "mate6-tangent-stand",
+        part,
+        body,
+        0.0,
+        ContactClass::Tangent,
+        &store,
     );
-    if let Node::Mate { class, .. } = &mut node {
-        *class = ContactClass::Tangent;
-    }
-    // Replace the stand's Rest mate with a Tangent one by authoring a
-    // second document holding only the tangent declaration.
-    let (doc, tangent) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(node),
-            fresh: Vec::new(),
-        },
-    );
-    let tangent = tangent.expect("the tangent mate mints");
 
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness())
@@ -601,48 +613,44 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
 // Every row ABOVE is blind to the difference, by construction: each
 // places its unmintable mate LAST in document order, so a walk that
 // stops there has already minted everything a total walk would. The
-// three rows below are the guard, and they are split by REFUSAL KIND
-// because `mint` has two independent `continue`s — the unresolved
-// reference and the unmintable class — and a mutation to one is not a
-// mutation to the other. Each row puts its bad mate BEFORE a good one
-// and asserts the good one's record survives.
+// three rows below are the guard. Each puts its bad mate BEFORE a good
+// one and asserts the good one's record survives: a constraint whose
+// reference resolves to nothing (its placement fails, so it is put out
+// of the product, where its failure stops nothing), and the unmintable
+// class, which mints a row and continues.
 
-/// GUARD (`mint`'s reference arm): a mate whose reference resolves to no
-/// product face is recorded and STEPPED OVER — the mate authored after
-/// it still mints. Stopping at the bad reference would drop a
-/// declaration the document really does state, which at the seam is a
-/// contact the consuming document then cannot account for.
+/// GUARD (`mint`'s reference arm, restated over a loose copy): a
+/// constraint whose side resolves to no face fails its placement, and a
+/// failed placement in the product refuses the gather. Its placement is
+/// put out of the product here — its target is a copy no bundle pins —
+/// so its failure stops nothing: the mate authored after it still
+/// mints, and the bad one's refusal is its placement's, at evaluation.
 #[test]
 fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-tot-ref-cube"), Tol::witness());
-    let (doc, ids) = row_of("mate6-tot-ref-row", part, 3, 4.0);
-    let (doc, bad) = step(
+    let (doc, ids) = seated_row("mate6-tot-ref-row", part, 4, &store);
+    // `ids[3]` stays loose: the copy the bad constraint places is in its
+    // space, not the world.
+    let (doc, bad) = seated_at(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(rest_mate(
-                dangling(ids[0]),
-                in_part(ids[1], body, CapEnd::Start),
-                1.0,
-            )),
-            fresh: Vec::new(),
-        },
+        ids[1],
+        rest_mate(dangling(ids[3]), in_part(ids[1], body, CapEnd::Start), 0.0),
     );
-    let bad = bad.expect("the dangling mate is still a node");
-    let (doc, good) = step(
+    let (doc, good) = seated(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(rest_mate(
-                in_part(ids[1], body, CapEnd::End),
-                in_part(ids[2], body, CapEnd::Start),
-                1.0,
-            )),
-            fresh: Vec::new(),
-        },
+        rest_mate(
+            in_part(ids[0], body, CapEnd::End),
+            in_part(ids[2], body, CapEnd::Start),
+            0.0,
+        ),
     );
-    let good = good.expect("the good mate mints");
 
     let ev = run(&doc, &with_resolver(store));
+    assert!(
+        ev.node_error(bad.placement).is_some(),
+        "the bad reference fails its placement"
+    );
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(
         gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
@@ -654,18 +662,9 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
         1,
         "and its record is in the set the gate will read"
     );
-    assert_eq!(
-        gathered
-            .unminted
-            .iter()
-            .map(MintRefusal::mate)
-            .collect::<Vec<_>>(),
-        vec![bad],
-        "the bad reference is a ROW, not a stop"
-    );
     assert!(
-        matches!(gathered.unminted[0], MintRefusal::Unevaluated { .. }),
-        "recorded under the mate's own refusal: {:?}",
+        gathered.unminted.is_empty(),
+        "a constraint off the product is asked nothing by its gather: {:?}",
         gathered.unminted
     );
 }
@@ -677,34 +676,27 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
 fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-tot-class-cube"), Tol::witness());
-    let (doc, ids) = row_of("mate6-tot-class-row", part, 3, 4.0);
-    // Non-touching (seat 1.5) so the Tangent declares without seating
-    // anything: this row is about the mint walk, not about geometry.
-    let (doc, bad) = step(
+    let (doc, ids) = seated_row("mate6-tot-class-row", part, 3, &store);
+    // Non-touching (two units beside) so the Tangent places its cube
+    // without seating it: this row is about the mint walk, not about
+    // geometry.
+    let (doc, bad) = seated(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(classed_mate(
-                in_part(ids[0], body, CapEnd::End),
-                in_part(ids[1], body, CapEnd::Start),
-                1.5,
-                ContactClass::Tangent,
-            )),
-            fresh: Vec::new(),
-        },
+        classed_mate(
+            in_part(ids[0], body, CapEnd::End),
+            in_part(ids[1], body, CapEnd::Start),
+            2.0,
+            ContactClass::Tangent,
+        ),
     );
-    let bad = bad.expect("the tangent mate is still a node");
-    let (doc, good) = step(
+    let (doc, good) = seated(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(rest_mate(
-                in_part(ids[1], body, CapEnd::End),
-                in_part(ids[2], body, CapEnd::Start),
-                1.0,
-            )),
-            fresh: Vec::new(),
-        },
+        rest_mate(
+            in_part(ids[1], body, CapEnd::End),
+            in_part(ids[2], body, CapEnd::Start),
+            0.0,
+        ),
     );
-    let good = good.expect("the good mate mints");
 
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
@@ -729,58 +721,61 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
     );
 }
 
-/// GUARD (the rows, and their ORDER): a document that refuses BOTH ways
+/// GUARD (the rows, and their ORDER): a document that refuses twice
 /// with a good mate between them. The refusal rows are the whole set, in
 /// DOCUMENT ORDER — which is what makes `assemble`'s "raise every one"
 /// a statement about the document rather than about the walk.
 ///
 /// This is the row the stop-at-first-bad-mate walk cannot pass on any
 /// assertion: it would mint nothing, record one refusal, and never reach
-/// the second.
+/// the second. A constraint whose reference resolves to nothing fails
+/// its placement rather than minting a row; one is here too, on a copy
+/// out of the product, and its refusal is its placement's at evaluation
+/// while the rows stand.
 #[test]
 fn every_unmintable_mate_gets_its_row_in_document_order() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-tot-order-cube"), Tol::witness());
-    let (doc, ids) = row_of("mate6-tot-order-row", part, 3, 4.0);
-    let (doc, first_bad) = step(
+    let (doc, ids) = seated_row("mate6-tot-order-row", part, 6, &store);
+    let (doc, first_bad) = seated(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(classed_mate(
-                in_part(ids[0], body, CapEnd::End),
-                in_part(ids[1], body, CapEnd::Start),
-                1.5,
-                ContactClass::Tangent,
-            )),
-            fresh: Vec::new(),
-        },
+        classed_mate(
+            in_part(ids[0], body, CapEnd::End),
+            in_part(ids[1], body, CapEnd::Start),
+            2.0,
+            ContactClass::Tangent,
+        ),
     );
-    let first_bad = first_bad.expect("the tangent mate is a node");
-    let (doc, good) = step(
+    let (doc, good) = seated(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(rest_mate(
-                in_part(ids[1], body, CapEnd::End),
-                in_part(ids[2], body, CapEnd::Start),
-                1.0,
-            )),
-            fresh: Vec::new(),
-        },
+        rest_mate(
+            in_part(ids[1], body, CapEnd::End),
+            in_part(ids[2], body, CapEnd::Start),
+            0.0,
+        ),
     );
-    let good = good.expect("the good mate mints");
-    let (doc, second_bad) = step(
+    // `ids[5]` stays loose, so the copy this bad reference places is out
+    // of the product.
+    let (doc, dangling_mate) = seated_at(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(rest_mate(
-                dangling(ids[2]),
-                in_part(ids[0], body, CapEnd::Start),
-                1.0,
-            )),
-            fresh: Vec::new(),
-        },
+        ids[4],
+        rest_mate(dangling(ids[5]), in_part(ids[4], body, CapEnd::Start), 0.0),
     );
-    let second_bad = second_bad.expect("the dangling mate is a node");
+    let (doc, second_bad) = seated(
+        doc,
+        classed_mate(
+            in_part(ids[2], body, CapEnd::End),
+            in_part(ids[3], body, CapEnd::Start),
+            2.0,
+            ContactClass::Tangent,
+        ),
+    );
 
     let ev = run(&doc, &with_resolver(store));
+    assert!(
+        ev.node_error(dangling_mate.placement).is_some(),
+        "the bad reference fails its placement"
+    );
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(
         gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
@@ -798,9 +793,11 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
         "both refusals, in document order"
     );
     assert!(
-        matches!(gathered.unminted[0], MintRefusal::NoAtRestRecord { .. })
-            && matches!(gathered.unminted[1], MintRefusal::Unevaluated { .. }),
-        "each under its own arm: {:?}",
+        gathered
+            .unminted
+            .iter()
+            .all(|row| matches!(row, MintRefusal::NoAtRestRecord { .. })),
+        "each under the class arm: {:?}",
         gathered.unminted
     );
     // And the door that raises reads the WHOLE set, in document order:
@@ -813,20 +810,16 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
                 vec![first_bad, second_bad],
                 "every refusal, in document order"
             );
-            assert!(
-                matches!(refusals[0], MintRefusal::NoAtRestRecord { .. })
-                    && matches!(refusals[1], MintRefusal::Unevaluated { .. }),
-                "each still under its own arm: {refusals:?}"
-            );
             let rendered = AssemblyError::Mint { refusals }.to_string();
+            let said = |mate: MateRef| {
+                format!(
+                    "constraint {} of node {}",
+                    mate.id,
+                    test_utils::refusal::tag(mate.placement.0.digest())
+                )
+            };
             assert!(
-                rendered.contains(&format!(
-                    "mate {}",
-                    test_utils::refusal::tag(first_bad.0.digest())
-                )) && rendered.contains(&format!(
-                    "mate {}",
-                    test_utils::refusal::tag(second_bad.0.digest())
-                )),
+                rendered.contains(&said(first_bad)) && rendered.contains(&said(second_bad)),
                 "and both are in the one message: {rendered:?}"
             );
         }
@@ -836,20 +829,25 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
 
 // ---- What a record cites ----
 
-/// **A mate's record cites the at-rest census's decision, and the lint
-/// reports it** (D10: a mate places and never checks; D1 (ii): a record
-/// cites its decision). The stand's one patch cites row 0 of the
-/// product's rows, the census's `SameOpposite` decision of the two
-/// seated caps, kept beside the mate whose pair it decided; and
-/// `unproven-coincidence` reports that row against the mate, since no
-/// rung proves two placed copies' faces one construction yet. Red if
-/// the mint makes a record citing nothing the product holds, or the
-/// lint stays silent about the census's row.
+/// **A mated record cites the census's row, named in its copies, and
+/// the lint reports it.** Two cubes of one part, the second rested on
+/// the first by a plane mate and its three values: the product holds one
+/// face–face record, citing its row 0, the at-rest census's decision that
+/// the two seated caps rest on one carrier, kept beside the mate whose
+/// pair it decided. The row names each cap in its copy, as that
+/// instance's output names it. `unproven-coincidence` reports the row
+/// against the mate, not replayed: the door builds no placed copies at
+/// `Sym` ([`editor_core::coincide::REPLAYS_PLACED_COPIES`], off until
+/// `work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`),
+/// so it has no form of the row and its recourse is an assertion.
+///
+/// Red if the mint makes a record citing nothing the product holds,
+/// names a cap anywhere but in its copy, or the lint stays silent.
 #[test]
 fn a_mated_record_cites_the_census_row_the_lint_reports() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-cites-cube"), Tol::witness());
-    let (stand, _, mate) = stand("mate6-cites-stand", part, body, 1.0);
+    let (stand, ids, mate) = stand("mate6-cites-stand", part, body, 0.0, &store);
     let ev = run(&stand, &with_resolver(store));
     let product = product_recorded(&stand, &ev, Tol::witness()).expect("the stand gathers");
     assert_eq!(
@@ -872,6 +870,22 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
     );
     assert_eq!(row.row.site, topo::DecisionSite::CensusAtRest);
     assert_eq!(row.row.relation, topo::Relation::SameOpposite);
+    let mut inputs: Vec<editor_core::VarId> = row
+        .row
+        .cells
+        .iter()
+        .map(|cell| match cell {
+            editor_core::NamedCell::Entity { input, .. } => *input,
+            other => panic!("a census cell is an entity: {other:?}"),
+        })
+        .collect();
+    inputs.sort();
+    let mut copies: Vec<editor_core::VarId> = ids
+        .iter()
+        .map(|&id| stand.output(id, 0).expect("an instance defines its copies"))
+        .collect();
+    copies.sort();
+    assert_eq!(inputs, copies, "each cap is named in its own copy");
     assert!(
         product.refused_at_rest.is_empty(),
         "{:?}",
@@ -888,60 +902,29 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
         report.findings.iter().any(|f| matches!(
             &f.evidence,
             editor_core::CheckEvidence::UnprovenCoincidence {
+                residual,
                 recourse: editor_core::coincide::Recourse::Assert,
                 ..
-            }
-        ) && f.subject == editor_core::FindingSubject::Node(mate)),
-        "the census's row is reported against its mate, and the door, which does not \
-         replay the product, has no form of it to read, so its recourse is an assertion: \
-         {report}"
-    );
-}
-
-/// **A pair the census refuses mints no record**: seated half a unit
-/// apart, the stand's caps are definitely two carriers, so the census's
-/// decision is the finding `ContactContradicted`, no record is minted,
-/// and the product holds the finding for the gate. Red if a record
-/// ships with no decision behind it.
-#[test]
-fn a_pair_the_census_refuses_mints_no_record() {
-    let mut store = PartStore::default();
-    let (part, body) = store.insert_part(cube_part("mate6-refused-cube"), Tol::witness());
-    let (stand, _, _) = stand("mate6-refused-stand", part, body, 1.5);
-    let ev = run(&stand, &with_resolver(store));
-    let product = product_recorded(&stand, &ev, Tol::witness()).expect("the stand gathers");
-    assert!(
-        product.contacts.face_face().next().is_none(),
-        "{:?}",
-        product.contacts
-    );
-    assert!(
-        product.coincidences.is_empty(),
-        "{:?}",
-        product.coincidences
-    );
-    assert!(
-        matches!(
-            product.refused_at_rest.as_slice(),
-            [topo::ValidationError::ContactContradicted { .. }]
-        ),
-        "{:?}",
-        product.refused_at_rest
+            } if residual.replay == editor_core::Unreplayed::NotReplayed
+        ) && f.subject
+            == editor_core::FindingSubject::Node(mate.placement)),
+        "the census's row is reported against its mate, not replayed: {report}"
     );
 }
 
 /// **Across the instantiate seam a record cites the part's record**:
 /// the instance's patch cites record 0 of its one input, the part, and
-/// the row's product cites that instance's record through its root.
+/// the row's product, whose one placement is that instance, cites the
+/// same record of the same part.
 /// Red if the seam carries the part's citations unchanged (they name
 /// the part's rows, which the instance does not hold).
 #[test]
 fn an_instances_record_cites_the_parts_record() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-seam-cube"), Tol::witness());
-    let (stand, _, _) = stand("mate6-seam-stand", part, body, 1.0);
+    let (stand, _, _) = stand("mate6-seam-stand", part, body, 0.0, &store);
     let stand_ref = store.insert(stand, Tol::witness());
-    let (outer, instances) = row_of("mate6-seam-row", stand_ref, 1, 4.0);
+    let (outer, instances) = row_of("mate6-seam-row", stand_ref, 1, 4.0, &store);
     let ev = run(&outer, &with_resolver(store));
     let value = ev.value(instances[0]).expect("the instance evaluates");
     assert_eq!(
@@ -963,73 +946,60 @@ fn an_instances_record_cites_the_parts_record() {
             record: 0
         })
     );
-    // The product cites its placement's records by the placement's
-    // read of the instance.
-    let [editor_core::CitedInput::Read(read)] = product.cited_inputs[..] else {
-        panic!("one input, read: {:?}", product.cited_inputs);
-    };
-    assert_eq!(outer.operation_of(read), Some(instances[0]));
+    // The instance is the product's one placement, so the product
+    // cites its records by the part the instance references.
+    assert_eq!(
+        product.cited_inputs,
+        vec![editor_core::CitedInput::Part(stand_ref)],
+        "one input: the instance's part"
+    );
 }
 
-/// **The at-rest gate's skip takes only a mate whose member is
-/// unplaced** (F's Q8 rule, landing with the world): two placed
-/// instances and a third nothing places, a mate between the placed two
-/// and one from the second to the unplaced third. The gather mints
-/// exactly the first mate, and the second states nothing (no record,
-/// no refusal), because its member is in no product.
+/// **The gather mints only the mates of the space it gathers** (F's Q8
+/// rule, landing with the world): a placed pair — a base pinned to the
+/// world and a cube seated on it — and a loose pair, a cube no bundle
+/// pins and a second seated on it. The world's gather mints exactly the
+/// placed pair's mate, and the loose pair's mate states nothing (no
+/// record, no refusal), because its copies are in no product.
 ///
-/// Red if the skip swallows a mate whose members ARE placed (nothing
-/// minted), or stops skipping the unplaced one (two minted, or a
-/// refusal for its unresolved face).
+/// Red if the skip swallows a mate whose copies ARE in the world
+/// (nothing minted), or stops skipping the loose one (two minted, or a
+/// refusal for a face the product does not hold).
 #[test]
-fn the_gate_skips_a_mate_on_an_unplaced_member_and_mints_the_placed_ones() {
+fn the_gate_skips_a_mate_on_a_loose_copy_and_mints_the_placed_ones() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-world-skip-cube"), Tol::witness());
-    let (doc, ids) = row_of("mate6-world-skip-row", part, 2, 4.0);
-    let (doc, unplaced) = insert(doc, Node::instantiate_part(part));
-    let (doc, _) = step(
+    let (doc, ids) = seated_row("mate6-world-skip-row", part, 2, &store);
+    let (doc, loose) = insert(doc, mated_instance(part));
+    let (doc, on_loose) = insert(doc, mated_instance(part));
+    let (doc, placed_mate) = seated(
         doc,
-        DocEdit::SetOffset {
-            instance: unplaced,
-            offset: Some(editor_core::Placement::literal(&Frame::translation([
-                8.0, 0.0, 0.0,
-            ]))),
-            fresh: Vec::new(),
-        },
+        rest_mate(
+            in_part(ids[0], body, CapEnd::End),
+            in_part(ids[1], body, CapEnd::Start),
+            0.0,
+        ),
     );
-    let (doc, placed_mate) = step(
+    let (doc, loose_mate) = seated(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(rest_mate(
-                in_part(ids[0], body, CapEnd::End),
-                in_part(ids[1], body, CapEnd::Start),
-                1.0,
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let (doc, _) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(rest_mate(
-                in_part(ids[1], body, CapEnd::End),
-                in_part(unplaced, body, CapEnd::Start),
-                1.0,
-            )),
-            fresh: Vec::new(),
-        },
+        rest_mate(
+            in_part(loose, body, CapEnd::End),
+            in_part(on_loose, body, CapEnd::Start),
+            0.0,
+        ),
     );
 
     let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(
         gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
-        vec![placed_mate.expect("the mate's node")],
-        "the mate between placed members mints, and only it"
+        vec![placed_mate],
+        "the mate between placed copies mints, and only it"
     );
     assert!(
         gathered.unminted.is_empty(),
-        "the mate on an unplaced member refuses nothing: {:?}",
+        "the mate between loose copies refuses nothing: {:?}",
         gathered.unminted
     );
+    crate::fixture::assert_mints_nothing(&doc, &ev, loose_mate);
 }

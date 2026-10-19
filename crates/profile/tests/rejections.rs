@@ -33,6 +33,33 @@ fn empty_profile_is_rejected() {
     assert_eq!(err(&p), ProfileError::EmptyProfile);
 }
 
+/// A plane that is not finite refuses at every validation door, and at
+/// `lift_onto`, as `PlaneNotFinite`. Validation decides nothing on the
+/// plane, but the canonical form carries it, so a NaN or infinite plane
+/// would otherwise be a validated profile with no place in space.
+#[test]
+fn a_plane_that_is_not_finite_is_rejected() {
+    use geom_core::{Affine3, Vec3};
+    let at = |z: f64| SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z)));
+    for z in [f64::NAN, f64::INFINITY] {
+        let p = profile::Profile::new(at(z), vec![rect(0.0, 0.0, 1.0, 1.0)]);
+        assert_eq!(err(&p), ProfileError::PlaneNotFinite, "validate, z = {z}");
+        assert_eq!(
+            p.validate_recording(tol()).map(|_| ()),
+            Err(ProfileError::PlaneNotFinite),
+            "validate_recording, z = {z}"
+        );
+        let finite = profile::Profile::new(at(0.0), vec![rect(0.0, 0.0, 1.0, 1.0)])
+            .validate(tol())
+            .expect("the finite plane validates");
+        assert_eq!(
+            finite.lift_onto(at(z)).map(|_| ()),
+            Err(ProfileError::PlaneNotFinite),
+            "lift_onto, z = {z}"
+        );
+    }
+}
+
 #[test]
 fn empty_loop_fails_arity() {
     let p = profile(vec![chain(&[])]);
@@ -616,7 +643,7 @@ fn nan_bulge_poisons_to_a_typed_error() {
         ProfileError::Escalated { site, source } => {
             assert_eq!(site, EscalationSite::Segment(sref(0, 0)));
             assert_eq!(source.margin, MarginDiag::INVALID);
-            assert_eq!(source.predicate, Some("segment_straightness"));
+            assert_eq!(source.predicate, Some("arc_sweep_range"));
         }
         other => panic!("expected poison escalation, got {other:?}"),
     }
@@ -831,4 +858,50 @@ fn a_table_arc_off_its_vertex_below_the_scene_resolution_is_unreadable_not_incon
         }
         other => panic!("expected a real inconsistency at r = 1, got {other:?}"),
     }
+}
+
+/// **A small arc crossing a large one is a crossing, at any ratio of
+/// their radii.** A half disc of radius 100, from whose left corner a
+/// chord runs up to a short arc of radius 1000ε centred on the half
+/// disc's arc. The short arc spans 0.4 rad about the crossing of the
+/// two carriers, so it crosses the half disc's arc once, deep inside
+/// both, while its ends stand a fifth of its radius either side of
+/// it; two lines outside the disc close the loop at the right corner.
+/// The radius ratio is 10⁸ at ε = 1e-9 and 10¹¹ at 1e-12.
+#[test]
+fn a_small_arc_crossing_a_large_one_is_non_simple() {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let (big, small) = (100.0, 1e3 * tol().eps());
+    let centre = Point2::new(0.0, big);
+    let at = |t: f64| Point2::new(small * t.cos(), big + small * t.sin());
+    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new([
+        (
+            Point2::new(big, 0.0),
+            Segment::Arc(Arc2 {
+                centre: Point2::new(0.0, 0.0),
+                radius: big,
+                sweep: std::f64::consts::PI,
+            }),
+        ),
+        (Point2::new(-big, 0.0), Segment::Line),
+        (
+            at(-0.2),
+            Segment::Arc(Arc2 {
+                centre,
+                radius: small,
+                sweep: 0.4,
+            }),
+        ),
+        (at(0.2), Segment::Line),
+        (Point2::new(2.0 * big, 2.0 * big), Segment::Line),
+    ]);
+    assert_eq!(
+        err(&profile(vec![lp])),
+        ProfileError::NonSimple {
+            first: sref(0, 0),
+            second: sref(0, 2),
+            kind: ContactKind::Crossing,
+        }
+    );
 }

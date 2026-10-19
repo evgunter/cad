@@ -54,6 +54,7 @@ use geom_core::{Band, Decide, Decided, Margin, Point3, Sign, Vec3};
 
 use super::{
     BooleanDecision, BooleanError, Coincide, DeclarationRead, LeverArm, Operand, SideCode,
+    UnreadNeighbourhood,
 };
 use crate::body::Body;
 use crate::chord_join::StaleSite;
@@ -169,7 +170,12 @@ pub(super) enum FaceShape {
 impl FaceShape {
     /// The shape of a face on `surface`.
     pub(super) fn of<T: geom_core::Real>(surface: &geom::Surface<T>) -> Self {
-        match surface.kind() {
+        Self::of_kind(surface.kind())
+    }
+
+    /// [`Self::of`], from the surface's kind.
+    pub(super) fn of_kind(kind: geom::SurfaceKind) -> Self {
+        match kind {
             geom::SurfaceKind::Plane => Self::Plane,
             _ => Self::Curved,
         }
@@ -206,6 +212,27 @@ impl<T: geom_core::Real> BoolSector<T> {
     /// far from the base vertex the sector's own geometry is known.
     pub(super) fn span(&self) -> T {
         self.start_reach.length().max(self.end_reach.length())
+    }
+}
+
+impl<T: Decide> BoolSector<T> {
+    /// **Whether the sector's bounds read off the plane through its
+    /// vertex with unit normal `n`** (`bool_sector_coplanar`), on the
+    /// steeper bound's first-order departure ([`Reach::departure`]):
+    /// what a smaller tolerance reads off the plane first, and the
+    /// sector with it. `Err` where it does not decide off, with that
+    /// margin.
+    pub(super) fn bounds_off(
+        &self,
+        n: Vec3<T>,
+        band: Band,
+    ) -> Result<NonzeroSign, geom_core::Indeterminate> {
+        let steeper = self
+            .start_reach
+            .departure(self.start, n)
+            .abs()
+            .max(self.end_reach.departure(self.end, n).abs());
+        crate::validate::decide_nonzero("bool_sector_coplanar", Margin::of(steeper), band)
     }
 }
 
@@ -730,10 +757,9 @@ fn read_side<T: Decide>(
     // the ½ gives `l²/R`, an upper bound unconditionally (`l* ≤ R/2`
     // here, inside the circle's reach).
     let slope = displacement / length;
-    let l = (slope * T::from_f64(0.5) * lever).min(length);
     match crate::validate::decide_reported(
         "bool_pierce_sector_side_curved",
-        Margin::of(slope * l - l.powi(2) / lever),
+        Margin::of(sagitta_charge(slope, lever, length)),
         band,
     ) {
         Ok(decided) => match Refused::of(decided, band) {
@@ -751,6 +777,17 @@ fn read_side<T: Decide>(
             diag,
         }),
     }
+}
+
+/// **The curvature charge**: the least separation from a face that a
+/// ray leaving it at `slope` (a sine) keeps past a bend of radius
+/// `lever`, `slope·l − l²/lever`, read at `l = min(slope·lever/2,
+/// reach)`, where it peaks within the reach. [`read_side`] carries the
+/// argument and the witness; `vtxfac::faces_holding_pierce` charges a
+/// held pierce's run with it.
+pub(super) fn sagitta_charge<T: Decide>(slope: T, lever: T, reach: T) -> T {
+    let l = (slope * T::from_f64(0.5) * lever).min(reach);
+    slope * l - l.powi(2) / lever
 }
 
 /// **A conic bound's side of a plane face one order down**, where its
@@ -1127,18 +1164,23 @@ fn within_signs<T: Decide>(
     ))
 }
 
+/// A half-plane a sector's face leaves an edge in ([`half_planes`]): its
+/// unit direction square to the edge, and the sector.
+pub(super) type HalfPlane<'s, T> = (Vec3<T>, &'s BoolSector<T>);
+
 /// **The half-planes `other`'s faces leave `dir` in**, where `dir` lies
 /// on the boundary of `other`'s corner: for each sector whose face's
 /// plane holds `dir` and whose closure holds it, the unit direction
 /// square to `dir` into the face, on each side of `dir` the sector lies
-/// — one side where `dir` runs along a bound, both where it runs inside.
-/// Around `dir`, the corner's material changes side at exactly these.
+/// — one side where `dir` runs along a bound, both where it runs inside
+/// — each with the sector it leaves `dir` in. Around `dir`, the corner's
+/// material changes side at exactly these.
 pub(super) fn half_planes<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
     other: &[BoolSector<T>],
     band: Band,
-) -> Result<Vec<Vec3<T>>, BooleanError> {
+) -> Result<Vec<HalfPlane<'_, T>>, BooleanError> {
     let mut out = Vec::new();
     for s in other {
         if plane_side_code(dir, reach, s.normal, band)? != SideCode::On {
@@ -1148,12 +1190,12 @@ pub(super) fn half_planes<T: Decide>(
         // the face lies ahead of `start` and behind `end`.
         let ahead = s.normal.vec().cross(dir).normalize();
         match within_signs(s, dir, DeclarationRead::Moot, band)? {
-            (Sign::Positive, Sign::Positive) => out.extend([ahead, -ahead]),
+            (Sign::Positive, Sign::Positive) => out.extend([(ahead, s), (-ahead, s)]),
             (Sign::Zero, Sign::Positive) if direction_sense(s.start, dir, s.arm, band)? => {
-                out.push(ahead);
+                out.push((ahead, s));
             }
             (Sign::Positive, Sign::Zero) if direction_sense(s.end, dir, s.arm, band)? => {
-                out.push(-ahead);
+                out.push((-ahead, s));
             }
             _ => {}
         }
@@ -1352,6 +1394,14 @@ fn germ_curve<T: Decide>(
 /// could answer otherwise. A conic or spline can meet such a partner
 /// again, and its pair is refused
 /// ([`BooleanError::GermEdgeCarrierUnsupported`]).
+///
+/// For two closed edges (each one vertex, both its ends) the far end is
+/// the site itself, so the pairing holds of every such pair and says
+/// nothing: two closed circles tangent at one site are one segment here
+/// whether or not they are one curve. Two that are not (two coplanar
+/// rims tangent outside each other at their shared vertex) are told
+/// apart downstream, where the join refuses their loop
+/// ([`crate::chord_join::SplitJoinError::SectionLoopMixed`]).
 fn one_segment<T: Decide>(
     a: GermSide<'_, T>,
     ea: Along,
@@ -1811,6 +1861,21 @@ pub(super) fn wedge_classes<T: Decide>(
     other: &[BoolSector<T>],
     band: Band,
 ) -> Result<Option<WedgeRead>, BooleanError> {
+    wedge_read(own, other, band).map(Result::ok)
+}
+
+/// [`wedge_classes`], saying why it read nothing where it did not: the
+/// other operand's sectors on fewer than two faces, two with no
+/// bisector, or a polygon cone some edge of which no reference decides
+/// ([`cone_read`]'s `None`).
+pub(super) fn wedge_read<T: Decide>(
+    own: &[BoolSector<T>],
+    other: &[BoolSector<T>],
+    band: Band,
+) -> Result<Result<WedgeRead, UnreadNeighbourhood>, BooleanError> {
+    let cone = |read: Result<Option<WedgeRead>, BooleanError>| {
+        read.map(|r| r.ok_or(UnreadNeighbourhood::ConeUnread))
+    };
     let mut faces: Vec<(FaceKey, OutwardNormal<T>)> = Vec::new();
     for s in other {
         if !faces.iter().any(|&(f, _)| f == s.face) {
@@ -1851,7 +1916,7 @@ pub(super) fn wedge_classes<T: Decide>(
                         (true, _, _) => None,
                     });
             let Some((dir, reach)) = inside else {
-                return Ok(None);
+                return Ok(Err(UnreadNeighbourhood::NoBisector));
             };
             match code(dir, reach, *n1) {
                 Ok(SideCode::In) => true,
@@ -1860,7 +1925,7 @@ pub(super) fn wedge_classes<T: Decide>(
                     true
                 }
                 Ok(SideCode::On) | Err(BooleanError::Escalated { .. }) => {
-                    return cone_read(own, other, band);
+                    return cone(cone_read(own, other, band));
                 }
                 Err(e) => return Err(e),
             }
@@ -1884,7 +1949,7 @@ pub(super) fn wedge_classes<T: Decide>(
                                 if one_plane(s.normal, normal)
                                     || one_plane(across.normal, normal) => {}
                             Ok(SideCode::On) | Err(BooleanError::Escalated { .. }) => {
-                                return cone_read(own, other, band);
+                                return cone(cone_read(own, other, band));
                             }
                             Err(e) => return Err(e),
                         }
@@ -1895,10 +1960,10 @@ pub(super) fn wedge_classes<T: Decide>(
                 (true, false) => true,
                 (false, true) => false,
                 (true, true) if faces.iter().all(|&(_, n)| one_plane(*first, n)) => true,
-                _ => return cone_read(own, other, band),
+                _ => return cone(cone_read(own, other, band)),
             }
         }
-        _ => return Ok(None),
+        _ => return Ok(Err(UnreadNeighbourhood::OneFace)),
     };
     let (wins, loses) = if met {
         (SideCode::Out, SideCode::In)
@@ -1911,7 +1976,7 @@ pub(super) fn wedge_classes<T: Decide>(
         for &(_, n) in &faces {
             match code(s.end, s.end_reach, n) {
                 Ok(c) => codes.push(c),
-                Err(BooleanError::Escalated { .. }) => return cone_read(own, other, band),
+                Err(BooleanError::Escalated { .. }) => return cone(cone_read(own, other, band)),
                 Err(e) => return Err(e),
             }
         }
@@ -1924,7 +1989,7 @@ pub(super) fn wedge_classes<T: Decide>(
         };
         rows.push((s.he, class));
     }
-    Ok(Some(WedgeRead {
+    Ok(Ok(WedgeRead {
         met,
         pointed: true,
         rows,
@@ -2577,12 +2642,20 @@ mod tests {
         let pair = super::super::vtxfac::PairRead {
             partner,
             side: Some(SideCode::Out),
-            read: Some(read),
+            read: Ok(read),
             sectors: saddle,
         };
-        assert_eq!(
-            super::super::vtxfac::touch_classes(&[(first, SideCode::Out)], &[pair]),
-            Err(Some(partner)),
+        assert!(
+            matches!(
+                super::super::vtxfac::touch_classes(
+                    &[],
+                    &[(first, SideCode::Out)],
+                    &[pair],
+                    &|_| Ok(FaceShape::Plane),
+                    band()
+                ),
+                Err(super::super::vtxfac::TouchUndecided::Beside(Some(p))) if p == partner
+            ),
             "a touch beside a saddle refuses"
         );
     }
@@ -5385,6 +5458,7 @@ mod tests {
                     passes: geom_core::SizedPass::NonZero,
                     no_size: None,
                     unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+                    refused: geom_core::RefusedReading::AsShown,
                 },
             );
             assert!(
@@ -5683,8 +5757,8 @@ mod tests {
                                 geom::Curve3::Ellipse {
                                     center: base + big_n * along_n,
                                     axis: u.cross(t),
-                                    major: along_n,
-                                    minor: along_t,
+                                    semi_u: along_n,
+                                    semi_v: along_t,
                                     u_ref: u,
                                 }
                             };
@@ -6151,6 +6225,7 @@ mod tests {
                 passes: geom_core::SizedPass::Positive,
                 no_size: None,
                 unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+                refused: geom_core::RefusedReading::AsShown,
             },
         );
         assert!(

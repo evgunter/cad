@@ -5,7 +5,7 @@
 //! and stored only when committed; and the value doors read a defined
 //! variable as held.
 // Panicking is a test's failure mechanism (workspace lint note).
-#![allow(clippy::expect_used)]
+#![allow(clippy::expect_used, clippy::panic)]
 
 use crate::common;
 use editor_core::ExtrudeSide;
@@ -560,4 +560,119 @@ fn the_exists_notice_reads_a_defined_variable_as_holding_its_name() {
         Some((w, Dimension::Length))
     );
     assert_eq!(props::named_variable(doc, &VarName::from_static("q")), None);
+}
+
+/// **A constant is neither offered nor draws an offer** (D10, VR8): a
+/// slot typed a lone `0` reads the constant zero, which draws no offer
+/// though a declared length of zero equals it; and a slot typed `0 m`
+/// is offered that declared length, never the constant.
+#[test]
+fn a_lone_zero_draws_no_offer_and_is_never_offered() {
+    let (mut session, a, b, _w, _k) = two_extrudes();
+    let declared = session.perform(SessionOp::DeclareVar {
+        name: VarName::new("o").expect("a name"),
+        value: FreeVar::continuous(Dimension::Length, 0.0),
+    });
+    assert!(declared.refusal.is_none(), "{:?}", declared.refusal);
+    let o = common::var_of(session.committed_doc(), "o");
+    let zero = session.perform(SessionOp::SetSlotExpression {
+        node: b,
+        slot: SlotId::Distance,
+        text: "0".to_owned(),
+    });
+    assert!(zero.refusal.is_none(), "{:?}", zero.refusal);
+    let constant = reads(&session, b);
+    assert!(
+        session.committed_doc().lowers_to_constant(constant),
+        "a lone 0 is the constant"
+    );
+    assert!(
+        props::offered_for(session.committed_doc(), constant).is_empty(),
+        "the constant draws no offer, though `o` equals it"
+    );
+    typed(&mut session, a, 0.0);
+    let offers = offered(&session, a);
+    assert!(offers.contains(&o), "a typed 0 m is offered o: {offers:?}");
+    assert!(
+        !offers.contains(&constant),
+        "the constant is never offered: {offers:?}"
+    );
+}
+
+/// **A pose's angle is offered only free variables of its value** (the
+/// spec's tilted-seat row): the sketch frame's xy plane spun 15° about
+/// its x axis holds its 15° as a written angle, offered the declared
+/// free `a` of 15° and not `c`, defined as `turn/24`, a constant of the
+/// same value.
+#[test]
+fn a_spins_angle_is_offered_only_free_values() {
+    use editor_core::test_support::{ang, len, xy_frame};
+    use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
+    use pncad::document::{Formula, Operand, VarDecl, VarDef};
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("gui-spin-offer", tol);
+    let (doc, frame) = common::inserted(&doc, xy_frame(), tol);
+    let (doc, profile) = common::inserted(&doc, common::square(frame, 0.04), tol);
+    let (doc, block) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(0.01),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    );
+    let tilt = 15.0_f64.to_radians();
+    let through = |role| RoleRead::through(Operand::output(frame, 0), role);
+    let (mut doc, split) = common::inserted(
+        &doc,
+        Node::Split {
+            target: Operand::output(block, 0).into(),
+            tool: Operand::Pose(Box::new(PoseDef::Spin {
+                pose: through(PoseRole::Xy),
+                about: through(PoseRole::X),
+                by: ang(tilt),
+            }))
+            .into(),
+        },
+        tol,
+    );
+    for (name, def) in [
+        (
+            "a",
+            VarDecl::Free(FreeVar::continuous(Dimension::Angle, tilt)),
+        ),
+        (
+            "c",
+            VarDecl::defined(Formula::turn_over(24).expect("a 24th of a turn")),
+        ),
+    ] {
+        doc = pncad::document::apply(
+            &doc,
+            &DocEdit::DeclareVar {
+                name: VarName::new(name).expect("a name"),
+                def,
+            },
+            tol,
+        )
+        .expect("declares")
+        .doc;
+    }
+    let (a, c) = (common::var_of(&doc, "a"), common::var_of(&doc, "c"));
+    let Some(Node::Split { tool, .. }) = doc.node(split) else {
+        panic!("the split");
+    };
+    let Some(VarDef::Pose(PoseDef::Spin { by, .. })) = doc.var(tool.read).map(|v| v.def()) else {
+        panic!("a spun plane");
+    };
+    assert_eq!(
+        props::variable_value(&doc, c),
+        props::variable_value(&doc, *by),
+        "premise: turn/24 is 15° at the bits"
+    );
+    let offers: Vec<VarId> = props::offered_for(&doc, *by)
+        .into_iter()
+        .map(|offer| offer.var)
+        .collect();
+    assert_eq!(offers, vec![a], "only the free 15° is offered");
 }

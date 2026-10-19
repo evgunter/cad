@@ -130,6 +130,24 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/geom-brep/src/carrier_net.rs",
+        subject: "outer_ends",
+        why: Payload(
+            "an edge interval's outer bracket ends, returned as the f64 pair every \
+             span and coverage gate of the certificate reads; nothing branches on them \
+             here",
+        ),
+    },
+    Site {
+        path: "crates/geom-brep/src/carrier_net.rs",
+        subject: "carrier_span",
+        why: Payload(
+            "an edge interval's outer bracket ends (`outer_ends`) become the f64 span a \
+             closed-form carrier's chart-image schedule and enclosing net are built over, \
+             lifted back through `from_computed`; nothing branches on them",
+        ),
+    },
+    Site {
         path: "crates/geom-brep/src/ssi/certify.rs",
         subject: "composite_form",
         why: HandedOff("Track Q's; a private helper S88's census names"),
@@ -335,6 +353,21 @@ const ROSTER: &[Site] = &[
              any cell not certified ends the walk uncertified, so the face reads as a \
              bound. Only a walk whose every cell is certain reads inside, and its depth \
              is classified at the funnel",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
+        subject: "curve_in_core",
+        why: Selection(
+            "the reach's inside reading of an edge, a walk over parameter pieces through \
+             `sure`, as `inside_bound` walks a face's cells. Each read selects whether a \
+             piece is inside the core or halved, and any piece not certified ends the walk \
+             uncertified, so the face the edge bounds reads as a bound. Only a walk whose \
+             every piece is certain reads inside, and the depth it reports is one term of \
+             `prism_inside`'s reading, which `sure` decides and the funnel classifies. The \
+             tightening that follows reads each certified piece's upper end only to choose \
+             which piece to halve and when to stop, a cost choice: every piece it leaves \
+             holds a bound that already certified it",
         ),
     },
     Site {

@@ -79,16 +79,16 @@ fn trig_at_start<T: Decide + Bounds + CertifiedEnclosure>(
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let v_ref = axis.cross(*u_ref);
             let w = p - *center;
-            let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*major);
-            let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*minor);
-            let pad_c = (Interval::point(eps) / Interval::from_certified(*major)).mag();
-            let pad_s = (Interval::point(eps) / Interval::from_certified(*minor)).mag();
+            let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*semi_u);
+            let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*semi_v);
+            let pad_c = (Interval::point(eps) / Interval::from_certified(*semi_u)).mag();
+            let pad_s = (Interval::point(eps) / Interval::from_certified(*semi_v)).mag();
             Ok((clamp(c, pad_c), clamp(s, pad_s)))
         }
         // The spiric's chart images are not harmonic (its `m`
@@ -327,14 +327,14 @@ fn translated_curve(curve: &Curve3<Interval>, by: Point3<Interval>) -> Option<Cu
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => Curve3::Ellipse {
             center: shift(center),
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         },
         Curve3::Spiric {
@@ -529,7 +529,7 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
             // circle mints a projected one at rest (an oblique fillet
             // corner's octant); the props door refuses that face's spherical
             // triangle before this lane is asked.
-            let Pcurve::Harmonic { p0, pa, pb, pl } = *image else {
+            let Some((p0, pa, pb, pl)) = image.harmonic_form() else {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "curved-cut face half-edge carries a pcurve with no harmonic form on \
                        an analytic chart (a FITTED or PROJECTED image, or a cone section's or \
@@ -569,18 +569,20 @@ pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
 }
 
 /// An upper bound on an edge's length: a line's speed `|dir|`, an arc's radius (an
-/// ellipse's major) times its span, a spiric's speed bound
-/// `r(R − r)/f_min` times its span.
+/// ellipse's larger semi-axis) times its span, a spiric's piecewise
+/// [`spiric::spiric_length_bound`].
 fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
         Curve3::Line { dir, .. } => (dir.norm() * Interval::point(span)).mag(),
         Curve3::Circle { radius, .. } => (radius * Interval::point(span)).mag(),
-        Curve3::Ellipse { major, .. } => (major * Interval::point(span)).mag(),
+        Curve3::Ellipse { semi_u, semi_v, .. } => {
+            (geom::Curve3::semi_axes_by_size(semi_u, semi_v).0 * Interval::point(span)).mag()
+        }
         Curve3::Spiric { .. } => spiric_edge_q(e, Point3::origin(), None)
-            .and_then(|q| spiric::spiric_length_bound(&q))
+            .and_then(|q| spiric::spiric_length_bound(&q, spiric::LENGTH_PIECES))
             .ok_or(PropsError::QuadratureUnsupported {
-                what: "a spiric edge whose span's rate window has no certified positive f",
+                what: "a spiric edge with a piece whose f is not certified positive",
             })?,
         Curve3::Nurbs(_) => {
             return Err(PropsError::QuadratureUnsupported {
@@ -645,10 +647,12 @@ enum WallImage {
 }
 
 /// A wall half-edge as [`spiric_wall`] reads it: its carrier, its
-/// lifted image, its certificate envelope and its carrier span.
+/// lifted image, where its traversal starts and ends on that image
+/// `(u, v)`, its certificate envelope and its carrier span.
 struct WallHalf {
     edge: LoopEdge<Interval>,
     image: WallImage,
+    ends: [(Interval, Interval); 2],
     env: Interval,
     span: Interval,
 }
@@ -714,6 +718,9 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                 let (t0, t1) = cache.params();
                 let pair = |p: geom_core::Point2<T>| (iv(p.x), iv(p.y));
                 let vec = |v: geom_core::Vec2<T>| (iv(v.x), iv(v.y));
+                // The traversal's ends through the image's own evaluator,
+                // on the lane, crossed into certification arithmetic.
+                let (a, b) = (pair(image.eval(t0)), pair(image.eval(t1)));
                 halves.push(WallHalf {
                     edge: lift(le),
                     image: match image {
@@ -732,11 +739,13 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                             major: iv(*major),
                             minor: iv(*minor),
                         },
-                        Pcurve::Harmonic { p0, pa, pb, pl } => {
-                            WallImage::Harmonic([pair(*p0), vec(*pa), vec(*pb), vec(*pl)])
+                        Pcurve::Harmonic { u, v } => {
+                            let (p0, pa, pb, pl) = geom_brep::harmonic_form_of(*u, *v);
+                            WallImage::Harmonic([pair(p0), vec(pa), vec(pb), vec(pl)])
                         }
                         _ => WallImage::Other,
                     },
+                    ends: if le.forward { [a, b] } else { [b, a] },
                     env: iv(cache.certificate().envelope),
                     span: iv(t1) - iv(t0),
                 });
@@ -821,6 +830,7 @@ fn spiric_wall(
         minor,
         rims: Vec::new(),
         meridians: Vec::new(),
+        ends: Vec::with_capacity(halves.len()),
     };
     let mut closed_va = [Interval::zero(); 3];
     let mut spirics = Vec::new();
@@ -882,7 +892,15 @@ fn spiric_wall(
                     v0: *v0,
                     env: h.env,
                 };
-                spirics.extend(spiric_edge_q(e, c, Some(wall)));
+                let q = spiric_edge_q(e, c, Some(wall)).ok_or_else(|| {
+                    unsupported("a spiric wall image on an edge whose carrier is no spiric")
+                })?;
+                chart.ends.push(spiric::ChartEndsQ {
+                    start: h.ends[0],
+                    end: h.ends[1],
+                    env: h.env,
+                });
+                spirics.push(q);
                 continue;
             }
             (WallImage::Harmonic([p0, pa, pb, pl]), _) => {
@@ -893,6 +911,11 @@ fn spiric_wall(
                          line of its chart — the spiric lane reads rims and meridians",
                     ));
                 }
+                chart.ends.push(spiric::ChartEndsQ {
+                    start: h.ends[0],
+                    end: h.ends[1],
+                    env: h.env,
+                });
                 if zero(pl.1) {
                     chart.rims.push(spiric::RimQ {
                         v: p0.1,
@@ -1097,10 +1120,10 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         centre,
     );
     let out = quad::nurbs_patch_face_rounds::<T>(
-        payload.knots_u(),
-        payload.knots_v(),
+        payload.knots_u_f64_interim(),
+        payload.knots_v_f64_interim(),
         &control,
-        payload.weight_channel(),
+        payload.weights_f64_interim(),
         (u0, u1, v0, v1),
         perimeter,
         boundary_defect,
@@ -1237,13 +1260,13 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                     });
                 }
                 Some(TrimPiece {
-                    knots: image.knots().clone(),
+                    knots: image.knots_f64_interim().clone(),
                     control: image
                         .control()
                         .iter()
                         .map(|p| (ring(p.x), ring(p.y)))
                         .collect(),
-                    weights: image.weight_channel().to_vec(),
+                    weights: image.weights_f64_interim().to_vec(),
                 })
             }
             Pcurve::Fitted(_) => {
@@ -1325,10 +1348,10 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
         centre,
     );
     quad::trimmed_patch_face_rounds::<T>(
-        payload.knots_u(),
-        payload.knots_v(),
+        payload.knots_u_f64_interim(),
+        payload.knots_v_f64_interim(),
         &control,
-        payload.weight_channel(),
+        payload.weights_f64_interim(),
         &chords,
         tol.eps(),
         band,
@@ -1647,7 +1670,7 @@ mod tests {
                 ("a 2 m sliver box 1e-4 wide", sliver_box(1e-4, tol), None),
                 (
                     "a 2 m sliver box 1e-4 wide, inside out",
-                    sliver_box(1e-4, tol).revert(),
+                    sliver_box(1e-4, tol).revert().unwrap(),
                     None,
                 ),
             ];

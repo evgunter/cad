@@ -213,7 +213,9 @@ impl<'v> Neck<'v> {
         };
         let key = |seg: u32| {
             let n = fixture::fname(f.solid, fixture::wall(&f.doc, f.solid, seg));
-            let Some(editor_core::Entry::Unique(ent)) = value.name_table.lookup(&n) else {
+            let Some(editor_core::Entry::Unique(ent)) =
+                ev.table_at(f.placed).expect("one table").lookup(&n)
+            else {
                 panic!("the wall name resolves uniquely at the placed node");
             };
             let editor_core::EntityKey::Face(k) = ent.key else {
@@ -258,7 +260,6 @@ fn eval_over<T: editor_core::EvalScalar>(
 ) -> editor_core::Evaluation<T> {
     let opts = EvalOptions {
         param_box: box_.map(std::sync::Arc::new),
-        profile_lift: editor_core::ProfileLift::Guided,
         ..EvalOptions::default()
     };
     evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness())
@@ -528,7 +529,6 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
         &r.doc,
         &[MeasurePrimitive::MinClearance { a: edge, b: face }],
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     let Err(err) = refused else {
         panic!("an edge is no min_clearance reference, so the insert refuses");

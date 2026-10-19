@@ -1,8 +1,9 @@
 //! CERT-10 review probes (reviewer-authored, blinded lane).
 //!
 //! The highest-value falsification: the retired magnitude reading was
-//! replaced by a SIGNED quotient-rule evaluation that is 11x tighter on
-//! `muv`. Tighter-but-wrong is the failure mode, so these rows sample
+//! replaced by a SIGNED reading — today each partial's own quotient
+//! `M/W³`, read as its coefficient ratios' range on exact dyadic
+//! pieces — that is far tighter on `muv`. Tighter-but-wrong is the failure mode, so these rows sample
 //! the TRUE partials densely inside every cell of adversarial rational
 //! patches and demand the shipped enclosure contain every sample.
 
@@ -16,7 +17,6 @@ use geom::surfaces::nurbs::NurbsSurface;
 use geom_brep::patch_bound::{PatchCell, patch_cells};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::knots::KnotVector;
 use geom_core::{Point3, Vec3};
 
@@ -130,8 +130,9 @@ fn sweep(name: &'static str, n: &NurbsSurface<f64>, per_cell: usize) -> Sweep {
 
 /// Extreme weight ratios: 1e-6 to 1e+6 across one bi-quadratic patch,
 /// with a sign-alternating (saddle-checkerboard) control net. This is
-/// where "all + and divide by the smallest weight" and "the true minus
-/// signs over the whole weight hull" disagree most.
+/// where "all + and divide by the smallest weight" and the signed
+/// quotient reading (each coefficient over its own weight power) disagree
+/// most.
 fn extreme_weights() -> NurbsSurface<f64> {
     let ku = kv(2, &[0.35]);
     let kv_ = kv(2, &[0.6]);
@@ -255,7 +256,7 @@ fn cert10r1_the_signed_reading_encloses_the_true_partials() {
 // (a) `ders` really is d/du, d/dv in the same (u, v) sense the cell
 //     rectangle names; (b) the sweep passes on an arm that is
 //     unquestionably sound (the integral arm is a plain coefficient
-//     hull, no quotient rule).
+//     hull, no quotient).
 // ---------------------------------------------------------------
 
 /// `ders` against central differences of `eval`, on the rational
@@ -327,8 +328,8 @@ fn cert10r1_control_ders_agrees_with_finite_differences() {
 fn cert10r1_control_the_integral_arm_encloses() {
     let unweight = |s: &NurbsSurface<f64>| {
         NurbsSurface::new(
-            s.knots_u().clone(),
-            s.knots_v().clone(),
+            s.knots_u_f64_interim().clone(),
+            s.knots_v_f64_interim().clone(),
             s.control().to_vec(),
             vec![1.0; s.weights().len()],
         )
@@ -355,54 +356,6 @@ fn cert10r1_control_the_integral_arm_encloses() {
     assert!(bad.is_empty(), "integral control ALSO fails: {bad:?}");
 }
 
-/// ROOT CAUSE of the one residual excursion above. The quarter
-/// cylinder's weights do not vary along `v`, so `w_v == 0` in R and
-/// `S_vv == 0` exactly. The rational arm bounds the REFINED surface,
-/// and f64 knot insertion does not reproduce equal weights bitwise, so
-/// `w_v`'s coefficient hull is a tiny nonzero and the signed `s_vv`
-/// comes out as a tiny interval that EXCLUDES the true zero. This row
-/// records the mechanism; it is ulp-scale and pre-dates this PR's
-/// arithmetic, but the retired MAGNITUDE reading could not exhibit it
-/// (a magnitude bound is [-m, m], which always contains 0).
-#[test]
-fn cert10r1_the_residual_is_f64_knot_refinement_not_the_recurrence() {
-    let n = quarter_cylinder();
-    let nv = n.knots_v().control_count();
-    // Before refinement: bitwise equal along v.
-    for i in 0..n.knots_u().control_count() {
-        for j in 1..nv {
-            assert_eq!(n.weights()[i * nv + j], n.weights()[i * nv]);
-        }
-    }
-    let splits = 16;
-    let r = n
-        .refine_knots_u(&equal_split_points(n.knots_u(), splits))
-        .and_then(|r| {
-            let sp = equal_split_points(r.knots_v(), splits);
-            r.refine_knots_v(&sp)
-        })
-        .expect("refine");
-    let rnv = r.knots_v().control_count();
-    let mut unequal = 0usize;
-    let mut worst = 0.0f64;
-    for i in 0..r.knots_u().control_count() {
-        for j in 1..rnv {
-            let (a, b) = (r.weights()[i * rnv + j], r.weights()[i * rnv]);
-            if a != b {
-                unequal += 1;
-                worst = worst.max((a - b).abs() / b.abs());
-            }
-        }
-    }
-    println!(
-        "[cert10r1] refined weights unequal along v: {unequal} slots, worst rel gap {worst:e}"
-    );
-    assert!(
-        unequal > 0,
-        "if refinement preserved equality bitwise, the residual would have another cause"
-    );
-}
-
 /// **The structural zero, as a claim rather than a caveat.** The
 /// quarter cylinder's weights and its `z` control coordinates are both
 /// affine in `v` over a single degree-1 span, so the described surface
@@ -410,12 +363,12 @@ fn cert10r1_the_residual_is_f64_knot_refinement_not_the_recurrence() {
 /// channel — a fact about the description, not about any arithmetic.
 ///
 /// A cell enclosure that encloses the described patch must therefore
-/// contain `0` on every cell and every channel. The row above records
-/// why an enclosure of the REFINED-`f64` patch need not: `f64` knot
-/// insertion does not reproduce equal weights bitwise, so `w_v`'s
-/// coefficient hull is a tiny nonzero and `s_vv` comes out as a narrow
-/// interval strictly off zero. That makes this row the one a consumer
-/// reading a structural predicate off the rational arm stands on.
+/// contain `0` on every cell and every channel. An enclosure of a
+/// rounded neighbour of the patch need not: an `f64` knot refinement
+/// does not reproduce equal weights bitwise, and once read `s_vv` off
+/// such a net as a narrow interval strictly off zero. That makes this
+/// row the one a consumer reading a structural predicate off the
+/// rational arm stands on.
 #[test]
 fn cert10r1_the_rational_arm_contains_the_structural_zero_of_s_vv() {
     let cells: Vec<PatchCell> = patch_cells(&quarter_cylinder()).expect("patch_cells");
@@ -680,7 +633,7 @@ fn cert10r1_the_coarsened_grid_still_meets_its_chord_tolerance() {
         muu: 3.942_263_838_556_179_7,
         muv: 1.266_375_820_315_083_4,
         // NOT a pinned digit: the true `S_vv` is identically zero on
-        // this ruled face and this is the rational arm's
+        // this ruled face, and this was the retired reading's
         // knot-insertion rounding. Order of magnitude only — the grid
         // this sizes is identical for any `mvv` below ~1e-12.
         mvv: 4.3e-15,

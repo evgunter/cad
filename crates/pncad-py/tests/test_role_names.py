@@ -41,6 +41,7 @@ meridian vertices on its second loop.
 
 import json
 import math
+import sys
 import unittest
 
 from pncad import (
@@ -86,7 +87,7 @@ def axis_of(doc, frame):
     """The sketch frame's own +y through its origin."""
     return (
         (Formula.length_in(0, m), Formula.length_in(0, m)),
-        (Formula.literal(0.0), Formula.literal(1.0)),
+        Formula.turn_over(4),
     )
 
 
@@ -202,7 +203,13 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         self.assertEqual(
             ev.face_frame(node, band(node, scene.piece(0, 2))).origin[1].meters, H
         )
-        self.assertEqual(ev.edge_frame(node, band_rim(node, scene.piece(0, 2))).origin[1].meters, H)
+        # The rim's centre is read off the axis, whose quarter-turn heading
+        # (cosine 6.1e-17, not 0) rounds its height by an ulp of `H`.
+        self.assertAlmostEqual(
+            ev.edge_frame(node, band_rim(node, scene.piece(0, 2))).origin[1].meters,
+            H,
+            delta=2 * sys.float_info.epsilon * H,
+        )
 
     def test_band_pi_is_the_half_a_pole_splits_off(self):
         doc = Doc()
@@ -319,7 +326,7 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
         )
         # The kind is the inner name's, never re-decided: a carried
         # face resolves as a face.
-        self.assertEqual(ev.resolve(carried(hollow, target, band(node, scene.piece(0, 0)))).status, "resolved")
+        self.assertEqual(ev.resolve(hollow, carried(hollow, target, band(node, scene.piece(0, 0)))).status, "resolved")
 
     def test_text_that_is_not_a_name_refuses_at_the_boundary(self):
         doc = Doc()

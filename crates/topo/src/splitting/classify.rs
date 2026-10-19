@@ -15,6 +15,7 @@ use crate::boolean::boxes::BoxFrame;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::{decide, decide_nonzero};
+use crate::vertex_section::VertexRefusal;
 
 /// **The carrier gate, scoped to what the plane can reach** (C12.1:
 /// the gate retires per arm, never wholesale).
@@ -235,9 +236,11 @@ fn reach_clears<T: Decide>(
 
 /// F6: classify every vertex against the plane through the
 /// `split_vertex_side` trilean (margin = signed distance in meters,
-/// linear band), caching the verdict per vertex — one predicate site,
-/// one evaluation per vertex (the book recomputes per incident edge).
-/// In-band ⇒ typed [`SplitReduceError::SliverVertex`], never a snap.
+/// linear band), then each vertex that reads ON against the sections
+/// the plane ends at it ([`crate::vertex_section`]), its walk reading
+/// the far vertices' offset verdicts. One offset evaluation per vertex
+/// (the book recomputes per incident edge). In-band ⇒ typed
+/// [`SplitReduceError::SliverVertex`], never a snap.
 pub(super) fn classify_vertices<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
@@ -255,46 +258,82 @@ pub(super) type MarginedSides = (
 );
 
 /// [`classify_vertices`], with the margin each ON vertex was decided
-/// Zero on: the coincidence a pinch records ([`crate::coincidence`]).
+/// Zero on: the coincidence a pinch records ([`crate::coincidence`]) —
+/// its section reading where one was read, else its offset.
 pub(super) fn classify_vertices_margined<T: Decide>(
     body: &Body<T>,
     plane: &SplitPlane<T>,
     band: Band,
 ) -> Result<MarginedSides, SplitReduceError> {
-    let mut sides = SecondaryMap::new();
+    let side_of = |sign| match sign {
+        Sign::Negative => PlaneSide::Below,
+        Sign::Positive => PlaneSide::Above,
+        Sign::Zero => PlaneSide::On,
+    };
+    let mut offsets = SecondaryMap::new();
+    let mut zero = Vec::new();
+    for (vertex_key, p) in body.vertex_points() {
+        let offset = crate::sector_shape::plane_offset_rounded(plane.origin, plane.normal.get(), p);
+        let decided = crate::validate::decide_reported(
+            "split_vertex_side",
+            geom_core::Margin::of(offset.value),
+            band,
+        )
+        .map_err(|diag| SplitReduceError::SliverVertex {
+            vertex: vertex_key,
+            diag,
+        })?;
+        if decided.sign == Sign::Zero {
+            zero.push((vertex_key, p, offset, decided));
+        }
+        offsets.insert(vertex_key, side_of(decided.sign));
+    }
+    let mut sides = offsets.clone();
     let mut on_vertices = Vec::new();
     let mut on_margins = SecondaryMap::new();
-    for (vertex_key, p) in body.vertex_points() {
-        let margin = Margin::of(crate::sector_shape::plane_offset(
-            plane.origin,
-            plane.normal.get(),
-            p,
-        ));
-        let side = match crate::validate::decide_reported("split_vertex_side", margin, band) {
-            Ok(geom_core::Decided {
-                sign: Sign::Negative,
-                ..
-            }) => PlaneSide::Below,
-            Ok(geom_core::Decided {
-                sign: Sign::Positive,
-                ..
-            }) => PlaneSide::Above,
-            Ok(geom_core::Decided {
-                sign: Sign::Zero,
-                margin,
-            }) => {
-                on_vertices.push(vertex_key);
-                on_margins.insert(vertex_key, margin);
-                PlaneSide::On
-            }
-            Err(diag) => {
-                return Err(SplitReduceError::SliverVertex {
-                    vertex: vertex_key,
-                    diag,
-                });
-            }
-        };
-        sides.insert(vertex_key, side);
+    let section_plane = || {
+        Ok(crate::vertex_section::SectionPlane {
+            origin: plane.origin,
+            normal: plane.normal,
+            reference: geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
+        })
+    };
+    for (vertex_key, p, offset, on_plane) in zero {
+        let far =
+            |far| {
+                offsets.get(far).copied().ok_or(VertexRefusal::Walk(
+                    SplitReduceError::UnrecordedSide { vertex: far },
+                ))
+            };
+        let decided = crate::vertex_section::read_sections(
+            body,
+            (vertex_key, p),
+            section_plane,
+            (
+                crate::vertex_section::Offset {
+                    value: offset,
+                    normal: plane.normal.get(),
+                },
+                on_plane,
+                far,
+            ),
+            band,
+        )
+        .map_err(|refusal| match refusal {
+            VertexRefusal::Undecided(diag) => SplitReduceError::SliverVertex {
+                vertex: vertex_key,
+                diag,
+            },
+            VertexRefusal::Walk(e) => e,
+            VertexRefusal::Plane(what) => unreachable!(
+                "{vertex_key:?}: the split plane reads into the table whole, yet {what}"
+            ),
+        })?;
+        if decided.sign == Sign::Zero {
+            on_vertices.push(vertex_key);
+            on_margins.insert(vertex_key, decided.margin);
+        }
+        sides.insert(vertex_key, side_of(decided.sign));
     }
     Ok((sides, on_vertices, on_margins))
 }
@@ -513,7 +552,7 @@ fn conic_plane_meet<T: Decide>(
         Ok(candidates) => candidates,
         Err(meet) => return meet,
     };
-    let (s_u, s_v) = (conic.major, conic.minor);
+    let (s_u, s_v) = (conic.semi_u, conic.semi_v);
     span_roots(candidates, t0, t1, s_u, s_v, band)
 }
 
@@ -531,8 +570,8 @@ pub(crate) fn conic_plane_candidates<T: Decide>(
         center,
         axis,
         u_ref,
-        major: s_u,
-        minor: s_v,
+        semi_u: s_u,
+        semi_v: s_v,
     } = conic;
     let v_ref = axis.cross(u_ref);
     let d0 = (center - plane_origin).dot(plane_normal);
@@ -749,15 +788,17 @@ fn span_roots<T: Decide>(
 /// a graze root within ε of it by `split_conic_belly_graze`'s Zero.
 /// Their verdicts are cached without re-measuring. Returns each piece
 /// a split minted with the edge it was split from, `(new edge,
-/// divided-from edge)` in mint order.
+/// divided-from edge)` in mint order, each checked as it was minted
+/// ([`SplitReduceError::LineageRow`] where an earlier row names it).
 pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     plane: &SplitPlane<T>,
     sides: &mut SecondaryMap<VertexKey, PlaneSide>,
     on_vertices: &mut Vec<VertexKey>,
     tol: Tol,
-) -> Result<Vec<(EdgeKey, EdgeKey)>, SplitReduceError> {
-    let mut pieces = Vec::new();
+) -> Result<crate::lineage::SplitEdgeDivisions, SplitReduceError> {
+    let mut pieces =
+        crate::lineage::SplitEdgeDivisions::new(crate::lineage::LineageRows::EdgeDivisions(None));
     let band = geom_core::Band::linear(tol)?;
     // Snapshot: splitting adds edges; only operand edges can cross (a
     // split child's remaining crossing is handled through the parent's
@@ -850,7 +891,9 @@ pub(super) fn insert_crossings<T: Decide + crate::props::AtRestPolicy>(
             })?;
             sides.insert(created.vertex, PlaneSide::On);
             on_vertices.push(created.vertex);
-            pieces.push((created.new_edge, target));
+            pieces
+                .push((created.new_edge, target))
+                .map_err(SplitReduceError::LineageRow)?;
             target = created.new_edge;
         }
     }
@@ -885,8 +928,8 @@ mod tests {
         let e = Curve3::Ellipse {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
-            major: 0.01,
-            minor: 10.0,
+            semi_u: 0.01,
+            semi_v: 10.0,
             u_ref: Vec3::unit_x(),
         };
         let t0 = core::f64::consts::FRAC_PI_2;
@@ -1092,8 +1135,8 @@ mod tests {
                 Curve3::Ellipse {
                     center: Point3::origin(),
                     axis: Vec3::unit_z(),
-                    major: 2.0,
-                    minor: 1.0,
+                    semi_u: 2.0,
+                    semi_v: 1.0,
                     u_ref: Vec3::unit_x(),
                 },
                 "conic",
@@ -1224,8 +1267,8 @@ mod tests {
                     center: Point3::new(0.0, 0.0, off * e),
                     axis: Vec3::unit_x(),
                     u_ref: Vec3::unit_z(),
-                    major: 2.0 * e,
-                    minor: 2.0 * e,
+                    semi_u: 2.0 * e,
+                    semi_v: 2.0 * e,
                 };
                 let normal = Vec3::new(0.0, 0.0, nz);
                 let got = conic_plane_candidates(conic, Point3::origin(), normal, band);

@@ -46,9 +46,11 @@
 //! cell in `tier_gate.rs`'s `EPS_ROWS`: span escalation where the
 //! span lands in the band, `IntervalNotForward` where it certifies
 //! zero, and — for the 9e-8 twins at 1e-12, where their spans
-//! certify — the rim/sphere near-tangency refusing one level up at
-//! adoption (`NotTransverse`, and the tangency's second-order margin
-//! exactly zero: the fragment `tier_gate.rs` pins).
+//! certify — the pcurve re-mint on the adopted body refusing a chart
+//! image's map residual in the band (the fragment `tier_gate.rs`
+//! pins). The rim/sphere near-tangency refused one level up at
+//! adoption until the wedge between an edge's faces was levered at the
+//! faces' extent (`topo::wedge_reach`); there it certifies.
 //!
 //! # The door enumeration, honest
 //!

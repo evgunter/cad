@@ -532,6 +532,39 @@ fn cylinder_pairs_every_class() {
     );
 }
 
+/// **Two equal walls whose axes meet** cut each other in the two
+/// bisector-plane ellipses, which cross at the nodes `p ± r·n̂`: one
+/// component, essential on both walls, witnessed at a node, at a right
+/// angle and at a slant, the second axis through a point off the first
+/// wall's origin. A nest pinch at unequal radii — the thinner wall
+/// inside the fatter, touching — still refuses R-tan.
+#[test]
+fn equal_walls_with_meeting_axes_are_one_component_essential_on_both() {
+    let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0);
+    for (o2, d2) in [
+        (p(-2.0, 0.0, 0.4), Vec3::unit_x()),
+        (p(0.0, 0.0, 0.4) - v(0.0, 0.8, 0.6) * 3.0, v(0.0, 0.8, 0.6)),
+    ] {
+        let b = cylinder(o2, d2, 1.0);
+        let s = classify(&a, &b);
+        assert_eq!(
+            shape(&s),
+            (1, true, vec![true], vec![true], vec![false]),
+            "axis {d2:?}"
+        );
+        let w = witness(&s);
+        on_both(w, &a, &b);
+        let n = Vec3::unit_z().cross(d2).normalize();
+        let node = |sign: f64| p(0.0, 0.0, 0.4) + n * sign;
+        assert!(
+            (w - node(1.0)).norm() < 1e-12 || (w - node(-1.0)).norm() < 1e-12,
+            "axis {d2:?}: the witness {w:?} is a node"
+        );
+    }
+    let thin = cylinder(p(0.0, 0.5, 0.0), Vec3::unit_x(), 0.5);
+    assert_eq!(tangent(&classify(&a, &thin)), "section_cylinder_pair_nest");
+}
+
 /// **The `|d₁ × d₂|` decision**: two walls whose tilt, levered by the
 /// pair's extent, sits in the band's sliver — neither parallel nor
 /// definitely tilted, at whatever eps the run carries — offset so the
@@ -1602,11 +1635,11 @@ fn a_glued_pair_exempts_itself_only() {
     let fa: Vec<FaceKey> = a.faces().map(|(k, _)| k).collect();
     let fb: Vec<FaceKey> = b.faces().map(|(k, _)| k).collect();
     let decls = Glue {
-        pairs: vec![GluedPair {
-            a: fa[0],
-            b: fb[0],
-            class: crate::contact::GlueClass::Rest,
-        }],
+        pairs: vec![GluedPair::new(
+            fa[0],
+            fb[0],
+            crate::contact::GlueClass::Rest,
+        )],
         ..Glue::default()
     };
     assert!(ops::glues_pair(&decls, fa[0], fb[0]));
@@ -2098,15 +2131,15 @@ pub(in crate::boolean) fn torus_sheet(
     )
 }
 
-/// **An L-shaped torus face refuses, never trims by its hull.** The face
+/// **An L-shaped torus face reads its notch, never its hull.** The face
 /// covers `t ∈ [−a, 0]` over `u ∈ [0, a]` and `t ∈ [−a, a]` over
 /// `u ∈ [a, 2a]`; the notch `t ∈ (0, a)` over `u ∈ (0, a)` has the same
-/// hull, and the L, monotone in both channels, the same total variation.
-/// `bool_torus_chart_box` sees the notch's sides inside the box and the
-/// face door answers `None` for the whole face. The U, notched from the
-/// middle of its top side, refuses too; the rectangle trims.
+/// hull, so a window read off the hull answers `In` there. The region
+/// reading answers `Out` in the notch and `In` in the arm; the U,
+/// notched from the middle of its top side, likewise; the rectangle
+/// holds the point and trims past its window.
 #[test]
-fn an_l_shaped_torus_face_refuses_rather_than_trim_by_its_hull() {
+fn an_l_shaped_torus_face_reads_its_notch_not_its_hull() {
     let ring = (2.0, 0.5);
     let a = PI / 4.0;
     let l = [
@@ -2119,11 +2152,15 @@ fn an_l_shaped_torus_face_refuses_rather_than_trim_by_its_hull() {
     ];
     let notch = torus_at(ring, (0.5 * a, 0.5 * a));
     let (body, face) = torus_sheet(ring, &l);
-    assert_eq!(contain_at(&body, face, notch), None, "the L's notch");
+    assert_eq!(
+        contain_at(&body, face, notch),
+        Some(FaceContainment::Out),
+        "the L's notch"
+    );
     assert_eq!(
         contain_at(&body, face, torus_at(ring, (1.5 * a, 0.5 * a))),
-        None,
-        "the L refuses as a face, its arm too"
+        Some(FaceContainment::In),
+        "the L's arm"
     );
     let u = [
         (0.0, -a),
@@ -2138,8 +2175,13 @@ fn an_l_shaped_torus_face_refuses_rather_than_trim_by_its_hull() {
     let (body, face) = torus_sheet(ring, &u);
     assert_eq!(
         contain_at(&body, face, torus_at(ring, (1.5 * a, 0.5 * a))),
-        None,
+        Some(FaceContainment::Out),
         "the U's notch"
+    );
+    assert_eq!(
+        contain_at(&body, face, torus_at(ring, (0.5 * a, 0.5 * a))),
+        Some(FaceContainment::In),
+        "the U's arm"
     );
     let (body, face) = torus_sheet(ring, &[(0.0, -a), (2.0 * a, -a), (2.0 * a, a), (0.0, a)]);
     assert_eq!(
@@ -2157,6 +2199,18 @@ fn an_l_shaped_torus_face_refuses_rather_than_trim_by_its_hull() {
 /// The ring tori the small-notch rows cut: `(R, r)`, a fat and a thin
 /// tube, a near-horn one and a wide one.
 const RINGS: [(f64, f64); 4] = [(2.0, 0.5), (10.0, 0.1), (1.0, 0.9), (100.0, 1.0)];
+
+/// Whether a parallel leg on `ring`'s outer equator resolves its
+/// crossing of a meridian edge at this run's band: the root is a
+/// parameter of the leg, and the first-harmonic door charges a root's
+/// angle arithmetic `HARMONIC_NOISE_ULPS` half-ulps of a turn at the
+/// leg's radius `R + r`; a slack past the band's zero refuses it
+/// (`Unsettled::Meter`). On the wide ring at ε `1e-12` it does not, and a
+/// point whose every path must cross a meridian edge on a parallel leg
+/// refuses `RayExhausted`, never answers.
+fn parallel_leg_resolves(ring: (f64, f64)) -> bool {
+    geom_brep::rounding_charge(TAU) * (ring.0 + ring.1) < band().zero()
+}
 
 /// The chart rectangle `[0, π/2] × [−π/4, π/4]` less a `du × dv` notch
 /// cut from its top-right corner (`corner`, an L) or from the middle of
@@ -2193,16 +2247,16 @@ fn notched_chart(du: f64, dv: f64, corner: bool) -> (Vec<(f64, f64)>, (f64, f64)
     }
 }
 
-/// **A small notch refuses at every size the band reads, on every
+/// **A small notch reads `Out` at every size the band reads, on every
 /// ring.** Each notch is `s` metres on a side (`s/ρ` of major angle at
 /// its own parallel's radius `ρ`, `s/r` of minor angle), cut as an L
 /// and as a U from `[0, π/2] × [−π/4, π/4]`, and each is asked at its
-/// centre, which is `s/2` from the face: the answer is a definite
-/// refusal, never `In` (the hull's answer) and never an escalation (a
-/// margin that shrinks faster than the notch). Two thin notches ride
-/// along, `s` by `π/8` each way.
+/// centre, which is `s/2` from the face: the answer is `Out`, never `In`
+/// (the hull's answer) and never an escalation (a margin that shrinks
+/// faster than the notch), on every ring. Two thin notches ride along,
+/// `s` by `π/8` each way.
 #[test]
-fn a_small_notch_in_a_torus_face_refuses_at_every_size() {
+fn a_small_notch_in_a_torus_face_reads_out_at_every_size() {
     let eps = Tol::witness().eps();
     let mut bad = Vec::new();
     let a = PI / 4.0;
@@ -2219,7 +2273,7 @@ fn a_small_notch_in_a_torus_face_refuses_at_every_size() {
                 let (corners, centre) = notched_chart(du, dv, corner);
                 let (body, face) = torus_sheet(ring, &corners);
                 let got = door(&body, face, torus_at(ring, centre));
-                if !matches!(got, Ok(None)) {
+                if !matches!(got, Ok(Some(FaceContainment::Out))) {
                     bad.push(format!("ring {ring:?}, {what} notch {s:e} m: {got:?}"));
                 }
             }
@@ -2227,14 +2281,17 @@ fn a_small_notch_in_a_torus_face_refuses_at_every_size() {
     }
     assert!(
         bad.is_empty(),
-        "ε {eps:e}: {} cells answer other than a refusal:\n{}",
+        "ε {eps:e}: {} cells answer other than Out:\n{}",
         bad.len(),
         bad.join("\n")
     );
 }
 
-/// **The rectangle still trims on every ring**: `In` at its centre,
-/// `Out` a tenth of a radian past its major window.
+/// **The rectangle still trims on every ring**: `In` at its centre, and
+/// `Out` a tenth of a radian past its major window. That point lies on no
+/// meridian or parallel of the rectangle's span, so every path from it
+/// crosses a meridian edge on a parallel leg; where the leg's radius puts
+/// that root past the band ([`parallel_leg_resolves`]) it refuses typed.
 #[test]
 fn a_torus_rectangle_trims_on_every_ring() {
     let a = PI / 4.0;
@@ -2245,30 +2302,40 @@ fn a_torus_rectangle_trims_on_every_ring() {
             Some(FaceContainment::In),
             "ring {ring:?}: the centre"
         );
-        assert_eq!(
-            door(&body, face, torus_at(ring, (2.0 * a + 0.1, 0.0))).unwrap(),
-            Some(FaceContainment::Out),
-            "ring {ring:?}: past the window"
-        );
+        let past = door(&body, face, torus_at(ring, (2.0 * a + 0.1, 0.0)));
+        if parallel_leg_resolves(ring) {
+            assert_eq!(
+                past.unwrap(),
+                Some(FaceContainment::Out),
+                "ring {ring:?}: past the window"
+            );
+        } else {
+            assert!(
+                matches!(past, Err(crate::ContainError::RayExhausted)),
+                "ring {ring:?}: past the window: {past:?}"
+            );
+        }
     }
 }
 
-/// **A gap anywhere in the torus walk refuses.** The rectangle
-/// `[−π/2, 0] × [−π/4, π/4]` windows; with any one of its four edges
-/// made null scaffolding (which the walk steps over), the other three
-/// still lie on the box's sides, so only the continuity check (an edge
-/// in the middle of the walk) or the closure check (the walk's first or
-/// last) can see the gap. Each answers `PartialTorusFace`.
+/// **A gap anywhere in a torus face's boundary refuses.** The rectangle
+/// `[−π/2, 0] × [−π/4, π/4]` reads its region; with any one of its four
+/// edges made null scaffolding between its two distinct end points, the
+/// region refuses (`None`, the door's `PartialTorusFace`) rather than
+/// read the other three as the boundary.
 #[test]
-fn a_gap_in_the_torus_walk_refuses() {
+fn a_gap_in_the_torus_boundary_refuses() {
     use crate::null::{CurveGeom, NullEdge};
     let ring = (2.0, 0.5);
     let (w, a) = (PI / 2.0, PI / 4.0);
     let (body, face) = torus_sheet(ring, &[(-w, -a), (0.0, -a), (0.0, a), (-w, a)]);
-    let windows = |body: &Body<f64>| {
-        super::super::solid_contain::torus_face_windows(body, face, ring.0, ring.1, band())
+    let region = |body: &Body<f64>| {
+        super::super::torus_region::torus_face_region(body, face).map(|r| r.is_some())
     };
-    assert!(windows(&body).is_ok(), "the whole rectangle windows");
+    assert!(
+        matches!(region(&body), Ok(true)),
+        "the whole rectangle reads"
+    );
     let crate::LoopBoundary::Cycle { first } = body
         .get_loop(body.get_face(face).unwrap().outer)
         .unwrap()
@@ -2293,12 +2360,9 @@ fn a_gap_in_the_torus_walk_refuses() {
             below_end: ends.0,
             above_end: ends.1,
         });
-        let got = windows(&gapped);
-        if !matches!(
-            got,
-            Err(super::super::solid_contain::PointInSolidError::PartialTorusFace { .. })
-        ) {
-            bad.push(format!("edge {i} of the walk skipped: {got:?}"));
+        let got = region(&gapped);
+        if !matches!(got, Ok(false)) {
+            bad.push(format!("edge {i} of the boundary skipped: {got:?}"));
         }
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
@@ -2397,20 +2461,19 @@ fn a_small_notch_in_a_cone_face_refuses_at_every_size() {
 }
 
 /// **The smallest notch the builders mint pins the arms' direction.**
-/// A notch `1.5·K·ε` on a side, where each arm is the exact rate: on the
-/// torus at the outer equator (a parallel's radius there is `R + r`, the
-/// major arm itself; a meridian's is `r`), and on the cone at its top
-/// rim (the azimuth arm is that rim's radius; slant is exact). The
-/// notch's inner sides are then `1.5·K·ε` from the box's in metres, past
-/// the band, so the TRIM refuses definitely (`PartialTorusFace`,
-/// `PartialConeFace`). An arm that understated its rate would bring that
-/// margin into the band (an escalation) or under it (a window), and
-/// this row reads either as a failure. The face door at the notch's
-/// centre, `0.75·K·ε` from the face, may escalate on that graze before
-/// it reaches the trim; it must never answer `In`.
+/// A notch `1.5·K·ε` on a side, on the cone at its top rim (the azimuth
+/// arm is that rim's radius; slant is exact). The notch's inner sides
+/// are then `1.5·K·ε` from the box's in metres, past the band, so the
+/// TRIM refuses definitely (`PartialConeFace`). An arm that understated
+/// its rate would bring that margin into the band (an escalation) or
+/// under it (a window), and this row reads either as a failure. The
+/// torus rides along at the outer equator, where its region reads the
+/// notch on its edges' own carriers. The face door at either notch's
+/// centre, `0.75·K·ε` from the face, may escalate on that graze; it
+/// must never answer `In`.
 #[test]
 fn the_smallest_notch_refuses_definitely() {
-    use super::super::solid_contain::{PointInSolidError, cone_face_trim, torus_face_windows};
+    use super::super::solid_contain::{PointInSolidError, cone_face_trim};
     let tol = Tol::witness();
     let s = 1.5 * tol.k() * tol.eps();
     let mut bad = Vec::new();
@@ -2437,10 +2500,6 @@ fn the_smallest_notch_refuses_definitely() {
             format!("ring {ring:?}"),
             door(&body, face, torus_at(ring, (w - 0.5 * du, -0.5 * dv))),
         );
-        let got = torus_face_windows(&body, face, ring.0, ring.1, band());
-        if !matches!(got, Err(PointInSolidError::PartialTorusFace { .. })) {
-            trims.push(format!("ring {ring:?}: the trim answers {got:?}"));
-        }
     }
     let w = PI / 4.0;
     for (h0, h1) in FRUSTA {

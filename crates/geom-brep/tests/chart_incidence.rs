@@ -13,6 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::surf::off_cone;
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
 use geom_brep::{Grazer, Pcurve, PcurveCertifyError, chart_pcurve};
@@ -28,17 +29,6 @@ fn cone(alpha: f64) -> Surface<f64> {
         half_angle: alpha,
         u_ref: Vec3::unit_x(),
     }
-}
-
-/// The worst distance of a carrier's points from that cone's upper
-/// nappe: `|p_r|·cos α − p_z·sin α`.
-fn off_cone(carrier: &Curve3<f64>, alpha: f64) -> f64 {
-    (0..256)
-        .map(|i| {
-            let p = carrier.eval(f64::from(i) * core::f64::consts::TAU / 256.0);
-            (p.x.hypot(p.y) * alpha.cos() - p.z * alpha.sin()).abs()
-        })
-        .fold(0.0_f64, f64::max)
 }
 
 /// The cone's section by the plane through `(0, 0, h)` whose normal is
@@ -67,11 +57,11 @@ fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
     let on = Curve3::Ellipse {
         center: centre,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     };
-    let dist = off_cone(&on, alpha);
+    let dist = off_cone(&on, &cone(alpha));
     assert!(dist < 1e-14, "on the cone: {dist:e}");
     let got = chart_pcurve(&on, &cone(alpha), band());
     assert!(
@@ -82,11 +72,11 @@ fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
     let moved = Curve3::Ellipse {
         center: centre + axis * shift,
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     };
-    let dist = off_cone(&moved, alpha);
+    let dist = off_cone(&moved, &cone(alpha));
     assert!(
         dist > Tol::witness().k() * eps(),
         "the move is past the sliver: {dist:e}"
@@ -153,8 +143,8 @@ fn each_harmonic_group_of_the_cone_residual_decides_alone() {
         Curve3::Ellipse {
             center: Point3::new(0.0, 0.0, 1.0),
             axis: Vec3::unit_z(),
-            major: (rho * rho + s).sqrt(),
-            minor: (rho * rho - s).sqrt(),
+            semi_u: (rho * rho + s).sqrt(),
+            semi_v: (rho * rho - s).sqrt(),
             u_ref: Vec3::unit_x(),
         },
         alpha,
@@ -182,7 +172,7 @@ fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
             radius: (major * minor).sqrt(),
             u_ref,
         };
-        let dist = off_cone(&circle, alpha);
+        let dist = off_cone(&circle, &cone(alpha));
         assert!(dist < 0.01 * e, "alpha = {alpha}: on the cone: {dist:e}");
         let got = chart_pcurve(&circle, &cone(alpha), band());
         if rim {
@@ -270,8 +260,8 @@ fn an_in_band_move_is_never_read_off_the_cone_or_the_sphere() {
     let moved = Curve3::Ellipse {
         center: centre + Vec3::unit_z() * (0.5 * eps()),
         axis,
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref,
     };
     let got = chart_pcurve(&moved, &cone(alpha), band());

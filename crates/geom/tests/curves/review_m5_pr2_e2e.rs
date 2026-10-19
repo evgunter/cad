@@ -120,7 +120,7 @@ fn control_points_are_exactly_on_the_plane() {
 #[test]
 fn the_clean_fit_is_certified_and_the_plant_is_refused() {
     let curve = planar_curve();
-    let kv = curve.knots();
+    let kv = curve.knots_f64_interim();
     let weights = curve.weights();
 
     // --- the clean curve certifies -----------------------------------
@@ -267,7 +267,7 @@ fn a_sub_eps_perturbation_still_certifies() {
     // that fires on any change. A plant an order of magnitude under the
     // band leaves the bound under the band.
     let curve = planar_curve();
-    let kv = curve.knots();
+    let kv = curve.knots_f64_interim();
     let mut control = curve.control().to_vec();
     control[1] = Point3::new(control[1].x, control[1].y, control[1].z + 1e-10);
     let nudged = NurbsCurve3::new(kv.clone(), control, curve.weights().to_vec()).unwrap();

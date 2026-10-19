@@ -2,7 +2,9 @@
 id: the-census-edge-face-cut-crosses-chords-and-conics-only
 kind: issue
 title: The census's edge-face cut crosses a line with a face's chord and conic boundary arcs only; a spiric or spline arc it may reach refuses Uncrossable
-status: open
+status: closed
+closed: 2026-10-14
+branch: fuse/curve-pair-reader-c2
 opened: 2026-10-13
 priority: P3
 cost: M
@@ -32,3 +34,10 @@ row in `work/cleave/carrier-walk-has-no-crossing-row-for-spiric-or-spline-edges.
 (closed); the cut here did not. The meeting search
 `census::curved::meetings` (a bisection with a sup-speed clearing
 bound) reads a line against any carrier kind and is one way in.
+
+## Closed — the cut reads `geom_brep::curve_pair::meet` (fuse/curve-pair-reader-c2)
+
+`census::edge_crossings` reads each boundary edge against the census edge's segment through `meet`, the one reading of two spans' meetings (C5), on every carrier kind. A straight edge's span is its segment between its two loop ends, and any other edge's span is its certified carrier's. A meeting on both interiors is a cut, a meeting at a boundary edge's end is the vertex cuts', and a shared run is pass 5's. A spiric or spline arc is read by the walk, so `CrossRefusal::Unsupported(Uncrossable)` is gone from the cut. `SpiricArc::clears_segment`, the ball screen and their rows went with it.
+
+- `census::tests::a_spiric_boundary_is_cut_where_it_meets_the_edge_and_clear_elsewhere`: the cube edge straddling the spiric arc, which refused `Uncrossable` before, is cut on the oval.
+- The spline row built a synthetic `LoopEdge::Unrowed` with a ball and no curve, a screen that no longer exists, and is deleted. A spline boundary is read by the walk like a spiric one.

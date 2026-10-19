@@ -122,7 +122,7 @@ fn poison_propagates_through_values() {
     // Poisoned control point at f64.
     let mut ctrl = n.control().to_vec();
     ctrl[3] = Point3::new(f64::NAN, 0.0, 0.0);
-    let np = NurbsCurve3::new(n.knots().clone(), ctrl, n.weights().to_vec()).unwrap();
+    let np = NurbsCurve3::new(n.knots_f64_interim().clone(), ctrl, n.weights().to_vec()).unwrap();
     // A parameter whose span touches control index 3 poisons the
     // poisoned CHANNEL and leaves the others finite — the partial
     // answer, stated as what it is rather than checked on x alone.

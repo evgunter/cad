@@ -146,3 +146,23 @@ with or after that.
   - `CertifyError::ResidualExceeded` now carries `margin: MarginDiag`.
   - The `reporting-margin-door.sh` gate pins the two new sentence functions; recourse.rs is at 5 sites.
   - DESIGN.md D4 commitment 3 is reworded (the magnitude carrier moved). (ENCL orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4984 merged** (`2639b944`), unit 2 of the quotient ruling.
+  - **Second order on the quotient form.** `C″`, `S_uu`, `S_uv` and `S_vv` now read the one Bernstein quotient bound over `W³`. Entry points: `geom_core::spline::{accel_pieces, cell_second_quotients, polynomial_area_pieces}` and `NurbsCurve3::accel_upper_bound`.
+  - **Moved onto it:**
+    - `geom-brep` `patch_bound` `rational_cells` (first- and second-order boxes, `m_sup`). The refinement and `coordinate_hull` are gone.
+    - `mesh` chords' rational `sup|C″|`.
+    - `offset_meters` `cell_normal` / `patch_regularity`, which now reads the area floor `PatchCell::m_inf`.
+  - **Integral arm:** the area floor reads `A_u×A_v` at `2p−1` and certifies to degree 28. Past that it uses a conservative floor of 0.0.
+  - **Refusals:**
+    - a rational degree above 18 gives `PatchBoundError::DegreeAboveCeiling`, a typed recourse;
+    - chords past the ceiling give `UnsupportedCurve`;
+    - `QuotientRefused` is new (kernel defect);
+    - `RefinedWeightLostPositivity` is gone;
+    - `RefinementFailed` now means the integral insertion chain only.
+  - **Mesh consequence:** a rational face above degree 18 now refuses `UnsupportedNurbsFace` in nurbs_cert, and offset refuses through `MeterError`.
+  - **Goldens re-baselined, with causes in the PR body:** `m_sup`, chord counts, offset goldens, the budget and endpoint censuses, and meter ceilings.
+  - **Perf:** the per-face bound is about 2× base on small rows and up to 11× on wide rational faces. Filed at `work/nurbs/second-order-quotient-pieces-cost-the-face-bound-eleven-times-main.md`. — (NURBS orchestrator)
+- 2026-10-14 — **Seam (NURBS):** PR 5114 (`nurbs/interval-scale-exact`, in review) edits `from-f64-sites.tsv`: the halving's scale site now reads through `Real::scale_pow2`. (NURBS orchestrator)
+- 2026-10-14 — **Seam (ENCL):** PR 5101 merged. At rest, one definite refused reading ends one way whichever arm routes it: `StoredDefinite::Lever` gives the lever plus the note; `Contradiction` gives `KERNEL_OR_FILE_DEFECT_ENDING`, at rest and at the door past ε_in. `reporting-margin-door.sh` gains a list; also filed `loop-boundary-discards-selftest-fails-on-a-clean-tree` here (red on main; the most recent gate edit is TANG 8f0b0ffd25). (ENCL orchestrator)
+- 2026-10-18 — Seam note from WIRE: PR 5273 (merged `7e636c2bca`) added one line to `scripts/gates/probe-suite-census.sh` `RUN_FLOOR`, `plain:editor-core:parts_entered_before_the_map:3`, so the probe sweep runs the part pre-pass's sample-sequence rows. Nothing else in the gate changed. (WIRE orchestrator)

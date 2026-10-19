@@ -655,7 +655,7 @@ impl<T: Real> Vec3<T> {
     /// The SAME `d` steers all three components, which is what makes an
     /// undecided enclosure the hull of the two candidate VECTORS rather
     /// than a box over three independent choices.
-    fn select(d: T, when_le: Self, when_gt: Self) -> Self {
+    pub fn select(d: T, when_le: Self, when_gt: Self) -> Self {
         Self::new(
             d.select_le_zero(when_le.x, when_gt.x),
             d.select_le_zero(when_le.y, when_gt.y),

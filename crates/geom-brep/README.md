@@ -26,8 +26,8 @@ escalated typed refusal, never a raw comparison.
 | C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs` |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
-| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions) |
-| C6 f64 structure, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
+| C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs` |
+| C6 structure certified for every member, values in the scalar, generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`, `conic_bend.rs` (a conic edge's side of a plane one order down), `locus.rs` (the closed-form tangent locus, the `Tangent` witness lane); marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
 | C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
@@ -55,14 +55,19 @@ section, one oval in the torus's own minor angle — minted by
 `plane_torus_section`'s axis-parallel arm, which the offset-axial
 door's rim mint calls; a plane through the axis cuts the more exact
 `Circle`, and `Curve3::spiric` refuses it), whose residuals are zero by
-construction; rung 3, a fitted cubic
-`Curve3::Nurbs` carrying the C2 certificate. Parabola and hyperbola are
+construction because the kernel derived them from their pair; rung 3,
+a pair with no closed form (a spline operand), whose carrier is
+evidence of any kind — a fitted cubic `Curve3::Nurbs` where the kernel
+marched it, a closed form where a file stated one or recognition
+promoted one — carrying the C2 certificate. A closed form is zero by
+construction only on rungs 1–2; declared on a rung-3 pair, it is
+checked like any other carrier. Parabola and hyperbola are
 outside the inventory by decision: a plane×cone section of either kind
 refuses typed, naming its conic. Conics round-trip to rational-quadratic NURBS only as
 an export/tessellation form, never as the kernel carrier (the axes and
 centre are what dispatch consumes). There is no polyline rung.
 
-**C2 — A fitted carrier's certificate has three limbs, all mandatory.**
+**C2 — The certificate of a carrier the kernel did not derive has three limbs, all mandatory.**
 (1) On-locus residual at the fixed `CERT_SAMPLES` schedule: `|f(C(t))|`
 in metres for an analytic operand (`implicit.rs`); for a NURBS operand
 `|C(t) − S(u*,v*)|` at the projected foot point; any point of the
@@ -453,10 +458,33 @@ a sphere's twin bit) that carries its image onto the end of the
 half-edge before it in its loop, or a reset marker at a pole or apex
 (and on a spline chart where the net's own `u` stretch is not decided
 past the band).
+On a periodic channel the image is placed over the edge's span in the
+chart's principal window, so where a carrier's parameter happens to
+start moves neither the stored image nor any joint element. A chart
+coordinate is a coordinate in the chart's cover and never wraps. An
+angle read off the geometry becomes one only through a stated
+reference; an azimuth's is the side of the principal window's cut line
+its direction lies on, decided in metres (`pcurve_chart_cut_side`), so
+the read jumps only across the band of that line at the window's start,
+on its angle-0 side, a band as wide in angle as the band is against the
+direction's length. For an arm whose phase is the direction's angle that
+is the window's own cut. For an arm whose offset moves the angle along
+the edge (a parallel, a rim, a focal section, a torus tube's `σ·m`, a
+Villarceau `t0`) it is a generic angle no corpus direction is on, and
+placement's marks name the copy either way. A sphere's latitude is read
+the same way in its own window, `(1 − π, 1 + π]`, whose cut is generic
+for the latitude read too: a far-half meridian reads its polar angle
+anywhere on `(π/2, 3π/2)`, so the cut cannot be `atan2`'s at `π`.
+Every whole-period question uses the channel's own period, which the
+chart owns: by renaming where no reader tells the copies apart,
+through the marks where one does. No whole-period integer is read off
+a value.
 A loop's lift is derived by summing elements from its `first`, so no
 stored byte depends on which half-edge is `first`. A seam edge has both
 half-edges on one surface with one image and two joint elements, so no
-coarser key works. Its parameter *is* the carrier's
+coarser key works; this holds on every closed channel, each with its
+own period (τ in azimuth, a torus's τ in its second angle, the knot
+domain's length on a spline net decided closed in that direction). Its parameter *is* the carrier's
 `he_plus`-forward parameter; traversal sense per face is derived, never
 stored. `PcurveCache::certify` is the only constructor. The certified
 statement is `|S(P(t)) − C(t)| ≤ ε`, a 3-D displacement over the whole
@@ -507,9 +535,19 @@ UV-space tolerance appears in any certified statement; the chart's
 stretch is the lever arm. A row certifies against its carrier and chart alone, on one branch (a τ jump
 is unrepresentable in `Harmonic`'s `α + β·t`, and the projected
 image's sector condition refuses one); no caller's window enters
-it. The face's rows lift its loops, and `topo::pcurves` certifies the
+it. On a periodic chart a harmonic image's winding is structure the
+row stores, never decided in metres: the row holds its windings (`β`,
+and `σ` where the second channel is an angle) as the derivation's own
+values, `certify` compares them with the image it re-derives exactly,
+and the image's sweep is the carrier's own span, which the edge
+certificate decides at the carrier's rate. The envelope is the row's
+one statement in metres. A row is its placed image: a lifted copy is
+the row together with a deck element and is never certified again.
+The face's rows lift its loops, and `topo::pcurves` certifies the
 loop: at each joint the walk decides the deck element (the whole number
-of periods, and on a sphere the involution twin) as an integer, with
+of periods on each periodic channel, and on a sphere the involution
+twin) as an integer, by the half-period marks read outward from zero,
+however many periods that is, with no cap and with
 half the step to the next point of the joint's orbit as room: half a
 period on a cylinder, cone or torus, and a quarter period on a sphere,
 whose twin sits half a period over in azimuth. Where two points as far
@@ -541,7 +579,13 @@ stored row, a half-minted face's included. A topology door may drop
 rows mid-surgery; every public producer ends with a full mint, so
 validity is judged on what the producer returns. Every class of carrier
 a chart can hold has a route into a certified row, and a face no route
-covers refuses at the producer rather than reaching rest uncached. A
+covers refuses at the producer rather than reaching rest uncached.
+A closed-form class gate is a lane choice (D3): in band or definite,
+the carrier takes a lane whose certificate does not rest on the class,
+its projected image where the chart has one. Whether the carrier lies
+on the chart at all is a residual, not a class gate: a miss is the
+lever on a declared carrier and a defect only on one the kernel
+derived. A
 carrier whose route refuses (a spline or a circle whose projected image
 reaches a pole) refuses at the producer like any other refusal: no
 class goes unrouted, so the exemption excuses only a scalar that holds
@@ -561,10 +605,28 @@ drift and frame terms — with the schedule its cross-check), `Projected`
 (the projected image above, on an analytic chart), `Fitted` and `General`
 (on a spline chart; the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
-parameter stays chart-neutral. The description form every conventional
-edge takes is `EdgeDescription::Chart { surface, pcurve, seam }`, with
-`EdgeAuthority` recording who declared the locus; that collapse and its
-fence are `docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume and
+parameter stays chart-neutral. A two-surface edge is `EdgeDescription::Intersection { pair, selector }`,
+a curve of the pair's intersection picked by a structural selector where
+the curve is known in advance (a closed form of the pair, or a curve
+chosen in a region of 2-D overlap; stated by a construction, recovered
+by an import; certified by its own meter and incidence on both surfaces, each surface's chart-image certificate, the `|S(P(t)) − C(t)|`
+statement its pcurve carries) or by a witness where it must be derived
+numerically (certified by its transversality or order-k jet margin);
+`EdgeDescription::Chart { surface, pcurve,
+wrap }` is a locus one chart defines (wraps, iso lines, splits whose two
+faces share one surface), with `EdgeAuthority` recording who determined
+the locus. Which form an edge between two faces takes is decided in one
+home, `topo::rest_locus` (`RestLocus`): one surface
+record is one surface; two records the carrier-equality ladder reads
+as one carrier over the faces' region are one surface too, since
+incidence on both is incidence on one, and the edge rests in the first
+record's chart; two distinct carriers, or a kind outside the ladder,
+are the pair, carrying a structural selector where the pair's curve has
+a closed form and a witness otherwise; a coincidence in band
+is refused at the structural act that made the two faces adjacent, and
+a rung that cannot decide or a region that does not read refuses typed,
+naming the lane. The chart collapse and its fence are
+`docs/PCURVE-UNIFY-DESIGN.md`, not restated here. Volume and
 area read a face carrying a `General` pcurve through the trimmed
 quadrature lane (`crates/topo/src/props/quad_lane.rs`), and tessellation through the
 mesher's trimmed path; a rational `General` image refuses typed there.
@@ -593,6 +655,37 @@ an edge's carrier lies within `2ε / sin θ` of the described section
 along the wall, `θ` the angle between the plane and the wall, the same
 conditioning every certified `Intersection` edge already has; that is
 stated here and not enforced.
+The same rule governs curve pairs. Two carrier spans (a carrier and a
+parameter interval) meet through one exhaustive `(CurveKind, CurveKind)`
+table, and every candidate it proposes is settled against each span by
+the point-on-span reading, which composes geom's one-carrier readings
+(the point's foot, and whether it lies on the carrier) with the span's
+reading of its ends, and decides nothing of its own; a point is decided
+off a carrier only on a lower bound on its distance to the whole
+carrier.
+Line, circle and ellipse pairs are closed forms that solve in one conic's
+angle and measure in metres; a
+pair with a spiric or spline side is the certified bisection walk, which
+is also the closed forms' differential test oracle. A candidate generator's
+in-band decision escalates and never prunes, and a candidate admitted under
+a `Zero` reading is placed by the exactly degenerate formula, never by the
+generic one. Two spans meet along stretches. A *stretch* is a longest
+interval of one span which is nowhere definitely off the other; a
+*meeting* is a longest interval of one span which is everywhere
+definitely on the other, a single point for a crossing or a touch and a
+longer interval for a shared run. Each span's ends are read against the
+other span before anything else. A stretch holding exactly one meeting
+is reported as that meeting, which takes the whole stretch; a stretch
+holding no meeting, or more than one, escalates, since between two
+meetings in one stretch the spans are nowhere definitely apart and
+whether they are two crossings or one run is undecided. Two curves may
+cross any number of times, and each crossing in a stretch of its own is
+its own meeting; a candidate nearer a found meeting than the band's
+escalation width cannot be decided distinct from it, so it is not read
+again.
+A closed form that already holds a meeting divides that meeting's root out
+of its equation and solves only for the others. The reader is given no
+topology: two edges joined at a vertex meet there because their ends meet.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (all but the parabola and hyperbola),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
@@ -608,26 +701,48 @@ and torus metres conversion (C2 limb 2).
 
 ### Fitted-cache structure
 
-**C6 — Structure is an f64 decision; values are the scalar's;
-certification is scalar-generic.** A carrier's *structure* — degree,
-knot and control counts, knot multiplicities, which span a parameter
-lies in, and every decision a fitting loop or a skin takes (knot count,
-sub-arc count, merged knots) — is decided once in `f64`, read off the
-values' value channel, and re-decided by no generic lane; a value that
-names no single point refuses typed. Its *values* — knot positions,
-weights, control points and the combination coefficients the knot
-algebra derives from them — are held in the scalar, each entered where
-it is made as what it is: a constant of the construction's form or of
-an imported file through `from_f64`; a numerical routine's output (a
-fit's knots, weights and poles) once, at the fit, through
-`Real::from_computed`; a value the model determines computed in the
-scalar. The certificate re-evaluates against the pinned structure at
-any `Real`, so the interval lane proves what the f64 lane chose. A
-refinement made inside a certificate chooses nothing: its refined
-weights are generally not `f64`, so it is held only as homogeneous
-enclosures `(w·P, w)`, and the projective knot algebra has no meaning
-at the certification scalar. No topology-determining predicate reads
-knot counts, spans or fitted coefficients except through named
+**C6 — Structure is combinatorial and certified for every member;
+values are the scalar's; certification is scalar-generic.** A carrier's
+*structure* is its combinatorial part: degree, knot and control counts,
+knot multiplicities, the order of its breakpoints, and every decision a
+fitting loop or a skin takes (knot count, sub-arc count, merged knots).
+Its *values* are knot positions, weights, control points and the
+combination coefficients the knot algebra derives from them. Values are
+held in the scalar, each entered where it is made as what it is: a
+constant of the construction's form (π as `T::pi()`, never as the
+arithmetic that computes it) or of an imported file through `from_f64`;
+a numerical routine's output (a fit's knots, weights and poles) once, at
+the fit, through `Real::from_computed`; a value the model determines
+computed in the scalar. At an enclosure scalar a carrier stands for the
+family of its members, so its knot positions and weights may be
+enclosures as its poles are. Structure is decided once for every member:
+at a point scalar it is read off the values; at an enclosure scalar it
+is certified to hold for every member — consecutive knot runs ascend,
+every weight is positive, and a parameter's span read hulls every span
+the parameter can lie in for some member. A structure decision whose
+members may disagree refuses typed, naming the decision, and carries
+its margin so that a refinement of the inputs can lift it; a decision
+that was only a shortcut (equal weights, the integral test) takes the
+general route instead. No decision rule breaks where documents sit: the
+sub-arc count allows one sub-arc to reach `(π/2)(1+η)`, η a named
+structure constant, so an arc whose true sweep is a multiple of π/2
+counts the same for every member. η is `1/16`: it keeps a sweep of
+`k·π/2` at `k` sub-arcs for every `k ≤ 4`, a full turn included (which
+needs `η < 1/3`), it is exact in binary, and a sub-arc's
+tangent-intersection point stays well conditioned
+(`cos(Δ/2) ≥ cos((π/4)(1+η))`). The arc's other decisions (that its sweep
+is not zero, whether it ends where it starts, and that it is short of a
+turn between two points or one turn back to its start) are certified over
+their brackets the same way. A fit's structure (knot vectors,
+degrees and control counts) is the deterministic `f64` pipeline's, and
+the certificate re-evaluates against it at any `Real`, so the interval
+lane proves what the f64 lane chose. A refinement made inside a
+certificate chooses nothing: its refined weights are generally not
+`f64`, so it is held only as homogeneous enclosures `(w·P, w)`, and the
+projective knot algebra has no meaning at the certification scalar; the
+knot algebra a construction runs at that scalar (a skin's compatibility
+step) is that homogeneous algebra too. No topology-determining predicate
+reads knot counts, spans or fitted coefficients except through named
 certified margins; the name table is a function of recipe structure and
 verdicts only.
 
@@ -659,7 +774,18 @@ only when both move one reading, as a residual and its span sag do. Tier 3 has t
 definitely-tangent edge carries a recorded `ContactMark` (`Tangent` when
 jet-determinate, `SmoothUnderdetermined` when the surfaces
 under-determine the locus, e.g. a G2 sketch join), and the must-carry
-rule `TangentNotIntrinsic` fires only on `ContactMark::Tangent`. NURBS-
+rule fires only on `ContactMark::Tangent`, refusing a conventional
+description there (`OnPair`, or a `Chart` that is not a wrap, declared
+or derived) `TangentNotIntrinsic`. Tier 3 reads a body at the ε it was
+built at, the run's. An edge whose stations read definitely
+transverse at one and definitely smooth at its neighbour brackets an
+unsampled in-band point and is refused (`MixedDihedral`, naming the two
+stations); `must_carry_over_edge` answers it `MustCarryVerdict::Mixed`,
+and every constructor refuses it typed but one: the blend's contact
+edge, routed smooth by its carrier's construction, ends a mixed reading
+as `SurgeryInvariant`, the surgery contradicting its own routing, since
+the rolling ball's exact contact cannot read a corner anywhere along
+it. NURBS-
 and `Approx`-adjacent edges are exempt by kind (`Unmarked`). Curved
 contact census is CONTACT-DESIGN's, at `crates/topo/README.md`.
 
@@ -675,18 +801,56 @@ before anything is built, which is what lets an interval replay certify
 validity over a parameter box. They run in that order, except face
 clearance's reach arm (every band against every face of the body it
 does not blend), which needs the plan's feet: it runs in the surgery
-after predicate 6 and before any mutation. Face clearance reads each face
-three ways, not two: clear of the band's material, wholly inside it (the
-face goes with that material, as a face wholly inside a Boolean's tool
-does), or crossing it (refused). At a convex straight band's cut-off
-(the ruled fillet's, the plane–plane fillet's and chamfer's) the carve
-takes a through-feature wholly inside the material, between the band's
-two caps; a feature read wholly inside anywhere else (a void or an
-island with no cap cycle) refuses `WhollyInside`, and a hole whose
-mouth a concave fill covers, which is not wholly inside, refuses as a
-bound where its wall meets the end face's plane. Every constant-radius arm
-mints a torus or a cylinder (the envelope of equal spheres over a circle
-or a line spine); a cone belongs to the variable-radius family.
+after predicate 6 and before any mutation.
+
+**What a blend does with the body's other features is Boolean
+semantics.** A convex band's result is `S − R` and a concave band's
+`S ∪ F`, where the region `R` (or `F`) is the material between the band
+surface and its supports' strips over the band's extent, closed by its
+end faces, read from the supports' carriers and the band's ends and
+never from the features near it. Every case follows by set algebra: a
+feature wholly inside `R` goes with it, as a feature wholly inside a
+Boolean's tool goes with the tool, a void and a free solid inside it
+included; a protrusion or an island wholly inside `F` is absorbed, the
+island's voids, which lie in `F`, filled with it; a hole whose mouth lies wholly on
+the face `F` covers is sealed, a through-hole turning blind and a blind
+hole a void; and a feature crossing the band surface has a result too.
+What is built of it: face clearance reads each face three ways (clear
+of the region, wholly inside it, or crossing it), and the carve takes a
+feature wholly inside the material a straight band's cut-off removes or
+fills, attached to the rest of the body only by cycles on the band's
+caps: a through-feature between the two caps on the ruled fillet and
+the plane–plane fillet and chamfer (a bore under a convex band, a bar
+between the end walls under a concave one), and a cup on one cap on
+the plane–plane band (a blind bore under a convex band, a pin under a
+concave one), each of whose faces that meet the cap is a plane or a
+cylinder. Every other case refuses, a
+case the rule defines and the surgery does not build, and it refuses
+at the meter that reads it, not by which case it is. The clearance
+screen and the exact ring meters read the supports' own boundary
+features and the end faces' cycles (`FaceClearanceUncertified`,
+`RingClearance`); the reach reads every other face, a crossing as a
+measurement and a face it cannot certify either way as a bound
+(`FaceClearance`); and a request whose every reading is inside but
+that no carve takes refuses `WhollyInside` (a void or an island with no
+cap cycle). So a cup on the ruled band, whose far faces have no exact
+region to be read in, or a hole whose mouth a concave fill covers,
+refuses as a bound where its wall meets the end face's plane, while a
+blind hole entering from a support
+face is read at the screen, its ring nearer the edge than the band
+sets back, and refuses there although it lies wholly inside. A
+crossing refuses as an unbuilt case too, not as an exception to the
+rule, as the Boolean refuses the surface pairs it does not serve; the
+clearance and ring recourses name the reorder, blending before a
+feature that came after the edge
+(`crates/sweep/README.md`, predicate 2). The band and its supports are
+in-place surgery, not a literal Boolean against a body for the region:
+that tool is cusp-edged along both trimlines, and most band × feature
+surface pairs are outside the intersection table (C5).
+
+Every constant-radius arm mints a torus or a cylinder (the envelope of
+equal spheres over a circle or a line spine); a cone belongs to the
+variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band
 (plane–plane, or the ruled band about a straight spine) ends at a
 trivalent vertex of one convexity between planes as the request decides
@@ -885,9 +1049,9 @@ on the kind).
 claim is `sup_(u,v) ‖S_fit − (S + d·n)‖ ≤ ε_precision`, pointwise in the
 base's own chart parameters. Meters (`offset_meters.rs`, read off
 `patch_bound.rs`'s per-cell control-hull enclosures): the *regularity
-floor*, a certified lower bound on `‖S_u × S_v‖` (three assemblies, the
-largest wins: componentwise mignitude, fixed-direction projection, and
-the Gram determinant `EG − F²`), classified by `offset_normal_floor` with
+floor*, a certified lower bound on `‖S_u × S_v‖` (the area quotient's
+least coefficient ratio along each piece's own direction, the
+`PatchCell::m_inf` its sup is the companion of), classified by `offset_normal_floor` with
 the patch's faster chart speed as lever (read from the norms of
 coefficient vectors, D4 ¶2, as the floor's companion `sup‖S_u × S_v‖`
 is), deliberately not `|d|`, since
@@ -1024,6 +1188,160 @@ the `cylinder × torus` and `cone × torus` arms — its own two rims. The
 bulb has no cone-abutting-cylinder adjacency at all: its flare is
 bracketed by two tori, by construction.
 
+## Edge descriptions
+
+How `geom-brep` keeps DESIGN `[edges]`: the text DESIGN held before its
+rules and mechanics were split (2026-10-18), verbatim. Bracketed ids are
+`docs/DESIGN.md`'s clauses.
+
+**Background: pcurves.** A surface is a map `S(u,v) → ℝ³`. A face is a
+region of that surface's parameter plane, and each boundary edge is
+therefore also a curve `P(t) → (u,v)` in that plane — the *pcurve*. An
+edge shared by two faces classically carries three representations: a
+3-D curve plus one pcurve per adjacent face, with the consistency
+requirement `Sᵢ(Pᵢ(t)) ≈ C(t)`. Pcurves are not optional — trimming,
+tessellation and intersection marching happen in (u,v) — and the
+redundancy among peer representations is a classic bug farm.
+
+**Our rule:** an edge's geometry is stored as an *intensional
+description* of what the locus **is**; every concrete representation
+(the 3-D carrier, both pcurves) is a derived cache carrying a certified
+residual bound against the described locus ([tolerance.residuals]). The type is
+`EdgeDescription<T>` (`crates/geom-brep/src/description.rs`):
+
+```text
+EdgeDescription =
+  | Intersection        { pair, selector }   -- a curve of S₁∩S₂, `pair` the set
+                                             -- {S₁, S₂}, unordered; the selector
+                                             -- picks which curve: a witness
+                                             -- (the branch through a point, also
+                                             -- the marching seed) or a structural
+                                             -- selector (a construction's
+                                             -- pushforward); whether the surfaces
+                                             -- cross (read `Intersection`) or touch
+                                             -- to order k (read `TangentIntersection`)
+                                             -- is what the certificate reads, never
+                                             -- a second stored record
+  | Chart(ChartCurve)                        -- a curve ONE surface's chart defines:
+                                             -- (surface, Pcurve) with a `wrap` flag
+                                             -- (iso-lines, seams, same-surface splits)
+  | Scaffold(MappedCurve)                    -- construction-time pushforward of a
+                                             -- lower-dim entity; never at rest
+```
+
+A two-surface edge is always a curve of the two surfaces' intersection,
+and its selector says which: no two-surface edge is conventional. The
+selector follows one question, asked of the geometry and never of where
+the body came from: **is the curve known in advance?** Where it is —
+the surfaces' contact or crossing has a closed form (a ruling where a
+plane meets a cylinder or a swept wall, a circle where coaxial surfaces
+of revolution meet, a row or column of a swept or skinned wall), or the
+curve was chosen to lie in a region where the two surfaces overlap in
+2-D — the selector is **structural**: that closed form, picking the
+curve exactly whatever the contact order, certified by its own meter and
+incidence on each surface, each read through that surface's own
+chart-image certificate (the one meter every pcurve carries). A
+construction that knows the curve (a profile vertex swept, a section
+placed, a section vertex skinned through a loft's sections) states that
+closed form directly, and an import recovers the same closed form from
+the same geometry, so a native body and its imported copy carry the same
+selector: the closed form is a property of the surfaces, not of the
+history. Where the curve must be derived numerically from the geometry
+— a crossing or tangency with no closed form — the selector is a
+**witness**, the branch through a point, admitted only where its margin
+certifies: transversality for a crossing, the order-k jet system's
+margin for a tangency of order k, each taken across the locus, over the
+faces, never along the edge. A construction therefore never classifies
+its own joins by measurement, and the sketch's joint class is the one
+reading of their kind. A curve no lane can yet select refuses typed,
+naming the lane, native or imported alike; a coincidence of two surfaces
+in band is refused at the structural act that made them adjacent. A locus one chart defines
+(parameterization seams — infinite-order contact, the seam's position
+pure convention; iso-lines; splits whose two faces share one surface;
+two records that read as one carrier) is `Chart`: one (surface,
+`Pcurve`) form covers all of them (PCURVE-UNIFY-DESIGN); the exact
+classes stay as certification lanes, not variants. A `MappedCurve`
+survives as the `Scaffold` payload, as a structural selector and as the
+`EdgeAuthority` record — one authoritative source, never two peer
+representations needing cross-reconciliation.
+
+**Deliberately omitted: an `Explicit` (extensional) variant.** Taken as
+an unconditional challenge: every edge must have an intensional
+description — there is no escape hatch, so it cannot be reached for
+when not absolutely necessary. This holds for imported geometry ([import]):
+the intrinsic variants are checkable properties of the geometry as it
+now stands, and a closed-form selector is a property of the surfaces,
+so extensional input is *adopted* by recovering the selector a native
+body would carry, or refuses typed where no lane recovers one. What import pressure-tests is the completeness of the
+taxonomy (imported fillets force `TangentIntersection`), not the need
+for a fallback.
+
+**Validity predicates with margins.** `Intersection` requires
+*transversality*: normals of S₁, S₂ linearly independent along the
+locus, so the implicit function theorem makes S₁∩S₂ locally a
+1-manifold; the margin (angle between normals) governs the conditioning
+of every derived cache. A branch may end at a *node*, a point where
+it crosses another branch of the same pair and the two surfaces are
+tangent (two equal cylinders with intersecting axes: their section is
+two ellipses crossing at p ± r·unit(â₁×â₂)); there the section is one
+connected set, so the witness selects the branch, and transversality
+holds on the open edge, which is where certification samples it. A tangency's validity sits one
+differential order up: surfaces coincident within ε and normal-parallel
+within the derived angular threshold ε·κ_rel ([tolerance.epsilon]: lever arm
+r = 1/κ_rel) *along* the locus, separating quadratically *transverse*
+to it (relative normal curvature bounded away from zero — otherwise the
+surfaces osculate over a patch and the "locus" is not a curve).
+Reconstructing a tangency locus is well-conditioned *despite* the
+tangency because its defining system includes the first-order
+normal-alignment equations: the normal angle grows linearly with
+transverse distance, and the second-order margin is the
+implicit-function-theorem denominator for that jet system. Order-k
+contact generalizes: defining equations from the k-jet, margin at order
+k+1, so a curvature-continuous join (k = 3) is read as a tangency where
+its third-order separation certifies, not left under-determined. In the intrinsic variants "the locus lies on both surfaces" holds
+*by definition*; only the caches need certification. Vertices
+generalize the same way (three surfaces / endpoint of a locus, with a
+witness). A locus in the ambiguous band — a dihedral within a few
+derived angular thresholds of tangent, certifiable as neither — fails
+loudly at construction exactly as at import; a conventional description
+is not an escape hatch from ill-conditioned geometry. An edge whose
+stations read definitely transverse at some and definitely smooth at
+others is such a locus: the dihedral is continuous along it, so the two
+readings bracket an in-band point the schedule did not sample, and it
+refuses typed, naming the two stations.
+
+**Prefer-intrinsic rule, tier-3-enforced.** Every two-surface edge is
+intrinsic, and its selector is decided by the geometry alone: a closed
+form where one exists, a witness where the curve must be derived. A
+fillet we build carries its rolling ball's contact rail; a sweep carries
+the ruling its profile vertex sweeps out, whatever the joint's contact
+order; an imported copy of either recovers the same closed form. A
+closed form that selects the curve is description, not history; [identity]
+provenance stays the record of who built the edge, and native and
+imported bodies carry identical descriptions. At rest, a witness
+selector must certify its reading:
+a definitely-transverse locus as `Intersection` (`TransverseNotIntrinsic`
+otherwise), a jet-determinate tangency as `TangentIntersection`
+(`TangentNotIntrinsic`, where `geom_brep::tangent_certificate_lane`
+admits the class). The rule needs two surfaces and a definite reading, so
+a wrap edge (one surface) and an edge whose dihedral is not read
+definitely (in band, or beside a spline face) fall outside it.
+An unenforced preference drifts silently — exactly the failure shape this
+document exists to kill.
+
+**Witness contract.** "Selected by the witness point" is verifiable only
+if the witness is *pinned*: the stored witness IS the carrier's
+mid-parameter point, enforced by certification (`WitnessMidpoint`).
+Pinning removes the aliasing freedom that let any point on the
+component certify, including points encoding a wrong winding; residual
+freedom is documented where it is geometrically invisible (circles:
+whole-period translation). Every op that mints an `Intersection`
+computes the witness as carrier(mid) in the certification schedule's
+own association order.
+
+This makes [identity]'s provenance load-bearing rather than bookkeeping: the
+intensional description largely *is* the provenance.
+
 ## Open
 
 - Shell's curved wall clearance: two facing curved walls closer than
@@ -1038,3 +1356,29 @@ bracketed by two tori, by construction.
   `CornerConfig` tag; the finer run-out taxonomy (per-end assignment,
   setback parameters) is reserved for the design that implements
   run-outs.
+
+## Parameterization conventions
+
+Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topology]`, `[coincidence]` …) are `docs/DESIGN.md`'s clauses.
+
+- **Parameterization conventions** (authoritative text in the `geom`
+  crate docs and its `curves`/`surfaces` modules): curve entities are
+  complete loci; an edge's bounds derive from its vertices via the
+  `he_plus`-forward contract (certification enforces forward, nonzero,
+  ≤ one-period spans, the stored interval a certified cache reconciled
+  against vertex authority). Shared azimuthal frame for all revolution
+  surfaces (axis = +a₃, v_ref = axis × u_ref, seam at u_ref — for
+  revolved bodies u = 0 IS the profile half-plane); sphere uses
+  latitude; cone v = slant length with the apex a true chart
+  singularity (poison normal, never sampled); normals are the chart's
+  ∂u × ∂v with no "outward" contract — topology carries sense. A seam
+  (a **wrap edge**) is a property of a face, not a place on its
+  surface: an edge both of whose sides bound one face, across which
+  that face's chart domain closes in one of its periodic directions.
+  Where it sits is where the construction cut the wall — the profile
+  vertex — read off the edge's carrier through the chart (a meridian
+  wraps u, a torus parallel wraps v, a closed spline net's boundary
+  column wraps u), so the mirror-nappe cone's chart u = 0 needs no
+  spatial pin. A wall keeps the cuts its author wrote and the kernel
+  adds none: a one-segment closed loop sweeps to one wall with one wrap
+  edge, a k-piece loop to k walls on one surface key.

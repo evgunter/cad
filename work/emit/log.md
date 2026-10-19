@@ -2285,3 +2285,128 @@ This is fork-log row 131 (renumbered at merge; Ev: "sounds good!"). Also filed: 
   - `a-union-edge-in-a-face-whose-member-face-glued-is-a-seam-not-a-member-edge-piece`;
   - `a-pair-boolean-has-no-spelling-for-one-line-meeting-several-faces` (unreached).
 - Filed on CIW: `the-ci-slow-set-names-tests-that-no-longer-exist`.
+
+## 2026-10-14 — PR 5039: two naming refusals on sound bodies
+
+**The prism bridging two wedges** (closed). A union seam between two distinct faces of one operand is now named as their `Seam`, and the arm guards on `BooleanOp::Union`. This covers both a seam that shares no edge and a chord off every rim the two faces share. `borders.rs` follows split lineage for touches through one loud walk.
+- Pinned in every building order, with a fast subset run in per-PR CI.
+- The orders that fold the bridge last still refuse in topo (TANG's row).
+
+**The sphere cut-in cap** (closed, P2). Topo's `apply_cut_ins` now records its divisions and chart cuts (record only), so the cap no longer refuses `MissingUpstream`. What remains is the typed `ConventionalVertex` refusal (FUSE's row).
+
+**Filed:**
+- FUSE: the unglued cut in the lens ∪ brick;
+- EMIT: a whole ball cut by a tilted brick refuses `UNCLASSIFIED_SIDE`;
+- CIW: loop-boundary-discards loses a fn whose signature holds a `;`;
+- ORBIT: the re-cut graft keys carry no record;
+- NURBS (#5044): the lily-leaf tessellation table drift on main, found on this PR's demos run.
+
+The PR merged with `demos` red on that drift alone.
+
+## 2026-10-14 — PR 5062: the whole ball cut by a tilted brick, parked
+
+**Measured.** Intersect and union refuse `UNCLASSIFIED_SIDE` in both operand orders; subtract names in both.
+
+**Cause.**
+- The kernel re-charts the closed ball with `apply_recuts`. It turns the ball until its poles lie on the brick's axis, and every key is kept.
+- The union reads member edges by key but member vertices by position in the member's own body. At a turned pole the two readings disagree, so the vertex falls through to `meeting` with no other member to read a sense against, and it refuses.
+- ORBIT's graft row is not reached here.
+
+**Parked.** The row waits on ORBIT's `closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut`, which retires the re-chart; with no re-chart, the question this row raised does not arise. It goes to a designer pair only if ORBIT lands and keeps the re-chart.
+
+**Pin.** `emit_ball_cut_by_brick.rs` pins every op in both orders. Subtract cites a ball pole off the ball's own poles, so the test flips when the re-chart goes.
+
+**Process.** The lane's report said main did not build: `BooleanNaming`'s `Default` had no `chart_cuts`. #5060 had already fixed that.
+
+## 2026-10-14 — PR 5073: union readings (four rows closed)
+
+**Closed:**
+- `a-unions-member-lookups-skip-a-non-unique-row-silently`: a tied member face is read by key, a tied vertex carries its tie through `TieRows`, and a tied edge refuses `MemberEdgeTied` where it bears.
+- `a-point-on-a-curved-edge-is-placed-by-its-chord`: `edge_holds` reads along the carrier; a NURBS carrier refuses with the new `CarrierUnplaced`.
+- `the-joined-edge-reading-has-two-implementations`: the pair and the union share `joined_candidates`, `joined_along` and `edges_holding`.
+- `a-run-of-seams-says-every-seam-after-the-first-as-an-edge`: every seam in a run is said by its two faces.
+
+**Coverage change.** A union flush with a member's tied edge now refuses where main named it. N5 reads a line as its least member row, and the README has no rule for a tied one. No corpus or suite row moved.
+
+**Review.** The falsifier and style reviewers found nothing blocking. Twelve findings were folded in, three of them silent defaults.
+
+**Filed:** `two-seam-runs-whose-seams-differ-in-unopened-faces-can-read-alike-within-the-evaluation`.
+
+**Process.**
+- The fold's first push broke CI's build: `crates/viewer` includes `tests/fixture/mod.rs` by path. Fixed on the next push.
+- The lane's target reached 22G and filled `/` once.
+
+## 2026-10-14 — PR 5122: resolver cascade and the separation refusal
+
+**Closed:**
+- `a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent`. The cascade rung no longer blames a retired constituent. Two rules:
+  - it reads through a `Merged` set's constituents, decided in `embedded` under `Partners::Cascade`;
+  - a name that a live merge of its own minting node covers is retired, not vanished (`retired_into_a_live_merge`).
+  
+  A vanished merged name, nested or not, is now diagnosed at the edit, `RecipeEdit`. The names README is unchanged.
+- `separation-unavailable-carries-the-kernel-refusal-shared`. `CheckEvidence::SeparationUnavailable` holds `Refusal<topo::BooleanError>` whole. Python's `reason` and `boolean_variant` are unchanged. `payload-rung-sweep` drops one uncurated row and gains one cross-list row.
+
+**Review.**
+- The falsifier confirmed a nested-union gap by running it. The second rule fixes it, and the gap has its own end-to-end test.
+- Style: the README sentence was dropped (it was already implied by N3 and N5); topo's `BooleanErrorKind` doc was corrected; the skip rule now lives in one place.
+
+**Nothing moved** apart from those diagnoses.
+
+## 2026-10-14 — PR 5139: borders lineage; notch and pocket-floor rows measured
+
+**Closed: `a-booleans-same-step-split-and-join-loses-the-childs-lineage`.**
+- A new topo record, `BooleanNaming::joined_lineage` (record only), maps each edge the output-stage join kills to the edge it was split from.
+- The boolean and the Split now share the helpers `edge_join::split_records` and `edge_join::record_joined_lineage`, which keep the two-parent assert.
+- `borders.rs` reads the record. Every `split_from` write goes through `note_split`, an agreeing `entry` write.
+- No name moved. A whole-suite probe found no change in which discards each piece reaches.
+
+**Measured and stopped on design** (`design: true`):
+- `a-borders-join-can-link-two-obstacles-that-meet-only-at-a-notch-apex`. The notch pins are named `…_read_as_one_obstacle_today`.
+- `a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere`. The pocket-floor pin is `#[ignore]`d.
+- Both questions went to the blinded designer pair `emit-notch-floor`.
+
+**Still open:** `a-face-whose-discarded-fragments-share-a-chord-has-no-fixture`, which no fixture reaches yet.
+
+**Filed:** `a-booleans-merge-stage-kills-split-records-no-row-copies`.
+
+**Process.** The lane's 11G target, together with two designer builds, brought `/` down to 7G free. The fold round skipped its workspace build, and the target was deleted once the fold was pushed.
+
+## 2026-10-14 — PR 5169: the merge stage keeps split records; the remap row re-scoped
+
+**Closed: `a-booleans-merge-stage-kills-split-records-no-row-copies`.**
+- Measured first. The merge dropped a record 1134 times, and `chase_edge_to_table` stopped short 342 times, each time naming a piece of an operand edge as a seam.
+- `finish_output` now records the merge's own `killed_edges` and the join's kills into `BooleanNaming::killed_lineage` (renamed from `joined_lineage`). It does so from one snapshot, through the one-parent writer. Records only.
+- `KilledSplits::of` reads the map.
+- What moved: only `crossing_slots`. A cavity-rim stretch is now a piece of the rim, not a seam, and the four floor corners now read alike. Four goldens were re-baselined.
+
+**Re-scoped: `a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical`.** No design question remains. ASSEMBLY.md A4 Acceptance requires split and inline maps to keep name order. The public `remap_name` gives a typed refusal (fail-loud). The row is open for a build lane.
+
+**Filed:**
+- `a-booleans-carve-kills-a-split-record-its-discard-rows-do-not-copy`;
+- `a-grafted-b-piece-whose-parent-the-merge-killed-chases-short`;
+- `work/origin/body-split-root-stops-at-a-parent-an-output-stage-killed` (with a sibling sweep).
+
+**Review.** The falsifier's A4 reading turned the remap design stop into a build. Without it, the stop would have become a third `[ev]` question.
+
+## 2026-10-15 — PRs 5107, 5174 and 5180
+
+**PR 5107: a union reads flush edges along a curved carrier.**
+- Closed `a-unions-flush-reading-is-straight-only` and `crossings-of-a-union-seam-of-several-curves-tie`.
+- `EdgeCarrier` (`Straight`, `Curved` or `Unread`, the last for a NURBS carrier) and `Track::runs_with` decide the flush lines. `least_per_line` is shared with the pair boolean.
+- The `Track::offset` start point is decided first.
+- Ev ratified (2026-10-14) the N2 / flush README re-wording, "line" = carrier. On ranking along a curved seam: "that can be a separate pr". It is filed as `a-union-seam-whose-pieces-lie-on-one-open-carrier-ranks-its-crossings-along-it`.
+- Re-baselined: the ball-brick refusal message.
+
+**PR 5174: split and inline keep step-id order; `remap_name` refuses typed; the carve keeps split records.**
+- Closed `a-remap-that-changes-a-ranked-runs-least-line-carries-it-uncanonical` under ASSEMBLY.md A4 Acceptance. The split's and inline's step maps keep id order, through a recorded `SetProgram` that mints nothing.
+- A ranked run across two profiles refuses typed. It is unreachable today.
+- `remap_name` returns `RemapError`, and `RankedRunReordered` is a new typed refusal.
+- Closed `a-booleans-carve-kills-a-split-record-its-discard-rows-do-not-copy` through `carved_lineage`, records only.
+- North-star `TestCrosslapGlued` now succeeds: audit row 37 flips NO→YES.
+
+**PR 5180: main red, fixed.** TANG #5111 added a `copysign` site that the Rule F census did not count, and main's own CI scoped geom-core out. 5107 and 5174, both at `TIER=all`, went red. The census was re-asked: the site makes no decision. The fix was merged into both, then into main.
+
+- 2026-10-15 — **No live row is at or above this track's own band (P0).** The 31 rows left are 2 at P2, 23 at P3, 5 at P4, 1 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
+  Band the 1 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
+  (tracker sweep)
+- 2026-10-18 — Seam note from FUSE, which closes (`docs/doc-ledger/fuse-leaves-the-tracker.md`): `a-conventional-vertex-mints-no-edge-derived-name`, `a-split-join-that-kills-a-split-child-has-no-row`, `boolean-naming-carries-the-join-rows-twice` and `a-discard-border-inside-a-merged-face-or-joined-edge-reads-as-no-border` (the last a naming-layer design question on `Borders`, beside this slate's other border rows) moved here by `git mv`, ids kept and bodies unchanged but for re-pointed `work/fuse/` citations. (FUSE close lane)

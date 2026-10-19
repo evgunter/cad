@@ -117,6 +117,15 @@ pub(crate) enum SectorFaceError {
     },
 }
 
+/// The face orbit half-edge `he`'s sector at `vertex` is a corner of:
+/// the face of its mate's loop. `vertex` and `he` are as for
+/// [`resolve`].
+#[track_caller]
+pub(crate) fn face_of<T: Decide>(body: &Body<T>, vertex: VertexKey, he: HalfEdgeKey) -> FaceKey {
+    let mate = body.proven_mate(he, crate::live::link(EntityId::Vertex(vertex), "orbit"));
+    body.face_of_linked(mate.mate)
+}
+
 /// Resolves the sector CW-after `he` (`face(loop(mate(he)))`) to its
 /// face, that face's outward normal at `vertex`, and the carrier arm
 /// that produced the normal.
@@ -139,8 +148,7 @@ pub(crate) fn resolve<T: Decide>(
     vertex: VertexKey,
     he: HalfEdgeKey,
 ) -> Result<SectorFace<T>, SectorFaceError> {
-    let mate = body.proven_mate(he, crate::live::link(EntityId::Vertex(vertex), "orbit"));
-    let face = body.face_of_linked(mate.mate);
+    let face = face_of(body, vertex, he);
     // The planar arm goes through the crate's ONE sense-flip door
     // ([`crate::face_normal`]) rather than re-deriving the flip, and
     // reads nothing else: a plane's outward normal is a property of
@@ -184,8 +192,7 @@ pub(crate) fn resolve<T: Decide>(
         // its one home rather than re-derived here. It is `0/0` only on
         // the axis, which no point of a ring torus's tube reaches
         // (`ρ ≥ R − r > 0`); a vertex there poisons the normal, and
-        // poison escalates typed at the first decide that reads it —
-        // the same outcome `point_on_torus_in_face`'s banded check gives.
+        // poison escalates typed at the first decide that reads it.
         s @ geom::Surface::Torus { .. } => charted(
             geom_brep::implicit_gradient(s, point()).normalize(),
             SectorCarrier::Torus,

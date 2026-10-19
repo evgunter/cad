@@ -126,10 +126,12 @@ fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 5] {
         s::HitTestError::Ambiguous { hits } => {
             [none(), none(), none(), none(), obj(tied(py, hits))]
         }
-        // The unplaced group, by its root; its cause is in the message.
-        s::HitTestError::AcrossSpaces { group, .. } => {
-            [node(*group), none(), none(), none(), none()]
-        }
+        // A loose copy whose space is one of the two, by its
+        // placement; both spaces are in the message.
+        s::HitTestError::AcrossSpaces { a, b } => match a.loose().or(b.loose()) {
+            Some(root) => [node(root), none(), none(), none(), none()],
+            None => [none(), none(), none(), none(), none()],
+        },
         s::HitTestError::Unnamed(s::UnnamedEntity { node: n, entity }) => [
             node(*n),
             none(),

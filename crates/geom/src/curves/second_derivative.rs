@@ -23,9 +23,9 @@ use crate::curves::NurbsCurve3;
 /// `Err(SecondDerivativeUnbounded)` when the structure cannot license
 /// a bound, and the variant NAMES which structure — a caller's typed
 /// refusal is only as good as the reason it can quote. Rational curves
-/// are NOT this door's: their quotient-rule assembly divides by a
-/// weight range and lives with the consumer that owns the homogeneous
-/// form, so a weight other than `1` refuses here.
+/// are NOT this door's: their `C″ = M/W³` is the quotient statement's
+/// ([`crate::NurbsCurve3::accel_upper_bound`]), so a weight other than
+/// `1` refuses here.
 ///
 /// # Errors
 ///
@@ -41,7 +41,7 @@ pub fn nonrational_second_derivative_sup(
     let control = curve.control();
     let mut sum_sq = <Interval as Certification>::zero();
     for comp in 0..3 {
-        let hull = curve.knots().with_coeffs_from_fn(
+        let hull = curve.knots_f64_interim().with_coeffs_from_fn(
             |i| {
                 let pt = control[i];
                 Interval::point(match comp {

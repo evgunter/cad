@@ -96,6 +96,13 @@ fn zero_verdict(margin: f64) -> Refused {
     })
 }
 
+/// A positive-passing gate's rejection of a reading past the band on
+/// the refused side.
+fn rejected_negative(predicate: &'static str) -> Indeterminate {
+    geom_core::k_stats::decide_positive(predicate, geom_core::Margin::of(-1e-3), band())
+        .expect_err("a definitely negative reading is the gate's rejection")
+}
+
 /// A sign-certain negative verdict on `margin`.
 fn negative_verdict(margin: f64) -> Refused {
     Refused::Negative {
@@ -276,8 +283,10 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
 
 /// [`ContainError::ArcEndClearOfCorners`] at the sample band: an end
 /// decided off both corners (`off_corner`, read only at a band finer
-/// than the run's), or every end at a corner (the band's own parting,
-/// `K ≤ 3`, the one the census reaches).
+/// than the run's), or every end at a corner (the band's own parting, the
+/// one the census reaches: the point within the zero band of the end's
+/// point and past the escalation from a corner within the zero band of
+/// it, so `K < 2`).
 #[must_use]
 pub fn arc_end_clear_of_corners(off_corner: bool) -> ContainError {
     let (zero, off) = (
@@ -353,6 +362,15 @@ fn carrier_domain_invalid() -> geom_brep::CarrierDomainRefusal {
     }
 }
 
+/// A spiric with no certified net over the span holding its root's
+/// zero.
+fn carrier_enclosure() -> geom_brep::CarrierEnclosureRefusal {
+    geom_brep::CarrierEnclosureRefusal {
+        kind: geom::CurveKind::Spiric,
+        span: (3.140625, 3.15),
+    }
+}
+
 /// The carrier-domain refusal on a domain too narrow for its ends.
 fn carrier_domain_collapsed() -> geom_brep::CarrierDomainRefusal {
     geom_brep::CarrierDomainRefusal {
@@ -376,6 +394,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::PcurveFit,
         PlaneNurbsRefusal::CarrierDomain(carrier_domain_invalid()),
         PlaneNurbsRefusal::CarrierDomain(carrier_domain_collapsed()),
+        PlaneNurbsRefusal::CarrierEnclosure(carrier_enclosure()),
         PlaneNurbsRefusal::Limb {
             limb: geom_brep::SsiLimb::Tube,
             margin: MarginDiag::value(1e-7),
@@ -449,6 +468,11 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
         CertifyError::NurbsLaneNotSupplied,
+        CertifyError::OnPairArcRim {
+            iso: None,
+            limb: geom_brep::SsiLimb::HullValueChart,
+            bound: MarginDiag::value(4.6e-4),
+        },
         CertifyError::IntersectionSameSurface { key },
         CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
@@ -514,6 +538,18 @@ fn certify_errors() -> Vec<CertifyError> {
             check: CertCheck::ParamSpanMeter,
             sample: geom_brep::certify::NOT_A_SAMPLE,
             cause: diag(),
+        },
+        // A gate's rejected negative, routed as undecided: a stored
+        // contradiction's definite reading, and one the lever reaches.
+        CertifyError::Escalated {
+            check: CertCheck::TransversalityArm,
+            sample: 4,
+            cause: rejected_negative("dihedral_arm"),
+        },
+        CertifyError::Escalated {
+            check: CertCheck::ParamSpanMeter,
+            sample: geom_brep::certify::NOT_A_SAMPLE,
+            cause: rejected_negative("param_span_meter"),
         },
     ];
     v.extend(band_errors().into_iter().map(CertifyError::Band));
@@ -608,21 +644,36 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             source: geom_core::spline::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
         },
         PcurveCertifyError::FittedCertificate {
-            limb: Some(geom_brep::SsiLimb::HullSup),
-            what: "a certificate limb exceeded ε",
-            magnitude: Some(FittedMagnitude::LimbResidual(MarginDiag::value(1e-7))),
+            limb: Some(geom_brep::SsiLimb::OnLocus),
+            what: "a foot point of the chart-image schedule would not converge",
+            magnitude: Some(FittedMagnitude::LastFootDistance {
+                t: 0.5,
+                last_distance: 1e-7,
+            }),
+        },
+        PcurveCertifyError::FittedLimb {
+            limb: geom_brep::SsiLimb::HullSupChart,
+            margin: MarginDiag::value(1e-7),
         },
         PcurveCertifyError::CarrierDomain(carrier_domain_collapsed()),
+        PcurveCertifyError::CarrierEnclosure(carrier_enclosure()),
         PcurveCertifyError::FittedEscalated {
-            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
+            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSupChart),
             cause: diag(),
         },
         PcurveCertifyError::IntervalNotForward,
         PcurveCertifyError::ChartWindingUnsupported,
+        PcurveCertifyError::ChannelKindMismatch {
+            chart: geom::SurfaceKind::Cylinder,
+        },
+        PcurveCertifyError::WindingMismatch {
+            stored: [Some(1), None],
+            derived: [Some(-1), None],
+        },
         PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
+        PcurveCertifyError::PlacementTurnsExceeded,
         PcurveCertifyError::TubePeriodExceeded,
-        PcurveCertifyError::BranchOutOfReach,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
             sample: 4,
@@ -1202,6 +1253,13 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::PlanarFaceResidual { face, vertex },
         ValidationError::PlanarBoundaryResidual { face, edge },
         ValidationError::TransverseNotIntrinsic { edge },
+        ValidationError::MixedDihedral {
+            edge,
+            stations: geom_brep::MixedStations {
+                transverse: 3,
+                smooth: 4,
+            },
+        },
         ValidationError::ScaffoldAtRest { edge },
         ValidationError::JoinableVertexAtRest { vertex },
         ValidationError::JoinUndecidedAtRest {

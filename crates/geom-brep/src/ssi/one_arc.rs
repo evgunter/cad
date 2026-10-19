@@ -326,7 +326,7 @@ fn sign_at<T: CertifiedBounds>(
 }
 
 /// Whether `φ` changes sign between the two ends of the line through
-/// `p` along `e`, cut to `rect` ([`slice`]). `Some(true)` puts a zero on
+/// `p` along `e`, cut to `rect` ([`slice`](fn@slice)). `Some(true)` puts a zero on
 /// the segment between them, which lies in `rect`. `Some(false)`: both
 /// ends are certified of one sign. `None`: an end has no certified
 /// sign, or the line misses the interior of `rect`.
@@ -1168,12 +1168,13 @@ mod tests {
 
     use super::super::ChartAxis;
     use super::super::certify::chart_tube_windows;
-    use super::super::enclose::{Box3, NurbsBoxes};
+    use super::super::enclose::{Box3, NurbsBoxes, UvWindow};
     use super::super::exhaust::UvRect;
     use super::{
         Krawczyk, Shortfall, boundary_zeros, edge_runs, face_roots, krawczyk, one_arc, one_arc_r3,
         pt,
     };
+    use geom_core::Bounds as _;
 
     /// A biquadratic graph `z = g(x) + h(y)` over `[0, 1]²` from the
     /// Bernstein coefficients of `g` and `h`, with `(u, v) = (x, y)`.
@@ -1397,6 +1398,107 @@ mod tests {
             Some(2),
             "the control: the edge below cuts the parabola twice"
         );
+    }
+
+    /// **A point's box encloses the surface's exact point at `f64`.**
+    /// `z = (x − ½)² + y − ¼` on dyadic control, so at `(½ ∓ 2⁻ᵏ, ½)`
+    /// (the parameters `(½ ∓ 2⁻ᵏ, ¼)`) the exact height is `2⁻²ᵏ`, an
+    /// `f64`, far below the rounding of the `+¼ − ¼` the evaluation
+    /// cancels. A zero-width window's box is its midpoint value alone:
+    /// red when that value is the lane's own `f64` evaluation, which
+    /// lands off the exact point (`2.08e-16` for `2.22e-16` at `k = 26`),
+    /// whatever the slope term.
+    #[test]
+    fn a_point_windows_box_encloses_the_exact_point() {
+        let wall = biq([0.25, -0.25, 0.25], [-0.25, 0.25, 0.75]);
+        let boxes = NurbsBoxes::new(&wall);
+        for k in 20..=40 {
+            let h = 2.0_f64.powi(-k);
+            for u in [0.5 - h, 0.5 + h] {
+                let w = UvWindow::new(u, u, 0.25, 0.25).expect("a point window");
+                let z = boxes.rect_box(w).z;
+                let exact = h * h;
+                assert!(
+                    z.lo() <= exact && exact <= z.hi(),
+                    "u = {u:e}: [{:e}, {:e}] misses the exact {exact:e}",
+                    z.lo(),
+                    z.hi()
+                );
+            }
+        }
+    }
+
+    /// **A point's box is as narrow far from the origin as near it.**
+    /// The certified midpoint is read about the window's corner control
+    /// point too, so its width scales with the window's extent: the same
+    /// dyadic wall moved by `2⁹` m in each axis (exactly), its control
+    /// widened by an ulp of `2⁹` so that no double-word reading applies
+    /// (it reads points only), reads each coordinate within six ulps of
+    /// `2⁹` (5 measured, the widening itself 2). Red where the sum is
+    /// taken about the origin alone, whose every term rounds at `2⁹`'s
+    /// ulp (35 measured).
+    #[test]
+    fn a_far_walls_point_box_is_as_narrow_as_a_near_ones() {
+        let mut rng = test_utils::fuzz::start("rect-box-far-midpoint");
+        let far = 512.0;
+        let ulp = far * f64::EPSILON;
+        let pad = ulp;
+        let mut worst = 0.0_f64;
+        for _ in 0..test_utils::fuzz::scaled(40) {
+            let dyadic = |rng: &mut test_utils::fuzz::Rng| (rng.range(-64.0, 64.0)).round() / 64.0;
+            let g = [0.0; 3].map(|_| dyadic(&mut rng));
+            let h = [0.0; 3].map(|_| dyadic(&mut rng));
+            let near = biq(g, h);
+            let thick = |x: f64| Interval::from_bounds(x + far - pad, x + far + pad);
+            let moved = NurbsSurface::new(
+                near.knot_values_u().lift(|x| Interval::from_bounds(x, x)),
+                near.knot_values_v().lift(|x| Interval::from_bounds(x, x)),
+                near.control()
+                    .iter()
+                    .map(|p| Point3::new(thick(p.x), thick(p.y), thick(p.z)))
+                    .collect(),
+                near.weights()
+                    .iter()
+                    .map(|&w| Interval::from_bounds(w, w))
+                    .collect(),
+            )
+            .expect("the moved wall");
+            let boxes = NurbsBoxes::new(&moved);
+            let (u, v) = (rng.range(0.0, 1.0), rng.range(0.0, 1.0));
+            let b = boxes.rect_box(UvWindow::new(u, u, v, v).expect("a point window"));
+            for c in [b.x, b.y, b.z] {
+                worst = worst.max((c.hi() - c.lo()) / ulp);
+            }
+        }
+        assert!(
+            worst <= 6.0,
+            "a point box {worst} ulps of 2⁹ wide; {}",
+            test_utils::fuzz::replay()
+        );
+    }
+
+    /// **A window's box holds `S` at the window's own corners.** On the
+    /// line `z = 1000x − 500`, the window `u ∈ [½, ½ + 3·2⁻⁵³]` at
+    /// `v = ¼`: its rounded midpoint lies `2⁻⁵²` above `½` while its
+    /// rounded half-width is `1.5·2⁻⁵³`, so `[um − hu, um + hu]` misses
+    /// `u = ½`, where `S` is exactly `0`. The box takes the offsets
+    /// `[u0 − um, u1 − um]` rounded outward, and holds both corners'
+    /// exact heights. Red under `±hu`.
+    #[test]
+    fn a_windows_box_holds_its_own_corners() {
+        let wall = biq([-500.0, 0.0, 500.0], [0.0, 0.0, 0.0]);
+        let boxes = NurbsBoxes::new(&wall);
+        let (u0, u1) = (0.5, 0.5 + 3.0 * 2.0_f64.powi(-53));
+        let z = boxes
+            .rect_box(UvWindow::new(u0, u1, 0.25, 0.25).expect("a window"))
+            .z;
+        // `1000·(u − ½)` at each corner, exactly.
+        for exact in [0.0, 3000.0 * 2.0_f64.powi(-53)] {
+            assert!(
+                z.lo() <= exact && exact <= z.hi(),
+                "{z:?} misses the corner height {exact:e}"
+            );
+        }
     }
 
     fn bx(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Box3 {

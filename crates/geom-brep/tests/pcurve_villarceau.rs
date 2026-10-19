@@ -13,7 +13,7 @@ use core::f64::consts::TAU;
 use geom::{Curve3, Surface};
 use geom_brep::{
     CERT_SAMPLES, EnvelopeStatement, FocalImage, Grazer, Pcurve, PcurveCache, PcurveCertifyError,
-    chart_pcurve,
+    PcurveCheck, chart_pcurve,
 };
 use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
 
@@ -139,11 +139,14 @@ fn every_family_and_traversal_images_exactly_and_certifies() {
         assert_eq!((vl.abs(), sense.abs()), (1.0, 1.0), "{what}");
         assert_eq!(beta, want_beta, "{what}");
         // The vertex is the point farthest from the axis, on the outer
-        // equator, where the tube angle is zero.
+        // equator, where the tube angle is zero modulo a turn: the image
+        // is placed in the window over the carrier's turn (C4), so a
+        // reversed traversal can name the vertex's tube angle `τ`.
         let vertex = image.eval(t0);
         let outer = surface.eval(vertex.x, 0.0);
+        let tube = vertex.y - core::f64::consts::TAU * (vertex.y / core::f64::consts::TAU).round();
         assert!(
-            carrier.eval(t0).distance(outer) < 1e-12 && vertex.y.abs() < 1e-12,
+            carrier.eval(t0).distance(outer) < 1e-12 && tube.abs() < 1e-12,
             "{what}: the vertex {vertex:?} is not the outer-equator point"
         );
         let sup = sampled_sup(&image, &carrier, -3.0, 9.0);
@@ -611,13 +614,17 @@ fn each_villarceau_gate_alone_refuses_typed() {
     }
 }
 
-/// **The certificate's two tube gates refuse typed.** A stored image
-/// whose tube rate is off `±1` by `3·K·ε/r` refuses at check 1
-/// (`pcurve_focal_section_tube_rate`), and one whose tube angle sweeps
-/// more than a period over a span its azimuth does not refuses at
-/// check 2 (`pcurve_tube_period`).
+/// **The tube rate gate refuses typed, and a tube angle swept past a
+/// period is no image.** A stored image whose tube rate is off `±1` by
+/// `3·K·ε/r` refuses at check 1 (`pcurve_focal_section_tube_rate`). One
+/// whose tube angle carries a harmonic part that sweeps it more than a
+/// period over a span its azimuth does not needs no period gate: the
+/// carrier's interval is held to one period by the edge certificate, and
+/// the swept image is that far from the derivation's, so it refuses as
+/// its residual (check 3's cross-check at `f64`, before check 4's
+/// fidelity term would).
 #[test]
-fn the_tube_rate_and_tube_period_gates_refuse_typed() {
+fn the_tube_rate_gate_refuses_typed_and_a_swept_tube_is_no_image() {
     let surface = torus();
     let carrier = villarceau(0.4, 1.0, 1.0, 0.0);
     let Ok(Pcurve::FocalSection(image)) = chart_pcurve(&carrier, &surface, band()) else {
@@ -650,8 +657,84 @@ fn the_tube_rate_and_tube_period_gates_refuse_typed() {
         band(),
     );
     assert!(
-        matches!(got, Err(PcurveCertifyError::TubePeriodExceeded)),
+        matches!(
+            got,
+            Err(PcurveCertifyError::ResidualExceeded {
+                check: PcurveCheck::MapResidual,
+                ..
+            })
+        ),
         "a tube angle over a period: {:?}",
         got.err()
     );
+}
+
+/// **Near a horn torus the plane gate is cheap, and its in-band arm is
+/// reached through the door.** On its own band `(1e-9, 1e-8)` (so the
+/// row reads the same at every ε row), on `R = 2`, `R − r = 1e-6`: the
+/// Villarceau circle moved along its own normal by `3e-9` or `6e-9` is
+/// read on the torus by the incidence test, at either phase of its pinch
+/// against the 64 samples, and the gates escalate on
+/// `pcurve_torus_villarceau_plane`. Moved `3e-8`, with the pinch on a
+/// sample, it is read on the torus with the plane gate past the band and
+/// refused as grazing it. This is the Villarceau ladder's undecided arm
+/// read through `chart_pcurve`: a ladder that read an in-band gate as
+/// Zero would image the circle.
+#[test]
+fn a_plane_gate_in_band_near_the_horn_escalates_on_it() {
+    let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+    let big = 2.0;
+    let r = big - 1e-6;
+    let surface = Surface::Torus {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: big,
+        minor_radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    let st = r / big;
+    let n = Vec3::new(-st, 0.0, (1.0 - st * st).sqrt());
+    // The pinch, where the circle comes nearest the axis, lies along −y
+    // from its centre.
+    let pinch = Vec3::new(0.0, -1.0, 0.0);
+    let side = n.cross(pinch);
+    let moved = |by: f64, half: f64| {
+        let psi = half * TAU / 64.0;
+        Curve3::Circle {
+            center: Point3::new(0.0, r, 0.0) + n * by,
+            axis: n,
+            radius: big,
+            u_ref: pinch * psi.cos() - side * psi.sin(),
+        }
+    };
+    let mut wrong = Vec::new();
+    for half in [0.0, 0.5] {
+        for by in [3e-9, 6e-9] {
+            let got = chart_pcurve(&moved(by, half), &surface, band);
+            if !matches!(
+                &got,
+                Err(PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::ChartIncidence,
+                    cause: geom_core::Indeterminate {
+                        predicate: Some("pcurve_torus_villarceau_plane"),
+                        ..
+                    },
+                    ..
+                })
+            ) {
+                wrong.push(format!("moved {by:e}, phase {half}: {got:?}"));
+            }
+        }
+    }
+    let got = chart_pcurve(&moved(3e-8, 0.0), &surface, band);
+    if !matches!(
+        got,
+        Err(PcurveCertifyError::CarrierGrazesChart {
+            grazer: Grazer::TorusCircle,
+            ..
+        })
+    ) {
+        wrong.push(format!("moved 3e-8: {got:?}"));
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
 }
