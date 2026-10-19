@@ -419,8 +419,9 @@ assert!(matches!(
 ## Flush contact glues
 
 Two bodies that touch face-to-face glue where their margins decide
-the faces one surface, and the boolean records each such coincidence
-on the node's value (`NodeValue::coincidences`), each cell named in
+the faces one surface, and the boolean records each such coincidence,
+and each corner it decided on the other body, on the node's value
+(`NodeValue::coincidences`), each cell named in
 the table of the member it came from. Nothing is declared: a pair the
 margin leaves in the tolerance's ambiguity band refuses, and its
 recourse is the geometry.
@@ -476,5 +477,9 @@ let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else
     panic!("expected a body");
 };
 assert_eq!(mass_properties(body, tol).expect("mass").volume, 1.125);
-assert_eq!(value.coincidences.len(), 1, "the one resting pair of faces");
+assert_eq!(
+    value.coincidences.len(),
+    5,
+    "the one resting pair of faces, and the block's four corners on the cap"
+);
 ```
