@@ -565,8 +565,8 @@ fn loop_of<T: geom_core::Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<LoopKe
 /// into it (Mäntylä's `laringmv`): a lone vertex minted for a later cut,
 /// or a cut's dangling run; the division's own `remainder`, where it
 /// split a ring, stays. A ring is read at its first vertex `new`
-/// holds strictly inside or outside; one every vertex of which lies on
-/// `new`'s boundary refuses.
+/// decides strictly inside or outside; one no vertex of which is
+/// decided refuses.
 fn rehome<T: Decide>(
     body: &mut Body<T>,
     (old, remainder): (FaceKey, LoopKey),
@@ -579,9 +579,6 @@ fn rehome<T: Decide>(
         .ok_or_else(|| desync("a divided face no longer resolves"))?
         .rings
         .clone();
-    let unplaced = |_| BooleanError::ClassificationInvariant {
-        what: "a ring of a face a fate cut divides is not placed",
-    };
     let normal = crate::face_normal::face_outward_normal(body, new);
     for ring in rings.into_iter().filter(|&r| r != remainder) {
         let vertices: Vec<VertexKey> = match body
@@ -604,17 +601,17 @@ fn rehome<T: Decide>(
                 .and_then(|v| body.get_point(v.point))
                 .copied()
                 .ok_or_else(|| desync("a ring's vertex has no point"))?;
+            // A vertex the reading cannot place (on the boundary, or in
+            // band) says nothing; the next is asked.
             let at = match normal {
-                Some(n) => super::contfp(body, new, n.vec(), p, band).map_err(unplaced)?,
+                Some(n) => super::contfp(body, new, n.vec(), p, band).ok(),
                 None => super::curved_face_containment(body, new, p, band)
-                    .map_err(unplaced)?
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "a ring of a curved face a fate cut divides is not placed",
-                    })?,
+                    .ok()
+                    .flatten(),
             };
             match at {
-                super::FaceContainment::In => side = Some(true),
-                super::FaceContainment::Out => side = Some(false),
+                Some(super::FaceContainment::In) => side = Some(true),
+                Some(super::FaceContainment::Out) => side = Some(false),
                 _ => continue,
             }
             break;
@@ -624,7 +621,7 @@ fn rehome<T: Decide>(
             Some(false) => {}
             None => {
                 return Err(BooleanError::ClassificationInvariant {
-                    what: "a ring of a face a fate cut divides lies on the cut",
+                    what: "a ring of a face a fate cut divides is placed at none of its vertices",
                 });
             }
         }
@@ -834,16 +831,57 @@ fn face_of_he<T: geom_core::Real>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] where a cut cannot be
-/// placed in one piece of the dropped face, or leaves a slit (one face
-/// on both sides of a chord); the Euler operators' refusals.
+/// The Euler operators' refusals, and any refusal past the cuts (a
+/// corner's kept face, a key that no longer resolves).
+///
+/// A dropped face whose cut cannot be placed (an end in no one piece or
+/// corner of it, a ring a division cannot home, a reading in band) or
+/// would leave a slit is cut along none of its kept edges, as a face a
+/// kept edge leaves where the reduction put no vertex is
+/// ([`holds`]): its clone is restored and the cut runs again without it.
 pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
     red: &mut BooleanReduction<T>,
     divisions: [&mut FaceDivisions; 2],
     band: Band,
     tol: Tol,
 ) -> Result<FateCuts, BooleanError> {
-    let desync = |what| BooleanError::JoinDesync { what };
+    let [div_a, div_b] = divisions;
+    let mut uncut = std::collections::BTreeSet::new();
+    loop {
+        let saved = (red.a.clone(), red.b.clone(), div_a.clone(), div_b.clone());
+        match cut_with(red, [&mut *div_a, &mut *div_b], &uncut, band, tol).map_err(|f| *f) {
+            Ok(cuts) => return Ok(cuts),
+            Err((
+                Some(root),
+                BooleanError::ClassificationInvariant { .. } | BooleanError::Escalated { .. },
+            )) if !uncut.contains(&root) => {
+                // A clone starts outside every surgery scope; the join's
+                // scope is open on the operands this restores.
+                (red.a, red.b, *div_a, *div_b) = saved;
+                red.enter_join_surgery();
+                uncut.insert(root);
+            }
+            Err((_, refusal)) => return Err(refusal),
+        }
+    }
+}
+
+/// A refusal of [`cut_with`], with the dropped face it was met cutting.
+type Failed = Box<(Option<(Operand, FaceKey)>, BooleanError)>;
+
+/// One pass of [`cut`], leaving the dropped faces in `uncut` as they
+/// are: a refusal comes back with the dropped face it was met cutting,
+/// `(operand, root)`, where it was met cutting one.
+fn cut_with<T: Decide + crate::props::AtRestPolicy>(
+    red: &mut BooleanReduction<T>,
+    divisions: [&mut FaceDivisions; 2],
+    given: &std::collections::BTreeSet<(Operand, FaceKey)>,
+    band: Band,
+    tol: Tol,
+) -> Result<FateCuts, Failed> {
+    let desync = |what| Box::new((None, BooleanError::JoinDesync { what }));
+    let at_root = |root: (Operand, FaceKey)| move |e: BooleanError| Box::new((Some(root), e));
+    let bare = |e: BooleanError| Box::new((None, e));
     let [div_a, div_b] = divisions;
     let mut lone = std::collections::BTreeMap::new();
     // Each half whose face is substituted, with the kept half whose face
@@ -856,7 +894,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
     // in it cannot be cut along that edge, so it is cut along none
     // ([`holds`]). Every lone vertex is placed before any is minted: the
     // containment reading cannot walk an empty loop.
-    let mut uncut = std::collections::BTreeSet::new();
+    let mut uncut = given.clone();
     let mut touches: Vec<(Operand, VertexKey, FaceKey, Point3<T>)> = Vec::new();
     for fe in &red.fates.edges {
         let (div_d, body, kept_body) = match fe.holder {
@@ -872,7 +910,9 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 .get_half_edge(he)
                 .ok_or_else(|| desync("a fate edge's half-edge no longer resolves"))?
                 .start;
-            match end_at(red, fe.holder, x, root, div_d)? {
+            match end_at(red, fe.holder, x, root, div_d)
+                .map_err(at_root((fe.holder.other(), root)))?
+            {
                 End::At(ws) => {
                     if !holds(body, &ws, root, div_d) {
                         uncut.insert((fe.holder.other(), root));
@@ -899,15 +939,17 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 Operand::A => (&*div_b, &red.b),
                 Operand::B => (&*div_a, &red.a),
             };
-            Ok((h, t, fragment_at(body, root, div_d, p, band)?, p))
+            let face =
+                fragment_at(body, root, div_d, p, band).map_err(at_root((h.other(), root)))?;
+            Ok((h, t, face, p))
         })
-        .collect::<Result<Vec<_>, BooleanError>>()?;
+        .collect::<Result<Vec<_>, Failed>>()?;
     for (holder, t, face, p) in touches {
         let body = match holder {
             Operand::A => &mut red.b,
             Operand::B => &mut red.a,
         };
-        let (w, _) = super::vtxfac::ring_vertex_in(body, face, p, tol)?;
+        let (w, _) = super::vtxfac::ring_vertex_in(body, face, p, tol).map_err(bare)?;
         lone.insert((holder, t), w);
     }
     for fe in red.fates.edges.clone() {
@@ -969,23 +1011,27 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
         let (s0, s1) = (secant(x0)?, secant(x1)?);
         let at = |x| match end_at(red, fe.holder, x, root, div_d)? {
             End::At(ws) => Ok(ws),
-            End::Touch(t) => lone
-                .get(&(fe.holder, t))
-                .map(|&w| vec![w])
-                .ok_or(desync("a touching fate cut end has no lone vertex")),
+            End::Touch(t) => {
+                lone.get(&(fe.holder, t))
+                    .map(|&w| vec![w])
+                    .ok_or(BooleanError::JoinDesync {
+                        what: "a touching fate cut end has no lone vertex",
+                    })
+            }
         };
-        let (w0, w1) = (at(x0)?, at(x1)?);
+        let here = at_root((dropped, root));
+        let (w0, w1) = (at(x0).map_err(here)?, at(x1).map_err(here)?);
         let body = match dropped {
             Operand::A => &mut red.a,
             Operand::B => &mut red.b,
         };
         let (Some(p0), Some(p1)) = (
-            place(body, (&w0, &w1), root, div_d, [d0, s0], band)?,
-            place(body, (&w1, &w0), root, div_d, [d1, s1], band)?,
+            place(body, (&w0, &w1), root, div_d, [d0, s0], band).map_err(here)?,
+            place(body, (&w1, &w0), root, div_d, [d1, s1], band).map_err(here)?,
         ) else {
-            return Err(BooleanError::ClassificationInvariant {
+            return Err(here(BooleanError::ClassificationInvariant {
                 what: "a fate cut's end left the dropped face as it was cut",
-            });
+            }));
         };
         let run = match (p0, p1) {
             (Place::Along(h), _) => h,
@@ -993,7 +1039,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 .mate(h)
                 .ok_or_else(|| desync("an edge along a fate edge has no mate"))?,
             _ => {
-                let c = chord(body, (p0, p1), (&curve, forward), div_d, band, tol)?;
+                let c = chord(body, (p0, p1), (&curve, forward), div_d, band, tol).map_err(here)?;
                 let h = body
                     .get_half_edge(c)
                     .cloned()
@@ -1008,7 +1054,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                     ends: [h.start, end],
                     kept_ends: [x0, x1],
                 });
-                slits.push((dropped, c));
+                slits.push((dropped, root, c));
                 c
             }
         };
@@ -1017,7 +1063,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             .ok_or_else(|| desync("a fate cut's run has no mate"))?;
         halves.push((dropped, if fe.aligned { run } else { mate }, kept_he));
     }
-    for (operand, c) in slits {
+    for (operand, root, c) in slits {
         let body = match operand {
             Operand::A => &red.a,
             Operand::B => &red.b,
@@ -1025,10 +1071,13 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
         let mate = body
             .mate(c)
             .ok_or_else(|| desync("a fate cut's chord has no mate"))?;
-        if face_of_he(body, c)? == face_of_he(body, mate)? {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "a fate cut leaves a slit in the dropped face",
-            });
+        if face_of_he(body, c).map_err(bare)? == face_of_he(body, mate).map_err(bare)? {
+            return Err(Box::new((
+                Some((operand, root)),
+                BooleanError::ClassificationInvariant {
+                    what: "a fate cut leaves a slit in the dropped face",
+                },
+            )));
         }
     }
     let mut corners: Vec<(Operand, FaceKey, FaceKey)> = Vec::new();
@@ -1039,8 +1088,8 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
         };
         corners.push((
             operand,
-            face_of_he(body, half)?,
-            face_of_he(kept_body, kept_he)?,
+            face_of_he(body, half).map_err(bare)?,
+            face_of_he(kept_body, kept_he).map_err(bare)?,
         ));
     }
     for fc in red.fates.corners.clone() {
@@ -1049,7 +1098,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             Operand::A => (&red.b, &red.a, &*div_a),
             Operand::B => (&red.a, &red.b, &*div_b),
         };
-        let face = sector_face(body, fc.dropped)?;
+        let face = sector_face(body, fc.dropped).map_err(bare)?;
         let div_d = match fc.holder {
             Operand::A => &*div_b,
             Operand::B => &*div_a,
@@ -1058,7 +1107,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             continue;
         }
         let by = match fc.kept {
-            KeptAt::Sector(he) => sector_face(kept_body, he)?,
+            KeptAt::Sector(he) => sector_face(kept_body, he).map_err(bare)?,
             KeptAt::Pierced(f, at, d) => {
                 let root = div_k.root(f);
                 let ring = red.pierce_rings.iter().find(|r| {
@@ -1068,21 +1117,23 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                     Some(ring) => {
                         let copies =
                             NullCopies::of_operand(&red.null_edges, fc.holder).of(ring.ring_vertex);
-                        match place(kept_body, (&copies, &[]), root, div_k, [d, d], band)? {
+                        match place(kept_body, (&copies, &[]), root, div_k, [d, d], band)
+                            .map_err(bare)?
+                        {
                             None => {
-                                return Err(BooleanError::ClassificationInvariant {
+                                return Err(bare(BooleanError::ClassificationInvariant {
                                     what: "a pierce's ring vertex lies off its kept face",
-                                });
+                                }));
                             }
-                            Some(Place::Corner(h)) => face_of_he(kept_body, h)?,
+                            Some(Place::Corner(h)) => face_of_he(kept_body, h).map_err(bare)?,
                             Some(Place::Lone(l, _)) => kept_body
                                 .get_loop(l)
                                 .map(|l| l.face)
                                 .ok_or_else(|| desync("a ring vertex's loop no longer resolves"))?,
                             Some(Place::Along(_)) => {
-                                return Err(BooleanError::ClassificationInvariant {
+                                return Err(bare(BooleanError::ClassificationInvariant {
                                     what: "a dropped sector held at a pierce runs along a kept edge",
-                                });
+                                }));
                             }
                         }
                     }
@@ -1092,7 +1143,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                             .and_then(|v| body.get_point(v.point))
                             .copied()
                             .ok_or_else(|| desync("a piercing vertex has no point"))?;
-                        fragment_at(kept_body, root, div_k, p, band)?
+                        fragment_at(kept_body, root, div_k, p, band).map_err(bare)?
                     }
                 }
             }
