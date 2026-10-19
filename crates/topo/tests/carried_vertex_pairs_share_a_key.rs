@@ -1,11 +1,11 @@
-//! **A carried vertex-vertex record ties two keys only where the carry
-//! confirms it.** The output stage puts the two vertices of every
+//! **A carried vertex-vertex record ties two keys only where its two
+//! points are one.** The output stage puts the two vertices of every
 //! vertex-vertex record of the result on one point key
-//! (`boolean::ops::record_classes`), reading no position. A record an
-//! operand carries in is confirmed first by the census's own read
-//! (`boolean::records::landings`), so a record whose two vertices are
-//! not one point refuses as the caller's stale record and never moves
-//! a vertex; a record that holds rebinds.
+//! (`boolean::ops::record_classes`), deciding each pair's gap Zero
+//! first: a carried record lands unread on vertices the op kept, so a
+//! record whose two vertices are not one point refuses there as the
+//! caller's stale record and never moves a vertex; a record that holds
+//! rebinds.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

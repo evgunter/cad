@@ -2167,9 +2167,8 @@ pub struct BooleanReduction<T: Real> {
     pub coincidences: Vec<crate::Coincidence>,
     /// The vertex identities the sweep decided, in decision order: the
     /// rows [`Self::contacts`] cite ([`crate::Backing::Decided`] names
-    /// an index here), emitted into the result's coincidences where a
-    /// record citing them survives or at a pinch the op made
-    /// ([`reduce::PendingRow`]).
+    /// an index here), each one decided with a margin emitted into the
+    /// result's coincidences ([`reduce::PendingRow`]).
     pub(crate) pending: Vec<reduce::PendingRow>,
     /// Each face–face row's decision in [`Self::pending`], with the
     /// index in [`Self::coincidences`] of the row the glue door

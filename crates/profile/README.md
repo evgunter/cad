@@ -483,7 +483,13 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   (`TangentJointOutOfRange`); a junction decided Zero that no
   constructor made is a tangent joint all the same, recorded for the
   `unproven-coincidence` lint ([coincidence]); the sliver band refuses. Every
-  zero-turn joint is a tangent joint. Zero new ε: the per-junction
-  classifier reuses the carrier predicates verbatim. The tangent-joint
+  zero-turn joint is a tangent joint. A junction's tangency is decided
+  by its turn levered by the leg's arm (`path_junction_turn`), the one
+  reading the path door, validation and the sweep share; no new ε. The
+  simplicity pass reads where a loop meets itself, never how far two
+  adjacent segments run within ε of each other past their joint: that
+  neighbourhood is the joint's own ([topology.census]). Whether a
+  tangent cusp is a legal edge is decided where it becomes one, by the
+  sweep's second-order arm. The tangent-joint
   set is derived at lowering, from the constructors and the junction
   verdicts, never stored.
