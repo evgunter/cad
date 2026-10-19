@@ -862,6 +862,22 @@ Dimensions and dispositions: `docs/predicate-dimension-audit.md`'s
 still decides under `point_in_loop_*`, so the polygon population is
 unchanged by this walk.
 
+**Roster change (RESTREAD link reading): the census's touch analysis
+reads two links.** The touch analysis no longer certifies a plane or a
+complement; it reads each solid's whole link at the touch point and
+decides two polygonal cones by one test (`census.rs`, `rest::judge`).
+`census_touch_side`, `census_touch_dihedral`, `census_touch_fold` and
+`census_touch_span` retire with the star, the edge convexity and the
+candidate search; their samples end there.
+
+| name | carrier | what it is |
+|---|---|---|
+| `census_touch_plane` | a named `const` (`TOUCH_PLANE`) | new: a point's distance from a link face's plane through the touch point |
+| `census_touch_wedge` | a named `const` (`TOUCH_WEDGE`) | new: a point's distance from the plane through a sector ray, normal to its face |
+| `census_touch_ahead` | a named `const` (`TOUCH_AHEAD`) | new: a point on a sector ray's line read along it |
+| `census_touch_arc` | a named `const` (`TOUCH_ARC`) | new: a parity arc's ends against the plane normal to their bisector |
+| `census_touch_normal` | unchanged name | now two coplanar faces of the two links, not a face against a candidate plane; does not pool with its CONTACT-7 samples |
+
 **Roster change (CONTACT-7): the census's touch analysis decides in
 metres.** `topo/src/census.rs`'s touch analysis (the census backstop's
 arm 2) used to decide every sign as a levered reading of unit directions.

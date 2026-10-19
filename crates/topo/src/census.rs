@@ -6202,6 +6202,39 @@ impl<T: Decide> Link<T> {
     }
 }
 
+/// The link reader over a bare polygon cone at `p`, each face its
+/// outward normal and one wedge's two real points: `Some(Some(true))`
+/// where `q`'s direction lies in the material, `Some(None)` on a face,
+/// `None` where nothing decides. The boolean's sector fuzz reads it
+/// beside `cone_side` (`boolean::sectors::cone_fuzz`).
+#[cfg(test)]
+pub(crate) fn link_side(
+    p: Point3<f64>,
+    faces: &[(Vec3<f64>, Point3<f64>, Point3<f64>)],
+    q: Point3<f64>,
+    band: Band,
+) -> Option<Option<bool>> {
+    let sectors = faces
+        .iter()
+        .map(|&(m, a, b)| Sector {
+            surface: geom::Surface::Plane {
+                origin: p,
+                normal: m,
+                u_ref: (a - p).normalize(),
+            },
+            sense: true,
+            outward: m,
+            wedges: vec![(a, b)],
+            closed: false,
+        })
+        .collect();
+    Some(match Link::of(p, sectors).ok()?.reads(q, band)? {
+        Material::In => Some(true),
+        Material::Out => Some(false),
+        Material::On(_) => None,
+    })
+}
+
 /// **The one door a rest comes through.** [`Rest`](rest::Rest) has a
 /// private field and is neither `Copy` nor `Clone`, so nothing outside
 /// this module can build one or replay one: a rest exists only where
@@ -6536,12 +6569,11 @@ fn backstop_apart<T: Decide>(
 ///    cover** is stated once, at the loop below. In short: the probe
 ///    finds any outer shell lying inside the other's material, and
 ///    every finding about the pair must be a REST — the two solids'
-///    stars at the touch point lie within ε of complementary sides of
-///    one plane ([`touch_verdict`], the one analysis for every planar
-///    touch kind, [`TouchSite`]). What the analysis cannot certify
-///    refuses typed: a saddle corner neither of its tests separates, a
-///    sign in band, an
-///    escalation, and anything a curved face takes part in — arm 1
+///    whole links at the touch point read apart ([`rest::judge`], the
+///    one analysis for every planar touch kind, [`TouchSite`]). What
+///    the analysis cannot certify refuses typed: a sign in band, a face
+///    meeting the point twice over, an escalation, and anything a curved
+///    face takes part in — arm 1
 ///    refuses a cross-solid pair with a curved side within reach BEFORE
 ///    this arm runs, which is a PRECONDITION of the clear for curved
 ///    instances, since vertices are a thin sample of a curved body.
@@ -7068,7 +7100,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     };
     let vertex_solid = |v: VertexKey| solid_of_entity(EntityId::Vertex(v));
     // ---- The clear's condition 3: every touch between the pair is a
-    // rest by the one local analysis ([`touch_verdict`]).
+    // rest by the one local analysis ([`rest::judge`]).
     // One verdict per unit ([`TouchUnit`]): every finding and record at
     // a touch point reads the two solids' whole links there.
     let ties = Ties::of(declared, &errors[..standing]);
@@ -7383,18 +7415,17 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             // stands as the body's refusal.
             //
             // **What a rest certifies, and so the tolerance of this
-            // argument** ([`touch_verdict`]). A rest reads each face of
-            // both stars through its piece at the touch point `p` — the
-            // part of the face visible from `p` — and certifies that
-            // every point of every piece lies within `zero` of its own
-            // side of one plane through `p` (or of the closure of the
-            // other star's convex complement). So:
+            // argument** ([`rest::judge`]). A rest reads each face of
+            // both links through its piece at the touch point `p` — the
+            // part of the face visible from `p` — and certifies, on
+            // readings at the pieces' own points, that no piece of either
+            // link crosses a face of the other or lies, past `zero`, in
+            // the other's material. So:
             // - within the ball about `p` that reaches the nearest
-            //   boundary of the pieces read, every point where one
-            //   material enters the other lies within `zero` of the
-            //   separating plane on its own side: a slab at most
-            //   2·`zero` thick, which is coincidence under D4, not
-            //   interference;
+            //   boundary of the pieces read, the materials are the two
+            //   links' cones, and every point where one enters the other
+            //   lies within `zero` of a face of each: coincidence under
+            //   D4, not interference;
             // - beyond that ball, an overlap deeper than the band is a
             //   dip of some face below the other solid's boundary.
             //   Signed distance is affine on a planar face, so the dip

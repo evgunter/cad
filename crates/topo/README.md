@@ -128,7 +128,10 @@ pairs are not detected; they are their constructor's obligation.
 A declaration licenses a coincidence, never a side. Every meeting between
 two solids — found undeclared by a sweep, named by a record, or backed by
 a declared face pair — is read by the one touch analysis, and the pair
-clears only when each meeting reads Rest. A record's certificate licenses
+clears only when each meeting reads Rest. A touch at a point is read
+once for the solid pair and the point, each side the solid's whole link
+there (every face of it through the point), and every meeting at the
+point shares that verdict. A record's certificate licenses
 only what it checked (a patch record's opposed conformal interface; a
 vertex record's coincidence), so no record excuses a meeting or a face
 from being read.
