@@ -15,7 +15,8 @@
     clippy::type_complexity
 )]
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::Point3;
+use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
@@ -31,7 +32,7 @@ fn tol() -> Tol {
 /// A z-prism over a bulge loop `(x, y, bulge)`, shifted by `(dx, dy)`,
 /// spanning `z`.
 fn zprism(pts: &[(f64, f64, f64)], d: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z.0));
     let lp = bulge_loop(
         pts.iter()
             .map(|&(x, y, b)| (Point2::new(x + d.0, y + d.1), b))

@@ -16,7 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Curve3;
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};
 use sweep::{ExtrudeSide, Extrusion, extrude};
@@ -36,7 +36,7 @@ fn d_prism() -> AtRestBody<f64> {
         (Point2::new(0.0, -1.0), 1.0),
         (Point2::new(0.0, 1.0), 0.0),
     ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
     let profile = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
     let built = extrude(
         &profile,
@@ -145,7 +145,7 @@ fn joins_sound(what: &str, mut body: Body<f64>) {
 /// unit height, and its material: a point inside the segment is in, one
 /// on the D short of `x = c` out. The cut's `Transversality` refusal
 /// this row pinned before has no row now
-/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
+/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn a_station_on_the_line_edge_builds_either_side_of_k_eps_and_joins_back() {
     use topo::SolidContainment::{In, Out};

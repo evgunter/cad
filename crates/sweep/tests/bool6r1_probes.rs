@@ -18,10 +18,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::plane_of;
 use geom_core::k_stats::Bracket;
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{Affine3, Mat3, Point2, Tol, Vec3};
 use profile::RawLoop;
+use profile::SketchPlane;
 use sweep::test_support::{loft_prism_sections, stacked_at};
 use sweep::{LoftError, loft_body};
 
@@ -43,20 +45,20 @@ fn sq_rotated() -> sweep::Section {
 /// `curl` toward `+z`, each section's `c2` the spine tangent — the
 /// issue's signature, re-spelled here so the probes do not lean on the
 /// unit's own helper.
-fn arc_spine_places(curl: f64, stations: usize) -> Vec<Affine3<f64>> {
+fn arc_spine_places(curl: f64, stations: usize) -> Vec<SketchPlane<f64>> {
     (0..stations)
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
             let theta = curl * (i as f64) / ((stations - 1) as f64);
             let (s, c) = theta.sin_cos();
-            Affine3::from_parts(
+            plane_of(&Affine3::from_parts(
                 Mat3::from_cols(
                     Vec3::new(0.0, 1.0, 0.0),
                     Vec3::new(-s, 0.0, c),
                     Vec3::new(c, 0.0, s),
                 ),
                 Vec3::new(s, 0.0, 1.0 - c),
-            )
+            ))
         })
         .collect()
 }
@@ -74,7 +76,7 @@ fn arc_spine_loft(curl: f64, stations: usize) -> Result<(), LoftError> {
 }
 
 /// A forward stack of `k` equal sections one metre apart.
-fn forward_stack(k: usize) -> (Vec<sweep::Section>, Vec<Affine3<f64>>) {
+fn forward_stack(k: usize) -> (Vec<sweep::Section>, Vec<SketchPlane<f64>>) {
     #[allow(clippy::cast_precision_loss)]
     let zs: Vec<f64> = (0..k).map(|i| i as f64).collect();
     (vec![sq(); k], stacked_at(&zs))

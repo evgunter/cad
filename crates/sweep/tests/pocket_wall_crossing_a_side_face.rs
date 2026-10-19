@@ -17,8 +17,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI};
+use geom_core::Point3;
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{ROD_R, finished, rod_chord_at};
 use sweep::{ExtrudeSide, Extrusion, extrude};
@@ -103,7 +104,7 @@ fn cutter(pose: &Pose) -> Body<f64> {
         (turn((pose.flat, c.half)), c.wall_bulge),
         (turn((pose.flat, -c.half)), 0.0),
     ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, pose.z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, pose.z0));
     let profile = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
     extrude(
         &profile,

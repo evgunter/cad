@@ -89,7 +89,7 @@ fn union_both_orders(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> [BooleanError;
 fn rod_z(r: f64, z0: f64, len: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
-    let plane = profile::SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let p = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol)
         .unwrap();
@@ -921,10 +921,9 @@ fn the_stadium_answers_every_op() {
     );
     let lp = profile::circle(Point2::new(2.0, 0.0), 0.5, tol).unwrap();
     // Sketch normal onto +y: the rod's axis is the line x = 2, z = 0.
-    let plane = profile::SketchPlane::new(Affine3::rotation_about_axis(
-        Point3::origin(),
-        Vec3::unit_x(),
-        -PI / 2.0,
+    let plane = profile::SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), -PI / 2.0),
+        geom_core::Tol::witness(),
     ));
     let p = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol)
@@ -980,10 +979,9 @@ fn a_d_bar_on_the_slab_builds_as_a_line_seam() {
         (Point2::new(2.0, -0.5), 1.0),
         (Point2::new(2.0, 0.5), 0.0),
     ]);
-    let plane = profile::SketchPlane::new(Affine3::rotation_about_axis(
-        Point3::origin(),
-        Vec3::unit_x(),
-        -PI / 2.0,
+    let plane = profile::SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), -PI / 2.0),
+        geom_core::Tol::witness(),
     ));
     let p = profile::Profile::new(plane, vec![lp])
         .validate(tol)
@@ -1585,10 +1583,13 @@ fn quarter_rod_of(side: f64, len: f64, tol: Tol) -> AtRestBody<f64> {
     };
     // Sketch x → world y, sketch y → world z, the normal → world x.
     let k = 1.0 / 3.0_f64.sqrt();
-    let plane = profile::SketchPlane::new(Affine3::rotation_about_axis(
-        Point3::origin(),
-        Vec3::new(k, k, k),
-        core::f64::consts::TAU / 3.0,
+    let plane = profile::SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::rotation_about_axis(
+            Point3::origin(),
+            Vec3::new(k, k, k),
+            core::f64::consts::TAU / 3.0,
+        ),
+        geom_core::Tol::witness(),
     ));
     let p = profile::Profile::new(plane, vec![lp])
         .validate(tol)

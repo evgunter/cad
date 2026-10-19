@@ -198,8 +198,8 @@ refusal that would otherwise name no recourse at all (a kernel
 approximation limit — an offset fit that stalls, a quadrature budget
 spent, a built curve's residual) names loosening the tolerance as a
 last resort and says the refusal may indicate a kernel bug worth
-reporting. At adoption, certification runs at ε and a refusal reads
-as at rest. ε_in is the file's own coincidence distance ([import]): it
+reporting. At adoption, certification runs at ε and a refusal ends at
+the import door, as the table below gives. ε_in is the file's own coincidence distance ([import]): it
 governs interpretation — what the file's data is evidence of, where
 healing may move geometry by up to O(ε_in) — and its refusals are
 the import door's, named in ε_in with the value the margin gives; a
@@ -223,6 +223,34 @@ the site that knows the decision appends the one ending
 (`COINCIDENCE_RECOURSE` is the sentence coincidence decisions
 compose). (iii) [import]'s ε_in is an instance of ε_input, not a separate
 concept.
+
+Clause (iv)'s definite readings end at each door by the decision's
+refused side (`geom_brep::recourse::RefusedSide`), read by every
+reading that shows no size — an exact zero, a zero the symbolic tier
+proved, a reading in band wholly on the refused side, and one past the
+band there (`Shows::NoSize` and `Shows::Refused`), on whichever arm
+carries it; a reading that may still show a size (an offer, a floor, an
+unresolved enclosure, a straddle) ends in the lever whatever the side.
+
+| Refused side | At a build | At the import door, past ε_in | Over a body at rest |
+|---|---|---|---|
+| `Lever` | the lever and the note | the lever and the note | the lever and the note |
+| `StoredContradiction` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
+| `Unminted` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
+
+Within ε_in the import door ends every band-decided reading in its one
+sentence and the lever, whatever the side. The table departs from
+clause (iv) in two cells, each typed until the door that would keep
+input from it exists, and each scheduled by its row:
+
+- an unminted side at a build, which `topo::Body::mev` reaches from a
+  caller's own interval until the public Euler doors refuse a
+  non-forward or degenerate span typed
+  (`work/encl/param-span-unminted-side-is-reached-at-a-build-by-public-euler-doors.md`);
+- the at-rest column, which the validator also reads at the import gate
+  (`[import]` step 4) and so a damaged file reaches until adoption
+  checks everything the validator does
+  (`work/encl/at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything.md`).
 
 Review checklist form: for every arm added to a decision, name which
 ε_input story it belongs to, or say why it belongs to none.

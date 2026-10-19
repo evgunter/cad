@@ -90,3 +90,12 @@ estimate made by reading the row against the tree on 2026-09-11, not a
 verdict on the finding, and a lane that finds it wrong says so in its
 PR. The id, the `track:` letter where the row carries one, and the body
 above are unchanged by the move.
+
+## PCERT B2a (PR 5244, 2026-10-17)
+
+The two `pcurve_cache.rs` rows of the table are gone from the
+closed-form lanes: the harmonic lane's with B2a's stored windings, and
+the cone-section and spiric-wall lanes' in its fix pass (each restated
+the edge certificate's `interval_span_winding` on a carrier it already
+bounds). One `pcurve_azimuth_period` spelling is left, in
+`pcurve_cache/projected.rs`'s check 2, beside its `TubePeriod` twin.

@@ -709,7 +709,7 @@ macro_rules! nurbs_curve {
 
         }
 
-        /// [`$Curve::apply_plans`]'s two halves: the projective
+        /// The two halves of the curve's `apply_plans`: the projective
         /// applier at an evaluation scalar, the homogeneous one at an
         /// enclosure scalar (C6 S4).
         impl<T: SpanLocate> spline::ProjectiveSplit<T> for PlanChain<'_, $Curve<T>, T> {

@@ -1138,3 +1138,40 @@ and `a-cup-leaning-off-the-spine-under-a-fillet-is-charged-its-boxs-diagonal`.
 - 2026-10-15 — **No live row is at or above this track's own band (P0).** The 51 rows left are 5 at P2, 36 at P3, 3 at P4, 7 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
   Band the 7 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
   (tracker sweep)
+
+## 2026-10-19 — a cut-off arc at an oblique end reads off atan2's cut
+
+`an-interval-fillet-cut-off-at-an-oblique-end-reads-its-arc-backward`
+closed: a foot half a turn from its end ellipse's `u_ref` read the hull
+`[−π, π]` at `Interval`, so the sheared box's fillet refused where
+`f64` built. `surgery::arc_window` re-anchors at the half turn and is
+the one window read for `CapSliver::of` and `attach_contact`. A shear
+ladder of both signs, convex and concave, both verbs, at both scalars.
+Filed `a-rim-split-at-its-carriers-anti-seam-refuses-at-interval` and
+one issue for the seam-anchored reads in `topo`.
+
+## 2026-10-19 — the blend arms place their centres at their inputs' scale (`band/arms-centre-placement`)
+
+`sheet_center`'s round × round arm reads `geom_core::Circles` for the
+offset circles' radical foot and half-chord, and `corner_ball` solves
+for the centre's offset from its first vertex. Rows in
+`blend_arms_centre_placement.rs` hold both at a few ulps of scale at
+`f64` and `Interval` (main: about `ratio` ulps / NaN past 1e8, and
+`u·|p|/det`). Closed `sheet-center-circle-pair-cancels-at-unequal-offsets`
+and `blend-corner-ball-cramer-anchors-at-the-world-origin`. Filed
+`plane-sphere-blend-spine-radius-by-differences-of-squares` here and
+`work/shell/topo-planar-offset-cramer-anchors-at-the-world-origin.md`.
+## 2026-10-19 — the slate re-banded for the hand-back
+
+Ev (in chat): finish what matters, then hand the tail back rather than
+working through it. The eight unbanded items now carry a band and a
+cost (the Interval oblique cut-off's `BodyNotIntact`, a normal fillet
+refusing on the certified scalar, P2; the precision and funnel items
+P2; the overrun and dependent-normals refusals P3).
+`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver` closes:
+its four steps are built and its void residue is the concave item's
+step 4. `blend-reach-never-meters-the-bands-of-one-chain-against-each-other`
+drops to P3 (no door reaches it while every chain is straight). Being
+finished before the hand-back: step 3b (strip-mouth cups), the two
+`arms.rs` centre placements, and the Interval oblique cut-off. Step 4
+(whole shells and the seal) and the P3 tail stay on the slate.

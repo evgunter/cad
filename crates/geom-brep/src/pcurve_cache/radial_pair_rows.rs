@@ -243,7 +243,7 @@ fn a_pole_start_reads_its_residual_as_one_pair() {
     let d = 0.6 * zero();
     let derivation = Derivation::SphereMeridian {
         pole: true,
-        sigma: Winding::Neg,
+        sigma: -1,
         far: false,
     };
     let incidence_of = |form: Harmonic3<f64>| -> f64 {
@@ -316,23 +316,26 @@ fn a_still_parallel_reads_its_pair_whole() {
     )
     .unwrap();
     assert!(
-        matches!(
-            derivation,
-            Derivation::SphereParallel {
-                beta: Winding::Zero
-            }
-        ),
+        matches!(derivation, Derivation::SphereParallel { beta: 0 }),
         "the circle about the pole is a still parallel: {derivation:?}"
     );
     let span = (0.0, TAU);
     let form = carrier_harmonic(&carrier).unwrap();
-    let at_f64 = periodic_envelope(&image, &carrier, form, &sphere, span, TAU, band())
-        .unwrap()
-        .total();
+    let at_f64 = periodic_envelope(
+        channels_of(&image),
+        &carrier,
+        form,
+        &sphere,
+        span,
+        TAU,
+        band(),
+    )
+    .unwrap()
+    .total();
     let f = Interval::from_f64;
     let carrier_i = carrier.map_scalar(f);
     let at_interval = periodic_envelope(
-        &lift_pcurve(&image),
+        channels_of(&lift_pcurve(&image)),
         &carrier_i,
         carrier_harmonic(&carrier_i).unwrap(),
         &sphere.map_scalar(f),
@@ -408,16 +411,10 @@ fn a_stored_image_moved_in_both_channels_reads_one_displacement() {
         r,
         Vec3::unit_x(),
     );
-    let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &cyl, band()).unwrap() else {
-        panic!("a rim images harmonic")
-    };
     let d = 0.6 * zero();
-    let stored = Pcurve::Harmonic {
-        p0: Point2::new(p0.x + d / r, p0.y + d),
-        pa,
-        pb,
-        pl,
-    };
+    let stored = chart_pcurve(&carrier, &cyl, band())
+        .unwrap()
+        .translate(d / r, d);
     certifies(
         "fidelity, both channels",
         &stored,
@@ -444,16 +441,9 @@ fn the_cones_fidelity_channels_add() {
         v * FRAC_PI_4.sin(),
         Vec3::unit_x(),
     );
-    let Pcurve::Harmonic { p0, pa, pb, pl } = chart_pcurve(&carrier, &surface, band()).unwrap()
-    else {
-        panic!("a rim images harmonic")
-    };
-    let stored = Pcurve::Harmonic {
-        p0: Point2::new(p0.x + 1.0, p0.y + v),
-        pa,
-        pb,
-        pl,
-    };
+    let stored = chart_pcurve(&carrier, &surface, band())
+        .unwrap()
+        .translate(1.0, v);
     let (t0, t1) = (0.0, TAU);
     let sup = (0..=4096)
         .map(|i| {
@@ -467,13 +457,21 @@ fn the_cones_fidelity_channels_add() {
         "the displacement {sup:e} is the acute-angle one, past 1.38·v"
     );
     let form = carrier_harmonic(&carrier).unwrap();
-    let at_f64 = periodic_envelope(&stored, &carrier, form, &surface, (t0, t1), t1, band())
-        .unwrap()
-        .total();
+    let at_f64 = periodic_envelope(
+        channels_of(&stored),
+        &carrier,
+        form,
+        &surface,
+        (t0, t1),
+        t1,
+        band(),
+    )
+    .unwrap()
+    .total();
     let f = Interval::from_f64;
     let carrier_i = carrier.map_scalar(f);
     let at_interval = periodic_envelope(
-        &lift_pcurve(&stored),
+        channels_of(&lift_pcurve(&stored)),
         &carrier_i,
         carrier_harmonic(&carrier_i).unwrap(),
         &surface.map_scalar(f),
@@ -602,8 +600,11 @@ fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
         super::Placement::own(&carrier, &surface),
         band(),
     );
-    let Ok((Pcurve::Harmonic { p0: at_f64, .. }, Derivation::CylinderMeridian)) = derived else {
+    let Ok((image, Derivation::CylinderMeridian)) = &derived else {
         panic!("f64: the sub-band rim takes the meridian: {derived:?}")
+    };
+    let Some((at_f64, ..)) = image.harmonic_form() else {
+        panic!("f64: the meridian's image is harmonic: {image:?}")
     };
     assert_eq!(
         at_f64.x - TAU * (at_f64.x / TAU).round(),
@@ -621,8 +622,10 @@ fn a_sub_band_rim_reads_its_radial_circle_at_its_sup() {
     assert!(
         matches!(
             &derived,
-            Ok((Pcurve::Harmonic { p0, .. }, Derivation::CylinderMeridian))
-                if p0.x.lo() <= at_f64.x && at_f64.x <= p0.x.hi()
+            Ok((image, Derivation::CylinderMeridian))
+                if image.harmonic_form().is_some_and(|(p0, ..)| {
+                    p0.x.lo() <= at_f64.x && at_f64.x <= p0.x.hi()
+                })
         ),
         "Interval: the sub-band rim takes the meridian on f64's copy {at_f64:?}: {derived:?}"
     );

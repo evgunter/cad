@@ -298,7 +298,7 @@ pub(super) fn edge_face<T: Decide>(
     read(
         touch,
         |p, errors| {
-            curved::in_both(
+            super::in_both(
                 |errors| curved::on_curved_interior(body, edge, p, band, errors),
                 |errors| in_face(body, face, p, band, errors),
                 errors,
@@ -339,7 +339,7 @@ pub(super) fn face_face<T: Decide>(
     Some(read(
         touch,
         |p, errors| {
-            curved::in_both(
+            super::in_both(
                 |errors| in_face(body, a, p, band, errors),
                 |errors| in_face(body, b, p, band, errors),
                 errors,

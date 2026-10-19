@@ -191,17 +191,12 @@ fn read_table<T: Decide>(value: &super::NodeValue<T>) -> Arc<NameTable> {
 /// A bare payload (datum/profile lanes — empty tables).
 type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
-/// The LANE half of an evaluation's environment: where profile
-/// geometry comes from at `T`, and the parameter environments it is
-/// elaborated over. They travel together so that no call site can
-/// elaborate the lift over a different box than the node's slots were
-/// evaluated at.
+/// The LANE half of an evaluation's environment: the parameter
+/// environments profile geometry is elaborated over at `T`. They
+/// travel together so that no call site can elaborate the lift over a
+/// different box than the node's slots were evaluated at.
 #[derive(Debug)]
 pub(crate) struct LaneEnv<'a, T> {
-    /// Where profile geometry comes from at this evaluation's scalar
-    /// (M10-P PP5): the f64 elaboration embedded, or a guided
-    /// elaboration at `T`.
-    pub lift: super::ProfileLift,
     /// The evaluation's parameter environment — nominals, or nominals
     /// widened by [`crate::analysis::ParamBox`] (E6's leaf replay).
     pub params: &'a crate::expr::VarEnv<T>,
@@ -209,11 +204,33 @@ pub(crate) struct LaneEnv<'a, T> {
     /// no seed, built once per evaluation beside `params`. Every
     /// f64-pinned decision the evaluation makes reads it — the nominal
     /// slots an authored frame's placement is minted from
-    /// ([`mint_frame_placement`]), a profile's program resolution,
-    /// the placement the pinned lift embeds — so it is what a content key owes
+    /// ([`mint_frame_placement`]), a profile's program resolution —
+    /// so it is what a content key owes
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
     pub nominal: &'a crate::expr::VarEnv<f64>,
+    /// Whether an `f64` lane over the nominal takes the first pass's
+    /// form ([`super::PassTwo`]).
+    pub pass_two: super::PassTwo,
+}
+
+impl<T: super::ProfileLane> LaneEnv<'_, T> {
+    /// **The first pass's validated form as this lane's value**, where
+    /// this lane IS the first pass: an `f64` lane whose environment
+    /// binds the nominal ([`super::ProfileLane`]). `None` wherever the
+    /// second pass runs.
+    pub(crate) fn pass_one<'p>(
+        &self,
+        pre: &'p ProfilePre,
+    ) -> Option<&'p profile::ValidatedProfile<T>> {
+        match self.pass_two {
+            super::PassTwo::SkippedAtF64 => {
+                T::pass_one(&pre.validated_f64, self.params, self.nominal)
+            }
+            #[cfg(any(test, feature = "test-support"))]
+            super::PassTwo::Run => None,
+        }
+    }
 }
 
 impl<T> Clone for LaneEnv<'_, T> {
@@ -231,7 +248,7 @@ impl<T> Copy for LaneEnv<'_, T> {}
 pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::Reached<T>,
-    /// Where profile geometry comes from, and over which environment.
+    /// The environments profile geometry is elaborated over.
     pub lane: LaneEnv<'a, T>,
 }
 
@@ -262,7 +279,8 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + crate::mate::SolveScalar,
+        + crate::mate::SolveScalar
+        + super::ProfileLane,
 {
     use crate::OperandSlot as O;
     let unprojected = results;
@@ -796,7 +814,8 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + crate::mate::SolveScalar,
+        + crate::mate::SolveScalar
+        + super::ProfileLane,
 {
     let part = env
         .parts
@@ -863,6 +882,34 @@ where
                 }
             })
             .collect(),
+        interference: part
+            .interference
+            .iter()
+            .map(|row| {
+                let (route, pinned, _) = row.through(id);
+                crate::assembly::CarriedInterference {
+                    route,
+                    pin: pinned.pin,
+                    finding: pinned.finding,
+                }
+            })
+            .collect(),
+        at_rest: part
+            .at_rest
+            .iter()
+            .map(|row| {
+                let (route, pinned, held) = row.through(id);
+                crate::assembly::CarriedAtRestFinding {
+                    route,
+                    pin: pinned.pin,
+                    finding: pinned.finding,
+                    held,
+                }
+            })
+            .collect(),
+        // Keyed in the part's body, which the placement moves without
+        // re-minting a key (`place`), so they key the placed copy too.
+        census_pairs: part.census_pairs.as_ref().clone(),
     };
     // The same material copy by copy, under the same map, for a reader
     // of one copy: each named as the instance names it, and placed when
@@ -1480,7 +1527,8 @@ fn frame_from_slots<T: Decide>(
 pub enum FramePlacement {
     /// An AUTHORED frame ([`Datum::Frame`]): its nine expressions at
     /// the document's nominal, resolved and orthonormalized. Its
-    /// profiles place with THIS.
+    /// profiles' first pass is assembled on THIS ([`prepare_profile`]);
+    /// every lane places them at its own value ([`frame_plane_lane`]).
     Authored(profile::SketchPlane<f64>),
     /// An AUTHORED frame whose nominal read REFUSED a direction (`u`,
     /// or `v`'s residual; see [`FrameRead::NoDirection`]).
@@ -1492,8 +1540,8 @@ pub enum FramePlacement {
     /// needed the nominal placement: [`profile_plane_f64`] raises it.
     Unreadable(DirectionRefusal),
     /// A DERIVED frame ([`Datum::FaceFrame`], DM1c): nothing to mint.
-    /// Its profiles are placed at the lane under every lift
-    /// ([`frame_plane_lane`]); their 2-D structure record is assembled
+    /// Its profiles are placed at the lane ([`frame_plane_lane`]), as
+    /// every frame's are; their 2-D structure record is assembled
     /// in the conventional `SketchPlane::xy()` ([`prepare_profile`]),
     /// which no decision reads.
     Derived,
@@ -1515,7 +1563,8 @@ pub enum FramePlacement {
 /// structure at `f64` and at the interval scalar. The frame's LANDED
 /// value answers a different question (what a reader sees, what a
 /// measure measures), so an authored frame is read at two scalars —
-/// `Pinned` places with THIS read, `Guided` with [`frame_plane_lane`]'s.
+/// the first pass is assembled on THIS read, and every lane places the
+/// profile with [`frame_plane_lane`]'s.
 ///
 /// `nominal` is the node's slots already evaluated at
 /// [`LaneEnv::nominal`], so this evaluates no expression.
@@ -1600,13 +1649,14 @@ pub(crate) fn profile_plane_f64<T: Decide>(
 ///
 /// The f64 read above is for STRUCTURE. A document parameter can drive
 /// a frame's origin, and under an interval or dual run it has a
-/// non-degenerate value; embedding the f64 placement into `T` would
-/// drop that width from the plane — an enclosure that does not
-/// enclose. So structure stays f64-pinned and lane-identical, and
-/// magnitudes stay lane-live.
+/// non-degenerate value, which only the frame minted at `T` carries: a
+/// frame crosses no scalar upward. So structure stays f64-pinned and
+/// lane-identical, and the plane, like every magnitude, is lane-live.
+/// At `f64` this read is the authored frame's nominal read, bit for
+/// bit.
 ///
-/// A DERIVED frame is read here under EVERY lift (DM1c): this by-value
-/// read is the only placement it has.
+/// A DERIVED frame has no other placement (DM1c): this by-value read
+/// is the only one it has.
 ///
 /// # Errors
 ///
@@ -1775,10 +1825,12 @@ fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
 /// f64 (the C6 structure-selection gate, which also yields the
 /// canonical form the naming anchor is derived from). Runs inside the
 /// node's verdict frame (`eval_node`) ahead of the op, so its structure
-/// decisions are logged as the node's own. Under the pinned lift the
-/// validated form IS the op's value (`wire_profile`), so the node
-/// decides each structure question once. VQ6: replay and validation run
-/// under the same tolerance the evaluation pins.
+/// decisions are logged as the node's own. At `f64` the validated
+/// form IS the op's value, on the lane's plane (`wire_profile`,
+/// [`super::ProfileLane`]), so the node decides each structure question
+/// once, and logs in the second pass's place what that pass decides
+/// ([`ProfilePre::decided`]). VQ6: replay and
+/// validation run under the same tolerance the evaluation pins.
 pub(crate) fn prepare_profile(
     placement: Option<profile::SketchPlane<f64>>,
     resolved: &[Vec<profile::Step<f64>>],
@@ -1787,22 +1839,38 @@ pub(crate) fn prepare_profile(
 ) -> Result<ProfilePre, NodeErrorKind> {
     // The 2-D record's assembly frame; the conventional frame for a
     // derived frame's profile (DM1c). No decision below reads it: what
-    // places the profile is `placement_f64`.
+    // places the profile is the lane's frame (`frame_plane_lane`).
     let plane = placement.unwrap_or_else(profile::SketchPlane::xy);
-    let mut loops = Vec::with_capacity(resolved.len());
-    let mut replay_records = Vec::with_capacity(resolved.len());
-    for (li, steps) in loop_coordinates(resolved.len())?.zip(resolved) {
-        let (lp, record) = profile::replay_recording(steps, tol)
-            .map_err(|error| NodeErrorKind::ProfileReplay { loop_: li, error })?;
-        loops.push(lp);
-        replay_records.push(record);
-    }
-    // The loops are the replay's own construction, so validation
-    // decides no arc's consistency checks (D1).
-    let replayed = profile::ConstructedProfile::new(plane, loops);
-    let (validated_f64, canonical) = replayed
-        .validate_recording(tol)
-        .map_err(NodeErrorKind::Profile)?;
+    let (elaborated, recording) = geom_core::k_stats::detached(|| {
+        let mut loops = Vec::with_capacity(resolved.len());
+        let mut replay_records = Vec::with_capacity(resolved.len());
+        for (li, steps) in loop_coordinates(resolved.len())?.zip(resolved) {
+            let (lp, record) = profile::replay_recording(steps, tol)
+                .map_err(|error| NodeErrorKind::ProfileReplay { loop_: li, error })?;
+            loops.push(lp);
+            replay_records.push(record);
+        }
+        // The loops are the replay's own construction, so validation
+        // decides no arc's consistency checks (D1).
+        let replayed = profile::ConstructedProfile::new(plane, loops);
+        let (validated_f64, canonical) = replayed
+            .validate_recording(tol)
+            .map_err(NodeErrorKind::Profile)?;
+        Ok((replayed, replay_records, validated_f64, canonical))
+    });
+    let pinned = |name: &str| profile::PINNED_UNDER_GUIDANCE.contains(&name);
+    let decided = geom_core::k_stats::Recorded {
+        verdicts: (recording.recorded().verdicts.iter())
+            .filter(|v| !pinned(v.predicate))
+            .copied()
+            .collect(),
+        escalations: (recording.recorded().escalations.iter())
+            .filter(|e| !pinned(e.predicate()))
+            .copied()
+            .collect(),
+    };
+    geom_core::k_stats::splice(recording);
+    let (replayed, replay_records, validated_f64, canonical) = elaborated?;
     // A canonical loop matched no program loop: an internal break.
     let naming = anchor::derive_naming(&validated_f64, replayed.loops())
         .ok_or(NodeErrorKind::ProfileAnchor)?;
@@ -1812,13 +1880,13 @@ pub(crate) fn prepare_profile(
         .map_err(|fault| NodeErrorKind::ProfilePieces { fault })?;
     Ok(ProfilePre {
         validated_f64,
-        placement_f64: placement,
         naming,
         pieces,
         structure: profile::ProfileStructure {
             replay: replay_records,
             canonical,
         },
+        decided,
     })
 }
 
@@ -1834,7 +1902,7 @@ pub(crate) fn prepare_profile(
 /// The naming is pass 1's verbatim (PP4): names are canonical indices,
 /// and the canonical permutation they hang off is pinned by the record,
 /// so `T`-valued geometry changes no name.
-fn lane_profile<T: Decide + geom_core::Bounds>(
+pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
     plane: profile::SketchPlane<T>,
     lane: LaneEnv<'_, T>,
@@ -1868,7 +1936,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         .map_err(NodeErrorKind::Profile)
 }
 
-fn wire_profile<T: Decide + geom_core::Bounds>(
+fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
     doc: &crate::doc::Doc<ProfileProgram>,
     program: &ProfileProgram,
     frame: crate::VarId,
@@ -1878,31 +1946,16 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
     tol: Tol,
 ) -> PayloadResult<T> {
     let pre = pre.ok_or(NodeErrorKind::ProfileRecordMissing { loop_: None })?;
-    let validated = match lane.lift {
-        // The build path: the precompute's VALIDATED form embedded
-        // through `from_f64`, every decision carried as the f64 one and
-        // none remade (`ProfileLift`); the guided lift is where a
-        // margin escalates. A DERIVED frame has no `f64` placement
-        // (DM1c), so it is placed at the lane's own value. The op
-        // decides nothing: the node's log under this lift is the
-        // precompute's.
-        super::ProfileLift::Pinned => {
-            let plane = match &pre.placement_f64 {
-                Some(placement) => placement.map(T::from_f64),
-                None => frame_plane_lane(doc, results, frame, lane.params, tol)?,
-            };
-            pre.validated_f64
-                .clone()
-                .lift_onto(plane)
-                .map_err(NodeErrorKind::Profile)?
+    let plane = frame_plane_lane(doc, results, frame, lane.params, tol)?;
+    let validated = match lane.pass_one(pre) {
+        // The `f64` lane IS the first pass, so its validated form is the
+        // value, on the plane minted at the lane, and the node logs what
+        // the second pass it skips decides.
+        Some(pass_one) => {
+            geom_core::k_stats::relog(&pre.decided);
+            pass_one.clone().on_plane(plane)
         }
-        super::ProfileLift::Guided => lane_profile::<T>(
-            program,
-            frame_plane_lane(doc, results, frame, lane.params, tol)?,
-            lane,
-            pre,
-            tol,
-        )?,
+        None => lane_profile::<T>(program, plane, lane, pre, tol)?,
     };
     Ok(ValuePayload::Profile(Arc::new(ProfileValue {
         validated,

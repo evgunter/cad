@@ -56,6 +56,8 @@ mod mate2_common;
 mod revolve_common;
 mod seam_region_common;
 
+#[path = "a_carried_record_no_reading_covers.rs"]
+mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_curved_keel_in_the_plane.rs"]
@@ -84,6 +86,8 @@ mod a_plane_holding_a_conic_tangent_at_a_vertex;
 mod a_plane_moved_to_a_cone_apex;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
+mod a_rigid_turn_keeps_a_slivers_volume;
 #[path = "a_rim_in_a_face_beside_a_resting_ridge.rs"]
 mod a_rim_in_a_face_beside_a_resting_ridge;
 #[path = "a_ring_on_a_cone_face.rs"]
@@ -136,6 +140,8 @@ mod band_subdivided_side_walls;
 mod bisector_lane_stubs;
 #[path = "bisector_nodes.rs"]
 mod bisector_nodes;
+#[path = "blend_arms_centre_placement.rs"]
+mod blend_arms_centre_placement;
 #[path = "bool1_fix_pass.rs"]
 mod bool1_fix_pass;
 #[path = "bool1_r1_probes.rs"]
@@ -248,6 +254,8 @@ mod r2_mesh1_donut_probes;
 mod rehome_rings_lune;
 #[path = "review_4704_flush_round_oracle.rs"]
 mod review_4704_flush_round_oracle;
+#[path = "review_4996_blend_cap.rs"]
+mod review_4996_blend_cap;
 #[path = "review_r2_vv_probes.rs"]
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]
@@ -1129,6 +1137,9 @@ mod shell10_r2_cost;
 
 #[path = "shell10_r2_dump.rs"]
 mod shell10_r2_dump;
+
+#[path = "cross_solid_apart.rs"]
+mod cross_solid_apart;
 
 #[path = "census_containment_cause.rs"]
 mod census_containment_cause;

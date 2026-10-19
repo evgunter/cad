@@ -18,8 +18,8 @@
 //!   two annular caps: seven surface runs, each appearing twice (once
 //!   per wall face), all exact analytic surfaces.
 //! - the **top loop** — the handle that carries the neck over the top
-//!   and back down INTO the bulb — is ONE `sweep_body` of the annular
-//!   cross-section along the loop's whole spine: a 270° arc over the
+//!   and back down INTO the bulb — is ONE `loft_body` of the annular
+//!   cross-section through planes normal to the loop's whole spine: a 270° arc over the
 //!   top, then a 90° arc turning back onto the bottle's axis, joined
 //!   tangent and interpolated as one curve. Two planar caps and eight
 //!   rational NURBS walls (finding 5).
@@ -46,7 +46,7 @@
 //! cannot be tangent to the axis at two different heights: no single
 //! torus has both of the loop's ends. Two tangent arcs can, and that
 //! is what the loop is. (This is geometry, not a kernel limit, and
-//! it does not make the loop two bodies: one sweep carries the
+//! it does not make the loop two bodies: one loft carries the
 //! annulus along both arcs.)
 //!
 //! **(b) "fillet that torus–cone junction".** Taken literally — blend
@@ -110,7 +110,7 @@
 //!    Indeterminate }`, wall 2).
 //! 4. **Neither join can start** (walls 3, 4). `union` refuses at the
 //!    operand gate before any pair is looked at:
-//!    `CurvedEdgeUnsupported { operand: B }` — the loop is a sweep, its
+//!    `CurvedEdgeUnsupported { operand: B }` — the loop is a loft, its
 //!    longitudinal edges are NURBS carriers, and rung-3 edges are what
 //!    the curved zip MINTS, not what it consumes. `subtract` answers
 //!    first at the revert roster with `{ op: Some(Subtract), kind:
@@ -121,8 +121,8 @@
 //!    body, and the self-intersection — the neck piercing the bulb,
 //!    the one place a Klein bottle MUST cross itself in 3-space —
 //!    cannot be trimmed.
-//! 5. **The loop is ONE swept body, and its section is not spelled
-//!    the natural way** (walls 5 and 8). `sweep_body` carries the
+//! 5. **The loop is ONE lofted body, and its section is not spelled
+//!    the natural way** (walls 5 and 8). The loft carries the
 //!    annulus around the U-turn — the loft's stacking statement is a
 //!    fold over adjacent section pairs, each decided against both its
 //!    sections' normals (issue 368). Two findings shape it:
@@ -218,7 +218,7 @@
 //!     Any predicate whose certified lane is "same `SurfaceKey`" —
 //!     M9-2's chart-region rule is the live example — sees two charts
 //!     where the model has one. [`stops`] pins the whole picture.
-//! 11. **The loop's caps are tilted, and the tilt is load-bearing**
+//! 11. **The loop's caps are tilted**
 //!     (wall 9). No public door pins a spine's end tangents:
 //!     `NurbsCurve3::interpolate` takes no end derivatives, and
 //!     nothing joins two exact arcs into one path. So the spine is an
@@ -227,17 +227,18 @@
 //!     its end tangent — sits turned off the rim it meets, its edge up
 //!     to 2·r·sin(tilt/2) ≈ 1.1e-4 m away: the numbers a declared REST
 //!     contact (C7) would be asked to accept. The tilt cannot be
-//!     authored away, and it is ALSO what lets the loop build:
-//!     `sweep_places` carries every station by one minimal rotation
-//!     from the BASE tangent, and the exact spine — end tangents
-//!     exactly ±z, authored by hand as four rational quarter arcs —
-//!     refuses `PathTangentReversal` at its last station (wall 9). The
-//!     interpolant's mirrored tilts leave |u₀ × u₁| ≈ 3.1e-11 rather
-//!     than 0, which is the C6 float knife edge
-//!     `review_m5_pr10::review_half_turn_path_builds_on_the_float_knife_edge`
-//!     pins as executed behaviour, not as intent. If the frame choice
-//!     gains a real margin, this scene refuses. [`sweep_loop`] carries
-//!     the gap comment.
+//!     authored away. Nor does `sweep_body` carry the loop: it turns
+//!     its start frame to every station by one minimal rotation from
+//!     the BASE tangent, and a half turn's last tangent is opposed to
+//!     the first — on the exact spine (end tangents exactly ±z,
+//!     authored by hand as four rational quarter arcs) and on the
+//!     interpolant alike, whose mirrored tilts leave |u₀ × u₁| ≈
+//!     3.1e-11, so the turn decides `1 + u₀·u₁` zero and refuses
+//!     `PathTangentReversal` (on the exact spine first at the over
+//!     arc's own half-turn point, two quarter arcs in: wall 9). The
+//!     spine is planar, so the scene states each station's
+//!     normal-plane frame and lofts ([`lofted_loop`] carries the gap
+//!     comment).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -247,11 +248,12 @@ use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom::NurbsCurve3;
 use pncad::geom_brep::PropsError;
 use pncad::geom_core::linalg::frame::path_start_frame;
-use pncad::geom_core::{KnotVector, Point3, Tol};
+use pncad::geom_core::{Band, KnotVector, Point3, RigidMotion, Tol, UnitVec3};
 use pncad::prelude::{ConstructedLoop, Open, Start, SurfaceKindSet, circle, circle_split, query};
 use pncad::prelude::{Convexity, SurfaceKind};
+use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, CornerConfig, fillet_edges};
-use pncad::sweep::{LoftError, Revolution, RevolveAxis, SkinError, revolve, sweep_body};
+use pncad::sweep::{LoftError, Revolution, RevolveAxis, SkinError, loft_body, revolve, sweep_body};
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{
     AtRestBody, Body, BooleanError, BooleanOp, EdgeKey, MassPropsError, Operand, ValidationError,
@@ -297,7 +299,7 @@ const SWEEP_IN: f64 = 0.5 * PI;
 /// The loop's spine samples: one interval per 7.5° on each arc.
 const SPINE_OVER: u32 = 36;
 const SPINE_IN: u32 = 12;
-/// Sections the loop's sweep places along its spine, and the skin's
+/// Sections the loop's loft places along its spine, and the skin's
 /// degree through them. Chosen inside a measured neighbourhood rather
 /// than at a lucky cell: at v-degree 2, every station count from 9 to
 /// 19 passes tier 3 and meshes at the stop's δ at ε = 1e-6, 1e-9 and
@@ -517,8 +519,7 @@ fn into_arc(m: &Meridian, psi: f64) -> (f64, f64) {
 
 /// The top loop's whole spine: the two tangent arcs, sampled at exact
 /// points ([`SPINE_OVER`] + [`SPINE_IN`] intervals) and interpolated
-/// at degree 3 — `sweep_body` takes any `NurbsCurve3`, so the U-turn
-/// is ONE path.
+/// at degree 3, so the U-turn is ONE path.
 fn loop_spine(m: &Meridian) -> NurbsCurve3<f64> {
     let over =
         (0..=SPINE_OVER).map(|k| over_arc(SWEEP_OVER * f64::from(k) / f64::from(SPINE_OVER)));
@@ -595,38 +596,85 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, lofted: bool, tol: Tol) -> Vec<Cons
         .collect()
 }
 
-/// `section` swept along `spine` as ONE body (the loft's stacking
-/// statement is per-slab, issue 368), drawn in the plane normal to the
-/// spine's start tangent, which the kernel hands out
-/// (`path_start_frame`). The section and the frame are built in `f64`,
-/// so they enter `S` as the computed values they are; the spine is
-/// `f64` because `sweep_body` takes it so; the body comes out at `S`.
+/// `section` carried along `spine` as ONE body (the loft's stacking
+/// statement is per-slab, issue 368), lofted through [`STATIONS`]
+/// planes normal to the spine at the stations a sweep would take. The
+/// spine is planar (it lies in y = 0), so each station's frame is
+/// STATED rather than carried: its local +Z the unit tangent there, its
+/// local +X the roll of the frame the kernel hands out at the start
+/// (`path_start_frame`), which is the spine plane's normal and so
+/// perpendicular to every tangent. The section and the frames are
+/// built in `f64`, so they enter `S` as the computed values they are;
+/// the body comes out at `S`.
 ///
 /// GAP (library finding,
 /// `work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`):
-/// the scene's loop rides a float knife edge (finding 11).
-/// `sweep_places` carries every station by ONE minimal rotation from
-/// the base tangent, and the loop's spine turns exactly a half turn,
-/// so its end tangents are anti-parallel in ℝ. The exact spine refuses
-/// `PathTangentReversal` (wall 9); the interpolant builds only because
-/// its end tangents tilt 3.99e-4 rad in mirror image, leaving
-/// |u₀ × u₁| ≈ 3.1e-11 where the C6 test reads `sin > 0.0`
-/// (`review_m5_pr10::review_half_turn_path_builds_on_the_float_knife_edge`,
-/// pinned as executed behaviour, not as intent). Give the frame choice
-/// a real margin and this scene refuses.
-fn sweep_loop<S: Scalar>(
+/// `sweep_body` carries its start frame to every station by ONE minimal
+/// rotation from the base tangent, and this spine turns a half turn, so
+/// its last tangent is opposed to its first: the turn decides
+/// `1 + t₀·tᵢ` zero and the sweep refuses `PathTangentReversal`, on
+/// the interpolant as on the exact spine ([`swept_loop`], wall 9). A
+/// planar path's own normal-plane frame has no such station, and no
+/// door hands it out, so the scene states it and lofts.
+fn lofted_loop<S: Scalar>(
+    spine: &NurbsCurve3<f64>,
+    section: &[ConstructedLoop<f64>],
+    tol: Tol,
+) -> Result<Body<S>, LoftError> {
+    let band = Band::linear(tol).map_err(LoftError::Band)?;
+    let (t0, t1) = spine.domain();
+    let (start, tangent) = spine.ders1(t0);
+    let roll = path_start_frame(
+        start.map(S::from_computed),
+        tangent.map(S::from_computed),
+        tol,
+    )
+    .expect("the spine's start tangent fixes a frame")
+    .u()
+    .get();
+    let places: Vec<SketchPlane<S>> = (0..STATIONS)
+        .map(|i| {
+            #[allow(clippy::cast_precision_loss)]
+            let s = i as f64 / (STATIONS - 1) as f64;
+            let (p, d) = spine.ders1((t1 - t0).mul_add(s, t0));
+            let aim = UnitVec3::new(d.map(S::from_computed), "klein_loop_tangent", band)
+                .expect("the spine has a tangent at every station");
+            let frame = RigidMotion::from_aim_and_reference(
+                p.map(S::from_computed),
+                aim,
+                roll,
+                "klein_loop_roll",
+                band,
+            )
+            .expect("the spine plane's normal is off every tangent");
+            SketchPlane::from_frame(frame)
+        })
+        .collect();
+    let section: Vec<ConstructedLoop<S>> = section.iter().map(|lp| lp.lift_computed()).collect();
+    let sections = vec![section; STATIONS];
+    loft_body::<S>(&sections, &places, V_DEGREE, tol).map(|l| l.body)
+}
+
+/// `section` swept along `spine` by `sweep_body`, from the start frame
+/// the kernel hands out (`path_start_frame`) — the spelling wall 9
+/// pins, which refuses at the half turn ([`lofted_loop`]'s gap).
+fn swept_loop<S: Scalar>(
     spine: &NurbsCurve3<f64>,
     section: &[ConstructedLoop<f64>],
     tol: Tol,
 ) -> Result<Body<S>, LoftError> {
     let (t0, _) = spine.domain();
     let (start, tangent) = spine.ders1(t0);
-    let place =
-        path_start_frame(start, tangent, tol).expect("the spine's start tangent fixes a frame");
+    let place = path_start_frame(
+        start.map(S::from_computed),
+        tangent.map(S::from_computed),
+        tol,
+    )
+    .expect("the spine's start tangent fixes a frame");
     let section: Vec<ConstructedLoop<S>> = section.iter().map(|lp| lp.lift_computed()).collect();
     sweep_body::<S>(
         &section,
-        place.map(S::from_computed),
+        SketchPlane::from_frame(place),
         spine,
         STATIONS,
         V_DEGREE,
@@ -636,7 +684,7 @@ fn sweep_loop<S: Scalar>(
 }
 
 /// The bottle: the bulb and the loop, each finished, and the spine the
-/// loop was swept along.
+/// loop was lofted along.
 struct Bottle<S: Scalar> {
     bulb: AtRestBody<S>,
     top: AtRestBody<S>,
@@ -646,8 +694,8 @@ struct Bottle<S: Scalar> {
 fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     let m = meridian();
     let spine = loop_spine(&m);
-    let top = sweep_loop::<S>(&spine, &annulus::<f64>(&m, 0.0, true, tol), tol)
-        .expect("the annulus sweeps along the loop's whole spine");
+    let top = lofted_loop::<S>(&spine, &annulus::<f64>(&m, 0.0, true, tol), tol)
+        .expect("the annulus lofts along the loop's whole spine");
     Bottle {
         bulb: finished(
             "the bulb",
@@ -822,7 +870,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // The loop's volume in the continuum is the annulus times the
     // spine length (Pappus: a planar spine, the section's centroid ON
     // it and the section symmetric about its plane), A·L with
-    // L = RLOOP·2π. The swept body is not that continuum: the skin
+    // L = RLOOP·2π. The lofted body is not that continuum: the skin
     // interpolates STATIONS sections, evenly spaced Δ = 2π/(STATIONS−1)
     // around the spine, so its volume differs from A·L by the
     // discretization. The ALLOWANCE is the chordal deficit of the
@@ -864,7 +912,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     assert!(
         band_lo <= v_mesh && v_mesh <= band_hi,
         "the loop's mesh volume {v_mesh} is outside Pappus's A·L = {pappus} ± {allowance:e}: \
-         the swept body is not the authored loop"
+         the lofted body is not the authored loop"
     );
     // The census: two annular caps and four quarter walls per side —
     // a hollow tube, so one handle.
@@ -977,8 +1025,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let story = "a Klein bottle — as a THIN 3-manifold, because a 2-manifold sheet is not a \
                  body this kernel holds. The bulb (neck, flare, the wide rim it turns back \
                  on, and the straight tube coming back up through that rim's hole) is ONE \
-                 full revolve of ONE meridian band; the loop over the top is ONE sweep \
-                 of the annulus along its whole U-turn spine. The two MEET on annular \
+                 full revolve of ONE meridian band; the loop over the top is ONE loft \
+                 of the annulus through normal planes of its whole U-turn spine. The two MEET on annular \
                  faces, each cap tilted off the bulb's rim by its spine's end tangent, \
                  and they cannot be joined: union refuses the loop's NURBS edges at the \
                  operand gate, and subtract refuses the loop's NURBS walls against a \
@@ -989,8 +1037,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         caption: "Klein bottle — two bodies the kernel cannot join".to_string(),
         montage: true,
         story,
-        ops: "revolve(Full) of a filleted meridian band + sweep_body of an annulus \
-              (circle_split x 4) along an interpolated U-turn spine from path_start_frame; \
+        ops: "revolve(Full) of a filleted meridian band + loft_body of an annulus \
+              (circle_split x 4) through normal planes of an interpolated U-turn spine, \
+              rolled as path_start_frame; \
               NO boolean, NO shell — see klein::wall_probes",
         delta: DELTA,
         note: Some(format!(
@@ -1164,7 +1213,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // Wall 3: the bottle is ONE surface. Its two bodies meet on
     // annular faces — the REST mate — and the union refuses before
-    // any pair is looked at: the loop is a sweep, its longitudinal
+    // any pair is looked at: the loop is a loft, its longitudinal
     // edges are NURBS carriers, and the operand gate admits a rung-3
     // edge in no INPUT operand (rung-3 is what the curved zip mints,
     // not what it consumes) —
@@ -1193,13 +1242,13 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // Wall 5: the loop with its section spelled the natural way, as
     // two `circle`s. It builds, tier-1 valid and closed, and tier 3 —
     // which every scene body passes — cannot decide the sign of its
-    // volume on a rational swept wall at the loop's position. The
+    // volume on a rational lofted wall at the loop's position. The
     // refusal is the flux enclosure's width (1.04e-5 m, the same at
     // every ε row) against a 1024·ε target, so it stands at the
     // default ε and finer, and at the coarse row the sign decides.
     // Measured across 9–65 stations at skin degrees 2 and 3, from the
     // path's start frame and from world axes: it refuses at every one.
-    let round = sweep_loop::<S>(&loop_spine(&m), &annulus::<f64>(&m, 0.0, false, tol), tol)
+    let round = lofted_loop::<S>(&loop_spine(&m), &annulus::<f64>(&m, 0.0, false, tol), tol)
         .expect("the `circle` loop builds");
     assert_eq!(
         pncad::topo::validate(&round),
@@ -1221,7 +1270,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         EpsRow::Default | EpsRow::Fine => crate::walls::wall(
             "bottle",
             5,
-            "validate the loop swept with `circle` sections at tier 3",
+            "validate the loop lofted with `circle` sections at tier 3",
             round_tier3,
             |e| {
                 matches!(
@@ -1389,39 +1438,43 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // carries an interior knot of multiplicity = degree — the C0
     // crease the mesher refuses, at every ε and every station count
     // and skin degree measured (9–65, 2 and 3).
-    let round64 = sweep_loop::<f64>(&loop_spine(&m), &annulus::<f64>(&m, 0.0, false, tol), tol)
+    let round64 = lofted_loop::<f64>(&loop_spine(&m), &annulus::<f64>(&m, 0.0, false, tol), tol)
         .expect("the `circle` loop builds at f64");
     crate::walls::wall(
         "bottle",
         8,
-        "tessellate the loop swept with `circle` sections",
+        "tessellate the loop lofted with `circle` sections",
         pncad::mesh::tessellate(&round64, DELTA, tol),
         |e| matches!(e, pncad::mesh::TessellateError::UnsupportedNurbsFace { .. }),
         "and if wall 5 has retired too, spell [`annulus`]'s lofted walls as `circle` \
          (work/tess/lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late)",
     );
 
-    // Wall 9: the loop along its EXACT spine — the two arcs as four
-    // rational quarter arcs, end tangents exactly ±z, so the caps would
-    // lie flat on the rims they meet. `sweep_places` carries every
-    // station by one minimal rotation from the base tangent, and at an
-    // exact half turn the last station's tangent is anti-parallel to it:
-    // the frame refuses (finding 11).
+    // Wall 9: the loop SWEPT along its EXACT spine — the two arcs as
+    // four rational quarter arcs, end tangents exactly ±z, so the caps
+    // would lie flat on the rims they meet. `sweep_places` carries every
+    // station by one minimal rotation from the base tangent, and the
+    // first station whose tangent is opposed to it refuses (finding
+    // 11): the over arc's half-turn point, two quarter arcs in, which
+    // the uniform stations hit exactly at `STATIONS / 2`. The scene's
+    // own interpolant refuses the same way, which is why the scene
+    // lofts ([`lofted_loop`]).
     crate::walls::wall(
         "bottle",
         9,
         "sweep the loop along its exact two-arc spine",
-        sweep_loop::<S>(&exact_spine(&m), &annulus::<f64>(&m, 0.0, true, tol), tol),
+        swept_loop::<S>(&exact_spine(&m), &annulus::<f64>(&m, 0.0, true, tol), tol),
         |e| {
             matches!(
                 e,
                 LoftError::Skin(SkinError::PathTangentReversal { station })
-                    if *station == STATIONS - 1
+                    if *station == STATIONS / 2
             )
         },
-        "sweep the scene's loop along `exact_spine`, so its caps lie on the bulb's rims: \
-         re-derive findings entry 11's seam measures (they become zero) and drop \
-         `sweep_loop`'s gap comment",
+        "sweep the scene's loop with `sweep_body` instead of lofting it through stated \
+         frames, and along `exact_spine`, so its caps lie on the bulb's rims: re-derive \
+         findings entry 11's seam measures (they become zero) and drop `lofted_loop`'s \
+         gap comment",
     );
 }
 

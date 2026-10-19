@@ -196,7 +196,7 @@ fn two_wedges_sharing_the_tangent_plane_face_refuse_unpaired_loose_ends() {
 
 /// **A difference leaving a zero-angle cusp along the ruling refuses at
 /// `sector_straight`**, today
-/// (`work/tang/a-difference-leaving-a-cusp-along-a-wall-ruling-refuses-sector-straight.md`),
+/// (`work/tangtail/a-difference-leaving-a-cusp-along-a-wall-ruling-refuses-sector-straight.md`),
 /// its rejected margin the z-overlap along the ruling. Pins the refusal,
 /// so it flips when fixed.
 #[test]

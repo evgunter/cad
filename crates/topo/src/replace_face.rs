@@ -1396,7 +1396,9 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     d: T,
     tol: Tol,
 ) -> Result<OffsetOutcome, ReplaceFaceError<T>> {
-    replace_faces_offset_staged(body, faces, d, tol, true).map(|joins| OffsetOutcome { joins })
+    let source = crate::SourceGeometry::of(body);
+    let joins = replace_faces_offset_staged(body, faces, d, tol, true)?;
+    Ok(OffsetOutcome::of(source, joins))
 }
 
 /// **Each boundary edge's planned verdict** for moving one non-cone
@@ -1635,9 +1637,20 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
 pub struct OffsetOutcome {
     /// The joins, in the order made.
     pub joins: Vec<crate::boolean::EdgeJoin>,
+    /// The moved body's geometry before the door wrote
+    /// ([`crate::SourceGeometry`]): a record lands unread only on images
+    /// that hold it. Empty on an outcome no door made, and every record
+    /// is then read.
+    source: crate::SourceGeometry,
 }
 
 impl OffsetOutcome {
+    /// The outcome of a door that wrote over `source`, ending with
+    /// `joins`.
+    pub(crate) fn of(source: crate::SourceGeometry, joins: Vec<crate::boolean::EdgeJoin>) -> Self {
+        Self { joins, source }
+    }
+
     /// `records`, the moved body's before the door, carried onto
     /// `result`, the body after it, through [`Self::lineage`]
     /// ([`crate::ContactRecords::carried_through`], at `band` through `region`).
@@ -1657,10 +1670,14 @@ impl OffsetOutcome {
 
     /// **What the door made of each cell** (D1): it keeps every key and
     /// kills only what its joins name, so each cell is itself or the
-    /// edge a join made of it.
+    /// edge a join made of it. It writes new geometry under kept keys,
+    /// so the lineage carries the body's geometry from before it wrote
+    /// ([`crate::Lineage::from_source`]).
     #[must_use]
     pub fn lineage(&self) -> crate::Lineage {
-        crate::Lineage::new().through_joins(&self.joins)
+        crate::Lineage::new()
+            .from_source(self.source.clone())
+            .through_joins(&self.joins)
     }
 }
 
@@ -3188,12 +3205,7 @@ fn derive_edge<T: Decide>(
 fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
     use geom_brep::Pcurve;
     Some(match *pcurve {
-        Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
-            p0: geom_core::Point2::new(p0.x, p0.y + shift),
-            pa,
-            pb,
-            pl,
-        },
+        Pcurve::Harmonic { .. } => pcurve.translate(T::zero(), shift),
         Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
             p0: geom_core::Point2::new(p0.x, p0.y + shift),
             pl,
@@ -4613,13 +4625,13 @@ mod shift_chart_v_rows {
             sense: 1.0,
         });
         assert!(shift_chart_v(&section, 0.3).is_none());
-        let harmonic = Pcurve::Harmonic {
-            p0: Point2::new(0.0, 1.0),
-            pa: Vec2::new(0.5, 0.0),
-            pb: Vec2::new(0.0, 0.5),
-            pl: Vec2::new(0.0, 0.0),
-        };
-        let Some(Pcurve::Harmonic { p0, .. }) = shift_chart_v(&harmonic, 0.25) else {
+        let harmonic = Pcurve::free_harmonic(
+            Point2::new(0.0, 1.0),
+            Vec2::new(0.5, 0.0),
+            Vec2::new(0.0, 0.5),
+            Vec2::new(0.0, 0.0),
+        );
+        let Some(Some((p0, ..))) = shift_chart_v(&harmonic, 0.25).map(|p| p.harmonic_form()) else {
             panic!("a harmonic image shifts");
         };
         assert_eq!(p0.y, 1.25);

@@ -434,7 +434,7 @@ pub enum ExtrudeError {
     /// which the direction gate decides past `K·ε`
     /// (`review_fillet_h6_r1_probes` and `review_blend_k_rk_probes`
     /// pin the worst admitted tilt on the shortest admitted rim). Kept
-    /// or retired by `work/tang/the-arms-the-faces-lever-left-without-a-row.md`.
+    /// or retired by `work/lever/the-arms-the-faces-lever-left-without-a-row.md`.
     SliverRim {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -767,8 +767,8 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Extruded<T>, ExtrudeError> {
     let band = Band::linear(tol).map_err(ExtrudeError::Band)?;
-    let place = profile.plane().placement;
-    let normal = place.linear.c2;
+    let place = profile.plane().placement();
+    let normal = profile.plane().normal().get();
 
     // ---- Direction classification (crate docs; named predicates). ----
     let (w, reverse) = match extrusion {
@@ -1602,7 +1602,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
         // The must-carry rule decides what a definitely-smooth rim
         // stores (module docs, step 6). No admitted input is known to
         // reach this arm (kept or retired by
-        // `work/tang/the-arms-the-faces-lever-left-without-a-row.md`). The direction gates admit a tilt of `w` off
+        // `work/lever/the-arms-the-faces-lever-left-without-a-row.md`). The direction gates admit a tilt of `w` off
         // the sketch normal of up to `1/K`; a LINE leg's wall is the
         // plane through the quad swept along `w`, so it leans against
         // the cap's `±n` by that tilt, and the wedge is levered at the
