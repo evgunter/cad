@@ -773,7 +773,8 @@ fn torus_chains_of_arcs_off_centre_measure() {
 /// `props_circle_axis_class`), and the closed forms read every circle it
 /// admits. A cylinder rectangle and band of radius `10.5ε` and `11.5ε`,
 /// a thin torus of that minor radius, and spindle and horn tori whose
-/// parallel near the axis has that radius all measure; demanding
+/// parallel near the axis has that radius all measure, each its closed
+/// form's area (`R·Δu·Δz`; `r·Δu·(R·Δv + r·Δ sin v)`); demanding
 /// `2ε` more of the radius than the class does refused them. At the
 /// interval scalar the near-axis parallel's azimuths round by about
 /// `u·|p|/ρ`, which a loop's whole-turn residual charges at that
@@ -782,10 +783,28 @@ fn torus_chains_of_arcs_off_centre_measure() {
 /// `10⁴ε` from the axis, or `1e-8` m where that is nearer.
 #[test]
 fn circles_just_past_the_axis_class_threshold_measure() {
+    /// The face's area, its bracket checked to enclose `want` within
+    /// `10⁻⁷` of it: a measured face answers its closed form, to the
+    /// rounding of circles a few `ε` across.
+    fn area_is<T: geom_core::Decide + geom_core::CertifiedEnclosure>(
+        got: Result<geom_brep::props::FaceContribution<T>, PropsError>,
+        want: f64,
+    ) -> Result<(), PropsError> {
+        got.map(|fc| {
+            let (lo, hi) = fc.area.certified_bracket().expect("a certified area");
+            let slack = 1e-7 * want;
+            assert!(
+                lo <= want + slack && want - slack <= hi && hi - lo <= slack,
+                "area [{lo:e}, {hi:e}], not {want:e}"
+            );
+        })
+    }
     fn rim<T: geom_core::Decide>(radius: f64, z: f64, ends: (f64, f64)) -> LoopEdge<T> {
         off_arc::<T>(radius, [0.0, 0.0], 0.0, z, ends)
     }
-    fn cylinder_faces<T: geom_core::Decide>(radius: f64) -> [Result<(), PropsError>; 2] {
+    fn cylinder_faces<T: geom_core::Decide + geom_core::CertifiedEnclosure>(
+        radius: f64,
+    ) -> [Result<(), PropsError>; 2] {
         let at = |u: f64, z: f64| [radius * u.cos(), radius * u.sin(), z];
         let rect = vec![
             rim::<T>(radius, 0.0, (0.0, 2.0)),
@@ -799,11 +818,14 @@ fn circles_just_past_the_axis_class_threshold_measure() {
         );
         let s = cylinder_of::<T>(radius);
         [
-            curved_face_loops(&s, &[&rect], true, band()).map(|_| ()),
-            curved_face_loops(&s, &[&lower, &upper], true, band()).map(|_| ()),
+            area_is(curved_face_loops(&s, &[&rect], true, band()), 2.0 * radius),
+            area_is(
+                curved_face_loops(&s, &[&lower, &upper], true, band()),
+                TAU * radius,
+            ),
         ]
     }
-    fn torus_rect<T: geom_core::Decide>(
+    fn torus_rect<T: geom_core::Decide + geom_core::CertifiedEnclosure>(
         (big, r): (f64, f64),
         (v0, v1): (f64, f64),
     ) -> Result<(), PropsError> {
@@ -848,9 +870,13 @@ fn circles_just_past_the_axis_class_threshold_measure() {
             minor_radius: T::from_f64(r),
             u_ref: v3(1.0, 0.0, 0.0),
         };
-        curved_face_loops(&s, &[&l], true, band()).map(|_| ())
+        // `∫∫ r·(R + r·cos v) du dv` over `u ∈ [0, 1]`.
+        let want = (r * (big * (v1 - v0) + r * (v1.sin() - v0.sin()))).abs();
+        area_is(curved_face_loops(&s, &[&l], true, band()), want)
     }
-    fn faces<T: geom_core::Decide>(rho: f64) -> Vec<(String, Result<(), PropsError>)> {
+    fn faces<T: geom_core::Decide + geom_core::CertifiedEnclosure>(
+        rho: f64,
+    ) -> Vec<(String, Result<(), PropsError>)> {
         let [rect, whole] = cylinder_faces::<T>(rho);
         let mut out = vec![
             ("cylinder rectangle".to_string(), rect),
@@ -1027,4 +1053,220 @@ fn a_cone_rim_in_many_arcs_off_the_axis_measures() {
             );
         }
     }
+}
+
+/// The cone of half-angle ½ about the skew axis `(0.3, −0.4, 1)` through
+/// the apex `(0.2, −0.1, −1)`, its rims and generators: a frame off the
+/// origin and the coordinate axes.
+struct SkewCone {
+    apex: [f64; 3],
+    a: [f64; 3],
+    e1: [f64; 3],
+    e2: [f64; 3],
+}
+
+impl SkewCone {
+    fn new() -> Self {
+        let n = |v: [f64; 3]| {
+            let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+            [v[0] / l, v[1] / l, v[2] / l]
+        };
+        let a = n([0.3, -0.4, 1.0]);
+        let e1 = n([a[2], 0.0, -a[0]]);
+        let e2 = [
+            a[1] * e1[2] - a[2] * e1[1],
+            a[2] * e1[0] - a[0] * e1[2],
+            a[0] * e1[1] - a[1] * e1[0],
+        ];
+        SkewCone {
+            apex: [0.2, -0.1, -1.0],
+            a,
+            e1,
+            e2,
+        }
+    }
+    fn at(&self, s: [f64; 3]) -> [f64; 3] {
+        let k = |i: usize| self.apex[i] + s[0] * self.e1[i] + s[1] * self.e2[i] + s[2] * self.a[i];
+        [k(0), k(1), k(2)]
+    }
+    fn surface<T: geom_core::Real>(&self) -> Surface<T> {
+        Surface::Cone {
+            apex: p3(self.apex[0], self.apex[1], self.apex[2]),
+            axis: v3(self.a[0], self.a[1], self.a[2]),
+            half_angle: T::from_f64(0.5),
+            u_ref: v3(self.e1[0], self.e1[1], self.e1[2]),
+        }
+    }
+    fn rim<T: geom_core::Real>(&self, v: f64, u0: f64, u1: f64) -> LoopEdge<T> {
+        let (s, c) = 0.5_f64.sin_cos();
+        let o = self.at([0.0, 0.0, v * c]);
+        edge(
+            Curve3::Circle {
+                center: p3(o[0], o[1], o[2]),
+                axis: v3(self.a[0], self.a[1], self.a[2]),
+                radius: T::from_f64(v * s),
+                u_ref: v3(self.e1[0], self.e1[1], self.e1[2]),
+            },
+            u0,
+            u1,
+            0,
+            0,
+        )
+    }
+    fn generator<T: geom_core::Real>(&self, u: f64, v0: f64, v1: f64) -> LoopEdge<T> {
+        let (s, c) = 0.5_f64.sin_cos();
+        let d = self.at([s * u.cos(), s * u.sin(), c]);
+        let d = [
+            d[0] - self.apex[0],
+            d[1] - self.apex[1],
+            d[2] - self.apex[2],
+        ];
+        edge(
+            Curve3::Line {
+                origin: p3(self.apex[0], self.apex[1], self.apex[2]),
+                dir: v3(d[0], d[1], d[2]),
+            },
+            v0,
+            v1,
+            0,
+            0,
+        )
+    }
+}
+
+/// A cone face's area and flux, their brackets' midpoints after checking
+/// each bracket is within `10⁻⁹` of it.
+fn skew_face<T: geom_core::Decide + geom_core::CertifiedEnclosure>(
+    loops: &[Vec<LoopEdge<T>>],
+) -> Result<(f64, f64), PropsError> {
+    let refs: Vec<&[LoopEdge<T>]> = loops.iter().map(Vec::as_slice).collect();
+    curved_face_loops(&SkewCone::new().surface::<T>(), &refs, true, band()).map(|fc| {
+        let mid = |x: T| {
+            let (lo, hi) = x.certified_bracket().expect("a certified enclosure");
+            assert!(
+                hi - lo <= 1e-9 * hi.abs().max(lo.abs()),
+                "bracket [{lo}, {hi}]"
+            );
+            0.5 * (lo + hi)
+        };
+        (mid(fc.area), mid(fc.flux))
+    })
+}
+
+/// **A band between two whole rims measures its frustum** — a face the
+/// cone's flux lane refused before it read windings as the periodic
+/// charts do — at `f64` and at the interval scalar, on a cone about a
+/// skew axis off the origin: area `π·sin α·(v₁² − v₀²)`, flux the
+/// apex's height along the axis times `sin α` times that area, both
+/// equal to the band stated as one loop cut along a seam generator,
+/// which the iso parse admits (`require_iso_rectangle`). Its rims stored
+/// a period off, over `[τ, 2τ]`, measure the same.
+#[test]
+fn a_cone_band_measures_its_frustum_as_its_seamed_rectangle_does() {
+    fn rows<T: geom_core::Decide + geom_core::CertifiedEnclosure>(scalar: &str) {
+        let c = SkewCone::new();
+        let (v0, v1) = (1.0, 2.0);
+        let sa = 0.5_f64.sin();
+        let area = core::f64::consts::PI * sa * (v1 * v1 - v0 * v0);
+        let height: f64 = (0..3).map(|k| c.apex[k] * c.a[k]).sum();
+        let seamed = vec![
+            c.rim::<T>(v0, 0.0, TAU),
+            c.generator::<T>(TAU, v0, v1),
+            c.rim::<T>(v1, TAU, 0.0),
+            c.generator::<T>(0.0, v1, v0),
+        ];
+        assert_eq!(
+            geom_brep::props::require_iso_rectangle(&c.surface::<T>(), &seamed, band()),
+            Ok(()),
+            "the seamed band is an iso rectangle at {scalar}"
+        );
+        let (sa_, sf) =
+            skew_face(&[seamed]).unwrap_or_else(|e| panic!("seamed band at {scalar}: {e:?}"));
+        assert!(
+            (sa_ - area).abs() <= 1e-9 * area,
+            "seamed area {sa_} vs {area} at {scalar}"
+        );
+        assert!(
+            (sf.abs() - height.abs() * sa * area).abs() <= 1e-9 * area,
+            "seamed flux {sf} at {scalar}"
+        );
+        for (name, (u0, u1)) in [
+            ("band", (0.0, TAU)),
+            ("band a period off", (TAU, 2.0 * TAU)),
+        ] {
+            let (ba, bf) = skew_face(&[vec![c.rim::<T>(v0, u0, u1)], vec![c.rim::<T>(v1, u1, u0)]])
+                .unwrap_or_else(|e| panic!("{name} at {scalar}: {e:?}"));
+            assert!(
+                (ba - sa_).abs() <= 1e-9 * area,
+                "{name} area {ba} vs {sa_} at {scalar}"
+            );
+            assert!(
+                (bf - sf).abs() <= 1e-9 * area,
+                "{name} flux {bf} vs {sf} at {scalar}"
+            );
+        }
+    }
+    rows::<f64>("f64");
+    rows::<geom_core::Interval>("the interval scalar");
+}
+
+/// **The apex is the cone chart's puncture**: a face whose loops wind it
+/// on balance holds it, and only the apex winding back makes them a
+/// boundary. The cap under a whole rim at slant 2, with a hole that
+/// winds nothing, measures the cap less the hole, `sin α·(π·2² −
+/// ½·(1.5² − 1²))`; read without the apex, its one winding loop is no
+/// boundary's. With a second whole rim wound the same way it winds twice
+/// on balance and is [`PropsError::LoopsWindChart`]. At `f64` and at the
+/// interval scalar, on the skew cone.
+#[test]
+fn an_apex_cap_with_a_hole_holds_the_apex() {
+    fn rows<T: geom_core::Decide + geom_core::CertifiedEnclosure>(scalar: &str) {
+        let c = SkewCone::new();
+        let sa = 0.5_f64.sin();
+        let cap = vec![c.rim::<T>(2.0, 0.0, TAU)];
+        let hole = |forward: bool| {
+            let l = vec![
+                c.rim::<T>(1.0, 1.0, 2.0),
+                c.generator::<T>(2.0, 1.0, 1.5),
+                c.rim::<T>(1.5, 2.0, 1.0),
+                c.generator::<T>(1.0, 1.5, 1.0),
+            ];
+            if forward {
+                l
+            } else {
+                let mut r: Vec<LoopEdge<T>> = l
+                    .into_iter()
+                    .map(|mut e| {
+                        e.forward = !e.forward;
+                        core::mem::swap(&mut e.start, &mut e.end);
+                        e
+                    })
+                    .collect();
+                r.reverse();
+                r
+            }
+        };
+        let want = sa * (core::f64::consts::PI * 4.0 - 0.5 * (1.5 * 1.5 - 1.0));
+        let measured: Vec<f64> = [true, false]
+            .into_iter()
+            .filter_map(|f| skew_face(&[cap.clone(), hole(f)]).ok().map(|(a, _)| a))
+            .collect();
+        assert_eq!(
+            measured.len(),
+            1,
+            "one traversal of the hole measures at {scalar}"
+        );
+        assert!(
+            (measured[0] - want).abs() <= 1e-9 * want,
+            "cap less hole {} vs {want} at {scalar}",
+            measured[0]
+        );
+        assert_eq!(
+            skew_face(&[cap.clone(), vec![c.rim::<T>(1.0, 0.0, TAU)]]).err(),
+            Some(PropsError::LoopsWindChart),
+            "a cap and a rim wound alike at {scalar}"
+        );
+    }
+    rows::<f64>("f64");
+    rows::<geom_core::Interval>("the interval scalar");
 }

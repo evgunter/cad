@@ -486,4 +486,44 @@ mod tests {
             );
         }
     }
+    /// **Each edge's miss is charged at its own radius**, not at the
+    /// loop's least: an edge at a radius of `1` whose sweep misses its
+    /// ends by `2Kε` past the slack refuses beside an edge read a
+    /// millionth as far out, at `f64` and at the interval scalar.
+    #[test]
+    fn an_edges_miss_is_charged_at_its_own_radius() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let past = VERTEX_SLACK * band.zero() + 2.0 * band.escalate();
+        fn run<T: Decide>(past: f64, band: Band) -> Result<Vec<[i64; 1]>, PropsError> {
+            let edges = vec![
+                [EdgeTurn::new(
+                    T::from_f64(past),
+                    (T::one(), T::zero()),
+                    T::one(),
+                )],
+                [EdgeTurn::new(
+                    T::zero(),
+                    (T::one(), T::zero()),
+                    T::from_f64(1e-6),
+                )],
+            ];
+            let joints = (0..2)
+                .map(|_| Joint {
+                    turn: [(T::zero(), T::one())],
+                    flat: T::zero(),
+                })
+                .collect();
+            closed_form_windings(&[ChartLoop { edges, joints }], band)
+        }
+        assert_eq!(
+            run::<f64>(past, band),
+            Err(PropsError::LoopsWindChart),
+            "f64"
+        );
+        assert_eq!(
+            run::<Interval>(past, band),
+            Err(PropsError::LoopsWindChart),
+            "interval"
+        );
+    }
 }
