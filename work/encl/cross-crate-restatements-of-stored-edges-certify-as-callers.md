@@ -2,7 +2,8 @@
 id: cross-crate-restatements-of-stored-edges-certify-as-callers
 kind: issue
 title: Sweep restates stored edges through the public set_edge_curve, so their span refusal is typed
-status: dispatched
+status: review
+pr: 5418
 opened: 2026-10-19
 branch: encl/sweep-restate
 ---
