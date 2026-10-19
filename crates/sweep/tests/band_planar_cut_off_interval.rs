@@ -215,7 +215,7 @@ fn a_feature_across_a_requested_edges_line_is_clear_at_the_certified_scalar() {
 /// The sheared box `parallelepiped_at(s)` at `T`, as itself (convex) or
 /// as a void in a block (concave, its top edge a pocket's ceiling edge),
 /// and its top edge out of `(s, s, 1)`, whose end faces both lean.
-fn sheared<T: Decide + Bounds + topo::AtRestPolicy>(
+pub(crate) fn sheared<T: Decide + Bounds + topo::AtRestPolicy>(
     s: f64,
     convex: bool,
     tol: Tol,
