@@ -1203,3 +1203,4 @@ Signed (CLEAVE orchestrator).
   - topo `revert-re-pairs-…` and `subtracting-a-glued-tip-…`;
   - CLEAVE P1 `a-boolean-builds-a-reflex-edge-lying-inside-a-face`;
   - RESTREAD `census-passes-a-face-inside-an-edges-material-wedge`.
+- 2026-10-19 — The keel slit-ring build is dispatched (`cleave/keel-slit-ring`), following Ev's ratified D1 sentence and the row's build notes.
