@@ -147,12 +147,21 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
             };
             let parts = |d: f64, label: &str| {
                 let r = cut(d).unwrap_or_else(|err| panic!("{label}: refused: {err}"));
-                let vol = |b: Option<&Body<f64>>| b.map_or(0.0, volume);
-                (vol(r.above.body()), vol(r.below.body()))
+                // Each half's volume, and the pad its certificate gives:
+                // a half whose wall pieces merged across the seam is
+                // integrated by quadrature.
+                let vol = |b: Option<&Body<f64>>| {
+                    b.map_or((0.0, 0.0), |b| {
+                        let m = mass_properties(b, tol()).unwrap();
+                        (m.volume, m.volume_pad)
+                    })
+                };
+                let ((a, pa), (b, pb)) = (vol(r.above.body()), vol(r.below.body()));
+                (a, b, pa + pb)
             };
             let base = parts(0.0, &format!("φ {phi} ψ {name} on the plane"));
             assert!(
-                (base.0 + base.1 - core::f64::consts::PI).abs() <= 1e-6,
+                (base.0 + base.1 - core::f64::consts::PI).abs() <= 1e-6 + base.2,
                 "φ {phi} ψ {name}: the halves make the cylinder: {base:?}"
             );
             let mut rows: Vec<f64> = offsets(psi).into_iter().map(|m| m * e).collect();
@@ -165,7 +174,8 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
                     Reading::On => {
                         let got = parts(d, &label);
                         assert!(
-                            (got.0 - base.0).abs() <= 1e-6 && (got.1 - base.1).abs() <= 1e-6,
+                            (got.0 - base.0).abs() <= 1e-6 + got.2 + base.2
+                                && (got.1 - base.1).abs() <= 1e-6 + got.2 + base.2,
                             "{label}: {got:?} against {base:?} on the plane"
                         );
                     }
@@ -203,7 +213,8 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
                         if d > 0.0 {
                             let got = parts(d, &label);
                             assert!(
-                                (got.0 - base.0).abs() <= 1e-6 && (got.1 - base.1).abs() <= 1e-6,
+                                (got.0 - base.0).abs() <= 1e-6 + got.2 + base.2
+                                    && (got.1 - base.1).abs() <= 1e-6 + got.2 + base.2,
                                 "{label}: {got:?} against {base:?} on the plane"
                             );
                         } else {
