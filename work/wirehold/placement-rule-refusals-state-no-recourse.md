@@ -2,10 +2,11 @@
 id: placement-rule-refusals-state-no-recourse
 kind: issue
 title: The placement-rule refusals the feature tree draws state no recourse
-status: open
+status: parked
 opened: 2026-10-19
 priority: P3
 cost: E
+blocked_on: [transform-retires-into-a-placement]
 ---
 
 
@@ -28,4 +29,11 @@ Each arm ends in one labelled `Recourse:` (a finite, proper, rigid
 frame for the placement it names) or in the kernel-defect ending, and
 its five entries leave `FILED_NO_RECOURSE`, where
 `every_admission_admits_a_row_it_is_needed_for` reds on each one left
-behind. Placement ground: waits on the D10 hold.
+behind.
+
+## When the trigger fires
+
+Placement ground, so it waits on the D10 stage 3 unit
+`intent/transform-retires-into-a-placement`, which rebuilds the
+placement-rule door these faults come from: re-read the five arms then,
+since the rebuild may already give each a recourse.
