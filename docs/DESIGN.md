@@ -668,13 +668,15 @@ tiers".
   body is true that is not derivable from its construction (for
   imported bodies, from the adopted descriptions plus the import
   record, [import]).
-- **Manifold solids only, and "non-manifold" means non-representable.**
+- **Manifold solids only.**
   Non-manifold (radial-edge) topology is added only if sheet or wire
   bodies demand it. Touching via *distinct* entities (two vertices at
   one point, two edges on one segment) is representable and a typed
-  success carrying its tier-3′ records; genuine non-manifoldness (a
-  single edge with more than two faces, a shared-entity wedge fan) is a
-  typed error at the site that would have needed it. Silent splitting
+  success carrying its tier-3′ records; a single edge with more than
+  two faces, or a wedge fan sharing one entity, assembles faces into
+  something that is not a solid, and is not represented. Where more
+  than two sheets meet on a line, the material decides the edges
+  ([topology] tier 3). Silent splitting
   into separate manifold bodies is rejected as inexplicit; any future
   split behaviour is an explicit operation the user invokes, never a
   fallback.
