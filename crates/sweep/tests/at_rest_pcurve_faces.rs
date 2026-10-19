@@ -417,8 +417,9 @@ fn a_row_restated_a_whole_period_over_is_no_row() {
             cases += 1;
         }
     }
-    assert!(
-        cases >= 6,
+    // The first wall's two rims, each shifted either way.
+    assert_eq!(
+        cases, 4,
         "the boss wall has arc rows to shift: {cases} cases"
     );
 }

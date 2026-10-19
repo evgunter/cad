@@ -5795,7 +5795,10 @@ mod period_rows {
 /// continuous function of the offset.
 ///
 /// On a sphere a point has two names, `P_d` and its involution twin
-/// `(u + π, π − v)`, and each channel reads the nearer of the two. On a
+/// `(u + π, π − v)`, half a period apart in `u`; the row is read against
+/// the name its structure says it is (the twin negates the second
+/// channel's sign), never the nearer by offset, which would let a copy a
+/// whole period off read as the twin half a period away. On a
 /// plane no channel is periodic and there is no lifted copy to read:
 /// both terms are zero, and nothing is derived.
 fn placement_terms<T: Decide>(
@@ -5825,14 +5828,36 @@ fn placement_terms<T: Decide>(
         let p = image.eval(t0);
         (past_half(at.x - p.x), past_half(at.y - p.y))
     };
-    let (mut du, mut dv) = offsets(&derived);
-    if matches!(surface, Surface::Sphere { .. })
-        && let Ok(twin) = derived.map_affine(ChartMap::sphere_involution())
-    {
-        let (tu, tv) = offsets(&twin);
-        du = du.min(tu);
-        dv = dv.min(tv);
-    }
+    // On a sphere the stored row may be the derivation's involution
+    // twin, its other name. Which name it is reads as structure, not off
+    // an offset: the twin negates the second channel's sign
+    // (`ProjectedImage::v_sign`, exactly `±1`), so the product of the two
+    // signs is decided negative on the twin.
+    let named = match (stored, &derived) {
+        (Pcurve::Projected(s), Pcurve::Projected(d))
+            if matches!(surface, Surface::Sphere { .. }) =>
+        {
+            match decide(
+                "pcurve_fidelity_twin",
+                Margin::of(s.v_sign * d.v_sign),
+                band,
+            ) {
+                Ok(Sign::Negative) => derived
+                    .map_affine(ChartMap::sphere_involution())
+                    .map_err(|_| PcurveCertifyError::ChartWindingUnsupported)?,
+                Ok(Sign::Positive | Sign::Zero) => derived,
+                Err(cause) => {
+                    return Err(PcurveCertifyError::Escalated {
+                        check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityV),
+                        sample: 0,
+                        cause,
+                    });
+                }
+            }
+        }
+        _ => derived,
+    };
+    let (du, dv) = offsets(&named);
     Ok((du * arm_u, dv * arm_v))
 }
 
