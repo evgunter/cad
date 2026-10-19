@@ -8,9 +8,9 @@
 //! loses the tangency (a leg between two fillets too short to hold its
 //! own direction), a fixed turn that sits inside the window on one ε
 //! row and outside it on another, the seam fillet, the fused-incoming
-//! fillet, an arc × arc corner at tiny turns — and the recourse the
-//! refusal names, followed at every decade it fires, against the
-//! lever the spec first drafted.
+//! fillet, an arc × arc corner at tiny turns — and the window turns
+//! the door once refused, which build on their stored chord now that
+//! the joint is read at the shorter leg's arm.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -295,14 +295,13 @@ fn a_leg_between_two_fillets_too_short_to_hold_its_direction() {
     }
 }
 
-/// **A fixed turn is inside the window on one ε row and outside it on
-/// another.** At `θ = 2e-3`, `r = 0.2` the sagitta is 1e-7 m: ten
-/// times the band's top at the default ε and a thousand times it at
-/// 1e-12, where the bend builds and validates — and a tenth of ε at
-/// 1e-6, where the door refuses it typed. One geometry, three
-/// verdicts, decided by the row and nothing else.
+/// **A fixed turn builds on every ε row.** At `θ = 2e-3`, `r = 0.2`
+/// the sagitta is 1e-7 m: ten times the band's top at the default ε,
+/// a thousand times it at 1e-12, and a tenth of ε at 1e-6. Read at the
+/// shorter leg's arm — the arc's own length — the joint is tangent on
+/// all three rows, so the one geometry has one verdict.
 #[test]
-fn a_fixed_turn_crosses_the_window_with_the_eps_row() {
+fn a_fixed_turn_builds_on_every_eps_row() {
     let theta = 2e-3;
     let s = sagitta(R, theta);
     let o = outcome(line_line(theta, R));
@@ -311,17 +310,14 @@ fn a_fixed_turn_crosses_the_window_with_the_eps_row() {
         tol().eps(),
         band_top()
     );
-    if s >= 4.0 * band_top() {
-        assert!(
-            matches!(o, Outcome::Validates),
-            "sagitta {s:e} is clear of the band; the bend builds and validates: {o:?}"
-        );
-    } else if s <= tol().eps() * 0.25 {
-        assert!(
-            matches!(o, Outcome::DoorStoredForm("path_junction_turn", _)),
-            "sagitta {s:e} is below ε; the door refuses the flattened arc: {o:?}"
-        );
-    }
+    // The turn is read at the arc's own length `R·θ` (4e-4 m), clear
+    // of the band on every row, so the bend builds and validates
+    // whatever its sagitta.
+    assert!(R * theta >= 4.0 * band_top());
+    assert!(
+        matches!(o, Outcome::Validates),
+        "sagitta {s:e}: the bend builds and validates on its stored chord: {o:?}"
+    );
     for (name, build) in corners() {
         let o = outcome(build(theta, R));
         println!("FIXED eps={:e} {name} theta={theta:e}: {o:?}", tol().eps());
@@ -329,57 +325,46 @@ fn a_fixed_turn_crosses_the_window_with_the_eps_row() {
     }
 }
 
-/// **The recourse, followed at every decade it fires.** For each turn
-/// inside the window the refusal fires; the larger turn and the
-/// larger radius each build and validate; and the spec's original
-/// lever — a SMALLER radius — leaves the refusal in place with a
-/// smaller sagitta, i.e. it moves the wrong way.
+/// **The window turn, at every decade, builds on its stored chord.**
+/// The turn is read at the shorter leg's arm (#5377's fix pass): the
+/// fillet arc's own length, `r·θ`. Its chord turns `θ/2` over that
+/// length — about four sagittas — so a bend whose sagitta is inside
+/// the band still reads as the tangent joint it is, and builds and
+/// validates. The two levers the old refusal named — the larger turn
+/// and the larger radius — build and validate too, and so does the
+/// smaller radius; none of them is contradicted.
 #[test]
-fn the_recourse_followed_at_every_decade_and_the_spec_lever_reversed() {
+fn the_window_turn_builds_at_every_decade_and_so_do_its_levers() {
     for c in [0.1, 0.3, 1.0, 2.0] {
         let theta = c * scale();
-        let Outcome::DoorStoredForm(predicate, margin) = outcome(line_line(theta, R)) else {
-            panic!("c = {c}: the window turn refuses typed");
-        };
-        // Lever 1: the larger turn.
-        let turned = outcome(line_line(32.0 * scale(), R));
-        assert!(
-            matches!(turned, Outcome::Validates),
-            "c = {c}: larger turn: {turned:?}"
-        );
-        // Lever 2: the larger radius, sized from the law the sentence
-        // states: r(1 − cos(θ/2)) has to clear the band. The fillet arc
-        // stores the radius as authored, so the lever has no ceiling
-        // of its own: however large the radius the sagitta law asks
-        // for, the stored carrier is that radius, not one reconstructed
-        // from a chord to a few of its ulps.
+        let o = outcome(line_line(theta, R));
         let bigger = 4.0 * band_top() / (1.0 - (theta * 0.5).cos());
         let widened = outcome(line_line(theta, bigger));
-        println!(
-            "RECOURSE eps={:e} c={c} theta={theta:e}: refused '{predicate}' at {margin:e}; \
-             larger radius needed = {bigger:e} m (setback {:e} m) -> {widened:?}",
-            tol().eps(),
-            bigger * (theta * 0.5).tan(),
-        );
-        assert!(
-            matches!(widened, Outcome::Validates),
-            "c = {c}: the larger radius {bigger:e} builds and validates: {widened:?}"
-        );
-        never_contradicted("larger radius", &widened);
-        // The spec's lever: a smaller radius at the same turn.
         let shrunk = outcome(line_line(theta, R * 0.25));
+        let turned = outcome(line_line(32.0 * scale(), R));
         println!(
-            "RECOURSE eps={:e} c={c}: smaller radius -> {shrunk:?}",
+            "WINDOW eps={:e} c={c} theta={theta:e}: {o:?}; larger radius {bigger:e} -> \
+             {widened:?}; smaller radius -> {shrunk:?}; larger turn -> {turned:?}",
             tol().eps()
         );
-        assert!(
-            matches!(
-                shrunk,
-                Outcome::DoorStoredForm(..) | Outcome::DoorEscalated(_)
-            ),
-            "c = {c}: a smaller radius still cannot be stored: {shrunk:?}"
-        );
-        assert!(sagitta(R * 0.25, theta) < sagitta(R, theta));
+        never_contradicted("smaller radius", &shrunk);
+        // The smaller radius's arc, `r·θ/4`, can itself fall inside the
+        // band (5ε at 1e-6, c = 0.1): there its endpoints escalate
+        // `vertex_separation`, which is the arc's length and not its turn.
+        let mut read = vec![
+            ("the window turn", &o),
+            ("the larger radius", &widened),
+            ("the larger turn", &turned),
+        ];
+        if R * 0.25 * theta >= 4.0 * band_top() {
+            read.push(("the smaller radius", &shrunk));
+        }
+        for (what, o) in read {
+            assert!(
+                matches!(o, Outcome::Validates),
+                "c = {c}: {what} builds and validates: {o:?}"
+            );
+        }
     }
 }
 
@@ -399,41 +384,24 @@ fn arc_x_arc_at_tiny_turns_is_never_contradicted() {
 }
 
 /// **The fillet at the seam.** The seam arc is the closing segment
-/// and joint 0 is its outgoing joint; inside the window it must refuse
-/// at the door like the interior witness, and clear of it build and
-/// validate.
+/// and joint 0 is its outgoing joint. Read at the shorter leg's arm,
+/// like the interior witness, it builds and validates inside the
+/// window as well as clear of it — read up to `32·√ε` only, since at
+/// a turn of a radian the fixture's own closing leg crosses its first
+/// one, and not at `8·√ε`, where that leg's straightness escalates.
 #[test]
-fn a_seam_fillet_inside_the_window_refuses_at_the_door() {
+fn a_seam_fillet_inside_the_window_builds_like_the_interior_one() {
     for c in [0.1, 0.3, 1.0, 2.0, 8.0, 32.0, 1024.0] {
         let theta = c * scale();
         let o = outcome(seam_fillet(theta, R));
         println!("SEAM eps={:e} c={c} theta={theta:e}: {o:?}", tol().eps());
         never_contradicted(&format!("seam c = {c}"), &o);
-        if c <= 2.0 {
-            // Inside the window the seam arc never reaches validation:
-            // the stored-form refusal, its escalation, or — at the
-            // smallest turns — the corner refusing the radius first.
-            assert!(
-                matches!(
-                    o,
-                    Outcome::DoorStoredForm(..) | Outcome::DoorEscalated(_) | Outcome::DoorOther(_)
-                ),
-                "seam c = {c}: inside the window the seam fillet refuses at the door: {o:?}"
-            );
-        }
-        if (1.0..=2.0).contains(&c) {
-            assert!(
-                matches!(o, Outcome::DoorStoredForm("path_junction_turn", _)),
-                "seam c = {c}: the seam arc flattens like the interior witness: {o:?}"
-            );
-        }
-        // Clear of the window the seam fillet validates — read at
-        // `32·√ε` only, since at a turn of a radian the fixture's own
-        // closing leg crosses its first one.
-        if c == 32.0 {
+        // At `8·√ε` the closing leg's own straightness escalates, as it
+        // does on main; the seam joint is not what reads it.
+        if c <= 2.0 || c == 32.0 {
             assert!(
                 matches!(o, Outcome::Validates),
-                "seam c = {c}: clear of the window the seam fillet validates: {o:?}"
+                "seam c = {c}: the seam fillet builds and validates: {o:?}"
             );
         }
     }
