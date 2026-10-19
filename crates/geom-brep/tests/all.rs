@@ -230,6 +230,8 @@ mod review_m5_pr7b_ssi;
 mod review_m5_pr9_jet_probe;
 #[path = "review_m6_3_chart_probes.rs"]
 mod review_m6_3_chart_probes;
+#[path = "review_b2b_probes.rs"]
+mod review_b2b_probes;
 #[path = "review_m6_surgery_rider.rs"]
 mod review_m6_surgery_rider;
 #[path = "review_pr12_meridian_probe.rs"]
