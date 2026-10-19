@@ -5732,7 +5732,9 @@ fn face_piece<T: Decide>(
 
 /// Which side of the ray from `p` through `r` the point `x` lies on, in
 /// the plane of the face whose outward normal is `m`: Positive to the
-/// ray's left about `m`.
+/// ray's left about `m`. A ray is known by its real point `r`, so `x` is
+/// read no further out than `r` ([`within`]): past it the ray would be
+/// carried beyond what fixes it.
 fn wedge_side<T: Decide>(
     p: Point3<T>,
     m: Vec3<T>,
@@ -5740,6 +5742,7 @@ fn wedge_side<T: Decide>(
     x: Point3<T>,
     band: Band,
 ) -> Option<Sign> {
+    let x = within(p, x, (r - p).norm());
     metric::sign(
         TOUCH_WEDGE,
         Distance::of(x, p, m.cross((r - p).normalize())),
@@ -5861,8 +5864,10 @@ impl<T: Decide> Sector<T> {
     /// answer needs is in band.
     fn place(&self, p: Point3<T>, x: Point3<T>, band: Band) -> Option<Place> {
         let m = self.outward;
-        let ahead =
-            |r: Point3<T>| metric::sign(TOUCH_AHEAD, Distance::of(x, p, (r - p).normalize()), band);
+        let ahead = |r: Point3<T>| {
+            let x = within(p, x, (r - p).norm());
+            metric::sign(TOUCH_AHEAD, Distance::of(x, p, (r - p).normalize()), band)
+        };
         let last = self.wedges.len().saturating_sub(1);
         let (mut in_band, mut bound) = (false, false);
         for (k, &(a, b)) in self.wedges.iter().enumerate() {
@@ -5891,6 +5896,24 @@ impl<T: Decide> Sector<T> {
             (false, true) => Some(Place::Bound),
             (false, false) => Some(Place::Outside),
         }
+    }
+}
+
+impl<T: Decide> Sector<T> {
+    /// Whether the segment `x0`–`x1` (seen from `p`, an arc) decidedly
+    /// misses the sector: for every wedge both ends lie strictly beyond
+    /// one of its rays, a half-space through `p` that then holds the
+    /// whole arc.
+    fn misses(&self, p: Point3<T>, (x0, x1): Segment<T>, band: Band) -> bool {
+        let m = self.outward;
+        let beyond = |r: Point3<T>, sign: Sign| {
+            [x0, x1]
+                .iter()
+                .all(|&x| wedge_side(p, m, r, x, band) == Some(sign))
+        };
+        self.wedges
+            .iter()
+            .all(|&(a, b)| beyond(a, Sign::Negative) || beyond(b, Sign::Positive))
     }
 }
 
@@ -6126,7 +6149,9 @@ impl<T: Decide> Link<T> {
     /// by arc crossing-parity, no convexity assumed. `q` on a sector's
     /// plane inside it is [`Material::On`] that sector. Otherwise `q` is
     /// read along the minor arc to a reference `w`, a wedge's centroid on
-    /// one sector `T`, where the link's material is the side behind `T`:
+    /// one sector `T` carried out to `q`'s distance (planes are read at
+    /// one scale; rays at their own, [`wedge_side`]), where the link's
+    /// material is the side behind `T`:
     /// the material holds `q` iff `q` lies behind `T` and the arc crosses
     /// the other sectors an even number of times, or in front and odd.
     /// The arc is the segment `q`–`w` seen from `p`, under half a turn
@@ -6134,9 +6159,10 @@ impl<T: Decide> Link<T> {
     /// meets each plane through `p` at most once and `T`'s only at `w`.
     /// Each other sector is read from its plane's sides at `q` and `w`:
     /// on one side, not crossed; on opposite sides, crossed iff the
-    /// segment's point on the plane lies inside the sector; `w` on the
-    /// plane, not crossed iff `w` is outside the sector; `q` on it
-    /// outside the sector, not crossed for any reference. A reference
+    /// segment's point on the plane lies inside the sector; one end on
+    /// the plane (within `zero`), not crossed iff the stretch of the arc
+    /// where it could then meet the plane misses the sector
+    /// ([`Sector::misses`]). A reference
     /// any reading of which is in band, on a sector's bound, or on a
     /// second sector at `w` is passed over for the next; `None` where
     /// none reads, or where `q` itself is in band of a plane or on a
@@ -6159,7 +6185,11 @@ impl<T: Decide> Link<T> {
         for (t, s0) in self.sectors.iter().enumerate() {
             let Some(base) = sides[t] else { continue };
             'reference: for &(a, b) in &s0.wedges {
-                let w = p + ((a - p) + (b - p)) * T::from_f64(1.0 / 3.0);
+                // The wedge's centroid, carried along its ray to `q`'s
+                // distance: a plane is a surface, read at one scale for
+                // both ends of the arc.
+                let c = (a - p) + (b - p);
+                let w = p + c * ((q - p).norm() / c.norm());
                 let half = ((q - p).normalize() + (w - p).normalize()).normalize();
                 for x in [q, w] {
                     if metric::sign(TOUCH_ARC, Distance::of(x, p, half), band)
@@ -6176,22 +6206,36 @@ impl<T: Decide> Link<T> {
                     let Some(at_w) = self.side(s, w, band) else {
                         continue 'reference;
                     };
+                    let (oq, ow) = (s.outward.dot(q - p), s.outward.dot(w - p));
+                    let zero = T::from_f64(band.zero());
+                    let at = |t: T| q + (w - q) * t;
+                    // An end read Zero lies within `zero` of the plane on
+                    // either side, so a crossing, if any, lies on the
+                    // stretch of the arc where the plane can then be met:
+                    // read as not crossed only where that whole stretch
+                    // misses the sector.
                     let crossed = match (sides[k], at_w) {
                         (None, Sign::Zero) => continue 'reference,
-                        (None, _) => false,
-                        (Some(_), Sign::Zero) => match s.place(p, w, band) {
+                        (None, sw) => {
+                            let ow = if sw == Sign::Positive { ow } else { -ow };
+                            if !s.misses(p, (q, at(zero / (zero + ow))), band) {
+                                continue 'reference;
+                            }
+                            false
+                        }
+                        (Some(sq), Sign::Zero) => {
+                            let z = if sq == Sign::Positive { zero } else { -zero };
+                            if !s.misses(p, (at(oq / (oq + z)), w), band) {
+                                continue 'reference;
+                            }
+                            false
+                        }
+                        (Some(at_q), at_w) if at_q == at_w => false,
+                        (Some(_), _) => match s.place(p, at(oq / (oq - ow)), band) {
+                            Some(Place::Inside) => true,
                             Some(Place::Outside) => false,
                             _ => continue 'reference,
                         },
-                        (Some(at_q), at_w) if at_q == at_w => false,
-                        (Some(_), _) => {
-                            let (oq, ow) = (s.outward.dot(q - p), s.outward.dot(w - p));
-                            match s.place(p, q + (w - q) * (oq / (oq - ow)), band) {
-                                Some(Place::Inside) => true,
-                                Some(Place::Outside) => false,
-                                _ => continue 'reference,
-                            }
-                        }
                     };
                     held ^= crossed;
                 }
@@ -11396,9 +11440,10 @@ mod tests {
     }
 
     /// Two unit cubes united corner to corner at the origin, `[0, 1]³`
-    /// and `[−1, 0]³` — one solid with two cones there on one key — and
-    /// a parallelepiped `u·a + v·b + w·c` grafted beside them, its
-    /// corner moved onto that key. Returns the body, the corner, and the
+    /// and `[−1, 0]³`, made one solid with two cones there on one key —
+    /// the shape an op leaves where it decided the corners one point — and a
+    /// parallelepiped `u·a + v·b + w·c` grafted beside them, its corner
+    /// moved onto that key too. Returns the body, the corner, and the
     /// pinch's vertex of the first cube's cone.
     fn pinch_and_corner(
         a: [f64; 3],
@@ -11447,6 +11492,19 @@ mod tests {
             .filter(|&v| at_origin(&body, v))
             .collect();
         assert_eq!(cones.len(), 2, "one vertex per cone at the pinch");
+        // The union keeps the corner-touching cubes as two solids: the
+        // second's shell joins the first, one solid with two cones.
+        let solid = |body: &Body<f64>, v| census_entity_solid(body, EntityId::Vertex(v)).unwrap();
+        let (keep, gone) = (solid(&body, cones[0]), solid(&body, cones[1]));
+        for sh in body
+            .solids
+            .remove(gone)
+            .expect("the second cube's solid")
+            .shells
+        {
+            body.shells[sh].solid = keep;
+            body.solids[keep].shells.push(sh);
+        }
         let geo = snapshot(&body);
         // The first cube's cone: its faces' normals point to `+` octant's outside.
         cones.sort_by_key(|&v| {
@@ -11456,7 +11514,9 @@ mod tests {
             })
         });
         let key = body.vertices[cones[0]].point;
-        body.vertices[corner].point = key;
+        for v in [cones[1], corner] {
+            body.vertices[v].point = key;
+        }
         (body, corner, cones[0])
     }
 
