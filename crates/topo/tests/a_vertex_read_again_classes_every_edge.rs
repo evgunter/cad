@@ -325,9 +325,24 @@ fn crown() -> Vec<[f64; 3]> {
         .collect()
 }
 
+/// The refusals [`every_edge_a_vertex_read_again_reads_is_classed_against_the_germ`]
+/// reads, as `(scene, kind, cells)`; every other scene refuses none.
+///
+/// A pyramid on the void's face, in the arch or round its island: `y −
+/// x` leaves the pyramid's edge in the void's face along part of its
+/// length, and the material about it (at its midpoint, from the face's
+/// own direction round into it: solid to 20°, empty to 90°, solid to
+/// 180°, empty beyond) parts it in two, which is not built where it runs
+/// on past the face's boundary: `EdgeInFace`, at every pose. Main built
+/// the one edge, its wedge a reflex 290° through the empty half-space.
+const REFUSED: &[(&str, &str, usize)] = &[
+    ("on the void's face in the arch", "EdgeInFace", 5),
+    ("on the void's face, the island in it", "EdgeInFace", 5),
+];
+
 /// **Every edge a vertex read again reads is classed, against the
-/// germ**, in every scene at every pose (module docs). Prints each
-/// scene's tally, then asserts it.
+/// germ**, in every scene at every pose (module docs), and refuses only
+/// as [`REFUSED`] says. Prints each scene's tally, then asserts it.
 #[test]
 fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
     let mut tallies: BTreeMap<&'static str, Tally> = BTreeMap::new();
@@ -972,7 +987,12 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             "{label} | {} | {:?} | {} | {} | {} | {}",
             tally.built, tally.refused, tally.rows, tally.wrong, tally.missing, tally.doubled
         );
-        if !tally.refused.is_empty() || tally.wrong + tally.missing + tally.doubled > 0 {
+        let refused: BTreeMap<String, usize> = REFUSED
+            .iter()
+            .filter(|&&(l, _, _)| l == *label)
+            .map(|&(_, kind, n)| (kind.to_owned(), n))
+            .collect();
+        if tally.refused != refused || tally.wrong + tally.missing + tally.doubled > 0 {
             failures.push(format!("{label}: {tally:?}"));
         }
     }

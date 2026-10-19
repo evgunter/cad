@@ -69,8 +69,8 @@ use common::meeting::{
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
-    AlongFace, AtRestBody, BooleanError, BooleanResult, CensusContact, EntityId, Operand,
-    SectorRead, SideCode, SolidContainment, ValidationError, intersect, mass_properties,
+    AlongFace, AtRestBody, BooleanError, BooleanErrorKind, BooleanResult, CensusContact, EntityId,
+    Operand, SectorRead, SideCode, SolidContainment, ValidationError, intersect, mass_properties,
     point_in_solid, point_in_solid_of, readback, subtract, union, validate_geometric,
     validate_pseudomanifold,
 };
@@ -421,7 +421,11 @@ fn builds_where(
     .into_iter()
     .enumerate()
     {
+        let refuses = refusing(label, what);
         let what = format!("{label}, {}, {what}", pose.label);
+        if let (Some(want), Ok(_)) = (refuses, &r) {
+            panic!("{what}: refuses {want:?} ([`REFUSING`]), but builds");
+        }
         v[k] = match r {
             Ok(BooleanResult::Body(r)) => {
                 assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
@@ -434,7 +438,10 @@ fn builds_where(
                 material_holds(&what, keep, None, &probes);
                 0.0
             }
-            Err(e) => panic!("{what}: builds, got {e:?}"),
+            Err(e) => {
+                assert_eq!(refuses, Some(e.kind()), "{what}: builds, got {e:?}");
+                f64::NAN
+            }
         };
     }
     let (vx, vy) = (volume(x), volume(y));
@@ -448,12 +455,92 @@ fn builds_where(
         (u2, u, "|y ∪ x|"),
         (i2, i, "|y ∩ x|"),
     ] {
+        // A sum a refusing op enters is not read.
         assert!(
-            (sum - want).abs() < 1e-9,
+            sum.is_nan() || want.is_nan() || (sum - want).abs() < 1e-9,
             "{what}: {which} {sum}, want {want}"
         );
     }
     held
+}
+
+/// The cells [`builds_where`] reads as refusing at every pose, each a
+/// construction gap with no lever: `(scene label, op or "*" for all
+/// six, kind)`. Every other cell builds, and a listed cell that builds
+/// fails.
+///
+/// - The void lying under the top touches it along its ray, so the plate
+///   less it holds the ray as a zero-area ring in the top (D1's slit
+///   form; main held one edge there, whose wedge claimed the top's
+///   material on both of its sides). Each partner's apex is at the
+///   ring's tip, [`MEET`], where the ring's two edges leave together,
+///   and the sector reader does not read that corner:
+///   `SlitTipUnread`.
+/// - A pyramid on the void's face, in the arch or round its island:
+///   `y − x` leaves the pyramid's edge in the void's face, and the
+///   material about it (at the midpoint, from the face's own direction
+///   round into it: solid to 20°, empty to 90°, solid to 180°, empty
+///   beyond) parts it, but the edge runs past the face's boundary, which
+///   the parting does not build: `EdgeInFace` (`Partly`). Main built the
+///   one edge, its wedge a reflex 290° through the empty half-space.
+/// - The pyramid out the bottom of the glued blocks: `y − x` leaves an
+///   edge in the glued face whose material divides the face, and an end
+///   of it touches another edge, which the parting does not build:
+///   `EdgeInFace` (`DividedEndTouched`). Main built the one edge.
+const REFUSING: &[(&str, &str, BooleanErrorKind)] = &[
+    (
+        "under the lying pyramid's ray, mirrored into the void",
+        "*",
+        BooleanErrorKind::SlitTipUnread,
+    ),
+    (
+        "on the lying pyramid's ray, beside it, mirrored into the void",
+        "*",
+        BooleanErrorKind::SlitTipUnread,
+    ),
+    (
+        "inside the lying pyramid, mirrored into the void",
+        "*",
+        BooleanErrorKind::SlitTipUnread,
+    ),
+    (
+        "continuing the lying pyramid's face, mirrored into the void",
+        "*",
+        BooleanErrorKind::SlitTipUnread,
+    ),
+    (
+        "around the lying pyramid, mirrored into the void",
+        "*",
+        BooleanErrorKind::SlitTipUnread,
+    ),
+    (
+        "a pyramid on the void's face in the arch",
+        "y − x",
+        BooleanErrorKind::EdgeInFace,
+    ),
+    (
+        "on the void's face in the arch",
+        "y − x",
+        BooleanErrorKind::EdgeInFace,
+    ),
+    (
+        "on the void's face, the island in it",
+        "y − x",
+        BooleanErrorKind::EdgeInFace,
+    ),
+    (
+        "a pyramid through the glued faces, out the bottom",
+        "y − x",
+        BooleanErrorKind::EdgeInFace,
+    ),
+];
+
+/// What [`REFUSING`] says the op `op` on the scene `label` refuses.
+fn refusing(label: &str, op: &str) -> Option<BooleanErrorKind> {
+    REFUSING
+        .iter()
+        .find(|&&(l, o, _)| l == label && (o == op || o == "*"))
+        .map(|&(_, _, kind)| kind)
 }
 
 /// Every op on `(x, y)`, in both orders, refuses on a vertex of `x`'s
@@ -894,7 +981,9 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
 /// it and continuing its face across it each pair with its apex; and
 /// the scene mirrored through the top, a void below it whose ray lies
 /// on it, which the edge-edge event reads under the top and in the
-/// void's complement at once (`recl::HeldFace`). A
+/// void's complement at once (`recl::HeldFace`): the plate less that
+/// void holds the ray as a zero-area ring in the top, and every op on
+/// it refuses `SlitTipUnread` at the ring's tip ([`REFUSING`]). A
 /// pyramid with a face flush on the top across the ray, and one with a
 /// face on the lying pyramid's, refuse `PartnerAlongFace`: the layering
 /// is not read beside a coincidence of the touch's or the pair's
@@ -1082,7 +1171,8 @@ fn along_two_arches_shared_ray(pose: &Pose, &(label, corners): &ArchPyramid) -> 
 /// opposite sides, coincident only to within the band, so the edge is
 /// `On` (`vtxfac::along_partners`), its class as the naming records it
 /// and as the blocks read the point beside it ([`classes_hold`]). Tier 3′
-/// is as [`three_prime`] allows. Slow set, at every pose; the row below
+/// is as [`three_prime`] allows. Out the bottom, `y − x` refuses
+/// `EdgeInFace` ([`REFUSING`]). Slow set, at every pose; the row below
 /// is its per-PR pose.
 #[test]
 fn an_edge_through_two_blocks_glued_faces_builds_in_every_op() {

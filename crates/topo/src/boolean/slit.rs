@@ -19,6 +19,13 @@
 //! - two faces, where both ends lie on one loop of the face: each end
 //!   parts, and so does the face, along the line.
 //!
+//! Where the parting is not built the Boolean refuses
+//! ([`EdgeInFaceGap`]), and never leaves the one edge: an edge one of
+//! whose faces is tangent to the face leaves a cusp per edge, whose
+//! reading on a line of coincident edges is not built, and an arc leaves
+//! two coincident arcs the census does not read
+//! ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`]).
+//!
 //! The parting is Euler surgery on the result. `mef` in the wall the
 //! edge's plus half runs in mints the second edge, and the two-edge face
 //! between them; `kfmrh` makes that face a ring of the floor, or, at an
@@ -63,8 +70,18 @@ pub enum EdgeInFaceGap {
     /// to read its side of the face by.
     NoNormal,
     /// One of the edge's faces is tangent to the face along the line,
-    /// on a surface whose bend off its tangent plane is not read here.
+    /// so each of the two edges would bound a cusp, a wedge of no angle
+    /// (D1's doubled cusp), whose reading on a line of coincident edges
+    /// is not built.
     Tangent,
+    /// The edge is an arc: the parting would leave two coincident arcs
+    /// that no contact record backs
+    /// (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
+    Curved,
+    /// An end the parting would divide into one vertex per wedge touches
+    /// an edge's interior, and the census does not read that touch at
+    /// the copies.
+    DividedEndTouched,
     /// An end of the edge lies on the face's loops more than once, or
     /// the edge's faces go into the material of two faces it lies in.
     Shared,
@@ -98,8 +115,17 @@ impl EdgeInFaceGap {
                  faces go into the material of two faces it lies in"
             }
             Self::Tangent => {
-                "one of the edge's faces is tangent to the face there, on a surface whose bend is \
-                 not read"
+                "one of the edge's faces is tangent to the face along it, so each of the two \
+                 edges would bound a cusp, which the reading of a line of coincident edges does \
+                 not cover"
+            }
+            Self::Curved => {
+                "the edge is an arc, which would leave two coincident arcs that no contact record \
+                 backs (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`)"
+            }
+            Self::DividedEndTouched => {
+                "an end the parting would divide touches an edge, which the census does not read \
+                 at the end's copies"
             }
             Self::Partly => "the edge runs on past the face's boundary",
             Self::EndOnBoundary => {
@@ -178,7 +204,7 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
                 parting.push((face, tangent));
             }
         }
-        let (face, tangent) = match parting[..] {
+        let (face, flat) = match parting[..] {
             [] => continue,
             [one] => one,
             [(face, _), ..] => {
@@ -189,6 +215,13 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
                 });
             }
         };
+        let refused = |gap| BooleanError::EdgeInFace { edge, face, gap };
+        if flat {
+            return Err(refused(EdgeInFaceGap::Tangent));
+        }
+        if !crate::census::edge_is_line(body, edge) {
+            return Err(refused(EdgeInFaceGap::Curved));
+        }
         let (a, b) = ends(body, edge).ok_or(BooleanError::JoinDesync {
             what: "an edge lying in a face does not resolve",
         })?;
@@ -196,13 +229,15 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
             .into_iter()
             .any(|v| touches_boundary_between(body, contacts, v, face))
         {
-            return Err(BooleanError::EdgeInFace {
-                edge,
-                face,
-                gap: EdgeInFaceGap::EndOnBoundary,
-            });
+            return Err(refused(EdgeInFaceGap::EndOnBoundary));
         }
-        let p = part(body, edge, face, tangent, tol)?;
+        if [a, b]
+            .into_iter()
+            .any(|v| on_face_loops(body, face, v) && touches_an_edge(contacts, v))
+        {
+            return Err(refused(EdgeInFaceGap::DividedEndTouched));
+        }
+        let p = part(body, edge, face, tol)?;
         // A record's cells are in canonical order, the lesser first.
         for c in [Cell::Vertex(a), Cell::Vertex(b), Cell::Edge(edge)] {
             dropped.insert([c, Cell::Face(face)]);
@@ -383,8 +418,8 @@ fn lies_in<T: Decide>(
 /// midpoint, each face's direction into itself off the line (its
 /// outward normal crossed with its half's tangent: a face lies to the
 /// left of its half) against `f`'s outward normal, levered at the
-/// edge's chord. `Some` where both go in, with whether the face the
-/// edge's plus half runs in is tangent to `f` along the line; `None`
+/// edge's chord. `Some` where both go in, with whether either face is
+/// tangent to `f` along the line; `None`
 /// where both go out (the edge touches `f` from outside its wedge).
 ///
 /// # Errors
@@ -489,7 +524,7 @@ fn walls_inside<T: Decide>(
         };
     }
     match inside {
-        [true, true] => Ok(Some(flat[0])),
+        [true, true] => Ok(Some(flat[0] || flat[1])),
         [false, false] => Ok(None),
         _ => Err(refused(EdgeInFaceGap::Crossed)),
     }
@@ -506,7 +541,6 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     face: FaceKey,
-    tangent: bool,
     tol: Tol,
 ) -> Result<Parting, BooleanError> {
     let refused = |gap| BooleanError::EdgeInFace { edge, face, gap };
@@ -528,22 +562,8 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
     let (pa, pb) = vertex_point(body, a)
         .zip(vertex_point(body, b))
         .ok_or_else(desync)?;
-    let pair = geom_brep::SurfacePair::new(floor_surface, wall_surface);
-    let draft = geom_brep::IntersectionDraft::of(curve.as_ref(), pa, pb);
-    let spec = if tangent {
-        let (carrier, (t0, t1)) = draft.span();
-        geom_brep::EdgeCurveSpec {
-            description: geom_brep::EdgeDescriptionSpec::TangentIntersection {
-                pair,
-                witness: draft.witness,
-            },
-            carrier: carrier.clone(),
-            param_start: t0,
-            param_end: t1,
-        }
-    } else {
-        draft.into_spec(pair)
-    };
+    let spec = geom_brep::IntersectionDraft::of(curve.as_ref(), pa, pb)
+        .into_spec(geom_brep::SurfacePair::new(floor_surface, wall_surface));
     let next = proven(&body.half_edges, h, EntityId::HalfEdge).next;
     let made = body.mef(
         MefSite::Chords { he1: h, he2: next },
@@ -664,6 +684,23 @@ fn touches_boundary_between<T: Decide>(
         ContactKind::VertexVertex(x, y) if y == v => on_loop(x),
         _ => false,
     })
+}
+
+/// Whether a loop of `face` passes through `v`.
+fn on_face_loops<T: Decide>(body: &Body<T>, face: FaceKey, v: VertexKey) -> bool {
+    face_halves(body, face).is_some_and(|halves| {
+        halves
+            .iter()
+            .any(|&he| body.get_half_edge(he).is_some_and(|h| h.start == v))
+    })
+}
+
+/// Whether a record puts `v` inside an edge.
+fn touches_an_edge(contacts: &ContactRecords, v: VertexKey) -> bool {
+    contacts
+        .rows()
+        .iter()
+        .any(|row| matches!(row.record.kind(), ContactKind::VertexEdge(x, _) if x == v))
 }
 
 /// The face the loop of `he` bounds.

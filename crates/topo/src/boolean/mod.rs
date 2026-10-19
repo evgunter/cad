@@ -3687,6 +3687,20 @@ pub enum BooleanError {
         /// Why it is not parted.
         gap: EdgeInFaceGap,
     },
+    /// A vertex of an operand is the tip of a slit or a zero-area ring
+    /// in one of its faces (tier 3's two coincident distinct edges), and
+    /// the corner between its two coincident edges reads as a straight
+    /// one turned through no angle, which the sector reader does not
+    /// build: the operand is sound, and the reading of its slit tip is
+    /// the kernel's gap.
+    SlitTipUnread {
+        /// The operand the vertex is in.
+        operand: Operand,
+        /// The slit's tip.
+        vertex: VertexKey,
+        /// The face the slit or ring lies in.
+        face: FaceKey,
+    },
 }
 
 /// Which arm of [`BooleanError`] refused — the discriminant alone,
@@ -3873,6 +3887,8 @@ pub enum BooleanErrorKind {
     Revert,
     /// [`BooleanError::EdgeInFace`].
     EdgeInFace,
+    /// [`BooleanError::SlitTipUnread`].
+    SlitTipUnread,
 }
 
 /// Which of the volume backstop's three bodies a refusal is about.
@@ -4085,6 +4101,7 @@ impl BooleanError {
             Self::Pieces(_) => BooleanErrorKind::Pieces,
             Self::Revert { .. } => BooleanErrorKind::Revert,
             Self::EdgeInFace { .. } => BooleanErrorKind::EdgeInFace,
+            Self::SlitTipUnread { .. } => BooleanErrorKind::SlitTipUnread,
         }
     }
 }
@@ -4919,6 +4936,18 @@ impl core::fmt::Display for BooleanError {
                 "edge {edge:?} of the result lies in face {face:?}, whose material parts it into \
                  two edges, and the parting is not built where {}. {}",
                 gap.words(),
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::SlitTipUnread {
+                operand,
+                vertex,
+                face,
+            } => write!(
+                f,
+                "the {} solid's vertex {vertex:?} is the tip of a slit or zero-area ring in face \
+                 {face:?}, whose two coincident edges leave it together, and the corner between \
+                 them is not read. {}",
+                operand_word(*operand),
                 geom_core::NOT_YET_ENDING
             ),
         }
@@ -8903,6 +8932,7 @@ mod tests {
                 BooleanErrorKind::Pieces => "Pieces",
                 BooleanErrorKind::Revert => "Revert",
                 BooleanErrorKind::EdgeInFace => "EdgeInFace",
+                BooleanErrorKind::SlitTipUnread => "SlitTipUnread",
             }
         }
         /// The variant name `Debug` opens with.

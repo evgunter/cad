@@ -61,7 +61,7 @@ use crate::chord_join::StaleSite;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
-use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
+use crate::sector_shape::{SectorFault, SectorRung, SectorShape, sector_shape};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
 
@@ -258,6 +258,28 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
     pub normal: OutwardNormal<T>,
 }
 
+/// Whether the corner after orbit half-edge `he` at `vertex` lies
+/// between two distinct line edges, where [`sector_shape`] has decided
+/// the corner folds back on itself (a definite positive cosine with its
+/// sine in the zero band): the two edges leave the vertex along one ray.
+/// In a sound body that is the tip of a slit or a zero-area ring, tier
+/// 3's two coincident distinct edges (`crates/topo/README.md`), which a
+/// later operation may have split at different points.
+fn slit_tip<T: Decide>(body: &Body<T>, vertex: VertexKey, he: HalfEdgeKey) -> bool {
+    let orbit = body.vertex_orbit_linked(vertex);
+    let Some(i) = orbit.iter().position(|&h| h == he) else {
+        return false;
+    };
+    let next = orbit[(i + 1) % orbit.len()];
+    let edge = |h: HalfEdgeKey| body.get_half_edge(h).map(|d| d.edge);
+    match (edge(he), edge(next)) {
+        (Some(a), Some(b)) => {
+            a != b && crate::census::edge_is_line(body, a) && crate::census::edge_is_line(body, b)
+        }
+        _ => false,
+    }
+}
+
 /// Builds the sector array of `vertex`'s neighborhood (module docs).
 pub(super) fn build_sectors<T: Decide>(
     body: &Body<T>,
@@ -298,6 +320,18 @@ pub(super) fn build_sectors<T: Decide>(
         } = sector_shape(dir_end, dir_start, normal, alone, band).map_err(|fault| match fault {
             SectorFault::NonFiniteChord => BooleanError::NonFiniteSectorChord { vertex, face },
             SectorFault::UnderflowedChord => BooleanError::UnderflowedSectorChord { vertex, face },
+            SectorFault::Rung {
+                rung: SectorRung::Straight { .. },
+                diag,
+            } if diag.margin.rejected_sign() == Some(Sign::Positive)
+                && slit_tip(body, vertex, he) =>
+            {
+                BooleanError::SlitTipUnread {
+                    operand,
+                    vertex,
+                    face,
+                }
+            }
             SectorFault::Rung { rung, diag } => BooleanError::Escalated {
                 decision: BooleanDecision::Corner(rung),
                 diag,

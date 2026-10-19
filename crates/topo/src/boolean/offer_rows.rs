@@ -2477,7 +2477,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GraftRecertify
         | BooleanErrorKind::Pieces
         | BooleanErrorKind::Revert
-        | BooleanErrorKind::EdgeInFace => Vec::new(),
+        | BooleanErrorKind::EdgeInFace
+        | BooleanErrorKind::SlitTipUnread => Vec::new(),
     }
 }
 

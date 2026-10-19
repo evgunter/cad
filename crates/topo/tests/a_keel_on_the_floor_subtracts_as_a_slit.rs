@@ -326,12 +326,12 @@ fn a_keel_on_the_floor_subtracts_as_its_slit_form() {
 
 /// **The doors agree**: the split's side holding the walls, of the box
 /// `[0, 4]² × [−1, 1]` less the trench split by `z = 0`, is the body the
-/// Boolean builds, for the extents the split builds on main: the same
-/// volume, solids, and vertex, edge and face counts.
+/// Boolean builds, at every extent: the same volume, solids, and
+/// vertex, edge and face counts.
 #[test]
 fn the_split_and_the_boolean_build_one_body() {
     let tol = t();
-    for row in &ROWS[1..] {
+    for row in &ROWS {
         for pose in poses() {
             let Ok(BooleanResult::Body(cut)) =
                 subtract(&slab(&pose, (-1.0, 1.0)), &trench(&pose, row.span), tol)

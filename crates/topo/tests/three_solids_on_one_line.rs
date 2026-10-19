@@ -584,7 +584,14 @@ fn a_third_prism_crossing_the_wedges_about_the_line_builds_or_refuses_typed() {
 /// before the pieces are joined builds sound against the analytic
 /// oracle (the union's recourse orders are the row above); so does
 /// every op, order and slot with the bridge's corner moved 1e-2 off the
-/// line along x or y, clear of the input tolerance.
+/// line along x or y, clear of the input tolerance, but one: moved along
+/// x, the line body less the bridge leaves the bridge's edge in a face
+/// of the line body along part of its length, and refuses `EdgeInFace`
+/// in every order. The material about that edge (at its midpoint, from
+/// the face's own direction round into it: solid to 39°, empty to 149°,
+/// solid to 180°, empty beyond) parts it in two, which is not built
+/// where it runs on past the face; main built the one edge, its wedge
+/// claiming the empty sector between the two solid ones.
 #[test]
 fn an_edge_crossing_both_wedges_refuses_typed_in_every_op_and_its_recourse_builds() {
     let prisms = [
@@ -661,12 +668,16 @@ fn an_edge_crossing_both_wedges_refuses_typed_in_every_op_and_its_recourse_build
                 holds: &in_line,
                 volume: line_volume,
             };
+            let refuses = |name: &str, line_first: bool| {
+                (dx > 0.0 && name == "subtraction" && line_first)
+                    .then_some(BooleanErrorKind::EdgeInFace)
+            };
             every_op(
                 &format!("the line from {order:?} and the bridge moved ({dx}, {dy})"),
                 &line,
                 &tool,
                 common,
-                &|_, _| None,
+                &refuses,
             );
         }
     }
@@ -789,7 +800,13 @@ fn a_prism_whose_face_holds_the_line_builds_in_every_member_order() {
 /// face along the line, where the 120° prism's edge lies in it, its top
 /// above that prism's corner or below it, and refuses `VertexReadTwice`
 /// in every op, slot and order; the refusal's recourse builds (the row
-/// below).
+/// below). The line body less the 0° prism leaves the prism's edge in
+/// the third's face along part of its length, and refuses `EdgeInFace`
+/// in every order: the material about it (at its midpoint, from the
+/// face's own direction round into it: solid to 30°, empty to 80°,
+/// solid to 180°, then the plate's and the 120° prism's beyond) parts
+/// it, which is not built where it runs on past the face. Main built
+/// the one edge, its wedge claiming the empty sector between.
 #[test]
 fn a_prism_against_a_contact_line_on_a_bisector_builds_or_refuses_typed_in_every_op() {
     let face = Prism {
@@ -832,32 +849,49 @@ fn a_prism_against_a_contact_line_on_a_bisector_builds_or_refuses_typed_in_every
                 holds: &in_line,
                 volume: line_volume,
             };
-            let refuses = |_: &str, _| crosses.then_some(BooleanErrorKind::VertexReadTwice);
+            let refuses = |name: &str, line_first: bool| {
+                if crosses {
+                    Some(BooleanErrorKind::VertexReadTwice)
+                } else {
+                    (name == "subtraction" && line_first).then_some(BooleanErrorKind::EdgeInFace)
+                }
+            };
             let what = format!("the prism over {:?}, the line body {order:?}", tool.foot);
             every_op(&what, &line, &tool_closed, common, &refuses);
             if !crosses {
-                edges_on_the_line_recorded(&what, body, &b);
+                edges_on_the_line_recorded(&what, body, &b, &refuses);
             }
         }
     }
 }
 
 /// **The edges along the line of every body `x` and `y` make are
-/// recorded where they touch**: every op, either operand first, builds,
-/// and tier 3′ over the result's records refuses no overlap of two
+/// recorded where they touch**: every op, either operand first, builds
+/// or refuses as `refuses` names, and tier 3′ over the result's records refuses no overlap of two
 /// edges, nor any record it reads stale or contradicted. The 0° prism's
 /// edge runs along the line body's, which holds the third's face beside
 /// it: in a subtraction both lie on the result, and each end of their
 /// shared stretch reads the face with the line body's edge
 /// (`recl::HeldFace`, `recl::Folded`).
-fn edges_on_the_line_recorded(what: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>) {
+fn edges_on_the_line_recorded(
+    what: &str,
+    x: &AtRestBody<f64>,
+    y: &AtRestBody<f64>,
+    refuses: &dyn Fn(&str, bool) -> Option<BooleanErrorKind>,
+) {
     for (name, op, _) in OPS {
         for (first, a, b) in [(true, x, y), (false, y, x)] {
             let what = format!("{name} of {what}, the line body first: {first}");
-            let r = match op(a, b, t()) {
-                Ok(BooleanResult::Body(r)) => r,
-                Ok(BooleanResult::Empty) => continue,
-                Err(e) => panic!("{what}: builds, got {e:?}"),
+            let r = match (op(a, b, t()), refuses(name, first)) {
+                (Ok(BooleanResult::Body(r)), None) => r,
+                (Ok(BooleanResult::Empty), None) => continue,
+                (Err(e), Some(want)) => {
+                    assert_eq!(e.kind(), want, "{what}: {e:?}");
+                    continue;
+                }
+                (other, want) => {
+                    panic!("{what}: {:?}, where it refuses {want:?}", other.map(|_| ()))
+                }
             };
             if let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) {
                 let wrong = errors.iter().find(|e| {
@@ -1241,7 +1275,12 @@ fn a_contact_line_in_a_face_of_the_other_builds_in_every_op() {
 /// and is sound against the members' closed forms: the wedge lies above
 /// the plate, so the common parts are its parts in each prism. Its
 /// union, folded with the members' records carried, passes tier 3′
-/// either way round.
+/// either way round. The line body towards 350° less the prisms over
+/// 0°–50° and 280°–330° leaves the prism's edge in the wedge's face,
+/// whose material parts it and divides the face along it, and an end of
+/// it touches an edge there: the parting is not built, and it refuses
+/// `EdgeInFace` (main built the one edge, its wedge claiming the empty
+/// sector between the face's material and the prism's).
 #[test]
 fn a_contact_line_beside_a_face_holding_it_builds_in_every_op() {
     // A union of `x` and `y` carrying their records.
@@ -1319,12 +1358,13 @@ fn a_contact_line_beside_a_face_holding_it_builds_in_every_op() {
                 holds: &in_line,
                 volume: line_volume,
             };
-            for tool in [
-                Prism::on_line(0.0, 50.0, (0.5, 2.0)),
-                Prism::on_line(40.0, 110.0, (0.5, 2.0)),
-                Prism::on_line(180.0, 230.0, (0.5, 2.0)),
-                Prism::on_line(280.0, 330.0, (0.5, 2.0)),
+            for (tool, parts) in [
+                (Prism::on_line(0.0, 50.0, (0.5, 2.0)), true),
+                (Prism::on_line(40.0, 110.0, (0.5, 2.0)), false),
+                (Prism::on_line(180.0, 230.0, (0.5, 2.0)), false),
+                (Prism::on_line(280.0, 330.0, (0.5, 2.0)), true),
             ] {
+                let parts = parts && wedge.toward == 350.0;
                 let what = format!("{what}, the prism over {:?}", tool.foot);
                 let b = tool.body();
                 for line_first in [true, false] {
@@ -1352,7 +1392,10 @@ fn a_contact_line_beside_a_face_holding_it_builds_in_every_op() {
                         volume: solo,
                     },
                     common,
-                    &|_, _| None,
+                    &|name, line_first| {
+                        (parts && name == "subtraction" && line_first)
+                            .then_some(BooleanErrorKind::EdgeInFace)
+                    },
                 );
             }
         }

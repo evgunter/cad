@@ -4673,6 +4673,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "seam_orientation",
             "shared_vertex_crossings",
             "shell_witness_exhausted",
+            "slit_tip_unread",
             "spheres_meet",
             "split_lineage_cycle",
             "torn_component",

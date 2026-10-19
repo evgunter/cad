@@ -56,10 +56,15 @@ the edge's faces leave the line into: a ring, a slit, or a divided face
 and parted ends, on the seam path and the containment fallback (the
 cavity twin, a trench inside the slab resting its keel on the floor,
 had the same rider form across two shells). The three extents agree
-with the split (one end and wall to wall on main, closed on PR 5350's
-branch). Where the parting is not built it refuses
-`BooleanError::EdgeInFace`, typed, never the rider form; filed:
+with the split on main (PR 5350 merged). Where the parting is not built
+it refuses `BooleanError::EdgeInFace`, typed, never the rider form: a
+tangent wall (the doubled cusp) and an arc (the curved twin) refuse
+before parting. A later Boolean reading a slit's tip refuses
+`SlitTipUnread`. Filed:
 `a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted` (p12's
 `A ∖ B`), `a-boolean-edge-lying-in-a-curved-face-is-not-read`,
-and `the-boolean-parting-refuses-its-rarer-configurations`. The editor
-names all three extents, the two keel edges apart.
+`the-boolean-parting-refuses-its-rarer-configurations` and
+`a-boolean-reading-a-slit-tip-refuses-its-zero-corner`; the curved
+twin's evidence is on
+`a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs`. The
+editor names all three extents, the two keel edges apart.
