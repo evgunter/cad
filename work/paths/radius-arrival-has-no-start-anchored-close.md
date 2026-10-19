@@ -1,7 +1,7 @@
 ---
 id: radius-arrival-has-no-start-anchored-close
 kind: issue
-title: paths: whether a Radius arc arrival takes the .at(Start) close that arc_onto()'s builder takes
+title: paths: whether a Radius arc arrival closes at Start at all, sharp (a Start anchor) and tangent (the token supplying)
 status: open
 opened: 2026-10-19
 priority: P3
@@ -10,10 +10,15 @@ design: true
 ---
 
 
-A residual of the arrival `[ev]` design (`arc-closer-constructed-from-arrival-tangent`): both designers named it in their last round and left it outside that question.
+A residual of the arrival `[ev]` design (`arc-closer-constructed-from-arrival-tangent`), named by its designers and its harmony pass and left outside that question.
 
-`arc_onto()`'s arc-arrival builder takes `.at(Start)` with a director as its sharp seam (`docs/PATHS-DESIGN.md` §2a item 6). That is the shape of the `Via { q, p: Start }` close (`ViaArrivalStart`, `crates/profile/src/path/family.rs:845`), written as a binder. The `Radius { r, side }` arc arrival has the same builder states (`RadiusArrival` / `RadiusArrivalAt` / `RadiusArrivalDir`), but its `.at` takes only a `Point2` (`verb At(Point2<T>)` in `program.rs`'s `transition_table!`), so a radius arc arrival cannot be anchored at the entry vertex.
+**Which arrivals close at `Start` today.**
+- The `Via` arrival closes at `Start`: `Via { q, p: Start }` then a director gives the sharp seam (`ViaArrivalStart`, `crates/profile/src/path/family.rs:845`), and under the token half of that design `Via { q, p: Start.arrives_tangent() }` gives the tangent seam, complete at the verb.
+- `arc_onto(target)` (`docs/PATHS-DESIGN.md` §2a item 6) does the same: `arc_onto(Start).toward(d)` is the sharp seam and `arc_onto(Start.arrives_tangent())` the tangent one.
+- The `Radius { r, side }` arrival has neither. Its anchor comes from the builder's `.at`, which takes only a `Point2` (`verb At(Point2<T>)` in `crates/profile/src/path/program.rs`'s `transition_table!`), and it has no target slot that could hold `Start` or the token.
 
-The closed `at-cannot-bind-start-in-the-path-form` named this "radius-arrival close" as a vocabulary addition. It closed without one because Ev's report turned out to be the seam fillet. No case asks for it today.
+The closed `at-cannot-bind-start-in-the-path-form` named this "radius-arrival close" as a vocabulary addition. That row closed without adding one, because Ev's report there turned out to be the seam fillet.
 
-The open question is whether `Radius` arrivals should take the same `.at(Start)` close, for uniformity with `arc_onto()` and `Via`, or stay without it until a case appears. Because the answer is a vocabulary addition to ratified text, it goes through designers and then an `[ev]` PR, and only once the `arc_onto()` ruling has landed.
+**Open question:** should `Radius` arrivals close at `Start` at all, in both halves? The sharp half would be a `Start` anchor with a director. The tangent half would have the token supply the end direction. Either half needs a spelling, and the `Via` precedent puts the anchor in a target rather than in an `.at`. The alternative is to stay without them until a case appears; none asks today.
+
+This is a vocabulary addition to ratified text, so it goes to designers and then an `[ev]` PR.

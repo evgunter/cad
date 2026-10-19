@@ -9,6 +9,8 @@ cost: E
 ---
 
 
-Found while weighing the arrival-constructed arc (`arc-closer-constructed-from-arrival-tangent`).
+Found while weighing the arrival-constructed arc (`arc-closer-constructed-from-arrival-tangent`); premise corrected by that design's harmony pass.
 
-`ViaArrivalStart` (`crates/profile/src/path/family.rs:845`, "A `Via` CLOSE: anchor at the entry, director pending.") and its `angle_kernel` (`family.rs:867`) bind a director that authors the ARRIVAL arc's end tangent at `Start` — `via_close` takes it as the arc's direction at the entry, and the state that results has no outgoing slot (it is a closed loop). Every other arrival-builder director binds the anchor's OUTGOING direction, so the rustdoc should say which direction this one binds. Comment-only; the fix is one sentence on the struct and one on the kernel. If the arrival `[ev]` PR's token half is ratified first, `Via { q, p: Start.arrives_tangent() }` closes at the verb with no director, and this sentence should name that as the tangent form.
+Every arc-arrival director binds the arc's END tangent, which is the landed point's INCOMING direction, and leaves the departure free. `RadiusArrivalAt` / `RadiusArrivalDir` (`crates/profile/src/path/family.rs:615`, `:638`) and `ViaArrival` (`family.rs:772`) all land `HasPos<WithIncoming>, NoAng`. `ViaArrivalStart` (`family.rs:845`, "A `Via` CLOSE: anchor at the entry, director pending.") and its `angle_kernel` (`family.rs:867`) do the same thing at `Start`: `via_close` takes the director as the arc's direction at the entry. It differs from the others only in that it closes.
+
+None of these rustdocs says which direction the director binds. A reader who knows the line arrivals, where a director binds the side's direction and the tip stays Directed on it, can read it the wrong way. The fix is comment-only: one sentence on each arc-arrival builder saying that the director is the arc's end tangent, and the departure stays free. Once the token half of the arrival design lands, `Via { q, p: Start.arrives_tangent() }` closes at the verb with no director, and `ViaArrivalStart`'s sentence should name that as the tangent form.

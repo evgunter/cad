@@ -109,9 +109,11 @@ half-bound tip.
   Directed tip the endpoint-free pair (`Sweep{r, side, angle}`,
   `ArcLen{r, side, len}` — the arc analogs of `line(len)`:
   tangent-departing, endpoint DERIVED). `tangent_arc_to(p)` stays
-  the tangent-departing endpoint-full form; its mirror, the arc
-  known by how it ARRIVES, is not a leg mode but the arc-arrival
-  builder `arc_onto()` opens (§ Fillet below, §2a item 6);
+  the tangent-departing endpoint-full form, and `arc_onto(p)` is
+  its mirror, the tangent-ARRIVING one (§2a item 6): the first
+  takes its departure from the bound direction and derives its end
+  direction, the second takes its end direction from the one
+  director that follows it and derives its departure;
   {tangent-both + r} =
   the fillet family (§ below), which alone carries the
   neighbor-trimming insertion.
@@ -223,16 +225,6 @@ authoring act.
   from the arrival's directed anchor, so both binders stay free;
   `Via{q, p}` carries its anchor and awaits one director.
   `Bulge` is never an arrival (no chord exists there).
-- **The arc-arrival builder standing alone — `arc_onto()`** (§2a
-  item 6): no `r`, no incoming side and no trim. On a point tip it
-  opens an arc arrival whose START is pinned at the tip itself,
-  untrimmed and with no tangency asked there; the builder's
-  `.at(p)` and a director, in either order, end the arc at `p`
-  tangent to the direction, and the tip lands as a directed point
-  at `p` with its departure free, as every arc arrival lands.
-  `.to(Start)` is the tangent closer and `.at(Start)` with a
-  director the sharp seam. Tangent where it arrives, free where it
-  leaves: the fillet's arrival half without its departure half.
 - Once both carriers are fixed, the r-arc tangent to both is
   inserted at their implicit virtual corner, trimming both — the
   resolution machinery of the retired register, unchanged bit for
@@ -264,7 +256,7 @@ reference, authored once; closure never depends on re-typed
 coordinates value-matching.
 
 - Sharp seam: `line_to(Start)` / `arc_to(Bulge { p: Start, b })` /
-  `arc_onto().at(Start).toward(dx, dy)` —
+  `arc_onto(Start).toward(dx, dy)` —
   an ordinary leg targeting Start; the seam's junction check runs
   with both directions known, and an UNDECLARED tangent seam
   refuses (`SeamTangent`) from every closing verb.
@@ -273,7 +265,7 @@ coordinates value-matching.
   arriving leg is authored last. It rides the TARGET —
   `Start.arrives_tangent()`, the ONE arrival declaration — and
   **every closing verb takes it**: `line_to`, `continue_to`,
-  `tangent_arc_to`, `arc_to` in every endpoint-full mode
+  `tangent_arc_to`, `arc_onto`, `arc_to` in every endpoint-full mode
   (`Bulge`, `Via`, `Center`), and the closing fillet arrivals
   (`Center`, `Via`). Every zero-turn joint is
   a declared tangent joint (Ev, in-chat, 2026-09-02), so there is
@@ -284,15 +276,14 @@ coordinates value-matching.
   `Bulge`/`Via`/`Center` legs, the `Center` arrival), the kernel
   CHECKS the arriving direction against `Start`'s own direction and
   NOTHING else — never whether the two carriers are the same.
-  Where they leave it free (the `Via` arrival, whose carrier is then
-  the circle through `q` tangent to `Start`'s direction), the token
-  SUPPLIES it: the close completes at the verb with no director, the
-  joint is tangent by construction and nothing is checked — what
-  `.tangent()` has always been on the departure side. Either way the
-  token classifies the JOINT; checking or supplying is the leg's DOF
-  count, not a second meaning. The token is a TARGET: a builder's
-  `.at` has no target slot, so `.at(Start.arrives_tangent())` is
-  ill-typed.
+  Where they leave it free (`arc_onto`, and the `Via` arrival, whose
+  carrier is then the circle through `q` tangent to `Start`'s
+  direction), the token SUPPLIES it: the close completes at the
+  verb with no director, the joint is tangent by construction and
+  nothing is checked — what `.tangent()` has always been on the
+  departure side. Either way the token classifies the JOINT;
+  checking or supplying is the leg's DOF count, not a second
+  meaning.
 - Tangent seam: **declared**, per the bullet above. The 2026-07-28
   text here read "`.tangent().tangent_arc_to(Start)`", and that
   spelling refuses `SeamTangent` — its DEPARTURE tangency is
@@ -301,7 +292,15 @@ coordinates value-matching.
   closes as `.tangent().tangent_arc_to(Start.arrives_tangent())`.
   A straight closing leg says the same thing the same way:
   `line_to(Start.arrives_tangent())` — what the token classifies is
-  the JOINT, not the shape of the leg reaching it.
+  the JOINT, not the shape of the leg reaching it. An arc that
+  leaves a CORNER and must arrive tangent at the entry is the
+  stadium cap's mirror, `arc_onto(Start.arrives_tangent())` (§2a
+  item 6): `tangent_arc_to(Start.arrives_tangent())` constructs the
+  departure and checks the arrival, `arc_onto(Start.arrives_tangent())`
+  supplies the arrival and checks the departure. On the stadium
+  itself the second would derive a departure tangent to the incoming
+  straight and refuse `JunctionTangent`, whose recourse names the
+  first.
   A tangent LINE close remains impossible, and that part of the
   2026-07-28 text stands: a line's direction cannot be both
   INHERITED from the tip and aimed at an independently authored
@@ -336,15 +335,11 @@ coordinates value-matching.
   `profile`'s `bool12_probes`. Its constructed joints are `[0, 3]`:
   the seam's joint and the interior continuation's.
 - Seam fillet: `.angle(θ).fillet(r).to(Start)` — both carriers
-  bound, nothing pending, loop closed.
-- Constructed tangent closer: `arc_onto().to(Start)` — the arc from
-  a corner that arrives along `Start`'s own direction, taken by
-  reference exactly as the seam fillet takes it, so joint 0 is
-  constructed and needs no token (§2a item 6). It and the seam
-  fillet are the two closers that CONSTRUCT the seam's tangency;
-  `tangent_arc_to(Start.arrives_tangent())` constructs the
-  departure and checks the arrival, `arc_onto().to(Start)` the
-  reverse, and both ends tangent stays the seam fillet's.
+  bound, nothing pending, loop closed. It constructs the tangency at
+  BOTH ends of its arc and retrims the entry vertex, so no joint is
+  left at `Start` to declare and it takes no token; the token is what
+  constructs a seam joint wherever the arriving leg leaves its end
+  direction free (`arc_onto`, the `Via` arrival).
 
 There is deliberately no `close()` alias — Start-targeting through
 ordinary verbs is the one mechanism.
@@ -380,7 +375,7 @@ five) is explicitly NOT here; it is G2.
 
 Items 1–5 revise nothing in §2: the lattice, the entry rule, the seam
 rule, the fillet's DOF count and PQ4 stand exactly as ratified. Item 6
-adds a verb to §2's fillet family and a closer to its Closure; the rest
+adds a leg verb to §2's Legs and a closer to its Closure; the rest
 are additions to the surface, and each one states below what it consumes,
 what it determines, and what it refuses.
 
@@ -583,56 +578,52 @@ construction, the angle for the arithmetic `.turn(δ)` and arc end
 tangents genuinely need). §5's shape is unchanged — one struct, two
 optional bits, fields private, binders the only constructors.
 
-### 6. The arc known by how it arrives — `arc_onto()`
+### 6. The arc known by how it arrives — `arc_onto(target)`
 
-**Consumes** a point tip. **Opens** an arc-arrival builder, the fillet
-family's arrival standing alone: no `r`, no incoming side, nothing
-trimmed. **Determines**, once the builder's binders land, the arc from
-the tip to the anchor `p` whose END tangent is the bound direction: it
-is `tangent_arc_to` mirrored. The chord `p − tip` and the end tangent
-`t₁` fix the sweep, `θ = 2·∠(chord, t₁)`; the departure tangent is
-DERIVED (`t₁` reflected across the chord). The arc is tangent where it
-ARRIVES and free where it LEAVES. `ArcData` is untouched: the arrival
-direction is an ordinary director step on the builder, so no arc spec
-carries a direction.
-
-Without an `r`, the arc is determined only if its tangent point IS the
-anchor, so the anchor is the arc's END — a hard anchor, as on every arc
-arrival — and the builder is an arc arrival's, not a line side's. A
-line side here would have no length, and its `.at` and `.to` would
-spell one loop twice.
+**Consumes** a point tip, a target, and then ONE director
+(`.angle(θ)` / `.toward(dx, dy)`), the `Via` arrival's shape: the verb
+holds its target and awaits the director, as `Via { q, p }` does.
+**Determines** the arc from the tip to `p` whose END tangent is the
+director: it is `tangent_arc_to` mirrored, taking the same `Target`
+type. The chord `p − tip` and the end tangent `t₁` fix the sweep,
+`θ = 2·∠(chord, t₁)`; the departure tangent is DERIVED (`t₁` reflected
+across the chord). Its carrier is the circle through the tip tangent to
+`t₁` at `p` — the `Via` arrival's carrier with the tip as its
+through-point and no `r` — so the arc is tangent where it ARRIVES and
+free where it LEAVES. `ArcData` is untouched: the direction is an
+ordinary director step, so no arc spec carries a direction.
 
 **Where it starts.**
 
 | tip | result |
 |---|---|
-| plain point (incl. the entry `Open.at(p)`) | opens the builder; no junction to check. At the entry the derived departure becomes `Start`'s direction, as with `arc_to(Bulge)` |
-| leg end (directed point) | opens the builder; the derived departure is junction-checked when the arc lands: definitely sharp proceeds, in-band tangent refuses `JunctionTangent` (recourse `.tangent().tangent_arc_to(p)`), reversed refuses `JunctionCusp` |
+| plain point at the entry (`Open.at(p)`) | no junction to check; the derived departure becomes `Start`'s direction, as with `arc_to(Bulge)` |
+| leg end (directed point) | the derived departure is junction-checked when the arc lands: definitely sharp proceeds, in-band tangent refuses `JunctionTangent` (recourse `.tangent().tangent_arc_to(p)`), reversed refuses `JunctionCusp` |
+| a fillet arrival's bare anchor (`.fillet(r).at(p)`) | refuses `ArcLegOnOpenFillet`, as `arc_to` does there: an arc arrival is authored with its fillet (`fillet_arc`) |
 | Directed, `Angle`, `Open` | ill-typed: a bound departure would have to value-match the derived one (`Center@Directed`'s rule); a half-bound tip has nowhere to leave from |
 
-**What the builder takes.**
+**What the target says.**
 
-| binders | result |
-|---|---|
-| `.at(p)` and `.angle(θ)` / `.toward(dx, dy)`, either order | the arc from the tip to `p` arriving along the direction; the tip lands as a directed point at `p`, incoming the direction, departure free. `.at(p)` alone is a pending state awaiting its director |
-| `.to(Start)` | the tangent closer: the arc arrives along `Start`'s own direction, taken by reference as the seam fillet takes it; joint 0 constructed, nothing verified, no token (issue 1578's closer) |
-| `.at(Start)` and a director, either order | the sharp seam with its arrival authored — the `Via { q, p: Start }` close's own shape, as a binder; classified as every seam is: a zero turn refuses `SeamTangent`, recourse `.to(Start)` |
-| far-end `.to(p)`, `.tangent()`, `.turn(δ)`, `.line(len)`, `.at(Start.arrives_tangent())` | ill-typed: the anchor is already the arc's end, the builder has no incoming tangent to inherit, and the token belongs to target slots |
+| target | then | result |
+|---|---|---|
+| interior `p` | one director | the arc to `p` arriving along it; the tip lands as a directed point at `p`, incoming the director, departure free |
+| `Start` | one director | the sharp seam, pending its director as `Via { q, p: Start }` is; classified as every seam is — a zero turn refuses `SeamTangent`, recourse the token |
+| `Start.arrives_tangent()` | — | the tangent closer, complete at the verb: the token supplies `Start`'s direction, as on the `Via` arrival; joint 0 is constructed and nothing is checked at the seam (the departure is still junction-checked) |
+| any target | anything but one director (`.at`, `.to`, `.tangent()`, `.turn(δ)`, `.line(len)`) | ill-typed: the anchor is in the target, and the pending state has no incoming tangent to inherit |
 
 **Refusals** are `tangent_arc_to`'s, through its own kernel with the
-reflected direction: an anchor at the tip is a degenerate chord
-(`DegenerateArcChord`); a direction along the chord ahead is a straight
+reflected direction: a target at the tip is a degenerate chord
+(`DegenerateArcChord`); a director along the chord ahead is a straight
 segment, not an arc; behind it is the full turn (`DegenerateArcChord`).
 Both ends tangent refuses at the departure, so the stadium stays
 `.tangent().tangent_arc_to(Start.arrives_tangent())` and the
 both-ends-tangent seam stays the seam fillet's.
 
-**What it is not.** Not a `spec₂` of a fillet verb (a fillet's arrival
-arc starts at a trim point, never at a pinned tip) and not a fused
-incoming (it is not a mode, and an arrival direction on a fused arc
-would be met mid-arc, at its anchor, not at its end). An `arc_onto()`
-arc filleted at its own end has no spelling, the gap `tangent_arc_to`
-has too. This item leaves item 4's far-end `Start` form open.
+**What it is not.** Not a fillet verb and not an `ArcData` mode, so it
+has no fused form: an arrival direction on a fused arc would be met
+mid-arc, at its anchor, not at its end. An `arc_onto` arc filleted at
+its own end has no spelling, the gap `tangent_arc_to` has too. Item 4's
+far-end `Start` form stays open.
 
 Ev's `B`, its loop entered at the spine's foot, and a `D` whose cap
 meets the entry tangentially — every direction a fact the author has,
@@ -640,16 +631,19 @@ no departure angle written:
 
 ```text
 Open.at((0, 0)).toward(0, 1).line(2)            // spine
-    .toward(1, 0).tangent_arc_to((0, 1))        // upper bump: departure known
-    .arc_onto().at(Start).toward(-1, 0)         // lower bump: arrives west at the foot; sharp seam
+    .toward(1, 0).tangent_arc_to((0.25, 1))     // upper bump: departure known; waist off the spine
+    .arc_onto(Start).toward(-1, 0)              // lower bump: arrives west at the foot; sharp seam
 
-… .line_to(tip).arc_onto().to(Start)            // D: corner at the tip, cap tangent at the entry
+… .line_to(tip).arc_onto(Start.arrives_tangent())   // D: corner at the tip, cap tangent at the entry
 ```
 
-Entered elsewhere, the `B`'s lower bump is
-`.arc_onto().at((0, 0)).toward(-1, 0)`, which lands a directed point at
-the foot with its departure free, so `.toward(0, 1)` turns the sharp
-corner up the spine.
+The upper bump ends at the waist heading `(−15, −8)/17`; the lower
+bump's derived departure there is `(15, −8)/17`, a sharp corner turning
+about 124°, and both bumps keep clear of the spine between their ends.
+With the loop entered elsewhere, the lower bump is
+`.arc_onto((0, 0)).toward(-1, 0)`, which lands a directed point at the
+foot with its departure free, so `.toward(0, 1)` turns the sharp corner
+up the spine.
 
 ## 2b. G2: arc-carrier fillets (HISTORICAL — the compound register,
 ## superseded by §2c)
@@ -798,9 +792,10 @@ second place to write a transition.
   arrival.
 - Plain `arc_to(spec)` remains for SHARP-cornered arcs;
   converting sharp→filleted is an edit at the same call site.
-- `arc_onto()` — the arc-arrival builder standing alone, its start
-  pinned at the tip: no `r`, no incoming side, no trim; tangent
-  where it arrives, free where it leaves (§2a item 6).
+- `arc_onto(target)` is not in the family: it is a leg verb,
+  `tangent_arc_to`'s mirror (§2 Legs, §2a item 6), and like
+  `tangent_arc_to` it sits outside `ArcData`, so it has no fused
+  form.
 - **The endpoint lives INSIDE the endpoint-full variants**
   (Ev's round-8 observation, vindicating his wrap-the-args
   instinct): once the family admits endpoint-FREE modes, `p`
@@ -972,6 +967,7 @@ typestate, and it retires:
 | `continue_to(target)` | directed point → directed point; `Start` → complete loop | the DECLARED point-target continuation: the same leg `line(len)` emits, its extent said as an authored POINT. The declaration is the verb, so nothing is inferred from the target's position — the kernel CHECKS the target lies on the departing point's ray, within ε_input, metered as the target's own lateral displacement (no lever: the datum is a point), and refuses `ContinuationTargetOffRay` past the band. The emitted vertex IS the authored target (§4 item 3), never its projection. `Start` is the structural CLOSER: it mints no vertex — the entry is already one — and runs the SEAM check unchanged, refusing `SeamTangent` when the seam is undeclared and zero-turn; `Start.arrives_tangent()` is the target that DECLARES it (§6's revised PQ4) and inverts that verdict. The zero-turn joint the leg itself mints is CONSTRUCTED by the verb (2026-09-02), so it enters the loop's constructed joints (`ConstructedLoop::constructed_joints`). The closer classifies no departure junction at all (there is no authored direction), and where a closing leg DOES have one it refuses `JunctionTangent` like any other verb. |
 | `nurbs_in_place(len1, …)` / `nurbs(curve)` | Directed → Point | legs; the NURBS pair awaits the segment vocabulary (VQ7) |
 | `arc_to(spec)` | Point → Point (Bulge/Via/Center); Directed → Point (Sweep/ArcLen) | **§2c** — the sharp arc leg over the `ArcData` family; admissibility = the state-keyed trait matrix; `p: Start` closes |
+| `arc_onto(target)` | Point → pending director → directed Point; `Start` → pending director → complete loop; `Start.arrives_tangent()` → complete loop | §2a item 6 — `tangent_arc_to`'s mirror: the arc to the target whose END tangent is the one director that follows; departure derived and junction-checked; the token supplies `Start`'s direction; refuses `ArcLegOnOpenFillet` on a fillet arrival's bare anchor |
 | `fillet(r)` | Directed \| leg end → Open | line incoming (ray extension off a leg end), line arrival |
 | `fillet_arc(r, spec)` | Directed \| leg end → per spec | line incoming, ARC arrival (see arrival rows below) |
 | `arc_fillet(spec, r)` | Entry \| Point \| Directed → Open | fused arc incoming (arc extension from a directed point), line arrival |
@@ -979,11 +975,8 @@ typestate, and it retires:
 | arrival `Center{c, w, p}` | (open fillet) → directed Point; `p: Start` → complete loop | complete at the verb; interior `p` is a HARD anchor (run emitted, ordinary directed point); `Start` keeps the entry vertex |
 | arrival `Radius{r, side}` | (open fillet) → builder → directed Point | centre DERIVED from the directed anchor the binders supply |
 | arrival `Via{q, p}` | (open fillet) → builder → directed Point; `p: Start` closes; `p: Start.arrives_tangent()` → complete loop at the verb | anchor in the spec; one director pending — none when the token supplies the end direction |
-| `arc_onto()` | Point (plain or leg end) → arc-arrival builder | §2a item 6: the arc-arrival builder standing alone, its start pinned at the tip; no `r`, no trim; from a leg end the derived departure is junction-checked |
-| `arc_onto()` builder: `.at(p)` + `.angle(θ)` / `.toward(dx, dy)` | → directed Point | the arc to `p` arriving along the direction; departure free |
-| `arc_onto()` builder: `.to(Start)` / `.at(Start)` + director | → complete loop | the tangent closer (`Start`'s direction by reference, joint 0 constructed) / the sharp seam with its arrival authored |
 | `Start` | directed-point VALUE | targeting it closes, structurally; the seam's junction is classified and, UNDECLARED, a tangent one refuses `SeamTangent` from every closing verb |
-| `Start.arrives_tangent()` | target of EVERY closing verb → complete loop | the seam's joint is a declared **TANGENT joint** — the ONE arrival declaration, because every zero-turn joint is a declared tangent joint (Ev, in-chat, 2026-09-02). `line_to`, `continue_to`, `tangent_arc_to`, `arc_to` in every endpoint-full mode (`Bulge`, `Via`, `Center`) and the closing `Center` and `Via` arrivals all take it: what it classifies is the JOINT, not the shape of the leg reaching it. Where the leg's data leave its end direction free (the `Via` arrival) the token SUPPLIES it — the joint is constructed and nothing is checked. Everywhere else the kernel CHECKS the arriving direction against `Start`'s own, banded through the funnel, the turn LEVERED by the arriving leg's arm (the datum is an angle; §4 item 1's precedent), refusing `SeamArrivalOffDirection` past ε_input, `JunctionCusp` for a reversed arrival and `SeamArrivalLeverTooShort` when the leg is too short to carry the question. It reads NOTHING about the carriers — identity is a fact about carriers, tangency a fact about directions. Joint 0 is constructed, and validation verifies it. |
+| `Start.arrives_tangent()` | target of EVERY closing verb → complete loop | the seam's joint is a declared **TANGENT joint** — the ONE arrival declaration, because every zero-turn joint is a declared tangent joint (Ev, in-chat, 2026-09-02). `line_to`, `continue_to`, `tangent_arc_to`, `arc_onto`, `arc_to` in every endpoint-full mode (`Bulge`, `Via`, `Center`) and the closing `Center` and `Via` arrivals all take it: what it classifies is the JOINT, not the shape of the leg reaching it. Where the leg's data leave its end direction free (`arc_onto`, the `Via` arrival) the token SUPPLIES it — the joint is constructed and nothing is checked. Everywhere else the kernel CHECKS the arriving direction against `Start`'s own, banded through the funnel, the turn LEVERED by the arriving leg's arm (the datum is an angle; §4 item 1's precedent), refusing `SeamArrivalOffDirection` past ε_input, `JunctionCusp` for a reversed arrival and `SeamArrivalLeverTooShort` when the leg is too short to carry the question. It reads NOTHING about the carriers — identity is a fact about carriers, tangency a fact about directions. Joint 0 is constructed, and validation verifies it. |
 | `.to(p)` on a bound arrival direction | Angle → Point | **G1** — the far-end anchor: the arrival side ENDS at its authored anchor |
 | `circle(c, r)` | — → complete loop | **G1** — closed-carrier program form; a whole loop, not a chain step; authors no seam, so PQ4 is untouched |
 | `circle_split(c, r, n, phase)` | — → complete loop | the declared-split closed carrier: `n` equal arcs from `phase`, its vertices declared tangent joints on one carrier (the carrier fact is emission-layer bookkeeping) — the same no-seam story as `circle`, with the count and phase authored |
@@ -1349,12 +1342,13 @@ tangent joint and there is nothing else to say there — and the closing
 verbs are the ordinary ones, unchanged, each still one
 `transition_table!` row. Admissibility is still the §2c matrix
 discipline, and the matrix over the CLOSERS is FULL: `line_to`,
-`continue_to`, `tangent_arc_to`, `arc_to` in every endpoint-full mode
-and the closing `Center` and `Via` arrivals all take it, because the
-token classifies the JOINT and not the shape of the leg reaching it.
-Where the leg's data fix its end direction the kernel checks the
-declaration; where they leave it free (the `Via` arrival) the token
-supplies the direction and the joint is constructed (§2's Closure).
+`continue_to`, `tangent_arc_to`, `arc_onto`, `arc_to` in every
+endpoint-full mode and the closing `Center` and `Via` arrivals all take
+it, because the token classifies the JOINT and not the shape of the leg
+reaching it. Where the leg's data fix its end direction the kernel
+checks the declaration; where they leave it free (`arc_onto`, the `Via`
+arrival) the token supplies the direction and the joint is constructed
+(§2's Closure).
 
 **The two declarations on a closing leg are INDEPENDENT.** `continue_to`
 declares the DEPARTURE (this leg continues its run, and the joint it
@@ -1661,18 +1655,22 @@ check's refusal with the seam FILLET named as the spelling that
 constructs them.
 
 **Which closing verbs take the declaration**: `line_to`,
-`continue_to`, `tangent_arc_to`, `arc_to` in every endpoint-full mode
-(`Bulge`, `Via`, `Center`) and the closing `Center` and `Via` arrivals
-— all of them, because the token names the joint rather than the leg.
-Whether the kernel checks or supplies is the leg's DOF count: the legs
-whose data fix an end tangent are checked; the `Via` arrival, whose end
-tangent is free, is built from `Start`'s direction.
+`continue_to`, `tangent_arc_to`, `arc_onto`, `arc_to` in every
+endpoint-full mode (`Bulge`, `Via`, `Center`) and the closing `Center`
+and `Via` arrivals — all of them, because the token names the joint
+rather than the leg. Whether the kernel checks or supplies is the
+leg's DOF count: the legs whose data fix an end tangent are checked;
+`arc_onto` and the `Via` arrival, whose end tangent is free, are built
+from `Start`'s direction.
 
-**The closers that CONSTRUCT the seam's tangency** take no token: the
-seam fillet (`.fillet(r).to(Start)`, both ends tangent) and
-`arc_onto().to(Start)` (§2a item 6) — the arc through the departure
-point and `Start` whose END tangent is `Start.dir`, which spares an
-author solving for a departure angle.
+**Where the seam's tangency is constructed.** The seam fillet
+constructs both ends of its arc and retrims the entry vertex, so it
+leaves no joint at `Start` and takes no token. Everywhere else the
+token constructs, wherever the arriving leg leaves its end direction
+free: the `Via` arrival, and `arc_onto(Start.arrives_tangent())`
+(§2a item 6) — the arc through the departure point and `Start` whose
+END tangent is `Start.dir`, which spares an author solving for a
+departure angle.
 
 ## 7. Explicitly out of scope
 
