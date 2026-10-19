@@ -6616,3 +6616,14 @@ Signed (WIRE orchestrator).
 - 2026-10-19 (WIRE orchestrator) FORK-DEFECT crossover round 1: Designer O converged on the rule, the at-rest ending, the rename and the provenance. It reconciled the Emission count at ~135 non-test raises; most samples are row 0/4. Waiting on the other designer's round.
 
 - 2026-10-19 (WIRE orchestrator) FORK-DEFECT reconciled in one round. The rule converged: proof decides, a typed shortfall row 6, a `pub fn` precondition is row 1, `held_out` goes. Two residual splits go to Ev: the rename, and "or file" on an imported body's geometric gate. [ev] PR 5411 opened, editing D9, with fork-log row 177. Subscribed.
+
+- 2026-10-19 (WIRE orchestrator) PR 5406 FULL review at c9fe0c1b5e: MERGEABLE.
+  - Content keys and result hashes are unchanged at f64 and Interval (a probe run at head and at the merge base).
+  - Fix pass sent:
+    - M1, a wrong premise for keeping the assertion slice let-else: try a typed pair;
+    - M2, split the u32::MAX row into authored and kernel counts, and name `names::to_u32`;
+    - N1, the re-resolve comment's lost argument;
+    - N2, World in Part 1's list;
+    - S1, pairwise spelled two ways.
+  - M3 (row bookkeeping) is mine at merge. S2–S4 are taste.
+  - Class note: a 'keeps the key bytes' reason must be checked against how the key is fed. A hand-fed key is not a layout.
