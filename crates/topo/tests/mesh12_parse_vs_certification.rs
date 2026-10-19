@@ -4,8 +4,10 @@
 //! the parse's verdict on the hand-built loop agree — admit, escalate
 //! (`ParamSpan` / `props_meridian_span_winding` at the branch door,
 //! `props_sphere_arc_span_winding` on the flux lane) and refuse
-//! (`WindingExceeded` / `NotIsoRectangle` or `SphereLoop`) land on the
-//! same rungs, so
+//! (`StatedInterval` / `NotIsoRectangle` or `SphereLoop`) land on the
+//! same rungs, save that a headroom wholly negative in band, which the
+//! parse escalates, the door refuses as its caller's interval past a
+//! full turn (`StatedInterval` carrying the in-band verdict); so
 //! a span a certified door hands the parse is never refused there and
 //! a span it refuses never gets an answer.
 //!
@@ -55,6 +57,8 @@ enum Disp {
     Admit,
     Escalate,
     Refuse,
+    /// The door's refusal of an in-band reading on the refused side.
+    RefuseInBand,
     Other(String),
 }
 
@@ -86,8 +90,14 @@ fn mev_disp(t0: f64, t1: f64) -> Disp {
     match r {
         Ok(_) => Disp::Admit,
         Err(EulerOpError::Certification {
-            error: CertifyError::WindingExceeded,
-        }) => Disp::Refuse,
+            error:
+                CertifyError::StatedInterval {
+                    refused: geom_brep::StatedSpan::Winding(reading),
+                },
+        }) => match reading {
+            geom_brep::WindingReading::InBand(_) => Disp::RefuseInBand,
+            geom_brep::WindingReading::Exceeded => Disp::Refuse,
+        },
         Err(EulerOpError::Certification {
             error:
                 CertifyError::Escalated {
@@ -155,11 +165,15 @@ fn mev_certification_and_the_parse_agree_rung_by_rung() {
         ];
         let flux = parse_disp(&curved_face(&sphere(), &edges, true, bd));
         let door = parse_disp(&require_one_chart_branch(&sphere(), &edges, bd));
+        let agrees = |parse: &Disp| match (&cert, parse) {
+            (Disp::RefuseInBand, Disp::Escalate) => true,
+            (c, p) => c == p,
+        };
         let door_agrees = match (&cert, &door) {
             (Disp::Admit, Disp::Other(s)) => s.contains("NotOneChartBranch"),
-            (c, d) => c == d,
+            _ => agrees(&door),
         };
-        if cert != flux || !door_agrees {
+        if !agrees(&flux) || !door_agrees {
             mismatches.push(format!(
                 "eta/z={:.9}: mev {cert:?}, flux lane {flux:?}, branch door {door:?}",
                 eta / z

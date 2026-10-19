@@ -31,7 +31,7 @@ topology depends on which operand is A.
 
 **What reaches it.**
 - EMIT's pocket floor
-  (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`,
+  (`work/borders/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`,
   ignored test
   `editor-core` `emit_union_borders::a_pocket_floor_held_inside_a_dropped_face_names_alike`):
   `a ∪ b` and `[a, b]` refuse `Naming(Emission)`, while `[b, a]` names.

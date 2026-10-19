@@ -1614,3 +1614,30 @@ coincidence is now a margined verdict (no declarations), checked by the
     - `at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything`, parked on EXCH's import row.
   - **Filed:** `import-door-residual-and-unsized-endings-past-eps-in-name-kernel-or-file`, `a-defect-endings-culprit-has-two-choosers`.
   (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5365** (`param-span-unminted-side-is-reached-at-a-build-by-public-euler-doors`, closed). Every public geom-brep door (`certify*`, `recertify*`) now maps a certainly-refused span or winding to a typed `CertifyError::StatedInterval`, which ends by its door:
+  - at a build: the lever;
+  - at the import door within ε_in: the door's sentence plus the lever;
+  - at the import door past ε_in: `DAMAGED_FILE_ENDING`;
+  - at rest: the defect ending.
+
+  `ParamSpan` and `ParamWinding` (`Unminted`) panic only at topo's kernel re-mints, through `policy_lane::kernels_own`: `transform_rigid`, split children, graft, `vouch_described_move` and `certify_rebased_run`.
+  - **Rulings during review:**
+    - The panic lives where the span or band comes from: caller-supplied is typed at the door; an operation computing it from user parameters refuses in its own words; a kernel re-mint panics.
+    - `#[doc(hidden)] pub` is still input.
+    - Wording keys on the verdict, never on the raw number.
+  - **Review:** four rounds. The first full review found two MAJORs: `recertify` at a finer band reached the panic, and the import door ignored `ReadAt`. The first delta review found one more: the hidden `pub` doors.
+  - **Filed:**
+    - `kernels-own-span-panic-has-one-row-in-five-sites-and-no-type`
+    - `a-hand-built-unminted-refusal-panics-through-pub-render`
+    - tcost `panic-hook-copies-swap-the-process-hook-around-each-capture`
+    - topo `the-re-basing-gate-reads-a-derived-image-where-the-mint-read-the-stored-one`
+  - **Evidence added to** `zero-and-negative-payloads-of-one-decision-use-different-nouns`.
+  (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5393** (`a-hand-built-unminted-refusal-panics-through-pub-render`, closed). Rendering a refusal never panics: the `unreachable!` in geom-brep `SizedDecision::recourse` is gone. A hand-built `Unminted` refusal now ends as a stored contradiction does at every door, which at a build is the lever and the note. That matches what the public doors' `StatedInterval` says. The kernel-bug panic for these readings is topo's `kernels_own` alone. The README reads (iv)'s "panics at a build" as applying where the kernel constructs.
+  - **Review:** mergeable, no MAJOR. A 69,696-call probe found no render panics. Putting the guard back turns six rows red.
+  - **Orchestrator follow-ups:** the README reading; the `Unminted` doc; stale premises noted on the pcurve-span, pctail and tcost rows; `sample_param`'s sibling doors added to SELECT's row.
+  - **Filed by the lane:** scalar `k-stats-pub-doors-panic-on-a-callers-verdict`, select `schedule-param-panics-on-a-callers-sample-index`, and evidence on topo `euler-driver-lift-is-held-by-convention`.
+  - **Noted, not filed:**
+    - `ReadProfile::render` overflows on a caller-built `select: u64::MAX`. It is behind the `sym-profile-testing` feature only.
+    - topo arms on `IntervalNotForward`/`WindingExceeded` look dead (replace_face, validate). This belongs to the census in `kernels-own-span-panic-has-one-row-in-five-sites-and-no-type`.
+  (ENCL orchestrator)

@@ -1528,3 +1528,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Open for the reviewer:** whether the bit-equality fast path, which decides nothing because both branches are sound, sits inside D10's retirement of coincidence decisions.
   - **Build A's #5163** (`mul_nonneg`: a 2-corner product for a nonnegative weight, bit-identical to the general product) is in FULL review. It gives −14.5% instructions on the offset-fit row and −2.9% shell wall. Of 44 `Composite::build` calls per shell row, 4 are repeats; they were reported, not cached.
   - **`viewer::review_pick_r2`** is red on main since #4861 (CLEAVE). It was bisected and filed on CLEAVE's slate via #5158.
+- 2026-10-19 16:20Z — **#5123 merged** (a908d341), after a five-day usage pause. The cut is now an exact restriction of the formed quotients, via a thin convex step whose equal-neighbour fast path compares whole enclosures with `same_enclosure`.
+  - Shelling −28%, r1 −30% against main, both sides with #5114.
+  - Review rounds: the timing MAJOR closed by the thin step; two decoration MAJORs closed (`is_certified`, then `same_enclosure`); ruled not a D10 coincidence consumer; the bit-identity gate now sees `same_enclosure` callers. A noted residue: `blossom.rs` is exempt as a whole file.
+  - Margins: r1's four loosen by 2–3e-13, m5's 4 of 241 tighten by up to 5.6e-12. Rungs are identical.
+  - It waited out the copysign census main red, which GERM fixed in 22b62668 (Oct 15).
+  - **Build C's next unit:** `cheapen-the-restriction-cut-steps-2-to-4`, axis-lazy first, every step bit-identical and timed. The adaptive block split is held until those are measured.
