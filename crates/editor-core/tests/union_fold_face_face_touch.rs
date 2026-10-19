@@ -276,7 +276,9 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
 /// × (0..1) whose y = 2 face merges with the plate's before the rod is
 /// folded. Read again over the merged face's extent the carriers decide
 /// otherwise; the step places the pass's line and decides nothing of
-/// them, so the union answers as the pair does.
+/// them, so the union answers as the pair does. Folded after the rod,
+/// the neighbour merges the record's face, and the record lands on the
+/// merged face by lineage.
 #[test]
 fn a_merged_face_far_longer_than_the_pair_holds_the_pass_s_line() {
     let (doc, plate) = plate();
@@ -285,6 +287,8 @@ fn a_merged_face_far_longer_than_the_pair_holds_the_pass_s_line() {
     for (what, members) in [
         ("plate, long, rod", [plate, long, rod]),
         ("long, plate, rod", [long, plate, rod]),
+        ("rod, plate, long", [rod, plate, long]),
+        ("plate, rod, long", [plate, rod, long]),
     ] {
         touches(
             &doc,
