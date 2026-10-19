@@ -395,6 +395,55 @@ fn verdict_at_origin(body: &mut Body<f64>, band: Band) -> TouchVerdict {
     }
 }
 
+/// **A pinched face read at both its corners.** A bowtie prism's caps
+/// pass the origin twice, through two vertices on its one key: its lobes
+/// over `0°–45°` and `135°–180°`. Each corner's sector ends where the
+/// loop next returns to the point, on the other lobe's edge, not at its
+/// own pass's incoming edge. A wedge prism in the gap between the lobes
+/// reads a decided rest, one reaching into the first lobe a crossing,
+/// as the oracle says. Red where a pass ends at its own incoming ray:
+/// the sectors then cross the gap, and the link refuses unanalysed
+/// either way. The bowtie family of the falsifier below draws these
+/// shapes at random; this is the floor that its decided verdicts stand on.
+#[test]
+fn a_bowtie_reads_a_rest_in_its_gap_and_a_crossing_in_a_lobe() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let id: Rot = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+    let bowtie = Prism {
+        profile: vec![
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (0.0, 0.0),
+            (-1.0, 1.0),
+            (-1.0, 0.0),
+        ],
+        fans: vec![vec![(1.0, 0.0), (1.0, 1.0)], vec![(-1.0, 1.0), (-1.0, 0.0)]],
+        h: 0.5,
+        rot: id,
+    };
+    let wedge = |profile: Vec<(f64, f64)>| Prism {
+        fans: vec![profile[1..].to_vec()],
+        profile,
+        h: 0.5,
+        rot: id,
+    };
+    let verdict = |b: &Prism| {
+        let mut body = build(&bowtie);
+        crate::instance::graft_disjoint(&mut body, &build(b)).unwrap();
+        verdict_at_origin(&mut body, band)
+    };
+    let gap = wedge(vec![(0.0, 0.0), (1.0, 2.0), (-1.0, 2.0)]);
+    let lobe = wedge(vec![(0.0, 0.0), (1.0, 0.5), (0.0, 1.0)]);
+    assert!(!meet(&[&bowtie], &gap) && meet(&[&bowtie], &lobe));
+    assert!(
+        matches!(verdict(&gap), TouchVerdict::Rest(_)),
+        "{:?}",
+        verdict(&gap)
+    );
+    assert_eq!(verdict(&lobe), TouchVerdict::Crossing);
+}
+
 /// **A link pair's rest is never an overlap, nor its crossing a pair
 /// apart.**
 #[test]

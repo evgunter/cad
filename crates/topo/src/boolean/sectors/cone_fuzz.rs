@@ -3,8 +3,10 @@
 //! census's link reader (`census::bare_cone_reads`), each decided class
 //! checked against an exact rational reading of the same cone.
 //!
-//! **What it certifies.** Every `cone_side` and every `wedge_classes`
-//! reading, on every family.
+//! **What it certifies.** Every `cone_side`, every `wedge_classes` and
+//! every census link reading (`crate::census::bare_cone_reads`, the
+//! census touch analysis's parity reader over the same cone as one
+//! link), on every family.
 //!
 //! The cones are stars about an axis, their corners risen and fallen
 //! at random, some with two corners a hair apart (a thin fin or
