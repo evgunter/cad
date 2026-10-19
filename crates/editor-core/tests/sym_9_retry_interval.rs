@@ -558,15 +558,17 @@ fn sym_9_what_each_retry_recovers() {
 /// and the pad's leaf 1315/1280 -> 1318/1283 (1311/1284 -> 1314/1287
 /// without the ladder). `retried` does not move.
 ///
-/// A placement whose bundle reads a variable runs its map at the
-/// nominal (C-5 narrowed, the orchestrator's ruling), so its transform
-/// and its copy's re-certification decide there, with the ladder and
-/// without it alike: `symbolic` +186 per placement (plate and bracket
-/// +372 over two; annulus, boss and link +186) and `numeric` +159 per
-/// placement (+318; +159), the link's `carrier_on_surface_2` 100 -> 136
-/// and `witness_on_surface_2` 16 -> 20, and the pad's leaf
-/// 1318/1283 -> 1504/1442 (1314/1287 -> 1500/1446 without the ladder).
-/// Every row moved up; `retried` does not move.
+/// A placement whose bundle reads a declared or toleranced variable
+/// runs its map at the nominal (C-5 narrowed, the orchestrator's
+/// ruling), so its transform and its copy's re-certification decide
+/// there, with the ladder and without it alike: `symbolic` +186 per
+/// such placement (bracket +372 over two; annulus, boss and link +186)
+/// and `numeric` +159 per placement (+318; +159), the link's
+/// `carrier_on_surface_2` 100 -> 136 and `witness_on_surface_2` 16 ->
+/// 20, and the pad's leaf 1318/1283 -> 1504/1442 (1314/1287 ->
+/// 1500/1446 without the ladder). Every row that moved, moved up;
+/// `retried` does not move. The plate's holes, placed by their start
+/// caps and written numbers alone, read no variable and still snap.
 ///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
@@ -577,7 +579,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1381, 980], [1381, 980], 0),
+        ("two_hole_plate", [1009, 662], [1009, 662], 0),
         ("r1_annulus", [728, 561], [728, 561], 0),
         ("r1_segment_boss", [705, 538], [705, 538], 0),
         ("r2_filleted_bracket", [1765, 1330], [1765, 1330], 0),

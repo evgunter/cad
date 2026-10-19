@@ -639,22 +639,12 @@ const PLATE_MAX_TERMS: usize = 28;
 /// forms; `Early/Assertion` 654 → 662 calls and 6972 → 7204 forms;
 /// `Door/Decision` 396 → 406 calls and 7987 → 8218 forms; every digest.
 /// The largest form holds.
-///
-/// A placement whose bundle reads a variable runs its map at the
-/// nominal (C-5 narrowed, the orchestrator's ruling), so the plate's two
-/// placements' transforms and their copies' re-certification build
-/// forms there: `Plain/Decision` 1009 → 1381 calls, 16400 → 23834 forms
-/// and 24 → 993 frozen; `Plain/Assertion` 662 → 980 calls, 5800 → 9116
-/// forms and 137 → 436 frozen; `Early/Decision` 254 → 570 calls and
-/// 8496 → 15907 forms; `Early/Assertion` 662 → 980 calls and 7204 →
-/// 10520 forms; `Door/Decision` 406 → 724 calls and 8218 → 14658 forms;
-/// every digest. The largest form and the slab hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1381 forms 23834 frozen 993 digest 559889eeb93902afee93e0437ed2decf\n\
-     Plain/Assertion calls 980 forms 9116 frozen 436 digest b017e5a1ca0620dcba122248bbe29db8\n\
-     Early/Decision calls 570 forms 15907 frozen 0 digest 1e0d7874ba54c3f3b4122fbbe1f6c52a\n\
-     Early/Assertion calls 980 forms 10520 frozen 0 digest 613deff853cddce96af81c7362876856\n\
-     Door/Decision calls 724 forms 14658 frozen 0 digest b51975d1063bba03241d692518c1e2d0";
+     Plain/Decision calls 1009 forms 16400 frozen 24 digest 72a5e69bdb2b1df308056b0ee6a8f4e4\n\
+     Plain/Assertion calls 662 forms 5800 frozen 137 digest f2eab1e1caad7616d2fa41746bd34354\n\
+     Early/Decision calls 254 forms 8496 frozen 0 digest 39ee9ebb36e932a011f27f5160eb2c1b\n\
+     Early/Assertion calls 662 forms 7204 frozen 0 digest 4259609da1ae127fdb26abac55290553\n\
+     Door/Decision calls 406 forms 8218 frozen 0 digest 73b23be2f205c87a6fecb6ade02de2fe";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -817,15 +807,12 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             .and_then(|n| n.parse::<u64>().ok())
     };
     // `None`: nothing blocked, so no `Plain/Report` line is written.
-    // Without the canonical root 16 block: the plate's placements run
-    // their maps at the nominal (C-5 narrowed), and their copies'
-    // re-certification blocks as many again as the 8 before it.
     let sets: [(&str, SymRules, Option<u64>); 4] = [
         ("shipped", SymRules::shipped(), None),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            Some(16),
+            Some(8),
         ),
         ("without_the_reads", SymRules::without_the_reads(), None),
         (
@@ -834,7 +821,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            Some(16),
+            Some(8),
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;

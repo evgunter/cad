@@ -1153,19 +1153,24 @@ fn a_copy_slid_past_the_band_keeps_its_map() {
 }
 
 /// **Fork C-5 — a pose that moves with a parameter keeps its
-/// derivative.** The box slid by `s`, declared at 0: at the nominal it
-/// stands at the identity, but a dual run seeded at `s` carries the
-/// slide's unit tangent, so its map is kept and its translation's
-/// derivative along x is one.
+/// derivative.** The box slid by `s`, declared at 0: its bundle reads a
+/// declared variable, so it runs its map in every lane (C-5 narrowed),
+/// the identity at the nominal; a dual run seeded at `s` carries the
+/// slide's unit tangent, and its translation's derivative along x is
+/// one.
 ///
-/// *Breaks if* the dual lane snaps on its value channel alone (the
-/// derivative would read zero).
+/// *Breaks if* the bundle is snapped at rest (the value lane would
+/// place it by no map), or the dual lane drops the tangent.
 #[test]
 fn a_parametric_pose_at_a_nominal_identity_keeps_its_derivative() {
     let (doc, placement, seeded) = box_slid_by_a_parameter(0.0);
-    assert!(
-        motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement).is_none(),
-        "at the nominal the copy is at rest"
+    let nominal = motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement)
+        .expect("a bundle reading a variable runs its map at the nominal")
+        .to_affine();
+    assert_eq!(
+        format!("{nominal:?}"),
+        format!("{:?}", Affine3::<f64>::identity()),
+        "at the nominal the map is the identity"
     );
     let motion = motion_of(&evaluated::<geom_core::Dual64>(&doc, &seeded), placement)
         .expect("a seeded pose keeps its map");
@@ -1176,15 +1181,15 @@ fn a_parametric_pose_at_a_nominal_identity_keeps_its_derivative() {
 
 /// **Fork C-5 — a seeded copy at rest has the value lane's bits and
 /// its own tangent.** A box on the world floor spun by `t`, declared at
-/// a whole turn: the `f64` lane's map is the identity to rounding, and
-/// the fold places the copy by no map. A dual run seeded at `t` places
-/// it by a map whose value channel is the identity's exact bits — the
-/// `f64` lane's answer — and whose tangent is the spin's: the turn
-/// about `z` moves the copy's `x` along `y` at unit rate.
+/// a whole turn: its bundle reads a declared variable, so every lane
+/// runs its map (C-5 narrowed), the `f64` lane's the identity to
+/// rounding. A dual run seeded at `t` places it by a map whose value
+/// channel is the `f64` lane's bits and whose tangent is the spin's:
+/// the turn about `z` moves the copy's `x` along `y` at unit rate.
 ///
-/// *Breaks if* the dual lane keeps the unsnapped map (its value channel
-/// rounds off the `f64` lane's), or snaps the map whole (the tangent is
-/// lost).
+/// *Breaks if* a lane snaps the map (the value lane's would be no map,
+/// the dual's tangent lost), or the dual's value channel rounds off
+/// the `f64` lane's.
 #[test]
 fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
     let (doc, body) = a_box("s3c_spun_at_rest", 1.0);
@@ -1222,10 +1227,9 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
             .expect("a plane mate leaves the freedom")
             .0;
     }
-    assert!(
-        motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement).is_none(),
-        "a whole turn is at rest in the value lane"
-    );
+    let value_lane = motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement)
+        .expect("a bundle reading a variable runs its map at the nominal")
+        .to_affine();
     let seeded = EvalOptions {
         seed: doc.var_named("t"),
         ..EvalOptions::default()
@@ -1235,13 +1239,14 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
         .to_affine();
     let entries =
         [map.linear.c0, map.linear.c1, map.linear.c2, map.translation].map(|c| [c.x, c.y, c.z]);
-    let identity = [
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, 0.0],
-    ];
-    for (column, want) in entries.iter().zip(identity) {
+    let want = [
+        value_lane.linear.c0,
+        value_lane.linear.c1,
+        value_lane.linear.c2,
+        value_lane.translation,
+    ]
+    .map(|c| [c.x, c.y, c.z]);
+    for (column, want) in entries.iter().zip(want) {
         for (e, w) in column.iter().zip(want) {
             assert_eq!(e.value.to_bits(), f64::to_bits(w), "{map:?}");
         }
@@ -1254,17 +1259,16 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
 
 /// **Fork C-5 — a box spanning the band encloses the value lane at its
 /// corners.** A box on the floor spun by `t`, declared at a tenth of ε
-/// rad, boxed over `[ε/10, 6ε/10]` (ε the run's, 1e-9 by default): at
-/// the low corner the copy moves less
-/// than the band's zero and the value lane places it by no map; at the
-/// high one it moves more and keeps its turn. The box's own verdict
-/// spans the band, so its map holds both. A map that wide moves the
-/// copy's edges by about the band's zero, so the box run may refuse to
-/// certify them — an escalation; what it never does is answer a map
-/// that leaves a corner out.
+/// rad, boxed over `[ε/10, 6ε/10]` (ε the run's, 1e-9 by default): the
+/// bundle reads a declared variable, so the value lane runs its map at
+/// each corner (C-5 narrowed) and keeps its turn at both, the low one
+/// less than the band's zero and the high one more. The box's map holds
+/// both. A map that wide moves the copy's edges by about the band's
+/// zero, so the box run may refuse to certify them — an escalation;
+/// what it never does is answer a map that leaves a corner out.
 ///
-/// *Breaks if* a box the band cannot decide keeps its turned map alone
-/// (the low corner's identity would lie outside the answer).
+/// *Breaks if* a corner's value-lane map lies outside the box's, or the
+/// value lane snaps a corner of a bundle that reads a variable.
 #[test]
 fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
     // The corners are tenths of the run's ε, so the low one moves less
@@ -1323,12 +1327,10 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
             .map_or_else(Affine3::identity, |m| m.to_affine())
     };
     let (low, high) = (at(0.1 * eps), at(0.6 * eps));
-    assert_eq!(
-        format!("{low:?}"),
-        format!("{:?}", Affine3::<f64>::identity()),
-        "the low corner is at rest in the value lane"
+    assert!(
+        low.linear.c0.y != 0.0 && high.linear.c0.y != 0.0,
+        "a bundle reading a variable keeps its turn at each corner: {low:?} {high:?}"
     );
-    assert!(high.linear.c0.y != 0.0, "the high corner keeps its turn");
     let boxed = EvalOptions {
         param_box: Some(std::sync::Arc::new(
             editor_core::analysis::ParamBox::from_axes(std::collections::BTreeMap::from([(

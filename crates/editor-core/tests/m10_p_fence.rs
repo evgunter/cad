@@ -647,18 +647,17 @@
 //! The line-by-line `cert3r1_dump` differential against main was not
 //! taken for this change.
 //!
-//! **ALL FOUR NUMBERS MOVED AGAIN WHEN A PLACEMENT WHOSE BUNDLE READS A
-//! VARIABLE CAME TO RUN ITS MAP AT THE NOMINAL** (C-5 narrowed, the
-//! orchestrator's ruling): such a map is no longer snapped to the
-//! identity when the band decides it at rest, nor placed by no map at
-//! the stored identity, so its transform decisions count at the nominal
-//! as they do at every box. Measured by a scratch dump of every node's
-//! outcome and every point's bits at `f64`, ids masked, with the
-//! narrowing switched off and on: every outcome identical; 16 points
-//! moved, by at most 4.4e-16, in `tube_arc`, `hollow_tube_elbow` and
-//! `nested_islands_106_depth1` — the solved map's own rounding, which
-//! the snap discarded. The `Interval` number moved with them, and the
-//! `Probe` row is the `f64` row's number still.
+//! **ALL FOUR NUMBERS RE-TAKEN WITH C-5 NARROWED** (a placement whose
+//! bundle reads a declared or toleranced variable runs its map at the
+//! nominal, the orchestrator's ruling). All four had already moved on
+//! the tree before the narrowing (`c3bbb464c9`, measured there; its
+//! `Interval` number `(0x6d8d_988c_a423_fd61, …)`): these rows were red
+//! on it, and what moved them after the paragraph above was not
+//! attributed. The narrowing moves none of the `f64` or id-free bits: a
+//! scratch dump of every node's outcome and every point's bits at
+//! `f64`, with the narrowing switched off and on, is identical. It
+//! moves the `Interval` number, whose box lanes now run the varying
+//! placements' maps.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -954,7 +953,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x3330_1dd2_263e_ac44, 0x07c9_e191_74e8_1cf0),
+        (0xd1dc_1049_aa08_7dd0, 0xf39a_89c3_4093_ee0c),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -980,7 +979,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xc1ed_7a9f_93a5_f3f0, 0xebfb_5400_3a9e_bbe4),
+        (0x6b31_45b7_f1c2_90f1, 0x1393_c8c1_7b7d_a2e5),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -1004,7 +1003,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x3330_1dd2_263e_ac44, 0x07c9_e191_74e8_1cf0),
+        (0xd1dc_1049_aa08_7dd0, 0xf39a_89c3_4093_ee0c),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -1082,7 +1081,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0xe037_bc98_4f66_5ce1, 0x9215_7d45_f38b_89ed),
+        (0x8552_caab_d7e4_d139, 0x4178_3e7a_e389_08e5),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

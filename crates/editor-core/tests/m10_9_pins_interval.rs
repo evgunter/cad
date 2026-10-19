@@ -104,12 +104,15 @@ pub(crate) struct Study {
 /// the bracket 1330/1061 -> 1336/1069, the pad 1247/1348 -> 1252/1349,
 /// refusing (or not) where they did.
 ///
-/// A placement whose bundle reads a variable runs its map at the
-/// nominal (C-5 narrowed, the orchestrator's ruling): it is no longer
-/// snapped at rest, so its transform and the copied body's
-/// re-certification decide over the box, 186 more THEOREMS per
-/// placement at every ε row (plate and bracket +372, annulus, link and
-/// pad +186). All five still certify whole. With the door shut the
+/// A placement whose bundle reads a declared or toleranced variable
+/// runs its map at the nominal (C-5 narrowed, the orchestrator's
+/// ruling): it is no longer snapped at rest, so its transform and the
+/// copied body's re-certification decide over the box, 186 more
+/// THEOREMS per such placement at every ε row (bracket +372 over two;
+/// annulus, link and pad +186). The plate's two holes are placed by
+/// their start caps and written numbers alone, which read no variable,
+/// so they still snap and the plate holds. All five still certify
+/// whole. With the door shut the
 /// bracket reads 1708/1387 and the pad 1438/1508; the link's still
 /// refuses at `pcurve_envelope`, its receipt 782/710 unmoved.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
@@ -125,7 +128,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [1381, 1381, 1381],
+            symbolic: [1009, 1009, 1009],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {

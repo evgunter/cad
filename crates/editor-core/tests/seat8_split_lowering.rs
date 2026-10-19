@@ -295,13 +295,23 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// `Transform` (a construction is built in its own coordinates and
 /// placed into the world by a `Place`), so its nodes, their ids and the
 /// names they mint moved.
+///
+/// RE-BLESSED, `cut_cylinder` and `kitchen_sink`, when a placement whose
+/// bundle reads a declared or toleranced variable came to run its map
+/// at the nominal (C-5 narrowed, the orchestrator's ruling): each
+/// document's such placement places its copy by its solved map where it
+/// was snapped to no map. Measured with the narrowing switched off and
+/// on: off, both digests are the ones pinned before; on, no outcome and
+/// no point of the corpus moves at `f64` (`m10_p_fence`'s header), so
+/// what moved is the placed body's `Debug` past its points.
+/// `part_select` held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x793b_d15c_6b53_693bu64),
+        ("cut_cylinder", 0xf39f_ac3b_3fa9_c445u64),
         ("part_select", 0x36a8_77e8_edb4_8dfb),
-        ("kitchen_sink", 0x1492_3db1_8fdf_f9fd),
+        ("kitchen_sink", 0xe9bd_8264_517c_5acb),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
