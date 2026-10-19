@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-11
 priority: P2
 cost: M
-needs_ev: true
+needs_ev: false
 ---
 
 
@@ -99,3 +99,17 @@ build owes or should check:
   covers `boolean/insert.rs` `reconcile_shared`, the variant doc, and
   `union_flush_onto_edge_contact.rs`. File it on the boolean's slate
   then.
+
+## Decided (Ev, `[ev]` PR 4795, 2026-10-19)
+
+Ev ratified the D1 sentence in `crates/topo/README.md` tier 3: where
+more than two sheets meet on a line, the material decides the edges.
+Ev kept the manifold model and declined radial edges ("ok phew i'm glad
+our current representation is better"). The keel builds in the slit
+form: Above's face carries the keel as a zero-area ring of two
+coincident edges. The build notes above stand. Ev also ruled on two
+neighbouring sentences:
+- the knife slit is "an isolated cusp's `revert` image";
+- the representability boundary speaks of non-solids only.
+
+Code follow-up: `non-manifold-result-calls-a-buildable-solid-permanently-unrepresentable`.
