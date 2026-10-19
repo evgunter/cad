@@ -31,6 +31,6 @@ Refs issue 433, BOOL-12 (`docs/BOOL-12-SPEC.md`), the target census in `crates/e
 
 Moved from `work/bool/` to PATHS (opened at this exit as S-BOOL's successor for the profile lattice) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
 
-## Question to Ev (PR #PRNUM)
+## Question to Ev (PR #5374)
 
-The design is in front of Ev on PR #PRNUM, which edits `docs/PATHS-DESIGN.md` §2 (Legs, Closure), §2a item 6, §2c, §3, §4 and §6 PQ4. This row's half is the token rule: `Start.arrives_tangent()` checks where the leg's data fix its end direction and constructs where they leave it free, and `Via`/`Center` take it on every row they close from (the sharp legs check; the `Center` arrival checks; the `Via` arrival constructs and closes at the verb with no director). One ruling closes this row and `arc-closer-constructed-from-arrival-tangent` together; neither is dispatched before it. Re-priced `cost: D` → `M` on touching the row (`work/README.md`, "`D` is legacy").
+The design is in front of Ev on PR #5374, which edits `docs/PATHS-DESIGN.md` §2 (Legs, Closure), §2a item 6, §2c, §3, §4 and §6 PQ4. This row's half is the token rule: `Start.arrives_tangent()` checks where the leg's data fix its end direction and constructs where they leave it free, and `Via`/`Center` take it on every row they close from (the sharp legs check; the `Center` arrival checks; the `Via` arrival constructs and closes at the verb with no director). One ruling closes this row and `arc-closer-constructed-from-arrival-tangent` together; neither is dispatched before it. Re-priced `cost: D` → `M` on touching the row (`work/README.md`, "`D` is legacy").
