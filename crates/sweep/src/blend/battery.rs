@@ -45,9 +45,10 @@ use super::arms::{
     plane_sphere_blend,
 };
 use super::build::fan_at;
+use super::open::end_face::CycleReading;
 use super::surgery::{
-    CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, scaffolding, unbuilt_geometry,
-    unresolved, unwalked,
+    CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, loop_walk, scaffolding, stored_piece,
+    strip_frame, strip_reading, strip_witnesses, unbuilt_geometry, unresolved, unwalked,
 };
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
@@ -3014,6 +3015,7 @@ fn consumption_sweep<T: Decide + Bounds>(
         for lp in core::iter::once(fa.outer).chain(fa.rings.iter().copied()) {
             boundary.extend(screened_loop(body, lp)?);
         }
+        let decided = strip_decided(body, chains, face, &fa.rings, band)?;
         for i in 0..boundary.len() {
             for j in (i + 1)..boundary.len() {
                 let (ei, pi) = (&boundary[i].0, &boundary[i].2);
@@ -3027,6 +3029,9 @@ fn consumption_sweep<T: Decide + Bounds>(
                     continue;
                 }
                 if touches(*ei, *ej)? {
+                    continue;
+                }
+                if decided.contains(&(*ei, *ej)) || decided.contains(&(*ej, *ei)) {
                     continue;
                 }
                 // The closest approach of the two sampled boundaries,
@@ -3093,6 +3098,67 @@ fn consumption_sweep<T: Decide + Bounds>(
         }
     }
     Ok(())
+}
+
+/// **The rings of a support `face` that the strip meter decides**, each
+/// edge paired with the requested edge whose strip it is read against:
+/// a ring read wholly inside, or crossing, the strip a plane–plane band
+/// takes off `face` ([`strip_reading`]), where that band is a whole open
+/// chain of one link and no other requested edge meets either end, so
+/// predicate 6 cuts it off at both ends or refuses. The screen stands
+/// down on those pairs alone: the strip meter reads a ring inside as a
+/// cup's mouth the band may take, and refuses one crossing, measured
+/// (`surgery::ring_clearance_pass`, arm (a)); a ring it reads neither way,
+/// or one beside a band of another shape, is screened as before.
+fn strip_decided<T: Decide + Bounds>(
+    body: &Body<T>,
+    chains: &[Chain<T>],
+    face: FaceKey,
+    rings: &[topo::LoopKey],
+    band: Band,
+) -> Result<Vec<(EdgeKey, EdgeKey)>, BlendError> {
+    let requested: Vec<EdgeKey> = chains
+        .iter()
+        .flat_map(|c| c.links().map(|l| l.edge))
+        .collect();
+    let mut decided = Vec::new();
+    for chain in chains {
+        let mut links = chain.links();
+        let (Some(l), None) = (links.next(), links.next()) else {
+            continue;
+        };
+        let open = matches!(chain.closure, ChainClosure::Open { .. });
+        if !(open && l.arm.is_plane_plane() && (l.face_a == face || l.face_b == face)) {
+            continue;
+        }
+        let mut alone = true;
+        for v in [l.start, l.end] {
+            let fan = body
+                .edges_of_vertex(v)
+                .ok_or_else(|| unwalked(EntityId::Vertex(v), "a requested edge's end"))?;
+            alone &= fan.iter().all(|e| *e == l.edge || !requested.contains(e));
+        }
+        if !alone {
+            continue;
+        }
+        let frame = strip_frame(body, l, face)?;
+        for &lp in rings {
+            let walk = loop_walk(body, lp)
+                .ok_or_else(|| unwalked(EntityId::Loop(lp), "a support face's ring"))?;
+            let edges: Vec<EdgeKey> = walk.into_iter().map(|(_, _, e)| e).collect();
+            let pieces = edges
+                .iter()
+                .map(|&e| stored_piece(body, e))
+                .collect::<Result<Vec<_>, _>>()?;
+            let witnesses = strip_witnesses(&pieces);
+            if let Some(CycleReading::Inside(_) | CycleReading::Crossing(_)) =
+                strip_reading(&pieces, &witnesses, frame, band)
+            {
+                decided.extend(edges.iter().map(|&e| (e, l.edge)));
+            }
+        }
+    }
+    Ok(decided)
 }
 
 /// One boundary edge as predicate 2 reads it: its key, its certified

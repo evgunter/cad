@@ -331,6 +331,8 @@ mod band_reads_three_ways;
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
+#[path = "band_strip_mouth_cups.rs"]
+mod band_strip_mouth_cups;
 #[path = "band_turn_overrun_chamfer.rs"]
 mod band_turn_overrun_chamfer;
 #[path = "band_turn_overrun_fillet.rs"]

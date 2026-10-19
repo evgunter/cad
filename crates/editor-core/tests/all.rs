@@ -189,6 +189,8 @@ mod edit_ruled_carve;
 mod edit_set_program;
 #[path = "edit_step_segments.rs"]
 mod edit_step_segments;
+#[path = "edit_strip_mouth_cups.rs"]
+mod edit_strip_mouth_cups;
 #[path = "emit_ball_cut_by_brick.rs"]
 mod emit_ball_cut_by_brick;
 #[path = "emit_boolean_vertex_keys.rs"]

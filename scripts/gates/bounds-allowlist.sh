@@ -633,7 +633,14 @@ BOUNDS_ALLOWLIST=(
   # through too: both reach `cap_transverse`, the cut-off's own
   # kind-picker (`classify` and the ellipse door), and read no bracket of
   # their own.
-  'crates/sweep/src/blend/battery.rs 20 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 20 -> 21: `strip_decided` is the support screen's stand-down: which
+  # ring pairs the screen leaves to the surgery's strip meter, read
+  # through `surgery::strip_reading` (`piece_along` and the reach's
+  # `sure`, the reading arm (a) of the ring pass takes) and the
+  # topology's own edge fans. It reads no bracket of its own, and its
+  # selection only narrows what the screen meters to what the exact
+  # meter downstream meters whole.
+  'crates/sweep/src/blend/battery.rs 21 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
   # carry-through pass's support-boundary arm split into its own

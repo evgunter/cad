@@ -2,8 +2,10 @@
 id: a-cup-whose-mouth-lies-on-a-supports-strip-is-not-carved
 kind: issue
 title: blend: a dimple or a boss whose mouth lies on a support's strip inside the band's region refuses, though S − R / S ∪ F takes it
-status: open
+status: closed
 opened: 2026-10-14
+closed: 2026-10-15
+pr: PRNUM
 priority: P2
 cost: H
 ---
@@ -40,3 +42,17 @@ What it needs:
   surgery, whose strip carve must find no ring there).
 `reach::prism_inside` and `consume::plan` already take a cup on one
 cycle; only the cycle's reading and its face's surgery are missing.
+
+## Closed by (`band/strip-mouth-cups`)
+
+Built as the item asks, with one correction: the mouth's depth is read
+in the band's exact core less the support's side, not as its in-plane
+distance from the trimline and the edge, which the fillet's arc,
+tangent to the support at the trimline, does not bound. The strip
+meter's three-way reading is `surgery::strip_reading`; the screen's
+stand-down `battery::strip_decided`; the reach's reading
+`reach::prism_inside` with a `Prism::strip`; `consume` was already
+general in the face a cup's cycle lies on. Rows: `band_strip_mouth_cups`,
+`editor-core` `edit_strip_mouth_cups`. A ring beside a band that is not
+one link cut off at both ends still refuses at the screen:
+`a-cup-on-a-strip-beside-a-band-not-cut-off-at-both-ends-is-not-carved`.

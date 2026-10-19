@@ -737,12 +737,14 @@ What is built of it: face clearance reads each face three ways (clear
 of the region, wholly inside it, or crossing it), and the carve takes a
 feature wholly inside the material a straight band's cut-off removes or
 fills, attached to the rest of the body only by cycles on the band's
-caps: a through-feature between the two caps on the ruled fillet and
-the plane–plane fillet and chamfer (a bore under a convex band, a bar
-between the end walls under a concave one), and a cup on one cap on
-the plane–plane band (a blind bore under a convex band, a pin under a
-concave one), each of whose faces that meet the cap is a plane or a
-cylinder. Every other case refuses, a
+caps or on its supports' strips: a through-feature between the two
+caps on the ruled fillet and the plane–plane fillet and chamfer (a bore
+under a convex band, a bar between the end walls under a concave one),
+a cup on one cap on the plane–plane band (a blind bore under a convex
+band, a pin under a concave one), each of whose faces that meet the cap
+is a plane or a cylinder, and a cup on one support's strip on a
+plane–plane band that is a whole chain of one link, cut off at both
+ends (a dimple under a convex band, a boss under a concave one). Every other case refuses, a
 case the rule defines and the surgery does not build, and it refuses
 at the meter that reads it, not by which case it is. The clearance
 screen and the exact ring meters read the supports' own boundary
@@ -753,10 +755,12 @@ measurement and a face it cannot certify either way as a bound
 that no carve takes refuses `WhollyInside` (a void or an island with no
 cap cycle). So a cup on the ruled band, whose far faces have no exact
 region to be read in, or a hole whose mouth a concave fill covers,
-refuses as a bound where its wall meets the end face's plane, while a
-blind hole entering from a support
-face is read at the screen, its ring nearer the edge than the band
-sets back, and refuses there although it lies wholly inside. A
+refuses as a bound where its wall meets the end face's plane, and a
+ring on a support that the strip meter does not read wholly inside its
+strip (one beside a band ending at a mitre, a turn or a corner, one
+the meter cannot certify, one touching the trimline) is read at the
+screen, nearer the edge than the band sets back, and refuses there
+whether or not it lies inside. A
 crossing refuses as an unbuilt case too, not as an exception to the
 rule, as the Boolean refuses the surface pairs it does not serve; the
 clearance and ring recourses name the reorder, blending before a
