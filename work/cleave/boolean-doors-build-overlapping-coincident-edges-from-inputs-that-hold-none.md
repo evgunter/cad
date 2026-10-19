@@ -2,7 +2,7 @@
 id: boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none
 kind: issue
 title: Boolean doors build coincident edges with overlapping material wedges from inputs that hold none, and every tier passes them
-status: dispatched
+status: review
 opened: 2026-10-14
 priority: P1
 cost: H

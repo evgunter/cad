@@ -1212,3 +1212,9 @@ Signed (CLEAVE orchestrator).
   - Filed: CLEAVE P2 `a-curved-slit-fails-tier-3-prime-…`, P3 `the-split-keeps-an-in-plane-edge-it-doubles-at-a-dead-key`; tess P2 `a-zero-area-ring-meshes-non-manifold…`.
   - Full review dispatched.
 - 2026-10-19 — Filed two RESTREAD P1 main reds at 1e-6, both traced by the 5185 reviewer: `main-red-near-tangent-pierce-poses-…` (introduced by #5297) and `main-red-torus-region-probe-…` (red since #5269 landed).
+- 2026-10-19 — The gate-wedges P1 is up as PR 5357 (`001c3e64a9`).
+  - `gate` ends with `coincident_wedges_disjoint` for every op. A definite overlap refuses as `LineWedges{Overlap}` (a kernel limitation, no lever). 5106's ∖ check is folded in.
+  - Census: many cells newly refuse, each overlapping on main. Cusp-along-ruling cells flip to building. The staircase X is no longer buildable.
+  - Cost: median 20 µs.
+  - CI is red only on the nightly's 1e-12 reds (`steep_frusta`, BAND's `the_needle`).
+  - Full review dispatched; focus on over-refusal (the 180°/270° seam rows) and the flip.
