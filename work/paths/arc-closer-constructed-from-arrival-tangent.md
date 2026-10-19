@@ -2,7 +2,8 @@
 id: arc-closer-constructed-from-arrival-tangent
 kind: issue
 title: paths: an arc_to mode that fixes the ARRIVAL direction — the arc from the tip to p whose end tangent is authored (its Start row is the construct-from-arrival tangent closer)
-status: open
+status: dispatched
+branch: paths/arc-onto
 opened: 2026-09-02
 github: 1578
 refs: [1573, 433]
