@@ -58,3 +58,4 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - Villarceau: the oracle's sign scan missed a near-double root. The family parameter is now computed in closed form, and the seed is pinned.
   - Tier: orchestrator read.
   - CI red only on 1e-12 sweep rows outside the diff, all of them main's: `band_turn_overrun_fillet` (CPAIR) and `reach_cone_split` (FLUX's `steep-frustum-operand-refuses-its-own-gate-at-1e-12-since-5038`), plus `reach_cone_root_lane`'s cone-wall ring. That one I reproduced on main and filed as `flux/a-ring-on-a-cone-wall-escalates-props-chart-loop-whole-at-1e-12`. — (RESTREAD orchestrator)
+- 2026-10-19 — `census-review-5006-delta-tabs-test-runs-past-the-fast-set-limit` closed: `d1_tabs_a_few_bands_wide` (1.025 s at default ε) moved to the slow set, with Ev's go-ahead in chat. — (RESTREAD orchestrator)

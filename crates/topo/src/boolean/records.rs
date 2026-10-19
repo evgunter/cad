@@ -71,19 +71,22 @@ pub enum CarryRefusal {
         /// The record's index in the input's list.
         record: u32,
     },
-    /// Whether input record `record`'s touch is on `cells`, a pair of
-    /// its two cells' images, could not be read: the census's confirm
-    /// pass escalated, or has no lane for the pair.
+    /// Whether input record `record`'s touch is on `cells`, a pair
+    /// drawn from a divided cell's images, could not be read: the
+    /// census's confirm pass escalated, or has no lane for the pair.
     Unread {
         /// The record's index in the input's list.
         record: u32,
         /// The pair of images.
         cells: [Cell; 2],
     },
-    /// Input record `record` lands on no pair of its cells' images,
-    /// every pair read definitely, and the op removed neither cell nor
-    /// any part of one: a touch the op's lineage says is still there,
-    /// and the result says is not.
+    /// Input record `record`'s two cells do not meet where the op put
+    /// them, and the op removed and moved neither: a touch the op's
+    /// lineage says is still there, and the result says is not. The
+    /// carry raises it for a record on a divided cell that lands on no
+    /// pair of its images, every pair read definitely; the boolean's
+    /// output stage for a carried vertex pair whose two points it reads
+    /// apart.
     Stale {
         /// The record's index in the input's list.
         record: u32,
@@ -149,8 +152,8 @@ impl core::fmt::Display for CarryRefusal {
             ),
             Self::Stale { record } => write!(
                 f,
-                "record {record} lands on no pair of its cells' images, and the op removed \
-                 neither cell"
+                "record {record}'s cells do not meet where the op put them, and the op \
+                 removed and moved neither"
             ),
             Self::MintedMeeting { record, cells } => write!(
                 f,
@@ -482,12 +485,14 @@ impl ContactRecords {
     /// **The one carry** (D1): these records as an op's that made
     /// `result` from its input `input`, through `lineage`, what the op
     /// made of each input cell. Each record citing this list's record
-    /// ([`Backing::Carried`]) lands on every pair drawn from its two
-    /// cells' images whose interiors meet, read by the census's own
-    /// record confirm at `band` through `region` (the chart-region door
-    /// the census's doors take, [`crate::RegionLane`]; without it a
-    /// face–face pair is unread), so what lands is what the census
-    /// confirms. Nothing else of the result is searched.
+    /// ([`Backing::Carried`]) lands as [`landings`] places it: on its
+    /// cells' images by lineage, unread, where the op kept or
+    /// substituted both cells, and otherwise on every pair drawn from
+    /// its two cells' images whose interiors meet, read by the census's
+    /// own record confirm at `band` through `region` (the chart-region
+    /// door the census's doors take, [`crate::RegionLane`]; without it a
+    /// face–face pair is unread). Nothing else of the result is
+    /// searched.
     ///
     /// A conventional vertex has no identity of its own, so an image
     /// landing on one is its closed edge. Two records landing on one
@@ -502,9 +507,10 @@ impl ContactRecords {
     /// # Errors
     ///
     /// [`CarryRefusal::Unmapped`] for a cell the lineage does not cover;
-    /// [`CarryRefusal::Unread`] for a pair the confirm cannot read;
-    /// [`CarryRefusal::MintedMeeting`] for two cells the op minted on
-    /// the record's two cells meeting at a point it cannot back;
+    /// [`CarryRefusal::Unread`] for a pair drawn from a divided cell
+    /// that the confirm cannot read; [`CarryRefusal::MintedMeeting`] for
+    /// two cells the op minted on the record's two cells meeting at a
+    /// point it cannot back;
     /// [`CarryRefusal::Stale`] for a record that lands nowhere with no
     /// removal to consume it, and [`CarryRefusal::Pair`] for one whose
     /// every pair of images is one cell or incident.
@@ -692,13 +698,21 @@ impl<T: geom_core::Decide> Confirms<'_, T> {
 }
 
 /// **The one carry's placement** (D1): each of `rows`, a record's two
-/// input cells, put on every pair drawn from its cells' images under
-/// `lineage` that a side holds and whose interiors meet, read by the
-/// census's own record confirm at `band` through `region`. The sides
-/// hold disjoint keys. A conventional vertex reads as its closed edge.
+/// input cells, put on the pairs drawn from its cells' images under
+/// `lineage` that a side holds. Where the lineage kept or substituted
+/// both cells, and every image holds its cell's geometry where the op
+/// handed its input's over ([`crate::Lineage::from_source`]), every such
+/// pair that is not structure is a landing, unread: each image is on
+/// its cell's carrier and holds its old interior, and the record was
+/// read where it was minted. Otherwise the pairs are the ones whose
+/// interiors meet, read by the census's own record confirm at `band`
+/// through `region`. The sides hold disjoint keys. A conventional
+/// vertex reads as its closed edge.
 ///
 /// A row that lands nowhere, every pair read definitely, is consumed
-/// where the lineage removed one of its cells or part of one, where its
+/// where the lineage removed one of its cells or part of one, where an
+/// image does not hold its cell's geometry (the touch went with what
+/// the op moved), where its
 /// two vertices became one vertex (D1's strict record-drop rule), or,
 /// for an op that glues cells ([`crate::Lineage::glued`]), where every
 /// pair of its images is structure.
@@ -739,6 +753,25 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
                 .collect()
         });
         let images = cells.map(|c| lineage.images(c));
+        // An image that does not hold its input cell's geometry, where the
+        // op handed its input's geometry over: the op moved what the
+        // record's touch lay on.
+        let moved = lineage.source().is_some_and(|source| {
+            (0..2).any(|i| {
+                images[i].iter().any(|&c| {
+                    sides
+                        .iter()
+                        .find(|b| holds(b, c))
+                        .is_some_and(|b| !source.holds_as(cells[i], c, b))
+                })
+            })
+        });
+        // Cells the op kept or substituted, unmoved, hold the touch, and
+        // the record was read where it was minted: it lands by lineage.
+        let unread = !moved
+            && fates
+                .iter()
+                .all(|f| matches!(f, crate::Fate::Kept { .. } | crate::Fate::Substituted(_)));
         let mut landed = false;
         let mut read = false;
         let mut structure: Option<ContactPairError> = None;
@@ -776,15 +809,17 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
                             continue;
                         }
                     };
-                    read = true;
-                    let confirm = confirm.get_or_insert_with(|| {
-                        crate::census::RecordConfirm::of(body, band, region)
-                    });
-                    if !confirm.meets(pair).map_err(|_| CarryRefusal::Unread {
-                        record,
-                        cells: pair.cells(),
-                    })? {
-                        continue;
+                    if !unread {
+                        read = true;
+                        let confirm = confirm.get_or_insert_with(|| {
+                            crate::census::RecordConfirm::of(body, band, region)
+                        });
+                        if !confirm.meets(pair).map_err(|_| CarryRefusal::Unread {
+                            record,
+                            cells: pair.cells(),
+                        })? {
+                            continue;
+                        }
                     }
                     landed = true;
                     out.push(Landing {
@@ -802,7 +837,8 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
         }
         let removed = fates.iter().any(crate::Fate::removes);
         if read {
-            if removed {
+            // A touch on geometry the op moved went with it.
+            if removed || moved {
                 continue;
             }
             return Err(CarryRefusal::Stale { record });

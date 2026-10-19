@@ -2419,3 +2419,4 @@ The PR merged with `demos` red on that drift alone.
   - Merged PR 5347 at c246240ea0 (lane `srank`; full review; fold lane `srfix`). The open-carrier seam rank, including the two-gap arc read from the gap no group vertex bounds. That is the orchestrator's reading of Ev's 5107 approval of "one open curve (an arc)", told to Ev in chat. The filed two-gap design row closed with it.
   - Opened PR 5356 (lane `nclos`): the notch-apex closure in `borders.rs`, under full review. A slow-set rename was fixed by the orchestrator.
   - Filed `seam-rank-extents-compare-carrier-parameters-as-metres` (P3), found in `srfix`'s sweep.
+- 2026-10-19 — Ev approved [ev] PR 5345 ("sounds good"). The pair-boolean covered-pair row is closed as stale on main: pinned, with the README sentence. Its fork-log row is renumbered 172 → 173 → 174 at the main merges, because main took 172 and 173. Ev, match and A/B are filled: both designers, byte 142, A = Opus.
