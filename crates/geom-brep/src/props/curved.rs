@@ -36,6 +36,7 @@ use super::closure::{self, ChartLoop, EdgeTurn, Joint};
 use super::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
 use crate::dihedral::decide;
 use crate::implicit::cone_offset;
+use crate::pcurve_cache::{BranchMiss, Period};
 
 /// The flux and area of a curved face from its **outer** loop:
 /// [`curved_face_loops`] over that one loop. `band` is the run's
@@ -1102,7 +1103,7 @@ fn require_rims_at_extremes<T: Decide>(
 /// A linearly-leveled face's boundary, parsed once — **and the
 /// metering choice that goes with it**.
 ///
-/// The rims and levels are the parse; `arms` and `as_level` are the
+/// The rims and levels are the parse; `arms` and `cosines` are the
 /// decisions about *how a level is compared*, and they live here
 /// because S81 was two sites making that decision independently and
 /// drifting apart. The flux lane and [`boundary_material_sign`] each
@@ -1117,10 +1118,41 @@ struct LinearBoundary<T: Real> {
     levels: Vec<T>,
     /// The kind's lever arms ([`RimArms`]).
     arms: RimArms<T>,
-    /// Lifts a scalar extreme into the rims' own [`RimLevel`]
-    /// representation: `Length` for the cylinder and cone, the
-    /// latitude-sine `Unit` pair for the sphere.
-    as_level: fn(T) -> RimLevel<T>,
+    /// On the sphere, each level's latitude cosine, beside it in
+    /// `levels` and read where the level is found (a rim's `r_c/R`, a
+    /// meridian end's distance from the axis over `R`, a pole's zero):
+    /// a cosine completed from the sine as `√(1 − s²)` carries `√(2u)`
+    /// near a pole. Empty for the cylinder and the cone, whose levels
+    /// are lengths.
+    cosines: Vec<T>,
+}
+
+impl<T: Decide> LinearBoundary<T> {
+    /// The face's extreme levels `(lo, hi)` lifted into the rims' own
+    /// [`RimLevel`] representation: `Length` for the cylinder and cone,
+    /// the latitude `Unit` pair for the sphere, its cosine the one
+    /// carried beside the level at that extreme (selected by sine; the
+    /// interval scalar hulls the cosines of levels its sines cannot
+    /// tell apart, which near a pole are one latitude's).
+    fn ends(&self, (lo, hi): (T, T)) -> (RimLevel<T>, RimLevel<T>) {
+        let (Some((&s0, rest)), Some(&c0)) = (self.levels.split_first(), self.cosines.first())
+        else {
+            return (RimLevel::Length(lo), RimLevel::Length(hi));
+        };
+        let at = |toward: T| {
+            let (mut s, mut c) = (s0, c0);
+            for (&si, &ci) in rest.iter().zip(&self.cosines[1..]) {
+                // `≤ 0` when `si` is at least as far toward the extreme.
+                let d = (si - s) * toward;
+                (s, c) = (d.select_le_zero(si, s), d.select_le_zero(ci, c));
+            }
+            c
+        };
+        (
+            RimLevel::Unit(lo, at(T::one())),
+            RimLevel::Unit(hi, at(-T::one())),
+        )
+    }
 }
 
 /// `s_f` from `rim`'s level and the face's level range: the interior
@@ -1173,7 +1205,7 @@ fn unanimous_rim_side<T: Decide>(
     (lo, hi): (T, T),
     band: Band,
 ) -> Result<Option<Sign>, PropsError> {
-    require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)?;
+    require_rims_at_extremes(&b.rims, b.ends((lo, hi)), b.arms, band)?;
     let mut answer: Option<Sign> = None;
     for rim in &b.rims {
         let s = rim_side(rim, lo, hi, b.arms, band)?;
@@ -1339,7 +1371,21 @@ fn cylinder_windings<T: Decide>(
     spans: &[(usize, T)],
     band: Band,
 ) -> Result<Vec<[i64; 1]>, PropsError> {
-    closure::require_axis_inside(radius, band)?;
+    // The axis inside each rim carried to it, read at the rim's own
+    // radius (the least of them decides for all): the surface's may be
+    // up to `ε` less, and a cylinder narrower than `Kε` whose rims the
+    // axis class admits holds no such premise in doubt.
+    let least_rim = loops
+        .iter()
+        .flat_map(|l| l.iter())
+        .filter_map(|e| match e.carrier {
+            Curve3::Circle { radius: r, .. } => Some(r),
+            _ => None,
+        })
+        .reduce(T::min);
+    if let Some(r) = least_rim {
+        closure::require_axis_inside(r, band)?;
+    }
     let chart_loops: Vec<ChartLoop<T, 1>> = loops
         .iter()
         .enumerate()
@@ -1705,7 +1751,7 @@ fn cylinder_boundary<T: Decide>(
         rims,
         levels,
         arms: RimArms::uniform(radius),
-        as_level: RimLevel::Length,
+        cosines: Vec::new(),
     })
 }
 
@@ -2762,7 +2808,7 @@ fn cone_boundary<T: Decide>(
         rims,
         levels,
         arms,
-        as_level: RimLevel::Length,
+        cosines: Vec::new(),
     };
     if !generators && !b.rims.is_empty() {
         cone_apex_level(&mut b, edges, band)?;
@@ -3119,14 +3165,25 @@ fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> 
         fan = if left { fan + gap } else { fan - gap };
     }
     let four_pi = tau + tau;
+    // The fan's branch, by floor, and deliberately not decided: no
+    // decision and no identity reads `turns`, only the numeric blend
+    // below. Where `gauss − fan` straddles a half period — the interval
+    // scalar's enclosure of the solid-angle sum can be wider than one —
+    // the floor's enclosure spans both branches and the blend encloses
+    // the true value, where a decision would fail on an enclosure wider
+    // than a period. At an `f64` tie either branch leaves a gap of `±2π`,
+    // far past the agreement band, so either blends to Gauss–Bonnet's
+    // value exactly. At `Sym` the blend is numeric whatever `turns` is.
+    // (`work/flux/props-torus-lift-and-gauss-bonnet-fan-pick-a-branch-by-floor`.)
     let turns = ((gauss - fan) / four_pi + T::from_f64(0.5)).floor();
     let fixed = fan + four_pi * turns;
     let gap = fixed - gauss;
     // The residue the fan gives up to Gauss–Bonnet: zero for
-    // `|gap| ≤ τ`, the whole gap for `|gap| ≥ 2τ`, linear between —
-    // `shrink + clamp(shrink)`, with `shrink` the gap less `τ` toward
-    // zero. Both halves are `min`/`max` of the gap against constants,
-    // so an enclosure inside the band yields `[0, 0]` exactly.
+    // `|gap| ≤ reach` ([`FAN_AGREEMENT_SR`]), the whole gap for
+    // `|gap| ≥ 2·reach`, linear between — `shrink + clamp(shrink)`, with
+    // `shrink` the gap less `reach` toward zero. Both halves are
+    // `min`/`max` of the gap against constants, so an enclosure inside
+    // the band yields `[0, 0]` exactly.
     let reach = T::from_f64(FAN_AGREEMENT_SR);
     let shrink = (gap - reach).max(T::zero()) + (gap + reach).min(T::zero());
     let residue = shrink + shrink.max(-reach).min(reach);
@@ -3941,7 +3998,7 @@ fn sphere_meridian_span_levels<T: Decide>(
     radius: T,
     axis: Vec3<T>,
     n_c: Vec3<T>,
-    levels: &mut Vec<T>,
+    (levels, cosines): (&mut Vec<T>, &mut Vec<T>),
     band: Band,
 ) -> Result<(), PropsError> {
     for (m, extreme) in sphere_meridian_pole_margins(e, center, radius, axis, n_c, band)? {
@@ -3959,7 +4016,10 @@ fn sphere_meridian_span_levels<T: Decide>(
         // and level decides downstream refuse typed; a poisoned span
         // is refused upstream by certification before this parse.
         match decide("props_meridian_pole", Margin::levered(m, radius), band) {
-            Ok(Sign::Positive | Sign::Zero) | Err(_) => levels.push(extreme),
+            Ok(Sign::Positive | Sign::Zero) | Err(_) => {
+                levels.push(extreme);
+                cosines.push(T::zero());
+            }
             Ok(Sign::Negative) => {}
         }
     }
@@ -3978,7 +4038,14 @@ fn sphere_boundary<T: Decide>(
     band: Band,
 ) -> Result<LinearBoundary<T>, PropsError> {
     let mut rims: Vec<Rim<T>> = Vec::new();
-    let mut levels: Vec<T> = Vec::new();
+    let (mut levels, mut cosines): (Vec<T>, Vec<T>) = (Vec::new(), Vec::new());
+    // A point's latitude, its sine and cosine each off its own offset
+    // from the centre: along the axis, and out from it.
+    let latitude = |p: Point3<T>| {
+        let w = p - center;
+        let h = w.dot(axis);
+        (h / radius, (w - axis * h).norm() / radius)
+    };
     for e in edges {
         let Curve3::Circle {
             center: c_c,
@@ -4027,6 +4094,7 @@ fn sphere_boundary<T: Decide>(
                 let level = RimLevel::Unit(sin_v, cos_v);
                 rims.push(Rim::decided(e, rim_dir(s, e.forward), level, r_c, band)?);
                 levels.push(sin_v);
+                cosines.push(cos_v);
             }
             Sign::Zero => {
                 // Meridian great circle: centered at the sphere center
@@ -4037,28 +4105,37 @@ fn sphere_boundary<T: Decide>(
                     band,
                     Premise::Inventory,
                 )?;
-                levels.push((e.p0() - center).dot(axis) / radius);
-                levels.push((e.p1() - center).dot(axis) / radius);
+                for p in [e.p0(), e.p1()] {
+                    let (sin_p, cos_p) = latitude(p);
+                    levels.push(sin_p);
+                    cosines.push(cos_p);
+                }
                 // The arc's extent is its stored span's, not its
                 // endpoints': fold in the pole latitude(s) the span
                 // contains (see `sphere_meridian_span_levels`); the
                 // pole helper decides first that the span is one the
                 // fold may read.
-                sphere_meridian_span_levels(e, center, radius, axis, n_c, &mut levels, band)?;
+                sphere_meridian_span_levels(
+                    e,
+                    center,
+                    radius,
+                    axis,
+                    n_c,
+                    (&mut levels, &mut cosines),
+                    band,
+                )?;
             }
         }
     }
     // Sphere levels are latitude SINES; the rims carry the full
-    // `(sin v, cos v)` direction pair, so the lift completes a scalar
-    // extreme with its cosine (latitudes live in `[−π/2, π/2]`, so
-    // the cosine is the nonnegative root; the `max` keeps the sqrt
-    // in-domain when a folded extreme sits a rounding past ±1).
+    // `(sin v, cos v)` direction pair, so each level carries its cosine
+    // beside it, read where it is found ([`LinearBoundary::ends`]).
     // Metered at the sphere radius, which is also its azimuthal arm.
     Ok(LinearBoundary {
         rims,
         levels,
         arms: RimArms::uniform(radius),
-        as_level: |s| RimLevel::Unit(s, (T::one() - s.powi(2)).max(T::zero()).sqrt()),
+        cosines,
     })
 }
 
@@ -4373,7 +4450,7 @@ fn torus_chart<T: Decide>(
         // number of turns the walk reached it on, so a rim's lifted
         // level depends on the loop's geometry and not on where the
         // walk began: the turns are counted from the loop's lowest.
-        let mut rims: Vec<(T, T, T)> = Vec::new();
+        let mut rims: Vec<(T, i32, T)> = Vec::new();
         let mut running = None;
         let mut length = T::zero();
         for step in &steps {
@@ -4385,12 +4462,9 @@ fn torus_chart<T: Decide>(
                     rho,
                 } => {
                     let angle = torus_angle(sin_v, cos_v, band);
-                    // The running `v` reaches the rim's level within the
-                    // junctions' slack, every junction being decided
-                    // closed: it picks the branch, not the level.
+                    // The running `v` picks the branch, not the level.
                     let at = running.unwrap_or(angle);
-                    let turns = (at - angle).periodic_branch(T::tau());
-                    let v = angle + T::tau() * turns;
+                    let (turns, v) = torus_lift(at, angle, minor, band)?;
                     running = Some(v);
                     length = length + rho * du.abs();
                     rims.push((angle, turns, du));
@@ -4401,14 +4475,10 @@ fn torus_chart<T: Decide>(
                 }
             }
         }
-        let base = rims
-            .iter()
-            .map(|&(_, turns, _)| turns)
-            .fold(None, |lo: Option<T>, k| Some(lo.map_or(k, |lo| lo.min(k))))
-            .unwrap_or_else(T::zero);
+        let base = rims.iter().map(|&(_, turns, _)| turns).min().unwrap_or(0);
         let lifted: Vec<(T, T)> = rims
             .iter()
-            .map(|&(angle, turns, du)| (angle + T::tau() * (turns - base), du))
+            .map(|&(angle, turns, du)| (angle + Period::new(T::tau()).times(turns - base), du))
             .collect();
         let (lo, hi) = min_max(&lifted.iter().map(|&(v, _)| v).collect::<Vec<_>>())?;
         let anchor = lo + (hi - lo) * half;
@@ -4432,6 +4502,32 @@ fn torus_chart<T: Decide>(
         )?;
     }
     Ok(total)
+}
+
+/// **A rim's tube angle lifted onto a torus loop's running one**: the
+/// whole turns `k` the running angle `at` is from the rim's own `angle`
+/// (`props_torus_lift_turns`), decided as structure — the branch of
+/// `at − angle` through the half-turn marks, metered at the minor
+/// radius ([`Period::decide`]), an integer and never a value's floor —
+/// and the lifted level `angle + k·τ`, its shift a literal at every
+/// scalar. Every junction of the loop is decided closed and every
+/// edge's turn whole within its slack ([`closure::closed_form_windings`])
+/// before the lift is read, so `at − angle` is a whole number of turns
+/// to within `≈ Kε/minor`, half a turn clear of either mark, and the
+/// marks decide; a gap on a mark is no rim's.
+fn torus_lift<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i32, T), PropsError> {
+    let name = "props_torus_lift_turns";
+    let period = Period::new(T::tau());
+    period
+        .decide(name, at - angle, |g| Margin::levered(g, minor), band)
+        .map(|k| (k, angle + period.times(k)))
+        .map_err(|stop| match stop.miss {
+            BranchMiss::Undecided(cause) => PropsError::Escalated {
+                cause,
+                check: PropsCheck::Inventory,
+            },
+            BranchMiss::OnMark => PropsError::NotIsoRectangle { what: name },
+        })
 }
 
 /// One torus loop for the closure decision ([`closure::closed_form_windings`]):
@@ -5113,5 +5209,58 @@ mod rim_level_review_probe {
             .expect("decides"),
             "a pair inside the band by its chord is one level"
         );
+    }
+}
+
+/// **A torus rim's lift is its whole turns as a theorem over a box**
+/// ([`torus_lift`]): at `Sym<Interval>`, a running angle `k` turns from
+/// the rim's, both polynomials in a parameter over `[0.2, 0.4]` that are
+/// not constants (`a = p² + p + k·τ`, `b = p·(p + 1)`, whose value
+/// channels' difference is `≈ 0.64` rad wide with the dependency lost),
+/// at `k ∈ {−1, 0, 1, 2}`: the lift decides `k`, and the lifted level
+/// less `b + k·τ` is the zero polynomial, decided Zero by the symbolic
+/// tier. A branch read off a floor carries an atom the tier cannot
+/// fold, and a branch held constant misses every `k` but one.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod torus_lift_rows {
+    use super::*;
+    use geom_core::{Interval, ParamSymbol, Sym, SymBudget, Tol};
+
+    #[test]
+    fn a_rims_lift_is_its_whole_turns_as_a_theorem_over_a_box() {
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        for k in [-1, 0, 1, 2] {
+            let (out, counts) = geom_core::sym::with_session(budget, || {
+                let p = Sym::param_over(
+                    ParamSymbol::new(test_utils::symbol_id("torus_lift_box")),
+                    Interval::from_bounds(0.2, 0.4),
+                    0.2,
+                    0.4,
+                );
+                let a = p * p + p + Sym::from_f64(f64::from(k)) * Sym::tau();
+                let b = p * (p + Sym::<Interval>::one());
+                let (turns, level) = torus_lift(a, b, Sym::from_f64(0.5), band)
+                    .unwrap_or_else(|e| panic!("k = {k}: {e:?}"));
+                assert_eq!(turns, k, "k = {k}: the lift's whole turns");
+                decide(
+                    "torus_lift_row",
+                    Margin::of(level - (b + Sym::from_f64(f64::from(k)) * Sym::tau())),
+                    band,
+                )
+            });
+            assert!(
+                matches!(out, Ok(Sign::Zero)),
+                "k = {k}: the lifted level is the rim's plus {k} turns: {out:?}"
+            );
+            assert_eq!(
+                counts.symbolic, 1,
+                "k = {k}: the level less the rim's plus kτ is the zero polynomial"
+            );
+        }
     }
 }

@@ -4,6 +4,8 @@ kind: issue
 title: blend: a foot at a curved rim's anti-seam reads the whole turn at Interval, so split_param_in_span refuses it as off-span
 status: open
 opened: 2026-10-19
+priority: P2
+cost: M
 ---
 
 
