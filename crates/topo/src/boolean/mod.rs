@@ -6731,9 +6731,10 @@ pub(crate) enum RestTangent<T: Real> {
     /// ([`locus_through_both_faces`]): no span of the line is in both,
     /// so their interiors do not meet along it.
     Apart,
-    /// The jet schedule verified the line over where both extents meet,
-    /// `overlap`; whether the line lies in the two faces there is the
-    /// caller's to read.
+    /// The faces' extents along the line meet over `overlap`; whether
+    /// the line lies in the two faces there is the caller's to read
+    /// ([`rest_line_in_both_faces`]), and only then whether the table
+    /// holds along it ([`tangent_table_at_rest`]).
     Line {
         /// The tangent line.
         carrier: geom::Curve3<T>,
@@ -6743,19 +6744,18 @@ pub(crate) enum RestTangent<T: Real> {
 }
 
 /// **A face–face record on two carriers, read at rest** (C3): the
-/// closed-form line their carriers derive ([`tangent_line`]), the two
-/// faces' extents along it, and, where those meet, the C4 `Tangent`
-/// table along it there ([`contact_verify::tangent_locus_relation`], the
-/// declared posture, the record standing as the declaration), material
-/// sides included.
+/// closed-form line their carriers derive ([`tangent_line`]) and the two
+/// faces' extents along it. The `Tangent` table along it, material
+/// sides included, is [`tangent_table_at_rest`], which reads only a
+/// line known to run through both faces ([`RestLineInBothFaces`]): a
+/// pair the line misses does not meet, whatever its sides.
 ///
 /// # Errors
 ///
-/// [`crate::contact::ContactRefusal::Contradicted`] where the pair is
-/// definitely not tangent, labelled with the row that refused it, or the
-/// table contradicts it; `Escalated` where a margin is in band; and
-/// `NotCertifiable` where no closed-form locus derives or a face cannot
-/// be read (naming why).
+/// [`crate::contact::ContactRefusal::Contradicted`] where the carriers
+/// are definitely not tangent, labelled with the row that refused it;
+/// `Escalated` where a margin is in band; and `NotCertifiable` where no
+/// closed-form locus derives or a face cannot be read (naming why).
 pub(crate) fn tangent_pair_at_rest<T: Decide>(
     body: &Body<T>,
     fa: FaceKey,
@@ -6763,17 +6763,8 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
     band: Band,
 ) -> Result<RestTangent<T>, crate::contact::ContactRefusal> {
     use crate::contact::ContactRefusal;
-    let surface = |f| {
-        let face = body.get_face(f)?;
-        Some((body.get_surface(face.surface)?.clone(), face.sense))
-    };
-    let ((sa, sense_a), (sb, sense_b)) =
-        surface(fa)
-            .zip(surface(fb))
-            .ok_or(ContactRefusal::NotCertifiable {
-                what: "a face of the face-face record has no surface",
-            })?;
-    let line = tangent_line((body, fa, &sa), (body, fb, &sb), band).map_err(|e| {
+    let ((sa, _), (sb, _)) = (record_face(body, fa)?, record_face(body, fb)?);
+    let line = tangent_line((body, fa, sa), (body, fb, sb), band).map_err(|e| {
         ContactRefusal::NotCertifiable {
             what: match e {
                 BooleanError::InvalidInput { what, .. } => what,
@@ -6810,21 +6801,91 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
         Ok(false) => return Ok(RestTangent::Apart),
         Err(diag) => return Err(ContactRefusal::Escalated { diag }),
     }
+    Ok(RestTangent::Line {
+        carrier: line.carrier,
+        overlap: line.overlap,
+    })
+}
+
+/// A face of a face–face record on two carriers: its surface and sense.
+fn record_face<T: Real>(
+    body: &Body<T>,
+    f: FaceKey,
+) -> Result<(&geom::Surface<T>, bool), crate::contact::ContactRefusal> {
+    body.get_face(f)
+        .and_then(|face| Some((body.get_surface(face.surface)?, face.sense)))
+        .ok_or(crate::contact::ContactRefusal::NotCertifiable {
+            what: "a face of the face-face record has no surface",
+        })
+}
+
+/// A record's tangent line known to run through both faces' interiors
+/// ([`rest_line_in_both_faces`], the only constructor): what
+/// [`tangent_table_at_rest`] reads, so the sides are never read for a
+/// pair the line misses.
+pub(crate) struct RestLineInBothFaces<'b, T: Real> {
+    body: &'b Body<T>,
+    faces: [FaceKey; 2],
+    carrier: geom::Curve3<T>,
+    overlap: (T, T),
+}
+
+/// [`line_through_both_faces`] for a face–face record's line at rest
+/// ([`RestTangent::Line`]): `Some` where the line runs through both
+/// faces' interiors, `None` where it does not.
+///
+/// # Errors
+///
+/// What [`line_through_both_faces`] leaves unread.
+pub(crate) fn rest_line_in_both_faces<'b, T: Decide, E>(
+    body: &'b Body<T>,
+    faces: [FaceKey; 2],
+    carrier: geom::Curve3<T>,
+    overlap: (T, T),
+    band: Band,
+    unread: impl Fn(usize, FaceUnread, &mut Vec<E>),
+) -> Result<Option<RestLineInBothFaces<'b, T>>, Vec<E>> {
+    let through =
+        line_through_both_faces(faces.map(|f| (body, f)), &carrier, overlap, band, unread)?;
+    Ok(through.then_some(RestLineInBothFaces {
+        body,
+        faces,
+        carrier,
+        overlap,
+    }))
+}
+
+/// The C4 `Tangent` table of a face–face record on two carriers along
+/// their tangent line, where it runs through both faces
+/// ([`RestLineInBothFaces`]), the declared posture, the record standing
+/// as the declaration ([`contact_verify::tangent_locus_relation`]): the
+/// touch and the material sides.
+///
+/// # Errors
+///
+/// [`crate::contact::ContactRefusal::Contradicted`] where the table
+/// contradicts the touch or the sides (`contact_tangent_opposed`,
+/// `contact_tangent_overlap`); `Escalated` where a margin is in band;
+/// `NotCertifiable` where a face has no surface.
+pub(crate) fn tangent_table_at_rest<T: Decide>(
+    line: &RestLineInBothFaces<'_, T>,
+    band: Band,
+) -> Result<(), crate::contact::ContactRefusal> {
+    let [fa, fb] = line.faces;
+    let ((sa, sense_a), (sb, sense_b)) = (record_face(line.body, fa)?, record_face(line.body, fb)?);
+    let (t0, t1) = line.overlap;
     contact_verify::tangent_locus_relation(
-        &sa,
+        sa,
         sense_a,
-        &sb,
+        sb,
         sense_b,
         &line.carrier,
         t0,
         t1,
         true,
         band,
-    )?;
-    Ok(RestTangent::Line {
-        carrier: line.carrier,
-        overlap: line.overlap,
-    })
+    )
+    .map(|_| ())
 }
 
 /// **The glue door's tangency**: the check ([`verify_tangency`]), and

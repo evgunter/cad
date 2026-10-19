@@ -7429,15 +7429,17 @@ fn confirm_edge_face<T: Decide>(
 ///   whose carrier door contradicts two distinct planes.
 /// - **A sphere and a plane, or two spheres**: their point touch
 ///   ([`point::face_face`]).
-/// - **Two other carriers**: the closed-form tangent line they derive,
-///   both faces' extents along it, and the `Tangent` table where those
-///   meet, material sides included
+/// - **Two other carriers**: the closed-form tangent line they derive
+///   and both faces' extents along it
 ///   ([`crate::boolean::tangent_pair_at_rest`]). Extents definitely
 ///   apart are stale. Where they meet, the line is read through both
 ///   faces the way the op reads it
-///   ([`crate::boolean::line_through_both_faces`]): some station inside
-///   both confirms the record, every station out of either is stale.
-///   Refused typed where no line derives.
+///   ([`crate::boolean::line_through_both_faces`]): every station out
+///   of either is stale, whatever the two faces' sides, since a pair the
+///   line misses does not meet. Some station inside both reads the
+///   table along it, sides included
+///   ([`crate::boolean::tangent_table_at_rest`]), which confirms or
+///   contradicts the record. Refused typed where no line derives.
 fn confirm_face_pair<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -7497,14 +7499,9 @@ fn confirm_face_pair<T: Decide>(
         }
         return;
     }
-    let (carrier, (t0, t1)) = match crate::boolean::tangent_pair_at_rest(body, a, b, band) {
-        Ok(crate::boolean::RestTangent::Apart) => {
-            errors.push(stale);
-            return;
-        }
-        Ok(crate::boolean::RestTangent::Line { carrier, overlap }) => (carrier, overlap),
-        Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
-            errors.push(ValidationError::ContactContradicted {
+    let refused = |refusal| match refusal {
+        crate::contact::ContactRefusal::Contradicted { diag, steer } => {
+            ValidationError::ContactContradicted {
                 declaration: crate::contact::DeclaredContact {
                     a,
                     b,
@@ -7513,28 +7510,35 @@ fn confirm_face_pair<T: Decide>(
                 witness: TANGENT_LOCUS_WITNESS.to_owned(),
                 margin: diag,
                 steer,
-            });
-            return;
+            }
         }
-        Err(
-            crate::contact::ContactRefusal::Escalated { diag }
-            | crate::contact::ContactRefusal::Undeclared { diag },
-        ) => {
-            errors.push(ValidationError::CensusEscalated { cause: diag });
-            return;
+        crate::contact::ContactRefusal::Escalated { diag }
+        | crate::contact::ContactRefusal::Undeclared { diag } => {
+            ValidationError::CensusEscalated { cause: diag }
         }
-        Err(refusal @ crate::contact::ContactRefusal::NotCertifiable { .. }) => {
-            errors.push(ValidationError::CensusUnsupported {
+        refusal @ crate::contact::ContactRefusal::NotCertifiable { .. } => {
+            ValidationError::CensusUnsupported {
                 subject: CensusSubject::FacePair(a, b),
                 cause: CensusUnsupportedCause::ContactLane(refusal),
-            });
+            }
+        }
+    };
+    let (carrier, overlap) = match crate::boolean::tangent_pair_at_rest(body, a, b, band) {
+        Ok(crate::boolean::RestTangent::Apart) => {
+            errors.push(stale);
+            return;
+        }
+        Ok(crate::boolean::RestTangent::Line { carrier, overlap }) => (carrier, overlap),
+        Err(refusal) => {
+            errors.push(refused(refusal));
             return;
         }
     };
-    let through = crate::boolean::line_through_both_faces(
-        [(body, a), (body, b)],
-        &carrier,
-        (t0, t1),
+    let through = crate::boolean::rest_line_in_both_faces(
+        body,
+        [a, b],
+        carrier,
+        overlap,
         band,
         |i, why, held| match why {
             crate::boolean::FaceUnread::Trim => held.push(ValidationError::CensusUnsupported {
@@ -7554,10 +7558,19 @@ fn confirm_face_pair<T: Decide>(
             }
         },
     );
-    match through {
-        Ok(true) => {}
-        Ok(false) => errors.push(stale),
-        Err(held) => errors.extend(held),
+    let line = match through {
+        Ok(Some(line)) => line,
+        Ok(None) => {
+            errors.push(stale);
+            return;
+        }
+        Err(held) => {
+            errors.extend(held);
+            return;
+        }
+    };
+    if let Err(refusal) = crate::boolean::tangent_table_at_rest(&line, band) {
+        errors.push(refused(refusal));
     }
 }
 
@@ -14555,6 +14568,221 @@ mod two_carrier_records {
         #[test]
         fn a_plain_plate_is_confirmed() {
             confirmed(&PLAIN, (0.5, 3.5));
+        }
+
+        /// The sheet's material outside its cylinder, so its sides
+        /// contradict a contact with the plate: `(ε, swapped, errors)`
+        /// of each row.
+        fn census_opposed(outline: &[(f64, f64)]) -> (Rig, Vec<(f64, bool, Vec<ValidationError>)>) {
+            let mut r = rig(outline, (0.5, 3.5), (-0.5, 0.5));
+            r.body.get_face_mut(r.wall).unwrap().sense = false;
+            let rows = census(&r);
+            (r, rows)
+        }
+
+        /// The line inside both faces and the sheet's sides wrong: the
+        /// record is contradicted in every row.
+        #[test]
+        fn a_line_through_both_faces_with_its_sides_wrong_is_contradicted() {
+            let (r, rows) = census_opposed(&PLAIN);
+            for (b, swap, errors) in rows {
+                assert!(
+                    names_contradicted(&errors, r.wall, r.top) && !stale(&errors),
+                    "band {b:e} swap {swap}: {errors:?}"
+                );
+            }
+        }
+
+        /// The same sheet over a plate whose top face stops
+        /// at y = −0.5: the extents along the line meet, but the line
+        /// is in no run of the plate's face, so the two do not meet and
+        /// the record is stale, whatever the sides. Red when the
+        /// sides are read before the line is placed in the faces.
+        #[test]
+        fn a_line_off_a_face_is_stale_whatever_its_sides() {
+            let (r, rows) = census_opposed(&[(0.0, -1.0), (4.0, -1.0), (4.0, -0.5), (0.0, -0.5)]);
+            for (b, swap, errors) in rows {
+                assert!(
+                    stale(&errors) && !names_contradicted(&errors, r.wall, r.top),
+                    "band {b:e} swap {swap}: {errors:?}"
+                );
+            }
+        }
+
+        fn names_contradicted(errors: &[ValidationError], a: FaceKey, b: FaceKey) -> bool {
+            errors.iter().any(|e| {
+                matches!(
+                    e,
+                    ValidationError::ContactContradicted { declaration, .. }
+                        if [declaration.a, declaration.b] == [a, b]
+                            || [declaration.a, declaration.b] == [b, a]
+                )
+            })
+        }
+
+        /// The census's reading of the record on `rig(outline, wx)` with
+        /// the sheet's `sense`, in both cell orders, at the witness band:
+        /// `stale`, `contradicted(..)`, `escalated(..)`, `unsupported`,
+        /// or `confirmed` where nothing names the pair.
+        fn reading(outline: &[(f64, f64)], wx: (f64, f64), sense: bool) -> [String; 2] {
+            let mut r = rig(outline, wx, (-0.5, 0.5));
+            r.body.get_face_mut(r.wall).unwrap().sense = sense;
+            let b = Band::linear(Tol::witness()).unwrap();
+            let (a, t) = (r.wall, r.top);
+            let is = |x: FaceKey, y: FaceKey| (x, y) == (a, t) || (x, y) == (t, a);
+            [(a, t), (t, a)].map(|(x, y)| {
+                let errors = census_and_certify(
+                    &r.body,
+                    &one(&r.body, Cell::Face(x), Cell::Face(y)),
+                    b,
+                    Tol::witness(),
+                    None,
+                );
+                let read: Vec<String> = errors
+                    .iter()
+                    .filter_map(|e| match e {
+                        ValidationError::StaleContactDeclaration {
+                            declaration: StaleDeclaration::Patch { face_a, face_b },
+                        } if is(*face_a, *face_b) => Some("stale".to_owned()),
+                        ValidationError::ContactContradicted {
+                            declaration,
+                            margin,
+                            ..
+                        } if is(declaration.a, declaration.b) => {
+                            Some(format!("contradicted({:?})", margin.predicate))
+                        }
+                        ValidationError::CensusEscalated { cause } => {
+                            Some(format!("escalated({:?})", cause.predicate))
+                        }
+                        ValidationError::CensusUnsupported { .. } => Some("unsupported".into()),
+                        _ => None,
+                    })
+                    .collect();
+                if read.is_empty() {
+                    "confirmed".into()
+                } else {
+                    read.join("+")
+                }
+            })
+        }
+
+        /// Each `(what, outline, wx, sense, want)`: both cell orders'
+        /// readings start with `want`.
+        /// `(what, outline, wx, sense, want)`.
+        type ClosedFormRow<'w> = (String, Vec<(f64, f64)>, (f64, f64), bool, &'w str);
+
+        fn closed_form(rows: Vec<ClosedFormRow<'_>>) {
+            let bad: Vec<String> = rows
+                .into_iter()
+                .filter_map(|(what, outline, wx, sense, want)| {
+                    let got = reading(&outline, wx, sense);
+                    (!got.iter().all(|g| g.starts_with(want)))
+                        .then(|| format!("{what}: {got:?}, want {want}"))
+                })
+                .collect();
+            assert!(bad.is_empty(), "{bad:#?}");
+        }
+
+        /// The plate's edge at y = d, the line at y = 0, the sheet's
+        /// sides wrong and right. The line is outside the face for
+        /// d ≤ zero (stale, whatever the sides), in band between zero
+        /// and escalate (escalated), inside past escalate (the sides
+        /// decide: contradicted or confirmed).
+        #[test]
+        fn an_edge_offset_from_the_line_reads_in_closed_form() {
+            let b = Band::linear(Tol::witness()).unwrap();
+            let (z, e) = (b.zero(), b.escalate());
+            let mut rows = Vec::new();
+            for (d, wrong, right) in [
+                (-1e-2, "stale", "stale"),
+                (-10.0 * e, "stale", "stale"),
+                (-2.0 * e, "stale", "stale"),
+                (-0.5 * z, "stale", "stale"),
+                (0.0, "stale", "stale"),
+                (0.5 * z, "stale", "stale"),
+                (0.5 * (z + e), "escalated", "escalated"),
+                (2.0 * e, "contradicted", "confirmed"),
+                (10.0 * e, "contradicted", "confirmed"),
+                (1e-2, "contradicted", "confirmed"),
+            ] {
+                let o = vec![(0.0, -1.0), (4.0, -1.0), (4.0, d), (0.0, d)];
+                rows.push((
+                    format!("d {d:e} wrong"),
+                    o.clone(),
+                    (0.5, 3.5),
+                    false,
+                    wrong,
+                ));
+                rows.push((format!("d {d:e} right"), o, (0.5, 3.5), true, right));
+            }
+            closed_form(rows);
+        }
+
+        /// The sheet starting at x = 4 + s on the plain plate [0, 4],
+        /// its sides wrong: the extents overlap by −s, so the record is
+        /// contradicted past escalate, escalated in band, stale within
+        /// zero or beyond the plate.
+        #[test]
+        fn an_extent_end_offset_reads_in_closed_form() {
+            let b = Band::linear(Tol::witness()).unwrap();
+            let (z, e) = (b.zero(), b.escalate());
+            closed_form(
+                [
+                    (-10.0 * e, "contradicted"),
+                    (-0.5 * (z + e), "escalated"),
+                    (-0.5 * z, "stale"),
+                    (0.0, "stale"),
+                    (0.5 * z, "stale"),
+                    (10.0 * e, "stale"),
+                ]
+                .into_iter()
+                .map(|(s, want)| {
+                    (
+                        format!("s {s:e}"),
+                        PLAIN.to_vec(),
+                        (4.0 + s, 5.0),
+                        false,
+                        want,
+                    )
+                })
+                .collect(),
+            );
+        }
+
+        /// A tab of width w across the line, and a notch apex grazing
+        /// it, the sheet's sides wrong: contradicted past escalate; the
+        /// graze is stale. (A tab within the band has an edge the prism
+        /// fixture refuses to build.)
+        #[test]
+        fn a_tab_width_reads_in_closed_form() {
+            let b = Band::linear(Tol::witness()).unwrap();
+            let e = b.escalate();
+            let mut rows: Vec<_> = [(10.0 * e, "contradicted"), (1e-3, "contradicted")]
+                .into_iter()
+                .map(|(w, want)| {
+                    (
+                        format!("w {w:e}"),
+                        tab(1.1, 1.1 + w),
+                        (-1.0, 5.0),
+                        false,
+                        want,
+                    )
+                })
+                .collect();
+            rows.push((
+                "graze".into(),
+                vec![
+                    (0.0, -1.0),
+                    (4.0, -1.0),
+                    (4.0, -0.5),
+                    (2.0, 0.0),
+                    (0.0, -0.5),
+                ],
+                (-1.0, 5.0),
+                false,
+                "stale",
+            ));
+            closed_form(rows);
         }
 
         /// The line runs along the plate's edge y = 0: no run of it is
