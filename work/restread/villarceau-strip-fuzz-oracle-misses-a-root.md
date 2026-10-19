@@ -4,6 +4,9 @@ kind: issue
 title: The Villarceau strip fuzz's numeric oracle finds no root at seed 0xaaece85fd941a95f
 status: open
 opened: 2026-10-19
+priority: P1
+cost: E
+rides_with: main-red-torus-region-probe-fuzz-reads-on-boundary-near-the-tube
 ---
 
 `topo boolean::torus_region::tests::a_villarceau_strip_reads_its_side_at_random_points`
