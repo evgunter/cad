@@ -2486,11 +2486,7 @@ fn pair_edge_face<T: Decide>(
     f: &FaceGeo<T>,
     errors: &mut Vec<ValidationError>,
 ) {
-    let p1 = e.p0 + e.dir * e.len;
-    let r = [
-        (e.p0 - f.origin).dot(f.normal),
-        (p1 - f.origin).dot(f.normal),
-    ];
+    let r = [e.p0, e.p1].map(|p| (p - f.origin).dot(f.normal));
     let read = r
         .map(|r| geom_core::k_stats::decide_reported("pm_census_ef_residual", Margin::of(r), band));
     let pair = EfPair {
@@ -2623,21 +2619,10 @@ impl<T: Decide> EfPair<'_, T> {
     /// the band's zero `z` off the plane: past its escalation if decided,
     /// and past `z` if undecided, whose residual lies between the two. So
     /// two ends on opposite strict sides differ by more than `2z` (more
-    /// than `esc + z` with one decided). A difference read `Zero`, within
-    /// `z`, rules that pair of signs out, and one read definite is a
-    /// divisor the crossing can be placed by.
+    /// than `esc + z` with one decided). A lever read at most `z` rules
+    /// that pair of signs out, and one read definite is a divisor the
+    /// crossing can be placed by ([`pierce_span`]).
     fn hypothetical(&self, signs: [Sign; 2], errors: &mut Vec<ValidationError>) {
-        if let [Sign::Positive, Sign::Negative] | [Sign::Negative, Sign::Positive] = signs {
-            let [r0, r1] = self.r;
-            match decide("pm_census_ef_pierce_lever", Margin::of(r0 - r1), self.band) {
-                Ok(Sign::Zero) => return,
-                Ok(Sign::Positive | Sign::Negative) => {}
-                Err(cause) => {
-                    errors.push(ValidationError::CensusEscalated { cause });
-                    return;
-                }
-            }
-        }
         self.on_signs(signs, None, errors);
     }
 
@@ -2649,18 +2634,13 @@ impl<T: Decide> EfPair<'_, T> {
         margin: Option<MarginDiag>,
         errors: &mut Vec<ValidationError>,
     ) {
-        let (body, e, f, [r0, r1]) = (self.body, self.e, self.f, self.r);
-        let p1 = e.p0 + e.dir * e.len;
+        let (body, e, f) = (self.body, self.e, self.f);
         match signs {
             [Sign::Positive, Sign::Negative] | [Sign::Negative, Sign::Positive] => {
                 // Where the plane meets the edge's line: inside the
                 // segment where the signs are the ends' own, possibly off
                 // it under [`Self::hypothetical`], which reads it all the
                 // same and so can only keep an escalation.
-                let q = e.p0 + (p1 - e.p0) * (r0 / (r0 - r1));
-                // OnEdge → the edge-edge pass's crossing finding;
-                // OnVertex → the v-on-e finding; Out/escalated →
-                // nothing more here.
                 //
                 // NO backing rung is consulted, deliberately: a
                 // transverse dive through a face's interior is
@@ -2669,7 +2649,10 @@ impl<T: Decide> EfPair<'_, T> {
                 // layer's interference evidence); the crossing
                 // rung [`ee_cross_backed`] is the in-contact-plane
                 // case and does not reach here.
-                if contain(body, f, q, self.band, errors) == Some(FaceContainment::In) {
+                let Some(span) = pierce_span(e, f, self.r, self.band, errors) else {
+                    return;
+                };
+                if let Some(q) = pierce_inside(body, e, f, span, self.band, errors) {
                     errors.push(ValidationError::UnrecordedContact {
                         contact: CensusContact::EdgeFacePierce {
                             edge: e.key,
@@ -2693,6 +2676,121 @@ impl<T: Decide> EfPair<'_, T> {
             _ => {}
         }
     }
+}
+
+/// **Where the plane of `f` meets the line of `e`**, as an enclosure
+/// `[lo, hi]` of the fraction of the chord from its start, every
+/// rounding of the closed form charged; `None` where no crossing is
+/// placed (a lever at most ε, or one undecided, pushed).
+///
+/// The fraction is `r₀/ℓ`, `ℓ = r₀ − r₁`, the residuals `rᵢ = (pᵢ − o)·n`
+/// read off the plane's stored origin `o`. Each is off by about
+/// `u·|pᵢ − o|`, under a quarter of its [`geom_brep::rounding_charge`],
+/// and `o` can stand metres from the edge while a grazing edge's lever
+/// is a few `Kε`, so the fraction is off by `u·|pᵢ − o|/|ℓ|`. No point
+/// of the face reads better: one computed on the plane near the edge is
+/// off it by the same rounding, and a vertex of the face by up to the
+/// band's zero, which the lever divides alike. So the lever is read in
+/// both its forms, the residuals' difference and `(p₀ − p₁)·n` off the
+/// chord alone, and the fraction from both ends, `r₀/ℓ` and `1 + r₁/ℓ`,
+/// each pair of enclosures intersected, as the crossing lane reads its
+/// reaches ([`ee_lines_closest`]).
+fn pierce_span<T: Decide>(
+    e: &EdgeGeo<T>,
+    f: &FaceGeo<T>,
+    [r0, r1]: [T; 2],
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<[T; 2]> {
+    let charged = |x: T, terms: T| {
+        let c = geom_brep::rounding_charge(terms);
+        [x - c, x + c]
+    };
+    let [a0, a1] = [(r0, e.p0), (r1, e.p1)].map(|(r, p)| charged(r, (p - f.origin).norm()));
+    let lever = both_enclose(
+        [a0[0] - a1[1], a0[1] - a1[0]],
+        charged((e.p0 - e.p1).dot(f.normal), e.len),
+    );
+    let [lo, hi] = lever;
+    let size = [
+        lo.max(T::zero() - hi).max(T::zero()),
+        lo.abs().max(hi.abs()),
+    ];
+    let decide = magnitude_door("pm_census_ef_pierce_lever", band);
+    match enclosure_reading(size, "pm_census_ef_pierce_lever_straddle", band, decide) {
+        Ok(Enclosed::Above) => {}
+        Ok(Enclosed::AtMost(_)) => return None,
+        Err(cause) => {
+            errors.push(ValidationError::CensusEscalated { cause });
+            return None;
+        }
+    }
+    let [lo, hi] = quotient_hull(a1, lever);
+    let one = T::one();
+    let sum = geom_brep::rounding_charge(one + lo.abs().max(hi.abs()));
+    let from_end = [one + lo - sum, one + hi + sum];
+    Some(both_enclose(quotient_hull(a0, lever), from_end))
+}
+
+/// The hull of `x/y` over `x` in `[x₀, x₁]` and `y` in `[y₀, y₁]`, an
+/// enclosure clear of zero, each quotient's rounding charged.
+fn quotient_hull<T: Real>([x0, x1]: [T; 2], [y0, y1]: [T; 2]) -> [T; 2] {
+    let q = [x0 / y0, x0 / y1, x1 / y0, x1 / y1];
+    let lo = q[0].min(q[1]).min(q[2].min(q[3]));
+    let hi = q[0].max(q[1]).max(q[2].max(q[3]));
+    let c = geom_brep::rounding_charge(lo.abs().max(hi.abs()));
+    [lo - c, hi + c]
+}
+
+/// **Whether the crossing [`pierce_span`] places is inside the face**:
+/// the point it is reported at where it is, `None` where it is not or a
+/// reading refused (pushed). The face is read at both ends of the span,
+/// a segment of the edge's line the crossing lies on:
+///
+/// - **Both `In`**, or both `Out`: each end stands past the band's
+///   escalation inside (outside). A boundary meeting the segment between
+///   them crosses it twice, so comes within half its length of an end:
+///   no nearer than `Kε` while the segment is under `2Kε`. A longer one
+///   is a grazing edge's, which stands within its residuals' rounding
+///   of the plane all along it, so such a boundary passes that close to
+///   the edge strictly inside it: a crossing, or a vertex on the edge,
+///   that the edge–edge and vertex–edge passes read on their own cells.
+/// - **Both on one boundary cell**: between them the crossing is that
+///   cell's, as there.
+/// - **The ends disagree**: the boundary lies between them, so the
+///   crossing lies within the segment's length `L` of it, and the band's
+///   zero more where an end read on it. That distance, enclosed by
+///   `[0, L + ε]`, is read through the magnitude door
+///   ([`enclosure_reading`]): its bound past the band straddles
+///   (`pm_census_ef_pierce_straddle`), and in it escalates
+///   (`pm_census_ef_pierce_place`), either pushed; at most ε, the
+///   crossing is on the boundary, the other passes' as above.
+fn pierce_inside<T: Decide>(
+    body: &Body<T>,
+    e: &EdgeGeo<T>,
+    f: &FaceGeo<T>,
+    [lo, hi]: [T; 2],
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Point3<T>> {
+    let chord = e.p1 - e.p0;
+    let [q_lo, q_hi] = [lo, hi].map(|t| e.p0 + chord * t);
+    let at_lo = contain(body, f, q_lo, band, errors)?;
+    let at_hi = contain(body, f, q_hi, band, errors)?;
+    if at_lo == at_hi {
+        return (at_lo == FaceContainment::In).then(|| e.p0 + chord * geom::mid_param(lo, hi));
+    }
+    let reach = (q_hi - q_lo).norm() + T::from_f64(band.zero());
+    let decide = magnitude_door("pm_census_ef_pierce_place", band);
+    if let Err(cause) = enclosure_reading(
+        [T::zero(), reach],
+        "pm_census_ef_pierce_straddle",
+        band,
+        decide,
+    ) {
+        errors.push(ValidationError::CensusEscalated { cause });
+    }
+    None
 }
 
 /// The in-plane overlap lane of pass 4: cut the edge's span at the
@@ -3719,6 +3817,26 @@ fn enclosure_reading<T: Decide>(
     }
 }
 
+/// The magnitude door under the row `name`, as a sign
+/// [`enclosure_reading`] reads: `Zero` at most ε, `Positive` past `Kε`.
+/// Its margins are nonnegative, the door's precondition.
+fn magnitude_door<T: Decide>(
+    name: &'static str,
+    band: Band,
+) -> impl Fn(T) -> Result<geom_core::Decided, Indeterminate> {
+    move |m| {
+        geom_core::k_stats::decide_magnitude_reported(name, Margin::of(m), band).map(
+            |(magnitude, margin)| geom_core::Decided {
+                sign: match magnitude {
+                    Magnitude::Zero => Sign::Zero,
+                    Magnitude::Positive => Sign::Positive,
+                },
+                margin,
+            },
+        )
+    }
+}
+
 /// Whether a reach enclosed by `[lo, hi]` stands strictly inside its
 /// span: `Ok(true)` above `Kε`; `Ok(false)` at most `ε`, so the closest
 /// point lies at an end or past it ([`enclosure_reading`]).
@@ -3734,17 +3852,7 @@ fn span_reading<T: Decide>(reach: [T; 2], band: Band) -> Result<bool, Indetermin
 /// (`lo` a `max` from zero, `hi` the least `|e·n|/s` plus its charge), the magnitude
 /// door's precondition.
 fn gap_reading<T: Decide>(gap: [T; 2], band: Band) -> Result<Option<MarginDiag>, Indeterminate> {
-    let decide = |m| {
-        geom_core::k_stats::decide_magnitude_reported("pm_census_ee_gap", Margin::of(m), band).map(
-            |(magnitude, margin)| geom_core::Decided {
-                sign: match magnitude {
-                    Magnitude::Zero => Sign::Zero,
-                    Magnitude::Positive => Sign::Positive,
-                },
-                margin,
-            },
-        )
-    };
+    let decide = magnitude_door("pm_census_ee_gap", band);
     enclosure_reading(gap, "pm_census_ee_gap_straddle", band, decide).map(|read| match read {
         Enclosed::Above => None,
         Enclosed::AtMost(margin) => Some(margin),
@@ -4951,6 +5059,8 @@ mod depth_gap;
 mod depth_gap_fuzz;
 #[cfg(test)]
 mod link_fuzz;
+#[cfg(test)]
+mod pierce_fuzz;
 mod point;
 #[cfg(test)]
 mod segment_fuzz;

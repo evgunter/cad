@@ -294,6 +294,11 @@ should know why. They live only in an `Indeterminate.predicate`:
     lower and upper bound of a reach or of the lines' gap that the
     census's crossing lane reads off the closed form's rounding
     (`crossing_reading`);
+  - `pm_census_ef_pierce_lever_straddle` and
+    `pm_census_ef_pierce_straddle`, the lower and upper bound of the
+    lever the census's edge–face pierce is placed by, and of the
+    pierce's distance from the face's boundary where its placement's
+    two ends read the face apart (`pierce_span`, `pierce_inside`);
   - `curve_carrier_straddle`, `geom`'s on-carrier reading of a point
     whose lower bound on the distance from a conic and the gap at its
     foot straddle (`curves::on_carrier`);
