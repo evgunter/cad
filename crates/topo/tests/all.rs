@@ -69,6 +69,8 @@ mod a_doubled_line_does_not_revert;
 mod a_given_pair_is_made_from_a_kernel_verdict;
 #[path = "a_keel_on_the_floor_subtracts_as_a_slit.rs"]
 mod a_keel_on_the_floor_subtracts_as_a_slit;
+#[path = "a_keel_wrapped_at_both_ends_splits_as_a_ring.rs"]
+mod a_keel_wrapped_at_both_ends_splits_as_a_ring;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
 #[path = "analytic_rung3_at_rest.rs"]
