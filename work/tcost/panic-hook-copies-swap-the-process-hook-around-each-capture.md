@@ -59,3 +59,5 @@ of its own.
 downcasts the `catch_unwind` payload instead of hooking takes no hook;
 `scripts/gates/bit-identity-punning.sh` bans that outside
 `geom-core/src/bit_identity.rs`, so it cannot hide there.
+
+Note (PR 5393, 2026-10-19): the geom-brep test helper `panics_as_a_kernel_bug` that this row cites is deleted. The topo tier-3 row's `test_utils::panic_capture::caught` use, and the hazard it shares with `surgery::caught`, still stand. (ENCL orchestrator)

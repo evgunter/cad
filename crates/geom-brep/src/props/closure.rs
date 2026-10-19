@@ -228,6 +228,35 @@ impl<T: geom_core::Real> EdgeTurn<T> {
             lever,
         }
     }
+
+    /// An edge whose sweep agrees with its own ends by construction —
+    /// the short turn between them, or a sum of principal angles between
+    /// its evaluated points with each branch decided — so it misses them
+    /// by nothing, exactly: its miss is zero, rather than that sweep read
+    /// back against the ends it was read off, which at the interval
+    /// scalar charges the points' own width as a disagreement.
+    pub(super) fn exact(sweep: T, lever: T) -> Self {
+        Self {
+            sweep,
+            miss: T::zero(),
+            lever,
+        }
+    }
+
+    /// An edge whose sweep about the axis is its own turn `own` about its
+    /// centre carried to the axis at each end: its miss is the carry's
+    /// complement, read in its own frame — the principal angle from its
+    /// start turned by `own` to its end, about its centre (`own_arms`) —
+    /// since the carry adds to the sweep exactly what it adds to the
+    /// ends' turn, and cancels. Read about the axis instead, it carries
+    /// the width of the centre's place against the axis's point, which
+    /// for a body far from the origin is many times the circle's own.
+    pub(super) fn carried(sweep: T, own: T, own_arms: (T, T), lever: T) -> Self {
+        Self {
+            sweep,
+            ..Self::new(own, own_arms, lever)
+        }
+    }
 }
 
 /// One closed-form loop: its edges' turns and its joints, in loop order.
@@ -322,6 +351,16 @@ pub(super) fn closed_form_windings<T: Decide, const N: usize>(
 /// edge's rounding is charged at its own radius: an azimuth read within
 /// `ρ` of the axis rounds by `≈ u·|p|/ρ`, metres at `ρ` but far more at
 /// a loop's largest radius.
+///
+/// **A miss is stated where it is exact.** An edge whose sweep agrees
+/// with its own ends by construction misses them by nothing, and says
+/// so ([`EdgeTurn::exact`]); a circle's turn carried to the axis misses
+/// its ends by what its own turn misses them about its centre
+/// ([`EdgeTurn::carried`]), the carry cancelling. Read back about the
+/// axis against the very ends it was read off, a sweep is charged the
+/// interval scalar's width of those points about the axis's point as a
+/// disagreement: on a 410 m frustum wall in a generic pose that is
+/// `≈ 1e-12` an edge, past the slack at `ε = 1e-12`.
 ///
 /// The interval lanes ([`interval_loop_turns`]) read each edge's own
 /// chart ends, so their turns are exact by construction and ask no such

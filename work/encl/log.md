@@ -1633,3 +1633,11 @@ coincidence is now a margined verdict (no declarations), checked by the
     - topo `the-re-basing-gate-reads-a-derived-image-where-the-mint-read-the-stored-one`
   - **Evidence added to** `zero-and-negative-payloads-of-one-decision-use-different-nouns`.
   (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5393** (`a-hand-built-unminted-refusal-panics-through-pub-render`, closed). Rendering a refusal never panics: the `unreachable!` in geom-brep `SizedDecision::recourse` is gone. A hand-built `Unminted` refusal now ends as a stored contradiction does at every door, which at a build is the lever and the note. That matches what the public doors' `StatedInterval` says. The kernel-bug panic for these readings is topo's `kernels_own` alone. The README reads (iv)'s "panics at a build" as applying where the kernel constructs.
+  - **Review:** mergeable, no MAJOR. A 69,696-call probe found no render panics. Putting the guard back turns six rows red.
+  - **Orchestrator follow-ups:** the README reading; the `Unminted` doc; stale premises noted on the pcurve-span, pctail and tcost rows; `sample_param`'s sibling doors added to SELECT's row.
+  - **Filed by the lane:** scalar `k-stats-pub-doors-panic-on-a-callers-verdict`, select `schedule-param-panics-on-a-callers-sample-index`, and evidence on topo `euler-driver-lift-is-held-by-convention`.
+  - **Noted, not filed:**
+    - `ReadProfile::render` overflows on a caller-built `select: u64::MAX`. It is behind the `sym-profile-testing` feature only.
+    - topo arms on `IntervalNotForward`/`WindingExceeded` look dead (replace_face, validate). This belongs to the census in `kernels-own-span-panic-has-one-row-in-five-sites-and-no-type`.
+  (ENCL orchestrator)
