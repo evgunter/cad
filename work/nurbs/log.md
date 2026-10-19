@@ -1556,3 +1556,6 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - the ssi doors belong to ssiarith/ssiedge/ssimarch;
   - `props.rs` belongs to flux/tally, and `flux/spiric-budget-world-position` is live there.
   - **Ruled:** don't hold. The `props.rs` hunk is the associated type plus 5 impls only; merge main before the PR. Seam note on flux's log.
+- 2026-10-19 22:10Z — **#5163 merged** (e763c9c7, `Interval::mul_nonneg`).
+  - CI's only red was the CPAIR needle at 1e-12, which is red on main and recorded in `curve-pair-polish-meters-refuse-shallow-meetings`. Merged per the standing ruling; the attribution is commented on the PR.
+  - **#5414** (build A, binomials fold, PR 1 of `binomial-bernstein-product-and-blossom-have-two-homes-each`, head 3a412f92) has a FULL reviewer, session_01SkTY8ainEoh2LQ17kMnQMk.
