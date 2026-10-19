@@ -792,9 +792,9 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
 
     /// [`NurbsBoxes::deriv_box`] with each cut read on one piece
     /// ([`COARSE_PIECE_SPLITS`]): a sound enclosure of `S_d` over the
-    /// rectangle like the two-piece box, and at most as tight. For the
-    /// boundary pass's two shortcut readings only, which read no margin
-    /// off it ([`COARSE_PIECE_SPLITS`] says what each can lose).
+    /// rectangle like the two-piece box, and at most as tight. For a
+    /// reading that only skips work ([`COARSE_PIECE_SPLITS`] names the
+    /// one).
     pub(crate) fn coarse_deriv_box(&self, w: UvWindow, along_u: bool) -> Box3 {
         self.deriv_hull(w, along_u, Some(COARSE_PIECE_SPLITS))
     }
@@ -1400,22 +1400,22 @@ impl CellNet {
 /// reading; the one-piece `5.3e-9` is this measurement's alone).
 const BLOCK_PIECE_SPLITS: usize = 2;
 
-/// The cut's piece schedule for the boundary pass's two shortcut
-/// readings ([`NurbsBoxes::coarse_deriv_box`]; D9: structure, never a
-/// decision): one piece, the restricted quotient read whole. Halving it
-/// into [`BLOCK_PIECE_SPLITS`]² pieces is most of a cut's cost after the
-/// restriction, and neither reading takes a margin off the box:
+/// The cut's piece schedule for `boundary::beyond_reach`
+/// ([`NurbsBoxes::coarse_deriv_box`]; D9: structure, never a decision):
+/// one piece, the restricted quotient read whole. Halving it into
+/// [`BLOCK_PIECE_SPLITS`]² pieces is most of a cut's cost after the
+/// restriction, and `beyond_reach` only skips work: it proves no zero of
+/// the side's cover lies within ε, so a wider box can only skip less,
+/// and the full read it hands on cannot certify the contrary. Measured on
+/// r1, shelling and `m5_pr7_ssi` (7,491 reads), the one-piece box
+/// answered as the two-piece box at every read.
 ///
-/// - `boundary::beyond_reach` only skips work: it proves no zero of the
-///   side's cover lies within ε, so a wider box can only skip less, and
-///   the full read it hands on cannot certify the contrary.
-/// - `boundary::stretch_within`'s `clears` proves a piece of the stretch
-///   clears the plane, which outranks `Within`. A wider box can turn a
-///   `Clear` into `Within`, never the reverse.
-///
-/// Measured on r1, shelling and `m5_pr7_ssi` (`clears` at 38,224 reads,
-/// `beyond_reach` at 7,491), the one-piece box answered as the
-/// two-piece box at every read.
+/// Not for `boundary::stretch_within`'s `clears`, whose test
+/// `boundary::Reading::Within` carries as "no
+/// piece clears" (`boundary.rs`), and which `one_arc`'s `reaches_end`
+/// and `link` read as their certificate that a side's piece reaches or
+/// links: a wider box there would hand on a `Within` the two-piece box
+/// reads `Clear`.
 const COARSE_PIECE_SPLITS: usize = 1;
 
 /// A span's knot vector held as points.
