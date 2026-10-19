@@ -555,7 +555,14 @@ fn assemble(
 
         // Interior knots only: the clamped end blocks are supplied by
         // the composed vector's own ends and by the seam blocks.
-        knots.extend(curve.knots().interior().iter().copied().map(remap));
+        knots.extend(
+            curve
+                .knots_f64_interim()
+                .interior()
+                .iter()
+                .copied()
+                .map(remap),
+        );
         if leg < last {
             // The seam knot at multiplicity `p` (see the module docs on
             // why it is not dropped to `p − 1`).

@@ -189,13 +189,14 @@
 //!    what is missing: `wire_sweep` refuses unconditionally, and that
 //!    door is banked (`SWEEP_FRONTIER`, U4/LQ3), so a swept spout
 //!    cannot be said in a document and a loft of enough sections is an
-//!    approximation of that rather than the thing. The U-turn itself
-//!    is no longer the obstacle — the library's `sweep_body` rounds
-//!    one (the loft's stacking statement is per-slab; the klein
-//!    scene's top loop is one such sweep) — so what a recipe door
-//!    would buy here
-//!    is the spine in the document, not a shape the kernel cannot
-//!    build.
+//!    approximation of that rather than the thing. The bend is not
+//!    the obstacle — the library's `sweep_body` turns a section
+//!    through any bend short of doubling back, and refuses only where
+//!    a station's tangent opposes the start tangent (the klein scene's
+//!    U-turn loop is lofted through stated normal planes for that
+//!    reason), and this spout turns half a right angle — so what a
+//!    recipe door would buy here is the spine in the document, not a
+//!    shape the kernel cannot build.
 //!
 //!    **What the loft costs instead, and it is a different debt.** The
 //!    SPINE IS NOT IN THE DOCUMENT. `spout_frames` computes seven
@@ -283,7 +284,7 @@ use pncad::prelude::AuthoredNode;
 use pncad::document::{
     Bodies, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
     LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, RefusingReach, TubeWindow, ValuePayload, apply, evaluate,
+    RecipeNodeId, TubeWindow, ValuePayload, apply, evaluate,
 };
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point3, Tol, Vec3};
@@ -795,7 +796,6 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the edit applies");
     *doc = applied.doc;
@@ -825,8 +825,8 @@ fn revolved(
         doc,
         Node::Revolve {
             profile: profile.into(),
-            axis_origin: [len(0.0), len(0.0)],
-            axis_direction: [scl(0.0), scl(1.0)],
+            axis_through: [len(0.0), len(0.0)],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
         tol,
@@ -1073,16 +1073,14 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let tidied = [r.handle_union, r.spout_union, r.pot]
         .into_iter()
         .fold(r.doc, |doc, id| {
-            apply(&doc, &DocEdit::DeleteNode { id }, tol, &RefusingReach)
+            apply(&doc, &DocEdit::DeleteNode { id }, tol)
                 .expect("nothing reads it, so it deletes")
                 .doc
         });
     [r.handle, r.lid, r.cup, r.spout]
         .into_iter()
         .fold(tidied, |doc, body| {
-            apply(&doc, &DocEdit::place(body, None), tol, &RefusingReach)
-                .expect("each of the four places")
-                .doc
+            crate::world::place_in_world(&doc, body, tol).doc
         })
 }
 
@@ -2516,7 +2514,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              edge key it does carry is exactly the sort of value a probe must not pin. The lofted canal above \
              is what a potter would draw and it IS authorable; what is not is a SWEPT \
              spout said as a recipe (`wire_sweep` refuses unconditionally, U4/LQ3 \
-             banked — the library sweep itself rounds a U-turn now) and, one level \
+             banked — the library sweep itself turns a bend like this one, short of a U-turn) \
+             and, one level \
              down, the SPINE ITSELF — the loft's placements are \
              {SPOUT_STATIONS} literal frames this file derives, so the saved document carries no \
              arc and moving the bend re-derives all seven",

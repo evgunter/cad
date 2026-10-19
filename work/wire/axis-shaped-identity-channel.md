@@ -2,12 +2,12 @@
 id: axis-shaped-identity-channel
 kind: issue
 title: Build the ratified axis-shaped identity channel: a per-component, placement-composing source for axis-flavoured facts
-status: parked
+status: closed
 opened: 2026-09-12
 refs: [2404, 1593, 1604]
-blocked_on: [step-import-discards-the-entity-ids-that-are-its-identity-channel]
 priority: P1
 cost: H
+closed: 2026-10-17
 ---
 
 
@@ -206,3 +206,9 @@ keeping `NoArm`. A coaxiality declaration this channel could carry is
 now the first door this ordinary union reaches
 (`crates/sweep/tests/verbs_cylsph_opening.rs`,
 `the_coaxial_union_refuses_at_the_germ_frame`).
+
+## Closed (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. Retired by D10: DESIGN.md "State of the build" lists the axis declaration channel and N6's `GeomSource`/`AxisSource` among what retires, `crates/topo/src/source.rs` is deleted, and `GeomSource` appears in no `src` file. Coaxiality is one `Axis` variable read twice (D10, "Constructing a coincidence").
+
+Signed (WIRE orchestrator).

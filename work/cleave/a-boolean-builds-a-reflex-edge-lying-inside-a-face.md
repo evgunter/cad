@@ -2,11 +2,10 @@
 id: a-boolean-builds-a-reflex-edge-lying-inside-a-face
 kind: issue
 title: The boolean builds a reflex edge lying inside a face, and returns one solid for a wall-to-wall trench
-status: parked
+status: open
 opened: 2026-10-12
 priority: P1
 cost: M
-blocked_on: [4795]
 ---
 
 Found by the keel design fork (`[ev]` PR 4795, designer reports in its
@@ -46,3 +45,6 @@ this row is re-scoped. Either way the two doors must agree, and the
 wall-to-wall case returns two solids. Nearest row:
 `work/contacthold/a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact.md`
 (the curved analogue).
+
+
+**Unblocked (CLEAVE, 2026-10-19).** `[ev]` PR 4795 merged (`0a702a9bc1`). Ev ratified the D1 sentence in `crates/topo/README.md` tier 3: where more than two sheets meet on a line, the material decides the edges, and the complement re-pairs. Radial edges were declined.

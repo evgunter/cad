@@ -2,7 +2,7 @@
 id: wire
 kind: program
 title: WIRE — the evaluation seat: wiring, the placement lift and the verb vocabulary
-status: ready
+status: active
 opened: 2026-09-11
 area: api
 prefix: wire/

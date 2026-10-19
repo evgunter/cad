@@ -24,7 +24,7 @@
 //! presentation metadata, not this layer's concern.
 
 use geom_core::Real;
-use geom_core::predicate::{Band, Decide, Sign};
+use geom_core::predicate::Decide;
 
 use crate::doc::VarName;
 use crate::node::{RecipeNodeId, SlotId};
@@ -983,6 +983,7 @@ macro_rules! leaf_kind {
         ExprKind::Ratio(_)
             | ExprKind::Integer(_)
             | ExprKind::Turn
+            | ExprKind::Zero
             | ExprKind::Var(_)
             | ExprKind::Leaf(_)
     };
@@ -1002,6 +1003,10 @@ pub(crate) enum ExprKind<L: LeafSet> {
     /// One full rotation, dimension `Angle`: the exact constant a right
     /// angle is a quarter of (VR5).
     Turn,
+    /// Zero, at the tree's dimension, whatever it is: the one constant
+    /// that takes any dimension, since it is the same in every unit
+    /// (VR5).
+    Zero,
     /// A reader of a document variable, by identity: the stored form.
     /// The leaf's `dim` caches the variable's kind, which cannot change
     /// (VR3); the doors re-check the cache against the table.
@@ -1107,6 +1112,30 @@ impl<L: LeafSet> ExprTree<L> {
         Self::leaf(Dimension::Angle, ExprKind::Turn)
     }
 
+    /// Zero, at `dim`: a count's zero is the integer constant and a
+    /// scalar's the rational, the one spelling each has for it, so the
+    /// `Zero` leaf stands only at a length or an angle.
+    pub(crate) fn zero_leaf(dim: Dimension) -> Self {
+        match dim {
+            Dimension::Count => Self::integer_leaf(0),
+            Dimension::Scalar => Self::integer_ratio(0),
+            Dimension::Length | Dimension::Angle => Self::leaf(dim, ExprKind::Zero),
+        }
+    }
+
+    /// The rational constant `n`, a whole number in range.
+    fn integer_ratio(n: i64) -> Self {
+        let Ok(ratio) = Ratio::new(n, 1) else {
+            unreachable!("a small whole number is a rational in range")
+        };
+        Self::ratio_leaf(ratio)
+    }
+
+    /// Whether this tree is the `Zero` leaf of a length or an angle.
+    fn is_dimensioned_zero(&self) -> bool {
+        matches!(self.kind, ExprKind::Zero)
+    }
+
     /// A leaf of the form's own vocabulary, read at `dim`.
     pub(crate) fn own_leaf(own: L, dim: Dimension) -> Self {
         Self::leaf(dim, ExprKind::Leaf(own))
@@ -1175,6 +1204,9 @@ impl<L: LeafSet> ExprTree<L> {
     /// [`DimensionError::NestedTooDeep`] alone: negation is total over
     /// every dimension, so only the nesting bound refuses it.
     pub fn neg(a: Self) -> Result<Self, DimensionError> {
+        if a.is_dimensioned_zero() {
+            return Ok(a);
+        }
         Self::over(a.dim, ExprKind::Neg(Box::new(a)))
     }
 
@@ -1194,6 +1226,12 @@ impl<L: LeafSet> ExprTree<L> {
             (Scalar, d) | (d, Scalar) => d,
             (l, r) => return Err(DimensionError::MulNeedsScalar { left: l, right: r }),
         };
+        // A product with a length's or an angle's zero is that zero: a
+        // dimensioned zero has no spelling as a factor the text door
+        // could read back at its dimension.
+        if a.is_dimensioned_zero() || b.is_dimensioned_zero() {
+            return Ok(Self::zero_leaf(dim));
+        }
         Self::over(dim, ExprKind::Mul(Box::new(a), Box::new(b)))
     }
 
@@ -1213,6 +1251,9 @@ impl<L: LeafSet> ExprTree<L> {
                 right: b.dim,
             });
         }
+        if a.is_dimensioned_zero() {
+            return Ok(a);
+        }
         Self::over(a.dim, ExprKind::Div(Box::new(a), Box::new(b)))
     }
 
@@ -1229,16 +1270,25 @@ impl<L: LeafSet> ExprTree<L> {
 
     /// Sine of an `Angle` → `Scalar` (spec D4).
     pub fn sin(a: Self) -> Result<Self, DimensionError> {
+        if a.is_dimensioned_zero() {
+            return Ok(Self::integer_ratio(0));
+        }
         Self::trig("sin", a, ExprKind::Sin)
     }
 
     /// Cosine of an `Angle` → `Scalar`.
     pub fn cos(a: Self) -> Result<Self, DimensionError> {
+        if a.is_dimensioned_zero() {
+            return Ok(Self::integer_ratio(1));
+        }
         Self::trig("cos", a, ExprKind::Cos)
     }
 
     /// Tangent of an `Angle` → `Scalar`.
     pub fn tan(a: Self) -> Result<Self, DimensionError> {
+        if a.is_dimensioned_zero() {
+            return Ok(Self::integer_ratio(0));
+        }
         Self::trig("tan", a, ExprKind::Tan)
     }
 
@@ -1306,7 +1356,11 @@ impl<L: LeafSet> ExprTree<L> {
     pub fn var_reads(&self, out: &mut Vec<(VarId, Dimension)>) {
         match &self.kind {
             ExprKind::Var(var) => out.push((*var, self.dim)),
-            ExprKind::Ratio(_) | ExprKind::Integer(_) | ExprKind::Turn | ExprKind::Leaf(_) => {}
+            ExprKind::Ratio(_)
+            | ExprKind::Integer(_)
+            | ExprKind::Turn
+            | ExprKind::Zero
+            | ExprKind::Leaf(_) => {}
             unary_kind!(a) => a.var_reads(out),
             binary_kind!(a, b) => {
                 a.var_reads(out);
@@ -1332,7 +1386,11 @@ impl<L: LeafSet> ExprTree<L> {
                     *var = to;
                 }
             }
-            ExprKind::Ratio(_) | ExprKind::Integer(_) | ExprKind::Turn | ExprKind::Leaf(_) => {}
+            ExprKind::Ratio(_)
+            | ExprKind::Integer(_)
+            | ExprKind::Turn
+            | ExprKind::Zero
+            | ExprKind::Leaf(_) => {}
             unary_kind!(a) => a.remap_vars(map),
             binary_kind!(a, b) => {
                 a.remap_vars(map);
@@ -1442,7 +1500,7 @@ impl<L: LeafSet> ExprTree<L> {
                 }),
                 None => Ok(self.clone()),
             },
-            K::Ratio(_) | K::Integer(_) | K::Turn | K::Leaf(_) => Ok(self.clone()),
+            K::Ratio(_) | K::Integer(_) | K::Turn | K::Zero | K::Leaf(_) => Ok(self.clone()),
             K::Add(a, b) => Self::add(go(a)?, go(b)?),
             K::Sub(a, b) => Self::sub(go(a)?, go(b)?),
             K::Mul(a, b) => Self::mul(go(a)?, go(b)?),
@@ -1470,7 +1528,7 @@ impl<L: LeafSet> ExprTree<L> {
         use ExprKind as K;
         match &self.kind {
             K::Leaf(leaf) => visit(leaf, self.dim),
-            K::Ratio(_) | K::Integer(_) | K::Turn | K::Var(_) => {}
+            K::Ratio(_) | K::Integer(_) | K::Turn | K::Zero | K::Var(_) => {}
             K::Add(a, b)
             | K::Sub(a, b)
             | K::Mul(a, b)
@@ -1498,7 +1556,7 @@ impl<L: LeafSet> ExprTree<L> {
         match &self.kind {
             K::Leaf(leaf) => visit(Terminal::Leaf(leaf), self.dim),
             K::Var(var) => visit(Terminal::Var(*var), self.dim),
-            K::Ratio(_) | K::Integer(_) | K::Turn => visit(Terminal::Constant, self.dim),
+            K::Ratio(_) | K::Integer(_) | K::Turn | K::Zero => visit(Terminal::Constant, self.dim),
             binary_kind!(a, b) => {
                 a.visit_terminals(visit);
                 b.visit_terminals(visit);
@@ -1526,6 +1584,7 @@ impl<L: LeafSet> ExprTree<L> {
             K::Ratio(r) => K::Ratio(*r),
             K::Integer(n) => K::Integer(*n),
             K::Turn => K::Turn,
+            K::Zero => K::Zero,
             K::Var(var) => K::Var(*var),
             K::Add(a, b) => K::Add(map(a)?, map(b)?),
             K::Sub(a, b) => K::Sub(map(a)?, map(b)?),
@@ -1576,6 +1635,36 @@ impl<L: LeafSet> ExprTree<L> {
     /// angle.
     pub fn turn() -> Self {
         Self::turn_leaf()
+    }
+
+    /// The exact angle `turn / den`, a fraction of a full rotation
+    /// spelled as the text door reads it (`turn/4` is a right angle).
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::ConstantOutOfRange`] for a zero `den`, or one
+    /// no constant in range spells.
+    pub fn turn_over(den: u64) -> Result<Self, DimensionError> {
+        let refused = || DimensionError::ConstantOutOfRange {
+            text: format!("turn/{den}"),
+        };
+        let den = i64::try_from(den)
+            .ok()
+            .filter(|&n| n > 0)
+            .ok_or_else(refused)?;
+        Self::div(Self::turn(), Self::ratio(den, 1).map_err(|_| refused())?)
+    }
+
+    /// The constant zero at `dim`, any dimension (VR5): `0` alone, the
+    /// omission it marks, never a value written in a unit.
+    pub fn zero(dim: Dimension) -> Self {
+        Self::zero_leaf(dim)
+    }
+
+    /// Whether this tree is the lone constant `0`, at any dimension.
+    pub fn is_zero(&self) -> bool {
+        matches!(self.kind, ExprKind::Zero | ExprKind::Integer(0))
+            || matches!(self.kind, ExprKind::Ratio(r) if r.num() == 0)
     }
 
     /// The constant this tree is, where it is one lone rational.
@@ -1784,49 +1873,61 @@ pub enum EvalError {
 // re-stating it.
 impl core::fmt::Display for EvalError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use crate::sentence::Recourse;
         match self {
             Self::UnresolvedVar { var } => write!(
                 f,
                 "variable {var} has no binding in the evaluation environment — it was \
-                 deleted, or never declared here; point the reader at a live variable"
+                 deleted, or never declared here. {}",
+                Recourse("point the reader at a live variable")
             ),
             Self::OutputRead { var } => write!(
                 f,
                 "variable {var} is an operation's output, a value the built geometry gives, and \
-                 a construction reads only what was written; read a written variable here"
+                 a construction reads only what was written. {}",
+                Recourse("read a written variable here")
             ),
             Self::DefinitionRefused { var, source } => {
                 write!(f, "the definition of variable {var} refused: {source}")
             }
-            Self::VarKindMismatch { var, bound, read } => {
-                write!(f, "variable {var} is read as {read} but bound as {bound}")
-            }
-            Self::CountExprInContinuousEval => f.write_str(
-                "a count expression does not evaluate continuously — promote it \
-                 explicitly through count_to_scalar",
+            Self::VarKindMismatch { var, bound, read } => write!(
+                f,
+                "variable {var} is read as {read} but bound as {bound}. {}",
+                Recourse(format_args!("read {} {read} variable here", read.article()))
+            ),
+            Self::CountExprInContinuousEval => write!(
+                f,
+                "a count expression does not evaluate continuously. {}",
+                Recourse("promote it explicitly through count_to_scalar")
             ),
             Self::ContinuousExprInCountEval { found } => write!(
                 f,
                 "{} {found} expression does not evaluate as a count — counts are exact \
-                 and never inferred from a continuous value",
-                found.article()
+                 and never inferred from a continuous value. {}",
+                found.article(),
+                Recourse(format_args!("evaluate it as {} {found}", found.article()))
             ),
-            Self::CountOverflow => {
-                f.write_str("exact count arithmetic overflowed (a count never wraps)")
-            }
+            Self::CountOverflow => write!(
+                f,
+                "exact count arithmetic overflowed (a count never wraps). {}",
+                Recourse("keep every count the expression computes within a 64-bit integer")
+            ),
             Self::CountToScalarOutOfRange(count) => write!(
                 f,
                 "count {count} is outside the exactly-promotable range — a promoted \
-                 count must fit i32 so its f64 embedding is exact"
+                 count must fit i32 so its f64 embedding is exact. {}",
+                Recourse("promote only a count within a 32-bit integer")
             ),
-            Self::NonFiniteResult => f.write_str(
+            Self::NonFiniteResult => write!(
+                f,
                 "the evaluated result is not finite — the arithmetic overflowed or hit \
-                 a pole (1/0, 0/0); fix the expression or the values feeding it",
+                 a pole (1/0, 0/0). {}",
+                Recourse("fix the expression or the values feeding it")
             ),
             Self::Unlowered(fault) => write!(
                 f,
-                "{fault}, and only a document's edit door resolves it; evaluate the formula \
-                 as the document lowers it"
+                "{fault}, and only a document's edit door resolves it. {}",
+                Recourse("evaluate the formula as the document lowers it")
             ),
         }
     }
@@ -1870,43 +1971,30 @@ pub fn eval_var_count<T>(var: VarId, params: &VarEnv<T>) -> Result<i64, EvalErro
 }
 
 /// **Door 2, as a shared door.** The ruled non-finite check on a
-/// FINAL evaluated value: `value * 0` is EXACTLY zero for every finite
-/// value and NaN or refused (NaN / empty / Trv) otherwise, so any valid
-/// band classifies it identically — Zero passes, everything else is a
-/// non-finite result.
+/// FINAL evaluated value: it passes the value exactly when it is
+/// bounded ([`geom_core::Real::is_bounded`]), and refuses it as a
+/// non-finite result otherwise. At a point scalar that is
+/// "finite"; at an enclosure it asks that both endpoints are finite,
+/// so `[MAX, ∞]`, `[0, ∞]` and `[−∞, ∞]` all refuse.
+///
+/// It used to ask `value · 0` for a Zero, which is right at a point
+/// (`∞ · 0` is NaN) but wrong at an enclosure: an unbounded interval
+/// times zero is the finite `[0, 0]`, so an expression whose value ran
+/// to infinity passed. Boundedness is not a band decision, so the
+/// check decides nothing and records no K sample.
 ///
 /// It lives apart from [`eval`] because [`eval`] is not the only
 /// evaluator of this crate's expression arithmetic: the measurement
-/// sublanguage ([`crate::measure`]) evaluates its own tree, and a
+/// sublanguage ([`crate::measure`](mod@crate::measure)) evaluates its own tree, and a
 /// second copy of this door would be a second chance to forget it —
 /// which is exactly what happened, and what shipped a
 /// `Holds { measured: inf }` verdict. Any evaluator that produces a
 /// value a caller will believe passes it through here.
-///
-/// Band construction with these constants cannot fail; the `else` arm
-/// is unreachable but typed (no panic paths in this crate).
-///
-/// **Named, through the funnel.** This decision used to call
-/// `sign_within` directly, outside any named `classify` — and because
-/// the recorder's name channel was never reset, every K sample it
-/// recorded was charged to whichever predicate had classified LAST
-/// (1,054 samples in the corpus sweep at ε = 1e-6, found when M10-8
-/// scoped the name). It goes through the recorder's named evaluator
-/// door now (`k_stats::check_unlogged`) — its samples carry its own
-/// name, and it stays out of the VERDICT log, which is the verdict-diff
-/// engine's row-for-row comparison of certification predicates between
-/// the witness and a leaf: this check fires once per expression
-/// evaluation, a count the two lanes do not share, and logging it
-/// refused every M10-6 min-clearance box on a vector mismatch with no
-/// geometry changed. The ledger row says why no `Margin` door fits:
-/// `value · 0` carries `value`'s dimension, whatever that is.
 pub(crate) fn refuse_non_finite<T: Decide>(value: T) -> Result<T, EvalError> {
-    let Ok(band) = Band::new(1e-100, 1e-50) else {
-        return Err(EvalError::NonFiniteResult);
-    };
-    match geom_core::k_stats::check_unlogged("expr_non_finite", value * T::zero(), band, "F18") {
-        Ok(Sign::Zero) => Ok(value),
-        _ => Err(EvalError::NonFiniteResult),
+    if value.is_bounded() {
+        Ok(value)
+    } else {
+        Err(EvalError::NonFiniteResult)
     }
 }
 
@@ -1927,6 +2015,7 @@ fn eval_inner<T: Real, L: LeafSet>(root: &ExprTree<L>, params: &VarEnv<T>) -> Re
             Ok(match &expr.kind {
                 K::Ratio(r) => Visit::Value(r.eval()),
                 K::Turn => Visit::Value(T::tau()),
+                K::Zero => Visit::Value(T::zero()),
                 K::Integer(_) => return Err(EvalError::CountExprInContinuousEval),
                 K::Var(var) => match params.binding(*var)? {
                     ParamValue::Continuous { dim, value } if *dim == expr.dim => {
@@ -1990,6 +2079,7 @@ pub fn eval_count<T>(root: &ExprTree<impl LeafSet>, params: &VarEnv<T>) -> Resul
             }
             Ok(match &expr.kind {
                 K::Integer(n) => Visit::Value(*n),
+                K::Zero => Visit::Value(0),
                 K::Var(var) => match params.binding(*var)? {
                     ParamValue::Count(n) => Visit::Value(*n),
                     bound => {
@@ -2065,6 +2155,7 @@ fn precedence<L: LeafSet>(expr: &ExprTree<L>) -> u8 {
         ExprKind::Ratio(_)
         | ExprKind::Integer(_)
         | ExprKind::Turn
+        | ExprKind::Zero
         | ExprKind::Var(_)
         | ExprKind::Leaf(_)
         | ExprKind::Sin(_)
@@ -2188,6 +2279,7 @@ fn write_expr<L: LeafSet>(expr: &ExprTree<L>, names: Names<'_, '_>, out: &mut St
         K::Ratio(r) => out.push_str(&r.to_string()),
         K::Integer(n) => out.push_str(&n.to_string()),
         K::Turn => out.push_str("turn"),
+        K::Zero => out.push('0'),
         K::Leaf(own) => own.write(expr.dim, out),
         // A reader the names cannot speak — an anonymous variable, or
         // one the document no longer holds — writes its full id, which
@@ -2300,6 +2392,37 @@ mod tests {
     use super::*;
 
     use crate::tree::raw_chain;
+
+    /// **The final check refuses an unbounded enclosure.** `[MAX, ∞]`,
+    /// `[0, ∞]` and `[−∞, ∞]` each refuse as a non-finite result, where
+    /// the old `value · 0` read `[0, 0]` and passed them; a finite
+    /// enclosure and a finite point pass, and NaN and ∞ at a point
+    /// refuse. Red if the check goes back to a product with zero.
+    #[test]
+    fn the_final_check_refuses_an_unbounded_enclosure() {
+        use geom_core::Interval;
+        for (lo, hi) in [
+            (f64::MAX, f64::INFINITY),
+            (0.0, f64::INFINITY),
+            (f64::NEG_INFINITY, f64::INFINITY),
+        ] {
+            assert!(
+                matches!(
+                    refuse_non_finite(Interval::from_bounds(lo, hi)),
+                    Err(EvalError::NonFiniteResult)
+                ),
+                "[{lo}, {hi}] is unbounded"
+            );
+        }
+        assert!(refuse_non_finite(Interval::from_bounds(-1.0, 2.0)).is_ok());
+        assert!(refuse_non_finite(3.0_f64).is_ok());
+        for v in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert!(
+                matches!(refuse_non_finite(v), Err(EvalError::NonFiniteResult)),
+                "{v} is not finite"
+            );
+        }
+    }
 
     /// A negation over `e`, built past the constructors, which refuse
     /// it past the bound.

@@ -68,7 +68,31 @@ struct Tally {
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
 ///
-/// Last moved when a revolve's point-axis carriers came to be anchored
+/// Last moved when the sketch plane came to be its frame (PR 5068: a
+/// placed profile's plane is a rigid motion minted at the lane, a
+/// revolve's placed axis the frame's turn of the sketch axis, a path's
+/// stations turned by the quaternion) and was merged with the world pin
+/// below: from `(441198, 141763, 12306, 6534)`. The rays are unchanged;
+/// 42 more are answered at the aimed vertex, and 1218 more candidates
+/// over 402 more rays refuse at the determinant. The placements re-round
+/// at the ulp, which moves only which near-degenerate candidates the
+/// certification refuses.
+///
+/// No genuine crossing is refused either way.
+///
+/// Before that, it moved when every corpus placement came to be written by the
+/// named interim's world pin (INTENT stage 3 C), from the gesture's
+/// mates' `(441198, 141310, 13536, 7224)`, which had moved from
+/// `(441198, 141261, 14088, 7230)`. The rays are unchanged; against the
+/// mates' tally, 453 more are answered at the aimed vertex, and 1230
+/// more candidates over 690 more rays refuse at the determinant. The
+/// gallery ring's bumped landing is re-placed after the bump, whose
+/// partial revolve drops the seam its pin read
+/// (`common::repin_stranded`).
+///
+/// No genuine crossing is refused either way.
+///
+/// Before that, it moved when a revolve's point-axis carriers came to be anchored
 /// on the axis (PR 4518): from `(441198, 141249, 14088, 7230)`. The
 /// rays and the refusals are unchanged; 12 more rays are answered at
 /// the aimed vertex.
@@ -115,7 +139,7 @@ struct Tally {
 /// unchanged.
 ///
 /// No genuine crossing is refused either way.
-const PINNED: (usize, usize, usize, usize) = (441_198, 141_261, 14_088, 7_230);
+const PINNED: (usize, usize, usize, usize) = (441_198, 141_805, 13_524, 6_936);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

@@ -63,35 +63,41 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
     // (side, kind) → the rows on the start rim's Piece(0), by tail.
     let mut pieces: BTreeMap<SplitHalf, Vec<StableName>> = BTreeMap::new();
     let mut crossings: BTreeMap<(SplitHalf, Sense), [f64; 3]> = BTreeMap::new();
-    for (name, entry) in value.name_table.iter() {
-        let Entry::Unique(at) = entry else {
-            panic!("no row ties: {name:?} {entry:?}");
-        };
-        let half = &halves[at.body as usize];
-        match (name.kind, name.path.as_slice()) {
-            (EntityKind::Edge, [RoleSeg::SplitFragment { side, parent }, tail @ ..])
-                if rim(parent) =>
-            {
-                assert!(
-                    matches!(tail, [] | [RoleSeg::Fragment(Qualifier::Ends(_))]),
-                    "{name:?}"
-                );
-                pieces.entry(*side).or_default().push(name.clone());
+    // Each half its own table (NAMES N1), its body that table's body 0.
+    for side in [SplitHalf::Above, SplitHalf::Below] {
+        let half = &halves[side.output_body() as usize];
+        for (name, entry) in crate::fixture::half(&ev, split, side).iter() {
+            let Entry::Unique(at) = entry else {
+                panic!("no row ties: {name:?} {entry:?}");
+            };
+            assert_eq!(at.body, 0, "a half's table holds one body: {name:?}");
+            match (name.kind, name.path.as_slice()) {
+                (EntityKind::Edge, [RoleSeg::SplitFragment { parent }, tail @ ..])
+                    if rim(parent) =>
+                {
+                    assert!(
+                        matches!(tail, [] | [RoleSeg::Fragment(Qualifier::Ends(_))]),
+                        "{name:?}"
+                    );
+                    pieces.entry(side).or_default().push(name.clone());
+                }
+                (EntityKind::Vertex, [RoleSeg::CrossingVertex { edge, sense }]) if rim(edge) => {
+                    let EntityKey::Vertex(v) = at.key else {
+                        panic!("a vertex row names a vertex: {name:?}");
+                    };
+                    let p = point(half, v);
+                    assert!(
+                        crossings.insert((side, *sense), p.to_array()).is_none(),
+                        "one crossing a sense a side: {name:?}"
+                    );
+                }
+                (EntityKind::Vertex, [RoleSeg::CrossingVertex { edge, .. }, ..]) if rim(edge) => {
+                    panic!(
+                        "a crossing of the rim is ranked though its sense tells it apart: {name:?}"
+                    )
+                }
+                _ => {}
             }
-            (EntityKind::Vertex, [RoleSeg::CrossingVertex { side, edge, sense }]) if rim(edge) => {
-                let EntityKey::Vertex(v) = at.key else {
-                    panic!("a vertex row names a vertex: {name:?}");
-                };
-                let p = point(half, v);
-                assert!(
-                    crossings.insert((*side, *sense), p.to_array()).is_none(),
-                    "one crossing a sense a side: {name:?}"
-                );
-            }
-            (EntityKind::Vertex, [RoleSeg::CrossingVertex { edge, .. }, ..]) if rim(edge) => {
-                panic!("a crossing of the rim is ranked though its sense tells it apart: {name:?}")
-            }
-            _ => {}
         }
     }
     let above_pieces = &pieces[&SplitHalf::Above];
@@ -106,7 +112,7 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
             Some(RoleSeg::Fragment(Qualifier::Ends(ends))) if ends.len() == 2
                 && ends.iter().all(|e| matches!(
                     e.path.first(),
-                    Some(RoleSeg::CrossingVertex { side: SplitHalf::Above, .. })
+                    Some(RoleSeg::CrossingVertex { .. })
                 ))
         ),
         "a lone piece is named by its ends too, the two Above crossings: {above_pieces:?}"
@@ -124,7 +130,7 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
                 Some(RoleSeg::Fragment(Qualifier::Ends(ends))) if ends.len() == 2
                     && ends.iter().any(|e| matches!(
                         e.path.first(),
-                        Some(RoleSeg::CrossingVertex { side: SplitHalf::Below, .. })
+                        Some(RoleSeg::CrossingVertex { .. })
                     ))
             ),
             "a Below piece ends at a Below crossing: {piece:?}"
@@ -162,9 +168,8 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
         .edges()
         .map(|(e, _)| e)
         .find(|&e| {
-            ev.value(ext)
+            ev.table_at(ext)
                 .unwrap()
-                .name_table
                 .name_of(&editor_core::EntityRef {
                     body: 0,
                     key: EntityKey::Edge(e),
@@ -181,58 +186,94 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
     );
 }
 
-/// **A plane crossing a cylinder's wall twice names the wall's two
-/// pieces on one side by the edges they keep.** The cylinder (radius
-/// 0.3, its wall the profile's two semicircular pieces) is split by the
-/// plane y = 0.15, which crosses the `+y` half-wall twice: the strip
-/// between the two crossing lines lies Above, and the two outer strips
-/// Below. Each Below strip keeps a stretch of both rims and one lateral
+/// **A plane crossing a curved wall twice names the wall's two pieces
+/// on one side by the edges they keep.** A D-shaped rod (its wall the
+/// arc of radius 0.3 from 0° round to 225°, one curved face, and the
+/// flat of the chord back) is split by the plane y = 0.15, which crosses
+/// the arc twice, at 30° and 150°: the strip between the two crossing
+/// lines lies Above, and the two outer strips Below, apart across the
+/// flat. Each Below strip keeps a stretch of both rims and one lateral
 /// edge, a different one each, so N2's `Keeps` tells them apart; no
 /// plane is read.
+///
+/// A two-piece cylinder's wall split so leaves no such pair: each half
+/// ends with maximal faces, so the Below strips and the whole `-y`
+/// half-wall between them are one face, `Merged` of the two half-walls
+/// (N3), and the rims are joined across the profile's seam.
 #[test]
 fn a_wall_crossed_twice_names_its_same_side_pieces_by_the_edges_they_keep() {
     use editor_core::{Datum, Node, ProfileDoc};
 
+    use crate::emit_edge_piece_locality::d_rod;
     use crate::emit_union_borders::cylinder;
     use crate::fixture::{insert, len, scl};
 
-    let doc = ProfileDoc::empty_derived("wall-crossed-twice", Tol::witness());
+    let split_at = |doc: ProfileDoc, ext| {
+        let (doc, tool) = insert(
+            doc,
+            Node::Datum(Datum::Plane {
+                origin: [len(0.0), len(0.15), len(0.0)],
+                normal: [scl(0.0), scl(1.0), scl(0.0)],
+            }),
+        );
+        let (doc, split) = insert(
+            doc,
+            Node::Split {
+                target: editor_core::Operand::output(ext, 0).into(),
+                tool: tool.into(),
+            },
+        );
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        assert!(
+            ev.value(split).is_some(),
+            "the split names: {:?}",
+            ev.nodes.get(&split)
+        );
+        (ev, split)
+    };
+    // The two-piece cylinder: one Below wall face, the merged parent.
+    let doc = ProfileDoc::empty_derived("wall-crossed-twice-cylinder", Tol::witness());
     let (doc, ext) = cylinder(doc, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0);
-    let (doc, tool) = insert(
+    let (ev, split) = split_at(doc, ext);
+    let walls: Vec<_> = crate::fixture::half(&ev, split, SplitHalf::Below)
+        .iter()
+        .filter(|(n, _)| n.kind == EntityKind::Face)
+        .filter(|(n, _)| {
+            !matches!(
+                n.path.as_slice(),
+                [RoleSeg::Cap(_)] | [RoleSeg::SplitFragment { .. }] | [RoleSeg::SectionFace { .. }]
+            )
+        })
+        .map(|(n, _)| n.clone())
+        .collect();
+    assert!(
+        matches!(walls.as_slice(), [w] if matches!(w.path.as_slice(), [RoleSeg::Merged(set)] if set.len() == 2 && set.iter().all(|f| matches!(f.path.as_slice(), [RoleSeg::Lateral(_)])))),
+        "the cylinder's Below wall is one face, Merged of its two half-walls: {walls:?}"
+    );
+    // The D-rod: two Below pieces of its one curved wall.
+    let doc = ProfileDoc::empty_derived("wall-crossed-twice", Tol::witness());
+    let (doc, ext) = d_rod(
         doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.15), len(0.0)],
-            normal: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        (
+            (225.0f64).to_radians().cos() * 0.3,
+            (225.0f64).to_radians().sin() * 0.3,
+        ),
     );
-    let (doc, split) = insert(
-        doc,
-        Node::Split {
-            target: ext.into(),
-            tool: tool.into(),
-        },
-    );
-    let ev = evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
-    );
-    let value = ev
-        .value(split)
-        .unwrap_or_else(|| panic!("the split names: {:?}", ev.nodes.get(&split)));
+    let (ev, split) = split_at(doc, ext);
     let mut kept: BTreeMap<StableName, Vec<Vec<StableName>>> = BTreeMap::new();
-    for (name, entry) in value.name_table.iter() {
+    for (name, entry) in crate::fixture::half(&ev, split, SplitHalf::Below).iter() {
         assert!(
             matches!(entry, Entry::Unique(_)),
             "no row ties: {name:?} {entry:?}"
         );
         if let [
-            RoleSeg::SplitFragment {
-                side: SplitHalf::Below,
-                parent,
-            },
+            RoleSeg::SplitFragment { parent },
             RoleSeg::Fragment(Qualifier::Keeps(edges)),
         ] = name.path.as_slice()
         {

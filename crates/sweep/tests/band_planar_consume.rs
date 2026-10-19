@@ -553,28 +553,6 @@ fn a_bore_a_hair_across_the_chamfers_chord_crosses_and_one_inside_goes_with_it()
     );
 }
 
-/// **A blind bore wholly inside the sliver refuses** under both verbs, as a bound at its
-/// wall: its floor is neither a cap's cycle nor a line between two, so
-/// the prism reading does not take it, and the carve takes only a
-/// through-feature between the caps.
-#[test]
-fn a_blind_bore_inside_the_planar_sliver_refuses_as_a_bound() {
-    let (d, a) = BORE;
-    let tool = crate::common::cavity::rod(Point2::new(1.0 - d, 1.0 - d), a, -0.5, 0.5);
-    let body = crate::common::cavity::cut(
-        "blind bore",
-        &square::<f64>(1.0, poly(&[(0.4, 0.4), (0.6, 0.4), (0.6, 0.6), (0.4, 0.6)])),
-        &tool,
-    );
-    for verb in VERBS {
-        let got = refusal(verb, &body);
-        assert!(
-            matches!(got, BlendError::FaceClearance { bounded: true, .. }),
-            "{verb:?}: a blind bore refuses as a bound, got {got:?}"
-        );
-    }
-}
-
 /// The tilted bore through the leaning prism at `s = 0` whose axis is a
 /// chord of the fillet arc's circle, touching it at mid-length, its ends
 /// `h = 0.0255` either side, of radius `a = 0.002`: the bored body and

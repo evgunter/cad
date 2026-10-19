@@ -85,53 +85,34 @@ use geom_core::{Band, Point3, Real, Vec3};
 /// A body assembled from Euler ops and then grafted with planes holds
 /// every chord at the SCAFFOLDING door: `mev_line` and `mef_chord`
 /// mint an edge before any face surface exists, so they have no chart
-/// to name. At rest that breaks two rules at once, and the two are
-/// independent, not one report doubled:
+/// to name. At rest that breaks the transience fence (U2 Q2): an edge
+/// with two faces has a chart, so a scaffold there is a construction
+/// that stopped half-way. The fence fires regardless of dihedral class.
+/// Prefer-intrinsic (D2) does not fire as well: it keys on the
+/// description's form, and a scaffold is not a conventional form.
 ///
-/// - **Prefer-intrinsic** (D2): a definitely-transverse edge whose
-///   locus the modeler DECLARED must instead cite the intersection its
-///   two surfaces determine. It fires on a chart image too — a
-///   declared image is still a declared locus — so it is not about the
-///   scaffolding door.
-/// - **The transience fence** (U2 Q2): an edge with two faces has a
-///   chart, so a scaffold there is a construction that stopped
-///   half-way. It fires regardless of dihedral class — a SMOOTH join,
-///   which prefer-intrinsic exempts, is named by it just the same.
-///
-/// So a conventional chord at rest is named once by each, and the
-/// pairing is what this helper pins: one report per rule per edge,
-/// over exactly the edge arena, in its order, with no third kind and
-/// no cascade. **This is what the pre-P-1b rows' single count meant**;
-/// it is asserted as a bijection rather than re-baselined to twice the
-/// number, so that a rule firing twice on one edge, or missing one,
-/// still fails here.
-pub fn assert_every_chord_named_by_both_rules<T: Real>(
+/// This helper pins one report per edge, over exactly the edge arena,
+/// in its order, with no other kind and no cascade, so a rule firing
+/// twice on one edge, or missing one, fails here.
+pub fn assert_every_chord_named_by_the_fence<T: Real>(
     body: &Body<T>,
     errs: &[crate::ValidationError],
 ) {
     let edges: Vec<crate::EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let named = |pick: fn(&crate::ValidationError) -> Option<crate::EdgeKey>| {
-        errs.iter().filter_map(pick).collect::<Vec<_>>()
-    };
-    let scaffolds = named(|e| match e {
-        crate::ValidationError::ScaffoldAtRest { edge } => Some(*edge),
-        _ => None,
-    });
-    let transverse = named(|e| match e {
-        crate::ValidationError::TransverseNotIntrinsic { edge } => Some(*edge),
-        _ => None,
-    });
+    let scaffolds: Vec<_> = errs
+        .iter()
+        .filter_map(|e| match e {
+            crate::ValidationError::ScaffoldAtRest { edge } => Some(*edge),
+            _ => None,
+        })
+        .collect();
     assert_eq!(
         scaffolds, edges,
         "the fence names every chord still at the scaffolding door, once: {errs:?}"
     );
     assert_eq!(
-        transverse, edges,
-        "prefer-intrinsic names every declared transverse chord, once: {errs:?}"
-    );
-    assert_eq!(
         errs.len(),
-        2 * edges.len(),
+        edges.len(),
         "and nothing else is reported: {errs:?}"
     );
 }
@@ -297,7 +278,7 @@ pub fn identity_map<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
 ///   trades its conventional chord for the `Intersection` its two faces
 ///   determine; skip it and all `3n` stay
 ///   `Scaffold(ExtrudedPoint …)`/`Declared`, which is the state
-///   [`assert_every_chord_named_by_both_rules`] is about. So the choice
+///   [`assert_every_chord_named_by_the_fence`] is about. So the choice
 ///   belongs where a reader can see it, not inside a shared body — and
 ///   it is a line at each call site rather than a `bool` argument,
 ///   because the risk here is a reader not noticing that step.
@@ -714,6 +695,39 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
         };
         body.set_edge_curve(edge_key, spec, tol).unwrap();
     }
+}
+
+/// **Every chord stated as its pair.** A copy of `body` with each edge
+/// restated as the pair its two faces' surfaces under-determine (a
+/// straight `OnPair`, derived), and the report tier 3 owes it when
+/// every chord reads a corner: `TransverseNotIntrinsic` once per edge,
+/// in arena order, and nothing else. The classification an
+/// Euler-op-built body's chords hide while they are still scaffolds.
+pub fn every_chord_stated_as_its_pair<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    tol: Tol,
+) -> (Body<T>, Vec<crate::ValidationError>) {
+    let mut body = body.clone();
+    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
+    for (edge_key, edge) in &edges {
+        let (s1, s2) = crate::readback::edge_sides(&body, *edge_key)
+            .unwrap()
+            .surfaces();
+        let start = body.get_half_edge(edge.he_plus).unwrap().start;
+        let end = body.half_edge_end(edge.he_plus).unwrap();
+        let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let mut spec = EdgeCurveSpec::line_between(point(start), point(end));
+        spec.description = EdgeDescriptionSpec::OnPair {
+            pair: SurfacePair::new(s1, s2),
+            declared: None,
+        };
+        body.set_edge_curve(*edge_key, spec, tol).unwrap();
+    }
+    let want = edges
+        .into_iter()
+        .map(|(edge, _)| crate::ValidationError::TransverseNotIntrinsic { edge })
+        .collect();
+    (body, want)
 }
 
 /// A cube built like [`geometric_cube`] but through an arbitrary point
@@ -1466,12 +1480,13 @@ pub fn cyl_arc_at(v: f64, u0: f64, u1: f64) -> EdgeCurveSpec<f64> {
 
 /// The minted [`cyl_wall_sheet`] over `[4.2, 5.4] x [0, 1]` of the
 /// canonical unit [`CylFrame`] carrying a chain hung off its bottom
-/// rim: a strut up the ruling `u = 4.6` to `s`, then two arcs of the
-/// circle `v = 0.5` ([`cyl_arc_at`]), `s → q` from `4.6` to `4.8` and
-/// `q → t` on to `5.0`. An arc's image runs with its carrier's
-/// parameter, and the second arc's carrier is parametrised a period
-/// down (`4.8 − τ` to `5.0 − τ`), so its image sits a period below the
-/// first's and both joints at `q` carry a whole period, one each way.
+/// rim: a strut up the ruling `u = 5.1` to `s`, then two arcs of the
+/// circle `v = 0.5` ([`cyl_arc_at`]), `s → q` from `5.1` to `5.25` and
+/// `q → t` on to `5.35`. Each arc's image is placed over its own span in
+/// the chart's principal window (`geom_brep::ANGLE_WINDOW_START`), whose
+/// cut `τ − 1 ≈ 5.283` the chain crosses: the first arc's midpoint is
+/// below it, the second's above, so the second is placed a period down
+/// and both joints at `q` carry a whole period, one each way.
 /// Returns the body, the wall, `[s → q, q → s]` and `[q → t, t → q]`.
 pub fn arc_chain_over_the_jump(
     tol: Tol,
@@ -1505,14 +1520,13 @@ pub fn arc_chain_over_the_jump(
         assert_eq!(hit.len(), 1, "one half-edge of the wall leaves {v:?}");
         hit[0]
     };
-    let m = body.split_edge(rim, 4.6, tol).unwrap().vertex;
+    let m = body.split_edge(rim, 5.1, tol).unwrap().vertex;
     let he = leaving(&body, m);
     let up = body
-        .mev_line(MevSite::Fan { he1: he, he2: he }, frame.at(4.6, 0.5), tol)
+        .mev_line(MevSite::Fan { he1: he, he2: he }, frame.at(5.1, 0.5), tol)
         .unwrap();
     let mut chain: Vec<MevCreated> = Vec::new();
-    let tau = core::f64::consts::TAU;
-    for (u0, u1) in [(4.6, 4.8), (4.8 - tau, 5.0 - tau)] {
+    for (u0, u1) in [(5.1, 5.25), (5.25, 5.35)] {
         let from = chain.last().map_or(up.vertex, |last| last.vertex);
         let he = leaving(&body, from);
         let made = body

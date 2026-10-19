@@ -2,8 +2,9 @@
 id: anchor-signed-area-nan-on-tiny-bulge
 kind: issue
 title: anchor::signed_area returns NaN on a tiny nonzero bulge, which fires the replay/naming debug_assert
-status: open
+status: closed
 opened: 2026-09-25
+closed: 2026-10-17
 ---
 
 
@@ -40,3 +41,9 @@ EMIT's PR 3223 deletes `signed_area`, `replay_naming` and `naming_of`,
 along with the anchor code this row cites. A profile's names no longer
 depend on its loops' signed areas. Whether this row is closed is WIRE's
 call.
+
+## Closed (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. `signed_area`, `replay_naming` and `naming_of` are gone from editor-core, as the row's EMIT note (PR 3223) predicted.
+
+Signed (WIRE orchestrator).

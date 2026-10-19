@@ -17,12 +17,13 @@
 #![allow(clippy::print_stdout, clippy::too_many_lines)]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use profile::SketchPlane;
 use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache, SurfacePair};
 use geom_core::spline::KnotVector;
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use topo::{Body, Pcurve, Rechart};
 
@@ -68,9 +69,9 @@ fn prism(scale: f64) -> Body<f64> {
     };
     let sections = vec![square(), square(), square()];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5 * scale, 0.0, 1.0 * scale)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0 * scale)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.5 * scale, 0.0, 1.0 * scale)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0 * scale)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("prism builds")
@@ -104,7 +105,7 @@ fn widened_u_chart(n: &NurbsSurface<f64>) -> Surface<f64> {
         }
     }
     Surface::Nurbs(Arc::new(
-        NurbsSurface::new(ku, n.knots_v().clone(), control, weights).unwrap(),
+        NurbsSurface::new(ku, n.knots_v_f64_interim().clone(), control, weights).unwrap(),
     ))
 }
 
@@ -205,7 +206,10 @@ fn main() {
         Some(Surface::Nurbs(n)) => n.as_ref().clone(),
         _ => panic!(),
     };
-    println!("widened chart u domain = {:?}", chart.knots_u().domain());
+    println!(
+        "widened chart u domain = {:?}",
+        chart.knots_u_f64_interim().domain()
+    );
 
     // ---- Q2: the derivation, and the mint's own certification call. ----
     let out = topo::pcurve_of(&body, he_bowed, band);

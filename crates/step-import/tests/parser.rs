@@ -30,8 +30,11 @@ fn nurbs_wireframe_disposition() {
         panic!("the curve is the rational quadratic");
     };
     // Exact reconstruction: the writer's record pin, inverted.
-    assert_eq!(payload.knots().degree(), 2);
-    assert_eq!(payload.knots().knots(), &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]);
+    assert_eq!(payload.knots_f64_interim().degree(), 2);
+    assert_eq!(
+        payload.knots_f64_interim().knots(),
+        &[0.0, 0.0, 0.0, 1.0, 1.0, 1.0]
+    );
     let control = payload.control();
     assert_eq!((control[0].x, control[0].y, control[0].z), (1.0, 0.0, 0.0));
     assert_eq!((control[1].x, control[1].y, control[1].z), (1.0, 1.0, 0.0));

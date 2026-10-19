@@ -328,8 +328,8 @@ fn cert10r1_control_ders_agrees_with_finite_differences() {
 fn cert10r1_control_the_integral_arm_encloses() {
     let unweight = |s: &NurbsSurface<f64>| {
         NurbsSurface::new(
-            s.knots_u().clone(),
-            s.knots_v().clone(),
+            s.knots_u_f64_interim().clone(),
+            s.knots_v_f64_interim().clone(),
             s.control().to_vec(),
             vec![1.0; s.weights().len()],
         )

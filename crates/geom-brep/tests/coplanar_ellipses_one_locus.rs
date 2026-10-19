@@ -1,7 +1,7 @@
 //! **Two coplanar ellipses are one curve when they are one locus**, at
 //! any rotation of their frames, and two loci apart by more than the
-//! band are not ([`geom_brep::Conic::locus_gap`], read by the pose's
-//! two-ellipse arm).
+//! band are not (the pose's one-curve reading, `curve_pair_pose_one_curve`,
+//! on the Procrustes bound `pose::one_curve_gap`).
 //!
 //! A frame turned by `δφ` moves a point of the parametrization by about
 //! `a·δφ` and the locus by only about `(a − b)·δφ`. The rows build each
@@ -10,18 +10,17 @@
 //! then turns by about `u/sin θ`), and one ellipse stored in two frames
 //! turned in its plane. The distinct rows move a locus by a few times
 //! the band's escalation (centre, either semi-axis, a turn of an
-//! ordinary ellipse) and must never read one curve; moved by a few `ε`
-//! they read distinct or escalate. Every row runs at three named ε with
+//! ordinary ellipse) and must never read one curve, nor escalate the
+//! one-curve reading; moved by a few `ε` they must never read one
+//! curve. What a pair past the one-curve reading answers is the
+//! coplanar arm's, not these rows'. Every row runs at three named ε with
 //! the run's K, independent of the run's ε: the failures these rows pin
 //! were measured at all three, and a row per ε of the battery would run
 //! each at one.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::gated_to![
-    "crates/geom-brep/src/curve_pair/",
-    "crates/geom-brep/src/implicit.rs",
-];
+test_utils::gated_to!["crates/geom-brep/src/curve_pair/",];
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use geom::Curve3;
@@ -97,14 +96,20 @@ fn assert_one(label: &str, e: &Curve3<f64>, f: &Curve3<f64>, band: Band) {
     }
 }
 
+/// Two loci: never one curve, and, `definite`, the one-curve reading
+/// does not escalate either.
 fn assert_two(label: &str, e: &Curve3<f64>, f: &Curve3<f64>, band: Band, definite: bool) {
     for (k, got) in read(e, f, band).iter().enumerate() {
-        let distinct = matches!(got, Err(PoseRefusal::Closed(MeetFault::Unsupported { .. })));
-        let escalated = matches!(got, Err(PoseRefusal::Closed(MeetFault::Escalated(_))));
+        let one = matches!(got, Ok(Pose::Coincident { .. }));
+        let one_curve_escalated = matches!(
+            got,
+            Err(PoseRefusal::Closed(MeetFault::Escalated(d)))
+                if d.predicate == Some("curve_pair_pose_one_curve")
+        );
         assert!(
-            distinct || (!definite && escalated),
-            "{label}, order {k}: two loci read distinct{}: {got:?}",
-            if definite { "" } else { " or escalate" }
+            !one && !(definite && one_curve_escalated),
+            "{label}, order {k}: two loci are not one curve{}: {got:?}",
+            if definite { ", definitely" } else { "" }
         );
     }
 }
@@ -175,8 +180,8 @@ fn one_ellipse_in_two_frames_is_one_curve() {
 /// **Two loci apart**: an ordinary ellipse (`b = a/2`) against itself
 /// with its centre moved in the plane, either semi-axis grown, or the
 /// whole turned so its locus moves by `d`. At `d` three times the
-/// escalation edge it reads distinct; at three times the zero it reads
-/// distinct or escalates.
+/// escalation edge the one-curve reading is definite; at three times the
+/// zero it is not one curve.
 #[test]
 fn two_coplanar_ellipses_a_few_band_widths_apart_are_not_one_curve() {
     for eps in EPSILONS {

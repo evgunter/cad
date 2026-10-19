@@ -772,70 +772,18 @@ impl<T: Real> Conic<T> {
         (self.u_ref * self.semi_u, self.v_ref() * self.semi_v)
     }
 
-    /// **A bound on the Hausdorff distance between two conics as point
-    /// sets**, tilt out of a common plane included, whatever their
-    /// frames. Each conic is `c + L·x` over the unit circle's `x`, with
-    /// `L = [a·û, b·v̂]` ([`Self::semi_axis_vectors`]). For any orthogonal
-    /// `Q`, pairing `c_e + L_e·x` with `c_f + L_f·Q·x` pairs every point of
-    /// each with a point of the other within
-    /// `g = |c_e − c_f| + ‖L_e − L_f·Q‖`, the operator norm. `Q` is the
-    /// reflection that turns `f`'s plane the way up `e`'s is, then the
-    /// rotation that maximizes `tr(Qᵀ·L_fᵀ·L_e)` (the Procrustes
-    /// rotation), so one locus in any two frames, `L_f·Q = L_e` for some
-    /// `Q`, reads `0`, and a turn `δφ` of an ellipse costs about
-    /// `(a − b)·δφ`, its locus's move, not the `a·δφ` it moves a
-    /// parametrization by. The gap is read from both sides and the larger
-    /// taken, so it does not depend on the order of the pair.
-    ///
-    /// **Its rounding**, `u` the unit roundoff and `m` the larger
-    /// semi-axis magnitude ([`Self::speed_hi`]): the semi-axis vectors
-    /// round by `u·|a|` and, through `v̂ = n̂ × û`, by `4u·|b|`, so each
-    /// `L` by `√17·u·m`; the computed `Q`'s columns are unit to within
-    /// `8u`, which moves `L_f·Q` by `4u·m_f` from the exactly orthogonal
-    /// `Q` along them; the products with `Q` round by `4u·m_f`; and the
-    /// subtraction and the norms by `5u·g`. The computed gap is within
-    /// `12.1u·(m_e + m_f) + 5u·g` of one the bound holds for, inside
-    /// [`rounding_charge`]`(m_e + m_f + g)`.
-    ///
-    /// Meaningful where the planes are not square to each other (the
-    /// reflection is read off the normals' sign).
-    #[must_use]
-    pub fn locus_gap(&self, other: &Self) -> T {
-        (self.center - other.center).norm() + self.frame_gap(other).max(other.frame_gap(self))
-    }
-
-    /// `‖L_e − L_f·Q‖` for [`Self::locus_gap`]'s `Q`, `self` the `e`: the
-    /// largest singular value of the 3 × 2 difference, from its 2 × 2
-    /// Gram matrix.
-    fn frame_gap(&self, f: &Self) -> T {
-        let ((e1, e2), (f1, f2)) = (self.semi_axis_vectors(), f.semi_axis_vectors());
-        let up = e1.cross(e2).dot(f1.cross(f2));
-        let f2 = f2 * (up / up.abs());
-        let (x, y) = (f1.dot(e1) + f2.dot(e2), f2.dot(e1) - f1.dot(e2));
-        let h = (x.powi(2) + y.powi(2)).sqrt();
-        let (cos, sin) = (x / h, y / h);
-        let d1 = e1 - (f1 * cos + f2 * sin);
-        let d2 = e2 - (f2 * cos - f1 * sin);
-        let half = T::from_f64(0.5);
-        let (mid, off) = (
-            (d1.dot(d1) + d2.dot(d2)) * half,
-            (d1.dot(d1) - d2.dot(d2)) * half,
-        );
-        (mid + (off.powi(2) + d1.dot(d2).powi(2)).sqrt()).sqrt()
-    }
-
     /// The least speed `|C′|` over the carrier: the smaller semi-axis
     /// magnitude.
     #[must_use]
     pub fn speed_lo(&self) -> T {
-        geom::Curve3::semi_axes_by_size(self.semi_u, self.semi_v).1
+        geom::carrier_speed::SemiAxes::new(self.semi_u, self.semi_v).speed_lo()
     }
 
     /// The greatest speed `|C′|` over the carrier, and a bound on `|C″|`:
     /// the larger semi-axis magnitude.
     #[must_use]
     pub fn speed_hi(&self) -> T {
-        geom::Curve3::semi_axes_by_size(self.semi_u, self.semi_v).0
+        geom::carrier_speed::SemiAxes::new(self.semi_u, self.semi_v).speed_hi()
     }
 
     /// A bound on the curvature over the carrier, `speed_hi / speed_lo²`:
@@ -843,14 +791,13 @@ impl<T: Real> Conic<T> {
     /// whatever order the semi-axes are stored in.
     #[must_use]
     pub fn curvature_hi(&self) -> T {
-        self.speed_hi() / self.speed_lo().powi(2)
+        geom::carrier_speed::SemiAxes::new(self.semi_u, self.semi_v).curvature_hi()
     }
 
     /// The speed `|C′(θ)|` at `theta`.
     #[must_use]
     pub fn speed_at(&self, theta: T) -> T {
-        let (sin, cos) = theta.sin_cos();
-        ((self.semi_u * sin).powi(2) + (self.semi_v * cos).powi(2)).sqrt()
+        geom::carrier_speed::SemiAxes::new(self.semi_u, self.semi_v).speed_at(theta)
     }
 
     /// The point at eccentric anomaly `theta`.

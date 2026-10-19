@@ -30,7 +30,9 @@ fn lifted_extrude(lp: ProfileLoop<f64>, tol: Tol) -> Result<(), String> {
     let vp = Profile::new(SketchPlane::<f64>::xy(), vec![lp])
         .validate(tol)
         .map_err(|e| format!("validate: {e:?}"))?;
-    let lifted = vp.lift_onto(SketchPlane::<Interval>::xy());
+    let lifted = vp
+        .lift_onto(SketchPlane::<Interval>::xy())
+        .map_err(|e| format!("lift: {e:?}"))?;
     extrude(
         &lifted,
         Extrusion::Distance {

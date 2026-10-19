@@ -23,6 +23,7 @@
 //! D2 bump: the tool plane's height (mid-DAG — its cone is the plane,
 //! the split and the union; the pattern chain is reused).
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{
     Dimension, DocEdit, EntityKind, Formula, FreeVar, Node, PartSelect, PatternKind, RecipeNodeId,
@@ -49,13 +50,14 @@ const LIFT: f64 = 2.0;
 /// The document parameter the box's height reads.
 pub const H: &str = "h";
 
-/// The split's section face bounding `side`, in the naming
-/// vocabulary — the name a read of that half carries verbatim.
-pub fn section_face(split: RecipeNodeId, side: SplitHalf) -> StableName {
+/// The split's section face, in the naming vocabulary — the name each
+/// read of a half carries for its own copy of the section (NAMES N1: the
+/// read scopes it, so the two halves' faces are one name).
+pub fn section_face(split: RecipeNodeId) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: split,
-        path: vec![RoleSeg::SectionFace { side, section: 0 }],
+        path: vec![RoleSeg::SectionFace { section: 0 }],
     }
 }
 
@@ -132,8 +134,8 @@ pub fn document() -> CorpusDoc {
             angle: ang(0.0),
         },
     ));
-    r.place(whole);
-    r.place(lifted);
+    r.place_part(whole);
+    r.place_part(lifted);
 
     CorpusDoc {
         name: "part_select",

@@ -198,7 +198,6 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
         doc,
         &edit,
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Ok(_) => panic!("a construction reading a measured value was accepted"),
         Err(refusal) => refusal,
@@ -227,7 +226,6 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::ConstructionReadsObserved { node, slot, var }) => {
             assert_eq!((node.id(), slot, var.id()), (b, SlotId::Distance, out));
@@ -411,7 +409,6 @@ fn a_redefinition_over_a_measure_binds_after_the_measure_runs() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("an assertion may read a value redefined over a measure")
     .doc;

@@ -32,9 +32,12 @@ orthogonal group (the Procrustes rotation), a locus bound.
 
 Fix: read the ellipse pair's one-curve decision on a locus bound.
 
-## Fixed (PR 5172)
+## Fixed
 
-The arm decides on `geom_brep::Conic::locus_gap` (the Procrustes bound
-lifted from `carrier_cross`), its rounding charged at
-`rounding_charge(m_e + m_f + g)`. Pinned by
-`crates/geom-brep/tests/coplanar_ellipses_one_locus.rs`.
+On main by `f6237757e6` (the pose's one-curve reading is the Procrustes
+margin, `pose::one_curve_gap`, for every conic pair), which landed while
+PR 5172 was open. PR 5172 pins it: the rows in
+`crates/geom-brep/tests/coplanar_ellipses_one_locus.rs` are red on the
+merge base `a2d40d45` and green on main. The rounding charge the
+one-curve read still lacks is filed as
+`work/cpair/one-curve-reads-the-procrustes-gap-without-its-rounding-charge.md`.

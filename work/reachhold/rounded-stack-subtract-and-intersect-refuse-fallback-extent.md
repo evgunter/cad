@@ -116,3 +116,15 @@ Waits on `intent-stage4-is-built`, not on the whole program: the extent pass's e
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E gives the extent pass's exemption the same pairs declared or not, because the glue door declares every Zero-decided continuation (`crates/topo/src/boolean/glue.rs:72`–`:78`). An undeclared stack is the declared one bit for bit, refusal included (`crates/sweep/tests/reach_continuation.rs:1226`–`:1237`). The refusals stand unchanged. A ∪ B of the thin plate in the thick one's wall still refuses `FallbackExtentUnsupported` (`reach_continuation.rs:1233`), and so do the half-rod stack's ∩ and ∖ (`crates/sweep/tests/reach_aligned_half_rods.rs:126`). The open question is unchanged: a certificate of abutment for an aligned continuation.
+
+## Also seen by PATHS (`paths/in-face-section-self-loop`, 2026-10-14)
+
+The aligned continuation of two equal coaxial cylinders reaches the same
+refusal: `r = 1` over `z ∈ [0, 1]` and `[1, 2]` unite (`2π`), and their
+∩ and both differences refuse `FallbackExtentUnsupported` in both
+orders, with the circle lowered to one segment or to two arcs, and with
+the upper vertex turned off the lower's. So do the puck `r = 1`,
+`z ∈ [0, 0.25]` and the quarter-disc ring revolved round it
+(`pi_seam_and_kiss_through_the_boolean.rs`'s pose), whose walls lie on
+one cylinder. The unions are pinned in
+`crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`.

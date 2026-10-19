@@ -186,13 +186,13 @@ impl core::fmt::Display for PiecesFault {
         match self {
             Self::NoRecord { loop_ } => write!(
                 f,
-                "program loop {loop_} has no replay record to name its pieces by, which is a \
-                 kernel bug"
+                "program loop {loop_} has no replay record to name its pieces by. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::NoIds { loop_ } => write!(
                 f,
-                "program loop {loop_} has no minted step ids to name its pieces by, which is \
-                 a kernel bug"
+                "program loop {loop_} has no minted step ids to name its pieces by. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::Length {
                 loop_,
@@ -201,12 +201,14 @@ impl core::fmt::Display for PiecesFault {
             } => write!(
                 f,
                 "program loop {loop_} replayed {recorded} segments but its canonical loop has \
-                 {anchored}, which is a kernel bug"
+                 {anchored}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::NoStepId { loop_, step, ids } => write!(
                 f,
                 "step {step} of program loop {loop_} drew a piece but the loop has only {ids} \
-                 minted step ids, which is a kernel bug"
+                 minted step ids. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
         }
     }
@@ -450,25 +452,20 @@ pub struct ProfileValue<T: geom_core::Real> {
 /// inside the node's verdict frame: replay and the f64 validation are
 /// C6 STRUCTURE SELECTION (the v1 substrate's stored bits, one
 /// derivation earlier), decided once on the node's behalf and logged
-/// as the node's own. Under the pinned lift the op's value is
-/// [`ProfilePre::validated_f64`] lifted, and the op decides nothing;
-/// under the guided lift the op's own validation follows in the log.
+/// as the node's own. At `f64` the op's value is
+/// [`ProfilePre::validated_f64`] on the lane's plane, and the op decides
+/// nothing ([`super::ProfileLane`]); at every other scalar the op's own
+/// guided validation follows in the log.
 #[derive(Debug, Clone)]
 pub(crate) struct ProfilePre {
     /// The replayed profile's canonical form at f64, minted by the
     /// pre-pass's one validation. Its plane is the 2-D record's
-    /// assembly frame: [`ProfilePre::placement_f64`] where there is
-    /// one, the conventional `SketchPlane::xy()` where there is not —
+    /// assembly frame: an authored frame's `f64` document read, the
+    /// conventional `SketchPlane::xy()` for a derived frame (DM1c) —
     /// validation is 2-D and the naming anchor is loop-derived, so no
-    /// decision reads it. A consumer places with `placement_f64` (or
-    /// the lane's derived frame), never with this plane.
+    /// decision reads it. A consumer places with the lane's frame
+    /// (`wire::frame_plane_lane`), never with this plane.
     pub validated_f64: ValidatedProfile<f64>,
-    /// The profile's `f64` placement, where the profile HAS one: an
-    /// authored frame's document read. `None` for a profile on a derived frame (DM1c), whose
-    /// only placement is the lane's — the invariant carried in the
-    /// type rather than by a placeholder a reader could mistake for a
-    /// placement.
-    pub placement_f64: Option<profile::SketchPlane<f64>>,
     /// The canonical ↔ program naming anchor.
     pub naming: ProfileNaming,
     /// The piece every canonical position is ([`ProfilePieces::publish`]).
@@ -476,6 +473,11 @@ pub(crate) struct ProfilePre {
     /// The discrete decisions this f64 pass made — the witness the
     /// lift's second pass consumes and re-verifies at its own scalar.
     pub structure: profile::ProfileStructure,
+    /// What the second pass logs at `f64` over the nominal, in order:
+    /// the replay's and validation's decisions less those guidance pins
+    /// ([`profile::PINNED_UNDER_GUIDANCE`]). The `f64` lane that skips
+    /// the pass logs this in its place ([`super::ProfileLane`]).
+    pub decided: geom_core::k_stats::Recorded,
 }
 
 /// An arc's stored fields as bits — centre, radius, sweep — for the

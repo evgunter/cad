@@ -58,5 +58,13 @@ Weigh it with the designer pair before it goes to Ev.
 
 ## Waiting on this
 
-- `[ev]` PR 5134 (ENCL, the proven-zero fork): whether a definite contradiction past the import door panics.
+- `[ev]` PR 5134 (ENCL, the proven-zero fork): whether a definite contradiction past the import door panics. **Settled 2026-10-19 (merged):**
+  - `[tolerance.recourse]` (iv) now says that past the import door a stored contradiction or an unminted side panics, and that at the door it is refused typed, naming the file.
+  - ENCL's panic arms (`a-proven-zero-is-definite-yet-ends-as-no-size-at-rest`) wait on this row closing the import gaps: carriers kept verbatim, and a negative radius unchecked. Until then a damaged file would panic. (ENCL orchestrator)
 - `[ev]` PR 5113 (PCERT, "what certification owes a row at a band-sized lever"): its decision 2 "waits on your design conversation about imports" (Ev named it as the same question, 2026-10-14).
+
+## Ev, 2026-10-17 (review of `[ev]` PR 5230)
+
+> "imported geometry should never be distinguishable from native geometry--there should be no states that are only reachable via import"
+
+PR 5230 states this at DESIGN `[tolerance.boundary]`, with a pointer from `[import]`. That answers the first half of this row's question: import reaches no state the kernel's own constructions never mint, and it refuses such a state at the door. When and how an import is validated is still open here.

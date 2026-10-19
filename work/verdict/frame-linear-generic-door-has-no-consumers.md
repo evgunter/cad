@@ -489,3 +489,23 @@ reach them, and no grep stands in for that instrument.
 ## Re-homed
 
 Moved from `work/gather/` with GATHER's close (2026-09-29), id kept, still parked. It is blocked on `the-scalar-lift-convention-mints-doors-faster-than-consumers`, which VERDICT owns, so it waits beside its blocker.
+
+## `SketchPlane::map` is gone (2026-10-14, PATHS' `the-sketch-plane-is-its-frame`)
+
+The "Measured" table's `SketchPlane::map` row (live through
+`editor-core`'s `eval/wire.rs`) and the `Affine3::map` row's
+`SketchPlane::map` consumer no longer exist: the sketch plane holds a
+`RigidMotion` and crosses scalars through `SketchPlane::embed` /
+`embed_computed` / `point_value`. `Affine3::map` stays live through
+`editor-core`'s `Frame::affine`, so `Mat3::map` and `Vec3::map` keep
+their in-crate consumer; the ladder dispositions above are unchanged.
+
+## The frame's up doors are gone (2026-10-14, Ev's ruling A on #5068)
+
+`SketchPlane::embed` / `embed_computed` and `RigidMotion::embed` /
+`embed_computed` retired: a frame exists at a scalar only by being
+minted there, and `point_value` is its one crossing. `Profile::embed`
+(no production consumer) went with them. The ladder dispositions above
+are unchanged; `Affine3::map` stays live through `Frame::affine` and
+through the fixtures that admit a placement again at `T`
+(`sweep::test_support::lift_places`).

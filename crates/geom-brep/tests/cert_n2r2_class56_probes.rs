@@ -111,6 +111,7 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             ends.0,
             ends.1,
             |k| arena.get(k).cloned(),
+            1.0,
             band(),
             Some(geom_brep::NurbsLane::certified()),
         );
@@ -128,7 +129,7 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             param_start: 0.0,
             param_end: 1.0,
         };
-        let r = EdgeCurve::certify(spec, ends.0, ends.1, |k| arena.get(k).cloned(), band());
+        let r = EdgeCurve::certify(spec, ends.0, ends.1, |k| arena.get(k).cloned(), 1.0, band());
         eprintln!(
             "[class 6 chart/iso {name}] certify -> {}",
             match &r {
@@ -147,6 +148,7 @@ fn n2r2_class6_certify_lanes_on_masquerade() {
             ends.0,
             ends.1,
             |k| arena.get(k).cloned(),
+            1.0,
             band(),
             Some(geom_brep::NurbsLane::certified()),
         );

@@ -3,7 +3,7 @@
 
 use geom::{Curve3, NurbsCurve3};
 use geom_core::spline::SpanLocate;
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Real, Vec3};
 
 use super::{LoopEdge, PropsError};
 
@@ -16,12 +16,26 @@ use super::{LoopEdge, PropsError};
 /// Per-edge closed forms (fixed association order, D9):
 ///
 /// - line `a → b`: `(1/2)·(a − ref)×(b − ref)`;
-/// - circular arc: `(1/2)·[(C − ref)×(p1 − p0) + R²·(t1 − t0)·axis]`,
-///   negated for reversed traversal;
-/// - ellipse arc (M5 PR 5): the same form with `R² → a·b` —
-///   `(P−C)×dP = a·b·dθ·axis` exactly (the eccentric-anomaly
-///   parameterization's constant areal rate), so
-///   `(1/2)·[(C − ref)×(p1 − p0) + a·b·(t1 − t0)·axis]`;
+/// - circular arc, `Δ = t1 − t0`: the triangle `ref, p0, p1` plus the
+///   segment between the chord and the arc,
+///   `(1/2)·[(p0 − ref)×(p1 − p0) + R²·(Δ − sin Δ)·axis]`, negated for
+///   reversed traversal;
+/// - ellipse arc: the same form with `R² → a·b` — `(P−C)×dP =
+///   a·b·dθ·axis` exactly (the eccentric-anomaly parameterization's
+///   constant areal rate), so the segment is the circle's under the
+///   affine map, `(1/2)·[(p0 − ref)×(p1 − p0) + a·b·(Δ − sin Δ)·axis]`.
+///
+///   **An arc's lever is its start point, never its centre.** The
+///   centre-referenced form `(C − ref)×(p1 − p0) + a·b·Δ·axis` is the
+///   same number in ℝ, but its two terms are the sector's size and
+///   cancel to the face's, so the chord's rounding reaches the sum
+///   times `|C − ref|`. The chord still carries that rounding — `p0`
+///   and `p1` are evaluated about `C`, to `ulp(|C|)` — but here it
+///   meets only the lever `|p0 − ref|`, the face's own extent: the
+///   residual is about `ulp(|C|)·|p0 − ref|` per arc, which for a
+///   carrier inside D4's 1 km session box is at the scale of the
+///   smallest ε the kernel runs at. That residual is what a closed
+///   form's zero pad leaves unbounded.
 /// - **non-rational B-spline** (D7 stage-1 promotion made this a
 ///   reachable at-rest state: a promoted plane keeps its parsed
 ///   spline boundary carriers): per knot span the integrand
@@ -53,27 +67,15 @@ pub fn loop_vector_area<T: SpanLocate>(
                 let b = e.p1() - ref_point;
                 a.cross(b) * half
             }
-            Curve3::Circle {
-                center,
-                axis,
-                radius,
-                ..
-            } => {
-                let w = center - ref_point;
-                let chord = e.p1() - e.p0();
-                (w.cross(chord) + axis * (radius.powi(2) * (e.t1 - e.t0))) * half
+            Curve3::Circle { axis, radius, .. } => {
+                arc_vector_area(e, ref_point, axis, radius.powi(2)) * half
             }
             Curve3::Ellipse {
-                center,
                 axis,
                 semi_u,
                 semi_v,
                 ..
-            } => {
-                let w = center - ref_point;
-                let chord = e.p1() - e.p0();
-                (w.cross(chord) + axis * (semi_u * semi_v * (e.t1 - e.t0))) * half
-            }
+            } => arc_vector_area(e, ref_point, axis, semi_u * semi_v) * half,
             Curve3::Nurbs(ref payload) => nurbs_vector_area(payload, e.t0, e.t1, ref_point)?,
             // The spiric's sector integral `∫ P × P′ dv` carries
             // `√((R + r cos v)² − d²)` against `sin v` and `cos v` — an
@@ -89,6 +91,38 @@ pub fn loop_vector_area<T: SpanLocate>(
         };
     }
     Ok(acc)
+}
+
+/// Twice an arc's vector area about `ref_point`, its areal rate
+/// `rate·axis` per unit parameter: the triangle `ref_point, p0, p1` and
+/// the segment the arc cuts off its chord (module docs of
+/// [`loop_vector_area`]).
+fn arc_vector_area<T: SpanLocate>(
+    e: &LoopEdge<T>,
+    ref_point: Point3<T>,
+    axis: Vec3<T>,
+    rate: T,
+) -> Vec3<T> {
+    let p0 = e.p0();
+    (p0 - ref_point).cross(e.p1() - p0) + arc_segment_term(axis, rate, e.t1 - e.t0)
+}
+
+/// **The bulge of an arc over its chord** — the one statement of it:
+/// `Δ − sin Δ` for the signed span `Δ`. Twice the area between a unit
+/// circle's arc and its chord; an arc of the conic `c + a·cos θ +
+/// b·sin θ` cuts off `(a × b)·(Δ − sin Δ)` of twice-area, for any
+/// signed `Δ` and any `a`, `b`.
+pub fn chord_bulge<T: Real>(span: T) -> T {
+    span - span.sin()
+}
+
+/// **Twice the vector area between a conic arc and its chord**:
+/// `axis·rate·(Δ − sin Δ)`, `rate` the arc's areal rate per unit of its
+/// parameter (`R²` for a circle, the semi-axes' signed product for an
+/// ellipse) and `Δ` its signed span — the one home of the segment term
+/// every reading of a conic arc's area adds to its chord's.
+pub fn arc_segment_term<T: Real>(axis: Vec3<T>, rate: T, span: T) -> Vec3<T> {
+    axis * (rate * chord_bulge(span))
 }
 
 /// The fixed Gauss–Legendre rules on `[−1, 1]`, by node count `n`
@@ -138,7 +172,7 @@ fn nurbs_vector_area<T: SpanLocate>(
     t1: T,
     ref_point: Point3<T>,
 ) -> Result<Vec3<T>, PropsError> {
-    if curve.weight_channel().iter().any(|w| *w != 1.0) {
+    if curve.weights_f64_interim().iter().any(|w| *w != 1.0) {
         return Err(PropsError::Unimplemented);
     }
     let degree = curve.degree().max(1);
@@ -149,7 +183,7 @@ fn nurbs_vector_area<T: SpanLocate>(
                    before integrating higher",
         });
     };
-    let kv = curve.knots();
+    let kv = curve.knots_f64_interim();
     let (Some(lo_spans), Some(hi_spans)) = (t0.locate_spans(kv), t1.locate_spans(kv)) else {
         // A poison end locates no span, and the area is poison in every
         // channel the ends carry.

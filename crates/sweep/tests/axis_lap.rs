@@ -41,7 +41,7 @@
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
-use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
@@ -220,11 +220,7 @@ fn full_length_flats_build_at_the_analytic_volume() {
 ///
 /// The arm mints both chords, and the result builds at its analytic
 /// volume: over each point of the disc segment `y ≥ 0.2` the two caps
-/// are 3 apart along `z`. The containment door's orientation probe
-/// measures the body in closed form, which an obliquely trimmed wall
-/// has none of, so a probe ray meeting nothing cannot side its point
-/// (`work/restread/at-infinity-probe-measures-in-closed-form-only`); that
-/// ray is set aside, and one meeting the boundary answers.
+/// are 3 apart along `z`.
 #[test]
 fn an_oblique_cap_flats_through_its_ellipse_arc() {
     let theta = 20f64.to_radians();
@@ -286,7 +282,7 @@ fn a_rim_semicircle_decides_role_resolution_at_its_own_midpoint() {
     let bump = PI * 0.1 * 0.1 / 2.0;
     for (bulge, area) in [(1.0, half - bump), (-1.0, half + bump)] {
         let cutter = extruded(
-            SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -1.0))),
+            SketchPlane::xy_at(Point3::new(0.0, 0.0, -1.0)),
             bulge_loop(vec![
                 (Point2::new(-1.0, 0.0), 0.0),
                 (Point2::new(-0.1, 0.0), bulge),
@@ -316,7 +312,7 @@ fn d_pocket(z0: f64) -> Result<topo::BooleanResult<f64>, BooleanError> {
     let block = finished("the block", block, tol());
     let c = sweep::test_support::rod_chord_at(0.3);
     let d = extruded(
-        SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0))),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, z0)),
         bulge_loop(vec![
             (Point2::new(0.3, c.half), c.wall_bulge),
             (Point2::new(0.3, -c.half), 0.0),
@@ -413,7 +409,7 @@ fn annular_sector(ro: f64, ri: f64, sweep: f64, z0: f64, h: f64) -> (AtRestBody<
         (at(ri, -g), -b),
         (at(ri, g), 0.0),
     ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     (
         finished("the C", extruded(plane, lp, h), tol()),
         sweep / 2.0 * (ro * ro - ri * ri),

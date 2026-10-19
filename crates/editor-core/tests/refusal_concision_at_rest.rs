@@ -123,7 +123,10 @@ fn minted() -> MintedDeclaration {
         path: vec![RoleSeg::OutputBody],
     };
     MintedDeclaration {
-        mate: RecipeNodeId::new(0, tagged(7)),
+        mate: editor_core::MateRef::new(
+            RecipeNodeId::new(0, tagged(7)),
+            editor_core::ConstraintId(editor_core::MintId::new(0, tagged(8))),
+        ),
         a: name(1),
         b: name(2),
         class: ContactClass::Rest,

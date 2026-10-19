@@ -212,9 +212,11 @@ fn names_in_parts(levels: usize) -> (ProfileDoc, String) {
         doc,
         Node::fillet(extrude, len(0.1), vec![in_parts(rim, levels)]),
     );
+    let read = doc.read_of_node(extrude).expect("the block's one output");
     let (doc, _) = fixture::step(
         doc,
         DocEdit::SetAppearanceMeta {
+            body: read,
             name: in_parts(cap, levels),
             key: "probe".to_owned(),
             value: MetaValue::map([("v".to_owned(), MetaValue::Int(1.into()))].into())
@@ -311,9 +313,11 @@ fn what_nests_outside_a_name_is_refused_past_the_limit_whatever_keys_sit_beside_
             },
         },
     );
+    let read = crate::fixture::painted_in(&doc, &cap);
     let (doc, _) = fixture::step(
         doc,
         DocEdit::SetAppearanceMeta {
+            body: read,
             name: cap,
             key: "probe".to_owned(),
             value: MetaValue::map(

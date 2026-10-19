@@ -91,7 +91,9 @@ pub use ::profile::{
     bulge_from_via,
 };
 
-// Validation: the gate, its typed refusals, and the canonical output.
+// Validation: the gate, its typed refusals, and the canonical output,
+// with `ValueNotAPoint`, the refusal of the canonical form's value
+// channel (`ValidatedProfile::value_channel`).
 // `BlendArc` and `DecidedJoint` (with its `JointCarriers`) are in this
 // family because `ValidatedLoop::blend_arcs` and `decided_joints` hand
 // them back — read-back doors on a type this list carries, whose return
@@ -99,7 +101,7 @@ pub use ::profile::{
 pub use ::profile::{
     ArcCheck, BlendArc, ContactKind, DecidedJoint, EscalationSite, FilletLeg, FilletLegCarrier,
     JointCarriers, LoopRole, NoCornerReason, ProfileError, SegmentKind, SegmentRef, ValidatedLoop,
-    ValidatedProfile, ValidatedSegment,
+    ValidatedProfile, ValidatedSegment, ValueNotAPoint,
 };
 
 // **The structure record and the guided doors.** One vocabulary, and

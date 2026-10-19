@@ -54,10 +54,12 @@
 #
 # NOTHING IS WRITTEN TO THE COMMITTED LANE DIRECTORY UNTIL THE PASS
 # SUCCEEDS. Every scene renders into an untracked staging tree
-# (out/stage-<lane>/); only a completed pass has its frames moved into
-# renders/ or renders-freecad/. So any failure — wedge, crash, missing
-# FreeCAD — leaves the committed tree byte-for-byte as it was, and a
-# half-finished pass can never be mistaken for a whole one.
+# (out/stage/<lane>/); only a completed pass is published, by
+# publish_lane.py, which replaces the lane's committed cells with the
+# pass's wholesale. So any failure — wedge, crash, missing FreeCAD —
+# leaves the committed tree byte-for-byte as it was, a half-finished
+# pass can never be mistaken for a whole one, and a scene the pass did
+# not draw shows up as a deleted cell.
 #
 # THE PREVIEW LANE IS UNCOMMITTABLE (#221). A matplotlib frame once
 # reached a committed montage cell silently, because the preview
@@ -67,8 +69,8 @@
 #     lane this script touches NOTHING under renders/, and says so
 #     loudly on stderr;
 #   * GUARD — check_render_provenance.py runs over the committed lane
-#     directory in both lanes, after the stamp strip and BEFORE the
-#     montage is composed, so a sheet is never composed from a cell
+#     directory in both lanes, as publish_lane.py's last step: after
+#     the stamp strip and BEFORE the montage is composed, so a sheet is never composed from a cell
 #     set that is not certified FreeCAD-authored. `set -e` makes a
 #     violation abort the run.
 #
@@ -654,40 +656,6 @@ count_time() {
     times+=("$2")
 }
 
-# Move a completed pass from staging into the committed lane directory.
-# Only reached when every scene rendered, so the lane directory goes
-# from one whole pass to the next, never through a partial one.
-publish() {
-    local stage=$1 rd=$2 f name
-    mkdir -p "$rd"
-    for f in "$stage"/*.png; do
-        name=$(basename "$f" .png)
-        rm -f "$rd/$name.fail.txt"
-        # A stale note goes with the stale frame: this pass republishes
-        # the note below if it still applies.
-        rm -f "$rd/$name.note.txt"
-        mv -f "$f" "$rd/$name.png"
-    done
-    for f in "$stage"/*.fail.txt; do
-        [ -e "$f" ] || continue
-        name=$(basename "$f" .fail.txt)
-        # The scene produced no frame this pass, so any frame left from
-        # an earlier one goes: the sheet must show the labeled failure,
-        # not a stale cell that no longer corresponds to anything.
-        rm -f "$rd/$name.png"
-        mv -f "$f" "$rd/"
-    done
-    # `.note.txt` — a frame that rendered EMPTY on purpose (the lane had
-    # nothing to import for it). Unlike a `.fail.txt` it does not
-    # displace the frame; it travels BESIDE it, so the sheet can stamp
-    # the cell as declared rather than as a wedge. The stale copy was
-    # already cleared with its frame above.
-    for f in "$stage"/*.note.txt; do
-        [ -e "$f" ] || continue
-        mv -f "$f" "$rd/"
-    done
-}
-
 if [ "$LANE" = --freecad ]; then
     # ---- FreeCAD/OCC STEP lane ------------------------------------
     if [ ! -x "$FREECADCMD" ]; then
@@ -734,10 +702,8 @@ if [ "$LANE" = --freecad ]; then
     # frames are published, so the sheet is composed from — and the
     # lane directory holds — the same bytes that get committed.
     "$VENV/bin/python" strip_png_stamps.py "$STAGE"
-    publish "$STAGE" "$RD"
-    # Provenance guard before the sheet is composed: every cell that
-    # goes on it must carry FreeCAD's signature chunks.
-    "$VENV/bin/python" check_render_provenance.py "$RD"
+    # shellcheck disable=SC2086  # scene names are identifiers, by construction
+    "$VENV/bin/python" publish_lane.py --sidecars "$STAGE" "$RD" $names
     exec "$VENV/bin/python" compose_montage.py out "$RD" \
         --montage=montage-freecad.png \
         '--banner=FreeCAD/OCC render — OCC re-tessellation of the kernel'\''s own STEP exports (compare renders/montage.png: the kernel'\''s facets)'
@@ -816,9 +782,8 @@ echo "kernel lane: $(scene_stats "$STATS_UNIT" "${times[@]}"), ${PASS_SECS}s wal
 
 # Same wall-clock strip as the STEP lane, before publishing.
 "$VENV/bin/python" strip_png_stamps.py "$STAGE"
-publish "$STAGE" "$RD"
-# Provenance guard before the sheet is composed (see the header).
-"$VENV/bin/python" check_render_provenance.py "$RD"
+# shellcheck disable=SC2086  # scene names are identifiers, by construction
+"$VENV/bin/python" publish_lane.py --sidecars "$STAGE" "$RD" $names
 
 # The kernel sheet carries its own provenance banner too, so the two
 # sheets superimpose exactly — cell for cell AND banner for banner.
