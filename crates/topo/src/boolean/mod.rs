@@ -6513,9 +6513,9 @@ fn tangent_line<T: Decide>(
     // Each face's padded reach along a direction, read in the frame it
     // aims, so a face that does not reach the locus settles an in-band
     // reading of the carriers.
+    let pad = T::from_f64(boxes::sweep_pad(band));
     let extents = |across| {
         let frame = boxes::BoxFrame::aimed(across);
-        let pad = T::from_f64(boxes::sweep_pad(band));
         [(a, fa), (b, fb)].map(|(body, face)| {
             crate::census::face_reach_in(body, face, band, &frame)
                 .map(|(lo, hi)| (lo.x - pad, hi.x + pad))
@@ -6523,7 +6523,7 @@ fn tangent_line<T: Decide>(
     };
     match geom_brep::tangent_locus_of_faces(sa, sb, reach, band, extents) {
         Ok(geom_brep::TangentLocus::Line { origin, dir, gap }) => {
-            let (span, overlap) = witness_span(a, fa, b, fb, origin, dir)?;
+            let (span, overlap) = witness_span(a, fa, b, fb, (origin, dir), band, pad)?;
             Ok(Ok(TangentLine {
                 carrier: geom::Curve3::Line { origin, dir },
                 span,
@@ -6952,27 +6952,51 @@ fn route_rim<T: Decide>(
     }
 }
 
-/// The parameter spans of the line `origin + t·dir` the two declared
-/// faces' boundary vertices project onto: their union, the extent a
-/// witness along it is metered over, and their overlap, where both
-/// faces' extents meet ([`locus_through_both_faces`]'s schedule).
+/// The parameter spans of the line `origin + t·dir` (`dir` unit) the
+/// two faces reach along it: their union, the extent a witness along
+/// it is metered over, and their overlap, where both faces' extents
+/// meet ([`locus_through_both_faces`]). Each face's span holds every
+/// point of the face: its boundary vertices' projections and, for a
+/// circle or ellipse edge, its carrier's whole reach along the line
+/// (an arc can bulge past its ends); a face with an edge of another
+/// kind spans its box along the line, padded by `pad`
+/// ([`crate::census::face_reach_in`]). So extents meeting at one point
+/// meet at an end of each, where no interiors meet.
 #[allow(clippy::type_complexity)]
 fn witness_span<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
-    origin: Point3<T>,
-    dir: geom_core::Vec3<T>,
+    (origin, dir): (Point3<T>, geom_core::Vec3<T>),
+    band: Band,
+    pad: T,
 ) -> Result<((T, T), (T, T)), BooleanError> {
+    let along = |p: Point3<T>| (p - origin).dot(dir);
     let span = |body: &Body<T>, f, operand| -> Result<(T, T), BooleanError> {
-        let mut ts = face_boundary_points(body, f, operand)?
+        let invalid = |what| BooleanError::InvalidInput { operand, what };
+        let mut ts: Vec<T> = face_boundary_points(body, f, operand)?
             .into_iter()
-            .map(|p| (p - origin).dot(dir));
-        let first = ts.next().ok_or(BooleanError::InvalidInput {
-            operand,
-            what: "declared face pair has no boundary vertex to meter the tangent witness",
-        })?;
+            .map(along)
+            .collect();
+        match conic_reach(body, f, along, dir) {
+            Some(extra) => ts.extend(extra),
+            None => {
+                let aim = geom_core::UnitVec3::new(dir, "bool_tangent_line_aim", band)
+                    .map_err(|_| invalid("the tangent line has no direction"))?;
+                let (lo, hi) =
+                    crate::census::face_reach_in(body, f, band, &boxes::BoxFrame::aimed(aim))
+                        .ok_or(invalid(
+                            "a face of the pair has no reach along its tangent line",
+                        ))?;
+                let at = along(Point3::origin());
+                ts.extend([lo.x + at - pad, hi.x + at + pad]);
+            }
+        }
+        let mut ts = ts.into_iter();
+        let first = ts.next().ok_or(invalid(
+            "declared face pair has no boundary vertex to meter the tangent witness",
+        ))?;
         Ok(ts.fold((first, first), |(lo, hi), t| (t.min(lo), t.max(hi))))
     };
     let (sa, sb) = (span(a, fa, Operand::A)?, span(b, fb, Operand::B)?);
@@ -6980,6 +7004,52 @@ fn witness_span<T: Decide>(
         (sa.0.min(sb.0), sa.1.max(sb.1)),
         (sa.0.max(sb.0), sa.1.min(sb.1)),
     ))
+}
+
+/// The reach along `dir` (unit; `along` the parameter of a point) of
+/// each circle and ellipse edge of `f`'s boundary, its carrier's two
+/// extremes; `None` where an edge is neither one nor a line, or the
+/// boundary cannot be walked.
+fn conic_reach<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+    along: impl Fn(Point3<T>) -> T,
+    dir: geom_core::Vec3<T>,
+) -> Option<Vec<T>> {
+    let face = body.get_face(f)?;
+    let mut out = Vec::new();
+    for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(lk)?.boundary else {
+            continue;
+        };
+        for he in body.loop_cycle(first)? {
+            let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
+            let (center, reach) = match *body.get_curve_geom(edge.curve)?.certified()?.carrier() {
+                geom::Curve3::Line { .. } => continue,
+                geom::Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    ..
+                } => (center, radius * axis.cross(dir).norm()),
+                geom::Curve3::Ellipse {
+                    center,
+                    axis,
+                    semi_u,
+                    semi_v,
+                    u_ref,
+                } => (
+                    center,
+                    ((semi_u * u_ref.dot(dir)).powi(2)
+                        + (semi_v * axis.cross(u_ref).dot(dir)).powi(2))
+                    .sqrt(),
+                ),
+                _ => return None,
+            };
+            out.extend([along(center) - reach, along(center) + reach]);
+        }
+    }
+    Some(out)
 }
 
 /// Whether two faces' extents along their tangent line meet along a
@@ -7075,12 +7145,13 @@ pub(crate) enum FaceUnread {
 /// ([`boundary_cuts`]), so no boundary crosses the open run between two
 /// cuts and one station, its middle, answers for each run: the reading
 /// is exact wherever both trims' carriers meet the line in closed form.
-/// Where one does not (a spiric or spline edge) or the locus is not a
-/// line, the certificate schedule's parameters are cuts too, and a run
-/// of that face's interior shorter than their spacing can be missed.
-/// Two cuts the band cannot part are one boundary event (a vertex and
-/// its edge's carrier agree only to the band), so a run not decidedly
-/// longer than the band is not read.
+/// Where one does not (a spiric or spline edge), where a meeting could
+/// not be placed (its edge's swing or its conic's rise in band), or
+/// where the locus is not a line, the certificate schedule's parameters
+/// are cuts too, and a run of that face's interior shorter than their
+/// spacing can be missed.
+/// A run inside the zero band is one cut met twice and is not read; a
+/// run in band is read, and may hold.
 ///
 /// Each station is read by both faces under [`crate::census::in_both`]:
 /// either face deciding it out settles it, both in answers `true`. A
@@ -7116,9 +7187,9 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
     let mut cuts = vec![overlap.0, overlap.1];
     let exact = match *locus {
         geom::Curve3::Line { origin, dir } => faces.iter().all(|&(body, face)| {
-            boundary_cuts(body, face, (origin, dir), overlap, band).is_some_and(|ts| {
+            boundary_cuts(body, face, (origin, dir), overlap, band).is_some_and(|(ts, unsure)| {
                 cuts.extend(ts);
-                true
+                !unsure
             })
         }),
         _ => false,
@@ -7143,11 +7214,11 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
     }
     let mut held = None;
     for run in cuts.windows(2) {
-        // Two cuts the band cannot part are one boundary event read
-        // twice: a vertex and its edge's carrier agree only to the band.
-        if crate::validate::decide("bool_tangent_line_run", Margin::of(run[1] - run[0]), band)
-            != Ok(Sign::Positive)
-        {
+        // A run inside the zero band is one cut met twice.
+        if matches!(
+            crate::validate::decide("bool_tangent_line_run", Margin::of(run[1] - run[0]), band),
+            Ok(Sign::Zero | Sign::Negative)
+        ) {
             continue;
         }
         let p = locus.eval((run[0] + run[1]) * T::from_f64(0.5));
@@ -7163,46 +7234,60 @@ pub(crate) fn line_through_both_faces<T: Decide, E>(
     held.map_or(Ok(false), Err)
 }
 
-/// Every parameter along `origin + t·dir` (`dir` unit) over `span`
-/// where `face`'s boundary can meet that line: its vertices'
-/// projections, and each edge's carrier against the line in closed
-/// form. A straight edge is cut at its nearest approach, where the edge
-/// swings across the line by more than the band over its length; one
-/// that swings less stays within the band of the line wherever it meets
-/// it, so its ends' projections bound that. A circle or ellipse is cut
-/// where the line meets its plane, where the line leaves the plane by
-/// more than the band over `span`, and otherwise where the line meets
-/// the conic within the plane. A parameter that is no meeting only
-/// cuts a run in two, so the list may hold more than the meetings and
-/// never fewer. `None` where the boundary cannot be walked or an edge's
-/// carrier (a spiric, a spline, null scaffolding) has no closed form
-/// here.
+/// Where `face`'s boundary can meet the line `origin + t·dir` (`dir`
+/// unit) over `span`: the parameters, and whether some edge's meeting
+/// could not be placed (the caller then reads the schedule over the
+/// span as well).
+///
+/// The parameters are the face's vertices' projections, and each
+/// edge's meeting with the line:
+/// - **A straight edge**, from its two ends: their offsets across the
+///   line, interpolated to where the offset is least, so no difference
+///   of nearly equal directions enters. An edge whose ends' offsets
+///   differ by less than the band stays within the band of the line
+///   wherever it meets it, and its ends' projections bound that; one
+///   in band of that is not placed.
+/// - **A circle or ellipse**, from its carrier: where the line meets
+///   its plane, the line leaving the plane by more than the band over
+///   `span`; where it meets the conic within the plane, the line within
+///   the band of the plane; neither placed, the rise in band.
+///
+/// A meeting within the band of one of the face's vertices is that
+/// vertex's own event read off its edge's carrier, which agrees with
+/// the vertex only to the band, and is not a parameter of its own. A
+/// parameter that is no meeting only cuts a run in two, so the list may
+/// hold more than the meetings and never fewer. `None` where the
+/// boundary cannot be walked or an edge's carrier (a spiric, a spline,
+/// null scaffolding) has no closed form here.
 fn boundary_cuts<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     (origin, dir): (Point3<T>, geom_core::Vec3<T>),
     span: (T, T),
     band: Band,
-) -> Option<Vec<T>> {
+) -> Option<(Vec<T>, bool)> {
     let along = |p: Point3<T>| (p - origin).dot(dir);
-    let clear =
-        |name, x: T| crate::validate::decide(name, Margin::of(x.abs()), band) == Ok(Sign::Positive);
+    let across = |p: Point3<T>| (p - origin) - dir * along(p);
+    let sign = |name, x: T| crate::validate::decide(name, Margin::of(x.abs()), band);
     let roots = |a: T, b: T, c: T, out: &mut Vec<T>| {
-        let disc = b.powi(2) - T::from_f64(4.0) * a * c;
-        let r = disc.max(T::zero()).sqrt();
-        let two_a = a + a;
-        out.extend([(-b - r) / two_a, (-b + r) / two_a]);
+        let r = (b.powi(2) - T::from_f64(4.0) * a * c).max(T::zero()).sqrt();
+        let q = (b + r.copysign(b)) * T::from_f64(-0.5);
+        out.extend([q / a, c / q]);
     };
     let (start, end) = (origin + dir * span.0, origin + dir * span.1);
-    // A conic's plane: where the line meets it, or, the line within the
-    // band of it over `span`, `in_plane`'s roots.
+    let mut unsure = false;
+    // A conic's plane: where the line meets it, or whether the line
+    // lies within the band of it (its in-plane roots then cut); `None`
+    // where the line's rise across the plane is in band.
     let conic = |center: Point3<T>, axis: geom_core::Vec3<T>, out: &mut Vec<T>| {
         let (h0, h1) = ((start - center).dot(axis), (end - center).dot(axis));
-        if clear("bool_tangent_line_cut_plane", h1 - h0) {
-            out.push((center - origin).dot(axis) / dir.dot(axis));
-            false
-        } else {
-            !clear("bool_tangent_line_cut_plane", h0)
+        match sign("bool_tangent_line_cut_plane", h1 - h0) {
+            Ok(Sign::Positive) => {
+                out.push((center - origin).dot(axis) / dir.dot(axis));
+                Some(false)
+            }
+            Ok(_) => Some(sign("bool_tangent_line_cut_plane", h0) != Ok(Sign::Positive)),
+            Err(_) => None,
         }
     };
     let point = |v| {
@@ -7211,34 +7296,36 @@ fn boundary_cuts<T: Decide>(
             .copied()
     };
     let f = body.get_face(face)?;
-    let mut out = Vec::new();
+    let mut vertices = Vec::new();
+    let mut meetings = Vec::new();
     for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let first = match body.get_loop(lk)?.boundary {
             crate::entity::LoopBoundary::Empty { vertex } => {
-                out.push(along(point(vertex)?));
+                vertices.push(along(point(vertex)?));
                 continue;
             }
             crate::entity::LoopBoundary::Cycle { first } => first,
         };
         for he in body.loop_cycle(first)? {
             let he = body.get_half_edge(he)?;
-            out.push(along(point(he.start)?));
+            vertices.push(along(point(he.start)?));
             let edge = body.get_edge(he.edge)?;
             match *body.get_curve_geom(edge.curve)?.certified()?.carrier() {
-                geom::Curve3::Line { origin: p, dir: u } => {
+                geom::Curve3::Line { .. } => {
                     let ends = [edge.he_plus, edge.he_minus]
                         .map(|h| body.get_half_edge(h).and_then(|h| point(h.start)));
                     let [Some(a), Some(b)] = ends else {
                         return None;
                     };
-                    let u = u * (T::one() / u.dot(u).sqrt());
-                    if clear(
-                        "bool_tangent_line_cut_swing",
-                        dir.cross(u).norm() * (b - a).norm(),
-                    ) {
-                        let w = origin - p;
-                        let k = dir.dot(u);
-                        out.push((k * u.dot(w) - dir.dot(w)) / (T::one() - k.powi(2)));
+                    let (oa, ob) = (across(a), across(b));
+                    let swing = ob - oa;
+                    match sign("bool_tangent_line_cut_swing", swing.norm()) {
+                        Ok(Sign::Positive) => {
+                            let s = -oa.dot(swing) / swing.dot(swing);
+                            meetings.push(along(a) + (along(b) - along(a)) * s);
+                        }
+                        Ok(_) => {}
+                        Err(_) => unsure = true,
                     }
                 }
                 geom::Curve3::Circle {
@@ -7247,13 +7334,15 @@ fn boundary_cuts<T: Decide>(
                     radius,
                     ..
                 } => {
-                    if conic(center, axis, &mut out) {
+                    let in_plane = conic(center, axis, &mut meetings);
+                    unsure |= in_plane.is_none();
+                    if in_plane == Some(true) {
                         let w = origin - center;
                         roots(
                             T::one(),
                             w.dot(dir) + w.dot(dir),
                             w.dot(w) - radius.powi(2),
-                            &mut out,
+                            &mut meetings,
                         );
                     }
                 }
@@ -7264,7 +7353,9 @@ fn boundary_cuts<T: Decide>(
                     semi_v,
                     u_ref,
                 } => {
-                    if conic(center, axis, &mut out) {
+                    let in_plane = conic(center, axis, &mut meetings);
+                    unsure |= in_plane.is_none();
+                    if in_plane == Some(true) {
                         let v_ref = axis.cross(u_ref);
                         let w = origin - center;
                         let (wu, wv) = (w.dot(u_ref) / semi_u, w.dot(v_ref) / semi_v);
@@ -7273,7 +7364,7 @@ fn boundary_cuts<T: Decide>(
                             du.powi(2) + dv.powi(2),
                             (wu * du + wv * dv) * T::from_f64(2.0),
                             wu.powi(2) + wv.powi(2) - T::one(),
-                            &mut out,
+                            &mut meetings,
                         );
                     }
                 }
@@ -7281,7 +7372,14 @@ fn boundary_cuts<T: Decide>(
             }
         }
     }
-    Some(out)
+    meetings.retain(|&m| {
+        !m.is_poison()
+            && vertices
+                .iter()
+                .all(|&v| sign("bool_tangent_line_cut_vertex", m - v) == Ok(Sign::Positive))
+    });
+    vertices.extend(meetings);
+    Some((vertices, unsure))
 }
 
 /// The face's boundary vertex positions (outer loop then rings, cycle
