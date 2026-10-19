@@ -252,20 +252,59 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     pub lane: LaneEnv<'a, T>,
 }
 
+/// **A node as its op reads it**: the node, with what
+/// [`super::eval_node`] computed for it before its content key, by the
+/// node's kind. Built there and not in [`run_op`], because a profile's
+/// precompute decides on the node's behalf ahead of the key (its
+/// decisions are the log's first entries) and an assertion's payload
+/// feeds the key.
+pub(crate) enum OpInput<'n, T> {
+    /// A profile, with its program resolved at the nominal and the f64
+    /// precompute made from it.
+    Profile {
+        program: &'n ProfileProgram,
+        resolved: Vec<Vec<profile::Step<f64>>>,
+        pre: Box<ProfilePre>,
+    },
+    /// An assertion, with its value and bound evaluated
+    /// ([`super::Payload`]) and the dimensions they are read at.
+    Assertion {
+        value: crate::VarId,
+        relation: crate::measure::AssertionRelation,
+        dims: (crate::expr::Dimension, crate::expr::Dimension),
+        payload: super::Payload<T>,
+    },
+    /// Any other node, which carries nothing computed ahead of its key.
+    Other(&'n Node<ProfileProgram>),
+}
+
+impl<T> OpInput<'_, T> {
+    /// The assertion's payload, for the content key.
+    pub(crate) fn payload(&self) -> Option<&super::Payload<T>> {
+        match self {
+            Self::Assertion { payload, .. } => Some(payload),
+            Self::Profile { .. } | Self::Other(_) => None,
+        }
+    }
+
+    /// The profile's program resolved at the nominal, for the content
+    /// key.
+    pub(crate) fn resolved_program(&self) -> Option<&[Vec<profile::Step<f64>>]> {
+        match self {
+            Self::Profile { resolved, .. } => Some(resolved),
+            Self::Assertion { .. } | Self::Other(_) => None,
+        }
+    }
+}
+
 /// Runs one node's op against its (already Ok) inputs and evaluated
 /// slots, emitting the node's name table alongside the payload.
-/// `profile_pre` is the profile node's f64 precompute (present exactly
-/// for `Node::Profile` — computed in `eval_node`'s resolution stage,
-/// inside the node's verdict frame and ahead of this op).
-#[allow(clippy::too_many_arguments)] // the run-tolerance witness and the pre-key reads are not duties of their own
 pub(crate) fn run_op<T>(
     id: RecipeNodeId,
-    node: &Node<ProfileProgram>,
+    input: &OpInput<'_, T>,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    payload: Option<&super::Payload<T>>,
-    profile_pre: Option<&ProfilePre>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T>
@@ -283,6 +322,30 @@ where
         + super::ProfileLane,
 {
     use crate::OperandSlot as O;
+    // A profile reads its frame, a datum, and an assertion reads no
+    // operand, so neither has a read to project.
+    let node = match input {
+        OpInput::Profile { program, pre, .. } => {
+            let value = wire_profile(doc, program, results, pre, env.lane, tol)?;
+            let rows = crate::coincide::name_junctions(id, &value.validated, &value.pieces)
+                .map_err(NodeErrorKind::Naming)?;
+            return Ok(
+                OpOut::plain(ValuePayload::Profile(value), names::empty()).with_coincidences(rows)
+            );
+        }
+        OpInput::Assertion {
+            value,
+            relation,
+            dims,
+            payload,
+        } => {
+            // Which endpoints this assertion may read: structural, off
+            // the measures under its value, so the same at every scalar.
+            let certified = super::measure::certified(doc, *value);
+            return wire_assertion(*dims, certified, *relation, payload, tol);
+        }
+        OpInput::Other(node) => *node,
+    };
     let unprojected = results;
     // A boolean's, a union's and a measure's reads are projected one by
     // one: two ports of one split are two bodies, which one map keyed by
@@ -321,24 +384,8 @@ where
             wire_datum(d, doc, results, vals, tol)?,
             names::empty(),
         )),
-        Node::Profile(program) => {
-            let payload = wire_profile(
-                doc,
-                program,
-                program.frame,
-                results,
-                profile_pre,
-                env.lane,
-                tol,
-            )?;
-            let rows = match &payload {
-                ValuePayload::Profile(value) => {
-                    crate::coincide::name_junctions(id, &value.validated, &value.pieces)
-                        .map_err(NodeErrorKind::Naming)?
-                }
-                _ => Vec::new(),
-            };
-            Ok(OpOut::plain(payload, names::empty()).with_coincidences(rows))
+        Node::Profile(_) | Node::Assertion { .. } => {
+            unreachable!("`eval_node` gives a profile and an assertion their own `OpInput` arm")
         }
         Node::Extrude { profile, side, .. } => {
             wire_extrude(id, at(O::Profile, *profile)?, *side, results, vals, tol)
@@ -507,17 +554,6 @@ where
                     .unwrap_or(unprojected)
             };
             wire_measure(primitive, doc, &at, tol)
-        }
-        Node::Assertion { value, .. } => {
-            // Which endpoints this assertion may read: structural, off
-            // the measures under its value, so the same at every scalar.
-            let certified = super::measure::certified(doc, *value);
-            let reads = node.payload_reads(doc).unwrap_or_default();
-            let (Some(payload), [(_, value_dim), (_, bound_dim)]) = (payload, reads.as_slice())
-            else {
-                unreachable!("an assertion reads its value and its bound, and both were evaluated")
-            };
-            wire_assertion(*value_dim, *bound_dim, certified, node, payload, tol)
         }
         Node::InstantiatePart {
             doc_ref,
@@ -1918,7 +1954,7 @@ pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
             .structure
             .replay
             .get(li as usize)
-            .ok_or(NodeErrorKind::ProfileRecordMissing { loop_: Some(li) })?;
+            .ok_or(NodeErrorKind::ProfileRecordMissing { loop_: li })?;
         let lp = profile::replay_guided(steps, record, tol).map_err(|error| {
             NodeErrorKind::ProfileLaneReplay {
                 loop_: li,
@@ -1939,14 +1975,12 @@ pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
 fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
     doc: &crate::doc::Doc<ProfileProgram>,
     program: &ProfileProgram,
-    frame: crate::VarId,
     results: &Results<T>,
-    pre: Option<&ProfilePre>,
+    pre: &ProfilePre,
     lane: LaneEnv<'_, T>,
     tol: Tol,
-) -> PayloadResult<T> {
-    let pre = pre.ok_or(NodeErrorKind::ProfileRecordMissing { loop_: None })?;
-    let plane = frame_plane_lane(doc, results, frame, lane.params, tol)?;
+) -> Result<Arc<ProfileValue<T>>, NodeErrorKind> {
+    let plane = frame_plane_lane(doc, results, program.frame, lane.params, tol)?;
     let validated = match lane.pass_one(pre) {
         // The `f64` lane IS the first pass, so its validated form is the
         // value, on the plane minted at the lane, and the node logs what
@@ -1957,12 +1991,12 @@ fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
         }
         None => lane_profile::<T>(program, plane, lane, pre, tol)?,
     };
-    Ok(ValuePayload::Profile(Arc::new(ProfileValue {
+    Ok(Arc::new(ProfileValue {
         validated,
         naming: pre.naming.clone(),
         pieces: pre.pieces.clone(),
         edge_radii: edge_radii(program, pre),
-    })))
+    }))
 }
 
 /// **The per-edge radius expressions, in the sweep's own indexing** —
@@ -2756,16 +2790,12 @@ fn wire_measure<'r, T: Decide + crate::measure::MinClearanceLane>(
 /// Report-ONLY: no op accepts a verdict as an operand, and nothing here
 /// touches the value or the document.
 fn wire_assertion<T: Decide>(
-    value_dim: crate::expr::Dimension,
-    bound_dim: crate::expr::Dimension,
+    (value_dim, bound_dim): (crate::expr::Dimension, crate::expr::Dimension),
     certified: crate::measure::Certified,
-    node: &Node<ProfileProgram>,
+    relation: crate::measure::AssertionRelation,
     payload: &super::Payload<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let Node::Assertion { relation, .. } = node else {
-        unreachable!("an assertion's verdict is wired for an assertion")
-    };
     // A measured value with no value at this scalar is not a failed
     // node, so the assertion answers with E10's third state and the
     // requirement stays visible in a build that cannot check it.
@@ -2796,7 +2826,7 @@ fn wire_assertion<T: Decide>(
         ValuePayload::Assertion(crate::measure::decide_assertion(
             *value,
             *bound,
-            *relation,
+            relation,
             band(tol)?,
             certified,
         )),
@@ -3792,7 +3822,9 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 // member's.
                 let base = fold_rows.len();
                 let decided = out.coincidences.len();
-                if pairwise {
+                // A pairwise step carries its given pairs, and only one
+                // does (above).
+                if let Some(given) = inputs.given.as_deref() {
                     let acc_view =
                         names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
                     let inputs_named = crate::coincide::RowInputs {
@@ -3800,7 +3832,6 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         b: Some((own_read, &member_table)),
                         tool: None,
                     };
-                    let given = inputs.given.as_deref().unwrap_or_default();
                     let cited = contacts.decided();
                     for (k, row) in out.coincidences.iter().enumerate() {
                         let restates = restated_given(

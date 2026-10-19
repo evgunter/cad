@@ -1558,14 +1558,12 @@ pub enum NodeErrorKind {
         /// Where the three disagree.
         fault: PiecesFault,
     },
-    /// The profile op found no record of the f64 pass it builds on —
-    /// no precompute at all, or no replay record for a program loop
-    /// the guided lift replays — an internal invariant break, surfaced
-    /// typed.
+    /// The profile op found no replay record of the f64 pass for a
+    /// program loop the guided lift replays — an internal invariant
+    /// break, surfaced typed.
     ProfileRecordMissing {
-        /// The program loop with no replay record; `None` when the
-        /// whole precompute is absent.
-        loop_: Option<u32>,
+        /// The program loop with no replay record.
+        loop_: u32,
     },
     /// The extrude op refused.
     Extrude(ExtrudeError),
@@ -2296,12 +2294,7 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::ProfilePieces { fault } => {
                 write!(f, "the profile's pieces have no names: {fault}")
             }
-            Self::ProfileRecordMissing { loop_: None } => write!(
-                f,
-                "the profile's f64 pass left no record for its op to build on. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
-            Self::ProfileRecordMissing { loop_: Some(loop_) } => write!(
+            Self::ProfileRecordMissing { loop_ } => write!(
                 f,
                 "profile loop {loop_} has no replay record from the f64 pass to guide its \
                  lift. {}",
@@ -4366,27 +4359,28 @@ where
         Err((a, b)) => return fail(bracket, NodeErrorKind::SpaceMismatch { a, b }),
     };
 
-    // Profile-program resolution (LIB-SWITCH §4b): program Exprs
-    // resolve at f64 because they feed C6 structure selection, which
-    // must be lane-identical. Resolved ONCE here; the same values feed
-    // the content key (resolved-value convention, §4e) and the op. The
-    // lane's own resolution of the same program, at `T`, is below.
-    let resolved_program = match node {
-        crate::node::Node::Profile(program) => match program.resolve(op_env.lane.nominal) {
-            Ok(r) => Some(r),
-            Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
-        },
-        _ => None,
-    };
-
-    // The profile F64 PRECOMPUTE (replay + f64 validation + the naming
-    // anchor): C6 structure selection — the successor of the stored
-    // f64 bits — made on this node's behalf, so its decisions are the
-    // first entries of the node's log: the whole of it at `f64`, whose
-    // lane is this pass (`ProfileLane`), and ahead of the op's own
-    // replay and validation at every other scalar.
-    let profile_pre = match (node, &resolved_program) {
-        (crate::node::Node::Profile(program), Some(resolved)) => {
+    // What the op reads beyond its inputs and slots, by the node's
+    // kind ([`wire::OpInput`]), built here because each part of it
+    // feeds the content key or decides ahead of it.
+    let input = match node {
+        // Profile-program resolution (LIB-SWITCH §4b): program Exprs
+        // resolve at f64 because they feed C6 structure selection, which
+        // must be lane-identical. Resolved ONCE here; the same values
+        // feed the content key (resolved-value convention, §4e) and the
+        // op. The lane's own resolution of the same program, at `T`, is
+        // below.
+        //
+        // Then the profile F64 PRECOMPUTE (replay + f64 validation + the
+        // naming anchor): C6 structure selection — the successor of the
+        // stored f64 bits — made on this node's behalf, so its decisions
+        // are the first entries of the node's log: the whole of it at
+        // `f64`, whose lane is this pass (`ProfileLane`), and ahead of
+        // the op's own replay and validation at every other scalar.
+        crate::node::Node::Profile(program) => {
+            let resolved = match program.resolve(op_env.lane.nominal) {
+                Ok(r) => r,
+                Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
+            };
             // The frame the profile is drawn on, at f64 — READ off
             // the frame node's own result, where its evaluation
             // minted it from the same nominal slots
@@ -4397,30 +4391,35 @@ where
                 Ok(placement) => placement,
                 Err(kind) => return fail(bracket, kind),
             };
-            match wire::prepare_profile(placement, resolved, &program.ids, tol) {
-                Ok(pre) => Some(pre),
+            match wire::prepare_profile(placement, &resolved, &program.ids, tol) {
+                Ok(pre) => wire::OpInput::Profile {
+                    program,
+                    resolved,
+                    pre: Box::new(pre),
+                },
                 Err(kind) => return fail(bracket, kind),
             }
         }
-        _ => None,
-    };
-
-    // PAYLOAD EXPRESSIONS (E10): an assertion's value and bound are
-    // not slots. They are evaluated exactly once here, under the
-    // discipline `slots` states and for the same reason: these values
-    // feed BOTH the content key and the op, so a parameter edit under a
-    // bound moves the key rather than serving a stale memo. The value
-    // reads what the measures under it computed in this run
-    // (`measure::observe`): it is the one read of a measured value, and
-    // the environment every construction reads holds none.
-    let payload = match node.payload_reads(doc) {
-        None => None,
-        Some(reads) => {
+        // PAYLOAD EXPRESSIONS (E10): an assertion's value and bound are
+        // not slots. They are evaluated exactly once here, under the
+        // discipline `slots` states and for the same reason: these
+        // values feed BOTH the content key and the op, so a parameter
+        // edit under a bound moves the key rather than serving a stale
+        // memo. The value reads what the measures under it computed in
+        // this run (`measure::observe`): it is the one read of a
+        // measured value, and the environment every construction reads
+        // holds none.
+        crate::node::Node::Assertion {
+            value,
+            bound,
+            relation,
+        } => {
+            let reads = crate::node::assertion_reads(doc, *value, *bound);
             let mut payload = Payload {
                 values: Vec::with_capacity(reads.len()),
                 unavailable: None,
             };
-            for (index, (var, dim)) in reads.into_iter().enumerate() {
+            for (index, &(var, dim)) in reads.iter().enumerate() {
                 match measure::observe(doc, env, results, var, dim) {
                     Ok(measure::Observed::Value(v)) => payload.values.push(v),
                     Ok(measure::Observed::Unavailable(reason)) => {
@@ -4453,10 +4452,16 @@ where
                     }
                 }
             }
-            Some(payload)
+            let [(_, value_dim), (_, bound_dim)] = reads;
+            wire::OpInput::Assertion {
+                value: *value,
+                relation: *relation,
+                dims: (value_dim, bound_dim),
+                payload,
+            }
         }
+        _ => wire::OpInput::Other(node),
     };
-    let payload_values = payload.as_ref();
 
     // The lift's second pass resolves the SAME program at the lane
     // scalar (M10-P PP5). It feeds the content key so a seeded or
@@ -4467,18 +4472,17 @@ where
     // first pass's, as the value is.
     //
     // THE OP RESOLVES IT AGAIN, and that is a considered decline rather
-    // than an oversight. Threading this value into `run_op` would tie
-    // the key's inputs and the op's inputs together through one more
-    // parameter on a function that already carries eight, and buy
-    // nothing about correctness: resolution is a pure function of
+    // than an oversight. Carrying this value to the op on
+    // `wire::OpInput::Profile` would buy nothing about correctness:
+    // resolution is a pure function of
     // (program, environment) evaluated by libm-pure `expr::eval`, so
     // D9 makes the second call bit-identical to this one by the same
     // argument that makes the memo's re-runs sound. What it costs is a
     // few dozen expression evaluations per profile node, in analysis
     // mode only. If that ever shows up in a profile, the fix is to pass
     // the value through — not to cache it somewhere both readers reach.
-    let lane_program = match (node, &profile_pre) {
-        (crate::node::Node::Profile(program), Some(pre)) if op_env.lane.pass_one(pre).is_none() => {
+    let lane_program = match &input {
+        wire::OpInput::Profile { program, pre, .. } if op_env.lane.pass_one(pre).is_none() => {
             match program.resolve(env) {
                 Ok(r) => Some(r),
                 Err((slot, source)) => return fail(bracket, NodeErrorKind::Expr { slot, source }),
@@ -4493,9 +4497,9 @@ where
         &|var| doc.selection(var),
         &slot_values,
         &nominal_values,
-        payload_values,
+        input.payload(),
         pose_words.as_deref(),
-        resolved_program.as_deref(),
+        input.resolved_program(),
         lane_program.as_deref(),
         &upstream_keys,
         doc.witness(id),
@@ -4550,17 +4554,7 @@ where
     // The op's decisions — kernel predicates and N2 discriminators
     // alike, definite or escalated — follow the pre-key ones in the
     // frame opened above, which closes once the op returns.
-    let op = wire::run_op(
-        id,
-        node,
-        doc,
-        results,
-        &slot_values,
-        payload.as_ref(),
-        profile_pre.as_ref(),
-        op_env,
-        tol,
-    );
+    let op = wire::run_op(id, &input, doc, results, &slot_values, op_env, tol);
     // A FRAME node's placement, minted ONCE for the frame from the
     // nominal slots already in hand and carried on its value — where
     // every profile drawn on the frame reads it
