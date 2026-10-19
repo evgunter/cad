@@ -67,6 +67,8 @@ mod probe_support;
 mod a_doubled_line_does_not_revert;
 #[path = "a_given_pair_is_made_from_a_kernel_verdict.rs"]
 mod a_given_pair_is_made_from_a_kernel_verdict;
+#[path = "a_keel_wrapped_at_both_ends_splits_as_a_ring.rs"]
+mod a_keel_wrapped_at_both_ends_splits_as_a_ring;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
 #[path = "analytic_rung3_at_rest.rs"]
@@ -247,6 +249,10 @@ mod readback_sense_kind;
 mod records_cite_their_decision;
 #[path = "result_gate_sites.rs"]
 mod result_gate_sites;
+#[path = "review_4996_carry_probes.rs"]
+mod review_4996_carry_probes;
+#[path = "review_4996_r2_probes.rs"]
+mod review_4996_r2_probes;
 #[path = "review_cleave_farplane.rs"]
 mod review_cleave_farplane;
 #[path = "review_cleave_nurbs_lane.rs"]

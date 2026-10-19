@@ -438,6 +438,63 @@ impl core::fmt::Display for Uncrossable {
     }
 }
 
+impl PointInLoopError {
+    /// This refusal as a consumer's own: `doing` names the walk's use
+    /// ("re-homing a hole loop"), `subject` the question it answers
+    /// ("which piece holds a hole loop"), and `recourse` the consumer's
+    /// lever for a loop off the plane it was handed. One rendering for
+    /// every consumer, so the endings cannot drift:
+    ///
+    /// - an escalation ends in its decision's lever;
+    /// - an exhausted ray schedule names the walk's own levers;
+    /// - an uncrossable spiric or spline edge is a limit of the walk, which
+    ///   no move of the geometry lifts: `NOT_YET_ENDING`;
+    /// - a loop the walk cannot walk is a torn body: `KERNEL_DEFECT_ENDING`;
+    /// - a loop or point off the plane is the consumer's geometry, so
+    ///   `recourse`.
+    pub(crate) fn render_as(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        doing: &str,
+        subject: &str,
+        recourse: &str,
+    ) -> core::fmt::Result {
+        match self {
+            Self::Escalated {
+                decision,
+                escalation,
+                diag,
+                ..
+            } => write!(
+                f,
+                "{doing}: {}",
+                diag.undecided(
+                    decision.subject(),
+                    crate::boolean::ContainDecision::Loop(*decision)
+                        .lever_ending(*escalation, diag),
+                )
+            ),
+            Self::RayExhausted { .. } => write!(
+                f,
+                "{subject}{}: {}",
+                geom_core::undecided!(),
+                ray_walk::NoRaySettled
+            ),
+            Self::Uncrossable(u) => write!(
+                f,
+                "{subject} cannot be read: {u}. {}",
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::CorruptLoop { .. } => write!(
+                f,
+                "{subject} cannot be read: {self}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
+            Self::OffPlane(o) => write!(f, "{subject} cannot be read: {o}. Recourse: {recourse}"),
+        }
+    }
+}
+
 impl core::fmt::Display for PointInLoopError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {

@@ -4,6 +4,8 @@ kind: issue
 title: plane_sphere_blend takes the spine radius and the rim radius as differences of squares, which cancel as the spine or rim circle shrinks
 status: open
 opened: 2026-10-19
+priority: P2
+cost: E
 ---
 
 

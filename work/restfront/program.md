@@ -9,7 +9,6 @@ prefix: restfront/
 tag: (RESTFRONT orchestrator)
 paths: [crates/topo/src/validate.rs, crates/topo/src/tier3_tests.rs]
 keep_out: [opened by ATREST's close (docs/doc-ledger/atrest-leaves-the-tracker.md) on ATREST's ground, and inherits its seam - TOPO keeps the Euler operators proper and the sibling cuts are ORIGIN TQUERY WALKS PROBE, a row here that has to edit another program's ground announces the seam in the PR that lands it rather than drawing a second fence]
-priority: P1
 ---
 **What tier 3 still does not examine.** ATREST made the at-rest
 validator right in both directions on the ground it reads: a per-solid

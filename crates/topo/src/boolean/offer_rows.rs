@@ -2889,7 +2889,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Nested", 1),
-    ("ops.rs", "carried", "BooleanDecision::VertexOnVertex", 1),
+    (
+        "ops.rs",
+        "vertices_meet",
+        "BooleanDecision::VertexOnVertex",
+        1,
+    ),
     ("ops.rs", "piece_holds", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "piece_holds", "SelfCheck::CarriedLineage", 1),
     ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),

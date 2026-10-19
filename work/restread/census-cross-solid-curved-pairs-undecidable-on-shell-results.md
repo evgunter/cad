@@ -357,3 +357,15 @@ What is left here:
   A pair the depth gap cannot read: a cylinder or cone face's least
   depth about another axis (it has none but its own carrier's), and a
   planar face's about a core circle.
+
+## 2026-10-13 — a rod flush with a plate's height (CONTACTHOLD)
+
+Measured on `contacthold/fold-step-face-face-row`: a rod (r 0.5,
+vertices off the ruling) resting on a plate's side face over the
+plate's full height, z 0 to 1, unions into two solids carrying the
+face–face record of the plate's face and the rod's wall and two
+edge–edge records where the rod's cap circles touch the plate's top and
+bottom edges. Its 3′ refuses `CensusUndecidable` on the rod's wall
+against a plate face that it meets only at a cap circle's recorded
+edge–edge point. The n-ary union row that uses it
+(`editor_core` `union_fold_face_face_touch`) does not run 3′.
