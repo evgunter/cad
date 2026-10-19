@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-19
 priority: P2
 cost: M
+refs: [4822, a-cone-face-whose-rings-leave-or-overlap-its-region-measures-silently, validate-tier3-curved-boundary-containment]
 ---
 
 Found in review of PR 5333 (`flux/cone-closure-and-per-term-whole`;
@@ -41,3 +42,17 @@ the loops that bound the face, beyond the sum of the holes").
 The repair is a containment decide for each hole against the loops that
 bound the face, on the chart, refusing a hole outside them by name;
 until then a body's tier-3 validity is what catches it.
+
+## Owner (Ev's decision on PR 4822)
+
+Ev decided this class on PR 4822, the design fork
+`a-cone-face-whose-rings-leave-or-overlap-its-region-measures-silently`:
+tier 3's check 9 owns "a face's loops bound one region" on every surface
+kind, through a chart-polygon arm, and the closed-form lanes read their
+loops as such a boundary rather than half-deciding it. So the fix here
+is not a lane decide: it is RESTFRONT's
+`validate-tier3-curved-boundary-containment` arm, whose rows should
+cover these three probes (bands, caps and windows: P09, P47, P49). Once
+that arm lands, the cone's own half-decisions of region (`HolesExceedFace`
+and the hole winding) are FLUX's to retire, per that decision.
+
