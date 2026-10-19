@@ -36,6 +36,14 @@ and on the open-link arm by
 `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_an_elliptical_ring`.
 Not a regression: the reading before polygonal rings refused it too.
 
+**Narrowed (PR 5338):** `piece_along` has an ellipse arm, and arm (a)
+reads a ring under a plane–plane band cut off at both ends against
+the strip through its stored pieces (`surgery::strip_ring`) before
+`ring_pieces`: an elliptic mouth wholly inside the strip goes with the
+band
+(`band_strip_mouth_cups::a_square_and_a_round_dimple_leaning_off_their_supports_normal_go`).
+Every other ring still reaches `ring_pieces` and refuses there.
+
 ## What the taker owes
 
 Let a ring's ellipse, spiric and NURBS pieces through on the rim arm,
