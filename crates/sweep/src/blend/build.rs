@@ -167,10 +167,9 @@ impl<T: Decide> Blended<T> {
     #[must_use]
     pub fn lineage(&self) -> topo::Lineage {
         use topo::{Cell, Division, Fate, Remainder};
-        let n = self
-            .naming
-            .as_ref()
-            .expect("a blended body carries the surgery's birth records (kernel bug)");
+        let Some(n) = self.naming.as_ref() else {
+            unreachable!("a blended body carries the surgery's birth records (kernel bug)")
+        };
         let mut lineage = topo::Lineage::new().through_joins(&n.edge_joins);
         let removed = n
             .blends
