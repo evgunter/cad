@@ -711,14 +711,17 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 /// rather than the angles `γ ± θ/2` read off `atan2`: `shared coverage
 /// corpus 5`'s second arc, tangent to the first, stores its centre at
 /// `(2⁻⁵⁴, 2⁻⁵⁴)` rather than `(0, 3.1e-17)` about the nominal origin, at
-/// every ε row, and nothing else moved.
-const GOLDEN_DEFAULT: u64 = 0x21b4_38ef_3b0a_c547;
+/// every ε row, and nothing else moved. Then `arc_onto`'s token-supplied
+/// `D` cap joined as `shared coverage corpus 15` (validating, joint 0
+/// constructed), renumbering the circle forms to `16` and `17`; no other
+/// row moved, at any ε row.
+const GOLDEN_DEFAULT: u64 = 0x071b_1490_d356_068e;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`, where `arc x arc c=0.3
 /// r=0.05` validates: its legs stand ≈ 1.5Kε apart across the carriers'
 /// shallow crossing, which their ends settle.
-const GOLDEN_1E6: u64 = 0xbcf6_6ce8_88ac_2e10;
+const GOLDEN_1E6: u64 = 0x56d0_f437_54f4_6d7d;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0x3114_b0fa_bb49_528f;
+const GOLDEN_1E12: u64 = 0x8155_1084_037a_dc86;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the

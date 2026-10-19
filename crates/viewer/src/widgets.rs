@@ -1489,7 +1489,10 @@ pub(crate) fn path_step_fields(
         Step::Fillet { radius } => {
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
         }
-        Step::LineTo(target) | Step::ContinueTo(target) | Step::TangentArcTo(target) => {
+        Step::LineTo(target)
+        | Step::ContinueTo(target)
+        | Step::TangentArcTo(target)
+        | Step::ArcOnto(target) => {
             target_fields(ui, salt, length_unit, None, target);
         }
         Step::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, at(0), spec),

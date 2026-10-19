@@ -1114,7 +1114,9 @@ fn claim(j: usize, step: &Step<f64>) -> Claim {
         | Step::Turn(_)
         | Step::Fillet { .. } => Claim::Binds,
         Step::Line(len) => Claim::Straight(*len),
-        Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) => of_target(t),
+        Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) | Step::ArcOnto(t) => {
+            of_target(t)
+        }
         Step::ArcTo(spec) => of_spec(spec),
         Step::FarEndTo(p) => Claim::EndsAt(*p),
         Step::CloseTo => Claim::Closes,

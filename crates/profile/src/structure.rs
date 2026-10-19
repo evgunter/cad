@@ -408,6 +408,7 @@ impl RoleList {
             | V::ContinueTo
             | V::ArcTo
             | V::TangentArcTo
+            | V::ArcOnto
             | V::FarEndTo
             | V::CloseTo => Self::Leg,
             V::Fillet | V::FilletArc | V::ArcFillet | V::ArcFilletArc => Self::Fillet,
