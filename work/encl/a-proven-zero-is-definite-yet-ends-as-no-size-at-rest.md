@@ -2,9 +2,9 @@
 id: a-proven-zero-is-definite-yet-ends-as-no-size-at-rest
 kind: issue
 title: geom-core/geom-brep: a symbolic-tier proven zero classes NoSize, so at rest it never takes RefusedReading::ContradictsStoredData; a proved-zero ParamSpan ends in lever plus note while a reversed span ends in the defect ending
-status: open
+status: dispatched
 opened: 2026-10-14
-branch: encl/proven-zero-ev
+branch: encl/proven-zero-impl
 ---
 
 
