@@ -1455,28 +1455,46 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
 /// and minted at a band coarse enough to read its headroom to a full
 /// turn as zero (a state no door produces).
 fn pillow_with_an_arc_past_a_turn(tol: Tol, past: f64) -> (crate::Body<f64>, crate::MefCreated) {
-    pillow_with_an_arc_past_a_turn_wrapping(tol, past, false)
+    pillow_with_an_arc_past_a_turn_in(tol, past, ArcChart::Face)
 }
 
-/// [`pillow_with_an_arc_past_a_turn`], its chart description's wrap
-/// flag `wrap`. A wrap needs a periodic chart, so where `wrap` holds the
-/// split face's chart is planted as the unit cylinder about the z axis,
-/// on which the arc lies.
-fn pillow_with_an_arc_past_a_turn_wrapping(
+/// The chart a planted arc's description names.
+#[derive(Clone, Copy)]
+enum ArcChart {
+    /// The split face's own.
+    Face,
+    /// The split face's, as a wrap edge: a wrap needs a periodic chart,
+    /// so that chart is planted as the unit cylinder about the z axis,
+    /// on which the arc lies.
+    Wrap,
+    /// A second record of the split face's plane, which no face wears.
+    Unworn,
+}
+
+/// [`pillow_with_an_arc_past_a_turn`], its description in `named`.
+fn pillow_with_an_arc_past_a_turn_in(
     tol: Tol,
     past: f64,
-    wrap: bool,
+    named: ArcChart,
 ) -> (crate::Body<f64>, crate::MefCreated) {
     let (mut body, split) = coplanar_pillow(tol);
-    let chart = body.get_face(split.face).unwrap().surface;
-    if wrap {
-        *body.surfaces.get_mut(chart).unwrap() = Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
-    }
+    let face_chart = body.get_face(split.face).unwrap().surface;
+    let (chart, wrap) = match named {
+        ArcChart::Face => (face_chart, false),
+        ArcChart::Wrap => {
+            *body.surfaces.get_mut(face_chart).unwrap() = Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            };
+            (face_chart, true)
+        }
+        ArcChart::Unworn => {
+            let plane = body.get_surface(face_chart).unwrap().clone();
+            (body.surfaces.insert(plane), false)
+        }
+    };
     let circle = geom::Curve3::Circle {
         center: Point3::origin(),
         axis: Vec3::unit_z(),
@@ -1611,7 +1629,7 @@ fn a_seam_described_on_an_arc_past_a_turn_is_a_kernel_bug() {
     let tol = Tol::witness();
     let (mut body, split) = tilted_pillow_with_an_arc_past_a_turn(tol);
     let band = geom_core::Band::linear(tol).unwrap();
-    panics_as_a_kernel_bug_at(KernelSite::SeamDescription, || {
+    panics_as_a_kernel_bug_at(KernelSite::SeamIntersection, || {
         let _ = crate::boolean::describe_edges(&mut body, [split.edge], &[], band, tol);
     });
 }
@@ -1623,7 +1641,7 @@ fn a_section_boundary_on_an_arc_past_a_turn_is_a_kernel_bug() {
     let tol = Tol::witness();
     let (mut body, split) = tilted_pillow_with_an_arc_past_a_turn(tol);
     let band = geom_core::Band::linear(tol).unwrap();
-    panics_as_a_kernel_bug_at(KernelSite::SectionBoundary, || {
+    panics_as_a_kernel_bug_at(KernelSite::SectionIntersection, || {
         let _ =
             crate::splitting::finish::describe_section_boundary(&mut body, split.face, band, tol);
     });
@@ -1686,10 +1704,114 @@ fn an_arc_past_a_turn_described_at_rest_is_a_kernel_bug() {
 fn a_parted_wrap_arc_past_a_turn_is_a_kernel_bug() {
     let tol = Tol::witness();
     let (mut body, _) =
-        pillow_with_an_arc_past_a_turn_wrapping(tol, 10.0 * tol.k() * tol.eps(), true);
+        pillow_with_an_arc_past_a_turn_in(tol, 10.0 * tol.k() * tol.eps(), ArcChart::Wrap);
     panics_as_a_kernel_bug_at(KernelSite::PartedWrap, || {
         let _ = body.rest_parted_wrap_edges(tol);
     });
+}
+
+/// **A smooth seam its surfaces determine restates its stored carrier**
+/// (`[failure]`): the pillow's faces re-charted as the unit cylinder and
+/// the unit sphere about the arc's centre, tangent along its circle, so
+/// the seam is described as their `TangentIntersection` on the stored
+/// arc, and panics at that arm's call site.
+#[test]
+fn a_seam_tangency_on_an_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let own = body.get_face(split.face).unwrap().surface;
+    let theirs = body.get_face(other_face(&body, &split)).unwrap().surface;
+    body.surfaces[own] = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    body.surfaces[theirs] = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let band = geom_core::Band::linear(tol).unwrap();
+    panics_as_a_kernel_bug_at(KernelSite::SeamTangency, || {
+        let _ = crate::boolean::describe_edges(&mut body, [split.edge], &[], band, tol);
+    });
+}
+
+/// **A smooth seam whose description went stale restates its stored
+/// carrier where it rests** (`[failure]`): the pillow's flush faces
+/// under-determine the arc, described in a chart neither wears, so it
+/// panics at that arm's call site.
+#[test]
+fn a_stale_seam_on_an_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, split) =
+        pillow_with_an_arc_past_a_turn_in(tol, 10.0 * tol.k() * tol.eps(), ArcChart::Unworn);
+    let band = geom_core::Band::linear(tol).unwrap();
+    panics_as_a_kernel_bug_at(KernelSite::SeamAtRest, || {
+        let _ = crate::boolean::describe_edges(&mut body, [split.edge], &[], band, tol);
+    });
+}
+
+/// **A smooth section boundary edge restates its stored carrier**
+/// (`[failure]`): the pillow's flush faces under-determine the arc,
+/// described in a chart neither wears, so the must-carry rule's
+/// conventional description is written on the stored arc, and panics at
+/// that arm's call site.
+#[test]
+fn a_smooth_section_boundary_on_an_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, split) =
+        pillow_with_an_arc_past_a_turn_in(tol, 10.0 * tol.k() * tol.eps(), ArcChart::Unworn);
+    let band = geom_core::Band::linear(tol).unwrap();
+    panics_as_a_kernel_bug_at(KernelSite::SectionSmooth, || {
+        let _ =
+            crate::splitting::finish::describe_section_boundary(&mut body, split.face, band, tol);
+    });
+}
+
+/// **A transverse edge's chord is the caller's spec** (`[failure]`): a
+/// drafted chord is certified as the caller's, so a span its certification
+/// refuses is a typed stated interval, never a kernel bug. Neither
+/// description pass can hand it one (a chord of no length fails the
+/// dihedral's arm gate first), so the row hands the shared door a chord
+/// stated backwards over the pillow's split edge.
+#[test]
+fn a_drafted_chord_refused_its_span_is_typed() {
+    let tol = Tol::witness();
+    let (mut body, split) = coplanar_pillow(tol);
+    let own = body.get_face(split.face).unwrap().surface;
+    let theirs = body.get_face(other_face(&body, &split)).unwrap().surface;
+    let chord = EdgeCurveSpec {
+        description: geom_brep::EdgeDescriptionSpec::Intersection {
+            pair: geom_brep::SurfacePair::new(own, theirs),
+            witness: Point3::new(0.5, 0.0, 0.0),
+        },
+        carrier: geom::Curve3::Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_x(),
+        },
+        param_start: 1.0,
+        param_end: 0.0,
+    };
+    let refusal = body
+        .describe_intersection(
+            KernelSite::SeamIntersection,
+            split.edge,
+            geom_brep::DraftedIntersection::Chord(chord),
+            tol,
+        )
+        .expect_err("a chord stated backwards refuses");
+    assert!(
+        matches!(
+            refusal,
+            crate::euler::EulerOpError::Certification {
+                error: geom_brep::CertifyError::StatedInterval { .. }
+            }
+        ),
+        "the chord's span refuses typed: {refusal:?}"
+    );
 }
 
 #[test]

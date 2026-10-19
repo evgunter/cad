@@ -2384,6 +2384,10 @@ impl<T: Decide> Body<T> {
     /// their curves, the loops, faces and surfaces the rows read. Every
     /// public door keeps the body tier-1-valid, where all of these hold.
     ///
+    /// Also on a kernel bug: an edge the body stores, re-minted or
+    /// restated on its own carrier and interval, whose span or winding
+    /// reads certainly refused at the run's band.
+    ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
@@ -2432,6 +2436,12 @@ impl<T: Decide> Body<T> {
     /// *is* that chord; module docs, geometry policy). Coincident
     /// endpoints give a chord of no length, refused typed
     /// ([`geom_brep::CertifyError::StatedInterval`]).
+    ///
+    /// # Panics
+    ///
+    /// On a kernel bug: an edge the body stores, re-minted or restated on its
+    /// own carrier and interval, whose span or winding reads certainly
+    /// refused at the run's band.
     ///
     /// # Errors
     ///

@@ -587,6 +587,12 @@ impl<T: Real> BooleanResult<T> {
 /// A ∪* B (module docs; functional). Surface kinds are gated per arm,
 /// not wholesale — see `reduce::gate_operand_pairs`.
 ///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
+///
 /// # Errors
 ///
 /// [`BooleanError`] — every stage's typed refusals pass through.
@@ -607,6 +613,12 @@ pub fn union<T: Decide + Bounds + crate::props::AtRestPolicy>(
 
 /// A ∩* B (module docs).
 ///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
+///
 /// # Errors
 ///
 /// [`BooleanError`].
@@ -626,6 +638,12 @@ pub fn intersect<T: Decide + Bounds + crate::props::AtRestPolicy>(
 }
 
 /// A ∖* B (module docs).
+///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
 ///
 /// # Errors
 ///
@@ -651,6 +669,12 @@ pub fn subtract<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// produce bit-identical results; the differential suite runs full
 /// ops through both and pins exactly that. Production wrappers pass
 /// [`SweepStrategy::Realized`].
+///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
 ///
 /// # Errors
 ///
@@ -2742,8 +2766,6 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<(), DescribeRefusal> {
     // Whether two faces both belong to one recorded merge skip: the
     // licensed cosurface pairs the merge stage ships unglued.
-    let restating =
-        crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::SeamDescription);
     let recorded_skip = |(f1, f2): (FaceKey, FaceKey)| {
         skipped
             .iter()
@@ -2779,17 +2801,14 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
             .map_err(|(reading, diag)| DescribeRefusal::undecided(edge, reading, diag))?
         {
             geom_brep::DihedralClass::Transverse => {
-                let origin = if draft.keeps_its_span() {
-                    restating
-                } else {
-                    crate::policy_lane::Origin::Callers
-                };
-                let spec = draft.into_spec(geom_brep::SurfacePair::new(s1, s2));
-                let carrier = spec.carrier.kind();
-                body.set_edge_curve_from(origin, edge, spec, tol)
-                    .map_err(|e| {
-                        of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, e)
-                    })?;
+                let carrier = draft.span().0.kind();
+                body.describe_intersection(
+                    crate::policy_lane::KernelSite::SeamIntersection,
+                    edge,
+                    draft.into_intersection(geom_brep::SurfacePair::new(s1, s2)),
+                    tol,
+                )
+                .map_err(|e| of_attachment(edge, EdgeDescribeFailure::Intersection, carrier, e))?;
             }
             geom_brep::DihedralClass::Smooth => {
                 // F1 (the declared-merge SKIP lane): a SURVIVING
@@ -2852,25 +2871,19 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                     // refreshes a stale citation, since the minted
                     // surfaces are the CURRENT adjacency.
                     let c = existing.as_ref().ok_or_else(corrupt)?;
-                    let (t0, t1) = c.params();
-                    let spec = geom_brep::EdgeCurveSpec {
-                        description: geom_brep::EdgeDescriptionSpec::TangentIntersection {
-                            pair: geom_brep::SurfacePair::new(s1, s2),
-                            witness,
-                        },
-                        carrier: c.carrier().clone(),
-                        param_start: t0,
-                        param_end: t1,
+                    let description = geom_brep::EdgeDescriptionSpec::TangentIntersection {
+                        pair: geom_brep::SurfacePair::new(s1, s2),
+                        witness,
                     };
-                    body.set_edge_curve_from(restating, edge, spec, tol)
-                        .map_err(|e| {
-                            of_attachment(
-                                edge,
-                                EdgeDescribeFailure::Tangency,
-                                c.carrier().kind(),
-                                e,
-                            )
-                        })?;
+                    body.restate_edge(
+                        crate::policy_lane::KernelSite::SeamTangency,
+                        edge,
+                        description,
+                        tol,
+                    )
+                    .map_err(|e| {
+                        of_attachment(edge, EdgeDescribeFailure::Tangency, c.carrier().kind(), e)
+                    })?;
                 } else if stale {
                     // A locus the adjacent surfaces under-determine, of
                     // any carrier kind, rests where it lies
@@ -2890,9 +2903,14 @@ pub(crate) fn describe_edges<T: Decide + crate::props::AtRestPolicy>(
                         geom_brep::RestLocus::Chart(_) => EdgeDescribeFailure::Chart,
                         geom_brep::RestLocus::Pair(_) => EdgeDescribeFailure::Pair,
                     };
-                    let spec = c.restated_at(rest);
-                    body.set_edge_curve_from(restating, edge, spec, tol)
-                        .map_err(|e| of_attachment(edge, failure, c.carrier().kind(), e))?;
+                    let description = c.restated_at(rest).description;
+                    body.restate_edge(
+                        crate::policy_lane::KernelSite::SeamAtRest,
+                        edge,
+                        description,
+                        tol,
+                    )
+                    .map_err(|e| of_attachment(edge, failure, c.carrier().kind(), e))?;
                 }
             }
         }

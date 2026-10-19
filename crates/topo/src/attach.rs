@@ -329,7 +329,7 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        self.set_face_surfaces_describing_from(
+        self.set_face_surfaces_certifying(
             crate::policy_lane::Origin::Callers,
             charts,
             redescriptions,
@@ -337,10 +337,48 @@ impl<T: Decide> Body<T> {
         )
     }
 
+    /// **The kernel's re-chart restating stored edges**:
+    /// [`Body::set_face_surfaces_describing`], each listed edge
+    /// re-described as `redescriptions` says on its own stored carrier
+    /// and interval ([`Body::restatement`]), certified as `site`'s.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::set_face_surfaces_describing`]'s, a listed edge with no
+    /// certified curve read first ([`EulerOpError::NullScaffoldCurve`]).
+    ///
+    /// # Panics
+    ///
+    /// On a kernel bug: a listed edge whose stored span or winding reads
+    /// certainly refused at the run's band.
+    pub(crate) fn rechart_restating(
+        &mut self,
+        site: crate::policy_lane::KernelSite,
+        charts: Vec<Rechart<T>>,
+        redescriptions: &[(EdgeKey, EdgeDescriptionSpec<T>)],
+        tol: Tol,
+    ) -> Result<Vec<SurfaceKey>, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let specs = redescriptions
+            .iter()
+            .map(|(edge, description)| {
+                let spec = self.restatement(*edge, description.clone(), Arg("redescriptions"))?;
+                Ok((*edge, spec))
+            })
+            .collect::<Result<Vec<_>, EulerOpError>>()?;
+        self.set_face_surfaces_certifying(
+            crate::policy_lane::Origin::Kernels(site),
+            charts,
+            &specs,
+            tol,
+        )
+    }
+
     /// [`Body::set_face_surfaces_describing`] certifying the listed
-    /// specs as `origin`'s: a kernel operation that restates stored
-    /// edges' carriers and intervals names its site.
-    pub(crate) fn set_face_surfaces_describing_from(
+    /// specs as `origin`'s.
+    fn set_face_surfaces_certifying(
         &mut self,
         origin: crate::policy_lane::Origin,
         charts: Vec<Rechart<T>>,
@@ -905,25 +943,18 @@ impl<T: Decide> Body<T> {
             Vec::with_capacity(redescriptions.len());
         for (edge, description) in redescriptions {
             let edge = *edge;
-            let edge_data = lookup(&self.edges, edge, EntityId::Edge, Arg("redescriptions"))?;
+            require_key(&self.edges, edge, EntityId::Edge, Arg("redescriptions"))?;
             if written.iter().any(|&(e, ..)| e == edge) {
                 return Err(EulerOpError::DuplicateRedescription { edge });
             }
             if !edges.contains(&edge) {
                 return Err(EulerOpError::NotMovedEdge { door, edge });
             }
-            let curve_key = edge_data.curve;
-            let Some(stored) = self.edge_curve(edge, curve_key).certified() else {
-                return Err(EulerOpError::NullScaffoldCurve { curve: curve_key });
-            };
+            let spec = self.restatement(edge, description.clone(), Arg("redescriptions"))?;
             let sides = self.sides(edge, moved);
             if !sides.coherent_after(Named::of_spec(description), Spelling::Listed) {
                 return Err(EulerOpError::DescriptionNotAdjacent { edge: Some(edge) });
             }
-            let spec = EdgeCurveSpec {
-                description: description.clone(),
-                ..stored.restated_spec()
-            };
             let (p_start, p_end) = self.edge_endpoints(edge);
             let resolve = |k: SurfaceKey| self.slot_surface(&[], sides.repoint(k)).cloned();
             let reach = crate::wedge_reach(
@@ -1272,13 +1303,97 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        self.set_edge_curve_from(crate::policy_lane::Origin::Callers, edge, curve, tol)
+        self.set_edge_curve_certifying(crate::policy_lane::Origin::Callers, edge, curve, tol)
     }
 
-    /// [`Body::set_edge_curve`] certifying `curve` as `origin`'s: a
-    /// kernel operation that restates a stored edge's carrier and
-    /// interval names its site.
-    pub(crate) fn set_edge_curve_from(
+    /// **The kernel's restatement of a stored edge**: `edge` re-described
+    /// as `description` on its own stored carrier and interval
+    /// ([`Body::restatement`]), through [`Body::set_edge_curve`]'s gate,
+    /// certified as `site`'s. No caller states the carrier, so a span
+    /// refusal is the stored edge's.
+    ///
+    /// # Errors
+    ///
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge`
+    /// does not resolve; [`EulerOpError::NullScaffoldCurve`] on an edge
+    /// with no certified curve; then [`Body::set_edge_curve`]'s.
+    ///
+    /// # Panics
+    ///
+    /// On a kernel bug: a stored edge whose own span or winding reads
+    /// certainly refused at the run's band.
+    pub(crate) fn restate_edge(
+        &mut self,
+        site: crate::policy_lane::KernelSite,
+        edge: EdgeKey,
+        description: EdgeDescriptionSpec<T>,
+        tol: Tol,
+    ) -> Result<CurveKey, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let spec = self.restatement(edge, description, Arg("edge"))?;
+        self.set_edge_curve_certifying(crate::policy_lane::Origin::Kernels(site), edge, spec, tol)
+    }
+
+    /// **A transverse edge described as its faces' `Intersection`**: a
+    /// draft that kept the edge's own carrier restates it
+    /// ([`Body::restate_edge`] at `site`); a chord is a spec of the
+    /// caller's ([`Body::set_edge_curve`]).
+    ///
+    /// # Errors
+    ///
+    /// [`Body::restate_edge`]'s or [`Body::set_edge_curve`]'s.
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::restate_edge`], on a kept draft.
+    pub(crate) fn describe_intersection(
+        &mut self,
+        site: crate::policy_lane::KernelSite,
+        edge: EdgeKey,
+        drafted: geom_brep::DraftedIntersection<T>,
+        tol: Tol,
+    ) -> Result<CurveKey, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        match drafted {
+            geom_brep::DraftedIntersection::Kept(description) => {
+                self.restate_edge(site, edge, description, tol)
+            }
+            geom_brep::DraftedIntersection::Chord(spec) => self.set_edge_curve(edge, spec, tol),
+        }
+    }
+
+    /// `edge`'s stored carrier and interval, verbatim, under
+    /// `description`: what a restatement certifies.
+    ///
+    /// # Errors
+    ///
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) (as
+    /// `arg`) if `edge` does not resolve;
+    /// [`EulerOpError::NullScaffoldCurve`] on an edge with no certified
+    /// curve.
+    pub(crate) fn restatement(
+        &self,
+        edge: EdgeKey,
+        description: EdgeDescriptionSpec<T>,
+        arg: Arg,
+    ) -> Result<EdgeCurveSpec<T>, EulerOpError> {
+        let curve_key = lookup(&self.edges, edge, EntityId::Edge, arg)?.curve;
+        let stored = self
+            .edge_curve(edge, curve_key)
+            .certified()
+            .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
+        Ok(EdgeCurveSpec {
+            description,
+            ..stored.restated_spec()
+        })
+    }
+
+    /// [`Body::set_edge_curve`] certifying `curve` as `origin`'s.
+    fn set_edge_curve_certifying(
         &mut self,
         origin: crate::policy_lane::Origin,
         edge: EdgeKey,
@@ -1333,6 +1448,12 @@ impl<T: Decide> Body<T> {
     /// join, `revolve`'s join lanes and `swept`'s scaffold-retirement
     /// pass. It lives here, beside [`Body::set_edge_curve`], because
     /// that is the certified mutation it performs.
+    ///
+    /// # Panics
+    ///
+    /// On a kernel bug: an edge the body stores, re-minted or restated on its
+    /// own carrier and interval, whose span or winding reads certainly
+    /// refused at the run's band.
     ///
     /// # Errors
     ///
@@ -1398,10 +1519,10 @@ impl<T: Decide> Body<T> {
             }
             (_, rest) => restated.at_rest(rest),
         };
-        self.set_edge_curve_from(
-            crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::AtRest),
+        self.restate_edge(
+            crate::policy_lane::KernelSite::AtRest,
             edge,
-            spec,
+            spec.description,
             tol,
         )?;
         Ok(())
@@ -1499,7 +1620,7 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let parted: Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> = self
+        let parted: Vec<(EdgeKey, EdgeDescriptionSpec<T>)> = self
             .edges
             .iter()
             .filter_map(|(edge, e)| {
@@ -1511,19 +1632,18 @@ impl<T: Decide> Body<T> {
                 if !ch.wrap || sides.plus.face == sides.minus.face {
                     return None;
                 }
-                let mut spec = c.restated_spec();
-                if let geom_brep::EdgeDescriptionSpec::Chart { ref mut wrap, .. } = spec.description
-                {
+                let mut description = c.restated_description();
+                if let EdgeDescriptionSpec::Chart { ref mut wrap, .. } = description {
                     *wrap = false;
                 }
-                Some((edge, spec))
+                Some((edge, description))
             })
             .collect();
-        for (edge, spec) in parted {
-            self.set_edge_curve_from(
-                crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::PartedWrap),
+        for (edge, description) in parted {
+            self.restate_edge(
+                crate::policy_lane::KernelSite::PartedWrap,
                 edge,
-                spec,
+                description,
                 tol,
             )?;
         }

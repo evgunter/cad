@@ -719,19 +719,18 @@ fn of_attachment(
     }
 }
 
-/// [`Body::set_face_surfaces_describing`] over a section re-chart, its
-/// refusal for one of the `restated` edges read as [`of_attachment`]
-/// reads it on that edge's carrier. Each `restated` spec is its edge's
-/// stored carrier and interval ([`section_plane_restatements`]), so a
-/// span refusal is the kernel's.
+/// A section re-chart, each `restated` edge re-described on its own
+/// stored carrier and interval ([`Body::rechart_restating`]), its
+/// refusal for one of them read as [`of_attachment`] reads it on that
+/// edge's carrier.
 pub(crate) fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     charts: Vec<Rechart<T>>,
-    restated: &[(EdgeKey, geom_brep::EdgeCurveSpec<T>)],
+    restated: &[(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)],
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
-    body.set_face_surfaces_describing_from(
-        crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::SectionRechart),
+    body.rechart_restating(
+        crate::policy_lane::KernelSite::SectionRechart,
         charts,
         restated,
         tol,
@@ -742,8 +741,16 @@ pub(crate) fn rechart_section<T: Decide + crate::props::AtRestPolicy>(
             EulerOpError::RechartFalsifies { edge, .. } => *edge,
             _ => return refusal.into(),
         };
-        match restated.iter().find(|(e, _)| *e == edge) {
-            Some((_, spec)) => of_attachment(edge, spec.carrier.kind(), refusal),
+        let carrier = restated
+            .iter()
+            .any(|(e, _)| *e == edge)
+            .then(|| body.get_edge(edge))
+            .flatten()
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(|geom| geom.certified())
+            .map(|curve| curve.carrier().kind());
+        match carrier {
+            Some(kind) => of_attachment(edge, kind, refusal),
             None => refusal.into(),
         }
     })
@@ -1380,20 +1387,20 @@ fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
 /// pair, as the pair it is. The re-chart reads
 /// that image as the chart the face moves onto, or, where the edge's
 /// other face keeps the chart, as that chart itself
-/// ([`Body::set_face_surfaces_describing`]). Carrier, interval and a
-/// declared authority travel verbatim.
+/// ([`Body::rechart_restating`], which restates the carrier and
+/// interval). A declared authority travels verbatim.
 pub(crate) fn section_plane_restatements<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     stranded: &[EdgeKey],
-) -> Result<Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)>, SplitFinishError> {
+) -> Result<Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)>, SplitFinishError> {
     let corrupt = || SplitFinishError::Corrupt;
     let face_data = body.get_face(face).ok_or_else(corrupt)?;
     let chart = face_data.surface;
     let loops: Vec<_> = core::iter::once(face_data.outer)
         .chain(face_data.rings.iter().copied())
         .collect();
-    let mut out: Vec<(EdgeKey, geom_brep::EdgeCurveSpec<T>)> = Vec::new();
+    let mut out: Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)> = Vec::new();
     for lk in loops {
         let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else {
             continue;
@@ -1414,15 +1421,15 @@ pub(crate) fn section_plane_restatements<T: Decide>(
             // A pair names no chart to restate it in: listed as it
             // stands, its key for this face stands for the chart the
             // face moves onto.
-            let spec = if matches!(
+            let description = if matches!(
                 curve.description(),
                 geom_brep::EdgeDescription::OnPair { .. }
             ) {
-                curve.restated_spec()
+                curve.restated_description()
             } else {
-                curve.restated_in_chart(chart)
+                curve.restated_in_chart(chart).description
             };
-            out.push((edge, spec));
+            out.push((edge, description));
         }
     }
     Ok(out)
@@ -1432,7 +1439,7 @@ pub(crate) fn section_plane_restatements<T: Decide>(
 /// section face as the transverse `Intersection` of its two faces'
 /// surfaces (read through [`geom_brep::IntersectionDraft`]: witness ON
 /// the edge, at its carrier's mid-parameter), through the certified
-/// [`crate::Body::set_edge_curve`] lane. A smooth neighbor stores
+/// [`crate::Body::describe_intersection`] lane. A smooth neighbor stores
 /// what the must-carry rule over the edge demands
 /// ([`geom_brep::must_carry_over_edge`]): the intrinsic
 /// `TangentIntersection` where the two surfaces determine the locus (a
@@ -1473,8 +1480,6 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
     let corrupt = || SplitFinishError::Corrupt;
-    let restating =
-        crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::SectionBoundary);
     let face_data = body.get_face(face).ok_or_else(corrupt)?;
     let s_self = face_data.surface;
     let loops: Vec<_> = core::iter::once(face_data.outer)
@@ -1521,15 +1526,14 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
             let witness = draft.witness;
             match geom_brep::classify_dihedral(surf_self, surf_other, witness, reach, band) {
                 Ok(geom_brep::DihedralClass::Transverse) => {
-                    let origin = if draft.keeps_its_span() {
-                        restating
-                    } else {
-                        crate::policy_lane::Origin::Callers
-                    };
-                    let spec = draft.into_spec(geom_brep::SurfacePair::new(s_self, s_other));
-                    let carrier = spec.carrier.kind();
-                    body.set_edge_curve_from(origin, edge, spec, tol)
-                        .map_err(|e| of_attachment(edge, carrier, e))?;
+                    let carrier = draft.span().0.kind();
+                    body.describe_intersection(
+                        crate::policy_lane::KernelSite::SectionIntersection,
+                        edge,
+                        draft.into_intersection(geom_brep::SurfacePair::new(s_self, s_other)),
+                        tol,
+                    )
+                    .map_err(|e| of_attachment(edge, carrier, e))?;
                 }
                 // A curved wall smooth against the section plane is
                 // either a π seam or a wedge end, and only the material
@@ -1628,13 +1632,14 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         {
                             description = description.declared_by(mc);
                         }
-                        let spec = geom_brep::EdgeCurveSpec {
-                            description,
-                            ..spec
-                        };
                         let carrier = spec.carrier.kind();
-                        body.set_edge_curve_from(restating, edge, spec, tol)
-                            .map_err(|e| of_attachment(edge, carrier, e))?;
+                        body.restate_edge(
+                            crate::policy_lane::KernelSite::SectionSmooth,
+                            edge,
+                            description,
+                            tol,
+                        )
+                        .map_err(|e| of_attachment(edge, carrier, e))?;
                     }
                 }
                 Err(escalation) => {
@@ -1990,8 +1995,9 @@ pub(crate) fn carve<T: Decide>(
 /// split cube's lower half, a torn curve on the section face's first
 /// boundary edge panics naming the link, with the body unchanged. Two
 /// reads name that link: the description's own, and
-/// [`crate::Body::set_edge_curve`]'s plan, which every arm that
-/// describes the edge reaches before its write. The row holds whichever
+/// the plan of the door that writes it ([`crate::Body::restate_edge`]
+/// or [`crate::Body::set_edge_curve`]), which every arm that describes
+/// the edge reaches before its write. The row holds whichever
 /// panics first, so it cannot tell the two apart.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
