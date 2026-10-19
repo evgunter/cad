@@ -161,10 +161,8 @@ fn is_stored_form_refusal(err: &PathError<f64>) -> bool {
                     | "segment_straightness"
                     | "arc_diameter_clearance"
                     | "chord_side"
-                    | "carrier_line_circle"
                     | "carrier_circles_identity"
-                    | "carrier_circles_external"
-                    | "carrier_circles_internal"
+                    | "path_junction_turn"
             )
         ),
         _ => false,
@@ -213,12 +211,11 @@ fn the_door_refuses_a_fillet_its_stored_form_cannot_carry() {
         let (predicate, margin, turn, radius, arc_length) =
             flattened_refusal(&err, &format!("c = {c}, theta = {theta:e}"));
         // The stored fillet is read as a straight segment and the
-        // outgoing leg is straight too, so the classification that
-        // refuses the declaration is the line/line carrier-identity
-        // question the validator asks: `chord_side` on the far
-        // endpoint.
+        // outgoing leg is straight too: two distinct carriers, so the
+        // classification that refuses the declaration is the joint's
+        // turn, the question the validator asks.
         assert_eq!(
-            predicate, "chord_side",
+            predicate, "path_junction_turn",
             "c = {c}: the refusal names the classification that read the stored form, got {err}"
         );
         assert!(

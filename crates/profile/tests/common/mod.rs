@@ -1169,6 +1169,51 @@ pub fn grid_a(
     n
 }
 
+/// **What answers once a grid-A corner's anchor fit is satisfied and
+/// the loop still does not build**, by name; `None` for any other
+/// refusal. Two reads come after the fit:
+///
+/// - the CLOSER (`line_to(Start)`): at a wide ε its junction can
+///   classify in-band or tangent, a fact about the closing junction;
+/// - the fillet's own stored joint, where the arc leg's remnant past
+///   the fillet is short enough to be stored as its chord. That chord
+///   turns from the fillet by half its sweep, a corner at the fillet's
+///   arm, so the door refuses the declared tangency, or escalates it on
+///   `path_junction_turn`, the closer's name too. The refusal blames the
+///   scene's resolution
+///   (`work/paths/a-short-run-outs-stored-chord-reads-a-declared-fillet-joint-transversal.md`).
+///
+/// Neither is the fillet corner's fit, whose gates classify on the
+/// exact band.
+pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
+    match e {
+        PathError::Escalated { source }
+            if source
+                .predicate
+                .is_some_and(|p| p.starts_with("path_junction_")) =>
+        {
+            Some(source.predicate.unwrap_or("<unnamed>"))
+        }
+        PathError::JunctionTangent { .. } => Some("JunctionTangent"),
+        PathError::FilletCarrierBelowSceneResolution {
+            predicate: "path_junction_turn",
+            ..
+        } => Some("remnant chord"),
+        _ => None,
+    }
+}
+
+/// How many grid-A recourse entries [`past_the_corner`] answers at the
+/// run's ε row, pinned per row so a fillet answer cannot slide into
+/// that bucket unnoticed. A row CI does not gate has no pin.
+pub fn past_the_corner_pin() -> Option<usize> {
+    let eps = tol().eps();
+    [(1e-6, 34), (1e-9, 4), (1e-12, 0)]
+        .into_iter()
+        .find(|&(row, _)| row == eps)
+        .map(|(_, n)| n)
+}
+
 /// **The line×arc authoring**: a ray from `(sx·R/2, 0)` east onto the
 /// circle of radius `big_r` about the origin, anchored `ang` radians
 /// round it, filleted at `r` and closed back to the start. The derived

@@ -241,28 +241,21 @@ fn no_corpus_row_escalates_at_interval() {
     /// fact about replaying at another scalar.
     fn stored_form_predicate<T: Real>(e: &ReplayError<T>) -> Option<&'static str> {
         // The crate has no predicate registry to read, so the list is
-        // held against its source instead: every name here is one
-        // `seg.rs` fires, and `the_stored_form_names_are_segs_own` is
-        // the row that reds when the two drift apart.
-        const STORED_FORM: [&str; 8] = [
-            "vertex_separation",
-            "segment_straightness",
-            "arc_diameter_clearance",
-            "chord_side",
-            "carrier_line_circle",
-            "carrier_circles_identity",
-            "carrier_circles_external",
-            "carrier_circles_internal",
-        ];
+        // held against its source instead: every name in
+        // `EXEMPTED_STORED_FORM` is one `seg.rs` fires, and
+        // `the_stored_form_names_are_segs_own` is the row that reds when
+        // the two drift apart.
         let profile::ReplayErrorKind::Path(profile::PathError::Escalated { source }) = &e.kind
         else {
             return None;
         };
-        source.predicate.filter(|name| STORED_FORM.contains(name))
+        source
+            .predicate
+            .filter(|name| EXEMPTED_STORED_FORM.contains(name))
     }
     // The relayed set is PINNED, not merely printed, and it is empty:
     // a relay joining it is a new fact about the door and reds this
-    // row, so there is no standing pass for eight predicate names.
+    // row, so there is no standing pass for six predicate names.
     let pinned: &[(usize, &str)] = &[];
     let mut escalated: Vec<(usize, Vec<Verb>, String)> = Vec::new();
     let mut relayed: Vec<(usize, String)> = Vec::new();
@@ -438,7 +431,7 @@ fn the_anchor_coincident_corner_reduces_to_input_width_at_interval() {
 
 /// **The exempted names are `seg.rs`'s own.**
 ///
-/// [`no_corpus_row_escalates_at_interval`] exempts eight predicate
+/// [`no_corpus_row_escalates_at_interval`] exempts six predicate
 /// names from its pin, on the ground that they are the classifications
 /// `Profile::validate` runs on a stored loop and the path door relays.
 /// That ground is only true while the list IS `seg.rs`'s list, and
@@ -474,7 +467,7 @@ fn the_stored_form_names_are_segs_own() {
     for name in [
         "fn classify",
         "fn joint_tangency",
-        "fn line_circle_joint",
+        "fn junction_turn",
         "fn chord_side",
     ] {
         let head = code
@@ -518,13 +511,11 @@ fn the_stored_form_names_are_segs_own() {
 /// The list [`no_corpus_row_escalates_at_interval`] exempts, spelled
 /// once so [`the_stored_form_names_are_segs_own`] can hold it against
 /// `seg.rs` and the row that uses it can name it.
-const EXEMPTED_STORED_FORM: [&str; 8] = [
+const EXEMPTED_STORED_FORM: [&str; 6] = [
     "vertex_separation",
     "segment_straightness",
     "arc_diameter_clearance",
     "chord_side",
-    "carrier_line_circle",
     "carrier_circles_identity",
-    "carrier_circles_external",
-    "carrier_circles_internal",
+    "path_junction_turn",
 ];

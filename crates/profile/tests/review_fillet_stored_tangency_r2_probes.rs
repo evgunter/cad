@@ -272,7 +272,11 @@ fn a_leg_between_two_fillets_too_short_to_hold_its_direction() {
         let o = outcome(two_fillets_with_a_leg_of(gap, R));
         println!("LEG eps={:e} gap={gap:e} r={R}: {o:?}", tol().eps());
         never_contradicted(&format!("gap {gap:e}"), &o);
-        if let Outcome::DoorStoredForm(predicate, margin) = o {
+        assert!(
+            !matches!(o, Outcome::DoorStoredForm(..)),
+            "gap {gap:e}: the loss here is the leg, not a flattened fillet: {o:?}"
+        );
+        if let Outcome::DoorSceneResolution(predicate, margin) = o {
             stored_form_hits.push((gap, predicate, margin));
         }
     }
@@ -288,10 +292,6 @@ fn a_leg_between_two_fillets_too_short_to_hold_its_direction() {
         );
         never_contradicted("larger radius", &larger);
         never_contradicted("smaller radius", &smaller);
-        assert_ne!(
-            predicate, "chord_side",
-            "the loss here is a line/arc joint, not a flattened fillet"
-        );
     }
 }
 
@@ -318,8 +318,8 @@ fn a_fixed_turn_crosses_the_window_with_the_eps_row() {
         );
     } else if s <= tol().eps() * 0.25 {
         assert!(
-            matches!(o, Outcome::DoorStoredForm("chord_side", _)),
-            "sagitta {s:e} is below ε; the door refuses on the line/line arm: {o:?}"
+            matches!(o, Outcome::DoorStoredForm("path_junction_turn", _)),
+            "sagitta {s:e} is below ε; the door refuses the flattened arc: {o:?}"
         );
     }
     for (name, build) in corners() {
@@ -423,7 +423,7 @@ fn a_seam_fillet_inside_the_window_refuses_at_the_door() {
         }
         if (1.0..=2.0).contains(&c) {
             assert!(
-                matches!(o, Outcome::DoorStoredForm("chord_side", _)),
+                matches!(o, Outcome::DoorStoredForm("path_junction_turn", _)),
                 "seam c = {c}: the seam arc flattens like the interior witness: {o:?}"
             );
         }

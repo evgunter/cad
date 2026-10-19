@@ -1969,10 +1969,14 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // the door minted the joint itself, so "declare the
                     // coincidence" is advice about a declaration the caller
                     // never wrote, and the levers are the two the stored
-                    // form actually has. `carrier_circles_chord` is the
-                    // pair pass's, which the read does not run; it is
-                    // listed so that the near-tangency names render alike
-                    // here and there. Four of these names —
+                    // form actually has. The read's joint turn is
+                    // `path_junction_turn`, the junction's own question,
+                    // and renders as the junction check's does. The
+                    // `carrier_line_circle` and `carrier_circles_*` names
+                    // but the identity are the pair pass's, which the
+                    // read does not run; they are listed so that the
+                    // near-tangency names render alike here and there.
+                    // Four of these names —
                     // `carrier_line_circle` and every `carrier_circles_*`
                     // but the identity — also carry a note at
                     // `ProfileError::Escalated`, and the two sentences
@@ -6233,8 +6237,8 @@ mod fillet_stored_form {
     /// **The door computes the tangency exactly; the stored form is what
     /// loses it.** At every turn the door builds, the carrier the door
     /// computed — radius `r`, centred `r` off the arrival carrier at the
-    /// arc's end — is tangent to both legs to within a few ulps of `r`,
-    /// whatever the stored segment reads back as. The table
+    /// arc's end — turns from both legs by a few ulps, levered by the
+    /// joint's arm, whatever the stored segment reads back as. The table
     /// this prints (`--nocapture`) is the per-decade measurement: the
     /// stored kind, the two carrier errors, the margins both sides
     /// decide on, and both verdicts.
@@ -6244,11 +6248,12 @@ mod fillet_stored_form {
         // What the sweep MEASURES, with stated headroom rather than a
         // round number well above it: the largest door-carrier margin
         // anywhere in these three tables at any of the three epsilon
-        // rows is 6.7e-16, and this pins 3.6e-15 — eight ulps of the
-        // corners' own metre-scale coordinates, five times the measured
-        // worst case. A pin an order of magnitude looser would pass a
-        // door whose carrier had stopped being exact.
-        let ulps = 16.0 * f64::EPSILON;
+        // rows is 8.9e-15, a heading rounded by an ulp or two and
+        // levered by the corners' 4 m legs, and this pins 4.4e-14 —
+        // five times the measured worst case. A pin an order of
+        // magnitude looser would pass a door whose carrier had stopped
+        // being exact.
+        let ulps = 200.0 * f64::EPSILON;
         for corner in corners() {
             println!(
                 "\n### {}   eps = {:e}  K = {}  band = ({:e}, {:e})  r = {R}",
