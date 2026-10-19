@@ -334,6 +334,26 @@ fn a_carrier_on_its_chart_images_exactly_at_f64_and_interval() {
                 .unwrap_or_else(|e| panic!("{what}: f64 certification refused: {e:?}"));
             let env = cache.certificate().envelope;
             assert!(env < 1e-10, "{what}: f64 envelope {env:e}");
+            // The same row lifted a whole period along each angle channel
+            // is no row (C4): spline net or circle, it never certifies.
+            let mut lifts = Vec::new();
+            if !matches!(chart, Chart::Plane) {
+                lifts.push((TAU, 0.0));
+            }
+            if matches!(chart, Chart::Sphere | Chart::Torus) {
+                lifts.push((0.0, TAU));
+            }
+            for (du, dv) in lifts {
+                let Pcurve::Projected(p) = image.translate(du, dv) else {
+                    unreachable!("a translated projected image stays one")
+                };
+                let lifted =
+                    PcurveCache::certify_projected(*p, t0, t1, &carrier, &surf, b, Some(lane64));
+                assert!(
+                    lifted.is_err(),
+                    "{what}: the row lifted ({du}, {dv}) certified"
+                );
+            }
             // The f64 lane rounds both, so the comparison has rounding room.
             assert!(
                 env >= worst - 1e-13,

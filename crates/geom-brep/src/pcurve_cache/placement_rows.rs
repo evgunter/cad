@@ -1070,3 +1070,70 @@ fn a_lifted_copy_refuses_as_its_channels_term_on_every_lane() {
         "every non-harmonic lane is read"
     );
 }
+
+/// **A lifted copy never certifies, however many periods out** (the
+/// delta review of PR 5343, its probe c, ported as the guard). Each arm's
+/// placed image moved `k` whole periods along `u`, and along `v` and both
+/// where `v` is an angle, for `k` from one turn to `i32`'s ends, at `f64`
+/// and at `Interval`. Which check refuses varies with `k` and the lane:
+/// at small `k` it is the channel's fidelity term; as `k·τ`'s rounding
+/// grows the stored point moves, and check 3 (at `f64`, from about `2²⁰`
+/// on the Villarceau row, `2³⁰` on the cone's focal section) or the map
+/// residual (at `Interval`, the spiric wall from `2³⁰`) reaches it first.
+/// The row pins only what C4 asks: none certifies.
+#[test]
+fn a_lifted_copy_never_certifies_at_any_whole_period_count() {
+    use geom_core::{Interval, Real};
+    let f = <Interval as Real>::from_f64;
+    let band = band();
+    let mut certified = Vec::new();
+    for (name, surface, carrier, (t0, t1)) in arms() {
+        let base = chart_pcurve_over(&carrier, t0, t1, &surface, band).unwrap();
+        let (ci, si) = (carrier.map_scalar(f), surface.map_scalar(f));
+        let base_i = chart_pcurve_over(&ci, f(t0), f(t1), &si, band).unwrap();
+        let v_angle = matches!(surface, Surface::Torus { .. } | Surface::Sphere { .. });
+        for k in [
+            1,
+            -1,
+            2,
+            3,
+            -3,
+            7,
+            1000,
+            1 << 20,
+            1 << 30,
+            i32::MAX,
+            i32::MIN,
+        ] {
+            let s = f64::from(k) * TAU;
+            let mut moves = vec![(s, 0.0)];
+            if v_angle {
+                moves.push((0.0, s));
+                moves.push((s, -s));
+            }
+            for (du, dv) in moves {
+                let at_f64 =
+                    PcurveCache::certify(base.translate(du, dv), t0, t1, &carrier, &surface, band);
+                let at_interval = PcurveCache::certify(
+                    base_i.translate(f(du), f(dv)),
+                    f(t0),
+                    f(t1),
+                    &ci,
+                    &si,
+                    band,
+                );
+                if at_f64.is_ok() || at_interval.is_ok() {
+                    certified.push(format!(
+                        "{name}, k {k}, ({du}, {dv}): f64 {}, Interval {}",
+                        at_f64.is_ok(),
+                        at_interval.is_ok()
+                    ));
+                }
+            }
+        }
+    }
+    assert!(
+        certified.is_empty(),
+        "lifted copies certified: {certified:#?}"
+    );
+}

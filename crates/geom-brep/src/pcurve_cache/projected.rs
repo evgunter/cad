@@ -2051,6 +2051,9 @@ pub(super) fn projected_envelope<T: Decide>(
             });
         }
     };
+    if twin_deck {
+        terms.2 = super::ImageName::Twin;
+    }
     let (shift, sign) = if twin_deck {
         (T::pi(), T::zero() - T::one())
     } else {
@@ -2276,26 +2279,15 @@ pub(super) fn run_projected_checks<T: Decide>(
     // periodic map, so it cannot see a whole period of either channel:
     // the row's placement is its own pair of terms
     // (`super::placement_terms`).
-    let (fu, fv) = super::placement_terms(pcurve, (t0, t1), carrier, surface, band)?;
+    let (fu, fv) = super::placement_terms(pcurve, terms.2, (t0, t1), carrier, surface, band)?;
     terms.add(EnvelopeTerm::FidelityU, fu);
     terms.add(EnvelopeTerm::FidelityV, fv);
     let envelope = terms.total();
-    match decide("pcurve_envelope", Margin::of(envelope), band) {
-        Ok(Sign::Zero) => {}
-        refused => {
-            let check = terms
-                .first_over(band)
-                .map_or(PcurveCheck::Envelope, PcurveCheck::EnvelopeTerm);
-            return Err(match refused {
-                Err(cause) => PcurveCertifyError::Escalated {
-                    check,
-                    sample: 0,
-                    cause,
-                },
-                Ok(_) => PcurveCertifyError::ResidualExceeded { check, sample: 0 },
-            });
-        }
-    }
+    super::envelope_verdict(envelope, band, || {
+        terms
+            .first_over(band)
+            .map_or(PcurveCheck::Envelope, PcurveCheck::EnvelopeTerm)
+    })?;
     Ok(super::PcurveCertificate::closed(
         samples,
         max_residual,

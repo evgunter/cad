@@ -1,7 +1,7 @@
 ---
 id: whole-period-integers-read-off-a-value-outside-the-s1-sweep
 kind: issue
-title: Whole-period integers read off a value by round, floor or periodic_branch, outside B2b's S1 sweep: two C4 violations, the rest renames no reader tells apart
+title: Whole-period integers read off a value by round, floor or periodic_branch, outside B2b's S1 sweep: three C4 violations, one read safe by slack, the rest renames no reader tells apart
 status: open
 opened: 2026-10-19
 priority: P3
@@ -35,13 +35,38 @@ with this item.
   Each junction's turns are `(mid(δ)/τ).round()` at `f64`, through no
   band, then the junction's gap is decided with that integer. On a
   half-period mark the rounding picks a side silently where
-  `Period::decide` escalates. Verdict-safe: a wrong integer leaves a
-  gap of at least `π·lever`, which the junction refuses, so the cost is
-  a refusal named as an open junction instead of an escalation. Fix:
+  `Period::decide` escalates. Verdict-safe **only while the junction's
+  lever is bounded away from zero**: a wrong integer leaves a gap of at
+  least `π·lever`, which the junction refuses against its slack, so the
+  cost is a refusal named as an open junction instead of an escalation.
+  Today's levers are: `props::quad::loop_windings`, the cylinder's radius
+  (and `1` on the free `v`); `props::spiric::wall_windings`, the torus's
+  `R + r·cos v` and `r`, both at least `R − r > 0` on a ring torus. A
+  lever near zero (a pole, an apex) would leave the wrong integer's gap
+  inside the slack, and then the rounding would decide a verdict. Fix:
   decide the turns with `Period::decide` at the junction's lever.
+- `crates/topo/src/shell.rs:3650`, the rim pairing's run mean:
+  `tau * ((at - mean)/tau + 0.5).floor()`. The nesting decision reads
+  the shifted run. Its doc says no tie arises for the concentric pairs
+  `encloses` exists for, but the same code is asked of pairs not known
+  to nest (both orders before a band seam, and `pair_rings`' two orders
+  before it refuses), where two full-period runs' means can sit half a
+  period apart. At that tie the floor lands the later run a whole period
+  across the flat picture, moving its centroid, and the nesting decision
+  reads that placement. Fix: decide the shift by the marks, escalating
+  at the tie.
 
 (`step-import`'s outerness `unwrap` is the same class, filed as
 `work/exch/step-import-unwrap-reads-a-whole-period-off-a-value.md`.)
+
+## Read, but safe by slack
+
+- `crates/geom-brep/src/props/curved.rs:4318`: a torus rim's `v` follows
+  the running `v` by `periodic_branch`, and the Green form reads the
+  lift it picks, so a reader does tell the lifts apart. It is safe
+  because every junction on the path is already decided closed within
+  its slack, so the running value sits within a slack of the rim's
+  level, never near a half-period mark, and the pick has one answer.
 
 ## Renames no reader tells apart
 
@@ -53,10 +78,6 @@ with this item.
 - `crates/topo/src/ring_path.rs:505`, `branch`: a parameter placed in
   `(mid − π, mid + π]`. Its doc states no reader reads the pick as an
   identity; it is compared only with span ends of another provenance.
-- `crates/geom-brep/src/props/curved.rs:4318`: a torus rim's `v` follows
-  the running `v` by `periodic_branch`. Every junction on the path is
-  already decided closed within its slack, so the running value sits a
-  slack from the rim's level, never near a half-period mark.
 - `crates/topo/src/chart_iso.rs:70`, `unwrap_near`, and its readers
   (`mesh::walk`, `topo::coherence::wrapped`): tessellation's chart
   readings and a coherence measurement, at `f64`, certifying nothing.
@@ -69,12 +90,27 @@ with this item.
   is the reduction's seam (an extent of `0` against `τ`), which is not
   C4's and is not judged here.
 
+## Outside the kernel's certification, noted
+
+- `crates/geom/src/periodic.rs:35`, `periodic_window_may_hold`: the
+  representative `phi_lo + period·⌈(lo − phi_hi)/period⌉`, a ceiling of
+  a quotient at `f64`. It answers "may hold", and every doubtful case
+  (NaN, a span of a period or more) answers `true`, so a wrong integer
+  only widens what is kept.
+
+At `Interval`, an offset of exactly `π` (a half period) escalates
+through the projected lane's `off_period` at its seam rather than
+deciding a side (B2b's delta review, N1). That is the marks doing what
+this item asks of the sites above.
+
 ## What the patterns could not match
 
 The sweep for this item matched `.round()` / `.floor()` on a period
 quotient, `periodic_branch`, `reduce_periodic(_centred)`,
-`rem_euclid(τ)`, and `±= TAU`. It cannot see an integer formed by an
-`as` cast or `trunc()`, a comparison loop spelled without `TAU`
+`rem_euclid(τ)`, and `±= TAU`. The first pass missed `shell.rs:3650`, whose quotient carries an
+added constant (`(x/τ + 0.5).floor()`), and `periodic.rs:35`'s
+`.ceil()`; the second pass matched both. It still cannot see an
+integer formed by an `as` cast or `trunc()`, a comparison loop spelled without `TAU`
 (`while u > PI`), or a period that is not `τ` (a spline's knot length)
 reduced by hand. A second set it matched and did not classify, all
 `f64` and outside certification: `rem_euclid` in `boolean::rim_wedge`
