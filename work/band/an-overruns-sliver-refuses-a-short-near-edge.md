@@ -4,6 +4,8 @@ kind: issue
 title: blend: a turn overrun's sliver refuses FOOT_INSIDE_A_FACE where the far band's trimline meets the near edge past its far end
 status: open
 opened: 2026-10-12
+priority: P3
+cost: M
 ---
 
 A turn's overrun, chamfer or fillet, is metered as the far band `k`'s whole cut-off

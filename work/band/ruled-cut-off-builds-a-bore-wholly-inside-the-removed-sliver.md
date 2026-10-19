@@ -2,10 +2,11 @@
 id: ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver
 kind: issue
 title: blend: a feature wholly inside the material a band removes or fills goes with it (Ev, PR 4285); today a bore inside a ruled cut-off's sliver refuses RingClearance
-status: open
+status: closed
 opened: 2026-09-25
 priority: P2
 cost: H
+closed: 2026-10-19
 ---
 
 
@@ -484,3 +485,15 @@ membership test (4).
 - **Still open:** the void above (owed), the concave fill (its own
   item), and inside-the-union-of-bands at mitres and corners. The concave twin of the mitre void and island rows in
   `band_planar_mitre` is unchanged.
+
+## Closed
+
+All four steps of Ev's PR 4285 build order are built: the three-way
+classifier (PR 4797), the verdict log, the deletion from the ruled cap,
+and the planar band and chamfer (PR 4957). The concave fill went to
+`a-concave-fill-and-a-whole-shell-inside-a-bands-region`, whose ruling
+(Ev, PR 4963) supersedes this item's case table and whose steps 2–3
+(PRs 5099, 5161) built the bar, the blind bore and the pin. The one
+residue this item names, a void wholly inside the material a convex
+band removes, is that item's step 4 (whole shells and the seal), so
+nothing is left here.

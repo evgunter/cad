@@ -912,6 +912,23 @@ impl crate::spline::SpanLocate for Interval {
         Self(enclosure_hull_of(self.0, other.0))
     }
 
+    fn clip_to(self, lo: f64, hi: f64) -> Self {
+        // A narrowing that keeps the decoration: the rebuilt bounds are
+        // capped at `self`'s, so an uncertified value stays uncertified.
+        let (l, h) = (Bounds::lo(self).max(lo), Bounds::hi(self).min(hi));
+        let meets = matches!(
+            l.partial_cmp(&h),
+            Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
+        );
+        if self.0.is_nai() || self.0.is_empty() || !meets {
+            return self;
+        }
+        Self(cap_decoration(
+            DInterval::from_bounds(l, h),
+            self.0.decoration(),
+        ))
+    }
+
     fn restrict_window(
         window: &[Self],
         span: crate::spline::Span<'_>,
@@ -1388,6 +1405,27 @@ mod tests {
         for x in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             assert!(Interval::from_f64(x).0.is_nai(), "from_f64({x:e})");
         }
+    }
+
+    /// **`clip_to` intersects and keeps the decoration (C6 S5c).** A
+    /// value narrowed to `[lo, hi]` is the intersection; an uncertified
+    /// value stays uncertified; a value that misses `[lo, hi]`, and
+    /// poison, come back as they were.
+    #[test]
+    fn clip_to_intersects_and_keeps_the_decoration() {
+        use crate::spline::SpanLocate;
+        let x = Interval::from_bounds(0.2, 0.8);
+        let c = x.clip_to(0.5, 1.0);
+        assert_eq!((Bounds::lo(c), Bounds::hi(c)), (0.5, 0.8));
+        assert!(c.is_certified());
+        let uncertified = Interval::from_bounds(-1.0, 4.0).sqrt();
+        assert!(!uncertified.is_certified());
+        assert!(!uncertified.clip_to(0.5, 1.0).is_certified());
+        let missed = x.clip_to(0.9, 1.0);
+        assert_eq!((Bounds::lo(missed), Bounds::hi(missed)), (0.2, 0.8));
+        assert!(Real::is_poison(
+            Interval::from_f64(f64::NAN).clip_to(0.0, 1.0)
+        ));
     }
 
     #[test]
