@@ -3277,7 +3277,20 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("ArcViaCollinear", P::ArcViaCollinear { offset: 1e-12 }),
-        ("DegenerateArcChord", P::DegenerateArcChord { chord: 1e-12 }),
+        (
+            "DegenerateArcChord",
+            P::DegenerateArcChord {
+                chord: 1e-12,
+                behind: false,
+            },
+        ),
+        (
+            "DegenerateArcChord(behind)",
+            P::DegenerateArcChord {
+                chord: 2.7,
+                behind: true,
+            },
+        ),
         (
             "ArcCenterNotEquidistant",
             P::ArcCenterNotEquidistant {

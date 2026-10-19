@@ -1316,10 +1316,15 @@ pub enum PathError<T: Real> {
     /// An arc leg's endpoints are within ε_input of each other: the
     /// chord is degenerate, so neither the via nor the centre form
     /// determines an arc (a full turn is a closed carrier, which is
-    /// [`circle`]'s business, not a chain leg's — PQ4).
+    /// [`circle`]'s business, not a chain leg's — PQ4). A tangent arc
+    /// whose target is on the departure line BEHIND the tip refuses
+    /// here too: the only arc tangent there is that full turn.
     DegenerateArcChord {
         /// The chord length, meters.
         chord: T,
+        /// Whether the endpoints are apart and the target is on the
+        /// departure line behind the tip, rather than at it.
+        behind: bool,
     },
     /// A `Center` mode's centre is not equidistant from the two
     /// endpoints: the authored data contradicts itself. Refused, never
@@ -1887,11 +1892,25 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  through-point off the chord, or author the straight segment as a line",
                 offset = num(offset)
             ),
-            Self::DegenerateArcChord { chord } => write!(
+            Self::DegenerateArcChord {
+                chord,
+                behind: false,
+            } => write!(
                 f,
                 "an arc leg's endpoints are within tolerance of each other (chord {chord} \
                  m): a leg spans a chord, and a closed carrier is a circle primitive, not a \
                  chain leg",
+                chord = num(chord)
+            ),
+            Self::DegenerateArcChord {
+                chord,
+                behind: true,
+            } => write!(
+                f,
+                "a tangent arc's target is on the departure line behind the tip (chord \
+                 {chord} m): the only arc tangent there is the full turn, and a closed \
+                 carrier is a circle primitive, not a chain leg. Recourse: move the target \
+                 off the departure line, or author the full turn as a circle",
                 chord = num(chord)
             ),
             Self::ArcCenterNotEquidistant {
@@ -2987,9 +3006,10 @@ fn tangent_arc_geom<T: Decide>(
     if on_line {
         match decide("path_leg_length", Margin::of(along), band) {
             Ok(Sign::Positive) => {}
-            Ok(_) => {
+            Ok(sign) => {
                 return Err(PathError::DegenerateArcChord {
                     chord: d.norm_squared().sqrt(),
+                    behind: sign == Sign::Negative,
                 });
             }
             Err(source) => return Err(PathError::Escalated { source }),
@@ -4949,7 +4969,10 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let chord = (end - at).norm_squared().sqrt();
         match decide("path_arc_chord", Margin::of(chord), band) {
             Ok(Sign::Positive) => Ok(chord),
-            Ok(_) => Err(PathError::DegenerateArcChord { chord }),
+            Ok(_) => Err(PathError::DegenerateArcChord {
+                chord,
+                behind: false,
+            }),
             Err(source) => Err(PathError::Escalated { source }),
         }
     }

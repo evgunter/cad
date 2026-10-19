@@ -219,6 +219,7 @@ fn close<T: Decide>(
         (None, None) => {
             return Err(PathError::DegenerateArcChord {
                 chord: (start_pos - pos.at).norm_squared().sqrt(),
+                behind: false,
             });
         }
     };
