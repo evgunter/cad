@@ -50,6 +50,30 @@ pub(crate) fn post<T: Decide + AtRestPolicy>(
     len: f64,
     a: f64,
 ) -> Body<T> {
+    shaft(from, dir, len, &[((-a, 0.0), 1.0), ((a, 0.0), 1.0)])
+}
+
+/// A square post of half-side `b`, as [`post`], its sides along the
+/// section frame's axes.
+fn square_post<T: Decide + AtRestPolicy>(
+    from: Point3<f64>,
+    dir: Vec3<f64>,
+    len: f64,
+    b: f64,
+) -> Body<T> {
+    let corners = [(-b, -b), (b, -b), (b, b), (-b, b)];
+    shaft(from, dir, len, &corners.map(|c| (c, 0.0)))
+}
+
+/// A prism of the bulged section `verts` from `from` along the unit
+/// `dir` for `len`, its section frame `x` turned square to `dir` and
+/// `dir × x`.
+fn shaft<T: Decide + AtRestPolicy>(
+    from: Point3<f64>,
+    dir: Vec3<f64>,
+    len: f64,
+    verts: &[((f64, f64), f64)],
+) -> Body<T> {
     let seed = if dir.x.abs() < 0.9 {
         Vec3::new(1.0, 0.0, 0.0)
     } else {
@@ -66,10 +90,10 @@ pub(crate) fn post<T: Decide + AtRestPolicy>(
             lift(v),
             tol(),
         ),
-        vec![
-            (Point2::new(f(-a), f(0.0)), f(1.0)),
-            (Point2::new(f(a), f(0.0)), f(1.0)),
-        ],
+        verts
+            .iter()
+            .map(|&((x, y), bulge)| (Point2::new(f(x), f(y)), f(bulge)))
+            .collect(),
         f(len),
         tol(),
     )
@@ -538,6 +562,61 @@ fn a_cup_of_the_bands_opposite_sign_on_its_strip_refuses_as_a_bound() {
             assert!(
                 matches!(err, BlendError::FaceClearance { bounded: true, .. }),
                 "{what} ({verb:?}): a bound, got {err:?}"
+            );
+        }
+    }
+}
+
+/// **A square dimple leaning off its support's normal goes, and a round
+/// one refuses at the ring meter**, under both verbs. The square
+/// dimple's axis leans `0.05` rad along the edge and across it: its
+/// seams run along the axis, between a mouth vertex and a floor vertex,
+/// and stray from the line along the support's normal by `0.05` per
+/// unit of length, which the section less the support's side, convex
+/// along that normal, charges twice; along the spine they would stray
+/// by nearly their length. A square bar holds `4b²` per unit of its axis
+/// whatever its ends' planes, so `ΔV = −(A − 4b²·h)`, `h` its axis from
+/// the support to the floor. A round dimple leaning so has an ellipse for
+/// its mouth, which the ring meter does not read
+/// (`UnsupportedGeometry`).
+#[test]
+fn a_square_dimple_leaning_off_its_supports_normal_goes_and_a_round_one_refuses() {
+    let (u, x, a, h) = CUP;
+    let b = 0.004;
+    let (o, _) = mouth(true, On::Floor, 1.0, (u, x));
+    for (what, lean) in [
+        ("along the edge", (0.05f64, 0.0)),
+        ("across it", (0.0, 0.05f64)),
+    ] {
+        let dir = Vec3::new(lean.0.sin(), lean.1.sin(), -1.0).normalize();
+        let block = || -> Body<f64> { brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()) };
+        let body = boolean(false, block(), square_post(o - dir * 0.2, dir, 0.2 + h, b));
+        let cups = post_faces(&body, (o, dir), b * 2f64.sqrt(), (-b, h));
+        assert_eq!(
+            cups.len(),
+            5,
+            "a square dimple leaning {what}: four walls and a floor"
+        );
+        for verb in VERBS {
+            let dv = -(section(verb, D) - 4.0 * b * b * h);
+            let what = format!("a square dimple leaning {what}");
+            assert_taken(
+                verb,
+                &body,
+                &[top(&body, 1.0)],
+                D,
+                (&cups, 1, 0),
+                (dv, 1.0),
+                &what,
+            );
+        }
+        let body = boolean(false, block(), post(o - dir * 0.2, dir, 0.2 + h, a));
+        for verb in VERBS {
+            let what = format!("a round dimple leaning {what}");
+            let err = refusal(verb, &body, &[top(&body, 1.0)], &what);
+            assert!(
+                matches!(err, BlendError::UnsupportedGeometry { .. }),
+                "{what} ({verb:?}): its elliptic mouth is not metered, got {err:?}"
             );
         }
     }
