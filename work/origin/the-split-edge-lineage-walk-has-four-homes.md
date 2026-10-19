@@ -64,7 +64,8 @@ join can kill a child before its parent; each is as acyclic as the
 records it copies, and the argument is stated once, on
 `Provenance::SplitEdge` (`crates/topo/src/provenance.rs`). So the
 cycle refusals left in the readers belong to this row, and the one walk
-it asks for should take the copies as another record lookup:
+it asks for should take the copies as another record lookup. As
+filed (the next section says what they do now):
 
 - `emit_topo::chase_edge_to_table` (~`emit_topo.rs:99`), which steps
   through the chains' hops and the boolean's `killed_lineage`
@@ -78,7 +79,7 @@ it asks for should take the copies as another record lookup:
   and with each boolean's `killed_lineage`, in `Obstacles::record`)
   and refuses `bug("a piece edge's split lineage is cyclic")`.
 
-Inherited from `join-desync-is-the-catch-all-for-cyclic-lineage-records`, beyond the readers: nothing checks the `SplitEdge` records where `Body::split_edge` writes them, and the three copies (`SplitNaming::joined_lineage`, `BooleanNaming::killed_lineage`, `DiscardRow::boundary_chains`) are `pub` fields a caller can write. The fix checks acyclicity where the records are written, or says at the write site why it cannot. It also decides whether the copies stay writable from outside the kernel. The readers' bounds are unreachable only once both hold.
+Inherited from `join-desync-is-the-catch-all-for-cyclic-lineage-records`, beyond the readers: nothing checks the `SplitEdge` records where `Body::split_edge` writes them, and the three copies (`SplitNaming::joined_lineage`, `BooleanNaming::killed_lineage`, `DiscardRow::boundary_chains`) are `pub` fields a caller can write. The fix checks acyclicity where the records are written, or says at the write site why it cannot. It also decides whether the copies stay writable from outside the kernel. Until both hold, the readers' bounds rest on the writer-access argument rather than a check; the `editor-core` readers now panic on them (below), and `Body::split_root` and `discard.rs` still refuse typed.
 
 ## The editor-core readers share one walk now (`wire/one-chain-chase`, 2026-10-19)
 

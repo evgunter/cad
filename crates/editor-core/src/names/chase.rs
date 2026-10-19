@@ -3,11 +3,11 @@
 //! copies — written once, so every chain is bounded and refuses a
 //! cycle the same way.
 //!
-//! Every chain the emitters chase is made of the kernel's own records,
-//! each naming a key that existed before the key that holds it, so no
-//! input reaches a cycle: one is a kernel bug, observable here as a walk
-//! that outlasts its bound, and it panics (`docs/DESIGN.md`
-//! `[failure.taxonomy]`, row 4).
+//! Every chain the emitters chase is made of rows the kernel's own split
+//! or boolean wrote, and each caller's `# Panics` says why its rows
+//! cannot cycle, so no input reaches a cycle: one is a kernel bug,
+//! observable here as a walk that outlasts its bound, and it panics
+//! (`docs/DESIGN.md` `[failure.taxonomy]`, row 4).
 
 use core::fmt::Debug;
 use core::ops::ControlFlow;
@@ -23,8 +23,8 @@ use core::ops::ControlFlow;
 /// # Panics
 ///
 /// Where `step` is still going after `bound` steps, which an acyclic
-/// chain of at most `bound` hops cannot be: the rows cycle. `why` names
-/// the rows and why they cannot, and the message carries it.
+/// chain of at most `bound` hops cannot be: the rows cycle. `why` points
+/// at the caller's argument that they cannot, and the message carries it.
 #[track_caller]
 pub(super) fn to_root<K: Copy + Debug, E>(
     start: K,
@@ -41,7 +41,7 @@ pub(super) fn to_root<K: Copy + Debug, E>(
     }
     unreachable!(
         "the chain from {start:?} is still going at {at:?} after {bound} steps, so its rows \
-         cycle, and {why}"
+         cycle, which only a kernel bug makes them do ({why})"
     )
 }
 
@@ -74,7 +74,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "the chain from 2 is still going")]
+    #[should_panic(expected = "a kernel bug makes them do (the rows are a test's)")]
     fn a_cycle_panics() {
         let rows = BTreeMap::from([(2, 1), (1, 2)]);
         let _ = to_root(2, rows.len(), "the rows are a test's", up(&rows));

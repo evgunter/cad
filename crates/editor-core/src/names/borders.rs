@@ -395,9 +395,11 @@ impl<K: Ord + Clone> Obstacles<K> {
     ///
     /// # Panics
     ///
-    /// Where the lineage cycles ([`chase::to_root`]): `split_from` holds
-    /// copies of the `SplitEdge` records of the booleans recorded, and
-    /// the records point at older keys.
+    /// Where the lineage cycles ([`chase::to_root`]), even where `stop`
+    /// would end the walk at a key it has seen before: `stop` sees each
+    /// edge once. `split_from` holds copies of the recorded booleans'
+    /// `SplitEdge` records, and a copy cycles only where the records do
+    /// (`topo::Provenance::SplitEdge`).
     fn up_lineage<T: geom_core::Real>(
         &self,
         body: &Body<T>,
@@ -405,12 +407,13 @@ impl<K: Ord + Clone> Obstacles<K> {
         mut stop: impl FnMut(EdgeKey) -> bool,
     ) {
         let bound = body.edges().count() + self.split_from.len();
+        let mut chain = BTreeSet::new();
         let Ok(_) = chase::to_root::<_, Infallible>(
             e,
             bound,
-            "a boolean's SplitEdge records and their copies point at older keys",
+            "see `borders::Obstacles::up_lineage`'s Panics",
             |e| {
-                if stop(e) {
+                if chain.insert(e) && stop(e) {
                     return Ok(ControlFlow::Break(e));
                 }
                 Ok(match body.edge_provenance_of(e) {
@@ -664,4 +667,24 @@ fn group<W: Ord, I: Copy>(walls: Vec<BTreeSet<W>>, items: &[I]) -> BTreeMap<Vec<
         out.entry(set.into_iter().collect()).or_default().push(i);
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Obstacles;
+    use std::collections::BTreeSet;
+    use topo::{EdgeKey, FaceKey};
+
+    /// A stop that ends the walk at a key an earlier walk saw does not
+    /// end a walk that comes back to its own key: the cycle panics.
+    #[test]
+    #[should_panic(expected = "so its rows cycle")]
+    fn a_lineage_cycle_panics_under_a_stop_at_seen_keys() {
+        let [e1, e2]: [EdgeKey; 2] =
+            [1, 2].map(|i| slotmap::KeyData::from_ffi((1 << 32) | i).into());
+        let mut obstacles = Obstacles::<FaceKey>::new();
+        obstacles.split_from.extend([(e1, e2), (e2, e1)]);
+        let mut seen = BTreeSet::new();
+        obstacles.up_lineage(&topo::Body::<f64>::new(), e1, |up| !seen.insert(up));
+    }
 }

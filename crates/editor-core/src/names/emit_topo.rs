@@ -79,19 +79,10 @@ struct HalfNames {
 ///
 /// # Panics
 ///
-/// Where the kills' hops cycle ([`chase::to_root`]). **The `SplitEdge`
-/// records cannot cycle, by writer access**: `Body::edge_provenance`
-/// is `pub(crate)` to `topo`, and its one writer, `Body::split_edge`,
-/// records the parent on the child it has just minted, so every record
-/// points at a key that already existed. A graft does not keep that
-/// order — a dead-on-arrival key is minted after the grafted edges
-/// whose records name it — but it forwards injectively, and an
-/// injective image of an acyclic chain is acyclic. `killed` copies
-/// those records before the kills drop them
-/// (`BooleanNaming::discards`' boundary chains,
-/// `BooleanNaming::killed_lineage`), and the boolean that wrote them is
-/// the only source of the rows this emitter reads, so each hop is taken
-/// at most once.
+/// Where the kills' hops cycle ([`chase::to_root`]). `killed` copies
+/// `SplitEdge` records, and a copy cycles only where the records do
+/// (`topo::Provenance::SplitEdge`); the boolean that wrote them is the
+/// only source of the rows this emitter reads.
 fn chase_edge_to_table<T: Decide>(
     body: &Body<T>,
     table: &NameTable,
@@ -102,7 +93,7 @@ fn chase_edge_to_table<T: Decide>(
     chase::to_root(
         e,
         killed.len(),
-        "a boolean's kill hops copy acyclic SplitEdge records",
+        "see `emit_topo::chase_edge_to_table`'s Panics",
         |k| {
             let k = body.split_root(k, named)?;
             Ok(match killed.get(&k) {
@@ -187,11 +178,7 @@ impl KilledSplits {
 ///
 /// # Panics
 ///
-/// Where the lineage cycles ([`chase::to_root`]): the halves' records
-/// are restrictions of one acyclic record set, so their union is
-/// acyclic by [`chase_edge_to_table`]'s writer-access argument, and so
-/// is its union with the split's copy of the records its joins killed
-/// (`SplitNaming::joined_lineage`).
+/// As [`chase_split_lineage`].
 fn chase_split_edge_to_table<T: Decide>(
     sides: &[Side<'_, T>],
     table: &NameTable,
@@ -204,6 +191,13 @@ fn chase_split_edge_to_table<T: Decide>(
 /// records an edge its join killed with the edge it was split from
 /// (`SplitNaming::joined_lineage`), since the kill took the birth
 /// record the halves would otherwise hold.
+///
+/// # Panics
+///
+/// Where the lineage cycles ([`chase::to_root`]): the halves' records
+/// are restrictions of one body's records, and `lineage` copies records
+/// its joins killed, so the walk cycles only where the records do
+/// (`topo::Provenance::SplitEdge`).
 fn chase_split_lineage<T: Decide>(
     sides: &[Side<'_, T>],
     table: &NameTable,
@@ -214,7 +208,7 @@ fn chase_split_lineage<T: Decide>(
     let Ok(root) = chase::to_root::<_, Infallible>(
         e,
         bound,
-        "a split's halves and joined lineage hold acyclic SplitEdge records",
+        "see `emit_topo::chase_split_lineage`'s Panics",
         |k| {
             if table.name_of(&ent(0, EntityKey::Edge(k))).is_some() {
                 return Ok(ControlFlow::Break(k));
@@ -1184,7 +1178,7 @@ fn pair_original(copy_to_original: &BTreeMap<VertexKey, VertexKey>, v: VertexKey
     let Ok(original) = chase::to_root::<_, Infallible>(
         v,
         copy_to_original.len(),
-        "each null-pair row names the vertex its copy was minted at",
+        "see `emit_topo::pair_original`'s Panics",
         |k| {
             Ok(match copy_to_original.get(&k) {
                 Some(&o) => ControlFlow::Continue(o),
