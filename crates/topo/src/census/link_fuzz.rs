@@ -310,3 +310,214 @@ fn the_link_test_agrees_with_the_prisms_own_inequalities() {
         bad[..bad.len().min(6)].join("\n")
     );
 }
+
+/// **R2 review probe (PR 5331): the whole link of a pinch.** Solid A is
+/// two prisms whose corners share the origin's key and whose cones are
+/// apart (oracle depth 0), made one solid; solid B one prism on the
+/// same key. `rest::judge` over A's whole link (both cones, gathered by
+/// `Link::at_point` from the key alone) against B's, checked against
+/// the same exact oracle over A's two cones.
+#[test]
+fn r2_a_pinch_link_agrees_with_the_prisms_own_inequalities() {
+    use crate::test_support_fixtures::{FaceGeometry, describe_as_intersections, prism_ops};
+    let label = "census_link_pinch_fuzz";
+    let mut r = test_utils::fuzz::start(label);
+    let band = Band::linear(Tol::witness()).unwrap();
+    let build = |p: &Prism| {
+        let mut body = Body::<f64>::new();
+        prism_ops(
+            &mut body,
+            &p.profile,
+            (0.0, p.h),
+            |x, y, z| p.map(x, y, z),
+            FaceGeometry::Certified,
+            Tol::witness(),
+        );
+        describe_as_intersections(&mut body, Tol::witness());
+        body
+    };
+    let depth = |xs: &[&Prism], y: &Prism| {
+        xs.iter()
+            .flat_map(|x| x.pieces())
+            .flat_map(|p| y.pieces().into_iter().map(move |q| overlap(&p, &q)))
+            .fold(0.0, f64::max)
+    };
+    let mut bad = Vec::new();
+    let mut tally: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for trial in 0..test_utils::fuzz::scaled(300) {
+        let snapped = trial % 2 == 1;
+        let (a1, a2) = loop {
+            let (x, y) = (Prism::draw(&mut r, snapped), Prism::draw(&mut r, snapped));
+            if depth(&[&x], &y) == 0.0 {
+                break (x, y);
+            }
+        };
+        let b = Prism::draw(&mut r, snapped);
+        let mut body = build(&a1);
+        let sa = body.solids().next().map(|(k, _)| k).unwrap();
+        let s2 = crate::instance::graft_disjoint(&mut body, &build(&a2)).unwrap();
+        crate::instance::graft_disjoint(&mut body, &build(&b)).unwrap();
+        for sh in body.solids.remove(s2).unwrap().shells {
+            body.shells[sh].solid = sa;
+            body.solids[sa].shells.push(sh);
+        }
+        let origin: Vec<VertexKey> = body
+            .vertices
+            .keys()
+            .filter(|&v| {
+                let q = body.points[body.vertices[v].point];
+                q.x == 0.0 && q.y == 0.0 && q.z == 0.0
+            })
+            .collect();
+        assert_eq!(origin.len(), 3);
+        let key = body.vertices[origin[0]].point;
+        for &v in &origin[1..] {
+            let old = body.vertices[v].point;
+            body.vertices[v].point = key;
+            body.points.remove(old);
+        }
+        let geo = snapshot(&body);
+        let keys = BTreeSet::from([key]);
+        let solids: BTreeSet<_> = origin
+            .iter()
+            .map(|&v| census_entity_solid(&body, EntityId::Vertex(v)).unwrap())
+            .collect();
+        assert_eq!(solids.len(), 2);
+        let sb = *solids.iter().find(|&&s| s != sa).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let link = |s| Link::at_point(&body, &geo, &Ties::default(), s, &keys, o, band);
+        let verdict = match (link(sa), link(sb)) {
+            (Ok(x), Ok(y)) => rest::judge(&x, &y, band),
+            (Err(v), _) | (_, Err(v)) => v,
+        };
+        let d = depth(&[&a1, &a2], &b);
+        let (clear, any) = (d > 1e-6, d > 0.0);
+        let kind = match &verdict {
+            TouchVerdict::Rest(_) => "rest",
+            TouchVerdict::Crossing => "crossing",
+            other => {
+                *tally.entry(format!("{other:?}")).or_default() += 1;
+                continue;
+            }
+        };
+        *tally
+            .entry(format!("{kind}, oracle overlap {clear}/{any}"))
+            .or_default() += 1;
+        if (kind == "rest" && clear) || (kind == "crossing" && !any) {
+            bad.push(format!(
+                "trial {trial} ({snapped}): {kind}, depth {d:e}; a1 {:?} h {} rot {:?}; a2 {:?} h {} rot {:?}; b {:?} h {} rot {:?}",
+                a1.profile, a1.h, a1.rot, a2.profile, a2.h, a2.rot, b.profile, b.h, b.rot
+            ));
+        }
+    }
+    println!("[fuzz] {label}: {tally:?}");
+    assert!(
+        bad.is_empty(),
+        "{label}: {} wrong; {}:\n{}",
+        bad.len(),
+        test_utils::fuzz::replay(),
+        bad[..bad.len().min(6)].join("\n")
+    );
+}
+
+/// The verdict of `rest::judge` over two prisms' links at the origin,
+/// built and read at `T`.
+fn r2_verdict_at<T: Decide + Bounds + crate::props::AtRestPolicy>(
+    a: &Prism,
+    b: &Prism,
+    band: Band,
+) -> TouchVerdict {
+    use crate::test_support_fixtures::{FaceGeometry, describe_as_intersections, prism_ops};
+    let build = |p: &Prism| {
+        let mut body = Body::<T>::new();
+        prism_ops(
+            &mut body,
+            &p.profile,
+            (0.0, p.h),
+            |x, y, z| {
+                let q = p.map(x, y, z);
+                Point3::new(T::from_f64(q.x), T::from_f64(q.y), T::from_f64(q.z))
+            },
+            FaceGeometry::Certified,
+            Tol::witness(),
+        );
+        describe_as_intersections(&mut body, Tol::witness());
+        body
+    };
+    let mut body = build(a);
+    crate::instance::graft_disjoint(&mut body, &build(b)).unwrap();
+    let geo = snapshot(&body);
+    let zero = |t: T| t.lo() == 0.0 && t.hi() == 0.0;
+    let at_origin: Vec<VertexKey> = geo
+        .verts
+        .iter()
+        .filter(|(_, q)| zero(q.x) && zero(q.y) && zero(q.z))
+        .map(|&(v, _)| v)
+        .collect();
+    assert_eq!(at_origin.len(), 2);
+    let link = |v: VertexKey| {
+        let keys = BTreeSet::from([geo.vpoint[&v]]);
+        let solid = census_entity_solid(&body, EntityId::Vertex(v)).unwrap();
+        Link::at_point(
+            &body,
+            &geo,
+            &Ties::default(),
+            solid,
+            &keys,
+            geo.vmap[&v],
+            band,
+        )
+    };
+    match (link(at_origin[0]), link(at_origin[1])) {
+        (Ok(x), Ok(y)) => rest::judge(&x, &y, band),
+        (Err(v), _) | (_, Err(v)) => v,
+    }
+}
+
+/// **R2 review probe (PR 5331): the link test at `Interval`.** The same
+/// draws as the shipped falsifier, read at `Interval`, against the same
+/// exact oracle, and against the `f64` reading (a decided class the two
+/// scalars disagree on is wrong).
+#[test]
+fn r2_the_link_test_at_interval_agrees_with_the_oracle() {
+    use geom_core::Interval;
+    let label = "census_link_interval_fuzz";
+    let mut r = test_utils::fuzz::start(label);
+    let band = Band::linear(Tol::witness()).unwrap();
+    let mut bad = Vec::new();
+    let mut tally: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for trial in 0..test_utils::fuzz::scaled(100) {
+        let snapped = trial % 2 == 1;
+        let (a, b) = (Prism::draw(&mut r, snapped), Prism::draw(&mut r, snapped));
+        let iv = r2_verdict_at::<Interval>(&a, &b, band);
+        let fl = r2_verdict_at::<f64>(&a, &b, band);
+        let depth = a
+            .pieces()
+            .iter()
+            .flat_map(|p| b.pieces().into_iter().map(move |q| overlap(p, &q)))
+            .fold(0.0, f64::max);
+        let class = |v: &TouchVerdict| match v {
+            TouchVerdict::Rest(_) => "rest".to_owned(),
+            TouchVerdict::Crossing => "crossing".to_owned(),
+            other => format!("{other:?}"),
+        };
+        let (ci, cf) = (class(&iv), class(&fl));
+        *tally.entry(format!("iv {ci} / f64 {cf}")).or_default() += 1;
+        let decided = |c: &str| c == "rest" || c == "crossing";
+        let wrong_iv = (ci == "rest" && depth > 1e-6) || (ci == "crossing" && depth == 0.0);
+        if wrong_iv || (decided(&ci) && decided(&cf) && ci != cf) {
+            bad.push(format!(
+                "trial {trial}: iv {ci}, f64 {cf}, depth {depth:e}; a {:?} h {} rot {:?}; b {:?} h {} rot {:?}",
+                a.profile, a.h, a.rot, b.profile, b.h, b.rot
+            ));
+        }
+    }
+    println!("[fuzz] {label}: {tally:?}");
+    assert!(
+        bad.is_empty(),
+        "{label}: {} wrong; {}:\n{}",
+        bad.len(),
+        test_utils::fuzz::replay(),
+        bad[..bad.len().min(6)].join("\n")
+    );
+}

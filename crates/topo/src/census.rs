@@ -11571,6 +11571,83 @@ mod tests {
         }
     }
 
+    /// **R2 review probe (PR 5331, claim 1).** A cube `[0, 1]³` and a
+    /// parallelepiped whose corner shares the cube's origin KEY (no
+    /// record, no finding): the parallelepiped lies at `y ≤ 0`, one face
+    /// on the cube's extended plane `z = 0` and one standing off the
+    /// extended plane `x = 0` by between `zero` and `escalate` all along
+    /// its far side. Prints the shared point's verdict and what tier 3′
+    /// says of the pair.
+    #[test]
+    fn r2_a_shared_key_only_pair_read_in_band() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let e = (band.zero() * band.escalate()).sqrt();
+        for (label, a, b, c) in [
+            (
+                "in band",
+                [-0.3, 0.0, 0.0],
+                [e, -0.8, 0.0],
+                [0.375 * e, -0.3, 0.3],
+            ),
+            (
+                "decided apart",
+                [-0.3, 0.0, 0.0],
+                [-0.1, -0.8, 0.0],
+                [-0.1, -0.3, 0.3],
+            ),
+        ] {
+            let mut body =
+                crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+            let before: BTreeSet<VertexKey> = body.vertices.keys().collect();
+            let part = crate::test_support_fixtures::mapped_cube::<f64>(
+                move |u, v, w| {
+                    Point3::new(
+                        u * a[0] + v * b[0] + w * c[0],
+                        u * a[1] + v * b[1] + w * c[1],
+                        u * a[2] + v * b[2] + w * c[2],
+                    )
+                },
+                tol,
+            );
+            crate::instance::graft_disjoint(&mut body, &part).unwrap();
+            let at_origin = |body: &Body<f64>, v: VertexKey| {
+                let q = body.points[body.vertices[v].point];
+                q.x == 0.0 && q.y == 0.0 && q.z == 0.0
+            };
+            let mine = body
+                .vertices
+                .keys()
+                .find(|&v| before.contains(&v) && at_origin(&body, v))
+                .unwrap();
+            let theirs = body
+                .vertices
+                .keys()
+                .find(|&v| !before.contains(&v) && at_origin(&body, v))
+                .unwrap();
+            let key = body.vertices[mine].point;
+            let orphan = body.vertices[theirs].point;
+            body.vertices[theirs].point = key;
+            body.points.remove(orphan);
+            let geo = snapshot(&body);
+            let verdict =
+                TouchSite::VertexVertex(mine, theirs).verdict(&body, &geo, &Ties::default(), band);
+            let got = crate::validate_pseudomanifold(&body, &ContactRecords::default(), tol);
+            println!("[r2] {label}: verdict {verdict:?}; tier 3' {got:?}");
+            // The decision: an undecided reading refuses by name, never
+            // clears. Red on f61574db: the in-band point clears.
+            if label == "in band" {
+                assert_eq!(verdict, TouchVerdict::InBand);
+                assert!(got.is_err(), "{label}: an in-band shared point clears");
+            } else {
+                assert!(
+                    verdict.is_rest() && got.is_ok(),
+                    "{label}: {verdict:?} {got:?}"
+                );
+            }
+        }
+    }
+
     /// **A block sunk into the inner corner of an L crosses there.** The
     /// block `[0.5, 1]² × [0, 0.5]` lies in the bracket's material, its
     /// corner on the saddle corner `(1, 1, 0)`: the touch there is a
