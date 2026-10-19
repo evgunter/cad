@@ -1657,9 +1657,12 @@ swallowed.
 
 *From:* [pure-model], [intrinsic].
 
-- Same build + same inputs → bit-identical outputs. No hash-map
-  iteration order may influence geometry; parallelism only in fixed
-  reduction shapes (addendum below).
+- Same build + same inputs → bit-identical outputs. A body's storage
+  (the order of its arenas) is part of the input: outputs are not
+  promised identical across two storages of one solid, and claims
+  across storages are made on the structure, or as computed bounds.
+  No hash-map iteration order may influence geometry; parallelism only
+  in fixed reduction shapes (addendum below).
 - Transcendentals via the pure-Rust `libm` crate: system libm differs
   across platforms in the last ulp — enough to flip a marginal
   predicate.
@@ -1681,9 +1684,11 @@ cites these two idioms instead of re-deriving):
    bit-deterministic at any thread count.
 2. **Fixed-shape reduction**: FP sums/mins are **never**
    `par_iter().reduce()` (rayon's reduction tree is schedule-dependent).
-   Idiom 1, then a *sequential* fold in arena order — or, if that fold
-   profiles hot, a fixed-arity block tree with a named chunk size and a
-   documented combine order.
+   Idiom 1, then a *sequential* fold in the walk's own fixed order (the
+   order its slots were mapped in), and non-arithmetic combination
+   (naming a first refusal, splicing recordings) positional in that
+   same order — or, if that fold profiles hot, a fixed-arity block tree
+   with a named chunk size and a documented combine order.
 
 Targets in value order: the subdivision driver, certification
 sampling, mass properties, independent DAG nodes. Euler-op sequences
