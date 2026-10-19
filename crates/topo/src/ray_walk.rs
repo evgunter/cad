@@ -313,12 +313,19 @@ pub(crate) fn apart<T: Decide>(
 /// ([`advance`]), and whether its material side cannot be read there.
 pub(crate) struct Crossings<T, H> {
     ahead: Vec<(T, H, bool)>,
+    /// Each crossing's span along the ray, `[from, to]`: the point `at`
+    /// for most, wider for one placed nowhere narrower
+    /// ([`Self::push_span`]).
+    spans: Vec<(T, T)>,
 }
 
 impl<T: Decide, H> Crossings<T, H> {
     /// No crossing yet.
     pub(crate) const fn new() -> Self {
-        Self { ahead: Vec::new() }
+        Self {
+            ahead: Vec::new(),
+            spans: Vec::new(),
+        }
     }
 
     /// A crossing `at` metres ahead of `q`. `sideless` for one whose
@@ -326,7 +333,16 @@ impl<T: Decide, H> Crossings<T, H> {
     /// a boundary of what it crosses (a trim's edge, an arc's end), or
     /// meets it at a tangential incidence.
     pub(crate) fn push(&mut self, at: T, hit: H, sideless: bool) {
+        self.push_span(at, (at, at), hit, sideless);
+    }
+
+    /// A crossing `at` metres ahead of `q` that lies somewhere in
+    /// `[from, to]` along the ray, as [`Self::push`] offers one:
+    /// [`Self::first_count`] orders it against another only where the
+    /// whole span lies definitely before or after it.
+    pub(crate) fn push_span(&mut self, at: T, (from, to): (T, T), hit: H, sideless: bool) {
         self.ahead.push((at, hit, sideless));
+        self.spans.push((from, to));
     }
 
     /// The closest crossing's hit, `None` when the ray met nothing.
@@ -384,9 +400,9 @@ impl<T: Decide, H> Crossings<T, H> {
     /// entering it, `0` a meeting it passes without crossing), and the
     /// running count is read at each gap the caller's `order` row
     /// decides definite. Crossings in band of each other are summed,
-    /// never ordered: a cluster is every crossing not definitely after
-    /// one already in it, so each crossing outside it lies definitely
-    /// after every crossing inside it. `None` where every cluster sums
+    /// never ordered: a cluster is every crossing whose span does not lie
+    /// definitely after one already in it, so each crossing outside it
+    /// lies definitely after every crossing inside it. `None` where every cluster sums
     /// to zero.
     ///
     /// A sideless crossing in a cluster read before the count turns sets
@@ -413,6 +429,7 @@ impl<T: Decide, H> Crossings<T, H> {
     ) -> Result<Option<Sign>, RayFault<E>> {
         let n = self.ahead.len();
         let mut decided: Vec<Option<Result<Sign, Indeterminate>>> = vec![None; n * n];
+        let mut spanned: Vec<Option<Result<Sign, Indeterminate>>> = vec![None; n * n];
         // `k`'s advance less `b`'s, decided once per pair.
         let mut gap = |k: usize, b: usize| {
             let (lo, hi, flip) = if k < b { (k, b, false) } else { (b, k, true) };
@@ -421,12 +438,19 @@ impl<T: Decide, H> Crossings<T, H> {
             });
             read.map(|s| if flip { s.flip() } else { s })
         };
+        // Whether all of `k`'s span lies definitely before all of `b`'s,
+        // decided once per ordered pair.
+        let mut before = |k: usize, b: usize| {
+            *spanned[k * n + b].get_or_insert_with(|| {
+                decide(order, Margin::of(self.spans[k].1 - self.spans[b].0), band)
+            }) == Ok(Sign::Negative)
+        };
         let mut left: Vec<usize> = (0..n).collect();
         let mut running = 0;
         while let Some(&first) = left.first() {
             let mut least = first;
             for &k in &left[1..] {
-                if gap(k, least) == Ok(Sign::Negative) {
+                if before(k, least) {
                     least = k;
                 }
             }
@@ -435,7 +459,7 @@ impl<T: Decide, H> Crossings<T, H> {
             loop {
                 let (joined, after): (Vec<usize>, Vec<usize>) = rest
                     .iter()
-                    .partition(|&&k| cluster.iter().any(|&j| gap(k, j) != Ok(Sign::Positive)));
+                    .partition(|&&k| cluster.iter().any(|&j| !before(j, k)));
                 if joined.is_empty() {
                     break;
                 }

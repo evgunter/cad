@@ -4800,9 +4800,10 @@ pub(crate) fn ray_crossings<T: Decide>(
     band: Band,
     rows: RayRows,
 ) -> Result<RayCrossings<T>, RayFault<PointInSolidError>> {
-    let mut crossings = Crossings::new();
-    // A crossing at advance `t`; behind `q` it is none.
-    let mut offer = |hit: RayHit<T>, sideless: bool| {
+    let crossings = core::cell::RefCell::new(Crossings::new());
+    // A crossing at advance `t`, somewhere in `span`; behind `q` it is
+    // none.
+    let offer_in = |hit: RayHit<T>, span: (T, T), sideless: bool| {
         let escalate = |diag| PointInSolidError::Escalated {
             face: hit.face,
             diag,
@@ -4810,10 +4811,14 @@ pub(crate) fn ray_crossings<T: Decide>(
         let ahead = ray_walk::advance(rows.advance, Margin::of(hit.at), band)
             .map_err(|f| f.map(escalate))?;
         if ahead == Sign::Positive {
-            crossings.push(hit.at, hit, sideless);
+            crossings
+                .borrow_mut()
+                .push_span(hit.at, span, hit, sideless);
         }
         Ok::<(), RayFault<PointInSolidError>>(())
     };
+    let offer = |hit: RayHit<T>, sideless: bool| offer_in(hit, (hit.at, hit.at), sideless);
+    let offer_span = |hit: RayHit<T>, span: (T, T)| offer_in(hit, span, false);
     // A curved face's crossing, `outward` its sign there.
     let count = |outward: Sign| match outward {
         Sign::Positive => 1,
@@ -4908,13 +4913,25 @@ pub(crate) fn ray_crossings<T: Decide>(
         }
     }
     for &(_, a, b, at) in &meets.met {
-        let sign = |f: FaceKey| {
-            planes
-                .iter()
-                .find(|c| c.face == f)
-                .map_or(0, |c| count(c.outward))
-        };
-        offer(
+        let plane = |f: FaceKey| planes.iter().find(|c| c.face == f);
+        // An edge's half crossings are its faces' crossings of their
+        // planes, which the ray makes through the edge only where both
+        // lie ahead of `q`: from a `q` in band of a face's carrier, the
+        // ray can pass the face's edge ahead and its plane behind.
+        let ahead = [a, b].iter().all(|&f| {
+            plane(f)
+                .is_some_and(|c| decide(rows.advance, Margin::of(c.t), band) == Ok(Sign::Positive))
+        });
+        if !ahead {
+            offer(mark([a, b], at, None), true)?;
+            continue;
+        }
+        let sign = |f: FaceKey| plane(f).map_or(0, |c| count(c.outward));
+        // The ray crosses the edge's faces somewhere between where it
+        // passes the edge and where it crosses their planes, which on a
+        // face it meets obliquely lie bands apart: the crossing spans them.
+        let (ta, tb) = (plane(a).map_or(at, |c| c.t), plane(b).map_or(at, |c| c.t));
+        offer_span(
             RayHit {
                 count: (sign(a) + sign(b)) / 2,
                 face: a,
@@ -4922,14 +4939,14 @@ pub(crate) fn ray_crossings<T: Decide>(
                 at,
                 mark: None,
             },
-            false,
+            (at.min(ta).min(tb), at.max(ta).max(tb)),
         )?;
     }
     for m in meets.marks {
         offer(m, true)?;
     }
     // A curved face's crossing at `t`, `outward` its sign there.
-    let mut offer = |face: FaceKey, t: T, outward: Sign, edge: bool| {
+    let offer = |face: FaceKey, t: T, outward: Sign, edge: bool| {
         offer(
             RayHit {
                 count: count(outward),
@@ -5395,7 +5412,7 @@ pub(crate) fn ray_crossings<T: Decide>(
             }
         }
     }
-    Ok(crossings)
+    Ok(crossings.into_inner())
 }
 
 /// A query's reading of its selection's side at infinity, taken once

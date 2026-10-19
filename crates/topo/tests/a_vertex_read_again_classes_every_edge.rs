@@ -1021,19 +1021,20 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
 }
 
 /// The fin scenes whose union check 7 reads inside out
-/// (`ResultInvalid { NegativeVolume }`), cell by cell: `x ∪ y` at three
-/// poses of five. The region it reads is the fin crown's own
+/// (`ResultInvalid { NegativeVolume }`), cell by cell: `x ∪ y` at every
+/// pose. The region it reads is the fin crown's own
 /// (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`);
 /// the aimed ray that finds it is the first in face order that decides,
-/// so `y ∪ x` and the two flipped poses' `x ∪ y` take another ray, read
-/// `Out`, and build.
-const KNOWN_INSIDE_OUT: [(&str, [&str; 3]); 2] = [
+/// so `y ∪ x` takes another ray, reads `Out`, and builds.
+const KNOWN_INSIDE_OUT: [(&str, [&str; 5]); 2] = [
     (
         "a fin, probe 2",
         [
             "at rest, x ∪ y: ResultInvalid",
             "turned about z, x ∪ y: ResultInvalid",
             "turned, x ∪ y: ResultInvalid",
+            "flipped, x ∪ y: ResultInvalid",
+            "flipped and turned, x ∪ y: ResultInvalid",
         ],
     ),
     (
@@ -1042,6 +1043,8 @@ const KNOWN_INSIDE_OUT: [(&str, [&str; 3]); 2] = [
             "at rest, x ∪ y: ResultInvalid",
             "turned about z, x ∪ y: ResultInvalid",
             "turned, x ∪ y: ResultInvalid",
+            "flipped, x ∪ y: ResultInvalid",
+            "flipped and turned, x ∪ y: ResultInvalid",
         ],
     ),
 ];
@@ -1070,8 +1073,8 @@ const KNOWN_WRONG: [(&str, &[(&str, usize)]); 3] = [
             ("at rest", 5),
             ("turned about z", 5),
             ("turned", 5),
-            ("flipped", 6),
-            ("flipped and turned", 6),
+            ("flipped", 5),
+            ("flipped and turned", 5),
         ],
     ),
     (
@@ -1080,8 +1083,8 @@ const KNOWN_WRONG: [(&str, &[(&str, usize)]); 3] = [
             ("at rest", 5),
             ("turned about z", 5),
             ("turned", 5),
-            ("flipped", 6),
-            ("flipped and turned", 6),
+            ("flipped", 5),
+            ("flipped and turned", 5),
         ],
     ),
 ];

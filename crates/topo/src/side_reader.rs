@@ -394,7 +394,7 @@ pub(crate) fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -
 /// a face is as wide to the ray as it is, so a ray through a narrow face
 /// passes its two edges as far apart as they are; the tilt keeps the ray
 /// off the planes of a box's faces square to the aimed one.
-const AIM_INCIDENCE: (f64, f64) = (0.984_807_753_012_208, 0.173_648_177_666_930_33);
+pub(crate) const AIM_INCIDENCE: (f64, f64) = (0.984_807_753_012_208, 0.173_648_177_666_930_33);
 
 /// The turn about the face's normal its aimed ray's tangent component
 /// makes off the normal's frame (`Vec3::orthonormal_basis`), as
