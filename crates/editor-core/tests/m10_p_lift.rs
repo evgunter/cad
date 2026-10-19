@@ -27,47 +27,14 @@ use crate::corpus;
 
 use editor_core::{CancelToken, EvalOptions, Node, NodeResult, ParamValue, ValuePayload, evaluate};
 use geom_core::{Real, Tol};
-use profile::{SegmentKind, ValidatedProfile};
+use profile::ValidatedProfile;
 
-/// Every scalar a validated profile stores, in one fixed order — the
-/// plane's twelve, then per loop each vertex, each segment's ends and
-/// an arc's centre, radius and sweep — and its decided facts, rendered:
-/// roles, joint sets, segment kinds and turns.
+/// A validated profile's stored scalars as bits and its decided facts
+/// (`profile::test_support`).
 fn form(vp: &ValidatedProfile<f64>) -> (Vec<u64>, String) {
-    let mut bits: Vec<u64> = vp
-        .plane()
-        .placement()
-        .components()
-        .iter()
-        .map(|x| x.to_bits())
-        .collect();
-    let mut facts = String::new();
-    for lp in vp.loops() {
-        facts.push_str(&format!(
-            "{:?} {:?} {:?} {:?}:",
-            lp.role(),
-            lp.tangent_joints(),
-            lp.cusp_joints(),
-            lp.decided_joints()
-        ));
-        for v in lp.vertices() {
-            bits.extend(v.to_array().map(f64::to_bits));
-        }
-        for sg in lp.segments() {
-            bits.extend([sg.start.x, sg.start.y, sg.end.x, sg.end.y].map(f64::to_bits));
-            match sg.kind {
-                SegmentKind::Line => facts.push_str(" L"),
-                SegmentKind::Arc { arc, turn } => {
-                    facts.push_str(&format!(" {turn:?}"));
-                    bits.extend(
-                        [arc.centre.x, arc.centre.y, arc.radius, arc.sweep].map(f64::to_bits),
-                    );
-                }
-            }
-        }
-        facts.push('\n');
-    }
-    (bits, facts)
+    use profile::test_support::{decided_facts, stored_scalars};
+    let bits = stored_scalars(vp).iter().map(|x| x.to_bits()).collect();
+    (bits, decided_facts(vp))
 }
 
 /// **The `f64` lane's profile is the second pass, bit for bit, and so

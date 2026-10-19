@@ -1808,6 +1808,14 @@ pub struct BlendArc<T: Real> {
 /// stated rather than hidden. It is **not** invariant under reordering
 /// the input's loop *list*: holes keep discovery (input) order, and D9
 /// recipes replay that order — see the crate docs.
+///
+/// **Its mints**, the one list of them: [`Profile::validate`],
+/// [`Profile::validate_recording`] and [`Profile::validate_guided`] from
+/// a raw profile; [`ConstructedProfile`]'s three validations from a
+/// replayed one; [`ValidatedProfile::lift_onto`] from an `f64` one;
+/// [`ValidatedProfile::value_channel`] from one at another scalar; and
+/// [`ValidatedProfile::on_plane`] from one at the same scalar. Nothing
+/// else mints one.
 #[derive(Debug, Clone)]
 pub struct ValidatedProfile<T: Real> {
     plane: crate::SketchPlane<T>,
@@ -1959,13 +1967,8 @@ impl ValidatedProfile<f64> {
     /// plane taken as given once it is finite (validation is 2-D and
     /// decides nothing of it — [`ValidatedProfile::plane`]); everything
     /// else carried. No
-    /// predicate runs and no verdict is logged. A `ValidatedProfile` is
-    /// minted by [`Profile::validate`] and [`Profile::validate_recording`]
-    /// from a raw profile, by [`ConstructedProfile`]'s three validations
-    /// from a replayed one, by this
-    /// from an `f64` one, by [`ValidatedProfile::value_channel`]
-    /// from one at another scalar, and by [`ValidatedProfile::on_plane`]
-    /// from one at the same scalar; nothing else mints one.
+    /// predicate runs and no verdict is logged. One of the mints
+    /// [`ValidatedProfile`] lists.
     ///
     /// # What is carried, and on whose authority
     ///
@@ -2155,7 +2158,11 @@ fn recording_loops<T: Decide, L: LoopInput<T>>(
 /// value it stands for ([`Real::is_bounded`]): validation is 2-D and
 /// decides nothing on the plane, but a validated profile carries it.
 fn plane_is_finite<T: Real>(plane: &SketchPlane<T>) -> bool {
-    plane.placement().components().iter().all(|c| c.is_bounded())
+    plane
+        .placement()
+        .components()
+        .iter()
+        .all(|c| c.is_bounded())
 }
 
 /// The validation of `loops` on `plane` ([`Profile::validate`]'s body),

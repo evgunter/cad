@@ -15,60 +15,9 @@ use crate::corpus::documents;
 use editor_core::ExtrudeSide;
 
 use editor_core::{CancelToken, EvalOptions, Node, PoseValue, ValuePayload, evaluate};
-use geom_core::{Arc2, Real, Sign, Tol};
-use profile::{Profile, SegmentKind, SketchPlane, ValidatedProfile};
-
-/// Every scalar a validated profile stores, in one fixed order: the
-/// plane's placement, then per loop each vertex's position, then each
-/// segment's endpoints and (for an arc) centre, radius and sweep. (`profile`'s `validated_map` suite carries the same walk:
-/// `test-utils` is a dependency-free leaf and cannot host a walk over
-/// `profile`'s types without a cycle.)
-fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
-    let m = &vp.plane().placement();
-    let mut out = m.components().to_vec();
-    for lp in vp.loops() {
-        for v in lp.vertices() {
-            out.extend(v.to_array());
-        }
-        for s in lp.segments() {
-            out.extend([s.start.x, s.start.y, s.end.x, s.end.y]);
-            if let SegmentKind::Arc {
-                arc:
-                    Arc2 {
-                        centre,
-                        radius,
-                        sweep,
-                    },
-                ..
-            } = s.kind
-            {
-                out.extend([centre.x, centre.y, radius, sweep]);
-            }
-        }
-    }
-    out
-}
-
-/// The structural facts of a validated profile, rendered: loop roles,
-/// joint sets, segment kinds and turns.
-fn structure<T: Real>(vp: &ValidatedProfile<T>) -> String {
-    let mut out = String::new();
-    for lp in vp.loops() {
-        out.push_str(&format!("{:?} {:?}:", lp.role(), lp.tangent_joints()));
-        for s in lp.segments() {
-            out.push_str(match s.kind {
-                SegmentKind::Line => " L",
-                SegmentKind::Arc {
-                    turn: Sign::Positive,
-                    ..
-                } => " +",
-                SegmentKind::Arc { .. } => " -",
-            });
-        }
-        out.push('\n');
-    }
-    out
-}
+use geom_core::Tol;
+use profile::test_support::{decided_facts, stored_scalars};
+use profile::{Profile, SketchPlane, ValidatedProfile};
 
 #[test]
 fn the_f64_value_is_the_revalidated_form() {
@@ -119,21 +68,24 @@ fn the_f64_value_is_the_revalidated_form() {
                 .validate(tol)
                 .unwrap_or_else(|e| panic!("{}: {id:?} validates: {e:?}", d.name));
             assert_eq!(
-                structure(&served.validated),
-                structure(&revalidated),
+                decided_facts(&served.validated),
+                decided_facts(&revalidated),
                 "{}: profile {id:?}: structure",
                 d.name
             );
             let bits = |vp: &ValidatedProfile<f64>| {
-                scalars(vp).iter().map(|x| x.to_bits()).collect::<Vec<_>>()
+                stored_scalars(vp)
+                    .iter()
+                    .map(|x| x.to_bits())
+                    .collect::<Vec<_>>()
             };
             assert!(
                 bits(&served.validated) == bits(&revalidated),
                 "{}: profile {id:?}: the served form differs from the re-validated one:\n \
                  served {:?}\n revalidated {:?}",
                 d.name,
-                scalars(&served.validated),
-                scalars(&revalidated)
+                stored_scalars(&served.validated),
+                stored_scalars(&revalidated)
             );
             profiles += 1;
         }

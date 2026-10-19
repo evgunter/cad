@@ -89,8 +89,8 @@ use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::{KnotAlgebraError, Knots, SpanLocate, SplineError};
 use geom_core::{
-    Affine3, Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Point2,
-    Point3, RANGE_RECOURSE, Real, RigidMotion, TurnError, UnitVec3, UnitVec3Error,
+    Affine3, Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag,
+    Point2, Point3, RANGE_RECOURSE, Real, RigidMotion, TurnError, UnitVec3, UnitVec3Error,
 };
 use profile::{
     CanonicalStructure, ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop,

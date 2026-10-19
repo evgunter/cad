@@ -367,10 +367,7 @@ fn the_value_channel_refuses_a_value_with_no_single_point() {
         .iter()
         .find(|v| v.y == 1.0 && v.x > 0.0)
         .expect("the moving corner");
-    assert_eq!(
-        (corner.x, point.plane().origin().z),
-        (2.5, 1.0)
-    );
+    assert_eq!((corner.x, point.plane().origin().z), (2.5, 1.0));
     let wide = Interval::from_bounds(2.5 - w, 2.5 + w);
     match quad(wide, Interval::from_f64(1.0)).value_channel() {
         Err(ValueNotAPoint::Vertex {

@@ -1187,8 +1187,7 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    let channel: Option<Vec<SketchPlane<f64>>> =
-        places.iter().map(|p| p.point_value()).collect();
+    let channel: Option<Vec<SketchPlane<f64>>> = places.iter().map(|p| p.point_value()).collect();
     build(
         SectionsAtT::Loops(sections),
         places,

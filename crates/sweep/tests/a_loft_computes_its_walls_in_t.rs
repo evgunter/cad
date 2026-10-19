@@ -230,7 +230,8 @@ fn a_sweep_from_a_wide_start_frame_encloses_its_family_at_interval() {
     use geom_core::Interval;
     use sweep::sweep_body;
     use sweep::test_support::elbow_path;
-    let shift = |x: Interval| SketchPlane::xy_at(Point3::new(x, Interval::zero(), Interval::zero()));
+    let shift =
+        |x: Interval| SketchPlane::xy_at(Point3::new(x, Interval::zero(), Interval::zero()));
     let (lo, hi) = box_about(0.0);
     let enclosing = sweep_body::<Interval>(
         &quad(Interval::from_f64(1.2)),
@@ -416,8 +417,10 @@ fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
         let nominal =
             loft_body::<f64>(&sections, &places, 1, Tol::witness()).expect("the f64 loft builds");
         let lifted: Vec<Vec<ProfileLoop<Interval>>> = sections.into_iter().map(lift).collect();
-        let lifted_places: Vec<SketchPlane<Interval>> =
-            zs.iter().map(|z| at_height(Interval::from_f64(*z))).collect();
+        let lifted_places: Vec<SketchPlane<Interval>> = zs
+            .iter()
+            .map(|z| at_height(Interval::from_f64(*z)))
+            .collect();
         let enclosed = loft_body::<Interval>(&lifted, &lifted_places, 1, Tol::witness())
             .unwrap_or_else(|e| panic!("{what}: the point loft builds at Interval: {e:?}"));
         assert_eq!(

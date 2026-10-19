@@ -195,11 +195,7 @@ fn r1_parametric_chain_at_a_point_box() {
                     })
                 })
                 .collect();
-            println!(
-                "point={point}: {} errors: {:?}",
-                errs.len(),
-                errs.first()
-            );
+            println!("point={point}: {} errors: {:?}", errs.len(), errs.first());
         }
         let ev: editor_core::Evaluation<f64> = evaluate(
             &doc,

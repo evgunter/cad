@@ -53,7 +53,7 @@ use crate::corpus;
 use crate::fixture;
 use editor_core::ExtrudeSide;
 
-use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
+use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{

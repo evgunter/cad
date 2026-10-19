@@ -108,11 +108,7 @@ fn a_section_on_a_derived_frame_lofts_and_encloses_at_interval() {
             .points()
             .map(|(_, p)| [p.x, p.y, p.z].map(|c| (c.lo(), c.hi())))
             .collect();
-        assert_eq!(
-            brackets.len(),
-            nominal.len(),
-            "the vertex counts agree"
-        );
+        assert_eq!(brackets.len(), nominal.len(), "the vertex counts agree");
         for (i, (b, v)) in brackets.iter().zip(&nominal).enumerate() {
             assert!(
                 b.iter().zip(v).all(|((lo, hi), x)| lo <= x && x <= hi),

@@ -3800,15 +3800,7 @@ pub fn evaluate<T>(
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(
-        doc,
-        prior,
-        cancel,
-        opts,
-        None,
-        PassTwo::SkippedAtF64,
-        tol,
-    )
+    evaluate_at_descent(doc, prior, cancel, opts, None, PassTwo::SkippedAtF64, tol)
 }
 
 /// **Whether an `f64` lane over the nominal takes the first pass's

@@ -322,8 +322,8 @@ pub use editor_core::DocParamField;
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
     EvalOptions, EvalOutcome, Evaluation, FramePlacement, Mispaired, NodeError, NodeErrorClass,
-    NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue,
-    SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
+    NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, SplitSide,
+    StepTurns, ValuePayload, VerbKind, evaluate,
 };
 // A placement's copies, keyed (`ValuePayload::Copies`): each copy by
 // its key, with its own names.

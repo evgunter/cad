@@ -5537,7 +5537,8 @@ fn the_root_readers_read_statements_not_lines() {
 /// `RawLoop`, the minting tier, which left the shipped root surface
 /// behind that crate's `test-support` feature instead
 /// ([`code_without_cfg_gated`] is what makes the scan agree).
-const PROFILE_NOT_CARRIED: [&str; 3] = ["PINNED_UNDER_GUIDANCE", "decision_subject", "is_full_turn"];
+const PROFILE_NOT_CARRIED: [&str; 3] =
+    ["PINNED_UNDER_GUIDANCE", "decision_subject", "is_full_turn"];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**

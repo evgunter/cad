@@ -410,13 +410,7 @@ fn holds(
 /// is held exactly: it falls at `parting`, the work item `item` owes it,
 /// and no decision before it flips. Past it the row says nothing, which
 /// the document's in-step row covers.
-fn holds_until_parting(
-    name: &str,
-    floor: usize,
-    owed: &[(&str, &str)],
-    parting: &str,
-    item: &str,
-) {
+fn holds_until_parting(name: &str, floor: usize, owed: &[(&str, &str)], parting: &str, item: &str) {
     let cd = corpus::documents()
         .into_iter()
         .find(|cd| cd.name == name)
