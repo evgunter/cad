@@ -17,13 +17,17 @@ equal-neighbour exactness, landed in #5123. It beat main by 32%
 against main on r1 and shelling (three interleaved runs) with meet
 statistics:
 
-1. **Axis-lazy restriction.** The one-axis readers (`deriv_box`,
-   `speed_sup`) restrict only `N_d` and `W²` (4 of 7 channels); both
-   axes are restricted only for `transverse_readings`. Bit-identical. A
-   first cut compiles on `nurbs/cut-cheap-wip`
-   (`CellFirstQuotients::cut_pieces`, `CellNet { u, v }`), untested,
-   with a guard row drafted: a one-axis cut reads the two-axis cut's
-   pieces to the bit.
+1. **Axis-lazy restriction** (done on `nurbs/cut-cheap-wip`). The
+   one-axis readers (`deriv_box`, `speed_sup`) restrict only `N_d` and
+   `W²` (4 of 7 channels); both axes are restricted only for
+   `transverse_readings` (`CellFirstQuotients::cut_pieces`,
+   `CellNet { u, v }`). Guard row:
+   `a_one_axis_cut_reads_the_two_axis_cuts_pieces_to_the_bit`. Every
+   probed rung count and worst margin is bit-identical to main
+   `a908d341` on shelling, r1, `m5_pr7_ssi::` and
+   `nurbs_nurbs_section::`. Against `a908d341` (three interleaved runs,
+   fresh targets): shelling 87.5 → 73.6 s (−16%), r1 27.9 → 17.9 s
+   (−36%).
 2. **A window-reading object.** Restrict once per window, shared across
    the doors that read the same window (`partials`, `stretch_within`,
    `jacobian_read`; `boundary.rs` reads `deriv_box` on both axes and
