@@ -1167,3 +1167,7 @@ Signed (CLEAVE orchestrator).
   - Ev asked on 4795 'any update here?'. I had put the radial-edges reports into the body without commenting. Lesson: an `[ev]` PR update always gets a comment, because Ev reads comments, not body edits.
   - Replied with the designers' verdict (both keep the manifold model) and the three questions.
   - Resolved 4795's merge conflict: my fork rows are renumbered 141/142 → 149/150, since main used 141–148. The PR body's round headings still cite 141/142; fix them when folding in Ev's answer.
+- 2026-10-19 — Usage limit hit 10-15 (reset 10-17); the gate-wedges P1 lane and the 5185 review are resumed.
+  - Ev asked on 4795 'any update here?'. I had put the radial-edges reports into the body without commenting. Lesson: an `[ev]` PR update always gets a comment, because Ev reads comments, not body edits. Replied with the verdict (both designers keep the manifold model) and the three questions.
+  - Resolved 4795's merge conflict: fork rows renumbered 141/142 → 149/150. The PR body's headings still cite 141/142; fix them with Ev's answer.
+  - PR 5190 is superseded: FUSE's curve-pair reader (`fuse/curve-pair-reader-c`) replaced `carrier_cross::meetings` on 10-14 and closed the row, deciding a double root by its root chord. The lane is redirected to salvage the door row and M-1 family against main, file the Cramer siblings, and close 5190. Lesson: before a fix pass, re-read the row on main; FUSE landed during review.
