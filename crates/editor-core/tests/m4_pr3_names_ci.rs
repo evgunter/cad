@@ -94,7 +94,13 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// and declaring the die's variables mints their ids on the chain,
 /// which moves every id minted after a declare (ids only: no name's
 /// wording moved).
-const DIE_TABLE_DIGEST: u64 = 0x9092497d33212b92;
+///
+/// **Re-pinned for INTENT stage 3 D** (Transform retires into a
+/// placement), for the ids: the die's profiles read no `Datum::Frame`
+/// node (a profile is 2-D), its extrudes carry no side, and its copy
+/// stands by `mate::stand`'s plane mate where C's world pin held it, so
+/// the document lost its frame nodes (64 → 57) and every id moved.
+const DIE_TABLE_DIGEST: u64 = 0xf50bd202c91a22dc;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).

@@ -239,44 +239,43 @@ fn sans_epsilon(t: &str) -> String {
 /// **Re-pinned for a seam citing the parent face** (N3): `crossing_slots`'
 /// table only, whose two seams beside the merged floor cite its
 /// `Merged` parent where they cited one floor; its persisted text held.
+///
+/// **Re-pinned for INTENT stage 3 D** (Transform retires into a
+/// placement), every row, the persisted text with it: each document was
+/// re-spelled without `Datum` or `Transform` (a construction is built in
+/// its own coordinates and placed into the world by a `Place`), so its
+/// nodes, their mint preimages, the names they mint and the saved text
+/// all moved.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0x8460e9578c470e60, 0x7134dab9e0a2c309),
-    ("corner_table", 0xfe4524cd4290cd89, 0x4e4c3ddbafffeae6),
-    ("heat_sink", 0x74fe7181598471d0, 0x548b2f20591251f3),
-    ("crossing_slots", 0x51165bb2ff33b3fe, 0xdf3ffbe0e05e610d),
-    ("nested_islands_105", 0x67c13cad100b68f6, 0x97d8297c514a94e9),
-    (
-        "nested_islands_106_depth1",
-        0x354881c4d3dfe7e4,
-        0x647b7eaec4ab6495,
-    ),
-    (
-        "nested_islands_106_depth2",
-        0x8665ba2f77131667,
-        0x93c042bb07455569,
-    ),
-    ("declared_tangency", 0xbaa9e6b3d162774a, 0xc95a317280289284),
-    ("kitchen_sink", 0x1225c4d0874ea978, 0x99e65653180c3b54),
-    ("cut_cylinder", 0x2a8edc5183287fe3, 0x394b95d945b2b646),
-    ("measured_web", 0x4dbe5560756047e3, 0xc90bc32f58fb1b9a),
-    ("boss_union", 0x656bf5121430f4fd, 0x41c28dcbc24fa662),
-    ("die_fillet", 0x9a8baa9d147d7044, 0x70955ca41e0dd922),
-    ("die_chamfer", 0x89e1ab0139eee9ed, 0xe3ce852f108f6840),
-    ("die_pips", 0xd16be90f6d29c7aa, 0x492d787849b6a4d3),
-    ("heat_sink_fins", 0x4343509df0fa3673, 0x96d24784173da012),
-    ("die_tool", 0x58fabcdc84d77007, 0x3cb2941aed5896b0),
-    ("face_sketch", 0x668bf6731fcd92d0, 0x537c88785af84d78),
-    ("part_select", 0x37c21b8ec7d5133b, 0xacbfa3bfb57ed085),
-    ("loft_prism", 0x3226abdd88349262, 0x506986cb31940d2e),
-    ("die_composed", 0x5076e08480bdcf6d, 0x943ee1336021f491),
-    ("die_composed_tour", 0xa68d546c0464bd77, 0x0fb9bbeb71f7a9b3),
-    ("plate_param", 0x4d4af4940bbcf6b4, 0x43cc904beefda406),
-    ("kiss_carry", 0xeb5729ade9d7fcc7, 0xd53e88f7a7d82914),
-    ("tube_ring", 0xc6c0297620ada5aa, 0x53a256dbdf51810c),
-    ("tube_arc", 0xa5848d87c790784f, 0x1c08285f83ba6ba0),
-    ("hollow_tube_elbow", 0xa3994b42f48c890e, 0xef9cebaf32dbcd40),
-    ("hollow_tube_ring", 0x852d2de738602c6c, 0x2cd16c543b4a39de),
-    ("reshaped_rod", 0xda8a8ae84a325577, 0x3b01a8ce98da651f),
+    ("die", 0xb4db9802b0b606f7, 0x38f5a186cd76aba3),
+    ("corner_table", 0x45e0ac4118bb214d, 0x1b4997dfe95d7ed1),
+    ("heat_sink", 0x1977adda3af1ea89, 0xa0f9f4647024018e),
+    ("crossing_slots", 0xa509a00ec2edc86f, 0x87eaee507eb8bad9),
+    ("nested_islands_105", 0x6c1987abab93a799, 0xa857c9a8c3ecf1af),
+    ("nested_islands_106_depth1", 0x2e52dc2c55161a19, 0x9c262132facf1f50),
+    ("nested_islands_106_depth2", 0x671438aa82666f7f, 0x33f241571951b831),
+    ("declared_tangency", 0xd6f945f97903816a, 0xcb48511f21f65ba6),
+    ("kitchen_sink", 0x34938d7def086d3e, 0x594b09778a847434),
+    ("cut_cylinder", 0x35e8560f38a2616b, 0xa64a3a972e79d22a),
+    ("measured_web", 0xf21138cd48fb53df, 0x5d3466ce2bbccff9),
+    ("boss_union", 0xd03552cff4cfc65b, 0xda4802dc62bb811c),
+    ("die_fillet", 0xa96f8a70800a1e51, 0x07a177947e578dd0),
+    ("die_chamfer", 0x370ebad78cec9015, 0xa0b7f1ce24742ead),
+    ("die_pips", 0x4d251e92f20d09b5, 0x13ef2dd40f55454b),
+    ("heat_sink_fins", 0xd2143bd13f9aeb93, 0xd0d0bd7b24a38c2d),
+    ("die_tool", 0xb45b4521a91a16f0, 0x8ff9231b4474818f),
+    ("face_sketch", 0x9cff6e4f5211da3d, 0x7c19fbe27e29c59e),
+    ("part_select", 0xf6cc7bed01cf7411, 0xfe20f929e698d3af),
+    ("loft_prism", 0x9cb4bf86a35998f3, 0xf3dbd8f27676bdb1),
+    ("die_composed", 0x0a3bf41f3cb481f1, 0xb203b33827c9b055),
+    ("die_composed_tour", 0x78311863f06061d1, 0x8308ab3f88921f4b),
+    ("plate_param", 0x1374cf899f16a081, 0xfd5acd13c5d7746e),
+    ("kiss_carry", 0x94d99109484dbaad, 0x8c1a0a535c2845c0),
+    ("tube_ring", 0xb1623d89f704044f, 0xebf687932c107138),
+    ("tube_arc", 0xe566cd7d88cf25b3, 0xdfff06b230c63b55),
+    ("hollow_tube_elbow", 0x469aba62d2ad9f95, 0x2190e0bf42db5fe5),
+    ("hollow_tube_ring", 0x7d6efd15feea4270, 0xfce3cb5a68a41472),
+    ("reshaped_rod", 0x2c0687528028d32a, 0xfdacb7aa0a607a43),
 ];
 
 #[test]

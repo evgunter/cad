@@ -433,7 +433,12 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// bundle's selections are names of the evaluation, and the second
 /// copy's pose at x = 5 is re-composed from the world read's lengths
 /// and angles, which rounds — the volume lands one ulp above 2.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 7_395_789_236_268_229_663;
+/// INTENT stage 3 D moved the digest alone: the part's extrude has no
+/// side and its profile no frame, and its copy stands by `mate::stand`'s
+/// plane mate where C's world pin held it, so their mint preimages, and every id and
+/// name drawn after them, moved; the volume bits and the solid count
+/// held.
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 7_813_216_700_661_655_017;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_905; // 2.0 + 1 ulp
 
 #[test]

@@ -737,6 +737,30 @@ fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f64)>
 mod tests {
     use super::*;
 
+    #[test]
+    fn zz_plate() {
+        let tol = Tol::witness();
+        let s: f64 = std::env::var("ZZ_S").map(|v| v.parse().unwrap()).unwrap_or(1e-3);
+        let p = crate::plate::plate(crate::plate::SPACING_HALF_WIDTH * s, crate::plate::RADIUS_SIGMA * s, crate::plate::WEB_BOUND, tol);
+        let analyzed = analyzed_box(&p.doc, &AnalysisPolicy::default());
+        let cfg = DriveConfig { max_leaves: 1, ..DriveConfig::default() };
+        let v = drive(&p.doc, &analyzed, &cfg, tol).expect("builds");
+        println!("ZZPLATE receipt {:?}", v.receipt());
+        for l in v.refused() { let t = format!("{:?}", l.reason); println!("ZZPLATE reason {}", &t[..t.len().min(4000)]); }
+    }
+
+    #[test]
+    fn zz_rows() {
+        let tol = Tol::witness();
+        let links: Vec<usize> = std::env::var("ZZ_LINKS").map(|v| v.split(',').map(|x| x.parse().unwrap()).collect()).unwrap_or_else(|_| vec![1, 2]);
+        let fr: Vec<f64> = std::env::var("ZZ_FR").map(|v| v.split(',').map(|x| x.parse().unwrap()).collect()).unwrap_or_else(|_| vec![1.0]);
+        for &n in &links { for &f in &fr {
+            let built = chain(n, JOINT_SIGMA * f, POSITION_BOUND, tol);
+            if std::env::var_os("ZZ_NO_IV").is_none() { let r = interval_leaf(n, &built.doc); println!("ZZROW n={n} f={f} IV certifies={} refused={} first={:?}", r.certifies, r.refused, r.first); }
+            if std::env::var_os("ZZ_NO_SYM").is_none() { let r = sym_leaf(n, &built.doc); println!("ZZROW n={n} f={f} SYM certifies={} refused={} first={:?}", r.certifies, r.refused, r.first); }
+        }}
+    }
+
     /// **The plain lane's reach, bisected** — the header's
     /// `σ = 6.49e-9` at one link and `6.73e-10` at four: one leaf over
     /// the whole box at plain `Interval`, bisected in `log10 σ` to 0.005

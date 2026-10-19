@@ -663,14 +663,30 @@ where
                 // The body's own frame: its placement's motion in the
                 // space, the identity for the space's own geometry. Two
                 // bodies refuse only where a value asks for the chart.
-                let body = crate::mate::solve::chart_body(doc, *var).map(|body| {
+                let at = crate::mate::solve::chart_body(doc, *var);
+                let body = at.clone().map(|body| {
                     body.and_then(|at| match to_results.get(&at) {
-                        Some(NodeResult::Ok(value)) => value.motion.map(|m| m.to_affine()),
+                        Some(NodeResult::Ok(value)) => value.motion,
                         _ => None,
                     })
-                    .unwrap_or_else(geom_core::Affine3::identity)
+                    .unwrap_or_else(geom_core::RigidMotion::identity)
                 });
-                (to, space, body)
+                // The target in the body's own coordinates, where the
+                // body is a copy its placement moved: what a frame lane's
+                // chart is read in.
+                let own = at
+                    .ok()
+                    .flatten()
+                    .filter(|_| T::spins_by_frames())
+                    .and_then(|at| {
+                        pose::own_direction(
+                            doc,
+                            to_results,
+                            crate::pose::RoleRead::plain(*var),
+                            at,
+                        )
+                    });
+                (to, space, (body, own))
             }
             Target::World(world) => {
                 world
@@ -678,7 +694,7 @@ where
                     .map_err(|f| fault(MateFault::WorldRead { mate, fault: f }))?;
                 let to = pose::eval_world(world, params, b)
                     .map_err(|kind| unevaluated(MateSide::To, kind))?;
-                (to, Space::World, Ok(geom_core::Affine3::identity()))
+                (to, Space::World, (Ok(geom_core::RigidMotion::identity()), None))
             }
         };
         match target_space {
@@ -715,7 +731,7 @@ where
     let arm = crate::mate::solve::bundle_arm(reach, &mates).map_err(|f| fault(*f))?;
     // A chart is read only for a mate a value names.
     let mut charts = std::collections::BTreeMap::new();
-    for (mate, on, to, flipped, body) in charted {
+    for (mate, on, to, flipped, (body, own)) in charted {
         let Some(value) = values.iter().find(|v| v.mate == mate) else {
             continue;
         };
@@ -727,7 +743,7 @@ where
         })?;
         charts.insert(
             mate,
-            crate::mate::value::Chart::of(&on, &to, flipped, &body, arm, b)?,
+            crate::mate::value::Chart::of(&on, &to, own.as_ref(), flipped, &body, arm, b)?,
         );
     }
     match crate::mate::solve::solve_bundle(
@@ -738,20 +754,37 @@ where
         &charts,
     )? {
         crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
-        crate::mate::solve::Folded::Pinned(rep) => {
-            // The one at-rest verdict, decided once (fork C-5).
+        crate::mate::solve::Folded::Pinned(rep, rigid) => {
+            // The one at-rest verdict, decided once (fork C-5). Where the
+            // map is kept as the solve composed it, the motion the
+            // composition made is the copy's.
             let placed = match crate::mate::solve::rest_verdict(&rep, reach, b) {
                 Some(true) if T::carries_no_variation(&rep) => None,
-                Some(true) => T::identity_varying_as(&rep).or(Some(rep)),
+                Some(true) => match T::identity_varying_as(&rep) {
+                    Some(map) => Some((map, None)),
+                    None => Some((rep, rigid.map(|c| (c, false)))),
+                },
                 // A box the band cannot decide at rest spans points the
                 // value lane snaps and points it keeps: its map holds
                 // both.
-                None => T::with_rest(&rep).or(Some(rep)),
-                Some(false) => Some(rep),
+                None if T::holds_rest(&rep) => Some((rep, rigid.map(|c| (c, false)))),
+                None => match rigid.and_then(|c| c.at_rest().map(|map| (c, map))) {
+                    Some((c, map)) if T::holds_rest(&map) => Some((map, Some((c, true)))),
+                    _ => Some((T::with_rest(&rep).unwrap_or(rep), None)),
+                },
+                Some(false) => Some((rep, rigid.map(|c| (c, false)))),
+            };
+            // A map the solve composed as motions is placed as the motion
+            // it is; any other is admitted from its entries.
+            let motion = |map, composed: Option<(crate::mate::value::Composed<T>, bool)>| {
+                match composed.and_then(|(c, rest)| c.motion(rest, b)) {
+                    Some(motion) => Ok(Some(motion)),
+                    None => crate::mate::solve::admitted(crate::mate::solve::marked(map), b),
+                }
             };
             Ok((
                 match placed {
-                    Some(map) => crate::mate::solve::admitted(crate::mate::solve::marked(map), b)?,
+                    Some((map, composed)) => motion(map, composed)?,
                     None => None,
                 },
                 target_space.unwrap_or(Space::World),

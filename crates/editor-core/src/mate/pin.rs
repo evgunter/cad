@@ -540,7 +540,7 @@ pub fn place_at_in(
         role: PoseRole::Xy,
     };
     let Ok(chart) =
-        super::value::Chart::of(&on, &to, false, &geom_core::Affine3::identity(), arm, band)
+        super::value::Chart::of(&on, &to, None, false, &geom_core::RigidMotion::identity(), arm, band)
     else {
         return pinned();
     };
@@ -881,8 +881,9 @@ fn axis_placed(
     let chart = super::value::Chart::of(
         &on_value,
         &to_value,
+        None,
         false,
-        &geom_core::Affine3::identity(),
+        &geom_core::RigidMotion::identity(),
         arm,
         band,
     )
@@ -1043,6 +1044,60 @@ fn moved_pose(
     pose
 }
 
+/// **`target`'s planar face on its own `xy`, reading no variable in its
+/// own coordinates**, with the sign of its outward normal's `z` there:
+/// [`place_against_in`]'s target plane. A placed copy is read in its own
+/// coordinates (its motion undone) and its face judged on the shape it
+/// copies; `None` where no face qualifies.
+fn target_own_plane(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<f64>,
+    target: &Operand,
+) -> Option<(crate::StableName, f64)> {
+    use geom_core::linalg::Point3;
+    let (node, solid, table, motion) = read_of(doc, ev, target).ok()?;
+    let motion = motion.map(|m| m.to_affine());
+    let placed_shape = |placement: RecipeNodeId, of: &crate::StableName| match doc.node(placement) {
+        Some(crate::Node::Place { shapes, .. }) => shapes
+            .iter()
+            .filter_map(|shape| doc.operation_of(shape.read))
+            .find(|&shape| shape == of.node)
+            .or_else(|| shapes.first().and_then(|shape| doc.operation_of(shape.read))),
+        _ => None,
+    };
+    let fixed = |name: &crate::StableName| match name.copy_of() {
+        Some((placement, of)) if placement == node => placed_shape(placement, of)
+            .is_some_and(|shape| super::anchor::Anchors::of(doc, shape).fixed(of)),
+        _ => super::anchor::Anchors::of(doc, node).fixed(name),
+    };
+    solid.faces().find_map(|(face, _)| {
+        let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+        if kind != geom::SurfaceKind::Plane {
+            return None;
+        }
+        let name = table.name_of(&EntityRef {
+            body: 0,
+            key: EntityKey::Face(face),
+        })?;
+        if !fixed(name) {
+            return None;
+        }
+        let at = topo::readback::face_pose(&solid, face).ok()?;
+        let n = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
+        let (origin, n) = match motion {
+            None => (at.origin - Point3::origin(), n),
+            Some(m) => {
+                let back = m.linear.transpose();
+                (back * ((at.origin - Point3::origin()) - m.translation), back * n)
+            }
+        };
+        [origin.z, n.x, n.y]
+            .into_iter()
+            .all(|c| c == 0.0)
+            .then(|| (name.clone(), n.z.signum()))
+    })
+}
+
 /// **The copy read through `body` placed against `target`'s geometry at
 /// `at`** — `at` the copy's own frame in `target`'s own coordinates
 /// (spec §5: a construction combined with another body is placed
@@ -1106,10 +1161,15 @@ pub fn place_against_in(
                 .map_err(|_| refusal);
         }
     };
-    // A target with no face on its own `xy` (a full revolve), or one a
-    // placement moved off its own coordinates, is read by a frame off
-    // its geometry, as a tilted copy's is.
-    let target_plane = own_plane(target).ok();
+    // The target's face on its own `xy` that reads no variable in its
+    // own coordinates. A placed copy's face is its shape's, carried by
+    // the copy's motion, and a value's chart reads that motion as the
+    // target body's frame, so the face moves the copy with the target
+    // and never back: it is judged on the shape the copy copies, at the
+    // copy's own coordinates. A target with no such face (a full
+    // revolve, a placement read through a later operation) is read by a
+    // frame off its geometry, as a tilted copy's is.
+    let target_plane = target_own_plane(doc, ev, target);
     let plane = |shape: &Operand, face: crate::StableName| {
         Operand::Pose(Box::new(PoseDef::Plane {
             face: Operand::select(shape.clone(), vec![face]),
@@ -1126,7 +1186,7 @@ pub fn place_against_in(
     // coordinates.
     let m = placed.linear * (z * copy_z);
     let untilted = m.x == 0.0 && m.y == 0.0;
-    let (on, to, to_normal) = if untilted && let Some((target_face, target_z, _)) = target_plane {
+    let (on, to, to_normal) = if untilted && let Some((target_face, target_z)) = target_plane {
         // The target's face slid along its own normal onto the copy's:
         // the copy's face stands `t.z` up the target's own z, which is
         // `target_z · t.z` along the face's normal.
@@ -1178,8 +1238,9 @@ pub fn place_against_in(
     let chart = super::value::Chart::of(
         &on_value,
         &to_value,
+        None,
         false,
-        &geom_core::Affine3::identity(),
+        &geom_core::RigidMotion::identity(),
         arm,
         band,
     )

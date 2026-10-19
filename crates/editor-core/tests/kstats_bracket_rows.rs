@@ -96,9 +96,11 @@ const PRE_PASS: usize = 69;
 /// the pre-pass's.
 const PROFILE_LOG: usize = PRE_PASS;
 const EXTRUDE_LOG: usize = 655;
-/// A placement standing where its body stands ([`fixture::place`]):
-/// its fold decides nothing.
-const PLACEMENT_LOG: usize = 0;
+/// A placement standing where its body stands ([`fixture::place`]): a
+/// `Plane` mate from its start cap to the world's xy, whose fold
+/// decides each side's two axes unit (four), each side's chart
+/// reference off its antipode (two) and the at-rest predicate once.
+const PLACEMENT_LOG: usize = 7;
 
 /// Two instances, both pinned to the world, so both ops do the same
 /// work. `o` reaches the part they copy.

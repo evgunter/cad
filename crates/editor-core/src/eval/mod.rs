@@ -3322,6 +3322,11 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         true
     }
 
+    fn zz_lohi(self) -> (f64, f64) {
+        use geom_core::Bounds;
+        (self.lo(), self.hi())
+    }
+
     fn exactly_zero(self) -> bool {
         use geom_core::Bounds;
         self.lo() == 0.0 && self.hi() == 0.0
@@ -3350,6 +3355,21 @@ impl crate::mate::SolveScalar for geom_core::Interval {
 
     fn identity_varying_as(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
         None
+    }
+
+    fn holds_rest(map: &geom_core::Affine3<Self>) -> bool {
+        use geom_core::Bounds;
+        use geom_core::linalg::Vec3;
+        let holds = |v: Vec3<Self>, w: [f64; 3]| {
+            [(v.x, w[0]), (v.y, w[1]), (v.z, w[2])]
+                .iter()
+                .all(|&(e, at)| e.lo() <= at && at <= e.hi())
+        };
+        let q = map.linear;
+        holds(q.c0, [1.0, 0.0, 0.0])
+            && holds(q.c1, [0.0, 1.0, 0.0])
+            && holds(q.c2, [0.0, 0.0, 1.0])
+            && holds(map.translation, [0.0; 3])
     }
 
     /// Each entry's hull with the identity's: the enclosure of every map
@@ -3465,6 +3485,10 @@ where
 
     fn exactly_zero(self) -> bool {
         self.value.exactly_zero()
+    }
+
+    fn zz_lohi(self) -> (f64, f64) {
+        self.value.zz_lohi()
     }
 
     fn spins_by_frames() -> bool {

@@ -589,6 +589,59 @@ fn read_off<T: Decide>(
     }
 }
 
+/// **The direction of the pose `read`, in the own coordinates of the
+/// body `copy` places**: a plane's normal or an axis's direction read
+/// off `copy`'s one placed body as that body stands before the
+/// placement moves it (the copy holds it under the same keys), through
+/// the definition's slides and flips. The carrier's stored direction,
+/// read and not decided, so the lanes decide alike. `None` for a pose
+/// that reads anything else.
+pub(crate) fn own_direction<T: Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    read: RoleRead<VarId>,
+    copy: crate::RecipeNodeId,
+) -> Option<Vec3<T>> {
+    if read.role.is_some() {
+        return None;
+    }
+    let VarDef::Pose(def) = doc.var(read.read)?.def() else {
+        return None;
+    };
+    let off = |of: VarId| {
+        let (at, ent) = select_one(doc, results, OperandSlot::Frame, of).ok()?;
+        let Some(Node::Place { shapes, .. }) = doc.node(copy) else {
+            return None;
+        };
+        let ([shape], true, 0) = (shapes.as_slice(), at == copy, ent.body) else {
+            return None;
+        };
+        let placed = doc.read_operation(shape.read)?;
+        let ValuePayload::Body(body) = &value_of(results, placed).ok()?.payload else {
+            return None;
+        };
+        Some((std::sync::Arc::clone(body), ent.key))
+    };
+    match def {
+        PoseDef::Plane { face } => {
+            let (body, key) = off(*face)?;
+            let face = names::EntityKey::face(key)?;
+            let at = topo::readback::face_pose(&body, face).ok()?;
+            Some(OutwardNormal::from_chart(at.axis, at.sense).vec())
+        }
+        PoseDef::Axis { of } => {
+            let (body, key) = off(*of)?;
+            if let Some(edge) = names::EntityKey::edge(key) {
+                return Some(topo::readback::edge_pose(&body, edge).ok()?.axis);
+            }
+            Some(topo::readback::face_pose(&body, names::EntityKey::face(key)?).ok()?.axis)
+        }
+        PoseDef::Slide { pose, .. } => own_direction(doc, results, *pose, copy),
+        PoseDef::Flip { pose } => own_direction(doc, results, *pose, copy).map(|v| -v),
+        _ => None,
+    }
+}
+
 /// **One word of the stream a node's content key reads off the pose
 /// definitions it reads** (`tag::pose` states the grammar).
 pub(crate) enum PoseWord<T> {

@@ -2110,12 +2110,8 @@ fn applied(
     doc: &pncad::document::ProfileDoc,
     edit: pncad::document::DocEdit<pncad::document::ProfileProgram>,
 ) -> pncad::document::Applied<pncad::document::ProfileProgram> {
-    pncad::document::apply(
-        doc,
-        &edit,
-        pncad::tolerance::Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the edit is accepted: {e}"))
+    pncad::document::apply(doc, &edit, pncad::tolerance::Tol::witness())
+        .unwrap_or_else(|e| panic!("the edit is accepted: {e}"))
 }
 
 /// Insert a node, returning the (document, minted id) pair.
@@ -2161,17 +2157,20 @@ fn stood(
         },
     );
     let mate = added.record.minted_constraints[0];
-    placed.values.into_iter().fold(added.doc, |doc, (coord, by)| {
-        applied(
-            &doc,
-            DocEdit::AddValue {
-                placement,
-                value: Box::new(Value { mate, coord, by }),
-                fresh: Vec::new(),
-            },
-        )
-        .doc
-    })
+    placed
+        .values
+        .into_iter()
+        .fold(added.doc, |doc, (coord, by)| {
+            applied(
+                &doc,
+                DocEdit::AddValue {
+                    placement,
+                    value: Box::new(Value { mate, coord, by }),
+                    fresh: Vec::new(),
+                },
+            )
+            .doc
+        })
 }
 
 /// A one-box document under the id `label` derives: square(2)

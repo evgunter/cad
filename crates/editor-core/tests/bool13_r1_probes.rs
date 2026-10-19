@@ -388,69 +388,49 @@ fn the_unknown_variant_detail_lists_the_vocabulary_in_full() {
 /// _and_name_what_they_lack`. What CANNOT be measured with bytes older
 /// than the break is the additive half, so this exemplar is written by
 /// today's writer and kept minimal: its node vocabulary is
-/// {Datum, Profile, Extrude} and nothing newer, so the row still says
-/// that a document lacking every later arm loads. It is re-frozen, by
-/// today's writer, at each such break: last when an operand became a read
-/// of a variable, so its table holds the three nodes' outputs and the
-/// profile and the extrude read the outputs before them, and the
-/// profile's operand field took its one name, `frame`.
+/// {Profile, Extrude} and nothing newer, so the row still says that a
+/// document lacking every later arm loads. It is re-frozen, by today's
+/// writer, at each such break: last when a profile became 2-D and the
+/// frame node it was drawn on retired, so the document is the profile
+/// and the extrude alone, the extrude reading the profile's output.
 const OLDER_SHAPED: &str = concat!(
-    "id: da925a30e31f7fdaa7044e3e5ba4ae17\n",
-    "{\"snapshot\":{\"id\":\"da925a30e31f7fdaa7044e3e5ba4ae17\",\"mint\":{\"chain\":\"5d28910d3b",
-    "2f6ef6b5465cd99f255ab6de869b2eaff65bc0cfc6200b45ffd778\",\"log\":[{\"var\":\"1:b639d84",
-    "4bab8e826\"},{\"var\":\"2:74af9d633a64b77a\"},{\"var\":\"3:fb5fef638c30912c\"},{\"var\":\"4:",
-    "ee1d73a8dc8f8ad6\"},{\"var\":\"5:f9047724cc168290\"},{\"var\":\"6:2fdd1f61b8b90439\"},{\"v",
-    "ar\":\"7:5cdde09d996c5c61\"},{\"var\":\"8:af949e9d2cd2d001\"},{\"var\":\"9:135249424cb8e0e",
-    "7\"},{\"node\":\"10:54a0180a83275575\"},{\"var\":\"11:7b9b7a031545bc84\"},{\"var\":\"12:aa1a",
-    "1f25549ff844\"},{\"var\":\"13:ce0b2c4bfce400e2\"},{\"var\":\"14:826a2b7c495117a7\"},{\"var",
-    "\":\"15:74ce4ff170398ca6\"},{\"var\":\"16:4b36daafb7685c2b\"},{\"var\":\"17:c9a0e5f82154ce",
-    "3e\"},{\"var\":\"18:73bc05541afded5a\"},{\"var\":\"19:e51d8c264d945b32\"},{\"node\":\"20:fe7",
-    "be5bb524c1ab3\"},{\"step\":\"21:9fe386cec8abaedb\"},{\"step\":\"22:3e2fb0ac72647b8e\"},{\"",
-    "step\":\"23:465379dd775c12be\"},{\"step\":\"24:0495217d37468ca6\"},{\"step\":\"25:f252c518",
-    "f0a50982\"},{\"var\":\"26:430f4189a776294e\"},{\"var\":\"27:ba3d8dce8cc42ae6\"},{\"node\":\"",
-    "28:431c72536b7ab1f8\"},{\"var\":\"29:5d28910d3b2f6ef6\"}]},\"nodes\":{\"10:54a0180a83275",
-    "575\":{\"Datum\":{\"Frame\":{\"origin\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\",\"3:f",
-    "b5fef638c30912c\"],\"u\":[\"4:ee1d73a8dc8f8ad6\",\"5:f9047724cc168290\",\"6:2fdd1f61b8b9",
-    "0439\"],\"v\":[\"7:5cdde09d996c5c61\",\"8:af949e9d2cd2d001\",\"9:135249424cb8e0e7\"]}}},\"",
-    "20:fe7be5bb524c1ab3\":{\"Profile\":{\"frame\":\"11:7b9b7a031545bc84\",\"loops\":[{\"Chain\"",
-    ":[{\"At\":[\"12:aa1a1f25549ff844\",\"13:ce0b2c4bfce400e2\"]},{\"LineTo\":{\"Point\":[\"14:8",
-    "26a2b7c495117a7\",\"15:74ce4ff170398ca6\"]}},{\"LineTo\":{\"Point\":[\"16:4b36daafb7685c",
-    "2b\",\"17:c9a0e5f82154ce3e\"]}},{\"LineTo\":{\"Point\":[\"18:73bc05541afded5a\",\"19:e51d8",
-    "c264d945b32\"]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[\"21:9fe386cec8abaedb\",\"22:3e2fb0ac",
-    "72647b8e\",\"23:465379dd775c12be\",\"24:0495217d37468ca6\",\"25:f252c518f0a50982\"]]}},",
-    "\"28:431c72536b7ab1f8\":{\"Extrude\":{\"profile\":\"26:430f4189a776294e\",\"distance\":\"27",
-    ":ba3d8dce8cc42ae6\",\"side\":\"along\"}}},\"vars\":{\"1:",
-    "b639d844bab8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"",
-    "value\":0.0,\"display_unit\":\"m\"}}}},\"2:74af9d633a64b77a\":{\"kind\":\"Length\",\"def\":{\"",
-    "Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"3:fb5fef",
-    "638c30912c\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
-    ":0.0,\"display_unit\":\"m\"}}}},\"4:ee1d73a8dc8f8ad6\":{\"kind\":\"Scalar\",\"def\":{\"Free\":",
-    "{\"Continuous\":{\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"5:f9047724cc168",
-    "290\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"d",
-    "isplay_unit\":\"\"}}}},\"6:2fdd1f61b8b90439\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Contin",
-    "uous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"7:5cdde09d996c5c61\":{\"k",
-    "ind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_u",
-    "nit\":\"\"}}}},\"8:af949e9d2cd2d001\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"",
-    "dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"9:135249424cb8e0e7\":{\"kind\":\"Sc",
-    "alar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}",
-    "}}},\"11:7b9b7a031545bc84\":{\"kind\":\"Frame\",\"def\":{\"Output\":{\"node\":\"10:54a0180a83",
-    "275575\",\"port\":0}}},\"12:aa1a1f25549ff844\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Conti",
-    "nuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"13:ce0b2c4bfce400e2\":",
-    "{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"displa",
-    "y_unit\":\"m\"}}}},\"14:826a2b7c495117a7\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuou",
-    "s\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"15:74ce4ff170398ca6\":{\"ki",
-    "nd\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_un",
-    "it\":\"m\"}}}},\"16:4b36daafb7685c2b\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{",
-    "\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"17:c9a0e5f82154ce3e\":{\"kind\":",
-    "\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":",
-    "\"m\"}}}},\"18:73bc05541afded5a\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim",
-    "\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"19:e51d8c264d945b32\":{\"kind\":\"Len",
-    "gth\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}",
-    "}}},\"26:430f4189a776294e\":{\"kind\":\"Profile\",\"def\":{\"Output\":{\"node\":\"20:fe7be5bb",
-    "524c1ab3\",\"port\":0}}},\"27:ba3d8dce8cc42ae6\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Con",
-    "tinuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"29:5d28910d3b2f6ef6",
-    "\":{\"kind\":\"Body\",\"def\":{\"Output\":{\"node\":\"28:431c72536b7ab1f8\",\"port\":0}}}},\"eps",
-    "ilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
+    "id: c7e37d80a53df4cb1d21656a27d56c2d\n",
+    "{\"snapshot\":{\"id\":\"c7e37d80a53df4cb1d21656a27d56c2d\",\"mint\":{\"chain\":\"60",
+    "8252c10d916cfe5e1e6507e191371ccec1d1b04280e057679688bb077d4631\",\"log\":[{",
+    "\"var\":\"1:b639d844bab8e826\"},{\"var\":\"2:74af9d633a64b77a\"},{\"var\":\"3:e49b8",
+    "3e35d1cfaf8\"},{\"var\":\"4:9c83dccc6e32d7b3\"},{\"var\":\"5:d786bf1ceccb8f00\"},",
+    "{\"var\":\"6:23ee116d75b4556b\"},{\"var\":\"7:455ba71f3c08cba1\"},{\"var\":\"8:4665",
+    "cdc912ba37b9\"},{\"node\":\"9:b5f34a51587e847a\"},{\"step\":\"10:f91a0724eaf428d",
+    "4\"},{\"step\":\"11:1727f41743e500c9\"},{\"step\":\"12:40ebf48fc1ce9abb\"},{\"step",
+    "\":\"13:5515fee17d00383e\"},{\"step\":\"14:74e05563fbf673eb\"},{\"var\":\"15:11be5",
+    "9149cf7b592\"},{\"var\":\"16:a2264ed7bb3bdcb7\"},{\"node\":\"17:4a08cd5c982f47a4",
+    "\"},{\"var\":\"18:608252c10d916cfe\"}]},\"nodes\":{\"9:b5f34a51587e847a\":{\"Profi",
+    "le\":{\"loops\":[{\"Chain\":[{\"At\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\"",
+    "]},{\"LineTo\":{\"Point\":[\"3:e49b83e35d1cfaf8\",\"4:9c83dccc6e32d7b3\"]}},{\"Li",
+    "neTo\":{\"Point\":[\"5:d786bf1ceccb8f00\",\"6:23ee116d75b4556b\"]}},{\"LineTo\":{",
+    "\"Point\":[\"7:455ba71f3c08cba1\",\"8:4665cdc912ba37b9\"]}},{\"LineTo\":\"Start\"}",
+    "]}],\"ids\":[[\"10:f91a0724eaf428d4\",\"11:1727f41743e500c9\",\"12:40ebf48fc1ce",
+    "9abb\",\"13:5515fee17d00383e\",\"14:74e05563fbf673eb\"]]}},\"17:4a08cd5c982f47",
+    "a4\":{\"Extrude\":{\"profile\":\"15:11be59149cf7b592\",\"distance\":\"16:a2264ed7b",
+    "b3bdcb7\"}}},\"vars\":{\"1:b639d844bab8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":",
+    "{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"2:74af",
+    "9d633a64b77a\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Lengt",
+    "h\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"3:e49b83e35d1cfaf8\":{\"kind\":\"Leng",
+    "th\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_uni",
+    "t\":\"m\"}}}},\"4:9c83dccc6e32d7b3\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continu",
+    "ous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"5:d786bf1ceccb8",
+    "f00\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value",
+    "\":1.0,\"display_unit\":\"m\"}}}},\"6:23ee116d75b4556b\":{\"kind\":\"Length\",\"def\"",
+    ":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}",
+    "},\"7:455ba71f3c08cba1\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"di",
+    "m\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"8:4665cdc912ba37b9\":{\"ki",
+    "nd\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"di",
+    "splay_unit\":\"m\"}}}},\"15:11be59149cf7b592\":{\"kind\":\"Profile\",\"def\":{\"Outp",
+    "ut\":{\"node\":\"9:b5f34a51587e847a\",\"port\":0}}},\"16:a2264ed7bb3bdcb7\":{\"kin",
+    "d\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"dis",
+    "play_unit\":\"m\"}}}},\"18:608252c10d916cfe\":{\"kind\":\"Body\",\"def\":{\"Output\":",
+    "{\"node\":\"17:4a08cd5c982f47a4\",\"port\":0}}}},\"epsilon\":1e-09,\"witnesses\":{",
+    "},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
     "\n"
 );
 
@@ -478,73 +458,56 @@ fn the_older_shaped_document_loads_at_the_ambient_eps() {
         .iter()
         .map(|(_, node)| node.as_object().unwrap().keys().next().unwrap())
         .collect();
-    assert_eq!(tags, ["Datum", "Profile", "Extrude"]);
+    assert_eq!(tags, ["Profile", "Extrude"]);
     let loaded = load(&text, Tol::witness()).expect("a minimal-vocabulary document loads");
-    assert_eq!(loaded.doc.ids().len(), 3);
+    assert_eq!(loaded.doc.ids().len(), 2);
     assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
 }
 
 // ---- A break: the same bytes from before outputs refuse ----
 
-/// The minimal-vocabulary bytes as today's writer wrote them before
-/// an operation defined variables (INTENT stage 2): the same three
-/// nodes, and no output in the table. A break, so they refuse typed
-/// with the regenerate recourse rather than load. The profile's operand
-/// field is spelled `frame`, its later name, so the bytes reach the
-/// outputs walk this row is about rather than the reader's field check.
+/// The minimal-vocabulary bytes in the shape an operation had before
+/// it defined variables (INTENT stage 2): the same two nodes, no
+/// output in the table, and the extrude naming the profile node
+/// itself. A break, so they refuse typed with the regenerate recourse
+/// rather than load. They are today's save with only that taken out,
+/// so the bytes reach the outputs walk this row is about rather than
+/// the reader's field check.
 const PRE_OUTPUTS: &str = concat!(
-    "id: 8ad37e1a750ae77132c0bf059acb322f\n",
-    "{\"snapshot\":{\"id\":\"8ad37e1a750ae77132c0bf059acb322f\",\"mint\":{\"chain\":\"b4df12e4a4",
-    "1c240fd51afc2c5f7c8122801137c78e464bee6240fe63ab5afab4\",\"log\":[{\"var\":\"1:b639d84",
-    "4bab8e826\"},{\"var\":\"2:74af9d633a64b77a\"},{\"var\":\"3:fb5fef638c30912c\"},{\"var\":\"4:",
-    "ee1d73a8dc8f8ad6\"},{\"var\":\"5:f9047724cc168290\"},{\"var\":\"6:2fdd1f61b8b90439\"},{\"v",
-    "ar\":\"7:5cdde09d996c5c61\"},{\"var\":\"8:af949e9d2cd2d001\"},{\"var\":\"9:135249424cb8e0e",
-    "7\"},{\"node\":\"10:54a0180a83275575\"},{\"var\":\"11:d05826096083a72f\"},{\"var\":\"12:3312",
-    "b2f8504eeee2\"},{\"var\":\"13:67cd6e8f80d24d4e\"},{\"var\":\"14:fd8954268d1e7222\"},{\"var",
-    "\":\"15:4e4dce13c4a56d92\"},{\"var\":\"16:e8e5f1ea6e7306c2\"},{\"var\":\"17:0ad5807e1b5f70",
-    "0c\"},{\"var\":\"18:6d679bcadae726fe\"},{\"node\":\"19:f5ee2ea3890bdbd0\"},{\"step\":\"20:05",
-    "3eb2ee5f95c60a\"},{\"step\":\"21:dd0913f0e561776c\"},{\"step\":\"22:5ca04880b5f26723\"},{",
-    "\"step\":\"23:1c5d6d0a2e5f2352\"},{\"step\":\"24:e1a86d05a90489eb\"},{\"var\":\"25:bdc04106",
-    "e3ffa2bc\"},{\"node\":\"26:b4df12e4a41c240f\"}]},\"nodes\":{\"10:54a0180a83275575\":{\"Dat",
-    "um\":{\"Frame\":{\"origin\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\",\"3:fb5fef638c3",
-    "0912c\"],\"u\":[\"4:ee1d73a8dc8f8ad6\",\"5:f9047724cc168290\",\"6:2fdd1f61b8b90439\"],\"v\"",
-    ":[\"7:5cdde09d996c5c61\",\"8:af949e9d2cd2d001\",\"9:135249424cb8e0e7\"]}}},\"19:f5ee2ea",
-    "3890bdbd0\":{\"Profile\":{\"frame\":\"10:54a0180a83275575\",\"loops\":[{\"Chain\":[{\"At\":[\"",
-    "11:d05826096083a72f\",\"12:3312b2f8504eeee2\"]},{\"LineTo\":{\"Point\":[\"13:67cd6e8f80d",
-    "24d4e\",\"14:fd8954268d1e7222\"]}},{\"LineTo\":{\"Point\":[\"15:4e4dce13c4a56d92\",\"16:e8",
-    "e5f1ea6e7306c2\"]}},{\"LineTo\":{\"Point\":[\"17:0ad5807e1b5f700c\",\"18:6d679bcadae726f",
-    "e\"]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[\"20:053eb2ee5f95c60a\",\"21:dd0913f0e561776c\",",
-    "\"22:5ca04880b5f26723\",\"23:1c5d6d0a2e5f2352\",\"24:e1a86d05a90489eb\"]]}},\"26:b4df12",
-    "e4a41c240f\":{\"Extrude\":{\"profile\":\"19:f5ee2ea3890bdbd0\",\"distance\":\"25:bdc04106e",
-    "3ffa2bc\",\"side\":\"along\"}}},\"vars\":{\"1:b639d844ba",
-    "b8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0",
-    ",\"display_unit\":\"m\"}}}},\"2:74af9d633a64b77a\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Co",
-    "ntinuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"3:fb5fef638c30912c",
-    "\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"disp",
-    "lay_unit\":\"m\"}}}},\"4:ee1d73a8dc8f8ad6\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuo",
-    "us\":{\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"5:f9047724cc168290\":{\"kin",
-    "d\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_uni",
-    "t\":\"\"}}}},\"6:2fdd1f61b8b90439\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"di",
-    "m\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"7:5cdde09d996c5c61\":{\"kind\":\"Scal",
-    "ar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}",
-    "},\"8:af949e9d2cd2d001\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scal",
-    "ar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"9:135249424cb8e0e7\":{\"kind\":\"Scalar\",\"def",
-    "\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"11:d0",
-    "5826096083a72f\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"va",
-    "lue\":0.0,\"display_unit\":\"m\"}}}},\"12:3312b2f8504eeee2\":{\"kind\":\"Length\",\"def\":{\"F",
-    "ree\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"13:67cd6e",
-    "8f80d24d4e\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
-    ":1.0,\"display_unit\":\"m\"}}}},\"14:fd8954268d1e7222\":{\"kind\":\"Length\",\"def\":{\"Free\"",
-    ":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"15:4e4dce13c4",
-    "a56d92\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0",
-    ",\"display_unit\":\"m\"}}}},\"16:e8e5f1ea6e7306c2\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"C",
-    "ontinuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"17:0ad5807e1b5f70",
-    "0c\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"di",
-    "splay_unit\":\"m\"}}}},\"18:6d679bcadae726fe\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Conti",
-    "nuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"25:bdc04106e3ffa2bc\":",
-    "{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"displa",
-    "y_unit\":\"m\"}}}}},\"epsilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"",
-    "edits\":[]}",
+    "id: c7e37d80a53df4cb1d21656a27d56c2d\n",
+    "{\"snapshot\":{\"id\":\"c7e37d80a53df4cb1d21656a27d56c2d\",\"mint\":{\"chain\":\"60",
+    "8252c10d916cfe5e1e6507e191371ccec1d1b04280e057679688bb077d4631\",\"log\":[{",
+    "\"var\":\"1:b639d844bab8e826\"},{\"var\":\"2:74af9d633a64b77a\"},{\"var\":\"3:e49b8",
+    "3e35d1cfaf8\"},{\"var\":\"4:9c83dccc6e32d7b3\"},{\"var\":\"5:d786bf1ceccb8f00\"},",
+    "{\"var\":\"6:23ee116d75b4556b\"},{\"var\":\"7:455ba71f3c08cba1\"},{\"var\":\"8:4665",
+    "cdc912ba37b9\"},{\"node\":\"9:b5f34a51587e847a\"},{\"step\":\"10:f91a0724eaf428d",
+    "4\"},{\"step\":\"11:1727f41743e500c9\"},{\"step\":\"12:40ebf48fc1ce9abb\"},{\"step",
+    "\":\"13:5515fee17d00383e\"},{\"step\":\"14:74e05563fbf673eb\"},{\"var\":\"15:11be5",
+    "9149cf7b592\"},{\"var\":\"16:a2264ed7bb3bdcb7\"},{\"node\":\"17:4a08cd5c982f47a4",
+    "\"},{\"var\":\"18:608252c10d916cfe\"}]},\"nodes\":{\"9:b5f34a51587e847a\":{\"Profi",
+    "le\":{\"loops\":[{\"Chain\":[{\"At\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\"",
+    "]},{\"LineTo\":{\"Point\":[\"3:e49b83e35d1cfaf8\",\"4:9c83dccc6e32d7b3\"]}},{\"Li",
+    "neTo\":{\"Point\":[\"5:d786bf1ceccb8f00\",\"6:23ee116d75b4556b\"]}},{\"LineTo\":{",
+    "\"Point\":[\"7:455ba71f3c08cba1\",\"8:4665cdc912ba37b9\"]}},{\"LineTo\":\"Start\"}",
+    "]}],\"ids\":[[\"10:f91a0724eaf428d4\",\"11:1727f41743e500c9\",\"12:40ebf48fc1ce",
+    "9abb\",\"13:5515fee17d00383e\",\"14:74e05563fbf673eb\"]]}},\"17:4a08cd5c982f47",
+    "a4\":{\"Extrude\":{\"profile\":\"9:b5f34a51587e847a\",\"distance\":\"16:a2264ed7bb",
+    "3bdcb7\"}}},\"vars\":{\"1:b639d844bab8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":{",
+    "\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"2:74af9",
+    "d633a64b77a\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length",
+    "\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"3:e49b83e35d1cfaf8\":{\"kind\":\"Lengt",
+    "h\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit",
+    "\":\"m\"}}}},\"4:9c83dccc6e32d7b3\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuo",
+    "us\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"5:d786bf1ceccb8f",
+    "00\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
+    ":1.0,\"display_unit\":\"m\"}}}},\"6:23ee116d75b4556b\":{\"kind\":\"Length\",\"def\":",
+    "{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}}",
+    ",\"7:455ba71f3c08cba1\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim",
+    "\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"8:4665cdc912ba37b9\":{\"kin",
+    "d\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"dis",
+    "play_unit\":\"m\"}}}},\"16:a2264ed7bb3bdcb7\":{\"kind\":\"Length\",\"def\":{\"Free\":",
+    "{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}}},\"epsil",
+    "on\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
     "\n"
 );
 
@@ -566,9 +529,9 @@ fn a_document_from_before_outputs_refuses_at_the_ambient_eps() {
         .iter()
         .map(|(_, node)| node.as_object().unwrap().keys().next().unwrap())
         .collect();
-    assert_eq!(tags, ["Datum", "Profile", "Extrude"]);
+    assert_eq!(tags, ["Profile", "Extrude"]);
     // Written before an operation defined variables, so its table holds
-    // none of the three nodes' outputs: the first node's port refuses,
+    // neither node's output: the first node's port refuses,
     // with the regenerate recourse, at the ambient ε rather than through
     // the tolerance door.
     let err = load(&text, Tol::witness()).unwrap_err();
@@ -576,7 +539,7 @@ fn a_document_from_before_outputs_refuses_at_the_ambient_eps() {
         matches!(
             &err,
             PersistError::Snapshot(editor_core::SnapshotError::OutputSignature { fault, .. })
-                if matches!(**fault, editor_core::OutputFault::Missing { port: "frame" })
+                if matches!(**fault, editor_core::OutputFault::Missing { port: "profile" })
         ),
         "{err:?}"
     );

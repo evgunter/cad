@@ -353,14 +353,20 @@ fn both_sweeps_evaluate_in_one_document() {
 /// id drawn after it moved. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
+/// a placement): each document was re-spelled without `Datum` or
+/// `Transform` (a construction is built in its own coordinates and
+/// placed into the world by a `Place`), so its nodes, their ids and the
+/// names they mint moved.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xb0ac_b6ff_5b86_687f),
-        ("corner_table", 0x4d24_cb55_a481_538d),
-        ("cut_cylinder", 0x3e5f_559f_058c_1664),
-        ("boss_union", 0x456c_0507_7a29_9842),
-        ("kitchen_sink", 0x1032_8a96_fb12_9d02),
+        ("die", 0xbd0b_096f_8414_d39a),
+        ("corner_table", 0x7c8e_5a0b_26fd_7e14),
+        ("cut_cylinder", 0x793b_d15c_6b53_693b),
+        ("boss_union", 0xe0f2_331b_115d_d319),
+        ("kitchen_sink", 0x1492_3db1_8fdf_f9fd),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

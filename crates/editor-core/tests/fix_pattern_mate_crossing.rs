@@ -232,6 +232,16 @@ fn copy_placement(doc: &ProfileDoc, pattern: RecipeNodeId, i: u32) -> RecipeNode
         .expect("the copy is placed")
 }
 
+/// [`fixture::mate_members`] for `mate` alone: every copy here also
+/// stands in the world by a mate of its own, whose side lands on its
+/// own instance and is not what these rows ask about.
+fn seam_members(doc: &ProfileDoc, mate: MateRef) -> Vec<(MateRef, RecipeNodeId)> {
+    fixture::mate_members(doc)
+        .into_iter()
+        .filter(|&(m, _)| m == mate)
+        .collect()
+}
+
 fn crossings(
     doc: &editor_core::ProfileDoc,
     instance: RecipeNodeId,
@@ -250,7 +260,7 @@ fn crossings(
 fn a_pattern_headed_mate_is_an_edge_and_reads_the_pattern_input_instance() {
     let (doc, leg, _pattern, top, mate, _) = four_legs("fix-xs-edge");
     assert_eq!(
-        crate::fixture::mate_members(&doc),
+        seam_members(&doc, mate),
         vec![(mate, top), (mate, leg)],
         "the pattern-placed head reads through the pattern's input instance"
     );
@@ -492,7 +502,7 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
 
     // No member at the nested head: only the top's side resolves.
     assert_eq!(
-        crate::fixture::mate_members(&doc),
+        seam_members(&doc, mate),
         vec![(mate, top)],
         "an underqualified head resolves to no member"
     );
@@ -549,7 +559,7 @@ fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
         ),
     );
     assert_eq!(
-        crate::fixture::mate_members(&doc),
+        seam_members(&doc, mate),
         vec![(mate, top)],
         "the stranded target resolves to no member; only the top's side does"
     );

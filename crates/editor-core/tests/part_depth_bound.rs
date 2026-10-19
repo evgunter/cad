@@ -193,7 +193,7 @@ fn chain(levels: usize) -> (PartStore, Vec<DocRef>) {
 }
 
 /// **The mate `prev` stood the instance below with, read through
-/// `instance`**: the same plane mate and values, its face the one
+/// `instance`**: the same plane mate, flip and values, its face the one
 /// `instance`'s copy publishes for the face `prev` read — the part's
 /// product name under [`editor_core::RoleSeg::InPart`] at `instance`.
 fn relayed(
@@ -206,8 +206,17 @@ fn relayed(
     let copy = doc
         .output(instance, 0)
         .expect("an instance defines its copies");
-    let Operand::Pose(def) = &prev.mate.on else {
-        panic!("a standing mate reads a pose off its copy")
+    // A stand reads its copy's start cap, flipped where the copy looks
+    // down its z: the relay keeps the flip and re-reads the face.
+    let (face, flipped) = match &prev.mate.on {
+        Operand::Pose(def) => match &**def {
+            PoseDef::Flip { pose } => (&pose.read, true),
+            _ => (&prev.mate.on, false),
+        },
+        other => panic!("a standing mate reads a pose off its copy: {other:?}"),
+    };
+    let Operand::Pose(def) = face else {
+        panic!("a standing mate reads a pose off its copy: {face:?}")
     };
     let PoseDef::Plane {
         face: Operand::Select { names, .. },
@@ -225,13 +234,18 @@ fn relayed(
             }],
         })
         .collect();
-    let mut mate = prev.mate.clone();
-    mate.on = Operand::Pose(Box::new(PoseDef::Plane {
+    let plane = Operand::Pose(Box::new(PoseDef::Plane {
         face: Operand::Select {
             body: Box::new(Operand::Var(copy)),
             names,
         },
     }));
+    let mut mate = prev.mate.clone();
+    mate.on = if flipped {
+        crate::fixture::flip(plane)
+    } else {
+        plane
+    };
     editor_core::Placed {
         mate,
         values: prev.values.clone(),

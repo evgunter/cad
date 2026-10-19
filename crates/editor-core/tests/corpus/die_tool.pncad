@@ -3,7 +3,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
   "snapshot": {
     "id": "e55cffc81a5ad8cfe85239d944a3ae95",
     "mint": {
-      "chain": "ff588446501f6bec42c68ee0dbb975d73f4de58bf00bcf13ab2e4833eed0c8af",
+      "chain": "8c40ecb0fbb34cba91b121550af62e96893bed4242bfed2a254d5995835e39fc",
       "log": [
         {
           "var": "1:b639d844bab8e826"
@@ -12,248 +12,376 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           "var": "2:74af9d633a64b77a"
         },
         {
-          "var": "3:fb5fef638c30912c"
+          "var": "3:e49b83e35d1cfaf8"
         },
         {
-          "var": "4:ee1d73a8dc8f8ad6"
+          "var": "4:9c83dccc6e32d7b3"
         },
         {
-          "var": "5:f9047724cc168290"
+          "var": "5:d786bf1ceccb8f00"
         },
         {
-          "var": "6:2fdd1f61b8b90439"
+          "var": "6:23ee116d75b4556b"
         },
         {
-          "var": "7:5cdde09d996c5c61"
+          "var": "7:455ba71f3c08cba1"
         },
         {
-          "var": "8:af949e9d2cd2d001"
+          "var": "8:4665cdc912ba37b9"
         },
         {
-          "var": "9:135249424cb8e0e7"
+          "node": "9:b5f34a51587e847a"
         },
         {
-          "node": "10:54a0180a83275575"
+          "step": "10:f91a0724eaf428d4"
         },
         {
-          "var": "11:7b9b7a031545bc84"
+          "step": "11:1727f41743e500c9"
         },
         {
-          "var": "12:aa1a1f25549ff844"
+          "step": "12:40ebf48fc1ce9abb"
         },
         {
-          "var": "13:ce0b2c4bfce400e2"
+          "step": "13:5515fee17d00383e"
         },
         {
-          "var": "14:826a2b7c495117a7"
+          "step": "14:74e05563fbf673eb"
         },
         {
-          "var": "15:74ce4ff170398ca6"
+          "var": "15:11be59149cf7b592"
         },
         {
-          "var": "16:4b36daafb7685c2b"
+          "var": "16:a2264ed7bb3bdcb7"
         },
         {
-          "var": "17:c9a0e5f82154ce3e"
+          "node": "17:4a08cd5c982f47a4"
         },
         {
-          "var": "18:73bc05541afded5a"
+          "var": "18:608252c10d916cfe"
         },
         {
-          "var": "19:e51d8c264d945b32"
+          "var": "19:ae66a0e852f6d1b7"
         },
         {
-          "node": "20:5d3677d1aef0a374"
+          "var": "20:1236dc2430cdaf45"
         },
         {
-          "step": "21:ae34add78b7ea48a"
+          "var": "21:27f89ab25dbd72ac"
         },
         {
-          "step": "22:70582777f9ca6644"
+          "var": "22:8810bd6d35c97414"
         },
         {
-          "step": "23:4df88acc4cd4fe3b"
+          "var": "23:348f85d6c8fc56ed"
         },
         {
-          "step": "24:5707c53a0beed936"
+          "node": "24:b6d668634b4dc64f"
         },
         {
-          "step": "25:7cea4ca1c534224b"
+          "step": "25:54386ed1dc9de1e7"
         },
         {
-          "var": "26:d6ccb3c855b31ba1"
+          "step": "26:edf4faf233dae769"
         },
         {
-          "var": "27:cf9cbcda75e9219b"
+          "step": "27:cf099f2091c25994"
         },
         {
-          "node": "28:065cfa8f90376363"
+          "var": "28:bb93e8fba2c6d7e6"
         },
         {
-          "var": "29:9117322ce802f579"
+          "var": "29:11d0cd36f8e4481a"
         },
         {
-          "var": "30:5da610e5f417f58f"
+          "var": "30:55b01105efc84e0b"
         },
         {
-          "var": "31:1ee512046863ead1"
+          "var": "31:b6ab5be49829bce3"
         },
         {
-          "var": "32:6b3cf6a198e312d6"
+          "var": "32:4b24e538f45e4c2c"
         },
         {
-          "var": "33:05d24fe71f647b91"
+          "node": "33:e7c5b589c59e7d3a"
         },
         {
-          "var": "34:889fa941276f8ad8"
+          "var": "34:cd8cfc8401ea102a"
         },
         {
-          "var": "35:288782abaaebc94b"
+          "var": "35:a2118bf386e122b0"
         },
         {
-          "var": "36:ccc027a7405191ac"
+          "node": "36:be8e71a9ebd7b898"
         },
         {
-          "var": "37:bdc4df3666c5c5a8"
+          "var": "37:45da367fa6269717"
         },
         {
-          "var": "38:6d1000722316f862"
+          "var": "38:3f94c2a0fa989e04"
         },
         {
-          "node": "39:f79efc05f2e79c19"
+          "var": "39:2e308333d402e0df"
         },
         {
-          "var": "40:801a110b9ea72aa0"
+          "var": "40:4fad33240430f7ff"
         },
         {
-          "var": "41:9a7de03c248bc729"
+          "var": "41:d56be14bbe8d039e"
         },
         {
-          "var": "42:c276c55e3c513458"
+          "var": "42:f184e9ed06265f52"
         },
         {
-          "var": "43:31caf25f2e1aa6ea"
+          "var": "43:b89eaa12001cbcbf"
         },
         {
-          "var": "44:c97186448f87167a"
+          "var": "44:b4fe3cc80925705e"
         },
         {
-          "var": "45:237140f6177aa9fd"
+          "var": "45:0ea101013b894677"
         },
         {
-          "node": "46:daa0cf52274adeb3"
+          "var": "46:c3c9c8f00f6c636e"
         },
         {
-          "step": "47:28ca213055051c1e"
+          "var": "47:3bb391c3924a55a3"
         },
         {
-          "step": "48:01d1441be65379a5"
+          "var": "48:9652e370defb96d3"
         },
         {
-          "step": "49:fa9ec9ffa573b237"
+          "var": "49:30988084bed69cd1"
         },
         {
-          "var": "50:5f65c49b75b1c20f"
+          "var": "50:eb38d80d7edb5e4a"
         },
         {
-          "var": "51:53a5e5aa138dbe61"
+          "var": "51:548a8aa7caa6613f"
         },
         {
-          "var": "52:1938fa8f40238267"
+          "var": "52:cf0c0d67a986f95d"
         },
         {
-          "var": "53:055319bb0582eb4f"
+          "var": "53:f62ddbba628185d0"
         },
         {
-          "var": "54:55c9039369bc0638"
+          "var": "54:797130dffc3de34d"
         },
         {
-          "node": "55:766405aa9f9c021a"
+          "var": "55:e0fabd36c9993d2e"
         },
         {
-          "var": "56:82b75aead7588230"
+          "var": "56:e3f66d85a5252903"
         },
         {
-          "var": "57:07ba6aa9e02798ee"
+          "var": "57:726f4bc89cd5712a"
         },
         {
-          "node": "58:1886985c0b56f229"
+          "var": "58:f0f4c3155bfc7aca"
         },
         {
-          "var": "59:cd6e9b33ca143180"
+          "var": "59:1e07e7f170635bbb"
         },
         {
-          "node": "60:7696d89a98ddca19"
+          "var": "60:3248612565dc326c"
         },
         {
-          "var": "61:2ca1b132d6a6b941"
+          "var": "61:937de15286b4c071"
         },
         {
-          "node": "62:c6424ce65c4dd5f1"
+          "var": "62:80f3063a046777f1"
         },
         {
-          "var": "63:81e4a37344acd62d"
+          "var": "63:8109d81c70a87765"
         },
         {
-          "constraint": "64:ff588446501f6bec"
+          "var": "64:277d07a14340c33a"
+        },
+        {
+          "var": "65:d56c801f51f61280"
+        },
+        {
+          "var": "66:103356270f37b9ce"
+        },
+        {
+          "var": "67:9e370486d8f3439d"
+        },
+        {
+          "var": "68:aff643e135c19eb1"
+        },
+        {
+          "var": "69:965c1566bfd4d1a0"
+        },
+        {
+          "var": "70:f57e4c45562a2d9f"
+        },
+        {
+          "var": "71:51bb5cc0e10280a3"
+        },
+        {
+          "var": "72:2c2e841bd0729ef2"
+        },
+        {
+          "var": "73:d671b3311128d82e"
+        },
+        {
+          "var": "74:3870efb4d136aee0"
+        },
+        {
+          "var": "75:1d44b6250d1a0630"
+        },
+        {
+          "var": "76:a5dc3c3372636283"
+        },
+        {
+          "var": "77:ab70a5cd6bf5dd56"
+        },
+        {
+          "var": "78:fc041a1ffbe97b8d"
+        },
+        {
+          "var": "79:f9b41c271ff429d7"
+        },
+        {
+          "var": "80:08974d06a385834c"
+        },
+        {
+          "var": "81:97b83b987ebcca1c"
+        },
+        {
+          "var": "82:686654ea956e4eca"
+        },
+        {
+          "var": "83:402b051df4d877c0"
+        },
+        {
+          "var": "84:1d39ddbf00073f9c"
+        },
+        {
+          "var": "85:3a9b0c871c24719c"
+        },
+        {
+          "var": "86:e8ebe2af679b9984"
+        },
+        {
+          "var": "87:3d88fbfa1e3bad0d"
+        },
+        {
+          "var": "88:19f0e2761ca85656"
+        },
+        {
+          "var": "89:f45a550acda64081"
+        },
+        {
+          "var": "90:fcfefb4206752c48"
+        },
+        {
+          "var": "91:34bf1d59ddb0189b"
+        },
+        {
+          "constraint": "92:5c7584e34e8f1d2a"
+        },
+        {
+          "var": "93:dc139a0a62cd0e43"
+        },
+        {
+          "constraint": "94:83fcb73ff51390f3"
+        },
+        {
+          "var": "95:dfd8379d34f1b385"
+        },
+        {
+          "constraint": "96:cafe91a31bada4b9"
+        },
+        {
+          "node": "97:f7da12958f511bcf"
+        },
+        {
+          "var": "98:4d40c602ce4faa17"
+        },
+        {
+          "node": "99:8e839837a2a66606"
+        },
+        {
+          "var": "100:d9ea1b0eea687274"
+        },
+        {
+          "node": "101:db58e95e035b8bae"
+        },
+        {
+          "var": "102:37153dc845d863a7"
+        },
+        {
+          "var": "103:842f598a45ad8ecc"
+        },
+        {
+          "var": "104:ee4c249e7eaf8e28"
+        },
+        {
+          "var": "105:5aa7905273501a92"
+        },
+        {
+          "var": "106:1e12bf7618796a3f"
+        },
+        {
+          "var": "107:9a367068114da951"
+        },
+        {
+          "constraint": "108:b853701cc4a94d28"
+        },
+        {
+          "var": "109:dc9bc93370a91c45"
+        },
+        {
+          "constraint": "110:4d5b20cad3b2d929"
+        },
+        {
+          "var": "111:55b4ebaa47a6648c"
+        },
+        {
+          "constraint": "112:ca7613cd6a34bd14"
+        },
+        {
+          "var": "113:aedc9b7c2ee8b90a"
+        },
+        {
+          "constraint": "114:8c40ecb0fbb34cba"
         }
       ]
     },
     "nodes": {
-      "10:54a0180a83275575": {
-        "Datum": {
-          "Frame": {
-            "origin": [
-              "1:b639d844bab8e826",
-              "2:74af9d633a64b77a",
-              "3:fb5fef638c30912c"
-            ],
-            "u": [
-              "4:ee1d73a8dc8f8ad6",
-              "5:f9047724cc168290",
-              "6:2fdd1f61b8b90439"
-            ],
-            "v": [
-              "7:5cdde09d996c5c61",
-              "8:af949e9d2cd2d001",
-              "9:135249424cb8e0e7"
-            ]
-          }
-        }
-      },
-      "20:5d3677d1aef0a374": {
+      "9:b5f34a51587e847a": {
         "Profile": {
-          "frame": "11:7b9b7a031545bc84",
           "loops": [
             {
               "Chain": [
                 {
                   "At": [
-                    "12:aa1a1f25549ff844",
-                    "13:ce0b2c4bfce400e2"
+                    "1:b639d844bab8e826",
+                    "2:74af9d633a64b77a"
                   ]
                 },
                 {
                   "LineTo": {
                     "Point": [
-                      "14:826a2b7c495117a7",
-                      "15:74ce4ff170398ca6"
+                      "3:e49b83e35d1cfaf8",
+                      "4:9c83dccc6e32d7b3"
                     ]
                   }
                 },
                 {
                   "LineTo": {
                     "Point": [
-                      "16:4b36daafb7685c2b",
-                      "17:c9a0e5f82154ce3e"
+                      "5:d786bf1ceccb8f00",
+                      "6:23ee116d75b4556b"
                     ]
                   }
                 },
                 {
                   "LineTo": {
                     "Point": [
-                      "18:73bc05541afded5a",
-                      "19:e51d8c264d945b32"
+                      "7:455ba71f3c08cba1",
+                      "8:4665cdc912ba37b9"
                     ]
                   }
                 },
@@ -265,53 +393,30 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           ],
           "ids": [
             [
-              "21:ae34add78b7ea48a",
-              "22:70582777f9ca6644",
-              "23:4df88acc4cd4fe3b",
-              "24:5707c53a0beed936",
-              "25:7cea4ca1c534224b"
+              "10:f91a0724eaf428d4",
+              "11:1727f41743e500c9",
+              "12:40ebf48fc1ce9abb",
+              "13:5515fee17d00383e",
+              "14:74e05563fbf673eb"
             ]
           ]
         }
       },
-      "28:065cfa8f90376363": {
+      "17:4a08cd5c982f47a4": {
         "Extrude": {
-          "profile": "26:d6ccb3c855b31ba1",
-          "distance": "27:cf9cbcda75e9219b",
-          "side": "along"
+          "profile": "15:11be59149cf7b592",
+          "distance": "16:a2264ed7bb3bdcb7"
         }
       },
-      "39:f79efc05f2e79c19": {
-        "Datum": {
-          "Frame": {
-            "origin": [
-              "30:5da610e5f417f58f",
-              "31:1ee512046863ead1",
-              "32:6b3cf6a198e312d6"
-            ],
-            "u": [
-              "33:05d24fe71f647b91",
-              "34:889fa941276f8ad8",
-              "35:288782abaaebc94b"
-            ],
-            "v": [
-              "36:ccc027a7405191ac",
-              "37:bdc4df3666c5c5a8",
-              "38:6d1000722316f862"
-            ]
-          }
-        }
-      },
-      "46:daa0cf52274adeb3": {
+      "24:b6d668634b4dc64f": {
         "Profile": {
-          "frame": "40:801a110b9ea72aa0",
           "loops": [
             {
               "Chain": [
                 {
                   "At": [
-                    "41:9a7de03c248bc729",
-                    "42:c276c55e3c513458"
+                    "19:ae66a0e852f6d1b7",
+                    "20:1236dc2430cdaf45"
                   ]
                 },
                 {
@@ -319,11 +424,11 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
                     "Bulge": {
                       "target": {
                         "Point": [
-                          "43:31caf25f2e1aa6ea",
-                          "44:c97186448f87167a"
+                          "21:27f89ab25dbd72ac",
+                          "22:8810bd6d35c97414"
                         ]
                       },
-                      "b": "45:237140f6177aa9fd"
+                      "b": "23:348f85d6c8fc56ed"
                     }
                   }
                 },
@@ -335,27 +440,70 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           ],
           "ids": [
             [
-              "47:28ca213055051c1e",
-              "48:01d1441be65379a5",
-              "49:fa9ec9ffa573b237"
+              "25:54386ed1dc9de1e7",
+              "26:edf4faf233dae769",
+              "27:cf099f2091c25994"
             ]
           ]
         }
       },
-      "55:766405aa9f9c021a": {
+      "33:e7c5b589c59e7d3a": {
         "Revolve": {
-          "profile": "50:5f65c49b75b1c20f",
+          "profile": "28:bb93e8fba2c6d7e6",
           "axis_through": [
-            "51:53a5e5aa138dbe61",
-            "52:1938fa8f40238267"
+            "29:11d0cd36f8e4481a",
+            "30:55b01105efc84e0b"
           ],
-          "axis_heading": "53:055319bb0582eb4f",
-          "angle": "54:55c9039369bc0638"
+          "axis_heading": "31:b6ab5be49829bce3",
+          "angle": "32:4b24e538f45e4c2c"
         }
       },
-      "58:1886985c0b56f229": {
+      "36:be8e71a9ebd7b898": {
+        "Place": {
+          "shapes": [
+            "34:cd8cfc8401ea102a"
+          ],
+          "constraints": [
+            {
+              "id": "92:5c7584e34e8f1d2a",
+              "kind": {
+                "mate": {
+                  "on": "35:a2118bf386e122b0",
+                  "to": {
+                    "pose": "91:34bf1d59ddb0189b"
+                  },
+                  "class": "rest"
+                }
+              }
+            },
+            {
+              "id": "94:83fcb73ff51390f3",
+              "kind": {
+                "value": {
+                  "mate": "92:5c7584e34e8f1d2a",
+                  "coord": {
+                    "slide": "z"
+                  },
+                  "by": "93:dc139a0a62cd0e43"
+                }
+              }
+            },
+            {
+              "id": "96:cafe91a31bada4b9",
+              "kind": {
+                "value": {
+                  "mate": "92:5c7584e34e8f1d2a",
+                  "coord": "spin",
+                  "by": "95:dfd8379d34f1b385"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "97:f7da12958f511bcf": {
         "PlacedUnion": {
-          "input": "56:82b75aead7588230",
+          "input": "37:45da367fa6269717",
           "count": null,
           "kind": {
             "Explicit": [
@@ -507,22 +655,100 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "60:7696d89a98ddca19": {
+      "99:8e839837a2a66606": {
         "Subtract": {
-          "from": "29:9117322ce802f579",
-          "tool": "59:cd6e9b33ca143180"
+          "from": "18:608252c10d916cfe",
+          "tool": "98:4d40c602ce4faa17"
         }
       },
-      "62:c6424ce65c4dd5f1": {
+      "101:db58e95e035b8bae": {
         "Place": {
           "shapes": [
-            "61:2ca1b132d6a6b941"
+            "100:d9ea1b0eea687274"
           ],
           "constraints": [
             {
-              "id": "64:ff588446501f6bec",
+              "id": "108:b853701cc4a94d28",
               "kind": {
-                "world_pin": "identity"
+                "mate": {
+                  "on": "104:ee4c249e7eaf8e28",
+                  "to": {
+                    "world": {
+                      "role": {
+                        "pose": {
+                          "slide": {
+                            "pose": {
+                              "slide": {
+                                "pose": {
+                                  "slide": {
+                                    "pose": "frame",
+                                    "along": {
+                                      "role": {
+                                        "pose": "frame",
+                                        "role": "X"
+                                      }
+                                    },
+                                    "by": "105:5aa7905273501a92"
+                                  }
+                                },
+                                "along": {
+                                  "role": {
+                                    "pose": "frame",
+                                    "role": "Y"
+                                  }
+                                },
+                                "by": "106:1e12bf7618796a3f"
+                              }
+                            },
+                            "along": {
+                              "role": {
+                                "pose": "frame",
+                                "role": "Z"
+                              }
+                            },
+                            "by": "107:9a367068114da951"
+                          }
+                        },
+                        "role": "Xy"
+                      }
+                    }
+                  },
+                  "class": "rest"
+                }
+              }
+            },
+            {
+              "id": "110:4d5b20cad3b2d929",
+              "kind": {
+                "value": {
+                  "mate": "108:b853701cc4a94d28",
+                  "coord": {
+                    "slide": "x"
+                  },
+                  "by": "109:dc9bc93370a91c45"
+                }
+              }
+            },
+            {
+              "id": "112:ca7613cd6a34bd14",
+              "kind": {
+                "value": {
+                  "mate": "108:b853701cc4a94d28",
+                  "coord": {
+                    "slide": "y"
+                  },
+                  "by": "111:55b4ebaa47a6648c"
+                }
+              }
+            },
+            {
+              "id": "114:8c40ecb0fbb34cba",
+              "kind": {
+                "value": {
+                  "mate": "108:b853701cc4a94d28",
+                  "coord": "spin",
+                  "by": "113:aedc9b7c2ee8b90a"
+                }
               }
             }
           ]
@@ -554,124 +780,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "3:fb5fef638c30912c": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.0,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "4:ee1d73a8dc8f8ad6": {
-        "kind": "Scalar",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Scalar",
-              "value": 1.0,
-              "display_unit": ""
-            }
-          }
-        }
-      },
-      "5:f9047724cc168290": {
-        "kind": "Scalar",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Scalar",
-              "value": 0.0,
-              "display_unit": ""
-            }
-          }
-        }
-      },
-      "6:2fdd1f61b8b90439": {
-        "kind": "Scalar",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Scalar",
-              "value": 0.0,
-              "display_unit": ""
-            }
-          }
-        }
-      },
-      "7:5cdde09d996c5c61": {
-        "kind": "Scalar",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Scalar",
-              "value": 0.0,
-              "display_unit": ""
-            }
-          }
-        }
-      },
-      "8:af949e9d2cd2d001": {
-        "kind": "Scalar",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Scalar",
-              "value": 1.0,
-              "display_unit": ""
-            }
-          }
-        }
-      },
-      "9:135249424cb8e0e7": {
-        "kind": "Scalar",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Scalar",
-              "value": 0.0,
-              "display_unit": ""
-            }
-          }
-        }
-      },
-      "11:7b9b7a031545bc84": {
-        "kind": "Frame",
-        "def": {
-          "Output": {
-            "node": "10:54a0180a83275575",
-            "port": 0
-          }
-        }
-      },
-      "12:aa1a1f25549ff844": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.0,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "13:ce0b2c4bfce400e2": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.0,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "14:826a2b7c495117a7": {
+      "3:e49b83e35d1cfaf8": {
         "kind": "Length",
         "def": {
           "Free": {
@@ -683,7 +792,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "15:74ce4ff170398ca6": {
+      "4:9c83dccc6e32d7b3": {
         "kind": "Length",
         "def": {
           "Free": {
@@ -695,7 +804,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "16:4b36daafb7685c2b": {
+      "5:d786bf1ceccb8f00": {
         "kind": "Length",
         "def": {
           "Free": {
@@ -707,7 +816,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "17:c9a0e5f82154ce3e": {
+      "6:23ee116d75b4556b": {
         "kind": "Length",
         "def": {
           "Free": {
@@ -719,7 +828,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "18:73bc05541afded5a": {
+      "7:455ba71f3c08cba1": {
         "kind": "Length",
         "def": {
           "Free": {
@@ -731,7 +840,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "19:e51d8c264d945b32": {
+      "8:4665cdc912ba37b9": {
         "kind": "Length",
         "def": {
           "Free": {
@@ -743,16 +852,16 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "26:d6ccb3c855b31ba1": {
+      "15:11be59149cf7b592": {
         "kind": "Profile",
         "def": {
           "Output": {
-            "node": "20:5d3677d1aef0a374",
+            "node": "9:b5f34a51587e847a",
             "port": 0
           }
         }
       },
-      "27:cf9cbcda75e9219b": {
+      "16:a2264ed7bb3bdcb7": {
         "kind": "Length",
         "def": {
           "Free": {
@@ -764,16 +873,16 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "29:9117322ce802f579": {
+      "18:608252c10d916cfe": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "28:065cfa8f90376363",
+            "node": "17:4a08cd5c982f47a4",
             "port": 0
           }
         }
       },
-      "30:5da610e5f417f58f": {
+      "19:ae66a0e852f6d1b7": {
         "kind": "Length",
         "def": {
           "Free": {
@@ -785,124 +894,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "31:1ee512046863ead1": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.0,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "32:6b3cf6a198e312d6": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.0,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "33:05d24fe71f647b91": {
-        "kind": "Scalar",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Scalar",
-              "value": 1.0,
-              "display_unit": ""
-            }
-          }
-        }
-      },
-      "34:889fa941276f8ad8": {
-        "kind": "Scalar",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Scalar",
-              "value": 0.0,
-              "display_unit": ""
-            }
-          }
-        }
-      },
-      "35:288782abaaebc94b": {
-        "kind": "Scalar",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Scalar",
-              "value": 0.0,
-              "display_unit": ""
-            }
-          }
-        }
-      },
-      "36:ccc027a7405191ac": {
-        "kind": "Scalar",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Scalar",
-              "value": 0.0,
-              "display_unit": ""
-            }
-          }
-        }
-      },
-      "37:bdc4df3666c5c5a8": {
-        "kind": "Scalar",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Scalar",
-              "value": 0.0,
-              "display_unit": ""
-            }
-          }
-        }
-      },
-      "38:6d1000722316f862": {
-        "kind": "Scalar",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Scalar",
-              "value": 1.0,
-              "display_unit": ""
-            }
-          }
-        }
-      },
-      "40:801a110b9ea72aa0": {
-        "kind": "Frame",
-        "def": {
-          "Output": {
-            "node": "39:f79efc05f2e79c19",
-            "port": 0
-          }
-        }
-      },
-      "41:9a7de03c248bc729": {
-        "kind": "Length",
-        "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.0,
-              "display_unit": "m"
-            }
-          }
-        }
-      },
-      "42:c276c55e3c513458": {
+      "20:1236dc2430cdaf45": {
         "kind": "Length",
         "def": {
           "Free": {
@@ -914,7 +906,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "43:31caf25f2e1aa6ea": {
+      "21:27f89ab25dbd72ac": {
         "kind": "Length",
         "def": {
           "Free": {
@@ -926,7 +918,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "44:c97186448f87167a": {
+      "22:8810bd6d35c97414": {
         "kind": "Length",
         "def": {
           "Free": {
@@ -938,7 +930,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "45:237140f6177aa9fd": {
+      "23:348f85d6c8fc56ed": {
         "kind": "Scalar",
         "def": {
           "Free": {
@@ -950,40 +942,32 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "50:5f65c49b75b1c20f": {
+      "28:bb93e8fba2c6d7e6": {
         "kind": "Profile",
         "def": {
           "Output": {
-            "node": "46:daa0cf52274adeb3",
+            "node": "24:b6d668634b4dc64f",
             "port": 0
           }
         }
       },
-      "51:53a5e5aa138dbe61": {
+      "29:11d0cd36f8e4481a": {
         "kind": "Length",
         "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.0,
-              "display_unit": "m"
-            }
+          "Defined": {
+            "Zero": "Length"
           }
         }
       },
-      "52:1938fa8f40238267": {
+      "30:55b01105efc84e0b": {
         "kind": "Length",
         "def": {
-          "Free": {
-            "Continuous": {
-              "dim": "Length",
-              "value": 0.0,
-              "display_unit": "m"
-            }
+          "Defined": {
+            "Zero": "Length"
           }
         }
       },
-      "53:055319bb0582eb4f": {
+      "31:b6ab5be49829bce3": {
         "kind": "Angle",
         "def": {
           "Defined": {
@@ -999,7 +983,7 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "54:55c9039369bc0638": {
+      "32:4b24e538f45e4c2c": {
         "kind": "Angle",
         "def": {
           "Free": {
@@ -1011,48 +995,1045 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "56:82b75aead7588230": {
+      "34:cd8cfc8401ea102a": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "55:766405aa9f9c021a",
+            "node": "33:e7c5b589c59e7d3a",
             "port": 0
           }
         }
       },
-      "57:07ba6aa9e02798ee": {
+      "35:a2118bf386e122b0": {
         "kind": "Axis",
         "def": {
           "Output": {
-            "node": "55:766405aa9f9c021a",
+            "node": "33:e7c5b589c59e7d3a",
             "port": 1
           }
         }
       },
-      "59:cd6e9b33ca143180": {
+      "37:45da367fa6269717": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "58:1886985c0b56f229",
+            "node": "36:be8e71a9ebd7b898",
             "port": 0
           }
         }
       },
-      "61:2ca1b132d6a6b941": {
+      "38:3f94c2a0fa989e04": {
+        "kind": "Edge",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Edge",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "RimEdge": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "11:1727f41743e500c9",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "39:2e308333d402e0df": {
+        "kind": "Axis",
+        "def": {
+          "Pose": {
+            "Axis": {
+              "of": "38:3f94c2a0fa989e04"
+            }
+          }
+        }
+      },
+      "40:4fad33240430f7ff": {
+        "kind": "Vertex",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Vertex",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "CapVertex": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "13:5515fee17d00383e",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "41:d56be14bbe8d039e": {
+        "kind": "Point",
+        "def": {
+          "Pose": {
+            "Point": {
+              "of": "40:4fad33240430f7ff"
+            }
+          }
+        }
+      },
+      "42:f184e9ed06265f52": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Through": {
+              "axis": "39:2e308333d402e0df",
+              "point": "41:d56be14bbe8d039e"
+            }
+          }
+        }
+      },
+      "43:b89eaa12001cbcbf": {
+        "kind": "Edge",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Edge",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "RimEdge": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "11:1727f41743e500c9",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "44:b4fe3cc80925705e": {
+        "kind": "Axis",
+        "def": {
+          "Pose": {
+            "Axis": {
+              "of": "43:b89eaa12001cbcbf"
+            }
+          }
+        }
+      },
+      "45:0ea101013b894677": {
+        "kind": "Vertex",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Vertex",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "CapVertex": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "13:5515fee17d00383e",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "46:c3c9c8f00f6c636e": {
+        "kind": "Point",
+        "def": {
+          "Pose": {
+            "Point": {
+              "of": "45:0ea101013b894677"
+            }
+          }
+        }
+      },
+      "47:3bb391c3924a55a3": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Through": {
+              "axis": "44:b4fe3cc80925705e",
+              "point": "46:c3c9c8f00f6c636e"
+            }
+          }
+        }
+      },
+      "48:9652e370defb96d3": {
+        "kind": "Angle",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Angle",
+              "value": -1.5707963267948966,
+              "display_unit": "rad"
+            }
+          }
+        }
+      },
+      "49:30988084bed69cd1": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Spin": {
+              "pose": "42:f184e9ed06265f52",
+              "about": {
+                "read": "47:3bb391c3924a55a3",
+                "role": "X"
+              },
+              "by": "48:9652e370defb96d3"
+            }
+          }
+        }
+      },
+      "50:eb38d80d7edb5e4a": {
+        "kind": "Edge",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Edge",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "RimEdge": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "11:1727f41743e500c9",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "51:548a8aa7caa6613f": {
+        "kind": "Axis",
+        "def": {
+          "Pose": {
+            "Axis": {
+              "of": "50:eb38d80d7edb5e4a"
+            }
+          }
+        }
+      },
+      "52:cf0c0d67a986f95d": {
+        "kind": "Vertex",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Vertex",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "CapVertex": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "13:5515fee17d00383e",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "53:f62ddbba628185d0": {
+        "kind": "Point",
+        "def": {
+          "Pose": {
+            "Point": {
+              "of": "52:cf0c0d67a986f95d"
+            }
+          }
+        }
+      },
+      "54:797130dffc3de34d": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Through": {
+              "axis": "51:548a8aa7caa6613f",
+              "point": "53:f62ddbba628185d0"
+            }
+          }
+        }
+      },
+      "55:e0fabd36c9993d2e": {
+        "kind": "Angle",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Angle",
+              "value": -1.5707963267948966,
+              "display_unit": "rad"
+            }
+          }
+        }
+      },
+      "56:e3f66d85a5252903": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Spin": {
+              "pose": "49:30988084bed69cd1",
+              "about": {
+                "read": "54:797130dffc3de34d",
+                "role": "Y"
+              },
+              "by": "55:e0fabd36c9993d2e"
+            }
+          }
+        }
+      },
+      "57:726f4bc89cd5712a": {
+        "kind": "Edge",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Edge",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "RimEdge": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "11:1727f41743e500c9",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "58:f0f4c3155bfc7aca": {
+        "kind": "Axis",
+        "def": {
+          "Pose": {
+            "Axis": {
+              "of": "57:726f4bc89cd5712a"
+            }
+          }
+        }
+      },
+      "59:1e07e7f170635bbb": {
+        "kind": "Vertex",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Vertex",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "CapVertex": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "13:5515fee17d00383e",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "60:3248612565dc326c": {
+        "kind": "Point",
+        "def": {
+          "Pose": {
+            "Point": {
+              "of": "59:1e07e7f170635bbb"
+            }
+          }
+        }
+      },
+      "61:937de15286b4c071": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Through": {
+              "axis": "58:f0f4c3155bfc7aca",
+              "point": "60:3248612565dc326c"
+            }
+          }
+        }
+      },
+      "62:80f3063a046777f1": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": -1.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "63:8109d81c70a87765": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Slide": {
+              "pose": "56:e3f66d85a5252903",
+              "along": {
+                "read": "61:937de15286b4c071",
+                "role": "Z"
+              },
+              "by": "62:80f3063a046777f1"
+            }
+          }
+        }
+      },
+      "64:277d07a14340c33a": {
+        "kind": "Edge",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Edge",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "RimEdge": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "11:1727f41743e500c9",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "65:d56c801f51f61280": {
+        "kind": "Axis",
+        "def": {
+          "Pose": {
+            "Axis": {
+              "of": "64:277d07a14340c33a"
+            }
+          }
+        }
+      },
+      "66:103356270f37b9ce": {
+        "kind": "Vertex",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Vertex",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "CapVertex": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "13:5515fee17d00383e",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "67:9e370486d8f3439d": {
+        "kind": "Point",
+        "def": {
+          "Pose": {
+            "Point": {
+              "of": "66:103356270f37b9ce"
+            }
+          }
+        }
+      },
+      "68:aff643e135c19eb1": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Through": {
+              "axis": "65:d56c801f51f61280",
+              "point": "67:9e370486d8f3439d"
+            }
+          }
+        }
+      },
+      "69:965c1566bfd4d1a0": {
+        "kind": "Edge",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Edge",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "RimEdge": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "11:1727f41743e500c9",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "70:f57e4c45562a2d9f": {
+        "kind": "Axis",
+        "def": {
+          "Pose": {
+            "Axis": {
+              "of": "69:965c1566bfd4d1a0"
+            }
+          }
+        }
+      },
+      "71:51bb5cc0e10280a3": {
+        "kind": "Vertex",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Vertex",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "CapVertex": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "13:5515fee17d00383e",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "72:2c2e841bd0729ef2": {
+        "kind": "Point",
+        "def": {
+          "Pose": {
+            "Point": {
+              "of": "71:51bb5cc0e10280a3"
+            }
+          }
+        }
+      },
+      "73:d671b3311128d82e": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Through": {
+              "axis": "70:f57e4c45562a2d9f",
+              "point": "72:2c2e841bd0729ef2"
+            }
+          }
+        }
+      },
+      "74:3870efb4d136aee0": {
+        "kind": "Angle",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Angle",
+              "value": -1.5707963267948966,
+              "display_unit": "rad"
+            }
+          }
+        }
+      },
+      "75:1d44b6250d1a0630": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Spin": {
+              "pose": "68:aff643e135c19eb1",
+              "about": {
+                "read": "73:d671b3311128d82e",
+                "role": "X"
+              },
+              "by": "74:3870efb4d136aee0"
+            }
+          }
+        }
+      },
+      "76:a5dc3c3372636283": {
+        "kind": "Edge",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Edge",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "RimEdge": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "11:1727f41743e500c9",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "77:ab70a5cd6bf5dd56": {
+        "kind": "Axis",
+        "def": {
+          "Pose": {
+            "Axis": {
+              "of": "76:a5dc3c3372636283"
+            }
+          }
+        }
+      },
+      "78:fc041a1ffbe97b8d": {
+        "kind": "Vertex",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Vertex",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "CapVertex": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "13:5515fee17d00383e",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "79:f9b41c271ff429d7": {
+        "kind": "Point",
+        "def": {
+          "Pose": {
+            "Point": {
+              "of": "78:fc041a1ffbe97b8d"
+            }
+          }
+        }
+      },
+      "80:08974d06a385834c": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Through": {
+              "axis": "77:ab70a5cd6bf5dd56",
+              "point": "79:f9b41c271ff429d7"
+            }
+          }
+        }
+      },
+      "81:97b83b987ebcca1c": {
+        "kind": "Angle",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Angle",
+              "value": -1.5707963267948966,
+              "display_unit": "rad"
+            }
+          }
+        }
+      },
+      "82:686654ea956e4eca": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Spin": {
+              "pose": "75:1d44b6250d1a0630",
+              "about": {
+                "read": "80:08974d06a385834c",
+                "role": "Y"
+              },
+              "by": "81:97b83b987ebcca1c"
+            }
+          }
+        }
+      },
+      "83:402b051df4d877c0": {
+        "kind": "Edge",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Edge",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "RimEdge": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "11:1727f41743e500c9",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "84:1d39ddbf00073f9c": {
+        "kind": "Axis",
+        "def": {
+          "Pose": {
+            "Axis": {
+              "of": "83:402b051df4d877c0"
+            }
+          }
+        }
+      },
+      "85:3a9b0c871c24719c": {
+        "kind": "Vertex",
+        "def": {
+          "Select": {
+            "body": "18:608252c10d916cfe",
+            "names": [
+              {
+                "kind": "Vertex",
+                "node": "17:4a08cd5c982f47a4",
+                "path": [
+                  {
+                    "CapVertex": [
+                      "Start",
+                      {
+                        "Piece": {
+                          "step": "13:5515fee17d00383e",
+                          "role": "Leg"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "86:e8ebe2af679b9984": {
+        "kind": "Point",
+        "def": {
+          "Pose": {
+            "Point": {
+              "of": "85:3a9b0c871c24719c"
+            }
+          }
+        }
+      },
+      "87:3d88fbfa1e3bad0d": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Through": {
+              "axis": "84:1d39ddbf00073f9c",
+              "point": "86:e8ebe2af679b9984"
+            }
+          }
+        }
+      },
+      "88:19f0e2761ca85656": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": -1.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "89:f45a550acda64081": {
+        "kind": "Frame",
+        "def": {
+          "Pose": {
+            "Slide": {
+              "pose": "82:686654ea956e4eca",
+              "along": {
+                "read": "87:3d88fbfa1e3bad0d",
+                "role": "Z"
+              },
+              "by": "88:19f0e2761ca85656"
+            }
+          }
+        }
+      },
+      "90:fcfefb4206752c48": {
+        "kind": "Length",
+        "def": {
+          "Defined": {
+            "Zero": "Length"
+          }
+        }
+      },
+      "91:34bf1d59ddb0189b": {
+        "kind": "Axis",
+        "def": {
+          "Pose": {
+            "Slide": {
+              "pose": {
+                "read": "63:8109d81c70a87765",
+                "role": "Z"
+              },
+              "along": {
+                "read": "89:f45a550acda64081",
+                "role": "Z"
+              },
+              "by": "90:fcfefb4206752c48"
+            }
+          }
+        }
+      },
+      "93:dc139a0a62cd0e43": {
+        "kind": "Length",
+        "def": {
+          "Defined": {
+            "Zero": "Length"
+          }
+        }
+      },
+      "95:dfd8379d34f1b385": {
+        "kind": "Angle",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Angle",
+              "value": 6.123233995736766e-17,
+              "display_unit": "rad"
+            }
+          }
+        }
+      },
+      "98:4d40c602ce4faa17": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "60:7696d89a98ddca19",
+            "node": "97:f7da12958f511bcf",
             "port": 0
           }
         }
       },
-      "63:81e4a37344acd62d": {
+      "100:d9ea1b0eea687274": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "62:c6424ce65c4dd5f1",
+            "node": "99:8e839837a2a66606",
             "port": 0
+          }
+        }
+      },
+      "102:37153dc845d863a7": {
+        "kind": "Body",
+        "def": {
+          "Output": {
+            "node": "101:db58e95e035b8bae",
+            "port": 0
+          }
+        }
+      },
+      "103:842f598a45ad8ecc": {
+        "kind": "Face",
+        "def": {
+          "Select": {
+            "body": "100:d9ea1b0eea687274",
+            "names": [
+              {
+                "kind": "Face",
+                "node": "99:8e839837a2a66606",
+                "path": [
+                  {
+                    "From": {
+                      "read": "18:608252c10d916cfe",
+                      "of": {
+                        "kind": "Face",
+                        "node": "17:4a08cd5c982f47a4",
+                        "path": [
+                          {
+                            "Cap": "End"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "104:ee4c249e7eaf8e28": {
+        "kind": "Plane",
+        "def": {
+          "Pose": {
+            "Plane": {
+              "face": "103:842f598a45ad8ecc"
+            }
+          }
+        }
+      },
+      "105:5aa7905273501a92": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.5,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "106:1e12bf7618796a3f": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.5,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "107:9a367068114da951": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 1.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "109:dc9bc93370a91c45": {
+        "kind": "Length",
+        "def": {
+          "Defined": {
+            "Zero": "Length"
+          }
+        }
+      },
+      "111:55b4ebaa47a6648c": {
+        "kind": "Length",
+        "def": {
+          "Defined": {
+            "Zero": "Length"
+          }
+        }
+      },
+      "113:aedc9b7c2ee8b90a": {
+        "kind": "Angle",
+        "def": {
+          "Defined": {
+            "Zero": "Angle"
           }
         }
       }

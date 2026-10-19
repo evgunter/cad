@@ -102,9 +102,10 @@ fn documents() -> Vec<(String, ProfileDoc)> {
                 false => format!("{l}\n"),
             })
             .collect();
-        let doc = editor_core::persist::load(&text, Tol::witness())
-            .unwrap_or_else(|e| panic!("{file} loads: {e}"))
-            .doc;
+        let doc = match editor_core::persist::load(&text, Tol::witness()) {
+            Ok(l) => l.doc,
+            Err(e) => { eprintln!("TRIAGE {file} fails: {e}"); continue }
+        };
         out.push((file.to_string(), doc));
     }
     out

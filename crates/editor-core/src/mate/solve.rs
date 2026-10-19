@@ -128,6 +128,30 @@ pub trait SolveScalar: Decide {
     fn exactly_zero(self) -> bool {
         false
     }
+
+    /// **Whether [`Self::with_rest`] leaves `map` as it is**: its
+    /// enclosure already holds the identity. A lane that keeps its map
+    /// whole answers `true`.
+    fn holds_rest(_map: &Affine3<Self>) -> bool {
+        true
+    }
+
+    /// ZZN probe.
+    fn zz_lohi(self) -> (f64, f64) {
+        (self.quoted(), self.quoted())
+    }
+}
+
+/// ZZN probe.
+pub(crate) fn zz_v<T: SolveScalar>(label: &str, vs: &[geom_core::linalg::Vec3<T>]) {
+    if std::env::var_os("ZZN").is_none() { return; }
+    let mut out = String::new();
+    for c in vs { out.push_str(" |"); for e in [c.x, c.y, c.z] { let (lo, hi) = e.zz_lohi(); out.push_str(&format!(" {:.6}±{:.2e}", 0.5*lo+0.5*hi, 0.5*(hi-lo))); } }
+    eprintln!("ZZN {label}:{out}");
+}
+pub(crate) fn zz_s<T: SolveScalar>(label: &str, e: T) {
+    if std::env::var_os("ZZN").is_none() { return; }
+    let (lo, hi) = e.zz_lohi(); eprintln!("ZZN {label}: [{lo:e}, {hi:e}]");
 }
 
 impl SolveScalar for f64 {
@@ -519,20 +543,28 @@ pub(crate) fn admitted<T: SolveScalar>(
 /// exactly, where a box lane's normalisation of a length it cannot
 /// cancel against itself leaves the third coordinate wider than one.
 fn on_its_axis<T: SolveScalar>(d: geom_core::UnitVec3<T>) -> geom_core::UnitVec3<T> {
+    on_an_axis(d.get()).unwrap_or(d)
+}
+
+/// **The axis a direction two of whose coordinates are exactly zero
+/// is**, its sign the third coordinate's where its bounds decide it
+/// with no band, read exactly: `None` for any other direction.
+pub(crate) fn on_an_axis<T: SolveScalar>(
+    v: geom_core::linalg::Vec3<T>,
+) -> Option<geom_core::UnitVec3<T>> {
     use geom_core::UnitVec3;
-    let v = d.get();
     let (k, e) = match (v.x.exactly_zero(), v.y.exactly_zero(), v.z.exactly_zero()) {
         (false, true, true) => (UnitVec3::exact_x(), v.x),
         (true, false, true) => (UnitVec3::exact_y(), v.y),
         (true, true, false) => (UnitVec3::exact_z(), v.z),
-        _ => return d,
+        _ => return None,
     };
     if e.upper() < 0.0 {
-        -k
+        Some(-k)
     } else if (T::zero() - e).upper() < 0.0 {
-        k
+        Some(k)
     } else {
-        d
+        None
     }
 }
 
@@ -1077,8 +1109,9 @@ pub(crate) enum Folded<T: Real> {
     /// Nothing pins it: a loose copy, the root of its own space.
     Loose,
     /// Pinned in its target space, at this map from its own
-    /// coordinates.
-    Pinned(Affine3<T>),
+    /// coordinates, and the map as the rigid motion its composition
+    /// made, where the lane composes one.
+    Pinned(Affine3<T>, Option<super::value::Composed<T>>),
 }
 
 /// **One placement's bundle, solved.** `equations` are the bundle's,
@@ -1125,9 +1158,9 @@ pub(crate) fn solve_bundle<T: SolveScalar>(
         return Ok(Folded::Loose);
     }
     let coset = fold_bundle(placement, mates).map_err(|f| fault(*f))?;
-    let at = super::value::settle(coset, values, charts)?;
+    let (at, rigid) = super::value::settle(coset, values, charts)?;
     Ok(if pins(equations) {
-        Folded::Pinned(at)
+        Folded::Pinned(at, rigid)
     } else {
         Folded::Loose
     })

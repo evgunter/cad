@@ -1425,14 +1425,16 @@ fn persisted_tokens(program: &ProfileProgram) -> BTreeSet<String> {
 /// tables — `Literal`, `dim`, `unit`, `value` and the dimension and
 /// unit words — left this list then: the program's wire carries no
 /// expression.
+///
+/// `frame` left it with INTENT stage 3 D: a profile is 2-D and is drawn
+/// on no frame (`ProfileProgram.plane` retired), so the program's wire
+/// has no `frame` key; the checked-in corpus was regenerated with it.
 const PERSISTED_SPELLING: &[&str] = &[
     // `ProfileProgram` and `LoopProgram`.
     "Chain",
     "Circle",
     "CircleSplit",
     "centre",
-    // The frame it is drawn on: its operand's one name (unit B).
-    "frame",
     // The minted step ids, one list per loop (`names/README.md`, N1).
     "ids",
     "loops",

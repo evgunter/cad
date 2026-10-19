@@ -289,13 +289,19 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// id drawn after it moved. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
+/// a placement): each document was re-spelled without `Datum` or
+/// `Transform` (a construction is built in its own coordinates and
+/// placed into the world by a `Place`), so its nodes, their ids and the
+/// names they mint moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x3e5f_559f_058c_1664u64),
-        ("part_select", 0x7b4d_39f0_68df_e9b5),
-        ("kitchen_sink", 0x1032_8a96_fb12_9d02),
+        ("cut_cylinder", 0x793b_d15c_6b53_693bu64),
+        ("part_select", 0x36a8_77e8_edb4_8dfb),
+        ("kitchen_sink", 0x1492_3db1_8fdf_f9fd),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -401,6 +407,12 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// RE-BLESSED when a name came to be scoped by the variable holding its
 /// body (FORK-DM4 unit 2): the split's one table became a table per
 /// half, the empty half's empty, and its names spell no half.
+///
+/// RE-BLESSED for INTENT stage 3 D (Transform retires into a
+/// placement): the split's tool is a plane read off the cube's own
+/// geometry (`fixture::plane_on`) where it was a `Datum::Plane`, and the
+/// profile carries no frame, so its nodes, their ids and the names they
+/// mint moved.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -421,7 +433,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x34f6_1e4d_65ea_b6a4,
+        got, 0x2925_5a68_7f1b_9e14,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

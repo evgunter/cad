@@ -257,12 +257,18 @@ fn both_blends_evaluate_in_one_document() {
 /// id drawn after it moved. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
+/// a placement): each document was re-spelled without `Datum` or
+/// `Transform` (a construction is built in its own coordinates and
+/// placed into the world by a `Place`), so its nodes, their ids and the
+/// names they mint moved.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x81f1_4b59_6af2_3004u64),
-        ("die_chamfer", 0xfa2a_e5e9_86d3_5f3a),
+        ("die_fillet", 0x6799_aef6_110d_a34bu64),
+        ("die_chamfer", 0x7912_002b_4c0b_0437),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -438,13 +444,19 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// (N3): the two seams beside its merged floor cite the floor's `Merged`
 /// parent where they cited one floor. The digest feeds the name table.
 /// No body moved.
+///
+/// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
+/// a placement): each document was re-spelled without `Datum` or
+/// `Transform` (a construction is built in its own coordinates and
+/// placed into the world by a `Place`), so its nodes, their ids and the
+/// names they mint moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x47bd_54b5_90cd_cd63u64),
-        ("heat_sink", 0xd551_a6fc_787e_61ba),
-        ("kiss_carry", 0x8ee4_89b1_9c55_7144),
+        ("crossing_slots", 0x62a0_f03c_c794_d036u64),
+        ("heat_sink", 0x95c9_6321_377d_3723),
+        ("kiss_carry", 0xfb95_fe3f_5408_dbd8),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -509,6 +521,11 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED for INTENT stage 3 D (Transform retires into a
+/// placement): the fixture's profiles carry no frame and its second
+/// operand is placed against the first's root by a `Place`, so its
+/// nodes, their ids and the names they mint moved.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -547,7 +564,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xa08d_ae41_19ad_b45b,
+        got, 0xaae9_dbe3_41bc_dabd,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }
