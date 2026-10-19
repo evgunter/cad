@@ -251,7 +251,9 @@ the input, and which kind a failure is is always plain: a bug panics,
 as early as it is detectable; an input never panics and gets a typed
 error that names the failing check, the entity and the recourse; valid
 input the kernel has not built yet gets a typed `Unsupported*` refusal
-naming its blocker. These are the project conventions of [failure] and
+naming its blocker; a result the kernel's own check rejects gets a
+typed kernel-shortfall refusal that asks for the report, and nothing
+matches one in order to carry on. These are the project conventions of [failure] and
 [tolerance.recourse].
 
 ## Canonical places `[one-way.places]`
@@ -1576,11 +1578,14 @@ library spelling of.
   reach is a typed error. **A panic is therefore never a refusal: it
   reports that a bug has already happened.** Read it as *a firing panic
   is evidence of a bug*, never as *a panic in the source is a defect to
-  remove*. **The converse is a positive obligation: a state that can
-  only be a kernel bug MUST panic**, as loudly and as early as it is
+  remove*. **The converse is a positive obligation: a state the code
+  proves no input reaches MUST panic**, as loudly and as early as it is
   detectable (`unreachable!` / `debug_assert`, the taxonomy below);
   downgrading one to silence, or to a typed error, launders a bug into
-  a supported outcome. The two halves are separate rules over disjoint
+  a supported outcome. A check the kernel runs over its own result,
+  because nothing proves that result right, is not such a state: input
+  reaches it because the check exists, and it refuses typed as a kernel
+  shortfall (row 6). The two halves are separate rules over disjoint
   state classes. Every traversal is bounded: never a hang.
   The closure property behind the first half: every public mutation
   path preserves tier 1, **checked at every observable boundary** —
@@ -1622,6 +1627,7 @@ swallowed.
 | 3 | **Value-domain degeneracy** | poison — NaN / empty |
 | 4 | **Kernel bug**, observable in a branch | `unreachable!` |
 | 5 | **Kernel bug**, detectable only by re-derivation | `debug_assert` |
+| 6 | **Kernel shortfall**: a shipped check of the kernel's own result that no proof covers | typed refusal ending in `geom_core::KERNEL_DEFECT_ENDING` |
 
 - *Row 0 is a question, not a class.* A lane that files a state under
   any row owes the reason row 0 did not apply. It is answered against
@@ -1651,6 +1657,21 @@ swallowed.
 - *Row 3:* poison flows through **values**, never through decisions
   ([scalars]). `sup_norm_bound` returning NaN on every poison path is the
   pattern.
+- *Row 4's test is its message.* A state is row 4 only when the
+  message's "why this cannot occur" cites the code that holds the fact
+  at the boundary the read crosses: the same call, the producer's
+  constructor or output type, or a gate every door runs. Another
+  crate's prose promise is not a citation; such a read is row 0 first,
+  else row 6. A state that real input is known to reach has no true
+  "why", so it is row 6 until its origin is fixed, and row 4 after.
+- *Row 6 against row 5.* Both re-derive. Deleting a row-5
+  `debug_assert` never changes what ships; deleting a row-6 check
+  ships a wrong result. A row-6 refusal names no lever, since nothing
+  in the model is a way through, and its ending asks for the report.
+  Nothing matches a row-6 refusal in order to continue ([loud-failure]).
+- *A `pub fn` precondition is row 1 at that door.* A precondition a
+  caller of a public function can break refuses typed there, with the
+  caller's recourse, even where no kernel caller breaks it.
 - *Rows 4 and 5 split on re-derivation, not on cost.* `unreachable!` is
   for a state the current best understanding says only a kernel bug
   reaches, however many interacting parts that understanding rests on
@@ -1682,8 +1703,10 @@ swallowed.
   (`topo::coherence`).
 - *Boundary rule.* `pncad-py` re-types at the FFI edge — anything the
   Python layer can trigger is validated into a typed error before the
-  kernel call, so an `unreachable!` never crosses into a
-  `PanicException`.
+  kernel call, so no input Python sends reaches an `unreachable!`. The
+  rule is a promise about inputs: a kernel bug that fires still panics,
+  pyo3 raises it as a `PanicException`, and `pncad-py` does not catch
+  it, so a Python caller sees a bug as a bug and never as a refusal.
 - *Lint state.* `unreachable` is outside the banned clippy family in
   both the workspace manifest and `crates/pncad-py/Cargo.toml` (kept in
   step by that crate's `crate_lints_match_the_workspace_minus_unsafe_code`
