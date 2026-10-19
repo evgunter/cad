@@ -591,3 +591,65 @@ pub fn beside_past_the_bundle_rule(
     }
     (out, id)
 }
+
+// --- a union's fold rows, as their steps named them ---------------
+
+/// **One fold-step row as the step named it**: its two cells' names in
+/// the union's own space, collapsed ([`crate::names::collapse_table`]),
+/// the relation the step decided, and the row the union spelled from
+/// them in member space. A suite resolves the names to member cells by
+/// its own reading and holds the spelled row to it.
+#[derive(Clone, Debug)]
+pub struct FoldRowNames {
+    /// The two cells' collapsed names, in the order the step read them.
+    pub cells: [crate::names::StableName; 2],
+    /// What the step decided between them.
+    pub relation: topo::Relation,
+    /// The row the union spelled.
+    pub spelled: crate::coincide::NamedCoincidence,
+}
+
+/// Where [`fold_rows_of`] collects, while it runs.
+static FOLD_ROWS: std::sync::Mutex<Option<Vec<FoldRowNames>>> = std::sync::Mutex::new(None);
+
+/// **`f`, with every fold-step row a union spells while it runs**, in
+/// spelling order. One collector at a time: a nested call panics.
+///
+/// # Panics
+///
+/// Where another call is collecting, or the collector was poisoned.
+pub fn fold_rows_of<R>(f: impl FnOnce() -> R) -> (R, Vec<FoldRowNames>) {
+    {
+        let mut slot = FOLD_ROWS.lock().expect("the fold-row collector");
+        assert!(slot.is_none(), "one fold-row collector at a time");
+        *slot = Some(Vec::new());
+    }
+    let out = f();
+    let rows = FOLD_ROWS
+        .lock()
+        .expect("the fold-row collector")
+        .take()
+        .unwrap_or_default();
+    (out, rows)
+}
+
+/// Records one fold-step row where [`fold_rows_of`] is collecting.
+pub(crate) fn record_fold_row(
+    named: &crate::coincide::NamedCoincidence,
+    spelled: &crate::coincide::NamedCoincidence,
+) {
+    let mut slot = FOLD_ROWS.lock().expect("the fold-row collector");
+    let Some(rows) = slot.as_mut() else { return };
+    let name = |cell: &crate::coincide::NamedCell| match cell {
+        crate::coincide::NamedCell::Entity { name, .. } => name.clone(),
+        other => panic!("a fold row's cell is an entity of the union: {other:?}"),
+    };
+    let [a, b] = named.cells.as_slice() else {
+        panic!("a fold step's row names two cells: {named:?}");
+    };
+    rows.push(FoldRowNames {
+        cells: [name(a), name(b)],
+        relation: named.relation,
+        spelled: spelled.clone(),
+    });
+}

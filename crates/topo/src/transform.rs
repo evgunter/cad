@@ -622,9 +622,10 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
                 crate::policy_lane::ByPolicy::NoLane { scalar } => {
                     TransformError::NurbsLaneUnsupported { edge: ek, scalar }
                 }
-                crate::policy_lane::ByPolicy::Refused(source) => {
-                    TransformError::Certify { edge: ek, source }
-                }
+                crate::policy_lane::ByPolicy::Refused(source) => TransformError::Certify {
+                    edge: ek,
+                    source: crate::policy_lane::kernels_own(source, "transform_rigid"),
+                },
             },
         )?;
         out.curves[curve_key] = CurveGeom::Certified(mapped);

@@ -466,18 +466,73 @@ class TestTheSeamArrival(unittest.TestCase):
             tip.line_to(Start.arrives_tangent())
         self.assertEqual(caught.exception.variant, "seam_arrival_off_direction")
 
-    def test_via_and_center_do_not_take_the_declaration(self):
-        # The kernel's `Via` and `Center` closers take bare `Start`
-        # only, so the declared token is refused at construction — the
-        # Python face of Rust's missing trait impl. Bare `Start` builds,
-        # so the token is the only difference.
-        Via((1 * m, 1 * m), Start)
-        Center(ORIGIN, ArcSweep.Ccw, Start)
-        arriving = Start.arrives_tangent()
-        with self.assertRaises(TypeError):
-            Via((1 * m, 1 * m), arriving)
-        with self.assertRaises(TypeError):
-            Center(ORIGIN, ArcSweep.Ccw, arriving)
+    def up_the_side(self):
+        # A +x side, then up to (2, 1): the circle about (0, 2.5)
+        # through that tip arrives along +x at the entry.
+        return (
+            Open.at(ORIGIN)
+            .toward(1.0, 0.0)
+            .line(2 * m)
+            .line_to((2 * m, 1 * m))
+        )
+
+    def test_a_via_closer_declares_the_seam(self):
+        tip = self.up_the_side()
+        loop = self.closes_only_declared(
+            lambda target: tip.arc_to(Via((-2.5 * m, 2.5 * m), target))
+        )
+        self.assertEqual(loop.vertex_count, 3)
+
+    def test_a_center_closer_declares_the_seam(self):
+        tip = self.up_the_side()
+        loop = self.closes_only_declared(
+            lambda target: tip.arc_to(Center((0 * m, 2.5 * m), ArcSweep.Ccw, target))
+        )
+        self.assertEqual(loop.vertex_count, 3)
+
+    def test_the_via_arrival_takes_its_direction_from_the_declaration(self):
+        # The `Via` arrival's director is free, so the declaration
+        # supplies `Start`'s own direction and the close completes at
+        # the verb.
+        corner = Open.at(ORIGIN).toward(1.0, 0.0).line(2 * m).toward(-1.0, 1.0)
+        loop = corner.fillet_arc(
+            0.2 * m, Via((0 * m, 4 * m), Start.arrives_tangent())
+        )
+        self.assertIsInstance(loop, pncad.ClosedLoop)
+
+    def test_arc_onto_closes_the_b_at_a_sharp_seam(self):
+        # Ev's B, entered at the spine's foot: the lower bump's arrival
+        # is known, its departure is not.
+        b = (
+            Open.at(ORIGIN)
+            .toward(0.0, 1.0)
+            .line(2 * m)
+            .toward(1.0, 0.0)
+            .tangent_arc_to((0.25 * m, 1 * m))
+            .arc_onto(Start)
+            .toward(-1.0, 0.0)
+        )
+        self.assertEqual(b.vertex_count, 3)
+
+    def test_arc_onto_supplies_the_declared_arrival(self):
+        # A D whose cap leaves a corner and arrives along the entry's
+        # own direction: undeclared it is a tangent seam and refuses.
+        tip = Open.at(ORIGIN).toward(0.0, 1.0).line(2 * m).line_to((1 * m, 2 * m))
+        with self.assertRaises(pncad.PathError) as caught:
+            tip.arc_onto(Start).toward(0.0, 1.0)
+        self.assertEqual(caught.exception.variant, "seam_tangent")
+        loop = tip.arc_onto(Start.arrives_tangent())
+        self.assertEqual(loop.vertex_count, 3)
+
+    def test_arc_onto_checks_its_derived_departure(self):
+        # Off a +x leg end, the arc to (3, 1) arriving north leaves
+        # along +x: a tangent departure, refused with its spelling.
+        tip = Open.at(ORIGIN).line_to((2 * m, 0 * m))
+        with self.assertRaises(pncad.PathError) as caught:
+            tip.arc_onto((3 * m, 1 * m)).toward(0.0, 1.0)
+        self.assertEqual(caught.exception.variant, "junction_tangent")
+        landed = tip.arc_onto((3 * m, 2 * m)).toward(0.0, 1.0)
+        self.assertIsInstance(landed, pncad.PathDirectedPoint)
 
     def test_the_token_spells_itself(self):
         self.assertEqual(repr(Start.arrives_tangent()), "Start.arrives_tangent()")
