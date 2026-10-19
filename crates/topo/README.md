@@ -123,10 +123,9 @@ side clears only
   other's greatest, each bounded through rings and segments that cover
   the face or its convex hull (`census::depth_gap`): the nested walls,
   bores and plugs no direction separates, or
-- where the pair meets, by the touch analysis, which reads every curved
-  face of a touch's star through that box (its corners' signed distances
-  from the candidate plane): a box on its side certifies the Rest, and
-  anything else refuses — it never decides a crossing;
+- where the pair meets, by the touch analysis, which reads planar faces
+  only: a touch a curved face takes part in refuses (`TouchUnreadable`) —
+  it never decides a Rest or a crossing there;
 
 and refuses `CensusUndecidable` otherwise. Within one solid, two
 distinct-key curved faces touching along a tangent locus through both
@@ -137,7 +136,12 @@ for same-solid pairs, unbuilt (Open).
 A declaration licenses a coincidence, never a side. Every meeting between
 two solids — found undeclared by a sweep, named by a record, or backed by
 a declared face pair — is read by the one touch analysis, and the pair
-clears only when each meeting reads Rest. A record's certificate licenses
+clears only when each meeting reads Rest. A touch at a point is read
+once for the solid pair and the point, each side the solid's link there
+— every face of it at a vertex on the point's keys, or tied to the
+point by a record or a finding — and every meeting at the point shares
+that verdict. A point two solids share a key at is read whether or not
+anything names it, and an undecided reading there refuses. A record's certificate licenses
 only what it checked (a patch record's opposed conformal interface; a
 vertex record's coincidence), so no record excuses a meeting or a face
 from being read.
@@ -285,10 +289,21 @@ is reached only through structure or a declaration.
 sphere inside the edge is read again on the edge's fragments once both
 sweep directions have run: where the other operand has a vertex at the
 touch, whether it builds does not depend on which operand is A, and with
-no vertex there it refuses in both orders. A covered arc, and a covered
-line against a torus or a cone, keep the refusal where the touch is inside the
-edge: their residual is not convex, so a fragment's ends need not see
-every touch.
+no vertex there it refuses in both orders. A covered conic with no end
+on a sphere, cylinder or torus carrier, its interior unread, is
+deferred the same way (`Placement::declared`), and the settle stage
+reads its fragments. A fragment with an end recorded on the carrier is
+then read at its ends only. That is sound where the cover admits at most one touch per conic,
+as a circle meets the ruling of a cylinder × cylinder tangency once,
+and it is not sound where it admits two: a plane tangent to a cylinder
+holds a circle that meets the ruling twice, and the touch inside the
+fragment goes unrecorded
+(`covered-endpoint-arms-read-a-non-convex-touch-at-the-ends-only`). A
+covered line against a torus or a cone, and a covered conic against a
+cone, keep the refusal where the touch is inside the edge. Two tubes
+tangent along one's seam build in either order without the edge–face
+record of the seam's span in the other wall
+(`a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only`).
 
 *Edges lying on the carrier.* An edge decided to lie identically on the
 other operand's carrier is an ON event under the reduction's trilean

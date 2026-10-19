@@ -521,10 +521,23 @@ pub enum CheckEvidence {
     UnprovenCoincidence {
         /// The row, its cells named in the node's inputs' tables.
         row: Box<crate::coincide::NamedCoincidence>,
-        /// What separates the two cells' constructions.
+        /// What separates the cells' constructions.
         residual: Box<crate::coincide::Residual>,
         /// What would make it structural.
         recourse: crate::coincide::Recourse,
+        /// The node's unproven fold-step rows reported under this
+        /// judged row (DM4), each with what separates its cells and its
+        /// recourse: each names a member vertex this row names, so the
+        /// two are decided at that vertex
+        /// ([`crate::coincide::NamedCoincidence::at_one_vertex`]). A
+        /// fold row decided at several judged rows' vertex goes under
+        /// the least of them by cells, relation and site; one at no
+        /// judged row's vertex is its own finding.
+        restated: Vec<(
+            crate::coincide::NamedCoincidence,
+            crate::coincide::Residual,
+            crate::coincide::Recourse,
+        )>,
     },
 }
 
@@ -692,7 +705,12 @@ impl crate::finding::Finding for SaidFinding<'_> {
             CheckEvidence::ChartCoherenceUnavailable => f.write_str(
                 "this evaluation's lane does not examine chart coherence, so nothing was read",
             ),
-            CheckEvidence::UnprovenCoincidence { row, residual, .. } => {
+            CheckEvidence::UnprovenCoincidence {
+                row,
+                residual,
+                restated,
+                ..
+            } => {
                 let cell = |c: &crate::coincide::NamedCell| match c {
                     crate::coincide::NamedCell::Entity { name, .. } => by.name(name).to_string(),
                     crate::coincide::NamedCell::Tool { input, role } => match role {
@@ -705,14 +723,20 @@ impl crate::finding::Finding for SaidFinding<'_> {
                 };
                 write!(
                     f,
-                    "{} {} {}, decided from values ({}, margin {:e}), is not proven \
-                     structural: {residual}",
-                    cell(&row.cells[0]),
-                    crate::coincide::relation_words(row.relation),
-                    cell(&row.cells[1]),
+                    "{}, decided from values ({}, margin {:e}), is not proven structural: \
+                     {residual}",
+                    crate::coincide::statement_words(row, cell),
                     crate::coincide::site_words(row.site),
                     row.margin,
-                )
+                )?;
+                match restated.len() {
+                    0 => Ok(()),
+                    1 => f.write_str("; a fold step's row at its cells is reported with it"),
+                    n => write!(
+                        f,
+                        "; {n} fold steps' rows at its cells are reported with it"
+                    ),
+                }
             }
         }
     }
@@ -1468,24 +1492,81 @@ fn door_findings<P: crate::ProfilePayload>(
         .map(|(_, node, rows)| (*node, &rows[..]))
         .collect();
     let proofs = crate::coincide::prove(doc, &nodes, resolver, tol, cancel)?;
-    let rows = rows
-        .iter()
-        .flat_map(|(subject, _, rows)| rows.iter().map(move |row| (*subject, row)));
-    Ok(rows
-        .zip(proofs.into_iter().flatten())
-        .filter_map(|((subject, row), proof)| match proof {
-            crate::coincide::Proof::Unproven { residual, recourse } => Some(CheckFinding {
+    let mut findings: Vec<CheckFinding> = Vec::new();
+    for ((subject, _, rows), proofs) in rows.iter().zip(proofs) {
+        let unproven: Vec<_> = rows
+            .iter()
+            .zip(proofs)
+            .filter_map(|(row, proof)| match proof {
+                crate::coincide::Proof::Unproven { residual, recourse } => {
+                    Some((row, residual, recourse))
+                }
+                crate::coincide::Proof::Structural(_) => None,
+            })
+            .collect();
+        // Each fold row's parent: of the unproven judged rows decided at
+        // its point, the least by statement, so the choice does not
+        // follow the order the rows were decided in.
+        fn statement(
+            r: &crate::coincide::NamedCoincidence,
+        ) -> (
+            Vec<&crate::coincide::NamedCell>,
+            topo::Relation,
+            topo::DecisionSite,
+        ) {
+            let mut cells: Vec<&crate::coincide::NamedCell> = r.cells.iter().collect();
+            cells.sort();
+            (cells, r.relation, r.site)
+        }
+        let parent = |row: &crate::coincide::NamedCoincidence| {
+            unproven
+                .iter()
+                .enumerate()
+                .filter(|(_, (j, _, _))| {
+                    matches!(j.origin, crate::coincide::RowOrigin::Judged { .. })
+                        && j.at_one_vertex(row)
+                })
+                .min_by(|(i, (a, _, _)), (k, (b, _, _))| {
+                    statement(a).cmp(&statement(b)).then(i.cmp(k))
+                })
+                .map(|(i, _)| i)
+        };
+        let parents: Vec<Option<usize>> = unproven
+            .iter()
+            .map(|(row, _, _)| match row.origin {
+                crate::coincide::RowOrigin::Fold { .. } => parent(row),
+                _ => None,
+            })
+            .collect();
+        let mut at: Vec<Option<usize>> = vec![None; unproven.len()];
+        for (i, (row, residual, recourse)) in unproven.iter().enumerate() {
+            if parents[i].is_some() {
+                continue;
+            }
+            at[i] = Some(findings.len());
+            findings.push(CheckFinding {
                 check: CheckId::UnprovenCoincidence,
-                subject,
+                subject: *subject,
                 evidence: CheckEvidence::UnprovenCoincidence {
-                    row: Box::new(row.clone()),
-                    residual: Box::new(residual),
-                    recourse,
+                    row: Box::new((*row).clone()),
+                    residual: Box::new(residual.clone()),
+                    recourse: *recourse,
+                    restated: Vec::new(),
                 },
-            }),
-            crate::coincide::Proof::Structural(_) => None,
-        })
-        .collect())
+            });
+        }
+        for (i, (row, residual, recourse)) in unproven.iter().enumerate() {
+            let Some(p) = parents[i] else { continue };
+            let Some(CheckEvidence::UnprovenCoincidence { restated, .. }) = at[p]
+                .and_then(|f| findings.get_mut(f))
+                .map(|f| &mut f.evidence)
+            else {
+                unreachable!("a fold row's parent is a judged row reported as its own finding")
+            };
+            restated.push(((*row).clone(), residual.clone(), *recourse));
+        }
+    }
+    Ok(findings)
 }
 
 /// The connectedness resident's own pass (I1(0b)) — [`run_checks`]'s

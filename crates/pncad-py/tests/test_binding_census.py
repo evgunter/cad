@@ -616,6 +616,8 @@ BOUND_AS = {
     "Proof": "Coincidence.rung",
     "Rung": "Coincidence.rung",
     "Residual": "Coincidence.residual",
+    # Which of the node's decisions a row is crosses as a tuple tag.
+    "RowOrigin": "Coincidence.origin",
     # The verify door's two-plane verdict crosses as the row's word:
     # `same_oriented` / `same_opposite` on `Coincidence.relation`.
     "PlaneRelation": "Coincidence.relation",
@@ -1811,8 +1813,8 @@ FAMILIES: dict[str, str] = {
 #:   pair to name. `PartialPath` is the Rust lattice's one type where
 #:   Python has one CLASS PER STATE (`PathOpen`, `PathPoint`,
 #:   `PathDirectedPoint`, …), which is §L4's typestate translation.
-#:   `LineTarget`, `ContinueTarget` and `TangentArcTarget` are absorbed
-#:   into the verbs that take them, and
+#:   `LineTarget`, `ContinueTarget`, `TangentArcTarget` and `OntoTarget`
+#:   are absorbed into the verbs that take them, and
 #:   `bulge_from_center`/`bulge_from_via` into the
 #:   `Center`/`Via` spec modes that are bound. `Dimension` is what
 #:   `FreeVar.length`/`angle`/`count`/`scalar` choose between;
@@ -2663,6 +2665,9 @@ NOT_BOUND = {
     "SurfaceKindSet": SHAPE,
     "TagPat": SHAPE,
     "TangentArcTarget": SHAPE,
+    # `arc_onto`'s target trait, absorbed into the verb as
+    # `TangentArcTarget` is.
+    "OntoTarget": SHAPE,
     "Tol": SHAPE,
     "Tolerance": SHAPE,
     "Vec2": SHAPE,

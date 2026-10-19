@@ -222,10 +222,10 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
 /// arriving at the door instead of after it: the same refusal, earlier,
 /// and the loop it withholds is one nothing downstream could have used.
 ///
-/// No corpus row is in that state at any ε row: a fillet arc stores
-/// the carrier its construction built — its centre and the authored
-/// radius — so its clearance against each carrier it is tangent to is
-/// read on those values, not on a carrier re-derived from its chord.
+/// No corpus row is in that state at any ε row: the read decides each
+/// declared joint by its turn levered by the shorter leg's arm, and
+/// the fillet's own arm is the short one, over which its construction's
+/// rounding stays far inside ε.
 ///
 /// The census therefore keeps its teeth where its subject is: the
 /// escalations that are NOT the door relaying a stored-form
@@ -241,28 +241,21 @@ fn no_corpus_row_escalates_at_interval() {
     /// fact about replaying at another scalar.
     fn stored_form_predicate<T: Real>(e: &ReplayError<T>) -> Option<&'static str> {
         // The crate has no predicate registry to read, so the list is
-        // held against its source instead: every name here is one
-        // `seg.rs` fires, and `the_stored_form_names_are_segs_own` is
-        // the row that reds when the two drift apart.
-        const STORED_FORM: [&str; 8] = [
-            "vertex_separation",
-            "segment_straightness",
-            "arc_diameter_clearance",
-            "chord_side",
-            "carrier_line_circle",
-            "carrier_circles_identity",
-            "carrier_circles_external",
-            "carrier_circles_internal",
-        ];
+        // held against its source instead: every name in
+        // `EXEMPTED_STORED_FORM` is one `seg.rs` fires, and
+        // `the_stored_form_names_are_segs_own` is the row that reds when
+        // the two drift apart.
         let profile::ReplayErrorKind::Path(profile::PathError::Escalated { source }) = &e.kind
         else {
             return None;
         };
-        source.predicate.filter(|name| STORED_FORM.contains(name))
+        source
+            .predicate
+            .filter(|name| EXEMPTED_STORED_FORM.contains(name))
     }
     // The relayed set is PINNED, not merely printed, and it is empty:
     // a relay joining it is a new fact about the door and reds this
-    // row, so there is no standing pass for eight predicate names.
+    // row, so there is no standing pass for six predicate names.
     let pinned: &[(usize, &str)] = &[];
     let mut escalated: Vec<(usize, Vec<Verb>, String)> = Vec::new();
     let mut relayed: Vec<(usize, String)> = Vec::new();
@@ -438,7 +431,7 @@ fn the_anchor_coincident_corner_reduces_to_input_width_at_interval() {
 
 /// **The exempted names are `seg.rs`'s own.**
 ///
-/// [`no_corpus_row_escalates_at_interval`] exempts eight predicate
+/// [`no_corpus_row_escalates_at_interval`] exempts six predicate
 /// names from its pin, on the ground that they are the classifications
 /// `Profile::validate` runs on a stored loop and the path door relays.
 /// That ground is only true while the list IS `seg.rs`'s list, and
@@ -474,7 +467,7 @@ fn the_stored_form_names_are_segs_own() {
     for name in [
         "fn classify",
         "fn joint_tangency",
-        "fn line_circle_joint",
+        "fn junction_turn",
         "fn chord_side",
     ] {
         let head = code
@@ -498,6 +491,21 @@ fn the_stored_form_names_are_segs_own() {
             }
         }
     }
+    // The joint's turn is read under the name the door passes
+    // `seg::joint_tangency`, spelled at the call in `path.rs`.
+    let path = std::fs::read_to_string(
+        test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src/path.rs"),
+    )
+    .expect("the profile crate's own source is readable from its own tests");
+    let call = "seg::joint_tangency(prev, next, \"";
+    let at = path
+        .find(call)
+        .unwrap_or_else(|| panic!("path.rs still calls `{call}…`"))
+        + call.len();
+    let turn_name = path[at..].split('"').next().unwrap_or_default().to_string();
+    if !fired.contains(&turn_name) {
+        fired.push(turn_name);
+    }
     fired.sort();
     let mut exempt: Vec<String> = EXEMPTED_STORED_FORM
         .iter()
@@ -518,13 +526,11 @@ fn the_stored_form_names_are_segs_own() {
 /// The list [`no_corpus_row_escalates_at_interval`] exempts, spelled
 /// once so [`the_stored_form_names_are_segs_own`] can hold it against
 /// `seg.rs` and the row that uses it can name it.
-const EXEMPTED_STORED_FORM: [&str; 8] = [
+const EXEMPTED_STORED_FORM: [&str; 6] = [
     "vertex_separation",
     "segment_straightness",
     "arc_diameter_clearance",
     "chord_side",
-    "carrier_line_circle",
     "carrier_circles_identity",
-    "carrier_circles_external",
-    "carrier_circles_internal",
+    "path_fillet_joint_turn",
 ];

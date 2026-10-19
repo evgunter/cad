@@ -2,9 +2,11 @@
 id: a-hand-built-unminted-refusal-panics-through-pub-render
 kind: issue
 title: A hand-built refusal on an unminted side still panics through pub render at a build
-status: dispatched
+status: closed
+pr: 5393
 opened: 2026-10-19
 branch: encl/total-render
+closed: 2026-10-19
 ---
 
 

@@ -363,13 +363,15 @@ pub enum RefusedSide {
     /// stored contradiction ([`Unsized::Fit`]) ends in the latter at the
     /// import door too.
     StoredContradiction,
-    /// A side no kernel construction produces. At the import door past
-    /// ε_in it is the file's, and over a body at rest it ends as a stored
-    /// contradiction does. At a build only a hand-built refusal reaches
-    /// it, so its ending panics there ([`SizedDecision::recourse`]): every
-    /// public door that runs the decision reports a reading certainly on
-    /// this side as its input's, in a refusal of its own
-    /// ([`crate::CertifyError::StatedInterval`]).
+    /// A side no kernel construction produces. Every public door that
+    /// runs the decision reports a reading certainly on this side as its
+    /// input's, in a refusal of its own
+    /// ([`crate::CertifyError::StatedInterval`]), and where that input is
+    /// data the kernel holds, the kernel's call site panics on it. A
+    /// refusal built by hand and rendered ends as a stored contradiction
+    /// does at every door: at a build in the lever and the note. What
+    /// sets it apart from [`Self::StoredContradiction`] is that mapping
+    /// at the doors, not its ending.
     Unminted,
 }
 
@@ -460,29 +462,12 @@ impl SizedDecision {
     ///   contradiction or an unminted side is the file's. A straddle
     ///   carries no single margin to place against ε_in.
     ///
-    /// # Panics
-    ///
-    /// On a reading certainly on an unminted side read at a build
-    /// ([`RefusedSide::Unminted`]). No public door returns a refusal that
-    /// reads so: each reports such a reading as its input's
-    /// ([`crate::CertifyError::StatedInterval`]), and the kernel's own
-    /// re-mints panic at their call sites first. Only a refusal, a
-    /// decision or a check's arm built by hand
-    /// ([`crate::certify::recourse`]) reaches this.
+    /// It returns text for every decision, arm and door a caller can
+    /// build.
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
         let Self { lever, passes, .. } = self;
         let at = at.into();
-        if self.side == RefusedSide::Unminted
-            && at == ReadAt::Run(Reading::Build)
-            && self.certainly_refused(arm)
-        {
-            unreachable!(
-                "a {} on a side no kernel construction produces reached a build past every \
-                 door that refuses it ({lever}): a kernel bug",
-                self.size
-            );
-        }
         let (margin, band) = match arm {
             RefusedArm::Zero(_) if passes.passes_zero() => return lever_recourse(lever, None),
             RefusedArm::Zero(Classified { margin, band }) => (margin, band),
@@ -520,8 +505,6 @@ impl SizedDecision {
     /// its ending chosen, so every arm that carries one ends alike.
     fn words(self, at: ReadAt) -> SizedWords<'static> {
         let reading = at.reading();
-        // An unminted side at a build is never read here: `recourse`
-        // panics on it first.
         let refused = match (self.side, at) {
             (RefusedSide::Lever, _)
             | (
@@ -545,22 +528,6 @@ impl SizedDecision {
             refused,
         }
     }
-}
-
-/// Whether `f` panics, and then that it panics as a reading certainly on
-/// an unminted side does at a build ([`SizedDecision::recourse`]): a row
-/// that expects that panic fails on any other.
-#[cfg(test)]
-pub(crate) fn panics_as_a_kernel_bug(f: impl FnOnce()) -> bool {
-    let Some(message) = test_utils::panic_capture::caught(std::panic::AssertUnwindSafe(f)) else {
-        return false;
-    };
-    assert!(
-        message.contains("on a side no kernel construction produces reached a build")
-            && message.contains("a kernel bug"),
-        "a panic other than the unminted side's: {message}"
-    );
-    true
 }
 
 /// The content words `text` says more than once, for the payload pins:
@@ -685,15 +652,6 @@ mod tests {
                     let file = FileCoincidence::new(2e-9);
                     for reading in [Some(Reading::Build), Some(Reading::AtRest), None] {
                         let end = |arm: RefusedArm<'_>| match reading {
-                            // It panics there
-                            // (`an_unminted_side_panics_at_a_build`), and
-                            // offers nothing.
-                            Some(Reading::Build)
-                                if side == RefusedSide::Unminted
-                                    && decision.certainly_refused(arm) =>
-                            {
-                                String::new()
-                            }
                             Some(reading) => decision.recourse(arm, reading),
                             None => decision.recourse(arm, file),
                         };
@@ -965,11 +923,11 @@ mod tests {
     /// band routed as undecided (tagged by its gate, or not), the same
     /// verdict on the sign-certain arm (with its reading or without), and
     /// a reading in band wholly on the refused side all end alike. At a
-    /// build each ends in the lever and the note, save on an unminted
-    /// side, where each panics; at rest and at the import door past ε_in
-    /// a decision the lever reaches keeps them, while a stored
-    /// contradiction and an unminted side end in the defect ending at
-    /// rest and the damaged-file ending at the door. Red
+    /// build each ends in the lever and the note, on every side; at rest
+    /// and at the import door past ε_in a decision the lever reaches
+    /// keeps them, while a stored contradiction and an unminted side end
+    /// in the defect ending at rest and the damaged-file ending at the
+    /// door. Red
     /// if a route keys its ending on the arm, or the in-band reading on
     /// its distance from zero, rather than the reading's class and the
     /// decision.
@@ -1011,6 +969,7 @@ mod tests {
                    curves tightly there; faces of no extent or a cone's point leave no angle to \
                    measure";
         let angle = "Recourse: move the geometry so the surfaces cross at a clearer angle";
+        let span = "Recourse: move the geometry so this edge runs forward over a clear length";
         let (defect, damaged) = (
             Some(KERNEL_OR_FILE_DEFECT_ENDING.to_owned()),
             Some(DAMAGED_FILE_ENDING.to_owned()),
@@ -1021,8 +980,8 @@ mod tests {
         let certify =
             |check| -> End { Box::new(move |a, at| Some(crate::certify::recourse(check, a, at))) };
         let lever = |ending: &str| Some(ending.to_owned());
-        // (decision, its ending, at a build — `None` where it panics —,
-        // at rest, at the door past ε_in)
+        // (decision, its ending, at a build, at rest, at the door past
+        // ε_in)
         type Row = (
             &'static str,
             End,
@@ -1034,7 +993,7 @@ mod tests {
             (
                 "ParamSpan (unminted)",
                 certify(CertCheck::ParamSpan),
-                None,
+                lever(span),
                 defect.clone(),
                 damaged.clone(),
             ),
@@ -1073,16 +1032,11 @@ mod tests {
         for (decision, end, build, rest, door) in rows {
             for (route, refused) in routes {
                 let at = |at: ReadAt| end(refused, at);
-                let mut built = None;
-                let panicked = super::panics_as_a_kernel_bug(|| built = at(Reading::Build.into()));
                 assert_eq!(
-                    panicked,
-                    build.is_none(),
-                    "{decision}, {route}, panics at a build"
+                    at(Reading::Build.into()),
+                    build,
+                    "{decision}, {route}, at a build"
                 );
-                if !panicked {
-                    assert_eq!(built, build, "{decision}, {route}, at a build");
-                }
                 assert_eq!(
                     at(Reading::AtRest.into()),
                     rest,
@@ -1093,34 +1047,79 @@ mod tests {
         }
     }
 
-    /// **An unminted side panics at a build** (`[failure]`): every door
-    /// that hands such a decision its caller's input refuses it first, so
-    /// a reading certainly on that side there is a kernel bug. A reading
-    /// that still shows a size ends as on any side.
+    /// **A hand-built unminted side renders, and ends as a stored
+    /// contradiction does** (`[failure]`): a public render of a value a
+    /// caller built is input, so it never panics. On every arm and at
+    /// every door the two sides end alike, and a reading certainly on the
+    /// refused side ends at a build in the lever, as a door's
+    /// `StatedInterval` does; a reading that still shows a size keeps its
+    /// offer.
     #[test]
-    #[should_panic(expected = "a kernel bug")]
-    fn an_unminted_side_panics_at_a_build() {
-        let decision = SizedDecision {
+    fn a_hand_built_unminted_side_ends_as_a_stored_contradiction_does() {
+        let on = |side| SizedDecision {
             lever: "L",
             size: "length",
             passes: SizedPass::Positive,
-            side: RefusedSide::Unminted,
-            no_size: None,
+            side,
+            no_size: Some("N"),
         };
-        let offer = Indeterminate {
-            margin: MarginDiag::value(5e-9),
+        let (unminted, stored) = (
+            on(RefusedSide::Unminted),
+            on(RefusedSide::StoredContradiction),
+        );
+        let cause = |margin| Indeterminate {
+            margin,
             band: band(),
             predicate: None,
             terminal_sliver: false,
         };
-        assert!(!decision.certainly_refused(RefusedArm::Undecided(&offer)));
+        let (offer, in_band, poisoned) = (
+            cause(MarginDiag::value(5e-9)),
+            cause(MarginDiag::value(-5e-9)),
+            cause(MarginDiag::INVALID),
+        );
+        let arms = [
+            RefusedArm::SignCertain(None),
+            RefusedArm::SignCertain(Some(MarginDiag::value(-1e-3))),
+            RefusedArm::Zero(Classified {
+                margin: MarginDiag::value(0.0),
+                band: band(),
+            }),
+            RefusedArm::Undecided(&offer),
+            RefusedArm::Undecided(&in_band),
+            RefusedArm::Undecided(&poisoned),
+            RefusedArm::Straddle,
+        ];
+        let doors = [
+            ReadAt::Run(Reading::Build),
+            ReadAt::Run(Reading::AtRest),
+            ReadAt::File(FileCoincidence::new(1e-12)),
+        ];
+        for arm in arms {
+            for at in doors {
+                assert_eq!(
+                    unminted.recourse(arm, at),
+                    stored.recourse(arm, at),
+                    "{arm:?} at {at:?}"
+                );
+            }
+        }
+        for arm in [
+            RefusedArm::SignCertain(None),
+            RefusedArm::Undecided(&in_band),
+        ] {
+            assert_eq!(
+                unminted.recourse(arm, Reading::Build),
+                "Recourse: L; N",
+                "{arm:?} at a build"
+            );
+        }
         assert!(
-            decision
+            unminted
                 .recourse(RefusedArm::Undecided(&offer), Reading::Build)
                 .contains("tighten the tolerance below"),
             "a size ends in its offer"
         );
-        let _ = decision.recourse(RefusedArm::SignCertain(None), Reading::Build);
     }
 
     /// A straddle of two bounds names the lever alone on a sized decision

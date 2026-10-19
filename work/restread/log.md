@@ -59,3 +59,12 @@ crossing lane and the edge-on-face lane (plan.md, Order).
   - Tier: orchestrator read.
   - CI red only on 1e-12 sweep rows outside the diff, all of them main's: `band_turn_overrun_fillet` (CPAIR) and `reach_cone_split` (FLUX's `steep-frustum-operand-refuses-its-own-gate-at-1e-12-since-5038`), plus `reach_cone_root_lane`'s cone-wall ring. That one I reproduced on main and filed as `flux/a-ring-on-a-cone-wall-escalates-props-chart-loop-whole-at-1e-12`. — (RESTREAD orchestrator)
 - 2026-10-19 — `census-review-5006-delta-tabs-test-runs-past-the-fast-set-limit` closed: `d1_tabs_a_few_bands_wide` (1.025 s at default ε) moved to the slow set, with Ev's go-ahead in chat. — (RESTREAD orchestrator)
+- 2026-10-19 — PR 5331 (`restread/link-touch-reading`) merges. It closes the pinch row (`a-pinch-point-the-census-reads-as-mixed-touch-…`) and its riders: `census-reads-only-the-recorded-vertex-pair-at-a-shared-point`, the saddle-corner row and the self-touch row.
+  - **What changes.** A touch is read once per solid pair and point, over each solid's whole link, by one complete polygonal-cone test through the census's metric door. Shared keys are read strictly. The star, dihedral and certificates retire.
+  - **Measured.** `four_pairs_battery`: 196 `OK BAD` → 0 (all to `OK SOUND`); 0 shared-key readings undecided; the pin's unions are sound.
+  - **Review.** Tier: dual, class H, a concurrent pair on `f61574db`.
+    - R1 returned NOT-MERGEABLE-AS-IS: one MAJOR, distinct corners on one face refused at real pinches, hidden by clearing on records' word.
+    - R2 returned APPROVE-WITH-FIXES: one MAJOR, shared keys cleared on their word.
+    - Both MAJORs were bilateral, so 0 were tallied.
+  - **After review.** One fix pass in the implementer's cloud session, then a verifier (VERIFIED-WITH-NITS: the pass end, closure and tie slack were unguarded, and the slack could be half what a ray reading needs), then a follow-up that pinned all three and doubled the slack.
+  - **Rows filed by the unit.** `hone/cone-side-is-a-second-reader-of-a-directions-side-of-a-polygon-cone` (P3) and `contacthold/a-vertex-on-edge-record-alone-is-never-read-as-a-touch` (P2). — (RESTREAD orchestrator)

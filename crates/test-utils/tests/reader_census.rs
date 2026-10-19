@@ -404,6 +404,11 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // the `Live` door guard, code view carved by `balanced_end`
     },
     Entry {
+        path: "crates/topo/src/policy_lane.rs",
+        disposition: Shared, // the edge-certification origin census, code view carved
+                             // by `attributed_extent`
+    },
+    Entry {
         path: "crates/topo/src/review_d18.rs",
         disposition: Shared, // the announcing body, code view carved by `balanced_end`
     },

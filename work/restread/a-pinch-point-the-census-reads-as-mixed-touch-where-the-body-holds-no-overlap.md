@@ -2,10 +2,11 @@
 id: a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap
 kind: issue
 title: At a three-cone pinch the census refuses a union MixedTouch where the body's volume, cones, keys and mesh match the oracle (214 four_pairs poses, three, tripod)
-status: open
+status: closed
 opened: 2026-10-12
 priority: P1
 cost: H
+closed: 2026-10-19
 ---
 
 
@@ -147,3 +148,26 @@ Absorbed: INSIDE's `a-touch-at-a-saddle-corner-refuses-unanalysed` and
 `a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone`
 are the same missing reading; they move here and ride this row. Class H; dual
 review, concurrent.
+
+## Closed
+
+2026-10-19, RESTREAD's link-reading lane (branch `restread/link-touch-reading`).
+The census reads a touch once per solid pair and touch point
+(`census::TouchUnit`), each side its solid's whole link there
+(`census::Link::at_point`: every vertex of the solid on the point's keys,
+closed under vertex–vertex ties, and the edges and faces its records and
+findings tie there), and decides the two links by one test
+(`census::rest::judge`): a piece of one crossing a face of the other along
+a ray, or a coplanar same-facing overlap, or a piece's probe inside the
+other's material by arc crossing-parity (`Link::reads`), is a crossing;
+otherwise a rest; anything undecided refuses by name. The plane and
+complement certificates, `Shape` and the saddle text retire.
+
+Measured on main `aea60c929` and on the branch head:
+- `four_pairs_battery`: main 196 `OK BAD`, 4012 `OK SOUND`, 982
+  `ERR SharedVertexCrossings`, 143 `SKIP`; head 0 `OK BAD`, 4208 `OK SOUND`,
+  982, 143. Exactly the 196 moved, each to `OK SOUND`. The 18 poses the
+  battery's volume filter skips are not run by it and were not measured.
+- The pin (`three i=4 j=3 k=1`, `tripod i=0 j=4 t=1 k=0`): main both unions
+  `OK BAD` on `MixedTouch`; head every op of both poses `OK SOUND`, re-pinned
+  as `three_pairs_at_one_vertex_build_on_one_key_and_every_op_is_sound`.

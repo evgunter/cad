@@ -1534,3 +1534,35 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Margins: r1's four loosen by 2–3e-13, m5's 4 of 241 tighten by up to 5.6e-12. Rungs are identical.
   - It waited out the copysign census main red, which GERM fixed in 22b62668 (Oct 15).
   - **Build C's next unit:** `cheapen-the-restriction-cut-steps-2-to-4`, axis-lazy first, every step bit-identical and timed. The adaptive block split is held until those are measured.
+- 2026-10-19 19:10Z — **#5391 merged** (dfdb5349): axis-lazy restriction. One-axis readers restrict only `N_d` and `W²`.
+  - Bit-identical end to end: the `limb_three` probe matches line for line on 285 decisions (shelling 12, r1 6, m5 258, section 9). The reviewer measured shelling −14% and r1 −35% against main, build C −16% and −36%.
+  - **Steps 2–3 of the follow-up are closed as measured-not-worth-it:** about 2–3% each, and `stretch_within` reads distinct windows. The remaining lever on the cut's arithmetic is #5163's `mul_nonneg` in the thin step, after #5163 lands.
+  - **MINOR, to the next unit:** no geom-core row pins `N` and `W²` cut over the same region (mutant M3 survives every test). It rides build C's next PR with an independent oracle row.
+  - **Build C's next unit:** a per-door piece schedule. `beyond_reach` (skip-only) reads one piece. `clears` reads one piece only if `Within` is independently certified; that is pending C's argument. It measured zero moves across 45,715 reads.
+  - **#5163** (`mul_nonneg`) is MERGEABLE but held behind four main reds at 1e-12, owned by FLUX and CPAIR.
+- 2026-10-19 19:35Z — **Friction: two orchestrator messages to build C were reported delivered but never reached it** (17:58Z, the `clears` soundness ruling; 19:09Z, #5391's review carry-overs). A `now`-priority re-send at 19:26Z arrived. From now on, any ruling a lane must act on gets an explicit ack, and a missing ack gets a `now` re-send.
+  - **Build C's coarse per-door schedule** (`beyond_reach` and `clears` at one piece; every margin or sign reader at two): parity is identical on every `limb_three` line. r1 30.0 → 14.6 s (−51% vs main), shelling 88.6 → 74.2 s (−16%). Before opening the PR, C reads whether `Within` is certified independently of `Clear`.
+  - **Build A's #5399** (halve shared weight powers once) is in FULL review: −11.1% on the face bound, bit-identical.
+- 2026-10-19 21:00Z — **Correction to the 19:35Z friction entry:** the messages to build C were not lost. Default-priority messages wait until the lane's turn ends, and C's turns run for hours of timing, so they arrived only at its next turn boundary. Rulings now go with `next` priority, which joins the running turn.
+  - **The coarse schedule is dropped.** With `clears` excluded on soundness (`Within`'s definition includes "no piece clears": `boundary.rs:1021`, `one_arc.rs:625/721`), the skip-only `beyond_reach` read alone gives shelling −3% and leaves r1 unchanged. `an-adaptive-block-piece-split-…` is closed as measured. `clears` (38k r1 reads) is the remaining r1 lever, with no sound one-piece path.
+  - **Slow rows on main d989dab1:** shelling 74.0 s (2.1× pre-4954), r1 17.8 s (1.4×), against a 2× target. Build C re-times and closes the item, or names the remaining levers.
+- 2026-10-19 21:45Z — **Slow rows re-timed** (main 36bdaf3b against pre-4954 `092b3022^1`, fresh targets): shelling 2.13×, r1 1.49×, so the item stays open. Shelling's gdb profile:
+  - whole-cell formation 23%, other `enclose` 18%, `rect_box` 15%, cut restriction 12%, `transverse_readings` 9%, offset fit 9%, cut halving 8%;
+  - **the new lever:** `offset_derive` mints `ChartedNurbs` 17 times for 4 walls, through `Section::of` and `PlaneSection::of`.
+  - Build C takes it (FULL; seam note on topo's log): a section door takes the caller's minted chart, bit-identical. After it come `mul_nonneg` in the thin step, then #5163.
+  - #5404 (the #5391 review follow-ups) is STANDARD MERGEABLE; CI attribution pending. #5399 is green at 3 ε on the head, verdict pending.
+- 2026-10-19 22:00Z — **Mint-once territory** (build C, `nurbs/mint-walls-once` from main 6d53b3d2):
+  - `replace_face.rs`/`offset_derive.rs` belong to shelf/shell, and have no live work in 9 days;
+  - the ssi doors belong to ssiarith/ssiedge/ssimarch;
+  - `props.rs` belongs to flux/tally, and `flux/spiric-budget-world-position` is live there.
+  - **Ruled:** don't hold. The `props.rs` hunk is the associated type plus 5 impls only; merge main before the PR. Seam note on flux's log.
+- 2026-10-19 22:10Z — **#5163 merged** (e763c9c7, `Interval::mul_nonneg`).
+  - CI's only red was the CPAIR needle at 1e-12, which is red on main and recorded in `curve-pair-polish-meters-refuse-shallow-meetings`. Merged per the standing ruling; the attribution is commented on the PR.
+  - **#5414** (build A, binomials fold, PR 1 of `binomial-bernstein-product-and-blossom-have-two-homes-each`, head 3a412f92) has a FULL reviewer, session_01SkTY8ainEoh2LQ17kMnQMk.
+- 2026-10-19 22:20Z — **#5404 merged** (f45f2ac4, the #5391 review follow-ups; CI fully green). `cell_pieces`' copy of the halving schedule goes to build A as a follow-up after #5399. #5399 still merges cleanly with main.
+- 2026-10-19 22:50Z — **#5399 merged** (e2ee445a; each cell halves each shared weight power once).
+  - **FULL review MERGEABLE:** 0 MAJOR / 2 MINOR / 1 NIT. Bit-identity holds, with 4 mutants red. 3460/3460 at all three ε, `limb_three` byte-identical, callgrind −11.1% reproduced.
+  - **MINORs routed:**
+    - M1 (the cut side's `shared_pieces` switch was unscheduled) is filed as `cut-side-quotients-halve-the-shared-weight-power-per-axis`, which also carries M2 (`WEIGHT_HALVINGS` counts calls, not halvings);
+    - the NIT (the bit row skips `cell_quotients`' arms) and the `halving_counts` switch in `cell_pieces` go to build A's follow-up.
+  - Reviewer archived.
