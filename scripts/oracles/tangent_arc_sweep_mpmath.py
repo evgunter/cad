@@ -17,9 +17,9 @@ Rows keyed `C` are arcs about a known centre (`sugar::sweep_about`): the true
 sweep is the angle between the two radii wound into the arc's sense, and the
 f64 error and the enclosure are checked the same way.
 
-For comparison it also replays, in Python's IEEE doubles, the quarter-tangent
-spelled `across / (|d| + along)` at every turn (the kernel takes it only up to
-a half turn, and `(|d| - along) / across` past it).
+For comparison it also replays, in Python's IEEE doubles, the sweep spelled
+`4·atan(across / (|d| + along))`, the quarter-tangent spelling the kernel
+replaced with `2·atan2(across, along)`.
 
 It prints the worst of each, per region (short arcs, half turns, near a full
 turn), and exits non-zero on any violation. Run:

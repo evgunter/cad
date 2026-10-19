@@ -1100,8 +1100,7 @@ pub enum PathError<T: Real> {
     /// merging them would put the only distinction into prose a caller
     /// would have to parse.
     FilletArcFlattenedInStorage {
-        /// The fillet arc's sweep, 4·atan(b) of the bulge it was
-        /// emitted with, radians (diagnostic).
+        /// The fillet arc's stored sweep, radians (diagnostic).
         turn: T,
         /// The requested fillet radius, meters (diagnostic).
         radius: T,
@@ -1129,8 +1128,7 @@ pub enum PathError<T: Real> {
     /// [`FilletArcFlattenedInStorage`](Self::FilletArcFlattenedInStorage)
     /// for why the two are separate variants.
     FilletCarrierBelowSceneResolution {
-        /// The fillet arc's sweep, 4·atan(b) of the bulge it was
-        /// emitted with, radians (diagnostic).
+        /// The fillet arc's stored sweep, radians (diagnostic).
         turn: T,
         /// The requested fillet radius, meters (diagnostic).
         radius: T,

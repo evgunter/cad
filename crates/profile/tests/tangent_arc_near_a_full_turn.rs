@@ -1,7 +1,7 @@
 //! **A tangent arc whose target is nearly behind the tip keeps its end
 //! vertex.** `tangent_arc_to` and `arc_onto` share one kernel, which
-//! stores the sweep as 4·atan(X) with X the quarter-tangent of the
-//! turn. As the target goes behind the tip the turn nears 2π, and the
+//! stores the sweep as twice the tangent-chord angle. As the target
+//! goes behind the tip the turn nears 2π, and the
 //! stored arc has to land on its own end vertex there as it does
 //! anywhere: within the scene's f64 resolution at `f64`, and inside an
 //! enclosure that stays narrow at `Interval`.
@@ -316,8 +316,8 @@ fn near_behind_targets_land_on_their_end_vertex_at_both_scalars() {
     }
 }
 
-/// **The through-point arc near a full turn**, the `Via` mode's own
-/// quarter-tangent of the same shape: the carrier tangent to `+x` at the
+/// **The through-point arc near a full turn**, the `Via` mode's
+/// quarter-tangent read off the same kind of split: the carrier tangent to `+x` at the
 /// origin with radius `r`, through its top `(0, 2r)`, to the point 2.7 m
 /// of arc short of the full turn, and home by way of a vertex below
 /// the chord. The stored arc lands on its end vertex within 8 ulps of
