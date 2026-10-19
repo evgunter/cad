@@ -139,10 +139,16 @@ use crate::m10_9_pins_interval::measured_studies;
 /// does, at 3.152e3·ε), so its row is read at a new scale and is a new
 /// measurement: `[1397, 1178, 4309]`, where it was `[1212, 1181, 3566]`
 /// at 2.7783e3·ε. No dispute fired.
+///
+/// A tangent arc's quarter-tangent chosen between `across/(|d| + along)`
+/// and `(|d| − along)/across` on `along`'s sign (`profile`'s
+/// `path::tangent_arc`, a `select_le_zero` where it was the first
+/// spelling alone): the link's `frozen` 556 → 557, its decisions held.
+/// No dispute fired.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [939, 686, 729]),
     ("r1_annulus", [475, 431, 940]),
-    ("r2_link", [291, 275, 556]),
+    ("r2_link", [291, 275, 557]),
     ("r2_filleted_bracket", [1312, 1046, 2112]),
     ("r2_rounded_pad", [1397, 1178, 4309]),
 ];

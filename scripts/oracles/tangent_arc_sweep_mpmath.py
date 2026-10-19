@@ -14,7 +14,8 @@ from the dumped inputs alone, as twice the signed angle from `c` to `b - a`:
 - Interval: the sweep's enclosure contains the true sweep, and its width.
 
 For comparison it also replays, in Python's IEEE doubles, the quarter-tangent
-spelled `across / (|d| + along)` (the spelling the kernel no longer uses).
+spelled `across / (|d| + along)` at every turn (the kernel takes it only up to
+a half turn, and `(|d| - along) / across` past it).
 
 It prints the worst of each, per region (short arcs, half turns, near a full
 turn), and exits non-zero on any violation. Run:
@@ -36,7 +37,7 @@ MISS_ULPS = 32.0
 
 
 def cancelling_sweep(a, c, b):
-    """The kernel's former spelling, in the kernel's f64 operation order."""
+    """The near-side spelling at every turn, in the kernel's f64 operation order."""
     n = math.sqrt(c[0] * c[0] + c[1] * c[1])
     ux, uy = c[0] / n, c[1] / n
     dx, dy = b[0] - a[0], b[1] - a[1]

@@ -2916,12 +2916,12 @@ fn center_arc<T: Real>(
 /// `b`, lowered from its chord ([`crate::bulge_leg`]) with X the
 /// tangent of half the turn ψ at `q` from `q − a` to `b − q` — by the
 /// inscribed angle, ψ is half the arc's included angle, so X is
-/// tan(θ/4) — spelled `2·(d₁ × d₂) / (|d₁|·|d₂|·|d̂₁ + d̂₂|²)`,
-/// algebraic in the three points: `|d₁|·|d₂| + d₁·d₂` through
-/// `1 + cos ψ = |d̂₁ + d̂₂|²/2`, a sum of squares that does not cancel
-/// as ψ nears π (a near full turn) and is never negative. It vanishes
-/// into a pole only at ψ = π, `q` on the chord's line outside it, which
-/// the door's collinear gate refuses first.
+/// tan(θ/4) — spelled `(d₁ × d₂) / (|d₁|·|d₂| + d₁·d₂)` up to a half
+/// turn and `(|d₁|·|d₂| − d₁·d₂) / (d₁ × d₂)` past it, algebraic in the
+/// three points and chosen on `d₁·d₂` as [`tangent_arc`] chooses, so
+/// neither sum cancels. It vanishes into a pole only at ψ = π, `q` on
+/// the chord's line outside it, which the door's collinear gate refuses
+/// first.
 fn via_arc<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> Option<BuiltArc<T>> {
     crate::bulge_leg(a, b, via_quarter_tan(a, q, b))
 }
@@ -2929,8 +2929,8 @@ fn via_arc<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> Option<BuiltArc
 /// [`via_arc`]'s X: tan(θ/4) of the arc from `a` through `q` to `b`.
 fn via_quarter_tan<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> T {
     let (d1, d2) = (q - a, b - q);
-    let (l1, l2) = (d1.norm(), d2.norm());
-    T::from_f64(2.0) * d1.perp_dot(d2) / (l1 * l2 * (d1 / l1 + d2 / l2).norm_squared())
+    let (cross, dot, lengths) = (d1.perp_dot(d2), d1.dot(d2), d1.norm() * d2.norm());
+    (-dot).select_le_zero(cross / (lengths + dot), (lengths - dot) / cross)
 }
 
 /// **The tangent arc's one conversion**: the arc leaving `a` along the
@@ -2941,10 +2941,13 @@ fn via_quarter_tan<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> T {
 /// `ρ = |d|² / (2·across)`, the radius `|ρ|`, with `d = b − a` resolved
 /// along and across `u` — no root. Δθ = 4·atan(X) with X the tangent of
 /// half the angle δ from `u` to the chord (the arc turns 2δ, so X is
-/// tan(θ/4)), spelled `2·across / (|d|·|u + d̂|²)`: `|d| + along`
-/// through `1 + cos δ = |u + d̂|²/2`, a sum of squares that does not
-/// cancel as the target goes behind the tip (δ → ±π, a near full turn)
-/// and is never negative, so X keeps across's sign at every scalar.
+/// tan(θ/4)), spelled `across / (|d| + along)` up to a half turn and
+/// `(|d| − along) / across` past it ([`Real::select_le_zero`] on
+/// `along`): equal over the reals, each sum has terms of one sign on its
+/// side, so neither cancels — the first would as the target goes behind
+/// the tip (a near full turn), the second as it comes ahead (a short
+/// arc). An enclosure of `along` that straddles zero takes the hull of
+/// the two, both accurate there.
 ///
 /// **Its endpoint facts are theorems** ([`crate::Facts::Registered`]):
 /// `‖a − c‖ = |ρ|` because n̂ is a unit normal, and
@@ -2955,7 +2958,8 @@ fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> BuiltArc<T> {
     let d = b - a;
     let across = u.perp_dot(d);
     let len = d.norm();
-    let x = T::from_f64(2.0) * across / (len * (u + d / len).norm_squared());
+    let along = u.dot(d);
+    let x = (-along).select_le_zero(across / (len + along), (len - along) / across);
     let rho = d.norm_squared() / (T::from_f64(2.0) * across);
     BuiltArc {
         arc: Arc2 {
