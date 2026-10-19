@@ -51,3 +51,14 @@ The two designers converged on one recommendation. It is put to Ev because it re
   - `Unminted` for `ParamSpan` alone, because it leaves a stored tangency at rest ending in a lever.
   - The two-valued form, because it leaves `ParamSpan`'s build ending with a lever its note denies.
 - **Found on the way:** PR 5101 said `NotTransverse` at rest "was already the defect ending". In fact a Transversality or TangentSecondOrder zero verdict at rest ends in the lever alone, while `validate::classify_certify`'s reason says the faces are "tangent where its description says they cross".
+
+## Ev's question (2026-10-14, again 2026-10-19): aren't stored contradictions kernel bugs?
+
+Yes, past the import door. `[import]` already says no state is reachable only through import, and that a body ships only once the kernel's own at-rest gate passes it. So after import, a stored contradiction can only come from a kernel bug, and `[failure]` (D2) says it panics. The import door is the one place it is input; there it is the file's, refused typed and naming the file.
+
+The revised clause (iv) says this. In the code:
+
+- At the import door, `KERNEL_OR_FILE_DEFECT_ENDING` becomes a damaged-file refusal.
+- At a build and past import, an unminted side and a stored contradiction panic.
+
+**Gaps against `[import]` today** (survey on PR 5134): adoption keeps the file's carriers verbatim instead of recomputing them; a negative surface radius goes unchecked. These are EXCH defects against ratified text (`can-an-import-reach-a-state-only-a-kernel-bug-otherwise-reaches`, `step-import-reads-a-negative-surface-radius-unchecked-before-edge-certification`). The panic arms cannot land until those gaps close, or a damaged file would panic.

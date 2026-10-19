@@ -519,12 +519,15 @@ same one story with the same one recourse as its in-band sibling.
 whether the band, a number or a proof decided it, so a proved zero
 tells the story of its exact and in-band siblings. Each decision
 says what its refused side is, and every definite reading of it ends
-by that at each door: a side the lever reaches tells the lever story
-everywhere; a contradiction between a stored description and its
-stored geometry tells the lever story at a build and, over a body at
-rest, ends as a defect — no move of the geometry reaches it; a side
-no kernel construction produces ends as a defect at every door. No
-refusal names a lever the decision does not.
+by that at each door. A side the lever reaches tells the lever story
+everywhere. A contradiction between a stored description and its
+stored geometry tells the lever story at a build. At the import door
+it is the file's: the import refuses typed, naming the file. Past the
+import door no state is reachable only through import ([import]), so
+only a kernel bug reaches it, and it panics ([failure]). A side no
+kernel construction produces panics at a build and past the import
+door, and at the import door is the file's like any other. No refusal
+names a lever the decision does not.
 Review checklist form: for every arm added to a decision, name which
 ε_input story it belongs to, or say why it belongs to none.
 
