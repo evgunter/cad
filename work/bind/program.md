@@ -10,7 +10,6 @@ tag: (BIND orchestrator)
 ab_band: 9600-9699
 paths: [crates/pncad-py/src/py/*]
 keep_out: [opened by LIB's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - LIB measured 67.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are LIB BIND and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, PORT owns the crate-boundary refusal doors, CENSUS owns the vocabularies spelled by hand, EDIT owns the DocEdit vocabulary the facade-type rows wait on]
-priority: P4
 ---
 The bindings' housekeeping, split from the DOORS that LIB keeps — Ev's
 call, in chat: the north-star half is medium priority and the rest is
