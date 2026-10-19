@@ -86,12 +86,6 @@ impl Prism {
         )
     }
 
-    /// The point's local coordinates.
-    fn local(&self, q: V) -> V {
-        self.rot
-            .map(|row| row[0] * q[0] + row[1] * q[1] + row[2] * q[2])
-    }
-
     /// The prism's cone at the corner as convex cones, each the three
     /// inward normals (in world coordinates) of `z ≥ 0` and the two
     /// rays bounding one gap of the profile.

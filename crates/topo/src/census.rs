@@ -6207,7 +6207,7 @@ impl<T: Decide> Link<T> {
                         continue 'reference;
                     };
                     let (oq, ow) = (s.outward.dot(q - p), s.outward.dot(w - p));
-                    let zero = T::from_f64(band.zero());
+                    let zero = T::from_computed(band.zero());
                     let at = |t: T| q + (w - q) * t;
                     // An end read Zero lies within `zero` of the plane on
                     // either side, so a crossing, if any, lies on the
@@ -6411,8 +6411,15 @@ mod rest {
                     }
                     // Every point inside the piece reads its one cell: the
                     // first along the far side whose reading decides.
-                    let read = [0.5, 0.25, 0.75, 0.0625, 0.9375].into_iter().find_map(|t| {
-                        let q = c0 + (c1 - c0) * T::from_f64(t);
+                    let fractions = [
+                        T::from_f64(0.5),
+                        T::from_f64(0.25),
+                        T::from_f64(0.75),
+                        T::from_f64(0.0625),
+                        T::from_f64(0.9375),
+                    ];
+                    let read = fractions.into_iter().find_map(|t| {
+                        let q = c0 + (c1 - c0) * t;
                         other.reads(q, band).map(|m| (q, m))
                     });
                     let full = read.map(|(_, m)| m);
