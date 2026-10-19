@@ -35,8 +35,10 @@ const FILES: [&str; 5] = [
 /// from B's branch record with main's blend change (`d5a518b1b2`).
 /// `kitchen_sink`'s row moved when a revolve's turned vertex came to
 /// turn its offset from the axis: 8 of its points, by at most 2 ulps
-/// (`m10_p_fence`'s header has the dump). Thirteen rows moved when a
-/// construction came to compute in its own coordinates and its
+/// (`m10_p_fence`'s header has the dump). `declared_tangency`'s row
+/// moved when a chord's director became its components: 4 of its
+/// points, by at most `3.3e-16` (the same header). Thirteen rows moved
+/// when a construction came to compute in its own coordinates and its
 /// placement to map it there: a body built off a datum moves by one
 /// composition's rounding, its word count kept, and `face_sketch`'s
 /// boss is placed against the box and unioned with it, so the box joins

@@ -76,8 +76,10 @@ pub enum CitedInput {
 /// named in the tables of the inputs the decision read.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedCoincidence {
-    /// The two cells decided one, in the order the decision read them.
-    pub cells: [NamedCell; 2],
+    /// The cells decided: for a [`topo::Relation::Meet`], the two or
+    /// more cells that meet, sorted, each once; for every other
+    /// relation, two, in the order the decision read them.
+    pub cells: Vec<NamedCell>,
     /// What was decided between them.
     pub relation: topo::Relation,
     /// Where it was decided.
@@ -87,10 +89,83 @@ pub struct NamedCoincidence {
     pub margin: MarginDiag,
     /// How that margin's Zero was discharged.
     pub discharge: topo::Discharge,
+    /// Which of the node's decisions it is.
+    pub origin: RowOrigin,
 }
 
+/// **Which decision of a node's evaluation a row is** (DM4: a union's
+/// rows are its evaluation's decisions).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RowOrigin {
+    /// The node's own operation decided it.
+    Node,
+    /// A union's or an intersect's judgement of the members at these
+    /// places in its list, the lesser first: one of the node's rows
+    /// that are order-free modulo the members' places.
+    Judged {
+        /// The two members' places.
+        pair: [u32; 2],
+    },
+    /// The fold step of a union or an intersect of three members or
+    /// more that folds in the member at this place in its list.
+    Fold {
+        /// The member's place.
+        step: u32,
+    },
+}
+
+impl NamedCoincidence {
+    /// **A meeting of `cells` at one point** ([`topo::Relation::Meet`]):
+    /// the cells sorted, each once.
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::Emission`] where fewer than two cells remain: a
+    /// point decided on the cell it is, which states nothing.
+    pub(crate) fn meet(
+        mut cells: Vec<NamedCell>,
+        site: topo::DecisionSite,
+        (margin, discharge): (MarginDiag, topo::Discharge),
+        origin: RowOrigin,
+    ) -> Result<Self, NamingError> {
+        cells.sort();
+        cells.dedup();
+        if cells.len() < 2 {
+            return Err(NamingError::Emission { what: MEET_OF_ONE });
+        }
+        Ok(Self {
+            cells,
+            relation: topo::Relation::Meet,
+            site,
+            margin,
+            discharge,
+            origin,
+        })
+    }
+
+    /// **Whether `self` and `other` are decided at one point**: both
+    /// name one member vertex. A row naming a vertex decides at that
+    /// vertex, whatever its relation; a row naming none fixes no point
+    /// by its cells, so it is at one point with no other row.
+    #[must_use]
+    pub(crate) fn at_one_vertex(&self, other: &Self) -> bool {
+        self.cells.iter().any(|c| {
+            matches!(c, NamedCell::Entity { name, .. } if name.kind == crate::names::EntityKind::Vertex)
+                && other.cells.contains(c)
+        })
+    }
+}
+
+/// A coincidence row's cell is of an input the node read, and that
+/// input's table names no entity at its key ([`name_rows`]).
+pub(crate) const ROW_CELL_NOT_IN_TABLE: &str =
+    "a coincidence row names a cell its input's table does not name";
+
+/// A meeting that resolves to fewer than two cells.
+const MEET_OF_ONE: &str = "a coincidence meeting resolves to fewer than two cells";
+
 /// One cell of a [`NamedCoincidence`].
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NamedCell {
     /// An entity of an input body of the deciding node, by the read it
     /// entered through and its name in that read's table.
@@ -128,7 +203,7 @@ pub enum Proof {
     /// No rung proves it structural. It holds at the current values;
     /// whether it holds across the family the door has not shown.
     Unproven {
-        /// What separates the two cells' constructions.
+        /// What separates the cells' constructions.
         residual: Residual,
         /// What would make the coincidence structural.
         recourse: Recourse,
@@ -138,7 +213,7 @@ pub enum Proof {
 /// The rung of the door that proved a row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Rung {
-    /// The two cells are one construction read twice: one origin,
+    /// The cells are one construction read as many times: one origin,
     /// reached through one chain of placements.
     SameConstruction,
     /// The kernel's carrier-pair verdict, run on the two cells'
@@ -298,12 +373,12 @@ pub enum Placed {
     World(RecipeNodeId),
 }
 
-/// **What separates an unproven row's two constructions**: each cell's
+/// **What separates an unproven row's constructions**: each cell's
 /// construction, or why the walk reached none.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Residual {
     /// Each cell's construction, in the row's cell order.
-    pub constructions: [Result<Construction, Unwalked>; 2],
+    pub constructions: Vec<Result<Construction, Unwalked>>,
     /// What the replay at `Sym` made of the row.
     pub replay: Unreplayed,
 }
@@ -318,22 +393,59 @@ impl fmt::Display for Residual {
 impl Residual {
     /// The constructions, in words.
     fn constructions_words(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.constructions {
-            [Ok(a), Ok(b)] => match (a.origin == b.origin, a.placed == b.placed) {
+        let n = self.constructions.len();
+        let unwalked: Vec<(usize, &Unwalked)> = self
+            .constructions
+            .iter()
+            .enumerate()
+            .filter_map(|(i, c)| c.as_ref().err().map(|why| (i, why)))
+            .collect();
+        match (self.constructions.as_slice(), unwalked.as_slice()) {
+            ([Ok(a), Ok(b)], _) => match (a.origin == b.origin, a.placed == b.placed) {
                 (false, false) => f.write_str("the two cells are two constructions, placed apart"),
                 (false, true) => f.write_str("the two cells are two constructions"),
                 (true, _) => f.write_str("the two cells are one construction placed apart"),
             },
-            [Err(a), Err(b)] => write!(
+            ([Err(a), Err(b)], _) => write!(
                 f,
                 "neither cell is read to a construction: the first because {a}, the second \
                  because {b}"
             ),
-            [Err(why), Ok(_)] => {
+            ([Err(why), Ok(_)], _) => {
                 write!(f, "the first cell is not read to a construction: {why}")
             }
-            [Ok(_), Err(why)] => {
+            ([Ok(_), Err(why)], _) => {
                 write!(f, "the second cell is not read to a construction: {why}")
+            }
+            (all, []) => {
+                let walked: Vec<&Construction> =
+                    all.iter().filter_map(|c| c.as_ref().ok()).collect();
+                let mut origins: Vec<&Origin> = Vec::new();
+                for c in &walked {
+                    if !origins.contains(&&c.origin) {
+                        origins.push(&c.origin);
+                    }
+                }
+                let distinct = origins.len();
+                let apart = walked.windows(2).any(|w| w[0].placed != w[1].placed);
+                match (distinct, apart) {
+                    (1, _) => write!(f, "the {n} cells are one construction placed apart"),
+                    (d, true) => write!(f, "the {n} cells are {d} constructions, placed apart"),
+                    (d, false) => write!(f, "the {n} cells are {d} constructions"),
+                }
+            }
+            (_, unwalked) => {
+                for (k, (i, why)) in unwalked.iter().enumerate() {
+                    if k > 0 {
+                        f.write_str("; ")?;
+                    }
+                    write!(
+                        f,
+                        "cell {} of {n} is not read to a construction: {why}",
+                        i + 1
+                    )?;
+                }
+                Ok(())
             }
         }
     }
@@ -342,7 +454,7 @@ impl Residual {
 /// **What would make an unproven row structural.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Recourse {
-    /// Build the two cells as one construction of the same variables,
+    /// Build the cells as one construction of the same variables,
     /// or assert the coincidence at its site: the residual the replay
     /// read is a function of the variables alone that the door did not
     /// show zero.
@@ -361,7 +473,7 @@ impl Recourse {
     pub const fn words(self) -> &'static str {
         match self {
             Self::OneConstruction => {
-                "Recourse: build the two cells as one construction of the same variables, so \
+                "Recourse: build the cells as one construction of the same variables, so \
                  the coincidence holds whatever their values, or assert it at its site"
             }
             Self::Assert => {
@@ -372,7 +484,7 @@ impl Recourse {
     }
 }
 
-/// A relation as the clause between a row's two cells.
+/// A relation as the clause between the cells of a two-cell row.
 pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
     match relation {
         topo::Relation::SameOriented => "continues on one carrier with",
@@ -386,6 +498,30 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::SameRadius => "shares a radius with",
         topo::Relation::AxesMeet => "has an axis meeting the axis of",
         topo::Relation::CoRuled => "is ruled along one direction with",
+        topo::Relation::Meet => "shares one point with",
+    }
+}
+
+/// **A row's statement in words**, each cell as `cell` spells it: two
+/// cells and the clause between them, or every cell of a meeting of
+/// three or more.
+///
+/// # Panics
+///
+/// On a row of fewer than two cells, which no constructor makes
+/// ([`NamedCoincidence::meet`]).
+pub(crate) fn statement_words(
+    row: &NamedCoincidence,
+    cell: impl Fn(&NamedCell) -> String,
+) -> String {
+    match row.cells.as_slice() {
+        [a, b] => format!("{} {} {}", cell(a), relation_words(row.relation), cell(b)),
+        [init @ .., last] if !init.is_empty() => format!(
+            "{} and {} share one point",
+            init.iter().map(&cell).collect::<Vec<_>>().join(", "),
+            cell(last)
+        ),
+        _ => unreachable!("a coincidence row holds two cells or more: {row:?}"),
     }
 }
 
@@ -432,7 +568,7 @@ pub fn prove<P: crate::ProfilePayload>(
     tol: geom_core::Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<Vec<Proof>>, Canceled> {
-    let walked: Vec<Vec<[Result<Construction, Unwalked>; 2]>> = nodes
+    let walked: Vec<Vec<Vec<Result<Construction, Unwalked>>>> = nodes
         .iter()
         .map(|(_, rows)| rows.iter().map(|row| constructions(doc, row)).collect())
         .collect();
@@ -479,23 +615,31 @@ pub fn prove<P: crate::ProfilePayload>(
 fn constructions<P>(
     doc: &crate::doc::Doc<P>,
     row: &NamedCoincidence,
-) -> [Result<Construction, Unwalked>; 2] {
-    row.cells.each_ref().map(|cell| match cell {
-        NamedCell::Entity { input, name } => construction(doc, *input, name),
-        NamedCell::Tool { input, role } => Ok(Construction {
-            origin: Origin::Tool(*input, *role),
-            placed: Vec::new(),
-        }),
-        NamedCell::Piece { profile, piece } => Ok(Construction {
-            origin: Origin::Piece(*profile, *piece),
-            placed: Vec::new(),
-        }),
-    })
+) -> Vec<Result<Construction, Unwalked>> {
+    row.cells
+        .iter()
+        .map(|cell| match cell {
+            NamedCell::Entity { input, name } => construction(doc, *input, name),
+            NamedCell::Tool { input, role } => Ok(Construction {
+                origin: Origin::Tool(*input, *role),
+                placed: Vec::new(),
+            }),
+            NamedCell::Piece { profile, piece } => Ok(Construction {
+                origin: Origin::Piece(*profile, *piece),
+                placed: Vec::new(),
+            }),
+        })
+        .collect()
 }
 
-/// The first rung: the two cells one construction read twice.
-fn one_construction(constructions: &[Result<Construction, Unwalked>; 2]) -> bool {
-    matches!(constructions, [Ok(a), Ok(b)] if a == b)
+/// The first rung: every cell one construction, read as many times.
+fn one_construction(constructions: &[Result<Construction, Unwalked>]) -> bool {
+    match constructions {
+        [Ok(first), rest @ ..] if !rest.is_empty() => {
+            rest.iter().all(|c| c.as_ref().is_ok_and(|c| c == first))
+        }
+        _ => false,
+    }
 }
 
 /// **The construction of the entity `name` names in `read`'s value**:
@@ -636,7 +780,8 @@ pub(crate) struct RowInputs<'a> {
 ///
 /// [`NamingError::Emission`] for a cell no input of the node holds by
 /// one name: the kernel recorded a cell of a body it did not read, or
-/// one the input's table does not name, which is a kernel bug.
+/// ([`ROW_CELL_NOT_IN_TABLE`]) one the input's table does not name,
+/// which is a kernel bug.
 pub(crate) fn name_rows(
     rows: &[topo::Coincidence],
     inputs: &RowInputs<'_>,
@@ -664,9 +809,12 @@ pub(crate) fn name_rows(
                     topo::Cell::Edge(e) => EntityKey::Edge(e),
                     topo::Cell::Face(f) => EntityKey::Face(f),
                 };
-                let name = table
-                    .name_of(&EntityRef { body: 0, key })
-                    .ok_or_else(unnamed)?;
+                let name =
+                    table
+                        .name_of(&EntityRef { body: 0, key })
+                        .ok_or(NamingError::Emission {
+                            what: ROW_CELL_NOT_IN_TABLE,
+                        })?;
                 Ok(NamedCell::Entity {
                     input: node,
                     name: name.clone(),
@@ -676,12 +824,22 @@ pub(crate) fn name_rows(
     };
     rows.iter()
         .map(|row| {
+            let cells = vec![name(&row.cells[0])?, name(&row.cells[1])?];
+            if row.relation == topo::Relation::Meet {
+                return NamedCoincidence::meet(
+                    cells,
+                    row.site,
+                    (row.margin, row.discharge),
+                    RowOrigin::Node,
+                );
+            }
             Ok(NamedCoincidence {
-                cells: [name(&row.cells[0])?, name(&row.cells[1])?],
+                cells,
                 relation: row.relation,
                 site: row.site,
                 margin: row.margin,
                 discharge: row.discharge,
+                origin: RowOrigin::Node,
             })
         })
         .collect()
@@ -723,11 +881,12 @@ pub(crate) fn name_junctions<T: geom_core::Real>(
                 },
             };
             rows.push(NamedCoincidence {
-                cells: [piece((joint + n - 1) % n)?, piece(joint)?],
+                cells: vec![piece((joint + n - 1) % n)?, piece(joint)?],
                 relation,
                 site: topo::DecisionSite::ProfileJunction,
                 margin: decided.margin,
                 discharge: topo::Discharge::of(decided.margin),
+                origin: RowOrigin::Node,
             });
         }
     }

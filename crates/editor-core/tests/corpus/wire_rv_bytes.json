@@ -267,6 +267,9 @@
           "TangentArcTo": "Start"
         },
         {
+          "ArcOnto": "Start"
+        },
+        {
           "LineTo": "StartArriving"
         },
         {
@@ -274,6 +277,9 @@
         },
         {
           "TangentArcTo": "StartArriving"
+        },
+        {
+          "ArcOnto": "StartArriving"
         },
         {
           "LineTo": {
@@ -317,6 +323,26 @@
         },
         {
           "TangentArcTo": {
+            "Point": [
+              {
+                "Quantity": {
+                  "value": 3.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Quantity": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "ArcOnto": {
             "Point": [
               {
                 "Quantity": {

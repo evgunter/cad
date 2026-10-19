@@ -708,11 +708,19 @@ class AssemblyError(PncadError):
     rest over a part whose contact nothing verified — and `refusals`
     is then a `CarriedRefusal` per mate, each carrying the route it
     arrived by, because its `mate` is a constraint of `of` and not of the
-    document that was gathered."""
+    document that was gathered.
+
+    `carried_at_rest` is a part's own at-rest refusal: a document BELOW
+    this one refused over a finding none of its declarations answers
+    for, and the refusal crosses whole, its attributed findings with it.
+    Each is the part's, reported once, and `findings` is then a
+    `CarriedAtRestFinding` per finding with the route it arrived by. It
+    is raised after `carried_mint_refusal` and before this document's
+    own arms."""
 
     variant: str
     refusals: Optional[list[MintRefusal] | list[CarriedRefusal]]
-    findings: Optional[list[AtRestFinding]]
+    findings: Optional[list[AtRestFinding] | list[CarriedAtRestFinding]]
     name: Optional[str]
     node: Optional[NodeId]
     of: Optional[str]
@@ -1391,8 +1399,9 @@ class StartToken:
 
 class ArrivesTangentToken:
     """The type of `Start.arrives_tangent()`, the seam's declared
-    tangent arrival. `line_to`, `tangent_arc_to` and `arc_to(Bulge(...))`
-    take it; `Via` and `Center` do not."""
+    tangent arrival. Every closer takes it: where the leg's data fix its
+    end direction it is checked; `arc_onto` and the `Via` arrival take
+    `Start`'s direction from it and close at the verb."""
 
 # A closing target: `Start`, with or without the seam's declaration.
 _Close: TypeAlias = StartToken | ArrivesTangentToken
@@ -1471,7 +1480,18 @@ _PointLeg: TypeAlias = Bulge[_Pt] | Via[_Pt] | Center[_Pt]
 # position and tangent; the incoming side's anchor is the tip).
 _LegEndIncoming: TypeAlias = Bulge[_Pt] | Via[_Pt] | Center[_Pt] | Radius
 _BulgeClose: TypeAlias = Bulge[StartToken] | Bulge[ArrivesTangentToken]
-_PointClose: TypeAlias = _BulgeClose | Via[StartToken] | Center[StartToken]
+_PointClose: TypeAlias = (
+    _BulgeClose
+    | Via[StartToken]
+    | Via[ArrivesTangentToken]
+    | Center[StartToken]
+    | Center[ArrivesTangentToken]
+)
+# The arrivals that close at the verb: `Center` at `Start` (checked
+# when declared), and `Via` with the declaration supplying its director.
+_ArrivalClose: TypeAlias = (
+    Center[StartToken] | Center[ArrivesTangentToken] | Via[ArrivesTangentToken]
+)
 _Tangent: TypeAlias = Sweep | ArcLen
 
 class Open:
@@ -1493,7 +1513,7 @@ class Open:
     @overload
     @staticmethod
     def arc_fillet_arc(
-        spec: Center[_Pt], radius: Length, spec2: Center[StartToken]
+        spec: Center[_Pt], radius: Length, spec2: _ArrivalClose
     ) -> ClosedLoop: ...
     @overload
     @staticmethod
@@ -1585,6 +1605,27 @@ class PathViaArrivalStart:
     def angle(self, theta: Angle) -> ClosedLoop: ...
     def toward(self, dx: float, dy: float) -> ClosedLoop: ...
 
+class PathArcOnto:
+    """`arc_onto(p)`: the target bound, ONE director pending — it names
+    the arc's END tangent, and the departure is derived."""
+
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
+    def angle(self, theta: Angle) -> PathDirectedPoint: ...
+    def toward(self, dx: float, dy: float) -> PathDirectedPoint: ...
+
+class PathArcOntoStart:
+    """`arc_onto(Start)`: the sharp seam, ONE director pending."""
+
+    @property
+    def step(self) -> AuthoredStep:
+        """The handle of the step the verb that produced this state
+        recorded: what `Doc.step` and `Doc.piece` bind."""
+    def angle(self, theta: Angle) -> ClosedLoop: ...
+    def toward(self, dx: float, dy: float) -> ClosedLoop: ...
+
 class PathPoint:
     """A plain point: position bound, no incoming carrier. There is
     nothing to inherit here, so `tangent` and `turn` are absent."""
@@ -1603,6 +1644,12 @@ class PathPoint:
     def arc_to(self, spec: _PointLeg) -> PathDirectedPoint: ...
     @overload
     def arc_to(self, spec: _PointClose) -> ClosedLoop: ...
+    @overload
+    def arc_onto(self, target: tuple[Length, Length]) -> PathArcOnto: ...
+    @overload
+    def arc_onto(self, target: StartToken) -> PathArcOntoStart: ...
+    @overload
+    def arc_onto(self, target: ArrivesTangentToken) -> ClosedLoop: ...
     def arc_fillet(self, spec: _PointLeg, radius: Length) -> PathOpen: ...
     @overload
     def arc_fillet_arc(
@@ -1610,7 +1657,7 @@ class PathPoint:
     ) -> PathDirectedPoint: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _PointLeg, radius: Length, spec2: Center[StartToken]
+        self, spec: _PointLeg, radius: Length, spec2: _ArrivalClose
     ) -> ClosedLoop: ...
     @overload
     def arc_fillet_arc(
@@ -1642,7 +1689,7 @@ class PathDirectedPoint:
     @overload
     def fillet_arc(self, radius: Length, spec: Center[_Pt]) -> PathDirectedPoint: ...
     @overload
-    def fillet_arc(self, radius: Length, spec: Center[StartToken]) -> ClosedLoop: ...
+    def fillet_arc(self, radius: Length, spec: _ArrivalClose) -> ClosedLoop: ...
     @overload
     def fillet_arc(self, radius: Length, spec: Radius) -> PathRadiusArrival: ...
     @overload
@@ -1659,6 +1706,12 @@ class PathDirectedPoint:
     def arc_to(self, spec: _PointLeg) -> PathDirectedPoint: ...
     @overload
     def arc_to(self, spec: _PointClose) -> ClosedLoop: ...
+    @overload
+    def arc_onto(self, target: tuple[Length, Length]) -> PathArcOnto: ...
+    @overload
+    def arc_onto(self, target: StartToken) -> PathArcOntoStart: ...
+    @overload
+    def arc_onto(self, target: ArrivesTangentToken) -> ClosedLoop: ...
     def arc_fillet(self, spec: _LegEndIncoming, radius: Length) -> PathOpen: ...
     @overload
     def arc_fillet_arc(
@@ -1666,7 +1719,7 @@ class PathDirectedPoint:
     ) -> PathDirectedPoint: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _LegEndIncoming, radius: Length, spec2: Center[StartToken]
+        self, spec: _LegEndIncoming, radius: Length, spec2: _ArrivalClose
     ) -> ClosedLoop: ...
     @overload
     def arc_fillet_arc(
@@ -1694,7 +1747,7 @@ class PathDirected:
     @overload
     def fillet_arc(self, radius: Length, spec: Center[_Pt]) -> PathDirectedPoint: ...
     @overload
-    def fillet_arc(self, radius: Length, spec: Center[StartToken]) -> ClosedLoop: ...
+    def fillet_arc(self, radius: Length, spec: _ArrivalClose) -> ClosedLoop: ...
     @overload
     def fillet_arc(self, radius: Length, spec: Radius) -> PathRadiusArrival: ...
     @overload
@@ -1711,7 +1764,7 @@ class PathDirected:
     ) -> PathDirectedPoint: ...
     @overload
     def arc_fillet_arc(
-        self, spec: _Tangent, radius: Length, spec2: Center[StartToken]
+        self, spec: _Tangent, radius: Length, spec2: _ArrivalClose
     ) -> ClosedLoop: ...
     @overload
     def arc_fillet_arc(
@@ -6191,6 +6244,48 @@ class CarriedRefusal:
     @property
     def via(self) -> list[NodeId]: ...
 
+class CarriedInterference:
+    """An overlap a document BELOW this one reported between two of its
+    own copies, with the route this document reached it by: a row of
+    `Assembly.carried_interference`, reported and never raised, quiet
+    or loud as the part's own assertions judged it.
+
+    The finding is the part's: its copies are variables of `of`, which
+    this document does not hold, so their `Var` handles carry no kind."""
+
+    @property
+    def finding(self) -> InterferenceFinding: ...
+    @property
+    def through(self) -> NodeId: ...
+    @property
+    def pin(self) -> ContentPin:
+        """Which version of `of` found it: two pins are two findings."""
+    @property
+    def of(self) -> str: ...
+    @property
+    def via(self) -> list[NodeId]: ...
+
+class CarriedAtRestFinding:
+    """One finding of an at-rest refusal a document BELOW this one
+    raised over something none of its declarations answers for: a row
+    of `AssemblyError.findings` under `carried_at_rest`, with the route
+    it arrived by. Its `finding.attribution`, where it has one, names
+    the part's own declaration."""
+
+    @property
+    def finding(self) -> AtRestFinding:
+        """The part's own finding, said as the part holds its nodes."""
+
+    @property
+    def through(self) -> NodeId: ...
+    @property
+    def pin(self) -> ContentPin:
+        """Which version of `of` found it: two pins are two findings."""
+    @property
+    def of(self) -> str: ...
+    @property
+    def via(self) -> list[NodeId]: ...
+
 class Assembly:
     """A validated assembly: the gathered body, its product names, one
     minted declaration per solved mate of THIS document, and one
@@ -6220,6 +6315,13 @@ class Assembly:
         """Every overlap between two copies' material, quiet or loud,
         in the census's order. An overlap is reported here, never
         raised."""
+
+    @property
+    def carried_interference(self) -> list[CarriedInterference]:
+        """Every overlap a document BELOW this one reported between two
+        of its own copies, once per part row, in gather order: the
+        part's findings, reported here and never raised. An overlap
+        inside one part's copy is the part's, not this document's."""
 
 class FaceSite:
     """A face of a copy, as the copy's own name table spells it: the
@@ -6290,13 +6392,15 @@ def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     so the gather refuses `root_failed` before the gate runs.
 
     An overlap between two copies' material is not raised: it is an
-    `InterferenceFinding` on `Assembly.interference`.
+    `InterferenceFinding` on `Assembly.interference`, or, between two
+    copies of a part, the part's own finding on
+    `Assembly.carried_interference`.
 
     Raises AssemblyError, typed. Read `variant` first: `at_rest` is a
     verdict AGAINST the document, `uncertified` is the declared
     direction's FRONTIER where nothing was decided either way, and the
-    remaining arms (`unminted_mates`, `carried_mint_refusal`, the
-    gather's own tags) refuse before any verdict. The two mint arms
+    remaining arms (`unminted_mates`, `carried_mint_refusal`,
+    `carried_at_rest`, the gather's own tags) refuse before any verdict. The two mint arms
     answer with `refusals`, every mate that did not mint rather than
     the first."""
 
@@ -6627,9 +6731,9 @@ class CheckEvidence:
     `unsupported` (`reason`, `inner_variant`) — a shell's orientation
     read could not be decided at this tolerance, or a face is outside
     the flux inventory, so the count is UNKNOWABLE and says so rather
-    than guessing; `inner_variant` is which of the shell door's five
+    than guessing; `inner_variant` is which of the shell door's nine
     refusals it was (`band`, `props`, `escalated`, `zero_volume`,
-    `straddles`).
+    `straddles`, `ray_in_band`, `corner`, `ray`, `sign_unresolved`).
     `stale_expectation` (`expected`) — an
     expectation no subject consumed. `not_separated` (`other_root`,
     `other_output`) — a pair the box certificate could not prove apart,
@@ -6652,11 +6756,13 @@ class CheckEvidence:
     examination, so nothing was read; do not take the silence for a
     clean body.
 
-    `unproven_coincidence` (`relation`, `site`, `reason`, and the row
-    as `coincidence`) — a node decided two cells one from values and
-    the coincidence door does not prove it structural. `reason` says
-    what separates the two constructions, or why a cell's could not be
-    read. A `profile_junction` row's `relation` is `tangent` or `cusp`
+    `unproven_coincidence` (`relation`, `site`, `reason`, the row as
+    `coincidence`, and `restated`) — a node decided a coincidence of
+    its cells from values and the coincidence door does not prove it
+    structural. `reason` says what separates the constructions, or why
+    a cell's could not be read. `restated` lists a union's fold-step
+    rows decided at a member vertex this row names, reported with it.
+    A `profile_junction` row's `relation` is `tangent` or `cusp`
     between two carriers and `same_oriented` on one. A report, never a
     refusal."""
 
@@ -6692,20 +6798,23 @@ class CheckEvidence:
     def site(self) -> Optional[str]: ...
     @property
     def coincidence(self) -> Optional[Coincidence]: ...
+    @property
+    def restated(self) -> Optional[list[Coincidence]]: ...
     def __eq__(self, other: object) -> bool: ...
 
 class Coincidence:
     """One coincidence a node decided from values (D10), with what the
     coincidence door decided about it.
 
-    `cells` are pairs: an entity is `(read, name)`, the `Var` the
+    `cells` are two, or for a `meet` the two or more that share one
+    point, sorted, each a pair: an entity is `(read, name)`, the `Var` the
     deciding node took it in through, whose table names it, and the
     name there (the opaque text the materializers answer with); the
     plane a split cuts with is `(read, None)`; and a profile's own piece
     is `(profile, piece)`, the profile's `NodeId`. `relation` is
     `same_oriented`, `same_opposite`, `on_carrier`, `common_foot`,
     `tangent`, `cusp`, `surface_tangent`, `coaxial`, `same_radius`,
-    `axes_meet` or `co_ruled`; `site` is `plane_ladder`, `carrier_ladder`,
+    `axes_meet`, `co_ruled` or `meet`; `site` is `plane_ladder`, `carrier_ladder`,
     `tangent_witness`, `coaxial_sphere`, `crossing_cylinders`, `split_on`,
     `battery_turn`, `battery_joint`, `battery_support_axis`,
     `profile_junction`, `vertex_fusion` or
@@ -6716,10 +6825,17 @@ class Coincidence:
     proved it structural (`same_construction`, `carrier_verdict` or
     `margin_identity`), or `None`, and then `residual` says what separates
     the two constructions and what the replay with every variable a
-    symbol made of the row."""
+    symbol made of the row. `origin` is `None` for the node's own
+    operation, `("judged", p, q)` for a union's or an intersect's
+    judgement of its members at places `p < q` (its order-free rows),
+    and `("fold", k)` for the fold step folding in the member at `k`."""
 
     @property
     def cells(self) -> list[tuple[Var | NodeId, Optional[str]]]: ...
+    @property
+    def origin(
+        self,
+    ) -> tuple[Literal["judged"], int, int] | tuple[Literal["fold"], int] | None: ...
     @property
     def relation(self) -> str: ...
     @property

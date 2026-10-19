@@ -537,7 +537,7 @@ fn sym_9_what_each_retry_recovers() {
 /// any more, so the half that shows the ladder RECOVERING something is
 /// [`sym_9_the_drive_writes_the_ladders_receipt`]'s: on the pad's leaf
 /// at `1e1·ε` the ladder takes four decisions the first attempt left
-/// numeric (`symbolic` 1311 → 1315, `retried` 4 against 0).
+/// numeric (`symbolic` 1211 → 1215, `retried` 4 against 0).
 ///
 /// Every extruded cap decides `cap_plane_orientation` once, numeric
 /// on both sides: the plate's `numeric` 704 → 710, the annulus's
@@ -549,6 +549,53 @@ fn sym_9_what_each_retry_recovers() {
 /// `symbolic` with the ladder and without it alike: plate 1048 → 1003,
 /// annulus 566 → 539, boss 549 → 516, bracket 1448 → 1387, link
 /// 862 → 827, the pad's leaf 1376 → 1315. No decision moved; one left.
+///
+/// Placing each row over its edge's span in the chart's principal
+/// window (C4) reads two half-period marks per placed azimuth, numeric
+/// on both sides, and a cylinder's meridian azimuth is read only on a
+/// meridian, so a rim circle centred on the axis no longer takes the
+/// frame read the tier proved zero. With the ladder and without it
+/// alike: the plate 1048/654 → 1032/726, the annulus 566/399 →
+/// 550/471, the boss 549/376 → 537/428, the bracket 1448/1004 →
+/// 1428/1092 and the link 862/663 → 846/731, `retried` zero on all
+/// five. `symbolic` falls here because the decisions are gone, not
+/// because a retry took them; the pad's leaf moves 1372/1284 →
+/// 1348/1384 bare and 1376/1280 → 1352/1380 with the ladder, its four
+/// recovered decisions held. Main's final non-finite check and the
+/// placement add, with the ladder and without it alike: `symbolic` falls
+/// by main's count on each (plate −45, annulus −27, boss −33, bracket −61,
+/// link −35, the pad's leaf −61) from the placement's, `numeric` the
+/// placement's: plate 987/726, annulus 523/471, boss 504/428, bracket
+/// 1367/1092, link 811/731, the pad's leaf 1287/1384 bare and 1291/1380
+/// with the ladder. The frame decided across the window's cut sends the
+/// pad leaf's four theorems on the old frame's cut (`x ≡ 0`) to the
+/// numeric channel: 1283/1388 bare and 1287/1384 with the ladder.
+///
+/// A harmonic row's windings are structure (PCERT B2a, `[ev]` PR 5113's
+/// first decision): the angle channels' affine decisions, the winding
+/// walk and the harmonic period gate decide nothing now, with the ladder
+/// and without it alike. The plate 987/726 → 939/686, the annulus
+/// 523/471 → 475/431, the boss 504/428 → 468/398, the bracket 1367/1092
+/// → 1307/1042, the link 811/731 → 763/691, `retried` zero on all five;
+/// the pad's leaf 1283/1388 → 1211/1328 bare and 1287/1384 → 1215/1324
+/// with the ladder, its four recovered decisions held. Every column
+/// falls because the decisions are gone, not because a retry took
+/// them.
+///
+/// The profile's joint pass reads each joint's turn
+/// (`path_junction_turn`, #5354's ruling) after carrier identity: a
+/// line/line corner decides once more and a line/arc joint's clearance
+/// becomes a turn the tier proves. The plate 939/686 → 939/690, the
+/// bracket 1307/1042 → 1311/1043, the link 763/691 → 767/687, with the
+/// ladder and without it alike; the pad's leaf 1211/1328 → 1223/1316
+/// bare and 1215/1324 → 1227/1312 with the ladder, its four recovered
+/// decisions held.
+///
+/// The door reads each junction a departing leg follows again at the
+/// shorter leg's arm once that leg is stored (#5377's fix pass): the
+/// plate 939/690 → 939/693, the boss 468/398 → 468/399, the bracket
+/// 1311/1043 → 1311/1047, with the ladder and without it alike; no
+/// recovered decision moved.
 ///
 /// INTENT stage 3 D places each construction a document combines into
 /// its target's space by a plane mate and its values, and each
@@ -647,26 +694,36 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 }
 
 /// **The DRIVE carries the ladder, and its receipt says so**: one
-/// whole-box leaf of R2's rounded pad at `1e1·ε` under
-/// `SymbolicDials::default()` — the shipped ladder, through the drive's
-/// own door (`sym::with_session_memo_retry`, with the drive's plain
-/// memo installed) — against the same leaf with `SymRetry::none()`.
+/// whole-box leaf of R2's rounded pad, its first straight leg spelled
+/// as an angle and a length
+/// (`m10_8_r2_probes_interval::pad_first_leg_by_angle`), at `1e1·ε`
+/// under `SymbolicDials::default()` — the shipped ladder, through the
+/// drive's own door (`sym::with_session_memo_retry`, with the drive's
+/// plain memo installed) — against the same leaf with
+/// `SymRetry::none()`.
 ///
 /// It reads both receipts the drive writes: the goldening line carries
-/// `retried=4` after the discharge columns, and the human form names
-/// the four as discharges a second attempt reached. Without the ladder
-/// neither appears and the line is the one a drive wrote before the
-/// ladder existed. The four move `symbolic` 1311 → 1315.
+/// `retried=38` after the discharge columns, and the human form names
+/// the thirty-eight as discharges a second attempt reached. Without
+/// the ladder neither appears and the line is the one a drive wrote
+/// before the ladder existed. The thirty-eight move `symbolic`
+/// 1208 → 1246. The junction's turn levered by the shorter leg's arm
+/// (#5377's fix pass) moves sixteen more of the leaf's decisions from
+/// `numeric` to `symbolic`: 1246/1294 → 1262/1278 with the ladder and
+/// 1208/1332 → 1224/1316 without it, the thirty-eight held.
 ///
-/// The row read the filleted bracket, then the link. Since the
-/// constructions store the carriers they build, the first attempt
-/// discharges on both what their ladder used to, so neither retries,
-/// and the pad is the one measured document whose leaf still does. It
-/// is the heaviest of them: this row costs minutes in a debug build.
+/// The row read the filleted bracket, then the link, then the pad as
+/// authored. Since the constructions store the carriers they build,
+/// the first attempt discharges on the first two what their ladder
+/// used to; since a chord's director is its components, it does on the
+/// pad as authored too (it retried four). Spelling the pad's one
+/// point-target leg as an angle puts a `sin_cos(π/2)` round trip back,
+/// and the ladder reaches thirty-eight. It is the heaviest leaf here:
+/// this row costs minutes in a debug build.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
-    let doc = document("r2_rounded_pad", 1.0e1 * tol.eps(), tol);
+    let doc = crate::m10_8_r2_probes_interval::pad_first_leg_by_angle(1.0e1 * tol.eps(), tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let run = |symbolic: editor_core::drive::SymbolicDials| {
         editor_core::drive::drive(
@@ -702,12 +759,12 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains(" retried=4\n"),
+        line.contains(" retried=38\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
-        human.contains("; 4 of those discharges reached only by a second attempt"),
-        "the human form names the four as the ladder's: {human}"
+        human.contains("; 38 of those discharges reached only by a second attempt"),
+        "the human form names the thirty-eight as the ladder's: {human}"
     );
     let b = bare.decisions();
     assert_eq!([b.symbolic, b.numeric, b.retried], [1500, 1446, 0]);

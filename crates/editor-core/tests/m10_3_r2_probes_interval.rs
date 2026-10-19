@@ -426,14 +426,12 @@ fn a_degenerate_varying_axis_is_one_leaf_and_never_a_silent_partial() {
 
 // -------------------------------------------------- the closed door
 
-/// **Zero impact with the door closed**, re-derived across all three
-/// scalars the tree evaluates at: an
-/// evaluation with `param_box: None` and one with a fully `Fixed` box
-/// make the same decisions AND produce the same per-node content keys,
-/// which is the half the unit's own fence row (`an_unused_box_seam_
-/// changes_no_decision`, verdict vectors at `f64`) does not cover. A
-/// `Fixed` box holds every variable at its nominal, so both are the
-/// build (`EvalOptions::profile_lift`). A content key that moved would move every memo key
+/// **Zero impact with the door closed**, at `Interval`: an evaluation
+/// with `param_box: None` and one with a fully `Fixed` box make the
+/// same decisions AND produce the same per-node content keys, which is
+/// the half the unit's own fence row (`an_unused_box_seam_
+/// changes_no_decision`, verdict vectors at `f64` only) does not
+/// cover. A content key that moved would move every memo key
 /// and every persisted-verdict comparison downstream.
 #[test]
 fn a_closed_and_a_fixed_box_agree_on_verdicts_and_on_content_keys() {
@@ -449,43 +447,41 @@ fn a_closed_and_a_fixed_box_agree_on_verdicts_and_on_content_keys() {
         "the probe's box must be all-Fixed"
     );
 
-    {
-        let base = EvalOptions::default();
-        let plain = evaluate::<Interval>(&doc, None, &CancelToken::new(), &base, Tol::witness());
-        let boxed = evaluate::<Interval>(
-            &doc,
-            None,
-            &CancelToken::new(),
-            &EvalOptions {
-                param_box: Some(Arc::clone(&fixed)),
-                ..base
-            },
-            Tol::witness(),
-        );
-        assert_eq!(
-            VerdictVector::of(&plain),
-            VerdictVector::of(&boxed),
-            "the closed door and a Fixed box decided differently"
-        );
-        assert!(
-            VerdictVector::of(&plain)
-                .rows
-                .iter()
-                .any(|r| !r.verdicts.is_empty()),
-            "the comparison must have decisions in it"
-        );
-        let keys = |ev: &editor_core::Evaluation<Interval>| -> Vec<_> {
-            ev.order
-                .iter()
-                .map(|&id| (id, ev.value(id).map(|v| v.content_key)))
-                .collect()
-        };
-        assert_eq!(
-            keys(&plain),
-            keys(&boxed),
-            "a Fixed box moved a content key, so it would move every memo key"
-        );
-    }
+    let base = EvalOptions::default();
+    let plain = evaluate::<Interval>(&doc, None, &CancelToken::new(), &base, Tol::witness());
+    let boxed = evaluate::<Interval>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            param_box: Some(Arc::clone(&fixed)),
+            ..base
+        },
+        Tol::witness(),
+    );
+    assert_eq!(
+        VerdictVector::of(&plain),
+        VerdictVector::of(&boxed),
+        "the closed door and a Fixed box decided differently"
+    );
+    assert!(
+        VerdictVector::of(&plain)
+            .rows
+            .iter()
+            .any(|r| !r.verdicts.is_empty()),
+        "the comparison must have decisions in it"
+    );
+    let keys = |ev: &editor_core::Evaluation<Interval>| -> Vec<_> {
+        ev.order
+            .iter()
+            .map(|&id| (id, ev.value(id).map(|v| v.content_key)))
+            .collect()
+    };
+    assert_eq!(
+        keys(&plain),
+        keys(&boxed),
+        "a Fixed box moved a content key, so it would move every memo key"
+    );
 }
 
 /// The door's refusal edge, at the boundary the trait's own doc

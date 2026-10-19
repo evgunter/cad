@@ -292,6 +292,11 @@ fn findings_of(result: &Result<Assembly<f64>, AssemblyError>) -> Vec<editor_core
         Err(AssemblyError::AtRest { findings } | AssemblyError::Uncertified { findings, .. }) => {
             findings.clone()
         }
+        // A part's own refusal, carried whole: its findings, each
+        // attributed (where it is) to the part's own declaration.
+        Err(AssemblyError::CarriedAtRest { findings }) => {
+            findings.iter().map(|row| row.finding.clone()).collect()
+        }
         _ => Vec::new(),
     }
 }
@@ -1911,5 +1916,106 @@ fn a_mate_refused_at_the_door_speaks_the_nodes_its_fault_names() {
     assert!(
         fault.to_string().contains(&t),
         "the fault's own words say the placement by tag: {fault}"
+    );
+}
+
+/// **A part's own at-rest refusal crosses whole.** A sub-assembly holds
+/// the gapped stand, whose carried declaration its census refutes, and
+/// a block of its own three ε off the stand's lower cube, in the
+/// sliver band, where its census escalates. Its own gate refuses both. A top
+/// document instantiating it refuses `CarriedAtRest` with that refusal
+/// whole: the escalation no declaration answers for, and the refutation
+/// of the stand's mate, attributed as the sub-assembly attributed it,
+/// rather than dropping the refutation because the carried refusal is
+/// raised before the top's own verdict
+/// (`work/intent/a-part-drops-its-census-findings-at-the-seam.md`).
+///
+/// *Breaks if* the carried refusal keeps only the findings no
+/// declaration answers for.
+#[test]
+fn a_parts_own_refusal_crosses_whole_with_its_refuted_mate() {
+    let mut store = PartStore::default();
+    let (gapped, stand_id, _, stand_mate, _) = stand(
+        &mut store,
+        "docm6-whole-stand",
+        ContactClass::Rest,
+        0.0,
+        3.0,
+    );
+    let mid = ProfileDoc::empty(DocumentId::derive("docm6-whole-mid"), Tol::witness());
+    let (mid, _) = pinned_instance(mid, &store, gapped);
+    let (mid, profile) = on_frame(
+        mid,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (1.0 + 3.0 * Tol::witness().eps(), 0.25),
+            (1.5, 0.25),
+            (1.5, 0.75),
+            (1.0 + 3.0 * Tol::witness().eps(), 0.75),
+        ]],
+    );
+    let (mid, block) = insert(
+        mid,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(0.5),
+        },
+    );
+    let (mid, _) = fixture::in_world(
+        mid,
+        block,
+        &editor_core::Frame::translation([0.0, 0.0, 0.25]),
+    );
+    let Err(AssemblyError::AtRest { findings: own }) = assemble(
+        &mid,
+        &run(&mid, &with_resolver(store.clone())),
+        Tol::witness(),
+    ) else {
+        panic!("the premise: the sub-assembly refuses at rest")
+    };
+    assert!(
+        own.iter().any(|f| f.attribution.is_none())
+            && own.iter().any(|f| matches!(
+                &f.attribution,
+                Some(Attribution::Carried { declaration, relation: Relation::Refuted, .. })
+                    if declaration.mate == stand_mate
+            )),
+        "the premise: a refutation beside a finding no declaration answers for: {own:?}"
+    );
+    let mid_id = mid.id();
+    let mid_ref = store.insert(mid, Tol::witness());
+    let (top, instances) = row_of(&store, "docm6-whole-top", mid_ref, 1, 4.0);
+    let result = assemble(&top, &run(&top, &with_resolver(store)), Tol::witness());
+    let Err(AssemblyError::CarriedAtRest { findings }) = &result else {
+        panic!("the sub-assembly's refusal, carried: {result:?}")
+    };
+    assert_eq!(
+        findings.iter().map(|row| &row.finding).collect::<Vec<_>>(),
+        own.iter().collect::<Vec<_>>(),
+        "the refusal whole, verbatim"
+    );
+    assert!(
+        findings
+            .iter()
+            .all(|row| (row.route.through, row.route.of) == (instances[0], mid_id)),
+        "every row is the sub-assembly's, by the instance"
+    );
+    assert!(
+        findings.iter().any(|row| matches!(
+            &row.finding.attribution,
+            Some(Attribution::Carried { route, .. }) if route.of == stand_id
+        )),
+        "the refutation names the stand, as the sub-assembly said it"
+    );
+    // ONE recourse for the list, in the header, as the carried mint
+    // refusal's: the repair is to open the document below.
+    let line = result.expect_err("refused").spoken(&top);
+    assert_eq!(
+        line.matches("open those documents and repair them there")
+            .count(),
+        1,
+        "{line}"
     );
 }

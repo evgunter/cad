@@ -1381,7 +1381,6 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::UnderflowedAxis => "underflowed_axis",
         RevolveError::DegenerateAxis => "degenerate_axis",
         RevolveError::AxisEscalated { .. } => "axis_escalated",
-        RevolveError::PlacedAxis { .. } => "placed_axis",
         RevolveError::Turn(_) => "turn",
         RevolveError::DegenerateAngle => "degenerate_angle",
         RevolveError::FullRangeAngle => "full_range_angle",
@@ -1596,6 +1595,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::GraftRecertify => "graft_recertify",
         BooleanErrorKind::Pieces => "pieces",
         BooleanErrorKind::Revert => "revert",
+        BooleanErrorKind::LineWedges => "line_wedges",
     }
 }
 
@@ -1638,7 +1638,11 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::DegenerateSection { .. } => "degenerate_section",
         SkinError::BadDegree { .. } => "bad_degree",
         SkinError::NoParameterStep { .. } => "no_parameter_step",
+        SkinError::PathTangentVanishes { .. } => "path_tangent_vanishes",
         SkinError::PathTangentReversal { .. } => "path_tangent_reversal",
+        SkinError::PathTangentUndecided { .. } => "path_tangent_undecided",
+        SkinError::StationNotFinite { .. } => "station_not_finite",
+        SkinError::Band(_) => "band",
         SkinError::RowMotionUndecided { .. } => "row_motion_undecided",
         SkinError::ArcSweepUndecided { .. } => "arc_sweep_undecided",
         SkinError::Fit(_) => "fit",
@@ -1698,6 +1702,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
     match err {
         NamingError::Duplicate { .. } => "duplicate",
         NamingError::KindMismatch { .. } => "kind_mismatch",
+        NamingError::ShortTie { .. } => "short_tie",
         NamingError::Unnamed { .. } => "unnamed",
         NamingError::MissingUpstream { .. } => "missing_upstream",
         NamingError::Emission { .. } => "emission",
@@ -2403,6 +2408,7 @@ pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
         AssemblyError::Space { .. } => "own_space",
         AssemblyError::Mint { .. } => "unminted_mates",
         AssemblyError::CarriedMintRefusal { .. } => "carried_mint_refusal",
+        AssemblyError::CarriedAtRest { .. } => "carried_at_rest",
         AssemblyError::AtRest { .. } => "at_rest",
         AssemblyError::Uncertified { .. } => "uncertified",
     }
@@ -2932,6 +2938,7 @@ pub fn coincidence_relation_tag(relation: pncad::document::coincidence::Relation
         R::SameRadius => "same_radius",
         R::AxesMeet => "axes_meet",
         R::CoRuled => "co_ruled",
+        R::Meet => "meet",
     }
 }
 
@@ -3008,8 +3015,9 @@ pub fn unexaminable_tag(why: Unexaminable) -> &'static str {
 /// it refused, so a caller reads it instead of substring-matching the
 /// sentence: the run's tolerance formed no band, a face refused in the
 /// props inventory, the sign read escalated, the signed volume (or an
-/// end of its bracket) is zero at this tolerance, or its certified
-/// bracket straddles zero, so there is no side to classify to.
+/// end of its bracket) is zero, or its certified bracket straddles zero,
+/// so there is no side to classify to; or the sign is unresolved by a
+/// limit of the measurement (`sign_unresolved`).
 ///
 /// `band` is the same word [`checks_error_tag`] mints for the
 /// registry's own band refusal, one namespace up, and means the same
@@ -3021,6 +3029,10 @@ pub fn shell_classify_error_tag(err: &ShellClassifyError) -> &'static str {
         ShellClassifyError::Escalated { .. } => "escalated",
         ShellClassifyError::ZeroVolume { .. } => "zero_volume",
         ShellClassifyError::Straddles { .. } => "straddles",
+        ShellClassifyError::RayInBand { .. } => "ray_in_band",
+        ShellClassifyError::Corner { .. } => "corner",
+        ShellClassifyError::Ray { .. } => "ray",
+        ShellClassifyError::SignUnresolved { .. } => "sign_unresolved",
     }
 }
 
@@ -3087,6 +3099,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::ShellWinding { .. } => "shell_winding",
         ValidationError::SolidOuterShells { .. } => "solid_outer_shells",
         ValidationError::VolumeSignUnresolved { .. } => "volume_sign_unresolved",
+        ValidationError::OrientationUndecided { .. } => "orientation_undecided",
         ValidationError::ShellRoleUndecided { .. } => "shell_role_undecided",
         ValidationError::UnrecordedContact { .. } => "unrecorded_contact",
         ValidationError::StaleContactDeclaration { .. } => "stale_contact_declaration",

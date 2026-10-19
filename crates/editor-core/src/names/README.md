@@ -132,8 +132,9 @@ this rule, and so do profile pieces:
   per verb. The piece door (`ProfileProgram::piece`) checks the list, and the
   authoring surfaces' role accessors are generated from it:
   - every verb that draws one segment has one role, `Leg`: `line`,
-    `line_to`, `continue_to`, `arc_to`, `tangent_arc_to`, `to` (the far
-    end), and the close to `Start`, whose leg is the seam;
+    `line_to`, `continue_to`, `arc_to`, `tangent_arc_to`, `arc_onto`
+    (whose leg the director after it lands, but which it names), `to`
+    (the far end), and the close to `Start`, whose leg is the seam;
   - a verb that only binds a point, a direction or a junction (`at`,
     `angle`, `toward`, `tangent`, `cusp`, `turn`) draws nothing and has no
     role;
@@ -236,10 +237,14 @@ The qualifier depends on what was split:
 - **A face piece of a boolean or union** takes `Qualifier::Borders`: the sorted
   set of the piece's divider walls, the faces across its seam edges where it
   meets an obstacle that divides the parent, each cited by its parent's name.
-  An obstacle is a connected part of the parent's region that no piece holds;
+  An obstacle is a connected part of the parent's region that no piece holds,
+  connected through its closure: two lost regions that meet only at a point
+  are one obstacle, whether that point survives as a vertex or the output
+  stage joins it away, so a name reads nothing off where a dead vertex sat;
   it divides the parent when it borders two or more pieces, so a boss or notch
-  on one piece is never cited and nothing in a piece's name lies beyond its
-  own boundary. Pieces with equal sets are N4's tie.
+  on one piece is never cited unless a point of it touches a divider, which
+  makes it part of that divider, and nothing in a piece's name lies beyond
+  its own boundary. Pieces with equal sets are N4's tie.
 - **The Split op's pieces** are told apart by their tool plane's side, which
   is the output variable that holds them (N1, the scope), so
   `SplitFragment` spells no side: there the plane is what the author drew. A
@@ -264,6 +269,12 @@ The qualifier depends on what was split:
   face (an inner loop, a non-convex face) cuts several chords that
   `SectionEdge{face}` spells alike, and each takes `Ends` like any other
   edge piece (Ev, PR 3553). Pieces with equal pairs are N4's tie.
+  An operand edge lying in the tool plane is read as a union reads a flush
+  edge (below): an edge of a half along it is that edge, or a piece of it,
+  only when both its faces descend from that edge's two faces. One with a
+  section face beside it is a chord of the operand face on its other side,
+  `SectionEdge{face}`. A split finishes each half with maximal faces (N3),
+  so no edge of a half lies between two section faces.
 - **Vertices** cite the edges they lie on by their lines, never by a piece's
   qualifier at any depth, so vertices are named before edge pieces are
   qualified, and
@@ -302,16 +313,15 @@ The qualifier depends on what was split:
   Crossings of one line by one face with the same sense, and vertices with
   the same run, are ranked along a line they share by its carrier's own
   parameter, in its stored orientation: the run's least edge, or where the
-  run holds no edge, a straight seam in it. An equal pair, or a run with no
-  such line, ties.
+  run holds no edge, a seam in it whose pieces lie on one open carrier. An
+  equal pair, or a run with no such line, ties.
   Where the result holds an operand corner as several vertices, each is a
   fragment of it, qualified as the operation's face pieces are. At a boolean
   or a union it is `Fragment(Borders)` over the walls that divide the corner
   there, read as a face piece's walls are (`borders.rs`). At a Split, where
   one half holds the corner as several vertices, it is `Fragment(Keeps)`:
   the sorted set of the operand corner's own edges, cited by their lines,
-  that the vertex is an end of a piece of in that half, an edge lying in the
-  tool plane included. Equal sets tie, and a corner the result holds as one
+  that the vertex is an end of a piece of in that half. Equal sets tie, and a corner the result holds as one
   vertex (in a Split, one per half) is its bare name.
 
 No rule reads a plane or a direction, and a union's reading of a seam pair in
@@ -365,8 +375,13 @@ piece. One that covers several operand edges whole is the `Merged` set of
 their names, flat and in name order: the shell's survivors as `From` of
 their names and its cavity twins as `Inner` of theirs, a set among them listed by its
 constituents. A split's section chords, joined, stay a chord of the face they
-cross. A join with no such reading, a chord with an operand edge's piece or
-pieces of several operand edges, is refused, not named.
+cross, and a join over section chords and whole operand edges, across a
+merged face, is named from its two faces, as a seam is. A split's join that
+lies along several operand edges, holding part of one or more of them, is a
+piece of their `Merged` set, flat and in name order, several of one set in a
+half told apart by their ends, as a union names a flush rim along several
+member edges. A join with no such reading, a chord with an operand edge's
+piece, is refused, not named.
 
 A blend names an edge its closing join made the same way. Each trim the blend
 mints is the image of one input edge on one support, as a cavity twin is, so
@@ -414,6 +429,12 @@ face, and whether it met the cut or the merge first, depend on member order,
 whereas the parent and its seam partners depend only on the members' consumed
 pairs and the finished body.
 
+A two-member union or intersect is the union with one step: its pairwise
+judgement is its one fold step, and its table is the union's. The pair
+boolean's own table is published only by the subtract, which tells its
+operands apart and so links nothing: a tool face lying over a face of `from`
+is cited nowhere, and the face is named for the `from` face it descends from.
+
 **Verdicts and ties.** The verdicts run through `k_stats`, so fragment
 identity changes only at a recorded flip. An in-band margin refuses
 (`NamingError::Escalated`), never a silent pick. An ambient tolerance that
@@ -438,7 +459,14 @@ and a constituent is never itself a bare merged face: whatever mints a `Merged`
 mints it flat — a merge of a merged face lists the faces, never the merge — and
 a nested `Merged` is an emission bug, refused at the mint and again at the
 union's collapse rather than flattened (the fragment carve-out is stated once,
-at `RoleSeg::Merged`). A `Merged` whose set has one element is that
+at `RoleSeg::Merged`). A split's section faces are constituents like any
+other face: a split finishes each half with maximal faces, and a group that
+holds section faces is `Merged` of its constituents' names, each
+`SectionFace { k }` numbered in the completion order it had before the
+merge, so no section is renumbered. A split's group that holds no section
+face is named as a boolean names it: `Merged` of the operand faces its faces
+descend from, the faces of one such parent in one half told apart by `Keeps`
+(N2). A `Merged` whose set has one element is that
 element: a face glued to its twin, the same read spelled twice (REFERENCES
 DM5), is named as the face. A merged row COVERS a name when the name is a constituent
 or is a merged face all of whose faces are (`names/merged.rs`), which is how the

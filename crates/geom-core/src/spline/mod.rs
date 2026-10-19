@@ -69,8 +69,9 @@ pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
 pub use derivative::{
-    CellAxis, CellBlock, CellQuotients, CellSecondQuotients, QUOTIENT_MAX_DEGREE, QuotientPiece,
-    accel_pieces, cell_quotients, cell_second_quotients, derivative_net, polynomial_area_pieces,
+    AxisCut, CellAxis, CellBlock, CellFirstQuotients, CellQuotients, CellSecondQuotients,
+    IntervalPieces, QUOTIENT_MAX_DEGREE, QuotientPiece, accel_pieces, cell_first_quotients,
+    cell_quotients, cell_second_quotients, derivative_net, polynomial_area_pieces,
     span_derivative_scale, speed_pieces, stretch_pieces,
 };
 pub use hull::{
@@ -84,7 +85,6 @@ pub use knots::{
 };
 pub use locate::{SpanLocate, SpanSet, poison_from, structure_ascends, structure_nonzero};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
-pub use plan_inputs::{point_inputs, point_knots};
 pub use projective::{ProjectivePoint, ProjectiveScalar, ProjectiveSplit};
 pub use range::{Param, ParamRange, last_at_or_below};
 pub use weights::Weights;

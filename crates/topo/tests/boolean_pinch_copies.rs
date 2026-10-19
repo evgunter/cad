@@ -1,7 +1,9 @@
-//! Boolean results whose pieces pinch along one operand edge or at
-//! one operand vertex: on these poses the op's copies of that vertex
-//! do not reach rest as two touching vertices, and the result passes
-//! the pseudomanifold door with its own records (f64 and Interval).
+//! Boolean results whose pieces pinch at one operand vertex: on these
+//! poses the op's copies of that vertex do not reach rest as two
+//! touching vertices, and the result passes the pseudomanifold door with
+//! its own records (f64 and Interval). The pinches along one operand
+//! edge refuse at the result gate: the result's two edges on the line
+//! bound overlapping wedges.
 //!
 //! That is not universal: a pinch is one vertex per cone, so a two-run
 //! pierce whose copies lie in two cones keeps them apart on their one
@@ -31,25 +33,28 @@ fn run<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     }
 }
 
+/// A brick at rest.
+fn block<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
+    what: &str,
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+) -> AtRestBody<T> {
+    finished(what, brick::<T>(x, y, z, Tol::witness()), Tol::witness())
+}
+
+/// The wedge whose edge runs along the cube's convex edge `(1, 1, z)`,
+/// from `z0` up.
+fn wedge<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(z0: f64) -> AtRestBody<T> {
+    let profile = [(1.0, 1.0), (-1.0, 0.2), (0.2, -1.0)];
+    let body = prism_z::<T>(&profile, z0, 2.0, Tol::witness()).body;
+    finished("wedge", body, Tol::witness())
+}
+
 /// The pinch results, by name.
 fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
 -> Vec<(&'static str, BooleanBody<T>)> {
     let t = Tol::witness();
-    let block = |what, x, y, z| finished(what, brick::<T>(x, y, z, t), t);
-    let slab = block("slab", (0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
-    let notched = run(
-        subtract,
-        &slab,
-        &block("first notch", (1.0, 3.0), (-1.0, 1.0), (-1.0, 2.0)),
-    );
-    let cube = block("cube", (0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let wedge = |z0| {
-        finished(
-            "wedge",
-            prism_z::<T>(&[(1.0, 1.0), (-1.0, 0.2), (0.2, -1.0)], z0, 2.0, t).body,
-            t,
-        )
-    };
     let ell = prism_z::<T>(
         &[
             (0.0, 0.0),
@@ -66,28 +71,6 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
     .body;
     let ell = finished("ell", ell, t);
     vec![
-        // The notch's reflex edge (1, 1, z) is cut by a second notch:
-        // two quarters pinched along it.
-        (
-            "reflex_edge_split",
-            run(
-                subtract,
-                &notched.body,
-                &block("second notch", (-1.0, 1.0), (1.0, 3.0), (-1.0, 2.0)),
-            ),
-        ),
-        // The same over z in [0.5, 1] only.
-        (
-            "reflex_edge_split_upper",
-            run(
-                subtract,
-                &notched.body,
-                &block("upper notch", (-1.0, 1.0), (1.0, 3.0), (0.5, 2.0)),
-            ),
-        ),
-        // A wedge whose edge runs along the cube's convex edge (1, 1, z).
-        ("wedge_on_edge", run(subtract, &cube, &wedge(-1.0))),
-        ("wedge_on_edge_upper", run(subtract, &cube, &wedge(0.5))),
         // A cube kissing the L's reflex edge at its top vertex.
         (
             "reflex_vertex_kiss",
@@ -100,14 +83,74 @@ fn pinches<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>()
     ]
 }
 
+/// **The pinches along one operand edge refuse at the result gate.**
+/// Cutting the notch's reflex edge `(1, 1, z)` by a second notch leaves
+/// two quarters pinched along it, each a 90° wedge there; a wedge whose
+/// edge runs along the cube's convex edge leaves two 21.8° wedges. The
+/// results carry the line as two edges of 270° each (overlapping by
+/// 180°) and of 90° and 313.6° (overlapping by 43.6°), every tier
+/// passing them, so the gate refuses each, over the whole edge and over
+/// `z ∈ [0.5, 1]` only. They return with the re-pairing
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
+fn assert_edge_pinches_refuse<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
+    let t = Tol::witness();
+    let notched = run(
+        subtract,
+        &block::<T>("slab", (0.0, 2.0), (0.0, 2.0), (0.0, 1.0)),
+        &block("first notch", (1.0, 3.0), (-1.0, 1.0), (-1.0, 2.0)),
+    )
+    .body;
+    let cube = block::<T>("cube", (0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    for (name, got) in [
+        (
+            "reflex_edge_split",
+            subtract(
+                &notched,
+                &block("second notch", (-1.0, 1.0), (1.0, 3.0), (-1.0, 2.0)),
+                t,
+            ),
+        ),
+        (
+            "reflex_edge_split_upper",
+            subtract(
+                &notched,
+                &block("upper notch", (-1.0, 1.0), (1.0, 3.0), (0.5, 2.0)),
+                t,
+            ),
+        ),
+        ("wedge_on_edge", subtract(&cube, &wedge(-1.0), t)),
+        ("wedge_on_edge_upper", subtract(&cube, &wedge(0.5), t)),
+    ] {
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::LineWedges {
+                    fault: topo::LineWedgeFault::Overlap { .. },
+                    ..
+                })
+            ),
+            "{name}: {got:?}, not the overlap's refusal"
+        );
+    }
+}
+
+#[test]
+fn pinches_along_an_operand_edge_refuse_their_overlapping_wedges() {
+    assert_edge_pinches_refuse::<f64>();
+}
+
+#[test]
+fn pinches_along_an_operand_edge_refuse_their_overlapping_wedges_interval() {
+    assert_edge_pinches_refuse::<geom_core::Interval>();
+}
+
 /// Each pinch passes tiers 2 and 3′ with its own records, and records
-/// each touch along a line: a subtraction's pinch keeps both edges,
-/// each between a face of each operand, and the kissing cube's two
-/// bottom edges lie along the L's notch rim. Red if the reduction
-/// writes the edge-edge row only where both wedges read Out.
+/// each touch along a line: the kissing cube's two bottom edges lie
+/// along the L's notch rim. Red if the reduction writes the edge-edge
+/// row only where both wedges read Out.
 fn assert_pinches_pass<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
     for (name, r) in pinches::<T>() {
-        let lines = if name == "reflex_vertex_kiss" { 2 } else { 1 };
+        let lines = 2;
         assert_eq!(
             r.contacts.edge_edge().count(),
             lines,
@@ -158,11 +201,8 @@ fn pinch_copies_do_not_reach_rest() {
             Vec::<&topo::VertexKey>::new(),
             "{name}: no two vertices on one point key but those a record ties"
         );
-        let expected = match name {
-            // Cross-operand: the L's vertex and the cube's, declared.
-            "reflex_vertex_kiss" => 2,
-            _ => 1,
-        };
+        // Cross-operand: the L's vertex and the cube's, declared.
+        let expected = 2;
         assert_eq!(
             at(&r.body, (1.0, 1.0, 1.0)),
             expected,

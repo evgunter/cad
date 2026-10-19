@@ -15,7 +15,7 @@ use editor_core::{
     EvalOptions, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence,
     Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     Proof, RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId,
-    coincide, spoken_by,
+    coincide,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -112,9 +112,10 @@ fn entity(input: VarId, name: &StableName) -> NamedCell {
 /// a block, unioned: the union holds one `SameOpposite` row naming the
 /// block's top and the plate's bottom by their operands' own names,
 /// decided by the plane ladder, and the check reports it unproven: the
-/// two caps are two constructions.
+/// two caps are two constructions. The plate's four bottom corners,
+/// each decided on the block's top, are a row each, reported alike.
 #[test]
-fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
+fn a_glued_rest_and_its_corners_are_unproven_rows_named_by_their_operands() {
     let doc = ProfileDoc::empty_derived("coincide-declared-rest", Tol::witness());
     let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
     let (doc, plate) = block_on(doc, base, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
@@ -133,8 +134,18 @@ fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
     );
     let ev = run(&doc);
     let got = rows(&ev, union);
-    assert_eq!(got.len(), 1, "one row for the one rest: {got:?}");
+    assert_eq!(got.len(), 5, "the rest and its four corners: {got:?}");
     let row = &got[0];
+    for corner in &got[1..] {
+        assert!(
+            corner.site == DecisionSite::VertexFusion
+                && corner.relation == Relation::OnCarrier
+                && matches!(&corner.cells[0], NamedCell::Entity { name, .. }
+                    if name.node == plate && name.kind == EntityKind::Vertex)
+                && corner.cells[1] == entity(out(&doc, base), &top),
+            "a plate corner on the block's top: {corner:?}"
+        );
+    }
     assert_eq!(
         row.cells,
         [
@@ -156,15 +167,16 @@ fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
         panic!("the same-construction rung proves a glue of two extrudes")
     };
     assert!(
-        matches!(&residual.constructions, [Ok(a), Ok(b)] if a.origin != b.origin),
+        matches!(residual.constructions.as_slice(), [Ok(a), Ok(b)] if a.origin != b.origin),
         "two constructions: {residual:?}"
     );
     let findings = unproven(&doc, &ev);
-    assert_eq!(findings.len(), 1, "{findings:?}");
-    assert_eq!(
-        findings[0].subject,
-        FindingSubject::Node(union),
-        "attributed to the deciding node"
+    assert_eq!(findings.len(), 5, "every row reported: {findings:?}");
+    assert!(
+        findings
+            .iter()
+            .all(|f| f.subject == FindingSubject::Node(union)),
+        "attributed to the deciding node: {findings:?}"
     );
     match &findings[0].evidence {
         CheckEvidence::UnprovenCoincidence { row: found, .. } => assert_eq!(**found, *row),
@@ -271,8 +283,9 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     );
     let ev = run(&doc);
     let wall = |half, z| half_face_on(&ev, split, half, [3.0, 0.5, z], [-1.0, 0.0, 0.0]);
-    let row = |cells| NamedCoincidence {
-        cells,
+    let row = |cells: [NamedCell; 2]| NamedCoincidence {
+        cells: cells.to_vec(),
+        origin: editor_core::RowOrigin::Node,
         relation: Relation::SameOriented,
         site: DecisionSite::PlaneLadder,
         margin: MarginDiag::value(0.0),
@@ -305,9 +318,10 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
 /// **A union's rows are its pairwise judgement's, in the author's
 /// order** (#4323: the list is the author's stated order). Two blocks
 /// overlapping in x, their caps and y-walls flush, unioned as `[a, b]`
-/// and as `[b, a]`: the same decisions either way,
-/// each row's first cell the listed-first member's face, named by that
-/// member's own table.
+/// and as `[b, a]`: the same decisions either way, a row per flush
+/// family, each its first cell the listed-first member's face, named by
+/// that member's own table, and a row per corner of each block decided
+/// on the other's boundary.
 #[test]
 fn a_unions_rows_follow_its_member_order() {
     let doc = ProfileDoc::empty_derived("coincide-union-order", Tol::witness());
@@ -319,34 +333,49 @@ fn a_unions_rows_follow_its_member_order() {
         let (doc, union) = crate::fixture::union_over(doc.clone(), &members);
         let ev = run(&doc);
         let got = rows(&ev, union);
-        assert_eq!(got.len(), n, "{members:?}: one row per flush family");
-        for row in &got {
-            assert_eq!(
-                (row.relation, row.site),
-                (Relation::SameOriented, DecisionSite::PlaneLadder)
-            );
+        let (faces, corners): (Vec<_>, Vec<_>) = got
+            .iter()
+            .partition(|r| r.site == DecisionSite::PlaneLadder);
+        assert_eq!(faces.len(), n, "{members:?}: one row per flush family");
+        assert!(
+            corners.len() == 8
+                && corners
+                    .iter()
+                    .all(|r| (r.relation, r.site)
+                        == (Relation::OnCarrier, DecisionSite::VertexFusion)),
+            "{members:?}: the four corners of each block inside the other's x span: {corners:?}"
+        );
+        for row in faces {
+            assert_eq!(row.relation, Relation::SameOriented);
             let input = |c: &NamedCell| match c {
                 NamedCell::Entity { input, name } if out(&doc, name.node) == *input => *input,
                 other => panic!("{members:?}: a cell is a member's own face: {other:?}"),
             };
             assert_eq!(
-                row.cells.each_ref().map(input),
+                row.cells.iter().map(input).collect::<Vec<_>>(),
                 members.map(|m| out(&doc, m)),
                 "{members:?}: the listed-first member's cell first"
             );
         }
         seen.push(got);
     }
-    let [ab, ba] = [&seen[0], &seen[1]];
-    let mut ab: Vec<_> = ab.iter().map(|r| r.cells.clone()).collect();
-    let mut ba: Vec<_> = ba
-        .iter()
-        .map(|r| [r.cells[1].clone(), r.cells[0].clone()])
-        .collect();
-    let key = |c: &[NamedCell; 2]| format!("{c:?}");
-    ab.sort_by_key(key);
-    ba.sort_by_key(key);
-    assert_eq!(ab, ba, "the same decisions in either order");
+    let unordered = |got: &[NamedCoincidence]| {
+        let mut pairs: Vec<Vec<String>> = got
+            .iter()
+            .map(|r| {
+                let mut pair: Vec<String> = r.cells.iter().map(|c| format!("{c:?}")).collect();
+                pair.sort();
+                pair
+            })
+            .collect();
+        pairs.sort();
+        pairs
+    };
+    assert_eq!(
+        unordered(&seen[0]),
+        unordered(&seen[1]),
+        "the same decisions in either order"
+    );
 }
 
 /// **A pattern's instances are placed apart.** The walk reads each
@@ -383,8 +412,9 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
     let (doc, second) = part(doc, 2);
     let ev = run(&doc);
     let top_at = |node, x: f64| face_on(&ev, node, [x, 0.5, 1.0], [0.0, 0.0, 1.0]);
-    let row = |cells| NamedCoincidence {
-        cells,
+    let row = |cells: [NamedCell; 2]| NamedCoincidence {
+        cells: cells.to_vec(),
+        origin: editor_core::RowOrigin::Node,
         relation: Relation::SameOriented,
         site: DecisionSite::PlaneLadder,
         margin: MarginDiag::value(0.0),
@@ -406,7 +436,7 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
     let Proof::Unproven { residual, .. } = proof(&doc, second, &two) else {
         panic!("two instances are two placements")
     };
-    let [Ok(a), Ok(b)] = &residual.constructions else {
+    let [Ok(a), Ok(b)] = residual.constructions.as_slice() else {
         panic!("both cells walk to the box: {residual:?}")
     };
     assert_eq!(a.origin, b.origin, "one extrude minted both tops");
@@ -855,21 +885,23 @@ fn profile_of(doc: ProfileDoc, steps: LoopProgram<Formula>) -> (ProfileDoc, Reci
     )
 }
 
-/// **A profile junction no constructor made is a row on its profile**
-/// (§11 row 21, at the document). A line meets an arc at a turn
-/// `φ = √ε` the lattice reads as a corner (`sin φ · arm`, far past the
-/// band) and validation's carrier clearance (`r(1 − cos φ) ≈ ε/2`)
-/// reads Zero: the profile builds, its node holds one
-/// `Tangent { aligned: true }` row decided at `ProfileJunction` over
-/// the line's piece and the arc's, and the check reports it unproven,
-/// the two pieces being two constructions. A circle, whose joints its
-/// form constructs, holds none.
+/// **A profile junction the lattice reads as a corner is no row on its
+/// profile** (§11 row 21, at the document). A line meets an arc at a
+/// turn `φ = √ε`: `sin φ · arm`, far past the band, which the lattice
+/// reads as a corner, and so does validation's joint pass, which reads
+/// the same turn (`path_junction_turn`). The profile builds with no
+/// tangent joint, so it carries no `ProfileJunction` row and the check
+/// reports nothing; a circle, whose joints its form constructs, holds
+/// none either. A junction a document's profile could decide tangent
+/// would have to read Zero at validation's arm, which is at least the
+/// lattice's, and the lattice refuses an undeclared Zero junction, so
+/// no document reaches that arm
+/// (`work/coincide/a-profile-junction-row-has-no-reaching-document.md`).
 ///
-/// Red if the junction refuses, or its row is not carried onto the
-/// profile's value (no row), or a constructed joint is recorded (the
-/// circle has one).
+/// Red if the junction refuses, or a row is recorded for it or for the
+/// circle.
 #[test]
-fn a_profile_junction_decided_tangent_is_one_unproven_row_on_its_profile() {
+fn a_profile_junction_the_lattice_reads_as_a_corner_is_no_row() {
     let phi = Tol::witness().eps().sqrt();
     let c = [1.0 - phi.sin(), phi.cos()];
     let doc = ProfileDoc::empty_derived("g_profile_junction", Tol::witness());
@@ -894,95 +926,64 @@ fn a_profile_junction_decided_tangent_is_one_unproven_row_on_its_profile() {
         },
     );
     let ev = run(&doc);
-    let got = rows(&ev, p);
-    assert_eq!(got.len(), 1, "one decided junction: {got:?}");
-    assert_eq!(
-        (got[0].relation, got[0].site),
-        (
-            Relation::Tangent { aligned: true },
-            DecisionSite::ProfileJunction
-        )
+    assert!(
+        rows(&ev, p).is_empty(),
+        "the junction is a corner: {:?}",
+        rows(&ev, p)
     );
-    match &got[0].cells {
-        [
-            NamedCell::Piece {
-                profile: a,
-                piece: line,
-            },
-            NamedCell::Piece {
-                profile: b,
-                piece: arc,
-            },
-        ] => {
-            assert_eq!((*a, *b), (p, p), "both cells are the profile's own pieces");
-            assert_ne!(line, arc, "the arriving and leaving pieces are two");
-        }
-        cells => panic!("a junction's cells are two pieces: {cells:?}"),
-    }
     assert!(
         rows(&ev, circle).is_empty(),
         "a circle's joints are constructed"
     );
     let findings = unproven(&doc, &ev);
-    assert_eq!(findings.len(), 1, "{findings:?}");
-    assert_eq!(findings[0].subject, FindingSubject::Node(p));
-    let CheckEvidence::UnprovenCoincidence { row, recourse, .. } = &findings[0].evidence else {
-        panic!("{:?}", findings[0].evidence)
-    };
-    assert_eq!(**row, got[0]);
-    assert_eq!(
-        *recourse,
-        coincide::Recourse::OneConstruction,
-        "the junction's margin keeps no opaque atom: drawing the two pieces as one \
-         construction would make it hold"
-    );
-    let said = spoken_by(&findings[0], &doc);
-    assert!(
-        said.contains("continues tangent into")
-            && said.contains("a profile junction no constructor made")
-            && said.contains("the two cells are two constructions"),
-        "{said}"
-    );
+    assert!(findings.is_empty(), "{findings:?}");
 }
 
-/// **A same-carrier junction no constructor made is recorded
-/// `SameOriented`**, carrier identity, not a tangency between two
-/// carriers. A leg of `ε/10` turns off the line by its whole length,
-/// so the lattice (`sin φ · arm` over the long arriving leg) reads a
-/// corner while validation, reading the short leg's far end against
-/// the line, reads one carrier continuing: the node holds one
-/// `SameOriented` row at `ProfileJunction`, and the check says so.
+/// **A same-carrier junction no constructor made refuses at the
+/// door.** A leg of `ε/10` rise over 1 mm turns off the 10 m line by
+/// `1e-7` rad. Levered by the shorter leg's arm, the lattice reads that
+/// turn as `0.1ε`, Zero, and refuses the undeclared tangent junction at
+/// step 2, as validation reads the same leg's far end within ε of the
+/// line, one carrier continuing. Before the shorter-arm reading the
+/// lattice levered the 10 m arriving leg and built a corner validation
+/// recorded as one `SameOriented` row at `ProfileJunction`; with both
+/// reading the short leg, a document reaches neither of that arm's
+/// relations (`work/coincide/a-profile-junction-row-has-no-reaching-document.md`).
 ///
-/// Red if the same-carrier arm is recorded as `Tangent`, or not at all.
+/// Red if the junction builds, or refuses for anything but its turn.
 #[test]
-fn a_profile_junction_decided_on_one_carrier_is_one_same_oriented_row() {
+fn a_profile_junction_on_one_carrier_refuses_at_the_door() {
     let rise = 0.1 * Tol::witness().eps();
     let doc = ProfileDoc::empty_derived("g_profile_same_carrier", Tol::witness());
-    let (doc, p) = profile_of(
-        doc,
-        LoopProgram::Chain(vec![
+    let node = Node::Profile(ProfileProgram {
+        loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At(len2([0.0, 0.0])),
             ProgramStep::LineTo(ProgramTarget::Point(len2([10.0, 0.0]))),
             ProgramStep::LineTo(ProgramTarget::Point(len2([10.001, rise]))),
             ProgramStep::LineTo(ProgramTarget::Point(len2([10.001, 5.0]))),
             ProgramStep::LineTo(ProgramTarget::Start),
-        ]),
-    );
-    let ev = run(&doc);
-    let got = rows(&ev, p);
-    assert_eq!(
-        got.iter().map(|r| (r.relation, r.site)).collect::<Vec<_>>(),
-        [(Relation::SameOriented, DecisionSite::ProfileJunction)],
-        "{got:?}"
-    );
-    let findings = unproven(&doc, &ev);
-    assert_eq!(findings.len(), 1, "{findings:?}");
-    let said = spoken_by(&findings[0], &doc);
-    assert!(
-        said.contains("continues on one carrier with")
-            && said.contains("a profile junction no constructor made"),
-        "{said}"
-    );
+        ])],
+        ids: Vec::new(),
+    });
+    match doc.apply(
+        &editor_core::DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(editor_core::EditError::ProfileProgramRefused { refusal, .. }) => match *refusal {
+            editor_core::ProgramRefusal::Geometry {
+                loop_: 0,
+                step: 2,
+                kind: profile::PathErrorKind::JunctionTangent,
+                ..
+            } => {}
+            other => panic!("the junction refuses as tangent at step 2, got {other:?}"),
+        },
+        Ok(_) => panic!("the junction must refuse at the door"),
+        Err(other) => panic!("the junction must refuse at the door, got {other:?}"),
+    }
 }
 
 /// The names of `node`'s edges with both ends at height `z`.
@@ -1058,10 +1059,16 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
             (row.relation, row.site),
             (Relation::Coaxial, DecisionSite::BatterySupportAxis)
         );
-        let kinds = row.cells.each_ref().map(|cell| match cell {
-            NamedCell::Entity { input, name } if Some(*input) == doc.output(disc, 0) => name.kind,
-            cell => panic!("a support is a face of the disc: {cell:?}"),
-        });
+        let kinds: Vec<EntityKind> = row
+            .cells
+            .iter()
+            .map(|cell| match cell {
+                NamedCell::Entity { input, name } if Some(*input) == doc.output(disc, 0) => {
+                    name.kind
+                }
+                cell => panic!("a support is a face of the disc: {cell:?}"),
+            })
+            .collect();
         assert_eq!(kinds, [EntityKind::Face; 2], "{row:?}");
     }
     for row in joints {
@@ -1072,10 +1079,14 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
                 DecisionSite::BatteryJoint
             )
         );
-        let names = row.cells.each_ref().map(|cell| match cell {
-            NamedCell::Entity { input, name } if Some(*input) == doc.output(disc, 0) => name,
-            cell => panic!("a joint's cells are edges of the disc: {cell:?}"),
-        });
+        let names: Vec<&StableName> = row
+            .cells
+            .iter()
+            .map(|cell| match cell {
+                NamedCell::Entity { input, name } if Some(*input) == doc.output(disc, 0) => name,
+                cell => panic!("a joint's cells are edges of the disc: {cell:?}"),
+            })
+            .collect();
         assert!(
             names[0] != names[1] && names.iter().all(|n| rim.contains(n)),
             "a joint names the disc's two rim edges: {row:?}"
@@ -1460,10 +1471,17 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 /// placed against the die's faces; a copy placed by a frame turned off
 /// the die's own axes reaches its rim through that turn's sine and
 /// cosine, and its joints stay unproven
-/// (`work/intent/a-turn-by-the-nearest-quarter-turn-rounds.md`).
+/// (`work/intent/a-turn-by-the-nearest-quarter-turn-rounds.md`). The
+/// dies' booleans decide vertex identities too, each a point minted on
+/// an edge, published as a `Meet` of the cells it lies in and left
+/// unproven, a coincidence of values as far as the door can tell.
 #[test]
 fn the_door_proves_half_the_composed_dies_joints() {
-    for (name, proved, rows) in [("die_composed", 1, 2), ("die_composed_tour", 14, 42)] {
+    // `met`: the vertex identities the dies' booleans decide at a point
+    // minted on an edge, each a `Meet` of the cells it lies in (measured:
+    // a pip's meridian seam edge against a face of the die).
+    for (name, proved, rows, met) in [("die_composed", 1, 4, 2), ("die_composed_tour", 14, 84, 42)]
+    {
         let cd = crate::corpus::documents()
             .into_iter()
             .find(|cd| cd.name == name)
@@ -1491,6 +1509,12 @@ fn the_door_proves_half_the_composed_dies_joints() {
             .filter(|p| matches!(p, Proof::Structural(Rung::MarginIdentity)))
             .count();
         let replayed = replays(&all);
+        let meetings = nodes
+            .iter()
+            .flat_map(|(_, rows)| rows.iter())
+            .filter(|r| r.relation == Relation::Meet)
+            .count();
+        assert_eq!(meetings, met, "{name}: the booleans' meetings");
         assert_eq!((theorems, replayed.len()), (proved, rows), "{name}");
         assert!(
             replayed
@@ -1771,21 +1795,21 @@ fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 /// and not bit for bit. The plate's top mints one ring for both
 /// (`topo` `vtxfac::mint_ring`), and the intersection keeps both pierces
 /// as two vertices. It records the decision: one `VertexFusion`
-/// `OnCarrier` row, its two cells the two blocks' edges as the union
-/// names them, its margin the gap. The door leaves it unproven
+/// `Meet` row, its two cells the two blocks' edges as the union names
+/// them, sharing the point each pierce was minted at, its margin the
+/// gap. The door leaves it unproven
 /// with the one-construction recourse, and the check reports it: the
 /// blocks are copies placed on the plate, which the door compares
 /// through their frames (stage 4 H). Red if
 /// the ring glues the two by a shared point key alone, which records
 /// nothing.
 ///
-/// **Two pierces already on one point key record nothing.** That
-/// intersection keeps the pierces on one key: the ring's copies, the
-/// plate's side. A slab whose face runs through (1.5, 1, 1) obliquely,
-/// intersected with it, meets the two vertices there as two pierces of
-/// one face on one key. They share the key as copies of one ring, which
-/// is structure, so the slab's intersection records no fusion of them,
-/// and the check reports nothing of the kind there.
+/// **Two pierces already on one point key are decided onto a face that
+/// runs through them.** That intersection keeps the pierces on one key:
+/// the ring's copies, the plate's side. A slab whose face runs through
+/// (1.5, 1, 1) obliquely, intersected with it, decides the vertices
+/// there onto that face, and records each decision, though the copies
+/// were already one key's.
 #[test]
 fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     let (doc, plate, blocks) = ring_pinch(pierce_gap());
@@ -1828,7 +1852,11 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     let fused = fusions(&ev, common);
     assert_eq!(fused.len(), 1, "one recorded fusion: {fused:?}");
     let row = &fused[0];
-    assert_eq!(row.relation, Relation::OnCarrier);
+    assert_eq!(
+        row.relation,
+        Relation::Meet,
+        "two points minted on edges, decided one, are the edges' meeting"
+    );
     let gap = format!("{:?}", row.margin);
     assert!(
         row.margin.kind() == geom_core::MarginKind::Value
@@ -1860,9 +1888,154 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
         "the slab's intersection builds: {:?}",
         failure(&ev, cut)
     );
-    assert_eq!(
-        fusions(&ev, cut),
-        vec![],
-        "two pierces on one key record nothing"
+    let onto = fusions(&ev, cut);
+    let slab_face = |c: &NamedCell| {
+        matches!(c, NamedCell::Entity { input, name }
+        if *input == out(&doc, slab) && name.kind == EntityKind::Face)
+    };
+    assert!(
+        onto.len() >= 2
+            && onto.iter().all(|r| slab_face(&r.cells[1])
+                && r.cells[1] == onto[0].cells[1]
+                && matches!(&r.cells[0], NamedCell::Entity { input, name }
+                    if *input == out(&doc, common) && name.kind == EntityKind::Vertex)),
+        "the pierces and the vertices beside them, each on the slab's one face: {onto:?}"
     );
+}
+
+/// **An unproven fold row is reported under the judged row decided at
+/// its point** (DM4: the judged rows are the union's order-free rows):
+/// over orders of `union_pinch_member_order`'s prism crossing one wedge
+/// with the plate, each unproven row a fold step logged that names a
+/// member vertex an unproven judged row names goes under the least such
+/// judged row by its sorted cells, relation and site, and every other
+/// one is its own finding. The parent is computed here from the rows and
+/// held against the report, and one fold statement must have one parent
+/// statement in every order that logs it. Red if a fold row is lost,
+/// reported twice, put under a row about another point, or under a
+/// parent that follows the order; and the fixture must report some
+/// under a judged row, so the rule is not passed on nothing.
+#[test]
+fn an_unproven_fold_row_is_reported_under_the_judged_row_decided_at_its_point() {
+    use editor_core::RowOrigin;
+    use std::collections::BTreeMap;
+    let mut under = 0;
+    let mut parents: BTreeMap<String, String> = BTreeMap::new();
+    for order in [[0, 1, 2, 3], [1, 3, 0, 2], [3, 1, 0, 2], [2, 0, 3, 1]] {
+        let doc = ProfileDoc::empty_derived("door-fold-rows", Tol::witness());
+        let (doc, m) = crate::union_pinch_member_order::crossing_one_wedge(doc);
+        let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+        let (doc, u) = crate::fixture::union_over(doc, &members);
+        let ev = run(&doc);
+        let logged = rows(&ev, u);
+        let unproven: Vec<&NamedCoincidence> = logged
+            .iter()
+            .zip(proofs(&doc, u, &logged))
+            .filter(|(_, p)| matches!(p, Proof::Unproven { .. }))
+            .map(|(r, _)| r)
+            .collect();
+        let key = |r: &NamedCoincidence| {
+            let mut cells = r.cells.clone();
+            cells.sort();
+            (cells, r.relation, r.site)
+        };
+        // Each cell by its member's fixture index and its name, so a
+        // statement reads alike in every order.
+        let said = |r: &NamedCoincidence| {
+            let mut cells: Vec<String> = r
+                .cells
+                .iter()
+                .map(|c| match c {
+                    NamedCell::Entity { input, name } => {
+                        let at = (0..m.len()).find(|&i| out(&doc, m[i]) == *input);
+                        format!("{at:?} {name:?}")
+                    }
+                    other => format!("{other:?}"),
+                })
+                .collect();
+            cells.sort();
+            format!("{:?} {:?} {cells:?}", r.relation, r.site)
+        };
+        let vertex_shared = |a: &NamedCoincidence, b: &NamedCoincidence| {
+            a.cells.iter().any(|c| {
+                matches!(c, NamedCell::Entity { name, .. } if name.kind == EntityKind::Vertex)
+                    && b.cells.contains(c)
+            })
+        };
+        let mut want: Vec<(String, Vec<String>)> = Vec::new();
+        let mut own: Vec<&NamedCoincidence> = Vec::new();
+        let mut placed: Vec<(&NamedCoincidence, &NamedCoincidence)> = Vec::new();
+        for f in &unproven {
+            let parent = matches!(f.origin, RowOrigin::Fold { .. })
+                .then(|| {
+                    unproven
+                        .iter()
+                        .filter(|j| {
+                            matches!(j.origin, RowOrigin::Judged { .. }) && vertex_shared(j, f)
+                        })
+                        .min_by_key(|j| key(j))
+                })
+                .flatten();
+            match parent {
+                Some(j) => placed.push((j, f)),
+                None => own.push(f),
+            }
+        }
+        for o in &own {
+            let mut under: Vec<String> = placed
+                .iter()
+                .filter(|(j, _)| std::ptr::eq(*j, *o))
+                .map(|(_, f)| said(f))
+                .collect();
+            under.sort();
+            want.push((said(o), under));
+        }
+        let mut got: Vec<(String, Vec<String>)> = unproven_findings(&doc, &ev, u)
+            .into_iter()
+            .map(|(row, restated)| {
+                let mut under: Vec<String> = restated.iter().map(&said).collect();
+                under.sort();
+                (said(&row), under)
+            })
+            .collect();
+        got.sort();
+        want.sort();
+        assert_eq!(
+            got, want,
+            "{order:?}: each fold row under its point's judged row"
+        );
+        for (j, f) in &placed {
+            under += 1;
+            let (fold, judged) = (said(f), said(j));
+            if let Some(before) = parents.insert(fold.clone(), judged.clone()) {
+                assert_eq!(
+                    before, judged,
+                    "{order:?}: the fold row {fold} has one parent in every order"
+                );
+            }
+        }
+    }
+    assert!(
+        under > 0,
+        "the fixture reports a fold row under a judged finding"
+    );
+}
+
+/// The union `u`'s unproven-coincidence findings, each its row and the
+/// fold rows it reports with it.
+fn unproven_findings(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+    u: RecipeNodeId,
+) -> Vec<(NamedCoincidence, Vec<NamedCoincidence>)> {
+    unproven(doc, ev)
+        .into_iter()
+        .filter(|f| f.subject == editor_core::FindingSubject::Node(u))
+        .filter_map(|f| match f.evidence {
+            CheckEvidence::UnprovenCoincidence { row, restated, .. } => {
+                Some((*row, restated.into_iter().map(|(r, _, _)| r).collect()))
+            }
+            _ => None,
+        })
+        .collect()
 }

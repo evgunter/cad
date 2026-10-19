@@ -39,7 +39,7 @@ fn t() -> Tol {
 /// A z-axis cylinder of radius [`R`] about `c`, from `z0`, length `len`.
 fn rod(c: (f64, f64), z0: f64, len: f64) -> AtRestBody<f64> {
     let lp = profile::circle(Point2::new(c.0, c.1), R, t()).unwrap();
-    let plane = profile::SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let p = profile::Profile::new(plane, vec![lp.into()])
         .validate(t())
         .unwrap();

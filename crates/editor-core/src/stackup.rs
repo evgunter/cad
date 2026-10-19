@@ -30,10 +30,7 @@
 //!    build. A fresh handed evaluation makes the rebuild a memo walk
 //!    that re-runs no op; a STALE one (the document edited between
 //!    builds) differs somewhere in its keys and gets the typed
-//!    [`PairingViolation`], never a sensitivity. A handed build made
-//!    with the guided lift keys differently at every profile node and
-//!    is refused the same way — over-strict for identical geometry,
-//!    and safe: the build of record is the build path.
+//!    [`PairingViolation`], never a sensitivity.
 //! 2. **The passes.** Each seeded `Dual64` pass is compared against
 //!    the anchor at EVERY node on its result arm (`Ok`/`Failed`/
 //!    `Poisoned`, same poison source) and, where both built, on a
@@ -130,7 +127,7 @@ use std::sync::Arc;
 use geom_core::{Dual64, Readable, Tol};
 use topo::Body;
 
-use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
+use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
 use crate::eval::measure::Observed;
@@ -524,16 +521,12 @@ fn driver(
     // the parameter-independent subgraph is evaluated once — DL2's
     // cross-pass reuse, bought through the front door. Shared
     // read-only, so the parallel schedule sees exactly what the
-    // sequential one does. It runs over a box spanning `[0, 0]` on
-    // every toleranced variable: its values are the nominal's, but the
-    // box makes its profile lift the passes' (guided,
-    // `EvalOptions::profile_lift`), so a profile outside a pass's cone
-    // keys the same in both and is served.
+    // sequential one does.
     let base: Evaluation<Dual64> = evaluate(
         doc,
         None,
         &CancelToken::new(),
-        &base_opts(&names, resolver),
+        &pass_opts(None, resolver),
         tol,
     );
 
@@ -575,12 +568,10 @@ fn driver(
     })
 }
 
-/// The pass options: the seed makes the profile lift GUIDED
-/// ([`EvalOptions::profile_lift`]; a seed on a profile dimension must
-/// move profile geometry — the exact silent zero `ProfileLift`'s docs
-/// warn about), sequential inside (the driver's
-/// parallelism is per pass), the seed and the parts' resolver as
-/// given.
+/// The pass options: sequential inside (the driver's parallelism is
+/// per pass), the seed and the parts' resolver as given. A seed on a
+/// profile dimension moves profile geometry, which every evaluation
+/// elaborates at its own scalar (`eval::ProfileLane`).
 fn pass_opts(
     seed: Option<VarId>,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
@@ -589,26 +580,6 @@ fn pass_opts(
         seed,
         resolver: resolver.cloned(),
         ..EvalOptions::default()
-    }
-}
-
-/// The unseeded base's options: [`pass_opts`] with no seed, over a box
-/// spanning `[0, 0]` on every toleranced variable (`names`). Its values
-/// are the nominal's, but the box varies its axes, so its profile lift is
-/// the passes' (guided, `EvalOptions::profile_lift`) and a node outside a
-/// pass's seeded cone keys alike in base and pass — the reuse the passes
-/// are threaded from it for.
-fn base_opts(
-    names: &[VarId],
-    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
-) -> EvalOptions {
-    let at_nominal = names
-        .iter()
-        .map(|&n| (n, BoxAxis::Varying { lo: 0.0, hi: 0.0 }))
-        .collect();
-    EvalOptions {
-        param_box: Some(Arc::new(ParamBox::from_axes_in(at_nominal, names))),
-        ..pass_opts(None, resolver)
     }
 }
 
@@ -1746,8 +1717,8 @@ impl core::error::Error for StackupRefusal {}
 /// report is schedule-independent (D9).
 ///
 /// The worst case re-evaluates the measure over each certified leaf's
-/// environment ON THE LANE THE DRIVE RAN — the guided lift on, and the
-/// symbolic tier on or off exactly as `ParamBoxVerdict::symbolic` says,
+/// environment ON THE LANE THE DRIVE RAN — the symbolic tier on or off
+/// exactly as `ParamBoxVerdict::symbolic` says,
 /// because a leaf the tier certified can carry a node a numeric-only
 /// replay refuses. The numeric channel is the same either way, so the
 /// hulled brackets are the same bits; what the lane decides is which
@@ -1997,27 +1968,6 @@ fn worst_case(
 mod tests {
     use super::{RETIRED_VALUE_DIGEST_TAGS, RSS_BLOCKER_LEAD, Rss, Unavailable, render_rss};
     use crate::VarName;
-
-    /// **The base reads under its passes' lift.** The sensitivity passes
-    /// are threaded from the unseeded base, and a profile node outside a
-    /// pass's cone is served from it only when both key the same, which
-    /// they do only under one lift. A base without its `[0, 0]` box would
-    /// be the pinned build, and every seed-independent profile node would
-    /// recompute in every pass.
-    #[test]
-    fn the_unseeded_base_reads_under_its_passes_lift() {
-        let names = [crate::VarId::new(0, 1), crate::VarId::new(1, 2)];
-        let base = super::base_opts(&names, None);
-        for &n in &names {
-            assert_eq!(
-                base.profile_lift(),
-                super::pass_opts(Some(n), None).profile_lift(),
-                "base and pass take one lift"
-            );
-        }
-        assert_eq!(base.profile_lift(), crate::ProfileLift::Guided);
-        assert!(base.seed.is_none(), "the base is unseeded");
-    }
 
     /// **No arm of [`super::payload_digest`] re-uses a retired tag.**
     /// A source census, for the reason `node_kind_vocabulary_is_injective`

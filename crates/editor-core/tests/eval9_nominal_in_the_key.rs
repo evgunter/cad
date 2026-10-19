@@ -1,15 +1,15 @@
 //! **The nominal is an input to the key** — the rows for the rule at
 //! `eval::tag::slot`: a node's slot values are fixed at the evaluation
 //! scalar AND at the document's nominal f64, because the profile
-//! pre-pass and the pinned lift read the nominal whatever the
-//! evaluation scalar is.
+//! pre-pass reads the nominal whatever the evaluation scalar is.
 //!
 //! At `Interval` the bounds do not determine the nominal — a value
 //! edit under a compensating box leaves `(lo, hi, dec)` equal — so
 //! without the nominal in the key the second evaluation below hits the
-//! memo and serves a profile resolved at the FIRST nominal.
-//! Every interval row here is about that: the edit recomputes, the
-//! served profile is the cold run's, and the two neighbouring cases
+//! memo and serves a profile whose structure the FIRST nominal
+//! selected. Every interval row here is about that: the edit
+//! recomputes, the served profile is the cold run's, and the two
+//! neighbouring cases
 //! (same nominal under a different box; the same value re-applied
 //! under the same box) still key the way a box being a real input says
 //! they should.
@@ -188,11 +188,10 @@ mod over_a_param_box {
         )
     }
 
-    /// The profile's vertices, as BITS: under a box the lift is guided
-    /// (`EvalOptions::profile_lift`), so these enclosures are the
-    /// profile at the lane. Read through the public accessors and
-    /// compared by bits, which is stricter than `==` on an interval and
-    /// is the comparison these rows mean.
+    /// The profile's vertices, as BITS: the profile at the lane. Read
+    /// through the public accessors and compared by bits, which is
+    /// stricter than `==` on an interval and is the comparison these
+    /// rows mean.
     fn vertex_bits(doc: &ProfileDoc, ev: &Evaluation<Interval>) -> Vec<(u64, u64)> {
         let ValuePayload::Profile(pv) = &ev
             .value(profile(doc))
@@ -227,11 +226,9 @@ mod over_a_param_box {
     /// the two boxes bind the SAME interval for `p`, so every bit the lane
     /// feed writes is equal, while the nominal — the value the pre-pass
     /// resolves at — moved from `0` to `0.5·S`. The prior must not be
-    /// served: the profile's key moves, the extrude's moves with it, and
-    /// the second run recomputes both. (Under the guided lift every
-    /// boxed run resolves the profile at the lane, the two runs report
-    /// one profile by construction, and what this row holds is the
-    /// key.)
+    /// served: the profile's key moves, the extrude's moves with it, the
+    /// second run recomputes both, and the profile it reports is the
+    /// profile a cold run of the edited document reports.
     #[test]
     fn a_nominal_edit_under_a_compensating_box_does_not_hit() {
         let first = doc_at(0.0);
@@ -242,10 +239,10 @@ mod over_a_param_box {
         let hit = run(&edited, Some(&prior), &narrow);
         let cold = run(&edited, None, &narrow);
 
-        // A box makes the lift guided (`EvalOptions::profile_lift`), so
-        // each run resolves the profile at its LANE, and the two boxes
-        // bind the same interval for `p`: the two runs report one
-        // profile, and the key below still carries the nominal.
+        // Each run resolves the profile at its LANE, over the box, and
+        // the two boxes bind the same interval for `p`: the two runs
+        // report one profile. What the nominal moves is the first pass's
+        // structure, which the key must carry.
         assert_eq!(
             vertex_bits(&first, &prior),
             vertex_bits(&first, &cold),

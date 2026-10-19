@@ -303,6 +303,19 @@ fn eps_row(eps: f64) -> usize {
 /// (2690 → 2697). Its digests move at every row; the `Early/*` lines
 /// and the largest form hold.
 ///
+/// A chord's director spelled as its components, prescaled by the
+/// largest and normalized (`profile`'s `path::chord_director`), where
+/// it was the `sin_cos` of an `atan2`, builds more forms under the
+/// assertions for the slab's straight legs: `Plain/Assertion`
+/// 2697 → 2733 and `Early/Assertion` 4121 → 4157, and their digests, at
+/// every row; calls, frozen counts, both `*/Decision` lines and the
+/// largest form hold.
+///
+/// The joint's turn and the door's second junction read, as on the
+/// plate: `Plain/Assertion` and `Early/Assertion` +14 calls
+/// (514 → 528) and +30 forms, with their digests, at every row; both
+/// `*/Decision` lines and the largest form hold.
+///
 /// INTENT stage 3 D (Transform retires into a placement) re-spells the
 /// slab's fixture (`bounded_chamber`) without a datum frame: its
 /// profiles are 2-D and its bodies reach the world through `Place`s. Four
@@ -627,6 +640,63 @@ const PLATE_MAX_TERMS: usize = 28;
 /// 5753 → 5790 forms, which it now builds where the check's walk built
 /// them first, and both digests; the frozen counts, the `Early/*` and
 /// `Door/*` lines and the largest form hold.
+///
+/// Placing each row over its edge's span in the chart's principal
+/// window (C4) reads two half-period marks per placed azimuth, each
+/// decided numerically, so each is checked against the tier: 36
+/// placements, `Plain/Assertion` and `Early/Assertion` 654 → 726 calls
+/// and `Door/Decision` 396 → 468, `Plain/Assertion` frozen 405 → 417.
+/// A cylinder's meridian azimuth is read only on a meridian, so the
+/// rim circles centred on the axis no longer take the frame read of
+/// their zero radial offset: `Plain/Decision` 1048 → 1032 calls. Forms
+/// and digests move on every line; the largest form holds.
+/// The placement's lever, the direction's length, squares by
+/// `powi(2)`: the `Plain/Assertion` digest, with every count held.
+/// With the wedge levered at its faces' extent as well, the calls and
+/// frozen counts are the placement's and the forms take both: Plain/Assertion
+/// 6081, Early/Decision 8925, Early/Assertion 7244, Door/Decision 8231;
+/// the largest form holds. The placement's azimuth levered at the
+/// carrier's farthest reach from the axis at the span's ends and midpoint
+/// (PR 5225's one lever rule) builds each mark's form from three points:
+/// every call holds; forms Plain/Decision 15888, Plain/Assertion 6909
+/// (frozen 417 → 405), Early/Decision 8889, Early/Assertion 8108,
+/// Door/Decision 9469. Main's final non-finite check and the placement
+/// add: `Plain/Decision` 1032 → 987 calls (main's −45) and forms
+/// 15888 → 15839, `Plain/Assertion` forms 6909 → 6946, both digests;
+/// every other line is the placement's. The frame decided across the
+/// window's cut builds the cut-side margin's form in place of `x`'s:
+/// forms Plain/Assertion 6946 → 7020, Early/Assertion 8108 → 8182,
+/// Door/Decision 9469 → 9545, and their digests; every call and frozen
+/// count holds.
+///
+/// A harmonic row's windings are structure it stores and certification
+/// compares exactly (PCERT B2a, `[ev]` PR 5113's first decision), so
+/// the decisions that read a winding off a slope are gone: the angle
+/// channel's two affine decisions, the winding walk and the harmonic
+/// lane's period gate, `Plain/Decision` 987 → 939 calls and
+/// `Plain/Assertion`, `Early/Assertion` 726 → 686, `Door/Decision`
+/// 468 → 428; forms and digests move with them, and freezes and the
+/// largest form hold.
+///
+/// A winding read as its slope through the chart channel's `Period`
+/// (`Period::rate`: `times(k)` over the carrier's period, PCERT B2a's
+/// fix pass, H1) rather than as a literal: each angle channel's slope
+/// is a quotient of two forms, so `Plain/Decision`, `Plain/Assertion`,
+/// `Early/Decision` and `Early/Assertion` +3 forms and `Door/Decision`
+/// +10, with every digest; every call, every freeze and the largest
+/// form hold.
+///
+/// A chord's director spelled as its components, as on the slab:
+/// forms `Plain/Assertion` 7003 → 7043 and `Early/Assertion`
+/// 8165 → 8205, and their digests; every call, frozen count, the three
+/// `*/Decision` lines and the largest form hold.
+///
+/// The profile's joint pass reading each joint's turn, levered by the
+/// shorter leg's arm, and the path door reading each junction a
+/// departing leg follows again once that leg is stored (#5354's ruling
+/// and #5377's fix pass): `Plain/Assertion` and `Early/Assertion` +7
+/// calls (686 → 693) and +30 forms, with their digests; the
+/// `*/Decision` lines, the freezes and the largest form hold.
 ///
 /// INTENT stage 3 D (Transform retires into a placement) re-spells the
 /// plate without datum frames, each construction placed into the world

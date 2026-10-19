@@ -139,10 +139,11 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     // number chased back into place — and it moves the populations,
     // never which predicates flip. Exactly ONE differing node — the
     // profile — both runs Ok. The populations are the profile node's
-    // WHOLE log, which under the pinned lift is its pre-pass's one f64
-    // validation. The ε re-classification reports as EXACTLY this net
-    // flip (the thin segment_straightness margin, twice decided per
-    // validation pass), and the arc→straight branch change
+    // WHOLE log: its pre-pass's f64 validation, then the second pass's,
+    // which the `f64` lane logs in the pass's place. The ε
+    // re-classification reports as EXACTLY this net flip (the thin
+    // segment_straightness margin, twice decided per validation pass,
+    // in each of the two), and the arc→straight branch change
     // reports its reshaped decision structure as loud DIVERGENCE
     // rows (arc-only predicates leaving, chord and span probes
     // recounting: the arc's pair reads, which miss a far crossing of
@@ -164,43 +165,47 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
             predicate: "segment_straightness".into(),
             from: Sign::Positive,
             to: Sign::Zero,
-            count: 2,
+            count: 4,
         }],
         diverged: vec![
             editor_core::SummaryDivergence {
                 predicate: "arc_diameter_clearance".into(),
-                old_count: 2,
+                old_count: 4,
                 new_count: 0,
             },
             editor_core::SummaryDivergence {
                 predicate: "arc_span".into(),
-                old_count: 8,
+                old_count: 16,
                 new_count: 0,
             },
             editor_core::SummaryDivergence {
+                // The two line/arc joints of each validation pass read
+                // their turn (`path_junction_turn`), not this clearance,
+                // and that count does not diverge: the straight branch's
+                // joints read it too.
                 predicate: "carrier_line_circle".into(),
-                old_count: 5,
-                new_count: 0,
-            },
-            editor_core::SummaryDivergence {
-                predicate: "chord_side".into(),
-                old_count: 20,
-                new_count: 28,
-            },
-            editor_core::SummaryDivergence {
-                predicate: "circle_side".into(),
                 old_count: 6,
                 new_count: 0,
             },
             editor_core::SummaryDivergence {
+                predicate: "chord_side".into(),
+                old_count: 40,
+                new_count: 56,
+            },
+            editor_core::SummaryDivergence {
+                predicate: "circle_side".into(),
+                old_count: 12,
+                new_count: 0,
+            },
+            editor_core::SummaryDivergence {
                 predicate: "contact_at_shared_vertex".into(),
-                old_count: 10,
-                new_count: 8,
+                old_count: 20,
+                new_count: 16,
             },
             editor_core::SummaryDivergence {
                 predicate: "line_span".into(),
-                old_count: 12,
-                new_count: 8,
+                old_count: 24,
+                new_count: 16,
             },
         ],
     };

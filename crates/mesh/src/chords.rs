@@ -300,9 +300,10 @@ fn nurbs_chord_count(
 ///
 /// [`TessellateError::UnsupportedCurve`] — a degree above 18 (`C″`'s
 /// quotient sits at `3p`, past [`geom_core::spline::QUOTIENT_MAX_DEGREE`]),
-/// or a bound that does not certify: at degree 17 and above a weight
-/// spread near `1e6` lets the weight power's coefficient enclosures
-/// reach zero.
+/// or a bound that does not certify: a weight spread wide enough at a
+/// high enough degree lets the weight power's coefficient enclosures
+/// reach zero (`geom_core::spline::derivative`'s module docs, "The
+/// practical ceiling").
 fn rational_carrier_m_bound(
     n: &geom::NurbsCurve3<f64>,
     ek: EdgeKey,
@@ -394,10 +395,13 @@ fn nurbs_tighten(
                 let rate = 1.0 / (2.0 * m * (angle / (2.0 * m)).sin());
                 (pd.x.abs() * rate, pd.y.abs() * rate)
             }
-            Pcurve::Harmonic { pa, pb, pl, .. } => (
-                pa.x.abs() + pb.x.abs() + pl.x.abs(),
-                pa.y.abs() + pb.y.abs() + pl.y.abs(),
-            ),
+            Pcurve::Harmonic { u, v } => {
+                let (_, pa, pb, pl) = geom_brep::harmonic_form_of(*u, *v);
+                (
+                    pa.x.abs() + pb.x.abs() + pl.x.abs(),
+                    pa.y.abs() + pb.y.abs() + pl.y.abs(),
+                )
+            }
             Pcurve::Fitted(_) => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,

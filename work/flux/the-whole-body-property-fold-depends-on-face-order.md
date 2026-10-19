@@ -2,10 +2,11 @@
 id: the-whole-body-property-fold-depends-on-face-order
 kind: issue
 title: The whole-body property fold sums face terms in arena order, so one solid stored in two face orders measures a volume a few ulp apart
-status: open
+status: closed
+pr: 5402
+closed: 2026-10-19
 opened: 2026-10-11
 priority: P2
-design: true
 ---
 
 
@@ -88,8 +89,83 @@ Its cost:
   whose sum is not already exact) and any row pinning a volume's bits;
   the census is part of the design.
 
-## The question
+## The question for Ev
 
-Should the whole-body fold be order-independent ((b)), or is
-order-dependence the contract, with cross-representation claims stated
-as bounds (the status quo PRs 4682 and 4684 adopt on the round-trip row)?
+Is a body's measured volume a function of the body as stored, or should
+it be invariant under the storage choices the data model declares free?
+Those choices are face and loop order, ring order, and each loop's anchor
+half-edge.
+
+Two designers weighed it. A reconciliation round settled the fact they
+disagreed on. A probe shows that rotating a loop's anchor moves per-face
+terms by ulps: 1 to 5 of 8 to 14 faces, and up to 21 ulps of the volume
+far from the origin. So an exact sum at the body fold alone, option (b)
+above, makes nothing storage-invariant. Both designers withdrew or
+rejected it.
+
+Two coherent final states remain:
+- **(A) storage-dependent and stated.** D9 names storage as part of the
+  input. Cross-storage tests compare structure, or carry a bound computed
+  from the face terms.
+- **(S) storage-invariant all the way down.** Every reduction over a set
+  or cycle (the edges of a loop, the loops of a face, the faces of a
+  body, and the pads) is the rounded-once sum of its terms, through one
+  summation on `geom_core::Real`.
+
+The designers split: one recommends (A) (likely), the other leans to (S)
+(unsure). Either way, the current `faces − 1` ulp bound is the wrong
+shape for signed terms. D9 idiom 2's "arena order" wording also changes,
+in a different direction under each answer.
+
+## Ev's answer (PR 4830, 2026-10-19): (A), storage-dependent
+
+"i think i want to pick storage-dependent for simplicity". D9's
+determinism bullet now names a body's storage as part of the input,
+and idiom 2 reads "the walk's own fixed order". The (S) spike is kept
+findable (`docs/doc-ledger/exact-sum-spike.md`).
+
+What remains, and keeps this row open: the STEP round trip's
+`faces − 1` ulp bound
+(`step-import::nurbs_import::arc_loft_natively_computes_its_rational_volume`)
+is the wrong shape for signed terms. Replace it with a bound computed
+from the face terms, or compare structure.
+
+## Resolution (FLUX, `flux/round-trip-computed-bound`)
+
+The cross-storage rows carry a bound computed from the face terms.
+
+- `topo::test_support::fold_order_bound(terms)` (new, beside
+  `mass_properties_with_face_terms`): `(volume, pad)` bounds on how far
+  two fold orders of one body's face terms may round apart.
+  - volume: `2·(E + u·(Σ|tᵢ| + E))/3`, `E = γₙ₋₁·Σ|tᵢ|`;
+  - pad: `(γₙ₋₁ + 2u·(1 + γₙ₋₁))·Σpᵢ/3`, the pads summed and divided
+    rounding up;
+  - both with a 1% margin for the bound's own arithmetic. They scale
+    with the terms, not the volume.
+- Row `topo::props::fold_order_rows::two_fold_orders_round_apart_within_the_terms_bound`:
+  over every order of six signed terms whose volume is small against
+  them (a body `10⁵` m out), the volumes spread by `≈ 6.4e-12`,
+  thousands of the volume's ulps, so `faces − 1` ulps fails them, and
+  stay within the bound.
+- `step-import::nurbs_import::arc_loft_natively_computes_its_rational_volume`:
+  the per-face bit identity is kept; the volume's `faces − 1` ulp count
+  and the pad's bit identity across the two bodies are now the computed
+  bounds.
+- `step-import::roundtrip` (every corpus fixture, native sidecar against
+  the re-import): its `2·kernel_faces` ulps of `|V|` is now the computed
+  bound from the imported body's own terms, plus the 2 ulps of the mm³
+  conversion.
+
+**Same shape, not converted** (each compares a volume at a multiple of
+its own ulp, but not two storage orders of one body):
+
+- `step-import::freecad` (against a closed form, `census.2` ulps of the
+  volume): the fold's distance from the exact sum is one order's
+  `γₙ₋₁·Σ|tᵢ|/3`, and the same helper would state it.
+- `editor-core::asm2a_instantiate` (two rows, `8·ε_mach·|V|` between a
+  body and its rigidly placed copy): there the transform moves every
+  term, so a computed bound needs the transform's own error, not only
+  the fold's.
+- `step-import::review_probes` prints an ulp distance and asserts none;
+  `sweep::reach_continuation` names one in a doc only.
+

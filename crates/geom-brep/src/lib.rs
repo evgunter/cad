@@ -98,9 +98,9 @@ pub mod torus_convention;
 
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
-    CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
-    IntersectionDraft, NurbsLane, StatedImage, edge_extent, folded_parallelism, sample_param,
-    schedule_param,
+    CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, ForwardReading,
+    IntersectionDraft, NurbsLane, StatedImage, StatedSpan, WindingReading, edge_extent,
+    folded_parallelism, sample_param, schedule_param,
 };
 pub use conic_bend::{BendBounds, ConicBend, ConicDeparture, conic_bend_side};
 pub use description::{
@@ -171,12 +171,13 @@ pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    BranchMiss, ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage,
-    FramedCarrier, Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, NoChartSup, Pcurve,
-    PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
-    ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus,
-    chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v,
+    ANGLE_WINDOW_START, AxisMap, Azimuth, BranchMiss, Channel, ChartMap, ChartMapRefusal,
+    ChartStretchInf, ChartWindow, EnvelopeStatement, EnvelopeTerm, FocalImage, FramedCarrier,
+    Grazer, ISO_FAMILY_CLAUSE, IsoFamily, IsoFamilyRefusal, NoChartSup, Pcurve, PcurveCache,
+    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period, ProjectedChart,
+    ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate, chart_iso_family,
+    chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
+    harmonic_form_of,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
@@ -195,4 +196,4 @@ pub use ssi::{
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
 };
-pub use torus_convention::TorusConvention;
+pub use torus_convention::{TorusConvention, TorusRefusal, TorusVerdict};

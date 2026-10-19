@@ -1,6 +1,6 @@
 //! **DOCM-1 under the Interval lane** — DM1c's rows: a boss placed on a
-//! face is placed at the lane scalar under EVERY lift, and the floor of
-//! a plain-`Interval` extrude of a widened height.
+//! face is placed at the lane scalar, and the floor of a
+//! plain-`Interval` extrude of a widened height.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -12,7 +12,7 @@ use crate::fixture::{self, Recorder};
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, Node,
-    ProfileDoc, ProfileLift, UnitSym, VarName, evaluate,
+    ProfileDoc, UnitSym, VarName, evaluate,
 };
 use geom_core::{Bounds, Interval, Tol};
 use topo::validate_closed;
@@ -25,16 +25,12 @@ fn run(
     evaluate::<Interval>(doc, prior, &CancelToken::new(), opts, Tol::witness())
 }
 
-fn lifted(doc: &ProfileDoc, lift: ProfileLift) -> EvalOptions {
-    corpus::options_under(doc, lift).expect("the document has a continuous variable")
-}
-
-/// **The corpus document's boss is placed at the lane scalar under
-/// both lifts**: the boss's copy, placed on the box's top face,
-/// evaluates green at `Interval`, and its bottom encloses the cap's
-/// height — where the face it names lands, not a placeholder.
+/// **The corpus document's boss is placed at the lane scalar**: the
+/// boss's copy, placed on the box's top face, evaluates green at
+/// `Interval`, and its bottom encloses the cap's height — where the face
+/// it names lands, not a placeholder.
 #[test]
-fn a_boss_placed_on_a_face_is_placed_at_the_lane_scalar_under_every_lift() {
+fn a_boss_placed_on_a_face_is_placed_at_the_lane_scalar() {
     let cd = corpus::face_sketch::document();
     let whole = cd.result.expect("the union");
     let Some(Node::Union { members, .. }) = cd.doc.node(whole) else {
@@ -45,24 +41,22 @@ fn a_boss_placed_on_a_face_is_placed_at_the_lane_scalar_under_every_lift() {
         .map(|m| cd.doc.operation_of(m.read).expect("a live member"))
         .find(|&m| matches!(cd.doc.node(m), Some(Node::Place { .. })))
         .expect("the boss's placement");
-    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let ev = run(&cd.doc, None, &lifted(&cd.doc, lift));
-        assert!(
-            corpus::failures(&ev).is_empty(),
-            "{lift:?}: {:?}",
-            corpus::failures(&ev)
-        );
-        let body = corpus::body_of(&ev, boss);
-        assert_eq!(validate_closed(body), Ok(()), "{lift:?}");
-        let bottom = body
-            .points()
-            .map(|(_, p)| p.z.lo())
-            .fold(f64::INFINITY, f64::min);
-        assert!(
-            (bottom - 1.0).abs() <= 1e-9,
-            "{lift:?}: the boss stands on the cap: {bottom}"
-        );
-    }
+    let ev = run(&cd.doc, None, &EvalOptions::default());
+    assert!(
+        corpus::failures(&ev).is_empty(),
+        "{:?}",
+        corpus::failures(&ev)
+    );
+    let body = corpus::body_of(&ev, boss);
+    assert_eq!(validate_closed(body), Ok(()));
+    let bottom = body
+        .points()
+        .map(|(_, p)| p.z.lo())
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        (bottom - 1.0).abs() <= 1e-9,
+        "the boss stands on the cap: {bottom}"
+    );
 }
 
 /// **The measurement of record for a plain-`Interval` extrude of a

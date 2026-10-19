@@ -36,10 +36,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use geom_core::Point3;
+use profile::SketchPlane;
 
 use common::import_body;
+use geom_core::Point2;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
 use profile::test_support::bulge_loop;
 use step_import::{ImportOptions, import_step};
 use sweep::{Section, loft_body};
@@ -63,9 +65,9 @@ fn native_arc_loft() -> topo::Body<f64> {
     };
     let sections = vec![arc_section(1.0), arc_section(1.25), arc_section(1.0)];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the uniformly-spaced arc loft builds natively")
@@ -421,30 +423,31 @@ fn arc_loft_natively_computes_its_rational_volume() {
                  native {want_terms:?}, imported {imported_terms:?}"
             );
             // * native against imported bodies, the same terms summed in
-            //   two orders: two orders of one sum may round apart by at
-            //   most one ulp per addition, so the volumes must agree to
-            //   within `faces − 1` ulps of each other, and the pad (a sum
-            //   of non-negative pads in the same fold, outward) must still
-            //   agree bit for bit at this body's values. Measured: 0 ulps
-            //   before NURBS #4553 moved the rational wall's flux bits,
-            //   1 at ε = 1e-6 and 2 at 1e-9 after it, and 1 and 0 since
-            //   the skin computes in `T` (PR 4726) moved them again.
-            let faces = native.faces().count() as u64;
-            let ulps = got.volume.to_bits().abs_diff(want.volume.to_bits());
+            //   two orders (D9: a body's storage is part of the input, so
+            //   the bits may differ): the volumes, and the pads, agree to
+            //   within the gap two orders of these terms may round apart,
+            //   computed from the terms (`topo::test_support::fold_order_bound`:
+            //   `2γₙ₋₁·Σ|tᵢ|/3` and the third's own rounding). An ulp count
+            //   of the volume is the wrong shape for signed terms: a body
+            //   far from the origin has terms far larger than its volume.
+            //   Measured: 0 ulps before NURBS #4553 moved the rational
+            //   wall's flux bits, 1 at ε = 1e-6 and 2 at 1e-9 after it,
+            //   and 1 and 0 since the skin computes in `T` (PR 4726).
+            let (volume_bound, pad_bound) = topo::test_support::fold_order_bound(want_terms);
             assert!(
-                got.volume > 0.0 && want.volume > 0.0 && ulps < faces,
-                "the round trip must reproduce the volume to within the fold's \
-                 face-order rounding ({ulps} ulps against {faces} faces): \
-                 imported {} ± {}, native {} ± {}",
+                got.volume > 0.0
+                    && want.volume > 0.0
+                    && (got.volume - want.volume).abs() <= volume_bound,
+                "the round trip must reproduce the volume to within its fold orders' \
+                 rounding ({volume_bound:e}): imported {} ± {}, native {} ± {}",
                 got.volume,
                 got.volume_pad,
                 want.volume,
                 want.volume_pad,
             );
-            assert_eq!(
-                got.volume_pad.to_bits(),
-                want.volume_pad.to_bits(),
-                "and the same certified pad: imported {}, native {}",
+            assert!(
+                (got.volume_pad - want.volume_pad).abs() <= pad_bound,
+                "and the certified pad to within its own ({pad_bound:e}): imported {}, native {}",
                 got.volume_pad,
                 want.volume_pad,
             );

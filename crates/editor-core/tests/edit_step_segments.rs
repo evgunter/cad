@@ -449,7 +449,7 @@ fn assert_steps_bound_their_walls(id: &str, points: Vec<(f64, f64)>, want: Perm)
     let ValuePayload::Body(body) = &ev.value(ext).expect("the extrude evaluates").payload else {
         panic!("{id}: the extrude carries a body");
     };
-    let placement = pv.validated.plane().placement;
+    let placement = pv.validated.plane().placement();
     let place = |p: Point2<f64>| placement.transform_point(geom_core::Point3::new(p.x, p.y, 0.0));
 
     let steps = r.structure.replay[0].steps.len();
@@ -699,7 +699,7 @@ fn assert_sections_bound_their_walls(
             panic!("{id}: section {si} carries a profile");
         };
         let r = records(doc, program);
-        let placement = pv.validated.plane().placement;
+        let placement = pv.validated.plane().placement();
         let up = station_z(doc, loft, si);
         let place = |p: Point2<f64>| {
             placement.transform_point(geom_core::Point3::new(p.x, p.y, 0.0))
@@ -1153,7 +1153,9 @@ fn claim(j: usize, step: &Step<f64>) -> Claim {
         | Step::Turn(_)
         | Step::Fillet { .. } => Claim::Binds,
         Step::Line(len) => Claim::Straight(*len),
-        Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) => of_target(t),
+        Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) | Step::ArcOnto(t) => {
+            of_target(t)
+        }
         Step::ArcTo(spec) => of_spec(spec),
         Step::FarEndTo(p) => Claim::EndsAt(*p),
         Step::CloseTo => Claim::Closes,

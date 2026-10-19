@@ -385,8 +385,7 @@ pub enum ReplaceFaceError<T: Real> {
         /// where it gave one (a general-rung routing, an operand guard
         /// that fired before the pose was classified), and
         /// `route_pose`'s statement where the arm's refusal carries no
-        /// text (unequal cylinder radii, a torus off its ring
-        /// convention).
+        /// text (unequal cylinder radii).
         why: &'static str,
     },
     /// **The fitted face's boundary this door does not carry.** A moved
@@ -515,11 +514,13 @@ pub enum ReplaceFaceError<T: Real> {
     /// reaches or passes the edge's other end — an inward move as deep
     /// as the wall beside it is tall, say. The attach door's span check
     /// decides it on a line or a spline
-    /// ([`geom_brep::CertifyError::IntervalNotForward`]), and a spline
-    /// carrier's clamp at its far end decides a move past it; either
-    /// way it is the move's length, not a span the kernel minted wrong.
-    /// A periodic carrier's non-forward span may be a turn chosen
-    /// wrongly, so it stays the attach door's [`ReplaceFaceError::Op`].
+    /// ([`geom_brep::CertifyError::StatedInterval`], or
+    /// [`geom_brep::CertifyError::IntervalNotForward`] on a span in band),
+    /// and a spline carrier's clamp at its far end decides a move past it;
+    /// either way it is the move's length, not a span the kernel minted
+    /// wrong. A periodic carrier's non-forward span may be a turn chosen
+    /// wrongly, so it stays the attach door's [`ReplaceFaceError::Op`],
+    /// which that door refuses typed.
     ReanchorCollapse {
         /// The edge the move collapses or reverses.
         edge: EdgeKey,
@@ -680,6 +681,17 @@ pub enum ReplaceFaceError<T: Real> {
         edge: EdgeKey,
         /// Which shape it is.
         what: &'static str,
+    },
+    /// A torus the edge's section reads is not shown inside its ring
+    /// convention `R > r > 0` (D3), in band or decided: the section arm
+    /// refuses the shape before it reads any pose, in the half's own
+    /// words. The door does not validate the body it is handed, so the
+    /// neighbour's torus is whatever the body carries.
+    DegenerateTorus {
+        /// The edge whose section read the torus.
+        edge: EdgeKey,
+        /// The half that refused, and how.
+        refusal: geom_brep::TorusRefusal,
     },
     /// A margined predicate escalated: the margin landed in the
     /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3). No
@@ -906,6 +918,7 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "an edge of the body cannot follow the offset: {what}. {NOT_YET_ENDING}"
             ),
+            Self::DegenerateTorus { refusal, .. } => refusal.fmt(f),
             Self::Escalated { source } => write!(
                 f,
                 "{}",
@@ -1396,7 +1409,9 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     d: T,
     tol: Tol,
 ) -> Result<OffsetOutcome, ReplaceFaceError<T>> {
-    replace_faces_offset_staged(body, faces, d, tol, true).map(|joins| OffsetOutcome { joins })
+    let source = crate::SourceGeometry::of(body);
+    let joins = replace_faces_offset_staged(body, faces, d, tol, true)?;
+    Ok(OffsetOutcome::of(source, joins))
 }
 
 /// **Each boundary edge's planned verdict** for moving one non-cone
@@ -1635,9 +1650,20 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
 pub struct OffsetOutcome {
     /// The joins, in the order made.
     pub joins: Vec<crate::boolean::EdgeJoin>,
+    /// The moved body's geometry before the door wrote
+    /// ([`crate::SourceGeometry`]): a record lands unread only on images
+    /// that hold it. Empty on an outcome no door made, and every record
+    /// is then read.
+    source: crate::SourceGeometry,
 }
 
 impl OffsetOutcome {
+    /// The outcome of a door that wrote over `source`, ending with
+    /// `joins`.
+    pub(crate) fn of(source: crate::SourceGeometry, joins: Vec<crate::boolean::EdgeJoin>) -> Self {
+        Self { joins, source }
+    }
+
     /// `records`, the moved body's before the door, carried onto
     /// `result`, the body after it, through [`Self::lineage`]
     /// ([`crate::ContactRecords::carried_through`], at `band` through `region`).
@@ -1657,10 +1683,14 @@ impl OffsetOutcome {
 
     /// **What the door made of each cell** (D1): it keeps every key and
     /// kills only what its joins name, so each cell is itself or the
-    /// edge a join made of it.
+    /// edge a join made of it. It writes new geometry under kept keys,
+    /// so the lineage carries the body's geometry from before it wrote
+    /// ([`crate::Lineage::from_source`]).
     #[must_use]
     pub fn lineage(&self) -> crate::Lineage {
-        crate::Lineage::new().through_joins(&self.joins)
+        crate::Lineage::new()
+            .from_source(self.source.clone())
+            .through_joins(&self.joins)
     }
 }
 
@@ -2060,7 +2090,11 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
                 // forward is the move's length.
                 (
                     EulerOpError::Certification {
-                        error: geom_brep::CertifyError::IntervalNotForward { .. },
+                        error:
+                            geom_brep::CertifyError::IntervalNotForward { .. }
+                            | geom_brep::CertifyError::StatedInterval {
+                                refused: geom_brep::StatedSpan::Forward(_),
+                            },
                     },
                     Some(offset),
                 ) => ReplaceFaceError::ReanchorCollapse { edge, offset },
@@ -2610,8 +2644,12 @@ fn plan_edge<T: Decide>(
                 | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
                     ReplaceFaceError::Escalated { source }
                 }
-                // `route_pose` returns only an escalation or a
-                // dispatch naming the wrong arm or seat — this
+                geom_brep::SectionError::DegenerateTorus(refusal) => {
+                    ReplaceFaceError::DegenerateTorus { edge, refusal }
+                }
+                // `route_pose` returns only an escalation, a torus off
+                // its ring convention, or a dispatch naming the wrong
+                // arm or seat — this
                 // kernel's own bug, not the body's (its `# Errors`);
                 // every other variant is answered inside it and
                 // never returned.
@@ -2620,11 +2658,10 @@ fn plan_edge<T: Decide>(
                 | geom_brep::SectionError::DegenerateOperand { .. }
                 | geom_brep::SectionError::BeyondOperandExtent { .. }
                 | geom_brep::SectionError::CoincidentSurfaces
-                | geom_brep::SectionError::DegenerateTorus
                 | geom_brep::SectionError::RoutesToGeneralRung { .. }
                 | geom_brep::SectionError::Carrier(_)
                 | geom_brep::SectionError::Spiric(_)) => unreachable!(
-                    "{edge:?}: `route_pose` answers only an escalation or a misdispatch, and \
+                    "{edge:?}: `route_pose` answers only an escalation, a torus refusal or a misdispatch, and \
                  returned {other:?}"
                 ),
             },
@@ -3057,6 +3094,9 @@ fn derive_edge<T: Decide>(
         | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
             ReplaceFaceError::Escalated { source }
         }
+        geom_brep::SectionError::DegenerateTorus(refusal) => {
+            ReplaceFaceError::DegenerateTorus { edge, refusal }
+        }
         // As at `neighbour_section`: every other variant is answered
         // inside `route_pose` and never returned.
         other @ (geom_brep::SectionError::WrongLane { .. }
@@ -3064,11 +3104,10 @@ fn derive_edge<T: Decide>(
         | geom_brep::SectionError::DegenerateOperand { .. }
         | geom_brep::SectionError::BeyondOperandExtent { .. }
         | geom_brep::SectionError::CoincidentSurfaces
-        | geom_brep::SectionError::DegenerateTorus
         | geom_brep::SectionError::RoutesToGeneralRung { .. }
         | geom_brep::SectionError::Carrier(_)
         | geom_brep::SectionError::Spiric(_)) => unreachable!(
-            "{edge:?}: `route_pose` answers only an escalation or a misdispatch, and returned \
+            "{edge:?}: `route_pose` answers only an escalation, a torus refusal or a misdispatch, and returned \
              {other:?}"
         ),
     })?;
@@ -3188,12 +3227,7 @@ fn derive_edge<T: Decide>(
 fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
     use geom_brep::Pcurve;
     Some(match *pcurve {
-        Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
-            p0: geom_core::Point2::new(p0.x, p0.y + shift),
-            pa,
-            pb,
-            pl,
-        },
+        Pcurve::Harmonic { .. } => pcurve.translate(T::zero(), shift),
         Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
             p0: geom_core::Point2::new(p0.x, p0.y + shift),
             pl,
@@ -4613,13 +4647,13 @@ mod shift_chart_v_rows {
             sense: 1.0,
         });
         assert!(shift_chart_v(&section, 0.3).is_none());
-        let harmonic = Pcurve::Harmonic {
-            p0: Point2::new(0.0, 1.0),
-            pa: Vec2::new(0.5, 0.0),
-            pb: Vec2::new(0.0, 0.5),
-            pl: Vec2::new(0.0, 0.0),
-        };
-        let Some(Pcurve::Harmonic { p0, .. }) = shift_chart_v(&harmonic, 0.25) else {
+        let harmonic = Pcurve::free_harmonic(
+            Point2::new(0.0, 1.0),
+            Vec2::new(0.5, 0.0),
+            Vec2::new(0.0, 0.5),
+            Vec2::new(0.0, 0.0),
+        );
+        let Some(Some((p0, ..))) = shift_chart_v(&harmonic, 0.25).map(|p| p.harmonic_form()) else {
             panic!("a harmonic image shifts");
         };
         assert_eq!(p0.y, 1.25);

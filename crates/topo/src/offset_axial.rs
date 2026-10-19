@@ -464,8 +464,9 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<crate::replace_face::OffsetOutcome, ReplaceFaceError<T>> {
-    offset_charts_together_staged(body, moves, band, tol, true)
-        .map(|joins| crate::replace_face::OffsetOutcome { joins })
+    let source = crate::SourceGeometry::of(body);
+    let joins = offset_charts_together_staged(body, moves, band, tol, true)?;
+    Ok(crate::replace_face::OffsetOutcome::of(source, joins))
 }
 
 /// [`offset_charts_together`], ending with the join where `join` is set. Unset, the
@@ -2136,6 +2137,9 @@ fn mint_carrier<T: Decide>(
             geom_brep::SectionError::Escalated(source)
             | geom_brep::SectionError::Spiric(geom::SpiricInvalid::Escalated(source)) => {
                 ReplaceFaceError::Escalated { source }
+            }
+            geom_brep::SectionError::DegenerateTorus(refusal) => {
+                ReplaceFaceError::DegenerateTorus { edge, refusal }
             }
             geom_brep::SectionError::RoutesToGeneralRung { .. }
             | geom_brep::SectionError::Spiric(geom::SpiricInvalid::NotTwoOvals) => refuse(

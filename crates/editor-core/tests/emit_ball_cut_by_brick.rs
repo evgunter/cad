@@ -24,7 +24,7 @@ use editor_core::{
 use geom_core::Tol;
 
 const ROW: &str =
-    "work/emit/a-whole-ball-cut-by-a-tilted-brick-refuses-an-unclassified-member-edge-side.md";
+    "work/borders/a-whole-ball-cut-by-a-tilted-brick-refuses-an-unclassified-member-edge-side.md";
 
 /// The ball (its copy beside the brick), the brick, and `op` over
 /// them, ball first or not.

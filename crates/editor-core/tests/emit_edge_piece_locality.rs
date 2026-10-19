@@ -127,19 +127,20 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
 /// its ends, a lone one too, so the piece from P to 180° keeps its name
 /// when a second Below piece of the rim appears.
 ///
-/// One document, edited in place: a cylinder (radius 0.3, its rims the
-/// profile's two semicircles, `Piece(0)` the `+y` one) split by a
-/// vertical plane through the rim point P at 135°. Its other crossing is
-/// at 300° (on `Piece(1)`) until the plane's normal is edited to put it
-/// at 30° (on `Piece(0)`), so the plane crosses `Piece(0)` once and then
-/// twice, at P both times. `Piece(0)` runs from 0° to 180°, and the
-/// plane's normal puts 180° Below, so the rim enters the Below half at P
-/// and, once crossed at 30°, leaves it there.
+/// One document, edited in place: a D-shaped rod (its profile an arc of
+/// radius 0.3 from 0° round to 225° and the chord back, `Piece(0)` the
+/// arc) split by a vertical plane through the rim point P at 135°. Its
+/// other crossing is on the chord (toward 300°) until the plane's
+/// normal is edited to put it at 30° (on the arc), so the plane crosses
+/// the arc once and then twice, at P both times. The arc runs from 0°
+/// to 225°, and the plane's normal puts 180° Below, so the rim enters
+/// the Below half at P and, once crossed at 30°, leaves it there. (The
+/// rod's wall is one curved face and one flat one, so no merge joins
+/// the arc's Below pieces: a two-piece cylinder's wall pieces merge in
+/// each half, and its rim is joined across the profile's seam.)
 #[test]
 fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_names() {
     use editor_core::{Sense, SplitHalf};
-
-    use crate::emit_union_borders::rod;
 
     let at = |deg: f64| {
         let t = deg.to_radians();
@@ -160,7 +161,7 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
         }
     };
     let doc = ProfileDoc::empty_derived("edge-piece-locality-twice", Tol::witness());
-    let (doc, rod) = rod(doc, 1.0);
+    let (doc, rod) = d_rod(doc, at(225.0));
     // The plane through P whose normal puts the rim point at `other`,
     // read off the rod's own geometry.
     let plane = |doc: &ProfileDoc, other: f64| {
@@ -299,4 +300,33 @@ fn plane_read(
         along: RoleRead::through(frame, PoseRole::Z),
         by: editor_core::Formula::zero(editor_core::Dimension::Length),
     }))
+}
+
+/// A rod of length 1 along `z` whose profile is the arc of radius 0.3
+/// about the origin from 0° counter-clockwise to `end`, closed by the
+/// chord back.
+pub(crate) fn d_rod(doc: ProfileDoc, end: (f64, f64)) -> (ProfileDoc, editor_core::RecipeNodeId) {
+    use editor_core::{LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget};
+    let (doc, d) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::Chain(vec![
+                ProgramStep::At([len(0.3), len(0.0)]),
+                ProgramStep::ArcTo(ProgramArcData::Center {
+                    c: [len(0.0), len(0.0)],
+                    winding: profile::ArcSweep::Ccw,
+                    target: ProgramTarget::Point([len(end.0), len(end.1)]),
+                }),
+                ProgramStep::LineTo(ProgramTarget::Start),
+            ])],
+            ids: Vec::new(),
+        }),
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: d.into(),
+            distance: len(1.0),
+        },
+    )
 }

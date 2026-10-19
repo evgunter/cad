@@ -95,12 +95,67 @@ use crate::m10_9_pins_interval::measured_studies;
 /// annulus 566 → 539, link 356 → 323, bracket 1453 → 1392, pad
 /// 1317 → 1260. A decision left; none moved, so the dispute column's
 /// zero stands on the same decisions.
+///
+/// Placing each row over its edge's span in the chart's principal
+/// window (PCERT unit B1, C4) moves decisions, and each is attributed:
+/// every placed azimuth reads its two half-period marks numerically
+/// (`pcurve_chart_placement`), and a cylinder's meridian azimuth is
+/// read only on a meridian, so a rim circle centred on the axis no
+/// longer takes the frame read the tier proved zero. `symbolic` falls
+/// by those frame reads and `numeric` rises by the marks; `frozen` rises
+/// by the marks' contradiction checks whose forms froze (plate +12,
+/// annulus +16, link +6, bracket +15, pad +21), the frame reads having
+/// been proved and frozen nothing. Plate `[1048, 654, 729]` →
+/// `[1032, 726, 741]`, annulus `[566, 399, 904]` → `[550, 471, 920]`,
+/// link `[356, 259, 542]` → `[348, 295, 548]`, bracket
+/// `[1453, 1008, 1969]` → `[1433, 1096, 1984]`, pad `[1317, 1159, 2976]`
+/// → `[1305, 1211, 2997]`. No dispute fired. With the wedge levered at
+/// its faces' extent as well, the two moves add: bracket `[1433, 1096,
+/// 2059]` and pad `[1305, 1211, 3543]`, the wedge's `frozen` (+75, +546)
+/// on top of the placement's. The placement's azimuth levered at the
+/// carrier's farthest reach from the axis at the span's ends and midpoint
+/// (PR 5225's one lever rule) moves `frozen` alone, the marks' forms built
+/// from three points: plate 741 → 729, annulus 920 → 940, link 548 → 542,
+/// bracket 2059 → 2110, pad 3543 → 3558. No decision moved and no dispute
+/// fired. Main's final non-finite check and the placement add: `symbolic`
+/// falls by main's count on each (plate −45, annulus −27, link −33,
+/// bracket −61, pad −57) from the placement's; `numeric` and `frozen` are
+/// the placement's. The frame decided across the window's cut moves
+/// `frozen` alone, the cut-side margin's forms: bracket 2110 → 2112, pad
+/// 3558 → 3566. No decision moved and no dispute fired.
+///
+/// A harmonic row's windings stored as structure (PCERT B2a, `[ev]` PR
+/// 5113's first decision) retire the decisions that read them off a
+/// slope: plate `[987, 726, 729]` → `[939, 686, 729]`, annulus
+/// `[523, 471, 940]` → `[475, 431, 940]`, link `[315, 295, 542]` →
+/// `[291, 275, 542]`, bracket `[1372, 1096, 2112]` → `[1312, 1046,
+/// 2112]`, pad `[1248, 1211, 3566]` → `[1212, 1181, 3566]`. The decisions
+/// are gone, not moved; no dispute fired, and `frozen` holds.
+///
+/// A chord's director spelled as its components over its length
+/// (`profile`'s `path::chord_director`) where it was the `sin_cos` of an
+/// `atan2`: the link's `frozen` 542 → 556, its decisions held. The pad's
+/// ceiling rose with it (`line_span` no longer bounds it; `arc_span`
+/// does, at 3.152e3·ε), so its row is read at a new scale and is a new
+/// measurement: `[1397, 1178, 4309]`, where it was `[1212, 1181, 3566]`
+/// at 2.7783e3·ε. No dispute fired.
+///
+/// The junction's turn levered by the shorter of the two legs' arms,
+/// at the door and in validation, the door reading each junction a
+/// departing leg follows again once that leg is stored (#5377's fix
+/// pass): plate `[939, 690, 729]` → `[939, 693, 729]` (three more
+/// junction reads), link `[291, 275, 556]` → `[295, 271, 558]` and pad
+/// `[1397, 1178, 4309]` → `[1413, 1162, 4310]` (four and sixteen
+/// decisions from `numeric` to `symbolic`, a few more forms frozen),
+/// bracket `[1312, 1046, 2112]` → `[1316, 1051, 2112]`. This is the
+/// finding the row asks for, and its cause is that fix; no dispute
+/// fired.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1003, 654, 729]),
-    ("r1_annulus", [539, 399, 904]),
-    ("r2_link", [323, 259, 542]),
-    ("r2_filleted_bracket", [1392, 1008, 2044]),
-    ("r2_rounded_pad", [1260, 1159, 3522]),
+    ("two_hole_plate", [939, 693, 729]),
+    ("r1_annulus", [475, 431, 940]),
+    ("r2_link", [295, 271, 558]),
+    ("r2_filleted_bracket", [1316, 1051, 2112]),
+    ("r2_rounded_pad", [1413, 1162, 4310]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

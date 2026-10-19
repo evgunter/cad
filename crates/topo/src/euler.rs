@@ -250,7 +250,7 @@ use geom::Surface;
 use geom_brep::recourse::{ReadAt, Reading};
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 
-use crate::policy_lane::ByPolicy;
+use crate::policy_lane::{ByPolicy, KernelSite, Origin};
 use geom_core::{Band, Decide, Point3, Real, Tol};
 use slotmap::SecondaryMap;
 
@@ -1436,8 +1436,8 @@ pub enum EulerOpError {
 impl EulerOpError {
     /// This refusal's text, a certification refusal's ending read at `at`
     /// ([`CertifyError::render`]): the door that reports the refusal
-    /// decides where it is read, the STEP import door at rest with the
-    /// file's ε_in words. Every other arm ignores `at`. `Display`
+    /// decides where it is read, the STEP import door with the file's
+    /// ε_in. Every other arm ignores `at`. `Display`
     /// reads it at [`Reading::Build`], the operation that built the edge.
     #[must_use]
     pub fn render(&self, at: impl Into<ReadAt>) -> String {
@@ -2363,7 +2363,9 @@ impl<T: Decide> Body<T> {
     /// equal start vertices ([`EulerOpError::FanStartMismatch`]).
     /// `Lone`: the loop resolves ([`BadArgument::Stale`]); it is empty
     /// ([`EulerOpError::LoopNotEmpty`]). Then, for both sites, the
-    /// geometry gate: `curve` certifies ([`EulerOpError::Certification`]);
+    /// geometry gate: `curve` certifies ([`EulerOpError::Certification`];
+    /// an interval that runs no clear length forward or past a full turn
+    /// is the caller's, [`geom_brep::CertifyError::StatedInterval`]);
     /// and at a `Fan` site, per edge of the moved run in run order: the
     /// edge is not a null edge the run moves one end of
     /// ([`EulerOpError::RebasedNullEdge`]), and its carrier re-certifies
@@ -2428,7 +2430,8 @@ impl<T: Decide> Body<T> {
     /// vertex's point to `point`
     /// ([`EdgeCurveSpec::line_between`] — the caller asserts the locus
     /// *is* that chord; module docs, geometry policy). Coincident
-    /// endpoints fail certification loudly.
+    /// endpoints give a chord of no length, refused typed
+    /// ([`geom_brep::CertifyError::StatedInterval`]).
     ///
     /// # Errors
     ///
@@ -2643,7 +2646,8 @@ impl<T: Decide> Body<T> {
     ///
     /// The dispatch is **structural** (key equality, never a scalar
     /// comparison); two *distinct* vertices at coincident coordinates
-    /// still take the chord path and fail certification loudly.
+    /// still take the chord path, and their chord of no length is
+    /// refused typed ([`geom_brep::CertifyError::StatedInterval`]).
     ///
     /// # Errors
     ///
@@ -2732,6 +2736,7 @@ impl<T: Decide> Body<T> {
         let faces =
             [plan.he1_loop, plan.he2_loop].map(|l| proven(&self.loops, l, EntityId::Loop).face);
         let certified = self.certify_edge_spec(
+            Origin::Callers,
             None,
             curve.spec(false, p_old, point),
             p_old,
@@ -2982,6 +2987,7 @@ impl<T: Decide> Body<T> {
         let face = proven(&self.loops, loop_key, EntityId::Loop).face;
         // ---- Geometry gate (still no mutation). ----
         let certified = self.certify_edge_spec(
+            Origin::Callers,
             None,
             curve.spec(false, p_old, point),
             p_old,
@@ -3209,7 +3215,8 @@ impl<T: Decide> Body<T> {
         let after = Slot::of_spec(&surface, inherit_surface);
         let spec = curve.spec(u1 == u2, p1, p2);
         require_chord_adjacent(&spec, (inherit_surface, after))?;
-        let certified = self.certify_edge_spec(None, spec, p1, p2, [face_key; 2], tol)?;
+        let certified =
+            self.certify_edge_spec(Origin::Callers, None, spec, p1, p2, [face_key; 2], tol)?;
         self.vouch_move(
             RechartDoor::Mef,
             face_key,
@@ -3380,7 +3387,15 @@ impl<T: Decide> Body<T> {
         let after = Slot::of_spec(&surface, inherit_surface);
         let spec = curve.spec(true, anchor, anchor);
         require_chord_adjacent(&spec, (inherit_surface, after))?;
-        let certified = self.certify_edge_spec(None, spec, anchor, anchor, [face_key; 2], tol)?;
+        let certified = self.certify_edge_spec(
+            Origin::Callers,
+            None,
+            spec,
+            anchor,
+            anchor,
+            [face_key; 2],
+            tol,
+        )?;
         let carried = resolved.on_parent_chart;
         self.vouch_move(
             RechartDoor::Mef,
@@ -3921,7 +3936,8 @@ impl<T: Decide> Body<T> {
     /// The attachment gate (D4 ¶2 at operation time): certifies an
     /// [`EdgeCurveSpec`] against its endpoint points, with surface keys
     /// resolved from this body's arena and the plane × NURBS lane read
-    /// off the scalar's policy ([`crate::AtRestPolicy::nurbs_lane`]).
+    /// off the scalar's policy ([`crate::AtRestPolicy::nurbs_lane`]), as
+    /// `origin`'s data ([`Origin`]).
     /// `edge` is the existing edge the spec certifies (a re-description,
     /// a split child, a merged member), `None` where the door mints a new
     /// edge; `faces` are the two faces the edge bounds as this door
@@ -3940,8 +3956,10 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::NurbsLaneUnsupported`] naming `edge` where the
     /// spec is of the plane × NURBS class and the scalar holds no lane;
     /// [`EulerOpError::Certification`] on every other refusal.
+    #[allow(clippy::too_many_arguments)] // the certification's, plus whose data it is
     pub(crate) fn certify_edge_spec(
         &self,
+        origin: Origin,
         edge: Option<EdgeKey>,
         spec: EdgeCurveSpec<T>,
         p_start: Point3<T>,
@@ -3968,6 +3986,7 @@ impl<T: Decide> Body<T> {
             _ => None,
         };
         crate::policy_lane::certify_stated(
+            origin,
             spec,
             p_start,
             p_end,
@@ -4219,7 +4238,8 @@ impl<T: Decide> Body<T> {
                 curve.params(),
             );
             let recertify = |start, end| {
-                crate::policy_lane::recertify(curve, start, end, surfaces, reach, band)
+                let origin = Origin::Kernels(KernelSite::ReBasedRun);
+                crate::policy_lane::recertify(origin, curve, start, end, surfaces, reach, band)
             };
             let error = match recertify(p_start, p_end) {
                 Ok(_) => continue,

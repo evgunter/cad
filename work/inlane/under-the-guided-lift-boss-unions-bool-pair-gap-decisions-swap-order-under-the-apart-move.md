@@ -30,6 +30,8 @@ Found by the shared replay session unit (`inlane/sym-replay-session`), guided li
 - Explain the `pcurve_chart_azimuth_frame` parting.
 - Return `revalue_boss_union` to the apart move.
 
+**Evidence, PCERT B1 (PR 5225, 2026-10-17):** the `pcurve_chart_azimuth_frame` parting was the old frame lane's landmark cut, at `x = 0`: it decided which formula read an azimuth on `x`'s sign, a second cut beside the window's own. B1 decides the frame across the window's cut line instead (`pcurve_chart_cut_side`), and the frame name is gone. Re-run with the repro above, the apart move still launders the same two `bool_pair_gap` margins (now #4150 and #4153, bit for bit the values above), and the builds then part at #4154 of 11,971 at `pcurve_chart_radial_moving`. So the frame is not why the builds part. They part at whatever comes next after the order swap. The "explain the parting" sub-item is answered for the frame and no further: the parting goes with the order swap, the first owed item.
+
 ## Root cause, and why the kernel is not the fix (INLANE orchestrator's ruling (b), 2026-10-18)
 
 **What orders the decisions.** The narrow phase's candidate separating axes (`topo::boolean::separating::operand_axes`) are every planar face's outward normal on either operand, de-duplicated by exact bracket-key identity (`boxes::axis_key`) against a kept axis or its negation.
@@ -56,3 +58,5 @@ About 16 fast-set rows would cross the one-second bar. A non-apart pair tries ev
 - **Folded in.** `kitchen-sink-census-pairs-planes-out-of-order` is folded in here: kitchen_sink's `bool_plane_parallel` swap is the same misreading.
 - **Done when** boss_union's apart move reads no laundering at the `bool_pair_gap` swap, kitchen_sink's census reads none at its plane swap, and a row pins each.
 - **What stays outside.** boss_union's apart move will then meet plate_param's ray-schedule exact zero further on. That item owns it.
+
+**Pinned (2026-10-19, PATHS #5068's fix pass).** `revalue_corpus::revalue_boss_union_apart_to_its_parting` now holds boss_union under the apart move over the decisions before its parting: `bool_pair_gap` owed to this item as the one laundered name, the parting at `pcurve_chart_radial_moving` (3,961 compared, 3,238 moved). A fix here moves both pins; returning `revalue_boss_union` to the apart move retires the prefix row.

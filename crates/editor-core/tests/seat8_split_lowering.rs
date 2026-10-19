@@ -290,6 +290,18 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
 ///
+/// RE-BLESSED, `cut_cylinder` only, when a harmonic row's windings
+/// became stored structure (PCERT B2a, PR 5244): the stored pcurve is
+/// two channels where it was one flat tuple, and the digest hashes it.
+/// RE-BLESSED, `cut_cylinder` only, when each split half came to end
+/// with maximal faces and to re-describe the boundary of a curved run
+/// its merge records as skipped (PR 5334): the tilted cut leaves both
+/// half-walls' pieces in each half, and the re-description's pass over
+/// their boundary edges re-stores those edges' stored rows, which this
+/// digest hashes. Every edge description's `Debug` is unchanged, and no
+/// point moved (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held).
+///
 /// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
 /// a placement): each document was re-spelled without `Datum` or
 /// `Transform` (a construction is built in its own coordinates and

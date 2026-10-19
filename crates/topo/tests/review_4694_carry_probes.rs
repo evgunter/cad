@@ -29,10 +29,9 @@ fn union_of(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> BooleanBody<f64> {
 /// is.** The vertex lies inside the merged face exactly as its killed
 /// seam edges do, and the merge's one lineage (`MergedGroup::substitutions`,
 /// which the boolean's descendant map reads too) takes both onto the
-/// kept face. A record of the vertex and the bottom face is then put to
-/// the census on (kept face, bottom), a face pair it cannot read here, so
-/// the carry refuses it `Unread` rather than keep it. Red if the lineage
-/// keeps the vertex, or the carry lands a pair the census did not read.
+/// kept face. A record of the vertex and the bottom face then lands on
+/// (kept face, bottom) by lineage, unread. Red if the lineage keeps the
+/// vertex, or the carry re-reads a substituted pair.
 #[test]
 fn a_merges_killed_seam_vertex_is_substituted_with_its_edge() {
     let mut cube = geometric_cube::<f64>(tol());
@@ -99,12 +98,15 @@ fn a_merges_killed_seam_vertex_is_substituted_with_its_edge() {
             geom_core::Band::linear(tol()).unwrap(),
             Some(topo::RegionLane::certified()),
         ),
-        Err(topo::CarryRefusal::Unread {
-            record: 0,
-            cells: Contact::new(&cube.body, kept, Cell::Face(bottom))
-                .unwrap()
-                .cells()
-        }),
+        Ok([Cited::new(
+            Contact::new(&cube.body, kept, Cell::Face(bottom)).unwrap(),
+            Cites::one(topo::Backing::Carried {
+                input: 0,
+                record: 0
+            }),
+        )]
+        .into_iter()
+        .collect()),
         "the kept top against the bottom"
     );
 }

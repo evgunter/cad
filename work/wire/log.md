@@ -6157,10 +6157,377 @@ Signed (WIRE orchestrator).
   162. Filed `a-section-faces-index-is-its-completion-order-not-its-identity`
   (P3, design). The build unit waits on Ev. (WIRE orchestrator)
 
+- 2026-10-18 — PR 5303 FULL review adjudicated: approve with fixes. The
+  orchestrator upgraded one finding to MAJOR. Spelling a fold-minted
+  crossing as its member edge lets `stated_at` (cells plus relation,
+  site ignored) merge two crossings of one edge into one row. That is
+  latent (0 hits in the probe), but it is the defect class this unit
+  closes. The fix makes the site part of a statement. Minors sent: no
+  test pins re-cited `cites` (a mutant citing row 0 stays green on 288
+  tests); the overlap test is restricted to straight colinear edges;
+  `fold_cell`'s swallowed `Err`; stale docs; mint-ordinal A disclosed.
+  Class note: canonicalising a spelling to make rows order-free can
+  merge distinct facts unless the dedup key keeps what told them apart.
+  (WIRE orchestrator)
+
+- 2026-10-18 — PR 5298 (refusals state their recourse) merged on green
+  with main merged in. Dispatched `wire/seam-cites-parent`: N3's seam
+  sentence, approved on PR 5279, is built, and chord descent with
+  `MergedChordConstituents` is deleted. It gets a FULL single review.
+  (WIRE orchestrator)
+
+- 2026-10-18 — PR 5303 (fold-minted cells) merged on green with main
+  merged in; its row closed. PR 5313 (seam cites parent) opened green,
+  and a FULL review is dispatched. Dispatched `wire/small-breaks`, one
+  STYLE-reviewed bundle of four rows:
+  - the seating door's kind-mismatch refusal;
+  - `wire.rs`'s two defaulted records;
+  - the cancel check before the mate solve (mate/* untouched, D10);
+  - the fold-row guard, which closes
+    `a-fold-steps-coincidence-rows-are-named-without-the-end-passes`
+    now that 5276 and 5303 removed the unheld cells.
+  `naming-refusal-census-skips-ten-arms` waits for 5313, which deletes
+  one of its arms. (WIRE orchestrator)
+
+- 2026-10-18 — PR 5313 FULL review adjudicated: mergeable with fixes.
+  - Fix pass sent: tests that reach the `(true,true)` arm and pin
+    `of_published`, since both stay green under revert; a refusal that
+    does not depend on key order (it is a pncad-py tag); the `holds`
+    residue in `merged_side`.
+  - The side-order choice gets disclosed and filed. Row 160's
+    recommendation leaned to name-ordered seam sides, Ev approved "as
+    recommended", and N3's text is silent. So it is a row, not a
+    breach, and no switch happens in this PR.
+  - PR 5316 (small breaks) opened green and a STYLE review is dispatched.
+  (WIRE orchestrator)
+
+- 2026-10-18 — PR 5316 STYLE review adjudicated; no MAJOR. Fix pass:
+  - The fold-row guard checked only member cells. No order published a
+    fold-minted cell, so the case the fold-steps row was about went
+    unexercised. The fix needs a fixture that publishes one, or an
+    honest Resolution; the check also has to read the entity a name
+    denotes, not merely that it exists.
+  - One spelling for the `lost` flag, through a `try_recited` if that
+    is small.
+  - Kind checked before collision at every seating door.
+  - The cancel test asserts its premise.
+  Class note: a guard over a corpus can be vacuous on the half it was
+  written for; measure that it fires. (WIRE orchestrator)
 - 2026-10-18 — PR 5313 fix pass adjudicated by the orchestrator's read
   of `rim_among`: one chooser, decided by name. A sole holding rim wins
   over an escalated pair, which is sound because two distinct rims of a
   valid body cannot overlap along a chord. The `(true,true)` arm is
   pinned by unit rows on its extracted decision, since no model
   reaches it. Merged on green; the spanning-chord row closed.
+  (WIRE orchestrator)
+
+- 2026-10-18 — Sequencing: `naming-refusal-census-skips-ten-arms` waits
+  for PR 5316, which adds `KindMismatch` to the same census lists
+  (`refusal_concision_chains`). The alternative was dispatching now and
+  resolving the list twice. (WIRE orchestrator)
+
+- 2026-10-19 — PR 5316 fix pass adjudicated by the orchestrator's read.
+  - The strengthened guard found the fold-steps defect still live. The
+    prism-crossing union with the plate publishes two fold-minted
+    `Crossing` vertices that its table does not hold: `Crossing { edge:
+    Seam{..}, face: plate Cap(End) }`.
+  - So `a-fold-steps-coincidence-rows-are-named-without-the-end-passes`
+    stays open with the measurement. Its acceptance is adding that
+    fixture to `published_row_cells_denote_entities_of_their_reads`.
+  - `topo::ContactRecords::try_recited` was added (CLEAVE ground,
+    15 lines).
+  - Four source-scanning tests moved to the slow set when `topo` entered
+    the change scope.
+  - Merged main to resolve one slow-set conflict; merge on green.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5316 merged on green; three of its rows closed. The
+  fold-steps row stays open. Dispatched:
+  - `wire/naming-census`: the nine unrostered `NamingError` arms plus
+    `a-short-tie-refuses-as-a-duplicate-name`, STYLE review.
+  - `wire/fold-steps-end-pass`: publish the two fold-minted seam
+    crossings under the names the finished table holds, per DM4, and
+    add the fixture to the guard as its acceptance. FULL review.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5324 STYLE review adjudicated: mergeable with a fix
+  pass.
+  - The 75-word cut took facts out of three missing-rule sentences (who
+    tied; what failed; "between them"), so the words come back out of
+    the shared framing instead.
+  - `ShortTie`'s Display wording is fixed.
+  - The held-ground `FILED_NO_RECOURSE` entries get parked homes.
+  - Two rows filed rather than fixed: entity collisions reported as
+    "minted twice", and the hand-kept payload lists.
+  Class note: a word budget met by cutting content, not framing, loses
+  the fact the reader acts on. (WIRE orchestrator)
+
+- 2026-10-19 — Ev approved PR 5306 ("sure, sounds good"). N2/N3 merged
+  (2b49303ad9). The fork-log row was renumbered 162 → 163 because an
+  INTENT row landed first; it is filled with byte 153 (odd): A = Fable,
+  B = Opus. Dispatched `wire/split-maximal-halves`:
+  - the kernel merge at the split's finish, which crosses CLEAVE's
+    `splitting/finish.rs` (no CLEAVE branch touches `splitting/` today);
+  - the in-plane edge rule;
+  - one descent `Keeps` builder.
+  It closes or verifies the two-builders, `-y` revolved, section-root
+  and CLEAVE split-half rows. FULL single review; not dual, since one
+  call at the finish reverses it. (WIRE orchestrator)
+
+- 2026-10-19 — Container restart stopped three lanes: fold-steps, the
+  census fix pass and split-maximal-halves. Their worktrees survived;
+  fold-steps and split-maximal had pushed nothing. Disk was at 93%, so
+  I deleted the census lane's target dir and two stale `[ev]`
+  worktrees, which brought it to 79%. All three lanes resumed, told to
+  push early and build with `CARGO_INCREMENTAL=0`. Friction note: three
+  lanes' target dirs (12 + 5 + 4 GB) nearly exhaust the allowance.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5324 (naming census and short ties) merged on green
+  with main merged in; its two rows closed. The fix pass restored the
+  dropped facts by shortening the shared `UNRULED_FRAMING` from 33 to
+  13 words. PR 5328 (fold-steps end pass) opened green, and a FULL
+  review is dispatched. Its first claim is that the junction row
+  appears in only 2 of 24 orders, a possible DM4 order-dependence the
+  lane disclosed but did not check. (WIRE orchestrator)
+
+- 2026-10-19 — PR 5328 FULL review adjudicated: not mergeable as is.
+  - The blocker, sent back to the lane: `fold_vertex_forward` refuses
+    `Settle(Dead)` where `Links::judged` treats the vertex as consumed,
+    so a fifth member covering the junction makes two orders refuse
+    that built before. The fix pass also covers forwarding only cited
+    rows, a site check in the guard, the cone-aware settle,
+    `name_of` for the published name, and one helper with
+    `in_member_space`.
+  - The review's M1/M2 are pre-existing: row PRESENCE depends on member
+    order in `crossing_one_wedge` and `flush_onto_an_edge`, on main too.
+    That measures the three-member design row for unions. FORK-ROWPRESENCE
+    goes to a designer pair (problem only; blinding draw on the analysis
+    branch). DM4 says "one row in every order", so a rule change there
+    would be Ev's.
+  (WIRE orchestrator)
+
+- 2026-10-19 — FORK-ROWPRESENCE, round 1.
+  - The designers agree: rows spelled as sets of member cells (k-ary),
+    never fold-minted names; DM4's "one row in every order" sentence
+    changes.
+  - They split on presence. One says fold decisions are rows whose
+    presence follows the author's fold order. The other says only
+    order-free sources count: judged rows; implied fold decisions are
+    not rows; irreducible ones are published where the finished body
+    holds them.
+  - Round 2 sent with an exchange. The second designer must measure its
+    premise that the four order-dependent statements are implied by
+    judged rows.
+  - PR 5328's merge is held until the fork settles: both answers retire
+    its published-name mechanism. Its fix pass (the BLOCKER) continues.
+  (WIRE orchestrator)
+
+- 2026-10-19 — FORK-ROWPRESENCE, round 2 crossed.
+  - The second designer measured that every order-dependent statement
+    is implied by judged rows, but only 2 of 6 through lineage; 4 need
+    line and plane theorems. Every step decision is cited (106/0). The
+    pencil records nothing even in `topo`.
+  - It then moved to "every decision is a row, presence follows order".
+    The first designer moved to "order-free via a closure over judged
+    carrier identities", with a proof that surviving coincidences are
+    met in every order.
+  - Round 3 asks each to answer the other, plus the question beneath
+    both: who reads published coincidence rows, and is it one product
+    (the door's per-evaluation log) or two (that log, and an order-free
+    fact set)?
+  - Filings once the fork settles: `topo` records no coincidence for a
+    face through a seam (the pencil); the (a, c) pair records no row for
+    colinear apex edges; `cite_rows`' citing filter; the guard pins
+    `minted > 0`.
+  (WIRE orchestrator)
+
+- 2026-10-19 — FORK-ROWPRESENCE converged in round 3: a node's rows are
+  its evaluation's decision log, with the judged rows as the order-free
+  subset, marked on the row. Every reader of the rows reads per
+  evaluation. `[ev]` PR 5329 edits DM4; fork-log row 167; the blinding
+  byte is on the analysis branch.
+  - Filed `cleave/a-boolean-records-a-zero-decision-only-where-a-record-cites-it`
+    (P1, design): the pencil, and the (a, c) pair with no row. It is the
+    prerequisite either way.
+  - Filed `wire/the-fold-row-guard-pins-a-row-naming-a-fold-minted-cell`.
+  - PR 5328 waits on Ev: both converged answers retire its
+    published-name mechanism, though its BLOCKER fix may survive into
+    the build.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5328 fix pass, green at 67b0dcd469.
+  - The blocker is fixed: forwarding follows `Links::judged`'s `place`,
+    with `settle_cones`, and the 120-order cover test builds in every
+    order.
+  - Deviation accepted. A cited fold row whose vertex a later step
+    swallows keeps its step's spelling, as main does, so no order
+    refuses. Filed as
+    `a-cited-fold-row-on-a-vertex-a-later-step-swallows-keeps-its-step-spelling`
+    (P2).
+  - Merge held pending Ev on `[ev]` PR 5329. Both converged answers
+    replace 5328's published-name mechanism with member-cell spelling.
+    If Ev declines 5329, 5328 merges as is; if Ev approves, the 5329
+    build carries over 5328's cover test and guard site check.
+  (WIRE orchestrator)
+
+- 2026-10-19 — Ruling for `wire/split-maximal-halves`. A split's merge
+  group with no section face (a cylinder's two half-walls on one
+  carrier, merged across the profile seam once the cut opens the turn)
+  is `Merged` of the parent operand faces, with `Keeps` for several
+  pieces of one parent, as the boolean names the same shape
+  (`a_slot_across_a_sunk_boss…`). This is a faithful elaboration of N3:
+  a merged face is `Merged` of its constituents, and the boolean already
+  does it. Rejected:
+  - merge only section groups: DESIGN's maximal faces;
+  - name pre-merge pieces: no finished body holds them.
+  The lane adds one N3 sentence and re-baselines the two edge-lineage
+  pins whose pieces now merge. The `Joined::Seam` spelling is flagged
+  for review. The lane crossed CLEAVE (`finish.rs`, `mod.rs`) and TOPO
+  (`euler_ring.rs`, `merge_faces.rs`); the TOPO crossing was forced by
+  the revolved half's `RechartStrandsDescriptions{RingMove}`.
+  (WIRE orchestrator)
+
+- 2026-10-19 — Second ruling for `wire/split-maximal-halves`. Once a
+  cylinder's half-walls merge, the join joins the rim across the
+  profile seam, covering pieces of several operand edges and none
+  whole. It is named as the union names a flush rim along several
+  member edges: `Merged` of those edges, with `Ends` to tell pieces
+  apart.
+  - The README's "pieces of several operand edges, is refused, not
+    named" is agent text (100587fd5d, an implementation commit; `git
+    log -S` finds no Ev ratification). It was a stop case, so it is
+    re-worded, not waited on.
+  - The refusal stays for a chord joined to a piece.
+  - Faces are linked per half, not across halves, because the merges
+    are recorded per half.
+  (WIRE orchestrator)
+
+- 2026-10-19 — Ev approved PR 5329 ("sure, i don't have much intuition
+  about this but it seems fine"). DM4 merged (72a204ff73). The fork-log
+  row was renumbered 167 → 169 and filled with byte 128 (even):
+  A = Opus, B = Fable.
+  - PR 5328 closed unmerged as superseded, with a comment. Its two filed
+    rows were copied here, and its cover test, site check and
+    `settle_cones` reading carry into the build.
+  - Build unit 1 dispatched: `wire/boolean-rows-every-decision` (CLEAVE's
+    `cite_rows` row, crossed by WIRE as the row invites), FULL review.
+  - Unit 2, `wire`'s k-ary rows with an origin mark plus re-pinned order
+    tests, follows it.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5334 (split maximal halves) opened. `gate ok` is red
+  on two eps-1e-12 sweep rows:
+  - `band_turn_overrun_fillet::the_needle…`, also red on the 10-18
+    nightly;
+  - `reach_cone_split::steep_frusta…`, which panics before any split
+    runs. Its presence on main is unconfirmed.
+  A FULL review is dispatched, with the CI-origin check as claim 6. The
+  review also covers:
+  - the lane's assumption that a joined edge runs with the operand edges
+    it covers;
+  - the re-pinned tests whose subject the merge removed;
+  - the seven gui render cells the lane `git rm`'d as stale renames.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5334 FULL review adjudicated: mergeable after a fix
+  pass, with no wrong answer shown. Both 1e-12 reds are not this PR's:
+  they appear identically on the 2026-10-19 nightly. `steep_frusta` was
+  filed on FLUX (likely PR 5038); the needle was already filed.
+  - MAJOR: the skip record was dropped, unlike the boolean.
+  - MAJOR: a new `PinchCornerEscalated` acceptance with no row.
+  - MAJOR: the TOPO design row and door census are stale for
+    `ring_move_unasked`.
+  - Minors: `SetPiece` sense when operand edges run opposite ways; bare
+    `Seam` joins colliding; re-pinned test names; a lost non-vacuity
+    guard; the `volume_pad` ceiling; a possible lineage `minted`
+    mislisting.
+  - The dispatch premise was corrected: the gui cells were main's own
+    stale copies, retired by the `ciw` procedure.
+  (WIRE orchestrator)
+
+- 2026-10-19 — Build unit 1, PR 5352 (`wire/boolean-rows-every-decision`),
+  opened green. Every margined decision is now a row: the pencil's step
+  records 2, and the (a, c) wedges publish 2.
+  - It also fixed a latent bug the filter had hidden: a sphere cut-in's
+    rows named clone-only cells.
+  - Policy provenance is agent text (`53ec9087fe`, `cdafc97bad`).
+  - Four CLEAVE rows filed: the `glue::touched` filter; `SplitOn`'s
+    two-run filter; the re-chart arm; a pre-existing Villarceau fuzz
+    seed.
+  - FULL review dispatched.
+  - Unit 2 must drop `wire_combine`'s #4323 citing filter: the pencil
+    union still publishes only judged rows.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5352 FULL review adjudicated: not mergeable as is.
+  The filter and its renumbering hold.
+  - MAJOR: two clone-to-input cell maps (`ChartCuts::input_cell`'s
+    meridian arm, and `ops::input_cell` for minted vertices) widen a
+    cell but keep the relation. So the PR publishes false rows: a cap
+    face OnCarrier a brick face, twice, and the pencil's seam OnCarrier
+    rim, where the truth is a crossing at a point.
+  - Fix pass: publish only rows whose input spelling is true. Hold
+    widened decisions as typed "decided, not yet spelled" entries, for
+    unit 2's k-ary meeting-dimension spelling to publish. Put both maps
+    in one function.
+  Class note: a cell map that changes a cell's dimension must own the
+  relation, or it turns a crossing into a coincidence. (WIRE orchestrator)
+- 2026-10-19 — PR 5334 fix pass adjudicated by the orchestrator's read;
+  merged over the two known main reds (the needle, `steep_frusta`, both
+  on the 2026-10-19 nightly), with a comment.
+  - The skip record is shipped. No pose moved on the pinch corner: only
+    the finding changed, and that is filed.
+  - The TOPO row was updated.
+  - One digest (seat7/seat8 `cut_cylinder`) was re-blessed. The lane
+    found identical edge descriptions and no moved point, but did not
+    isolate the cause; noted here.
+  - Five rows closed (the in-plane, two-builders, `-y` revolved,
+    section-root and CLEAVE split-half rows).
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5352 fix pass adjudicated by the orchestrator's read;
+  merged on green.
+  - One spelling door; widened decisions are held, not published, so the
+    cap's face-face and the pencil's edge-edge rows moved to held.
+  - Exception accepted: a decision a surviving record cites is still
+    published with its old spelling, as on main, because the record
+    needs a row. That is pre-existing and filed on CLEAVE.
+  - Twins still arise on coincident lines (filed). CLEAVE's citing-filter
+    row is closed.
+  - Next, unit 2 (`wire`):
+    - k-ary member-cell rows with an origin mark;
+    - spell the held decisions;
+    - drop `wire_combine`'s #4323 citing filter;
+    - re-pin the order tests;
+    - carry over the closed PR 5328's 120-order cover test and site
+      check.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5352 merged; CLEAVE's citing-filter row closed.
+  Dispatched unit 2, `wire/union-decision-log`:
+  - k-ary member-cell rows with an origin mark;
+  - spelling the held `UnspelledDecision`s;
+  - dropping #4323's citing filter;
+  - the door proving k-ary rows;
+  - re-pinned order tests, and 5328's carried tests.
+  Re-triaged to the DUAL review tier: it changes the published
+  `NamedCoincidence` type (Python's `coincidences`) and the door's proof
+  shape, which is broad and hard to reverse. The lane stops if a
+  truthful meeting relation needs more than `CoincidenceRelation`
+  states. (WIRE orchestrator)
+
+- 2026-10-19 — Ruling for unit 2. The lane stopped at the brief's step 2:
+  `OnCarrier` needs a distinguished point cell, and a fold-minted
+  point's member-cell spelling has none. Ruled option A: a new
+  `topo::Relation::Meet`, unordered and k-ary ("the cells' carriers
+  share one point"). It applies where the point was widened, or where a
+  set has three or more cells; two-cell rows with a member vertex keep
+  `OnCarrier`.
+  - Why the orchestrator rules it: DM4, approved on PR 5329, already
+    says "the set of member cells that meet". No design page lists the
+    relation set (checked DESIGN.md and the crate READMEs). B, keeping
+    the point apart, spells one point two ways by order, against DM4.
+  - `Meet` also publishes topo's held `UnspelledDecision`s and CLEAVE's
+    15 cited misstatements truthfully.
   (WIRE orchestrator)

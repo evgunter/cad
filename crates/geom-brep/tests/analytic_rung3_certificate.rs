@@ -114,11 +114,12 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
 /// The import door's words on a measured miss of a fitted carrier that
 /// lies within the file's `eps_in`.
 fn in_file_words(eps_in: f64) -> String {
+    let eps_in = geom_core::Readable(eps_in);
     format!(
         "This miss lies beyond the tolerance and within the file's declared coincidence \
-         distance ε_in = {eps_in:e} m, and may be the kernel's own approximation. Recourse: \
+         distance ε_in = {eps_in} m, and may be the kernel's own approximation. Recourse: \
          re-export the file more precisely, or, as a stopgap, set the tolerance to \
-         ε_in = {eps_in:e} m; this refusal may indicate a kernel bug worth reporting"
+         ε_in = {eps_in} m; this refusal may indicate a kernel bug worth reporting"
     )
 }
 
@@ -277,7 +278,12 @@ fn a_lane_free_door_refuses_for_the_lane_before_any_schedule_defect() {
         )
         .map(|_| ());
         let on_the_defect = match defect {
-            "backward" => matches!(with_lane, Err(CertifyError::IntervalNotForward { .. })),
+            "backward" => matches!(
+                with_lane,
+                Err(CertifyError::StatedInterval {
+                    refused: geom_brep::StatedSpan::Forward(_),
+                })
+            ),
             _ => matches!(with_lane, Err(CertifyError::ResidualExceeded { .. })),
         };
         assert!(on_the_defect, "{defect}: with the lane: {with_lane:?}");

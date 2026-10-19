@@ -1393,11 +1393,11 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
 /// **The lift-pinning e2e: a bore/pin fit.** The pin's radius `r` is a
 /// profile dimension (a circle program's radius) and the C5 gap
 /// `R − r − d` reads it only through the lifted cylinder carrier: the
-/// stackup reports ∂gap/∂r = −1 exactly, chamber-certified, and a bare
-/// seeded evaluation carries the same tangent: a seed makes the lift
-/// guided, so the pinned lift's silent zero cannot be asked for. (The two-hole plate's −2 is the
-/// measure EXPRESSION's own `− 2·hole_r` and would come out under
-/// either lift; this row is the one where the lift is load-bearing.)
+/// stackup reports ∂gap/∂r = −1 exactly, chamber-certified, where a
+/// lift through `from_f64` gave the silent zero. (The two-hole plate's
+/// −2 is the measure EXPRESSION's own `− 2·hole_r` and would come out
+/// without the lift; this row is the one where the lift is
+/// load-bearing.)
 #[test]
 fn the_bore_pin_gap_stackup_pins_the_lift() {
     let half = eps() / 16.0;
@@ -1436,9 +1436,9 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let doc = r.doc;
 
-    // A seed makes the lift guided (`EvalOptions::profile_lift`): the
-    // pinned lift's silent zero is no evaluation anyone can ask for, and
-    // the seeded gap carries the carrier's tangent.
+    // A default evaluation seeded on `r` carries the tangent: the
+    // profile is elaborated at the lane, where a lift through
+    // `from_f64` gave a silent zero.
     let seeded = evaluate::<geom_core::Dual64>(
         &doc,
         None,
@@ -1455,10 +1455,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     let ValuePayload::Measure { value, .. } = &v.payload else {
         panic!("a measure")
     };
-    assert_eq!(
-        value.deriv, -1.0,
-        "the seed reaches the gap through the carrier"
-    );
+    assert_eq!(value.deriv, -1.0, "∂gap/∂r through the profile's carrier");
 
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");

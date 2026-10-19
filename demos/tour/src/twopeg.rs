@@ -61,8 +61,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::authoring::{p2, v3, validated};
-use pncad::geom_core::{Affine3, RigidMotion, Tol, Vec3};
+use pncad::authoring::{p2, p3, v3, validated};
+use pncad::geom_core::{RigidMotion, Tol, Vec3};
 use pncad::prelude::SurfaceKind;
 use pncad::prelude::{SurfaceKindSet, query};
 use pncad::profile::{ConstructedLoop, Open, SketchPlane, Start, ValidatedProfile, circle_split};
@@ -175,7 +175,7 @@ fn rim<S: Scalar>(cx: f64, tol: Tol) -> ConstructedLoop<S> {
 /// The plate's sketch at `z0` — the outline, plus a bore rim per peg
 /// centre when `bores` is set.
 fn plate_profile<S: Scalar>(z0: f64, bores: bool, tol: Tol) -> ValidatedProfile<S> {
-    let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(p3(0.0, 0.0, z0));
     let mut loops = vec![outline::<S>(tol)];
     if bores {
         loops.extend(PEG_X.into_iter().map(|cx| rim::<S>(cx, tol)));
@@ -200,7 +200,7 @@ fn plate<S: Scalar>(z0: f64, tol: Tol) -> AtRestBody<S> {
 
 /// A peg: [`rim`] extruded `h` from `z0`.
 fn peg<S: Scalar>(cx: f64, z0: f64, h: f64, tol: Tol) -> AtRestBody<S> {
-    let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(p3(0.0, 0.0, z0));
     let profile =
         validated(plane, vec![rim::<S>(cx, tol)], tol).expect("the peg profile validates");
     let body = extrude(

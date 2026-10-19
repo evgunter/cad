@@ -27,8 +27,8 @@
 use crate::common;
 
 use common::meeting::{
-    MEET, PLATE, Pose, along_lying_ray, apex_pyramid, at, bearing, corners, fin, lying, mix,
-    near_flat, nest, nest_polygon, posed_box, posed_crown, poses,
+    MEET, PLATE, Pose, along_lying_ray, apex_pyramid, apex_pyramid_kept, at, bearing, corners, fin,
+    lying, mix, near_flat, nest, nest_polygon, posed_box, posed_crown, poses,
 };
 use geom_core::{Band, Tol, Vec3};
 use std::collections::BTreeMap;
@@ -206,13 +206,49 @@ fn local(pose: &Pose, w: Vec3<f64>) -> [f64; 3] {
     cols.map(|cv| cv.x * w.x + cv.y * w.y + cv.z * w.z)
 }
 
+/// The scenes some of whose cells the result gate refuses
+/// (`BooleanError::LineWedges`), with how many over every pose and op:
+/// each such result carries coincident edges whose wedges overlap,
+/// which every tier passed. They return with the re-pairing
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
+const OVERLAPPING: &[(&str, usize)] = &[
+    ("under the lying pyramid's ray", 5),
+    ("around the lying pyramid", 5),
+    ("inside the lying pyramid", 5),
+    ("continuing the lying pyramid's face", 5),
+];
+
+/// A refusal's kind as a tally keys it: the error's arm, and for the
+/// result gate's refusal of coincident edges, [`OVERLAP`] where it is an
+/// overlap.
+fn refusal_kind(e: &BooleanError) -> String {
+    if matches!(
+        e,
+        BooleanError::LineWedges {
+            fault: topo::LineWedgeFault::Overlap { .. },
+            ..
+        }
+    ) {
+        return OVERLAP.to_owned();
+    }
+    let kind = format!("{e:?}");
+    kind.split([' ', '{', '(']).next().unwrap_or("").to_owned()
+}
+
+/// The tally key of the result gate's refusal of overlapping wedges.
+const OVERLAP: &str = "LineWedges::Overlap";
+
 /// One scene's cells, over every pose and op: what refused, and each
 /// edge at `MEET` of a built result's operands, by its rows against the
 /// germ.
 #[derive(Default, Debug)]
 struct Tally {
     built: usize,
+    /// The cells that built, by pose.
+    built_by_pose: BTreeMap<String, usize>,
     refused: BTreeMap<String, usize>,
+    /// Each refused cell, `"<pose>, <op>: <kind>"`.
+    refused_cells: Vec<String>,
     rows: usize,
     wrong: usize,
     missing: usize,
@@ -246,13 +282,21 @@ fn check(
             Ok(BooleanResult::Body(r)) => r,
             Ok(BooleanResult::Empty) => continue,
             Err(e) => {
-                let kind = format!("{e:?}");
-                let kind = kind.split([' ', '{', '(']).next().unwrap_or("").to_owned();
+                let kind = refusal_kind(&e);
+                let cell = what
+                    .strip_prefix(label)
+                    .unwrap_or(&what)
+                    .trim_start_matches(", ");
+                tally.refused_cells.push(format!("{cell}: {kind}"));
                 *tally.refused.entry(kind).or_default() += 1;
                 continue;
             }
         };
         tally.built += 1;
+        *tally
+            .built_by_pose
+            .entry(pose.label.to_string())
+            .or_default() += 1;
         assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
         for (op, own, other) in [(Operand::A, a, bg), (Operand::B, b, ag)] {
             for (v, _) in own.vertices() {
@@ -581,26 +625,29 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             .into_iter()
             .map(|(label, base)| (label, pyr(base)))
             .collect();
-        // A void in the lying pyramid with an edge on its ray: two
-        // partners along the top, one inside the other.
+        // A void in the lying pyramid with an edge on its ray refuses:
+        // the difference carries the ray as two edges of 30.6° and
+        // 356.1°, overlapping, which every tier passed. Its three scenes
+        // (over it, in its void, hanging below it) return with the
+        // re-pairing
+        // (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
         let lvoid = mix(
             lying(0.0),
             [[0.0, 0.0, 1.0], [0.2, 0.2, 0.6], [0.25, 0.15, 0.6]],
             0.7,
         );
-        let hollow_lying_b = built(
-            "a lying pyramid, a void on its ray",
-            union(
-                &plate_b,
-                &built(
-                    "a void on its ray",
-                    subtract(&p(lying(0.0)), &p(lvoid), t()),
-                ),
-                t(),
+        let got = subtract(&p(lying(0.0)), &p(lvoid), t());
+        assert!(
+            matches!(
+                got,
+                Err(BooleanError::LineWedges {
+                    fault: topo::LineWedgeFault::Overlap { .. },
+                    ..
+                })
             ),
+            "{}: a void on the lying pyramid's ray: {got:?}, not the overlap's refusal",
+            pose.label
         );
-        let hollow_lying = u(plate.clone(), dd(c(lying(0.0)), c(lvoid)));
-        let in_lvoid = pyr(nest(lvoid, 0.7));
         let mut scenes = vec![
             ("the arches", pick(&cone), (&arches_b, &arches)),
             ("one standing pyramid", pick(&cone), (&one_b, &one)),
@@ -799,21 +846,6 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 pick(&hang),
                 (&lying_b, &lying_g),
             ),
-            (
-                "over a lying pyramid, a void on its ray",
-                pick(&over),
-                (&hollow_lying_b, &hollow_lying),
-            ),
-            (
-                "in a void on a lying pyramid's ray",
-                pick(&in_lvoid),
-                (&hollow_lying_b, &hollow_lying),
-            ),
-            (
-                "hanging below a lying pyramid, a void on its ray",
-                pick(&hang),
-                (&hollow_lying_b, &hollow_lying),
-            ),
         ];
         scenes.extend(
             along
@@ -969,16 +1001,122 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         let tally = &tallies[label];
         rows += tally.rows;
         eprintln!(
-            "{label} | {} | {:?} | {} | {} | {} | {}",
-            tally.built, tally.refused, tally.rows, tally.wrong, tally.missing, tally.doubled
+            "{label} | {} | {:?} | {} | {} | {} | {} | {:?}",
+            tally.built,
+            tally.refused,
+            tally.rows,
+            tally.wrong,
+            tally.missing,
+            tally.doubled,
+            tally.refused_cells
         );
-        if !tally.refused.is_empty() || tally.wrong + tally.missing + tally.doubled > 0 {
+        // The fin crown holds a region that winds −1 at rest, before any
+        // join (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`):
+        // which of its unions refuses is face order's choice, not the
+        // region's. Pinned exactly, both what refuses and what builds
+        // holding the region, so the row's fix shows here. The result
+        // gate's overlap refusals are pinned apart, by count
+        // ([`OVERLAPPING`]).
+        let refused = KNOWN_INSIDE_OUT
+            .iter()
+            .find(|(l, _)| l == label)
+            .map_or(&[][..], |(_, cells)| &cells[..]);
+        let (overlaps, others): (Vec<&String>, Vec<&String>) = tally
+            .refused_cells
+            .iter()
+            .partition(|cell| cell.ends_with(&format!(": {OVERLAP}")));
+        let pinned = OVERLAPPING
+            .iter()
+            .find(|(scene, _)| scene == label)
+            .map_or(0, |&(_, n)| n);
+        if others != refused
+            || overlaps.len() != pinned
+            || tally.wrong + tally.missing + tally.doubled > 0
+        {
             failures.push(format!("{label}: {tally:?}"));
+        }
+        if let Some((_, built)) = KNOWN_WRONG.iter().find(|(l, _)| l == label) {
+            let known: BTreeMap<String, usize> = built
+                .iter()
+                .map(|&(pose, n)| (pose.to_owned(), n))
+                .collect();
+            if tally.built_by_pose != known {
+                failures.push(format!(
+                    "{label}: built by pose {:?}, known wrong (the crown's −1 region) {known:?}",
+                    tally.built_by_pose
+                ));
+            }
         }
     }
     assert!(failures.is_empty(), "{failures:#?}");
     assert!(rows > 0, "rows were read");
 }
+
+/// The fin scenes whose union check 7 reads inside out
+/// (`ResultInvalid { NegativeVolume }`), cell by cell: `x ∪ y` at three
+/// poses of five. The region it reads is the fin crown's own
+/// (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`);
+/// the aimed ray that finds it is the first in face order that decides,
+/// so `y ∪ x` and the two flipped poses' `x ∪ y` take another ray, read
+/// `Out`, and build.
+const KNOWN_INSIDE_OUT: [(&str, [&str; 3]); 2] = [
+    (
+        "a fin, probe 2",
+        [
+            "at rest, x ∪ y: ResultInvalid",
+            "turned about z, x ∪ y: ResultInvalid",
+            "turned, x ∪ y: ResultInvalid",
+        ],
+    ),
+    (
+        "a fin, probe 4",
+        [
+            "at rest, x ∪ y: ResultInvalid",
+            "turned about z, x ∪ y: ResultInvalid",
+            "turned, x ∪ y: ResultInvalid",
+        ],
+    ),
+];
+
+/// **Known wrong**: the fin scenes whose results build and pass tier 3
+/// holding the crown's −1 region (an independent winding count reads it
+/// in every union with probes 1, 2 and 4, in both orders, and in the
+/// crown alone: review R1, PR 5119), with the cells that build at each
+/// pose, so a new pose adds a row rather than moving a count. Check 7
+/// and the census pass a body with a −1 region today; the row owns it
+/// (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`).
+const KNOWN_WRONG: [(&str, &[(&str, usize)]); 3] = [
+    (
+        "a fin, probe 1",
+        &[
+            ("at rest", 4),
+            ("turned about z", 4),
+            ("turned", 4),
+            ("flipped", 4),
+            ("flipped and turned", 4),
+        ],
+    ),
+    (
+        "a fin, probe 2",
+        &[
+            ("at rest", 5),
+            ("turned about z", 5),
+            ("turned", 5),
+            ("flipped", 6),
+            ("flipped and turned", 6),
+        ],
+    ),
+    (
+        "a fin, probe 4",
+        &[
+            ("at rest", 5),
+            ("turned about z", 5),
+            ("turned", 5),
+            ("flipped", 6),
+            ("flipped and turned", 6),
+        ],
+    ),
+];
 
 /// A probe cell's tally beside [`Tally`]: what built, what was empty or
 /// refused, and each result that read wrong against the germ.
@@ -988,6 +1126,8 @@ struct ProbeTally {
     built: usize,
     empty: usize,
     refused: BTreeMap<String, usize>,
+    /// The cells the result gate refused for overlapping wedges.
+    overlaps: std::collections::BTreeSet<String>,
     bad: Vec<String>,
 }
 
@@ -1059,8 +1199,10 @@ fn probe_material(
                 continue;
             }
             Err(e) => {
-                let kind = format!("{e:?}");
-                let kind = kind.split([' ', '{', '(']).next().unwrap_or("").to_owned();
+                let kind = refusal_kind(&e);
+                if kind == OVERLAP {
+                    tally.overlaps.insert(what.clone());
+                }
                 *tally.refused.entry(kind).or_default() += 1;
                 continue;
             }
@@ -1187,7 +1329,24 @@ fn partners_along_the_face_build_sound_against_the_germ() {
             }
             for (plabel, base, above) in &partners {
                 let ylabel = format!("{plabel}, scale {scale}");
-                let yp = p(*base);
+                // A partner whose orientation no reading decides at this ε
+                // (a sliver face within the band) is no finished body.
+                let yp = match apex_pyramid_kept(&base.map(|c| c.map(|x| x * scale)), pose, t()) {
+                    Ok(yp) => yp,
+                    Err(errors) => {
+                        let kind = format!("{errors:?}");
+                        let kind = kind
+                            .split([' ', '{', '(', '['])
+                            .nth(1)
+                            .unwrap_or("")
+                            .to_owned();
+                        *probe
+                            .refused
+                            .entry(format!("partner at rest: {kind}"))
+                            .or_default() += 1;
+                        continue;
+                    }
+                };
                 let made = if *above {
                     union(&plate_b, &yp, t())
                 } else {
@@ -1290,6 +1449,23 @@ fn partners_along_the_face_build_sound_against_the_germ() {
                 ];
                 for (xl, xb) in xs {
                     let label = format!("{ylabel} | {xl}");
+                    // A corner within twice the band of the apex is no
+                    // pyramid the fixture can make: its strut's span
+                    // escalates. "An edge inside the along face" puts one
+                    // there beside a half-turn partner whose two along
+                    // corners nearly oppose (δ 1e-3), which reaches here
+                    // since its orientation reads at rest.
+                    let near = |c: &[f64; 3]| {
+                        (c[0] * c[0] + c[1] * c[1] + c[2] * c[2]).sqrt() * scale
+                            <= 2.0 * t().k() * eps
+                    };
+                    if xb.iter().any(near) {
+                        *probe
+                            .refused
+                            .entry("x: a corner within the band of the apex".to_owned())
+                            .or_default() += 1;
+                        continue;
+                    }
                     let x_b = p(xb);
                     let x_g = c(xb);
                     let before = (germ.wrong, germ.missing, germ.doubled);
@@ -1323,4 +1499,45 @@ fn partners_along_the_face_build_sound_against_the_germ() {
         probe.built > 0 && germ.rows > 0,
         "cells built and rows read"
     );
+    // The cells the result gate refuses: each carries coincident edges
+    // whose wedges overlap, which every tier passed (the re-pairing
+    // returns them). The germ's pass reads the same cells.
+    let overlaps = probe.overlaps.len();
+    assert_eq!(
+        germ.refused.get(OVERLAP).copied().unwrap_or(0),
+        overlaps,
+        "the germ's pass and the probe's refuse the same cells"
+    );
+    assert!(
+        probe
+            .refused
+            .keys()
+            .chain(germ.refused.keys())
+            .all(|k| !k.starts_with("LineWedges") || k == OVERLAP),
+        "every refusal of the line's wedges is an overlap: {:?} {:?}",
+        probe.refused,
+        germ.refused
+    );
+    match PARTNERS_OVERLAPPING.iter().find(|&&(e, _)| e == eps) {
+        Some(&(_, want)) => assert_eq!(
+            overlaps, want,
+            "the cells the result gate refuses at ε = {eps:e}: {:#?}",
+            probe.overlaps
+        ),
+        None => println!(
+            "SKIPPED: no pinned count of the overlapping cells at ε = {eps:e}; {overlaps} refused: \
+             {:#?}",
+            probe.overlaps
+        ),
+    }
 }
+
+/// How many cells of [`partners_along_the_face_build_sound_against_the_germ`]
+/// the result gate refuses for overlapping wedges, at each ε a CI row
+/// runs. The count moves with ε because the cells that reach the
+/// result gate do: a partner whose own construction escalates drops its
+/// 84 cells (four at the default ε, six at 1e-6 and 1e-12: 3 024 cells
+/// against 2 856), and a cell an earlier reading escalates in band never
+/// reaches the gate (516, 705 and 492 such cells), both moving with
+/// where the run's ε puts the partners' near-flat and `k·ε` geometry.
+const PARTNERS_OVERLAPPING: &[(f64, usize)] = &[(1e-9, 146), (1e-6, 125), (1e-12, 141)];

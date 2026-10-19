@@ -106,6 +106,9 @@ fn shape(frame: &Frame) -> String {
         }
         Err(FrameError::NoArm) => "no arm".into(),
         Err(FrameError::Spiric { loops, .. }) => format!("spiric {loops:?}"),
+        Err(FrameError::DegenerateTorus { convention, .. }) => {
+            format!("degenerate torus {convention:?}")
+        }
     }
 }
 

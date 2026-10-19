@@ -18,10 +18,8 @@
 //!   parameter's pass as its memo prior reads its own tangent, bit for
 //!   bit, and reuses only the seed-independent subgraph.
 //! - **The REQUIRED profile pin.** A seed on a profile dimension
-//!   reaches the measure through the guided lift with the analytically
-//!   correct nonzero tangent. A seed makes the lift guided
-//!   (`EvalOptions::profile_lift`), so the pinned lift's silent zero is
-//!   not an evaluation that can be asked for.
+//!   reaches the measure with the analytically correct nonzero
+//!   tangent, where a lift through `from_f64` gave a silent zero.
 //! - **Composition** (interval rows): `seed` and `param_box` together
 //!   are legal exactly at `Dual<Interval>`; `Dual64` keeps the
 //!   degenerate-only box rule; `Interval` plus a seed refuses.
@@ -33,8 +31,8 @@ use crate::fixture;
 use editor_core::UnitSym;
 use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram,
-    MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileLift,
-    ProfileProgram, ProgramStep, ProgramTarget, SeedError, SitedRef, VarName, evaluate, seed_env,
+    MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileProgram,
+    ProgramStep, ProgramTarget, SeedError, SitedRef, VarName, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
@@ -65,18 +63,10 @@ fn continuous(value: f64) -> FreeVar {
     }
 }
 
-/// A pass's options: seeded on `seed`, or, unseeded, over a box
-/// spanning `[0, 0]` on every continuous variable, so the base reads the
-/// nominal under the passes' guided lift (`EvalOptions::profile_lift`)
-/// as `stackup`'s does.
 fn opts(doc: &ProfileDoc, seed: Option<&'static str>) -> EvalOptions {
-    match seed {
-        Some(n) => EvalOptions {
-            seed: Some(var(doc, n)),
-            ..EvalOptions::default()
-        },
-        None => crate::corpus::options_under(doc, editor_core::ProfileLift::Guided)
-            .expect("the document has a continuous variable"),
+    EvalOptions {
+        seed: seed.map(|n| var(doc, n)),
+        ..EvalOptions::default()
     }
 }
 
@@ -251,19 +241,14 @@ fn every_node_refuses_seed(ev: &Evaluation<impl geom_core::Decide>, expect: impl
 // --------------------------------------------------------- unseeded
 
 /// **An unseeded evaluation is the build.** The default options carry
-/// no seed and read the pinned lift, and holding every continuous
-/// variable `Fixed` at its nominal changes no node's key: a box seam
-/// that varies nothing is not an analysis. The corpus-wide bit-identity
+/// no seed, and holding every continuous variable `Fixed` at its
+/// nominal changes no node's key: a box seam that varies nothing is not
+/// an analysis. The corpus-wide bit-identity
 /// differential against the pre-seed build path is `m10_p_fence.rs`,
 /// which this unit leaves untouched.
 #[test]
 fn an_unseeded_evaluation_is_the_build() {
     assert!(EvalOptions::default().seed.is_none());
-    assert_eq!(
-        EvalOptions::default().profile_lift(),
-        ProfileLift::Pinned,
-        "the default options are the build's"
-    );
     for doc in corpus::documents() {
         let held: std::collections::BTreeMap<_, _> = doc
             .doc
@@ -484,19 +469,17 @@ fn the_memo_never_serves_one_parameters_pass_to_another() {
 
 /// **The REQUIRED profile-dimension pin.** A seed on `w` — a chain
 /// program's point, reachable only through the lift — reaches the
-/// width measure with tangent exactly `1.0`. A seed makes the lift
-/// guided (`EvalOptions::profile_lift`), so the pinned lift's silent
-/// zero is no longer an evaluation anyone can ask for.
+/// width measure with tangent exactly `1.0`.
 #[test]
-fn a_profile_dimension_seed_propagates_through_the_guided_lift() {
+fn a_profile_dimension_seed_propagates_through_the_lift() {
     let (doc, m) = width_slab(2.0);
-    let guided = measured(&doc, &run::<Dual64>(&doc, None, &opts(&doc, Some("w"))), m);
-    assert_eq!(guided.value.to_bits(), 2.0f64.to_bits());
+    let seeded = measured(&doc, &run::<Dual64>(&doc, None, &opts(&doc, Some("w"))), m);
+    assert_eq!(seeded.value.to_bits(), 2.0f64.to_bits());
     assert_eq!(
-        guided.deriv.to_bits(),
+        seeded.deriv.to_bits(),
         1.0f64.to_bits(),
-        "∂width/∂w through the guided lift is 1, got {}",
-        guided.deriv
+        "∂width/∂w through the lift is 1, got {}",
+        seeded.deriv
     );
 }
 

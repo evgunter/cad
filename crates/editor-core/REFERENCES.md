@@ -270,9 +270,14 @@ Every coincidence between two members is a coincidence of the union,
 whatever the other members are, so the union's coincidence rows are its
 member pairs' rows: a contact a third member covers is still its pair's,
 recorded, and a pair the sliver band leaves undecided refuses the union even
-where a third member covers it. A coincidence among three members that no
-pair holds (a seam of two members lying in a third's face) is the union's
-row too, spelled by its member cells, so it is one row in every order. The
+where a third member covers it. The union's rows are its evaluation's decisions,
+complete: the judged rows and every decision a fold step takes, cited or
+not. A coincidence among three or more members (a seam of two members lying
+in a third's face) is the row of the step that decided it, spelled as the
+set of member cells that meet, so one fact has one spelling; which steps
+meet such a coincidence follows the fold order, as a step's refusal names
+its step. The judged rows are the union's order-free rows, and a row says
+which it is. The
 faces each judgement merged or covered stay the union's face links (N2).
 An intersect's members are judged the same way, over the pair verb's
 intersection.
@@ -295,18 +300,25 @@ carrier pair through each face's member parents (its lineage, not its name)
 and decides no pair again, so a piece is never judged at its own extent.
 Every contact the fold meets is between two members, because the
 accumulation's boundary is made of member faces, so every contact the fold
-meets was judged here and the fold mints no contact verdict of its own.
+meets was judged here and the fold mints no carrier-pair verdict of its
+own. The vertex and edge identities a step decides among the cells it
+minted are that step's rows (above).
 
 **A row names member cells.** A coincidence is judged between two members,
-so its row sites both of its sides at member cells, and a three-member row
-is spelled by its member cells too. No row names a cell the fold minted,
-such as a `Fragment`.
+so its row sites both of its sides at member cells, and a row a fold step
+decided is spelled as the set of member cells that meet: a cell the fold
+minted (a seam, a crossing, a junction, a `Merged` edge) is the member cells
+it is made of. Such a row's relation is `Meet`, the cells' carriers sharing
+one point: a point decided on a cell keeps the two cells and `OnCarrier`
+only where the point is one member vertex and the cell one member cell. No
+row names a cell the fold minted, such as a `Fragment`.
 
 *Built: the node, its naming and `SetMembers`, DOCM-3 (PR 1803); the flat
 `Merged` mint, DOCM-8 (PR 2073); the pairwise contact rule (#3200, built in
 PR 3213); the three nodes over one `Bodies` argument, keyed by the read,
 FORK-DM4 unit 1 (PR 4527); one verdict per carrier pair, read through
-lineage (#4323).*
+lineage (#4323); the rows as the evaluation's decisions, spelled by member
+cells (PR 5378).*
 
 ## DM5 — A read repeated is answered by the operation
 

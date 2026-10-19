@@ -78,11 +78,12 @@ needs it). Two corrections earned on contact:
 
 - **I1(0b)'s "exact/combinatorial" narrowed to the COUNT.** The void
   exclusion (a cavity is not a component) is a decided orientation
-  read — per-shell signed volume at one named funnel site
-  (`chk_shell_volume_sign`, comparand V_shell/A_shell, an honest
-  length), sharing tier-3 check 7's flux walk (one implementation).
-  The check stays fully certified — in-band or zero-volume shells
-  refuse typed into the report, and a count over a partial
+  read — the kernel's one reader of a shell's role (D10, Booleans: a
+  solid's only shell is outer by arity; any other is read off a ray
+  aimed at one of its faces, and off its signed volume only where no
+  face offers an aim), which tier-3 checks 7 and 10 read too.
+  The check stays fully certified — a shell whose role no reading
+  decides refuses typed into the report, and a count over a partial
   classification is a guess, so one unclassifiable shell poisons the
   whole subject's count — but it is not predicate-free. The
   structural alternative (marking void shells at birth in

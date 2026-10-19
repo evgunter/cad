@@ -290,8 +290,9 @@ except EvaluationError as err:
 
 Flush, the same two slabs glue, and the union's value says what was
 decided to glue them: one coincidence row per pair of faces its
-margins decided one surface, each naming its two faces by the names
-their own operands gave them.
+margins decided one surface, and one per pair of corners decided one
+point, each naming its two cells by the names their own operands gave
+them.
 
 ```python
 from pncad import Doc, Formula, Frame, Node, evaluate, mm
@@ -326,11 +327,13 @@ body.validate()
 # 10 × 10 × 20 mm³ — one block, watertight.
 assert abs(body.mass_properties().volume - 2e-6) < 1e-15
 
-# The rest at z = 10 mm, and the four walls carried on across it.
+# The rest at z = 10 mm, the four walls carried on across it, and the
+# four corners where the slabs meet.
 relations = sorted(row.relation for row in ev.coincidences(glued))
-assert relations == ["same_opposite"] + ["same_oriented"] * 4
+assert relations == ["on_carrier"] * 4 + ["same_opposite"] + ["same_oriented"] * 4
 # Two slabs of separately typed heights: nothing proves the planes
-# one, so each row is unproven and says what separates its faces.
+# or the corners one, so each row is unproven and says what separates
+# its cells.
 assert all(row.rung is None for row in ev.coincidences(glued))
 ```
 

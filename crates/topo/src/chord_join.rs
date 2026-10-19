@@ -49,9 +49,10 @@
 //!
 //! **Role resolution and side-specific certification are the callers'**
 //! — that is what makes this core side-agnostic. The split lane
-//! resolves roles by membership of its null edges' above-end set and
-//! certifies the section area (`split_section_area`, refusing a
-//! zero-area polygon as [`SplitJoinError::DegenerateSection`]); the
+//! resolves roles by membership of its null edges' above-end set, reads
+//! a slit trace from the loops' topology, and certifies every other
+//! section's area (`split_section_area`, refusing a zero-area polygon
+//! as [`SplitJoinError::DegenerateSection`]); the
 //! boolean lane resolves them from its own germ records. Neither
 //! posture is visible here.
 //!
@@ -121,7 +122,7 @@
 //! tangent ruling has no self-loop: its two ends coincide along the
 //! ruling, which refuses.
 
-use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
+use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve_over};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
 };
@@ -268,13 +269,24 @@ pub enum SplitJoinError {
     /// A section loop that closes on one vertex bounds nothing however
     /// large the section it should be
     /// (`work/cleave/a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section.md`).
-    /// A pinch does not reach it: the split's reduction keeps one vertex
-    /// per piece round a vertex on each side, so pieces meeting there do
-    /// not share one. A plane tangent to a curved wall does not reach it
-    /// either: rule (b) classifies a convex graze with its material,
-    /// and rule (a) refuses a concave one
-    /// ([`crate::SplitReduceError::KnifeEdge`]).
+    /// A pinch at a vertex does not reach it: the split's reduction keeps
+    /// one vertex per piece round a vertex on each side, so pieces
+    /// meeting there do not share one. A pinch along an edge in the
+    /// plane, wrapped round at both ends by the other side's material,
+    /// would: its trace is a polygon of its own, which the split reads as
+    /// a slit trace from its topology before its area, and builds. A
+    /// plane tangent to a curved wall does not reach it either: rule (b)
+    /// classifies a convex graze with its material, and rule (a) refuses
+    /// a concave one ([`crate::SplitReduceError::KnifeEdge`]).
     DegenerateSection {
+        /// The completed null face.
+        face: FaceKey,
+    },
+    /// A slit trace whose tree holds an edge that is not a line: its
+    /// slit would be two coincident curved edges, which no contact record
+    /// backs and tier 3′ refuses
+    /// (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).
+    CurvedSlitTrace {
         /// The completed null face.
         face: FaceKey,
     },
@@ -594,44 +606,20 @@ impl core::fmt::Display for SplitJoinError {
                 f,
                 "a section is degenerate: it bounds zero area. Recourse: {JOIN_RECOURSE}"
             ),
-            Self::RingHoming(e) => match e {
-                // The walk's decision is the question. The join asks it of
-                // many vertices, and a smaller tolerance moves the others'
-                // readings into the band as it decides one, so it ends in
-                // the decision's lever alone, as the Boolean's placement
-                // does (`refusal_routes`'s `Ending::Placement`).
-                crate::splitting::PointInLoopError::Escalated {
-                    decision,
-                    escalation,
-                    diag,
-                    ..
-                } => write!(
-                    f,
-                    "re-homing a hole loop: {}",
-                    diag.undecided(
-                        decision.subject(),
-                        crate::boolean::ContainDecision::Loop(*decision)
-                            .lever_ending(*escalation, diag),
-                    )
-                ),
-                // The rays are the walk's own, so the levers are its.
-                crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
-                    f,
-                    geom_core::undecided!("which piece holds a hole loop", payload),
-                    crate::ray_walk::NoRaySettled
-                ),
-                crate::splitting::PointInLoopError::CorruptLoop { .. } => {
-                    write!(f, "re-homing a hole loop refused: {e}")
-                }
-                crate::splitting::PointInLoopError::Uncrossable(u) => write!(
-                    f,
-                    "which piece holds a hole loop cannot be read: {u}. Recourse: {JOIN_RECOURSE}"
-                ),
-                crate::splitting::PointInLoopError::OffPlane(o) => write!(
-                    f,
-                    "which piece holds a hole loop cannot be read: {o}. Recourse: {JOIN_RECOURSE}"
-                ),
-            },
+            Self::CurvedSlitTrace { .. } => write!(
+                f,
+                "an arc lying in the cut, wrapped round at both ends by the material \
+                 across it, would leave two coincident arcs that no contact record backs \
+                 (`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`). \
+                 {}",
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::RingHoming(e) => e.render_as(
+                f,
+                "re-homing a hole loop",
+                "which piece holds a hole loop",
+                JOIN_RECOURSE,
+            ),
             Self::RingHomingAmbiguous { .. } => write!(
                 f,
                 "every vertex of a hole loop lies on the boundary of the piece being \
@@ -2852,22 +2840,6 @@ fn between_edge_is_section<T: Decide>(
     }
 }
 
-/// Branch-stabilized chart azimuth `atan2(y, x)` (M5 S13): `atan2`'s
-/// cut sits on the negative-`x` axis, and an interval `y` touching
-/// zero there (a crossing vertex exactly on the chart seam's angle-π
-/// copy) explodes the enclosure to a full period even though every
-/// consumer reads the value mod τ. On a definitely-negative-`x` frame
-/// the same azimuth is `atan2(−y, −x) + π` — the identical angle mod
-/// τ with the cut on the benign axis. The frame trilean is a
-/// computation choice between two identical formulas; its degenerate
-/// and in-band arms keep the direct one (deterministic tie-break, D9).
-fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
-    match decide("split_chart_azimuth_frame", Margin::of(x), band) {
-        Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
-        Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
-    }
-}
-
 /// The **exact** chart-azimuth extent of a pcurve over `[t₀, t₁]`.
 ///
 /// On a cylinder chart [`geom_brep::chart_pcurve`] produces an azimuth
@@ -3120,15 +3092,16 @@ fn run_azimuth_images<T: Decide>(
             continue; // null scaffolding: zero-length, no azimuth extent
         };
         let (t0, t1) = curve.params();
-        let base = chart_pcurve(curve.carrier(), surface, band).map_err(|e| match e {
-            geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
-                SplitJoinError::Escalated { face, diag: cause }
-            }
-            _ => SplitJoinError::SectionInvariant {
-                face,
-                what: "a run edge has no closed-form chart image on the divided face's chart",
-            },
-        })?;
+        let base =
+            chart_pcurve_over(curve.carrier(), t0, t1, surface, band).map_err(|e| match e {
+                geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
+                    SplitJoinError::Escalated { face, diag: cause }
+                }
+                _ => SplitJoinError::SectionInvariant {
+                    face,
+                    what: "a run edge has no closed-form chart image on the divided face's chart",
+                },
+            })?;
         let plus = edge.he_plus == he;
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
         let pcurve = match prev_exit {
@@ -3449,30 +3422,33 @@ fn pole_lever<T: Decide>(
 /// `v·Δu` against `v·Δu` (the precision note at `geom_brep::props`'
 /// cylinder Green form, which this shares).
 ///
-/// Read for a cylinder chart, whose every harmonic image
-/// [`chart_pcurve`] writes with a LINEAR azimuth channel (`pa.x = pb.x
-/// = 0`, `u = p0.x + pl.x·t`): `v` is then
-/// `p0.y + pa.y·cos t + pb.y·sin t + pl.y·t` and integrates term by
-/// term. The precondition is decided, not assumed
-/// (`split_chart_azimuth_linear`, the harmonic azimuth amplitude
-/// levered by the radius): an image that breaks it is the chart
-/// writer's invariant broken, and refuses.
+/// Read for a cylinder chart, whose azimuth is an angle channel
+/// ([`geom_brep::Channel::Angle`]): `u = phase + w·t` with no harmonic
+/// part by type, so `du = w·dt`, and `v` is
+/// `p0.y + pa.y·cos t + pb.y·sin t + pl.y·t`, which integrates term by
+/// term.
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::SectionInvariant`] for a harmonic azimuth term;
-/// [`SplitJoinError::Escalated`] when that decision escalates.
+/// [`SplitJoinError::SectionInvariant`] for a harmonic image whose
+/// azimuth is a free channel, which is no cylinder chart's.
 fn chart_v_du<T: Decide>(
     face: FaceKey,
     p: &Pcurve<T>,
     (t0, t1): (T, T),
     anchor: T,
-    radius: T,
-    band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    let Pcurve::Harmonic { p0, pa, pb, pl } = *p else {
+    let Pcurve::Harmonic { u, v } = *p else {
         return Ok(None);
     };
+    if u.winding().is_none() {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a cylinder chart image's azimuth is a free channel, and the chart's \
+                   azimuth is an angle",
+        });
+    }
+    let (p0, pa, pb, pl) = geom_brep::harmonic_form_of(u, v);
     // `sup |x·cos t + y·sin t| = √(x² + y²)`, spelled as
     // `geom_brep::harmonic` spells it, whose helpers are crate-private.
     let pair = |_site: &str, x: T, y: T| {
@@ -3481,28 +3457,6 @@ fn chart_v_du<T: Decide>(
         let norm = mutants::pair(_site, x, y).unwrap_or(norm);
         norm
     };
-    // The gate admits a harmonic azimuth part of amplitude under the
-    // band at the radius, and the integral below reads `du = pl.x·dt`
-    // alone: the part it drops, `∫ (v − anchor)·(pb.x·cos t − pa.x·sin
-    // t) dt`, is at most `sup |v − anchor|·√(pa.x² + pb.x²)·|Δt|`, and
-    // nothing downstream adds it to the winding's slack
-    // (`work/hone/chart-v-du-drops-a-decided-zero-azimuth-harmonic-unbounded.md`).
-    match decide(
-        "split_chart_azimuth_linear",
-        Margin::levered(pair("topo-gate", pa.x, pb.x), radius),
-        band,
-    )
-    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-    {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "a cylinder chart image carries a harmonic azimuth term (the chart \
-                       writes the azimuth linear in the carrier parameter)",
-            });
-        }
-    }
     let v_var = (pair("topo-v-var", pa.y, pb.y) + pl.y.abs()) * (t1 - t0).abs();
     let half = T::from_f64(0.5);
     let dt = t1 - t0;
@@ -3522,7 +3476,7 @@ fn chart_v_du<T: Decide>(
 mod mutants {
     use geom_core::Real;
 
-    pub(super) const SITES: [&str; 2] = ["topo-gate", "topo-v-var"];
+    pub(super) const SITES: [&str; 1] = ["topo-v-var"];
 
     pub(super) fn pair<T: Real>(site: &str, x: T, y: T) -> Option<T> {
         debug_assert!(SITES.contains(&site), "an unlisted mutant site: {site}");
@@ -3646,7 +3600,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
     let mut length = T::zero();
     for (i, image) in images.iter().enumerate() {
         let harmonic = match image.harmonic.as_ref() {
-            Some(p) => chart_v_du(face, p, image.t, anchor, radius, band)?,
+            Some(p) => chart_v_du(face, p, image.t, anchor)?,
             None => None,
         };
         let (v_du, v_var) = harmonic.ok_or(SplitJoinError::SectionInvariant {
@@ -5358,7 +5312,9 @@ fn chart_ring_side<T: Decide>(
     let read = |v: VertexKey| -> Result<Result<Option<RingSide>, Indeterminate>, SplitJoinError> {
         let decide_r = |name, margin| decide(name, margin, band);
         let w = vertex_point(body, v) - centre;
-        let raw = stable_azimuth(w.dot(axis.cross(u_ref)), w.dot(u_ref), band);
+        // The chart's one azimuth read (`geom_brep::Azimuth::principal`),
+        // lifted onto the run's window below by `periodic_branch`.
+        let raw = geom_brep::Azimuth::of(w.dot(axis.cross(u_ref)), w.dot(u_ref)).principal(band);
         // The vertex on the branch of the window's middle, in
         // `(mid − τ/2, mid + τ/2]`. A vertex inside the window lands on its
         // own branch. One at the seam of a whole-period window lands on
@@ -5464,6 +5420,9 @@ mod chart_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod first_image_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod seam_rows;

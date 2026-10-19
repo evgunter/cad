@@ -2450,9 +2450,10 @@ test_utils::f6_variants! {
     /// variant APPENDED past the end satisfies — measured, by adding a
     /// probe variant and watching it stay green. This census is what
     /// closes that.
-    const NAMING_ERROR: NamingError = [
+    pub(crate) const NAMING_ERROR: NamingError = [
         Duplicate,
         KindMismatch,
+        ShortTie,
         Unnamed,
         MissingUpstream,
         Emission,
@@ -2530,6 +2531,17 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["names a face", "seated on a vertex"],
         ),
         (
+            NamingError::ShortTie {
+                name: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId::new(0, tagged(7)),
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                }),
+                candidates: 0,
+            },
+            vec!["a tie of no candidates"],
+        ),
+        (
             NamingError::Unnamed {
                 kind: EntityKind::Edge,
                 body: 3,
@@ -2600,9 +2612,9 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 rim: edge,
             },
             vec![
-                "a merged face among them",
+                "one merged",
                 "operand node 00000000001d",
-                "does not lie within",
+                "within neither the rim",
             ],
         ),
         (
@@ -2631,7 +2643,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 },
             },
             vec![
-                "neither holding a bisector to read their wedge by",
+                "on an edge whose two faces hold no bisector",
                 "classed none of the vertex's edges",
                 "a-lone-unread-partner-has-no-class-rule",
             ],
@@ -2670,7 +2682,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 // By tag a member read is said by its whole id.
                 "member read 000000000025's edge",
                 "is read where one edge is needed",
-                "a tie stands there",
+                "the member ties that name to several edges",
             ],
         ),
         (

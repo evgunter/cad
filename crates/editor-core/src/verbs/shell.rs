@@ -394,6 +394,7 @@ fn fold_replace_face_error<T: Real>(
             what,
         },
         R::TogetherAxialEdge { edge, what } => R::TogetherAxialEdge { edge, what },
+        R::DegenerateTorus { edge, refusal } => R::DegenerateTorus { edge, refusal },
         R::Escalated { source } => R::Escalated { source },
         R::Op { edge, error } => R::Op { edge, error },
         R::Pcurve { source } => R::Pcurve { source },

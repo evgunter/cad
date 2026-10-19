@@ -140,10 +140,12 @@ fn r2_the_declared_seams_hold_on_this_epsilon_leg() {
 /// so the levered miss is exactly `off`.
 fn tilted_close(off: f64, arm: f64) -> Result<ClosedLoop<f64>, PathError<f64>> {
     let t = Tol::witness();
+    // The first leg outruns the closing one, so the seam's lever — the
+    // shorter of its two legs' arms — is the closing leg's `arm`.
     Open.at(Point2::new(0.0, 0.0))
         .angle(FRAC_PI_2, t)
         .unwrap()
-        .line(2.0, t)
+        .line(2.0 + arm, t)
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()
@@ -151,7 +153,7 @@ fn tilted_close(off: f64, arm: f64) -> Result<ClosedLoop<f64>, PathError<f64>> {
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()
-        .line(2.0 + arm, t)
+        .line(2.0 + 2.0 * arm, t)
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()

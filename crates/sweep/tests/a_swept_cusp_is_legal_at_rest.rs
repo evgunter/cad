@@ -14,7 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::test_support::bulge_loop;
 use profile::{Open, Profile, ProfileLoop, SketchPlane, Start, ValidatedProfile};
 use sweep::ExtrudeSide;
@@ -215,9 +215,9 @@ fn a_revolve_wire_case_cusp_is_legal_on_both_bands() {
 /// cusp was found legal.
 #[test]
 fn a_cusp_loft_passes_with_its_nurbs_seam_unjudged_by_kind() {
-    let places: Vec<Affine3<f64>> = [0.0, 1.0]
+    let places: Vec<SketchPlane<f64>> = [0.0, 1.0]
         .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, *z)))
         .collect();
     let built = loft_body::<f64>(&[vec![lune()], vec![lune()]], &places, 1, Tol::witness())
         .expect("the lune lofts");
@@ -309,9 +309,9 @@ fn a_loft_whose_sections_disagree_passes_with_the_seam_unjudged_by_kind() {
         "B's joint is a corner"
     );
     let j = va.loops()[0].tangent_joints()[0];
-    let places: Vec<Affine3<f64>> = [0.0, 1.0]
+    let places: Vec<SketchPlane<f64>> = [0.0, 1.0]
         .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, *z)))
         .collect();
     for sections in [
         [vec![a.clone()], vec![b.clone()]],

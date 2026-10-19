@@ -1467,6 +1467,7 @@ impl<T: Decide> Body<T> {
             let (p_start, p_end) = self.rebased_endpoints(edge, &plan.fan, survivor_point());
             let curve = self
                 .certify_edge_spec(
+                    crate::policy_lane::Origin::Callers,
                     Some(edge),
                     spec.clone(),
                     p_start,

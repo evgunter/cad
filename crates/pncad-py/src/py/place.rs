@@ -264,7 +264,7 @@ impl Frame {
             pncad::authoring::v3(roll_reference.0, roll_reference.1, roll_reference.2),
             tol,
         )
-        .map(|a| Self(d::Frame::from_affine(a)))
+        .map(|f| Self(d::Frame::from_affine(f.to_affine())))
         .map_err(|err| frame_err(py, &err))
     }
 
@@ -289,7 +289,7 @@ impl Frame {
             pncad::authoring::v3(tangent.0, tangent.1, tangent.2),
             tol,
         )
-        .map(|a| Self(d::Frame::from_affine(a)))
+        .map(|f| Self(d::Frame::from_affine(f.to_affine())))
         .map_err(|err| frame_err(py, &err))
     }
 

@@ -2,11 +2,12 @@
 id: boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none
 kind: issue
 title: Boolean doors build coincident edges with overlapping material wedges from inputs that hold none, and every tier passes them
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: H
 refs: [reverting-a-slit-body-overlaps-its-coincident-edges-wedges-and-passes-every-tier, census-passes-a-face-inside-an-edges-material-wedge]
+branch: cleave/gate-refuses-overlapping-wedges
 ---
 
 Found by the fix pass on PR 5106 (`cleave/revert-repairs-coincident-edges`),
@@ -52,3 +53,29 @@ The pairing in the join and finish that these doors take at a line
 where four or more sheets meet: the material decides the edges (the
 `[ev]` PR 4795 principle). Until then, the side check refuses the class
 typed rather than passing it.
+
+## The gate refuses the class (branch `cleave/gate-refuses-overlapping-wedges`)
+
+The Boolean's result gate (`boolean/ops.rs` `gate`, its
+`coincident_wedges_disjoint`) reads every line where two or more of the
+result's edges lie (`census::collinear_overlaps`) and each line's wedges
+(`census::line_wedges`), for every op and at every scalar. An overlap is
+`BooleanError::LineWedges { fault: Overlap }`, a kernel limitation
+naming the missing re-pairing with no lever ("There is no way through
+yet"); an in-band reading is `Escalated { LineWedges }`. ∖'s
+reverted-line check (PR 5106) is folded in: every overlap it found the
+gate finds, so it and `RevertError::WedgesOverlap`/`NoSheet` are gone.
+A wedge end on the line (a cusp or slit edge, which the reader has no
+interior direction for) refuses typed `WedgeEnd` rather than as an
+in-band escalation.
+
+Census (topo, sweep, editor-core, slow set included, ε default, 1e-6,
+1e-12): every newly refusing op reads overlapping wedges on main. The
+set is the same at all three ε but for one probe matrix, whose count of
+refused cells moves with ε because which of its cells reach the gate
+does (146, 125, 141; `a_vertex_read_again_classes_every_edge`'s
+`PARTNERS_OVERLAPPING`). The row's witnesses are pinned at their
+refusals beside their fixtures. What stays owed is this row's re-pairing
+in the join and the finish (the material decides the edges, ratified on
+`[ev]` PR 4795); the pins that return with it are listed on
+`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`.

@@ -24,7 +24,7 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeVar, Node, NodeResult, ProfileDoc, ProfileLift, RoleSeg, UnitSym, VarName, evaluate,
+    FreeVar, Node, NodeResult, ProfileDoc, RoleSeg, UnitSym, VarName, evaluate,
 };
 use geom_core::{Interval, SymBudget, SymRules, Tol};
 
@@ -162,9 +162,8 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
 }
 
 /// **SYM-5's pin: the derived boss on a tilted frame certifies where
-/// its authored twin does.** The acceptance row of the unit, under
-/// BOTH `ProfileLift`s, at the widths the twin certifies at on the
-/// symbolic lane.
+/// its authored twin does.** The acceptance row of the unit, at the
+/// widths the twin certifies at on the symbolic lane.
 ///
 /// What carried it was rule E ([`SymRules::common_factor`], the
 /// quotient's common factor): with the rule off — `without_rule_e`,
@@ -183,20 +182,17 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
 fn m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does() {
     let eps = Tol::witness().eps();
     for half in [eps / 8.0, 1.0e-3, 5.0e-2] {
-        {
-            let lift = ProfileLift::Guided;
-            let authored = sym(&boss_on_tilted(half, false), SymRules::shipped(), budget()).0;
-            let derived = sym(&boss_on_tilted(half, true), SymRules::shipped(), budget()).0;
-            assert!(
-                authored.is_empty(),
-                "half={half:e} {lift:?}: the authored twin certifies: {authored:?}"
-            );
-            assert!(
-                derived.is_empty(),
-                "half={half:e} {lift:?}: the derived boss must certify where its twin does — \
-                 this is rule E's acceptance row: {derived:?}"
-            );
-        }
+        let authored = sym(&boss_on_tilted(half, false), SymRules::shipped(), budget()).0;
+        let derived = sym(&boss_on_tilted(half, true), SymRules::shipped(), budget()).0;
+        assert!(
+            authored.is_empty(),
+            "half={half:e}: the authored twin certifies: {authored:?}"
+        );
+        assert!(
+            derived.is_empty(),
+            "half={half:e}: the derived boss must certify where its twin does — this is rule \
+             E's acceptance row: {derived:?}"
+        );
     }
 
     // Rule E no longer carries it: under D's placement solve the tilted

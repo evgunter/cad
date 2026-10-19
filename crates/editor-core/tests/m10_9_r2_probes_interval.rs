@@ -333,7 +333,8 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
         // the same population and the door moves decisions from
         // `numeric` to `symbolic` one for one. On a REFUSING drive the
         // door-on replay gets past the discharged identity and decides
-        // more before it refuses, so only the inequalities hold.
+        // more before it refuses, of either kind, so only the totals
+        // and `symbolic` are ordered.
         let refused_leaves = on_body
             .first()
             .and_then(|l| l.split(' ').find_map(|w| w.strip_prefix("refused=")))
@@ -348,7 +349,8 @@ fn r2_the_door_moves_nothing_but_the_receipt_on_every_m10_fixture() {
             );
         } else {
             assert!(
-                g(&fon, "numeric") <= g(&foff, "numeric")
+                g(&fon, "numeric") + g(&fon, "symbolic")
+                    >= g(&foff, "numeric") + g(&foff, "symbolic")
                     && g(&fon, "symbolic") >= g(&foff, "symbolic"),
                 "{name}: refusing drive — {fon:?} vs {foff:?}"
             );

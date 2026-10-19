@@ -487,6 +487,15 @@ fn certify_errors() -> Vec<CertifyError> {
             verdict: negative_verdict(-1e-3),
         },
         CertifyError::WindingExceeded,
+        // A door's input interval, of no length and past a full turn.
+        CertifyError::StatedInterval {
+            refused: geom_brep::StatedSpan::Forward(geom_brep::ForwardReading::Decided(
+                zero_verdict(0.0),
+            )),
+        },
+        CertifyError::StatedInterval {
+            refused: geom_brep::StatedSpan::Winding(geom_brep::WindingReading::Exceeded),
+        },
         CertifyError::ResidualExceeded {
             check: CertCheck::SurfaceResidual { surface: key },
             sample: 4,
@@ -663,8 +672,16 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         },
         PcurveCertifyError::IntervalNotForward,
         PcurveCertifyError::ChartWindingUnsupported,
+        PcurveCertifyError::ChannelKindMismatch {
+            chart: geom::SurfaceKind::Cylinder,
+        },
+        PcurveCertifyError::WindingMismatch {
+            stored: [Some(1), None],
+            derived: [Some(-1), None],
+        },
         PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
+        PcurveCertifyError::PlacementTurnsExceeded,
         PcurveCertifyError::TubePeriodExceeded,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
@@ -735,7 +752,7 @@ fn props_errors() -> Vec<PropsError> {
             what: "props_loop_closed",
         },
         PropsError::ConeLoop {
-            what: "props_loop_closed",
+            what: "props_cone_apex_loop_sweep",
         },
         PropsError::HolesExceedFace,
         PropsError::SenseContradicted,
@@ -1498,7 +1515,10 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     ));
     s.push((
         "VolumeSignUnresolved".to_owned(),
-        ValidationError::VolumeSignUnresolved { solid },
+        ValidationError::VolumeSignUnresolved {
+            solid,
+            limit: crate::props::SignLimit::Scalar,
+        },
     ));
     s.push((
         "ShellRoleUndecided".to_owned(),
@@ -1506,8 +1526,20 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             solid,
             error: crate::ShellClassifyError::Straddles {
                 shell: ShellKey::default(),
+                low: geom_core::MarginDiag::value(-1e-12),
+                high: geom_core::MarginDiag::value(1e-12),
             },
-            sliver: None,
+        },
+    ));
+    s.push((
+        "OrientationUndecided".to_owned(),
+        ValidationError::OrientationUndecided {
+            solid,
+            reading: crate::OrientationUnread::Volume {
+                margin: None,
+                aimed: 0,
+                set_aside: Vec::new(),
+            },
         },
     ));
 
@@ -1766,21 +1798,27 @@ mod tests {
     use geom_core::FileCoincidence;
 
     /// **Every certification refusal ends alike at rest and at the import
-    /// door but for the file's ε_in** (D4 ¶1: one recourse per decision,
-    /// wherever it is read): the door's ending departs from the at-rest
-    /// one only through its ε_in sentences, which name ε_in. The roster is
-    /// [`super::certify_errors`], which `nested_coverage_gaps` holds to
-    /// every `CertifyError`, `PlaneNurbsRefusal` and `AnalyticRung3Refusal`
-    /// variant. Red where the door's ending departs from the at-rest one
-    /// without naming ε_in.
+    /// door but for the file's ε_in and the file's damage** (D4 ¶1: one
+    /// recourse per decision, wherever it is read): the door's ending
+    /// departs from the at-rest one only through its ε_in sentences, which
+    /// name ε_in, and where a sized decision's defect ending at rest is
+    /// the file's at the door ([`geom_core::DAMAGED_FILE_ENDING`]). The
+    /// roster is [`super::certify_errors`], which `nested_coverage_gaps`
+    /// holds to every `CertifyError`, `PlaneNurbsRefusal` and
+    /// `AnalyticRung3Refusal` variant. Red where the door's ending departs
+    /// from the at-rest one any other way.
     #[test]
     fn every_certify_refusal_ends_alike_at_rest_and_at_the_import_door() {
+        use geom_core::{DAMAGED_FILE_ENDING, KERNEL_OR_FILE_DEFECT_ENDING};
+
         let file = FileCoincidence::new(1e-6);
         let split: Vec<String> = super::certify_errors()
             .iter()
             .filter(|e| {
-                let door = e.ending(file);
-                e.ending(Reading::AtRest) != door && !door.is_some_and(|d| d.contains("ε_in"))
+                let (rest, door) = (e.ending(Reading::AtRest), e.ending(file));
+                let damaged = rest.as_deref() == Some(KERNEL_OR_FILE_DEFECT_ENDING)
+                    && door.as_deref() == Some(DAMAGED_FILE_ENDING);
+                rest != door && !damaged && !door.is_some_and(|d| d.contains("ε_in"))
             })
             .map(|e| format!("{e:?}"))
             .collect();

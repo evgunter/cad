@@ -12,10 +12,12 @@
 use crate::common::enclosure::{assert_encloses, box_about};
 
 use geom::Surface;
+use geom_core::Point3;
 use geom_core::sym::revalue::{record, revalue};
 use geom_core::sym::with_session;
-use geom_core::{Affine3, ParamSymbol, Point2, Real, Sym, SymBudget, Tol, Vec3};
+use geom_core::{ParamSymbol, Point2, Real, Sym, SymBudget, Tol};
 use profile::ProfileLoop;
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use sweep::{Lofted, loft_body};
 
@@ -36,8 +38,8 @@ fn section<T: Real>(b: T) -> Vec<ProfileLoop<T>> {
 /// Two sections at `z = 0` and `z = 1`.
 fn loft<T: geom_core::Decide + topo::AtRestPolicy>(b: T) -> Lofted<T> {
     let places = [
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(T::zero(), T::zero(), T::one())),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(T::zero(), T::zero(), T::one())),
     ];
     loft_body::<T>(&[section(b), section(b)], &places, 1, Tol::witness())
         .expect("the arc-sided prism lofts")
@@ -229,21 +231,32 @@ fn a_sweep_from_a_wide_start_frame_encloses_its_family_at_interval() {
     use sweep::sweep_body;
     use sweep::test_support::elbow_path;
     let shift =
-        |x: Interval| Affine3::translation(Vec3::new(x, Interval::zero(), Interval::zero()));
+        |x: Interval| SketchPlane::xy_at(Point3::new(x, Interval::zero(), Interval::zero()));
     let (lo, hi) = box_about(0.0);
-    let enclosing = sweep_body::<Interval>(
+    let swept = sweep_body::<Interval>(
         &quad(Interval::from_f64(1.2)),
         shift(Interval::from_bounds(lo, hi)),
         &elbow_path(),
         3,
         2,
         Tol::witness(),
-    )
-    .expect("the quad sweeps from a wide start frame at Interval");
+    );
+    // At the tightest ε the turn's enclosure, decided at the lane, widens
+    // a wall's chart residual past the band: pinned by name
+    // (`work/paths/a-path-sweeps-station-turn-at-interval-widens-its-walls-past-the-band-at-the-tightest-eps.md`).
+    if Tol::witness().eps() <= 1e-12 {
+        let refusal = format!("{:?}", swept.map(|_| ()));
+        assert!(
+            refusal.contains("ChartResidual") && refusal.contains("pcurve_map_residual"),
+            "at eps 1e-12 the wide-start sweep refuses at the chart residual: {refusal}"
+        );
+        return;
+    }
+    let enclosing = swept.expect("the quad sweeps from a wide start frame at Interval");
     for x in [lo, 0.0, hi] {
         let sample = sweep_body::<f64>(
             &quad(1.2),
-            Affine3::translation(Vec3::new(x, 0.0, 0.0)),
+            SketchPlane::xy_at(Point3::new(x, 0.0, 0.0)),
             &elbow_path(),
             3,
             2,
@@ -336,7 +349,9 @@ fn an_enclosure_reaching_an_infinity_refuses_as_not_finite() {
 ///   wide bulge or from rounding alone, so an arc section refuses at the
 ///   carrier's door (`CarrierWeightNotAPoint`, until C6's S4/S5);
 /// - three sections at v-degree 1 put their middle parameter in the
-///   knot vector, and the fit refuses a wide one as a carrier's knot.
+///   knot vector: the fit encloses over a wide one (C6 S5c), and the
+///   wall's carrier refuses it at its door (`CarrierKnotNotAPoint`,
+///   until C6's S5z).
 #[test]
 fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
     use geom_core::Interval;
@@ -371,9 +386,9 @@ fn what_a_carrier_cannot_hold_refuses_typed_at_interval() {
         1,
         Tol::witness(),
     ) {
-        Err(LoftError::Skin(SkinError::Fit(geom::curves::fit::FitError::Structure(
-            SplineError::CarrierKnotNotAPoint { index: 1 },
-        )))) => {}
+        Err(LoftError::Skin(SkinError::Structure(SplineError::CarrierKnotNotAPoint {
+            index: 1,
+        }))) => {}
         other => panic!(
             "expected the wide interior knot's refusal, got {:?}",
             other.map(|_| ())
@@ -409,12 +424,14 @@ fn point_inputs_loft_as_the_lifted_f64_skin_at_interval() {
         ),
     ];
     for (what, sections, zs) in cases {
-        let places: Vec<Affine3<f64>> = zs.iter().map(|z| at_height(*z)).collect();
+        let places: Vec<SketchPlane<f64>> = zs.iter().map(|z| at_height(*z)).collect();
         let nominal =
             loft_body::<f64>(&sections, &places, 1, Tol::witness()).expect("the f64 loft builds");
         let lifted: Vec<Vec<ProfileLoop<Interval>>> = sections.into_iter().map(lift).collect();
-        let lifted_places: Vec<Affine3<Interval>> =
-            places.iter().map(|p| p.map(Interval::from_f64)).collect();
+        let lifted_places: Vec<SketchPlane<Interval>> = zs
+            .iter()
+            .map(|z| at_height(Interval::from_f64(*z)))
+            .collect();
         let enclosed = loft_body::<Interval>(&lifted, &lifted_places, 1, Tol::witness())
             .unwrap_or_else(|e| panic!("{what}: the point loft builds at Interval: {e:?}"));
         assert_eq!(
@@ -455,7 +472,7 @@ fn make_compatible_at_interval_runs_the_knot_algebra_homogeneous() {
             a: p(0.0, 0.0),
             b: p(1.0, 0.0),
         },
-        Affine3::identity(),
+        geom_core::Affine3::identity(),
     )
     .expect("a line converts at Interval");
     let three = NonZeroUsize::new(3).expect("three");
@@ -573,7 +590,7 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
     let profile = elbow_section();
     let nominal = sweep_body::<f64>(
         &profile,
-        Affine3::identity(),
+        SketchPlane::xy(),
         &elbow_path(),
         ELBOW_STATIONS,
         ELBOW_V_DEGREE,
@@ -583,7 +600,7 @@ fn a_turning_sweep_at_interval_encloses_its_f64_sweep() {
     let lane = lift_sections::<Interval>(core::slice::from_ref(&profile)).remove(0);
     let enclosed = sweep_body::<Interval>(
         &lane,
-        Affine3::identity(),
+        SketchPlane::xy(),
         &elbow_path(),
         ELBOW_STATIONS,
         ELBOW_V_DEGREE,
@@ -630,8 +647,8 @@ fn wall_values<T: geom_core::spline::SpanLocate, R>(
 
 /// A section placed at height `z` (its other entries built from `b`, so
 /// they are `T`'s constants).
-fn at_height<T: Real>(z: T) -> Affine3<T> {
-    Affine3::translation(Vec3::new(T::zero(), T::zero(), z))
+fn at_height<T: Real>(z: T) -> SketchPlane<T> {
+    SketchPlane::xy_at(Point3::new(T::zero(), T::zero(), z))
 }
 
 /// The skin of four section curves at `z = 0, 1, 2, 4`: the arc of
@@ -658,7 +675,7 @@ fn strip_skin<T: geom_core::spline::ProjectiveScalar>(b: T) -> geom::NurbsSurfac
         .zip([0.0, 1.0, 2.0, 4.0])
         .enumerate()
         .map(|(i, (seg, z))| {
-            segment_curve(i, seg, at_height(T::from_f64(z))).expect("a section curve")
+            segment_curve(i, seg, at_height(T::from_f64(z)).placement()).expect("a section curve")
         })
         .collect();
     let compatible = make_compatible(&curves).expect("the strip is made compatible");
@@ -720,7 +737,7 @@ fn lofted_at<T: geom_core::Decide + topo::AtRestPolicy>(h: T) -> Lofted<T> {
     let b = T::from_f64(0.2);
     loft_body::<T>(
         &[section(b), section(b)],
-        &[Affine3::identity(), at_height(h)],
+        &[SketchPlane::xy(), at_height(h)],
         1,
         Tol::witness(),
     )

@@ -33,6 +33,14 @@ pub mod sym;
 pub mod test_support;
 pub mod tolerance;
 
+/// **The golden angle**, `2π·(1 − 1/φ)` radians: as far from every
+/// low-order rational multiple of a turn as an angle gets, so a direction
+/// stepped or turned by it aligns with no axis-parallel or 45° feature a
+/// model is likely to hold. The one spelling of it: profile's ray
+/// schedule steps by it, and topo's side-at-infinity reader turns its
+/// aimed rays by it.
+pub const GOLDEN_ANGLE: f64 = 2.399_963_229_728_653;
+
 pub use arc::{Arc2, Circles, Circles2, CirclesAt};
 pub use dual::{Dual, Dual64, DualInterval};
 pub use interval::Interval;
@@ -40,18 +48,19 @@ pub use interval::Interval;
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
 pub use linalg::{
     Affine3, FrameError, FrameInput, FrameVector, LeveredUnitError, Mat3, MotionPart, OrthoAxis,
-    OrthonormalizeError, Point2, Point3, RigidMotion, RigidMotionError, UNIT_DIRECTION_ARM,
-    UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction, not_rigid_reading,
+    OrthonormalizeError, Point2, Point3, RigidMotion, RigidMotionError, TurnError,
+    UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction,
+    not_rigid_reading,
 };
 pub use predicate::{
-    Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, DIRECTION_LENGTH_SUBJECT, Decide,
-    Decided, EndingKind, ErrorTextReading, FileCoincidence, Indeterminate, IndeterminatePayload,
-    IndeterminateUnder, InfSpeed, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT,
-    KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Margin, MarginDiag, MarginKind,
-    MissReading, MissSource, MissingRecourse, NOT_YET_ENDING, RANGE_RECOURSE, Recourse,
-    RefusedReading, SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords, SupSpeed, UNNAMED_DECISION,
-    UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE, UndecidedRefusal, UnderTail, floor_note,
-    lever_recourse, noted,
+    Band, BandError, BandField, COINCIDENCE_RECOURSE, DAMAGED_FILE_ENDING, DEFAULT_K,
+    DIRECTION_LENGTH_SUBJECT, Decide, Decided, EndingKind, ErrorTextReading, FileCoincidence,
+    Indeterminate, IndeterminatePayload, IndeterminateUnder, InfSpeed, KERNEL_DEFECT_ENDING,
+    KERNEL_LIMIT_LAST_RESORT, KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, Margin,
+    MarginDiag, MarginKind, MissReading, MissSource, MissingRecourse, NOT_YET_ENDING,
+    RANGE_RECOURSE, Recourse, RefusedReading, SPLIT_PLANE_RECOURSE, Sign, SizedPass, SizedWords,
+    SupSpeed, UNNAMED_DECISION, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE,
+    UndecidedRefusal, UnderTail, floor_note, lever_recourse, noted,
 };
 pub use readable::Readable;
 pub use real::{

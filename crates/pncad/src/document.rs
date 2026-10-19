@@ -322,9 +322,9 @@ pub use editor_core::DocParamField;
 // `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
-    EvalOptions, EvalOutcome, Evaluation, Mispaired, NodeError, NodeErrorClass, NodeErrorKind,
-    NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, ProfileLift, SplitSide, StepTurns,
-    ValuePayload, VerbKind, evaluate,
+    EvalOptions, EvalOutcome, Evaluation, Mispaired, NodeError, NodeErrorClass,
+    NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, SplitSide,
+    StepTurns, ValuePayload, VerbKind, evaluate,
 };
 // A placement's copies, keyed (`ValuePayload::Copies`): each copy by
 // its key, with its own names.
@@ -493,11 +493,16 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 // `InterferenceFinding` on `Assembly::interference` (D10): its copies
 // (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
 // `Unlocalized` with why), and the assertion that quiets it, if any.
+// A part's own census findings cross the seam with it, each reported
+// once, as the part's: `CarriedInterference` is an overlap between the
+// part's copies on `Assembly::carried_interference`, and
+// `CarriedAtRestFinding` a row of `AssemblyError::CarriedAtRest`, the
+// outermost gate's refusal over what the part's own gate refuses.
 pub use editor_core::{
-    Assembly, AssemblyError, AtRestFinding, Attribution, CarriedDeclaration, CarriedDeclarations,
-    CarriedRefusal, CopyRef, FaceSite, InterferenceFinding, MintRefusal, MintedDeclaration,
-    NO_AT_REST_RECORD_RECOURSE, Overlap, RefusedRef, Relation, Route, Unlocalized, assemble,
-    assemble_gathered,
+    Assembly, AssemblyError, AtRestFinding, Attribution, CarriedAtRestFinding, CarriedDeclaration,
+    CarriedDeclarations, CarriedInterference, CarriedRefusal, CopyRef, FaceSite,
+    InterferenceFinding, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, Overlap,
+    RefusedRef, Relation, Route, Unlocalized, assemble, assemble_gathered,
 };
 
 // Split and inline: the first-class
@@ -557,7 +562,9 @@ pub use editor_core::{
 // the door is a module so its `Recourse` keeps its name. A cell on a
 // profile piece names it by `select`'s `ProfileEdgeRef`, curated there.
 pub use editor_core::coincide;
-pub use editor_core::{CitedInput, NamedCell, NamedCoincidence, Proof, Residual, Rung, Unreplayed};
+pub use editor_core::{
+    CitedInput, NamedCell, NamedCoincidence, Proof, Residual, RowOrigin, Rung, Unreplayed,
+};
 // The pose definitions (D10): how a pose variable is defined, read off
 // geometry or constructed, and the faults the doors and the evaluator
 // name. A module, so its arms keep their names (`pose::PoseDef::Plane`).

@@ -196,19 +196,19 @@ fn output<T: Decide>(
             let origin = super::need_point2(&vals, SlotId::Origin)?;
             let dir = super::axis_heading(&vals)?;
             // The sweep's own arithmetic (`sweep::revolve`'s axis frame):
-            // the origin placed as a point, the direction decided, then
-            // normalized in the sketch and placed, so the line this port
-            // answers is the one the body turns about.
-            let place = drawn.validated.plane().placement;
-            let lift = |x: T, y: T| place.linear * Vec3::new(x, y, T::zero());
-            let b = band(tol)?;
-            datum_unit(lift(dir.x, dir.y), DATUM_AXIS_ROLE, b)
-                .map_err(DirectionRefusal::node_error)?;
-            let sketch = dir.normalize();
+            // the origin placed as a point, the direction decided in the
+            // sketch and turned by the plane's frame, so the line this
+            // port answers is the one the body turns about.
+            let plane = drawn.validated.plane();
+            let sketch = datum_unit(
+                Vec3::new(dir.x, dir.y, T::zero()),
+                DATUM_AXIS_ROLE,
+                band(tol)?,
+            )
+            .map_err(DirectionRefusal::node_error)?;
             Ok(PoseValue::Axis {
-                origin: place.transform_point(Point3::new(origin.x, origin.y, T::zero())),
-                dir: datum_unit(lift(sketch.x, sketch.y), DATUM_AXIS_ROLE, b)
-                    .map_err(DirectionRefusal::node_error)?,
+                origin: plane.to_world(origin),
+                dir: plane.frame().turn(sketch),
             })
         }
         // A read the door would have refused, in a document built past

@@ -2399,19 +2399,31 @@ pub struct CheckRow {
 }
 
 /// An unproven coincidence's cells as the selections that show them,
-/// each with its button's label. A cell named at an operand READ shows
-/// as the node defining that read in `landed`; a read `landed` holds no
-/// node for has no node to select and is left out.
+/// each with its button's label: its row's, then those of the fold rows
+/// it reports with it that its row does not name, each once. A cell
+/// named at an operand READ shows as the node defining that read in
+/// `landed`; a read `landed` holds no node for has no node to select
+/// and is left out.
 fn coincidence_cells(
     finding: &CheckFinding,
     by: Speaker<'_>,
     landed: &Doc<ProfileProgram>,
 ) -> Vec<(String, Selection)> {
-    let CheckEvidence::UnprovenCoincidence { row, .. } = &finding.evidence else {
+    let CheckEvidence::UnprovenCoincidence { row, restated, .. } = &finding.evidence else {
         return Vec::new();
     };
-    row.cells
+    let mut cells: Vec<&NamedCell> = Vec::new();
+    for cell in row
+        .cells
         .iter()
+        .chain(restated.iter().flat_map(|(r, _, _)| r.cells.iter()))
+    {
+        if !cells.contains(&cell) {
+            cells.push(cell);
+        }
+    }
+    cells
+        .into_iter()
         .filter_map(|cell| match cell {
             NamedCell::Entity { input, name } => {
                 let node = landed.operation_of(*input)?;

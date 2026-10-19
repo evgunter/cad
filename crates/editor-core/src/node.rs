@@ -153,7 +153,7 @@ pub enum StepArg {
     /// That point's y.
     PointY,
     /// A leg target's x (`line_to`, `arc_to`'s endpoint-full modes,
-    /// `tangent_arc_to` — the `Point` target form).
+    /// `tangent_arc_to`, `arc_onto` — the `Point` target form).
     TargetX,
     /// That target's y.
     TargetY,
@@ -3445,18 +3445,24 @@ impl<P: crate::ProfilePayload> Node<P> {
     /// assertion's value and bound at their variables' kinds — or,
     /// where `doc` no longer holds one, at the other's. `None` for a
     /// slot-only node.
-    pub(crate) fn payload_reads(&self, doc: &crate::Doc<P>) -> Option<Vec<(VarId, Dimension)>> {
+    pub(crate) fn payload_reads(&self, doc: &crate::Doc<P>) -> Option<[(VarId, Dimension); 2]> {
         let Node::Assertion { value, bound, .. } = self else {
             return None;
         };
-        let dim = |var: &VarId| doc.vars.get(var).and_then(|v| v.kind().dimension());
-        let (v, b) = (dim(value), dim(bound));
-        let either = v.or(b).unwrap_or(Dimension::Scalar);
-        Some(vec![
-            (*value, v.unwrap_or(either)),
-            (*bound, b.unwrap_or(either)),
-        ])
+        Some(assertion_reads(doc, *value, *bound))
     }
+}
+
+/// [`Node::payload_reads`] of an assertion over `value` and `bound`.
+pub(crate) fn assertion_reads<P>(
+    doc: &crate::Doc<P>,
+    value: VarId,
+    bound: VarId,
+) -> [(VarId, Dimension); 2] {
+    let dim = |var: &VarId| doc.vars.get(var).and_then(|v| v.kind().dimension());
+    let (v, b) = (dim(&value), dim(&bound));
+    let either = v.or(b).unwrap_or(Dimension::Scalar);
+    [(value, v.unwrap_or(either)), (bound, b.unwrap_or(either))]
 }
 
 /// The construction doors, in either slot form: a node built from

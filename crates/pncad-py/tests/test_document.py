@@ -290,7 +290,8 @@ class TestEvaluation(unittest.TestCase):
     def test_a_coincident_boolean_glues_and_records(self):
         # Two boxes sharing the x=0, y=0 and z=0 planes: the margins
         # decide each pair one plane, so the subtract glues them (D10)
-        # and records each decision.
+        # and records each decision, and each of the inner box's seven
+        # corners on the outer's boundary.
         doc = Doc()
         outer = unit_box(doc, 2 * m, 2 * m, 2 * m)
         inner = unit_box(doc, 1 * m, 1 * m, 1 * m, on=outer)
@@ -300,9 +301,12 @@ class TestEvaluation(unittest.TestCase):
         body = ev.value(cut).body()
         body.validate()
         self.assertEqual(body.mass_properties().volume, 7.0)
-        rows = ev.coincidences(cut)
-        self.assertEqual(len(rows), 3, "one row per shared plane")
-        self.assertTrue(all(row.relation == "same_oriented" for row in rows))
+        relations = [row.relation for row in ev.coincidences(cut)]
+        self.assertEqual(
+            sorted(relations),
+            ["on_carrier"] * 7 + ["same_oriented"] * 3,
+            "one row per shared plane and per corner on the outer's boundary",
+        )
 
     def a_sliver(self, doc):
         """Two boxes whose bottoms stand 2 nm apart, inside the
@@ -376,11 +380,12 @@ class TestTheUnionGluesItsContacts(unittest.TestCase):
         body.validate()
         self.assertEqual(body.mass_properties().volume, 1.125)
         relations = [row.relation for row in ev.coincidences(fused)]
-        self.assertEqual(relations, ["same_opposite"])
+        self.assertEqual(relations, ["same_opposite"] + ["on_carrier"] * 4)
 
     def test_a_stepped_pyramid_glues(self):
         """Three slabs stacked as a stepped pyramid meet in two resting
-        contacts, and the union glues both."""
+        contacts, and the union glues both, recording each and the four
+        corners of the upper slab of each on the lower's top."""
         doc = Doc()
         low = slab(doc, (0 * m, 3 * m), (0 * m, 3 * m), (0 * m, 1 * m))
         mid = slab(doc, (0.5 * m, 2.5 * m), (0.5 * m, 2.5 * m), (1 * m, 2 * m), on=low)
@@ -391,7 +396,9 @@ class TestTheUnionGluesItsContacts(unittest.TestCase):
         body.validate()
         self.assertEqual(body.mass_properties().volume, 9 + 4 + 1)
         relations = [row.relation for row in ev.coincidences(fused)]
-        self.assertEqual(relations, ["same_opposite", "same_opposite"])
+        self.assertEqual(
+            sorted(relations), ["on_carrier"] * 8 + ["same_opposite"] * 2
+        )
 
 
 class TestLiteralRefusals(unittest.TestCase):

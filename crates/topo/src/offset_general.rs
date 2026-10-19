@@ -92,8 +92,9 @@ pub fn offset_surfaces_together<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<OffsetOutcome, ReplaceFaceError<T>> {
-    offset_surfaces_together_staged(body, moves, band, tol, true)
-        .map(|joins| OffsetOutcome { joins })
+    let source = crate::SourceGeometry::of(body);
+    let joins = offset_surfaces_together_staged(body, moves, band, tol, true)?;
+    Ok(OffsetOutcome::of(source, joins))
 }
 
 /// [`offset_surfaces_together`], ending with the join where `join` is

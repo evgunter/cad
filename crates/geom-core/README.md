@@ -198,8 +198,8 @@ refusal that would otherwise name no recourse at all (a kernel
 approximation limit — an offset fit that stalls, a quadrature budget
 spent, a built curve's residual) names loosening the tolerance as a
 last resort and says the refusal may indicate a kernel bug worth
-reporting. At adoption, certification runs at ε and a refusal reads
-as at rest. ε_in is the file's own coincidence distance ([import]): it
+reporting. At adoption, certification runs at ε and a refusal ends at
+the import door, as the table below gives. ε_in is the file's own coincidence distance ([import]): it
 governs interpretation — what the file's data is evidence of, where
 healing may move geometry by up to O(ε_in) — and its refusals are
 the import door's, named in ε_in with the value the margin gives; a
@@ -223,6 +223,47 @@ the site that knows the decision appends the one ending
 (`COINCIDENCE_RECOURSE` is the sentence coincidence decisions
 compose). (iii) [import]'s ε_in is an instance of ε_input, not a separate
 concept.
+
+Clause (iv)'s definite readings end at each door by the decision's
+refused side (`geom_brep::recourse::RefusedSide`), read by every
+reading that shows no size — an exact zero, a zero the symbolic tier
+proved, a reading in band wholly on the refused side, and one past the
+band there (`Shows::NoSize` and `Shows::Refused`), on whichever arm
+carries it; a reading that may still show a size (an offer, a floor, an
+unresolved enclosure, a straddle) ends in the lever whatever the side.
+
+| Refused side | At a build | At the import door, past ε_in | Over a body at rest |
+|---|---|---|---|
+| `Lever` | the lever and the note | the lever and the note | the lever and the note |
+| `StoredContradiction` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
+| `Unminted` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
+
+Within ε_in the import door ends every band-decided reading in its one
+sentence and the lever, whatever the side. No public door returns a
+refusal on an unminted side read at a build: every
+public certification door (`geom_brep::EdgeCurve::certify`,
+`EdgeCurve::recertify` and their `_via` forms) reports a span check's
+reading certainly on its refused side as its input's
+(`geom_brep::CertifyError::StatedInterval`, at a build in the check's
+own lever): a caller's interval, or a stored arc re-certified at a band
+finer than the one it was minted at, since the winding decision passes
+a headroom its band reads as zero. Where that input is an edge the
+kernel holds, re-minted or re-certified at the run's one band (a rigid
+motion, a graft, a re-description in place, a split child, a re-based
+run), the call names that origin (`topo`'s `policy_lane::Origin::Kernels`,
+which every certification in `topo` names one of) and panics: a kernel
+bug. Only a refusal built by hand reaches `CertCheck::ParamSpan`'s
+or `CertCheck::ParamWinding`'s own ending at a build; rendering it is
+input, so it ends there as the door's own refusal does, in the lever,
+and the kernel-bug panic is `Origin::Kernels`'s alone. So the `Unminted`
+build cell keeps clause (iv)'s panic where the kernel constructs, the
+only place such a reading arises; the cell names what a hand-built
+value renders. The table departs from clause (iv) in one cell, typed until the door that would keep input
+from it exists, and scheduled by its row: the at-rest column, which the
+validator also reads at the import gate (`[import]` step 4) and so a
+damaged file reaches until adoption checks everything the validator
+does
+(`work/encl/at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything.md`).
 
 Review checklist form: for every arm added to a decision, name which
 ε_input story it belongs to, or say why it belongs to none.

@@ -3,7 +3,8 @@
 //!
 //! - **Row 15**: two blocks of separately typed sizes, flush, unioned
 //!   are one solid of the summed volume carrying
-//!   one `SameOpposite` row the coincidence door leaves unproven.
+//!   one `SameOpposite` row the coincidence door leaves unproven, and a
+//!   row per plate corner decided on the block's top.
 //! - **Row 16**: the same blocks a sliver apart refuse in band.
 //! - **Row 19**: row 15's result passes tier 3′ with its contacts as
 //!   the census reads them.
@@ -37,9 +38,10 @@ fn plate_on_a_block(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
 /// **Row 15: a flush rest glues and records.** One solid,
 /// the summed volume, and one `SameOpposite` row the plane ladder
 /// decided — unproven, since the two caps are two constructions, the
-/// plate a copy placed on the block.
+/// plate a copy placed on the block — beside the plate's four corners,
+/// each decided on the block's top.
 #[test]
-fn a_flush_rest_glues_and_records_one_unproven_row() {
+fn a_flush_rest_glues_and_records_its_unproven_rows() {
     let (doc, _, _, union) = plate_on_a_block(0.0);
     let ev = run(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
@@ -50,30 +52,44 @@ fn a_flush_rest_glues_and_records_one_unproven_row() {
         .volume;
     assert!((volume - 4.5).abs() < 1e-12, "the summed volume: {volume}");
     let rows = &ev.value(union).expect("the union evaluated").coincidences;
-    assert_eq!(rows.len(), 1, "one row for the one rest: {rows:#?}");
+    assert_eq!(rows.len(), 5, "the rest and its four corners: {rows:#?}");
     assert_eq!(
         (rows[0].relation, rows[0].site),
         (Relation::SameOpposite, DecisionSite::PlaneLadder)
     );
     assert!(
-        matches!(
-            coincide::prove(
-                &doc,
-                &[(union, &rows[..])],
-                None,
-                Tol::witness(),
-                &editor_core::CancelToken::new()
-            )
-            .expect("an uncanceled door")[0][0],
-            Proof::Unproven {
-                recourse: coincide::Recourse::OneConstruction,
-                ..
-            }
-        ),
-        "two constructions, no proof; the offset's form freezes at the door's budget \
-         (declared-rest-rows-are-two-values-or-too-big-to-close), which is no value \
-         computed apart from the variables, so the recourse is to build one construction"
+        rows[1..]
+            .iter()
+            .all(|r| (r.relation, r.site) == (Relation::OnCarrier, DecisionSite::VertexFusion)),
+        "the corners: {rows:#?}"
     );
+    let proofs = coincide::prove(
+        &doc,
+        &[(union, &rows[..])],
+        None,
+        Tol::witness(),
+        &editor_core::CancelToken::new(),
+    )
+    .expect("an uncanceled door")
+    .remove(0);
+    // Every row, the rest and each corner alike, is two constructions
+    // the replay finds no identity between.
+    for (row, proof) in rows.iter().zip(&proofs) {
+        assert!(
+            matches!(
+                proof,
+                Proof::Unproven {
+                    residual,
+                    recourse: coincide::Recourse::OneConstruction,
+                } if residual.replay == coincide::Unreplayed::Numeric
+            ),
+            "{row:?}: two constructions, no proof; the offset's form freezes at the door's \
+             budget (declared-rest-rows-are-two-values-or-too-big-to-close), which is no \
+             value computed apart from the variables, so the recourse is to build one \
+             construction: {proof:?}"
+        );
+    }
+    assert_eq!(proofs.len(), rows.len(), "the door answers every row");
 }
 
 /// **Row 16: a sliver still refuses.** The same plate `2ε` above the

@@ -354,6 +354,27 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
 ///
+/// RE-BLESSED, `boss_union` only, when the frame was decided across the
+/// window's cut (PCERT B1, PR 5225): the rim directions on the old
+/// frame's cut (`x ≡ 0`) read the other expression, and the digest
+/// moved with what is stored from those reads. No point moved
+/// (`m10_p_fence` held). Re-taken merged over INTENT stage 3 C's
+/// re-bless above, so `boss_union`'s value is neither tree's.
+///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when a harmonic
+/// row's windings became stored structure (PCERT B2a, PR 5244): the
+/// stored pcurve is two channels (`Channel::Angle { phase, winding }` /
+/// `Channel::Free`) where it was one flat tuple, and the digest hashes
+/// it. Re-taken merged over PCERT B1's re-bless above.
+/// RE-BLESSED, `cut_cylinder` only, when each split half came to end
+/// with maximal faces and to re-describe the boundary of a curved run
+/// its merge records as skipped (PR 5334): the tilted cut leaves both
+/// half-walls' pieces in each half, and the re-description's pass over
+/// their boundary edges re-stores those edges' stored rows, which this
+/// digest hashes. Every edge description's `Debug` is unchanged, and no
+/// point moved (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held).
+///
 /// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
 /// a placement): each document was re-spelled without `Datum` or
 /// `Transform` (a construction is built in its own coordinates and
@@ -834,7 +855,7 @@ fn assert_two_arcs_at_their_own_radii(
 /// extrude, at the same radius — and no recipe layer above them.
 fn raw_cylinder(r: f64, h: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol()).unwrap();
-    let plane = profile::SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -h)));
+    let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, -h));
     let sketch = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol())
         .unwrap();

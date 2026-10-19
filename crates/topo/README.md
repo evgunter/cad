@@ -117,6 +117,12 @@ side clears only
   directions that turn with the pair: the axis between the two faces'
   anchors, and either face's normal where it is planar
   (`boolean::separating::apart`), or
+- on a definitely-positive gap in depth (the distance from an axis
+  line, a centre or a circle that either face's carrier or a conic on
+  its boundary proposes) between one face's least depth and the
+  other's greatest, each bounded through rings and segments that cover
+  the face or its convex hull (`census::depth_gap`): the nested walls,
+  bores and plugs no direction separates, or
 - where the pair meets, by the touch analysis, which reads every curved
   face of a touch's star through that box (its corners' signed distances
   from the candidate plane): a box on its side certifies the Rest, and
@@ -159,10 +165,14 @@ pair is from the two cells' carriers:
   closure; an unbacked bound is `UnrecordedContact`.
 - A **point touch** is a pair of any two cells whose interiors meet at
   isolated points without crossing (a circle on a plane, a sphere on a
-  plane, two circles kissing). The census finds each point on the
-  closed-form lane of the two carriers, refusing typed where none
-  exists, and certifies there coincidence within ε, the point strictly
-  inside both cells, and κ_rel definitely positive; in band escalates.
+  plane, two circles kissing). For a cell on a face, or two spheres,
+  the census finds each point on the closed-form lane of the two
+  carriers, refusing typed where none exists, and certifies there
+  coincidence within ε, the point strictly inside both cells, and
+  κ_rel definitely positive; in band escalates. Two edges kissing,
+  one of them curved, are found by the curved-edge lane's bisection
+  search over both spans, which certifies a point on both edges'
+  interiors.
   Whether the solids cross at the point is the touch analysis's
   reading of the faces around it.
 - A **patch** is a face–face pair on one carrier, backed by a
@@ -271,10 +281,21 @@ is reached only through structure or a declaration.
 sphere inside the edge is read again on the edge's fragments once both
 sweep directions have run: where the other operand has a vertex at the
 touch, whether it builds does not depend on which operand is A, and with
-no vertex there it refuses in both orders. A covered arc, and a covered
-line against a torus or a cone, keep the refusal where the touch is inside the
-edge: their residual is not convex, so a fragment's ends need not see
-every touch.
+no vertex there it refuses in both orders. A covered conic with no end
+on a sphere, cylinder or torus carrier, its interior unread, is
+deferred the same way (`Placement::declared`), and the settle stage
+reads its fragments. A fragment with an end recorded on the carrier is
+then read at its ends only. That is sound where the cover admits at most one touch per conic,
+as a circle meets the ruling of a cylinder × cylinder tangency once,
+and it is not sound where it admits two: a plane tangent to a cylinder
+holds a circle that meets the ruling twice, and the touch inside the
+fragment goes unrecorded
+(`covered-endpoint-arms-read-a-non-convex-touch-at-the-ends-only`). A
+covered line against a torus or a cone, and a covered conic against a
+cone, keep the refusal where the touch is inside the edge. Two tubes
+tangent along one's seam build in either order without the edge–face
+record of the seam's span in the other wall
+(`a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only`).
 
 *Edges lying on the carrier.* An edge decided to lie identically on the
 other operand's carrier is an ON event under the reduction's trilean
@@ -413,10 +434,8 @@ went to those crates' pages, and the wired-arm list, which went to
   door later" is exactly that trade. "Exclusively" is
   realized: the operator set is the only public construction path; raw
   insertion is crate-internal test scaffolding.
-- **Non-manifold boolean results are typed errors** — "non-manifold"
-  meaning **non-representable** ([topology]'s representability boundary).
-  Touching via distinct entities is a typed success validating at tier
-  3′. Silent splitting into separate manifold bodies is rejected as
+- **Touching via distinct entities is a typed success** validating at
+  tier 3′ ([topology]'s representability boundary). Silent splitting into separate manifold bodies is rejected as
   inexplicit; any future split behavior is an explicit ratified
   operation the user invokes, never a fallback.
 
@@ -529,8 +548,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    **material wedge-angle predicate**: at every edge the material wedge
    ∈ (0, 2π), bounded away from the ends by θ = ε/r; wedge = π is the
    legal smooth-seam case; and the ends carry a **second-order arm**:
-   wedge = 0 (a cusp) and wedge = 2π (a knife slit, the cusp's `revert`
-   image — legal together or not at all) are legal iff the tangency is
+   wedge = 0 (a cusp) and wedge = 2π (a knife slit, an isolated cusp's
+   `revert` image — legal together or not at all) are legal iff the tangency is
    **jet-determinate**: quadratic transverse separation with κ_rel
    bounded away from zero — `TangentIntersection`'s own margin, so the
    cusp edge's honest description IS `TangentIntersection` wherever the
@@ -545,11 +564,26 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    like any coincidence. In-band κ_rel escalates; osculation
    refuses (`LaminaWedge`). The
    arm admits no laminae, so zero-volume bodies stay geometric defects.
-   A doubled cusp (two material wedges on one tangent line) is the
-   coincident-distinct-edges class, each edge classifying separately;
-   where no edge lies on the line, the two wedges are a touch between
-   faces, recorded like any touch, and no op cuts edges to make a
-   junction of it. Consumers with no wedge-0/2π answer (fillet, offset,
+   Where more than two sheets meet on a line, the material decides the
+   edges, as the manifold boundary of the material rather than of its
+   surface: each creased material sector between two consecutive
+   sheets is one edge, bounding that wedge alone; a sector of exactly π
+   is a face continuing, with no edge there; and the material sectors
+   on one line are disjoint, so no face passes through an edge's
+   material wedge. So a doubled cusp (two material wedges on one
+   tangent line) and a reflex edge lying in one of its own faces are
+   two coincident distinct edges, each classifying separately; an edge
+   touching a face from outside its wedge stays one edge, in contact
+   with that face; and where no edge lies on the line, the wedges are a
+   touch between faces, recorded like any touch, and no op cuts edges
+   to make a junction of it. Where the line ends inside a face, that
+   face carries its edges as a zero-area ring, which bounds no hole and
+   whose winding is exempt; where it reaches the face's boundary, as a
+   slit of that loop. The complement pairs the sheets differently, so
+   a door that complements material across such a line re-pairs there.
+   Tier 3′ reads every touch for sides, the coincident edges on one
+   line included: touching cells' material lies on opposite sides of
+   each other. Consumers with no wedge-0/2π answer (fillet, offset,
    mesh sizing, sector classification), and none for a body's
    curve-touch records, refuse typed at the consumer.
    Also at tier 3: **maximal edges** (a joinable vertex at rest is a
@@ -560,8 +594,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    a pole or apex), **prefer-intrinsic enforcement** ([edges]) and the
    **orientation invariant** (a solid's faces leave infinity outside
    it, read by the reader of a shell's role, [coincidence.booleans]: a ray
-   aimed at one of its faces, the certified signed volume only where no
-   face offers an aim; definitely inside-out ⇒ invalid, and a solid
+   aimed at one of its faces, the certified signed volume where no ray
+   reads; definitely inside-out by any reading ⇒ invalid (a certified
+   negative volume refuses even where a ray reads its side), and a solid
    whose side no reading decides refuses — an orientation probe, not a
    thinness gate, at every door). Laminae live here, not at
    tier 2: two faces glued along their whole shared boundary is a
@@ -665,11 +700,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      cells the op minted between them, the division exhaustive or with
      its remainder removed; or removed. One carry, for the boolean and
      every surgery verb alike, lands a record whose two cells the op kept
-     or substituted on their images by lineage, unread, their geometry
-     unchanged and the record read where it was minted; it puts each
-     pair drawn from a divided cell's images to the census's record
-     confirm, and the record lands on every such pair whose interiors
-     meet, each landing citing it. Two
+     or substituted on their images by lineage, unread, each image on
+     its cell's carrier and holding its old interior and the record read
+     where it was minted; it puts each pair drawn from a divided cell's
+     images, or from an image that does not hold its cell's geometry (a
+     cell an offset or blend moved under its key), to the census's
+     record confirm, and the record lands on every such pair whose
+     interiors meet, each landing citing it. Two
      cells an op minted on a record's two cells and that meet at a point
      meet where the record puts them when one cut made both, as the
      split's one plane does, and the landing cites the record alone; an
@@ -677,8 +714,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      such meeting at its door ([coincidence]), and the landing cites the decision
      beside the record; any other op refuses one. A record
      that lands on no pair, every pair read definitely, is consumed
-     where one of its cells was removed or divided with its remainder
-     removed, and is stale otherwise; a cell the lineage does not cover
+     where one of its cells was removed, divided with its remainder
+     removed, or moved, and is stale otherwise; a cell the lineage does not cover
      refuses. A cell that replaces another without holding its interior
      (a blend face for the edge it rounds) takes no record from it.
    - **Certification strength equals its skeleton**: a curve touch is
@@ -714,10 +751,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    **Representability boundary**: pseudomanifold touching via
    *distinct* entities (two vertices at one point, two edges on one
    segment) is representable in the half-edge structure and is a typed
-   *success* carrying its 3′ records. Genuine non-manifoldness — a
-   single edge with >2 faces, a shared-entity wedge fan — is
-   unrepresentable and stays a typed error at the site that would have
-   needed it. "Non-manifold" means non-representable.
+   *success* carrying its 3′ records. A single edge with >2 faces, or a
+   wedge fan sharing one entity, assembles faces into something that is
+   not a solid; the half-edge structure does not represent it.
 
 **Structural conventions.**
 

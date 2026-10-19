@@ -62,3 +62,32 @@ Waits on `intent-stage4-is-built`, not on the whole program: the arms sit under 
 ## Released by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E does not close the gap, and widens its reach. The covered arms are unchanged (`crates/topo/src/boolean/reduce.rs:1630`, `covered`; the circle rung's `Ok(Sign::Zero) if covered` at `:1853`; `(Zero, Zero) if covered` at `:2004`). The cover is now also the glue door's auto-declaration, Zero-decided pairs and witness-verified tangencies, declared or not (`crates/topo/src/boolean/glue.rs:40`). So a covered torus line or arc reaches these arms in undeclared scenes too. The fix's two shapes stand.
+
+## The settle stage now reaches the circle arm too (CONTACTHOLD, 2026-10-19)
+
+`contacthold/two-tubes-zero-band` defers a covered circle with no end
+on the carrier and its interior unseen, as a line was, so the
+fragments `settle_deferred` reads include arcs. That reach already
+existed in the other operand order (the other direction's vertex
+splitting the arc before this direction reads it): the fragments the
+settle stage reads are the ones the swapped order's second direction
+reads. Measured on that branch: refusing the circle branch's
+ends-only `Recorded` reading outright fails 19 committed sweep rows
+beyond the new ones (kissing discs, externally tangent walls, the
+sphere-capped tube, the strut cover stacks), so the first fix shape
+retires builds; the second, a touch set certified from the cover's own
+locus, is the one that keeps them.
+
+## A first fixture: a rod on a three-quarter puck (CONTACTHOLD, 2026-10-19)
+
+The PR 5389 review's `probe_rod_on_three_quarter_puck`
+(`crates/sweep/tests/review_5389_probes.rs`, branch
+`contacthold/two-tubes-zero-band-review`): a puck revolved 1.5π and
+spun −π/4, a rod `r = 0.25` lying along `x` on its top face `0.5·ε`
+above it, the rod's seam off the contact ruling, the rod ending at
+`T2 = (1, 0, 0)` on the puck's rim. The plane × cylinder cover admits
+two touches of the rim circle with the ruling, `T1` mid-arc and `T2`.
+On main both orders build ∪, record `T2` and not `T1`, and tier 3′
+reports `CensusUnsupported`: the rim arc read at its ends only. PR
+5389's deferral settles through the same ends-only reading, so it
+shares the gap rather than adding to it.

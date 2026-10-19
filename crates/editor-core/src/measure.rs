@@ -12,7 +12,7 @@
 //! over the measures' outputs: there is one arithmetic language, the
 //! formula's.
 
-use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite};
+use geom_brep::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision};
 use geom_core::{Decide, SizedPass};
 
 use crate::expr::Dimension;
@@ -800,7 +800,7 @@ pub const ASSERT_BOUND_DECISION: SizedDecision = SizedDecision {
     size: "difference",
     passes: SizedPass::AnySign,
     // The stored description the lever edits IS the asserted bound.
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 

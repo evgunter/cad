@@ -60,6 +60,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/TornComponent",
     "Split/Finish/UnclassifiableComponent",
     "Split/Finish/NestingContradiction",
+    "Split/Finish/SlitUnplaced",
     "Split/Finish/ResultInvalid",
     "Split/Pcurves",
     "Transform/Pcurve",
@@ -76,7 +77,14 @@ const KERNEL_KEYED: &[&str] = &[
     "Blend/Certify",
     "Naming/SplitLineage",
     "Naming/SeamVertexParentage",
+    "Naming/SeamVertexPartners",
     "Naming/SharedRim",
+    "Naming/MergedChord",
+    "Naming/MergedChordOffRim",
+    "Naming/ConventionalVertex",
+    "Naming/ClosedCarrierUnread",
+    "Naming/CarrierUnplaced",
+    "Naming/PartnerUnread",
     "Shell/Partition",
     "Shell/Insert",
     "Shell/Rim",
@@ -199,7 +207,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "DegenerateDirection",
     "EmptyHalf",
     "EmptyOperand",
-    "InstanceOutOfRange",
     "MeasureClearanceRefused",
     "MeasureNotParallel",
     "MeasureRefUnreadable/Readback",
@@ -212,11 +219,15 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MissingInput",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
+    // work/wirehold/placement-rule-refusals-state-no-recourse.md
+    "InstanceOutOfRange",
+    "PlacementsUncertified",
     "PlacementRule/CountSpelling",
     "PlacementRule/ImproperFrame",
     "PlacementRule/NoPlacements",
     "PlacementRule/NonFiniteFrame",
-    "PlacementsUncertified",
+    "PlacementRule/NonRigidFrame",
+    // work/wire/wire-refusals-short-of-the-shape-guard.md
     "ShellLaneUnsupported",
     "ToleranceConflict",
     "UnschedulableCycle",
@@ -672,6 +683,39 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
+/// **Every `NamingError` arm has a row.** The roster is
+/// `display_contract`'s `NAMING_ERROR` census, whose `match` rustc holds
+/// exhaustive, and each `Naming/` row is named by its own payload's
+/// variant, so an arm added to the enum or a row taken out reds here.
+#[test]
+fn every_naming_arm_has_a_row() {
+    let rendered: Vec<String> = editor_payloads()
+        .into_iter()
+        .filter_map(|(name, kind)| {
+            let NodeErrorKind::Naming(e) = kind else {
+                return None;
+            };
+            let arm = test_utils::f6::variant_identifier(&e);
+            assert_eq!(
+                name,
+                format!("Naming/{arm}"),
+                "a naming row is named by its arm"
+            );
+            Some(arm)
+        })
+        .collect();
+    let rendered: Vec<&str> = rendered.iter().map(String::as_str).collect();
+    if let Some(report) = test_utils::census::set_difference(
+        crate::display_contract::NAMING_ERROR.identifiers(),
+        &rendered,
+        "NamingError's arms and the feature tree's naming rows disagree",
+        "rendered by a row and not an arm of the census",
+        "an arm with no feature-tree row: give it one in `editor_payloads`",
+    ) {
+        panic!("{report}");
+    }
+}
+
 /// A failure as the feature tree draws it: the failed node's own line,
 /// then each refusal it carries as a line of its own, one per level
 /// ([`NodeErrorKind::carried_chain`]).
@@ -950,12 +994,8 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         ),
         row("ProfileAnchor", NodeErrorKind::ProfileAnchor),
         row(
-            "ProfileRecordMissing(None)",
-            NodeErrorKind::ProfileRecordMissing { loop_: None },
-        ),
-        row(
-            "ProfileRecordMissing(Some)",
-            NodeErrorKind::ProfileRecordMissing { loop_: Some(1) },
+            "ProfileRecordMissing",
+            NodeErrorKind::ProfileRecordMissing { loop_: 1 },
         ),
         row(
             "ProfilePieces",
@@ -1710,6 +1750,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             ("OrderEscalated", J::OrderEscalated { diag: diag() }),
             ("Escalated", J::Escalated { face, diag: diag() }),
             ("DegenerateSection", J::DegenerateSection { face }),
+            ("CurvedSlitTrace", J::CurvedSlitTrace { face }),
             (
                 "RingHoming",
                 J::RingHoming(topo::PointInLoopError::RayExhausted {
@@ -1933,6 +1974,22 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::NestingContradiction { hole: face },
         ),
         (
+            "SlitUnplaced",
+            F::SlitUnplaced {
+                slit: face,
+                in_hole: true,
+            },
+        ),
+        (
+            "SlitHoming",
+            F::SlitHoming {
+                slit: face,
+                error: topo::PointInLoopError::RayExhausted {
+                    r#loop: LoopKey::default(),
+                },
+            },
+        ),
+        (
             "EdgeJoin",
             F::EdgeJoin {
                 side: topo::PlaneSide::Above,
@@ -1976,10 +2033,12 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             "Certify",
             E::Certify {
                 edge: topo::EdgeKey::default(),
-                source: geom_brep::CertifyError::IntervalNotForward {
-                    verdict: geom_brep::recourse::Refused::Negative {
-                        margin: geom_core::MarginDiag::value(-1.0),
-                    },
+                source: geom_brep::CertifyError::StatedInterval {
+                    refused: geom_brep::StatedSpan::Forward(geom_brep::ForwardReading::Decided(
+                        geom_brep::recourse::Refused::Negative {
+                            margin: geom_core::MarginDiag::value(-1.0),
+                        },
+                    )),
                 },
             },
         ),
@@ -2155,8 +2214,18 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                 }),
             },
             "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
-             tightly there; faces of no extent or a cone's point leave no angle to measure; \
-             a radius below zero is a defect",
+             tightly there; faces of no extent or a cone's point leave no angle to measure",
+        ),
+        (
+            "negative lever arm",
+            CertifyError::ArmCollapsed {
+                sample: 4,
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-1e-3),
+                },
+            },
+            "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
+             tightly there; faces of no extent or a cone's point leave no angle to measure",
         ),
         (
             "spline meter turns back",
@@ -2521,6 +2590,7 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             },
         ),
         ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
+        ("PathTangentVanishes", E::PathTangentVanishes { station: 4 }),
         ("RowMotionUndecided", E::RowMotionUndecided { row: 1 }),
         (
             "ArcSweepUndecided",
@@ -3562,6 +3632,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 determinant: -1.0,
             },
         ),
+        (
+            "NonRigidFrame",
+            PlacementRuleFault::NonRigidFrame {
+                index: 2,
+                check: "transform_rigid_col0_unit",
+            },
+        ),
     ];
     let naming = [
         (
@@ -3575,6 +3652,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             NamingError::KindMismatch {
                 name: Box::new(name()),
                 found: EntityKind::Vertex,
+            },
+        ),
+        (
+            "ShortTie",
+            NamingError::ShortTie {
+                name: Box::new(name()),
+                candidates: 1,
             },
         ),
         (
@@ -3615,6 +3699,75 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 face: topo::FaceKey::default(),
                 other: topo::FaceKey::default(),
                 found: RimShare::Several,
+            },
+        ),
+        (
+            "Settle",
+            NamingError::Settle(topo::SettleError::Dead {
+                vertex: topo::VertexKey::default(),
+                reached: topo::Cell::Vertex(topo::VertexKey::default()),
+            }),
+        ),
+        (
+            "SeamVertexPartners",
+            NamingError::SeamVertexPartners {
+                vertex: topo::VertexKey::default(),
+                candidates: vec![stable(EntityKind::Vertex, 3), stable(EntityKind::Vertex, 4)],
+            },
+        ),
+        (
+            "MergedChord",
+            NamingError::MergedChord {
+                edge: topo::EdgeKey::default(),
+            },
+        ),
+        (
+            "MergedChordOffRim",
+            NamingError::MergedChordOffRim {
+                edge: topo::EdgeKey::default(),
+                node: RecipeNodeId::new(0, tagged(3)),
+                rim: topo::EdgeKey::default(),
+            },
+        ),
+        (
+            "ConventionalVertex",
+            NamingError::ConventionalVertex {
+                vertex: topo::VertexKey::default(),
+                body: 0,
+            },
+        ),
+        (
+            "ClosedCarrierUnread",
+            NamingError::ClosedCarrierUnread {
+                edge: topo::EdgeKey::default(),
+                carrier: geom::CurveKind::Nurbs,
+            },
+        ),
+        (
+            "CarrierUnplaced",
+            NamingError::CarrierUnplaced {
+                edge: topo::EdgeKey::default(),
+                carrier: geom::CurveKind::Nurbs,
+            },
+        ),
+        (
+            "PartnerUnread",
+            NamingError::PartnerUnread {
+                vertex: topo::VertexKey::default(),
+                partner: topo::VertexKey::default(),
+                unread: topo::UnreadPartner {
+                    operand: topo::Operand::B,
+                    vertex: topo::VertexKey::default(),
+                    partner: topo::VertexKey::default(),
+                    neighbourhood: topo::UnreadNeighbourhood::OneFace,
+                },
+            },
+        ),
+        (
+            "MemberEdgeTied",
+            NamingError::MemberEdgeTied {
+                member: editor_core::VarId::new(0, tagged(7)),
+                edge: Box::new(stable(EntityKind::Edge, 3)),
             },
         ),
         ("Band", NamingError::Band(band_error())),
@@ -3680,6 +3833,14 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                         at: name(),
                         width: 2,
                     },
+                },
+            ),
+            (
+                "ReadGone",
+                ResolveError::ReadGone {
+                    name: name(),
+                    read: editor_core::VarId::new(0, tagged(7)),
+                    edit: editor_core::ReadEdit::Deleted,
                 },
             ),
             (
@@ -4604,6 +4765,31 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                            nothing, not two ovals",
                 },
             ),
+            (
+                "DegenerateTorus/Undecided",
+                R::DegenerateTorus {
+                    edge,
+                    refusal: geom_brep::TorusRefusal {
+                        convention: geom_brep::TorusConvention::Ring,
+                        verdict: geom_brep::TorusVerdict::Undecided(named("ring_torus_convention")),
+                    },
+                },
+            ),
+            (
+                "DegenerateTorus/Refused",
+                R::DegenerateTorus {
+                    edge,
+                    refusal: geom_brep::TorusRefusal {
+                        convention: geom_brep::TorusConvention::Tube,
+                        verdict: geom_brep::TorusVerdict::Refused(
+                            geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
+                                margin: geom_core::MarginDiag::value(5.0e-10),
+                                band: band(),
+                            }),
+                        ),
+                    },
+                },
+            ),
             ("Escalated", R::Escalated { source: diag() }),
             (
                 "Op",
@@ -4688,6 +4874,7 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
         R::TogetherNotAxial { .. } => "TogetherNotAxial",
         R::TogetherAxialCorner { .. } => "TogetherAxialCorner",
         R::TogetherAxialEdge { .. } => "TogetherAxialEdge",
+        R::DegenerateTorus { .. } => "DegenerateTorus",
         R::Escalated { .. } => "Escalated",
         R::Op { .. } => "Op",
         R::Pcurve { .. } => "Pcurve",
@@ -4698,7 +4885,7 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
 
 /// Every `ReplaceFaceError` variant, in declaration order: the names
 /// [`replace_face_arm`] answers.
-const REPLACE_FACE_ARMS: [&str; 42] = [
+const REPLACE_FACE_ARMS: [&str; 43] = [
     "Band",
     "StaleFace",
     "Offset",
@@ -4736,6 +4923,7 @@ const REPLACE_FACE_ARMS: [&str; 42] = [
     "TogetherNotAxial",
     "TogetherAxialCorner",
     "TogetherAxialEdge",
+    "DegenerateTorus",
     "Escalated",
     "Op",
     "Pcurve",
@@ -4768,141 +4956,93 @@ fn every_check_finding_renders_within_the_budget() {
     }
 }
 
-/// **The checks window's escalated evidence ends in the decision that
-/// escalated** (D4 ¶1 (i)). The shell-role sign passes on either
-/// definite sign and its margin is a thickness, so every band-decided
-/// arm ends in its lever plus the tolerance that decides it, valued at
-/// `|m|/K` where the verdict carries a margin and without a value where
-/// it does not (a zero, a straddle); an enclosure across zero is passed
-/// by no tolerance and names the lever alone. A source that is not that decision's
-/// ends in its own payload's recourse and no invented lever. No row the
-/// window writes itself advises lowering the tolerance.
+/// **The checks window's shell-role evidence ends in the reading that
+/// refused it** (D4 ¶1 (i)), on refusals real bodies make through the
+/// real doors.
+///
+/// A shell's role off its volume is the sign of the volume's enclosure
+/// alone (D10). At ε 1e-9 a brick less a needle `1 × 10.5ε × 10.5ε` holds
+/// the needle as a cavity no aimed ray reads; read through the structural
+/// door, which holds no interval lane, its volume lies within its sums'
+/// rounding, so its role is unresolved in that scalar: a capability limit
+/// of the measurement, with no tolerance offered and no defect claimed.
+/// Read through the certifying door, its enclosure decides it a void. A
+/// certified enclosure that holds zero is the kernel's or the file's, and
+/// the one real body that reaches it, a cube whose planes are NaN, is
+/// pinned at topo's own door (`pieces::tests::a_poisoned_role_beside_two_pieces_offers_no_tolerance`).
+/// No row the window writes itself advises lowering the tolerance.
 #[test]
 fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     use editor_core::{CheckEvidence, CheckFinding, CheckId};
-    use geom_core::{Band, Indeterminate, MarginDiag};
-    use topo::{ShellClassifyError as S, ShellKey};
-    const LEVER: &str = "Recourse: thicken or remove the degenerate geometry";
-    let shell = ShellKey::default();
-    // `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
-    let band = Band::new(1e-9, 1e-8).expect("a band");
-    let escalated = |margin| S::Escalated {
-        shell,
-        source: Indeterminate {
-            margin,
-            band,
-            predicate: Some("chk_shell_volume_sign"),
-            terminal_sliver: false,
-        },
-    };
-    let render = |source| {
+    use geom_core::Tol;
+    let tol = Tol::witness();
+    let render = |evidence| {
         CheckFinding {
             check: CheckId::Connectedness,
             subject: editor_core::FindingSubject::Output {
                 root: RecipeNodeId::new(0, tagged(4)),
                 output_ix: 0,
             },
-            evidence: CheckEvidence::Escalated { source },
+            evidence,
         }
         .to_string()
     };
-    let head =
-        "check connectedness: placement 000000000004 output 0: the component count is unknowable: ";
-    let sign = "the sign of a shell's volume is undecided: ";
-    let in_band =
-        |m: &str| format!("{head}{sign}margin {m} lies inside the ambiguity band (1e-9, 1e-8). ");
-    let pinned = [
-        (
-            "in band, outer side",
-            escalated(MarginDiag::value(5e-9)),
-            format!(
-                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 5e-10 m",
-                in_band("5e-9")
+    let head = "check connectedness: placement 000000000004 output 0: ";
+    if (tol.eps() - 1e-9).abs() < 1e-15 {
+        let at_rest = |b| topo::AtRestBody::validate(b, tol).expect("the brick is at rest");
+        let outer = at_rest(topo::test_support::brick::<f64>(
+            (-1.0, 2.0),
+            (-1.0, 2.0),
+            (-1.0, 2.0),
+            tol,
+        ));
+        let w = 10.5 * tol.eps();
+        let needle = at_rest(topo::test_support::brick::<f64>(
+            (0.0, 1.0),
+            (0.0, w),
+            (0.0, w),
+            tol,
+        ));
+        let cut = topo::subtract(&outer, &needle, tol).expect("the needle cavity builds");
+        let body: &topo::Body<f64> = &cut.body().expect("a body").body;
+        let source = topo::classify_shells_structural(body, tol)
+            .expect_err("the lane-free door reads no role for the needle cavity");
+        assert!(
+            matches!(
+                source,
+                topo::ShellClassifyError::SignUnresolved {
+                    limit: topo::SignLimit::Scalar,
+                    ..
+                }
             ),
-        ),
-        (
-            "in band, void side",
-            escalated(MarginDiag::value(-2e-9)),
-            format!(
-                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 2e-10 m",
-                in_band("-2e-9")
-            ),
-        ),
-        (
-            "in band, bracket across zero",
-            escalated(MarginDiag::enclosure(-2e-9, 3e-9)),
-            format!(
-                "{head}{sign}enclosure [-2e-9, 3e-9] cannot be classified against the ambiguity band (1e-9, 1e-8). {LEVER}"
-            ),
-        ),
-        (
-            "invalid margin",
-            escalated(MarginDiag::INVALID),
-            format!(
-                "{head}{sign}margin is invalid (NaN or a refused enclosure) against the ambiguity \
-                 band (1e-9, 1e-8). {LEVER}; an unreadable margin may indicate a kernel or file \
-                 defect worth reporting"
-            ),
-        ),
-        (
-            "zero",
-            S::ZeroVolume {
-                shell,
-                verdict: geom_brep::recourse::Classified {
-                    margin: MarginDiag::value(-5.0e-10),
-                    band,
-                },
-            },
-            format!(
-                "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
-                 this tolerance. {LEVER}, or, if this thickness is intended, tighten the \
-                 tolerance below 5e-11 m"
-            ),
-        ),
-        (
-            "zero, of no size",
-            S::ZeroVolume {
-                shell,
-                verdict: geom_brep::recourse::Classified {
-                    margin: MarginDiag::value(0.0),
-                    band,
-                },
-            },
-            format!(
-                "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
-                 this tolerance. {LEVER}"
-            ),
-        ),
-        (
-            "straddle",
-            S::Straddles { shell },
-            format!(
-                "{head}a shell's certified volume bracket straddles zero at this tolerance. \
-                 {LEVER}"
-            ),
-        ),
-    ];
-    for (name, source, want) in pinned {
-        let text = render(source.clone());
-        assert_eq!(text, want, "{name}");
-        // The finding ends in the shell-role decision's ending read at
-        // rest; the shell door's own Display reads it at a build.
-        let arm = source.arm().expect("the shell-role decision's refusal");
-        let ending = topo::props::SHELL_ROLE.recourse(arm, geom_brep::recourse::Reading::AtRest);
-        assert!(text.ends_with(&ending), "{name}: {text}");
-        let built = source.ending().expect("the shell-role decision's refusal");
-        let whole = source.to_string();
-        assert!(whole.ends_with(&format!(". {built}")), "{name}: {whole}");
-        assert_eq!(
-            test_utils::refusal::recourse_markers(&whole),
-            1,
-            "{name}: {whole}"
+            "{source:?}"
         );
+        let words = "the sign of a shell's volume cannot be read: this scalar carries no \
+                     interval to certify its sums, and the volume lies within their rounding";
+        let ending = geom_core::NOT_YET_ENDING;
+        assert_eq!(source.to_string(), format!("{words}. {ending}"));
+        let text = render(CheckEvidence::Unsupported {
+            source: source.clone(),
+        });
+        assert!(text.starts_with(head), "{text}");
+        assert!(text.ends_with(&format!("{words}. {ending}")), "{text}");
+        assert!(
+            !text.contains("tolerance") && !text.contains("defect"),
+            "{text}"
+        );
+        let roles: Vec<topo::ShellRole> = topo::classify_shells(body, tol)
+            .expect("the certifying door reads the cavity")
+            .iter()
+            .map(|c| c.role)
+            .collect();
+        assert_eq!(roles, [topo::ShellRole::Outer, topo::ShellRole::Void]);
     }
     // A band failure is the run's configuration, not the shell-role
     // decision: the finding forwards its payload and adds no lever.
     let error = payloads::band_error();
-    let unowned = render(S::Band { error });
+    let unowned = render(CheckEvidence::Escalated {
+        source: topo::ShellClassifyError::Band { error },
+    });
     assert!(unowned.ends_with(&error.to_string()), "{unowned}");
     assert!(!unowned.contains("thicken"), "{unowned}");
     for (name, finding) in &check_findings() {
@@ -4986,7 +5126,11 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             finding(
                 CheckId::Connectedness,
                 E::Escalated {
-                    source: ShellClassifyError::Straddles { shell },
+                    source: ShellClassifyError::Straddles {
+                        shell,
+                        low: MarginDiag::value(-1e-18),
+                        high: MarginDiag::value(1e-18),
+                    },
                 },
             ),
         ),

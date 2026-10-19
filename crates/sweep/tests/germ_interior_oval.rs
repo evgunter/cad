@@ -48,9 +48,12 @@ fn in_solid(b: &Body<f64>, q: Point3<f64>) -> Option<bool> {
 /// A C-shaped profile in the `xz` plane, extruded symmetrically in `y`.
 fn bracket_xz(pts: &[(f64, f64)], half_y: f64) -> Body<f64> {
     let lp = ProfileLoop::polygon(pts.iter().map(|&(x, z)| Point2::new(x, z)));
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_z(), -Vec3::unit_y()),
-        Vec3::new(0.0, half_y, 0.0),
+    let plane = profile::SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(
+            Mat3::from_cols(Vec3::unit_x(), Vec3::unit_z(), -Vec3::unit_y()),
+            Vec3::new(0.0, half_y, 0.0),
+        ),
+        geom_core::Tol::witness(),
     ));
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
@@ -122,10 +125,7 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
         Point2::new(x.1, y.1),
         Point2::new(x.0, y.1),
     ]);
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Vec3::new(0.0, 0.0, z.0),
-    ));
+    let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, z.0));
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the box profile validates");
@@ -622,10 +622,7 @@ fn wedge_above_the_donut() -> AtRestBody<f64> {
         Point2::new(3.0, 2.5),
         Point2::new(-3.0, 2.5),
     ]);
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Vec3::new(0.0, 0.0, -3.0),
-    ));
+    let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, -3.0));
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the wedge profile validates");
@@ -882,9 +879,12 @@ fn a_plane_clear_of_the_bumps_net_never_reaches_the_certificate() {
             Point2::new(-3.0, 3.5),
         ]);
         let vp = profile::Profile::new(
-            profile::SketchPlane::new(Affine3::from_parts(
-                Mat3::from_cols(Vec3::unit_x(), Vec3::unit_z(), -Vec3::unit_y()),
-                Vec3::new(0.0, 3.0, 0.0),
+            profile::SketchPlane::from_frame(geom_core::test_support::rigid(
+                &Affine3::from_parts(
+                    Mat3::from_cols(Vec3::unit_x(), Vec3::unit_z(), -Vec3::unit_y()),
+                    Vec3::new(0.0, 3.0, 0.0),
+                ),
+                geom_core::Tol::witness(),
             )),
             vec![lp],
         )

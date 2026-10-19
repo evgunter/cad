@@ -16,12 +16,11 @@
 //! What is recorded is what a ladder decides from a margin and the
 //! result holds. A pair on one surface key is structure and is not
 //! recorded, and an ON verdict that only places topology is not a
-//! coincidence (D1): a vertex identity is recorded only where a record
-//! citing it survives or the op's copies of the vertex touch in the
-//! result (a pinch the op made: copies an operand already held on one
-//! key are its structure, and record nothing), and a boolean's
-//! face-pair decision only where the two faces meet, at a point, an
-//! edge or an area.
+//! coincidence (D1): a boolean records every vertex identity it decides
+//! with a margin, as a row of the relation it decided where its inputs'
+//! cells state it and as a [`Relation::Meet`] of those cells where they
+//! would state another, and a face-pair decision only where the two
+//! faces meet, at a point, an edge or an area.
 
 use geom_core::MarginDiag;
 
@@ -106,6 +105,12 @@ pub enum Relation {
     /// cross-section plane sections both into curves that do not vary
     /// along it (a cylinder and a plane parallel to its axis).
     CoRuled,
+    /// The cells' carriers share one point, decided by the margin:
+    /// unordered, between two cells or more. It states a point decided
+    /// on a cell where no one cell of the row is that point (a vertex
+    /// minted on an edge, read as that edge), or where three cells or
+    /// more meet there.
+    Meet,
 }
 
 impl Relation {
@@ -126,7 +131,8 @@ impl Relation {
             | Self::Coaxial
             | Self::SameRadius
             | Self::AxesMeet
-            | Self::CoRuled => None,
+            | Self::CoRuled
+            | Self::Meet => None,
         }
     }
 }
@@ -174,8 +180,9 @@ pub enum DecisionSite {
     ProfileJunction,
     /// A boolean's vertex identity: a vertex of one operand decided on
     /// a vertex, an edge or a face of the other, or a carried record's
-    /// vertex on a vertex the reduction minted, whose touch survives
-    /// into the result, as a record or as a pinch.
+    /// vertex on a vertex the reduction minted, every one the boolean
+    /// decides with a margin, spelled in its input cells
+    /// ([`Relation::Meet`] where a cell was read as one it lies in).
     VertexFusion,
     /// The at-rest census: two cells of different groups of a body at
     /// rest (two copies, two imported instances) decided one, or two
@@ -212,7 +219,8 @@ impl Discharge {
 /// **One coincidence an operation decided from values.**
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Coincidence {
-    /// The two cells decided one, in the order the decision read them.
+    /// The two cells decided one, in the order the decision read them;
+    /// a [`Relation::Meet`]'s sorted.
     pub cells: [RowCell; 2],
     /// What was decided between them.
     pub relation: Relation,
@@ -226,11 +234,15 @@ pub struct Coincidence {
 }
 
 impl Coincidence {
-    /// The row's A-operand face and B-operand face, where it relates
-    /// one face of each operand, in that order; `None` for any other
-    /// pair of cells.
+    /// The row's A-operand face and B-operand face, where it decided
+    /// one face of each operand a carrier pair, in that order; `None`
+    /// for any other pair of cells, and for a [`Relation::Meet`], which
+    /// decides a point.
     #[must_use]
     pub fn face_pair(&self) -> Option<(crate::FaceKey, crate::FaceKey)> {
+        if self.relation == Relation::Meet {
+            return None;
+        }
         match self.cells {
             [
                 RowCell::Input {

@@ -16,8 +16,12 @@
 //!   fold step's ([`NodeErrorKind::UnionFoldStep`]), whose inner
 //!   refusal is of one kind in every order (the member it names is the
 //!   one each order folds in, and differs);
-//! - **the rows**: the union's coincidences, each an unordered pair of
-//!   the member cells it names, as a multiset;
+//! - **the judged rows**: the union's order-free rows (DM4), each the
+//!   member cells it names, unordered, and the pair of members that
+//!   judged it, as a multiset. The fold steps' rows are the evaluation's
+//!   log of what each order met, and follow the order; the log is pinned
+//!   as a deterministic function of it
+//!   ([`the_log_is_a_deterministic_function_of_the_member_order`]);
 //! - **the names**: every name of the union's table beside the geometry
 //!   it binds, the union's own id spelled as one placeholder (each order
 //!   is its own node);
@@ -213,28 +217,33 @@ fn decide(
         Some(other) => Decided::Refused(format!("{other:?}")),
         None => {
             cells_are_held(&ev, union, order);
-            built(&ev, union)
+            built(&ev, union, &members, order)
         }
     }
 }
 
-/// What [`cells_are_held`] checked: published rows, and their entity
-/// cells read from a member and minted by the fold.
+/// What [`cells_are_held`] checked: published rows, their member
+/// cells, the rows of three cells or more, and the rows whose cells
+/// were found to share a point ([`shared_point`]).
 #[derive(Debug, Default, Clone, Copy)]
-struct Held {
+pub(crate) struct Held {
     rows: usize,
-    member: usize,
-    minted: usize,
+    cells: usize,
+    meetings: usize,
+    sited: usize,
 }
 
-/// **Every cell of a union's published row denotes a live entity of the
-/// body its read delivers**: its name is a strict row of that read's
-/// table — a member's table for a member cell, the union's own published
-/// table for a cell the fold minted — of the cell's kind, whose key is
-/// an entity of that read's body. A fold row is named against the
-/// fold's intermediate tables, and a cell left in their terms would name
-/// nothing the document can resolve.
-fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &[usize]) -> Held {
+/// **Every cell of a union's published row is a member-table row**
+/// (DM4, "A row names member cells"): its name is a strict row of the
+/// table of a member's read, of the cell's kind, whose key is an entity
+/// of that member's body; no cell is read in the union's own table. A
+/// fold row is named against the fold's intermediate tables, and a cell
+/// left in their terms would name nothing a member holds.
+///
+/// Each row's cells must also share a point where the fixture's
+/// geometry lets that be read ([`shared_point`]), so a row spelled from
+/// the wrong member cells reds here though every name is held.
+pub(crate) fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &[usize]) -> Held {
     use editor_core::{EntityKey, Entry, NamedCell};
     let value = ev.value(union).expect("the union evaluated");
     let own = ev.output_var(union, 0).expect("a union defines its output");
@@ -250,6 +259,7 @@ fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &[usize]) ->
             let at = |why: &str| {
                 format!("{order:?}: a published row's cell {name:?} of {input:?} {why}: {r:?}")
             };
+            assert_ne!(*input, own, "{}", at("is read in the union's own table"));
             let Some(Entry::Unique(e)) = ev.table(*input).and_then(|t| t.lookup(name)) else {
                 panic!("{}", at("is no strict name of its read's table"));
             };
@@ -265,19 +275,141 @@ fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &[usize]) ->
                 EntityKey::Vertex(k) => body.vertices().any(|(f, _)| f == k),
             };
             assert!(live, "{}", at("denotes no entity of its read's body"));
-            if *input == own {
-                held.minted += 1;
-            } else {
-                held.member += 1;
-            }
+            held.cells += 1;
+        }
+        held.meetings += usize::from(r.cells.len() > 2);
+        if r.relation == topo::Relation::OnCarrier {
+            assert!(
+                matches!(&r.cells[0], NamedCell::Entity { name, .. }
+                    if name.kind == editor_core::EntityKind::Vertex),
+                "{order:?}: an `OnCarrier` row puts a point on a cell, its first cell a vertex: {r:?}"
+            );
+        }
+        if matches!(r.relation, topo::Relation::OnCarrier | topo::Relation::Meet)
+            && let Some(on) = shared_point(ev, &r.cells)
+        {
+            assert!(
+                on,
+                "{order:?}: a published row's cells share no point: {r:?}"
+            );
+            held.sited += 1;
         }
     }
     held
 }
 
-fn built(ev: &Evaluation<f64>, union: RecipeNodeId) -> Decided {
+/// A cell's carrier, where it is one the site check reads: a vertex's
+/// point, a straight edge's line (a point on it and its direction), a
+/// planar face's plane (a point on it and its normal).
+enum Carrier {
+    Point(geom_core::Point3<f64>),
+    Line(geom_core::Point3<f64>, geom_core::Vec3<f64>),
+    Plane(geom_core::Point3<f64>, geom_core::Vec3<f64>),
+}
+
+fn carrier(ev: &Evaluation<f64>, cell: &editor_core::NamedCell) -> Option<Carrier> {
+    let editor_core::NamedCell::Entity { input, name } = cell else {
+        return None;
+    };
+    let Some(editor_core::Entry::Unique(e)) = ev.table(*input).and_then(|t| t.lookup(name)) else {
+        return None;
+    };
+    let body = ev.read_body(*input, e.body).ok()?.ok()?;
+    match e.key {
+        editor_core::EntityKey::Vertex(v) => Some(Carrier::Point(crate::fixture::point(body, v))),
+        editor_core::EntityKey::Edge(k) => {
+            let edge = body.get_edge(k)?;
+            let straight = body
+                .get_curve_geom(edge.curve)
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
+            if !straight {
+                return None;
+            }
+            let [u, w] = crate::fixture::ends(body, k).map(|v| crate::fixture::point(body, v));
+            Some(Carrier::Line(u, w - u))
+        }
+        editor_core::EntityKey::Face(f) => {
+            let (_, face) = body.faces().find(|&(k, _)| k == f)?;
+            match body.get_surface(face.surface)? {
+                topo::Surface::Plane { origin, normal, .. } => {
+                    Some(Carrier::Plane(*origin, *normal))
+                }
+                _ => None,
+            }
+        }
+        editor_core::EntityKey::Body => None,
+    }
+}
+
+/// **Whether `cells` share one point**, within the witness ε: the
+/// point is a vertex cell's, else a straight edge's crossing with a
+/// plane it does not lie along, else three planes' meeting; it must lie
+/// on every cell's carrier. `None` where some cell has a carrier the
+/// check does not read, or no point is fixed.
+fn shared_point(ev: &Evaluation<f64>, cells: &[editor_core::NamedCell]) -> Option<bool> {
+    let carriers: Vec<Carrier> = cells
+        .iter()
+        .map(|c| carrier(ev, c))
+        .collect::<Option<_>>()?;
+    let eps = Tol::witness().eps();
+    let on = |p: geom_core::Point3<f64>, c: &Carrier| match c {
+        Carrier::Point(q) => (p - *q).norm() <= eps,
+        Carrier::Line(u, d) => (p - *u).cross(*d).norm() / d.norm() <= eps,
+        Carrier::Plane(o, n) => (p - *o).dot(*n).abs() / n.norm() <= eps,
+    };
+    let point = carriers
+        .iter()
+        .find_map(|c| match c {
+            Carrier::Point(p) => Some(*p),
+            _ => None,
+        })
+        .or_else(|| {
+            carriers.iter().find_map(|l| {
+                let Carrier::Line(u, d) = l else { return None };
+                carriers.iter().find_map(|q| match q {
+                    Carrier::Plane(o, n) if d.dot(*n).abs() > 1e-6 * d.norm() * n.norm() => {
+                        Some(*u + *d * ((*o - *u).dot(*n) / d.dot(*n)))
+                    }
+                    _ => None,
+                })
+            })
+        })
+        .or_else(|| {
+            let planes: Vec<(geom_core::Point3<f64>, geom_core::Vec3<f64>)> = carriers
+                .iter()
+                .filter_map(|c| match c {
+                    Carrier::Plane(o, n) => Some((*o, *n)),
+                    _ => None,
+                })
+                .collect();
+            let [(o1, n1), (o2, n2), (o3, n3)] = planes.get(..3)? else {
+                return None;
+            };
+            let det = n1.dot(n2.cross(*n3));
+            if det.abs() < 1e-9 {
+                return None;
+            }
+            let at = |o: &geom_core::Point3<f64>| *o - geom_core::Point3::origin();
+            let (d1, d2, d3) = (n1.dot(at(o1)), n2.dot(at(o2)), n3.dot(at(o3)));
+            let v = (n2.cross(*n3) * d1 + n3.cross(*n1) * d2 + n1.cross(*n2) * d3) / det;
+            Some(geom_core::Point3::origin() + v)
+        })?;
+    Some(carriers.iter().all(|c| on(point, c)))
+}
+
+fn built(
+    ev: &Evaluation<f64>,
+    union: RecipeNodeId,
+    members: &[RecipeNodeId],
+    order: &[usize],
+) -> Decided {
     let value = ev.value(union).expect("the union evaluated");
-    let mut rows: Vec<String> = value.coincidences.iter().map(row).collect();
+    let mut rows: Vec<String> = value
+        .coincidences
+        .iter()
+        .filter_map(|r| judged(r, members, order))
+        .collect();
     rows.sort();
     // Each order is its own union node, so its id is spelled as one
     // placeholder wherever a name cites it.
@@ -308,16 +440,31 @@ fn built(ev: &Evaluation<f64>, union: RecipeNodeId) -> Decided {
     }
 }
 
-/// A coincidence row as an unordered pair of cells beside what was
-/// decided between them: which member is folded first decides which
-/// cell the pass reads first, and nothing else about the row.
-fn row(r: &editor_core::NamedCoincidence) -> String {
-    let mut cells = r.cells.clone().map(|c| format!("{c:?}"));
+/// A judged row as its unordered cells beside what was decided between
+/// them and the two members that judged it, each by its first place in
+/// the fixture's list (a read spelled twice is one member): which
+/// member is folded first decides which cell the pass reads first, and
+/// nothing else about the row. `None` for a fold step's row.
+fn judged(
+    r: &editor_core::NamedCoincidence,
+    members: &[RecipeNodeId],
+    order: &[usize],
+) -> Option<String> {
+    let editor_core::RowOrigin::Judged { pair } = r.origin else {
+        return None;
+    };
+    let fixture = |p: u32| {
+        let node = members[order[p as usize]];
+        members.iter().position(|&m| m == node).expect("a member")
+    };
+    let mut pair = pair.map(fixture);
+    pair.sort();
+    let mut cells: Vec<String> = r.cells.iter().map(|c| format!("{c:?}")).collect();
     cells.sort();
-    format!(
-        "{cells:?} {:?} {:?} {:?} {:?}",
+    Some(format!(
+        "{cells:?} {:?} {:?} {:?} {:?} {pair:?}",
         r.relation, r.site, r.margin, r.discharge
-    )
+    ))
 }
 
 /// `a` and `b` decided alike: the volumes to the summation's rounding,
@@ -535,11 +682,11 @@ fn kiss_read_twice(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 }
 
 /// The union of `fixture`'s members in `order`, each row as the
-/// statement it makes: its site and relation, and its two cells as the
-/// entity kind and the fixture's index of the member they are read
-/// from, the cells sorted, as [`row`] sorts them (which cell a
-/// decision read first follows operand order, and a statement is the
-/// same either way).
+/// statement it makes: whether it is judged or which fold step's, its
+/// site and relation, and its cells as the entity kind and the
+/// fixture's index of the member they are read from, the cells sorted
+/// (which cell a decision read first follows operand order, and a
+/// statement is the same either way).
 fn statements(fixture: Members, order: &[usize]) -> Vec<String> {
     let doc = ProfileDoc::empty_derived("union-member-orders", Tol::witness());
     let (doc, members) = fixture(doc);
@@ -568,29 +715,41 @@ fn statements(fixture: Members, order: &[usize]) -> Vec<String> {
         .expect("the union evaluated")
         .coincidences
         .iter()
-        .map(|r| {
-            let mut cells = r.cells.each_ref().map(cell);
-            cells.sort();
-            format!("{:?} {:?} {} {}", r.site, r.relation, cells[0], cells[1])
-        })
+        .map(|r| statement(r, &cell))
         .collect();
     out.sort();
     out
 }
 
-/// **A vertex row is one row of the union in every member order, once**
-/// (DM4: the union's rows are its member pairs', and a fold row a judged
-/// row states cites it): the L-prism and the cube pinching at its
-/// corner, alone, with a far third member, and with a third member
-/// filling the pinch, whose pair still decided it; two blocks kissing at
-/// a corner, whose touch a record cites, with a far third member and
-/// with one block read twice; two blocks pinching on a plate
-/// (`union_pinch_member_order`), where a fold step meets a vertex an
-/// earlier step minted. Every order that builds decides alike,
-/// and the first that builds publishes exactly the statements listed, so a row
-/// published twice or not at all is red. The orders that fold the far
-/// member last after the pinch refuse [`CARRIED_PINCH`] and are
-/// excluded, each checked to refuse that way.
+/// One row's statement, its cells spelled by `cell`: `judged` or the
+/// fold step's place, then its site, relation and sorted cells.
+fn statement(
+    r: &editor_core::NamedCoincidence,
+    cell: &dyn Fn(&editor_core::NamedCell) -> String,
+) -> String {
+    let mut cells: Vec<String> = r.cells.iter().map(cell).collect();
+    cells.sort();
+    let origin = match r.origin {
+        editor_core::RowOrigin::Fold { step } => format!("fold {step}"),
+        _ => "judged".to_string(),
+    };
+    format!("{origin} {:?} {:?} {}", r.site, r.relation, cells.join(" "))
+}
+
+/// **A judged vertex row is one row of the union in every member
+/// order, once** (DM4: the judged rows are the union's order-free rows,
+/// and a fold row stating what a judged row states is that row): the
+/// L-prism and the cube pinching at its corner, alone, with a far third
+/// member, and with a third member filling the pinch, whose pair still
+/// decided it; two blocks kissing at a corner, whose touch a record
+/// cites, with a far third member and with one block read twice; two
+/// blocks pinching on a plate (`union_pinch_member_order`), where a fold
+/// step meets a vertex an earlier step minted. Every order that builds
+/// judges alike, and the first that builds logs exactly the statements
+/// listed, its fold steps' with them, so a row published twice or not
+/// at all is red. The orders that fold the far member last after the
+/// pinch refuse [`CARRIED_PINCH`] and are excluded, each checked to
+/// refuse that way.
 #[test]
 fn a_vertex_row_is_the_unions_once_in_every_member_order() {
     type Row = (
@@ -599,39 +758,49 @@ fn a_vertex_row_is_the_unions_once_in_every_member_order() {
         fn(&[usize]) -> bool,
         &'static [&'static str],
     );
-    const PINCH: &[&str] = &["VertexFusion OnCarrier Face@m1 Vertex@m0"];
+    const PINCH: &[&str] = &["judged VertexFusion OnCarrier Face@m1 Vertex@m0"];
     // The kiss: the three walls through the corner, each against the
     // other block's, and the corner itself.
     const KISS: &[&str] = &[
-        "PlaneLadder SameOpposite Face@m0 Face@m1",
-        "PlaneLadder SameOpposite Face@m0 Face@m1",
-        "PlaneLadder SameOpposite Face@m0 Face@m1",
-        "VertexFusion OnCarrier Vertex@m0 Vertex@m1",
+        "judged PlaneLadder SameOpposite Face@m0 Face@m1",
+        "judged PlaneLadder SameOpposite Face@m0 Face@m1",
+        "judged PlaneLadder SameOpposite Face@m0 Face@m1",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m1",
     ];
-    // Read twice: each of the block's six faces against its twin (DM5),
-    // and the kiss once, though two pairs state it.
+    // Read twice: each of the block's six faces and eight corners
+    // against its twin (DM5), and the kiss once, though two pairs state
+    // it.
     const TWICE: &[&str] = &[
-        "PlaneLadder SameOpposite Face@m0 Face@m2",
-        "PlaneLadder SameOpposite Face@m0 Face@m2",
-        "PlaneLadder SameOpposite Face@m0 Face@m2",
-        "PlaneLadder SameOriented Face@m0 Face@m0",
-        "PlaneLadder SameOriented Face@m0 Face@m0",
-        "PlaneLadder SameOriented Face@m0 Face@m0",
-        "PlaneLadder SameOriented Face@m0 Face@m0",
-        "PlaneLadder SameOriented Face@m0 Face@m0",
-        "PlaneLadder SameOriented Face@m0 Face@m0",
-        "VertexFusion OnCarrier Vertex@m0 Vertex@m2",
+        "judged PlaneLadder SameOpposite Face@m0 Face@m2",
+        "judged PlaneLadder SameOpposite Face@m0 Face@m2",
+        "judged PlaneLadder SameOpposite Face@m0 Face@m2",
+        "judged PlaneLadder SameOriented Face@m0 Face@m0",
+        "judged PlaneLadder SameOriented Face@m0 Face@m0",
+        "judged PlaneLadder SameOriented Face@m0 Face@m0",
+        "judged PlaneLadder SameOriented Face@m0 Face@m0",
+        "judged PlaneLadder SameOriented Face@m0 Face@m0",
+        "judged PlaneLadder SameOriented Face@m0 Face@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m0",
+        "judged VertexFusion OnCarrier Vertex@m0 Vertex@m2",
     ];
     // Two blocks on a plate, touching along the line through the
     // plate's corner: their two walls on that line, and each block's end
-    // of the line on the other's edge. Folded after the plate, the
-    // second block meets the point the first one's edge made on the
-    // plate's top, which those two rows already put on its edge.
+    // of the line on the other's edge. Folded last, in the first order
+    // (the blocks, then the plate), the plate's step decides the points
+    // its top made on the two blocks' legs one: the legs' meeting.
     const PLATE: &[&str] = &[
-        "PlaneLadder SameOpposite Face@m1 Face@m2",
-        "PlaneLadder SameOpposite Face@m1 Face@m2",
-        "VertexFusion OnCarrier Edge@m1 Vertex@m2",
-        "VertexFusion OnCarrier Edge@m2 Vertex@m1",
+        "fold 2 VertexFusion Meet Edge@m1 Edge@m2",
+        "judged PlaneLadder SameOpposite Face@m1 Face@m2",
+        "judged PlaneLadder SameOpposite Face@m1 Face@m2",
+        "judged VertexFusion OnCarrier Edge@m1 Vertex@m2",
+        "judged VertexFusion OnCarrier Edge@m2 Vertex@m1",
     ];
     let rows: [Row; 6] = [
         ("prism and cube", prism_and_cube, |_| false, PINCH),
@@ -701,16 +870,19 @@ fn a_vertex_row_is_the_unions_once_in_every_member_order() {
     assert!(failures.is_empty(), "{failures:#?}");
 }
 
-/// **A record the fold re-cites cites the judged rows that state its
-/// contact** (DM4, "A row names member cells"): in every order of
-/// [`crate::union_pinch_member_order::pinch`], the blocks' touching legs
-/// are one edge-edge record citing the two judged rows that put an end of
-/// each leg on the other, and the end below the plate's top one
-/// vertex-edge record citing the row that puts it there. Folded after
-/// the plate, a block's leg meets the point the other's made on the
-/// plate's top, and that step's decision is cited as those rows.
+/// **A record the fold re-cites cites the rows its steps decided**
+/// (DM4: the union's rows are its evaluation's decisions): in every
+/// order of [`crate::union_pinch_member_order::pinch`], the blocks'
+/// touching legs are one edge-edge record and the end below the plate's
+/// top one vertex-edge record citing the judged row that puts it there.
+/// Folded after the plate, a block's leg meets the point the other's
+/// made on the plate's top, and the edge-edge record cites that step's
+/// decision, the two legs and the plate's top meeting there, beside the
+/// judged row putting the first block's end on the second's leg. Folded
+/// before it, the step's decisions are the judged rows, and it cites
+/// the two that put an end of each leg on the other.
 #[test]
-fn a_re_cited_record_cites_the_judged_rows_in_every_member_order() {
+fn a_re_cited_record_cites_the_rows_its_steps_decided_in_every_member_order() {
     let fixture = crate::union_pinch_member_order::pinch;
     let mut failures = Vec::new();
     for order in orders(3) {
@@ -737,12 +909,7 @@ fn a_re_cited_record_cites_the_judged_rows_in_every_member_order() {
             }
             other => format!("{other:?}"),
         };
-        let statement = |k: u32| {
-            let r = &value.coincidences[k as usize];
-            let mut cells = r.cells.each_ref().map(cell);
-            cells.sort();
-            format!("{:?} {:?} {} {}", r.site, r.relation, cells[0], cells[1])
-        };
+        let statement = |k: u32| statement(&value.coincidences[k as usize], &cell);
         let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
             contacts, ..
         }) = &value.payload
@@ -768,19 +935,28 @@ fn a_re_cited_record_cites_the_judged_rows_in_every_member_order() {
             })
             .collect();
         cited.sort();
+        let legs = if order[2] == 0 {
+            "judged VertexFusion OnCarrier Edge@m2 Vertex@m1"
+        } else {
+            "fold 2 VertexFusion Meet Edge@m1 Edge@m2 Face@m0"
+        };
         let want = vec![
             (
                 "EdgeEdge".to_string(),
                 vec![
-                    "VertexFusion OnCarrier Edge@m1 Vertex@m2".to_string(),
-                    "VertexFusion OnCarrier Edge@m2 Vertex@m1".to_string(),
+                    legs.to_string(),
+                    "judged VertexFusion OnCarrier Edge@m1 Vertex@m2".to_string(),
                 ],
             ),
             (
                 "VertexEdge".to_string(),
-                vec!["VertexFusion OnCarrier Edge@m1 Vertex@m2".to_string()],
+                vec!["judged VertexFusion OnCarrier Edge@m1 Vertex@m2".to_string()],
             ),
         ];
+        let mut want = want;
+        for (_, rows) in &mut want {
+            rows.sort();
+        }
         if cited != want {
             failures.push(format!("{order:?}: the records cite {cited:#?}"));
         }
@@ -799,25 +975,36 @@ fn flush_onto_an_edge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     (doc, vec![a, b, c])
 }
 
-/// **Every published row's cells denote entities of their reads, in
-/// every member order** ([`cells_are_held`]), on a fixture whose rows
-/// cite member cells (the plate pinch) and one whose rows cite a cell
-/// the fold minted (a `Merged` edge, in the orders that fold the flush
-/// pair before the third block). Every order must publish rows, and each
-/// fixture cells of the kind it is here for, so neither half passes on
-/// nothing.
+/// **Every published row's cells are member-table rows, in every
+/// member order** ([`cells_are_held`]), and share a point where the
+/// geometry lets that be read. Three fixtures:
+/// - the plate pinch, whose rows name member cells two at a time;
+/// - a flush pair on an edge, whose fold rows put the third block on
+///   the edge the fold merged from the pair's rims, spelled as those
+///   rims;
+/// - a prism crossing one wedge, whose fold rows meet at the plate's
+///   crossing of two wedges' seam, spelled as the faces and edges that
+///   meet there.
+///
+/// Every order must publish rows, and each fixture reach rows of the
+/// kind it is here for, so no fixture passes on nothing.
 #[test]
-fn published_row_cells_denote_entities_of_their_reads() {
+fn published_row_cells_are_member_cells_that_meet() {
     type Row = (&'static str, Members, fn(Held) -> bool);
-    let rows: [Row; 2] = [
+    let rows: [Row; 3] = [
         (
             "two blocks pinching on a plate",
             crate::union_pinch_member_order::pinch,
-            |h| h.member > 0,
+            |h| h.cells > 0 && h.sited > 0,
         ),
         ("a flush pair on an edge", flush_onto_an_edge, |h| {
-            h.minted > 0
+            h.sited > 0
         }),
+        (
+            "a prism crossing one wedge about the line, with the plate",
+            crate::union_pinch_member_order::crossing_one_wedge,
+            |h| h.meetings > 0 && h.sited > 0,
+        ),
     ];
     for (what, fixture, reaches) in rows {
         let n = fixture(ProfileDoc::empty_derived("count", Tol::witness()))
@@ -840,9 +1027,222 @@ fn published_row_cells_denote_entities_of_their_reads() {
             let held = cells_are_held(&ev, union, &order);
             assert!(held.rows > 0, "{what}, {order:?}: publishes rows");
             total.rows += held.rows;
-            total.member += held.member;
-            total.minted += held.minted;
+            total.cells += held.cells;
+            total.meetings += held.meetings;
+            total.sited += held.sited;
         }
         assert!(reaches(total), "{what}: checked {total:?}");
     }
+}
+
+/// The union of `fixture`'s members in `order`, in a document that
+/// first holds `padding` unrelated blocks (so every id the fixture mints
+/// is another): its rows in decision order, each as [`statement`] spells
+/// it with the fold step's place, and its records' citations.
+fn log(fixture: Members, order: &[usize], padding: usize) -> Vec<String> {
+    let mut doc = ProfileDoc::empty_derived("union-member-orders", Tol::witness());
+    for k in 0..padding {
+        let at = 10.0 + 2.0 * k as f64;
+        doc = block(doc, (at, at + 1.0), (0.0, 1.0), 1.0).0;
+    }
+    let (doc, members) = fixture(doc);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(
+                order.iter().map(|&i| members[i].into()).collect(),
+            ),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{order:?} builds");
+    let value = ev.value(union).expect("the union evaluated");
+    let cell = |c: &editor_core::NamedCell| match c {
+        editor_core::NamedCell::Entity { input, name } => {
+            let member = members
+                .iter()
+                .position(|&m| doc.output(m, 0) == Some(*input))
+                .map_or("the union".to_string(), |i| format!("m{i}"));
+            format!("{:?}@{member}", name.kind)
+        }
+        other => format!("{other:?}"),
+    };
+    let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body { contacts, .. }) =
+        &value.payload
+    else {
+        panic!("{order:?}: a union of bodies is a boolean body");
+    };
+    value
+        .coincidences
+        .iter()
+        .map(|r| statement(r, &cell))
+        .chain(contacts.rows().iter().map(|c| format!("{:?}", c.cites)))
+        .collect()
+}
+
+/// **A union's log is a function of its member order alone** (DM4: the
+/// rows are its evaluation's decisions, and which steps meet a
+/// coincidence follows the order): each order of each fixture whose fold
+/// steps log rows, built again after unrelated blocks that move every
+/// id the fixture mints, logs the same rows in the same decision order
+/// and the same citations. Red if the log follows an id the document
+/// mints, a read's or a node's, rather than the order the author wrote.
+#[test]
+fn the_log_is_a_function_of_the_member_order_alone() {
+    let fixtures: [(&str, Members); 3] = [
+        ("the plate pinch", crate::union_pinch_member_order::pinch),
+        ("a flush pair on an edge", flush_onto_an_edge),
+        (
+            "a prism crossing one wedge",
+            crate::union_pinch_member_order::crossing_one_wedge,
+        ),
+    ];
+    for (what, fixture) in fixtures {
+        let n = fixture(ProfileDoc::empty_derived("count", Tol::witness()))
+            .1
+            .len();
+        for order in orders(n).into_iter().take(4) {
+            assert_eq!(
+                log(fixture, &order, 0),
+                log(fixture, &order, 3),
+                "{what}, {order:?}: one order logs alike whatever ids the document minted"
+            );
+        }
+    }
+}
+
+/// **The member cells a fold-step cell is made of**, read here off its
+/// collapsed name by this suite's own reading of the name forms
+/// (`RoleSeg`'s docs): a member's entity under its `From` head; a
+/// `Crossing` its edge and face; a `Seam` its two faces; a junction's
+/// run of `Seam` lines, or an `EdgeCrossing` run, each line; a `Merged`
+/// set each constituent. Pieces' `Fragment` qualifiers name no cell.
+fn made_of(name: &editor_core::StableName, out: &mut Vec<editor_core::NamedCell>) {
+    use editor_core::RoleSeg;
+    let fragments = |tail: &[RoleSeg]| tail.iter().all(|s| matches!(s, RoleSeg::Fragment(_)));
+    if name.path.len() >= 2 && name.path.iter().all(|s| matches!(s, RoleSeg::Seam { .. })) {
+        for seg in &name.path {
+            if let RoleSeg::Seam { a, b } = seg {
+                made_of(a.name(), out);
+                made_of(b.name(), out);
+            }
+        }
+        return;
+    }
+    match name.path.split_first() {
+        Some((RoleSeg::From { read, of }, tail)) if fragments(tail) => {
+            out.push(editor_core::NamedCell::Entity {
+                input: *read,
+                name: of.name().clone(),
+            });
+        }
+        Some((RoleSeg::Crossing { edge, face, .. }, tail)) if fragments(tail) => {
+            made_of(edge.name(), out);
+            made_of(face.name(), out);
+        }
+        Some((RoleSeg::Seam { a, b }, tail)) if fragments(tail) => {
+            made_of(a.name(), out);
+            made_of(b.name(), out);
+        }
+        Some((RoleSeg::EdgeCrossing(run), tail)) if fragments(tail) => {
+            for line in run {
+                made_of(line.line.name(), out);
+            }
+        }
+        Some((RoleSeg::Merged(set), tail)) if fragments(tail) => {
+            for n in set {
+                made_of(n, out);
+            }
+        }
+        _ => panic!("a fold cell's name of no form a fold step mints: {name:?}"),
+    }
+}
+
+/// **Every fold-step row names every member cell its cells are made
+/// of, and no other** (DM4, "A row names member cells"): each row a
+/// union's fold steps spelled, held against its two cells' collapsed
+/// names as the step read them ([`editor_core::test_support::fold_rows_of`])
+/// resolved by [`made_of`]. A point decided on a cell is `OnCarrier`
+/// between one member vertex and one member cell, in the step's order,
+/// and otherwise the `Meet` of every member cell both are made of; any
+/// other relation is its two member cells as read. Over every order of
+/// the fixtures whose fold steps mint crossings, seams, junctions and
+/// merged edges; and each must log rows of three cells or more, so the
+/// check is not passed on two-cell rows alone.
+#[test]
+fn every_fold_row_names_every_member_cell_its_cells_are_made_of() {
+    use editor_core::NamedCell;
+    let fixtures: [(&str, Members); 3] = [
+        ("the plate pinch", crate::union_pinch_member_order::pinch),
+        ("a flush pair on an edge", flush_onto_an_edge),
+        (
+            "a prism crossing one wedge",
+            crate::union_pinch_member_order::crossing_one_wedge,
+        ),
+    ];
+    let mut meetings = 0;
+    for (what, fixture) in fixtures {
+        let n = fixture(ProfileDoc::empty_derived("count", Tol::witness()))
+            .1
+            .len();
+        for order in orders(n) {
+            let doc = ProfileDoc::empty_derived("union-member-orders", Tol::witness());
+            let (doc, members) = fixture(doc);
+            let (doc, union) = insert(
+                doc,
+                Node::Union {
+                    members: editor_core::Bodies::Spelled(
+                        order.iter().map(|&i| members[i].into()).collect(),
+                    ),
+                },
+            );
+            let (ev, logged) = editor_core::test_support::fold_rows_of(|| run(&doc));
+            assert!(failure(&ev, union).is_none(), "{what}, {order:?}: builds");
+            for r in &logged {
+                let resolve = |name| {
+                    let mut cells = Vec::new();
+                    made_of(name, &mut cells);
+                    cells.sort();
+                    cells.dedup();
+                    cells
+                };
+                let [p, x] = r.cells.each_ref().map(resolve);
+                let vertex = |c: &NamedCell| {
+                    matches!(c, NamedCell::Entity { name, .. }
+                        if name.kind == editor_core::EntityKind::Vertex)
+                };
+                let point = r.cells[0].kind == editor_core::EntityKind::Vertex;
+                let (cells, relation) = match (r.relation, p.as_slice(), x.as_slice()) {
+                    (topo::Relation::OnCarrier, [v], [c]) if point && vertex(v) => {
+                        (vec![v.clone(), c.clone()], topo::Relation::OnCarrier)
+                    }
+                    (topo::Relation::OnCarrier, _, _) if point => {
+                        let mut all: Vec<NamedCell> = p.iter().chain(&x).cloned().collect();
+                        all.sort();
+                        all.dedup();
+                        (all, topo::Relation::Meet)
+                    }
+                    (topo::Relation::Meet, _, _) => {
+                        let mut all: Vec<NamedCell> = p.iter().chain(&x).cloned().collect();
+                        all.sort();
+                        all.dedup();
+                        (all, topo::Relation::Meet)
+                    }
+                    (relation, [a], [b]) => (vec![a.clone(), b.clone()], relation),
+                    other => panic!("{what}, {order:?}: a fold row of no form: {other:?}"),
+                };
+                meetings += usize::from(cells.len() > 2);
+                assert_eq!(
+                    (&r.spelled.cells, r.spelled.relation),
+                    (&cells, relation),
+                    "{what}, {order:?}: the row the step decided between {:?}",
+                    r.cells
+                );
+            }
+        }
+    }
+    assert!(
+        meetings > 0,
+        "the fixtures log meetings of three cells or more"
+    );
 }

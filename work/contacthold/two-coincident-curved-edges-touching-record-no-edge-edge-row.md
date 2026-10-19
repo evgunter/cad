@@ -34,3 +34,10 @@ Unreached. A probe on `touch_rows`' curved skip fired in none of about
 A coincidence decision for two curved edges on one carrier (carrier
 identity through the ladder, then the span overlap), the row written
 from it, and a census arm that asks for the row of a curved overlap.
+
+## Measured 2026-10-19 (`cleave/keel-slit-ring`)
+
+The census half has moved: pass 5′ (`census.rs`, `sweep_curved_edge_edge`)
+now asks a curved overlap for its edge-edge row, and the split's curved
+slits and rings reach it with none
+(`work/cleave/a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs.md`).

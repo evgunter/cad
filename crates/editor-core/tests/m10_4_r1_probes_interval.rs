@@ -23,8 +23,8 @@ use editor_core::stackup::{
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
-    LoopProgram, MeasurePrimitive, Node, ParamValue, ProfileDoc, ProfileLift, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, SitedRef, UnitSym, VarName, evaluate, seed_env,
+    LoopProgram, MeasurePrimitive, Node, ParamValue, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, SitedRef, UnitSym, VarName, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
@@ -75,18 +75,10 @@ fn eval_f64(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-/// A pass's options: seeded on `seed`, or, unseeded, over a box
-/// spanning `[0, 0]` on every continuous variable, so the base reads the
-/// nominal under the passes' guided lift (`EvalOptions::profile_lift`)
-/// as `stackup`'s does.
 fn opts(doc: &ProfileDoc, seed: Option<&str>) -> EvalOptions {
-    match seed {
-        Some(n) => EvalOptions {
-            seed: Some(doc.var_named(n).unwrap_or(editor_core::VarId::new(0, 0))),
-            ..EvalOptions::default()
-        },
-        None => crate::corpus::options_under(doc, editor_core::ProfileLift::Guided)
-            .expect("the document has a continuous variable"),
+    EvalOptions {
+        seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId::new(0, 0))),
+        ..EvalOptions::default()
     }
 }
 
@@ -278,10 +270,7 @@ fn r1_seed_none_is_bit_identical_at_every_scalar() {
                 &doc,
                 None,
                 &CancelToken::new(),
-                &EvalOptions {
-                    seed: None,
-                    ..EvalOptions::default()
-                },
+                &opts(&doc, None),
                 Tol::witness(),
             );
             assert_eq!(d.order, e.order, "{}", stringify!($t));
@@ -327,26 +316,19 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
     let nominal = fixture::reading(&doc, &f, m).expect("the shaft measures at f64");
     assert!((nominal - 1.5).abs() < 1e-12, "nominal {nominal}");
     for p in ["h1", "h2"] {
-        {
-            let lift = ProfileLift::Guided;
-            let d = measured(
+        let d = measured(
+            &doc,
+            &evaluate(
                 &doc,
-                &evaluate(
-                    &doc,
-                    None,
-                    &CancelToken::new(),
-                    &opts(&doc, Some(p)),
-                    Tol::witness(),
-                ),
-                m,
-            );
-            assert_eq!(
-                d.deriv.to_bits(),
-                1.0f64.to_bits(),
-                "∂m/∂{p} under {lift:?}"
-            );
-            assert_eq!(d.value.to_bits(), nominal.to_bits(), "{p} value channel");
-        }
+                None,
+                &CancelToken::new(),
+                &opts(&doc, Some(p)),
+                Tol::witness(),
+            ),
+            m,
+        );
+        assert_eq!(d.deriv.to_bits(), 1.0f64.to_bits(), "∂m/∂{p}");
+        assert_eq!(d.value.to_bits(), nominal.to_bits(), "{p} value channel");
     }
     // Schedule independence at the driver, on this document.
     let seq = sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("ok");
@@ -893,13 +875,12 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
 
 /// **PIN — a profile shape the PR did not exercise: an ARC leg.** The
 /// slab's x-walls are `w` apart and the profile carries a sharp `arc_to`
-/// whose derived centre and radius are parameter-driven. Under the
-/// guided lift — the only lift a seed can ask for — the seed must reach
-/// the measure with a nonzero tangent.
+/// whose derived centre and radius are parameter-driven. The seed must
+/// reach the measure.
 #[test]
 fn r1_an_arc_carrying_profile_propagates_the_seed() {
     let (doc, m) = arc_slab(2.0);
-    let guided = measured(
+    let seeded = measured(
         &doc,
         &evaluate(
             &doc,
@@ -912,12 +893,12 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
     );
     println!(
         "EVIDENCE-ONLY r1 arc slab: value {} deriv {}",
-        guided.value, guided.deriv
+        seeded.value, seeded.deriv
     );
-    assert!(guided.deriv.is_finite(), "an arc profile's seed is finite");
+    assert!(seeded.deriv.is_finite(), "an arc profile's seed is finite");
     assert!(
-        guided.deriv != 0.0,
-        "the guided lift must move an arc-carrying profile's measure"
+        seeded.deriv != 0.0,
+        "the seed must move an arc-carrying profile's measure"
     );
 }
 

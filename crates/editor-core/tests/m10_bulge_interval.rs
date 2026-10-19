@@ -16,7 +16,9 @@
 //! (`CAD_M10_10_DOC=r1_segment_boss|r2_d_tab_literal|r2_d_tab_parameter`,
 //! and the dyadic controls `r2_d_tab_literal_dyadic|r2_d_tab_parameter_dyadic`);
 //! `m10_bulge_renders.txt` beside this file is the record of those
-//! renders at this tree: per document the whole split, then every
+//! renders at the tree that shipped rule G. It is stale: it has not been
+//! re-rendered since PCERT B1 renamed the frame row to
+//! `pcurve_chart_cut_side`. Per document the whole split, then every
 //! decision the tier was asked and left numeric on an arc-family
 //! predicate with its freeze causes and its attributed cause — every
 //! form attributed to the sign of `b` or of the apothem UNCUT, so the
@@ -98,6 +100,27 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///   walk's branch a literal `k` (`geom_brep::Period::decide`), the
 ///   stored azimuth is `α + k·τ`; the envelope is a theorem on eight
 ///   of its twelve rows.
+///
+/// **PCERT's placement unit (C4: a row is its image placed over the
+/// edge's span in the chart's principal window) moved two rows**, on
+/// every spelling:
+///
+/// - `pcurve_chart_azimuth_frame` 12/0/0/26 -> 0/0/0/26: a cylinder's
+///   meridian azimuth is read only on a meridian, so a rim circle
+///   centred on the axis no longer reads the frame of its zero radial
+///   offset (the 12 the tier proved zero).
+/// - `pcurve_chart_placement` is new, 0/0/0/52: each of the 26 placed
+///   azimuths reads its two half-period marks about the window's
+///   centre ([`geom_brep::Period::decide`]), each decided numerically.
+///
+/// **PCERT unit B2a (a harmonic row's windings are structure, `[ev]`
+/// PR 5113's first decision) retired three rows** on every spelling:
+/// `pcurve_chart_azimuth_affine` 24/0/0/0, `pcurve_chart_winding`
+/// 12/0/0/18 and `pcurve_azimuth_period` 0/0/0/12 decide nothing now.
+/// An angle channel stores its phase and its windings, an integer
+/// certification compares exactly, so no decision reads a winding off
+/// a slope, and the harmonic lane's period gate is gone with the slope
+/// it read.
 /// - `pcurve_fidelity_branch` is new, 0/0/0/24: fidelity's branch, two
 ///   sign decisions per row at the half-period marks, definite, read
 ///   off the value.
@@ -105,6 +128,11 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///   decisions, definite.
 /// - `pcurve_loop_continuity` 9/0/0/9 -> 9/0/4/5: with no `floor`
 ///   node between them, four joints' two ends go through the door.
+///
+/// **The frame decided across the window's cut** renames one row and
+/// moves no count: `pcurve_chart_azimuth_frame` 0/0/0/26 ->
+/// `pcurve_chart_cut_side` 0/0/0/26, the side of the principal window's
+/// cut line each of the 26 azimuths lies on.
 ///
 /// **The circles store their authored carrier.** Each hole's rim is the
 /// authored centre and `|r|`, so the rim at a vertex folds onto the
@@ -152,6 +180,14 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// `value · 0` against a band, so `expr_non_finite` (37/0/0/0) leaves
 /// the table. Nothing else moves.
 ///
+/// **The joint pass reads its turn** (#5354's ruling): validation
+/// decides each joint by `path_junction_turn` after carrier identity,
+/// so the two line/arc joints' `carrier_line_circle` reads move to it
+/// and the two line/line joints add one each: `carrier_line_circle`
+/// 0/5 -> 0/3, `path_junction_turn` 0/4 -> 0/8. Its fix pass reads
+/// each junction a departing leg follows again at the shorter leg's
+/// arm once that leg is stored, three more: 0/8 -> 0/11.
+///
 /// **INTENT stage 3 D** (a construction stands in the world by a mate
 /// and the values it leaves): the copy's plane mate reads its chart,
 /// which decides its three directions (`datum_unit_norm` 0/2 -> 0/5),
@@ -179,7 +215,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("carrier_cyl_axis_parallel", [1, 0]),
     ("carrier_endpoint_end", [36, 0]),
     ("carrier_endpoint_start", [36, 0]),
-    ("carrier_line_circle", [0, 5]),
+    ("carrier_line_circle", [0, 3]),
     ("carrier_on_surface_1", [126, 18]),
     ("carrier_on_surface_2", [126, 18]),
     ("chord_side", [6, 12]),
@@ -195,13 +231,11 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("mate_chart_reference_antipode", [2, 0]),
     ("newell_plane_residual", [30, 0]),
     ("path_circle_radius", [0, 1]),
-    ("path_junction_turn", [0, 4]),
-    ("pcurve_azimuth_period", [0, 12]),
-    ("pcurve_chart_azimuth_affine", [24, 0]),
-    ("pcurve_chart_azimuth_frame", [12, 26]),
+    ("path_junction_turn", [0, 11]),
+    ("pcurve_chart_cut_side", [0, 26]),
     ("pcurve_chart_orientation", [0, 12]),
+    ("pcurve_chart_placement", [0, 52]),
     ("pcurve_chart_radial_moving", [14, 12]),
-    ("pcurve_chart_winding", [12, 18]),
     ("pcurve_envelope", [8, 4]),
     ("pcurve_fidelity_branch", [0, 24]),
     ("pcurve_interval_forward", [0, 12]),
@@ -333,6 +367,12 @@ const D_TAB_RUNNING_ITS_MAP: &[(&str, [u64; 2])] = &[
 /// (`expr-non-finite-asks-value-times-zero`): it asks boundedness, so
 /// `expr_non_finite` (33/0/0/0) leaves the table. Nothing else moves.
 ///
+/// **The joint pass reads its turn** (#5354's ruling): the two
+/// line/arc joints' `carrier_line_circle` reads move to
+/// `path_junction_turn`, 0/3 -> 0/1 and 0/2 -> 0/4. Its fix pass reads
+/// each door junction again at the shorter leg's arm once the leaving
+/// leg is stored, one more for the boss's arc junction: 0/4 -> 0/5.
+///
 /// **INTENT stage 3 D** (a construction stands in the world by a mate
 /// and the values it leaves): the copy's plane mate reads its chart,
 /// which decides its three directions (`datum_unit_norm` 0/2 -> 0/5),
@@ -366,7 +406,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("carrier_cyl_axis_parallel", [1, 0]),
             ("carrier_endpoint_end", [30, 0]),
             ("carrier_endpoint_start", [30, 0]),
-            ("carrier_line_circle", [0, 3]),
+            ("carrier_line_circle", [0, 1]),
             ("carrier_matches_mapped_source", [144, 0]),
             ("carrier_on_surface_1", [126, 0]),
             ("carrier_on_surface_2", [126, 0]),
@@ -381,18 +421,16 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("mate_chart_reference_antipode", [2, 0]),
             ("newell_plane_residual", [18, 0]),
             ("path_circle_radius", [0, 1]),
-            ("path_junction_turn", [0, 2]),
-            ("pcurve_azimuth_period", [0, 20]),
-            ("pcurve_chart_azimuth_affine", [40, 0]),
-            ("pcurve_chart_azimuth_frame", [20, 42]),
-            ("pcurve_chart_orientation", [0, 20]),
-            ("pcurve_chart_radial_moving", [22, 20]),
-            ("pcurve_chart_winding", [20, 30]),
-            ("pcurve_envelope", [20, 0]),
-            ("pcurve_fidelity_branch", [0, 40]),
-            ("pcurve_interval_forward", [0, 20]),
-            ("pcurve_loop_branch", [0, 42]),
-            ("pcurve_map_residual", [36, 0]),
+            ("path_junction_turn", [0, 5]),
+            ("pcurve_chart_cut_side", [0, 26]),
+            ("pcurve_chart_orientation", [0, 12]),
+            ("pcurve_chart_placement", [0, 52]),
+            ("pcurve_chart_radial_moving", [14, 12]),
+            ("pcurve_envelope", [12, 0]),
+            ("pcurve_fidelity_branch", [0, 24]),
+            ("pcurve_interval_forward", [0, 12]),
+            ("pcurve_loop_branch", [0, 25]),
+            ("pcurve_map_residual", [18, 0]),
             ("segment_straightness", [2, 6]),
             ("side_cylinders_cosurface", [2, 0]),
             ("transform_rigid_col01_orth", [1, 0]),

@@ -10,7 +10,6 @@ tag: (CLEAVE orchestrator)
 ab_band: 9800-9899
 paths: [crates/topo/src/splitting/*, crates/topo/src/boolean/*, crates/topo/src/chord_join.rs]
 keep_out: [opened by REACH's 2026-10-01 priority-seam cut per work/README.md Track size - REACH carried 83 budget points and was cut into REACH (the six curved-operand refusals) CLEAVE (P0 and P1 wrong answers and invalid bodies from split and boolean) and HONE (P2 to P4 behind them) - every row moved by git mv with its id - the three SHARE crates/topo/src/splitting/* and crates/topo/src/boolean/* with each other and with ZIP BOXES PIN CONTACT GERM by design - shared ground is legitimate per the README's 2026-09-20 rule and what is owed is awareness while a lane is live - TANG shares chord_join.rs]
-priority: P0
 ---
 
 **Split and boolean outputs that are wrong.** A plane split of an

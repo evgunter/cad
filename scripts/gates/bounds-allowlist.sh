@@ -638,7 +638,14 @@ BOUNDS_ALLOWLIST=(
   # through too: both reach `cap_transverse`, the cut-off's own
   # kind-picker (`classify` and the ellipse door), and read no bracket of
   # their own.
-  'crates/sweep/src/blend/battery.rs 20 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 20 -> 21: `strip_decided` is the support screen's stand-down: which
+  # ring pairs the screen leaves to the surgery's strip meter, read
+  # through `surgery::strip_reading` (`piece_along` and the reach's
+  # `sure`, the reading arm (a) of the ring pass takes) and the
+  # topology's own edge fans. It reads no bracket of its own, and its
+  # selection only narrows what the screen meters to what the exact
+  # meter downstream meters whole.
+  'crates/sweep/src/blend/battery.rs 21 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
   # carry-through pass's support-boundary arm split into its own
@@ -653,7 +660,14 @@ BOUNDS_ALLOWLIST=(
   # and `strip_clearance` is the ring carry-through pass's planar-strip
   # arm, reading brackets only where `ring_clearance`, `piece_along` and
   # `boxed_reach` already do, as `support_boundary_clearance` does.
-  'crates/sweep/src/blend/surgery.rs 17 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 17 -> 18: `arc_window` is the cut-off arc's window read that
+  # `CapSliver::of` and `attach_contact` share, its one bracket read the
+  # anchor pick: re-read at the half turn where the seam's read spans
+  # half a turn. Both anchors answer a parameter of the same point, so
+  # it is a representation pick (DL5(b), as `seam_split_param`'s branch
+  # shift); its other bracket read refuses a non-finite read, and
+  # whether the window runs forward stays each caller's.
+  'crates/sweep/src/blend/surgery.rs 18 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
   # where not), replacing the self-division `x/|x|` that gave the
@@ -740,15 +754,14 @@ BOUNDS_ALLOWLIST=(
   # run at once, so the two doors are one registry body at one bound.
   'crates/editor-core/src/checks.rs 5 2026-08-29, the advisory-check registry; its at-rest door'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
-  # `validate.rs` carries the at-rest validator's bounds, 23 of them:
+  # `validate.rs` carries the at-rest validator's bounds, 22 of them:
   # the 10 public doors of the module doc's door roster (5 at
   # `CertifiedBounds`, their 5 `_structural` twins at `Bounds`); the 2
   # `AtRestBody` methods beside the roster (`validate`, which is
   # `validate_geometric` keeping its verdict, and
   # `validate_pseudomanifold`, the tier-3′ door reading it), each at its
-  # door's own `CertifiedBounds` bound; the 8 private passes they share
-  # (`validate_geometric_kept`, the composed door keeping check 7's
-  # slivers for `AtRestBody::validate`, `structural_via`,
+  # door's own `CertifiedBounds` bound; the 7 private passes they share
+  # (`structural_via`,
   # `validate_geometric_certified`,
   # `tier3_local_checks`, `tier3_local_checks_marked`,
   # `contact_marks_via`, `pseudomanifold_certificate_via`, and
@@ -762,7 +775,7 @@ BOUNDS_ALLOWLIST=(
   # is why the census took the C10 tree as its pre-filter — the driver
   # amendment's seam, argued in the ledger under 2026-07-29 beside
   # `separation`.
-  'crates/topo/src/validate.rs 23 2026-09-02, the certified at-rest validator; the three census doors and ring_pairs under 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/validate.rs 22 2026-09-02, the certified at-rest validator; the three census doors and ring_pairs under 2026-07-29 (M5 PR 8), the driver amendment'
   # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
   # the three census entries above them (`census_and_certify`,
   # `census_traces`, `census_with`) and the backstop's own tree over its

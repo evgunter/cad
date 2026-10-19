@@ -44,7 +44,7 @@ distributions, duals, stackups), `docs/ERROR-DESIGN.md` and
 |---|---|
 | Witness W1–W9 | `src/witness.rs` (`WitnessDatum`, `BranchCertification`, `WitnessBifurcation`); `src/edit.rs` (`ReWitness`, `ReWitnessBulk`); `src/doc.rs` (`Doc::witness`); `src/eval/mod.rs` (`NodeErrorKind::WitnessBifurcation`, `content_key`); `src/resolve/mod.rs` (`Diagnosis::WitnessBifurcation`) |
 | Group boolean | `src/node.rs` (`Node::PlacedUnion`, `PatternKind::Explicit`, `Node::placement_rule_fault`); `src/eval/wire.rs` (`wire_placed_union`); `src/names/emit.rs` (`name_placed_union`); `crates/topo/src/separation.rs` (`Separation`); `crates/topo/src/instance.rs` (the graft doors) |
-| Profile lift PP1–PP6 | `src/eval/wire.rs` (`prepare_profile`, `lane_profile`, `section_value`); `src/eval/mod.rs` (`ProfileLift`, `EvalOptions`, `content_key`); `src/eval/anchor.rs` (`derive_naming`); `src/program.rs` (resolution at `T`); `crates/profile/src/structure.rs`; `crates/profile/src/path/program.rs` (`replay_recording`, `replay_guided`); `crates/profile/src/validate.rs` (`validate_recording`, `validate_guided`); consumers `src/drive.rs`, `src/stackup.rs` |
+| Profile lift PP1–PP6 | `src/eval/wire.rs` (`prepare_profile`, `lane_profile`, `section_value`); `src/eval/mod.rs` (`ProfileLane`, `content_key`); `src/eval/anchor.rs` (`derive_naming`); `src/program.rs` (resolution at `T`); `crates/profile/src/structure.rs`; `crates/profile/src/path/program.rs` (`replay_recording`, `replay_guided`); `crates/profile/src/validate.rs` (`validate_recording`, `validate_guided`); consumers `src/drive.rs`, `src/stackup.rs` |
 
 ## The witness mechanism (W1–W9)
 
@@ -176,9 +176,9 @@ at the lane scalar.
 
 - Pass 1 (`prepare_profile`): resolve at f64, `replay_recording`,
   `validate_recording`, `derive_naming`, emitting the structure record.
-- Pass 2 (`lane_profile`, under `ProfileLift::Guided`): resolve the same
-  program at `VarEnv<T>`; `replay_guided` and `validate_guided` consume every
-  discrete decision from the record and re-run its predicate at `T`.
+- Pass 2 (`lane_profile`, every evaluation): resolve the same program at
+  `VarEnv<T>`; `replay_guided` and `validate_guided` consume every discrete
+  decision from the record and re-run its predicate at `T`.
 
 Agreement proceeds. An indeterminate refuses
 `StructureRefusalKind::Indeterminate` (the E6 driver's cue to bisect); a
@@ -220,43 +220,38 @@ also feed the key through `ContentBits::feed` (both channels of a dual,
 DUAL-DESIGN DL2), so a seeded or widened profile parameter cannot alias the
 nominal memo entry. Keys never persist.
 
-**PP6 — Scope and the bit-identity fence.** The evaluator chooses the lift
-from what the evaluation binds (`EvalOptions::profile_lift_over`: the
-options' half, `EvalOptions::profile_lift`, and the environment's,
-`VarEnv::binds_symbols`); no caller sets it. The build is `ProfileLift::Pinned`, at any scalar: profile geometry
-is the f64 elaboration embedded through `from_f64`, unchanged. An analysis —
-an evaluation whose box varies an axis (`[0, 0]` included), which carries a
-seed, or which binds every variable a symbol — is `Guided`: the E6 driver (`src/drive.rs`, its
-witness over the root box collapsed to the nominal, `ParamBox::at_nominal`),
-the E4 sensitivities (`src/stackup.rs`), Monte Carlo (`src/mc.rs`) and the
-coincidence door's symbolic replay. The lift follows what the environment
-binds: a `Fixed` axis holds its variable at the nominal (at `Sym` a constant),
-and an environment that binds any variable as a parameter symbol — at `Sym`, a
-toleranced variable under any box, named or not (VR8) — is guided whatever the
-box's shape (`VarEnv::binds_symbols`). So an empty or all-`Fixed` box is the
-build at every numeric scalar, and at `Sym` exactly when it binds no symbol.
-Guided replay at `f64` reproduces plain
-replay bitwise (`tests/m10_p_fence.rs`,
-`crates/profile/tests/scalar_channels.rs`).
+**PP6 — Scope and the bit-identity fence.** Every evaluation elaborates profile
+geometry through both passes; there is no option that embeds the f64
+elaboration instead, and the `f64` lane skips the second pass internally
+(Ev on #5068, 2026-10-14: "A, ideally with some internal skip on the second
+pass if f64"). At `f64`, over an environment that binds the nominal bit for
+bit, pass 2 reproduces pass 1 bitwise (`tests/m10_p_fence.rs`,
+`crates/profile/tests/scalar_channels.rs`), so that lane takes pass 1's
+validated form and runs no pass 2: a sealed per-scalar fact (`ProfileLane`).
+In pass 2's place the node logs what pass 2 decides there: pass 1's
+decisions less those guidance pins (`profile::PINNED_UNDER_GUIDANCE`), so an
+`f64` verdict log is the one pass 2 leaves and compares with any lane's
+(`diff_verdicts`, the E6 drive's witness). Both the value and the log are held
+against pass 2 run at `f64` over the corpus (`tests/m10_p_lift.rs`). A box at
+`f64` whose degenerate axis binds `nominal + c` (the Monte Carlo lane) runs
+pass 2.
 
 - **Sections.** A loft reads each section operand's Profile value at the
   lane scalar, as an extrude reads its profile: the loops and plane the
-  profile node produced under this lift, and its pass-1 pieces for naming.
-  Nothing is re-resolved and no section has a second placement path. The
-  skin's structure is selected on the sections' value channel where its
-  values are points, and over a range is what every value shares or a
-  typed refusal (`sweep::loft_profiles`). At a projective scalar the walls are computed
+  profile node produced, and its pass-1 pieces for naming. Nothing is
+  re-resolved and no section has a second placement path. The skin's
+  structure is selected on the sections' value channel where its values are
+  points, and over a range is what every value shares or a typed refusal
+  (`sweep::loft_profiles`). At a projective scalar the walls are computed
   from the section values themselves, so a seed on a parameter a section
-  reads rides to the walls under the guided lift. At `Interval` the loft
-  encloses the family its sections stand for: sections and planes whose
-  values are points loft as the `f64` skin of that value channel,
-  enclosed, and wider ones (a box over the section, or under the guided
-  lift values a few ulps wide with no box at all, as a station turned by
-  an angle the lane rounds) are skinned at the lane scalar. An arc's weight is no
-  point at `Interval`, so an arc section there refuses typed at the
-  carrier's door (`SplineError::CarrierWeightNotAPoint`, until C6's S4/S5)
-  rather than standing for the nominal over its box. Under the pinned lift a section's values are its `f64` form
-  lifted, so neither a seed nor a box reaches them.
+  reads rides to the walls. At `Interval` the loft encloses the family its
+  sections stand for: sections and planes whose values are points loft as the
+  `f64` skin of that value channel, enclosed, and wider ones (a box over the
+  section, or values a few ulps wide with no box at all, as a station
+  turned by an angle the lane rounds) are skinned at the lane scalar. An
+  arc's weight is no point at `Interval`, so an arc section there refuses
+  typed at the carrier's door (`SplineError::CarrierWeightNotAPoint`, until
+  C6's S4/S5) rather than standing for the nominal over its box.
 - **The sketch plane.** A profile is drawn on its own `xy` (D10): its
   placed coordinates are its 2-D ones with `z = 0`, exact at every scalar,
   and a loft's later section stands at its station, the first section's

@@ -179,7 +179,6 @@ fn r1_parametric_chain_at_a_point_box() {
                 param_box: Some(Arc::new(box_.clone())),
                 ..EvalOptions::default()
             };
-            let lift = opts.profile_lift();
             let ev: editor_core::Evaluation<geom_core::Interval> =
                 evaluate(&doc, None, &CancelToken::new(), &opts, tol);
             let errs: Vec<String> = ev
@@ -192,11 +191,7 @@ fn r1_parametric_chain_at_a_point_box() {
                     })
                 })
                 .collect();
-            println!(
-                "point={point} lift={lift:?}: {} errors: {:?}",
-                errs.len(),
-                errs.first()
-            );
+            println!("point={point}: {} errors: {:?}", errs.len(), errs.first());
         }
         let ev: editor_core::Evaluation<f64> = evaluate(
             &doc,
@@ -213,7 +208,7 @@ fn r1_parametric_chain_at_a_point_box() {
             .iter()
             .filter(|id| ev.node_error(**id).is_some())
             .count();
-        println!("point={point} at f64 guided: {n} errors");
+        println!("point={point} at f64: {n} errors");
     }
 }
 

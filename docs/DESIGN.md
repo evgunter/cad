@@ -380,7 +380,12 @@ curve pairs.
 
 - Every topology-determining branch goes through a *named predicate
   function* returning a trilean sign plus margin, generic over `T`. No
-  raw `<` on control-flow paths.
+  raw `<` on control-flow paths. Nor does an instrument represent a
+  tie-break the band forbids it to make: where its reading would turn
+  on a choice inside the band that its answer cannot depend on, it is
+  posed so that the choice does not arise (a ray within the band of an
+  edge meets the edge, half a crossing for each face the edge bounds;
+  within the band of a vertex it reads nothing).
 - At `T = f64` predicates are total: margins within K·ε escalate (the
   *sliver band* — semantically indeterminate even under exact
   arithmetic). K is a policy dial — refusal rate and f64 noise headroom
@@ -518,11 +523,20 @@ K stays the one knob (`Tolerance.k`, env `CAD_AMBIGUITY_K`), and
   may stay distinct as data; their user stories converge per decision.
 - (iv) **The rule binds a predicate's DEFINITE arms too**: a
 new definite outcome a user could reach by moving geometry tells the
-same one story with the same one recourse as its in-band sibling. A
-surface reading a body at rest may end a definite contradiction
-between a stored description and its stored geometry as a defect —
-no move of the geometry reaches it — and never names a lever the
-decision does not.
+same one story with the same one recourse as its in-band sibling.
+"Definite" means the reading certainly lies on a refused side,
+whether the band, a number or a proof decided it, so a proved zero
+tells the story of its exact and in-band siblings. Each decision
+says what its refused side is, and every definite reading of it ends
+by that at each door. A side the lever reaches tells the lever story
+everywhere. A contradiction between a stored description and its
+stored geometry tells the lever story at a build. At the import door
+it is the file's: the import refuses typed, naming the file. Past the
+import door no state is reachable only through import ([import]), so
+only a kernel bug reaches it, and it panics ([failure]). A side no
+kernel construction produces panics at a build and past the import
+door, and at the import door is the file's like any other. No refusal
+names a lever the decision does not.
 
 How each door applies these (the import door's ε_in sentences and its
 stopgap, `Indeterminate`'s rendering, `COINCIDENCE_RECOURSE`, the review
@@ -667,13 +681,15 @@ tiers".
   body is true that is not derivable from its construction (for
   imported bodies, from the adopted descriptions plus the import
   record, [import]).
-- **Manifold solids only, and "non-manifold" means non-representable.**
+- **Manifold solids only.**
   Non-manifold (radial-edge) topology is added only if sheet or wire
   bodies demand it. Touching via *distinct* entities (two vertices at
   one point, two edges on one segment) is representable and a typed
-  success carrying its tier-3′ records; genuine non-manifoldness (a
-  single edge with more than two faces, a shared-entity wedge fan) is a
-  typed error at the site that would have needed it. Silent splitting
+  success carrying its tier-3′ records; a single edge with more than
+  two faces, or a wedge fan sharing one entity, assembles faces into
+  something that is not a solid, and is not represented. Where more
+  than two sheets meet on a line, the material decides the edges
+  ([topology] tier 3). Silent splitting
   into separate manifold bodies is rejected as inexplicit; any future
   split behaviour is an explicit operation the user invokes, never a
   fallback.
@@ -749,9 +765,13 @@ tiers".
   granularity or witness. Result-side touching arises only from operand
   coincidences carried through the op's lineage or decided by the op
   where two cells it minted meet, and a touch the census finds that no
-  record backs is never silently blessed: between copies at rest it is
-  an `unproven-coincidence` finding, inside one op's result that op's
-  defect, refused typed. Every op, the boolean and every surgery verb
+  record backs is never silently blessed. Between two arrivals of a
+  space at rest ([assertions]) the census is the deciding operation:
+  it records each such touch as an `unproven-coincidence` finding and
+  leaves on the space a contact record citing it, which every
+  placement of that space carries, so the touch is never decided
+  again. Inside one op's result it is that op's defect, refused
+  typed. Every op, the boolean and every surgery verb
   alike, carries records through one lineage stating what it made of
   each cell (kept, substituted by a cell holding its interior, divided,
   or removed), and records are written by the op that changes their
@@ -1204,10 +1224,26 @@ and a bundle of constraints, mates and values, and placing the
 source's content into a space under the one rigid motion its
 constraints state. It places a copy of each of the source's carried
 bodies into that space, and carries every pose of the source as the
-copy carries it. A space is defined by what is built and placed in it,
+copy carries it and the source's at-rest decisions about those bodies,
+its contact records and its census's findings, which stay the
+source's. A space is defined by what is built and placed in it,
 and what reads it downstream reads the space's bodies, never a
 placement: a body of a space is the same to its readers whether it
-was built there, placed there, or placed through other spaces. Two placements of a
+was built there, placed there, or placed through other spaces. A
+space's readers name its bodies by its variables: a construction's or
+an operation's output, or a **pick**, a `Body` variable defined as one copy a
+placement places there (a `Bodies` family, read by index, where the
+placement's reads reach an index, [repetition]). A pick's definition
+names its placement and the body's variable in the source, through
+the placements inside the source down to the first variable it
+reaches, which is its one spelling. Readers hold the pick, and nothing
+else reads a placement's copies; a copy nobody picks is still a body of
+the space, carried and checked like any other. A copy's faces, edges and vertices
+keep their names in the source, and an operation reading two picks of
+one source keys each operand's names by the pick it read through. Like
+a selection, a pick authored at two sites is two variables (the GUI
+offers the existing one). A pick whose body the source no longer has
+is unresolved, typed, never re-pointed. Two placements of a
 part are two copies. Nothing moves a body: a copy is defined by its
 one placement and never moved after, and an operation that would move
 one is a placement. A pattern is a placement
@@ -1368,9 +1404,14 @@ sliver band. Its result holds no in-band pair, a pair of result cells
 whose one census number lies in band. A solid's only shell is its outer
 shell and poses no role question; a shell's role among several is read
 off a ray aimed from outside the shell at one of its faces, and off the
-certified sign of its volume only where none of its faces offers an
-aim. A ray's reading lies in band only where a pair does, so how thin a
-result is gets judged by its pairs alone. The door's
+certified sign of its volume where no ray reads. A ray that passes
+within the band of an edge meets it, half a crossing for each face the
+edge bounds ([verdicts]), and reads the role as the sign of its count
+of crossings; it refuses only on two faces that do not meet whose
+crossings lie in band of each other, a pair, and a ray that meets a
+corner or a wedge reads nothing. The volume's sign is certified by its
+enclosure alone, never held against the band, so how thin a result is
+gets judged by its pairs alone. The door's
 finished-body gate decides this on the result alone and refuses it as
 the operands' ill-conditioning (`Escalated`, recourse: tighten ε or move
 the geometry), never silently; a definite finding there is a kernel
@@ -1384,31 +1425,45 @@ defect (`ResultInvalid`).
 relation, bound }` (`≤`, `≥`, `=`, the bound a variable) states a
 relation the author claims and the kernel checks.
 
-**The at-rest census.** At rest the census examines the copies of each
-space pairwise, and nothing it finds refuses. Contact between copies
-is an `unproven-coincidence` finding unless it is structural (a
-mate-placed face is); an overlap of their material is an interference
-finding; and a pair the census has no lane for is a finding too,
-saying it could not look, so no outcome of the census is silence. A
-contact or interference finding observes the sign of the gap
-(CONTACT-DESIGN C5) between two copies: a contact is `g = 0` at two
-cells, an interference `g < 0` over one connected overlap of their
-material.
+**The at-rest census.** At rest each space's census examines that
+space's carried bodies pairwise, and nothing it finds refuses. An
+**arrival** is what one definer of the space brought in under one
+rigid motion: one placement's copies at one value of its indices, or
+one construction's or operation's output. Between two arrivals the
+census decides each pair. Contact is an `unproven-coincidence` finding
+unless it is structural (a mate-placed face is); an overlap of their
+material is an interference finding; and a pair the census has no
+lane for is a finding too, saying it could not look, so no outcome of
+the census is silence. Inside one arrival it decides nothing and reads
+nothing: the arrival's verdicts are its source's or its door's, carried
+with it. A
+finding belongs to the space whose census decided it and is reported
+once there, however many times that space is placed, and a space
+nothing places into the world is checked all the same. A contact or
+interference finding observes the sign of the gap (CONTACT-DESIGN C5)
+between two bodies: a contact is `g = 0` at two cells, an interference
+`g < 0` over one connected overlap of their material.
 
 **What quiets a finding.** `[assertions.quiet]` Holding assertions
 quiet a finding when they say the same: each reads a `Gap`'s output
-directly, over an opposed pair of faces of the two copies, and admits
-only values of the finding's sign (`= 0` for a contact; `≤ b` or
-`= b` with `b` negative for an interference). A contact is quiet when
-such an assertion's two faces are the two cells the census found
-coincident; an interference, when the assertion's two faces bound the
-overlap and every face bounding it lies between the carriers of an
-asserted pair. An assertion speaks for nothing else, so a new contact
+directly and admits only values of the finding's sign (`= 0` for a
+contact; `≤ b` or `= b` with `b` negative for an interference). A
+contact is quiet when such an assertion's `Gap` is taken between the
+finding's two cells as its record carries them, at whatever dimension
+they are (two faces, a vertex or an edge on a face, an edge on an
+edge, two vertices) and wherever they lie, in two arrivals or in two
+solids one arrival brought in (an imported file's instances). An
+interference is quiet when the assertion's `Gap` is over an opposed
+pair of faces of the two bodies, those faces bound the overlap, and
+every face bounding it lies between the carriers of an asserted pair.
+A `Gap` reads bodies of one space ([placement.spaces]), so an
+assertion quiets only findings of the space it is in. An assertion
+speaks for nothing else, so a new contact
 or overlap anywhere else is loud until something says otherwise, and
 an overlap the kernel cannot bound is loud and nothing quiets it.
 
-**Families.** The members of a family are examined like any other
-copies, and an assertion about each of them is written once, as an
+**Families.** Each member of a family is its own arrival, examined
+like any other, and an assertion about each of them is written once, as an
 assertion whose reads reach the family's index ([repetition]): one
 assertion per member, each reading the one bound variable, as many as
 the index's `Count`. That quiets each member against another copy. An
@@ -1642,9 +1697,12 @@ swallowed.
 
 *From:* [pure-model], [intrinsic].
 
-- Same build + same inputs → bit-identical outputs. No hash-map
-  iteration order may influence geometry; parallelism only in fixed
-  reduction shapes (addendum below).
+- Same build + same inputs → bit-identical outputs. A body's storage
+  (the order of its arenas) is part of the input: outputs are not
+  promised identical across two storages of one solid, and claims
+  across storages are made on the structure, or as computed bounds.
+  No hash-map iteration order may influence geometry; parallelism only
+  in fixed reduction shapes (addendum below).
 - Transcendentals via the pure-Rust `libm` crate: system libm differs
   across platforms in the last ulp — enough to flip a marginal
   predicate.
@@ -1666,9 +1724,11 @@ cites these two idioms instead of re-deriving):
    bit-deterministic at any thread count.
 2. **Fixed-shape reduction**: FP sums/mins are **never**
    `par_iter().reduce()` (rayon's reduction tree is schedule-dependent).
-   Idiom 1, then a *sequential* fold in arena order — or, if that fold
-   profiles hot, a fixed-arity block tree with a named chunk size and a
-   documented combine order.
+   Idiom 1, then a *sequential* fold in the walk's own fixed order (the
+   order its slots were mapped in), and non-arithmetic combination
+   (naming a first refusal, splicing recordings) positional in that
+   same order — or, if that fold profiles hot, a fixed-arity block tree
+   with a named chunk size and a documented combine order.
 
 Targets in value order: the subdivision driver, certification
 sampling, mass properties, independent DAG nodes. Euler-op sequences

@@ -45,7 +45,7 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeVar, Node, NodeResult, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg, UnitSym, VarName,
+    FreeVar, Node, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, UnitSym, VarName,
     evaluate,
 };
 use geom_core::{Interval, SymRules, Tol};
@@ -216,8 +216,8 @@ pub(crate) fn boss_on_widened_box(half: f64) -> (ProfileDoc, RecipeNodeId, Recip
 
 /// **The authored twin**: a boss whose copy stands the widened
 /// parameter `z0` up its own z, on a pose of its own geometry the
-/// parameter moves — under `Guided`, the placement is at `T` exactly as
-/// the derived placement's is under every lift.
+/// parameter moves — the placement is at `T` exactly as the derived
+/// placement's is.
 pub(crate) fn boss_on_widened_authored_frame(half: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     param_doc("z0", 1.0, half, &mut r);
@@ -277,17 +277,16 @@ fn m10_an_extrude_on_a_widened_derived_frame_versus_the_authored_guided_twin() {
             ("plain", interval_failures as fn(&ProfileDoc) -> Vec<String>),
             ("sym", sym_failures as fn(&ProfileDoc) -> Vec<String>),
         ] {
-            // Both run over a box, so both are guided (`EvalOptions::profile_lift`).
-            let d_guided = run(&derived);
-            let a_guided = run(&authored);
+            let d_fails = run(&derived);
+            let a_fails = run(&authored);
             println!(
-                "C7 eps={e:e} half={w:e} lane={lane}: derived {d_guided:?}; authored {a_guided:?}"
+                "C7 eps={e:e} half={w:e} lane={lane}: derived {d_fails:?}; authored {a_fails:?}"
             );
-            let d_ok = d_guided.is_empty();
-            let a_ok = a_guided.is_empty();
+            let d_ok = d_fails.is_empty();
+            let a_ok = a_fails.is_empty();
             if d_ok != a_ok {
                 mismatch.push(format!(
-                    "eps={e:e} half={w:e} lane={lane}: derived ok={d_ok}, authored/Guided ok={a_ok}"
+                    "eps={e:e} half={w:e} lane={lane}: derived ok={d_ok}, authored ok={a_ok}"
                 ));
             }
             let _ = (boss_p, boss);
@@ -542,13 +541,10 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
     for w in [e / 8.0, 1.0e-6, 1.0e-3, 5.0e-2] {
         let (derived, _, _) = boss_on_widened_box(w);
         let (authored, _) = boss_on_widened_authored_frame(w);
-        {
-            let lift = ProfileLift::Guided;
-            assert!(
-                sym_failures(&derived).is_empty(),
-                "half={w:e} {lift:?}: the derived-frame boss must certify on the symbolic lane"
-            );
-        }
+        assert!(
+            sym_failures(&derived).is_empty(),
+            "half={w:e}: the derived-frame boss must certify on the symbolic lane"
+        );
         assert!(
             sym_failures(&authored).is_empty(),
             "half={w:e}: the authored twin must certify"
@@ -563,7 +559,7 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
 /// axis-aligned frame cancel as `X − X` — and the boss's side plane,
 /// whose `newell_plane_residual` was a clause-1 `Invalid` while the
 /// placement's map widened its cross-sum to zero, is decided under D's
-/// placement solve. With every rule off, under the guided lift, the plain
+/// placement solve. With every rule off, the plain
 /// tier freezes twelve forms and refuses earlier, at the boss extrude's
 /// start-endpoint certification over an enclosure of [0, 0.32]; whether
 /// those freezes are what widens it is
@@ -572,18 +568,19 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
 /// CONSTANTS — and A0 decides those exactly now
 /// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`).
 ///
-/// The rung that used to read `carrier_endpoint_start` under `none`
-/// was a golden of the plain form's first refusal on the construction
-/// `props/sign-hull` replaced, and it cannot be met by any dial:
-/// `work/decide/the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`
-/// carries the measurement.
+/// The `none` rung read `newell_plane_residual` with nothing frozen
+/// while the profile's loops were the `f64` elaboration lifted as
+/// constants; elaborated at the lane, the loops carry the box's
+/// unknowns into the gate, and the rung is the attachment gate's
+/// again (`work/decide/the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`
+/// carries the earlier measurement).
 #[test]
 fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
     let n = SymRules::none();
 
-    // Under the guided lift (every analysis's, `EvalOptions::profile_lift`)
-    // the plain tier no longer reaches the side plane: it freezes twelve
+    // With the profile elaborated at the lane the plain tier no longer
+    // reaches the side plane: it freezes twelve
     // forms on the way and refuses earlier, at the boss extrude's
     // start-endpoint certification, over an enclosure of [0, 0.32] —
     // filed as a kernel defect reachable by input, with whether the
@@ -675,29 +672,23 @@ fn sym5_phase1_the_height_document_under_a_raised_budget_and_rule_a_alone() {
 #[ignore = "evidence-only: SYM-5 phase 1 — the newell refusal at 5e-2, in full"]
 fn sym5_phase1_the_newell_refusal_at_5e_2() {
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
-    eprintln!("--- plain Interval lane, Pinned");
+    eprintln!("--- plain Interval lane");
     let p = interval_failures(&derived);
-    println!("derived 5e-2 plain Pinned: fails {}", p.len());
+    println!("derived 5e-2 plain: fails {}", p.len());
     for f in &p {
         println!("  {}", head(f, 400));
     }
-    {
-        let lift = ProfileLift::Guided;
-        eprintln!("--- Sym<Interval> lane, {lift:?}");
-        let (fails, counts) = sym_failures_in(&derived, SymRules::shipped(), budget());
-        println!(
-            "derived 5e-2 shipped {lift:?}: {counts:?} fails {}",
-            fails.len()
-        );
-        for f in &fails {
-            println!("  {}", head(f, 400));
-        }
+    eprintln!("--- Sym<Interval> lane");
+    let (fails, counts) = sym_failures_in(&derived, SymRules::shipped(), budget());
+    println!("derived 5e-2 shipped: {counts:?} fails {}", fails.len());
+    for f in &fails {
+        println!("  {}", head(f, 400));
     }
 }
 
 /// **SYM-10 Phase 1.2 — the derived-frame row's refusal under `none`
-/// and under A0, rendered.** `boss_on_widened_box(5e-2)` under
-/// `Pinned` at the two rungs `m10_the_derived_frames_refusal_is_not_a_freeze`
+/// and under A0, rendered.** `boss_on_widened_box(5e-2)` at the two
+/// rungs `m10_the_derived_frames_refusal_is_not_a_freeze`
 /// asserts: counts, the per-predicate split, every refusal, and the
 /// blocked residual's plain form with its atom census (no early walk
 /// runs at either rung, so the plain form is the whole of what the
@@ -745,7 +736,7 @@ fn sym10_phase1_the_derived_frame_rows_refusal_rendered() {
             failures(&ev)
         });
         let shapes = take_shape_report();
-        println!("=== derived-frame 5e-2 Pinned {label}");
+        println!("=== derived-frame 5e-2 {label}");
         println!("    counts {counts:?}");
         for (pred, row) in crate::m10_8_harness::split(&shapes) {
             println!("    split {pred:<36} {row:?}");
