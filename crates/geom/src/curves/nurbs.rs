@@ -885,15 +885,15 @@ macro_rules! nurbs_curve {
                 // knots are breakpoints of the saturated curve, so each
                 // keeps its held value (`u` included: present at
                 // multiplicity `p`); nothing is entered fresh.
-                let (f, k1, k2) = spline::plan_inputs::split_structures(&full.knots, u)?;
+                let (f, k1, k2) = spline::plan_inputs::split_knots(&full.knots, u, Self::inserted)?;
                 let c1 = Self::new(
-                    full.knots.restructure(k1, Self::inserted),
+                    k1,
                     full.control[..f].to_vec(),
                     full.weights.values()[..f].to_vec(),
                 )
                 .map_err(KnotAlgebraError::Structure)?;
                 let c2 = Self::new(
-                    full.knots.restructure(k2, Self::inserted),
+                    k2,
                     full.control[f - 1..].to_vec(),
                     full.weights.values()[f - 1..].to_vec(),
                 )

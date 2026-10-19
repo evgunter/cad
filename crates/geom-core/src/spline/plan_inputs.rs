@@ -227,24 +227,30 @@ pub fn split_multiplicity<T: SpanLocate>(
     Ok(proxy.multiplicity_of(u).map_or(0, |(m, _)| m))
 }
 
-/// The two children's knot structures of a split at `u`, over knots
-/// saturated there (`u` at full interior multiplicity, the degree): the
-/// first holds every knot below `u` and `degree + 1` copies of `u`, the
-/// second one copy of `u` and every knot from `u` on. With them, `f`,
-/// the first index of `u`, at which the control points part: the first
-/// child takes `0..f`, the second `f − 1..`. Each child's knots are
-/// breakpoints of the saturated ones, so
-/// [`Knots::restructure`] keeps every held value.
+/// The two children's knots of a split at `u`, over knots saturated
+/// there (`u` at full interior multiplicity, the degree): the first
+/// holds every knot below `u` and `degree + 1` copies of `u`, the second
+/// one copy of `u` and every knot from `u` on. With them, `f`, the first
+/// index of `u`, at which the control points part: the first child takes
+/// `0..f`, the second `f − 1..`. Each child's breakpoints are the
+/// saturated knots' own, so each keeps its held value
+/// ([`Knots::restructure`]); `fresh` is the carrier's entry of a value,
+/// which no breakpoint here needs. The children's structure is decided
+/// against the stand-in, which does not leave this module.
 ///
 /// # Errors
 ///
-/// [`KnotAlgebraError::KnotNotPresent`] where `u` is not a breakpoint
-/// of `saturated`; [`KnotAlgebraError::Structure`] where a child is no
-/// clamped vector.
-pub fn split_structures<T: SpanLocate>(
+/// As [`split_multiplicity`] where `u`'s place is not one for every
+/// member; [`KnotAlgebraError::KnotNotPresent`] where `u` is not a
+/// breakpoint of `saturated`; [`KnotAlgebraError::Structure`] where a
+/// child is no clamped vector.
+#[allow(clippy::type_complexity)]
+pub fn split_knots<T: SpanLocate>(
     saturated: &Knots<T>,
     u: f64,
-) -> Result<(usize, KnotVector, KnotVector), KnotAlgebraError> {
+    fresh: impl Fn(f64) -> T,
+) -> Result<(usize, Knots<T>, Knots<T>), KnotAlgebraError> {
+    certify_parameter(saturated, u, outside_domain)?;
     let p = saturated.degree();
     let proxy = saturated
         .plan_proxy()
@@ -258,10 +264,12 @@ pub fn split_structures<T: SpanLocate>(
     k1.push(u);
     let mut k2: Vec<f64> = vec![u];
     k2.extend_from_slice(&knots[f..]);
+    let k1 = KnotVector::clamped(k1, p).map_err(KnotAlgebraError::Structure)?;
+    let k2 = KnotVector::clamped(k2, p).map_err(KnotAlgebraError::Structure)?;
     Ok((
         f,
-        KnotVector::clamped(k1, p).map_err(KnotAlgebraError::Structure)?,
-        KnotVector::clamped(k2, p).map_err(KnotAlgebraError::Structure)?,
+        saturated.restructure(k1, &fresh),
+        saturated.restructure(k2, &fresh),
     ))
 }
 
@@ -290,7 +298,7 @@ mod tests {
     use core::num::NonZeroUsize;
 
     use super::{
-        breakpoint_at, elevate_plan, insert_knot_plan, refine_plan, remove_knot_plan,
+        breakpoint_at, elevate_plan, insert_knot_plan, refine_plan, remove_knot_plan, split_knots,
         split_multiplicity,
     };
     use crate::interval::Interval;
@@ -413,6 +421,11 @@ mod tests {
                         panic!("an enclosure margin");
                     };
                     assert!(lo <= 0.0 && 0.0 <= hi, "margin [{lo}, {hi}] straddles");
+                    // Rounded outward past the nearest-rounded distances.
+                    assert!(
+                        lo < 0.4 - 0.42 && 0.45 - 0.42 < hi,
+                        "margin [{lo}, {hi}] outward"
+                    );
                 }
                 other => panic!("a parameter inside a wide breakpoint: {other:?}"),
             }
@@ -516,8 +529,12 @@ mod tests {
     /// `[0.99, 1.0]`, `u` inside it refuses undecided, but `u` at its
     /// outer end is past every member's domain: an insertion and a split
     /// refuse `ParameterOutsideDomain`, a removal `KnotNotPresent`, and no
-    /// narrowing would change that. Red where the bracket test is open,
-    /// or where an end bracket's outer side asks for narrower knots.
+    /// narrowing would change that; at a wide first breakpoint
+    /// `[0.0, 0.01]` the same holds at its outer end `0.0`. A split's
+    /// children refuse a `u` inside a bracket, the stand-in's own value
+    /// included. Red where the bracket test is open, where an end
+    /// bracket's outer side asks for narrower knots, or where a split
+    /// cuts the stand-in.
     #[test]
     fn a_brackets_ends_are_in_it_and_past_a_wide_domain_end_is_outside() {
         let (knots, weights) = held(Interval::from_bounds(0.4, 0.45), &[1.0; 4]);
@@ -574,6 +591,35 @@ mod tests {
                 KnotAlgebraError::KnotNotPresent { u }
             );
         }
+        let start = Knots::new(
+            vec![
+                (Interval::from_bounds(0.0, 0.01), m(3)),
+                (i(0.5), m(1)),
+                (i(1.0), m(3)),
+            ],
+            2,
+        )
+        .unwrap();
+        assert!(matches!(
+            insert_knot_plan(&start, &w, 0.005, 1),
+            Err(KnotAlgebraError::ParameterUndecided { run: 0, .. })
+        ));
+        assert_eq!(
+            insert_knot_plan(&start, &w, 0.0, 1).unwrap_err(),
+            KnotAlgebraError::ParameterOutsideDomain { u: 0.0 }
+        );
+        assert_eq!(
+            split_multiplicity(&start, 0.0).unwrap_err(),
+            KnotAlgebraError::ParameterOutsideDomain { u: 0.0 }
+        );
+        // A split's children are decided for every member too: at the
+        // stand-in's own value inside the bracket it refuses, rather than
+        // cut the knots at a value no member has.
+        let proxy = f64::midpoint(0.4, 0.45);
+        assert!(matches!(
+            split_knots(&knots, proxy, Interval::from_f64),
+            Err(KnotAlgebraError::ParameterUndecided { run: 1, .. })
+        ));
     }
 
     /// **A restructured wide carrier keeps no `f64` vector.** Inserting at

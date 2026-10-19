@@ -18,10 +18,11 @@
 #   spline::plan_inputs::point_knots (C6 S4/S5b: a knot-vector merge
 #   and the surface's column builds take a carrier's vector through it,
 #   refusing typed at a wide run; a caller of it is a reader like any
-#   other. The held plan constructors beside it read the vectors only
-#   where every knot and weight is a point, through the accessors above,
-#   and elsewhere decide against a stand-in, `Knots::plan_proxy`, which
-#   is private to the spline module: no carrier reads it)
+#   other. The held plan constructors beside it decide against
+#   `Knots::plan_proxy`, private to the spline module: the knots' own
+#   vector where every knot is a point, else a stand-in that no carrier
+#   reads; the weights' own vector, read through the accessor above,
+#   only where every knot and weight is a point)
 #
 # Every caller is a reader that has not yet moved to the held values or
 # the combinatorial structure. C6's slices S2–S5 move them; S5 deletes
