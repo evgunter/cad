@@ -61,18 +61,43 @@ chamfer's (below), a through-bore under a convex band and a bar
 between the end walls under a concave one; and on the plane–plane band
 a cup on one end face, a blind bore under a convex band and a pin under
 a concave one
-(`band_one_cycle_members::a_blind_bore_and_a_pin_go_with_the_band_at_every_scale`).
+(`band_one_cycle_members::a_blind_bore_and_a_pin_go_with_the_band_at_every_scale`),
+and, where the band is a whole chain of one link cut off at both ends,
+a cup on one support's strip, a dimple under a convex band and a boss
+under a concave one
+(`band_strip_mouth_cups::a_dimple_and_a_boss_go_with_the_band_on_either_support_at_every_scale`).
+The strip's cup is read in three steps. The ring carry-through pass
+reads its mouth against the strip itself, across the edge, as a cap's
+cycle is read against its sliver: wholly inside it, the ring joins the
+request's verdict as a cycle the band may take; any other ring is
+metered against the trimline as before, so one crossing it refuses
+`RingClearance`. The clearance screen stands down on a ring that
+reading reads inside or crossing, and only on its pairs with the edge
+whose strip holds it, so the verdict decides it. The reach reads the
+cup's faces in the band's exact core less that support's side, their
+other edges in the whole core, so the cup lies on the material's side
+of the support, as its mouth does. A wall ruled along the support's
+normal pays nothing for its run along it where that section is convex
+(the chamfer's) or the face lies on the support's side of the fillet
+ball's centre, within which each line along the normal meets each of
+the section's deeper sets in one segment; elsewhere it pays its run
+across the spine, so a cup reaching past the ball's centre at an acute
+dihedral refuses as a bound
+(`band_dihedral_cups::an_acute_strip_cup_whose_wall_crosses_the_kept_disk_refuses_as_a_bound`).
 Every other inside case refuses as one the rule defines and the surgery
 does not build, at the meter that reads it: a void or an island with
 no cap cycle `BlendError::WhollyInside`; a cup on the ruled band, whose
 far faces have no exact core to be read in
 (`band_one_cycle_members::a_pin_inside_a_concave_ruled_creases_fill_refuses_as_a_bound`),
 or a hole whose mouth a concave fill covers, a bound where its wall
-meets the end face's plane; and a blind hole entering from a support
-face, a boundary feature of the support, at the clearance screen
-(`FaceClearanceUncertified`), its ring nearer the edge than the band
-sets back
-(`blend_recourse_followability::a_blind_hole_from_the_support_face_inside_the_region_refuses_at_the_screen`).
+meets the end face's plane, as is a cup on a strip of the band's
+opposite sign (a boss under a convex band, a dimple under a fill:
+`band_strip_mouth_cups::a_cup_of_the_bands_opposite_sign_on_its_strip_refuses_as_a_bound`);
+and a ring on a support that the strip meter reads neither inside nor
+crossing (one touching the trimline), one beside a band ending at a
+mitre, a turn or a corner, or a notch across an end wall, a boundary
+feature of the support, at the clearance screen
+(`FaceClearanceUncertified`), nearer the edge than the band sets back.
 
 A face crossing the reach refuses as an unbuilt case too: building it
 needs the band face cut against the faces that cross it, which the
@@ -319,7 +344,9 @@ exactly when the trim CONTAINS it, metered before any mutation under
 pass, which meters every ring of every touched support face against
 every blend trimline in closed form (but a plane–plane link's
 trimline, against which a ring carrying a plane–plane link's
-requested edge is metered at the strip instead), every other
+requested edge is metered at the strip instead, and a ring it reads
+wholly inside such a link's strip joins predicate 2's verdict as a
+cup's mouth), every other
 outer-boundary edge
 of a closed rim's supports — one requested in the same call at its own
 trim — against that support's trim, and every edge a cut-off leaves
