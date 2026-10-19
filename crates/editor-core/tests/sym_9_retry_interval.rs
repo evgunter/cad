@@ -582,6 +582,14 @@ fn sym_9_what_each_retry_recovers() {
 /// falls because the decisions are gone, not because a retry took
 /// them.
 ///
+/// The profile's joint pass reads each joint's turn
+/// (`path_junction_turn`, #5354's ruling) after carrier identity: a
+/// line/line corner decides once more and a line/arc joint's clearance
+/// becomes a turn the tier proves. The plate 939/686 → 939/690, the
+/// bracket 1307/1042 → 1311/1043, the link 763/691 → 767/687, with the
+/// ladder and without it alike; the pad's leaf 1215/1324 → 1227/1312
+/// with the ladder, its four recovered decisions held.
+///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
@@ -591,11 +599,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [939, 686], [939, 686], 0),
+        ("two_hole_plate", [939, 690], [939, 690], 0),
         ("r1_annulus", [475, 431], [475, 431], 0),
         ("r1_segment_boss", [468, 398], [468, 398], 0),
-        ("r2_filleted_bracket", [1307, 1042], [1307, 1042], 0),
-        ("r2_link", [763, 691], [763, 691], 0),
+        ("r2_filleted_bracket", [1311, 1043], [1311, 1043], 0),
+        ("r2_link", [767, 687], [767, 687], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -710,7 +718,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1215, 1324, 4],
+        [1227, 1312, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(

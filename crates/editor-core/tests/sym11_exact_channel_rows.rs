@@ -131,12 +131,21 @@ use crate::m10_9_pins_interval::measured_studies;
 /// `[291, 275, 542]`, bracket `[1372, 1096, 2112]` → `[1312, 1046,
 /// 2112]`, pad `[1248, 1211, 3566]` → `[1212, 1181, 3566]`. The decisions
 /// are gone, not moved; no dispute fired, and `frozen` holds.
+///
+/// The profile's joint pass reads each joint's turn
+/// (`path_junction_turn`, #5354's ruling) where it read a line/arc
+/// joint's carrier clearance, and after identity at a line/line corner:
+/// plate `[939, 686, 729]` → `[939, 690, 729]` (its corners' turns,
+/// read numerically), link `[291, 275, 542]` → `[295, 271, 546]` and pad
+/// `[1212, 1181, 3566]` → `[1224, 1169, 3566]` (clearances the tier left
+/// numeric become turns it proves), bracket `[1312, 1046, 2112]` →
+/// `[1316, 1047, 2112]`. No dispute fired.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [939, 686, 729]),
+    ("two_hole_plate", [939, 690, 729]),
     ("r1_annulus", [475, 431, 940]),
-    ("r2_link", [291, 275, 542]),
-    ("r2_filleted_bracket", [1312, 1046, 2112]),
-    ("r2_rounded_pad", [1212, 1181, 3566]),
+    ("r2_link", [295, 271, 546]),
+    ("r2_filleted_bracket", [1316, 1047, 2112]),
+    ("r2_rounded_pad", [1224, 1169, 3566]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

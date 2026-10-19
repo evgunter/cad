@@ -302,22 +302,27 @@ fn eps_row(eps: f64) -> usize {
 /// forms it used to build first are now built under `Plain/Assertion`
 /// (2690 → 2697). Its digests move at every row; the `Early/*` lines
 /// and the largest form hold.
+///
+/// The profile's joint pass reads each corner's turn after identity
+/// (`path_junction_turn`, #5354's ruling), an assertion the walks
+/// build: `Plain/Assertion` and `Early/Assertion` 514 → 522 calls,
+/// 2697 → 2721 and 4121 → 4145 forms, and their digests, at every row.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 9fd9683c510b6d13533481894aff86fe\n\
-     Plain/Assertion calls 514 forms 2697 frozen 0 digest 987caa300000f10b707150f4903f8be1\n\
+     Plain/Assertion calls 522 forms 2721 frozen 0 digest 88e81bc34a61df5f1093bd41df88c8a0\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4121 frozen 0 digest 05a8fa1aaad6a11bf8548406e96878e4",
+     Early/Assertion calls 522 forms 4145 frozen 0 digest ae082dc96f348a406e78f102641e4836",
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 7572a0635345c9fe906c50fadd763ce0\n\
-     Plain/Assertion calls 514 forms 2697 frozen 0 digest 9a2a9a3f8ddf5ff8d89e4b9066866446\n\
+     Plain/Assertion calls 522 forms 2721 frozen 0 digest b3a954aba6ddb2d7949f8df7549846c1\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4121 frozen 0 digest dcc9543706fd55fd98e91ebcd58ab72a",
+     Early/Assertion calls 522 forms 4145 frozen 0 digest 695965e369a0cb6c7fdd835d0c74e9a5",
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 4c421c5d18739546779e9a8966c18e71\n\
-     Plain/Assertion calls 514 forms 2697 frozen 0 digest f4ccbb5ade82a6f3191ad5729591c479\n\
+     Plain/Assertion calls 522 forms 2721 frozen 0 digest c41af45f4f0af656280647db19413be4\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4121 frozen 0 digest e8e45d5267b25b64b653e18901a234c1",
+     Early/Assertion calls 522 forms 4145 frozen 0 digest f0c83a78713a7c03c93e92df7aa5616f",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -664,11 +669,17 @@ const PLATE_MAX_TERMS: usize = 28;
 /// `Early/Decision` and `Early/Assertion` +3 forms and `Door/Decision`
 /// +10, with every digest; every call, every freeze and the largest
 /// form hold.
+///
+/// The profile's joint pass reads each corner's turn after identity
+/// (`path_junction_turn`, #5354's ruling): `Plain/Assertion` and
+/// `Early/Assertion` 686 → 690 calls, 7003 → 7027 and 8165 → 8189
+/// forms, and their digests; the `*/Decision` lines and the freezes
+/// hold.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 939 forms 15836 frozen 324 digest ac360a3480da30b765ada11e3a3550c7\n\
-     Plain/Assertion calls 686 forms 7003 frozen 405 digest 8d1ea8d4812fe2b0aa85cda0c308edfa\n\
+     Plain/Assertion calls 690 forms 7027 frozen 405 digest c123c29389515226c1ccaf7765c85f8b\n\
      Early/Decision calls 352 forms 8892 frozen 0 digest 61a2facb711fb0a70f13d4cfa3ece435\n\
-     Early/Assertion calls 686 forms 8165 frozen 0 digest 97a4cf4126af3c7869dc275a5f227dba\n\
+     Early/Assertion calls 690 forms 8189 frozen 0 digest b8907f6dabf4773d4d98beb6ddf4529b\n\
      Door/Decision calls 428 forms 9525 frozen 0 digest c92c1df17252cd30da849fc47ba1a121";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

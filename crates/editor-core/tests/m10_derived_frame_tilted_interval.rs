@@ -1328,6 +1328,10 @@ fn m10_the_start_cap_and_flip_z_certify_as_the_end_cap_does_and_rule_f_is_inert(
 /// (`expr-non-finite-asks-value-times-zero`), so `symbolic` falls by
 /// its 44 theorems in every receipt (972 → 928, 573 → 529); `numeric`
 /// and the verdicts hold.
+///
+/// The profile's joint pass reads each corner's turn after identity
+/// (`path_junction_turn`, #5354's ruling): `numeric` +8 in every
+/// receipt (514 → 522, 300 → 308), the verdicts held.
 #[test]
 fn m10_what_the_read_buys_on_the_tilted_caps() {
     let doc_of = |base, place| r2_document(1.0e-3, base, place);
@@ -1347,24 +1351,24 @@ fn m10_what_the_read_buys_on_the_tilted_caps() {
             "tiltU end cap",
             Base::TiltU,
             Place::Derived(1),
-            (928, 514),
-            (529, 300),
+            (928, 522),
+            (529, 308),
             Some("newell_plane_residual"),
         ),
         (
             "flipZ derived",
             Base::FlipZ,
             Place::Derived(1),
-            (928, 514),
-            (529, 300),
+            (928, 522),
+            (529, 308),
             Some("newell_plane_residual"),
         ),
         (
             "tiltU start-cap",
             Base::TiltU,
             Place::DerivedStartCap,
-            (928, 514),
-            (928, 514),
+            (928, 522),
+            (928, 522),
             None,
         ),
     ];

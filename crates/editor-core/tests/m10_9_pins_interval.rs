@@ -115,6 +115,15 @@ pub(crate) struct Study {
 /// `pcurve_envelope`, the bracket (1310, 1149) → (1250, 1099) and the pad
 /// (1219, 1452) → (1147, 1392). No registrant moved and no verdict
 /// moved.
+///
+/// The profile's joint pass reads each joint's turn
+/// (`path_junction_turn`, #5354's ruling) where it read a line/arc
+/// joint's carrier clearance, numerically: the tier proves the turn, so
+/// those decisions move from `numeric` to `symbolic`, link 763 → 767,
+/// bracket 1307 → 1311, pad 1211 → 1223; with the door shut the link
+/// (718, 740) → (722, 736), still refusing at `pcurve_envelope`, the
+/// bracket (1250, 1099) → (1252, 1102) and the pad (1147, 1392) →
+/// (1157, 1382). No registrant moved and no verdict moved.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -159,8 +168,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // circle's radius and orientation read as one pair), so it
             // decides 3 of the envelope's 9 terms on each of its two
             // reads.
-            without_the_registry: Some(((718, 740), Some("pcurve_envelope"))),
-            symbolic: [763, 763, 763],
+            without_the_registry: Some(((722, 736), Some("pcurve_envelope"))),
+            symbolic: [767, 767, 767],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -174,13 +183,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1250, 1099), None)),
+            without_the_registry: Some(((1252, 1102), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1307, 1307, 1307],
+            symbolic: [1311, 1311, 1311],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -191,11 +200,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refused_by: None,
             // Rule F's differential on this document is
             // `m10_9_the_pad_at_both_rule_f_dials`'s.
-            without_the_registry: Some(((1147, 1392), None)),
+            without_the_registry: Some(((1157, 1382), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1211, 1211, 1211],
+            symbolic: [1223, 1223, 1223],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -624,7 +633,9 @@ fn m10_9_what_the_registry_buys() {
 ///
 /// A harmonic row's windings stored as structure (PCERT B2a): the
 /// decisions that read them gone, (1283, 1388, 4112) → (1211, 1328,
-/// 4112), at both dials alike.
+/// 4112), at both dials alike. The joint pass reading each joint's
+/// turn, which the tier proves where it read a clearance numerically:
+/// (1211, 1328, 4112) → (1223, 1316, 4112).
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -658,7 +669,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1211, 1328, 4112), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1223, 1316, 4112), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
