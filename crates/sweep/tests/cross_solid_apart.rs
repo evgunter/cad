@@ -179,3 +179,74 @@ fn a_rod_touching_its_bore_still_refuses() {
         );
     }
 }
+
+// ---- Review R1 (PR 5323) rows.
+
+/// **R1: a rod crossed by a thinner rod refuses.** A rod of radius 0.2
+/// along `y` over `[0.5, 1.5]`, and a rod of radius 0.1 along `x` over
+/// `[-1, 1]` through `(·, 1, 0.25)`: the two walls cross through each
+/// other, and no edge of either meets the other (the thin rod's seam
+/// runs at `z = 0.35`, outside the thick rod). The thin rod's wall's
+/// BOUNDARY (its two rims at `x = ±1`) lies ~0.9 from the thick rod's
+/// axis, but its rulings pass through the axis. Red where a cylinder
+/// face's least depth about a foreign axis is read off its boundary.
+#[test]
+fn r1_a_rod_crossed_by_a_thinner_rod_refuses() {
+    let mut out = topo::transform_rigid(
+        &revolved(0.0, 0.2, 1.0),
+        &RigidMotion::translation(Vec3::new(0.0, 0.5, 0.0)).unwrap(),
+        tol(),
+    )
+    .unwrap();
+    let cross = topo::transform_rigid(
+        &revolved(0.0, 0.1, 2.0),
+        &RigidMotion::axes_zx(geom_core::Point3::new(-1.0, 1.0, 0.25)),
+        tol(),
+    )
+    .unwrap();
+    topo::graft_disjoint(&mut out, &cross).expect("grafts");
+    let pair = finished("the crossed rods", out, tol());
+    let errs = census(&pair).expect_err("the rods cross");
+    assert!(refuses_curved_within_reach(&pair, &errs), "{errs:?}");
+}
+
+/// **R1: far from the origin, a flush rod still refuses** at every ε
+/// row: the rod-in-bore pair of `a_rod_touching_its_bore_still_refuses`
+/// moved 1e3 and 1e4 along each axis.
+#[test]
+fn r1_a_flush_rod_far_from_the_origin_still_refuses() {
+    for far in [1.0e3, 1.0e4] {
+        let pair = nested(
+            revolved(0.6, 1.0, 2.0),
+            &revolved(0.0, 0.6, 1.0),
+            Vec3::new(0.0, 0.5, 0.0),
+        );
+        let moved = topo::transform_rigid(
+            &pair.into_body(),
+            &RigidMotion::translation(Vec3::new(far, far, far)).unwrap(),
+            tol(),
+        )
+        .unwrap();
+        let moved = finished("the far pair", moved, tol());
+        let errs = census(&moved).expect_err("the flush rod must not clear");
+        assert!(
+            refuses_curved_within_reach(&moved, &errs),
+            "the flush rod at {far}: {errs:?}"
+        );
+    }
+}
+
+/// **R1: a rod 1.5 box pads inside its bore refuses** — between one box
+/// pad and the depth gap's two, the curved pairs stay undecided.
+#[test]
+fn r1_a_rod_between_the_pads_refuses() {
+    let b = band();
+    let gap = 1.5 * (b.escalate() + 2.0 * b.zero());
+    let pair = nested(
+        revolved(0.6, 1.0, 2.0),
+        &revolved(0.0, 0.6 - gap, 1.0),
+        Vec3::new(0.0, 0.5, 0.0),
+    );
+    let errs = census(&pair).expect_err("1.5 pads must not clear");
+    assert!(refuses_curved_within_reach(&pair, &errs), "{errs:?}");
+}
