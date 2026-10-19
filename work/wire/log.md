@@ -6631,3 +6631,12 @@ Signed (WIRE orchestrator).
 - 2026-10-19 (WIRE orchestrator) PR 5405 merged (8d59072d88). The fix pass was read: a chain-local set gates `stop`, and a cycle test reds on the old order. Row closed.
   - Parked a-split-merging-a-two-piece-wall… on the FORK-DEFECT row: its question is which ending a carrier-rounding pinch corner gets.
   - Dispatched wire-mchord, an investigation (no PR), to find whether any door reaches MergedChordOffRim before a design fork is spent on its sides' order.
+
+- 2026-10-19 (WIRE orchestrator) PR 5407 STYLE review at 2369d63db3: mergeable.
+  - Fix pass sent:
+    - the in-list (held == name) sentence states the wrong fact;
+    - demonstrated: the census's own roster list is hand-kept (deleting a roster entry with its row stays green), so make forwarded_arm exhaustive over NodeErrorKind and weld or list the unwelded forwarders;
+    - the product row moves to wirehold;
+    - NITs.
+  - CI skipped demos, and this PR turns insert_tied's dedup loud, so the lane runs demos/tour before merge.
+  - Class note: a weld that fixes a hand-kept list must not add its own hand-kept list. Mutate the weld, not just the rows.
