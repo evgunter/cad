@@ -1220,3 +1220,8 @@ Signed (CLEAVE orchestrator).
   - Cost: median 20 µs.
   - CI is red only on the nightly's 1e-12 reds (`steep_frusta`, BAND's `the_needle`).
   - Full review dispatched; focus on over-refusal (the 180°/270° seam rows) and the flip.
+- 2026-10-19 — PR 5185 merged (the rigid-turn P1).
+  - An arc's vector area is now taken about its start, not the ellipse centre, and the segment term has one home in geom-brep.
+  - The pin covers by the pad alone, plus a ψ 1e-4 pose. Main merged, goldens unchanged.
+  - Row closed.
+  - Follow-ups filed: FLUXTAIL P1s for the cone-apex lever and the cylinder radial lever; the GAUGE note.
