@@ -59,3 +59,30 @@ reading refuses the same way (stale, or unbacked), push that refusal
 instead of the escalation. A sibling of `read_undecided` comparing the
 branches' answers is the natural home. Carry the escalations the
 branches met as `census::Branch::carries` does.
+
+## The carry makes the typing a behaviour (2026-10-19)
+
+From `contacthold/ff-divided-reads-stale`'s sweep. "Each site refuses
+the body either way" holds for 3′, not for the carry. When an op
+divides a recorded cell, `boolean::records::landings` confirms the row
+on each pair of the cells' images through `census::RecordConfirm::meets`.
+A stale pair is passed over and the row lands on the pair that holds
+the touch. Any other finding refuses the op
+`CarryRefused { Found, Unread }`. So a piece pair these sites escalate,
+where the region read says `Out`, refuses an op that should land the
+record on another piece. The same PR fixed that shape in the two-carrier
+face–face lane (`confirm_face_pair` now places the line in both faces
+before the `Tangent` table reads the sides).
+
+One more site of that shape: `confirm_patch`'s Door 1
+(`rest_door_one`, the `Rest` door) reads the two faces' senses, and
+contradicts aligned ones, before Door 2 reads the region overlap,
+where `Empty` is stale. A piece the op flipped (a cavity face on the
+record's plane, as `B ∖ A` leaves the face block's floor in
+`face_face_touch::a_record_whose_faces_the_op_divides_lands_on_the_pair_holding_its_line`)
+that does not overlap its partner would read contradicted and refuse
+the carry where it should read stale. Read from the code, not
+measured: no op reached measures it, because a coplanar rest pair glues
+or merges, and the rows reach the carry only from a mate's records.
+Door 2 takes Door 1's verdict (`Definite` / `Bridged`), so the fix is
+not a plain reorder.
