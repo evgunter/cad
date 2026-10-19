@@ -19,6 +19,10 @@ Opened 2026-10-17 by WIRE's priority-seam cut. Nothing dispatched.
 | P4 | `node-error-kind-has-no-fieldless-projection` | M |
 | P4 | `part-cache-miss-samples-land-on-whichever-instance-wins-the-lock` | M +design |
 | P4 | `split-half-side-words-are-spelled-at-three-sites` | E |
+| P3 | `attr-label-has-no-reader` | M |
+| P4 | `a-bad-label-in-a-file-refuses-with-the-regenerate-recourse` | M |
+| P4 | `sentence-labels-is-a-second-meaning-of-label` | E |
+| P4 | `the-seated-tools-label-nouns-are-not-pinned-to-the-nodes-they-mint` | E |
 
 Deferred: `S40` (the witness stubs; its body cites the ratification).
 WIRE's refusal-endings unit re-cites S40's stale `M6` comments as a
@@ -34,3 +38,9 @@ decided, since both are `PartCache::get`'s miss path.
 ## Review posture
 
 Inherits WIRE's (`work/wire/plan.md`): protocol v7, single reviews.
+
+**From EMIT's close (2026-10-19).** The four label rows above came from
+`work/emit/` by `git mv` (+7 points). So did the parked
+`a-verdicts-other-nodes-are-said-by-tag-once-deleted`, a selection
+verdict's diagnosis that says deleted nodes by tag; it waits on its own
+`blocked_on`.

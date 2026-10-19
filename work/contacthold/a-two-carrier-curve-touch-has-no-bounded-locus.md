@@ -12,12 +12,12 @@ cost: M
 Found by CONTACTHOLD's fix pass on PR 4604 (dual review, R1 and R2).
 
 `census::confirm_face_pair` (`crates/topo/src/census.rs`) reads a
-face–face record on two carriers through `boolean::tangent_pair_at_rest`.
-That door derives the closed-form tangent line, meets the two faces'
-extents along it (disjoint extents are stale), and runs the C4 `Tangent`
-table over the overlap, material sides included. The census then places
-the line in both faces at the overlap's midpoint through each face's
-containment door. In both faces, the record is confirmed. Off either,
+face–face record on two carriers through `boolean::tangent_pair_at_rest`,
+which derives the closed-form tangent line and meets the two faces'
+extents along it (disjoint extents are stale). The census then places
+the line in both faces (`boolean::rest_line_in_both_faces`) and, where it
+runs through both, reads the C4 `Tangent` table over the overlap,
+material sides included (`boolean::tangent_table_at_rest`). In both faces, the record is confirmed. Off either,
 it is stale.
 
 What C3 asks and this does not build: the touch's **endpoints**, the

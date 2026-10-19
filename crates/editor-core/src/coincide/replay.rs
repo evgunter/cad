@@ -253,7 +253,9 @@ fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
 /// the row decided two faces one carrier: whether every Zero it stands
 /// on is proven, or why the first that is not keeps; `None` where the
 /// replay reads no such verdict (not two faces, a face it did not
-/// build, or another relation decided).
+/// build, or another relation decided). A meeting of cells at a point
+/// is read by the margin that decided it, which the replay computes
+/// from the cells' symbolic carriers ([`Rung::MarginIdentity`]).
 fn carrier_verdict(
     ev: &Evaluation<Lane>,
     row: &NamedCoincidence,
@@ -264,8 +266,10 @@ fn carrier_verdict(
         topo::Relation::SameOpposite => CarrierRelation::SameOpposite,
         _ => return None,
     };
-    let [a, b] = row.cells.each_ref().map(|cell| face_of(ev, cell));
-    let ((a, fa), (b, fb)) = (a?, b?);
+    let [a, b] = row.cells.as_slice() else {
+        return None;
+    };
+    let ((a, fa), (b, fb)) = (face_of(ev, a)?, face_of(ev, b)?);
     match topo::boolean::carrier_pair_decided(a, fa, b, fb, band) {
         Ok(Ok((relation, Some(margin)))) if relation == wanted => {
             Some(deferred::discharge_or_why(margin))

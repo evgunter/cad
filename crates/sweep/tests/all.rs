@@ -68,6 +68,8 @@ mod a_face_off_the_tangent_ruling;
 mod a_flank_touch_at_a_shared_corner;
 #[path = "a_flipped_shallow_dimple.rs"]
 mod a_flipped_shallow_dimple;
+#[path = "a_keel_ring_in_an_elliptic_section.rs"]
+mod a_keel_ring_in_an_elliptic_section;
 #[path = "a_loft_computes_its_walls_in_t.rs"]
 mod a_loft_computes_its_walls_in_t;
 #[path = "a_minted_vertex_on_a_curved_face.rs"]
@@ -114,6 +116,8 @@ mod a_swept_cusp_is_legal_at_rest;
 mod a_tangent_arc_at_other_boolean_vertices;
 #[path = "a_thin_cap_keeps_its_digits.rs"]
 mod a_thin_cap_keeps_its_digits;
+#[path = "a_torus_off_its_ring_reads_as_at_rest.rs"]
+mod a_torus_off_its_ring_reads_as_at_rest;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
 #[path = "a_vertex_on_a_grazing_plane.rs"]
@@ -312,6 +316,8 @@ mod transform_nurbs_walls;
 mod trim_3_chart_bound_bodies;
 #[path = "tube_rim_touch_rows.rs"]
 mod tube_rim_touch_rows;
+#[path = "two_tubes_in_the_zero_band.rs"]
+mod two_tubes_in_the_zero_band;
 #[path = "unjoined_operand_at_a_dual.rs"]
 mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]

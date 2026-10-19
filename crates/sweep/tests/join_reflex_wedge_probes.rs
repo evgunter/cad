@@ -151,13 +151,27 @@ fn rw_coplanar_battery() {
     }
 }
 
+/// The poses' ops the result gate refuses (`BooleanError::LineWedges`):
+/// each result carries the corner edge as two edges whose wedges
+/// overlap (210° and 200° in the intersections, 270° and 300°, 250° and
+/// 270° in the subtractions), which every tier passed. They return with
+/// the re-pairing
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
+const OVERLAPPING: &[&str] = &[
+    "θa 210° θb 200° φb 207° I_ab",
+    "θa 210° θb 200° φb 207° I_ba",
+    "θa 270° θb 60° φb 82° S_ab",
+    "θa 90° θb 250° φb 270° S_ba",
+];
+
 /// **Edge-edge membership reads a reflex dihedral wedge by its
 /// extent.** Each pose shares the corner edge between a convex and a
 /// reflex wedge, or two reflex ones, on both sides of a half-turn; the
 /// last four put a flank of `b` along a flank plane of `a`, overlapping
 /// it or opposite it across the edge. Every op in both operand orders
 /// builds a body that passes tiers 2 and 3′ and the at-rest
-/// certificate, has the closed-form volume, and is a legal operand.
+/// certificate, has the closed-form volume, and is a legal operand, but
+/// those [`OVERLAPPING`] names.
 #[test]
 fn edge_edge_sites_at_a_reflex_wedge_build_sound() {
     for (theta_a, theta_b, phi_b) in [
@@ -174,7 +188,21 @@ fn edge_edge_sites_at_a_reflex_wedge_build_sound() {
         let p = pose(theta_a, theta_b, phi_b);
         for (op, want) in OPS.iter().zip(p.want) {
             let what = format!("θa {theta_a}° θb {theta_b}° φb {phi_b}° {op}");
-            let bb = match run(&p, op) {
+            let got = run(&p, op);
+            if OVERLAPPING.contains(&what.as_str()) {
+                assert!(
+                    matches!(
+                        got,
+                        Err(BooleanError::LineWedges {
+                            fault: topo::LineWedgeFault::Overlap { .. },
+                            ..
+                        })
+                    ),
+                    "{what}: {got:?}, not the overlap's refusal"
+                );
+                continue;
+            }
+            let bb = match got {
                 Ok(BooleanResult::Body(bb)) => bb,
                 other => panic!("{what}: {other:?}"),
             };

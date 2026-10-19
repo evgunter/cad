@@ -10,8 +10,6 @@
 //! chord reaches it.
 //!
 //! The rows, each in all six ops (both ops, both operand orders):
-//! - the 3N staircase: a slab less three cuts, each consecutive pair of
-//!   them touching along a line that pierces a plate's top;
 //! - a bare pinch: two bricks touching along the z-axis, which pierces
 //!   a brick's top face at the origin;
 //! - a wedge in an L's reflex corner, the same way: an interior angle
@@ -22,7 +20,9 @@
 //! In the bare pinch and the reflex corner, `B − pinch` keeps the pinch
 //! line inside `B`, where the complement of the pinch's two wedges pairs
 //! its sheets across the two solids. ∖ does not build that re-pairing,
-//! so those two rows refuse `BooleanError::Revert`.
+//! so the result's two edges there overlap (270° each, or 311.1° and
+//! 90°) and the result gate refuses `BooleanError::LineWedges`. The
+//! staircase refuses at its own second cut, the same way.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -30,7 +30,7 @@ use crate::common;
 use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanResult, Operand, intersect, subtract, union,
+    AtRestBody, Body, BooleanError, BooleanResult, LineWedgeFault, intersect, subtract, union,
     validate_geometric, validate_pseudomanifold,
 };
 
@@ -73,16 +73,21 @@ fn t() -> Tol {
 
 /// `b − pinch` refuses the pinch's revert (module docs).
 fn b_less_pinch_refuses(label: &str, b: &AtRestBody<f64>, pinch: &AtRestBody<f64>) {
-    let got = subtract(b, pinch, t());
+    refuses_overlap(&format!("{label}: B − pinch"), subtract(b, pinch, t()));
+}
+
+/// Asserts `got` is the result gate's refusal of overlapping wedges on
+/// the result's coincident edges.
+fn refuses_overlap(what: &str, got: Result<BooleanResult<f64>, BooleanError>) {
     assert!(
         matches!(
             got,
-            Err(BooleanError::Revert {
-                operand: Operand::B,
+            Err(BooleanError::LineWedges {
+                fault: LineWedgeFault::Overlap { .. },
                 ..
             })
         ),
-        "{label}: B − pinch: {got:?}, not the revert's refusal"
+        "{what}: {got:?}, not the overlap's refusal"
     );
 }
 
@@ -198,99 +203,39 @@ fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
     finished("a brick", brick::<f64>(x, y, z, t()), t())
 }
 
-/// `base` less `cut`, the two flush where they share a plane.
-fn less(base: &AtRestBody<f64>, cut: &AtRestBody<f64>) -> AtRestBody<f64> {
-    match subtract(base, cut, t()).unwrap() {
-        BooleanResult::Body(r) => r.body,
-        BooleanResult::Empty => panic!("the cut leaves material"),
-    }
-}
-
-/// **The 3N staircase against the plate, every op both ways round.**
+/// **The 3N staircase refuses at its second cut.** The slab
+/// `[−1, 4] × [−1, 3] × [0.5, 3]` less the cut `[1, 1.5] × [−2, 1]`
+/// builds; less the next cut, `[1.5, 2] × [1, 1.5]`, which touches the
+/// first along `x = 1.5, y = 1`, the material there is two 90° wedges,
+/// one each side. The join pairs each cut's two faces into an edge, so
+/// the result carries the line from `z = 0.5` to `z = 2` as two edges of
+/// 270° each, overlapping by 180° (every tier passed it), and the result
+/// gate refuses. Its six ops against the plate, `P − X` among them,
+/// return with the re-pairing
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
 #[test]
-fn the_staircase_and_the_plate_build_in_every_op() {
-    let cuts = [
-        ((1.0, 1.5), (-2.0, 1.0), (0.3, 2.3)),
-        ((1.5, 2.0), (1.0, 1.5), (0.27, 2.0)),
-        ((2.0, 2.5), (1.5, 4.0), (0.31, 1.81)),
-    ];
-    let x = cuts.iter().fold(
-        block((-1.0, 4.0), (-1.0, 3.0), (0.5, 3.0)),
-        |x, &(cx, cy, cz)| less(&x, &block(cx, cy, cz)),
-    );
-    let p = block((0.0, 3.0), (0.0, 2.0), (0.0, 1.0));
-    // Each cut's part inside the slab, and inside the plate's z ∈ [0.5, 1].
-    let x_volume = 5.0 * 4.0 * 2.5 - 0.5 * 2.0 * 1.8 - 0.25 * 1.5 - 0.5 * 1.5 * 1.31;
-    let both = 3.0 * 2.0 * 0.5 - (0.5 * 1.0 + 0.25 + 0.25) * 0.5;
-    let p_volume = 6.0;
-    let rows: [Row; 6] = [
-        (
-            "X − P",
-            Kind::Subtract,
-            false,
-            [28, 72, 46],
-            x_volume - both,
-            false,
-        ),
-        (
-            "X ∪ P",
-            Kind::Union,
-            false,
-            [28, 72, 48],
-            x_volume + p_volume - both,
-            false,
-        ),
-        ("X ∩ P", Kind::Intersect, false, [20, 48, 28], both, true),
-        (
-            "P − X",
-            Kind::Subtract,
-            true,
-            [20, 48, 30],
-            p_volume - both,
-            true,
-        ),
-        (
-            "P ∪ X",
-            Kind::Union,
-            true,
-            [28, 72, 48],
-            x_volume + p_volume - both,
-            false,
-        ),
-        ("P ∩ X", Kind::Intersect, true, [20, 48, 28], both, true),
-    ];
-    every_op("staircase", &x, &p, &rows);
-    // `P − X` passes 3′ on a record: where a line of X's pierces the
-    // plate's top, one ring serves its two edges' pierces, and the
-    // result records that grouping (a `VertexFusion` row) with a record
-    // of the vertices it keeps there citing it.
-    let BooleanResult::Body(r) = subtract(&p, &x, t()).unwrap() else {
-        panic!("P − X is empty")
+fn the_staircase_refuses_at_its_second_cut() {
+    let first = match subtract(
+        &block((-1.0, 4.0), (-1.0, 3.0), (0.5, 3.0)),
+        &block((1.0, 1.5), (-2.0, 1.0), (0.3, 2.3)),
+        t(),
+    )
+    .unwrap()
+    {
+        BooleanResult::Body(r) => r.body,
+        BooleanResult::Empty => panic!("the first cut leaves material"),
     };
-    let fusions = r
-        .coincidences
-        .iter()
-        .filter(|c| c.site == topo::DecisionSite::VertexFusion)
-        .count();
-    assert!(fusions > 0, "P − X: the rings' groupings recorded");
-    let at = |q: (f64, f64, f64)| -> Vec<topo::VertexKey> {
-        r.body
-            .vertex_points()
-            .filter(|&(_, w)| (w.x, w.y, w.z) == q)
-            .map(|(k, _)| k)
-            .collect()
-    };
-    for q in [(1.5, 1.0, 1.0), (2.0, 1.5, 1.0)] {
-        let here = at(q);
-        if here.len() > 1 {
-            assert!(
-                r.contacts
-                    .vertex_vertex()
-                    .any(|(a, b)| here.contains(&a) && here.contains(&b)),
-                "P − X: the vertices at {q:?} are a recorded pair"
-            );
-        }
+    let got = subtract(&first, &block((1.5, 2.0), (1.0, 1.5), (0.27, 2.0)), t());
+    if let Err(BooleanError::LineWedges { from, to, .. }) = &got {
+        let mut ends = [from.as_str(), to.as_str()];
+        ends.sort_unstable();
+        assert_eq!(
+            ends,
+            ["(1.5, 1.0, 0.5)", "(1.5, 1.0, 2.0)"],
+            "the staircase's second cut: the line"
+        );
     }
+    refuses_overlap("the staircase's second cut", got);
 }
 
 /// **A bare pinch against a face its line pierces, every op both ways

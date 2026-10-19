@@ -3,7 +3,8 @@ name: CI
 # The per-PR gate is sized for latency: the free plan runs 20 jobs at once
 # across every open PR, so a run's job-minutes are the queue everyone waits
 # in. What runs here is the default-eps suite minus the slow set
-# (.config/nextest.toml's `ci` profile), lint, and the rows whose subject the
+# (.config/nextest.toml's `ci` profile), the slow-set tests the diff adds or
+# edits, lint, and the rows whose subject the
 # diff touched directly. Everything else — every eps row over the whole suite,
 # the slow set, k-lint, the render lanes, rustdoc, wasm32 — runs in
 # nightly.yml. The selection and its evidence: work/ciw/latency-cut.md. A
@@ -392,16 +393,17 @@ jobs:
         run: |
           echo "The slow set did not run: this run seeds no crate, and the nightly runs the whole slow set. TIER=all because of ${ALL_REASON:-a reason the filter did not report}." \
             | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: test (the slow set of the crates this diff seeds)
+      - name: test (the slow-set tests this diff adds or edits)
         if: '!cancelled() && needs.filter.outputs.seeds != '''''
         env:
           SEEDS: ${{ needs.filter.outputs.seeds }}
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
-          # The `ci` profile skips the slow set; a crate's own slow tests run
-          # when the diff seeds that crate, on every tier. A workspace-level
-          # file seeds no crate and adds none; the nightly runs the whole set.
-          slow="$(python3 scripts/slow_set.py --expr)"
+          # The `ci` profile skips the slow set. A slow test runs here only
+          # when the diff's added lines spell it (the new-test rule of the
+          # step above), so on the PR that adds or edits it; the nightly
+          # runs the whole set.
+          slow="$(python3 scripts/slow_set.py --new-expr "$RUNNER_TEMP/new-tests.txt")"
           pkgs="$(echo "$SEEDS" | tr ',' '\n' | sed 's/.*/package(&)/' | paste -sd'|')"
           echo "slow set over: $pkgs"
           rc=0
@@ -601,8 +603,10 @@ jobs:
         run: |
           (cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
           (cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
+      # The `ci` profile (demos/tour/.config/nextest.toml) leaves out the
+      # tour rows that run only nightly.
       - name: demos tour suite
-        run: cd demos/tour && cargo nextest run --release --no-fail-fast
+        run: cd demos/tour && cargo nextest run --release --profile ci --no-fail-fast
 
   tools:
     name: tools (k-lint, tess-lint, tess-meter)

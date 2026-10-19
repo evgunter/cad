@@ -78,6 +78,7 @@ fn arc_modes(program: &[Step<f64>]) -> Vec<ArcMode> {
             | Step::LineTo(_)
             | Step::ContinueTo(_)
             | Step::TangentArcTo(_)
+            | Step::ArcOnto(_)
             | Step::Fillet { .. }
             | Step::FarEndTo(_)
             | Step::CloseTo
