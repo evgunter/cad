@@ -147,6 +147,10 @@ pub trait Certification: sealed::Sealed + Copy {
     /// that one is `Trv` on every input, a statement about set
     /// operations rather than about this narrowing, and keeping it
     /// would refuse every clamp.
+    ///
+    /// The evaluation lane's narrowing is a different operation,
+    /// `SpanLocate::clip_to`: it keeps an uncertified value's decoration
+    /// rather than refusing it, and answers its input on a miss.
     #[must_use]
     fn clamped_to(self, lo: f64, hi: f64) -> Self;
 

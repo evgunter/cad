@@ -18,6 +18,7 @@ lanes in flight are expected to close more, so the track is not split.
 
 | pri | item | cost | title |
 |---|---|---|---|
+| P1 | `coincident-faces-are-not-imprinted-on-each-other-before-the-lump` | H | imprint each coincident face with the partner's in-plane edges before the Eq. 15.3 lump (filed from EMIT's `[ev]` PR 5153, Ev 2026-10-19: "no stopgap"); the structural fix under PRs 4650 and 4737's records, and EMIT's pocket-floor row waits on it |
 | P2 | `check-10-reads-a-cavitys-role-from-its-volume-sign` | M | check 10 reads a cavity's role from its V/A (Ev ruled on PR 4990; dispatched 2026-10-14, `flush/shell-role-reader`) |
 
 Parked, and not counted:

@@ -519,11 +519,20 @@ K stays the one knob (`Tolerance.k`, env `CAD_AMBIGUITY_K`), and
   may stay distinct as data; their user stories converge per decision.
 - (iv) **The rule binds a predicate's DEFINITE arms too**: a
 new definite outcome a user could reach by moving geometry tells the
-same one story with the same one recourse as its in-band sibling. A
-surface reading a body at rest may end a definite contradiction
-between a stored description and its stored geometry as a defect —
-no move of the geometry reaches it — and never names a lever the
-decision does not.
+same one story with the same one recourse as its in-band sibling.
+"Definite" means the reading certainly lies on a refused side,
+whether the band, a number or a proof decided it, so a proved zero
+tells the story of its exact and in-band siblings. Each decision
+says what its refused side is, and every definite reading of it ends
+by that at each door. A side the lever reaches tells the lever story
+everywhere. A contradiction between a stored description and its
+stored geometry tells the lever story at a build. At the import door
+it is the file's: the import refuses typed, naming the file. Past the
+import door no state is reachable only through import ([import]), so
+only a kernel bug reaches it, and it panics ([failure]). A side no
+kernel construction produces panics at a build and past the import
+door, and at the import door is the file's like any other. No refusal
+names a lever the decision does not.
 
 How each door applies these (the import door's ε_in sentences and its
 stopgap, `Indeterminate`'s rendering, `COINCIDENCE_RECOURSE`, the review
