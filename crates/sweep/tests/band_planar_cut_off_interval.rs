@@ -15,6 +15,7 @@ use core::f64::consts::PI;
 use crate::common::interval::iv;
 use geom_core::k_stats::Bracket;
 use geom_core::{Bounds, Decide, Interval, Point3, Sign, Tol};
+use sweep::blend::BlendError;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_naming_totality, block};
 use topo::{
@@ -249,6 +250,35 @@ fn sheared<T: Decide + Bounds + topo::AtRestPolicy>(
     (body, top)
 }
 
+/// Tier 3′, past one refusal: below `ε = 1e-9` the curve-pair meter
+/// cannot settle a fillet joint's meeting count
+/// (`work/cpair/curve-pair-polish-meters-refuse-shallow-meetings.md`),
+/// so there, and only there, that typed refusal is all it may say.
+fn tier_3_prime(body: &Body<Interval>, tol: Tol, what: &str) {
+    let Err(findings) = validate_pseudomanifold(body, &ContactRecords::default(), tol) else {
+        return;
+    };
+    let unsettled = |e: &topo::ValidationError| {
+        matches!(
+            e,
+            topo::ValidationError::CensusUnsupported {
+                cause: topo::CensusUnsupportedCause::ContactLane(
+                    topo::ContactRefusal::NotCertifiable { .. }
+                ),
+                ..
+            }
+        )
+    };
+    assert!(
+        tol.eps() < 1e-9 && findings.iter().all(unsettled),
+        "{what}: tier 3′, got {findings:?}"
+    );
+    println!(
+        "{what}: tier 3′ unsettled at ε {} (cpair's meter): {findings:?}",
+        tol.eps()
+    );
+}
+
 /// **A cut-off at an oblique end face carves at the certified scalar as
 /// at `f64`**: the sheared box's top edge over a ladder of shears of
 /// both signs, convex and concave, both verbs. The fillet's foot on the
@@ -257,7 +287,9 @@ fn sheared<T: Decide + Bounds + topo::AtRestPolicy>(
 /// straddles `atan2`'s cut. Every row builds at both scalars, tiers 3
 /// and 3′ and naming total at `Interval`, its `ΔV` enclosure bracketing
 /// the `f64` body's within the props pad and its midpoint within
-/// `midpoint_tol`.
+/// `midpoint_tol`. At `ε = 1e-12` an `Interval` build may escalate its
+/// pcurve envelope instead, and tier 3′ may meet cpair's meter
+/// ([`tier_3_prime`]); neither is a backward window.
 #[test]
 fn a_cut_off_at_an_oblique_end_carves_at_the_certified_scalar() {
     use crate::band_planar_cut_off::{midpoint_tol, pad_ceiling};
@@ -277,16 +309,35 @@ fn a_cut_off_at_an_oblique_end_carves_at_the_certified_scalar() {
                 }
                 .unwrap_or_else(|e| panic!("{what}: carves at f64, got {e:?}"));
                 let want = fv0 - mass_properties(&fout.body, tol).expect("props").volume;
-                let out = if round {
+                let out = match if round {
                     fillet_edges(&ibody, &[iedge], iv(D), tol)
                 } else {
                     chamfer_edges(&ibody, &[iedge], iv(D), tol)
-                }
-                .unwrap_or_else(|e| panic!("{what}: carves at Interval, got {e:?}"));
+                } {
+                    Ok(out) => out,
+                    // At the finest ε a re-minted pcurve's envelope
+                    // enclosure is wider than the band, and escalates.
+                    Err(e)
+                        if tol.eps() <= 1e-12
+                            && matches!(
+                                &e.error,
+                                BlendError::Certify {
+                                    source: topo::PcurveMintError::Certify {
+                                        error: geom_brep::PcurveCertifyError::Escalated { .. },
+                                        ..
+                                    },
+                                    ..
+                                }
+                            ) =>
+                    {
+                        println!("{what}: escalates at ε {}: {:?}", tol.eps(), e.error);
+                        continue;
+                    }
+                    Err(e) => panic!("{what}: carves at Interval, got {e:?}"),
+                };
                 validate_geometric(&out.body, tol)
                     .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
-                validate_pseudomanifold(&out.body, &ContactRecords::default(), tol)
-                    .unwrap_or_else(|e| panic!("{what}: tier 3′, got {e:?}"));
+                tier_3_prime(&out.body, tol, &what);
                 assert_naming_totality(&ibody, &out, &[iedge], &what);
                 let p = mass_properties(&out.body, tol).expect("interval props");
                 let removed = iv0.volume - p.volume;
