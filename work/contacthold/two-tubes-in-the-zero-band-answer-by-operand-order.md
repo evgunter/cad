@@ -2,7 +2,9 @@
 id: two-tubes-in-the-zero-band-answer-by-operand-order
 kind: issue
 title: Two tubes side by side in the zero band answer Ok in one operand order and CurvedPierceUnsupported in the other
-status: open
+status: review
+branch: contacthold/two-tubes-zero-band
+pr: 5389
 opened: 2026-10-13
 priority: P2
 ---
@@ -33,3 +35,20 @@ and after it, so it is not that PR's.
 The glue door reads the pair tangent in the zero band in either order
 (`boolean::glue::tangency`), so the asymmetry lies past the door:
 the pierce stage that refuses one order is where to start.
+
+## Where the orders part (2026-10-19)
+
+In every pose the first body's seam ruling lies on the tangent line, so
+the second body's rim circles touch its wall mid-arc. Sweeping the
+first body's edges first, its seam pierces the second's cap planes on
+their rim circles and splits them there; the second direction then
+reads each circle fragment with its end on the touch, and records it.
+Sweeping the second body's edges first, `reduce::curved_face_arm`'s
+covered circle branch meets each whole circle, both ends definitely
+off the carrier and its interior unseen, and refused before the other
+direction could split it. A covered line in that state was already
+deferred to `settle_deferred`; the circle now is too, so both orders
+read the same fragments. The `Ok` was right: ∪ is the two solids with
+the operands' summed volume and the same two vertex–edge records in
+both orders, ∖ the first operand, ∩ empty. Rows:
+`crates/sweep/tests/two_tubes_in_the_zero_band.rs`.

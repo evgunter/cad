@@ -316,6 +316,8 @@ mod transform_nurbs_walls;
 mod trim_3_chart_bound_bodies;
 #[path = "tube_rim_touch_rows.rs"]
 mod tube_rim_touch_rows;
+#[path = "two_tubes_in_the_zero_band.rs"]
+mod two_tubes_in_the_zero_band;
 #[path = "unjoined_operand_at_a_dual.rs"]
 mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]
