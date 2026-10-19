@@ -101,7 +101,7 @@ use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::eval::{
     CancelToken, ContentKey, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult,
-    ProfileLift, evaluate,
+    evaluate,
 };
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
@@ -1281,6 +1281,22 @@ impl core::fmt::Display for DriveRefusal {
 
 impl core::error::Error for DriveRefusal {}
 
+/// **The WITNESS build's options**: the document at its nominals, over
+/// the analysed box collapsed to the nominal (`ParamBox::at_nominal`),
+/// so its profile lift is the leaves' (guided) and the two verdict
+/// vectors are comparable — guided elaboration at f64 IS plain
+/// elaboration at f64, bit for bit (the lift's own differential pin),
+/// so this changes the build it produces in no way and makes the two
+/// passes the same code. [`drive`] evaluates its witness at f64 under
+/// exactly these.
+#[must_use]
+pub fn witness_options(analyzed: &AnalyzedBox) -> EvalOptions {
+    EvalOptions {
+        param_box: Some(Arc::new(ParamBox::of(analyzed).at_nominal())),
+        ..lane_opts()
+    }
+}
+
 /// **Drives the document over the analyzed box** (E6).
 ///
 /// Read-only: `doc` is shared, the result is a value, and nothing on
@@ -1312,13 +1328,13 @@ pub fn drive(
         });
     }
 
-    // The WITNESS build: the document at its nominals, at f64, with the
-    // profile lift on. The lift is on rather than off because the leaf
-    // replay runs guided and the two vectors must be comparable —
-    // guided elaboration at f64 IS plain elaboration at f64, bit for
-    // bit (the lift's own differential pin), so this changes the build
-    // it produces in no way and makes the two passes the same code.
-    let witness: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &lane_opts(), tol);
+    let witness: Evaluation<f64> = evaluate(
+        doc,
+        None,
+        &CancelToken::new(),
+        &witness_options(analyzed),
+        tol,
+    );
     if let Some(standing) = witness
         .order
         .iter()
@@ -1529,18 +1545,19 @@ fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
     })
 }
 
-/// The evaluation options every pass of a drive uses: the profile lift
-/// ON (so profile geometry is a function of the leaf's parameters and
-/// every structure decision is re-verified at the lane), sequential
+/// The evaluation options every pass of a drive uses: sequential
 /// (leaf-level parallelism is the driver's, and nesting a rayon scope
 /// per leaf inside one buys nothing), and no memo.
 ///
 /// **Crate-visible because the clearance engine replays INSIDE a leaf**
 /// ([`crate::clearance`]) and must replay it the way this driver
 /// certified it. Two copies of these options are two lanes: a clearance
-/// query whose lift setting drifted from the driver's would be
-/// certifying a body other than the one the leaf's verdict vector is
-/// about.
+/// query whose options drifted from the driver's would be certifying a
+/// body other than the one the leaf's verdict vector is about. The
+/// profile lift is not among them: a leaf's box makes it guided
+/// ([`EvalOptions::profile_lift`]), so profile geometry is a function of
+/// the leaf's parameters, and every structure decision is re-verified
+/// at the lane.
 ///
 /// The SCALAR is the other half of "the way this driver certified it",
 /// and it does not ride here: it rides on the verdict
@@ -1558,10 +1575,7 @@ pub(crate) fn lane_opts() -> EvalOptions {
     // stale-result discrimination token for a caller holding several
     // in-flight evaluations, which a drive is not: each leaf's result
     // is consumed before the next is asked for.
-    EvalOptions {
-        profile_lift: ProfileLift::Guided,
-        ..EvalOptions::default()
-    }
+    EvalOptions::default()
 }
 
 /// A frontier entry: a box and how many times each axis has been split
@@ -2313,7 +2327,15 @@ mod tests {
             param_end: t1,
         };
         let bracket = Bracket::open();
-        let refused = EdgeCurve::certify(spec, p0, p1, |k| arena.get(k).cloned(), band()).is_err();
+        let refused = EdgeCurve::certify(
+            spec,
+            p0,
+            p1,
+            |k| arena.get(k).cloned(),
+            geom_core::Real::from_f64(1.0),
+            band(),
+        )
+        .is_err();
         assert!(refused, "the configuration is not a tangency");
         bracket.finish().escalations
     }

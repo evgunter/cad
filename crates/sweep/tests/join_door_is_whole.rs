@@ -6,7 +6,7 @@
 //! the exact rational quadratic of itself and split. The predicate reads
 //! the second along the cylinder and cap's locus like the first, but the
 //! join cannot run a kept edge on along a spline
-//! (`work/fuse/joining-a-spline-carrier-is-unbuilt`), so it refuses
+//! (`work/hone/joining-a-spline-carrier-is-unbuilt`), so it refuses
 //! inside its kill, after the first join, and the body is as found.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

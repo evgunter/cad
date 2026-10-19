@@ -121,6 +121,8 @@ mod display_contract;
 mod dm3_indexed_read;
 #[path = "dm4_migration_one_shot.rs"]
 mod dm4_migration_one_shot;
+#[path = "dm4_names_by_variable.rs"]
+mod dm4_names_by_variable;
 #[path = "dm4_reads_key_booleans.rs"]
 mod dm4_reads_key_booleans;
 #[path = "dm7_delete_strands.rs"]
@@ -307,8 +309,6 @@ mod maintenance_net;
 mod msolve10_door_admission;
 #[path = "msolve11_mate_log.rs"]
 mod msolve11_mate_log;
-#[path = "msolve12_honest_translation.rs"]
-mod msolve12_honest_translation;
 #[path = "msolve13_read_at_operand.rs"]
 mod msolve13_read_at_operand;
 #[path = "msolve14_run_scalar.rs"]
@@ -516,8 +516,6 @@ mod p2_gauge_offsets_and_spaces;
 mod p2_gauge_poses_and_doors;
 #[path = "p2_gauges.rs"]
 mod p2_gauges;
-#[path = "p2_promote_fold.rs"]
-mod p2_promote_fold;
 #[path = "p2_split.rs"]
 mod p2_split;
 #[path = "parallel_node_map_interval.rs"]
@@ -526,6 +524,8 @@ mod parallel_node_map_interval;
 mod parallel_node_map_probe;
 #[path = "part_depth_bound.rs"]
 mod part_depth_bound;
+#[path = "parts_entered_before_the_map.rs"]
+mod parts_entered_before_the_map;
 #[path = "pattern_spacing_and_step.rs"]
 mod pattern_spacing_and_step;
 #[path = "perf12_census_bvh_diff.rs"]
@@ -607,6 +607,8 @@ mod seat4_verb_lowering;
 mod seat7_sweep_lowering;
 #[path = "seat8_split_lowering.rs"]
 mod seat8_split_lowering;
+#[path = "split_pinch_keeps.rs"]
+mod split_pinch_keeps;
 #[path = "step_handle_binding.rs"]
 mod step_handle_binding;
 #[path = "switch_display_units.rs"]
@@ -707,8 +709,6 @@ mod sym11_exact_channel_rows;
 
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;
-#[path = "wire_entity_door.rs"]
-mod wire_entity_door;
 #[path = "wire_frame_placement_carry.rs"]
 mod wire_frame_placement_carry;
 #[path = "wire_legal_union_refusals.rs"]
@@ -721,7 +721,11 @@ mod wire_product_gather_tie;
 mod wire_rv_bytes;
 #[path = "wire_rv_unknown.rs"]
 mod wire_rv_unknown;
+#[path = "wire_selection_kind_doors.rs"]
+mod wire_selection_kind_doors;
 
+#[path = "a_mate_on_a_full_turn_bore_names.rs"]
+mod a_mate_on_a_full_turn_bore_names;
 #[path = "decide_1_self_dot_interval.rs"]
 mod decide_1_self_dot_interval;
 #[path = "decide_3_split_rows_interval.rs"]
@@ -790,6 +794,14 @@ mod intent_s2_e_select;
 mod intent_s2_f_mates;
 #[path = "intent_s3_a_poses.rs"]
 mod intent_s3_a_poses;
+#[path = "intent_s3_a_prime_moves.rs"]
+mod intent_s3_a_prime_moves;
+#[path = "intent_s3_b_placements.rs"]
+mod intent_s3_b_placements;
+#[path = "intent_s3_c_mates.rs"]
+mod intent_s3_c_mates;
+#[path = "intent_s4_h_placed.rs"]
+mod intent_s4_h_placed;
 #[path = "intent_s5_a_relation.rs"]
 mod intent_s5_a_relation;
 #[path = "intent_s5_b_interference.rs"]

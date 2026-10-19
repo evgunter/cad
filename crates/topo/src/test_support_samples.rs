@@ -283,8 +283,10 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
 
 /// [`ContainError::ArcEndClearOfCorners`] at the sample band: an end
 /// decided off both corners (`off_corner`, read only at a band finer
-/// than the run's), or every end at a corner (the band's own parting,
-/// `K ≤ 3`, the one the census reaches).
+/// than the run's), or every end at a corner (the band's own parting, the
+/// one the census reaches: the point within the zero band of the end's
+/// point and past the escalation from a corner within the zero band of
+/// it, so `K < 2`).
 #[must_use]
 pub fn arc_end_clear_of_corners(off_corner: bool) -> ContainError {
     let (zero, off) = (
@@ -466,6 +468,11 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
         CertifyError::NurbsLaneNotSupplied,
+        CertifyError::OnPairArcRim {
+            iso: None,
+            limb: geom_brep::SsiLimb::HullValueChart,
+            bound: MarginDiag::value(4.6e-4),
+        },
         CertifyError::IntersectionSameSurface { key },
         CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
@@ -645,21 +652,28 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             }),
         },
         PcurveCertifyError::FittedLimb {
-            limb: geom_brep::SsiLimb::HullSup,
+            limb: geom_brep::SsiLimb::HullSupChart,
             margin: MarginDiag::value(1e-7),
         },
         PcurveCertifyError::CarrierDomain(carrier_domain_collapsed()),
         PcurveCertifyError::CarrierEnclosure(carrier_enclosure()),
         PcurveCertifyError::FittedEscalated {
-            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSup),
+            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSupChart),
             cause: diag(),
         },
         PcurveCertifyError::IntervalNotForward,
         PcurveCertifyError::ChartWindingUnsupported,
+        PcurveCertifyError::ChannelKindMismatch {
+            chart: geom::SurfaceKind::Cylinder,
+        },
+        PcurveCertifyError::WindingMismatch {
+            stored: [Some(1), None],
+            derived: [Some(-1), None],
+        },
         PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
+        PcurveCertifyError::PlacementTurnsExceeded,
         PcurveCertifyError::TubePeriodExceeded,
-        PcurveCertifyError::BranchOutOfReach,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
             sample: 4,
@@ -1245,14 +1259,6 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 transverse: 3,
                 smooth: 4,
             },
-        },
-        ValidationError::PairTangencyDetermined {
-            edge,
-            sagitta: geom_core::MarginDiag::value(5e-3),
-        },
-        ValidationError::PairCornerDetermined {
-            edge,
-            wedge: geom_core::MarginDiag::value(5e-3),
         },
         ValidationError::ScaffoldAtRest { edge },
         ValidationError::JoinableVertexAtRest { vertex },

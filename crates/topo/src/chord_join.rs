@@ -121,7 +121,7 @@
 //! tangent ruling has no self-loop: its two ends coincide along the
 //! ruling, which refuses.
 
-use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
+use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve_over};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
 };
@@ -2270,7 +2270,9 @@ fn chord_spec<T: Decide>(
                     surfaces: [(wall_key, &wall), (plane_key, plane)],
                     carrier: &carrier,
                     interval: (s1, s2),
-                    chord: p1.distance(p2),
+                    // The section face is not minted yet, so the wedge
+                    // reads the face the ruling divides.
+                    reach: crate::wedge_reach(body, [face; 2], &carrier, (s1, s2)),
                     witness,
                 },
                 band,
@@ -2850,22 +2852,6 @@ fn between_edge_is_section<T: Decide>(
     }
 }
 
-/// Branch-stabilized chart azimuth `atan2(y, x)` (M5 S13): `atan2`'s
-/// cut sits on the negative-`x` axis, and an interval `y` touching
-/// zero there (a crossing vertex exactly on the chart seam's angle-π
-/// copy) explodes the enclosure to a full period even though every
-/// consumer reads the value mod τ. On a definitely-negative-`x` frame
-/// the same azimuth is `atan2(−y, −x) + π` — the identical angle mod
-/// τ with the cut on the benign axis. The frame trilean is a
-/// computation choice between two identical formulas; its degenerate
-/// and in-band arms keep the direct one (deterministic tie-break, D9).
-fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
-    match decide("split_chart_azimuth_frame", Margin::of(x), band) {
-        Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
-        Ok(Sign::Positive | Sign::Zero) | Err(_) => y.atan2(x),
-    }
-}
-
 /// The **exact** chart-azimuth extent of a pcurve over `[t₀, t₁]`.
 ///
 /// On a cylinder chart [`geom_brep::chart_pcurve`] produces an azimuth
@@ -3118,15 +3104,16 @@ fn run_azimuth_images<T: Decide>(
             continue; // null scaffolding: zero-length, no azimuth extent
         };
         let (t0, t1) = curve.params();
-        let base = chart_pcurve(curve.carrier(), surface, band).map_err(|e| match e {
-            geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
-                SplitJoinError::Escalated { face, diag: cause }
-            }
-            _ => SplitJoinError::SectionInvariant {
-                face,
-                what: "a run edge has no closed-form chart image on the divided face's chart",
-            },
-        })?;
+        let base =
+            chart_pcurve_over(curve.carrier(), t0, t1, surface, band).map_err(|e| match e {
+                geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
+                    SplitJoinError::Escalated { face, diag: cause }
+                }
+                _ => SplitJoinError::SectionInvariant {
+                    face,
+                    what: "a run edge has no closed-form chart image on the divided face's chart",
+                },
+            })?;
         let plus = edge.he_plus == he;
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
         let pcurve = match prev_exit {
@@ -3276,7 +3263,7 @@ fn run_azimuth_images<T: Decide>(
 /// [`SplitJoinError::Escalated`] where a mark is in band, or the gap
 /// sits on a mark with a branch the near-pole read tries in band;
 /// [`SplitJoinError::SectionInvariant`] where the gap sits on a mark off
-/// every branch that read tries, or past the branch reach, or the chart
+/// every branch that read tries, or the chart
 /// is the placeholder.
 fn nearest_branch<T: Decide>(
     surface: &geom::Surface<T>,
@@ -3300,14 +3287,11 @@ fn nearest_branch<T: Decide>(
     )
     .map_err(|miss| match miss {
         geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
-        geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach => {
-            SplitJoinError::SectionInvariant {
-                face,
-                what: "a run edge's chart entry sits half a period, or past the branch \
-                           reach, from the previous edge's exit — the two images name no \
-                           common branch",
-            }
-        }
+        geom_brep::BranchMiss::OnMark => SplitJoinError::SectionInvariant {
+            face,
+            what: "a run edge's chart entry sits half a period from the previous edge's exit — \
+                   the two images name no common branch",
+        },
     })
 }
 
@@ -3340,7 +3324,7 @@ struct PoleJoint<T: Decide> {
 /// - the walk leaves along the edge it arrived on, so the face wraps the
 ///   pole: the previous branch one whole turn on, `prev_k ± 1`, a
 ///   literal at every scalar;
-/// - two distinct edges: [`geom_brep::whole_period_count`] of
+/// - two distinct edges: [`geom_brep::Period::decide`] of
 ///   `gap ± τ/2`, its marks at whole periods, metered by D4 ¶1's
 ///   parallelism lever ([`pole_lever`]). A mark decided Zero is two
 ///   distinct edges leaving along one direction, an overlap or a cusp,
@@ -3387,22 +3371,17 @@ fn pole_branch<T: Decide>(
     };
     let half = T::tau() * T::from_f64(0.5);
     let shifted = if advancing { gap + half } else { gap - half };
-    geom_brep::whole_period_count(
-        "split_sphere_pole_branch",
-        shifted,
-        T::tau(),
-        |g| Margin::levered(g, lever),
-        band,
-    )
-    .map_err(|miss| match miss {
-        geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
-        geom_brep::BranchMiss::OnMark => SplitJoinError::PoleEdgesCoincide { face },
-        geom_brep::BranchMiss::OutOfReach => SplitJoinError::SectionInvariant {
-            face,
-            what: "a run edge's chart entry at a sphere pole sits past the branch reach from \
-                   the previous edge's exit",
-        },
-    })
+    geom_brep::Period::new(T::tau())
+        .decide(
+            "split_sphere_pole_branch",
+            shifted,
+            |g| Margin::levered(g, lever),
+            band,
+        )
+        .map_err(|stop| match stop.miss {
+            geom_brep::BranchMiss::Undecided(diag) => SplitJoinError::Escalated { face, diag },
+            geom_brep::BranchMiss::OnMark => SplitJoinError::PoleEdgesCoincide { face },
+        })
 }
 
 /// **The length over which an angle at a sphere pole displaces an
@@ -3455,30 +3434,33 @@ fn pole_lever<T: Decide>(
 /// `v·Δu` against `v·Δu` (the precision note at `geom_brep::props`'
 /// cylinder Green form, which this shares).
 ///
-/// Read for a cylinder chart, whose every harmonic image
-/// [`chart_pcurve`] writes with a LINEAR azimuth channel (`pa.x = pb.x
-/// = 0`, `u = p0.x + pl.x·t`): `v` is then
-/// `p0.y + pa.y·cos t + pb.y·sin t + pl.y·t` and integrates term by
-/// term. The precondition is decided, not assumed
-/// (`split_chart_azimuth_linear`, the harmonic azimuth amplitude
-/// levered by the radius): an image that breaks it is the chart
-/// writer's invariant broken, and refuses.
+/// Read for a cylinder chart, whose azimuth is an angle channel
+/// ([`geom_brep::Channel::Angle`]): `u = phase + w·t` with no harmonic
+/// part by type, so `du = w·dt`, and `v` is
+/// `p0.y + pa.y·cos t + pb.y·sin t + pl.y·t`, which integrates term by
+/// term.
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::SectionInvariant`] for a harmonic azimuth term;
-/// [`SplitJoinError::Escalated`] when that decision escalates.
+/// [`SplitJoinError::SectionInvariant`] for a harmonic image whose
+/// azimuth is a free channel, which is no cylinder chart's.
 fn chart_v_du<T: Decide>(
     face: FaceKey,
     p: &Pcurve<T>,
     (t0, t1): (T, T),
     anchor: T,
-    radius: T,
-    band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    let Pcurve::Harmonic { p0, pa, pb, pl } = *p else {
+    let Pcurve::Harmonic { u, v } = *p else {
         return Ok(None);
     };
+    if u.winding().is_none() {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a cylinder chart image's azimuth is a free channel, and the chart's \
+                   azimuth is an angle",
+        });
+    }
+    let (p0, pa, pb, pl) = geom_brep::harmonic_form_of(u, v);
     // `sup |x·cos t + y·sin t| = √(x² + y²)`, spelled as
     // `geom_brep::harmonic` spells it, whose helpers are crate-private.
     let pair = |_site: &str, x: T, y: T| {
@@ -3487,28 +3469,6 @@ fn chart_v_du<T: Decide>(
         let norm = mutants::pair(_site, x, y).unwrap_or(norm);
         norm
     };
-    // The gate admits a harmonic azimuth part of amplitude under the
-    // band at the radius, and the integral below reads `du = pl.x·dt`
-    // alone: the part it drops, `∫ (v − anchor)·(pb.x·cos t − pa.x·sin
-    // t) dt`, is at most `sup |v − anchor|·√(pa.x² + pb.x²)·|Δt|`, and
-    // nothing downstream adds it to the winding's slack
-    // (`work/hone/chart-v-du-drops-a-decided-zero-azimuth-harmonic-unbounded.md`).
-    match decide(
-        "split_chart_azimuth_linear",
-        Margin::levered(pair("topo-gate", pa.x, pb.x), radius),
-        band,
-    )
-    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-    {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "a cylinder chart image carries a harmonic azimuth term (the chart \
-                       writes the azimuth linear in the carrier parameter)",
-            });
-        }
-    }
     let v_var = (pair("topo-v-var", pa.y, pb.y) + pl.y.abs()) * (t1 - t0).abs();
     let half = T::from_f64(0.5);
     let dt = t1 - t0;
@@ -3528,7 +3488,7 @@ fn chart_v_du<T: Decide>(
 mod mutants {
     use geom_core::Real;
 
-    pub(super) const SITES: [&str; 2] = ["topo-gate", "topo-v-var"];
+    pub(super) const SITES: [&str; 1] = ["topo-v-var"];
 
     pub(super) fn pair<T: Real>(site: &str, x: T, y: T) -> Option<T> {
         debug_assert!(SITES.contains(&site), "an unlisted mutant site: {site}");
@@ -3652,7 +3612,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
     let mut length = T::zero();
     for (i, image) in images.iter().enumerate() {
         let harmonic = match image.harmonic.as_ref() {
-            Some(p) => chart_v_du(face, p, image.t, anchor, radius, band)?,
+            Some(p) => chart_v_du(face, p, image.t, anchor)?,
             None => None,
         };
         let (v_du, v_var) = harmonic.ok_or(SplitJoinError::SectionInvariant {
@@ -5364,7 +5324,9 @@ fn chart_ring_side<T: Decide>(
     let read = |v: VertexKey| -> Result<Result<Option<RingSide>, Indeterminate>, SplitJoinError> {
         let decide_r = |name, margin| decide(name, margin, band);
         let w = vertex_point(body, v) - centre;
-        let raw = stable_azimuth(w.dot(axis.cross(u_ref)), w.dot(u_ref), band);
+        // The chart's one azimuth read (`geom_brep::Azimuth::principal`),
+        // lifted onto the run's window below by `periodic_branch`.
+        let raw = geom_brep::Azimuth::of(w.dot(axis.cross(u_ref)), w.dot(u_ref)).principal(band);
         // The vertex on the branch of the window's middle, in
         // `(mid − τ/2, mid + τ/2]`. A vertex inside the window lands on its
         // own branch. One at the seam of a whole-period window lands on
@@ -5470,6 +5432,9 @@ mod chart_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod first_image_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod seam_rows;
@@ -7552,7 +7517,7 @@ mod nearest_branch_rows {
     #[test]
     fn the_nearest_branch_is_a_literal_over_a_box() {
         let band = Band::linear(Tol::witness()).unwrap();
-        for k in [-1.0, 0.0, 1.0, 2.0] {
+        for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |a, b| {
                     let f = Sym::<Interval>::from_f64;

@@ -356,12 +356,19 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
                          wrapped f64's bits, so the two lanes' memo keys are the same word",
                         d.name
                     );
+                    let (tf, tp) = (
+                        crate::fixture::tables(&ev_f, id),
+                        crate::fixture::tables(&ev_p, id),
+                    );
+                    let count = |ts: &[&editor_core::NameTable]| -> usize {
+                        ts.iter().map(|t| t.iter().count()).sum()
+                    };
                     assert!(
-                        vf.name_table == vp.name_table,
-                        "{}: node {id:?}: name table ({} entries at f64, {} at Probe)",
+                        tf == tp,
+                        "{}: node {id:?}: name tables ({} entries at f64, {} at Probe)",
                         d.name,
-                        vf.name_table.iter().count(),
-                        vp.name_table.iter().count()
+                        count(&tf),
+                        count(&tp)
                     );
                     assert_eq!(
                         vf.verdicts, vp.verdicts,

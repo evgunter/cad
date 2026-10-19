@@ -401,7 +401,6 @@ pub fn leaf_histogram(
     for leaf in verdict.certified() {
         let opts = crate::eval::EvalOptions {
             param_box: Some(std::sync::Arc::new(leaf.box_.clone())),
-            profile_lift: crate::eval::ProfileLift::Guided,
             ..crate::eval::EvalOptions::default()
         };
         // On the drive's own lane (`ParamBoxVerdict::symbolic`): a row

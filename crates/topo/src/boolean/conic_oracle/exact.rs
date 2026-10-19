@@ -22,8 +22,10 @@ use core::f64::consts::{FRAC_PI_2, TAU};
 use geom_core::{Point3, Vec3};
 
 /// A double-double: the unevaluated sum `hi + lo`, `|lo| ≤ ulp(hi)/2`.
+/// Also the spiric box rows' exact reference (`boolean::boxes`'
+/// `spiric_f_reference`).
 #[derive(Clone, Copy, Debug, PartialEq)]
-struct Dd {
+pub(in crate::boolean) struct Dd {
     hi: f64,
     lo: f64,
 }
@@ -48,11 +50,11 @@ fn quick_two_sum(a: f64, b: f64) -> Dd {
 impl Dd {
     const ZERO: Self = Self { hi: 0.0, lo: 0.0 };
 
-    fn of(x: f64) -> Self {
+    pub(in crate::boolean) fn of(x: f64) -> Self {
         Self { hi: x, lo: 0.0 }
     }
 
-    fn add(self, o: Self) -> Self {
+    pub(in crate::boolean) fn add(self, o: Self) -> Self {
         let s = two_sum(self.hi, o.hi);
         let t = two_sum(self.lo, o.lo);
         let s = quick_two_sum(s.hi, s.lo + t.hi);
@@ -66,11 +68,11 @@ impl Dd {
         }
     }
 
-    fn sub(self, o: Self) -> Self {
+    pub(in crate::boolean) fn sub(self, o: Self) -> Self {
         self.add(o.neg())
     }
 
-    fn mul(self, o: Self) -> Self {
+    pub(in crate::boolean) fn mul(self, o: Self) -> Self {
         let p = self.hi * o.hi;
         let e = self.hi.mul_add(o.hi, -p);
         quick_two_sum(p, e + (self.hi * o.lo + self.lo * o.hi))
@@ -89,7 +91,7 @@ impl Dd {
         quick_two_sum(q1, q2).add(Self::of(q3))
     }
 
-    fn sqrt(self) -> Self {
+    pub(in crate::boolean) fn sqrt(self) -> Self {
         if self.hi <= 0.0 {
             return Self::ZERO;
         }
@@ -108,7 +110,7 @@ impl Dd {
         }
     }
 
-    fn to_f64(self) -> f64 {
+    pub(in crate::boolean) fn to_f64(self) -> f64 {
         self.hi + self.lo
     }
 }

@@ -45,6 +45,6 @@ no candidate holds takes its `General` image.
 The route that reached the arm is NOT gone: STEP adoption's
 conventional rung still states `Chart(plane)` for any plane ×
 described-NURBS edge (`step-import/src/adopt.rs`, `nurbs_rim`), the
-class `work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`
+class `work/select/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`
 tracks. It now reaches the probe-validated schedule rather than a
 guess.

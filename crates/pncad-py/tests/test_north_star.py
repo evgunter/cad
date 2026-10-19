@@ -13,6 +13,7 @@ prompt to move a NO row to YES.
 
 import inspect
 import math
+import sys
 import unittest
 from pathlib import Path
 from typing import ClassVar
@@ -46,7 +47,6 @@ from pncad import (
     SegTag,
     Selector,
     SketchPlane,
-    SplitHalf,
     Start,
     SurfaceKind,
     TubeWindow,
@@ -156,7 +156,7 @@ class TestChute(unittest.TestCase):
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
         )
         chute = doc.insert(Node.revolve(profile, *axis, Formula.angle_in(270, deg)))
 
@@ -546,16 +546,16 @@ class TestPlateParam(unittest.TestCase):
 
 def y_axis(doc, plane):
     """The sketch's own +y through its origin, as a revolve's axis: the
-    `(axis_origin, axis_direction)` pair a revolve writes in its
+    `(axis_through, axis_heading)` pair a revolve writes in its
     profile's frame, splatted into `Node.revolve`.
 
     An axis written in the profile's frame cannot leave its plane, so
-    the four numbers below are that frame's coordinates, not the
-    world's; `doc` and `plane` are kept for the callers' shape.
+    the point and the quarter-turn heading below are that frame's, not
+    the world's; `doc` and `plane` are kept for the callers' shape.
     """
     return (
         (Formula.length_in(0, m), Formula.length_in(0, m)),
-        (Formula.literal(0.0), Formula.literal(1.0)),
+        Formula.turn_over(4),
     )
 
 
@@ -631,11 +631,13 @@ class TestBracket(unittest.TestCase):
         self.assertAlmostEqual(off, 2 * 0.75 * ((3 - self.CUT) + 0.5), delta=1e-12)
         self.assertAlmostEqual(off + kept, whole, delta=1e-12)
 
+        # The lower half's own chords: a name tells apart only what its
+        # variable holds, so the half is said by the read selected in.
         chords = evaluate(doc).select(
-            split,
+            doc.output(split, 1),
             Selector.of(
                 NamePat.of_kind(EntityKind.Edge).path(
-                    [SegPat.tag(SegTag.SectionEdge).side(SplitHalf.Below), SegPat.tag(SegTag.Fragment)]
+                    [SegPat.tag(SegTag.SectionEdge), SegPat.tag(SegTag.Fragment)]
                 )
             ),
         )
@@ -912,9 +914,17 @@ class TestSnowman(unittest.TestCase):
         self.assertEqual(len(bands), 1)
         pose = ev.face_frame(rolled, bands[0])
         ox, oy, oz = (c.meters for c in pose.origin)
-        self.assertEqual((ox, oz), (0.0, 0.0), "the band is centred on the axis")
+        # The axis's heading is a quarter turn, whose cosine rounds to
+        # 6.1e-17 rather than 0: the band's centre, at height `oy` on the
+        # axis, sits off it by `cos(turn/4)·|oy|` plus an ulp of `|oy|`.
+        off = (6.2e-17 + sys.float_info.epsilon) * max(abs(oy), 1.0)
+        for c in (ox, oz):
+            self.assertAlmostEqual(c, 0.0, delta=off, msg="the band is centred on the axis")
         self.assertAlmostEqual(oy, self.roll_centre()[1], delta=1e-12)
-        self.assertEqual((pose.axis[0], abs(pose.axis[1]), pose.axis[2]), (0.0, 1.0, 0.0))
+        # The axis's direction is the heading's unit vector, each
+        # component within `cos(turn/4)` and an ulp of 1 of the y axis.
+        for got, want in zip((pose.axis[0], abs(pose.axis[1]), pose.axis[2]), (0.0, 1.0, 0.0), strict=True):
+            self.assertAlmostEqual(got, want, delta=6.2e-17 + sys.float_info.epsilon)
 
 
 # ------------------------------------------------------------------
@@ -1667,7 +1677,7 @@ class DieScene:
         # The axis in the sketch's own coordinates: the frame's v IS world +z, so the pole axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
         )
         return doc.insert(Node.revolve(sketch, *axis, Formula.angle_in(2.0 * math.pi, rad)))
 
@@ -2306,7 +2316,7 @@ class TestHollowring(unittest.TestCase):
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
         )
         return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(360, deg)))
 
@@ -2442,7 +2452,7 @@ class TestKlein(unittest.TestCase):
         # The axis in the sketch's own coordinates: the axis is the plane's own +v — said in the plane now.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
         )
         return doc.insert(Node.revolve(band, *axis, Formula.angle_in(2 * math.pi, rad)))
 
@@ -2517,7 +2527,7 @@ class TestBudfillet(unittest.TestCase):
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
         )
         return doc.insert(Node.revolve(profile, *axis, Formula.angle_in(2 * math.pi, rad)))
 
@@ -3685,7 +3695,7 @@ class TestMeshCrossCheck(unittest.TestCase):
         # The axis in the sketch's own coordinates: the frame's v is world +y, so the world y axis is its own +y.
         axis = (
             (Formula.length_in(0, m), Formula.length_in(0, m)),
-            (Formula.literal(0.0), Formula.literal(1.0)),
+            Formula.turn_over(4),
         )
         chute = doc.insert(Node.revolve(profile, *axis, Formula.angle_in(270, deg)))
 
@@ -4111,18 +4121,19 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # holds a `Placement` chain, and `transform` is its one-rigid-step
         # sugar. The positive form is `tests/test_placement.py`.
         #
-        # `gauge` JOINED it at EDIT-PLACEMENT P2: the node a group's
-        # placement lives on (A11 (2)). The positive form is
-        # `tests/test_gauges.py`.
+        # `place` holds a placement's shapes and its bundle of
+        # constraints, and `mate` is no node: a mate is the `Mate` value
+        # a bundle holds (INTENT stage 3). The positive form is
+        # `tests/test_world_pins.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "assertion", "chamfer", "datum_axis",
                 "datum_face_frame",
                 "datum_frame", "datum_plane", "datum_point",
-                "extrude", "fillet", "gauge", "hollow_tube", "instantiate_part",
-                "intersect", "loft", "mate", "measure", "part", "pattern",
-                "place_in_world", "placed_union", "placed_union_at",
+                "extrude", "fillet", "hollow_tube", "instantiate_part",
+                "intersect", "loft", "measure", "part", "pattern",
+                "place", "placed_union", "placed_union_at",
                 "polygon", "profile", "revolve", "shell", "sketch_frame",
                 "split", "subtract", "transform", "transform_by", "tube", "union",
             ],
@@ -4142,12 +4153,13 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
-                "bind_count_param", "bind_instance_param",
+                "add_constraint", "add_value", "bind_count_param", "bind_instance_param",
                 "bind_v_degree_param", "declare_var", "define_var",
-                "delete_node", "delete_var", "fold",
-                "insert_node", "promote", "rebind", "rename_var",
+                "delete_node", "delete_var",
+                "insert_node", "pin_where_it_stands", "rebind", "remove_constraint",
+                "rename_var",
                 "set_extrude_side",
-                "set_gauge", "set_label", "set_members", "set_offset",
+                "set_label", "set_members",
                 "set_param", "set_program",
                 "set_tolerance", "set_var_distribution", "set_var_unit",
                 "set_var_value", "update_reference",
@@ -4214,14 +4226,14 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # INTO a document — so it is pinned below the loop with
             # the other signature gaps rather than here.
             # G18 LEFT this list at LIB-G18b, the series' second half:
-            # `Alignment`, `MateFrame`, `MatePrimitive`, `AxisSense`,
+            # `Mate` (now two poses and a `WorldRead`, with `MateValue`),
             # `assemble`, `Assembly`, `AssemblyError`,
             # `solve_document`, `update_references`, `mixed_pins` and
             # `Workspace.update_to_store` are all bound, and the
             # positive form is `tests/test_assembly_author.py`, which
             # authors the tour's two bench documents from nothing
-            # (the stand on the world, short of the tour's turntable
-            # gauge and crate) — two part documents into a store,
+            # (the stand pinned to the world, short of the tour's
+            # turntable and crate) — two part documents into a store,
             # instances of them, the mates that seat one on the other,
             # the solve, the gather and the A5 gate. `update_to_store` is a Workspace METHOD
             # rather than a module door, which is why it is not tested
@@ -4340,9 +4352,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # to leave — it never existed to be absent — which is why the
         # positive row above names both.
         #
-        # `instantiate_part` and `mate` LEFT this list at LIB-G18b.
-        # Placement was never a `Node`: it lives on a gauge and an
-        # instance's offset (`Node.gauge`, `DocEdit.set_offset`).
+        # `instantiate_part` LEFT this list at LIB-G18b. A mate is no
+        # `Node`: it is a constraint of a placement's bundle (`Mate`,
+        # `Doc.constrain`).
         #
         # `shell` LEFT this list at LIB-G17: `Node::Shell` landed and
         # `Node.shell` binds it, with the open faces as ORDERED names
@@ -4518,16 +4530,19 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # The split vocabulary is reachable from Python over the cut,
         # which is what "names end to end" means here: the emitter is
         # TOTAL, not merely non-refusing.
+        # A split's halves are two reads, each its own table: a count
+        # over the cut sums its halves.
+        halves = (doc.output(cut, 0), doc.output(cut, 1))
+
         def count(kind, tag):
-            return len(
-                ev.select(cut, Selector.of(NamePat.of_kind(kind).seg(SegPat.tag(tag))))
-            )
+            sel = Selector.of(NamePat.of_kind(kind).seg(SegPat.tag(tag)))
+            return sum(len(ev.select(h, sel)) for h in halves)
 
         self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
         self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 14)
         def pieces(kind, tag):
             pat = NamePat.of_kind(kind).path([SegPat.tag(tag), SegPat.tag(SegTag.Fragment)])
-            return len(ev.select(cut, Selector.of(pat)))
+            return sum(len(ev.select(h, Selector.of(pat))) for h in halves)
 
         # A section line that re-enters one operand face cuts several
         # chords of it, each named by its ends.

@@ -91,7 +91,9 @@ fn a_one_segment_circle_validates_at_interval_and_lifts_verbatim() {
     let vi = validate(vec![at_i]).expect("the lifted circle validates at Interval");
     assert_eq!(vi.loops()[0].segments().len(), 1);
     let vf = validate(vec![lp]).expect("the circle validates at f64");
-    let lifted = vf.lift_onto(SketchPlane::<Interval>::xy());
+    let lifted = vf
+        .lift_onto(SketchPlane::<Interval>::xy())
+        .expect("the xy plane is finite");
     for vp in [&vi, &lifted] {
         let SegmentKind::Arc { arc, turn } = vp.loops()[0].segments()[0].kind else {
             panic!("an arc");

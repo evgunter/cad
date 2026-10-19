@@ -148,7 +148,11 @@ fn f3_deriv_and_deriv2_match_central_differences_fuzzed() {
             let t = rng.range(2.0 * h, 1.0 - 2.0 * h);
             // Skip parameters too close to a knot (FD would straddle a
             // continuity drop — not a derivative-correctness question).
-            if c.knots().knots().iter().any(|k| (k - t).abs() < 10.0 * h) {
+            if c.knots_f64_interim()
+                .knots()
+                .iter()
+                .any(|k| (k - t).abs() < 10.0 * h)
+            {
                 continue;
             }
             let d = c.deriv(t);
@@ -242,7 +246,7 @@ fn f4_removal_bound_contains_realized_error_lossy_and_adversarial_weights() {
         }
         let c = random_curve(&mut rng, 3, 3, 0.5, 2.0);
         let u = *c
-            .knots()
+            .knots_f64_interim()
             .knots()
             .iter()
             .find(|k| **k > 0.0 && **k < 1.0)
@@ -263,9 +267,14 @@ fn f4_removal_bound_contains_realized_error_lossy_and_adversarial_weights() {
                 }
             })
             .collect();
-        let c = NurbsCurve3::new(c0.knots().clone(), c0.control().to_vec(), weights).unwrap();
+        let c = NurbsCurve3::new(
+            c0.knots_f64_interim().clone(),
+            c0.control().to_vec(),
+            weights,
+        )
+        .unwrap();
         let u = *c
-            .knots()
+            .knots_f64_interim()
             .knots()
             .iter()
             .find(|k| **k > 0.0 && **k < 1.0)
@@ -288,7 +297,8 @@ fn f4_removal_bound_contains_realized_error_lossy_and_adversarial_weights() {
         let mut ctrl = c.control().to_vec();
         let mid = ctrl.len() / 2;
         ctrl[mid] = ctrl[mid] + geom_core::Vec3::new(0.05, -0.03, 0.02);
-        let c = NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap();
+        let c =
+            NurbsCurve3::new(c.knots_f64_interim().clone(), ctrl, c.weights().to_vec()).unwrap();
         if removal_bound_case(&c, u, 2) {
             multi += 1;
             checked += 1;
@@ -316,7 +326,7 @@ fn f5_insert_refine_elevate_are_evaluation_invariant_fuzzed() {
         let mut variants: Vec<(String, NurbsCurve3<f64>)> = Vec::new();
         // insertion, single and to-multiplicity (budget = p).
         let u = rng.range(0.1, 0.9);
-        if c.knots().multiplicity_of(u).is_none() {
+        if c.knots_f64_interim().multiplicity_of(u).is_none() {
             variants.push(("insert1".into(), c.insert_knot(u, 1).unwrap()));
             if p >= 2 {
                 variants.push(("insert_to_mult_p".into(), c.insert_knot(u, p).unwrap()));
@@ -351,7 +361,7 @@ fn f5_insert_refine_elevate_are_evaluation_invariant_fuzzed() {
         // 1e-9 wherever the knots are not that close; below a gap of
         // 1e-2 the cap grows as `1e-11 / g`, 17 times the measured law.
         let gap = {
-            let mut distinct: Vec<f64> = c.knots().knots().to_vec();
+            let mut distinct: Vec<f64> = c.knots_f64_interim().knots().to_vec();
             distinct.dedup();
             distinct
                 .windows(2)
@@ -390,7 +400,7 @@ fn f5_insert_refine_elevate_are_evaluation_invariant_fuzzed() {
         // across the knot on the ELEVATED curve.
         let e1 = &variants.iter().find(|(n, _)| n == "elevate1").unwrap().1;
         let interior_vals: Vec<f64> = {
-            let ks = c.knots().knots();
+            let ks = c.knots_f64_interim().knots();
             let mut v: Vec<f64> = ks
                 .iter()
                 .copied()
@@ -422,7 +432,12 @@ fn f5_insert_refine_elevate_are_evaluation_invariant_fuzzed() {
                 supp(e1.eval(kv - h), e1.eval(kv + h)),
                 fuzz::replay()
             );
-            if c.knots().multiplicity_of(kv).map(|(m, _)| m).unwrap_or(0) < p {
+            if c.knots_f64_interim()
+                .multiplicity_of(kv)
+                .map(|(m, _)| m)
+                .unwrap_or(0)
+                < p
+            {
                 assert!(
                     sup3(dl, dr) < 1e-4 * (1.0 + dl.norm()),
                     "case {case}: C1 lost at {kv} — {}",
@@ -544,7 +559,7 @@ fn f7_span_at_fuzz_locates_every_number() {
     for _ in 0..fuzz::scaled(3) {
         let p = 1 + rng.below(5);
         let c = random_curve(&mut rng, p, 3, 0.5, 2.0);
-        let kv = c.knots();
+        let kv = c.knots_f64_interim();
         for t in [
             f64::NAN,
             f64::INFINITY,
@@ -639,7 +654,7 @@ fn f7_algebra_refusals_typed() {
         E::KnotNotPresent { .. }
     ));
     let interior = *c
-        .knots()
+        .knots_f64_interim()
         .knots()
         .iter()
         .find(|k| **k > 0.0 && **k < 1.0)
@@ -650,5 +665,5 @@ fn f7_algebra_refusals_typed() {
     ));
     // times = 0 insertion is a no-op clone
     let same = c.insert_knot(0.3, 0).unwrap();
-    assert_eq!(same.knots(), c.knots());
+    assert_eq!(same.knots_f64_interim(), c.knots_f64_interim());
 }

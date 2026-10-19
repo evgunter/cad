@@ -144,9 +144,7 @@ fn flush_plane_pair_glues() {
         Ok(())
     );
     let merged = |kind| {
-        ev.value(u)
-            .unwrap()
-            .name_table
+        crate::fixture::table(&ev, u)
             .iter()
             .filter(|(n, _)| n.kind == kind && matches!(n.path.first(), Some(RoleSeg::Merged(_))))
             .count()
@@ -238,21 +236,30 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
             of: floor1.into(),
         },
     );
-    let merged_row: StableName = ev
-        .value(s2)
-        .unwrap()
-        .name_table
+    let merged_row: StableName = crate::fixture::table(&ev, s2)
         .iter()
         .find_map(|(n, _)| {
             matches!(n.path.first(), Some(RoleSeg::Merged(cs)) if cs.contains(&wrapped_floor1))
                 .then(|| n.clone())
         })
         .expect("the glued floors mint a Merged row embedding the slot-floor lineage");
-    match editor_core::resolve::resolve(ctx, &merged_row) {
+    match editor_core::resolve::resolve(
+        ctx,
+        ctx.eval.at_var(s2).expect("the final body's read"),
+        &merged_row,
+    )
+    .expect("a body read")
+    {
         editor_core::resolve::Resolution::Resolved(r) => assert_eq!(r.node, s2),
         other => panic!("the Merged floor must resolve on the final body: {other:?}"),
     }
-    match editor_core::resolve::resolve(ctx, &wrapped_floor1) {
+    match editor_core::resolve::resolve(
+        ctx,
+        ctx.eval.at_var(s2).expect("the final body's read"),
+        &wrapped_floor1,
+    )
+    .expect("a body read")
+    {
         editor_core::resolve::Resolution::Failed(f) => assert!(
             f.offers.contains(&merged_row),
             "the retired floor lineage must offer its merge: {f:?}"
@@ -303,10 +310,7 @@ fn l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     // of two wall edges (no junction composition); the bent seam's
     // corner, the one vertex the merge deletes, is not among them.
     // Assert they exist.
-    let wall_crossings = ev
-        .value(u)
-        .unwrap()
-        .name_table
+    let wall_crossings = crate::fixture::table(&ev, u)
         .iter()
         .filter(|(n, _)| {
             n.kind == EntityKind::Vertex
@@ -361,8 +365,7 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
         topo::validate_pseudomanifold(body, contacts, Tol::witness()),
         Ok(())
     );
-    let t = &ev.value(s2).unwrap().name_table;
-    let corner = t
+    let corner = crate::fixture::table(&ev, s2)
         .iter()
         .filter_map(|(n, e)| match (n.kind, e) {
             (EntityKind::Vertex, editor_core::Entry::Unique(r)) => match r.key {

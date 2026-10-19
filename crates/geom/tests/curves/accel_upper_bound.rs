@@ -210,7 +210,7 @@ fn a_far_point_active_on_the_last_span_only_does_not_reach_the_first() {
     let first = |c: &NurbsCurve3<f64>| -> Vec<u64> {
         let pts: Vec<[f64; 3]> = c.control().iter().map(|p| [p.x, p.y, p.z]).collect();
         let pieces = geom_core::spline::accel_pieces(
-            &geom_core::spline::Knots::from(c.knots().clone()),
+            &geom_core::spline::Knots::from(c.knots_f64_interim().clone()),
             &pts,
             c.weights(),
             32,
@@ -300,7 +300,7 @@ fn the_pieces_quotient_is_the_second_derivative_pointwise() {
     );
     let pts: Vec<[f64; 3]> = c.control().iter().map(|p| [p.x, p.y, p.z]).collect();
     let pieces = geom_core::spline::accel_pieces(
-        &geom_core::spline::Knots::from(c.knots().clone()),
+        &geom_core::spline::Knots::from(c.knots_f64_interim().clone()),
         &pts,
         c.weights(),
         32,

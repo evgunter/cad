@@ -18,7 +18,7 @@ use geom::{Curve3, CurveKind};
 use geom_core::SpanLocate;
 use geom_core::running::UNIT_ROUNDOFF;
 
-use crate::carrier_speed::speed_hi;
+use geom::carrier_speed::speed_hi;
 
 /// The roundings [`resolution`] charges per unit of its scale, `u`
 /// times the length of the terms a point of the carrier is summed from:
