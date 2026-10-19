@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-25
 priority: P0
 cost: M
-refs: [3897, union-refuses-in-some-member-orders-and-publishes-in-others]
+refs: [3897]
 branch: cleave/interior-witness
 pr: 3655
 closed: 2026-10-01
