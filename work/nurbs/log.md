@@ -1551,3 +1551,8 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **the new lever:** `offset_derive` mints `ChartedNurbs` 17 times for 4 walls, through `Section::of` and `PlaneSection::of`.
   - Build C takes it (FULL; seam note on topo's log): a section door takes the caller's minted chart, bit-identical. After it come `mul_nonneg` in the thin step, then #5163.
   - #5404 (the #5391 review follow-ups) is STANDARD MERGEABLE; CI attribution pending. #5399 is green at 3 ε on the head, verdict pending.
+- 2026-10-19 22:00Z — **Mint-once territory** (build C, `nurbs/mint-walls-once` from main 6d53b3d2):
+  - `replace_face.rs`/`offset_derive.rs` belong to shelf/shell, and have no live work in 9 days;
+  - the ssi doors belong to ssiarith/ssiedge/ssimarch;
+  - `props.rs` belongs to flux/tally, and `flux/spiric-budget-world-position` is live there.
+  - **Ruled:** don't hold. The `props.rs` hunk is the associated type plus 5 impls only; merge main before the PR. Seam note on flux's log.
