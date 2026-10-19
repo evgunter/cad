@@ -176,17 +176,10 @@ fn a_rotated_bracket_and_brick_sweep_clears_no_overlap() {
     );
     assert_eq!(overlapping + apart, 432);
     assert!(wrong_clears.is_empty(), "{wrong_clears:?}");
-    // The one known cost: a brick seated in the inner corner ON the
-    // floor meets the bracket's saddle corner `(1, 1)` (a reflex edge
-    // and two convex ones), which no test certifies
-    // (`work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`).
-    assert!(
-        false_refusals
-            .iter()
-            .all(|&(_, x, y, z)| x.0 == 1.0 && y.0 == 1.0 && z == (0.0, 1.0)),
-        "{false_refusals:?}"
-    );
-    assert_eq!(false_refusals.len(), 12, "{false_refusals:?}");
+    // A brick seated in the inner corner ON the floor meets the
+    // bracket's saddle corner `(1, 1)` (a reflex edge and two convex
+    // ones): read as two whole links, it rests like every other pose.
+    assert!(false_refusals.is_empty(), "{false_refusals:?}");
 }
 
 /// A parallelepiped `p + u·a + v·b + w·c` over the unit cube, grafted
@@ -567,19 +560,16 @@ fn a_rotated_comb_and_channel_sweep_clears_no_overlap() {
     );
     assert_eq!(overlapping + apart, 3 * poses.len());
     assert!(wrong.is_empty(), "{wrong:#?}");
-    // The known costs, each the same at base: a brick filling a slot
-    // (the channel's `[1, 2] × [1, 2]`, the comb's gap `[0.5, 1.5] ×
-    // [1, 2]`) either sits on the floor of the slot's inner corners —
-    // saddle corners no test certifies
-    // (`work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`) —
-    // or, off the floor, has every corner on the host's boundary, which
-    // the probe cannot place.
+    // The known cost: a brick filling a slot (the channel's `[1, 2] ×
+    // [1, 2]`, the comb's gap `[0.5, 1.5] × [1, 2]`) has every corner on
+    // the host's boundary, which the probe cannot place. On the slot's
+    // floor its corners meet the slot's saddle corners, and those touches
+    // rest.
     let named = |r: &String| {
         (r.starts_with("channel vs brick (1.0, 2.0)×(1.0, ")
             || r.starts_with("comb vs brick (0.5, 1.5)×(1.0, "))
-            && (r.contains("neither convex nor concave")
-                || r.contains("every corner of one lies on the other's boundary"))
+            && r.contains("every corner of one lies on the other's boundary")
     };
     assert!(refused_rests.iter().all(named), "{refused_rests:#?}");
-    assert_eq!(refused_rests.len(), 18, "{refused_rests:#?}");
+    assert_eq!(refused_rests.len(), 12, "{refused_rests:#?}");
 }

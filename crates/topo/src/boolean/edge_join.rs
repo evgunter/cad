@@ -801,6 +801,12 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// re-derived whole, so no row is left keyed by a killed half-edge.
     /// On any refusal the body is as found.
     ///
+    /// # Panics
+    ///
+    /// On a kernel bug: an edge the body stores, re-minted or restated on its
+    /// own carrier and interval, whose span or winding reads certainly
+    /// refused at the run's band.
+    ///
     /// # Errors
     ///
     /// [`BooleanError::JoinUndecided`], the kill's own refusal
@@ -842,6 +848,12 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// over the joined edges' faces alone: the killed edges' rows are
     /// dropped and [`crate::pcurves::mint_pcurves_of`] runs on the faces
     /// each kept edge bounds, where the body carries rows at all.
+    ///
+    /// # Panics
+    ///
+    /// On a kernel bug: an edge the body stores, re-minted or restated on its
+    /// own carrier and interval, whose span or winding reads certainly
+    /// refused at the run's band.
     ///
     /// # Errors
     ///

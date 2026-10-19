@@ -2,11 +2,12 @@
 id: a-touch-at-a-saddle-corner-refuses-unanalysed
 kind: issue
 title: A touch at a saddle corner (an L's inner corner) that no plane separates refuses TouchUnanalysed, so a block seated in that corner on the floor cannot certify
-status: open
+status: closed
 opened: 2026-09-25
 priority: P2
 cost: D
 rides_with: a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap
+closed: 2026-10-19
 ---
 
 
@@ -45,3 +46,14 @@ the crossing test between their links.
 Moved from INSIDE by `git mv`: the same missing reading as
 `a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap` (a solid's whole link at a point, decided by one complete test of two
 polygonal cones). Decided there; one unit closes all three.
+
+## Closed
+
+2026-10-19, with the carrier row (branch `restread/link-touch-reading`). The
+witness, a block on the floor of the L's inner corner, clears (re-pinned as
+`contact1_touch_cones::a_block_on_the_floor_of_the_inner_corner_clears`).
+`contact7_touch_sweeps`: the bracket sweep's 12 saddle false refusals go to
+0 with no wrong clear; the comb-and-channel sweep's 18 known refusals go to
+12, the six saddle ones clearing and the twelve all-corners-on-boundary
+probe refusals staying. A block sunk into the corner reads Crossing
+(`census::tests::a_block_sunk_into_the_inner_corner_crosses_there`).
