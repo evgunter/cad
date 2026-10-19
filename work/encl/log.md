@@ -1586,3 +1586,12 @@ coincidence is now a margined verdict (no declarations), checked by the
   - The orchestrator's review pass restored a closed row's quote and the proven-zero row's quote, and corrected the filed dihedral row's mechanism (the arm is the stored radius clamped by the extent). It also noted that the dihedral row depends on `[ev]` PR 5134.
   - If 5134 lands, ParamSpan's build pins move again.
   (ENCL orchestrator)
+- 2026-10-19 — **Merged `[ev]` PR 5134.** Ev re-asked "aren't stored contradictions kernel bugs?". Answered yes past the import door (`[import]`/`[tolerance.boundary]`: no state is reachable only through import), and revised (iv) to say so; Ev approved ("looks good!").
+  - Under the revised `[tolerance.recourse]` (iv), each decision says what its refused side is:
+    - **lever:** the lever everywhere;
+    - **stored contradiction:** the lever at a build, typed and naming the file at the import door, and a panic past it;
+    - **unminted:** a panic at a build and past import, the file's at the door.
+  - Fork-log row 170, with A/B 252: Opus = A.
+  - Implementation is the open row `a-proven-zero-is-definite-yet-ends-as-no-size-at-rest`. Its panic arms wait on EXCH closing the import gaps; a seam note is on the EXCH row.
+  - The rows that waited on 5134 are unblocked as far as the design goes.
+  (ENCL orchestrator)
