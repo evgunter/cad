@@ -223,10 +223,6 @@ pub enum NodeErrorClass {
     MatePosesOfAnotherDocument,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::ClassNotAdmitted`].
     MateClassNotAdmitted,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::Indeterminate`].
-    MateIndeterminate,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::PoseOutOfRange`].
-    MatePoseOutOfRange,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Overconstrained`].
     MateOverconstrained,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::TargetsDiffer`].
@@ -413,8 +409,6 @@ impl NodeErrorClass {
         match fault {
             MateFault::PosesOfAnotherDocument { .. } => Self::MatePosesOfAnotherDocument,
             MateFault::ClassNotAdmitted { .. } => Self::MateClassNotAdmitted,
-            MateFault::Indeterminate { .. } => Self::MateIndeterminate,
-            MateFault::PoseOutOfRange { .. } => Self::MatePoseOutOfRange,
             MateFault::Overconstrained { .. } => Self::MateOverconstrained,
             MateFault::TargetsDiffer { .. } => Self::MateTargetsDiffer,
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
@@ -569,8 +563,6 @@ mod tests {
         PartNotEntered,
         MatePosesOfAnotherDocument,
         MateClassNotAdmitted,
-        MateIndeterminate,
-        MatePoseOutOfRange,
         MateOverconstrained,
         MateTargetsDiffer,
         MateNotOnTheCopy,
@@ -953,14 +945,6 @@ mod tests {
                 found: crate::DocumentId::derive("b"),
             }),
             C::MateClassNotAdmitted => mate(crate::MateFault::ClassNotAdmitted { mate: m(9) }),
-            C::MateIndeterminate => mate(crate::MateFault::Indeterminate {
-                mate: m(9),
-                diag: Box::new(diag()),
-            }),
-            C::MatePoseOutOfRange => mate(crate::MateFault::PoseOutOfRange {
-                held: m(8),
-                added: m(9),
-            }),
             C::MateOverconstrained => mate(crate::MateFault::Overconstrained {
                 placement: n(6),
                 constraints: vec![c(1), c(2)],

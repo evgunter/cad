@@ -33,36 +33,16 @@
 //! evaluation's own refusal for a pose that did not evaluate, as the
 //! tag every node failure crosses with.
 //!
-//! [`MateFaultPayload::predicate`] is one concept and therefore one
-//! attribute: the predicate that DECIDED. A contradictory pair names
-//! the predicate that decided against it and an escalated one names
-//! the predicate that could not decide at all — the same question
-//! ("which predicate was this about"), asked of two outcomes, and the
-//! arm the caller already has says which outcome it is holding.
-//!
 //! A NESTED REFUSAL crosses as its own word rather than being
 //! flattened into this record's other attributes:
 //! [`MateFaultPayload::inner_variant`] is the lever refusal's word on
-//! `Unleverable` and the world read's on `WorldRead`. `Indeterminate` carries a STRUCT rather than
-//! an enum, so it has no inner word at all and its shape is which
-//! margin attribute is set.
-//!
-//! # The classifier's words are the frame door's words
-//!
-//! `margin` / `margin_low` / `margin_high`, `zero` / `escalate` and
-//! `predicate` are `py::place::frame_err`'s vocabulary, spelled here
-//! rather than re-spelled: the escalation a mate reports and the one
-//! a frame constructor reports are the same value, and a caller that
-//! learned the words at one door reads them at the other. The fork
-//! itself is [`crate::escalation`], which both doors call.
+//! `Unleverable` and the world read's on `WorldRead`.
 
 use pncad::document::{
     ConstraintId, Coord, DocumentId, LeverRefusal, MateFault, MateRef, MateSide, NoChartWhy,
     ReachRefusal, RecipeNodeId, VarKind,
 };
-use pncad::geom_core::Indeterminate;
 
-use crate::escalation::escalation;
 use crate::tags::{lever_refusal_tag, node_error_tag, world_read_fault_tag};
 
 /// What one [`MateFault`] arm carries, every field present.
@@ -95,12 +75,6 @@ pub struct MateFaultPayload<'a> {
     /// How many of the copy's six freedoms an over-constrained bundle
     /// leaves.
     pub free: Option<u8>,
-    /// The mate already folded, for a pair meeting out of range.
-    pub held: Option<MateRef>,
-    /// The mate whose meeting named the point.
-    pub added: Option<MateRef>,
-    /// **The predicate an escalation could not decide.**
-    pub predicate: Option<&'static str>,
     /// What a lever's unbounded face is, in its own words.
     pub what: Option<&'static str>,
     /// The document whose placement was asked for.
@@ -108,22 +82,8 @@ pub struct MateFaultPayload<'a> {
     /// The document the solve is of.
     pub found_document: Option<DocumentId>,
     /// **The nested refusal's own word**: the lever refusal's, or the
-    /// world read's. An arm whose payload is a
-    /// struct rather than an enum has none.
+    /// world read's. An arm with no nested refusal has none.
     pub inner_variant: Option<&'static str>,
-    /// The in-band margin, in metres, when the classifier saw a
-    /// value.
-    pub margin: Option<f64>,
-    /// The classified enclosure's lower bound, when it saw an
-    /// enclosure rather than a value.
-    pub margin_low: Option<f64>,
-    /// Its upper bound.
-    pub margin_high: Option<f64>,
-    /// The coincidence threshold of the band a margin was classified
-    /// against.
-    pub zero: Option<f64>,
-    /// Its escalation threshold.
-    pub escalate: Option<f64>,
     /// The kind of pose a mate's `on` reads, where the two kinds
     /// differ.
     pub on_kind: Option<VarKind>,
@@ -148,7 +108,7 @@ impl<'a> MateFaultPayload<'a> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`MateFault`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 27] {
+    pub fn presence(&self) -> [(&'static str, bool); 19] {
         let Self {
             mate,
             side,
@@ -158,18 +118,10 @@ impl<'a> MateFaultPayload<'a> {
             placement,
             constraints,
             free,
-            held,
-            added,
-            predicate,
             what,
             expected_document,
             found_document,
             inner_variant,
-            margin,
-            margin_low,
-            margin_high,
-            zero,
-            escalate,
             on_kind,
             to_kind,
             value_ref,
@@ -187,18 +139,10 @@ impl<'a> MateFaultPayload<'a> {
             ("placement", placement.is_some()),
             ("constraints", constraints.is_some()),
             ("free", free.is_some()),
-            ("held", held.is_some()),
-            ("added", added.is_some()),
-            ("predicate", predicate.is_some()),
             ("what", what.is_some()),
             ("expected_document", expected_document.is_some()),
             ("found_document", found_document.is_some()),
             ("inner_variant", inner_variant.is_some()),
-            ("margin", margin.is_some()),
-            ("margin_low", margin_low.is_some()),
-            ("margin_high", margin_high.is_some()),
-            ("zero", zero.is_some()),
-            ("escalate", escalate.is_some()),
             ("on_kind", on_kind.is_some()),
             ("to_kind", to_kind.is_some()),
             ("value_ref", value_ref.is_some()),
@@ -228,18 +172,10 @@ impl<'a> MateFaultPayload<'a> {
         placement: None,
         constraints: None,
         free: None,
-        held: None,
-        added: None,
-        predicate: None,
         what: None,
         expected_document: None,
         found_document: None,
         inner_variant: None,
-        margin: None,
-        margin_low: None,
-        margin_high: None,
-        zero: None,
-        escalate: None,
         on_kind: None,
         to_kind: None,
         value_ref: None,
@@ -248,22 +184,6 @@ impl<'a> MateFaultPayload<'a> {
         mate_kind: None,
         why: None,
     };
-}
-
-/// The classifier's escalation, on the fields the frame door
-/// publishes it under — one fork, in [`crate::escalation`], called by
-/// both doors.
-fn with_escalation<'a>(base: MateFaultPayload<'a>, diag: &Indeterminate) -> MateFaultPayload<'a> {
-    let seen = escalation(diag);
-    MateFaultPayload {
-        margin: seen.margin,
-        margin_low: seen.margin_low,
-        margin_high: seen.margin_high,
-        zero: Some(seen.zero),
-        escalate: Some(seen.escalate),
-        predicate: seen.predicate,
-        ..base
-    }
 }
 
 /// The word a reach refusal's unbounded face names its kind by.
@@ -298,15 +218,6 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                 ..none
             }
         }
-        // A struct, not an enum: the escalation has no inner WORD,
-        // and its shape is which margin attribute is set.
-        MateFault::Indeterminate { mate, diag } => with_escalation(
-            MateFaultPayload {
-                mate: Some(*mate),
-                ..none
-            },
-            diag,
-        ),
         // No lever could be formed. A reach not in hand names the
         // instance or the copied shape it is about beside the refusal's
         // word, and a face that cannot be bounded names its kind in
@@ -331,11 +242,6 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                 ..none
             }
         }
-        MateFault::PoseOutOfRange { held, added } => MateFaultPayload {
-            held: Some(*held),
-            added: Some(*added),
-            ..none
-        },
         // A bundle's faults: the placement is the subject, and the
         // constraints it names ride beside it, each by its id.
         MateFault::Overconstrained {

@@ -434,7 +434,6 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(

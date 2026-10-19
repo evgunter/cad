@@ -28,7 +28,7 @@ use geom_core::{Point3, Vec3};
 
 use crate::{
     Datum, Dimension, DocEdit, Expr, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RefusingReach,
+    ProfileProgram, RecipeNodeId,
 };
 
 // --- literals -------------------------------------------------------
@@ -287,7 +287,6 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
                 fresh: Vec::new(),
             },
             tol,
-            &RefusingReach,
         )
         .expect("the clipped cylinder's inserts apply");
         (a.doc, a.record.minted.expect("an insert mints a node"))
@@ -574,7 +573,6 @@ pub fn beside_past_the_bundle_rule(
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .unwrap_or_else(|e| panic!("the door admits the mate alone: {e}"));
     let mut out = applied.doc;

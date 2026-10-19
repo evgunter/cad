@@ -24,8 +24,7 @@ use editor_core::ExtrudeSide;
 use pncad::document::{
     AuthoredNode, BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocRef,
     DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
-    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload, VarName,
-    apply, evaluate,
+    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, ValuePayload, VarName, apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
@@ -103,7 +102,7 @@ pub fn try_edited(
     edit: DocEdit<ProfileProgram>,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, Option<RecipeNodeId>), EditError> {
-    let applied = apply(doc, &edit, tol, &RefusingReach)?;
+    let applied = apply(doc, &edit, tol)?;
     Ok((applied.doc, applied.record.minted))
 }
 
@@ -266,14 +265,9 @@ pub fn pinned(
     _opts: &EvalOptions,
     tol: Tol,
 ) -> Doc<ProfileProgram> {
-    apply(
-        doc,
-        &DocEdit::PinWhereItStands { placement },
-        tol,
-        &RefusingReach,
-    )
-    .expect("a world pin stands alone in its bundle")
-    .doc
+    apply(doc, &DocEdit::PinWhereItStands { placement }, tol)
+        .expect("a world pin stands alone in its bundle")
+        .doc
 }
 
 /// **The copy `placement` defines, pinned to the world at `pose`**
@@ -341,7 +335,6 @@ pub fn pin(
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the pin is admitted");
     let [id] = applied.record.minted_constraints[..] else {

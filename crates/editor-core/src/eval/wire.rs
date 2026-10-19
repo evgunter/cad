@@ -741,7 +741,13 @@ where
             crate::mate::value::Chart::of(&on, &to, flipped, &body, arm, b)?,
         );
     }
-    match crate::mate::solve::solve_bundle(id, &mates, &values, &charts, arm, b)? {
+    match crate::mate::solve::solve_bundle(
+        id,
+        &crate::mate::solve::equations_of(doc, constraints),
+        &mates,
+        &values,
+        &charts,
+    )? {
         crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
         crate::mate::solve::Folded::Pinned(rep) => {
             // The one at-rest verdict, decided once (fork C-5).
@@ -3080,7 +3086,13 @@ fn split_port<T: Decide>(
     };
     let body = split_side(split, half, above, below)?;
     // The half's names are its own output's (N1, the scope).
-    let names = value.output(port).cloned().unwrap_or_default();
+    let names =
+        value
+            .output(port)
+            .cloned()
+            .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+                what: SPLIT_HALF_UNNAMED,
+            }))?;
     projected(split, value, body, names, half.output_body()).map(Some)
 }
 
@@ -3792,35 +3804,30 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 }
                 let member = u32::try_from(step + 1).unwrap_or(u32::MAX);
                 let held = Arc::clone(&acc_records);
-                let contacts = contacts
-                    .recited(|b| match b {
+                let refuse = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
+                let contacts = contacts.try_recited(
+                    |b| match b {
                         topo::Backing::Decided(k) if pairwise => used
                             .binary_search(&k)
                             .map(|rank| {
-                                topo::Backing::Decided(
+                                vec![topo::Backing::Decided(
                                     u32::try_from(base + rank).unwrap_or(u32::MAX),
-                                )
+                                )]
                             })
-                            .into_iter()
-                            .collect(),
-                        decided @ topo::Backing::Decided(_) => vec![decided],
+                            .map_err(|_| refuse(UNION_STEP_UNDECIDED_CITE)),
+                        decided @ topo::Backing::Decided(_) => Ok(vec![decided]),
                         topo::Backing::Carried { input: 0, record } => held
                             .rows()
                             .get(record as usize)
                             .map(|c| c.cites.iter().collect())
-                            .unwrap_or_default(),
-                        topo::Backing::Carried { record, .. } => {
-                            vec![topo::Backing::Carried {
-                                input: member,
-                                record,
-                            }]
-                        }
-                    })
-                    .map_err(|_| {
-                        NodeErrorKind::Naming(names::NamingError::Emission {
-                            what: UNION_CARRY_UNCITED,
-                        })
-                    })?;
+                            .ok_or_else(|| refuse(UNION_CARRY_LOST_RECORD)),
+                        topo::Backing::Carried { record, .. } => Ok(vec![topo::Backing::Carried {
+                            input: member,
+                            record,
+                        }]),
+                    },
+                    |_| refuse(UNION_CARRY_UNCITED),
+                )?;
                 acc_records = Arc::new(contacts);
                 last = Some((kind, Arc::clone(&acc_records)));
                 // Minted under THIS node's id, its two sides keyed by the
@@ -3905,10 +3912,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 restated
             });
         }
-        Arc::new(
-            (*contacts)
-                .clone()
-                .recited(|b| match b {
+        let refuse = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
+        Arc::new((*contacts).clone().try_recited(
+            |b| {
+                match b {
                     topo::Backing::Decided(k) => used
                         .binary_search(&k)
                         .map(|rank| {
@@ -3919,15 +3926,12 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                                 })
                                 .collect()
                         })
-                        .unwrap_or_default(),
-                    carried @ topo::Backing::Carried { .. } => vec![carried],
-                })
-                .map_err(|_| {
-                    NodeErrorKind::Naming(names::NamingError::Emission {
-                        what: UNION_CARRY_UNCITED,
-                    })
-                })?,
-        )
+                        .map_err(|_| refuse(UNION_STEP_UNDECIDED_CITE)),
+                    carried @ topo::Backing::Carried { .. } => Ok(vec![carried]),
+                }
+            },
+            |_| refuse(UNION_CARRY_UNCITED),
+        )?)
     } else {
         contacts
     };
@@ -3983,6 +3987,14 @@ const UNION_FOLD_ROW_FOREIGN_CELL: &str =
 
 /// A union fold step's record cites a row the step did not decide.
 const UNION_STEP_UNDECIDED_CITE: &str = "a union fold step's record cites a row it did not decide";
+
+/// A union fold step's record cites an accumulation record the fold
+/// does not hold.
+const UNION_CARRY_LOST_RECORD: &str =
+    "a union fold step's record cites an accumulation record the fold does not hold";
+
+/// A split's value holds no name table for one of its halves.
+const SPLIT_HALF_UNNAMED: &str = "a split's value holds no name table for one of its halves";
 
 /// A union fold step's record cites nothing once carried into the
 /// node's terms.

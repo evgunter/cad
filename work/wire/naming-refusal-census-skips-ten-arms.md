@@ -1,7 +1,7 @@
 ---
 id: naming-refusal-census-skips-ten-arms
 kind: issue
-title: wire: the feature-tree refusal census skips ten of NamingError's arms
+title: wire: the feature-tree refusal census skips nine of NamingError's arms
 status: open
 opened: 2026-10-18
 priority: P3
@@ -15,9 +15,9 @@ cost: E
 the `naming` list) renders `Duplicate`, `Unnamed`, `MissingUpstream`,
 `Emission`, `SplitLineage`, `SeamVertexParentage`, `SharedRim`, `Band` and
 `Escalated` of `NamingError` (`crates/editor-core/src/names/emit.rs`),
-and the module header claims every arm of a forwarded refusal. Ten
+and the module header claims every arm of a forwarded refusal. Nine
 arms have no row: `Settle`, `SeamVertexPartners`, `MergedChord`,
-`MergedChordOffRim`, `MergedChordConstituents`, `ConventionalVertex`,
+`MergedChordOffRim`, `ConventionalVertex`,
 `ClosedCarrierUnread`, `CarrierUnplaced`, `PartnerUnread`,
 `MemberEdgeTied`.
 Each now ends in `NamingError::ending`'s sentence, but nothing holds

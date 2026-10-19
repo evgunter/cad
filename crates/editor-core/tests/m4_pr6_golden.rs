@@ -56,9 +56,7 @@ const GOLDEN_PATH: &str = "tests/golden/golden.cad";
 fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     let mut doc = ProfileDoc::empty_derived("m4_pr6_golden", Tol::witness());
     let push = |d: &ProfileDoc, e: &DocEdit<ProfileProgram>| {
-        apply(d, e, Tol::witness(), &editor_core::RefusingReach)
-            .expect("golden edit")
-            .doc
+        apply(d, e, Tol::witness()).expect("golden edit").doc
     };
     // The node an insert just minted: the document's last.
     let last = |d: &ProfileDoc| *d.ids().last().expect("an insert landed");
@@ -533,9 +531,7 @@ fn golden_document_evaluates_green_at_its_pinned_eps() {
     }
     let (mut doc, edits) = golden();
     for e in &edits {
-        doc = apply(&doc, e, Tol::witness(), &editor_core::RefusingReach)
-            .expect("golden edit")
-            .doc;
+        doc = apply(&doc, e, Tol::witness()).expect("golden edit").doc;
     }
     let ev = evaluate::<f64>(
         &doc,

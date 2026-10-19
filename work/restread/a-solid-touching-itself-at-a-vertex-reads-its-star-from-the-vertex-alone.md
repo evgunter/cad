@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-07
 priority: P2
 cost: M
+rides_with: a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap
 ---
 
 
@@ -50,3 +51,9 @@ solid through the point together: its vertices there, and the edges and
 faces passing through it. Here that is the top's half-space less the
 void's cone, not either one alone. A vertex star is right only where
 nothing else of the solid reaches the point.
+
+## 2026-10-18 — rides the pinch row (RESTREAD)
+
+Moved from INSIDE by `git mv`: the same missing reading as
+`a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap` (a solid's whole link at a point, decided by one complete test of two
+polygonal cones). Decided there; one unit closes all three.

@@ -30,7 +30,7 @@ use fixture::resolver::{PartStore, in_part, in_part_of, with_resolver};
 use fixture::seat::map_gap;
 use fixture::{
     constrain_at, gate, head, head_at, in_copy, insert, insert_pinned, len, on_frame, rest, run,
-    scl, solve, step_with, xform,
+    scl, solve, step, xform,
 };
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
@@ -791,8 +791,7 @@ fn a5_a_second_seat_through_another_operand_is_refused() {
             product(&doc, &ev, Tol::witness()).is_ok(),
             "A5 {what}: the product gathers"
         );
-        let refused = match fixture::at_the_door_of(&doc, &editor_core::RefusingReach, top, second)
-        {
+        let refused = match fixture::at_the_door_of(&doc, top, second) {
             Err((_, fault)) => fault,
             Ok(_) => panic!("A5 {what}: the door admitted a second rest beyond the pin"),
         };
@@ -875,7 +874,6 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("a never-existed operand is a typo");
     assert!(
@@ -894,8 +892,7 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
 #[test]
 fn a8b_deleting_the_operand_leaves_the_pose_unresolved() {
     let s = scene("msolve1-a8b", &[LIFT]);
-    let reach = editor_core::mate_reach::<f64>(&s.opts, Tol::witness());
-    let (doc, _) = step_with(s.doc, DocEdit::DeleteNode { id: s.a_at }, &reach);
+    let (doc, _) = step(s.doc, DocEdit::DeleteNode { id: s.a_at });
     let ev = run(&doc, &s.opts);
     assert!(
         matches!(

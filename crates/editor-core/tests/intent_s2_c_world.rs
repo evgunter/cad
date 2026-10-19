@@ -336,11 +336,7 @@ fn an_empty_world_names_the_unplaced_and_a_stranded_placement_refuses() {
 
     let (doc, placement) = place(doc, a);
     let applied = doc
-        .apply(
-            &DocEdit::DeleteNode { id: a },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
+        .apply(&DocEdit::DeleteNode { id: a }, Tol::witness())
         .expect("deleting a placed body is accepted");
     assert!(
         applied.maintenance.iter().any(|m| matches!(

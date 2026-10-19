@@ -284,7 +284,6 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the wall bumps")
     .doc;
