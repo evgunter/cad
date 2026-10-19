@@ -4,7 +4,7 @@ kind: issue
 title: paths: an arc near a full turn reads its span off the chord-scale apex, whose Interval enclosure widens as tan²(θ/4); a clear near-full tangent arc that validates at f64 escalates at Interval
 status: open
 opened: 2026-10-19
-priority: P3
+priority: P2
 ---
 
 

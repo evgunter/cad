@@ -15,9 +15,11 @@ Not measured yet: the first step is a probe.
 `half_tan = (v₁ × v₂) / (|v₁||v₂| + v₁·v₂)`, tan(φ/2) of the corner's
 turn φ. At a hairpin, φ = π − δ, the denominator's true value is
 `|v₁||v₂|·δ²/2` and its rounding about `|v₁||v₂|·2⁻⁵²`, so `half_tan`
-carries a relative error of about `2⁻⁵¹/δ²`. The cancellation-free
-choice is the one the tangent arc and `Via` took: `select_le_zero` on
-`−v₁·v₂` between this spelling and `(|v₁||v₂| − v₁·v₂)/(v₁ × v₂)`.
+carries a relative error of about `2⁻⁵¹/δ²`. Since #5403 the fillet's
+stored SWEEP no longer reads it: it is the corner's turn,
+`sugar::split_turn(v₁ × v₂, v₁·v₂)`. The setback, and with it the
+tangent points, still do. `sugar::split_quarter_tan` is the
+cancellation-free reading of tan(φ/2) from the same split.
 
 **Why it may matter, by arithmetic.** Both setbacks share `half_tan`,
 so tangency survives, and what moves is the fillet's effective radius:
@@ -28,6 +30,6 @@ default ε. That is about ε for `L = 100` m, and about 1e-6 m (1000 ε)
 for `L = 1e4` m. The probe
 `At(0,0) Toward(1,0) Fillet{r} At((0, L·tan δ)) Toward(−cos δ, sin δ) …`
 reaches it. Measure the stored radius against `r` before deciding.
-The fix moves the bits of every line × line fillet at a corner turning past a
-quarter turn, and the closed-form
-oracles in `tests/path_differential.rs` (`expected_trims`) with them.
+The fix moves the setback's bits at every corner turning past a quarter
+turn, and the closed-form oracle in `tests/path_differential.rs`
+(`expected_trims`) moves with them.
