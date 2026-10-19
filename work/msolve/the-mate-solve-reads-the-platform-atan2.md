@@ -44,3 +44,13 @@ and any pose that moved, and say what moved.
 ## Released from the D10 hold (2026-10-08)
 
 Nothing D10 changes gates this row, so it is open: SolveScalar::solve_atan2 for f64 is f64::atan2 in the coset construction; angle solving survives stage 3, so switching to Real::atan2 and re-baselining is kept work. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Re-read after stage 3 F (2026-10-18)
+
+F retired both cited sites with the measured fold: `candidate_rotation`
+and `clocking_about` are gone, and the fold is the structural meet
+(`mate/coset.rs`'s `intersect`), which takes no angle. One read of
+`SolveScalar::solve_atan2` is left: the spin chart's current angle
+(`crates/editor-core/src/mate/value.rs`, `Chart::spin`), which a spin
+value reads to turn the copy to its written angle. The work above stands
+for that one site.

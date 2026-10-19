@@ -6554,10 +6554,11 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     // The region's own refusal: in band of an arc, or no
                     // ray of its walk settled, or an arc that bounds
                     // nothing — each a piece not read against the circle.
-                    let read_region = |e: super::sphere_region::RegionRefusal| match e {
-                        super::sphere_region::RegionRefusal::Escalated(diag) => esc(diag),
-                        super::sphere_region::RegionRefusal::RayExhausted { .. }
-                        | super::sphere_region::RegionRefusal::WoundPastPeriod => unread(),
+                    let read_region = |e: super::region::RegionRefusal| match e {
+                        super::region::RegionRefusal::Escalated(diag) => esc(diag),
+                        super::region::RegionRefusal::RayExhausted { .. }
+                        | super::region::RegionRefusal::WoundPastPeriod
+                        | super::region::RegionRefusal::Unreadable(_) => unread(),
                     };
                     let [lo, hi] = crossings;
                     match (
@@ -6634,21 +6635,11 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                 else {
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
-                let offset = cc - cut.center;
-                let d = k.dot(offset);
-                let (cos_part, sin_part) = (cr * k.dot(cu), cr * k.dot(ca.cross(cu)));
-                let amplitude = (cos_part.powi(2) + sin_part.powi(2)).sqrt();
-                let noise = geom_brep::rounding_charge(offset.norm() + cr);
                 let roots = super::circle_roots::first_harmonic_roots(
-                    &super::circle_roots::FirstHarmonic {
-                        lo: d - amplitude,
-                        hi: d + amplitude,
-                        cos_part,
-                        sin_part,
-                        lo_noise: noise,
-                        hi_noise: noise,
-                        phase_noise: T::zero(),
-                    },
+                    &super::circle_roots::FirstHarmonic::circle_off_plane(
+                        (cc, ca, cr, cu),
+                        (cut.center, k),
+                    ),
                     cr,
                     t0,
                     t1,

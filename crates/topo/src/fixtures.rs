@@ -1789,8 +1789,8 @@ pub(crate) fn poisoned_net(poisoned: impl Fn(usize) -> bool) -> geom::Surface<f6
         .collect();
     geom::Surface::Nurbs(std::sync::Arc::new(
         geom::NurbsSurface::new(
-            ph.knots_u().clone(),
-            ph.knots_v().clone(),
+            ph.knots_u_f64_interim().clone(),
+            ph.knots_v_f64_interim().clone(),
             control,
             ph.weights().to_vec(),
         )

@@ -163,9 +163,8 @@ fn the_rod_that_pokes_the_lens_refuses_every_op_on_its_certified_loop() {
 /// its axis point `t = 0` leaves `πr²·1.4` of it inside the half donut
 /// (`π²/2`), of its `πr²·1.7`. Probes: on the axis above the cap (the
 /// rod only), on it below the cap (both), and in the far half of the
-/// tube (the half donut only), each answered, except an outside probe of
-/// a rod piece the at-infinity probe cannot measure. Each torus ×
-/// rod-wall pair clears.
+/// tube (the half donut only), each answered. Each torus × rod-wall pair
+/// clears.
 /// Refused on reach before the square-wall arm.
 #[test]
 fn the_rod_short_of_the_inner_equator_answers_every_op() {
@@ -203,10 +202,6 @@ fn the_rod_short_of_the_inner_equator_answers_every_op() {
                 "{what} at {pose}: volume {} against the closed form {want}",
                 m.volume
             );
-            // The rod pieces (∩, `c ∖ h`) carry the cap's ellipse on
-            // their wall, which the closed-form volume cannot measure: a
-            // ray from outside that misses them is sided by a ray aimed
-            // at a planar face.
             for (q, inside) in probes.into_iter().zip(inside) {
                 assert_eq!(
                     in_solid(&b.body, q),

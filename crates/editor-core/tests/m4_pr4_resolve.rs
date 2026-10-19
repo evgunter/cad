@@ -17,15 +17,12 @@ use crate::fixture;
 use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
-use std::sync::Arc;
-
 use editor_core::NodeStanding;
-use editor_core::eval::WitnessSlot;
 use editor_core::{
-    CancelToken, CapEnd, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
-    EvalOutcome, Evaluation, NameTable, NamingKey, Node, ProfileDoc, Qualifier, RecipeEditRef,
-    RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SlotId,
-    StableName, apply_with_names, evaluate, rebind_suggestions, resolve, resolve_with_prior,
+    CancelToken, CapEnd, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, NameTable,
+    Node, ProfileDoc, Qualifier, RecipeEditRef, RecipeNodeId, Resolution, ResolveError,
+    ResolveIndeterminate, RoleSeg, RunCtx, SlotId, StableName, apply_with_names, evaluate,
+    rebind_suggestions,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
@@ -193,9 +190,8 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
 /// edge along both blocks' rims, named for the set of them
 /// (`[Merged([FromA(RimEdge..), FromB(RimEdge..)])]`).
 fn joined_rim_name(ev: &Evaluation<f64>, union: RecipeNodeId) -> StableName {
-    ev.value(union)
+    ev.table_at(union)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, e)| {
             let joined =
@@ -241,11 +237,11 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
     let mut constituents = vec![wrapped.clone(), wrapped_b];
     constituents.sort_unstable();
     let merged = minted(EntityKind::Face, s.union, RoleSeg::Merged(constituents));
-    match resolve(ctx, &merged) {
+    match crate::fixture::resolve_at_mint(ctx, &merged) {
         Resolution::Resolved(r) => assert_eq!(r.node, s.union),
         other => panic!("expected Resolved, got {other:?}"),
     }
-    match resolve(ctx, &wrapped) {
+    match crate::fixture::resolve_at_mint(ctx, &wrapped) {
         Resolution::Failed(f) => assert!(
             f.offers.contains(&merged),
             "retired constituent must offer its merge: {f:?}"
@@ -255,7 +251,7 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
     // The operand-level cap name resolves too — at the EXTRUDE (first
     // carrying node in evaluation order; the transform pass-through
     // carries B's names identically).
-    match resolve(ctx, &cap) {
+    match crate::fixture::resolve_at_mint(ctx, &cap) {
         Resolution::Resolved(r) => assert_eq!(r.node, s.a),
         other => panic!("expected Resolved, got {other:?}"),
     }
@@ -301,13 +297,12 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
     );
     let ev = run(&doc, None);
     let tied: StableName = ev
-        .value(sub)
+        .table_at(sub)
         .unwrap()
-        .name_table
         .iter()
         .find_map(|(n, e)| matches!(e, Entry::Tied(_)).then(|| n.clone()))
         .expect("the U fixture ties");
-    match resolve(
+    match crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &doc,
             eval: &ev,
@@ -344,20 +339,15 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     let src = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (src, ext) = block(src, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let sev = run(&src, None);
-    let mut edges = sev
-        .value(ext)
-        .unwrap()
-        .name_table
-        .iter()
-        .filter_map(|(n, e)| {
-            if n.kind != EntityKind::Edge {
-                return None;
-            }
-            match e {
-                Entry::Unique(r) => Some(*r),
-                Entry::Tied(_) => None,
-            }
-        });
+    let mut edges = sev.table_at(ext).unwrap().iter().filter_map(|(n, e)| {
+        if n.kind != EntityKind::Edge {
+            return None;
+        }
+        match e {
+            Entry::Unique(r) => Some(*r),
+            Entry::Tied(_) => None,
+        }
+    });
     let (e1, e2) = (edges.next().unwrap(), edges.next().unwrap());
 
     // A one-node doc whose table we hand-build.
@@ -375,43 +365,18 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     let mut nodes = std::collections::BTreeMap::new();
     nodes.insert(
         node,
-        editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Gauge,
-            name_table: Arc::new(table),
-            fragment_groups: Arc::default(),
-            contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(editor_core::CarriedDeclarations::default()),
-            coincidences: Arc::new([]),
-            cited_inputs: Arc::new([]),
-            parts: 1,
-            verdicts: Arc::new(vec![]),
-            escalations: Arc::new(vec![]),
-            placement: None,
-            witness: WitnessSlot::default(),
-            content_key: ContentKey(0),
-            naming_key: NamingKey(0),
-        }),
+        editor_core::NodeResult::Ok(editor_core::NodeValue::hand_built(
+            table,
+            editor_core::FragmentGroups::default(),
+            vec![],
+        )),
     );
-    let ev = Evaluation::<f64> {
-        epoch: editor_core::Epoch::mint(),
-        unplaced: Default::default(),
-        unplaced_below: Default::default(),
-        document: doc.id(),
-        prior_refused: None,
-        order: vec![node],
-        nodes,
-        outcome: EvalOutcome::Completed,
-        recomputed: 1,
-        reused: 0,
-        part_evaluations: 0,
-        appearance: editor_core::AppearanceResolution::default(),
-        env: Default::default(),
-    };
+    let ev = Evaluation::<f64>::hand_built(doc.id(), vec![node], nodes);
     let mut ranked = base.clone();
     ranked
         .path
         .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank: 1, of: 2 }));
-    match resolve(
+    match crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &doc,
             eval: &ev,
@@ -448,7 +413,7 @@ fn deleting_a_named_node_strands_names_as_node_gone() {
     // N5's ratified dangling semantics.
     let (doc2, _) = step(doc, DocEdit::DeleteNode { id: b });
     let ev = run(&doc2, None);
-    match resolve(
+    match crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev,
@@ -476,7 +441,7 @@ fn never_minted_node_reports_foreign_not_deleted() {
         RecipeNodeId::new(0, 9999),
         RoleSeg::Cap(CapEnd::End),
     );
-    match resolve(
+    match crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &doc,
             eval: &ev,
@@ -508,7 +473,7 @@ fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
     let probe = joined_rim_name(&ev1, s.union);
     let doc2 = slide_to(&s, 2.5); // disjoint: the joined rims vanish
     let ev2 = run(&doc2, Some(&ev1));
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -578,10 +543,7 @@ fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
 fn a_vanished_merged_name_is_diagnosed_at_the_edit_not_through_a_retired_constituent() {
     let s = slide_union(0.5);
     let ev1 = run(&s.doc, None);
-    let merged = ev1
-        .value(s.union)
-        .unwrap()
-        .name_table
+    let merged = crate::fixture::table(&ev1, s.union)
         .iter()
         .find_map(|(n, _)| {
             (n.kind == EntityKind::Face && matches!(n.path.as_slice(), [RoleSeg::Merged(_)]))
@@ -596,7 +558,7 @@ fn a_vanished_merged_name_is_diagnosed_at_the_edit_not_through_a_retired_constit
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -650,10 +612,7 @@ fn a_vanished_merged_name_over_a_merged_operand_is_diagnosed_at_the_edit() {
         },
     );
     let ev1 = run(&doc, None);
-    let merged: Vec<StableName> = ev1
-        .value(u2)
-        .unwrap()
-        .name_table
+    let merged: Vec<StableName> = crate::fixture::table(&ev1, u2)
         .iter()
         .filter(|(n, _)| {
             n.kind == EntityKind::Face && matches!(n.path.as_slice(), [RoleSeg::Merged(_)])
@@ -681,7 +640,7 @@ fn a_vanished_merged_name_over_a_merged_operand_is_diagnosed_at_the_edit() {
     );
     let ev2 = run(&doc2, Some(&ev1));
     for m in &merged {
-        let res = resolve_with_prior(
+        let res = crate::fixture::resolve_with_prior_at_mint(
             RunCtx {
                 doc: &doc2,
                 eval: &ev2,
@@ -736,7 +695,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
         },
     );
     assert!(matches!(
-        resolve(
+        crate::fixture::resolve_at_mint(
             RunCtx {
                 doc: &doc,
                 eval: &ev1
@@ -755,7 +714,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -810,7 +769,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         },
     );
     assert!(matches!(
-        resolve(
+        crate::fixture::resolve_at_mint(
             RunCtx {
                 doc: &doc,
                 eval: &ev1
@@ -831,7 +790,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -856,7 +815,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         "the upstream vanish carries the root cause"
     );
     // And the through-name's own resolution chains to the flip.
-    let res_master = resolve_with_prior(
+    let res_master = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -909,14 +868,14 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
     };
     let cap_a = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     assert_eq!(
-        resolve(ctx, &cap_a),
+        crate::fixture::resolve_at_mint(ctx, &cap_a),
         Resolution::Indeterminate(ResolveIndeterminate {
             standing: NodeStanding::Failed { node: a }
         })
     );
     let union_body = minted(EntityKind::Body, u, RoleSeg::OutputBody);
     assert_eq!(
-        resolve(ctx, &union_body),
+        crate::fixture::resolve_at_mint(ctx, &union_body),
         Resolution::Indeterminate(ResolveIndeterminate {
             standing: NodeStanding::Poisoned {
                 node: u,
@@ -979,8 +938,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
                 fresh: Vec::new()
             },
             &ev,
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .is_ok(),
         "a selection the tables carry passes"
@@ -998,7 +956,6 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
         },
         &ev,
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_err();
     assert_eq!(
@@ -1110,7 +1067,7 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::RevolveCap(_)
         | RoleSeg::Pole(_)
         | RoleSeg::AxisEdge(_)
-        | RoleSeg::SplitBody(_)
+        | RoleSeg::SplitBody
         | RoleSeg::SectionFace { .. }
         | RoleSeg::LoftWall(_)
         | RoleSeg::LoftSeam(_) => false,
@@ -1226,9 +1183,8 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
     let ev = run(&doc, None);
     // A wall recorded in some piece's `Borders` set.
     let partner: StableName = ev
-        .value(sub)
+        .table_at(sub)
         .expect("subtract evaluates")
-        .name_table
         .iter()
         .find_map(|(n, e)| {
             if !matches!(e, Entry::Unique(_) | Entry::Tied(_)) {
@@ -1304,7 +1260,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     let target = member_cap(b);
     assert!(
         matches!(
-            resolve(
+            crate::fixture::resolve_at_mint(
                 RunCtx {
                     doc: &doc1,
                     eval: &ev1
@@ -1328,7 +1284,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     // the memo even though the twins are bit-identical. Pinned WITH
     // memo transfer.
     let ev2 = run(&doc2, Some(&ev1));
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -1363,7 +1319,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     // c's cap — the value the recipe actually denotes.
     assert!(
         matches!(
-            resolve(
+            crate::fixture::resolve_at_mint(
                 RunCtx {
                     doc: &doc2,
                     eval: &ev2
@@ -1426,7 +1382,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
                 matches!(v.payload, ValuePayload::Body(_)),
                 "grandchild is a body"
             );
-            &v.name_table
+            ev2.table_at(n).expect("the grandchild's table")
         }
         other => panic!("grandchild must evaluate, got {other:?}"),
     };
@@ -1474,7 +1430,7 @@ fn single_run_vanished_falls_back_to_cause_not_in_evidence() {
             of: master_body.into(),
         },
     );
-    let res = resolve(
+    let res = crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &doc,
             eval: &ev,
@@ -1528,10 +1484,7 @@ fn piece(node: RecipeNodeId, f: &StableName, walls: &[&StableName]) -> StableNam
 /// A node with no inputs and no evaluated body, for a doc whose
 /// evaluation is hand-built.
 fn leaf() -> AuthoredNode {
-    Node::gauge(
-        None,
-        editor_core::Placement::literal(&editor_core::Frame::translation([0.0; 3])),
-    )
+    fixture::xy_frame()
 }
 
 /// One-node hand-built evaluation whose table is `t` (the over-tie
@@ -1544,38 +1497,13 @@ fn one_node_eval(
     let mut nodes = std::collections::BTreeMap::new();
     nodes.insert(
         node,
-        editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Gauge,
-            name_table: Arc::new(t),
-            fragment_groups: Arc::default(),
-            contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(editor_core::CarriedDeclarations::default()),
-            coincidences: Arc::new([]),
-            cited_inputs: Arc::new([]),
-            parts: 1,
-            verdicts: Arc::new(vec![]),
-            escalations: Arc::new(vec![]),
-            placement: None,
-            witness: WitnessSlot::default(),
-            content_key: ContentKey(0),
-            naming_key: NamingKey(0),
-        }),
+        editor_core::NodeResult::Ok(editor_core::NodeValue::hand_built(
+            t,
+            editor_core::FragmentGroups::default(),
+            vec![],
+        )),
     );
-    Evaluation::<f64> {
-        epoch: editor_core::Epoch::mint(),
-        unplaced: Default::default(),
-        unplaced_below: Default::default(),
-        document,
-        prior_refused: None,
-        order: vec![node],
-        nodes,
-        outcome: EvalOutcome::Completed,
-        recomputed: 1,
-        reused: 0,
-        part_evaluations: 0,
-        appearance: editor_core::AppearanceResolution::default(),
-        env: Default::default(),
-    }
+    Evaluation::<f64>::hand_built(document, vec![node], nodes)
 }
 
 fn body_ent(i: u32) -> editor_core::EntityRef {
@@ -1630,7 +1558,7 @@ fn border_delta_reads_the_walls_off_the_names_without_any_flip_set_evidence() {
         (diagnosis, last_good)
     };
     let single = |ev: &Evaluation<f64>| {
-        diagnosis_of(resolve(
+        diagnosis_of(crate::fixture::resolve_at_mint(
             RunCtx {
                 doc: &doc,
                 eval: ev,
@@ -1639,7 +1567,7 @@ fn border_delta_reads_the_walls_off_the_names_without_any_flip_set_evidence() {
         ))
     };
     let with_prior = |ev: &Evaluation<f64>, prior: &Evaluation<f64>| {
-        diagnosis_of(resolve_with_prior(
+        diagnosis_of(crate::fixture::resolve_with_prior_at_mint(
             RunCtx {
                 doc: &doc,
                 eval: ev,

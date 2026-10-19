@@ -233,7 +233,7 @@ fn surface_knot_algebra_is_evaluation_invariant() {
             }
         }
     }
-    assert_eq!(variants[4].1.knots_u().degree(), 3);
+    assert_eq!(variants[4].1.knots_u_f64_interim().degree(), 3);
     // Transpose involution: bitwise identity of the grid.
     let tt = n.transposed().transposed();
     for (a, b) in n.control().iter().zip(tt.control()) {
@@ -251,8 +251,8 @@ fn surface_removal_bound_is_honest() {
     let mid = ctrl.len() / 2;
     ctrl[mid] = ctrl[mid] + Vec3::new(-6e-4, 4e-4, 7e-4);
     let pert = NurbsSurface::new(
-        base.knots_u().clone(),
-        base.knots_v().clone(),
+        base.knots_u_f64_interim().clone(),
+        base.knots_v_f64_interim().clone(),
         ctrl,
         base.weights().to_vec(),
     )

@@ -16,12 +16,11 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance,
-    Operand, ProfileProgram, RecipeNodeId, SitedFace, SlotId, StepId, VarId, VarName,
+    Coord, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance, Mate,
+    MateRef, Operand, PinRefusal, ProfileProgram, RecipeNodeId, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
-use pncad::select::ContactClass;
 
 use crate::display::PruneReport;
 use crate::props::SlotValue;
@@ -60,6 +59,17 @@ pub enum SessionOp {
     DeleteNode {
         /// The node to delete, with its dependents.
         node: RecipeNodeId,
+    },
+    /// Remove one constraint from its placement's bundle: one
+    /// `DocEdit::RemoveConstraint`, preceded, for a mate, by one per
+    /// value naming it — a value sets a freedom of its mate, so it goes
+    /// with it, in the same action. A constraint is no node, so it has
+    /// no cone to delete: the copy it pinned is recomputed from what
+    /// remains, and a bundle that no longer pins its copy leaves a loose
+    /// copy, never a refusal.
+    RemoveConstraint {
+        /// The constraint: its placement and minted id.
+        mate: MateRef,
     },
     /// Write a value into a node's slot. Refused if the slot is
     /// driven by an expression.
@@ -388,10 +398,11 @@ pub enum SessionOp {
         /// Hidden, or shown again.
         hidden: bool,
     },
-    /// Open a free-move probe gesture on a completely-unconstrained
-    /// instance (G3's fit probe). Refused typed for a mate-
-    /// constrained instance — eligibility is derived from the
-    /// document, never guessed from solver state.
+    /// Open a free-move probe gesture on the loose space `instance`'s
+    /// copy lives in (G3's fit probe, DI5). Refused typed for a copy
+    /// in the world's space, and while no evaluation that answers the
+    /// document has landed — which space a copy lives in is the
+    /// solve's answer ([`crate::display::free_move_check`]).
     BeginFreeMove {
         /// The instance to probe.
         instance: RecipeNodeId,
@@ -446,24 +457,19 @@ pub enum SessionOp {
     /// reason: it is the other cancel door, and the other thing an
     /// Escape on the field emits.
     CancelFreeMove,
-    /// Commit **exactly one** `DocEdit` adding a mate node — the mate
-    /// tool's single committed edit. Everything before it (the two
-    /// picks, the class choice, the derived frames) is tool state; the
-    /// document transition is this op alone, entering at the same
-    /// commit door as every other edit: one apply, one history state,
-    /// one re-evaluation, and the free-move supersession prune.
+    /// Add a mate to `placement`'s bundle and then each of its values
+    /// naming the id the mate minted (`DocEdit::AddConstraint`, then one
+    /// `DocEdit::AddValue` per value) — the mate tool's one committed
+    /// action, so one history state and one undo. A mate or a value the
+    /// door refuses ends the action and nothing of it is recorded.
+    /// Everything before it (the two picks, the choice) is tool state.
     AddMate {
-        /// The `a` reference — a name and the operand it is read at,
-        /// resolving to a member of A11's vocabulary
-        /// (`pncad::document::member_of`).
-        a: SitedFace,
-        /// The `b` reference, same vocabulary.
-        b: SitedFace,
-        /// The declared contact class.
-        class: ContactClass,
-        /// The alignment datum (frames in each member's own part
-        /// coordinates).
-        alignment: Alignment<Formula>,
+        /// The placement whose copy the mate places.
+        placement: RecipeNodeId,
+        /// The mate, `on` read off that copy.
+        mate: Box<Mate<Formula>>,
+        /// The freedoms it leaves that are set, each to its number.
+        values: Vec<(Coord, Formula)>,
     },
     /// Replace the session's document with a fresh empty one (GAUTH-1's
     /// creation door zero) — the ONE creation op that is a
@@ -605,9 +611,9 @@ pub enum SessionOp {
         profile: RecipeNodeId,
         /// A point on the axis, in the profile's 2-D coordinates
         /// (`Length`).
-        axis_origin: [Formula; 2],
-        /// The axis direction in the same coordinates (`Scalar`).
-        axis_direction: [Formula; 2],
+        axis_through: [Formula; 2],
+        /// The axis's heading from the profile's x axis (`Angle`).
+        axis_heading: Formula,
         /// The sweep angle (`Angle`); the chrome's default is a full
         /// turn.
         angle: Formula,
@@ -857,13 +863,13 @@ pub enum SessionOp {
     /// ([`Refusal::NoDocumentDirectory`]) rather than authoring a
     /// reference into a store it has not got.
     ///
-    /// **A creation, so its bodies are placed** (A10): the instance
-    /// and one identity world placement of each body it defines — one
-    /// per world placement of its part — as one action. No gauge pose
-    /// is authored: A11 puts placement on the group, so the inserted
-    /// node is complete with its reference and an empty interface
-    /// record (an authored instance crosses no split seam). Hiding, the
-    /// free-move probe and the mate tool take it from there.
+    /// **A creation, so its copies are placed** (A10): an instance is a
+    /// placement, inserted and placed at the identity by the "place
+    /// part" gesture (a mate to the world and its values,
+    /// [`OpOutcome::placed`]), with its reference and an empty
+    /// interface record (an authored instance crosses no split seam).
+    /// Hiding, the free-move probe and the mate tool take it from
+    /// there.
     AddInstance {
         /// Which document in the open document's own directory.
         id: DocumentId,
@@ -1082,8 +1088,7 @@ impl SessionOp {
     #[must_use]
     pub fn creates_a_node(&self) -> bool {
         match self {
-            Self::AddMate { .. }
-            | Self::AddDatum { .. }
+            Self::AddDatum { .. }
             | Self::AddProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
@@ -1097,9 +1102,12 @@ impl SessionOp {
             | Self::AddPart { .. }
             | Self::Duplicate { .. }
             | Self::AddInstance { .. } => true,
-            Self::Select(_)
+            // A mate is a constraint in a placement's bundle, no node.
+            Self::AddMate { .. }
+            | Self::Select(_)
             | Self::Hover(_)
             | Self::DeleteNode { .. }
+            | Self::RemoveConstraint { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
@@ -1172,6 +1180,7 @@ impl SessionOp {
             | Self::Select(_)
             | Self::Hover(_)
             | Self::DeleteNode { .. }
+            | Self::RemoveConstraint { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
@@ -1229,23 +1238,16 @@ impl SessionOp {
     /// this returns `true` for is permitted mid-value-gesture and
     /// nothing more.
     ///
-    /// # Why the two drags may overlap, and until when
+    /// # Why the two drags may overlap
     ///
-    /// **This section is scoped to the tree as it stands.** DI5
-    /// (`crates/editor-core/IDENTITY.md`, ratified) rules that releasing
-    /// a free-move gesture emits one `DocEdit::SetOffset` and that
-    /// `DisplayState::moves` empties, because a committed frame
-    /// becomes document data. When that lands,
-    /// [`SessionOp::CommitFreeMove`] becomes the only `true` row here
-    /// that commits to the history while a value gesture is open, and
-    /// a commit applies against the history's document while the value
-    /// gesture previews against its own snapshot — so **that row has
-    /// to be re-decided then**, and the argument below does not carry
-    /// over to it. The other three `*FreeMove` rows are unaffected: a
-    /// begin, a preview and a cancel stay display-only under DI5. The
-    /// build is CHROME's (`no-persistent-setplacement-session-op`).
+    /// DI5 (`crates/editor-core/IDENTITY.md`) keeps all four
+    /// `*FreeMove` rows display-only: releasing a free-move writes
+    /// nothing to the document, and the frame stays display state keyed
+    /// by the loose space it was drawn for. So
+    /// [`SessionOp::CommitFreeMove`] commits nothing to the history, and
+    /// the argument below covers it as it covers the other three.
     ///
-    /// Today the two drags own disjoint state. A value gesture owns a
+    /// The two drags own disjoint state. A value gesture owns a
     /// `Doc` snapshot and writes a scratch `Doc`; the free-move
     /// gesture's previews and its committed frames enter no `Doc`, so
     /// a probe committed or discarded mid-drag cannot reach what a
@@ -1255,20 +1257,23 @@ impl SessionOp {
     /// actually lives — all three ask a display predicate about a
     /// document, and they do not all ask about the SAME document:
     ///
-    /// - the operation admits against the COMMITTED document
+    /// - the operation admits against the COMMITTED document and the
+    ///   spaces a landing read off it or off the scratch
     ///   ([`crate::display::free_move_check`], via
-    ///   [`crate::display::DisplayState::begin_free_move`]);
+    ///   [`crate::display::DisplayState::begin_free_move`] and
+    ///   [`super::DocSession::space_evaluation`]);
     /// - the view the scene draws
     ///   ([`super::DocSession::display_view`]) resolves against the
-    ///   PREVIEWED one, and so does the Properties pane, which runs
-    ///   the SAME admission test the view does
-    ///   ([`crate::display::instance_check`], which
-    ///   [`crate::display::drawn_targets`] runs first) to decide
-    ///   whether to DRAW the control the operation then decides
-    ///   whether to ACCEPT;
+    ///   PREVIEWED one; the Properties pane reads the COMMITTED one and
+    ///   runs the SAME admission test the operation does
+    ///   ([`crate::display::free_move_check`], over the same
+    ///   [`super::DocSession::space_evaluation`]) to decide whether to
+    ///   DRAW the control the operation then decides whether to
+    ///   ACCEPT;
     /// - every committed edit prunes the display state against the new
-    ///   document — a prune that DISCARDS committed probes and kills
-    ///   an in-flight free-move whose instance stopped being eligible,
+    ///   document, and again when its evaluation lands — a prune that
+    ///   DISCARDS committed frames and kills an in-flight free-move
+    ///   whose space stopped being loose,
     ///   reporting the first in [`PruneReport::superseded`] and the
     ///   second in [`PruneReport::killed_gesture`], each with the
     ///   fault that decided it, on [`OpOutcome::withdrawn`].
@@ -1281,8 +1286,20 @@ impl SessionOp {
     /// one. Every display predicate is a function of the node graph —
     /// which nodes exist, of what kind, with which inputs and which
     /// mate references — and never of a slot's expression or a
-    /// variable's value. So the previewed document and the committed
-    /// one agree on every display question, at every point of a drag.
+    /// variable's value. The free-move admission reads its spaces off
+    /// an evaluation (DI5), and those are the graph's too: pinning is
+    /// structural, which mates name which copies and which name the
+    /// world, so a landing of either document answers both. The one
+    /// space answer a value can move is a placement the evaluation
+    /// refuses ([`crate::display::AdmissionFault::NoSpace`]): admission
+    /// reads it off whichever of the two landed last, and a scratch
+    /// landing's prune acts on the graph's answers alone
+    /// ([`crate::display::DisplayState::prune_structural`]), so a
+    /// committed pin a preview overtook still lands mid-drag and a
+    /// previewed refusal discards nothing committed. So the previewed
+    /// document and the committed one agree on every display question
+    /// the graph decides, at every point of a drag; a refused placement
+    /// is said when the committed document lands, whatever refused it.
     /// Break that — let a gesture's edit change the graph — and
     /// committing a slider would take an in-flight probe away under
     /// the pointer holding it, saying nothing. The minting half is
@@ -1389,6 +1406,7 @@ impl SessionOp {
             | Self::CancelFreeMove
             | Self::DeclineOffer { .. } => true,
             Self::DeleteNode { .. }
+            | Self::RemoveConstraint { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::ProbeBounds { .. }
@@ -1512,6 +1530,7 @@ impl SessionOp {
             | Self::CommitFreeMove { .. }
             | Self::CancelFreeMove
             | Self::DeleteNode { .. }
+            | Self::RemoveConstraint { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
@@ -1649,6 +1668,22 @@ pub struct OpOutcome {
     /// gesture's previews: a preview enters no history, so nothing it
     /// did has happened yet.
     pub maintenance: Vec<Maintenance>,
+    /// **How each copy a place gesture made was placed**
+    /// ([`editor_core::place_at`]), in the order the action placed
+    /// them: on a planar face and its values, pinned where the copy has
+    /// none, or left loose with the reason. Empty for every other
+    /// operation.
+    pub placed: Vec<PlaceReport>,
+}
+
+/// **How the "place part" gesture placed one copy**
+/// ([`editor_core::place_at`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlaceReport {
+    /// The placement the gesture made.
+    pub placement: RecipeNodeId,
+    /// How its copy was placed, or why it stands loose.
+    pub by: Result<editor_core::PlacedBy, PinRefusal>,
 }
 
 impl OpOutcome {

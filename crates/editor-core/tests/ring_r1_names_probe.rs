@@ -57,7 +57,12 @@ fn full_wire_holed_revolve_names_totally() {
     );
     let (doc, rev) = insert(
         doc,
-        revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+        revolve_about(
+            p,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
     );
     let ev = run(&doc);
     // Totality: `check_total` ran inside name_revolve — reaching a

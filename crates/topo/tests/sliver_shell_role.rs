@@ -213,31 +213,31 @@ fn census(
     body.body.validate_pseudomanifold(&body.contacts, tol)
 }
 
-/// **A needle ships with an in-band edge pair until the door runs the
-/// census**: the `notch307` piece beyond its notch, ∩ the census witness
-/// cube (`nt e0 a3`), leaves one lump, a wedge whose certified `V/A`
-/// lies in band (3.29e-9 at d = 1e-8, 9.87e-9 at d = 3e-8), alone in its
-/// solid. Its `V/A` judges nothing (D10, Booleans), so every order
-/// builds. At d = 3e-8, cube first, every pair the census reads is
-/// definite. The others hold an edge pair whose span the census reads
-/// in band (`pm_census_ee_span`), which the door, running no census,
-/// does not read: these rows turn red when it does
-/// (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
+/// **A needle reads every pair of its cells definite**: the `notch307`
+/// piece beyond its notch, ∩ the census witness cube (`nt e0 a3`),
+/// leaves one lump, a wedge whose certified `V/A` lies in band (3.29e-9
+/// at d = 1e-8, 9.87e-9 at d = 3e-8), alone in its solid. Its `V/A`
+/// judges nothing (D10, Booleans), so every order builds, and the
+/// census passes it: the two edges leaving the corner's point key part
+/// by 8.4e-8 to 2.5e-7 at their far ends, a definite number however
+/// thin. Read through the closed form from the edges' starts, their
+/// crossing landed 1.4e-9 to 2.8e-9 off the shared point, and the
+/// census escalated `pm_census_ee_span` on three of these runs.
 /// At d = −1e-8 the cube misses the piece and the ∩ is empty.
 #[test]
-fn a_needle_ships_an_in_band_edge_pair_until_the_door_runs_the_census() {
+fn a_needle_reads_every_pair_of_its_cells_definite() {
     let tol = Tol::witness();
     if stood_down_off_1e9(tol) {
         return;
     }
     let corner = [2.0, 1.0, 1.0];
     let edge = [2.0, 1.0, 0.0];
-    for (d, cube_first, pairs_definite) in [
-        (1e-8, false, false),
-        (1e-8, true, false),
-        (3e-8, false, false),
-        (3e-8, true, true),
-        (3.05e-8, false, true),
+    for (d, cube_first) in [
+        (1e-8, false),
+        (1e-8, true),
+        (3e-8, false),
+        (3e-8, true),
+        (3.05e-8, false),
     ] {
         let (piece, cube) = corner_pose(&NOTCH307_PIECE, corner, edge, 3, d, tol);
         let (what, meet) = if cube_first {
@@ -251,18 +251,11 @@ fn a_needle_ships_an_in_band_edge_pair_until_the_door_runs_the_census() {
                 intersect(&piece, &cube, tol),
             )
         };
-        match census(&what, meet, tol) {
-            Ok(()) => assert!(pairs_definite, "{what}: the census reads an in-band pair"),
-            Err(findings) => assert!(
-                !pairs_definite
-                    && findings.iter().all(|f| matches!(
-                        f,
-                        ValidationError::CensusEscalated { cause }
-                            if cause.predicate == Some("pm_census_ee_span")
-                    )),
-                "{what}: every pair is definite, or the census escalates only an edge pair's span: {findings:?}"
-            ),
-        }
+        assert_eq!(
+            census(&what, meet, tol),
+            Ok(()),
+            "{what}: every pair definite"
+        );
     }
     let (piece, cube) = corner_pose(&NOTCH307_PIECE, corner, edge, 3, -1e-8, tol);
     let meet = intersect(&piece, &cube, tol)
@@ -395,17 +388,27 @@ fn assert_builds(
     built: Result<topo::BooleanResult<f64>, BooleanError>,
     tol: Tol,
 ) {
+    assert_eq!(
+        built_census(what, shells, built, tol),
+        Ok(()),
+        "{what}: every pair is definite"
+    );
+}
+
+/// The census of a wall that builds with `shells` shells per solid.
+fn built_census(
+    what: &str,
+    shells: usize,
+    built: Result<topo::BooleanResult<f64>, BooleanError>,
+    tol: Tol,
+) -> Result<(), Vec<ValidationError>> {
     let meet = built.unwrap_or_else(|e| panic!("{what}: builds, got {e:?}"));
     assert_eq!(
         shells_per_solid(meet.body().expect("the wall is not empty")),
         [shells],
         "{what}: shells per solid"
     );
-    assert_eq!(
-        census(what, Ok(meet), tol),
-        Ok(()),
-        "{what}: every pair is definite"
-    );
+    census(what, Ok(meet), tol)
 }
 
 /// **Every thin wall refuses on a pair below `Kε` and builds above it**
@@ -414,7 +417,9 @@ fn assert_builds(
 /// the pair of cells across the wall; in `(Kε, 2Kε)` each builds, its
 /// `V/A` in band and every pair the census reads definite. At `Kε`
 /// itself the pair's margin rounds either way (it builds at ε = 1e-9,
-/// and refuses at 1e-6 on a margin a hair under `Kε`). The poses scale
+/// and refuses at 1e-6 on a margin a hair under `Kε`), and the census
+/// of a wall built there escalates the edge pairs whose reach or gap
+/// is `Kε` to within its rounding, or none. The poses scale
 /// with ε, and run at 1e-9 and 1e-6.
 #[test]
 fn a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it() {
@@ -448,7 +453,22 @@ fn a_thin_wall_refuses_on_a_pair_below_k_eps_and_builds_above_it() {
                     "{what}: refuses only on a margin under Kε: {gap:e}"
                 );
             }
-            built => assert_builds(&what, shells, built, tol),
+            built => {
+                let errors = built_census(&what, shells, built, tol)
+                    .err()
+                    .unwrap_or_default();
+                let on_k_eps = |e: &ValidationError| {
+                    matches!(e, ValidationError::CensusEscalated { cause }
+                        if cause.predicate.is_some_and(|p| p.starts_with("pm_census_ee_"))
+                            && cause.margin.diagnostic_f64_for_error_text().value()
+                                .is_some_and(|m| (m.abs() - k_eps).abs() < 1e-9 * k_eps))
+                };
+                assert!(
+                    errors.iter().all(on_k_eps),
+                    "{what}: the census escalates only a pair whose reading rounds onto Kε: \
+                     {errors:?}"
+                );
+            }
         }
         for m in ABOVE_K {
             let t = m * tol.eps();

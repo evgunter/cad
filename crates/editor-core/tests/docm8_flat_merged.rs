@@ -12,7 +12,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     EntityKind, Entry, NameTable, Node, ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx,
-    StableName, resolve,
+    StableName,
 };
 use geom_core::Tol;
 
@@ -430,7 +430,7 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
         );
         // The consumed operand face: the inner merge, wrapped once.
         let consumed = from_a(&rec.doc, outer, inner_row(fam));
-        match resolve(ctx, &consumed) {
+        match crate::fixture::resolve_at_mint(ctx, &consumed) {
             Resolution::Failed(f) => assert!(
                 f.offers.contains(&outer_row),
                 "family {fam}: the consumed inner merged face does not offer the outer row: {:?}",
@@ -445,7 +445,7 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
             outer,
             from_a(&rec.doc, inner, fname(a, family(&rec.doc, a, fam))),
         );
-        match resolve(ctx, &constituent) {
+        match crate::fixture::resolve_at_mint(ctx, &constituent) {
             Resolution::Failed(f) => assert!(f.offers.contains(&outer_row), "{:?}", f.offers),
             other => panic!("{other:?}"),
         }

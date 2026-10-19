@@ -215,8 +215,8 @@ fn a_plane_near_tangent_to_a_tight_wall_refuses_at_its_curvature_radius() {
         .map(|p| Point3::new(rho * p.x, rho * p.y, p.z))
         .collect();
     let wall = NurbsSurface::new(
-        unit.knots_u().clone(),
-        unit.knots_v().clone(),
+        unit.knots_u_f64_interim().clone(),
+        unit.knots_v_f64_interim().clone(),
         control,
         unit.weights().to_vec(),
     )

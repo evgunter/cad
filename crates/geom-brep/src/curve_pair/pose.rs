@@ -38,7 +38,18 @@
 //!   piece's overlap is a sub-interval of the whole's, and its offset at
 //!   its own middle less its own variation is at least the whole's
 //!   margin; a pair read Parallel whole is read Parallel in every split.
-//!   Only where that margin does not decide does the tilt route: levered
+//!   **The gap between the projections reads next**
+//!   (`curve_pair_pose_gap`), before the tilt or the offset is read: by
+//!   the same projection argument, projections apart by a gap that
+//!   decides positive hold no meeting, whatever the lines' distance
+//!   reads, and the pair is [`Pose::Apart`]. A piece's gap is at least
+//!   the whole's, so a pair read Apart whole is read Parallel or Apart in
+//!   every split. A gap read zero or in the escalation gap says nothing,
+//!   and the reading goes on. Both screens' margins are charged with the
+//!   rounding the projections and the offset carry, sized by the
+//!   carriers' origins and the spans' ends as evaluated, so a coordinate
+//!   large by its parameter is charged as one large by its origin.
+//!   Only where neither decides does the tilt route: levered
 //!   by the longer span (`curve_pair_pose_tilt`), definite is a crossing;
 //!   read zero over the overlap `s·(L + 2e)`, or zero over the longer
 //!   span, the pair is level where it can meet, and the offset at the
@@ -200,8 +211,16 @@
 //!
 //! # The band
 //!
-//! Every decision above that falls in the band's gap escalates
-//! ([`MeetFault::Escalated`]); none prunes a candidate.
+//! A decision the reading rests on escalates in the band's gap
+//! ([`MeetFault::Escalated`]). A decision read as a screen, for the one
+//! verdict that lets the reading stop or take a shorter road, passes any
+//! other reading on, an escalation included, to the readings after it,
+//! which decide the pair or escalate on their own: the router's parallel
+//! margin (`curve_pair_pose_parallel`), its gap (`curve_pair_pose_gap`)
+//! and its tilt over the overlap (`curve_pair_pose_tilt`), the polish's
+//! clearance (`curve_pair_pose_clear`), and the like in the window's
+//! readings and the branch compares. A meter's escalation refuses
+//! [`Unsettled::Meter`]. No escalation prunes a candidate.
 
 mod window;
 
@@ -255,7 +274,8 @@ pub enum Pose<T: geom_core::Real> {
     /// Parallel lines, or a line or conic parallel to the other's plane,
     /// definitely apart: no point meets.
     Parallel,
-    /// Definitely apart otherwise: the residual's extremes one-signed.
+    /// Definitely apart otherwise: the spans' projections on a line
+    /// apart past the band, or the residual's extremes one-signed.
     Apart,
     /// One touch: a double root the band cannot split, of the residual in
     /// one plane or of the height above the other's plane.
@@ -283,6 +303,7 @@ mod row {
     pub(super) const TILT: &str = "curve_pair_pose_tilt";
     pub(super) const OFFSET: &str = "curve_pair_pose_offset";
     pub(super) const PARALLEL: &str = "curve_pair_pose_parallel";
+    pub(super) const GAP: &str = "curve_pair_pose_gap";
     pub(super) const SENSE: &str = "curve_pair_pose_sense";
     pub(super) const SWING: &str = "curve_pair_pose_swing";
     pub(super) const EXTREME: &str = "curve_pair_pose_extreme";
@@ -294,6 +315,7 @@ mod row {
     pub(super) const CENTRES: &str = "curve_pair_pose_centres";
     pub(super) const RADII: &str = "curve_pair_pose_radii";
     pub(super) const ONE_CURVE: &str = "curve_pair_pose_one_curve";
+    pub(super) const BRANCH: &str = "curve_pair_pose_branch";
 }
 
 /// The coplanar circle × ellipse subdivision's rows.
@@ -394,6 +416,37 @@ fn conic_of<T: Decide>(c: &Curve3<T>) -> Result<Conic<T>, MeetFault> {
 /// `v` scaled to unit length.
 fn unit<T: Decide>(v: Vec3<T>) -> Vec3<T> {
     v * (T::one() / v.norm())
+}
+
+/// **The angle of `(x, y)`, read clear of its branch cut**: `atan2(y, x)`
+/// where `x` does not read negative, and otherwise the same angle a
+/// turn on, `atan2(−y, −x) + π`, whose cut lies half a turn from it. An
+/// enclosure of a direction near the negative `x` axis then stays as
+/// narrow as the direction, where the principal value would wrap the
+/// whole turn. Every reader takes the angle modulo a turn, so either
+/// branch serves.
+fn angle<T: Decide>(y: T, x: T) -> T {
+    if super::compare(row::BRANCH, x, T::zero()) == Some(Sign::Negative) {
+        (T::zero() - y).atan2(T::zero() - x) + T::pi()
+    } else {
+        y.atan2(x)
+    }
+}
+
+/// **How far round the turn `theta` lies from `at`**, in `[0, π]`, read
+/// clear of the reduction's cut: from `at` where it reads within a
+/// quarter turn of it, and otherwise as half a turn less how far it
+/// lies from `at + π`. An enclosure about the antipode then stays as
+/// narrow as `theta`, where the reduction about `at` would read the
+/// whole half turn.
+fn separation<T: Decide>(theta: T, at: T) -> T {
+    let from = |anchor: T| (theta - anchor).reduce_periodic_centred(T::tau()).abs();
+    let near = from(at);
+    if super::compare(row::BRANCH, near, T::pi() / T::from_f64(2.0)) == Some(Sign::Negative) {
+        near
+    } else {
+        T::pi() - from(at + T::pi())
+    }
 }
 
 /// The metres a span runs at most: its parameter run at the carrier's
@@ -635,13 +688,33 @@ impl<T: Decide> Polish<'_, T> {
     }
 }
 
-/// The overlap, along the unit `u` from `o`, of the projections `a` and
-/// `b` (each a pair of ends, either order): its middle and its length,
-/// zero where the projections are disjoint (module docs, "Two lines").
-fn overlap<T: Decide>(a: (T, T), b: (T, T)) -> (T, T) {
+/// The overlap, along a unit from a point, of two projections (module
+/// docs, "The router").
+#[derive(Clone, Copy, Debug)]
+struct Overlap<T> {
+    /// Its middle.
+    mid: T,
+    /// Its signed length: the gap between the projections, negated,
+    /// where they are disjoint.
+    extent: T,
+}
+
+/// The [`Overlap`] of the projections `a` and `b`, each a pair of ends in
+/// either order.
+fn overlap<T: Decide>(a: (T, T), b: (T, T)) -> Overlap<T> {
     let lo = a.0.min(a.1).max(b.0.min(b.1));
     let hi = a.0.max(a.1).min(b.0.max(b.1));
-    ((lo + hi) * T::from_f64(0.5), (hi - lo).max(T::zero()))
+    Overlap {
+        mid: (lo + hi) * T::from_f64(0.5),
+        extent: hi - lo,
+    }
+}
+
+/// The metres `s`'s two ends lie from the origin, as evaluated.
+fn ends<T: Decide>(s: &Span<'_, T>) -> T {
+    let (t0, t1) = s.params();
+    let from = |t: T| (s.carrier().eval(t) - Point3::origin()).norm();
+    from(t0) + from(t1)
 }
 
 /// The projection of `s`'s ends on the line `(o, u)`, `u` a unit: their
@@ -657,6 +730,8 @@ fn on_line<T: Decide>((o, u): (Point3<T>, Vec3<T>), s: &Span<'_, T>) -> (T, T) {
 /// Where the router sends a line's pair (module docs, "The router").
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Route {
+    /// The projections definitely apart: no place to meet.
+    Apart,
     /// Definitely apart over every place they can meet.
     Parallel,
     /// Crossing: the tilt definite over the longer span.
@@ -669,12 +744,16 @@ enum Route {
 /// docs, "The router"): `tilt` the sine of the pair's angle, `rate` the
 /// most metres the offset moves per metre along the first line, `offset`
 /// the second's distance (or the plane's height) at the overlap's middle,
-/// `length` the overlap's and `lever` the longer span's metres.
+/// `at` the overlap, `lever` the longer span's metres and `noise` the
+/// rounding the offset and the projections carry, charged against both
+/// screens' margins.
 ///
-/// The parallel argument runs first and alone: where the offset less its
-/// most variation over the overlap and the escalation either side decides
+/// The parallel argument runs first: where the offset less its most
+/// variation over the overlap and the escalation either side decides
 /// positive (`curve_pair_pose_parallel`), no point meets, whatever the
-/// tilt reads. Only otherwise does the tilt route: definite over the
+/// tilt reads. Then the gap: where the projections are disjoint and
+/// their gap decides positive (`curve_pair_pose_gap`), no point meets.
+/// Only otherwise does the tilt route: definite over the
 /// longer span, a crossing; zero over the overlap, or over the longer
 /// span, level where the offset reads zero, and [`Unsettled::Meter`]
 /// where it does not, the parallel margin having not decided.
@@ -687,13 +766,19 @@ fn route<T: Decide>(
     tilt: T,
     rate: T,
     offset: T,
-    (length, lever): (T, T),
+    at: Overlap<T>,
+    (lever, noise): (T, T),
     band: Band,
 ) -> Result<Route, MeetFault> {
+    let length = at.extent.max(T::zero());
     let e = T::from_f64(band.escalate());
     let half = length * T::from_f64(0.5) + e;
-    if decide(row::PARALLEL, Margin::of(offset - rate * half), band) == Ok(Sign::Positive) {
+    let parallel = Margin::of(offset - rate * half - noise);
+    if decide(row::PARALLEL, parallel, band) == Ok(Sign::Positive) {
         return Ok(Route::Parallel);
+    }
+    if decide(row::GAP, Margin::of(-at.extent - noise), band) == Ok(Sign::Positive) {
+        return Ok(Route::Apart);
     }
     let level = decide(row::TILT, Margin::levered(tilt, length + e + e), band) == Ok(Sign::Zero)
         || !definite(row::TILT, Margin::levered(tilt, lever), band)?;
@@ -746,10 +831,14 @@ fn line_line<T: Decide>(
     let n = u1.cross(u2);
     let s = n.norm();
     let first = (o1, u1);
-    let (mid, length) = overlap(on_line(first, a), on_line(first, b));
-    let w = o1 + u1 * mid - o2;
+    let at = overlap(on_line(first, a), on_line(first, b));
+    let w = o1 + u1 * at.mid - o2;
     let off = (w - u2 * w.dot(u2)).norm();
     let lever = reach(a).max(reach(b));
+    let origin = Point3::origin();
+    let noise = crate::rounding_charge(
+        (o1 - origin).norm() + (o2 - origin).norm() + ends(a) + ends(b) + lever + lever,
+    );
     let crossing = || {
         let along = (o2 - o1).cross(u2).dot(n) / s.powi(2);
         let point = o1 + u1 * along;
@@ -759,7 +848,8 @@ fn line_line<T: Decide>(
             tb: line_foot(lb, point),
         }])
     };
-    match route(s, s / u1.dot(u2).abs(), off, (length, lever), band)? {
+    match route(s, s / u1.dot(u2).abs(), off, at, (lever, noise), band)? {
+        Route::Apart => Ok(Pose::Apart),
         Route::Parallel => Ok(Pose::Parallel),
         Route::Crossing => Ok(crossing()),
         Route::Level if one_line((a, (o1, u1)), (b, (o2, u2)), band)? => Ok(Pose::Coincident {
@@ -790,14 +880,16 @@ fn line_conic<T: Decide>(
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
     let c = (k.center - o).dot(u);
-    let (mid, length) = overlap(on_line((o, u), a), (c - k.speed_hi(), c + k.speed_hi()));
+    let at = overlap(on_line((o, u), a), (c - k.speed_hi(), c + k.speed_hi()));
     let lever = reach(a).max(k.speed_hi());
     let origin = Point3::origin();
     let noise = crate::rounding_charge(
         (o - origin).norm() + (k.center - origin).norm() + lever + k.speed_hi(),
     );
-    let height = (o + u * mid - k.center).dot(n);
-    match route(den, den.abs(), height.abs(), (length, lever), band)? {
+    let height = (o + u * at.mid - k.center).dot(n);
+    let screened = noise + crate::rounding_charge(ends(a));
+    match route(den, den.abs(), height.abs(), at, (lever, screened), band)? {
+        Route::Apart => return Ok(Pose::Apart),
         Route::Parallel => return Ok(Pose::Parallel),
         Route::Crossing => {
             // The line's height above the plane runs `|d̂·n̂|` per metre,
@@ -828,7 +920,7 @@ fn line_conic<T: Decide>(
             pose: "a conic the band reads as thin as the line it lies beside",
         });
     }
-    let range = Range::first_harmonic(c0, swing, sp.atan2(cp), noise);
+    let range = Range::first_harmonic(c0, swing, angle(sp, cp), noise);
     let place = |theta: T| {
         let point = k.point(theta);
         Candidate {
@@ -960,7 +1052,10 @@ pub(super) fn one_curve_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
 /// `‖L_e − L_f·Q‖`, the operator norm, for the `Q` that turns `f`'s
 /// frame the way up `e`'s is (the sign of `(a·b·n̂)_e · (a·b·n̂)_f`) and
 /// then by the rotation that best matches the two, which maximizes
-/// `tr(Qᵀ·L_fᵀ·L_e)`.
+/// `tr(Qᵀ·L_fᵀ·L_e)`. The square is the larger eigenvalue of a Gram
+/// matrix, never negative, so its enclosure is clamped at zero: two
+/// coincident conics' `d1` and `d2` enclose zero, and their self-dots
+/// read as interval products reach below it.
 fn frame_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
     let ((e1, e2), (f1, f2)) = (e.semi_axis_vectors(), f.semi_axis_vectors());
     let up = e1.cross(e2).dot(f1.cross(f2));
@@ -975,7 +1070,9 @@ fn frame_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
         (d1.dot(d1) + d2.dot(d2)) * half,
         (d1.dot(d1) - d2.dot(d2)) * half,
     );
-    (mid + (off.powi(2) + d1.dot(d2).powi(2)).sqrt()).sqrt()
+    (mid + (off.powi(2) + d1.dot(d2).powi(2)).sqrt())
+        .max(T::from_f64(0.0))
+        .sqrt()
 }
 
 /// `ka`'s height above `kb`'s plane, `(c0, cp, sp)` with the swing read
@@ -989,7 +1086,7 @@ fn transverse<T: Decide>(
     known: &[Candidate<T>],
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
-    let range = Range::first_harmonic(c0, swing, sp.atan2(cp), noise);
+    let range = Range::first_harmonic(c0, swing, angle(sp, cp), noise);
     let window = window::Window {
         a: ka,
         span_a: a.params(),
@@ -1091,7 +1188,7 @@ fn coplanar_circles<T: Decide>(
     let (near, far) = ((ra - d).abs(), ra + d);
     let (lo, hi) = (near - rb, far - rb);
     let swing = T::from_f64(4.0) * ra * d;
-    let toward = w.dot(ka.v_ref()).atan2(w.dot(ka.u_ref));
+    let toward = angle(w.dot(ka.v_ref()), w.dot(ka.u_ref));
     let range = Range {
         lo,
         hi,
@@ -1292,7 +1389,7 @@ impl<T: Decide> Range<T> {
         let (c0, swing) = ((self.lo + self.hi) / two, (self.hi - self.lo) / two);
         let e = T::from_f64(band.escalate()) + self.noise;
         let unit_cos = |x: T| x.max(T::zero() - T::one()).min(T::one());
-        let phi = (theta - self.at_hi).reduce_periodic_centred(T::tau()).abs();
+        let phi = separation(theta, self.at_hi);
         let inner = unit_cos((e - c0) / swing).acos();
         let outer = unit_cos((T::zero() - e - c0) / swing).acos();
         (phi - inner).abs().max((outer - phi).abs())

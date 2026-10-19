@@ -702,20 +702,22 @@ BOUND_AS = {
     # consumer matching the class of a refusal that is neither `Clone`
     # nor `PartialEq`.
     "ProductErrorKind": "ProductError.variant",
-    # The placement vocabulary of A11 (2): the compound door is a
-    # `Doc` method, as every acting door is; an unplaced group's cause
-    # and an instance's space are what `SolvedPoses.unplaced` answers
-    # (`None` is the world); the pose door's refusal raises from
-    # `SolvedPoses.placement`; why a checked offset went unchecked is
-    # the fault's `inner_variant`; and the gauge chain, and whether two
-    # instances share a gauge reference, are read off `Doc.gauge`.
-    "regauge_then_mate": "Doc.regauge_then_mate",
-    "Unplaced": "SolvedPoses.unplaced",
-    "Space": "SolvedPoses.unplaced",
+    # The placement vocabulary of D10: the space a node lives in is
+    # what `Evaluation.space` answers (`"world"`, or the loose copy);
+    # the pose door's refusal raises from `SolvedPoses.placement`; a
+    # constraint of a placement is a `(MateRef, Mate | MateValue)` row
+    # of `Doc.bundle` — which of the two is the kind — a mate's target
+    # is what `Mate.to` answers (a pose, or a `WorldRead`), and a loose
+    # space is the copy `Evaluation.loose` lists.
+    "Space": "Evaluation.space",
     "PoseRefusal": "SolvedPoses.placement",
-    "OffsetCheck": "MateFault.inner_variant",
-    "gauge_chain": "Doc.gauge",
-    "places": "Doc.gauge",
+    "Constraint": "Doc.bundle",
+    "ConstraintKind": "Doc.bundle",
+    "Target": "Mate.to",
+    # An instance's value: its copies' bodies are `Value.bodies`.
+    "Copies": "Value.bodies",
+    "LooseSpace": "Evaluation.loose",
+    "loose_spaces": "Evaluation.loose",
     # THE CHART-COHERENCE VOCABULARY, curated at the prelude because
     # `StepImport::Solid::coherence` hands a Rust caller the kernel's
     # report whole and its discriminants are closed enums meant to be
@@ -1098,30 +1100,34 @@ BOUND_AS = {
     # `MateFault` arm that carries it (`mate_unleverable`), and its
     # discriminant is the word that arm publishes: why one mated
     # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
-    # `malformed_body`, `no_extent`, `no_finite_bound`,
-    # `not_an_instance`), or why the lever the two form is out of the
-    # format's range (`out_of_range`) or under the band's zero threshold
-    # (`below_zero_band`). The instance a part's refusal is
-    # about crosses as `MateFault.instance`, and a face that cannot be bounded names its
-    # kind in `MateFault.what` — `SurfaceKind`'s own name for it.
+    # `malformed_body`, `no_extent`, `no_finite_bound`), or why the
+    # lever the two form is out of the format's range (`out_of_range`)
+    # or under the band's zero threshold (`below_zero_band`). The
+    # instance a part's refusal is about crosses as
+    # `MateFault.instance`, a copied shape's as `MateFault.shape`, and
+    # a face that cannot be bounded names its kind in `MateFault.what`
+    # — `SurfaceKind`'s own name for it.
     "LeverRefusal": "MateFault.inner_variant",
-    # THE FACE REFUSAL, curated beside the `MateFault` arm that carries
-    # it (`mate_face_unresolved`), and its discriminant is the word that
-    # arm publishes: why a face-based side's head face answered no pose
-    # (`part_unresolved`, `no_such_name`, `ambiguous`, `not_a_face`,
-    # `readback`, `not_an_instance`, `no_part_face`). The
-    # instance crosses as `MateFault.instance`, the face as
-    # `MateFault.face`.
-    "FaceRefusal": "MateFault.inner_variant",
-    # The reach's own refusal of a face pose, named against the part
-    # alone; the solve wraps it into `FaceRefusal` with the instance
-    # and the face, which is the shape Python reads.
-    "FacePoseRefusal": "MateFault.inner_variant",
-    # WHAT A MATE FRAME'S OFFSET IS WRITTEN IN: the part frame, or the
-    # side's head face resolved at the solve. `MateFrame.base` says
-    # which (`part`, `face`), so the two-arm enum is not a class of
-    # its own.
-    "FrameBase": "MateFrame.base",
+    # THE VALUE VOCABULARY: which freedom a value sets is a `Coord`, a
+    # slide's axis the word `Coord.slide` takes; why a mate's kind
+    # leaves a value no freedom crosses as the fault's own word
+    # (`mate_not_a_freedom`, `mate_no_chart`), and why one has no chart
+    # as `MateFault.why`.
+    "SlideAxis": "Coord.slide",
+    "FreedomRefusal": "MateFault.variant",
+    "NoChartWhy": "MateFault.why",
+    # Why a world read is no pose: the word `mate_world_read` carries
+    # as its inner arm.
+    "WorldReadFault": "MateFault.inner_variant",
+    # THE "PLACE PART" GESTURE: `Doc.place_at` (and `Doc.pin` on a
+    # placement already in the document) writes `place_at`'s
+    # constraints and answers how in `Placed.by`; a copy it cannot
+    # place raises `EditError` under the pin refusal's own word, and a
+    # split's instance it cannot pin crosses as
+    # `SplitError.inner_variant`.
+    "place_at": "Doc.place_at",
+    "PlacedBy": "Placed.by",
+    "PinRefusal": "EditError.variant",
     # What a frame fails to be a placement: the edit door spreads it
     # into three arms of its own, so its discriminant crosses as
     # `EditError.variant` (`non_finite_placement`,
@@ -1242,6 +1248,9 @@ BOUND_AS = {
     # as the `Evaluation`.
     "RunCtx": "Evaluation",
     "resolve": "Evaluation.resolve",
+    # A reference read at a node the document no longer holds: the
+    # verdict `Evaluation.resolve` answers when its `at` names one.
+    "stranded_at": "Evaluation.resolve",
     # The verdict's three PAYLOADS, curated so the arms cross. The
     # carrier-projection rule places them: `Resolution` projects a
     # discriminant (`resolution_status_tag`), so its payloads project
@@ -1250,7 +1259,7 @@ BOUND_AS = {
     # The two enums are one attribute between them, and the merge is
     # deliberate rather than a shortcut: `Resolution.variant` is
     # WHICH arm, and which vocabulary it is drawn from is already said
-    # by `status`. `vanished` / `ambiguous` / `node_gone` under a
+    # by `status`. `vanished` / `ambiguous` / `read_gone` / `node_gone` under a
     # failure, `target_failed` / `target_poisoned` /
     # `target_not_evaluated` under an indeterminate, `None` when
     # resolved. Two attributes would have made a caller read `status`
@@ -1258,6 +1267,13 @@ BOUND_AS = {
     # this file's every-attribute-always-present rule exists to avoid.
     "ResolveError": "Resolution.variant",
     "ResolveIndeterminate": "Resolution.variant",
+    # `ReadGone`'s deleted-or-foreign word is the sentence's, as the
+    # recipe-edit reference inside `node_gone` is: `detail` says it, and
+    # the repair (re-site the reference) does not branch on it.
+    "ReadEdit": "Resolution.detail",
+    # A resolve the door refuses — a read with no table, a gone node
+    # handle — crosses as the select door's own refusal, by `reason`.
+    "ResolveRefusal": "SelectRefusal.reason",
     # `ResolutionFailure` is the struct that pairs one of those arms
     # with the repair candidates, and `offers` is what it ADDS — the
     # error half is `variant` plus `detail` above. So it crosses at the
@@ -1375,16 +1391,6 @@ BOUND_AS = {
     "all_faces": "Evaluation.all_faces",
     "all_vertices": "Evaluation.all_vertices",
     "apply": "Doc.apply",
-    # The mate solve's reach — the mated parts' own extent, what a
-    # solve and a mate-graph edit lever through — is spelled in Python
-    # as the `resolver=` keyword `evaluate` already has, on
-    # `solve_document`, `Doc.apply`, `Doc.insert` and `split`: a
-    # `Workspace` IS the reach's seam, and absent it every door refuses
-    # typed the way the kernel's refusing reach does.
-    "MateReach": "Doc.apply",
-    "PartReach": "Doc.apply",
-    "RefusingReach": "Doc.apply",
-    "mate_reach": "Doc.apply",
     # A part whose reach is not in hand faults the mate; Python reads
     # it as `MateFault`'s `mate_unleverable` variant, with the lever
     # refusal's own word as `inner_variant` (its row is in NOT_BOUND's
@@ -1568,6 +1574,19 @@ FAMILIES: dict[str, str] = {
         "spec §4 row 13), the read doors that answer one, and the edit "
         "constructors taking either a handle or a name."
     ),
+    # THE UNOBSERVABLE-VALUE REPORT arrived with INTENT stage 3 C: the
+    # numbers an evaluation shows move nothing (a pose move inside its
+    # pose's own symmetry, a spin value about a line its copy is round
+    # about), reported rather than refused. The Rust façade carries it;
+    # the binding did not move with it.
+    "B-UNOBSERVABLE": (
+        "the unobservable-value report — `unobservable(doc, evaluation)` "
+        "and its rows, `Unobservable`. Closing it needs a module door "
+        "answering one value per row, its arm as a word (`pose_move`, "
+        "`value`) with the pose variable and its number as `Var`s or "
+        "the value as a `MateRef`, a `pncad.pyi` entry, and one Python "
+        "row reading a spin value on a round pin."
+    ),
     "B-MC-DRAWS": (
         "the MC lane's per-sample draws — `mc::sample_offsets`, which "
         "hands out one member of the population `monte_carlo` "
@@ -1636,6 +1655,19 @@ FAMILIES: dict[str, str] = {
         "door that folds each `Doc.apply` result with the document it "
         "produced, a `pncad.pyi` entry on `Maintenance` for it, and one "
         "Python row asserting the net of a cascade whose rows cancel."
+    ),
+    # THE COPY KEY ARRIVED WITH THE PLACEMENT MODEL (INTENT stage 3):
+    # an instance's output is a keyed enumeration of copies, and a
+    # seat that reads one body reads one copy of it by its key. The
+    # key is computed off the body the part was stored with, through a
+    # resolver door the façade does not curate.
+    "B-COPY-KEY": (
+        "a read of ONE copy of a placement's keyed copies — `CopyKey`, "
+        "and each copy as `KeyedCopy` carries it. Closing it needs the "
+        "façade to curate the door that keys a copy by the body a part "
+        "was stored with, a Python spelling of the keyed read beside "
+        "`IndexedRead`, and one Python row reading one copy of an "
+        "instance at a body seat."
     ),
 }
 
@@ -1743,16 +1775,13 @@ FAMILIES: dict[str, str] = {
 #:   admits. What `evaluate` cannot ask for is a box with WIDTH, which
 #:   needs a scalar carrying a bracket. `seed` (E4) is its twin with no
 #:   degenerate form at all: a tangent needs a scalar that carries one,
-#:   and `f64` does not. `profile_lift` (M10-P) is not
-#:   answer-preserving in general — it decides whether profile geometry
-#:   is elaborated at THIS evaluation's parameters instead of the
-#:   nominal `f64` pass's — and what makes it unreachable-without-loss
-#:   *here* is that this door's box is always the nominal one, which is
-#:   the entry above rather than a fact about `f64`: `editor-core`'s MC
-#:   lane sets `Guided` at `f64` precisely because its box is not
-#:   nominal.
+#:   and `f64` does not. The profile lift (M10-P) is no option: the
+#:   evaluator reads it off the environment
+#:   (`EvalOptions::profile_lift`), guided exactly when a box varies an
+#:   axis, a seed is set, or every variable is a symbol, so it arrives
+#:   with whichever of those a door gains.
 #:
-#:   All three gain spellings alongside an evaluation door that can
+#:   Both gain spellings alongside an evaluation door that can
 #:   carry a box with width; no row schedules one, and
 #:   `surface_census.rs` is where each reason is written and decayed. A
 #:   PERFORMANCE door — "evaluate this in parallel" — would be a new
@@ -1772,10 +1801,10 @@ FAMILIES: dict[str, str] = {
 #:   table rather than restated — so the constant and the door agree
 #:   by construction.
 #:
-#:   `CONTRADICTORY_RECOURSE` and `NO_AT_REST_RECORD_RECOURSE` are
+#:   `OVERCONSTRAINED_RECOURSE` and `NO_AT_REST_RECORD_RECOURSE` are
 #:   bound for the same reason and complete the set: the four typed
-#:   refusals an assembly author meets — under-determined, in
-#:   contradiction, outside the at-rest vocabulary, and pinned to a
+#:   refusals an assembly author meets — under-determined,
+#:   over-constrained, outside the at-rest vocabulary, and pinned to a
 #:   version the store no longer holds — each end on a named sentence,
 #:   and binding two of the four would leave the other two assertable
 #:   only by re-typing prose.
@@ -1820,7 +1849,8 @@ FAMILIES: dict[str, str] = {
 #: `ProgramTarget`, `ProgramArcData`, `StepArg`): the PATHS lattice
 #: hands `Node.profile` a `ClosedLoop` and the program is built inside
 #: Rust, so no Python value is ever one of these. The naming table and
-#: its provenance payloads (`NameTable`, `DuplicateName`,
+#: its provenance payloads (`NameTable`, `SeatingRefusal`,
+#: `DuplicateName`, `KindMismatch`, `ShortTie`,
 #: `ProfileEdgeRef`, `ProfileVertexRef`, `edge_name`, `face_name` —
 #: key-to-name inversions with no key to invert), the declared-contact
 #: interior (`DeclaredContact`, `ContactVerdict`, `ContactRefusal`,
@@ -1884,9 +1914,9 @@ FAMILIES: dict[str, str] = {
 #: `PinMultiplicity`, `PinSites`), the at-rest gate (`assemble`,
 #: `Assembly`, `AssemblyError`, `AtRestFinding`, `Attribution`,
 #: `MintedDeclaration`, `RefusedRef`), mates and the solve
-#: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateRole`, `MateSide`,
+#: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateSide`,
 #: `AxisSense`, `SolvedPoses`, `Subgroup`, `MateFault`,
-#: `Maintenance`, `groups`, `root_of`, `reading_edges`,
+#: `Maintenance`, `reading_edges`,
 #: `relative_freedom_components`, `solve_document`, `ClassAdmission`,
 #: `class_admission`), instantiated parts (`PlacementRuleFault`),
 #: split and inline (`split`, `inline`, `SplitOutcome`,
@@ -1966,7 +1996,7 @@ FAMILIES: dict[str, str] = {
 #: (LIB-B-RESOLVE). It held three names — `resolve`, `Resolution` and
 #: `RunCtx` — and the question a consumer that STORES names must ask
 #: on every run is now askable in the language whose whole selection
-#: story is store-then-reuse: `Evaluation.resolve(name)` answers a
+#: story is store-then-reuse: `Evaluation.resolve(at, name)` answers a
 #: three-state verdict for any name `select`, `all_faces` or a
 #: `PickHit` handed back on an earlier run.
 #:
@@ -2285,9 +2315,17 @@ NOT_BOUND = {
     # An operation's output signature: Python reads an output by its
     # port's index (`Doc.output(node, port)`), not by the port record;
     # a signature refusal crosses as `PersistError.inner_variant`
-    # `output_signature` and its sentence, and the subgroup family is
-    # the value-free name of a `Subgroup.variant` Python already reads.
+    # `output_signature` and its sentence.
     "OutputFault": SHAPE,
+    # The deepest world read a mate holds: Python meets the bound as the
+    # world read's `too_deep` refusal (`MateFault.inner_variant` of a
+    # `mate_world_read`), with the depth in its sentence, and never
+    # passes the number itself.
+    "MAX_WORLD_READ_DEPTH": SHAPE,
+    # A split's half: Python reads a half by its port
+    # (`Doc.output(split, 0 | 1)`), and that read is the half's own name
+    # table, so the half is never a separate argument.
+    "SplitHalf": SHAPE,
     # A selection's definition and its two refusals' faults: Python
     # authors a selection through the node that reads it (`Node.fillet`
     # takes the names) and repairs one through `DocEdit.rebind` with
@@ -2319,9 +2357,13 @@ NOT_BOUND = {
     # formula, a value, a `Var` or a `NodeId`, and the slot's word says
     # which the kernel lowers it to.
     "SlotValue": SHAPE,
+    # A pose value's subgroup, its family, and the trait that answers
+    # it, which the mate solve folds and the bundle rule meets: Python
+    # holds no pose value to ask it of, and an over-constrained
+    # bundle's refusal crosses as the count of freedoms it leaves
+    # (`MateFault.free`).
+    "Subgroup": SHAPE,
     "SubgroupFamily": SHAPE,
-    # A pose value's subgroup, which the mate solve folds: Python holds
-    # no pose value to ask it of.
     "PoseSymmetry": SHAPE,
     # The free-or-defined half of `VarDef`, which a declaration writes:
     # Python declares through `VarDecl`.
@@ -2400,6 +2442,8 @@ NOT_BOUND = {
     # message and payload carry.
     "SpokenVar": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
+    "CopyKey": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
+    "KeyedCopy": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
     "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
     # `FramePlacement::Unreadable`'s payload: which axis the kernel's
@@ -2448,11 +2492,6 @@ NOT_BOUND = {
     "DocParamField": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
-    # The compound door's outcome, `Applied`'s shape for a whole
-    # action: `Doc.regauge_then_mate` swaps the document and
-    # `last_maintenance` in and returns the mate's id. Its edit record
-    # has no Python shape for the reason the replay door below has none.
-    "RegaugeThenMateOutcome": SHAPE,
     # Python's document keeps no edit log: `Doc.save` writes an empty
     # log and `load` replays below the wrapper, so the replay door has
     # no Python shape to bind.
@@ -2549,21 +2588,6 @@ NOT_BOUND = {
     # (`MarginDiag::kind`): the attribute set above IS that kind in
     # Python, so it crosses the same way and is not a second word.
     "MarginKind": SHAPE,
-    # WHAT A LEVERED CLASH MEASURED, curated at `pncad::document`
-    # beside the `MateFault` arm that carries it (`mate_contradictory`)
-    # — and, like `MarginDiag`, a discriminant that crosses as WHICH
-    # ATTRIBUTE IS SET rather than as a word: an authored roll is
-    # `MateFault.lever_tilt`, a dimensionless residual is
-    # `MateFault.lever_residual`, and the arm both lever is
-    # `MateFault.lever_arm`. Both arms reach a Python caller and each
-    # is distinguishable from the other, so a `lever_kind` word beside
-    # them would publish one fact twice.
-    "Lever": SHAPE,
-    # WHAT A CONTRADICTORY REFUSAL MEASURED, the type that holds the
-    # lever above and crosses the same way: a length is `clash` alone,
-    # a lever is `clash` beside its halves, and the structural refusal
-    # is `clash` absent under the predicate word `mate_member_empty`.
-    "Clash": SHAPE,
     # The attribution walk's verdict, and the door that answers it.
     # Same family as `RolePath`/`RoleSeg` and for their reason: it
     # reads the INSIDE of a name, which nothing user-side may read.
@@ -2632,6 +2656,9 @@ NOT_BOUND = {
     # for `RoleSeg`'s reason.
     "Sense": SHAPE,
     "Side": SHAPE,
+    # Where a name door reads a table: a node at its one output or a
+    # read, which Python spells as the `NodeId | Var` argument itself.
+    "At": SHAPE,
     "SolidName": SHAPE,
     "SplitSide": SHAPE,
     "StableName": SHAPE,
@@ -2748,12 +2775,8 @@ NOT_BOUND = {
     # `AssemblyError` with `variant == "carried_mint_refusal"` and
     # `Assembly.carried`'s rows. `CarriedDeclarations` is the
     # evaluation VALUE channel's bundle, behind `Product` and
-    # `NodeValue`, both interior. `CarriedUnplaced` is that channel's
-    # unplaced group below, which Python reads where a door refuses
-    # over it: `ExportError` with `variant == "unplaced_below"`, its
-    # `parts` the instance, the group's root and the cause.
+    # `NodeValue`, both interior.
     "CarriedDeclarations": INTERIOR,
-    "CarriedUnplaced": INTERIOR,
     "Relation": INTERIOR,
     "Route": INTERIOR,
     "Chamfered": INTERIOR,
@@ -2829,6 +2852,9 @@ NOT_BOUND = {
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
+    "KindMismatch": INTERIOR,
+    "SeatingRefusal": INTERIOR,
+    "ShortTie": INTERIOR,
     # What an edge's locus IS, read back off a certified carrier.
     # Python holds an opaque `Body` handle and no door on it answers a
     # description, so nothing here is a thing Python can read.
@@ -2912,21 +2938,6 @@ NOT_BOUND = {
     "CarriedChain": SHAPE,
     "CarriedLevel": SHAPE,
     "CarriedIn": SHAPE,
-    # Whether a `PlacerRefused` placer states its own refusal, which
-    # decides whether the fault carries it. Python never holds one: it
-    # reads the answer as `MateFault.cause` being the placer's refusal
-    # or `None`.
-    "PlacerRow": INTERIOR,
-    # The entity door's answer: what a name turned out to denote, on the
-    # refusal that tests an `EntityKey`'s kind (`select_kind`). Carried
-    # in Rust because a Rust consumer can match that variant and would
-    # otherwise be unable to NAME the field's type; interior here
-    # because Python never holds one. The refusal crosses as a tag word
-    # plus the prose the kind is already rendered into — `an edge`, `a vertex` — so a
-    # Python caller reads the answer in the message and branches on the
-    # tag. Its field is private to the door that mints it, so a bound
-    # constructor could not exist even if a caller wanted one.
-    "Found": INTERIOR,
     # DI3's pairing payload: the two document ids behind a refused
     # pair — a prior the memo dropped (`Evaluation.prior_refused` on
     # the Rust side), a gather handed the wrong evaluation, a solve
@@ -3043,25 +3054,26 @@ NOT_BOUND = {
     # The same walk with the name it reached at the member's instance:
     # what the viewer's mate tool reads a picked face's pose by.
     "member_reading": INTERIOR,
-    # The strip a face frame reads its head's face by: a Python author
-    # never spells the face (`MateFrame.from_face()` takes nothing),
-    # and the face a refusal is about crosses already stripped, as
-    # `MateFault.face`.
+    # The strip a member walk reads its head's face by: a Python author
+    # reads a face through the `PoseDef` that names it.
     "head_face": INTERIOR,
     # A stored mate side's head — the body its selection is read in and
     # its face name — what the member walk starts from; a Python author
     # reads a side through the mate it belongs to.
     "head_of": INTERIOR,
-    # The coset table's static gaps (a clocking rider on a planar rest,
-    # a standalone clocking), the one home the coset table and the
-    # viewer's mate tool read. A Python caller meets the same sentence
-    # at the door that asks it: `Doc.insert` raises `mate_refused` with
-    # `inner_variant == "mate_table_lacks"` and `fault.what` the table's
-    # words, before any solve. Its sibling `class_admission` IS bound
-    # because a class the solve admits can still refuse at the at-rest
-    # gate, which no insert refusal foretells; a table gap has no such
-    # second door.
-    "table_gap": INTERIOR,
+    # A copy pinned to the world over a frame read off its geometry:
+    # the migration helper, and the "place part" gesture's fallback
+    # for a copy with no planar face, which Python reaches as
+    # `Doc.place_at` / `Doc.pin` answering `Placed.by == "pin"`.
+    "pin_at": INTERIOR,
+    # `pin_at` with what its anchor reads, and that answer: the
+    # migration's and the fixtures' report, which Python's gesture does
+    # not surface.
+    "pinned_at": INTERIOR,
+    "Anchor": INTERIOR,
+    # A body's frame swung onto a mate's direction: the chart every
+    # value is measured on, behind `MateValue`.
+    "reference_about": INTERIOR,
     "validated": INTERIOR,
     # **The MC lane's reduction, which `monte_carlo` has already
     # applied by the time anything crosses.** `summarize` is public so
@@ -3104,10 +3116,6 @@ NOT_BOUND = {
     # 160-fin point. An ownership order still does not cross this
     # boundary; nothing has to cross it any more.
     "Product": INTERIOR,
-    # A product's own spaces, which the gate checks behind `assemble`:
-    # Python reads the verdict (`AssemblyError` with `variant ==
-    # "own_space"`), never the spaces themselves.
-    "OwnSpace": INTERIOR,
     # One of a product's at-rest decisions, interior with its `Product`:
     # Python reads them as the unproven-coincidence lint's findings.
     "AtRestRow": INTERIOR,
@@ -3115,7 +3123,6 @@ NOT_BOUND = {
     # its row: the lint's finding says it (`CheckFinding.node`,
     # `CheckFinding.copies`).
     "AtRestBy": INTERIOR,
-    "own_spaces": INTERIOR,
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,
     "product_recorded": INTERIOR,
@@ -3163,6 +3170,8 @@ NOT_BOUND = {
     # what a Python caller can currently get is the summary and not a
     # member of the population it summarizes.
     "sample_offsets": f"{GAP}: B-MC-DRAWS one sample's draws, behind `monte_carlo`'s summary",
+    "unobservable": f"{GAP}: B-UNOBSERVABLE the report of numbers that move nothing",
+    "Unobservable": f"{GAP}: B-UNOBSERVABLE one row of that report",
     # --- gap: parameter distributions and the analysis lane -------
     # --- the measurement authoring vocabulary, closed --------------
     # `SitedRef` is bound where a reference is AUTHORED — `Node.mate`
@@ -3177,19 +3186,18 @@ NOT_BOUND = {
     # and this is the same sentence the entry already carried, now
     # true of both doors.
     "SitedRef": SHAPE,
-    # `SitedFace` is a mate head: the same two halves with the name's
-    # KIND fixed by the type, and it is handed across for the same
-    # reason `SitedRef` is not — `Node.mate` takes each side as a node
-    # and a name, so the pair never crosses as a value.
+    # `SitedFace` is the same two halves with the name's KIND fixed by
+    # the type, and it is not handed across for `SitedRef`'s reason —
+    # `PoseDef.plane` takes a node and a name, so the pair never
+    # crosses as a value.
     "SitedFace": SHAPE,
-    # `FaceName` is the type that makes a head's kind a compile-time
+    # `FaceName` is the type that makes a name's kind a compile-time
     # fact, and `NotAFaceName` is what its one constructor refuses
     # with. A Python caller holds names as opaque text (the ordinal-28
-    # contract), so neither type crosses: the binding calls the
-    # constructor at the boundary `Node.mate` reads its names at and
-    # publishes the refusal as `EditError.variant ==
-    # "mate_head_not_a_face"`, which is where a Python caller meets the
-    # rule.
+    # contract) and reads a face through a `PoseDef`, so neither type
+    # crosses: a plane read off a name that is no face refuses where
+    # its placement evaluates (`mate_side_unevaluated`, its `error` the
+    # selection's own word).
     "FaceName": SHAPE,
     "NotAFaceName": SHAPE,
     # `VarNameFault` is what `VarName::new` refuses with, and
@@ -3220,7 +3228,7 @@ NOT_BOUND = {
     # query engine refuses with it too, and the façade does not carry
     # that engine at all), and the binding
     # evaluates at `f64` alone (`src/py/value.rs`), so the SCALAR is
-    # what gates it. That is `profile_lift`'s
+    # what gates it. That is the box's and the seed's
     # sentence above arriving on the refusal side: the door starts
     # answering differently exactly when Python gains a non-`f64`
     # evaluation, and it should gain its spelling in the unit that
@@ -3599,6 +3607,19 @@ MEMBERS_BOUND_AS = {
     # a crossing carries no provenance); the shape that hid it is
     # listed in `ARMS_SPELLED_BY_A_PROPERTY`.
     "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
+    # --- the placement model's members ------------------------------
+    # The world is the node `Doc.world` answers; a mate's class is
+    # `Mate.class_` (`class` is a Python keyword); a constraint's id is
+    # what `MateRef.constraint` answers.
+    "Node::World": "Doc.world",
+    "Mate::class": "Mate.class_",
+    "MateRef::id": "MateRef.constraint",
+    # A mate's value: `pncad.Value` is a node's evaluated value, so the
+    # constraint's value class is `MateValue`, and its fields are
+    # spelled there.
+    "Value::mate": "MateValue.mate",
+    "Value::coord": "MateValue.coord",
+    "Value::by": "MateValue.by",
     "AssemblyError::Product": "AssemblyError.variant",
     "AssemblyError::Space": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
@@ -3657,21 +3678,24 @@ MEMBERS_BOUND_AS = {
     # `work/lib/stranded-appearance-is-bound-but-unreachable-from-python.md`.
     # `Maintenance::StrandedSelection` has no such gap: `Node.fillet`
     # takes a name selection and `DocEdit.delete_node` is bound.
-    "Maintenance::OffsetCleared": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedRead": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
     "Maintenance::StrandedSelection": "Maintenance.variant",
-    "Maintenance::LabelDropped": "Maintenance.variant",
     "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
     "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
     "EditError::UnknownNode": "EditError.variant",
+    "EditError::WorldIsUndeletable": "EditError.variant",
+    "EditError::ConstraintOnNonPlacement": "EditError.variant",
+    "EditError::UnknownConstraint": "EditError.variant",
+    "EditError::CopyReadOffBodySeat": "EditError.variant",
     "EditError::ProfileProgramRefused": "EditError.variant",
     "EditError::UnresolvedInput": "EditError.variant",
     "EditError::WouldCycle": "EditError.variant",
     "EditError::SelectionShape": "EditError.variant",
+    "EditError::SelectionNameKind": "EditError.variant",
     "EditError::PoseShape": "EditError.variant",
     "EditError::IndexedRead": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
@@ -3683,7 +3707,6 @@ MEMBERS_BOUND_AS = {
     "EditError::OperandUnresolved": "EditError.variant",
     "EditError::AmbiguousOutput": "EditError.variant",
     "EditError::DefinesNothing": "EditError.variant",
-    "EditError::ReadsWorldCopy": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",
     "EditError::SlotDimensionMismatch": "EditError.variant",
     "EditError::StructuralSlotNeedsStructuralEdit": "EditError.variant",
@@ -3737,31 +3760,20 @@ MEMBERS_BOUND_AS = {
     "EditError::RebindAppearanceCollision": "EditError.variant",
     "EditError::AppearanceWrongKind": "EditError.variant",
     "EditError::AppearanceNamesMissingNode": "EditError.variant",
+    "EditError::AppearanceBodyNotARead": "EditError.variant",
     "EditError::AppearanceNotSet": "EditError.variant",
     "EditError::InvalidTolerance": "EditError.variant",
     "EditError::MetaUnversioned": "EditError.variant",
     "EditError::MetaNonFinite": "EditError.variant",
     "EditError::MetaNotSet": "EditError.variant",
     "EditError::RebindMetadataCollision": "EditError.variant",
-    "EditError::OffsetOnNonInstance": "EditError.variant",
-    "EditError::GaugeOnNonPlaced": "EditError.variant",
-    "EditError::GaugeNotLive": "EditError.variant",
-    "EditError::NotAGauge": "EditError.variant",
-    "EditError::GaugeCycle": "EditError.variant",
-    "EditError::WouldStartPlacing": "EditError.variant",
-    "EditError::PromoteOnNonInstance": "EditError.variant",
-    "EditError::PromoteWithoutOffset": "EditError.variant",
-    "EditError::PromoteNonRoot": "EditError.variant",
-    "EditError::PromoteMemberOffset": "EditError.variant",
-    "EditError::FoldOnNonGauge": "EditError.variant",
-    "EditError::FoldWouldStartPlacing": "EditError.variant",
     "EditError::PlacementRuleMismatch": "EditError.variant",
     "EditError::EmptyPlacementList": "EditError.variant",
     "EditError::ImproperPlacement": "EditError.variant",
     "EditError::NonFinitePlacement": "EditError.variant",
     "EditError::NonRigidPlacement": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
-    "EditError::NonFiniteAlignment": "EditError.variant",
+    "EditError::MateNamedByValue": "EditError.variant",
     "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
     "EditError::PinUnchanged": "EditError.variant",
@@ -3786,7 +3798,9 @@ MEMBERS_BOUND_AS = {
     "HitTestError::Unnamed": "HitTestError.variant",
     "InlineError::UnknownNode": "InlineError.variant",
     "InlineError::NotAnInstance": "InlineError.variant",
-    "InlineError::PlacementPoseCrosses": "InlineError.variant",
+    "InlineError::UnplaceablePart": "InlineError.variant",
+    "InlineError::ConstructionReadsCopy": "InlineError.variant",
+    "InlineError::CopyPinnedToConstruction": "InlineError.variant",
     "InlineError::InstanceReadUncarried": "InlineError.variant",
     "InlineError::Unresolved": "InlineError.variant",
     "InlineError::EpsilonSeam": "InlineError.variant",
@@ -3794,13 +3808,12 @@ MEMBERS_BOUND_AS = {
     "InlineError::VarNameConflict": "InlineError.variant",
     "InlineError::InstanceOutputUncarried": "InlineError.variant",
     "InlineError::UnresolvedVarCrossesCut": "InlineError.variant",
-    "InlineError::UnplaceableFrame": "InlineError.variant",
-    "InlineError::MatePlaced": "InlineError.variant",
-    "InlineError::Unplaced": "InlineError.variant",
-    "InlineError::MovedMemberOffset": "InlineError.variant",
-    "InlineError::PartDeadGauge": "InlineError.variant",
-    "InlineError::MateFrameCrosses": "InlineError.variant",
-    "InlineError::MatePairSplits": "InlineError.variant",
+    "InlineError::PinReadsVariable": "InlineError.variant",
+    "InlineError::ValueOnAMovedWorld": "InlineError.variant",
+    "InlineError::WorldPinOnAMovedWorld": "InlineError.variant",
+    # The named interim's one world pin: the class is its one arm.
+    "WorldPin::Identity": "WorldPin",
+    "InlineError::InstanceUnsolved": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",
     "InlineError::StrandedPartName": "InlineError.variant",
@@ -3809,24 +3822,17 @@ MEMBERS_BOUND_AS = {
     "InlineError::RankedRunReordered": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
-    "MateFault::Frame": "MateFault.variant",
     "MateFault::ClassNotAdmitted": "MateFault.variant",
-    "MateFault::TableLacks": "MateFault.variant",
-    "MateFault::Indeterminate": "MateFault.variant",
-    "MateFault::PoseOutOfRange": "MateFault.variant",
-    "MateFault::Band": "MateFault.variant",
-    "MateFault::Contradictory": "MateFault.variant",
-    "MateFault::Under": "MateFault.variant",
-    "MateFault::SideUnresolved": "MateFault.variant",
-    "MateFault::DanglingHead": "MateFault.variant",
-    "MateFault::PlacerRefused": "MateFault.variant",
-    "MateFault::PartSelectsAnotherCopy": "MateFault.variant",
-    "MateFault::SelfMate": "MateFault.variant",
-    "MateFault::FaceUnresolved": "MateFault.variant",
-    "MateFault::FrameUnevaluated": "MateFault.variant",
+    "MateFault::Overconstrained": "MateFault.variant",
+    "MateFault::TargetsDiffer": "MateFault.variant",
+    "MateFault::NotOnTheCopy": "MateFault.variant",
+    "MateFault::KindsDiffer": "MateFault.variant",
+    "MateFault::WorldRead": "MateFault.variant",
+    "MateFault::ValueNamesNoMate": "MateFault.variant",
+    "MateFault::NotAFreedom": "MateFault.variant",
+    "MateFault::NoChart": "MateFault.variant",
+    "MateFault::SideUnevaluated": "MateFault.variant",
     "MateFault::Unleverable": "MateFault.variant",
-    "MateFault::OffsetDisagrees": "MateFault.variant",
-    "MateFault::OffsetUnchecked": "MateFault.variant",
     "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
     "NodePickError::Standing": "NodePickError.variant",
     "NodePickError::NotABody": "NodePickError.variant",
@@ -3894,7 +3900,6 @@ MEMBERS_BOUND_AS = {
     "ProductError::Root": "ProductError.variant",
     "ProductError::EmptyProduct": "ProductError.variant",
     "ProductError::StrandedPlacement": "ProductError.variant",
-    "ProductError::Unplaced": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
     "ProductError::RootInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
@@ -3923,19 +3928,11 @@ MEMBERS_BOUND_AS = {
     "SelectRefusal::Band": "SelectRefusal.reason",
     "SplitError::EmptyCut": "SplitError.variant",
     "SplitError::UnknownCutNode": "SplitError.variant",
+    "SplitError::CutsTheWorld": "SplitError.variant",
     "SplitError::PartIdCollides": "SplitError.variant",
     "SplitError::SeveredEdge": "SplitError.variant",
     "SplitError::RemainderReadUncarried": "SplitError.variant",
-    "SplitError::TornGroup": "SplitError.variant",
-    "SplitError::SeveredGauge": "SplitError.variant",
-    "SplitError::TwoAnchors": "SplitError.variant",
-    "SplitError::DeadGaugeReference": "SplitError.variant",
     "SplitError::NoMaterial": "SplitError.variant",
-    "SplitError::UnplaceableRoot": "SplitError.variant",
-    "SplitError::UnplacedAlone": "SplitError.variant",
-    "SplitError::WouldStartPlacing": "SplitError.variant",
-    "SplitError::PlacingMateLeft": "SplitError.variant",
-    "SplitError::MateFrameCrosses": "SplitError.variant",
     "SplitError::UncutVarReference": "SplitError.variant",
     "SplitError::DefinitionStraddlesCut": "SplitError.variant",
     "SplitError::UnresolvedVarCrossesCut": "SplitError.variant",
@@ -3975,19 +3972,6 @@ MEMBERS_BOUND_AS = {
     "StlError::IndexOutOfRange": "StlError.variant",
     "StlError::TooManyTriangles": "StlError.variant",
     "StlError::Io": "StlError.variant",
-    # The solve's freedom class, a value: `Subgroup.variant` plus the
-    # axis attributes each arm carries.
-    "Subgroup::Se3": "Subgroup.variant",
-    "Subgroup::Planar": "Subgroup.variant",
-    "Subgroup::Cylindrical": "Subgroup.variant",
-    "Subgroup::Prismatic": "Subgroup.variant",
-    "Subgroup::Revolute": "Subgroup.variant",
-    "Subgroup::Spherical": "Subgroup.variant",
-    "Subgroup::Parallel": "Subgroup.variant",
-    "Subgroup::Translation": "Subgroup.variant",
-    "Subgroup::PlaneTranslation": "Subgroup.variant",
-    "Subgroup::Trivial": "Subgroup.variant",
-    "Subgroup::Empty": "Subgroup.variant",
     "TessellateError::InvalidChordalTolerance": "TessellateError.variant",
     "TessellateError::UnsupportedSurface": "TessellateError.variant",
     "TessellateError::UnsupportedNurbsFace": "TessellateError.variant",
@@ -4277,7 +4261,7 @@ MEMBERS_NOT_BOUND = {
     # THE PATH VERBS' ARC SPECS, one family. A spec's fields are its
     # CONSTRUCTOR's arguments — `Bulge(p, b)`, `Center(c, winding, p)` —
     # and nothing reads one back: the spec is consumed by the verb it is
-    # passed to. `SplitHalf`/`Side` and the radius sign are the same
+    # passed to. `Side` and the radius sign are the same
     # `different-shape` argument the selector plumbing carries.
     "ArcLen::r": SHAPE,
     "ArcLen::side": SHAPE,
@@ -4357,7 +4341,6 @@ MEMBERS_NOT_BOUND = {
     # The groups a part below leaves out of its world: Python reads
     # them where a door refuses over them, `ExportError` with
     # `variant == "unplaced_below"`, its `parts` naming each.
-    "Evaluation::unplaced_below": INTERIOR,
     "Evaluation::epoch": INTERIOR,
     "Evaluation::appearance": SHAPE,
     # `EditRecord` is `different-shape`: `Doc.apply` mutates in place and

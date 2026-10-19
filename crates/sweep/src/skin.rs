@@ -35,10 +35,12 @@
 //!
 //! # Structure selection is f64 (C6/D9)
 //!
-//! Degrees, knot multiplicities, sub-arc counts, the degree raise, the
-//! merged knots and the parameters' order are chosen in `f64`,
-//! deterministically, on the value channel of the data
-//! ([`SpanLocate::point_value`]): same sections in, same structure out.
+//! Degrees, knot multiplicities, the degree raise, the merged knots and
+//! the parameters' order are chosen in `f64`, deterministically, on the
+//! value channel of the data ([`SpanLocate::point_value`]): same
+//! sections in, same structure out. An arc's sub-arc count and its turn
+//! and endpoint branches are decided over the brackets they read, for
+//! every member ([`SkinError::ArcSweepUndecided`]).
 //! A positivity the structure asks of a value (a chord that is not
 //! empty, a parameter step that ascends) holds for every value it
 //! stands for ([`SpanLocate::structure_positive`]), so at an enclosure
@@ -62,15 +64,19 @@
 //! that enclose the box's family. The sines and cosines are `Real`'s,
 //! the pure-Rust `libm` D9 prescribes.
 //!
-//! A carrier's weights and knots are points at every scalar, so at an
-//! enclosure scalar an arc refuses ([`SkinError::ArcWeightNotAPoint`]),
-//! as does an interior averaged knot wider than a point, and the knot
-//! algebra, which is projective ([`ProjectiveScalar`]), does not run
-//! ([`SkinError::IncompatibleAtEnclosure`]). No topology decision is
+//! A carrier's weights and knots are points at every scalar for now, so
+//! at an enclosure scalar an arc whose weight `cos(Δ/2)` is wider than a
+//! point refuses at the carrier's door
+//! (`SplineError::CarrierWeightNotAPoint`, until C6's S4/S5), as does an
+//! interior averaged knot wider than a point. An arc's sweep structure
+//! (non-zero, its sub-arc count, a turn) is certified for every value
+//! it stands for ([`SkinError::ArcSweepUndecided`]). The knot algebra
+//! that makes sections compatible runs homogeneous at an enclosure
+//! scalar ([`make_compatible`], C6 S4), and its result enters through
+//! the same door. No topology decision is
 //! made here, so nothing routes through `k_stats`; the raw `f64`
 //! comparisons below are structure selection under C6.
 
-use core::f64::consts::TAU;
 use core::num::NonZeroUsize;
 use std::sync::Arc;
 
@@ -79,20 +85,61 @@ use geom::NurbsSurface;
 use geom::curves::fit::{FitError, interpolate_columns_in};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
-use geom_core::spline::{
-    KnotAlgebraError, Knots, ProjectiveScalar, ProjectiveSplit, SpanLocate, SplineError,
+use geom_core::spline::{KnotAlgebraError, Knots, SpanLocate, SplineError};
+use geom_core::{
+    Affine3, Arc2, COINCIDENCE_RECOURSE, Decide, MarginDiag, Point2, Point3, Real, Vec3,
 };
-use geom_core::{Affine3, Arc2, COINCIDENCE_RECOURSE, Decide, Point2, Point3, Real, Vec3};
 use profile::{
     CanonicalStructure, ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop,
     SketchPlane, ValidatedProfile,
 };
 
-/// The quarter-turn ceiling on one rational-quadratic arc span: every
+/// η, the slack above a quarter turn one sub-arc may take (C6's
+/// sub-arc rule): the count's breakpoints sit at `k·(π/2)(1 + η)`, off
+/// the multiples of π/2 where documents' sweeps sit, so an arc whose
+/// true sweep is `k·π/2` counts `k` for every value it stands for.
+/// `1/16` is exact, keeps `k·π/2` at count `k` for every `k ≤ 4` (a
+/// full turn: it needs `4/(1 + η) > 3`), and keeps a sub-arc's
+/// tangent-intersection point well conditioned.
+const SUB_ARC_ETA: f64 = 1.0 / 16.0;
+
+/// The ceiling on one rational-quadratic arc span, `(π/2)(1 + η)`: every
 /// sub-arc of a converted profile arc is at most this wide, so the
 /// tangent-intersection control point stays finite and well
-/// conditioned (`cos(Δ/2) ≥ cos(π/4)`).
-const MAX_SUB_ARC: f64 = core::f64::consts::FRAC_PI_2;
+/// conditioned (`cos(Δ/2) ≥ cos((π/4)(1 + η))`).
+const MAX_SUB_ARC: f64 = core::f64::consts::FRAC_PI_2 * (1.0 + SUB_ARC_ETA);
+
+/// Which of an arc's sweep decisions [`SkinError::ArcSweepUndecided`]
+/// names: each is structure read off the sweep, certified for every
+/// value it stands for (C6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArcSweepDecision {
+    /// That the sweep is not zero.
+    NonZero,
+    /// How many sub-arcs it takes: one sub-arc reaches `(π/2)(1 + η)`.
+    SubArcCount,
+    /// That an arc between two points stops short of a full turn.
+    TurnBetweenPoints,
+    /// That an arc back to its own start is one full turn, nearer one
+    /// than none or two.
+    TurnToItself,
+    /// Whether the arc ends where it starts (its endpoints' distance
+    /// is zero) or between two points: the branch the two turn checks
+    /// above select between.
+    Endpoints,
+}
+
+impl core::fmt::Display for ArcSweepDecision {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::NonZero => "whether its sweep is zero",
+            Self::SubArcCount => "how many sub-arcs its sweep takes",
+            Self::TurnBetweenPoints => "whether its sweep stops short of a full turn",
+            Self::TurnToItself => "whether its sweep is one full turn",
+            Self::Endpoints => "whether it ends where it starts",
+        })
+    }
+}
 
 /// Typed refusal of the §10.3/§10.4 constructions (closed enum, D4 ¶3).
 ///
@@ -222,22 +269,22 @@ pub enum SkinError {
         /// parameterization reads.
         row: usize,
     },
-    /// Section `section` has an arc whose sweep, or the weight
-    /// `cos(Δ/2)` its sub-arcs carry, is no single point. That holds at
-    /// an enclosure scalar, where outward rounding alone widens the
-    /// cosine, and a carrier holds point weights
-    /// (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
-    ArcWeightNotAPoint {
+    /// Section `section` has an arc whose structure is not decided
+    /// over the values it stands for (C6): the bracket a decision reads
+    /// (`which` names it; the sweep's, or for [`ArcSweepDecision::Endpoints`]
+    /// the endpoints' distance) straddles that decision's breakpoint.
+    /// The margin is the bracket's distance to the breakpoint, as read;
+    /// inputs narrow enough that it clears zero lift the refusal. A
+    /// bracket may be wide from rounding alone: a constant sweep of
+    /// exactly a full turn between two points reads `T::tau()`'s own
+    /// enclosure, which no narrower input clears.
+    ArcSweepUndecided {
         /// The section.
         section: usize,
-    },
-    /// Section `section`'s curve differs from section 0's in degree or
-    /// knots at an enclosure scalar. Making them compatible is the
-    /// projective knot algebra, which that scalar does not run
-    /// (`ProjectiveScalar`).
-    IncompatibleAtEnclosure {
-        /// The section.
-        section: usize,
+        /// The decision.
+        which: ArcSweepDecision,
+        /// The sweep's distance to the breakpoint, as read.
+        margin: MarginDiag,
     },
     /// The v-direction interpolation refused.
     Fit(FitError),
@@ -305,18 +352,17 @@ impl core::fmt::Display for SkinError {
                  values they stand for, so the skin's parameterization is not one for them \
                  all. Recourse: narrow the range, or evaluate the loft at a point scalar"
             ),
-            Self::ArcWeightNotAPoint { section } => write!(
+            Self::ArcSweepUndecided {
+                section,
+                which,
+                margin,
+            } => write!(
                 f,
-                "section {section} has an arc whose sweep or weight is not a single point, \
-                 which a skinned carrier needs. At an interval scalar rounding alone widens an \
-                 arc's weight. Recourse: evaluate the loft at a point scalar; an arc section \
-                 over a range of values is not lofted yet"
-            ),
-            Self::IncompatibleAtEnclosure { section } => write!(
-                f,
-                "section {section}'s curve differs from section 0's in degree or knots, and an \
-                 interval scalar does not run the knot algebra that would make them \
-                 compatible. Recourse: evaluate the loft at a point scalar"
+                "section {section} has an arc that leaves {which} undecided over the values it \
+                 stands for: what it reads is {margin} from the breakpoint. Recourse: narrow the \
+                 range of that sweep or those endpoints until it clears the breakpoint; the width \
+                 may be rounding alone (a constant sweep of exactly a full turn), and then \
+                 evaluate at a point scalar"
             ),
             Self::Fit(e) => write!(f, "{e}"),
             Self::KnotAlgebra(e) => write!(f, "{e}"),
@@ -354,9 +400,10 @@ impl From<FitError> for SkinError {
 /// - **Line** → degree 1, two control points, unit weights: the chord,
 ///   with the segment's own affine parameter.
 /// - **Arc** → the standard rational-quadratic circular representation
-///   (Book §7.5 / A7.1), split into `⌈|θ| / (π/2)⌉` equal sub-arcs so
-///   every tangent-intersection control point stays finite and the
-///   interior weights `cos(Δ/2)` stay ≥ `cos(π/4)`. Exact in ℝ: the
+///   (Book §7.5 / A7.1), split into `⌈|θ| / ((π/2)(1+η))⌉` equal
+///   sub-arcs, η = 1/16 (`MAX_SUB_ARC`), so every tangent-intersection
+///   control point stays finite and the interior weights `cos(Δ/2)`
+///   stay ≥ `cos((π/4)(1+η))`. Exact in ℝ: the
 ///   locus IS the carrier circle, not a fit of it. The circle is the
 ///   one [`SketchSegment::eval`] describes — `a` turned about the
 ///   centre through the sweep — so the control points are `a − centre`
@@ -375,9 +422,12 @@ impl From<FitError> for SkinError {
 /// distance from its centre, an arc between two points sweeping a full
 /// turn or more, or an arc back to its own start that is not one full
 /// turn (D1's full turn, one segment at one vertex, is the one that
-/// converts); [`SkinError::ArcWeightNotAPoint`] for an arc whose sweep
-/// or weight is no single point; [`SkinError::Structure`] if validated
-/// construction refuses.
+/// converts); [`SkinError::ArcSweepUndecided`] for an arc whose sweep
+/// or endpoints leave one of those decisions, or its sub-arc count,
+/// undecided over the values they stand for;
+/// [`SkinError::Structure`] if validated construction refuses
+/// (`CarrierWeightNotAPoint` for a weight wider than a point, C6's
+/// interim until S4/S5).
 // `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
 // geom-core::spline::algebra note): a poisoned coordinate must take
 // the refusal arm, not slip through a negated comparison.
@@ -411,39 +461,96 @@ pub fn segment_curve<T: SpanLocate>(
                 sweep: theta,
                 ..
             } = arc;
-            let not_a_point = |v: T| v.point_value().is_none() && !v.is_poison();
-            if not_a_point(theta) {
-                return Err(SkinError::ArcWeightNotAPoint { section });
-            }
-            let sweep = theta.value_channel();
-            if !sweep.is_finite() || sweep == 0.0 {
+            // The arc's structure is decided for every value it stands
+            // for (C6), over |θ|'s bracket: that it is not zero, how many
+            // sub-arcs it takes, and that it is short of a turn (an arc
+            // between two points) or one turn (an arc back to its start);
+            // and over the endpoints' distance, which of those two it is.
+            // A bracket that straddles a breakpoint refuses typed, with
+            // the margin a narrower box lifts.
+            let undecided = |which, lo: f64, hi: f64| SkinError::ArcSweepUndecided {
+                section,
+                which,
+                margin: MarginDiag::enclosure(lo, hi),
+            };
+            let Some((lo, hi)) = theta.abs().structure_bracket() else {
+                return Err(degenerate("zero or non-finite sweep"));
+            };
+            // A sweep with no finite member, or none but zero, is
+            // degenerate for every member; one some of whose members are
+            // finite and others not straddles every count's breakpoint
+            // and refuses below as the count undecided.
+            if !lo.is_finite() || hi == 0.0 {
                 return Err(degenerate("zero or non-finite sweep"));
             }
-            // The weight is decided before any branch reads the arc's
-            // endpoints, so an arc whose weight is no point refuses by
-            // it whatever its endpoints' brackets.
+            if lo == 0.0 {
+                return Err(undecided(ArcSweepDecision::NonZero, lo, hi));
+            }
             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let m = ((sweep.abs() / MAX_SUB_ARC).ceil() as usize).max(1);
+            let count = |x: f64| ((x / MAX_SUB_ARC).ceil() as usize).max(1);
+            let m = count(lo);
+            if count(hi) != m {
+                #[allow(clippy::cast_precision_loss)]
+                let at = m as f64 * MAX_SUB_ARC;
+                return Err(undecided(ArcSweepDecision::SubArcCount, lo - at, hi - at));
+            }
             #[allow(clippy::cast_precision_loss)]
             let steps = m as f64;
             let delta = theta / T::from_f64(steps);
             let half = T::from_f64(0.5);
+            // The weight `cos(Δ/2)` is held in `T`; where it is no point
+            // (at an enclosure scalar, by rounding alone), the carrier's
+            // door refuses it (`CarrierWeightNotAPoint`) until C6's S4/S5.
             let (_, half_w) = (delta * half).sin_cos();
-            if not_a_point(half_w) {
-                return Err(SkinError::ArcWeightNotAPoint { section });
-            }
             // An arc that ends where it starts lands there after whole
             // turns, and converts only as ONE (D1's full turn): its
             // sweep is nearer one turn than none or two. An arc between
-            // two points stops short of a turn.
-            if a.distance(b).structure_positive() {
-                if !(sweep.abs() < TAU) {
+            // two points stops short of a turn. Both read the true 2π's
+            // bracket.
+            let Some((tau_lo, tau_hi)) = T::tau().structure_bracket() else {
+                unreachable!("τ is a number at every scalar")
+            };
+            let chord = a.distance(b);
+            let between = chord.structure_positive();
+            if !between
+                && let Some((chord_lo, chord_hi)) = chord.structure_bracket()
+                && chord_hi > 0.0
+            {
+                return Err(undecided(ArcSweepDecision::Endpoints, chord_lo, chord_hi));
+            }
+            if between {
+                if lo >= tau_hi {
                     return Err(degenerate("a full turn or more between two points"));
                 }
-            } else if !(sweep.abs() > TAU / 2.0 && sweep.abs() < 1.5 * TAU) {
-                return Err(degenerate(
-                    "an arc from a point back to itself that is not one full turn",
-                ));
+                if hi >= tau_lo {
+                    return Err(undecided(
+                        ArcSweepDecision::TurnBetweenPoints,
+                        lo - tau_lo,
+                        hi - tau_lo,
+                    ));
+                }
+            } else {
+                let (half_lo, half_hi) = (0.5 * tau_lo, 0.5 * tau_hi);
+                let (three_lo, three_hi) = (1.5 * tau_lo, 1.5 * tau_hi);
+                if hi <= half_lo || lo >= three_hi {
+                    return Err(degenerate(
+                        "an arc from a point back to itself that is not one full turn",
+                    ));
+                }
+                if lo <= half_hi {
+                    return Err(undecided(
+                        ArcSweepDecision::TurnToItself,
+                        lo - half_hi,
+                        hi - half_hi,
+                    ));
+                }
+                if hi >= three_lo {
+                    return Err(undecided(
+                        ArcSweepDecision::TurnToItself,
+                        lo - three_lo,
+                        hi - three_lo,
+                    ));
+                }
             }
             let spoke = a - centre;
             let rim = spoke.norm();
@@ -506,17 +613,20 @@ pub fn segment_curve<T: SpanLocate>(
 /// same knots, and therefore the same control-point count — which is
 /// what makes a tensor-product skin possible at all.
 ///
-/// They are the projective knot algebra, so they run at a
-/// [`ProjectiveScalar`] only. At an enclosure scalar sections that are
-/// already compatible come back as themselves, and any others refuse:
-/// a refinement there would hold its weights as enclosures, which a
-/// carrier does not.
+/// They are the knot algebra, at every scalar: projective at an
+/// evaluation scalar, homogeneous at an enclosure scalar (C6 S4: the
+/// net as `(w·P, w)`, no weight quotient formed). At an enclosure
+/// scalar the result enters through the carrier's door, so a rational
+/// section, whose refined weights are enclosures from rounding alone,
+/// refuses there ([`SplineError::CarrierWeightNotAPoint`], C6's interim
+/// until S5), while a polynomial one keeps its unit weights exactly and
+/// is admitted.
 ///
 /// # Errors
 ///
 /// [`SkinError::TooFewSections`], [`SkinError::DomainNotUnit`] for a
-/// section off the unit domain, the propagated knot-algebra /
-/// structure refusals, and [`SkinError::IncompatibleAtEnclosure`].
+/// section off the unit domain, and the propagated knot-algebra /
+/// structure refusals.
 pub fn make_compatible<T: SpanLocate>(
     sections: &[NurbsCurve3<T>],
 ) -> Result<Vec<NurbsCurve3<T>>, SkinError> {
@@ -532,47 +642,22 @@ pub fn make_compatible<T: SpanLocate>(
             return Err(SkinError::DomainNotUnit { section: i, domain });
         }
     }
-    T::split_projective(Compatible(sections))
-}
-
-/// [`make_compatible`]'s two halves, after its checks.
-struct Compatible<'a, T: Real>(&'a [NurbsCurve3<T>]);
-
-impl<T: SpanLocate> ProjectiveSplit<T> for Compatible<'_, T> {
-    type Out = Result<Vec<NurbsCurve3<T>>, SkinError>;
-
-    fn projective(self) -> Self::Out
-    where
-        T: ProjectiveScalar,
-    {
-        // §5.5: one common degree.
-        let degree = self.0.iter().map(NurbsCurve3::degree).max().unwrap_or(0);
-        let elevated: Vec<NurbsCurve3<T>> = self
-            .0
-            .iter()
-            .map(|c| {
-                let raise = degree - c.degree();
-                if raise == 0 {
-                    Ok(c.clone())
-                } else {
-                    c.elevate_degree(raise).map_err(SkinError::KnotAlgebra)
-                }
-            })
-            .collect::<Result<_, _>>()?;
-        // §5.3: one common knot vector — the union, at one degree and on
-        // one domain by the two checks above.
-        NurbsCurve3::refine_to_union(&elevated).map_err(SkinError::KnotAlgebra)
-    }
-
-    fn enclosure(self) -> Self::Out {
-        let first = &self.0[0];
-        match self.0.iter().position(|c| {
-            c.degree() != first.degree() || c.knots().knots() != first.knots().knots()
-        }) {
-            Some(section) => Err(SkinError::IncompatibleAtEnclosure { section }),
-            None => Ok(self.0.to_vec()),
-        }
-    }
+    // §5.5: one common degree.
+    let degree = sections.iter().map(NurbsCurve3::degree).max().unwrap_or(0);
+    let elevated: Vec<NurbsCurve3<T>> = sections
+        .iter()
+        .map(|c| {
+            let raise = degree - c.degree();
+            if raise == 0 {
+                Ok(c.clone())
+            } else {
+                c.elevate_degree(raise).map_err(SkinError::KnotAlgebra)
+            }
+        })
+        .collect::<Result<_, _>>()?;
+    // §5.3: one common knot vector — the union, at one degree and on
+    // one domain by the two checks above.
+    NurbsCurve3::refine_to_union(&elevated).map_err(SkinError::KnotAlgebra)
 }
 
 // ---------------------------------------------------------------------
@@ -732,7 +817,7 @@ fn chord_length_parameters<T: SpanLocate>(
 /// the value it was supposed to have (a silent heal, which would also
 /// leave the control points divided by the pre-snap denominator).
 /// `integral` is decided by `==` on the input's own bits — its weights'
-/// value channel ([`NurbsCurve3::weight_channel`]): C6 structure
+/// value channel ([`NurbsCurve3::weights_f64_interim`]): C6 structure
 /// selection about what the caller handed in, never a predicate, never
 /// a tolerance. The integral lane's output weights are the constant
 /// `1`: every weight it read was exactly `1`, and the lane does not
@@ -788,10 +873,10 @@ pub fn skin<T: SpanLocate>(
             sections: k,
         });
     }
-    let knots_u = sections[0].knots().clone();
+    let knots_u = sections[0].knots_f64_interim().clone();
     let n = sections[0].control().len();
     for (i, c) in sections.iter().enumerate().skip(1) {
-        if c.control().len() != n || c.knots().knots() != knots_u.knots() {
+        if c.control().len() != n || c.knots_f64_interim().knots() != knots_u.knots() {
             return Err(SkinError::SectionShapeMismatch {
                 section: i,
                 expected: n,
@@ -830,7 +915,9 @@ pub fn skin_on<T: SpanLocate>(
     let knots_u = sections[0].knot_values().clone();
     let n = sections[0].control().len();
     for (i, c) in sections.iter().enumerate().skip(1) {
-        if c.control().len() != n || c.knots().knots() != knots_u.structure().knots() {
+        if c.control().len() != n
+            || c.knots_f64_interim().knots() != knots_u.structure_f64_interim().knots()
+        {
             return Err(SkinError::SectionShapeMismatch {
                 section: i,
                 expected: n,
@@ -846,7 +933,7 @@ pub fn skin_on<T: SpanLocate>(
     // predicate.
     let integral = sections
         .iter()
-        .all(|c| c.weight_channel().iter().all(|w| *w == 1.0));
+        .all(|c| c.weights_f64_interim().iter().all(|w| *w == 1.0));
     // Rows of data: one row per section. Homogeneous `(w·x, w·y, w·z,
     // w)` quadruples (`4·n` wide) for a rational input; plain
     // Cartesian triples (`3·n` wide) when the input is integral, where

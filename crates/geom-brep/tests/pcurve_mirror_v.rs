@@ -65,12 +65,12 @@ fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
     vec![
         (
             "Harmonic",
-            Pcurve::Harmonic {
-                p0: Point2::new(0.3, 0.4),
-                pa: Vec2::new(1.0, 0.25),
-                pb: Vec2::new(-0.5, 1.0),
-                pl: Vec2::new(0.125, -0.375),
-            },
+            Pcurve::free_harmonic(
+                Point2::new(0.3, 0.4),
+                Vec2::new(1.0, 0.25),
+                Vec2::new(-0.5, 1.0),
+                Vec2::new(0.125, -0.375),
+            ),
             0.2,
             1.4,
         ),
@@ -349,7 +349,7 @@ fn the_nurbs_arms_are_map_points_and_agree_with_a_re_validated_rebuild() {
         };
         seen += 1;
         let via_new = NurbsCurve2::new(
-            img.knots().clone(),
+            img.knots_f64_interim().clone(),
             img.control()
                 .iter()
                 .map(|q| Point2::new(q.x, -q.y))
@@ -460,12 +460,12 @@ fn mirrored_chart_images_recertify_on_the_reverted_plane_with_the_same_certifica
     let cases: Vec<PlaneCase> = vec![
         (
             "Harmonic",
-            Pcurve::Harmonic {
-                p0: Point2::new(0.3, 0.4),
-                pa: Vec2::new(1.0, 0.0),
-                pb: Vec2::new(0.0, 1.0),
-                pl: Vec2::new(0.0, 0.0),
-            },
+            Pcurve::free_harmonic(
+                Point2::new(0.3, 0.4),
+                Vec2::new(1.0, 0.0),
+                Vec2::new(0.0, 1.0),
+                Vec2::new(0.0, 0.0),
+            ),
             Curve3::Circle {
                 center: Point3::new(0.3, 0.4, 0.0),
                 axis: Vec3::unit_z(),

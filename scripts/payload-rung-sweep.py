@@ -250,6 +250,8 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                                    "as `pose_degenerate`'s inner word, crates/pncad-py/src/tags.rs"),
     "PoseAdmits": ("argued", "`document::pose`, re-exported whole; Python says the arm as "
                              "`pose_admits_tag`, crates/pncad-py/src/errors.rs"),
+    "PoseRole": ("argued", "`document::pose`, re-exported whole; Python writes the role "
+                           "as `RoleRead`'s word, crates/pncad-py/src/py/pose.rs"),
 
     # Blind spot (k)'s rows: a discriminant behind an uncurated struct
     # payload, reported under the carrier `via` the struct.
@@ -286,6 +288,12 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "SplitHalf": ("argued", "the naming vocabulary is `select`'s and is spelled once, "
                             "crates/pncad/src/select.rs; the general rule is at the "
                             "payload-rule header of crates/pncad/src/document.rs"),
+    # Where a name door reads a table (NAMES N1): a node at its one output or
+    # a read. `SitedRef<At>` meets it through a type parameter of the same
+    # name, which the sweep reads by name.
+    "At": ("argued", "the naming vocabulary is `select`'s and is spelled once, "
+                     "crates/pncad/src/select.rs; the general rule is at the "
+                     "payload-rule header of crates/pncad/src/document.rs"),
     # A coincidence row's cell names a profile piece by the same reference a
     # profile pick does, so `NamedCell::Piece` carries `select`'s word for it.
     "ProfileEdgeRef": ("argued", "the naming vocabulary is `select`'s and is spelled "
@@ -316,13 +324,13 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "NodeStanding": ("argued", "the evaluation vocabulary is `document`'s and is spelled "
                                "once, beside `Evaluation`; the general rule is at the "
                                "payload-rule header of crates/pncad/src/document.rs"),
-    # Why a group is unplaced (A11 (2)) is the evaluation's own vocabulary as
-    # well: `Space::Own` carries it, and the select-list refusals that meet
-    # two spaces (hit test, selection) name the group's cause as their
-    # payload. The same rule as `NodeStanding`.
-    "Unplaced": ("argued", "the placement vocabulary is `document`'s and is spelled "
-                           "once, beside `Evaluation`; the general rule is at the "
-                           "payload-rule header of crates/pncad/src/document.rs"),
+    # Which space a copy lives in (D10, Spaces: the world, or a loose copy's
+    # own) is the evaluation's own vocabulary as well, and the select-list
+    # refusals that meet two spaces (hit test, selection) name the two as
+    # their payload. The same rule as `NodeStanding`.
+    "Space": ("argued", "the placement vocabulary is `document`'s and is spelled "
+                        "once, beside `Evaluation`; the general rule is at the "
+                        "payload-rule header of crates/pncad/src/document.rs"),
     # Blind spot (k): curated on `document`, reached under the prelude's
     # `BooleanBody` via `Coincidence`.
     "Relation": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),

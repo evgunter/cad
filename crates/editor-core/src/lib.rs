@@ -103,13 +103,13 @@ pub use analysis::{
     var_env_over,
 };
 pub use appearance::{
-    AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,
-    Attr, AttrKind, AttrSet, Rgba8,
+    AppearanceKey, AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord,
+    AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
     Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
-    CarriedDeclarations, CarriedRefusal, CarriedUnplaced, MintRefusal, MintedDeclaration,
-    RefusedRef, Relation, Route, assemble, assemble_gathered,
+    CarriedDeclarations, CarriedRefusal, MintRefusal, MintedDeclaration, RefusedRef, Relation,
+    Route, assemble, assemble_gathered,
 };
 pub use checks::at_rest::{CopyRef, FaceSite, InterferenceFinding, Overlap, Unlocalized};
 pub use checks::{
@@ -130,16 +130,16 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, RegaugeThenMateOutcome,
-    SlotValue, Took, apply, apply_replayed, cascade_delete_order, measure, regauge_then_mate,
+    MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, SlotValue, Took, apply,
+    apply_replayed, cascade_delete_order, measure,
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
-    Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
-    ContentBits, ContentKey, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
-    Evaluation, FramePlacement, NamingKey, NodeError, NodeErrorClass, NodeErrorKind, NodeRefusal,
-    NodeResult, NodeStanding, NodeValue, PartFault, PartReach, PiecesFault, PoseValue, ProfileLift,
-    ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate, mate_reach,
+    Arity, At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
+    ContentBits, ContentKey, Copies, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
+    Evaluation, FramePlacement, KeyedCopy, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
+    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PiecesFault, PoseValue,
+    ProfileLift, ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
@@ -147,10 +147,7 @@ pub use spoken::{
     FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
     node_kind_noun, spoken_by, spoken_within,
 };
-// The entity door's token: a field of four `NodeErrorKind` variants, so
-// a reader that matches one needs to be able to name it here rather
-// than through the module path.
-pub use eval::entity_door::Found;
+
 pub use expr::{
     AuthoredLeaf, Dimension, DimensionError, EvalError, Expr, ExprPath, ExprTree, LeafSet,
     ParamValue, Quantity, Ratio, Slot, StoredLeaf, UnitSym, Unlowered, VarEnv, eval, eval_count,
@@ -160,13 +157,13 @@ pub use formula::{Formula, FreshFault, LowerFault, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
-    Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission, Coset,
-    FacePoseRefusal, FaceRefusal, FrameBase, Lever, LeverRefusal, MateFault, MateFrame,
-    MatePrimitive, MateReach, MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
-    OFFSET_RECOURSE, OffsetCheck, PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal,
-    RefusingReach, SolvedPoses, Space, Subgroup, SubgroupFamily, UNDER_RECOURSE, UNPLACED_RECOURSE,
-    Unplaced, class_admission, gauge_chain, groups, head_face, head_of, member_of, member_reading,
-    places, relative_freedom_components, root_of, solve_document, table_gap,
+    Anchor, CLASS_DEFERRAL, ClassAdmission, Constraint, ConstraintKind, Coord, Coset,
+    FreedomRefusal, LeverRefusal, MAX_WORLD_READ_DEPTH, Mate, MateFault, MateRef, MateSide, Member,
+    NO_AT_REST_RECORD_RECOURSE, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, PlacedBy,
+    Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SlideAxis, SolvedPoses, Space, Subgroup,
+    SubgroupFamily, Target, Unobservable, Value, WorldPin, WorldRead, WorldReadFault,
+    class_admission, head_face, head_of, member_of, member_reading, pin_at, pinned_at, place_at,
+    reference_about, relative_freedom_components, solve_document, unobservable,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,
@@ -182,22 +179,23 @@ pub use mint::{Mint, MintId, Minted};
 pub use names::{
     CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict, CurveKind,
     CurveKindSet, DeclaredContact, Denotation, DuplicateName, EntityKey, EntityKind, EntityRef,
-    Entry, FIT_DEFERRAL, FaceName, FragmentGroups, GeomPred, InterrogateError, LeafRole,
-    MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName,
-    OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare,
-    RimSupport, RolePath, RoleSeg, RunLine, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag,
-    SelectRefusal, Selector, Sense, Side, SplitHalf, StableName, SurfaceKindSet, TagPat,
-    all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim,
-    band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
-    leaf_role, meridian_vertex, role_leaf, select, select_where, vertex_position,
+    Entry, FIT_DEFERRAL, FaceName, FragmentGroups, GeomPred, InterrogateError, KindMismatch,
+    LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NameTextError, NamingError,
+    NotAFaceName, OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier,
+    RimShare, RimSupport, RolePath, RoleSeg, RunLine, SEL_DATUM_DISTANCE, SeatingRefusal,
+    SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, ShortTie, Side, SplitHalf,
+    StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
+    band, band_pi, band_rim, band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame,
+    face_carrier_kind, face_frame, leaf_role, meridian_vertex, role_leaf, select, select_where,
+    vertex_position,
 };
 pub use node::{
-    AuthoredNode, Axis3, CountMismatch, Datum, ExtrudeSide, InputFault, InterfaceCrossing,
-    InterfaceRecord, ListFault, Node, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
-    PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg, StepId, TubeWindow,
-    VectorSlot,
+    AuthoredNode, Axis3, ConstraintId, CountMismatch, Datum, ExtrudeSide, InputFault,
+    InterfaceCrossing, InterfaceRecord, ListFault, Node, OutputPort, PartSelect, PatternKind,
+    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg,
+    StepId, TubeWindow, VectorSlot,
 };
-pub use operand::{Bodies, BodyRead, Operand, OperandSlot, SlotKind};
+pub use operand::{Bodies, BodyRead, CopyKey, Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
@@ -209,8 +207,8 @@ pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite, Placement, Step};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding, own_spaces,
-    product, product_named, product_recorded,
+    LooseSpace, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding,
+    loose_spaces, product, product_named, product_recorded,
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
@@ -229,12 +227,12 @@ pub use report::{
 };
 pub use resolve::{
     AboutReference, Diagnosis, FlipSet, GroupCutters, HitTestError, MeshPatchKey, NodeVerdictDelta,
-    PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure, ResolveError,
-    ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness, Tombstone, UnnamedEntity,
-    UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names, body_name,
-    derivation_nodes, derivation_reads, diff_verdicts, edge_name, enrich_appearance_loss,
-    enrich_appearance_loss_with_prior, entity_name, face_name, rebind_suggestions, resolve,
-    resolve_with_prior, vertex_name,
+    PredicateDivergence, ReadEdit, RecipeEditRef, Resolution, ResolutionFailure, ResolveError,
+    ResolveIndeterminate, ResolveRefusal, Resolved, RunCtx, RunStatus, TieWitness, Tombstone,
+    UnnamedEntity, UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names,
+    body_name, derivation_nodes, derivation_reads, diff_verdicts, edge_name,
+    enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
+    rebind_suggestions, resolve, resolve_with_prior, stranded_at, vertex_name,
 };
 pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,

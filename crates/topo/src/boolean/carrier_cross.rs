@@ -436,7 +436,7 @@ mod crossing_rows {
     ///
     /// (A section tangent to the rim reads `Unread`: across planes the
     /// basin meter refuses a crossing angle of zero,
-    /// `work/fuse/curve-pair-polish-meters-refuse-shallow-meetings.md`.)
+    /// `work/cpair/curve-pair-polish-meters-refuse-shallow-meetings.md`.)
     #[test]
     fn a_shallow_crossing_at_the_swept_spans_end_crosses_nothing_inside() {
         let tol = Tol::witness();

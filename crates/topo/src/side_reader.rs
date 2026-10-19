@@ -256,8 +256,8 @@ type Aim<T> = (Point3<T>, Vec3<T>);
 /// refuses other than in band; a face that does not resolve.
 fn aim_at<T: Decide>(
     body: &Body<T>,
-    sel: &SolidFaces,
     face: FaceKey,
+    geo: &FaceGeo<T>,
     band: Band,
 ) -> Result<Option<Aim<T>>, PointInSolidError> {
     match face_plane(body, face) {
@@ -270,16 +270,14 @@ fn aim_at<T: Decide>(
         Err(e) => return Err(e),
     }
     let mid = |(lo, hi): (T, T)| (lo + hi) * T::from_f64(0.5);
-    let (u, v) = match face_geo(body, face, &sel.charts, band) {
-        Ok(FaceGeo::Cylinder { az, h, .. }) => (mid(az), mid(h)),
-        Ok(FaceGeo::Cone { az, v, .. }) => (az.map_or_else(T::pi, mid), mid(v)),
-        Ok(FaceGeo::Torus { u, v, .. }) => (u.map_or_else(T::pi, mid), v.map_or_else(T::pi, mid)),
-        Ok(FaceGeo::Sphere { .. }) => (T::from_f64(1.0), T::from_f64(0.3)),
-        Ok(_) => return Ok(None),
-        Err(PointInSolidError::CorruptFace { face }) => {
-            return Err(PointInSolidError::CorruptFace { face });
-        }
-        Err(_) => return Ok(None),
+    let (u, v) = match *geo {
+        FaceGeo::Cylinder { az, h, .. } => (mid(az), mid(h)),
+        FaceGeo::Cone { az, v, .. } => (az.map_or_else(T::pi, mid), mid(v)),
+        // A torus face, whole or trimmed, is aimed at one point of its
+        // surface: the ray starts beyond every face whatever it aims at.
+        FaceGeo::Torus { .. } | FaceGeo::TorusPatch { .. } => (T::pi(), T::pi()),
+        FaceGeo::Sphere { .. } => (T::from_f64(1.0), T::from_f64(0.3)),
+        _ => return Ok(None),
     };
     let aim = body
         .get_face(face)
@@ -460,10 +458,31 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
             }));
         }
     }
+    // Each face's geometry, resolved once for every aimed ray. A face
+    // whose geometry refuses refuses every ray that reaches it, so none
+    // is cast, and the volume reads with that face as the limit.
+    let mut geos = Vec::with_capacity(faces.len());
+    for &face in faces {
+        match face_geo(body, face, &sel.charts, band) {
+            Ok(geo) => geos.push((face, geo)),
+            Err(e) => {
+                return Ok(volume().map_err(|volume| SideUnread::Fallback {
+                    volume,
+                    aimed: 0,
+                    set_aside: vec![SetAside {
+                        aimed: face,
+                        aim: None,
+                        why: SetAsideWhy::Limit(e),
+                    }],
+                }));
+            }
+        }
+    }
     let (mut in_band, mut aimed, mut set_aside) = (None, 0, Vec::new());
     let (along, across) = AIM_INCIDENCE;
-    for &face in faces {
-        let Some((aim, normal)) = aim_at(body, sel, face, band)? else {
+    for (face, geo) in &geos {
+        let face = *face;
+        let Some((aim, normal)) = aim_at(body, face, geo, band)? else {
             continue;
         };
         aimed += 1;
@@ -486,7 +505,7 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
         let from = aim + out * (beyond(body, faces, aim)? * T::from_f64(2.0));
         let d = (aim - from).normalize();
         let reach = selection_reach(body, faces, from)?;
-        let crossings = match ray_crossings(body, sel, from, d, reach, band, AIMED_ROWS) {
+        let crossings = match ray_crossings(body, &geos, from, d, reach, band, AIMED_ROWS) {
             Ok(crossings) => crossings,
             Err(RayFault::Blocked(e) | RayFault::Fatal(e)) => {
                 set(SetAsideWhy::Limit(e));
@@ -613,18 +632,10 @@ mod pre_filter_tests {
             "the volume reads, limited by the spline face"
         );
         assert_eq!(aimed(&log), Vec::<&str>::new(), "no aimed ray is cast");
-        // The limit is the one a ray meets at that face, from anywhere.
-        let ray = ray_crossings(
-            &body,
-            &sel,
-            Point3::new(5.0, 4.0, 3.0),
-            Vec3::new(-1.0, -0.8, -0.6).normalize(),
-            10.0,
-            band,
-            AIMED_ROWS,
-        );
+        // The limit is the one a ray meets at that face, from anywhere:
+        // the face's geometry refuses.
         assert!(
-            matches!(&ray, Err(RayFault::Fatal(e)) if *e == want),
+            matches!(face_geo(&body, spline, &sel.charts, band), Err(e) if e == want),
             "a ray meets the same refusal"
         );
     }

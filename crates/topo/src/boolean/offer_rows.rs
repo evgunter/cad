@@ -2822,6 +2822,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     (
+        "torus_region.rs",
+        "-",
+        "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
+    (
         "vtxfac.rs",
         "along_partners",
         "BooleanDecision::PartnerFaces",

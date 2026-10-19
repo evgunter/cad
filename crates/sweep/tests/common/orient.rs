@@ -61,8 +61,8 @@ pub fn chart_at(
     let Some(Surface::Nurbs(s)) = body.get_surface(f.surface) else {
         panic!("a skinned wall carries a NURBS chart");
     };
-    let (u0, u1) = s.knots_u().domain();
-    let (v0, v1) = s.knots_v().domain();
+    let (u0, u1) = s.knots_u_f64_interim().domain();
+    let (v0, v1) = s.knots_v_f64_interim().domain();
     (s, u0 + (u1 - u0) * su, v0 + (v1 - v0) * sv)
 }
 

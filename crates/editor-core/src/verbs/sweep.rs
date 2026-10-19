@@ -12,8 +12,7 @@
 //! the axis and the profile are written against the same frame, and
 //! classifies the authored angle as full or partial at its own funnel
 //! site. None of that is a verb parameter, so none of it is declared
-//! here — it stays in the lowering's per-node arms, exactly as the
-//! boolean's `resolve_declarations` stayed there.
+//! here — it stays in the lowering's per-node arms.
 //!
 //! What that means for the shape below: the correspondence is generic
 //! in the ARGUMENT its `build` takes (`A`), because the two verbs'

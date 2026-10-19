@@ -122,6 +122,8 @@ mod an_annular_tube_through_a_plate;
 mod an_arc_rim_picks_the_row_it_lies_on;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
 mod an_arc_tangent_at_a_boolean_vertex;
+#[path = "an_arcs_sweep_structure_is_certified_for_every_member.rs"]
+mod an_arcs_sweep_structure_is_certified_for_every_member;
 #[path = "an_inside_out_thin_tube_operand.rs"]
 mod an_inside_out_thin_tube_operand;
 #[path = "at_rest_pcurve_faces.rs"]
@@ -294,6 +296,8 @@ mod topo_ring_nesting;
 mod torax_axial;
 #[path = "torax_interval.rs"]
 mod torax_interval;
+#[path = "torus_region_probe.rs"]
+mod torus_region_probe;
 #[path = "transform_nurbs_walls.rs"]
 mod transform_nurbs_walls;
 #[path = "trim_3_chart_bound_bodies.rs"]
@@ -889,6 +893,8 @@ mod mate2_r2_probes;
 mod mate7a_r1_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "near_tangent_census_edge_face_lane.rs"]
+mod near_tangent_census_edge_face_lane;
 #[path = "near_tangent_pierce_poses.rs"]
 mod near_tangent_pierce_poses;
 #[path = "pi_seam_and_kiss_through_the_boolean.rs"]

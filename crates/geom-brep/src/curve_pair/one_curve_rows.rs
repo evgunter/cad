@@ -272,3 +272,70 @@ fn two_sphere_sections_read_coplanar_are_one_circle_only_within_the_band() {
         );
     }
 }
+
+/// **A conic read twice is one curve at interval too.** A circle and an
+/// ellipse in a plane turned off every axis, each paired with itself
+/// and with itself re-seamed a third of a turn on (the circle) or half a
+/// turn on (the ellipse, its `u_ref` reversed), every coordinate an
+/// interval a few ulps wide. The frames' differences enclose zero, so
+/// their self-dots, read as interval products, reach below it; the
+/// one-curve margin squares them under a root and must still certify
+/// zero. Red where that root reads a straddling enclosure, which makes
+/// the margin `Invalid` and the census escalate on a body's coincident
+/// rims (editor-core's `boss_union` at `Interval`).
+#[test]
+fn a_conic_read_twice_is_one_curve_at_interval() {
+    use geom_core::Interval;
+    let b = band();
+    let ulps = |x: f64| {
+        Interval::from_bounds(
+            x - 4.0 * f64::EPSILON * x.abs(),
+            x + 4.0 * f64::EPSILON * x.abs(),
+        )
+    };
+    let iv = |v: Vec3<f64>| Vec3::new(ulps(v.x), ulps(v.y), ulps(v.z));
+    let n = Vec3::new(1.0, 2.0, 3.0).normalize();
+    let u = n.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
+    let v = n.cross(u);
+    let conic = |u_ref: Vec3<f64>, (a, c): (f64, f64)| Conic {
+        center: Point3::new(ulps(1.0), ulps(-2.0), ulps(0.5)),
+        axis: iv(n),
+        u_ref: iv(u_ref),
+        semi_u: ulps(a),
+        semi_v: ulps(c),
+    };
+    let third = u * (2.0 * std::f64::consts::FRAC_PI_3).cos()
+        + v * (2.0 * std::f64::consts::FRAC_PI_3).sin();
+    for (what, e, f) in [
+        (
+            "a circle and itself",
+            conic(u, (0.7, 0.7)),
+            conic(u, (0.7, 0.7)),
+        ),
+        (
+            "a circle re-seamed",
+            conic(u, (0.7, 0.7)),
+            conic(third, (0.7, 0.7)),
+        ),
+        (
+            "an ellipse and itself",
+            conic(u, (1.3, 0.4)),
+            conic(u, (1.3, 0.4)),
+        ),
+        (
+            "an ellipse re-seamed",
+            conic(u, (1.3, 0.4)),
+            conic(-u, (1.3, 0.4)),
+        ),
+    ] {
+        for (order, got) in [
+            ("e, f", one_curve(&e, &f, b)),
+            ("f, e", one_curve(&f, &e, b)),
+        ] {
+            assert!(
+                matches!(got, Ok(true)),
+                "{what} ({order}): one curve at interval: {got:?}"
+            );
+        }
+    }
+}

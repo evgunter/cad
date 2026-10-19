@@ -46,7 +46,9 @@ use std::collections::BTreeMap;
 
 use super::emit::NamingError;
 use super::role::NameRef;
-use super::table::{Candidate, DuplicateName, EntityKey, EntityRef, Entry, NameTable};
+use super::table::{
+    Candidate, DuplicateName, EntityKey, EntityRef, Entry, NameTable, SeatingRefusal,
+};
 use crate::node::RecipeNodeId;
 
 /// An entity's upstream name, how its upstream row descends from an N2
@@ -156,7 +158,7 @@ impl TieRows {
     /// candidate twice, or a strict name ([`Candidate::Only`], its own
     /// only candidate) beside any other row under it — or when the op
     /// also mints a row under the name.
-    pub(super) fn carry(&mut self, up: Upstream, e: EntityRef) -> Result<(), DuplicateName> {
+    pub(super) fn carry(&mut self, up: Upstream, e: EntityRef) -> Result<(), SeatingRefusal> {
         self.carry_as(up.name, up.candidate, e)
     }
 
@@ -167,7 +169,7 @@ impl TieRows {
         name: NameRef,
         candidate: Candidate,
         e: EntityRef,
-    ) -> Result<(), DuplicateName> {
+    ) -> Result<(), SeatingRefusal> {
         let rows = self.0.entry(name.clone()).or_default();
         let distinct = |(held, _): &Deferred| match (held, candidate) {
             (Some(Candidate::Of(a)), Candidate::Of(b)) => *a != b,
@@ -176,7 +178,8 @@ impl TieRows {
         if !rows.iter().all(distinct) {
             return Err(DuplicateName {
                 name: Box::new((*name).clone()),
-            });
+            }
+            .into());
         }
         rows.push((Some(candidate), e));
         Ok(())
@@ -188,9 +191,9 @@ impl TieRows {
     ///
     /// # Errors
     ///
-    /// [`DuplicateName`]: the insert doors' own, and a name holding
+    /// [`SeatingRefusal`]: the insert doors' own, and a name holding
     /// both carried and minted rows.
-    pub(super) fn flush(&mut self, t: &mut NameTable) -> Result<(), DuplicateName> {
+    pub(super) fn flush(&mut self, t: &mut NameTable) -> Result<(), SeatingRefusal> {
         for (name, rows) in core::mem::take(&mut self.0) {
             let carried: Option<Vec<(Candidate, EntityRef)>> =
                 rows.iter().map(|&(c, e)| c.map(|c| (c, e))).collect();
@@ -202,7 +205,8 @@ impl TieRows {
                 None => {
                     return Err(DuplicateName {
                         name: Box::new((*name).clone()),
-                    });
+                    }
+                    .into());
                 }
             }
         }
@@ -229,15 +233,15 @@ impl TieRows {
 ///
 /// # Errors
 ///
-/// [`DuplicateName`] — the carrying insert door's own
+/// [`SeatingRefusal`] — the carrying insert door's own
 /// (`NameTable::insert_candidates_ref`): the name already held, an
-/// entity already named, a kind disagreement, or a candidate carried
-/// twice.
+/// entity already named, a candidate carried twice, or a kind
+/// disagreement.
 pub(super) fn narrow_into(
     t: &mut NameTable,
     name: NameRef,
     pairs: Vec<(Candidate, EntityRef)>,
-) -> Result<(), DuplicateName> {
+) -> Result<(), SeatingRefusal> {
     t.insert_candidates_ref(name, pairs)
 }
 
@@ -250,14 +254,14 @@ pub(super) fn narrow_into(
 ///
 /// # Errors
 ///
-/// [`DuplicateName`] — the insert doors' own: the name already held, an
-/// entity already named, a kind disagreement, or a tie under two
-/// candidates.
+/// [`SeatingRefusal`] — the insert doors' own: the name already held,
+/// an entity already named, a tie under two candidates, or a kind
+/// disagreement.
 pub(super) fn mint_into(
     t: &mut NameTable,
     name: NameRef,
     ents: Vec<EntityRef>,
-) -> Result<(), DuplicateName> {
+) -> Result<(), SeatingRefusal> {
     match ents.as_slice() {
         [one] => t.insert_ref(name, *one),
         _ => t.insert_tied_ref(name, ents),
@@ -288,7 +292,7 @@ pub(super) fn mint_into(
 ///
 /// # Errors
 ///
-/// [`DuplicateName`] — a lone strict candidate's insert refused (the
+/// [`SeatingRefusal`] — a lone strict candidate's insert refused (the
 /// insert doors' own).
 pub(super) fn mint_candidates(
     t: &mut NameTable,
@@ -296,7 +300,7 @@ pub(super) fn mint_candidates(
     from_tie: bool,
     name: impl Into<NameRef>,
     ents: Vec<EntityRef>,
-) -> Result<(), DuplicateName> {
+) -> Result<(), SeatingRefusal> {
     let name = name.into();
     match ents.as_slice() {
         [one] => put(t, tie, from_tie, name, *one),
@@ -317,7 +321,7 @@ pub(super) fn put(
     from_tie: bool,
     name: impl Into<NameRef>,
     e: EntityRef,
-) -> Result<(), DuplicateName> {
+) -> Result<(), SeatingRefusal> {
     let name = name.into();
     if from_tie {
         tie.push(name, e);
@@ -382,7 +386,7 @@ impl CarriedRows {
         from: &NameTable,
         ix: u32,
         map: impl Fn(EntityKey) -> Option<EntityKey>,
-    ) -> Result<(), DuplicateName> {
+    ) -> Result<(), SeatingRefusal> {
         for (name, row) in from.rows() {
             for (candidate, e) in row.pairs().filter(|(_, e)| e.body == ix) {
                 let Some(key) = map(e.key) else { continue };
@@ -400,11 +404,11 @@ impl CarriedRows {
     ///
     /// # Errors
     ///
-    /// [`DuplicateName`], the insert doors' own. Not reachable by
+    /// [`SeatingRefusal`], the insert doors' own. Not reachable by
     /// construction: `into` is empty, [`CarriedRows::carry`] already
     /// refused every repeated pair, and the graft mints a distinct
     /// entity per source entity.
-    pub(crate) fn finish(mut self, into: &mut NameTable) -> Result<(), DuplicateName> {
+    pub(crate) fn finish(mut self, into: &mut NameTable) -> Result<(), SeatingRefusal> {
         self.0.flush(into)
     }
 }
@@ -418,7 +422,7 @@ mod tests {
 
     use super::{Candidate, CarriedRows, narrow_into};
     use crate::names::role::{EntityKind, NameRef, RoleSeg, StableName};
-    use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
+    use crate::names::table::{EntityKey, EntityRef, Entry, NameTable, SeatingRefusal};
     use crate::node::RecipeNodeId;
 
     fn name() -> StableName {
@@ -450,12 +454,18 @@ mod tests {
     /// sources here already name distinct faces), then narrows. A
     /// refusal reports the index of the source that carried it.
     fn gather(sources: &[(&NameTable, u32)]) -> Result<NameTable, (usize, Box<StableName>)> {
+        let duplicate = |e| match e {
+            SeatingRefusal::Duplicate(d) => d.name,
+            SeatingRefusal::KindMismatch(k) => panic!("every source row is a face: {k:?}"),
+            SeatingRefusal::ShortTie(t) => panic!("every carried tie has two candidates: {t:?}"),
+        };
         let mut rows = CarriedRows::default();
         for (i, (t, ix)) in sources.iter().enumerate() {
-            rows.carry(t, *ix, Some).map_err(|e| (i, e.name))?;
+            rows.carry(t, *ix, Some).map_err(|e| (i, duplicate(e)))?;
         }
         let mut out = NameTable::new();
-        rows.finish(&mut out).map_err(|e| (usize::MAX, e.name))?;
+        rows.finish(&mut out)
+            .map_err(|e| (usize::MAX, duplicate(e)))?;
         Ok(out)
     }
 

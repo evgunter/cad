@@ -151,7 +151,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    editor_core::apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
+    editor_core::apply(doc, edit, Tol::witness())
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
@@ -1411,8 +1411,9 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
 /// **The lift-pinning e2e: a bore/pin fit.** The pin's radius `r` is a
 /// profile dimension (a circle program's radius) and the C5 gap
 /// `R − r − d` reads it only through the lifted cylinder carrier: the
-/// stackup reports ∂gap/∂r = −1 exactly, chamber-certified, where the
-/// pinned lift gives the silent zero. (The two-hole plate's −2 is the
+/// stackup reports ∂gap/∂r = −1 exactly, chamber-certified, and a bare
+/// seeded evaluation carries the same tangent: a seed makes the lift
+/// guided, so the pinned lift's silent zero cannot be asked for. (The two-hole plate's −2 is the
 /// measure EXPRESSION's own `− 2·hole_r` and would come out under
 /// either lift; this row is the one where the lift is load-bearing.)
 #[test]
@@ -1458,8 +1459,10 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let doc = r.doc;
 
-    // The silent zero the driver never uses, shown beside the fix.
-    let pinned = evaluate::<geom_core::Dual64>(
+    // A seed makes the lift guided (`EvalOptions::profile_lift`): the
+    // pinned lift's silent zero is no evaluation anyone can ask for, and
+    // the seeded gap carries the carrier's tangent.
+    let seeded = evaluate::<geom_core::Dual64>(
         &doc,
         None,
         &CancelToken::new(),
@@ -1469,13 +1472,16 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
         },
         Tol::witness(),
     );
-    let Some(NodeResult::Ok(v)) = pinned.result(measure) else {
+    let Some(NodeResult::Ok(v)) = seeded.result(measure) else {
         panic!("the gap measures")
     };
     let ValuePayload::Measure { value, .. } = &v.payload else {
         panic!("a measure")
     };
-    assert_eq!(value.deriv, 0.0, "the pinned lift's silent zero");
+    assert_eq!(
+        value.deriv, -1.0,
+        "the seed reaches the gap through the carrier"
+    );
 
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");

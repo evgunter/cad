@@ -1112,6 +1112,126 @@ fn a_near_parallel_pair_is_read_over_its_overlap() {
     assert!(matches!(short, Ok(Pose::Coincident { .. })), "{short:?}");
 }
 
+/// **Two segments on one line, two metres apart, meet nowhere**, read
+/// on the census's own pair: a straight edge of the near-tangent probe's
+/// `w345 nt e0 a4 d1e-7` union and the face boundary edge it was cut
+/// against, at `ε = 10⁻⁶`. Each span's far end lies `1.06·10⁻⁶` off the
+/// other's line, in the band's gap, so reading the ends against the
+/// carriers escalated, though the spans' projections on the first line
+/// part by two metres.
+#[test]
+fn two_segments_on_one_line_two_metres_apart_meet_nowhere() {
+    let band = Band::new(1e-6, 1e-5).unwrap();
+    let edge = Curve3::Line {
+        origin: Point3::new(-1.999_356_330_248_317_7, 0.535_723_727_818_681_7, 1.0),
+        dir: Vec3::new(0.965_926_090_343_448_7, -0.258_818_059_636_146_96, 0.0),
+    };
+    let boundary = Curve3::Line {
+        origin: Point3::new(1.999_999_999_999_999_8, -0.535_898_384_862_245_2, 1.0),
+        dir: Vec3::new(-0.965_925_826_289_068_3, 0.258_819_045_102_520_7, 0.0),
+    };
+    let a = Span::new(&edge, (0.0, 2.069_885_419_015_256_5));
+    let b = Span::new(&boundary, (0.0, 0.000_666_381_398_214_661_7));
+    for (label, x, y) in [("edge first", &a, &b), ("boundary first", &b, &a)] {
+        let got = pose(x, y, band);
+        assert!(matches!(got, Ok(Pose::Apart)), "{label}: pose {got:?}");
+        let m = meet(x, y, band);
+        assert!(
+            m.as_ref()
+                .is_ok_and(|m| m.points.is_empty() && m.shared.is_none()),
+            "{label}: meetings {m:?}"
+        );
+    }
+}
+
+/// **The gap between two lines' projections decides only where it is
+/// past the band.** The first segment runs along `x̂` over `(0, 1)`; the
+/// second lies on a line `2ε` off it at the origin and leaning `ε` per
+/// metre, so every end of either lies in the band's gap of the other's
+/// line, or on one inside the zero band throughout. Read over `(3, 4)`
+/// along `x̂`, two metres apart, they meet nowhere, whole or in pieces;
+/// reading the ends against the lines escalated there. Overlapping, or
+/// with a gap in or below the band, the gap says nothing: a pair inside
+/// the zero band is one curve, or meets at the joint, and no such pair
+/// is read apart.
+#[test]
+fn a_gap_along_one_line_past_the_band_meets_nowhere() {
+    let x = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let leaning = line([0.0, 2.0 * ZERO, 0.0], [1.0, ZERO, 0.0]);
+    let within = line([0.0, 0.2 * ZERO, 0.0], [1.0, 0.1 * ZERO, 0.0]);
+    let read = |c: &Curve3<f64>, ta: (f64, f64), tb: (f64, f64)| {
+        pose(&Span::new(&x, ta), &Span::new(c, tb), band())
+    };
+    for (label, c) in [("leaning", &leaning), ("within", &within)] {
+        for (ta, tb) in [
+            ((0.0, 1.0), (3.0, 4.0)),
+            ((0.0, 0.5), (3.0, 3.5)),
+            ((0.5, 1.0), (3.5, 4.0)),
+            ((0.0, 1.0), (4.0, 3.0)),
+        ] {
+            let got = read(c, ta, tb);
+            assert!(
+                matches!(got, Ok(Pose::Apart)),
+                "{label} {ta:?} {tb:?}: {got:?}"
+            );
+            let back = pose(&Span::new(c, tb), &Span::new(&x, ta), band());
+            assert!(
+                matches!(back, Ok(Pose::Apart)),
+                "{label} {ta:?} {tb:?} reversed: {back:?}"
+            );
+        }
+    }
+    for (label, tb) in [
+        ("overlapping", (0.5, 1.5)),
+        ("joined in the zero band", (1.0 + 0.5 * ZERO, 2.0)),
+        ("a gap in the band's gap", (1.0 + 5.0 * ZERO, 2.0)),
+    ] {
+        for (which, c) in [("leaning", &leaning), ("within", &within)] {
+            let got = read(c, (0.0, 1.0), tb);
+            assert!(
+                !matches!(got, Ok(Pose::Apart | Pose::Parallel)),
+                "{which} {label}: read apart: {got:?}"
+            );
+        }
+    }
+    let one = read(&within, (0.0, 1.0), (0.5, 1.5));
+    assert!(
+        matches!(one, Ok(Pose::Coincident { .. })),
+        "overlapping within: {one:?}"
+    );
+    let m = meets((&x, (0.0, 1.0)), (&within, (0.5, 1.5))).unwrap();
+    assert!(
+        m.shared == Some(Sense::Same) && interiors_meet(&m),
+        "overlapping within: {m:?}"
+    );
+    let m = meets((&x, (0.0, 1.0)), (&within, (1.0 + 0.5 * ZERO, 2.0))).unwrap();
+    assert!(!m.points.is_empty(), "joined within: {m:?}");
+}
+
+/// **A line in a circle's plane, far along from it, meets nowhere.** The
+/// line runs `3ε` outside the unit circle's top, so its in-plane
+/// distance's extreme is in the band's gap; over `(5, 6)` along `x̂` its
+/// span projects four metres past the circle's extent, and it meets
+/// nowhere, in either order. Over `(−½, ½)`, above the circle's top, the
+/// touch in the band's gap still escalates.
+#[test]
+fn a_line_far_along_from_a_circle_in_its_plane_meets_nowhere() {
+    let c = circle([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0);
+    let l = line([0.0, 1.0 + 3.0 * ZERO, 0.0], [1.0, 0.0, 0.0]);
+    let whole = (0.0, TAU);
+    let got = pose(&Span::new(&l, (5.0, 6.0)), &Span::new(&c, whole), band());
+    assert!(matches!(got, Ok(Pose::Apart)), "line first: {got:?}");
+    let got = pose(&Span::new(&c, whole), &Span::new(&l, (5.0, 6.0)), band());
+    assert!(matches!(got, Ok(Pose::Apart)), "circle first: {got:?}");
+    let m = meets((&c, whole), (&l, (5.0, 6.0))).unwrap();
+    assert!(m.points.is_empty(), "circle first: {m:?}");
+    let m = meets((&l, (-0.5, 0.5)), (&c, whole));
+    assert!(
+        matches!(&m, Err(r) if matches!(r.fault, MeetFault::Escalated(_))),
+        "over the top: {m:?}"
+    );
+}
+
 /// **The ring rule: a candidate nearer a found meeting than the band's
 /// escalation width is not read again.** Two segments joined square at
 /// the origin meet there, at the end of both. A candidate `5·10⁻⁹` along
@@ -1546,4 +1666,224 @@ fn a_fillet_joint_between_two_ellipses_is_read_by_its_window() {
             "{order}: the joint alone: {got:?}"
         );
     }
+}
+
+/// **A height harmonic whose highest point lies on the negative `û`
+/// axis is read clear of `atan2`'s cut.** A die's pip, as the corpus
+/// builds it and in the enclosures it carries at interval: the pip's rim
+/// of radius `0.0806` on the face `z = 1`, the half of it at `y ≥ 0.5`,
+/// and the section arc of radius `0.09` about `(0.5, 0.5, 1.04)` in the
+/// plane `y = 0.5`, from the face down. The rim's height above the
+/// arc's plane has its cosine part `−r` and its sine part an enclosure
+/// of zero, so the principal `atan2` reads the turn `[−π, π]`; the root
+/// gap then reads `[0, 0.228]` and escalates
+/// (`curve_pair_pose_root_gap`), where `f64` reads the two ends' joint.
+/// Read a turn on, the angle is `π` to its rounding, and the pair meets
+/// at the joint alone, whichever span is read first. Red where the
+/// angle is read on the principal branch.
+#[test]
+fn a_height_harmonic_on_the_negative_axis_is_read_clear_of_the_cut() {
+    use geom_core::Interval;
+    let i = Interval::from_bounds;
+    let p = |x, y, z| Point3::new(x, y, z);
+    let v = |x, y, z| Vec3::new(x, y, z);
+    let rim = Curve3::Circle {
+        center: p(i(0.5, 0.5), i(0.5, 0.5), i(1.0, 1.0)),
+        axis: v(i(-0.0, -0.0), i(-0.0, -0.0), i(-1.0, -1.0)),
+        radius: i(0.080_622_577_482_985_46, 0.080_622_577_482_985_49),
+        u_ref: v(
+            i(-4e-323, 4e-323),
+            i(0.999_999_999_999_997_2, 1.000_000_000_000_002_7),
+            i(0.0, 0.0),
+        ),
+    };
+    let rim_span = (
+        i(-1.570_796_326_794_898_3, -1.570_796_326_794_894_3),
+        i(1.570_796_326_794_890_3, 1.570_796_326_794_902_3),
+    );
+    let arc = Curve3::Circle {
+        center: p(i(0.5, 0.5), i(0.5, 0.5), i(1.04, 1.04)),
+        axis: v(
+            i(-1.224_646_799_147_357_4e-16, 3.216_245_299_353_283e-16),
+            i(-1.000_000_000_000_000_2, -0.999_999_999_999_998_9),
+            i(-1.969_382_255_562_861_5e-32, 5.172_116_912_806_034e-32),
+        ),
+        radius: i(0.09, 0.09),
+        u_ref: v(
+            i(0.0, 0.0),
+            i(0.0, 0.0),
+            i(0.999_999_999_999_999, 1.000_000_000_000_001),
+        ),
+    };
+    let arc_span = (
+        i(2.031_350_318_476_216_3, 2.031_350_318_476_222_5),
+        i(core::f64::consts::PI, core::f64::consts::PI),
+    );
+    let (r, a) = (Span::new(&rim, rim_span), Span::new(&arc, arc_span));
+    for (order, got) in [
+        ("rim first", meet(&r, &a, band())),
+        ("arc first", meet(&a, &r, band())),
+    ] {
+        let got = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert!(
+            matches!(got.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+            "{order}: the joint alone: {got:?}"
+        );
+    }
+}
+
+/// **A touch at a harmonic's lowest point is read clear of the
+/// reduction's cut.** A die's pip as the composed tour builds it, in its
+/// enclosures at interval: a circle of radius `0.02` about
+/// `(0.8122, 0.02, 0.28)` in the plane `z = 0.28`, touching the plane
+/// `y = 0` at its start, and the section arc of radius `0.0922` about
+/// `(0.72, 0, 0.28)` in that plane, ending there. The circle's height
+/// above the arc's plane touches zero at its lowest point, half a turn
+/// from its highest, so the polish's reach reads the angle from the
+/// highest point through a reduction whose cut lies exactly there: read
+/// so, the reach is the whole half turn and the basin meter refuses
+/// (`Unsettled::Meter`). Read from the lowest point, the reach is the
+/// band's arc, and the pair meets at the joint alone, whichever span is
+/// read first. Red where the reach is read across the cut.
+#[test]
+fn a_touch_at_a_harmonics_lowest_point_is_read_clear_of_the_cut() {
+    use geom_core::Interval;
+    let i = Interval::from_bounds;
+    let p = |x, y, z| Point3::new(x, y, z);
+    let v = |x, y, z| Vec3::new(x, y, z);
+    let pip = Curve3::Circle {
+        center: p(
+            i(0.812_195_444_572_928_1, 0.812_195_444_572_929_5),
+            i(0.019_999_999_999_999_98, 0.020_000_000_000_000_028),
+            i(0.279_999_999_999_999_25, 0.280_000_000_000_000_75),
+        ),
+        axis: v(
+            i(-9.663_752_709_139_367e-14, 9.332_596_074_246_75e-14),
+            i(-7.216_449_660_066_244e-14, 7.216_449_660_066_244e-14),
+            i(-1.000_000_000_000_377_3, -0.999_999_999_999_622_7),
+        ),
+        radius: i(0.02, 0.02),
+        u_ref: v(
+            i(-5.551_115_123_125_793e-14, 5.551_115_123_125_793e-14),
+            i(-1.000_000_000_000_003_6, -0.999_999_999_999_996_4),
+            i(-7.216_449_660_063_531e-14, 7.216_449_660_063_531e-14),
+        ),
+    };
+    let pip_span = (
+        i(0.0, 0.0),
+        i(0.993_864_981_558_250_5, 0.993_864_981_558_627_5),
+    );
+    let arc = Curve3::Circle {
+        center: p(
+            i(0.72, 0.72),
+            i(-3.469_446_951_953_614e-18, 1.040_834_085_586_084_3e-17),
+            i(0.28, 0.28),
+        ),
+        axis: v(i(-0.0, -0.0), i(1.0, 1.0), i(-0.0, -0.0)),
+        radius: i(0.092_195_444_572_928_8, 0.092_195_444_572_928_9),
+        u_ref: v(
+            i(-9.846_911_277_814_305e-33, 3.749_399_456_654_659e-33),
+            i(0.0, 0.0),
+            i(0.999_999_999_999_997, 1.000_000_000_000_002_9),
+        ),
+    };
+    let arc_span = (
+        i(-4.712_388_980_384_697, -4.712_388_980_384_683),
+        i(1.570_796_326_794_889_5, 1.570_796_326_794_903_7),
+    );
+    let (c, a) = (Span::new(&pip, pip_span), Span::new(&arc, arc_span));
+    for (order, got) in [
+        ("pip first", meet(&c, &a, band())),
+        ("arc first", meet(&a, &c, band())),
+    ] {
+        let got = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert!(
+            matches!(got.points[..], [p] if matches!((p.on_a, p.on_b), (Hit::End(_), Hit::End(_)))),
+            "{order}: the joint alone: {got:?}"
+        );
+    }
+}
+
+/// **A conic's extent on a line is its larger semi-axis.** A line along
+/// an ellipse's major axis over `(1.5, 3)`, past its minor semi-axis,
+/// crosses it at `x = 2` (the ellipse read over `(−π, π)`, so the
+/// crossing is interior to both), in either order; so does a line across its
+/// plane through that point. An extent read from the smaller semi-axis
+/// would put the span a metre past it and read the pair apart.
+#[test]
+fn a_line_crossing_an_ellipse_past_its_minor_semi_axis_meets_it() {
+    let e = ellipse([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], 2.0, 0.5);
+    let l = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let m = meets((&l, (1.5, 3.0)), (&e, (-PI, PI))).unwrap();
+    assert!(interiors_meet(&m), "in plane: {m:?}");
+    let m = meets((&e, (-PI, PI)), (&l, (1.5, 3.0))).unwrap();
+    assert!(interiors_meet(&m), "in plane, ellipse first: {m:?}");
+    let p = line([1.0, 0.0, -1.0], [1.0, 0.0, 1.0]);
+    let m = meets((&p, (0.5, 2.5)), (&e, (-PI, PI))).unwrap();
+    assert!(interiors_meet(&m), "across: {m:?}");
+}
+
+/// **The gap reads Apart in interval arithmetic too**: the leaning pair of
+/// [`a_gap_along_one_line_past_the_band_meets_nowhere`], two metres
+/// apart, each coordinate an interval a few ulps wide.
+#[test]
+fn two_segments_on_one_line_far_apart_read_apart_at_interval() {
+    use geom_core::Interval;
+    let i = |x: f64| Interval::from_bounds(x - 1e-15, x + 1e-15);
+    let a = Curve3::Line {
+        origin: Point3::new(i(0.0), i(0.0), i(0.0)),
+        dir: Vec3::new(i(1.0), i(0.0), i(0.0)),
+    };
+    let b = Curve3::Line {
+        origin: Point3::new(i(0.0), i(2.0 * ZERO), i(0.0)),
+        dir: Vec3::new(i(1.0), i(ZERO), i(0.0)),
+    };
+    let got = pose(
+        &Span::new(&a, (i(0.0), i(1.0))),
+        &Span::new(&b, (i(3.0), i(4.0))),
+        band(),
+    );
+    assert!(matches!(got, Ok(Pose::Apart)), "{got:?}");
+}
+
+/// **The gap is charged with the rounding its coordinates carry.** At
+/// `ε = 10⁻¹²` a span along `x̂` from `(10⁴, 0, 0)` over `(0, 1)` and one
+/// on the same line over `(1 + g, 2)`: a gap `g = 4·10⁻¹¹`, past the
+/// escalation but within the rounding of coordinates ten kilometres out
+/// (about `9·10⁻¹¹` charged), is not read apart, and `g = 2·10⁻¹⁰` is. Two spans on one carrier
+/// through the origin, large by their parameter near 1586 m and
+/// `9.8·10⁻¹²` apart, below the escalation, are not read apart either.
+#[test]
+fn the_gap_is_charged_with_the_rounding_of_far_coordinates() {
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let x = line([1e4, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let read = |g: f64| {
+        pose(
+            &Span::new(&x, (0.0, 1.0)),
+            &Span::new(&x, (1.0 + g, 2.0)),
+            band,
+        )
+    };
+    assert!(
+        !matches!(read(4e-11), Ok(Pose::Apart | Pose::Parallel)),
+        "4e-11: {:?}",
+        read(4e-11)
+    );
+    assert!(
+        matches!(read(2e-10), Ok(Pose::Apart)),
+        "2e-10: {:?}",
+        read(2e-10)
+    );
+    let far = line([0.0, 0.0, 0.0], [-0.42383, -0.24814, 0.21293]);
+    let t1 = 1_586.431_778_335_844_2;
+    let s = 1_586.431_778_335_854;
+    let got = pose(
+        &Span::new(&far, (t1 - 1.0, t1)),
+        &Span::new(&far, (s, s + 1.0)),
+        band,
+    );
+    assert!(
+        !matches!(got, Ok(Pose::Apart | Pose::Parallel)),
+        "far by the parameter: {got:?}"
+    );
 }

@@ -1190,8 +1190,8 @@ fn transport_curve<T: Decide>(
 /// sample point the read chose, entered as the constant it is (a held
 /// midpoint would only widen the parameter at an enclosure scalar).
 fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
-    let (u0, u1) = s.knots_u().domain();
-    let (v0, v1) = s.knots_v().domain();
+    let (u0, u1) = s.knots_u_f64_interim().domain();
+    let (v0, v1) = s.knots_v_f64_interim().domain();
     let jet = s.ders(T::from_f64((u0 + u1) * 0.5), T::from_f64((v0 + v1) * 0.5));
     let n = jet.du.cross(jet.dv).normalize();
     (!n.x.is_poison() && !n.y.is_poison() && !n.z.is_poison()).then_some(n)
@@ -3188,12 +3188,7 @@ fn derive_edge<T: Decide>(
 fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
     use geom_brep::Pcurve;
     Some(match *pcurve {
-        Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
-            p0: geom_core::Point2::new(p0.x, p0.y + shift),
-            pa,
-            pb,
-            pl,
-        },
+        Pcurve::Harmonic { .. } => pcurve.translate(T::zero(), shift),
         Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
             p0: geom_core::Point2::new(p0.x, p0.y + shift),
             pl,
@@ -3900,7 +3895,13 @@ fn corner_of_root<T: Decide>(
     tol: Tol,
     held: &geom_core::spline::Knots<T>,
 ) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
-    let held_end = |v: f64| held.value_at(v).unwrap_or_else(|| T::from_computed(v));
+    // `held` is a carrier's knots, which are points (`net::carrier_knots`).
+    let held_end = |v: f64| match held.value_at(v) {
+        Ok(k) => k.unwrap_or_else(|| T::from_computed(v)),
+        Err(e) => {
+            unreachable!("a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}")
+        }
+    };
     use crate::offset_derive::SplineRoot;
     match root {
         Ok(SplineRoot::At(t)) => Ok(Ok(T::from_computed(t))),
@@ -4570,8 +4571,8 @@ mod offset_fit_door_rows {
                 .iter()
                 .flat_map(|p| p.to_array())
                 .chain(n.weights().iter().copied())
-                .chain(n.knots_u().knots().iter().copied())
-                .chain(n.knots_v().knots().iter().copied())
+                .chain(n.knots_u_f64_interim().knots().iter().copied())
+                .chain(n.knots_v_f64_interim().knots().iter().copied())
                 .map(f64::to_bits)
                 .collect()
         };
@@ -4607,13 +4608,13 @@ mod shift_chart_v_rows {
             sense: 1.0,
         });
         assert!(shift_chart_v(&section, 0.3).is_none());
-        let harmonic = Pcurve::Harmonic {
-            p0: Point2::new(0.0, 1.0),
-            pa: Vec2::new(0.5, 0.0),
-            pb: Vec2::new(0.0, 0.5),
-            pl: Vec2::new(0.0, 0.0),
-        };
-        let Some(Pcurve::Harmonic { p0, .. }) = shift_chart_v(&harmonic, 0.25) else {
+        let harmonic = Pcurve::free_harmonic(
+            Point2::new(0.0, 1.0),
+            Vec2::new(0.5, 0.0),
+            Vec2::new(0.0, 0.5),
+            Vec2::new(0.0, 0.0),
+        );
+        let Some(Some((p0, ..))) = shift_chart_v(&harmonic, 0.25).map(|p| p.harmonic_form()) else {
             panic!("a harmonic image shifts");
         };
         assert_eq!(p0.y, 1.25);

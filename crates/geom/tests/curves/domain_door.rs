@@ -45,19 +45,22 @@ fn on_domain_pins_the_ends_carries_the_structure_and_reparametrizes() {
     let (mlo, mhi) = moved.domain();
     assert_eq!((mlo.to_bits(), mhi.to_bits()), (lo.to_bits(), hi.to_bits()));
     assert_eq!(moved.degree(), src.degree());
-    assert_eq!(moved.knots().knots().len(), src.knots().knots().len());
+    assert_eq!(
+        moved.knots_f64_interim().knots().len(),
+        src.knots_f64_interim().knots().len()
+    );
 
     // Interior knots: the affine image through the source's own
     // `[a, b]`; the double knot stays double.
     let span = hi - lo;
     let want: Vec<u64> = src
-        .knots()
+        .knots_f64_interim()
         .interior()
         .iter()
         .map(|k| (lo + span * ((k - a) / (b - a))).to_bits())
         .collect();
     let got: Vec<u64> = moved
-        .knots()
+        .knots_f64_interim()
         .interior()
         .iter()
         .map(|k| k.to_bits())
@@ -132,7 +135,10 @@ fn on_domain_refuses_as_the_domain_and_serves_both_dimensions() {
     let moved = src3.on_domain(lo, hi).unwrap();
     let (mlo, mhi) = moved.domain();
     assert_eq!((mlo.to_bits(), mhi.to_bits()), (lo.to_bits(), hi.to_bits()));
-    assert_eq!(moved.knots().interior(), &[lo + (hi - lo) * 0.5]);
+    assert_eq!(
+        moved.knots_f64_interim().interior(),
+        &[lo + (hi - lo) * 0.5]
+    );
     let net3 = |c: &[Point3<f64>]| {
         c.iter()
             .map(|p| (p.x.to_bits(), p.y.to_bits(), p.z.to_bits()))

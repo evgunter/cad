@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-13
 priority: P2
 cost: E
-refs: [lineage-lists-are-five-newtypes-over-one-core]
+refs: [5049]
 ---
 
 Found by `fuse/one-lineage-list` (the `lineage-lists-are-five-newtypes-over-one-core`

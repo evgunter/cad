@@ -63,35 +63,41 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
     // (side, kind) → the rows on the start rim's Piece(0), by tail.
     let mut pieces: BTreeMap<SplitHalf, Vec<StableName>> = BTreeMap::new();
     let mut crossings: BTreeMap<(SplitHalf, Sense), [f64; 3]> = BTreeMap::new();
-    for (name, entry) in value.name_table.iter() {
-        let Entry::Unique(at) = entry else {
-            panic!("no row ties: {name:?} {entry:?}");
-        };
-        let half = &halves[at.body as usize];
-        match (name.kind, name.path.as_slice()) {
-            (EntityKind::Edge, [RoleSeg::SplitFragment { side, parent }, tail @ ..])
-                if rim(parent) =>
-            {
-                assert!(
-                    matches!(tail, [] | [RoleSeg::Fragment(Qualifier::Ends(_))]),
-                    "{name:?}"
-                );
-                pieces.entry(*side).or_default().push(name.clone());
+    // Each half its own table (NAMES N1), its body that table's body 0.
+    for side in [SplitHalf::Above, SplitHalf::Below] {
+        let half = &halves[side.output_body() as usize];
+        for (name, entry) in crate::fixture::half(&ev, split, side).iter() {
+            let Entry::Unique(at) = entry else {
+                panic!("no row ties: {name:?} {entry:?}");
+            };
+            assert_eq!(at.body, 0, "a half's table holds one body: {name:?}");
+            match (name.kind, name.path.as_slice()) {
+                (EntityKind::Edge, [RoleSeg::SplitFragment { parent }, tail @ ..])
+                    if rim(parent) =>
+                {
+                    assert!(
+                        matches!(tail, [] | [RoleSeg::Fragment(Qualifier::Ends(_))]),
+                        "{name:?}"
+                    );
+                    pieces.entry(side).or_default().push(name.clone());
+                }
+                (EntityKind::Vertex, [RoleSeg::CrossingVertex { edge, sense }]) if rim(edge) => {
+                    let EntityKey::Vertex(v) = at.key else {
+                        panic!("a vertex row names a vertex: {name:?}");
+                    };
+                    let p = point(half, v);
+                    assert!(
+                        crossings.insert((side, *sense), p.to_array()).is_none(),
+                        "one crossing a sense a side: {name:?}"
+                    );
+                }
+                (EntityKind::Vertex, [RoleSeg::CrossingVertex { edge, .. }, ..]) if rim(edge) => {
+                    panic!(
+                        "a crossing of the rim is ranked though its sense tells it apart: {name:?}"
+                    )
+                }
+                _ => {}
             }
-            (EntityKind::Vertex, [RoleSeg::CrossingVertex { side, edge, sense }]) if rim(edge) => {
-                let EntityKey::Vertex(v) = at.key else {
-                    panic!("a vertex row names a vertex: {name:?}");
-                };
-                let p = point(half, v);
-                assert!(
-                    crossings.insert((*side, *sense), p.to_array()).is_none(),
-                    "one crossing a sense a side: {name:?}"
-                );
-            }
-            (EntityKind::Vertex, [RoleSeg::CrossingVertex { edge, .. }, ..]) if rim(edge) => {
-                panic!("a crossing of the rim is ranked though its sense tells it apart: {name:?}")
-            }
-            _ => {}
         }
     }
     let above_pieces = &pieces[&SplitHalf::Above];
@@ -106,7 +112,7 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
             Some(RoleSeg::Fragment(Qualifier::Ends(ends))) if ends.len() == 2
                 && ends.iter().all(|e| matches!(
                     e.path.first(),
-                    Some(RoleSeg::CrossingVertex { side: SplitHalf::Above, .. })
+                    Some(RoleSeg::CrossingVertex { .. })
                 ))
         ),
         "a lone piece is named by its ends too, the two Above crossings: {above_pieces:?}"
@@ -124,7 +130,7 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
                 Some(RoleSeg::Fragment(Qualifier::Ends(ends))) if ends.len() == 2
                     && ends.iter().any(|e| matches!(
                         e.path.first(),
-                        Some(RoleSeg::CrossingVertex { side: SplitHalf::Below, .. })
+                        Some(RoleSeg::CrossingVertex { .. })
                     ))
             ),
             "a Below piece ends at a Below crossing: {piece:?}"
@@ -162,9 +168,8 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
         .edges()
         .map(|(e, _)| e)
         .find(|&e| {
-            ev.value(ext)
+            ev.table_at(ext)
                 .unwrap()
-                .name_table
                 .name_of(&editor_core::EntityRef {
                     body: 0,
                     key: EntityKey::Edge(e),
@@ -223,16 +228,14 @@ fn a_wall_crossed_twice_names_its_same_side_pieces_by_the_edges_they_keep() {
         .value(split)
         .unwrap_or_else(|| panic!("the split names: {:?}", ev.nodes.get(&split)));
     let mut kept: BTreeMap<StableName, Vec<Vec<StableName>>> = BTreeMap::new();
-    for (name, entry) in value.name_table.iter() {
+    let _ = value;
+    for (name, entry) in crate::fixture::half(&ev, split, SplitHalf::Below).iter() {
         assert!(
             matches!(entry, Entry::Unique(_)),
             "no row ties: {name:?} {entry:?}"
         );
         if let [
-            RoleSeg::SplitFragment {
-                side: SplitHalf::Below,
-                parent,
-            },
+            RoleSeg::SplitFragment { parent },
             RoleSeg::Fragment(Qualifier::Keeps(edges)),
         ] = name.path.as_slice()
         {

@@ -58,7 +58,7 @@ use std::time::Instant;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
-use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileDoc, ProfileLift, evaluate};
+use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileDoc, evaluate};
 use geom_core::sym::report::{
     DecisionShape, ShapeOutcome, name_param, start_shape_report, take_shape_report,
 };
@@ -202,7 +202,6 @@ fn replay(
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     if report {
@@ -538,7 +537,7 @@ fn sym_9_what_each_retry_recovers() {
 /// any more, so the half that shows the ladder RECOVERING something is
 /// [`sym_9_the_drive_writes_the_ladders_receipt`]'s: on the pad's leaf
 /// at `1e1·ε` the ladder takes four decisions the first attempt left
-/// numeric (`symbolic` 1311 → 1315, `retried` 4 against 0).
+/// numeric (`symbolic` 1211 → 1215, `retried` 4 against 0).
 ///
 /// Every extruded cap decides `cap_plane_orientation` once, numeric
 /// on both sides: the plate's `numeric` 704 → 710, the annulus's
@@ -551,6 +550,38 @@ fn sym_9_what_each_retry_recovers() {
 /// annulus 566 → 539, boss 549 → 516, bracket 1448 → 1387, link
 /// 862 → 827, the pad's leaf 1376 → 1315. No decision moved; one left.
 ///
+/// Placing each row over its edge's span in the chart's principal
+/// window (C4) reads two half-period marks per placed azimuth, numeric
+/// on both sides, and a cylinder's meridian azimuth is read only on a
+/// meridian, so a rim circle centred on the axis no longer takes the
+/// frame read the tier proved zero. With the ladder and without it
+/// alike: the plate 1048/654 → 1032/726, the annulus 566/399 →
+/// 550/471, the boss 549/376 → 537/428, the bracket 1448/1004 →
+/// 1428/1092 and the link 862/663 → 846/731, `retried` zero on all
+/// five. `symbolic` falls here because the decisions are gone, not
+/// because a retry took them; the pad's leaf moves 1372/1284 →
+/// 1348/1384 bare and 1376/1280 → 1352/1380 with the ladder, its four
+/// recovered decisions held. Main's final non-finite check and the
+/// placement add, with the ladder and without it alike: `symbolic` falls
+/// by main's count on each (plate −45, annulus −27, boss −33, bracket −61,
+/// link −35, the pad's leaf −61) from the placement's, `numeric` the
+/// placement's: plate 987/726, annulus 523/471, boss 504/428, bracket
+/// 1367/1092, link 811/731, the pad's leaf 1287/1384 bare and 1291/1380
+/// with the ladder. The frame decided across the window's cut sends the
+/// pad leaf's four theorems on the old frame's cut (`x ≡ 0`) to the
+/// numeric channel: 1283/1388 bare and 1287/1384 with the ladder.
+///
+/// A harmonic row's windings are structure (PCERT B2a, `[ev]` PR 5113's
+/// first decision): the angle channels' affine decisions, the winding
+/// walk and the harmonic period gate decide nothing now, with the ladder
+/// and without it alike. The plate 987/726 → 939/686, the annulus
+/// 523/471 → 475/431, the boss 504/428 → 468/398, the bracket 1367/1092
+/// → 1307/1042, the link 811/731 → 763/691, `retried` zero on all five;
+/// the pad's leaf 1283/1388 → 1211/1328 bare and 1287/1384 → 1215/1324
+/// with the ladder, its four recovered decisions held. Every column
+/// falls because the decisions are gone, not because a retry took
+/// them.
+///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
@@ -560,11 +591,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1003, 654], [1003, 654], 0),
-        ("r1_annulus", [539, 399], [539, 399], 0),
-        ("r1_segment_boss", [516, 376], [516, 376], 0),
-        ("r2_filleted_bracket", [1387, 1004], [1387, 1004], 0),
-        ("r2_link", [827, 663], [827, 663], 0),
+        ("two_hole_plate", [939, 686], [939, 686], 0),
+        ("r1_annulus", [475, 431], [475, 431], 0),
+        ("r1_segment_boss", [468, 398], [468, 398], 0),
+        ("r2_filleted_bracket", [1307, 1042], [1307, 1042], 0),
+        ("r2_link", [763, 691], [763, 691], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -679,7 +710,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1315, 1280, 4],
+        [1215, 1324, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -691,7 +722,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1311, 1284, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1211, 1328, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"
