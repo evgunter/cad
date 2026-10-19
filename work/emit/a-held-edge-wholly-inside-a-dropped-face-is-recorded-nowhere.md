@@ -2,11 +2,12 @@
 id: a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere
 kind: issue
 title: A kept face's edge that lies wholly inside a dropped covered face, both ends at vertex-on-face contacts, is held by no discard row
-status: open
+status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
 design: true
+blocked_on: [coincident-faces-are-not-imprinted-on-each-other-before-the-lump]
 ---
 
 
@@ -143,3 +144,48 @@ rule: the fragment the classification dropped as inside the other
 operand, as against the covered copy. That is step 2 of **Next**,
 still open, and the three-box reproducer's question above is the same
 one.
+
+## The designer pair's answer (to Ev, fork-log row 171)
+
+**The premise above is wrong** (dumped by both designers). In the pair
+union and `[a, b]` the kernel does not carve `b`'s top along the
+floor's outline: the contacts are tangential and `vtxfac` does no
+surgery, so `b`'s top under the plate is **one** discarded fragment
+holding nothing. `[b, a]` names only because Eq. 15.3 keeps operand
+A's copy of a same-oriented coplanar pair: with `b` as A, `b`'s copy is
+kept and carved, and the outline is recorded as `bordered`.
+
+**Recommended:** name it, do not refuse. At a vertex-on-face covered
+contact (`vtxfac::classify_vertex_on_face`, where `covered` is already
+pushed), the kernel records `HeldEdge`s for the kept face's edges that
+lie in the dropped face (`HeldAt::Inside`), attached to the one dropped
+fragment that contains the contact point by the kernel's own `contfp`
+(`boolean/contain.rs`), refusing typed only in band. Records only; the
+emitter does not change.
+
+- With the record emulated, the pocket fixture names alike in the pair
+  union, `[a, b]` and `[b, a]`, matching `[b, a]`'s names today.
+- The fragment matters: in a tunnel-with-pillar variant, giving the
+  edges to every dropped fragment makes the tunnel piece cite the
+  pillar's four walls. Attaching only where the dropped face is one
+  fragment, and refusing otherwise, refuses a slot variant in two
+  orders that `[b, a]` names.
+- topo `boolean_covered::a_discarded_face_holds_the_edges_of_the_kept_face_that_runs_into_it`
+  re-baselines: it gains the slab notch's bottom edge, the edge this
+  row says is recorded nowhere.
+
+No N2 text changes for this one; it asks only whether the record is the
+right home.
+
+## Ev's ruling: no stopgap (PR 5153, 2026-10-19)
+
+Ev read the uncarved dropped face as a deeper problem in how the kernel
+represents edges lying on planes. Ev declined the `HeldEdge` record as
+a stopgap ("no stopgap"). The fix is the kernel's: imprint each
+coincident face with the other operand's in-plane edges before the Eq.
+15.3 lump. It is filed on FLUSH as
+`coincident-faces-are-not-imprinted-on-each-other-before-the-lump`, and
+this row waits on it. Once that lands, re-measure the pocket fixture
+(un-ignore it) and the three-box reproducer. The emitter is expected to
+need nothing, because the outline is then recorded as `bordered` in
+every order, as `[b, a]` already does.
