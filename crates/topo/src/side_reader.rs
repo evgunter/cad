@@ -441,21 +441,60 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
     band: Band,
     volume: impl FnOnce() -> Result<SolidContainment, V>,
 ) -> Result<Result<SolidContainment, SideUnread<V>>, PointInSolidError> {
+    match geom_core::k_stats::in_family(FAMILY, || cast_aims(body, sel, band))? {
+        Rays::Side(side) => Ok(Ok(side)),
+        Rays::InBand(pair) => Ok(Err(SideUnread::InBand(pair))),
+        Rays::Unread { aimed, set_aside } => Ok(volume().map_err(|volume| SideUnread::Fallback {
+            volume,
+            aimed,
+            set_aside,
+        })),
+    }
+}
+
+/// **The family the reader's ray decisions are recorded under**
+/// ([`geom_core::k_stats::in_family`]): every verdict an aimed ray
+/// decides, its own crossings and the in-face and region walks it reads
+/// them through. The reader's answer cannot turn on any one of them
+/// (`[verdicts]`: an instrument represents no tie-break the band forbids
+/// it), so a flip among them is never why a result moved, and N5 passes
+/// over them (`editor_core::resolve`). The volume the reader falls back
+/// on is recorded under its own names.
+pub const FAMILY: &str = "side_at_infinity_";
+
+/// What the aimed rays read ([`cast_aims`]).
+enum Rays {
+    /// A ray decided the side.
+    Side(SolidContainment),
+    /// A ray read in band on two faces that do not meet.
+    InBand(AimedPair),
+    /// No ray read: how many were aimed, and each set aside.
+    Unread {
+        aimed: usize,
+        set_aside: Vec<SetAside>,
+    },
+}
+
+/// The aimed rays of [`side_at_infinity`], before the volume.
+fn cast_aims<T: Decide>(
+    body: &Body<T>,
+    sel: &SolidFaces,
+    band: Band,
+) -> Result<Rays, PointInSolidError> {
     let faces = sel.faces();
     // A face the ray test has no arm for faults EVERY ray at
     // `face_geo`, whatever it aims at: no aim can read, so none is cast,
     // and the volume reads with that face as the limit.
     for &face in faces {
         if let Some(e) = uncrossable(body, face)? {
-            return Ok(volume().map_err(|volume| SideUnread::Fallback {
-                volume,
+            return Ok(Rays::Unread {
                 aimed: 0,
                 set_aside: vec![SetAside {
                     aimed: face,
                     aim: None,
                     why: SetAsideWhy::Limit(e),
                 }],
-            }));
+            });
         }
     }
     // Each face's geometry, resolved once for every aimed ray. A face
@@ -466,15 +505,14 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
         match face_geo(body, face, &sel.charts, band) {
             Ok(geo) => geos.push((face, geo)),
             Err(e) => {
-                return Ok(volume().map_err(|volume| SideUnread::Fallback {
-                    volume,
+                return Ok(Rays::Unread {
                     aimed: 0,
                     set_aside: vec![SetAside {
                         aimed: face,
                         aim: None,
                         why: SetAsideWhy::Limit(e),
                     }],
-                }));
+                });
             }
         }
     }
@@ -540,7 +578,7 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
             }
         };
         match crossings.closest(AIMED_ROWS.order, band, pair) {
-            Ok(Some((outward, _, _))) => return Ok(Ok(side_before(outward))),
+            Ok(Some((outward, _, _))) => return Ok(Rays::Side(side_before(outward))),
             // Two faces that meet at a vertex are no pair: their gap closes
             // at the cell they share, and a ray crossing a sharp corner
             // near it reads in band however definite every pair is.
@@ -560,13 +598,9 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
         }
     }
     if let Some(pair) = in_band {
-        return Ok(Err(SideUnread::InBand(pair)));
+        return Ok(Rays::InBand(pair));
     }
-    Ok(volume().map_err(|volume| SideUnread::Fallback {
-        volume,
-        aimed,
-        set_aside,
-    }))
+    Ok(Rays::Unread { aimed, set_aside })
 }
 #[cfg(test)]
 mod pre_filter_tests {

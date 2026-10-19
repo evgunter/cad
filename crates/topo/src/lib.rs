@@ -895,7 +895,7 @@ pub use lineage::{
     ConeCopies, Division, FaceDivisions, Fate, Lineage, LineageError, LineageKey, LineageRows,
     Minted, Remainder, RowDefect, RowRefusal, SplitEdgeDivisions, Substitutions,
 };
-pub use side_reader::{SetAside, SetAsideWhy};
+pub use side_reader::{FAMILY as SIDE_READER_FAMILY, SetAside, SetAsideWhy};
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
