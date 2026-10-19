@@ -1226,3 +1226,9 @@ Signed (CLEAVE orchestrator).
   - Row closed.
   - Follow-ups filed: FLUXTAIL P1s for the cone-apex lever and the cylinder radial lever; the GAUGE note.
 - 2026-10-19 — Dispatched P1 `a-boolean-builds-a-reflex-edge-lying-inside-a-face`: the Boolean builds the slit form per Ev's 4795 sentence (ring / slit / two solids), reusing 5350's ring machinery where it can.
+- 2026-10-19 — PR 5350 full review: FIX-FIRST.
+  - MAJOR: the curved keel now ships an Ok whose side tier 3′ refuses (the split's gate reads tier 3 only, against README:591 and fork row 101). Fix: refuse curved slit trees typed (not yet); file the gate/doc mismatch.
+  - MAJOR: `SlitUnplaced` ('kernel defect') is reachable from a tilted cylinder (`line_clears_conic` can't nest a slit inside an ellipse). Fix: nest by point containment; escalate in band; construction gap where undecidable.
+  - Also: fold the duplicate tess row into the 10-02 row, share the nesting tail, stale docs, the mutant survivor, and file the two-slit-detector consolidation.
+  - Confirmed: the tree walk is sound, volumes 15.7/16, no new refusals.
+  - Fix pass sent.
