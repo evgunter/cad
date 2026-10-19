@@ -1826,7 +1826,7 @@ fn v_meter<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
 /// identity, so every image form takes it exactly
 /// ([`Pcurve::map_affine`]); the walk and the lift read the one map.
 pub(crate) fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -> Pcurve<T> {
-    pcurve.map_affine(|p| geom_core::Point2::new(p.x, p.y + k * period), |v| v)
+    pcurve.translate(T::zero(), k * period)
 }
 
 /// The sphere chart's INVOLUTION twin of an image: `S(u + π, π − v) =
@@ -1839,19 +1839,20 @@ pub(crate) fn shift_polar_branch<T: Real>(pcurve: &Pcurve<T>, k: T, period: T) -
 /// chart mints takes exactly ([`Pcurve::map_affine`]).
 ///
 /// `None` off a sphere chart — the torus has no such twin (R > 0 breaks
-/// the symmetry), and neither does the cone (cos α > 0) — and for a
-/// spiric image, which no sphere chart mints and whose wall form has no
-/// image of a map negating one channel. The walk reads `None` as no
-/// second candidate, the lift as an element that does not apply.
+/// the symmetry), and neither does the cone (cos α > 0) — and where
+/// [`Pcurve::map_affine`] refuses the involution: a spiric wall image,
+/// which no sphere chart mints and whose form has no image of a map
+/// negating one channel (`WallReflected`), and a harmonic row whose
+/// polar count has no negation in `i32` (`WindingUnnegatable`), which
+/// no derivation mints. The walk reads `None` as no second candidate,
+/// the lift as an element that does not apply.
 pub(crate) fn sphere_twin<T: Real>(surface: &Surface<T>, pcurve: &Pcurve<T>) -> Option<Pcurve<T>> {
-    if !matches!(surface, Surface::Sphere { .. }) || matches!(pcurve, Pcurve::Spiric { .. }) {
+    if !matches!(surface, Surface::Sphere { .. }) {
         return None;
     }
-    let pi = T::pi();
-    Some(pcurve.map_affine(
-        |p| geom_core::Point2::new(p.x + pi, pi - p.y),
-        |v| geom_core::Vec2::new(v.x, T::zero() - v.y),
-    ))
+    pcurve
+        .map_affine(geom_brep::ChartMap::sphere_involution())
+        .ok()
 }
 
 /// One half-edge's minted chart curve, before certification: the
@@ -6068,12 +6069,7 @@ mod stretch_meter {
         use geom_core::{Point2, Vec2};
         let zero = Vec2::new(0.0, 0.0);
         let at = Point2::new(0.4, 0.5);
-        let image = Pcurve::Harmonic {
-            p0: at,
-            pa: zero,
-            pb: zero,
-            pl: zero,
-        };
+        let image = Pcurve::free_harmonic(at, zero, zero, zero);
         for (span, reset) in [(1e-12, true), (5e-9, true), (100.0, false)] {
             let s = flat_chart(span);
             let vertex = Point3::new(0.4 * span, 0.5 * span, 0.0);
@@ -6107,15 +6103,12 @@ mod stretch_meter {
     fn a_narrow_cone_loop_joint_clear_of_the_apex_takes_a_lift_of_its_point() {
         use super::{Deck, JointElement, NearRead, Orbit, decide_joint, near_pole_gap_closes};
         use geom_brep::Pcurve;
-        use geom_core::{Point2, Vec2};
-        let zero = Vec2::new(0.0, 0.0);
+        use geom_core::Point2;
         let tau = std::f64::consts::TAU;
         let at_gap = |surface: &Surface<f64>, vertex, v: f64, gap: f64| {
             let image = Pcurve::Harmonic {
-                p0: Point2::new(0.0, v),
-                pa: zero,
-                pb: zero,
-                pl: zero,
+                u: geom_brep::Channel::fixed_angle(0.0),
+                v: geom_brep::Channel::constant(v),
             };
             let prev = Point2::new(gap, v);
             decide_joint(chart(surface), &image, 0.0, prev, vertex, Some(tau), band())
@@ -6250,7 +6243,7 @@ mod stretch_meter {
     fn a_half_turn_gap_answers_by_the_band_at_every_turn_count() {
         use super::{JointElement, decide_joint};
         use geom_brep::Pcurve;
-        use geom_core::{Point2, Vec2};
+        use geom_core::Point2;
         let alpha = 0.01f64;
         let cone: Surface<f64> = Surface::Cone {
             apex: Point3::new(0.0, 0.0, 0.0),
@@ -6263,12 +6256,9 @@ mod stretch_meter {
         let at = |lever: f64, gap: f64| {
             let d = lever / alpha.sin();
             let vertex = Point3::new(lever, 0.0, d * alpha.cos());
-            let flat = Vec2::new(0.0, 0.0);
             let image = Pcurve::Harmonic {
-                p0: Point2::new(0.0, d),
-                pa: flat,
-                pb: flat,
-                pl: flat,
+                u: geom_brep::Channel::fixed_angle(0.0),
+                v: geom_brep::Channel::constant(d),
             };
             let prev = Point2::new(gap, d);
             match decide_joint(chart(&cone), &image, 0.0, prev, vertex, Some(tau), band()) {
@@ -6746,13 +6736,17 @@ mod polar_shift_tests {
         );
         assert_eq!([pm.x, pm.y, pa.x, pa.y], [1.0, 0.0, 0.0, 0.0703125]);
 
-        let harmonic = Pcurve::Harmonic {
-            p0: Point2::new(0.3, 0.4),
-            pa: Vec2::new(1.0, 0.25),
-            pb: Vec2::new(-0.5, 1.0),
-            pl: Vec2::new(0.125, -0.375),
-        };
-        let Pcurve::Harmonic { p0, pa, pb, pl } = shift_polar_branch(&harmonic, 3.0, period) else {
+        // Every coefficient live, on no chart: the row is of the map,
+        // which takes a free channel's four coefficients alike on any
+        // axis, so the shape is the point and no chart certifies it.
+        let harmonic = Pcurve::free_harmonic(
+            Point2::new(0.3, 0.4),
+            Vec2::new(1.0, 0.25),
+            Vec2::new(-0.5, 1.0),
+            Vec2::new(0.125, -0.375),
+        );
+        let Some((p0, pa, pb, pl)) = shift_polar_branch(&harmonic, 3.0, period).harmonic_form()
+        else {
             panic!("the harmonic arm keeps its variant");
         };
         assert_eq!(p0.y, 0.4 + 3.0 * period);
@@ -7367,12 +7361,14 @@ pub(crate) mod pole_slit_tests {
                 // The left meridian's stored image: the constant azimuth
                 // one copy of which is `−1`.
                 for (he, _) in body.half_edges() {
-                    if let Some(geom_brep::Pcurve::Harmonic { p0, pl, .. }) =
-                        body.pcurve(he).map(|c| c.pcurve())
+                    if let Some(geom_brep::Pcurve::Harmonic {
+                        u: geom_brep::Channel::Angle { phase, winding: 0 },
+                        ..
+                    }) = body.pcurve(he).map(|c| c.pcurve())
                     {
-                        let off = (p0.x + 1.0).rem_euclid(tau);
-                        if pl.x == 0.0 && (off < 2.0 * far || tau - off < 2.0 * far) {
-                            here.push(p0.x);
+                        let off = (phase + 1.0).rem_euclid(tau);
+                        if off < 2.0 * far || tau - off < 2.0 * far {
+                            here.push(*phase);
                         }
                     }
                 }
@@ -8217,7 +8213,7 @@ mod lift_rows {
     use crate::joint::{Deck, JointElement};
     use geom::Surface;
     use geom_brep::Pcurve;
-    use geom_core::{Band, Decide, Interval, Point2, Point3, Vec2, Vec3};
+    use geom_core::{Band, Decide, Interval, Point2, Point3, Vec3};
 
     const EPS: f64 = 1e-9;
 
@@ -8246,16 +8242,14 @@ mod lift_rows {
         }
     }
 
-    /// A row that sits at one chart point: what a joint reads of it is
+    /// A row that sits at one chart point of a sphere or torus chart,
+    /// both of whose channels are angles: what a joint reads of it is
     /// its entry, and its twin.
     fn at<T: Decide>(u: f64, v: f64) -> Pcurve<T> {
         let f = T::from_f64;
-        let zero = Vec2::new(f(0.0), f(0.0));
         Pcurve::Harmonic {
-            p0: Point2::new(f(u), f(v)),
-            pa: zero,
-            pb: zero,
-            pl: zero,
+            u: geom_brep::Channel::fixed_angle(f(u)),
+            v: geom_brep::Channel::fixed_angle(f(v)),
         }
     }
 
@@ -8667,11 +8661,18 @@ mod room_fence_tests {
     /// The fence at `vertex`, on the orbit a harmonic image on
     /// `surface` walks (a sphere's, half periods with its twin).
     fn room(surface: &Surface<f64>, vertex: Point3<f64>) -> bool {
+        // A rim winding once: the second channel is an angle on a
+        // sphere, a length on a cone.
+        let v = match surface {
+            Surface::Sphere { .. } | Surface::Torus { .. } => geom_brep::Channel::fixed_angle(0.0),
+            _ => geom_brep::Channel::constant(0.0),
+        };
         let image = geom_brep::Pcurve::Harmonic {
-            p0: geom_core::Point2::new(0.0, 0.0),
-            pa: geom_core::Vec2::new(0.0, 0.0),
-            pb: geom_core::Vec2::new(0.0, 0.0),
-            pl: geom_core::Vec2::new(1.0, 0.0),
+            u: geom_brep::Channel::Angle {
+                phase: 0.0,
+                winding: 1,
+            },
+            v,
         };
         joint_has_room(
             DescribedChart::of(surface).unwrap(),

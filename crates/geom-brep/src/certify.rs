@@ -676,31 +676,45 @@ impl core::fmt::Display for CertifyError {
                 verdict: Refused::Zero(Classified { margin, .. }),
             } => write!(
                 f,
-                "the stored parameter interval is not shown to run forward (margin {margin:e} m)"
+                "the stored parameter interval is not shown to run forward (length {} m)",
+                margin.readable()
             ),
             Self::IntervalNotForward {
-                verdict: Refused::Negative { .. },
+                verdict: Refused::Negative { margin },
             } => write!(
                 f,
-                "the stored parameter interval runs backwards — increasing parameter must \
-                 run from the edge's start vertex to its end vertex"
+                "the stored interval runs backwards by {} m — the edge's parameter must increase \
+                 from its start vertex to its end",
+                margin.readable_below_zero()
             ),
             Self::SpanMeterCollapsed { verdict } => write!(
                 f,
-                "the spline carrier's knot domain, metered at its certified speed floor, is not \
-                 shown above zero (margin {:e} m), so its stored interval has no certified \
-                 metre scale",
-                verdict.margin()
+                "the spline carrier's knot domain, metered at its certified speed floor, is {} \
+                 zero (margin {} m), so the stored interval has no proven metre scale",
+                verdict.worded("not shown above", "below"),
+                verdict.margin().readable()
             ),
-            Self::ArmCollapsed { sample, verdict } => write!(
+            Self::ArmCollapsed {
+                sample,
+                verdict: verdict @ Refused::Zero(_),
+            } => write!(
                 f,
-                "at sample {sample} the edge is not shown {} (margin {:e} m)",
+                "at sample {sample} the edge is not shown {} (margin {} m)",
                 crate::DIHEDRAL_ARM_CLAUSE,
-                verdict.margin()
+                verdict.margin().readable()
+            ),
+            Self::ArmCollapsed {
+                sample,
+                verdict: verdict @ Refused::Negative { .. },
+            } => write!(
+                f,
+                "at sample {sample} the length the faces' angle is measured over is below zero \
+                 (margin {} m)",
+                verdict.margin().readable()
             ),
             Self::WindingExceeded => write!(
                 f,
-                "a periodic (circle/ellipse) carrier's parameter interval \
+                "a periodic carrier's parameter interval \
                  spans more than one full period — |t₁ − t₀| ≤ τ is required to close the \
                  sample-schedule winding alias (8kτ family)"
             ),
@@ -746,38 +760,30 @@ impl core::fmt::Display for CertifyError {
             } => {
                 write!(
                     f,
-                    "at sample {sample} the faces are not shown to cross (margin {:e} m",
-                    verdict.margin()
+                    "at sample {sample} the faces {} cross (margin {} m",
+                    verdict.worded("are not shown to", "do not"),
+                    verdict.margin().readable()
                 )?;
                 if let Some(lever) = lever {
                     write!(f, ", their angle levered by {lever}")?;
                 }
-                write!(f, "), where the edge's description says they cross")
+                write!(f, "), though the edge's description says they do")
             }
             Self::NotSecondOrderSeparated { sample, verdict } => write!(
                 f,
-                "at sample {sample} the faces are not shown to curve apart at second order \
-                 (margin {:e} m), so they are not shown to fix where the edge runs, which its \
-                 description says they do",
-                verdict.margin()
+                "at sample {sample} the faces {} curve apart at second order (margin {} m), so \
+                 they {} fix where the edge runs, though its description says they do",
+                verdict.worded("are not shown to", "do not"),
+                verdict.margin().readable(),
+                verdict.worded("might not", "cannot")
             ),
-            Self::TubeNotSeparated {
-                verdict: verdict @ Refused::Zero(_),
-            } => write!(
+            Self::TubeNotSeparated { verdict } => write!(
                 f,
-                "the certified lower bound on how far the faces curve apart along the edge \
-                 is not shown above zero (margin {:e} m), so the certificate cannot prove they \
-                 fix where the edge runs, which its description says they do",
-                verdict.margin()
-            ),
-            Self::TubeNotSeparated {
-                verdict: verdict @ Refused::Negative { .. },
-            } => write!(
-                f,
-                "the certified lower bound on how far the faces curve apart along the edge \
-                 is below zero (margin {:e} m), so the certificate cannot prove they fix where \
-                 the edge runs, which its description says they do",
-                verdict.margin()
+                "the certified lower bound on how far the faces curve apart is {} zero (margin \
+                 {} m) along the whole edge, so they are not proved to fix where it runs, though \
+                 its description says they do",
+                verdict.worded("not shown above", "below"),
+                verdict.margin().readable()
             ),
             Self::TangentCertificateUnsupported => write!(
                 f,
@@ -5830,7 +5836,7 @@ mod tests {
             (
                 in_band(0.0),
                 Reading::Build,
-                "the stored parameter interval is not shown to run forward (margin 0e0 m). \
+                "the stored parameter interval is not shown to run forward (length 0 m). \
                  Recourse: move the geometry so this edge runs forward over a clear length; an \
                  edge of no length, or a reversed one, is one no kernel construction mints, so \
                  this is a kernel defect worth reporting",
@@ -5838,7 +5844,7 @@ mod tests {
             (
                 in_band(0.0),
                 Reading::AtRest,
-                "the stored parameter interval is not shown to run forward (margin 0e0 m). \
+                "the stored parameter interval is not shown to run forward (length 0 m). \
                  Recourse: move the geometry so this edge runs forward over a clear length; an \
                  edge of no length, or a reversed one, is one no kernel construction mints, so \
                  this is a kernel defect or a damaged file, worth reporting",
@@ -5846,16 +5852,15 @@ mod tests {
             (
                 reversed,
                 Reading::Build,
-                "the stored parameter interval runs backwards — increasing parameter must run \
-                 from the edge's start vertex to its end vertex. Recourse: move the geometry so \
-                 this edge runs forward over a clear length; an edge of no length, or a reversed \
-                 one, is one no kernel construction mints, so this is a kernel defect worth \
-                 reporting",
+                "the stored interval runs backwards by 0.001 m — the edge's parameter must \
+                 increase from its start vertex to its end. Recourse: move the geometry so this \
+                 edge runs forward over a clear length; an edge of no length, or a reversed one, \
+                 is one no kernel construction mints, so this is a kernel defect worth reporting",
             ),
             (
                 in_band(-5e-10),
                 Reading::AtRest,
-                "the stored parameter interval is not shown to run forward (margin -5e-10 m). \
+                "the stored parameter interval is not shown to run forward (length -5e-10 m). \
                  Recourse: move the geometry so this edge runs forward over a clear length; an \
                  edge of no length, or a reversed one, is one no kernel construction mints, so \
                  this is a kernel defect or a damaged file, worth reporting",
@@ -6712,7 +6717,7 @@ mod tests {
         assert_eq!(
             text,
             "at sample 4 the edge is not shown between faces wide enough, for how they curve, to \
-             measure their angle (margin 0e0 m). Recourse: move the geometry so that \
+             measure their angle (margin 0 m). Recourse: move the geometry so that \
              edge's faces clearly run farther and none curves tightly there; faces of no \
              extent or a cone's point leave no angle to measure; a radius below zero is a defect",
         );
@@ -6722,10 +6727,13 @@ mod tests {
     /// whether the reading shows none is the ending's to say, from the
     /// reading's class, so a positive span and an enclosure across zero
     /// render no such claim anywhere, and a reading that does show none
-    /// says so once, in the ending. Each payload says "not shown" of its
-    /// reading, which holds of every class a zero verdict carries — a
+    /// says so once, in the ending. Each zero payload says "not shown" of
+    /// its reading, which holds of every class a zero verdict carries — a
     /// symbolic-tier proved zero whose rounded number lies outside the
-    /// zero band included — and prints it as `(margin … m)`.
+    /// zero band included — and prints it as `(margin … m)`, or as the
+    /// `(length … m)` its door names. A negative payload says what its
+    /// verdict decided, with the same number. No payload says a word
+    /// twice.
     #[test]
     fn each_zero_arm_payload_prints_its_reading_and_claims_no_size() {
         use geom_core::sym::with_session;
@@ -6770,26 +6778,41 @@ mod tests {
         let below = Refused::Negative {
             margin: MarginDiag::value(-5e-9),
         };
+        let extent = Some(crate::ssi::PointLever::Extent);
         let rows = [
             (
                 forward(zero(sized)),
-                "the stored parameter interval is not shown to run forward (margin 5e-10 m)",
+                "the stored parameter interval is not shown to run forward (length 5e-10 m)",
             ),
             (
                 forward(zero(across)),
-                "the stored parameter interval is not shown to run forward (margin [-2e-10, \
+                "the stored parameter interval is not shown to run forward (length [-2e-10, \
                  3e-10] m)",
             ),
             (
                 forward(proved),
-                "the stored parameter interval is not shown to run forward (margin \
+                "the stored parameter interval is not shown to run forward (length \
                  3.725290298461914e-9 m)",
+            ),
+            (
+                forward(zero(none)),
+                "the stored parameter interval is not shown to run forward (length 0 m)",
+            ),
+            (
+                forward(below),
+                "the stored interval runs backwards by 5e-9 m — the edge's parameter must \
+                 increase from its start vertex to its end",
             ),
             (
                 meter(zero(sized)),
                 "the spline carrier's knot domain, metered at its certified speed floor, is not \
-                 shown above zero (margin 5e-10 m), so its stored interval has no certified \
-                 metre scale",
+                 shown above zero (margin 5e-10 m), so the stored interval has no proven metre \
+                 scale",
+            ),
+            (
+                meter(below),
+                "the spline carrier's knot domain, metered at its certified speed floor, is below \
+                 zero (margin -5e-9 m), so the stored interval has no proven metre scale",
             ),
             (
                 arm(zero(across)),
@@ -6797,39 +6820,62 @@ mod tests {
                  to measure their angle (margin [-2e-10, 3e-10] m)",
             ),
             (
-                crossing(None, zero(sized)),
-                "at sample 4 the faces are not shown to cross (margin 5e-10 m), where the edge's \
-                 description says they cross",
+                arm(zero(none)),
+                "at sample 4 the edge is not shown between faces wide enough, for how they curve, \
+                 to measure their angle (margin 0 m)",
             ),
             (
-                crossing(Some(crate::ssi::PointLever::Extent), zero(sized)),
+                arm(below),
+                "at sample 4 the length the faces' angle is measured over is below zero (margin \
+                 -5e-9 m)",
+            ),
+            (
+                crossing(None, zero(sized)),
+                "at sample 4 the faces are not shown to cross (margin 5e-10 m), though the edge's \
+                 description says they do",
+            ),
+            (
+                crossing(extent, zero(sized)),
                 "at sample 4 the faces are not shown to cross (margin 5e-10 m, their angle \
-                 levered by the feature extent), where the edge's description says they cross",
+                 levered by the feature extent), though the edge's description says they do",
             ),
             (
                 crossing(None, below),
-                "at sample 4 the faces are not shown to cross (margin -5e-9 m), where the edge's \
-                 description says they cross",
+                "at sample 4 the faces do not cross (margin -5e-9 m), though the edge's \
+                 description says they do",
+            ),
+            (
+                crossing(extent, below),
+                "at sample 4 the faces do not cross (margin -5e-9 m, their angle levered by the \
+                 feature extent), though the edge's description says they do",
             ),
             (
                 second(zero(sized)),
                 "at sample 4 the faces are not shown to curve apart at second order (margin \
-                 5e-10 m), so they are not shown to fix where the edge runs, which its \
-                 description says they do",
+                 5e-10 m), so they might not fix where the edge runs, though its description \
+                 says they do",
+            ),
+            (
+                second(below),
+                "at sample 4 the faces do not curve apart at second order (margin -5e-9 m), so \
+                 they cannot fix where the edge runs, though its description says they do",
             ),
             (
                 tube(zero(sized)),
-                "the certified lower bound on how far the faces curve apart along the edge is \
-                 not shown above zero (margin 5e-10 m), so the certificate cannot prove they \
-                 fix where the edge runs, which its description says they do",
+                "the certified lower bound on how far the faces curve apart is not shown above \
+                 zero (margin 5e-10 m) along the whole edge, so they are not proved to fix where \
+                 it runs, though its description says they do",
             ),
             (
                 tube(below),
-                "the certified lower bound on how far the faces curve apart along the edge is \
-                 below zero (margin -5e-9 m), so the certificate cannot prove they fix where the \
-                 edge runs, which its description says they do",
+                "the certified lower bound on how far the faces curve apart is below zero \
+                 (margin -5e-9 m) along the whole edge, so they are not proved to fix where it \
+                 runs, though its description says they do",
             ),
         ];
+        // No payload claims no size or names a cause its verdict did not
+        // decide, and a definite arm hedges nothing. A zero arm's whole
+        // render, ending included, claims no size either.
         let claims = [
             "no length",
             "not long enough",
@@ -6839,9 +6885,32 @@ mod tests {
             "within the tolerance",
         ];
         for (error, payload) in rows {
-            assert_eq!(error.to_string(), payload, "{error:?}");
-            // A proved zero shows no size, so its ending says so.
-            if matches!(error, CertifyError::IntervalNotForward { verdict } if verdict == proved) {
+            let text = error.to_string();
+            assert_eq!(text, payload, "{error:?}");
+            for claim in claims {
+                assert!(
+                    !text.contains(claim),
+                    "the payload claims {claim:?}: {text}"
+                );
+            }
+            assert_eq!(
+                crate::recourse::repeated_words(&text),
+                Vec::<String>::new(),
+                "a word said twice: {text}"
+            );
+            let shown = match error.decision().map(|(_, arm)| arm) {
+                Some(RefusedArm::SignCertain(_)) => {
+                    assert!(
+                        !text.contains("not shown"),
+                        "a decided verdict hedged: {text}"
+                    );
+                    continue;
+                }
+                Some(RefusedArm::Zero(Classified { margin, .. })) => margin,
+                arm => panic!("every row is a refused verdict: {arm:?}"),
+            };
+            // An exact or proved zero shows no size, so its ending says so.
+            if shown == none || shown.proven() {
                 continue;
             }
             for reading in [Reading::Build, Reading::AtRest] {
@@ -6860,10 +6929,6 @@ mod tests {
             (arm(zero(none)), "faces of no extent"),
         ] {
             let text = error.render(Reading::Build);
-            assert!(
-                error.to_string().contains("(margin 0e0 m)"),
-                "the payload prints its zero: {text}"
-            );
             assert_eq!(
                 text.matches(note).count(),
                 1,

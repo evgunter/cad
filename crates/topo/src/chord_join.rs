@@ -3434,30 +3434,33 @@ fn pole_lever<T: Decide>(
 /// `v·Δu` against `v·Δu` (the precision note at `geom_brep::props`'
 /// cylinder Green form, which this shares).
 ///
-/// Read for a cylinder chart, whose every harmonic image
-/// [`chart_pcurve`] writes with a LINEAR azimuth channel (`pa.x = pb.x
-/// = 0`, `u = p0.x + pl.x·t`): `v` is then
-/// `p0.y + pa.y·cos t + pb.y·sin t + pl.y·t` and integrates term by
-/// term. The precondition is decided, not assumed
-/// (`split_chart_azimuth_linear`, the harmonic azimuth amplitude
-/// levered by the radius): an image that breaks it is the chart
-/// writer's invariant broken, and refuses.
+/// Read for a cylinder chart, whose azimuth is an angle channel
+/// ([`geom_brep::Channel::Angle`]): `u = phase + w·t` with no harmonic
+/// part by type, so `du = w·dt`, and `v` is
+/// `p0.y + pa.y·cos t + pb.y·sin t + pl.y·t`, which integrates term by
+/// term.
 ///
 /// # Errors
 ///
-/// [`SplitJoinError::SectionInvariant`] for a harmonic azimuth term;
-/// [`SplitJoinError::Escalated`] when that decision escalates.
+/// [`SplitJoinError::SectionInvariant`] for a harmonic image whose
+/// azimuth is a free channel, which is no cylinder chart's.
 fn chart_v_du<T: Decide>(
     face: FaceKey,
     p: &Pcurve<T>,
     (t0, t1): (T, T),
     anchor: T,
-    radius: T,
-    band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    let Pcurve::Harmonic { p0, pa, pb, pl } = *p else {
+    let Pcurve::Harmonic { u, v } = *p else {
         return Ok(None);
     };
+    if u.winding().is_none() {
+        return Err(SplitJoinError::SectionInvariant {
+            face,
+            what: "a cylinder chart image's azimuth is a free channel, and the chart's \
+                   azimuth is an angle",
+        });
+    }
+    let (p0, pa, pb, pl) = geom_brep::harmonic_form_of(u, v);
     // `sup |x·cos t + y·sin t| = √(x² + y²)`, spelled as
     // `geom_brep::harmonic` spells it, whose helpers are crate-private.
     let pair = |_site: &str, x: T, y: T| {
@@ -3466,28 +3469,6 @@ fn chart_v_du<T: Decide>(
         let norm = mutants::pair(_site, x, y).unwrap_or(norm);
         norm
     };
-    // The gate admits a harmonic azimuth part of amplitude under the
-    // band at the radius, and the integral below reads `du = pl.x·dt`
-    // alone: the part it drops, `∫ (v − anchor)·(pb.x·cos t − pa.x·sin
-    // t) dt`, is at most `sup |v − anchor|·√(pa.x² + pb.x²)·|Δt|`, and
-    // nothing downstream adds it to the winding's slack
-    // (`work/hone/chart-v-du-drops-a-decided-zero-azimuth-harmonic-unbounded.md`).
-    match decide(
-        "split_chart_azimuth_linear",
-        Margin::levered(pair("topo-gate", pa.x, pb.x), radius),
-        band,
-    )
-    .map_err(|diag| SplitJoinError::Escalated { face, diag })?
-    {
-        Sign::Zero => {}
-        Sign::Positive | Sign::Negative => {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "a cylinder chart image carries a harmonic azimuth term (the chart \
-                       writes the azimuth linear in the carrier parameter)",
-            });
-        }
-    }
     let v_var = (pair("topo-v-var", pa.y, pb.y) + pl.y.abs()) * (t1 - t0).abs();
     let half = T::from_f64(0.5);
     let dt = t1 - t0;
@@ -3507,7 +3488,7 @@ fn chart_v_du<T: Decide>(
 mod mutants {
     use geom_core::Real;
 
-    pub(super) const SITES: [&str; 2] = ["topo-gate", "topo-v-var"];
+    pub(super) const SITES: [&str; 1] = ["topo-v-var"];
 
     pub(super) fn pair<T: Real>(site: &str, x: T, y: T) -> Option<T> {
         debug_assert!(SITES.contains(&site), "an unlisted mutant site: {site}");
@@ -3631,7 +3612,7 @@ pub(crate) fn chart_island_winding<T: Decide>(
     let mut length = T::zero();
     for (i, image) in images.iter().enumerate() {
         let harmonic = match image.harmonic.as_ref() {
-            Some(p) => chart_v_du(face, p, image.t, anchor, radius, band)?,
+            Some(p) => chart_v_du(face, p, image.t, anchor)?,
             None => None,
         };
         let (v_du, v_var) = harmonic.ok_or(SplitJoinError::SectionInvariant {

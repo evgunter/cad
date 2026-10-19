@@ -375,14 +375,12 @@ which is what actually moves the number.
 | intersect.rs:2232/2246/2276/2327/2337 (`plane_cone_section`) | pn_apex_on_plane, pn_apex_section (and its floor), pn_apex_point_reach / pn_apex_pair_reach / pn_apex_tangent_reach, pn_axis_normal, pn_conic_type | m·unit, the apex gap (`pn_apex_on_plane`); trig diff×extent, summed with the apex gap (`pn_apex_section` and its floor, `decide_across`), and alone off the apex (`pn_conic_type`); the apex gap with its own rounding, \|δ̂\| + 2.5·EPSILON·Σ\|(apex − origin)ᵢ·nᵢ\| (m), levered by 1/\|D\|, the off-apex ellipse's farthest point from the apex (`pn_apex_point_reach`) and where the hyperbola's far branch starts (`pn_apex_pair_reach`, the lesser of that and a sum of lengths over the reach's window along the axis, `pair_bound`: a nappe's start less the window's least distance from the apex, clamped at zero, plus the apex gap levered by 2/(σ + √max(σ² − 2s\|δ\|/(ρ·sin α), 0)), plus the served lines' rounding, EPSILON/2·((3 cos α + 4 sin α + 6s·sin α)/σ + 5 sin α/s + 12 sin α + 3) levered by the window's farthest distance from the apex), and by 1/(sin α·s + cos α·\|c\|), where the section starts nearest the apex (`pn_apex_tangent_reach`); sin×rim r | m | OK |
 | intersect.rs `plane_torus_section` | pt_tube_guard / ring_torus_convention (read from `geom::ring_torus`, the convention's one home) / axis_in_plane / axis_plane_gap (and its floor) / axis_normal / cap_gap (and its floor) | r; R−r; sin×extent; the stand-off `n·(q − c)`, summed with the meridian circles' lean `r·(a·n)` (`decide_across`): each circle stands at most that sum off the plane, at any extent; sin×(R + r); r − the depth `d/(a·n)` of the plane's crossing of the axis (independent of where its origin is stored), summed with sin×(R + r) (`decide_across`): each circle is minted at that crossing and stands at most sin×(R + r) off the plane | m | OK |
 | intersect.rs:2026/2047/2053/2068/2093/2111 | coc_cylinder_radius / coc_aperture_sin / coc_aperture_cos / coc_axes_parallel / coc_coaxial / coc_coaxial_floor / coc_station_reach | R; sin α×extent; cos α×extent; sin×extent; the apex's distance from the cylinder's axis plus sin×extent, and less it for the floor (`decide_across`); extent − |R·cot α| (extent measured from the apex) | m | OK — the family prefix is `coc_`, not `cc_`: `cc_*` is cylinder×cylinder's glob two rows above and would over-match. `coc_station_reach` is the arm's ADMISSION criterion; the two aperture clauses are a division guard and a convention clause, not conditioning questions |
-| pcurve_cache.rs:1225/1233 | pcurve_chart_azimuth_affine / winding | (rad coeff)×radius | m | OK |
 | pcurve_cache.rs (`Placement::turns`) | pcurve_chart_placement | (angle − mark)×the angle's lever, the half-period marks about the window's centre (`Period::decide`); one expression, the read's one cut being the window's (`pcurve_chart_cut_side`) | m | OK (levered door) |
 | pcurve_cache.rs:1268 | pcurve_map_residual | mapped point distance | m | OK |
 | pcurve_cache.rs:1964 | pcurve_interval_forward (harmonic) | span × param_rate | m | OK |
-| pcurve_cache.rs:1988 | pcurve_azimuth_period (harmonic) | (τ−extent)·azimuth_lever | m | OK |
 | pcurve_cache.rs:1894 | pcurve_interval_meter (fitted/iso gate) | carrier parameter extent × param_rate (a NURBS net's knot domain × its certified speed lower bound) | m | OK (metered door; the collapsed-arm gate) |
 | pcurve_cache.rs:2382 / :2868 | pcurve_interval_forward (fitted / iso) | span × param_rate — a NURBS carrier's rate IS its certified speed lower bound | m | OK (metered door; the meter gated at :1894) |
-| pcurve_cache.rs:2397 | pcurve_azimuth_period (fitted) | rad headroom × `chart_arms_at`'s azimuth lever (the cone's `v_sup·sin α`) | m | OK (levered door) |
+| pcurve_cache/projected.rs (`run_projected_checks`, check 2) | pcurve_azimuth_period (projected; its only site, the closed-form lanes' gone with the edge certificate's `interval_span_winding`, PCERT B2a) | rad headroom of the swept box × `chart_arms_at`'s azimuth lever (the cone's `v_sup·sin α`), and the tube's at the minor radius | m | OK (levered door) |
 | pcurve_cache.rs:1664 | pcurve_chart_radial_moving | Σ m-norms BARE (amplitude is metres) | m | FIXED (M6-3) |
 | pcurve_cache.rs:1680/1772/1791 | pcurve_chart_orientation / sphere meridian | m² ÷ radius | m | OK |
 | pcurve_cache.rs:1752 | pcurve_sphere_chart_frame | m at :1770, dimensionless at :1836 (tie-break) | mixed | FLAG (note N5) |
@@ -640,7 +638,6 @@ which is what actually moves the number.
 | chord_join.rs (`arc_leaving`) | chord_arc_leave_germ | a boolean germ's unit direction against the conic's unit tangent at the chord's start, `dir·Ĉ′(θ₁)` (the cosine between them), levered by the semi-major axis | m | OK (REACH) |
 | chord_join.rs (`arc_leaving`) | chord_arc_leave_section | the split's `±(n_plane × n_out)` against the same unit tangent (the sine between plane and wall times that cosine), levered by the wall's `curvature_lever_arm` at the chord's start: the quantity and the lever `split_join_conic_heading` decides it on | m | OK (REACH) |
 | chord_join.rs:1411 | split_conic_inplane_mid | plane residual at midpoint | m | OK |
-| chord_join.rs (`chart_v_du`) | split_chart_azimuth_linear | harmonic azimuth amplitude `\|pa.x\| + \|pb.x\|` (rad), levered at the radius | m | OK (a precondition: the cylinder chart writes the azimuth linear; TANG, PR 3851) |
 | chord_join.rs (`chart_island_winding`) | split_ring_closure_ruling | `n·â` (cosine), levered at the radius | m | OK |
 | chord_join.rs (`chart_island_winding`) | bool_ring_run_winding (wall chart) | `2·R·A_chart / P`, `P` an upper bound in metres (`R·\|Δu\|` plus axial variation per piece) | m | OK (the planar arm's F4 comparand on the wall's chart) |
 | chord_join.rs (`path_island_winding`) | split_ring_path_lean | `−a·(N × t)/‖N × t‖` (the cosine between a path's arrival and the closing chord's left normal), levered at `Quadric::lever` (the sphere's radius, the radius of the cone's parallel through the chord's midpoint, or the smaller of the torus's tube radius and its parallel's there) | m | OK (TANG) |
@@ -760,18 +757,18 @@ tolerances and step-size control in ssi (documented structure
 parameters), `props.rs` trig pad (ε/radius, an enclosure pad, not a
 decision), test fixtures.
 
-### Uncovered names (measured at `43e2998d`; `contact_tangent_off_1`/`_2` added since)
+### Uncovered names (measured at `43e2998d`; `contact_tangent_off_1`/`_2` added since, and `pcurve_chart_polar_affine`/`_polar_winding` retired since with the windings PCERT B2a stores)
 
-Twenty-five names reach the funnel from `geom-brep` or `topo` and
+Twenty-three names reach the funnel from `geom-brep` or `topo` and
 have **no row, no family cell and no mention** anywhere above this
 section. They are enumerated rather than audited: each wants its
 comparand read and a dimension verdict, which is a unit (§D's **D46**)
 and not a side errand of the measurement that found them. Three of the
-eight homes are files this document has never named at all —
+seven homes are files this document has never named at all —
 `edge_nurbs.rs`, `boolean/carrier_eq.rs`, `boolean/contact_verify.rs` —
-and the other five are named files whose rows predate these names.
+and the other four are named files whose rows predate these names.
 
-**Where the 25 verdicts land when D46 does them**: one row each in the
+**Where the 23 verdicts land when D46 does them**: one row each in the
 `## geom-brep` or `## topo` table above, with `site`, `predicate`,
 `comparand`, `dim` and `status` filled the way every other row is —
 plus a disposition entry in *Findings* for any that come back FLAG, and
@@ -782,7 +779,6 @@ the section is empty when the two counts above meet at 250.
 |---|---|
 | `geom-brep/certify.rs` | `carrier_in_seam_halfplane`, `carrier_on_iso_curve`, `plane_nurbs_on_locus`, `plane_nurbs_hull_sup` |
 | `geom-brep/edge_nurbs.rs` | `plane_nurbs_transversality` |
-| `geom-brep/pcurve_cache.rs` | `pcurve_chart_polar_affine`, `pcurve_chart_polar_winding` (the polar twins of the azimuth pair one row up) |
 | `geom-brep/props/curved.rs` | `props_band_coplanar` (retired since, with the sphere's iso flux arm: the name reaches no funnel site) |
 | `topo/pcurves.rs` | `pcurve_chart_u_closed`, `pcurve_iso_arc_row_direction` (the arc rim's row and `u` direction, picked together), `pcurve_iso_seam_column` (the last two decide at `probe_pick`, the site of the `pcurve_iso_line_rim` and `pcurve_iso_wall_seam` rows above, on the same comparand; those rows cover their own labels alone, and these two still want theirs) |
 | `topo/census.rs` | `pm_census_bound_end`, `pm_census_bound_vertex` |
