@@ -87,7 +87,7 @@ pub enum VerbRecord<T: Real> {
         naming: BooleanNaming,
         /// The face pairs the op glued on its own decision — what an
         /// n-ary union's pairwise judgement hands its fold steps.
-        verdicts: Vec<GlueVerdict>,
+        verdicts: Vec<GlueVerdict<T>>,
     },
     /// The extrude door's whole bundle — body, solid, shell, caps,
     /// side walls per loop, struts per loop.

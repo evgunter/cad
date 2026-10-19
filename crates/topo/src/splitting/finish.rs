@@ -39,9 +39,21 @@
 //! shell is a typed kernel-bug error; a shell with NO section face
 //! (an uncut component) falls back to its first vertex's cached side.
 //! A shell consisting **only** of section faces bounds no volume. The
-//! join's zero-area check refuses every section that could make one, so
-//! such a shell is a kernel defect, refused loudly
+//! join's zero-area check refuses every area section that could make
+//! one, so such a shell is a kernel defect, refused loudly
 //! ([`SplitFinishError::DegenerateSide`]).
+//!
+//! # Slit traces
+//!
+//! A slit trace ([`super::join::SectionKind::Slit`]) is a tree of edges
+//! of the operand lying in the plane whose other side's material wraps
+//! round its every end. Its null face parts into two faces at
+//! promotion. The strut loop's face, the tree walked round, is a
+//! component of its own that neither side keeps: the side that held
+//! the edges loses them and their vertices. The slit's face is nested
+//! as a ring of the section face of its side containing it
+//! (`nest_slit`), so that side carries each edge as two coincident
+//! distinct edges of a zero-area ring (`crates/topo/README.md`, tier 3).
 //!
 //! # Maximal faces (F7)
 //!
@@ -73,7 +85,8 @@
 use geom_core::{Decide, Real, UnitVec3, Vec3};
 use slotmap::SecondaryMap;
 
-use super::join::{CompletedSection, loop_points_of};
+use super::containment::{LoopContainment, point_in_loop};
+use super::join::{CompletedSection, SectionKind, loop_points_of};
 use super::{KnifeEdge, KnifeEdgeSite, PlaneSide, SplitReduction, section_loops};
 use crate::attach::{Named, Rechart};
 use crate::body::Body;
@@ -472,7 +485,8 @@ impl Default for SplitNaming {
 pub enum SplitFinishError {
     /// A component consists only of section faces, so it bounds no
     /// volume (kernel bug, loudly: the join's area certificate refuses
-    /// every zero-area section before the finish runs). No degenerate
+    /// every zero-area section that is no slit trace before the finish
+    /// runs). No degenerate
     /// body is ever emitted.
     DegenerateSide {
         /// The offending shell (in the discarded scratch body).
@@ -579,6 +593,31 @@ pub enum SplitFinishError {
     NestingContradiction {
         /// The hole's section face (in the discarded scratch body).
         hole: FaceKey,
+    },
+    /// A slit trace's slit, read definitely, lies in no section region of
+    /// its side: no outline holds a vertex of it, or the innermost one
+    /// that does has it in a hole (`in_hole`), whether a ring of its own
+    /// or a hole the nesting rule left on a face of its own inside it, or
+    /// it lies on a loop. The slit lies on edges its side's material
+    /// wraps round, which a section region of that side covers, so this
+    /// is a kernel defect.
+    SlitUnplaced {
+        /// The slit's face (in the discarded scratch body).
+        slit: FaceKey,
+        /// Whether a hole held it, or its boundary met it, rather than no
+        /// outline holding it.
+        in_hole: bool,
+    },
+    /// Which section face holds a slit trace's slit cannot be read: a
+    /// vertex of it read against a loop of its side's section escalated,
+    /// or the walk cannot read that loop ([`point_in_loop`]). No input is
+    /// known to reach it: a keel end within the band of a bore, the
+    /// near case, escalates in the operand's own Boolean first.
+    SlitHoming {
+        /// The slit's face (in the discarded scratch body).
+        slit: FaceKey,
+        /// The walk's refusal.
+        error: crate::splitting::PointInLoopError,
     },
     /// A finished side fails tier 2 ([`crate::validate_closed`]): a
     /// split never returns a body that is not a closed solid. Reached
@@ -785,6 +824,31 @@ impl core::fmt::Display for SplitFinishError {
                 "two cut faces each read as enclosing the other around hole {hole:?}. {}",
                 geom_core::KERNEL_DEFECT_ENDING
             ),
+            Self::SlitUnplaced {
+                slit,
+                in_hole: false,
+            } => write!(
+                f,
+                "edges lying in the cut, wrapped round at every end by the material \
+                 across them, leave a slit {slit:?} that no cut face encloses. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
+            Self::SlitUnplaced {
+                slit,
+                in_hole: true,
+            } => write!(
+                f,
+                "edges lying in the cut, wrapped round at every end by the material \
+                 across them, leave a slit {slit:?} inside or against a hole of the cut \
+                 face around it. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
+            Self::SlitHoming { error, .. } => error.render_as(
+                f,
+                "placing a slit an edge in the cut leaves",
+                "which cut face holds a slit an edge in the cut leaves",
+                super::SPLIT_COINCIDENCE_RECOURSE,
+            ),
             Self::KnifeEdge(k) => write!(f, "{k}"),
             Self::EdgeJoin { side, refusal } => {
                 write!(
@@ -900,6 +964,8 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     // Which loop is currently the ring is read from the face record
     // (the role keys), not from list position.
     let mut section_side: SecondaryMap<FaceKey, PlaneSide> = SecondaryMap::new();
+    let mut slits: Vec<(FaceKey, PlaneSide)> = Vec::new();
+    let mut traces: Vec<FaceKey> = Vec::new();
     for section in completed {
         let face = body
             .get_face(section.face)
@@ -912,6 +978,26 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         } else {
             return Err(SplitFinishError::Corrupt);
         };
+        // A slit trace's two loops part into two faces: the strut loop's,
+        // a component of its own that neither side keeps, and the slit's,
+        // nested below as a ring of the section face containing it.
+        if let SectionKind::Slit { strut } = section.kind {
+            let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+            body.clear_null_face_pair(section.face);
+            let (trace, slit) = if ring == strut {
+                (promoted.face, section.face)
+            } else {
+                (section.face, promoted.face)
+            };
+            let slit_side = if strut == section.above_loop {
+                PlaneSide::Below
+            } else {
+                PlaneSide::Above
+            };
+            traces.push(trace);
+            slits.push((slit, slit_side));
+            continue;
+        }
         let u_ref = below_chord_u_ref(&body, section, red.plane.normal)?;
         let normal_of =
             |side: PlaneSide| section_loops::section_normal(red.plane.normal.get(), side);
@@ -967,6 +1053,17 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         band,
         tol,
     )?;
+    for (slit, side) in slits {
+        nest_slit(
+            &mut body,
+            slit,
+            side,
+            &naming,
+            red.plane.normal.get(),
+            band,
+            tol,
+        )?;
+    }
 
     // ---- D6 (M3 PR 6a): honest descriptions on the section boundary,
     // AT MINT TIME — both parent surfaces are known here (the section
@@ -1000,6 +1097,23 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     let mut above_shells = Vec::new();
     let mut below_shells = Vec::new();
     for shell in all_shells {
+        let faces = &body
+            .get_shell(shell)
+            .ok_or(SplitFinishError::Corrupt)?
+            .faces;
+        if faces.iter().any(|f| traces.contains(f)) {
+            // The tree's vertices hold no other edge: the other side wraps
+            // every end of it, and the join cut the null edge there, so the
+            // walk round it is a component alone. `carve` keeps it on
+            // neither side; a shell holding more would drop material.
+            assert!(
+                faces.len() == 1,
+                "split_finish: the walk round a slit trace's tree shares shell {shell:?} with \
+                 {} other face(s)",
+                faces.len() - 1
+            );
+            continue;
+        }
         let (side, has_real_face) = classify_shell(&body, shell, &section_side, &red.sides)?;
         if !has_real_face {
             return Err(SplitFinishError::DegenerateSide { shell, side });
@@ -1046,8 +1160,10 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
 /// ring would pass it.
 ///
 /// **A hole the rule leaves unplaced, or the ring guard turns away,
-/// keeps its own face** — sound by cancellation (volumes and
-/// point-in-solid read it right; tier 3 passes it).
+/// keeps its own face** — sound by cancellation for volumes,
+/// point-in-solid and tier 3, though tier 3′ reads what lies inside it
+/// on both faces
+/// (`work/cleave/a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses.md`).
 ///
 /// # Errors
 ///
@@ -1066,10 +1182,7 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
     for side in [PlaneSide::Above, PlaneSide::Below] {
         let mut outlines = Vec::new();
         let mut holes = Vec::new();
-        for &(face, s) in &naming.sections {
-            if s != side {
-                continue;
-            }
+        for face in side_sections(naming, side) {
             let data = body.get_face(face).ok_or_else(corrupt)?;
             if data.sense {
                 outlines.push((face, data.outer));
@@ -1109,21 +1222,148 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
         .filter_map(|&(f, _)| parent_of.get(f).map(|&p| (f, p)))
         .collect();
     for (hole, parent) in nested {
-        let chart = body.get_face(parent).ok_or_else(corrupt)?.surface;
-        let charts = vec![Rechart::shared(chart, hole, false)];
-        let stranded = body.stranded_by(&charts)?;
-        let restated = section_plane_restatements(body, hole, &stranded)?;
-        // No pose is known to refuse here: the hole's edges were restated
-        // in a section chart over the same plane at its promotion, and
-        // read past the band there first; the parent's chart differs only
-        // in its reference direction, so this read can differ from that
-        // one by roundings.
-        rechart_section(body, charts, &restated, tol)?;
-        body.kfmrh(parent, hole)?;
+        ring_into(body, hole, parent, tol)?;
         section_side.remove(hole);
         naming.sections.retain(|&(f, _)| f != hole);
     }
     Ok(())
+}
+
+/// The section faces of `side`, in section order.
+fn side_sections(naming: &SplitNaming, side: PlaneSide) -> impl Iterator<Item = FaceKey> + '_ {
+    naming
+        .sections
+        .iter()
+        .filter(move |&&(_, s)| s == side)
+        .map(|&(f, _)| f)
+}
+
+/// Makes the one-loop section face `face` a ring of the section face
+/// `parent` (`kfmrh`). It moves onto `parent`'s chart first, its
+/// boundary restated with it, so the ring rides the chart of the face
+/// that keeps it.
+///
+/// # Errors
+///
+/// [`SplitFinishError::Euler`] and [`SplitFinishError::Corrupt`] from
+/// the surgery; the re-chart's ([`rechart_section`]).
+fn ring_into<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    face: FaceKey,
+    parent: FaceKey,
+    tol: Tol,
+) -> Result<(), SplitFinishError> {
+    let chart = body
+        .get_face(parent)
+        .ok_or(SplitFinishError::Corrupt)?
+        .surface;
+    let charts = vec![Rechart::shared(chart, face, false)];
+    let stranded = body.stranded_by(&charts)?;
+    let restated = section_plane_restatements(body, face, &stranded)?;
+    rechart_section(body, charts, &restated, tol)?;
+    body.kfmrh(parent, face)?;
+    Ok(())
+}
+
+/// Nests the slit trace's face `slit` (one loop, a zero-area slit of
+/// `side`'s piece, [`super::join::SectionKind::Slit`]) as a ring of the
+/// section face of `side` whose region holds it ([`ring_into`]). Its
+/// winding is zero, so its place is read by containment alone: a vertex
+/// of the slit is read against the loops of the side's section faces on
+/// their own carriers ([`point_in_loop`]).
+///
+/// A face's region is its outline less its rings, and less every hole
+/// the nesting rule left on a face of its own ([`nest_hole_sections`]:
+/// `sense` false) inside that outline. So the holder is the innermost
+/// outline holding the vertex, none of whose rings holds it, unless a
+/// hole of its own holding the vertex lies inside it, which takes the
+/// vertex out of its region. Section loops are disjoint, so one loop
+/// lies inside another exactly when a vertex of it does. A slit lies on
+/// edges its side's material wraps round, so it lies in some section
+/// region, clear of every loop.
+///
+/// # Errors
+///
+/// - [`SplitFinishError::SlitHoming`] where a reading refuses: in band,
+///   or on a loop the walk does not read;
+/// - [`SplitFinishError::SlitUnplaced`] where every reading is definite
+///   and the vertex lies in no region, or on a loop;
+///   [`SplitFinishError::NestingContradiction`] where no one holding
+///   outline lies inside the others;
+/// - [`SplitFinishError::Euler`] and [`SplitFinishError::Corrupt`] from
+///   the surgery.
+fn nest_slit<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    slit: FaceKey,
+    side: PlaneSide,
+    naming: &SplitNaming,
+    normal: Vec3<T>,
+    band: geom_core::Band,
+    tol: Tol,
+) -> Result<(), SplitFinishError> {
+    let corrupt = || SplitFinishError::Corrupt;
+    let slit_loop = body.get_face(slit).ok_or_else(corrupt)?.outer;
+    let at = |l| crate::chord_join::ring_representative(body, l).map_err(|_| corrupt());
+    let q = at(slit_loop)?;
+    let side_normal = section_loops::section_normal(normal, side);
+    let read = |l, p| {
+        point_in_loop(body, l, side_normal, p, band)
+            .map_err(|error| SplitFinishError::SlitHoming { slit, error })
+    };
+    let unplaced = |in_hole| Err(SplitFinishError::SlitUnplaced { slit, in_hole });
+    // The outlines whose own rings leave the vertex inside them, and the
+    // holes on faces of their own that hold it.
+    let (mut outlines, mut holes, mut in_hole) = (Vec::new(), Vec::new(), false);
+    for face in side_sections(naming, side) {
+        let data = body.get_face(face).ok_or_else(corrupt)?;
+        match read(data.outer, q)? {
+            LoopContainment::Out => continue,
+            LoopContainment::OnBoundary => return unplaced(!data.sense),
+            LoopContainment::In if !data.sense => {
+                holes.push(data.outer);
+                continue;
+            }
+            LoopContainment::In => {}
+        }
+        let mut held = true;
+        for &ring in &data.rings {
+            match read(ring, q)? {
+                LoopContainment::Out => {}
+                LoopContainment::In => (held, in_hole) = (false, true),
+                LoopContainment::OnBoundary => return unplaced(true),
+            }
+        }
+        if held {
+            outlines.push((face, data.outer));
+        }
+    }
+    // Whether loop `inner` lies inside loop `outer`.
+    let inside = |inner, outer| -> Result<bool, SplitFinishError> {
+        Ok(read(outer, at(inner)?)? == LoopContainment::In)
+    };
+    let mut innermost = Vec::new();
+    for &(face, l) in &outlines {
+        let mut all = true;
+        for &(other, m) in &outlines {
+            if other != face && !inside(l, m)? {
+                all = false;
+            }
+        }
+        if all {
+            innermost.push((face, l));
+        }
+    }
+    let (parent, outline) = match innermost[..] {
+        [one] => one,
+        [] if outlines.is_empty() => return unplaced(in_hole || !holes.is_empty()),
+        _ => return Err(SplitFinishError::NestingContradiction { hole: slit }),
+    };
+    for &hole in &holes {
+        if inside(hole, outline)? {
+            return unplaced(true);
+        }
+    }
+    ring_into(body, slit, parent, tol)
 }
 
 /// The re-descriptions a section face's re-chart takes: every edge of

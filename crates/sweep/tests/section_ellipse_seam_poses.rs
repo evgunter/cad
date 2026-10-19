@@ -21,8 +21,9 @@
 //! (`UnrepresentableCurveDatum { Ellipse, URef, Length | Tilt }`): its
 //! margin is `ε − δ·A`, the frame's own rounding `δ` amplified by the
 //! semi-axis `A ≈ r/θ`, up to 1e6 here ([`FRAME_RESIDUE`]). At
-//! ε = 1e-6 the `θ = 3e-5` coin-flip planes leave a wall face of in-band
-//! width, which refuses at rest as `VolumeUncomputable`
+//! ε = 1e-6 the `θ = 3e-5` coin-flip planes cut a wall sliver of in-band
+//! width at the seam ruling, and each side builds: the split merges the
+//! sliver into the wall face across that seam, so no side keeps it
 //! ([`SLIVER_RESIDUE`]). Upstream refusals are the input's readings at
 //! that row: in band of along the axis, or a sector at the vertex in
 //! band. No pose at any row refuses at a chord's attachment.
@@ -36,7 +37,9 @@ use topo::{AtRestBody, Body, BooleanError, SplitJoinError, ValidationError};
 /// The row that owns the at-rest frame refusals these tables name.
 const FRAME_RESIDUE: &str = "work/restfront/tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis.md";
 
-/// The row that owns the at-rest volume refusals of an in-band sliver.
+/// The row that owns the at-rest volume refusal of an in-band curved
+/// sliver. No pose here keeps one: each sliver lies beside the wall face
+/// across a seam, and the split merges the two.
 const SLIVER_RESIDUE: &str =
     "work/cleave/a-split-leaves-an-in-band-sliver-wall-face-that-refuses-only-at-rest.md";
 
@@ -312,77 +315,7 @@ fn a_slab_face_nearly_along_a_ruling_builds() {
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
-const COIN_FLIP_1E6: &[(&str, &str)] = &[
-    ("θ 3e-5 (1, 0) c 0", "at-rest gate above VolumeUncomputable"),
-    (
-        "θ 3e-5 (1, 0) c 0.5",
-        "at-rest gate above VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (1, 0) c -0.5",
-        "at-rest gate above VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (1, 0) c 0.8",
-        "at-rest gate above VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (1, 0) c -0.8",
-        "at-rest gate above VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (1, 0) c 0.9",
-        "at-rest gate above VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (1, 0) c -0.9",
-        "at-rest gate above VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (1, 0) c 0.99",
-        "at-rest gate above VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (1, 0) c -0.99",
-        "at-rest gate above VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (-1, 1) c 0",
-        "at-rest gate below VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (-1, 1) c 0.5",
-        "at-rest gate below VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (-1, 1) c -0.5",
-        "at-rest gate below VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (-1, 1) c 0.8",
-        "at-rest gate below VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (-1, 1) c -0.8",
-        "at-rest gate below VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (-1, 1) c 0.9",
-        "at-rest gate below VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (-1, 1) c -0.9",
-        "at-rest gate below VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (-1, 1) c 0.99",
-        "at-rest gate below VolumeUncomputable",
-    ),
-    (
-        "θ 3e-5 (-1, 1) c -0.99",
-        "at-rest gate below VolumeUncomputable",
-    ),
-];
+const COIN_FLIP_1E6: &[(&str, &str)] = &[];
 const COIN_FLIP_1E9: &[(&str, &str)] = &[
     ("θ 1e-4 (1, 0) c 0", "refused Reduce SliverSector"),
     ("θ 1e-4 (1, 0) c 0.5", "refused Reduce SliverSector"),

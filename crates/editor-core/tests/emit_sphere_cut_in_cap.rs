@@ -10,7 +10,7 @@
 //! Intersected (the cap), and the brick minus the lens, the cut is glued
 //! away and the circle keeps one vertex with no identity of its own,
 //! which the table refuses typed until its edge-derived name is built
-//! (`work/emit/a-conventional-vertex-mints-no-edge-derived-name.md`).
+//! (`work/seamrank/a-conventional-vertex-mints-no-edge-derived-name.md`).
 //! The union and the lens minus the brick keep the cut as two edges
 //! between pieces of one face ([`CUT_LEFT`]).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

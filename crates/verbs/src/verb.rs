@@ -108,7 +108,7 @@ pub enum Verb<T: Real> {
         /// The operands' carried records and any given verdicts, in
         /// operand arena keys, boxed so the verb stays one small value
         /// whatever they hold.
-        inputs: Box<BooleanInputs>,
+        inputs: Box<BooleanInputs<T>>,
     },
     /// Parts the operand body by a plane into its two sides.
     ///

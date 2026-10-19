@@ -204,7 +204,7 @@ pub struct BooleanBody<T: Real> {
     pub coincidences: Vec<crate::Coincidence>,
     /// The face pairs those coincidences glue, in their order
     /// ([`GlueVerdict`]).
-    pub verdicts: Vec<GlueVerdict>,
+    pub verdicts: Vec<GlueVerdict<T>>,
 }
 
 /// How one operand's keys relate to the result body's keys.
@@ -658,7 +658,7 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
-    inputs: &BooleanInputs,
+    inputs: &BooleanInputs<T>,
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
@@ -675,7 +675,7 @@ fn boolean_door<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
-    decls: &Glue,
+    decls: &Glue<T>,
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
@@ -854,7 +854,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
-    decls: &Glue,
+    decls: &Glue<T>,
     strategy: SweepStrategy,
     recut: bool,
     tol: Tol,
@@ -883,6 +883,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         connected.completed.iter().map(|p| p.b_face).collect(),
     ];
     let ledger = ledger(&red, decls, [&scaffold[0], &scaffold[1]])?;
+    let tangent_lines = red.tangent_lines.clone();
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The zip, the merge, the re-description and the closing mint are
     // one door's surgery (`crate::surgery`): the operators inside them
@@ -1005,7 +1006,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         kind: BooleanResultKind::Seamed,
         contacts,
         naming,
-        verdicts: GlueVerdict::of_rows(&coincidences),
+        verdicts: GlueVerdict::of_rows(&coincidences, &tangent_lines),
         coincidences,
     }))
 }
@@ -1040,7 +1041,7 @@ pub(super) enum Joined<T: Real> {
         interior_loops: Result<(), BooleanError>,
         /// The declarations the pipeline ran on: the caller's, and the
         /// pairs the glue door decided ([`super::glue`]).
-        decls: Box<Glue>,
+        decls: Box<Glue<T>>,
     },
 }
 
@@ -1061,7 +1062,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
-    decls: &Glue,
+    decls: &Glue<T>,
     strategy: SweepStrategy,
     recut: bool,
     tol: Tol,
@@ -1203,16 +1204,17 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     red: &BooleanReduction<T>,
-    decls: &Glue,
+    decls: &Glue<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
     let events = event_pairs(red);
+    let glued: Vec<(FaceKey, FaceKey)> = decls.pairs.iter().map(|d| (d.a, d.b)).collect();
     let pairs = section_pairs(
         a,
         b,
         band,
         SectionPath::Crossings,
-        Exempt::Glued(decls),
+        Exempt::Glued(&glued),
         |fa, fb| events.contains(&(fa, fb)),
         true,
     )?;
@@ -1231,13 +1233,6 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
             })
         }
     }
-}
-
-/// Does the glue hold EXACTLY the pair `(A face, B face)`? A glued
-/// pair covers itself and no other: a face glued to one partner meets
-/// every other partner as any face does.
-pub(crate) fn glues_pair(decls: &Glue, fa: FaceKey, fb: FaceKey) -> bool {
-    decls.pairs.iter().any(|d| d.a == fa && d.b == fb)
 }
 
 /// **`chart_boundary`'s verdict per face, asked once.** Keyed by the
@@ -1670,9 +1665,11 @@ pub(crate) enum Exempt<'r> {
     /// sweep-testing doors' spelling, which no production path takes.
     #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
     Nothing,
-    /// The crossings path: a GLUED pair, whose contact is the carrier
-    /// the glued rungs walk along its edges.
-    Glued(&'r Glue),
+    /// The crossings path: the GLUED pairs, `(A face, B face)`, whose
+    /// contact is the carrier the glued rungs walk along their edges. A
+    /// glued pair covers itself and no other: a face glued to one
+    /// partner meets every other partner as any face does.
+    Glued(&'r [(FaceKey, FaceKey)]),
     /// The no-crossings path: a `Rest` declaration the declaration door
     /// verified one carrier with opposed senses (the reduction's
     /// `rest_contacts`). Its section lies on the one carrier, where
@@ -1691,7 +1688,7 @@ impl Exempt<'_> {
         match self {
             #[cfg(any(test, feature = "test-support", feature = "sweep-testing"))]
             Self::Nothing => false,
-            Self::Glued(decls) => glues_pair(decls, fa, fb),
+            Self::Glued(pairs) => pairs.contains(&(fa, fb)),
             Self::Rest(pairs) => pairs.contains(&(fa, fb)),
         }
     }
@@ -1750,7 +1747,7 @@ pub(crate) fn section_report<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
     let band = Band::linear(tol)?;
-    let decls = Glue::default();
+    let decls = Glue::none();
     let red =
         super::boolean_reduce_declared_strategy(op, a, b, &decls, SweepStrategy::Realized, tol)?;
     let events = event_pairs(&red);
@@ -3397,7 +3394,7 @@ fn piece_holds<T: Decide>(
 /// resolve in its clone.
 pub(super) fn ledger<T: Decide>(
     red: &BooleanReduction<T>,
-    decls: &Glue,
+    decls: &Glue<T>,
     scaffold: [&BTreeSet<FaceKey>; 2],
 ) -> Result<Ledger, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
@@ -5260,7 +5257,7 @@ pub(super) fn declared_surface_pairs<T: Real>(
     result: &Body<T>,
     a: &Body<T>,
     b: &Body<T>,
-    decls: &Glue,
+    decls: &Glue<T>,
     graft: &GraftMap,
 ) -> Vec<(SurfaceKey, SurfaceKey)> {
     decls
@@ -5271,6 +5268,7 @@ pub(super) fn declared_surface_pairs<T: Real>(
                  a: fa,
                  b: fb,
                  class,
+                 ..
              }| {
                 // A one-carrier declaration (`Rest` or a continuation)
                 // licenses a merge-stage coincidence; a `Tangent` or
@@ -6982,7 +6980,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
-    decls: &Glue,
+    decls: &Glue<T>,
     band: Band,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
@@ -7163,7 +7161,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 kind,
                 contacts,
                 naming,
-                verdicts: GlueVerdict::of_rows(&coincidences),
+                verdicts: GlueVerdict::of_rows(&coincidences, &red.tangent_lines),
                 coincidences,
             }))
         }
@@ -7187,7 +7185,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     op: BooleanOp,
     (body, keep): (Body<T>, &[ShellKey]),
     red: &BooleanReduction<T>,
-    decls: &Glue,
+    decls: &Glue<T>,
     kind: BooleanResultKind,
     band: Band,
     tol: Tol,
@@ -7280,7 +7278,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         kind,
         contacts,
         naming,
-        verdicts: GlueVerdict::of_rows(&coincidences),
+        verdicts: GlueVerdict::of_rows(&coincidences, &red.tangent_lines),
         coincidences,
     }))
 }
@@ -7386,7 +7384,7 @@ mod tests {
     /// The door over carried records alone.
     fn carried_in<T: geom_core::Decide + crate::props::AtRestPolicy>(
         body: &crate::Body<T>,
-        decls: &crate::boolean::Glue,
+        decls: &crate::boolean::Glue<T>,
         views: [&super::KeyView<'_>; 2],
         desc: &super::Descendants,
     ) -> Result<crate::boolean::ContactRecords, crate::boolean::BooleanError> {
@@ -8403,7 +8401,7 @@ mod tests {
                 }],
                 ..OperandRecords::default()
             },
-            ..Glue::default()
+            ..Glue::none()
         };
 
         let mut dead_end = Descendants::default();
@@ -8501,7 +8499,7 @@ mod tests {
                 }],
                 ..OperandRecords::default()
             },
-            ..Glue::default()
+            ..Glue::none()
         };
         let carry = |desc: &Descendants| carried_in(&body, &decls, [&KeyView::Direct; 2], desc);
         let carried = carry(&dead_end).expect("a chain that ends is not corrupt");
