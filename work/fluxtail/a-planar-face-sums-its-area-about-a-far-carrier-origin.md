@@ -86,9 +86,10 @@ branch in place (exact: 0.65 above, 0.35 below):
 | box, 1e6, turned | **+7.0102** | **−6.0102** | 0 |
 | cylinder, 1e6, turned | **−2.1586** | +5.3002 | 4.2e-9 |
 
-`Ok`, pad 0, wrong sign: a live wrong answer from the certified volume
-door through public operations, which is the P0/P1 band rather than this
-row's P3. The two halves still sum to the whole (each face's error is
+`Ok`, pad 0, wrong sign, through public operations. Every live wrong
+answer here needs a stated point 1e4 m or more along the plane, outside
+D4 ¶4's 1 km session box (at 1e2 m the box reads to 5e-13), so it does
+not by itself lift this row out of P3; the owner prices it. The two halves still sum to the whole (each face's error is
 equal and opposite on its twin), so a check on the sum does not see it.
 The cure above, applied at `topo::props::closed_form_of` as
 `planar_face(first loop point, loops)` and measured on that branch but

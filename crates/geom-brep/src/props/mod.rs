@@ -142,7 +142,7 @@ pub use curved::{
     curved_face, curved_face_loops, require_iso_rectangle, require_one_chart_branch,
     sphere_region_material_sign,
 };
-pub use loop_area::loop_vector_area;
+pub use loop_area::{arc_segment_term, chord_bulge, loop_vector_area};
 
 /// One traversed boundary edge of a face loop: a key-free view of
 /// (carrier, certified `he_plus`-forward parameter interval, traversal

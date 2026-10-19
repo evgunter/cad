@@ -13,7 +13,13 @@
 //! inside out (`NegativeVolume`) or a wrong-signed volume with no pad.
 //! The poses are the probe's
 //! (`crates/sweep/examples/turned_sliver_probe.rs`) that did, at 1e-9
-//! (`ψ` = 1e-5 and 3e-6) and at 1e-12 (`ψ` = 1e-3).
+//! (`ψ` = 1e-5 and 3e-6) and at 1e-12 (`ψ` = 1e-3), and one at
+//! `ψ` = 1e-4 whose enclosure missed at 1e-9 without flipping a sign.
+//!
+//! The certificate is held to its own pad: the turned sliver's
+//! `volume ± volume_pad` must hold the true volume. Only the
+//! comparison with the unturned sliver adds the ε-scale slack, since the
+//! turn may move each stored point by its own rounding.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
@@ -26,8 +32,9 @@ use crate::common::oracles::volume_slack;
 /// The sliver's volume `∫₀¹ S(z·tan ψ) dz` by `ψ`, with `S(h) =
 /// acos(1 − h) − (1 − h)·√(2h − h²)` the unit disc's segment of depth
 /// `h`: integrated at 40 digits (mpmath) for the `f64` values of `ψ`.
-const SLIVER_VOLUME: [(f64, f64); 3] = [
+const SLIVER_VOLUME: [(f64, f64); 4] = [
     (1e-3, 2.384_884_799_981_565_3e-5),
+    (1e-4, 7.542_391_557_603_427e-7),
     (1e-5, 2.385_136_620_610_998e-8),
     (3e-6, 3.919_182_328_732_877e-9),
 ];
@@ -43,12 +50,13 @@ fn sliver_volume(psi: f64) -> f64 {
 /// `(ψ, φ, L, axis, angle)`: the cutting plane through
 /// `(cos φ, sin φ, 0) + L·t`, `t` the rim's tangent there, and the turn
 /// about `axis` through `(0.3, −0.2, 0.5)`.
-const POSES: [(f64, f64, f64, [f64; 3], f64); 7] = [
+const POSES: [(f64, f64, f64, [f64; 3], f64); 8] = [
     (1e-5, 0.0, 0.0, [1.0, 0.0, 0.0], 0.7),
     (1e-5, 0.4, 0.3, [1.0, 2.0, 3.0], 3.0),
     (1e-5, 2.2, 0.1, [1.0, 0.0, 0.0], 1.3),
     (3e-6, 0.4, 0.3, [1.0, 2.0, 3.0], -1.1),
     (3e-6, 2.2, 0.1, [1.0, 0.0, 0.0], -1.1),
+    (1e-4, 0.0, 0.0, [1.0, 0.0, 0.0], 0.7),
     (1e-3, 0.0, 0.0, [-0.3, 0.7, 0.2], 2.2),
     (1e-3, 0.4, 0.3, [1.0, 0.0, 0.0], 2.2),
 ];
@@ -95,14 +103,14 @@ fn a_turned_sliver_validates_and_measures_its_own_volume() {
         let truth = sliver_volume(psi);
         let before = topo::mass_properties(&sliver, tol).unwrap();
         let after = topo::mass_properties(&turned, tol).unwrap();
-        let (slack_before, slack_after) =
-            (volume_slack(&before, truth), volume_slack(&after, truth));
         assert!(
-            (after.volume - truth).abs() <= slack_after,
+            (after.volume - truth).abs() <= after.volume_pad,
             "{pose}: the turned sliver's enclosure {:e} ± {:e} misses its volume {truth:e}",
             after.volume,
-            slack_after
+            after.volume_pad
         );
+        let (slack_before, slack_after) =
+            (volume_slack(&before, truth), volume_slack(&after, truth));
         assert!(
             (after.volume - before.volume).abs() <= slack_after + slack_before,
             "{pose}: the turn moved the volume from {:e} to {:e}, past both pads ({:e}, {:e})",

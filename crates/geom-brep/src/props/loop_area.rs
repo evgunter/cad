@@ -3,7 +3,7 @@
 
 use geom::{Curve3, NurbsCurve3};
 use geom_core::spline::SpanLocate;
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Real, Vec3};
 
 use super::{LoopEdge, PropsError};
 
@@ -28,10 +28,14 @@ use super::{LoopEdge, PropsError};
 ///   **An arc's lever is its start point, never its centre.** The
 ///   centre-referenced form `(C − ref)×(p1 − p0) + a·b·Δ·axis` is the
 ///   same number in ℝ, but its two terms are the sector's size and
-///   cancel to the face's, so the chord's rounding at the carrier's
-///   magnitude `|C|` reaches the sum times `|C − ref|` — on a shallow
-///   arc of a large conic, far more than the face's own rounding, which
-///   is all a closed form's zero pad carries.
+///   cancel to the face's, so the chord's rounding reaches the sum
+///   times `|C − ref|`. The chord still carries that rounding — `p0`
+///   and `p1` are evaluated about `C`, to `ulp(|C|)` — but here it
+///   meets only the lever `|p0 − ref|`, the face's own extent: the
+///   residual is about `ulp(|C|)·|p0 − ref|` per arc, which for a
+///   carrier inside D4's 1 km session box is at the scale of the
+///   smallest ε the kernel runs at. That residual is what a closed
+///   form's zero pad leaves unbounded.
 /// - **non-rational B-spline** (D7 stage-1 promotion made this a
 ///   reachable at-rest state: a promoted plane keeps its parsed
 ///   spline boundary carriers): per knot span the integrand
@@ -100,8 +104,25 @@ fn arc_vector_area<T: SpanLocate>(
     rate: T,
 ) -> Vec3<T> {
     let p0 = e.p0();
-    let span = e.t1 - e.t0;
-    (p0 - ref_point).cross(e.p1() - p0) + axis * (rate * (span - span.sin()))
+    (p0 - ref_point).cross(e.p1() - p0) + arc_segment_term(axis, rate, e.t1 - e.t0)
+}
+
+/// **The bulge of an arc over its chord** — the one statement of it:
+/// `Δ − sin Δ` for the signed span `Δ`. Twice the area between a unit
+/// circle's arc and its chord; an arc of the conic `c + a·cos θ +
+/// b·sin θ` cuts off `(a × b)·(Δ − sin Δ)` of twice-area, for any
+/// signed `Δ` and any `a`, `b`.
+pub fn chord_bulge<T: Real>(span: T) -> T {
+    span - span.sin()
+}
+
+/// **Twice the vector area between a conic arc and its chord**:
+/// `axis·rate·(Δ − sin Δ)`, `rate` the arc's areal rate per unit of its
+/// parameter (`R²` for a circle, the semi-axes' signed product for an
+/// ellipse) and `Δ` its signed span — the one home of the segment term
+/// every reading of a conic arc's area adds to its chord's.
+pub fn arc_segment_term<T: Real>(axis: Vec3<T>, rate: T, span: T) -> Vec3<T> {
+    axis * (rate * chord_bulge(span))
 }
 
 /// The fixed Gauss–Legendre rules on `[−1, 1]`, by node count `n`

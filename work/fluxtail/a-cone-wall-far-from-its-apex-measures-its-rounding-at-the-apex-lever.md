@@ -59,3 +59,11 @@ question too: closing each loop through its gaps by straight chords,
 its gap `g_i` to the next edge's start), makes the loop closed and so
 reference-free; it reads a generator-direction gap as the apex fan does
 and a rounding gap at the loop's own size. That is unmeasured.
+
+## Inside the box (PR 5185's review)
+
+The witness above puts the apex 1e5 m away, outside D4 ¶4's 1 km
+session box. The review measured it inside: τ = 2e-3 (apexes at 500 m
+and 1 km), ε = 1e-12, the turned body reads 6.8e-9 m³ off, about 850×
+ε·A, with `Ok` and pad 0, while `validate_geometric` refuses it; at
+τ = 4e-3 the miss is about 75× ε·A. So the P1 stands on an in-box body.
