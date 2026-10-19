@@ -4,6 +4,7 @@ kind: issue
 title: a flat frustum (α ≥ 1.45) a few hundred units across refuses to revolve at ε = 1e-12, certifying a pcurve's envelope or a carrier's endpoint; cause unmeasured
 status: review
 branch: germ/flat-frustum-revolve
+pr: 5382
 opened: 2026-10-14
 priority: P3
 cost: M
