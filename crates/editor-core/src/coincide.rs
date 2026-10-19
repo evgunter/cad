@@ -100,8 +100,8 @@ pub enum RowOrigin {
     /// The node's own operation decided it.
     Node,
     /// A union's or an intersect's judgement of the members at these
-    /// places in its list, the lesser first: one of the node's
-    /// order-free rows.
+    /// places in its list, the lesser first: one of the node's rows
+    /// that are order-free modulo the members' places.
     Judged {
         /// The two members' places.
         pair: [u32; 2],
@@ -113,6 +113,51 @@ pub enum RowOrigin {
         step: u32,
     },
 }
+
+impl NamedCoincidence {
+    /// **A meeting of `cells` at one point** ([`topo::Relation::Meet`]):
+    /// the cells sorted, each once.
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::Emission`] where fewer than two cells remain: a
+    /// point decided on the cell it is, which states nothing.
+    pub(crate) fn meet(
+        mut cells: Vec<NamedCell>,
+        site: topo::DecisionSite,
+        (margin, discharge): (MarginDiag, topo::Discharge),
+        origin: RowOrigin,
+    ) -> Result<Self, NamingError> {
+        cells.sort();
+        cells.dedup();
+        if cells.len() < 2 {
+            return Err(NamingError::Emission { what: MEET_OF_ONE });
+        }
+        Ok(Self {
+            cells,
+            relation: topo::Relation::Meet,
+            site,
+            margin,
+            discharge,
+            origin,
+        })
+    }
+
+    /// **Whether `self` and `other` are decided at one point**: both
+    /// name one member vertex. A row naming a vertex decides at that
+    /// vertex, whatever its relation; a row naming none fixes no point
+    /// by its cells, so it is at one point with no other row.
+    #[must_use]
+    pub(crate) fn at_one_vertex(&self, other: &Self) -> bool {
+        self.cells.iter().any(|c| {
+            matches!(c, NamedCell::Entity { name, .. } if name.kind == crate::names::EntityKind::Vertex)
+                && other.cells.contains(c)
+        })
+    }
+}
+
+/// A meeting that resolves to fewer than two cells.
+const MEET_OF_ONE: &str = "a coincidence meeting resolves to fewer than two cells";
 
 /// One cell of a [`NamedCoincidence`].
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -153,7 +198,7 @@ pub enum Proof {
     /// No rung proves it structural. It holds at the current values;
     /// whether it holds across the family the door has not shown.
     Unproven {
-        /// What separates the two cells' constructions.
+        /// What separates the cells' constructions.
         residual: Residual,
         /// What would make the coincidence structural.
         recourse: Recourse,
@@ -163,7 +208,7 @@ pub enum Proof {
 /// The rung of the door that proved a row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Rung {
-    /// The two cells are one construction read twice: one origin,
+    /// The cells are one construction read as many times: one origin,
     /// reached through one chain of placements.
     SameConstruction,
     /// The kernel's carrier-pair verdict, run on the two cells'
@@ -325,7 +370,7 @@ pub enum Placed {
     World(RecipeNodeId),
 }
 
-/// **What separates an unproven row's two constructions**: each cell's
+/// **What separates an unproven row's constructions**: each cell's
 /// construction, or why the walk reached none.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Residual {
@@ -406,7 +451,7 @@ impl Residual {
 /// **What would make an unproven row structural.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Recourse {
-    /// Build the two cells as one construction of the same variables,
+    /// Build the cells as one construction of the same variables,
     /// or assert the coincidence at its site: the residual the replay
     /// read is a function of the variables alone that the door did not
     /// show zero.
@@ -425,7 +470,7 @@ impl Recourse {
     pub const fn words(self) -> &'static str {
         match self {
             Self::OneConstruction => {
-                "Recourse: build the two cells as one construction of the same variables, so \
+                "Recourse: build the cells as one construction of the same variables, so \
                  the coincidence holds whatever their values, or assert it at its site"
             }
             Self::Assert => {
@@ -436,7 +481,7 @@ impl Recourse {
     }
 }
 
-/// A relation as the clause between a row's two cells.
+/// A relation as the clause between the cells of a two-cell row.
 pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
     match relation {
         topo::Relation::SameOriented => "continues on one carrier with",
@@ -457,19 +502,23 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
 /// **A row's statement in words**, each cell as `cell` spells it: two
 /// cells and the clause between them, or every cell of a meeting of
 /// three or more.
+///
+/// # Panics
+///
+/// On a row of fewer than two cells, which no constructor makes
+/// ([`NamedCoincidence::meet`]).
 pub(crate) fn statement_words(
     row: &NamedCoincidence,
     cell: impl Fn(&NamedCell) -> String,
 ) -> String {
     match row.cells.as_slice() {
-        [one] => cell(one),
         [a, b] => format!("{} {} {}", cell(a), relation_words(row.relation), cell(b)),
-        [init @ .., last] => format!(
+        [init @ .., last] if !init.is_empty() => format!(
             "{} and {} share one point",
             init.iter().map(&cell).collect::<Vec<_>>().join(", "),
             cell(last)
         ),
-        [] => String::from("no cell"),
+        _ => unreachable!("a coincidence row holds two cells or more: {row:?}"),
     }
 }
 
@@ -796,10 +845,14 @@ pub(crate) fn name_rows(
     };
     rows.iter()
         .map(|row| {
-            let mut cells = vec![name(&row.cells[0])?, name(&row.cells[1])?];
+            let cells = vec![name(&row.cells[0])?, name(&row.cells[1])?];
             if row.relation == topo::Relation::Meet {
-                cells.sort();
-                cells.dedup();
+                return NamedCoincidence::meet(
+                    cells,
+                    row.site,
+                    (row.margin, row.discharge),
+                    RowOrigin::Node,
+                );
             }
             Ok(NamedCoincidence {
                 cells,

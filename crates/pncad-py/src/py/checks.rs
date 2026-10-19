@@ -511,6 +511,32 @@ impl CheckEvidence {
         }
     }
 
+    /// The fold steps' rows reported with that coincidence, on
+    /// `unproven_coincidence` alone: each a union's fold-step row
+    /// decided at a member vertex the coincidence names, its cells named
+    /// and its residual said; empty where it reports none.
+    #[getter]
+    fn restated(&self, py: Python<'_>) -> PyResult<Option<Vec<super::value::Coincidence>>> {
+        match &self.0 {
+            d::CheckEvidence::UnprovenCoincidence { restated, .. } => restated
+                .iter()
+                .map(|(row, residual, recourse)| {
+                    super::value::Coincidence::new(
+                        py,
+                        row,
+                        &d::Proof::Unproven {
+                            residual: residual.clone(),
+                            recourse: *recourse,
+                        },
+                        &self.1,
+                    )
+                })
+                .collect::<PyResult<Vec<_>>>()
+                .map(Some),
+            _ => Ok(None),
+        }
+    }
+
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
     }

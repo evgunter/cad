@@ -521,14 +521,23 @@ pub enum CheckEvidence {
     UnprovenCoincidence {
         /// The row, its cells named in the node's inputs' tables.
         row: Box<crate::coincide::NamedCoincidence>,
-        /// What separates the two cells' constructions.
+        /// What separates the cells' constructions.
         residual: Box<crate::coincide::Residual>,
         /// What would make it structural.
         recourse: crate::coincide::Recourse,
         /// The node's unproven fold-step rows reported under this
-        /// judged row (DM4): each meets it at a member cell, so it
-        /// states the same coincidence the order of the fold met.
-        restated: Vec<crate::coincide::NamedCoincidence>,
+        /// judged row (DM4), each with what separates its cells and its
+        /// recourse: each names a member vertex this row names, so the
+        /// two are decided at that vertex
+        /// ([`crate::coincide::NamedCoincidence::at_one_vertex`]). A
+        /// fold row decided at several judged rows' vertex goes under
+        /// the least of them by cells, relation and site; one at no
+        /// judged row's vertex is its own finding.
+        restated: Vec<(
+            crate::coincide::NamedCoincidence,
+            crate::coincide::Residual,
+            crate::coincide::Recourse,
+        )>,
     },
 }
 
@@ -1489,40 +1498,76 @@ fn door_findings<P: crate::ProfilePayload>(
     let proofs = crate::coincide::prove(doc, &nodes, resolver, tol, cancel)?;
     let mut findings: Vec<CheckFinding> = Vec::new();
     for ((subject, _, rows), proofs) in rows.iter().zip(proofs) {
-        let mut judged: Vec<usize> = Vec::new();
-        let mut at: Vec<usize> = Vec::with_capacity(rows.len());
-        for (row, proof) in rows.iter().zip(proofs) {
-            let crate::coincide::Proof::Unproven { residual, recourse } = proof else {
-                continue;
-            };
-            let shares = |f: &CheckFinding| match &f.evidence {
-                CheckEvidence::UnprovenCoincidence { row: j, .. } => {
-                    j.cells.iter().any(|c| row.cells.contains(c))
+        let unproven: Vec<_> = rows
+            .iter()
+            .zip(proofs)
+            .filter_map(|(row, proof)| match proof {
+                crate::coincide::Proof::Unproven { residual, recourse } => {
+                    Some((row, residual, recourse))
                 }
-                _ => false,
-            };
-            if let crate::coincide::RowOrigin::Fold { .. } = row.origin
-                && let Some(&k) = judged.iter().find(|&&k| shares(&findings[at[k]]))
-                && let CheckEvidence::UnprovenCoincidence { restated, .. } =
-                    &mut findings[at[k]].evidence
-            {
-                restated.push(row.clone());
+                crate::coincide::Proof::Structural(_) => None,
+            })
+            .collect();
+        // Each fold row's parent: of the unproven judged rows decided at
+        // its point, the least by statement, so the choice does not
+        // follow the order the rows were decided in.
+        fn statement(
+            r: &crate::coincide::NamedCoincidence,
+        ) -> (
+            Vec<&crate::coincide::NamedCell>,
+            topo::Relation,
+            topo::DecisionSite,
+        ) {
+            let mut cells: Vec<&crate::coincide::NamedCell> = r.cells.iter().collect();
+            cells.sort();
+            (cells, r.relation, r.site)
+        }
+        let parent = |row: &crate::coincide::NamedCoincidence| {
+            unproven
+                .iter()
+                .enumerate()
+                .filter(|(_, (j, _, _))| {
+                    matches!(j.origin, crate::coincide::RowOrigin::Judged { .. })
+                        && j.at_one_vertex(row)
+                })
+                .min_by(|(i, (a, _, _)), (k, (b, _, _))| {
+                    statement(a).cmp(&statement(b)).then(i.cmp(k))
+                })
+                .map(|(i, _)| i)
+        };
+        let parents: Vec<Option<usize>> = unproven
+            .iter()
+            .map(|(row, _, _)| match row.origin {
+                crate::coincide::RowOrigin::Fold { .. } => parent(row),
+                _ => None,
+            })
+            .collect();
+        let mut at: Vec<Option<usize>> = vec![None; unproven.len()];
+        for (i, (row, residual, recourse)) in unproven.iter().enumerate() {
+            if parents[i].is_some() {
                 continue;
             }
-            if let crate::coincide::RowOrigin::Judged { .. } = row.origin {
-                judged.push(at.len());
-            }
-            at.push(findings.len());
+            at[i] = Some(findings.len());
             findings.push(CheckFinding {
                 check: CheckId::UnprovenCoincidence,
                 subject: *subject,
                 evidence: CheckEvidence::UnprovenCoincidence {
-                    row: Box::new(row.clone()),
-                    residual: Box::new(residual),
-                    recourse,
+                    row: Box::new((*row).clone()),
+                    residual: Box::new(residual.clone()),
+                    recourse: *recourse,
                     restated: Vec::new(),
                 },
             });
+        }
+        for (i, (row, residual, recourse)) in unproven.iter().enumerate() {
+            let Some(p) = parents[i] else { continue };
+            let Some(CheckEvidence::UnprovenCoincidence { restated, .. }) = at[p]
+                .and_then(|f| findings.get_mut(f))
+                .map(|f| &mut f.evidence)
+            else {
+                unreachable!("a fold row's parent is a judged row reported as its own finding")
+            };
+            restated.push(((*row).clone(), residual.clone(), *recourse));
         }
     }
     Ok(findings)

@@ -4329,7 +4329,10 @@ type Carried = (ContactRecords, Vec<crate::Coincidence>);
 /// point, which lies on whatever the second lies in; or two points
 /// decided one with the first widened, spelled the other way round.
 /// Any other spelling of a point decided on a cell states the point as
-/// the [`crate::Relation::Meet`] of the cells read.
+/// the [`crate::Relation::Meet`] of the cells read, sorted. Every
+/// spelling drops the cell whose crossing minted a widened vertex,
+/// which the reduction does not keep
+/// (`work/cleave/a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it.md`).
 ///
 /// # Errors
 ///
@@ -4349,15 +4352,21 @@ fn spell(
     let widened = [0, 1].map(|i| dim(read[i].1) > dim(cells[i].1));
     let row = |[x, y]: [End; 2]| [x, y].map(|(input, cell)| crate::RowCell::Input { input, cell });
     let point = |c: Cell| matches!(c, Cell::Vertex(_));
+    // A meeting is unordered: its cells sorted.
+    let meet = |cells: [End; 2]| {
+        let mut cells = row(cells);
+        cells.sort();
+        cells
+    };
     let on = relation == crate::Relation::OnCarrier;
     Ok(match widened {
         [false, false] => (row(read), relation),
-        _ if relation == crate::Relation::Meet => (row(read), relation),
+        _ if relation == crate::Relation::Meet => (meet(read), relation),
         [false, true] if on && point(cells[0].1) => (row(read), relation),
         [true, false] if on && point(cells[0].1) && point(cells[1].1) => {
             (row([read[1], read[0]]), relation)
         }
-        _ if on => (row(read), crate::Relation::Meet),
+        _ if on => (meet(read), crate::Relation::Meet),
         _ => {
             return Err(BooleanError::JoinDesync {
                 what: "a decision other than a point's on a cell reads a cell it lies in",

@@ -3334,6 +3334,18 @@ fn one_statement(
     a.relation == b.relation && sorted(a) == sorted(b)
 }
 
+/// Whether the fold row `row` is the judged row `judged`: one statement
+/// decided at one point ([`crate::coincide::NamedCoincidence::at_one_vertex`]).
+/// One statement can hold at two points (an edge touching a curved face
+/// at two isolated points), and a statement whose cells fix no point is
+/// its own row.
+fn restates(
+    judged: &crate::coincide::NamedCoincidence,
+    row: &crate::coincide::NamedCoincidence,
+) -> bool {
+    one_statement(judged, row) && judged.at_one_vertex(row)
+}
+
 /// Where `rows` holds the judged row `row` restates, pushing it where
 /// none does. Two judged rows are one only when two different pairs
 /// made them and they agree exactly, site, margin and discharge too:
@@ -3371,8 +3383,8 @@ fn judged_at(
 /// # Errors
 ///
 /// [`UNION_FOLD_ROW_FOREIGN_CELL`] for a cell named outside the node's
-/// own space, [`UNION_FOLD_ROW_UNSTATED`] for a decision of another
-/// relation whose cells are not one member cell each, and
+/// own space, [`UNION_FOLD_ROW_UNSTATED`] for any other decision (a
+/// carrier pair's) whose cells are not one member cell each, and
 /// [`names::member_cells`]'s refusals.
 fn in_member_space(
     row: crate::coincide::NamedCoincidence,
@@ -3395,30 +3407,48 @@ fn in_member_space(
         [one] => Some(one.clone()),
         _ => None,
     };
-    let (cells, relation) = match (row.relation, spelled.as_slice()) {
-        (topo::Relation::OnCarrier, [p, x])
-            if let (Some(p), Some(x)) = (single(p), single(x))
-                && p.1.kind == names::EntityKind::Vertex =>
-        {
-            (vec![entity(p), entity(x)], row.relation)
-        }
-        (topo::Relation::OnCarrier | topo::Relation::Meet, _) => {
-            let mut set: Vec<NamedCell> = spelled.into_iter().flatten().map(entity).collect();
-            set.sort();
-            set.dedup();
-            (set, topo::Relation::Meet)
-        }
-        (relation, [a, b]) if let (Some(a), Some(b)) = (single(a), single(b)) => {
-            (vec![entity(a), entity(b)], relation)
-        }
-        _ => return Err(bug(UNION_FOLD_ROW_UNSTATED)),
+    let origin = crate::coincide::RowOrigin::Fold { step };
+    let point = |cell: &NamedCell| matches!(cell, NamedCell::Entity { name, .. } if name.kind == names::EntityKind::Vertex);
+    let two = |a: Vec<_>, b: Vec<_>, relation| match (single(&a), single(&b)) {
+        (Some(a), Some(b)) => Ok(crate::coincide::NamedCoincidence {
+            cells: vec![entity(a), entity(b)],
+            relation,
+            origin,
+            ..row.clone()
+        }),
+        _ => Err(bug(UNION_FOLD_ROW_UNSTATED)),
     };
-    Ok(crate::coincide::NamedCoincidence {
-        cells,
-        relation,
-        origin: crate::coincide::RowOrigin::Fold { step },
-        ..row
-    })
+    let meet = |spelled: Vec<Vec<_>>| {
+        crate::coincide::NamedCoincidence::meet(
+            spelled.into_iter().flatten().map(entity).collect(),
+            row.site,
+            (row.margin, row.discharge),
+            origin,
+        )
+    };
+    let mut spelled = spelled.into_iter();
+    let (Some(p), Some(x), None) = (spelled.next(), spelled.next(), spelled.next()) else {
+        return Err(bug(UNION_FOLD_ROW_UNSTATED));
+    };
+    match row.relation {
+        // A point the step decided on a cell: one member vertex on one
+        // member cell as read, else the meeting of every member cell
+        // both are made of.
+        topo::Relation::OnCarrier if point(&row.cells[0]) => match (single(&p), single(&x)) {
+            (Some(v), Some(_)) if v.1.kind == names::EntityKind::Vertex => {
+                two(p, x, topo::Relation::OnCarrier)
+            }
+            _ => meet(vec![p, x]),
+        },
+        topo::Relation::Meet => meet(vec![p, x]),
+        // Any other `OnCarrier` is a carrier pair's (a sphere's centre
+        // on a cylinder's axis, `CoaxialSphere`), which a fold step does
+        // not decide: it runs with the pairwise judgement's verdicts
+        // given (`topo::Verdicts::Given`), and a carrier pair's row is
+        // the judgement's. So no cell of one is widened, and it is
+        // refused if a step ever returns one made of several cells.
+        _ => two(p, x, row.relation),
+    }
 }
 
 /// **The union's and the intersect's lowering** (DM4): the SAME pair
@@ -3456,9 +3486,11 @@ fn in_member_space(
 /// judged rows, each marked by its pair ([`crate::coincide::RowOrigin`]),
 /// then every row each fold step decided, in fold order, spelled as the
 /// member cells that meet ([`in_member_space`]); a fold row stating what
-/// a judged row states is that row. The judged rows are the same in
-/// every member order, and the fold's follow the order, as a step's
-/// refusal does.
+/// a judged row states at the same point is that row ([`restates`]), and
+/// one restating a given pair's decision is the judged rows of its
+/// verdicts ([`restated_given`]). The judged rows are the same in every
+/// member order, modulo the members' places, and the fold's follow the
+/// order, as a step's refusal does.
 ///
 /// **Nothing ∅-absorbing is invented** (D3). A member that evaluates to
 /// an empty boolean refuses `EmptyOperand` naming that member. An
@@ -3770,10 +3802,15 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         )?;
                         fold_rows.push(match restates {
                             Some(judged) => FoldRow::Restates(judged),
-                            None => FoldRow::Decided(
-                                in_member_space(named, own_read, member)
-                                    .map_err(NodeErrorKind::Naming)?,
-                            ),
+                            None => {
+                                #[cfg(any(test, feature = "test-support"))]
+                                let as_named = named.clone();
+                                let spelled = in_member_space(named, own_read, member)
+                                    .map_err(NodeErrorKind::Naming)?;
+                                #[cfg(any(test, feature = "test-support"))]
+                                crate::test_support::record_fold_row(&as_named, &spelled);
+                                FoldRow::Decided(spelled)
+                            }
                         });
                     }
                 }
@@ -3858,18 +3895,21 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         }));
     };
     // The node's rows are its evaluation's decisions (DM4): the judged
-    // rows, then every fold step's, a fold row stating what a judged row
-    // states being that row; the records are recited onto the rows they
-    // cite.
+    // rows, then every fold step's, a fold row a judged row restates
+    // being that row; the records are recited onto the rows they cite.
     let contacts = if pairwise {
         let at: Vec<Vec<usize>> = fold_rows
             .into_iter()
             .map(|row| match row {
                 FoldRow::Restates(judged) => judged,
+                // A fold row the judgement already states is that row: a
+                // record citing it cites the judged decision and its
+                // margin, not the step's (which can differ in its last
+                // bits, 0.0 against 2.22e-16).
                 FoldRow::Decided(row) => vec![
                     coincidences[..judged_rows]
                         .iter()
-                        .position(|judged| one_statement(judged, &row))
+                        .position(|judged| restates(judged, &row))
                         .unwrap_or_else(|| {
                             coincidences.push(row);
                             coincidences.len() - 1
@@ -5190,6 +5230,41 @@ mod union_row_tests {
             (r.relation, r.cells),
             (topo::Relation::OnCarrier, vec![cell(4, v), cell(1, e)]),
             "a member vertex on a member edge is the two-cell row, as read"
+        );
+        // A carrier pair's `OnCarrier` between a member face and a face
+        // the fold merged from two: no fold step decides one, and one
+        // that would be rewritten is refused.
+        let (f1, f2) = (
+            member(1, EntityKind::Face, CapEnd::Start),
+            member(2, EntityKind::Face, CapEnd::End),
+        );
+        let merged = name(
+            EntityKind::Face,
+            union,
+            vec![RoleSeg::Merged(vec![
+                from(union, 1, f1.clone()),
+                from(union, 2, f2.clone()),
+            ])],
+        );
+        let pair = row(
+            in_own(from(union, 3, member(3, EntityKind::Face, CapEnd::End))),
+            in_own(merged),
+        );
+        assert!(
+            in_member_space(pair, own, 3).is_err(),
+            "a face on a face made of two is refused, not rewritten"
+        );
+        // A point decided on the very cell it is states nothing.
+        let on_itself = NamedCoincidence {
+            relation: topo::Relation::Meet,
+            ..row(
+                in_own(from(union, 1, member(1, EntityKind::Edge, CapEnd::Start))),
+                in_own(from(union, 1, member(1, EntityKind::Edge, CapEnd::Start))),
+            )
+        };
+        assert!(
+            in_member_space(on_itself, own, 3).is_err(),
+            "a meeting of one cell is refused"
         );
     }
 

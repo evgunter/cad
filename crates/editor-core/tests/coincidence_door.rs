@@ -1527,12 +1527,16 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 /// joints whose `fillet3_chain_g1` margin is the zero polynomial. One of
 /// `die_composed`'s two and 21 of `die_composed_tour`'s 42 prove as
 /// theorems, and the rest stay unproven. The dies' booleans decide
-/// vertex identities too, as many as the joints: each a point minted on
-/// an edge, published as a `Meet` of the cells it lies in, and left
-/// unproven, a coincidence of values as far as the door can tell.
+/// vertex identities too, each a point minted on an edge, published as
+/// a `Meet` of the cells it lies in and left unproven, a coincidence of
+/// values as far as the door can tell.
 #[test]
 fn the_door_proves_half_the_composed_dies_joints() {
-    for (name, proved, rows) in [("die_composed", 1, 4), ("die_composed_tour", 21, 84)] {
+    // `met`: the vertex identities the dies' booleans decide at a point
+    // minted on an edge, each a `Meet` of the cells it lies in (measured:
+    // a pip's meridian seam edge against a face of the die).
+    for (name, proved, rows, met) in [("die_composed", 1, 4, 2), ("die_composed_tour", 21, 84, 42)]
+    {
         let cd = crate::corpus::documents()
             .into_iter()
             .find(|cd| cd.name == name)
@@ -1560,12 +1564,12 @@ fn the_door_proves_half_the_composed_dies_joints() {
             .filter(|p| matches!(p, Proof::Structural(Rung::MarginIdentity)))
             .count();
         let replayed = replays(&all);
-        let met = nodes
+        let meetings = nodes
             .iter()
             .flat_map(|(_, rows)| rows.iter())
             .filter(|r| r.relation == Relation::Meet)
             .count();
-        assert_eq!(met, rows / 2, "{name}: one meeting per joint");
+        assert_eq!(meetings, met, "{name}: the booleans' meetings");
         assert_eq!((theorems, replayed.len()), (proved, rows), "{name}");
         assert!(
             replayed
@@ -1947,19 +1951,24 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     );
 }
 
-/// **An unproven fold row is reported under the judged row it meets**
-/// (DM4: the judged rows are the union's order-free rows): over orders
-/// of `union_pinch_member_order`'s prism crossing one wedge with the
-/// plate, every unproven row a fold step logged is reported once, under
-/// the first unproven judged finding of its node that shares a member
-/// cell with it where there is one, else as its own finding. Red if a
-/// fold row is lost, reported twice, or reported apart from a judged
-/// finding it meets; and the fixture must report some under a judged
-/// finding, so the rule is not passed on nothing.
+/// **An unproven fold row is reported under the judged row decided at
+/// its point** (DM4: the judged rows are the union's order-free rows):
+/// over orders of `union_pinch_member_order`'s prism crossing one wedge
+/// with the plate, each unproven row a fold step logged that names a
+/// member vertex an unproven judged row names goes under the least such
+/// judged row by its sorted cells, relation and site, and every other
+/// one is its own finding. The parent is computed here from the rows and
+/// held against the report, and one fold statement must have one parent
+/// statement in every order that logs it. Red if a fold row is lost,
+/// reported twice, put under a row about another point, or under a
+/// parent that follows the order; and the fixture must report some
+/// under a judged row, so the rule is not passed on nothing.
 #[test]
-fn an_unproven_fold_row_is_reported_under_the_judged_row_it_meets() {
+fn an_unproven_fold_row_is_reported_under_the_judged_row_decided_at_its_point() {
     use editor_core::RowOrigin;
+    use std::collections::BTreeMap;
     let mut under = 0;
+    let mut parents: BTreeMap<String, String> = BTreeMap::new();
     for order in [[0, 1, 2, 3], [1, 3, 0, 2], [3, 1, 0, 2], [2, 0, 3, 1]] {
         let doc = ProfileDoc::empty_derived("door-fold-rows", Tol::witness());
         let (doc, m) = crate::union_pinch_member_order::crossing_one_wedge(doc);
@@ -1967,54 +1976,114 @@ fn an_unproven_fold_row_is_reported_under_the_judged_row_it_meets() {
         let (doc, u) = crate::fixture::union_over(doc, &members);
         let ev = run(&doc);
         let logged = rows(&ev, u);
-        let unproven_fold: Vec<&NamedCoincidence> = logged
+        let unproven: Vec<&NamedCoincidence> = logged
             .iter()
             .zip(proofs(&doc, u, &logged))
-            .filter(|(r, p)| {
-                matches!(r.origin, RowOrigin::Fold { .. }) && matches!(p, Proof::Unproven { .. })
-            })
+            .filter(|(_, p)| matches!(p, Proof::Unproven { .. }))
             .map(|(r, _)| r)
             .collect();
-        let findings: Vec<_> = unproven(&doc, &ev)
-            .into_iter()
-            .filter(|f| f.subject == editor_core::FindingSubject::Node(u))
-            .collect();
-        let mut reported: Vec<&NamedCoincidence> = Vec::new();
-        for f in &findings {
-            let CheckEvidence::UnprovenCoincidence { row, restated, .. } = &f.evidence else {
-                continue;
-            };
-            if matches!(row.origin, RowOrigin::Fold { .. }) {
-                assert!(
-                    !findings.iter().any(|g| matches!(&g.evidence,
-                        CheckEvidence::UnprovenCoincidence { row: j, .. }
-                            if matches!(j.origin, RowOrigin::Judged { .. })
-                                && j.cells.iter().any(|c| row.cells.contains(c)))),
-                    "{order:?}: a fold row meeting a judged finding is reported apart: {row:?}"
-                );
-                reported.push(row);
-            }
-            for r in restated {
-                assert!(
-                    matches!(row.origin, RowOrigin::Judged { .. })
-                        && matches!(r.origin, RowOrigin::Fold { .. })
-                        && r.cells.iter().any(|c| row.cells.contains(c)),
-                    "{order:?}: a fold row reported under a judged row it meets: {r:?} under {row:?}"
-                );
-                reported.push(r);
-                under += 1;
+        let key = |r: &NamedCoincidence| {
+            let mut cells = r.cells.clone();
+            cells.sort();
+            (cells, r.relation, r.site)
+        };
+        // Each cell by its member's fixture index and its name, so a
+        // statement reads alike in every order.
+        let said = |r: &NamedCoincidence| {
+            let mut cells: Vec<String> = r
+                .cells
+                .iter()
+                .map(|c| match c {
+                    NamedCell::Entity { input, name } => {
+                        let at = (0..m.len()).find(|&i| out(&doc, m[i]) == *input);
+                        format!("{at:?} {name:?}")
+                    }
+                    other => format!("{other:?}"),
+                })
+                .collect();
+            cells.sort();
+            format!("{:?} {:?} {cells:?}", r.relation, r.site)
+        };
+        let vertex_shared = |a: &NamedCoincidence, b: &NamedCoincidence| {
+            a.cells.iter().any(|c| {
+                matches!(c, NamedCell::Entity { name, .. } if name.kind == EntityKind::Vertex)
+                    && b.cells.contains(c)
+            })
+        };
+        let mut want: Vec<(String, Vec<String>)> = Vec::new();
+        let mut own: Vec<&NamedCoincidence> = Vec::new();
+        let mut placed: Vec<(&NamedCoincidence, &NamedCoincidence)> = Vec::new();
+        for f in &unproven {
+            let parent = matches!(f.origin, RowOrigin::Fold { .. })
+                .then(|| {
+                    unproven
+                        .iter()
+                        .filter(|j| {
+                            matches!(j.origin, RowOrigin::Judged { .. }) && vertex_shared(j, f)
+                        })
+                        .min_by_key(|j| key(j))
+                })
+                .flatten();
+            match parent {
+                Some(j) => placed.push((j, f)),
+                None => own.push(f),
             }
         }
-        let mut want = unproven_fold.clone();
-        want.sort_by_key(|r| format!("{r:?}"));
-        reported.sort_by_key(|r| format!("{r:?}"));
+        for o in &own {
+            let mut under: Vec<String> = placed
+                .iter()
+                .filter(|(j, _)| std::ptr::eq(*j, *o))
+                .map(|(_, f)| said(f))
+                .collect();
+            under.sort();
+            want.push((said(o), under));
+        }
+        let mut got: Vec<(String, Vec<String>)> = unproven_findings(&doc, &ev, u)
+            .into_iter()
+            .map(|(row, restated)| {
+                let mut under: Vec<String> = restated.iter().map(&said).collect();
+                under.sort();
+                (said(&row), under)
+            })
+            .collect();
+        got.sort();
+        want.sort();
         assert_eq!(
-            reported, want,
-            "{order:?}: every unproven fold row reported once"
+            got, want,
+            "{order:?}: each fold row under its point's judged row"
         );
+        for (j, f) in &placed {
+            under += 1;
+            let (fold, judged) = (said(f), said(j));
+            if let Some(before) = parents.insert(fold.clone(), judged.clone()) {
+                assert_eq!(
+                    before, judged,
+                    "{order:?}: the fold row {fold} has one parent in every order"
+                );
+            }
+        }
     }
     assert!(
         under > 0,
         "the fixture reports a fold row under a judged finding"
     );
+}
+
+/// The union `u`'s unproven-coincidence findings, each its row and the
+/// fold rows it reports with it.
+fn unproven_findings(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+    u: RecipeNodeId,
+) -> Vec<(NamedCoincidence, Vec<NamedCoincidence>)> {
+    unproven(doc, ev)
+        .into_iter()
+        .filter(|f| f.subject == editor_core::FindingSubject::Node(u))
+        .filter_map(|f| match f.evidence {
+            CheckEvidence::UnprovenCoincidence { row, restated, .. } => {
+                Some((*row, restated.into_iter().map(|(r, _, _)| r).collect()))
+            }
+            _ => None,
+        })
+        .collect()
 }

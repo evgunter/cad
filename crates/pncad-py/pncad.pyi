@@ -6889,11 +6889,13 @@ class CheckEvidence:
     examination, so nothing was read; do not take the silence for a
     clean body.
 
-    `unproven_coincidence` (`relation`, `site`, `reason`, and the row
-    as `coincidence`) — a node decided two cells one from values and
-    the coincidence door does not prove it structural. `reason` says
-    what separates the two constructions, or why a cell's could not be
-    read. A `profile_junction` row's `relation` is `tangent` or `cusp`
+    `unproven_coincidence` (`relation`, `site`, `reason`, the row as
+    `coincidence`, and `restated`) — a node decided a coincidence of
+    its cells from values and the coincidence door does not prove it
+    structural. `reason` says what separates the constructions, or why
+    a cell's could not be read. `restated` lists a union's fold-step
+    rows decided at a member vertex this row names, reported with it.
+    A `profile_junction` row's `relation` is `tangent` or `cusp`
     between two carriers and `same_oriented` on one. A report, never a
     refusal."""
 
@@ -6929,6 +6931,8 @@ class CheckEvidence:
     def site(self) -> Optional[str]: ...
     @property
     def coincidence(self) -> Optional[Coincidence]: ...
+    @property
+    def restated(self) -> Optional[list[Coincidence]]: ...
     def __eq__(self, other: object) -> bool: ...
 
 class Coincidence:

@@ -219,7 +219,8 @@ impl Discharge {
 /// **One coincidence an operation decided from values.**
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Coincidence {
-    /// The two cells decided one, in the order the decision read them.
+    /// The two cells decided one, in the order the decision read them;
+    /// a [`Relation::Meet`]'s sorted.
     pub cells: [RowCell; 2],
     /// What was decided between them.
     pub relation: Relation,

@@ -39,3 +39,17 @@ One point, two spellings, against DM4's "one fact has one spelling"
 The reduction keeping, for each vertex it mints on an edge, the cell of
 the other operand whose crossing minted it (where one did), so `spell`
 can widen the vertex to both: the edge and that cell.
+
+## The `OnCarrier` arms drop it too (PR 5378's review)
+
+`spell`'s two `OnCarrier` arms lose the minting cell the same way:
+- a point of one operand on a vertex minted on the other's edge, the
+  second cell read as that edge, keeps `OnCarrier` on the edge;
+- two points decided one, the first a vertex minted on an edge, spelled
+  the other way round onto that edge.
+
+Each is true: the point lies on the edge. Each is also weaker than the
+decision, which put it where the edge crossed the minting cell. The fix
+above serves all three arms: with the minting cell kept, the second
+cell widens to the edge and that cell, so the row becomes a `Meet` of
+the point and both.

@@ -3676,7 +3676,30 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         recourse: pncad::document::coincide::Recourse::OneConstruction,
         restated: Vec::new(),
     };
-    carries(&unproven, &["reason", "relation", "site"]);
+    // One fold row reported with it: the payload counts it.
+    let unproven = {
+        let E::UnprovenCoincidence {
+            row,
+            residual,
+            recourse,
+            ..
+        } = &unproven
+        else {
+            unreachable!("built as the unproven arm above")
+        };
+        let fold = pncad::document::NamedCoincidence {
+            origin: pncad::document::RowOrigin::Fold { step: 2 },
+            ..(**row).clone()
+        };
+        E::UnprovenCoincidence {
+            row: row.clone(),
+            residual: residual.clone(),
+            recourse: *recourse,
+            restated: vec![(fold, (**residual).clone(), *recourse)],
+        }
+    };
+    carries(&unproven, &["reason", "relation", "site", "restated"]);
+    assert_eq!(check_payload(&unproven).restated, Some(1));
     let words = check_payload(&unproven);
     assert_eq!(
         (words.relation, words.site),
