@@ -1,5 +1,4 @@
-//! Frame constructors: the placement vocabulary, as plain [`Affine3`]
-//! values.
+//! Frame constructors: the placement vocabulary.
 //!
 //! Three constructors, each answering a pain row of the corpus survey
 //! (`docs/LIBRARY-DESIGN.md` §L2):
@@ -18,14 +17,12 @@
 //!   mirror anywhere, so symmetric arrangements are placed by hand,
 //!   one leaf at a time).
 //!
-//! All three return an [`Affine3`], the general affine map: the linear
-//! part's columns are the frame's local +X/+Y/+Z axes in world
-//! coordinates, and the translation is the frame's origin. Composition,
-//! inversion, and application are [`Affine3`]'s, unchanged. The two
-//! aiming constructors build their axes through [`RigidMotion`], the
-//! witness that RECORDS the orthonormality they decided, and convert;
-//! [`mirror_across_plane`] cannot, because a reflection is not a frame
-//! (`det = −1`).
+//! The two aiming constructors return a [`RigidMotion`], the witness
+//! that RECORDS the orthonormality they decided: its axes are the
+//! frame's local +X/+Y/+Z in world coordinates and its origin the
+//! frame's, and [`RigidMotion::to_affine`] is the placement map.
+//! [`mirror_across_plane`] returns an [`Affine3`], because a reflection
+//! is not a frame (`det = −1`).
 //!
 //! # The roll convention (one sentence, pinned)
 //!
@@ -130,7 +127,7 @@
 //! vocabulary is shared; the code is not. PATHS' placements are
 //! typestate transitions in a 2-D profile algebra that consume DOFs
 //! from a bound tip and record a program step; these are total 3-D
-//! value constructors over [`Affine3`] with no lattice, no tip, and no
+//! value constructors over [`RigidMotion`] with no lattice, no tip, and no
 //! recording. The one thing a unification could share — the
 //! tangent-onto-direction rotation — is three lines in each and
 //! carries different degeneracy policies (PATHS refuses at the
@@ -408,9 +405,9 @@ fn refused_direction(e: UnitVec3Error, input: FrameVector) -> FrameError {
 /// reference lies in the local +Y half-plane (no local +X component,
 /// positive local +Y component).
 ///
-/// The result is a **rigid placement** — columns orthonormal, `det =
-/// +1`, no scale, no deformation — so it composes with, and inverts
-/// through, [`Affine3`] like any other pose. Applying it takes local
+/// The result is a **rigid motion** — axes orthonormal, `det = +1`,
+/// no scale, no deformation — so it composes with, and inverts
+/// through, [`RigidMotion`] like any other pose. Applying it takes local
 /// coordinates to world: local `(0,0,d)` lands `d` along the aim,
 /// local origin lands on `eye`.
 ///
@@ -439,29 +436,6 @@ fn refused_direction(e: UnitVec3Error, input: FrameVector) -> FrameError {
 ///   the input has a direction, and only scale recovers it.
 /// - [`FrameError::Band`] from [`Band::linear`].
 pub fn point_at<T: Decide>(
-    eye: Point3<T>,
-    target: Point3<T>,
-    roll_reference: Vec3<T>,
-    tol: Tol,
-) -> Result<Affine3<T>, FrameError> {
-    Ok(point_at_frame(eye, target, roll_reference, tol)?.to_affine())
-}
-
-/// [`point_at`]'s frame as the WITNESS it is built from, before the
-/// conversion to a placement — the same ladder, so a caller that
-/// needs the aim as a [`UnitVec3`] (its `w`) beside the affine holds
-/// the decision the ladder made rather than re-asking it or reading
-/// a column back off the map. `point_at` is this door's `to_affine`,
-/// so the two are one construction and agree bit for bit by
-/// construction.
-///
-/// The evaluation order, the roll convention and the refusals are
-/// [`point_at`]'s, stated there once.
-///
-/// # Errors
-///
-/// Exactly [`point_at`]'s.
-pub fn point_at_frame<T: Decide>(
     eye: Point3<T>,
     target: Point3<T>,
     roll_reference: Vec3<T>,
@@ -511,7 +485,7 @@ pub fn path_start_frame<T: Decide>(
     origin: Point3<T>,
     tangent: Vec3<T>,
     tol: Tol,
-) -> Result<Affine3<T>, FrameError> {
+) -> Result<RigidMotion<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
     let unit = UnitVec3::new(tangent, "frame_path_start_tangent", band)
         .map_err(|e| refused_direction(e, FrameVector::Tangent))?;
@@ -528,7 +502,7 @@ pub fn path_start_frame<T: Decide>(
     ] {
         let perp = reference.cross(unit.get());
         match RigidMotion::from_aim(origin, unit, perp, name, band) {
-            Ok(frame) => return Ok(frame.to_affine()),
+            Ok(frame) => return Ok(frame),
             Err(e) => match e.error {
                 UnitVec3Error::Escalated(i) => last = Some(i),
                 _ => last = None,
@@ -653,96 +627,29 @@ mod tests {
     use super::*;
     use crate::tolerance::Tol;
 
-    /// **`point_at` IS `point_at_frame`'s placement**, pinned where a
-    /// reader can see it rather than left to the one-line body: over
-    /// a grid of aims (every combination of signed units, halves,
-    /// in-band and sub-band lengths, underflowing and overflowing
-    /// magnitudes, the non-finite values), six references and four
-    /// origins, the affine and the frame's `to_affine` agree bit for
-    /// bit and the two doors refuse with one `FrameError`.
-    #[test]
-    fn point_at_is_point_at_frame_to_affine_bit_for_bit() {
-        let tol = Tol::witness();
-        let eps = tol.eps();
-        let vals = [
-            0.0,
-            -0.0,
-            1.0,
-            -1.0,
-            0.5,
-            -0.3,
-            3.0 * eps,
-            0.5 * eps,
-            1e-200,
-            1e200,
-            f64::NAN,
-            f64::INFINITY,
-        ];
-        let refs = [
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            Vec3::new(1.0, 1.0, 1e-12),
-            Vec3::new(-0.0, 3e-9, 1.0),
-        ];
-        let origins = [
-            Point3::origin(),
-            Point3::new(1e6, -1e6, 1e6),
-            Point3::new(-0.0, -0.0, -0.0),
-        ];
-        let bits = |a: &Affine3<f64>| {
-            let l = a.linear;
-            [
-                l.c0.x,
-                l.c0.y,
-                l.c0.z,
-                l.c1.x,
-                l.c1.y,
-                l.c1.z,
-                l.c2.x,
-                l.c2.y,
-                l.c2.z,
-                a.translation.x,
-                a.translation.y,
-                a.translation.z,
-            ]
-            .map(f64::to_bits)
-        };
-        let (mut placed, mut refused) = (0_u32, 0_u32);
-        for x in vals {
-            for y in vals {
-                for z in vals {
-                    for r in refs {
-                        for eye in origins {
-                            let target = eye + Vec3::new(x, y, z);
-                            let affine = point_at(eye, target, r, tol);
-                            let frame = point_at_frame(eye, target, r, tol);
-                            match (affine, frame) {
-                                (Ok(a), Ok(f)) => {
-                                    placed += 1;
-                                    assert_eq!(bits(&a), bits(&f.to_affine()), "at {x} {y} {z}");
-                                }
-                                (Err(a), Err(f)) => {
-                                    refused += 1;
-                                    assert_eq!(a, f, "at {x} {y} {z}");
-                                }
-                                (a, f) => panic!("the doors disagree at {x} {y} {z}: {a:?} {f:?}"),
-                            }
-                        }
-                    }
-                }
-            }
+    /// The placement map a test reads, from either kind of door.
+    trait Placed {
+        fn map(&self) -> Affine3<f64>;
+    }
+
+    impl Placed for Affine3<f64> {
+        fn map(&self) -> Affine3<f64> {
+            *self
         }
-        assert!(
-            placed > 0 && refused > 0,
-            "{placed} placed, {refused} refused"
-        );
+    }
+
+    impl Placed for RigidMotion<f64> {
+        fn map(&self) -> Affine3<f64> {
+            self.to_affine()
+        }
     }
 
     /// The frame's twelve entries, in column order then translation —
     /// the whole map, bit for bit. Orientation pins compare these, so a
     /// changed column ORDER, a flipped sign, or a re-associated product
     /// all fail loudly rather than passing a loose tolerance.
-    fn bits12(a: &Affine3<f64>) -> [u64; 12] {
+    fn bits12(a: &impl Placed) -> [u64; 12] {
+        let a = a.map();
         let l = a.linear;
         [
             l.c0.x,
@@ -766,8 +673,8 @@ mod tests {
     /// (columns unit, columns mutually orthogonal, `det = +1`), as raw
     /// numbers: a frame constructor that returns a non-rigid map is a
     /// bug here, not downstream.
-    fn rigidity_residuals(a: &Affine3<f64>) -> [f64; 7] {
-        let l = a.linear;
+    fn rigidity_residuals(a: &impl Placed) -> [f64; 7] {
+        let l = a.map().linear;
         [
             l.c0.dot(l.c0) - 1.0,
             l.c1.dot(l.c1) - 1.0,
@@ -851,7 +758,7 @@ mod tests {
         for (eye, target, r) in aim_cases() {
             let f = point_at(eye, target, r, Tol::witness()).unwrap();
             let aim = (target - eye).normalize();
-            let (x, y, z) = (f.linear.c0, f.linear.c1, f.linear.c2);
+            let (x, y, z) = (f.u().get(), f.v().get(), f.w().get());
             assert!((z.x - aim.x).abs() <= 1e-15);
             assert!((z.y - aim.y).abs() <= 1e-15);
             assert!((z.z - aim.z).abs() <= 1e-15);
@@ -872,7 +779,9 @@ mod tests {
     #[test]
     fn point_at_round_trips_through_affine3() {
         for (eye, target, r) in aim_cases() {
-            let f = point_at(eye, target, r, Tol::witness()).unwrap();
+            let f = point_at(eye, target, r, Tol::witness())
+                .unwrap()
+                .to_affine();
             let back = f.inverse() * f;
             for res in rigidity_residuals(&back) {
                 assert!(res.abs() <= 1e-13, "round-trip rigid: {res}");
@@ -1209,7 +1118,8 @@ mod tests {
             Vec3::unit_z(),
             Tol::witness(),
         )
-        .unwrap();
+        .unwrap()
+        .to_affine();
         assert!(((m * f).linear.determinant() + 1.0).abs() <= 1e-14);
     }
 
@@ -1326,7 +1236,8 @@ mod tests {
                     Point3::new(big, 0.0, 0.0),
                     Vec3::unit_z(),
                     tol,
-                ),
+                )
+                .map(RigidMotion::to_affine),
             ),
             (
                 // A finite aim, a reference whose perpendicular offset
@@ -1337,11 +1248,13 @@ mod tests {
                     Point3::new(0.0, 0.0, 1.0),
                     Vec3::new(big, 0.0, 0.0),
                     tol,
-                ),
+                )
+                .map(RigidMotion::to_affine),
             ),
             (
                 FrameVector::Tangent,
-                path_start_frame(Point3::origin(), Vec3::new(big, 0.0, 0.0), tol),
+                path_start_frame(Point3::origin(), Vec3::new(big, 0.0, 0.0), tol)
+                    .map(RigidMotion::to_affine),
             ),
         ];
         for (input, got) in rows {

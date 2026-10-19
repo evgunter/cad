@@ -241,10 +241,12 @@ fn sign_ix(s: Sign) -> usize {
 
 /// Diffs two evaluations' verdict logs (spec D2 — THE engine, built
 /// once). Scalar-generic on BOTH sides independently: verdict logs
-/// are scalar-independent data, so f64 runs, Interval runs, and
-/// mixtures diff identically; the caller chooses what the two runs
-/// differ by (parameter edit, ε change, recipe edit) and this
-/// function does not care.
+/// are scalar-independent data, and a node logs the same passes at
+/// every scalar (a profile's `f64` lane logs the second pass it skips,
+/// [`crate::ProfileLane`]), so f64 runs, Interval runs, and mixtures
+/// diff identically; the caller chooses what the two runs differ by
+/// (parameter edit, ε change, recipe edit) and this function does not
+/// care.
 pub fn diff_verdicts<T: Decide, U: Decide>(old: &Evaluation<T>, new: &Evaluation<U>) -> FlipSet {
     let ids: BTreeSet<RecipeNodeId> = old.nodes.keys().chain(new.nodes.keys()).copied().collect();
     let mut out = BTreeMap::new();

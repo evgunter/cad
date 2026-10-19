@@ -22,6 +22,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Point3;
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
@@ -36,10 +37,7 @@ pub(crate) fn lying_extrude(
     depth: f64,
     what: &str,
 ) -> AtRestBody<f64> {
-    let plane = SketchPlane::new(Affine3::from_parts(
-        geom_core::Mat3::from_cols(Vec3::unit_z(), Vec3::unit_x(), Vec3::unit_y()),
-        Vec3::new(0.0, y0, 0.0),
-    ));
+    let plane = SketchPlane::from_frame(geom_core::RigidMotion::axes_zx(Point3::new(0.0, y0, 0.0)));
     let profile = Profile::new(plane, vec![bulge_loop(vertices)])
         .validate(Tol::witness())
         .unwrap();
@@ -84,13 +82,16 @@ fn dipping_round() -> AtRestBody<f64> {
 /// wall no longer touches z = 1 there.
 fn tilted_dipping_round(alpha: f64) -> AtRestBody<f64> {
     let (sa, ca) = alpha.sin_cos();
-    let plane = SketchPlane::new(Affine3::from_parts(
-        geom_core::Mat3::from_cols(
-            Vec3::new(0.0, -sa, ca),
-            Vec3::unit_x(),
-            Vec3::new(0.0, ca, sa),
+    let plane = SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(
+            geom_core::Mat3::from_cols(
+                Vec3::new(0.0, -sa, ca),
+                Vec3::unit_x(),
+                Vec3::new(0.0, ca, sa),
+            ),
+            Vec3::new(0.0, sa, 1.0 - ca),
         ),
-        Vec3::new(0.0, sa, 1.0 - ca),
+        geom_core::Tol::witness(),
     ));
     let b90 = (core::f64::consts::PI / 8.0).tan();
     let profile = Profile::new(
@@ -475,13 +476,16 @@ fn slab_deep(x0: f64, x1: f64, y0: f64, depth: f64, z0: f64) -> AtRestBody<f64> 
 /// the rim's tangent line y = 0, z = 1.
 fn tilted_round(alpha: f64) -> AtRestBody<f64> {
     let (sa, ca) = alpha.sin_cos();
-    let plane = SketchPlane::new(Affine3::from_parts(
-        geom_core::Mat3::from_cols(
-            Vec3::new(0.0, -sa, ca),
-            Vec3::unit_x(),
-            Vec3::new(0.0, ca, sa),
+    let plane = SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(
+            geom_core::Mat3::from_cols(
+                Vec3::new(0.0, -sa, ca),
+                Vec3::unit_x(),
+                Vec3::new(0.0, ca, sa),
+            ),
+            Vec3::new(0.0, sa, 1.0 - ca),
         ),
-        Vec3::new(0.0, sa, 1.0 - ca),
+        geom_core::Tol::witness(),
     ));
     let b90 = (core::f64::consts::PI / 8.0).tan();
     let profile = Profile::new(

@@ -95,10 +95,12 @@
 //!   derived from the frame, never stored. Rigidity — u, v, normal
 //!   orthonormal and right-handed — is the frame's type, so every
 //!   sweep door that takes the plane reads a witnessed normal. No door
-//!   takes a bare [`geom_core::Affine3`]; the plane crosses scalars only
-//!   through the frame's exact crossings (geom-core's
-//!   `linalg::rigid_motion`, "Not built yet"). Validation is purely
-//!   2-D (the plane is passed through untouched).
+//!   takes a bare [`geom_core::Affine3`]. A plane exists at a scalar
+//!   only by being minted there, from its frame; its one crossing is
+//!   down, [`SketchPlane::point_value`] (geom-core's
+//!   `linalg::rigid_motion`, "Crossing scalars"; Ev on #5068,
+//!   2026-10-14). Validation is purely 2-D (the plane is passed through
+//!   untouched).
 //!
 //! # Validation and canonical form
 //!
@@ -158,7 +160,8 @@ mod sugar;
 pub mod test_support;
 mod validate;
 
-use geom_core::{Affine3, Arc2, Point2, Point3, Real, RigidMotion, Tol, Vec3};
+use geom_core::spline::SpanLocate;
+use geom_core::{Affine3, Arc2, Point2, Point3, Real, RigidMotion, Tol, UnitVec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
@@ -205,8 +208,8 @@ pub use validate::{
 };
 pub use validate::{
     ArcCheck, BlendArc, ConstructedProfile, ContactKind, DecidedJoint, EscalationSite, FilletLeg,
-    FilletLegCarrier, JointCarriers, LoopRole, NoCornerReason, ProfileError, SegmentKind,
-    SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment, ValueNotAPoint,
+    FilletLegCarrier, JointCarriers, LoopRole, NoCornerReason, PINNED_UNDER_GUIDANCE, ProfileError,
+    SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment, ValueNotAPoint,
     decision_subject, is_full_turn,
 };
 
@@ -393,8 +396,7 @@ fn is_exact_zero<T: Real>(b: T) -> bool {
 /// - **the materialization door** — [`ProfileLoop::map_scalar`]: a
 ///   table that already exists, read at another scalar. It authors
 ///   nothing; there is no table it can make that did not exist a moment
-///   earlier. [`Profile::map_scalar`] is that same door run over a
-///   profile's loops, not a second one.
+///   earlier.
 /// - **fixtures** — `RawLoop` (unlinked deliberately: in a shipped
 ///   build it is a crate-private item, so a link from this public page
 ///   would name something the page's reader does not have), which
@@ -565,13 +567,11 @@ impl<T: Real> ProfileLoop<T> {
     /// **A materialization door**: the same loop read at another
     /// scalar.
     ///
-    /// The lower rung of this crate's scalar lift, below
-    /// [`Profile::map_scalar`], and named by
-    /// `geom`'s `scalar_lift` convention: `map` on every leaf
+    /// Named by `geom`'s `scalar_lift` convention: `map` on every leaf
     /// ([`Point2::map`](geom_core::Point2::map),
     /// [`Vec2::map`](geom_core::Vec2::map),
-    /// [`Affine3::map`](geom_core::Affine3::map),
-    /// [`SketchPlane::map`] — a fixed tuple of scalars), `map_scalar` wherever the lift has structure to carry,
+    /// [`Affine3::map`](geom_core::Affine3::map) — a fixed tuple of scalars),
+    /// `map_scalar` wherever the lift has structure to carry,
     /// which here is the vertex count. One name per operation, on the type it lifts. It
     /// takes `&self` where a leaf takes `self`, because a loop owns its
     /// `Vec`s and its caller holds a borrow.
@@ -677,44 +677,32 @@ pub(crate) fn reversed_joint(j: usize, n: usize) -> usize {
 }
 
 /// The rigid placement of a sketch plane in 3-space: profile (x, y) ↦
-/// `placement`·(x, y, 0) = plane origin + x·u + y·v, where u, v, and the
-/// plane normal are the columns of the placement's linear part
-/// (`linear.c0`, `linear.c1`, `linear.c2`).
+/// origin + x·u + y·v, with the plane normal the third axis.
 ///
-/// Rigidity — u, v, normal orthonormal and right-handed — comes from
-/// the frame witness rather than from a caller's diligence WHEN the
-/// plane came through [`Self::from_frame`], which is the only door
-/// that mints one: the placement is then [`RigidMotion::to_affine`],
-/// and those axes were decided where the frame was minted. Tier-3
-/// geometric validation certifies the placement at rest.
-///
-/// [`Self::new`] and the public `placement` field are the other half
-/// of the truth and the docs say so plainly: both take and hand back
-/// an arbitrary [`Affine3`], so a plane built or overwritten that way
-/// is exactly as rigid as whatever produced that map. What the type
-/// guarantees is that the MINTING road decides; it is not a proof
-/// about every value of the type.
+/// **The plane is its frame.** It holds one [`RigidMotion`] and
+/// nothing else, so u, v and the normal are orthonormal and
+/// right-handed as a property of the TYPE: every door that makes one
+/// goes through a frame mint, and the placement map is derived from
+/// the frame ([`Self::placement`]), never stored. No door takes a bare
+/// [`Affine3`]; a caller holding twelve numbers admits them as a frame
+/// at [`RigidMotion::check_rigid`] first.
 #[derive(Clone, Copy, Debug)]
 pub struct SketchPlane<T: Real> {
-    /// The placement map. Rigid when [`SketchPlane::from_frame`] built
-    /// it; whatever it was assigned otherwise.
-    pub placement: Affine3<T>,
+    frame: RigidMotion<T>,
 }
 
 impl<T: Real> SketchPlane<T> {
-    /// **Wraps a placement map already built** — a read-back door, not
-    /// a mint: it decides nothing and a skewed [`Affine3`] handed in
-    /// comes back out as a skewed plane. A caller holding two authored
-    /// directions wants [`Self::from_frame`], which decides them.
-    pub fn new(placement: Affine3<T>) -> Self {
-        Self { placement }
-    }
-
     /// The world xy-plane: u = x̂, v = ŷ, normal = ẑ, origin at the
     /// world origin — the identity placement, spelled as the frame it
     /// is so all three world planes come from one mint.
     pub fn xy() -> Self {
-        Self::from_frame(RigidMotion::axes_xy(Point3::origin()))
+        Self::xy_at(Point3::origin())
+    }
+
+    /// The world xy-plane's axes at `origin`: u = x̂, v = ŷ,
+    /// normal = ẑ.
+    pub fn xy_at(origin: Point3<T>) -> Self {
+        Self::from_frame(RigidMotion::axes_xy(origin))
     }
 
     /// The world yz-plane: u = ŷ, v = ẑ, normal = ŷ × ẑ = x̂, origin at
@@ -722,8 +710,7 @@ impl<T: Real> SketchPlane<T> {
     ///
     /// The cyclic convention (x→y→z→x) is what the tour's letterforms
     /// captions mean by "a yz sketch extruded +x": sketch (x, y) maps
-    /// to world (0, x, y), and the extrusion normal — the third
-    /// placement column — is +x̂.
+    /// to world (0, x, y), and the extrusion normal is +x̂.
     pub fn yz() -> Self {
         Self::from_frame(RigidMotion::axes_yz(Point3::origin()))
     }
@@ -738,9 +725,8 @@ impl<T: Real> SketchPlane<T> {
         Self::from_frame(RigidMotion::axes_zx(Point3::origin()))
     }
 
-    /// The plane a frame witness places: the placement is
-    /// [`RigidMotion::to_affine`], so `u`, `v` and the normal are the
-    /// frame's three axes, in that column order.
+    /// The plane a frame places: u, v and the normal are the frame's
+    /// three axes, in that order, and its origin is sketch (0, 0).
     ///
     /// There is no spelling of this door that takes three bare
     /// vectors. A caller holding an authored pair mints the frame
@@ -751,105 +737,55 @@ impl<T: Real> SketchPlane<T> {
     /// first axis and yielding the second. Only a pair that spans no
     /// plane refuses.
     pub fn from_frame(frame: RigidMotion<T>) -> Self {
-        Self::new(frame.to_affine())
+        Self { frame }
     }
 
-    /// The same plane read at another scalar: the stored placement
-    /// through [`Affine3::map`] — twelve components, no arithmetic, so
-    /// exact whenever `f` is (`Real::from_f64` carries an `f64` frame
-    /// to any evaluation scalar).
-    ///
-    /// **What the lift means.** The stored normal was computed at the
-    /// SOURCE scalar — `u × v` at the scalar [`Self::from_frame`] ran
-    /// at — and is lifted here as a value. That is the same plane as
-    /// the frame constructed at the target scalar exactly where the
-    /// cross product's products and differences are exact (the
-    /// canonical axes; any frame whose components multiply and
-    /// subtract without rounding), and a different one wherever they
-    /// round. The two spellings, and a caller chooses:
-    ///
-    /// - `plane.map(S::from_f64)` — the `f64` frame lifted whole. At
-    ///   `Interval` every component is a point interval, the normal
-    ///   included: the `f64` rounding of the cross product is carried
-    ///   as if exact.
-    /// - `SketchPlane::from_frame(frame)` for a frame minted at `S`.
-    ///   Bit-identical to the lift on exact axes; at `Interval` on a
-    ///   general frame the cross product of point intervals rounds
-    ///   outward, so the stored normal carries the width of that
-    ///   arithmetic.
-    #[must_use]
-    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> SketchPlane<U> {
-        SketchPlane::new(self.placement.map(f))
+    /// The frame this plane is.
+    pub fn frame(&self) -> RigidMotion<T> {
+        self.frame
     }
 
-    /// The same plane read at another scalar where the read may
-    /// REFUSE: the stored placement through [`Affine3::try_map`] —
-    /// twelve components, no arithmetic, the first refusal returned —
-    /// and the plane rebuilt around whatever comes back.
-    ///
-    /// The fallible direction of [`Self::map`], and everything that
-    /// method says about WHAT THE LIFT MEANS holds here unchanged: the
-    /// stored normal is carried as a value, not recomputed at the
-    /// target scalar.
-    ///
-    /// # Errors
-    ///
-    /// Whatever `f` refuses with, at the first component it refuses
-    /// on.
-    pub fn try_map<U: Real, E>(self, f: impl Fn(T) -> Result<U, E>) -> Result<SketchPlane<U>, E> {
-        Ok(SketchPlane::new(self.placement.try_map(f)?))
+    /// The placement map, derived: [`RigidMotion::to_affine`], whose
+    /// linear columns are u, v and the normal and whose translation is
+    /// the origin.
+    pub fn placement(&self) -> Affine3<T> {
+        self.frame.to_affine()
     }
 
-    /// Maps a sketch point to world space: `placement`·(x, y, 0),
-    /// exactly [`Affine3::transform_point`] on the embedded point (fixed
-    /// order, D9).
+    /// Maps a sketch point to world space: the placement applied to
+    /// (x, y, 0), exactly [`Affine3::transform_point`] on the embedded
+    /// point (fixed order, D9).
     pub fn to_world(&self, p: Point2<T>) -> Point3<T> {
-        self.placement
+        self.placement()
             .transform_point(Point3::new(p.x, p.y, T::zero()))
     }
 
     /// The plane's origin — sketch (0, 0) in world space.
-    ///
-    /// The four accessors below READ the frame [`from_frame`] wrote:
-    /// they are projections of `placement`, never a recomputation, so
-    /// a frame's origin and three axes round-trip through them
-    /// BITWISE. That is
-    /// why the translation is transcribed component by component
-    /// rather than added to the coordinate origin — `0 + (-0) = 0`
-    /// would quietly launder a signed zero the stored frame kept.
-    ///
-    /// [`from_frame`]: Self::from_frame
     pub fn origin(&self) -> Point3<T> {
-        let t = self.placement.translation;
-        Point3::new(t.x, t.y, t.z)
+        self.frame.origin()
     }
 
-    /// The plane's u direction — the placement's first linear column,
-    /// the world direction sketch +x runs.
-    pub fn u(&self) -> Vec3<T> {
-        self.placement.linear.c0
+    /// The plane's u direction, the world direction sketch +x runs.
+    pub fn u(&self) -> UnitVec3<T> {
+        self.frame.u()
     }
 
-    /// The plane's v direction — the placement's second linear column,
-    /// the world direction sketch +y runs.
-    pub fn v(&self) -> Vec3<T> {
-        self.placement.linear.c1
+    /// The plane's v direction, the world direction sketch +y runs.
+    pub fn v(&self) -> UnitVec3<T> {
+        self.frame.v()
     }
 
-    /// The plane's normal — the placement's third linear column, which
-    /// [`from_frame`] filled with u × v. This is the direction an
+    /// The plane's normal, the frame's third axis: the direction an
     /// extrusion of a profile on this plane runs.
-    ///
-    /// [`from_frame`]: Self::from_frame
-    pub fn normal(&self) -> Vec3<T> {
-        self.placement.linear.c2
+    pub fn normal(&self) -> UnitVec3<T> {
+        self.frame.w()
     }
 }
 
 impl SketchPlane<f64> {
     /// Bit-exact frame equality (the `Doc::bit_eq` precedent, spec
-    /// D7): every one of the twelve stored components compared by
-    /// BITS, so `0.0` and `-0.0` are different planes here.
+    /// D7): every one of the placement's twelve components compared
+    /// by BITS, so `0.0` and `-0.0` are different planes here.
     ///
     /// Bit comparison, not tolerance comparison, is the only equality
     /// this type can honestly offer: a sketch plane carries no ε, and
@@ -860,15 +796,23 @@ impl SketchPlane<f64> {
         let bits = |p: &Self| {
             // **What holds the twelve complete is patterns, not this
             // function's own arithmetic.** A field added to
-            // `SketchPlane` is an E0027 here; one added to the `Affine3`
-            // it stores, to that map's `Mat3` or to a `Vec3` column is
-            // an E0027 inside `Affine3::components`, which binds all
-            // three levels by pattern. A new stored component cannot
-            // land outside the comparison quietly.
-            let Self { placement } = p;
-            placement.components().map(f64::to_bits)
+            // `SketchPlane` is an E0027 here, and the frame's placement
+            // is its origin and three axes, all of which
+            // `Affine3::components` binds by pattern.
+            let Self { frame } = p;
+            frame.to_affine().components().map(f64::to_bits)
         };
         bits(self) == bits(other)
+    }
+}
+
+impl<T: SpanLocate> SketchPlane<T> {
+    /// The `f64` plane this one's value channel holds — the frame's
+    /// [`RigidMotion::point_value`] — or `None` when a component has
+    /// no single finite `f64`.
+    #[must_use]
+    pub fn point_value(self) -> Option<SketchPlane<f64>> {
+        self.frame.point_value().map(SketchPlane::from_frame)
     }
 }
 
@@ -917,35 +861,6 @@ impl<T: Real> Profile<T> {
     /// Builds a profile from a plane and loops.
     pub fn new(plane: SketchPlane<T>, loops: Vec<ProfileLoop<T>>) -> Self {
         Self { plane, loops }
-    }
-
-    /// **The top rung of this crate's scalar lift**: the same RAW
-    /// profile read at another scalar — the plane through
-    /// [`SketchPlane::map`], every loop through
-    /// [`ProfileLoop::map_scalar`], the loop order carried.
-    ///
-    /// Structural, not arithmetic, at every rung: each stored scalar
-    /// goes through `f` and nothing is computed, so the lift is exact
-    /// whenever `f` is and bit-identical for any `U` whose `from_f64`
-    /// is exact on `f64`. Nothing here is decided: a raw profile
-    /// carries no verdict, and the loops that come out still owe
-    /// [`Profile::validate`] at `U`.
-    ///
-    /// **This is the raw door, and it is rarely the one a build wants.**
-    /// Lifting a raw profile and validating the result at `U` decides
-    /// the profile's structure a second time, in `U`'s arithmetic, over
-    /// data that is an exact embedding of the `f64` data a validation
-    /// already ran on — where `U` is certified that second opinion can
-    /// only agree or escalate, never disagree. A build that already
-    /// holds the `f64` verdict lifts THAT, through
-    /// [`ValidatedProfile::lift_onto`], which carries the decisions
-    /// instead of remaking them.
-    #[must_use]
-    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Profile<U> {
-        Profile::new(
-            self.plane.map(&f),
-            self.loops.iter().map(|lp| lp.map_scalar(&f)).collect(),
-        )
     }
 }
 

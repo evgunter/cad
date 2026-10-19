@@ -1,6 +1,6 @@
 //! **DOCM-1 under the Interval lane** — DM1c's rows: a profile on a
-//! derived frame is placed at the lane scalar under EVERY lift (its
-//! 2-D structure record still `f64`-pinned), a loft section on a
+//! derived frame is placed at the lane scalar (its 2-D structure
+//! record still `f64`-pinned), a loft section on a
 //! derived frame lofts and encloses the `f64` loft, and a widened parameter the
 //! frame's body reads recomputes the profile rather than serving the
 //! nominal memo entry.
@@ -18,8 +18,7 @@ use editor_core::PoseValue;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeVar, Node, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg, UnitSym, ValuePayload, VarName,
-    evaluate,
+    FreeVar, Node, ProfileDoc, RecipeNodeId, RoleSeg, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Interval, Tol, UnitVec3};
 use topo::validate_closed;
@@ -32,16 +31,11 @@ fn run(
     evaluate::<Interval>(doc, prior, &CancelToken::new(), opts, Tol::witness())
 }
 
-fn lifted(doc: &ProfileDoc, lift: ProfileLift) -> EvalOptions {
-    corpus::options_under(doc, lift).expect("the document has a continuous variable")
-}
-
-/// **The corpus document's profile is placed at the lane scalar under
-/// both lifts**: the profile on the derived frame evaluates green at
-/// `Interval`, and the boss's bottom encloses the cap's height —
+/// **The corpus document's profile is placed at the lane scalar**: the
+/// profile on the derived frame evaluates green at `Interval`, and the boss's bottom encloses the cap's height —
 /// which is the frame's landed origin, not a placeholder.
 #[test]
-fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() {
+fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar() {
     let cd = corpus::face_sketch::document();
     let boss = cd.result.expect("the boss");
     let frame = cd
@@ -51,42 +45,37 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
         .copied()
         .find(|id| matches!(cd.doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
         .expect("the derived frame");
-    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let ev = run(&cd.doc, None, &lifted(&cd.doc, lift));
-        assert!(
-            corpus::failures(&ev).is_empty(),
-            "{lift:?}: {:?}",
-            corpus::failures(&ev)
-        );
-        let ValuePayload::Datum(PoseValue::Frame(f)) = &ev.value(frame).expect("the frame").payload
-        else {
-            panic!("a frame value");
-        };
-        let (origin, u, v) = (&f.origin(), &f.u(), &f.v());
-        assert!(
-            origin.z.lo() <= 1.0 && 1.0 <= origin.z.hi(),
-            "{lift:?}: origin {origin:?}"
-        );
-        let n = UnitVec3::get(*u).cross(UnitVec3::get(*v));
-        assert!(
-            n.z.lo() <= 1.0 && 1.0 <= n.z.hi(),
-            "{lift:?}: outward normal {n:?}"
-        );
-        let body = corpus::body_of(&ev, boss);
-        assert_eq!(validate_closed(body), Ok(()), "{lift:?}");
-        let bottom = body
-            .points()
-            .map(|(_, p)| p.z.lo())
-            .fold(f64::INFINITY, f64::min);
-        assert!(
-            (bottom - 1.0).abs() <= 1e-9,
-            "{lift:?}: the boss stands on the cap: {bottom}"
-        );
-    }
+    let ev = run(&cd.doc, None, &EvalOptions::default());
+    assert!(
+        corpus::failures(&ev).is_empty(),
+        "{:?}",
+        corpus::failures(&ev)
+    );
+    let ValuePayload::Datum(PoseValue::Frame(f)) = &ev.value(frame).expect("the frame").payload
+    else {
+        panic!("a frame value");
+    };
+    let (origin, u, v) = (&f.origin(), &f.u(), &f.v());
+    assert!(
+        origin.z.lo() <= 1.0 && 1.0 <= origin.z.hi(),
+        "origin {origin:?}"
+    );
+    let n = UnitVec3::get(*u).cross(UnitVec3::get(*v));
+    assert!(n.z.lo() <= 1.0 && 1.0 <= n.z.hi(), "outward normal {n:?}");
+    let body = corpus::body_of(&ev, boss);
+    assert_eq!(validate_closed(body), Ok(()));
+    let bottom = body
+        .points()
+        .map(|(_, p)| p.z.lo())
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        (bottom - 1.0).abs() <= 1e-9,
+        "the boss stands on the cap: {bottom}"
+    );
 }
 
 /// **A loft whose section is drawn on a derived frame evaluates at
-/// `Interval`, under both lifts, and encloses the `f64` loft.** The
+/// `Interval`, and encloses the `f64` loft.** The
 /// section is its profile's value at this scalar, on the frame's landed
 /// value, which is an enclosure wider than a point; the loft skins it
 /// in `T`. Each vertex of the `f64` body lies in the enclosing body's
@@ -106,28 +95,24 @@ fn a_section_on_a_derived_frame_lofts_and_encloses_at_interval() {
         .map(|(_, p)| [p.x, p.y, p.z])
         .collect();
     assert!(!nominal.is_empty(), "the f64 loft has vertices");
-    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let ev = run(&doc, None, &lifted(&doc, lift));
+    {
+        let ev = run(&doc, None, &EvalOptions::default());
         assert!(
             ev.node_error(loft).is_none(),
-            "{lift:?}: the loft evaluates: {:?}",
+            "the loft evaluates: {:?}",
             ev.node_error(loft)
         );
         let body = corpus::body_of(&ev, loft);
-        assert_eq!(validate_closed(body), Ok(()), "{lift:?}");
+        assert_eq!(validate_closed(body), Ok(()));
         let brackets: Vec<[(f64, f64); 3]> = body
             .points()
             .map(|(_, p)| [p.x, p.y, p.z].map(|c| (c.lo(), c.hi())))
             .collect();
-        assert_eq!(
-            brackets.len(),
-            nominal.len(),
-            "{lift:?}: the vertex counts agree"
-        );
+        assert_eq!(brackets.len(), nominal.len(), "the vertex counts agree");
         for (i, (b, v)) in brackets.iter().zip(&nominal).enumerate() {
             assert!(
                 b.iter().zip(v).all(|((lo, hi), x)| lo <= x && x <= hi),
-                "{lift:?}: the f64 vertex {i} at {v:?} lies outside its enclosure {b:?}"
+                "the f64 vertex {i} at {v:?} lies outside its enclosure {b:?}"
             );
         }
     }
@@ -225,8 +210,7 @@ fn widening_the_frames_body_parameter_recomputes_the_profile() {
     let (doc, boss_p) = boxed_on_param(width);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     // The prior is the drive's witness: the box collapsed to the
-    // nominal, so it elaborates under the widened run's (guided) lift
-    // and the memo compares like with like (`ParamBox::at_nominal`).
+    // nominal (`ParamBox::at_nominal`).
     let nominal = run(
         &doc,
         None,
@@ -258,7 +242,7 @@ fn widening_the_frames_body_parameter_recomputes_the_profile() {
     let ValuePayload::Profile(p) = &widened.value(boss_p).expect("the boss profile").payload else {
         panic!("a profile");
     };
-    let z = p.validated.plane().placement.translation.z;
+    let z = p.validated.plane().placement().translation.z;
     assert!(
         z.hi() - z.lo() >= 1.9 * width,
         "the placement carries the widened height: {z:?}"
@@ -380,8 +364,7 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
 
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     // The prior is the drive's witness: the box collapsed to the
-    // nominal, so it elaborates under the widened run's (guided) lift
-    // and the memo compares like with like (`ParamBox::at_nominal`).
+    // nominal (`ParamBox::at_nominal`).
     let nominal = run(
         &doc,
         None,
@@ -408,7 +391,7 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     let ValuePayload::Profile(p) = &widened.value(boss_p).expect("the boss profile").payload else {
         panic!("a profile");
     };
-    let z = p.validated.plane().placement.translation.z;
+    let z = p.validated.plane().placement().translation.z;
     assert!(
         z.hi() - z.lo() >= 1.9 * width,
         "the placement carries the widened height: {z:?}"
