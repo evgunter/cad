@@ -61,8 +61,8 @@ pub(crate) struct FateEdge {
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum KeptAt<T: geom_core::Real> {
     /// At the kept copy's own sector, by the orbit half-edge it follows
-    /// in the holder's clone.
-    Sector(HalfEdgeKey),
+    /// in the holder's clone and a unit direction inside it.
+    Sector(HalfEdgeKey, Vec3<T>),
     /// On the pierced face, in the holder's clone keys, at the dropped
     /// operand's piercing vertex, the dropped sector's interior along
     /// the unit direction.
@@ -75,8 +75,10 @@ pub(crate) struct FateCorner<T: geom_core::Real> {
     /// The operand of the kept copy.
     pub holder: Operand,
     /// The dropped sector, by the orbit half-edge it follows in the
-    /// other operand's clone.
-    pub dropped: HalfEdgeKey,
+    /// other operand's clone and a unit direction inside it: a wide
+    /// corner is read as two sectors that follow one half-edge, so the
+    /// half-edge alone does not say which.
+    pub dropped: (HalfEdgeKey, Vec3<T>),
     /// Where the kept copy holds it.
     pub kept: KeptAt<T>,
 }
@@ -814,6 +816,43 @@ fn sector_face<T: geom_core::Real>(
     face_of_he(body, mate)
 }
 
+/// The piece of the face divided from the sector `he` follows that
+/// holds the sector's direction `d` at its vertex ([`place`]), or the
+/// face of the sector where its vertex no longer reads one corner
+/// there.
+fn sector_piece<T: Decide>(
+    body: &Body<T>,
+    (he, d): (HalfEdgeKey, Vec3<T>),
+    (divisions, copies): (&FaceDivisions, &NullCopies),
+    band: Band,
+) -> Result<FaceKey, BooleanError> {
+    let face = sector_face(body, he)?;
+    let v = body
+        .get_half_edge(he)
+        .ok_or(BooleanError::JoinDesync {
+            what: "a sector's half-edge no longer resolves",
+        })?
+        .start;
+    match place(
+        body,
+        (&copies.of(v), &[]),
+        divisions.root(face),
+        divisions,
+        [d, d],
+        band,
+    ) {
+        Ok(Some(Place::Corner(h))) => face_of_he(body, h),
+        Ok(Some(Place::Lone(l, _))) => {
+            body.get_loop(l)
+                .map(|l| l.face)
+                .ok_or(BooleanError::JoinDesync {
+                    what: "a lone vertex's loop no longer resolves",
+                })
+        }
+        _ => Ok(face),
+    }
+}
+
 /// The face holding `he`, in `body`.
 fn face_of_he<T: geom_core::Real>(
     body: &Body<T>,
@@ -1098,16 +1137,19 @@ fn cut_with<T: Decide + crate::props::AtRestPolicy>(
             Operand::A => (&red.b, &red.a, &*div_a),
             Operand::B => (&red.a, &red.b, &*div_b),
         };
-        let face = sector_face(body, fc.dropped).map_err(bare)?;
         let div_d = match fc.holder {
             Operand::A => &*div_b,
             Operand::B => &*div_a,
         };
+        let copies = [dropped, fc.holder].map(|o| NullCopies::of_operand(&red.null_edges, o));
+        let face = sector_piece(body, fc.dropped, (div_d, &copies[0]), band).map_err(bare)?;
         if uncut.contains(&(dropped, div_d.root(face))) {
             continue;
         }
         let by = match fc.kept {
-            KeptAt::Sector(he) => sector_face(kept_body, he).map_err(bare)?,
+            KeptAt::Sector(he, d) => {
+                sector_piece(kept_body, (he, d), (div_k, &copies[1]), band).map_err(bare)?
+            }
             KeptAt::Pierced(f, at, d) => {
                 let root = div_k.root(f);
                 let ring = red.pierce_rings.iter().find(|r| {
@@ -1185,12 +1227,12 @@ pub(super) fn uncut<T: geom_core::Real>(
             Operand::B => (&red.a, &red.b),
         };
         let by = match fc.kept {
-            KeptAt::Sector(he) => sector_face(kept_body, he)?,
+            KeptAt::Sector(he, _) => sector_face(kept_body, he)?,
             KeptAt::Pierced(f, ..) => f,
         };
         out.push(SubstitutedFace {
             operand: fc.holder.other(),
-            face: sector_face(body, fc.dropped)?,
+            face: sector_face(body, fc.dropped.0)?,
             by,
         });
     }

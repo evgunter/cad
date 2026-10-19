@@ -449,6 +449,12 @@ pub(super) fn recl_sectors<T: Decide>(
                 Operand::A => (a_body, sa, sb),
                 Operand::B => (b_body, sb, sa),
             };
+            // A unit direction inside a sector, which is narrower than
+            // a half-turn.
+            let inside = |s: &BoolSector<T>| {
+                let mid = s.start + s.end;
+                mid / mid.norm()
+            };
             let mut runs = false;
             for (edge, dir) in super::sectors::bound_edges(body, own) {
                 if super::sectors::runs_into(other, dir, arm, band)? {
@@ -465,8 +471,8 @@ pub(super) fn recl_sectors<T: Decide>(
             if !runs {
                 fates.corners.push(super::fate::FateCorner {
                     holder: keeper,
-                    dropped: other.he,
-                    kept: super::fate::KeptAt::Sector(own.he),
+                    dropped: (other.he, inside(other)),
+                    kept: super::fate::KeptAt::Sector(own.he, inside(own)),
                 });
             }
         }

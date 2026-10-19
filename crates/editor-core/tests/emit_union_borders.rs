@@ -1706,3 +1706,92 @@ fn a_pocket_floor_held_inside_a_dropped_face_names_alike() {
         assert_eq!(got, &sets[0].1, "{at} against {}: the wall sets", sets[0].0);
     }
 }
+
+/// One letterform prism: `poly` on the frame `(u, v)` through the
+/// origin, extruded `depth` along its normal.
+fn letter(
+    doc: ProfileDoc,
+    poly: &[(f64, f64)],
+    (u, v): ([f64; 3], [f64; 3]),
+    depth: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = on_frame(doc, [0.0; 3], u, v, vec![poly.to_vec()]);
+    insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(depth),
+            side: ExtrudeSide::Along,
+        },
+    )
+}
+
+/// **The tour's silhouette names through an intersect of an
+/// intersect**: an H on xy extruded +z, a T on yz extruded +x and a C
+/// on zx extruded +y; `two` = H ∩ T and `three` = C ∩ `two`. In
+/// `three`, `two`'s T-shaped face at x = 2 coincides with the C's two
+/// arm tips there: the bar and the stem's foot are held through them,
+/// and the stem between is lost and borders both. Red when a sector
+/// the C holds is read off a wide corner's other half: the lost stem
+/// was recorded as held, and the arm tips' pieces bordered no discard
+/// between them.
+#[test]
+fn the_silhouette_letters_name_through_an_intersect_of_an_intersect() {
+    let h = [
+        (0.0, 0.0),
+        (0.5, 0.0),
+        (0.5, 1.25),
+        (1.5, 1.25),
+        (1.5, 0.0),
+        (2.0, 0.0),
+        (2.0, 3.0),
+        (1.5, 3.0),
+        (1.5, 1.75),
+        (0.5, 1.75),
+        (0.5, 3.0),
+        (0.0, 3.0),
+    ];
+    let t = [
+        (1.25, 0.0),
+        (1.75, 0.0),
+        (1.75, 2.5),
+        (3.0, 2.5),
+        (3.0, 3.0),
+        (0.0, 3.0),
+        (0.0, 2.5),
+        (1.25, 2.5),
+    ];
+    let c = [
+        (0.0, 0.0),
+        (3.0, 0.0),
+        (3.0, 2.0),
+        (2.5, 2.0),
+        (2.5, 0.5),
+        (0.5, 0.5),
+        (0.5, 2.0),
+        (0.0, 2.0),
+    ];
+    let doc = ProfileDoc::empty_derived("silhouette", Tol::witness());
+    let (doc, h) = letter(doc, &h, ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]), 3.0);
+    let (doc, t) = letter(doc, &t, ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0]), 2.0);
+    let (doc, c) = letter(doc, &c, ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0]), 3.0);
+    let (doc, two) = insert(
+        doc,
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![h.into(), t.into()]),
+        },
+    );
+    let (doc, three) = insert(
+        doc,
+        Node::Intersect {
+            members: editor_core::Bodies::Spelled(vec![c.into(), two.into()]),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, two).is_none(), "two: {:?}", failure(&ev, two));
+    assert!(
+        failure(&ev, three).is_none(),
+        "three: {:?}",
+        failure(&ev, three)
+    );
+}
