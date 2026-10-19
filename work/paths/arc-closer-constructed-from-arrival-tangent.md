@@ -4,6 +4,7 @@ kind: issue
 title: paths: an arc_to mode that fixes the ARRIVAL direction — the arc from the tip to p whose end tangent is authored (its Start row is the construct-from-arrival tangent closer)
 status: closed
 branch: paths/arc-onto
+pr: 5384
 closed: 2026-10-19
 opened: 2026-09-02
 github: 1578

@@ -5,6 +5,7 @@ title: paths: ViaArrivalStart's rustdoc does not say its director binds the arri
 status: closed
 closed: 2026-10-19
 branch: paths/arc-onto
+pr: 5384
 opened: 2026-10-19
 priority: P3
 cost: E

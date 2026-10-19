@@ -5,6 +5,7 @@ title: paths: the declared seam arrival for the Via and Center arc closers (arc_
 status: closed
 closed: 2026-10-19
 branch: paths/arc-onto
+pr: 5384
 opened: 2026-09-02
 github: 1579
 refs: [1573, 433]
