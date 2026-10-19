@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-14
 priority: P2
 cost: H
-blocked_on: [4795]
 refs: [reverting-a-slit-body-overlaps-its-coincident-edges-wedges-and-passes-every-tier]
 ---
 
@@ -125,3 +124,6 @@ for both pyramids at every pose. Each body holds its material, its
 volume sums and tier 3, and passes 3′. The test's `reverting` lists are
 gone; the arches entry above no longer returns with the re-pairing. The
 other refusals listed here still refuse on the branch's CI.
+
+
+**Unblocked (CLEAVE, 2026-10-19).** `[ev]` PR 4795 merged (`0a702a9bc1`). Ev ratified the D1 sentence in `crates/topo/README.md` tier 3: where more than two sheets meet on a line, the material decides the edges, and the complement re-pairs. Radial edges were declined.

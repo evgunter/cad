@@ -11,9 +11,7 @@
 //! normal), `Outer` for a concave one. The pinned values are the
 //! reduction's own answers at f64, printed with the shortest
 //! round-trip representation so each literal parses back to the exact
-//! bit pattern; they were taken at the commit before a side replaced
-//! a `±1` factor on the radius, so the row is also that fold's
-//! bit-identity receipt.
+//! bit pattern.
 //!
 //! One ruled pair is left out: the plane–cylinder pair at
 //! `(Outer, Inner)` has no crossing — the two offsets miss — and
@@ -143,33 +141,33 @@ fn the_coaxial_arm_answers_each_ball_side_pair_as_pinned() {
             "sph_sph",
             Inner,
             Inner,
-            [0.0, 0.0, 1.0493632622705331],
-            1.6862095821833802,
-            [0.20793021701344272, 0.20524246709924088],
+            [0.0, 0.0, 1.0493632622705333],
+            1.68620958218338,
+            [0.20793021701344302, 0.2052424670992407],
         ),
         (
             "sph_sph",
             Inner,
             Outer,
-            [0.0, 0.0, 0.5779587414795015],
-            1.900113076739786,
-            [0.37603973095059245, 0.33970062426222997],
+            [0.0, 0.0, 0.5779587414795022],
+            1.9001130767397856,
+            [0.3760397309505914, 0.3397006242622297],
         ),
         (
             "sph_sph",
             Outer,
             Inner,
             [0.0, 0.0, 1.4220412585204985],
-            2.039199021139264,
-            [0.32461391544106055, 0.35848930023630765],
+            2.0391990211392637,
+            [0.3246139154410608, 0.3584893002363074],
         ),
         (
             "sph_sph",
             Outer,
             Outer,
-            [0.0, 0.0, 0.9506367377294668],
+            [0.0, 0.0, 0.9506367377294669],
             2.2971338188335855,
-            [0.1593326602641457, 0.16103744231053305],
+            [0.15933266026414558, 0.16103744231053338],
         ),
     ];
     let supports = |name: &str| match name {

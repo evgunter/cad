@@ -1172,3 +1172,45 @@ Signed (CLEAVE orchestrator).
   - Ev asked on 4795 'any update here?'. I had put the radial-edges reports into the body without commenting. Lesson: an `[ev]` PR update always gets a comment, because Ev reads comments, not body edits. Replied with the verdict (both designers keep the manifold model) and the three questions.
   - Resolved 4795's merge conflict: fork rows renumbered 141/142 → 149/150. The PR body's headings still cite 141/142; fix them with Ev's answer.
   - PR 5190 is superseded: FUSE's curve-pair reader (`fuse/curve-pair-reader-c`) replaced `carrier_cross::meetings` on 10-14 and closed the row, deciding a double root by its root chord. The lane is redirected to salvage the door row and M-1 family against main, file the Cramer siblings, and close 5190. Lesson: before a fix pass, re-read the row on main; FUSE landed during review.
+- 2026-10-19 — **Crossing from FLUSH** (`boolean/*` is CLEAVE's). FLUSH's `coincident-faces-are-not-imprinted-on-each-other-before-the-lump` (P1, filed from EMIT's `[ev]` PR 5153 on Ev's "no stopgap") will touch `boolean/vtxfac.rs` (the tangential-site decision), `recl.rs` (`held` retires), `insert.rs`/`join.rs` (a one-sided chord along the kept copy's edge), and `finish.rs`/`discard.rs` (a substitution row at the carve; `BooleanNaming::covered` and `DiscardRow::held` retire). `sectors.rs` should need little. The design is in the row's `## Design`. Branch `flush/coincident-fate-cut`; announce any conflicting in-flight work on FLUSH's log.
+— (FLUSH orchestrator)
+- 2026-10-19 — PR 5190 closed unmerged, superseded by FUSE's curve-pair reader. Tracker PR 5327 holds what it salvaged, merged:
+  - **Regression from the reader.** The tilted-rim door row now refuses `CurvedPierceUnsupported` on main (`meet` refuses `Unsettled(Meter)` below the basin floor), where pre-reader main and 5190 built it. It refuses typed, never misanswers. Filed as CPAIR P2 `a-ball-split-on-its-equator-and-turned-refuses-every-op-below-the-basin-floor`.
+  - **M-1 family.** No silent misses on main.
+  - **Cramer siblings filed:** issues `offset-section-plane-plane-cramer-anchors-at-the-world-origin` and band `blend-corner-ball-cramer-anchors-at-the-world-origin`.
+- 2026-10-19 — PR 5185 full review: APPROVE-WITH-FIXES, no MAJOR.
+  - The pad alone covers on all 1,508 rebuilt bodies at three ε. The forms are equal to 7e-49, and the goldens and outcome diff match.
+  - Fixes sent:
+    - one home for the segment term (topo's `chord_bulge`/`conic_segment_term` delegate to geom-brep);
+    - the pin asserts the pad alone and adds a ψ 1e-4 pose;
+    - the doc's overstatement and stale prose.
+  - To file: the cylinder wall's radial lever (wrong Ok, pad 0, 2.4× ε·A at 250 m inside the box; FLUXTAIL, predates the PR).
+  - Rows to correct: the cone P1 gets an in-box witness (850× ε·A); the planar row's band claim.
+  - `certify_section_area` is noted on GAUGE as a conditioning risk.
+- 2026-10-19 — PR 5185 fix pass green (`a57373ce90`).
+  - One home for the segment term in geom-brep; the pin covers the truth by its pad alone, plus a ψ 1e-4 pose; docs, rows and the FLUXTAIL cylinder-lever P1 filed.
+  - Unverified: topo bit-for-bit and the tightened pin's mutant, so a narrow re-review is dispatched.
+  - Possible unfiled main reds at 1e-6: `near_tangent_pierce_poses` and `torus_region_probe` (seed 0x8e54900f8aa4853b). The reviewer is capturing them to file.
+- 2026-10-19 — Ev on 4795: the main D1 sentence is ratified ('it seems good as-is'), and he asked for elaboration on (A) the 'legal together or not at all' qualification and (B) the representability boundary. I posted explanations recommending yes on both. Waiting before the merge.
+- 2026-10-19 — Ev ruled on 4795.
+  - (A): add 'isolated'.
+  - (B): the representability boundary speaks of non-solids only, and the principles line drops booleans ('you can't use them to get a non-solid from solids').
+  - Main had moved D1 into `crates/topo/README.md`, so I merged main and applied all of 4795's D1 text there, plus DESIGN.md's 'Manifold solids only' summary.
+  - Fork rows renumbered again to 167/168, with Ev's decisions and mappings filled in (both Fable = A).
+  - Filed CLEAVE P2 `non-manifold-result-calls-a-buildable-solid-permanently-unrepresentable`.
+  - Keel row: decision recorded; needs_ev cleared; status open (the slit-form build is unblocked).
+  - `[ev]` taken off the title; the body leads with the decision. Merge on CI.
+  - Lesson: `work.py lint | tail` in an && chain hides lint failures; run lint unpiped before committing.
+- 2026-10-19 — 4795 merged (`0a702a9bc1`). Unparked the four rows blocked on it:
+  - topo `revert-re-pairs-…` and `subtracting-a-glued-tip-…`;
+  - CLEAVE P1 `a-boolean-builds-a-reflex-edge-lying-inside-a-face`;
+  - RESTREAD `census-passes-a-face-inside-an-edges-material-wedge`.
+- 2026-10-19 — The keel slit-ring build is dispatched (`cleave/keel-slit-ring`), following Ev's ratified D1 sentence and the row's build notes.
+- 2026-10-19 — The keel ring is up as PR 5350 (`3b57bbb11b`, gate ok).
+  - A slit trace is read from topology (a tree walk, widened to crossing and bent keels). The strut face is dropped; the slit is nested by containment and merged with `kfmrh`. New `SlitUnplaced` refusal. Volumes 15.7/16; the brief's 12.65 was wrong.
+  - Open concerns for the review:
+    - The curved twin returns sides that tier 3′ refuses, where main refused at the split. Is this a new invalid Ok?
+    - The straight ring fails mesh `NonManifoldEdge`.
+  - Filed: CLEAVE P2 `a-curved-slit-fails-tier-3-prime-…`, P3 `the-split-keeps-an-in-plane-edge-it-doubles-at-a-dead-key`; tess P2 `a-zero-area-ring-meshes-non-manifold…`.
+  - Full review dispatched.
+- 2026-10-19 — Filed two RESTREAD P1 main reds at 1e-6, both traced by the 5185 reviewer: `main-red-near-tangent-pierce-poses-…` (introduced by #5297) and `main-red-torus-region-probe-…` (red since #5269 landed).

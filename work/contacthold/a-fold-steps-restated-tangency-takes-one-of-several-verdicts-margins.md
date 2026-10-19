@@ -18,9 +18,9 @@ Found on PR 4982's review (`contacthold/fold-step-face-face-row`), MINOR m2.
 (accumulation face, member face). Where an accumulation face descends
 from several member faces and each has a pass verdict against the same
 member face, the step is handed only the first verdict
-(`GlueVerdict::given_at`), so its margin and line. The step's restated
+(`GlueVerdict::given_at`) and its decision: its margin and line. The step's restated
 tangency row (`boolean::given_verdicts`, `tangent_row`) then states that
-one decision. The node's face–face record is unaffected: `wire::given_rows`
+one decision. The node's face–face record is unaffected: `wire::restated_given`
 re-reads the lineage and cites every pass row it reaches.
 
 This is exercised by two flush plates whose y = 2 faces merge, with a rod

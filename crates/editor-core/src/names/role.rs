@@ -1332,7 +1332,7 @@ pub enum RoleSeg {
     /// vertex whose two faces bound none of those edges, cited as a seam
     /// edge is and carrying no sense. Several vertices with one run carry
     /// a `Fragment(OrderAlong)` along the run's least edge, or where it
-    /// holds none along a straight seam in it.
+    /// holds none along a seam in it whose pieces lie on one open carrier.
     EdgeCrossing(Vec<RunLine>),
     /// An F7 merged face, or an edge a boolean's output stage joined
     /// across several operand or member edges (`names/README.md`,

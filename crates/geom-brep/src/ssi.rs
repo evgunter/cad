@@ -142,7 +142,7 @@ use geom_core::{Band, Indeterminate, Margin, MarginDiag, NOT_YET_ENDING, Point3,
 
 use crate::certify::CertCheck;
 use crate::recourse::{
-    ReadAt, Reading, Refused, RefusedArm, SizedDecision, StoredDefinite, Unsized, defect_ending,
+    ReadAt, Reading, Refused, RefusedArm, RefusedSide, SizedDecision, Unsized, defect_ending,
 };
 
 pub use boundary::{
@@ -330,8 +330,8 @@ pub enum SsiError {
     ///
     /// The refused arm of the march's transversality decision
     /// (`ssi_transversality`), which passes on a positive sign; it ends
-    /// by [`CertCheck::Transversality`], as limb 3 and the edge
-    /// certifier's transversality do ([`SsiError::ending`]).
+    /// by [`CertCheck::Transversality`], as the edge certifier's
+    /// transversality does ([`SsiError::ending`]).
     TransversalityBand {
         /// The sine of the angle between the operand normals.
         sin_theta: f64,
@@ -1921,7 +1921,7 @@ const GRAZE: SizedDecision = SizedDecision {
     lever: "move the plane or the curve so they cross at a clear angle",
     size: "crossing angle",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -1950,7 +1950,7 @@ const fn short_branch(lever: &'static str) -> SizedDecision {
         lever,
         size: "branch length",
         passes: SizedPass::Positive,
-        stored: StoredDefinite::Lever,
+        side: RefusedSide::Lever,
         no_size: None,
     }
 }
@@ -1963,7 +1963,7 @@ const MARCH_STEP_BEND: SizedDecision = SizedDecision {
     lever: "move the plane or the wall so the branch bends less sharply where the march stalls",
     size: "bend",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2058,7 +2058,7 @@ const TUBE_EXTENT: SizedDecision = SizedDecision {
             feature traced",
     size: "feature extent",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2321,7 +2321,7 @@ const DOMAIN_SCALE: SizedDecision = SizedDecision {
             nearer the origin, where its coordinates resolve the tolerance",
     size: "scale",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2334,7 +2334,7 @@ const OPEN_END: SizedDecision = SizedDecision {
             lands within a few tolerances of the slab",
     size: "boundary distance",
     passes: SizedPass::AnySign,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2349,7 +2349,7 @@ const TUBE_ONE_ARC: SizedDecision = SizedDecision {
             holds one arc of the locus, end to end, and nothing else",
     size: "clearance",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2361,7 +2361,7 @@ const REST_ONE_ARC: SizedDecision = SizedDecision {
             no second arc beside it",
     size: "clearance",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2409,7 +2409,7 @@ const SELF_CROSSING: SizedDecision = SizedDecision {
     lever: "move the surfaces so their intersection does not cusp or cross itself",
     size: "closure angle",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2425,7 +2425,7 @@ const STEP_SCALE: SizedDecision = SizedDecision {
             of the intersection",
     size: "scale",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -2435,7 +2435,7 @@ const PAIR_TANGENCY: SizedDecision = SizedDecision {
     lever: "separate the sphere and the cylinder, or move one so they are clearly not tangent",
     size: "near-tangency",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 

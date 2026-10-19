@@ -374,7 +374,7 @@ fn a_given_tangency_through_both_interiors_records_the_face_face_touch() {
         1,
         "plate ∪ rod: one verdict, the tangency"
     );
-    let verdict = decided.verdicts[0];
+    let verdict = &decided.verdicts[0];
     let given: Vec<topo::GluedPair> = vec![verdict.given_at(topo::Operand::A, verdict.a())];
     let decision = *decided
         .coincidences
@@ -506,5 +506,139 @@ fn a_carried_curve_touch_row_with_a_bad_key_refuses_at_the_door() {
             ),
             "{what}: {got:?}"
         );
+    }
+}
+/// **A record on an arc-trimmed face confirms where the line runs
+/// through it** (a face's extent along a tangent line is its true
+/// extent, arcs included): a half-disc slab (chord on y = 0 from x = −1
+/// to 1, arc through +y, z 0..1) and a rod lying on its top cap along
+/// x = 0 over y ∈ (`y0`, 0.8), grafted into one body, with a face–face
+/// record of the cap and each half of the rod's wall. The line x = 0,
+/// z = 1 runs through the cap over y ∈ (0, 1) and through the bottom
+/// half's interior over the rod's span: that record confirms, and the
+/// top half's is stale, whether the rod's span starts inside the cap,
+/// on its chord or past it, where both cap vertices project to y = 0.
+#[test]
+fn a_record_on_an_arc_trimmed_face_confirms_along_the_line_through_it() {
+    let at = |x: f64, y: f64| Point2::new(x, y);
+    let y1 = 0.8;
+    for y0 in [0.2, 0.0, -0.5] {
+        let slab = ext(
+            "half disc",
+            vec![bulge_loop(vec![(at(1.0, 0.0), 1.0), (at(-1.0, 0.0), 0.0)])],
+            0.0,
+            1.0,
+        );
+        let plane = sweep::test_support::sketch_from_axes(
+            geom_core::Point3::new(0.0, y1, 0.0),
+            geom_core::Vec3::new(1.0, 0.0, 0.0),
+            geom_core::Vec3::new(0.0, 0.0, 1.0),
+            tol(),
+        );
+        let rod =
+            sweep::test_support::extruded(plane, vec![circle(0.0, 1.5, 0.5, 0.0)], y1 - y0, tol());
+        let mut body: Body<f64> = (*slab).clone();
+        topo::graft_disjoint(&mut body, &rod).unwrap();
+        let surface = |f: topo::FaceKey| {
+            let face = body.get_face(f).unwrap();
+            body.get_surface(face.surface).unwrap().clone()
+        };
+        let cap = body
+            .faces()
+            .map(|(k, _)| k)
+            .find(|&f| {
+                matches!(surface(f), geom::Surface::Plane { origin, normal, .. }
+                    if normal.z.abs() > 0.5 && origin.z > 0.5)
+            })
+            .unwrap();
+        let walls: Vec<_> = body
+            .faces()
+            .map(|(k, _)| k)
+            .filter(|&f| {
+                matches!(surface(f), geom::Surface::Cylinder { axis, .. } if axis.y.abs() > 0.5)
+            })
+            .collect();
+        assert_eq!(walls.len(), 2, "rod y {y0}..{y1}: two wall halves");
+        let read: Vec<Result<(), Vec<topo::ValidationError>>> = walls
+            .iter()
+            .map(|&w| {
+                let rec = topo::test_support::records(
+                    &body,
+                    [(topo::Cell::Face(cap), topo::Cell::Face(w))],
+                );
+                // The two solids' other touches are not this row's: the
+                // cap circles' points and the curved pair in reach.
+                topo::validate_pseudomanifold(&body, &rec, tol()).or_else(|es| {
+                    let es: Vec<_> = es
+                        .into_iter()
+                        .filter(|e| {
+                            !matches!(
+                                e,
+                                topo::ValidationError::CensusUndecidable { .. }
+                                    | topo::ValidationError::UnrecordedContact { .. }
+                            )
+                        })
+                        .collect();
+                    if es.is_empty() { Ok(()) } else { Err(es) }
+                })
+            })
+            .collect();
+        let stale = |r: &Result<(), Vec<topo::ValidationError>>| matches!(r, Err(es) if matches!(es[..], [topo::ValidationError::StaleContactDeclaration { .. }]));
+        assert!(
+            read.iter().filter(|r| r.is_ok()).count() == 1
+                && read.iter().filter(|r| stale(r)).count() == 1,
+            "rod y {y0}..{y1}: the bottom half's record confirms and the top half's is stale: {read:?}"
+        );
+    }
+}
+
+/// **A given tangency whose faces' extents along its line are disjoint
+/// is no touch**: the rod's verdict against the plate, handed to a step
+/// whose plate stands one unit above the rod (the same brick moved up,
+/// so the same face keys), places the line in neither face's span and
+/// records nothing; the two solids stand apart.
+#[test]
+fn a_given_tangency_whose_faces_part_along_its_line_records_nothing() {
+    let plate = finished(
+        "plate",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
+        tol(),
+    );
+    let raised = finished(
+        "raised plate",
+        brick::<f64>((-2.0, 2.0), (-2.0, 2.0), (2.0, 3.0), tol()),
+        tol(),
+    );
+    let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.25, 0.5);
+    let decided = match topo::union(&plate, &rod, tol()) {
+        Ok(BooleanResult::Body(u)) => u,
+        other => panic!("plate ∪ rod: {:?}", other.map(|_| ())),
+    };
+    let verdict = &decided.verdicts[0];
+    let side = raised.get_face(verdict.a()).unwrap();
+    assert!(
+        matches!(raised.get_surface(side.surface).unwrap(), geom::Surface::Plane { normal, .. } if normal.y > 0.5),
+        "the raised plate's face under the verdict's key is its y = 2 side"
+    );
+    match topo::boolean_op_with(
+        topo::BooleanOp::Union,
+        &raised,
+        &rod,
+        &topo::BooleanInputs {
+            given: Some(vec![verdict.given_at(topo::Operand::A, verdict.a())]),
+            ..topo::BooleanInputs::default()
+        },
+        topo::SweepStrategy::Realized,
+        tol(),
+    ) {
+        Ok(BooleanResult::Body(u)) => {
+            assert_eq!(u.body.solids().count(), 2, "raised ∪ rod: two solids apart");
+            assert_eq!(
+                u.contacts.face_face().count(),
+                0,
+                "raised ∪ rod: no face–face record"
+            );
+        }
+        other => panic!("raised ∪ rod, given: {:?}", other.map(|_| ())),
     }
 }

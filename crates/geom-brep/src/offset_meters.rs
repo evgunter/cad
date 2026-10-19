@@ -139,9 +139,7 @@ use geom_core::{Band, Indeterminate, Margin, Readable, SupSpeed};
 
 use crate::dihedral::decide_reported;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
-use crate::recourse::{
-    NoSize, Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
-};
+use crate::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use crate::shape_operator::FundamentalForms;
 
 /// The refinement ladder the door walks, coarsest first (D9: a fixed
@@ -199,16 +197,14 @@ impl Meter {
                 lever: "split the face clear of any pole, cusp or pinch",
                 size: "thinness",
                 passes: SizedPass::Positive,
-                stored: StoredDefinite::Lever,
-                no_size: Some(NoSize::same(
-                    "if it has none, this may indicate a kernel bug worth reporting",
-                )),
+                side: RefusedSide::Lever,
+                no_size: Some("if it has none, this may indicate a kernel bug worth reporting"),
             },
             Self::CurvatureHeadroom => SizedDecision {
                 lever: "use an offset distance of smaller magnitude, or offset to the other side",
                 size: "clearance",
                 passes: SizedPass::Positive,
-                stored: StoredDefinite::Lever,
+                side: RefusedSide::Lever,
                 no_size: None,
             },
         }

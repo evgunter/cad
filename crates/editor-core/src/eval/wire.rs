@@ -4088,7 +4088,7 @@ fn judge_pairwise_contact<T: Decide>(
         Option<(
             (topo::BooleanNaming, topo::AtRestBody<T>),
             Vec<crate::coincide::NamedCoincidence>,
-            Vec<PairVerdict>,
+            Vec<PairVerdict<T>>,
         )>,
         NodeErrorKind,
     >,
@@ -4096,7 +4096,7 @@ fn judge_pairwise_contact<T: Decide>(
     Option<(
         names::UnionLinks<T>,
         Vec<(crate::coincide::NamedCoincidence, (usize, usize))>,
-        Vec<PairVerdict>,
+        Vec<PairVerdict<T>>,
     )>,
     NodeErrorKind,
 > {
@@ -4129,13 +4129,13 @@ fn judge_pairwise_contact<T: Decide>(
 /// The fold reads it through lineage ([`given_pairs`]) and decides
 /// the pair nowhere else.
 #[derive(Clone, Debug)]
-struct PairVerdict {
+struct PairVerdict<T: Decide> {
     /// The judgement's operand A.
     a: usize,
     /// Its operand B.
     b: usize,
     /// The verdict, in the two members' keys.
-    verdict: topo::GlueVerdict,
+    verdict: topo::GlueVerdict<T>,
     /// The judgement's row recording it, named.
     row: crate::coincide::NamedCoincidence,
 }
@@ -4149,16 +4149,16 @@ struct PairVerdict {
 ///
 /// An emission bug ([`UNION_VERDICT_UNRECORDED`]) where a verdict has no
 /// row.
-fn pair_verdicts(
+fn pair_verdicts<T: Decide>(
     a: usize,
     b: usize,
-    verdicts: &[topo::GlueVerdict],
+    verdicts: &[topo::GlueVerdict<T>],
     rows: &[topo::Coincidence],
     named: &[crate::coincide::NamedCoincidence],
-) -> Result<Vec<PairVerdict>, NodeErrorKind> {
+) -> Result<Vec<PairVerdict<T>>, NodeErrorKind> {
     verdicts
         .iter()
-        .map(|&verdict| {
+        .map(|verdict| {
             rows.iter()
                 .position(|row| {
                     row.face_pair() == Some((verdict.a(), verdict.b()))
@@ -4168,7 +4168,7 @@ fn pair_verdicts(
                 .map(|row| PairVerdict {
                     a,
                     b,
-                    verdict,
+                    verdict: *verdict,
                     row: row.clone(),
                 })
                 .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
@@ -4191,16 +4191,16 @@ fn pair_verdicts(
 /// glue one accumulation face to one member face under two relations,
 /// or an accumulation face carries no lineage.
 fn given_pairs<T: Decide>(
-    verdicts: &[PairVerdict],
+    verdicts: &[PairVerdict<T>],
     member: usize,
     fold: &names::UnionFold,
     acc: &topo::Body<T>,
-) -> Result<Vec<topo::GluedPair>, NodeErrorKind> {
+) -> Result<Vec<topo::GluedPair<T>>, NodeErrorKind> {
     use topo::Operand;
     let bug = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
     let mut given: std::collections::BTreeMap<
         (topo::FaceKey, topo::FaceKey),
-        (Operand, topo::GlueVerdict),
+        (Operand, topo::GlueVerdict<T>),
     > = std::collections::BTreeMap::new();
     for (f, _) in acc.faces() {
         let parents = fold.member_faces(f).ok_or(bug(UNION_FACE_NO_LINEAGE))?;
@@ -4250,10 +4250,10 @@ fn given_pairs<T: Decide>(
 /// An emission bug where the row's accumulation face has no lineage
 /// ([`UNION_FACE_NO_LINEAGE`]) or no verdict's row is published
 /// ([`UNION_VERDICT_UNRECORDED`]).
-fn restated_given(
+fn restated_given<T: Decide>(
     row: &topo::Coincidence,
-    given: &[topo::GluedPair],
-    verdicts: &[PairVerdict],
+    given: &[topo::GluedPair<T>],
+    verdicts: &[PairVerdict<T>],
     member: usize,
     fold: &names::UnionFold,
     published: &[crate::coincide::NamedCoincidence],
@@ -4306,7 +4306,7 @@ fn restated_given(
 /// coaxial frame and a given tangency's line placed against its faces
 /// read a step's carriers by their margins, as the pairwise pass read
 /// the members'.
-fn debug_assert_given(rows: &[topo::Coincidence], inputs: &BooleanInputs) {
+fn debug_assert_given<T: Decide>(rows: &[topo::Coincidence], inputs: &BooleanInputs<T>) {
     if cfg!(debug_assertions) && inputs.given.is_some() {
         for row in rows {
             if let Some((fa, fb)) = row.face_pair() {

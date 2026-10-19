@@ -17,6 +17,12 @@
 //!   merges with the plate's before the rod is folded, the rod leaning
 //!   a tenth of ε rad toward the face: tangent within the band at the pass's
 //!   extent, not at the merged face's, which the step must not re-read.
+//! - a rod whose carrier's origin stands 300 or 3000 behind the touch,
+//!   leaning a tenth of ε: the step must place the pass's own line, not
+//!   one rebuilt from the carrier;
+//! - two flush plates whose faces merge, the rod touching only the
+//!   second: the merged face is named after the first, so the record
+//!   cites the pass's row through lineage alone.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, failure, run};
@@ -74,10 +80,10 @@ fn plate() -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// Asserts the union of `members` answers with `solids` solids of
-/// `volume`, and carries one face–face record, the plate's face and the
-/// rod's wall, citing the pass's one tangency row: a row of the node's
-/// own list, decided by the tangency witness between a face of
-/// `plate`'s read and a face of `rod`'s.
+/// `volume`, and carries `records` face–face records, each a face of
+/// the plate and a piece of the rod's wall, each citing the pass's one
+/// tangency row: a row of the node's own list, decided by the tangency
+/// witness between a face of `plate`'s read and a face of `rod`'s.
 #[allow(clippy::too_many_arguments)]
 fn touches(
     doc: &ProfileDoc,
@@ -86,13 +92,17 @@ fn touches(
     (plate, rod): (RecipeNodeId, RecipeNodeId),
     solids: usize,
     volume: f64,
+    records: usize,
 ) {
     let (doc, u) = union_over(doc.clone(), members);
     let ev = run(&doc);
     if let Some(e) = failure(&ev, u) {
         panic!("{what}: refused: {e:?}");
     }
-    let value = ev.value(u).expect("the union evaluated");
+    let Some(value) = ev.value(u) else {
+        let failed: Vec<_> = members.iter().filter_map(|&m| failure(&ev, m)).collect();
+        panic!("{what}: the union did not evaluate; a member refused: {failed:?}");
+    };
     let ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) = &value.payload else {
         panic!("{what}: not a boolean body");
     };
@@ -116,51 +126,52 @@ fn touches(
         .collect();
     assert_eq!(
         ff.len(),
-        1,
-        "{what}: one face–face record, the plate's face and the rod's wall: {ff:?}"
-    );
-    let (x, y, cites) = &ff[0];
-    let mut kinds = [kind(*x), kind(*y)];
-    kinds.sort_by_key(|k| *k != SurfaceKind::Plane);
-    assert_eq!(
-        kinds,
-        [SurfaceKind::Plane, SurfaceKind::Cylinder],
-        "{what}: the face–face record's faces"
+        records,
+        "{what}: the face–face records of the plate's face and the rod's wall: {ff:?}"
     );
     let reads = [doc.output(plate, 0).unwrap(), doc.output(rod, 0).unwrap()];
-    let cited: Vec<_> = cites.iter().collect();
-    assert_eq!(
-        cited.len(),
-        1,
-        "{what}: one decision backs the touch: {cited:?}"
-    );
-    let topo::Backing::Decided(row) = cited[0] else {
-        panic!("{what}: the touch cites a carried record: {cited:?}");
-    };
-    let row = &value.coincidences[row as usize];
-    assert_eq!(
-        (row.relation, row.site),
-        (
-            topo::Relation::SurfaceTangent,
-            topo::DecisionSite::TangentWitness
-        ),
-        "{what}: the cited row is a tangency: {row:?}"
-    );
-    let mut inputs: Vec<_> = row
-        .cells
-        .iter()
-        .map(|c| match c {
-            editor_core::coincide::NamedCell::Entity { input, .. } => *input,
-            other => panic!("{what}: a cited cell off the members: {other:?}"),
-        })
-        .collect();
-    inputs.sort();
-    let mut want = reads.to_vec();
-    want.sort();
-    assert_eq!(
-        inputs, want,
-        "{what}: the cited row is the pass's, in the members' reads"
-    );
+    for (x, y, cites) in &ff {
+        let mut kinds = [kind(*x), kind(*y)];
+        kinds.sort_by_key(|k| *k != SurfaceKind::Plane);
+        assert_eq!(
+            kinds,
+            [SurfaceKind::Plane, SurfaceKind::Cylinder],
+            "{what}: a face–face record's faces"
+        );
+        let cited: Vec<_> = cites.iter().collect();
+        assert_eq!(
+            cited.len(),
+            1,
+            "{what}: one decision backs the touch: {cited:?}"
+        );
+        let topo::Backing::Decided(row) = cited[0] else {
+            panic!("{what}: the touch cites a carried record: {cited:?}");
+        };
+        let row = &value.coincidences[row as usize];
+        assert_eq!(
+            (row.relation, row.site),
+            (
+                topo::Relation::SurfaceTangent,
+                topo::DecisionSite::TangentWitness
+            ),
+            "{what}: the cited row is a tangency: {row:?}"
+        );
+        let mut inputs: Vec<_> = row
+            .cells
+            .iter()
+            .map(|c| match c {
+                editor_core::coincide::NamedCell::Entity { input, .. } => *input,
+                other => panic!("{what}: a cited cell off the members: {other:?}"),
+            })
+            .collect();
+        inputs.sort();
+        let mut want = reads.to_vec();
+        want.sort();
+        assert_eq!(
+            inputs, want,
+            "{what}: the cited row is the pass's, in the members' reads"
+        );
+    }
 }
 
 /// The plate's volume and the rod's.
@@ -176,7 +187,15 @@ fn a_fold_step_records_a_given_tangency_through_both_interiors_in_every_order() 
         ("block, plate, rod", [apart, plate, rod]),
         ("rod, block, plate", [rod, apart, plate]),
     ] {
-        touches(&doc, what, &members, (plate, rod), 3, PLATE_AND_ROD + 1.0);
+        touches(
+            &doc,
+            what,
+            &members,
+            (plate, rod),
+            3,
+            PLATE_AND_ROD + 1.0,
+            1,
+        );
     }
 }
 
@@ -201,14 +220,16 @@ fn a_piece_of_the_plates_face_still_holds_the_line() {
         ("across, rod, plate", vec![across, rod, plate], across_v),
         ("rod, plate, across", vec![rod, plate, across], across_v),
     ] {
-        touches(&doc, what, &members, (plate, rod), 2, volume);
+        touches(&doc, what, &members, (plate, rod), 2, volume, 1);
     }
 }
 
 /// A slab 0.2 thick crossing the plate and the rod obliquely over the
 /// line's upper part, folded in after the rod (the record carried onto
-/// the pieces, the pair of pieces meeting only at the cut read apart)
-/// or before it (the step reads the line against the pieces).
+/// the pieces) or before it (the step places the line against them).
+/// The slab cuts the rod's wall in two along the line and leaves the
+/// plate's face one face around it: both pieces of the wall touch it,
+/// two records in every order.
 #[test]
 fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
     let (doc, plate) = plate();
@@ -232,10 +253,10 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
     // within what the run's ε resolves.
     let volume = 17.319_065_538_33;
     let within = 1e-7_f64.max(100.0 * Tol::witness().eps());
-    for (what, members) in [
-        ("plate, rod, slab", [plate, rod, slab]),
-        ("rod, slab, plate", [rod, slab, plate]),
-        ("slab, rod, plate", [slab, rod, plate]),
+    for (what, members, records) in [
+        ("plate, rod, slab", [plate, rod, slab], 2),
+        ("rod, slab, plate", [rod, slab, plate], 2),
+        ("slab, rod, plate", [slab, rod, plate], 2),
     ] {
         let (d, u) = union_over(doc.clone(), &members);
         let ev = run(&d);
@@ -246,7 +267,7 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
             .unwrap()
             .volume;
         assert!((v - volume).abs() < within, "{what}: volume {v}");
-        touches(&doc, what, &members, (plate, rod), 1, v);
+        touches(&doc, what, &members, (plate, rod), 1, v, records);
     }
 }
 
@@ -272,6 +293,184 @@ fn a_merged_face_far_longer_than_the_pair_holds_the_pass_s_line() {
             (plate, rod),
             2,
             1192.0 + PLATE_AND_ROD,
+            1,
         );
+    }
+}
+
+/// A rod of radius 0.5 about (0, 2.5) in a sketch frame turned by
+/// `lean` about x, occupying stations 0..1 along its axis, whose
+/// cylinder carrier's origin stands `back` behind station 0: extruded
+/// from station −`back` to 1, the part below station 0 cut away.
+fn far_origin_rod(doc: ProfileDoc, lean: f64, back: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (s, c) = (lean.sin(), lean.cos());
+    let (doc, plane) = insert(
+        doc,
+        fixture::frame([0.0, back * s, -back * c], [1.0, 0.0, 0.0], [0.0, c, s]),
+    );
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            frame: plane.into(),
+            loops: vec![LoopProgram::circle_split(0.0, 2.5, 0.5, 2, 0.0).expect("a finite circle")],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, long) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(back + 1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, tool_profile) = crate::fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, c, s],
+        vec![vec![
+            (-10.0, -10.0),
+            (10.0, -10.0),
+            (10.0, 10.0),
+            (-10.0, 10.0),
+        ]],
+    );
+    let (doc, tool) = insert(
+        doc,
+        Node::Extrude {
+            profile: tool_profile.into(),
+            distance: len(back + 5.0),
+            side: ExtrudeSide::Against,
+        },
+    );
+    insert(
+        doc,
+        Node::Subtract {
+            from: long.into(),
+            tool: tool.into(),
+        },
+    )
+}
+
+/// The rod's carrier origin 300 and 3000 behind the touch, leaning a
+/// tenth of ε: a line rebuilt from the carrier's origin would stand
+/// tens of ε off the plate's face at the touch. Every order carries the
+/// pair's one record.
+#[test]
+fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line() {
+    let eps = Tol::witness().eps();
+    let lean = 0.1 * eps;
+    // A rod 3000 long is no finished body at ε 1e-12 (its volume's
+    // off-axis reading escalates), so the far row reads 1000 there.
+    let far = if eps < 1e-10 { 1000.0 } else { 3000.0 };
+    for back in [300.0, far] {
+        let (doc, plate) = plate();
+        let (doc, rod) = far_origin_rod(doc, lean, back);
+        let (doc, apart) = block(doc, (5.0, 6.0), (5.0, 6.0), 0.0, 1.0);
+        for (order, members) in [
+            ("plate, rod, block", [plate, rod, apart]),
+            ("block, plate, rod", [apart, plate, rod]),
+            ("rod, block, plate", [rod, apart, plate]),
+            ("plate, block, rod", [plate, apart, rod]),
+        ] {
+            touches(
+                &doc,
+                &format!("back {back}: {order}"),
+                &members,
+                (plate, rod),
+                3,
+                PLATE_AND_ROD + 1.0,
+                1,
+            );
+        }
+    }
+}
+
+/// Two flush plates, x −2..0 and 0..2, whose y = 2 faces merge, and the
+/// rod about (0.25, 2.5), touching the second plate's face only.
+#[test]
+fn a_merged_face_cites_the_verdict_of_the_member_face_it_holds() {
+    let doc = ProfileDoc::empty_derived("fold-ff-merged", Tol::witness());
+    let (doc, first) = block(doc, (-2.0, 0.0), (-2.0, 2.0), 0.0, 1.0);
+    let (doc, second) = block(doc, (0.0, 2.0), (-2.0, 2.0), 0.0, 1.0);
+    let (doc, plane) = insert(
+        doc,
+        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            frame: plane.into(),
+            loops: vec![
+                LoopProgram::circle_split(0.25, 2.5, 0.5, 2, 0.0).expect("a finite circle"),
+            ],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, rod) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    for (order, members) in [
+        ("first, second, rod", [first, second, rod]),
+        ("second, first, rod", [second, first, rod]),
+        ("first, rod, second", [first, rod, second]),
+    ] {
+        touches(&doc, order, &members, (second, rod), 2, PLATE_AND_ROD, 1);
+    }
+}
+
+/// The slab of [`a_slab_across_the_line_leaves_the_touch_on_its_pieces`]
+/// run across the plate's whole width (x −3..3): it cuts the plate's
+/// face in two as well, so each piece of the face touches only the
+/// piece of the wall on its side of the slab, and the cross pairs of
+/// pieces, whose extents along the line are disjoint, are no touch.
+/// The orders folding the slab into the plate before the rod refuse
+/// `CurvedPierceUnsupported`, as on main.
+#[test]
+fn a_slab_across_the_whole_face_pairs_each_piece_with_its_own_side() {
+    let (doc, plate) = plate();
+    let (doc, rod) = rod(doc);
+    let (doc, prof) = crate::fixture::on_frame(
+        doc,
+        [-3.0, 2.0, 0.7],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.8, 0.6],
+        vec![vec![(0.0, -1.0), (6.0, -1.0), (6.0, 1.5), (0.0, 1.5)]],
+    );
+    let (doc, slab) = insert(
+        doc,
+        Node::Extrude {
+            profile: prof.into(),
+            distance: len(0.2),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let within = 1e-7_f64.max(100.0 * Tol::witness().eps());
+    let mut volume = None;
+    for (what, members) in [
+        ("plate, rod, slab", [plate, rod, slab]),
+        ("rod, slab, plate", [rod, slab, plate]),
+        ("slab, rod, plate", [slab, rod, plate]),
+    ] {
+        let (d, u) = union_over(doc.clone(), &members);
+        let ev = run(&d);
+        if let Some(e) = failure(&ev, u) {
+            panic!("{what}: refused: {e:?}");
+        }
+        let v = topo::mass_properties(crate::corpus::body_of(&ev, u), Tol::witness())
+            .unwrap()
+            .volume;
+        let want = *volume.get_or_insert(v);
+        assert!(
+            (v - want).abs() < within,
+            "{what}: volume {v}, the first order's {want}"
+        );
+        touches(&doc, what, &members, (plate, rod), 1, v, 2);
     }
 }

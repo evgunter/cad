@@ -47,6 +47,7 @@ const LAYERS: &[(&str, &[&str])] = &[
         "the fillet arc about to be stored is undecided:",
         &[
             "arc_diameter_clearance",
+            "carrier_circles_chord",
             "carrier_circles_external",
             "carrier_circles_identity",
             "carrier_circles_internal",
