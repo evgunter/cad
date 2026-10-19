@@ -117,7 +117,7 @@
 //! | `carrier_circles_identity` | d + |Δr| | direct |
 //! | `carrier_circles_external` | d − (r₁+r₂) | direct |
 //! | `carrier_circles_internal` | d − |Δr| | direct |
-//! | `carrier_circles_chord` | the radical foot's mean depth inside both circles | direct |
+//! | `carrier_circles_chord` | the radical foot's mean depth inside both circles, or zero outside them | direct |
 //! | `arc_apex_identity` | apex distance | direct |
 //! | `collinear_overlap` | overlap length | direct |
 //! | `contact_at_shared_vertex` | contact-to-vertex distance | direct |

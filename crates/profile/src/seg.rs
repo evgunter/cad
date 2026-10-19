@@ -1314,15 +1314,30 @@ fn arc_clear_of_carrier<T: Decide>(
 ///   it cannot poison.
 /// - **`carrier_circles_chord`** — margin: the radical foot's depth
 ///   inside both circles, the mean of rᵢ − |foot − Cᵢ|, the sagitta of
-///   the chord the circles cut. Read where the internal clearance is
-///   Zero, which bounds g by ε but not the chord: the foot stands
-///   g·r₂/d and g·r₁/d off the circles (the two differ by g), so on
-///   near-concentric carriers a g within ε cuts a chord whose ends lie
-///   far apart. Positive ⇒ two crossings, [`Circles2::crossings`] as for
-///   a proper secant, whose half-chord's square has the sign of g, which
-///   the depth past Kε puts definitely positive; Zero or Negative ⇒ a
-///   tangency: the circles cross, if at all, within √(2r·ε) of the foot,
-///   or are nested.
+///   the chord the circles cut, or zero where the foot stands outside
+///   them. Read where the internal clearance is Zero, which bounds g by
+///   ε but not the chord: the foot stands g·r₂/d and g·r₁/d off the
+///   circles (the two differ by g), so on near-concentric carriers a g
+///   within ε cuts a chord whose ends lie far apart. Positive ⇒ two
+///   crossings, [`Circles2::crossings`] as for a proper secant, whose
+///   half-chord's square has the sign of g, which the depth past Kε
+///   puts definitely positive; Zero ⇒ a tangency: the circles cross, if
+///   at all, within √(2r·ε) of the foot, or are nested. In band the
+///   pair is read both ways, and where the two readings agree on
+///   whether the arcs meet away from their ends, it takes the contacts
+///   of both: each is a point within ε of both arcs.
+///
+///   **What the band costs.** Where the readings disagree, the pair
+///   escalates: a crossing pair and a tangency cannot be told apart
+///   there, and which one the data is decides the verdict. That is two
+///   arcs leaving a point near the tangency direction the same way, a
+///   cusp among them, on carriers whose g lies within a factor
+///   2d/(r₁ + r₂) of ε (d = 0.1, g from 0.2ε to ε, at r = 1). A smooth
+///   joint, or a pair whose arcs hold neither crossing, reads the same
+///   both ways. The escalation is sized: its ending offers the
+///   tolerance at which the sagitta decides, and the near-tangency note
+///   offers the PATHS `.fillet(r)` door, which constructs an exact
+///   tangency.
 ///
 /// The margins and the crossings read one [`Circles2`], so the factors
 /// the crossings take are the margins decided, bit for bit.
@@ -1417,28 +1432,40 @@ fn arc_arc<T: Decide>(
                             let depth = (g1.arc.radius - g1.arc.rim(foot) + g2.arc.radius
                                 - g2.arc.rim(foot))
                                 * T::from_f64(0.5);
-                            match decide("carrier_circles_chord", Margin::of(depth), band)? {
-                                Sign::Positive => candidates(
-                                    &mut contacts,
-                                    (s1, s2),
-                                    &circles.crossings(),
-                                    CKind::Crossing,
-                                    spans,
-                                    band,
-                                )?,
-                                Sign::Zero | Sign::Negative => {
-                                    let side = |r: T| pair.radical().select_le_zero(-r, r);
-                                    let q = tangency(side(g1.arc.radius), side(g2.arc.radius));
-                                    candidates(
-                                        &mut contacts,
-                                        (s1, s2),
-                                        &[q],
-                                        CKind::Tangency,
-                                        spans,
-                                        band,
-                                    )?;
+                            let read = |points: &[Point2<T>], kind| {
+                                let mut found = Vec::new();
+                                candidates(&mut found, (s1, s2), points, kind, spans, band)
+                                    .map(|()| found)
+                            };
+                            let tangent = || {
+                                let side = |r: T| pair.radical().select_le_zero(-r, r);
+                                let q = tangency(side(g1.arc.radius), side(g2.arc.radius));
+                                read(&[q], CKind::Tangency)
+                            };
+                            let secant = || read(&circles.crossings(), CKind::Crossing);
+                            // Only a chord definitely deeper than the
+                            // band changes the reading, so a foot outside
+                            // the circles reads as the tangency it is.
+                            let chord = decide(
+                                "carrier_circles_chord",
+                                Margin::of(depth.max(T::zero())),
+                                band,
+                            );
+                            contacts = match chord {
+                                Ok(Sign::Positive) => secant()?,
+                                Ok(Sign::Zero | Sign::Negative) => tangent()?,
+                                Err(undecided) => {
+                                    let interior = |found: &[Contact<T>]| {
+                                        found.iter().any(|c| !matches!(c.kind, CKind::Touch))
+                                    };
+                                    match (tangent(), secant()) {
+                                        (Ok(t), Ok(x)) if interior(&t) == interior(&x) => {
+                                            t.into_iter().chain(x).collect()
+                                        }
+                                        _ => return Err(undecided),
+                                    }
                                 }
-                            }
+                            };
                         }
                         Sign::Positive => {
                             // Proper secant: d > |Δr| definitely, so
@@ -1560,10 +1587,12 @@ fn candidates<T: Decide>(
 /// If they read tangent, they cut no chord deeper than ε: a line's
 /// `carrier_line_circle` margin is that depth, and two circles' is
 /// `carrier_circles_chord`, which reads a deeper chord as a secant even
-/// where the internal clearance is within ε. So the carriers re-cross,
-/// if at all, within √(2rε) of the tangency, the pair meets there only
-/// as the joint does, and the joint pass classifies it (a cusp
-/// re-crossing that close reads as a tangent cusp).
+/// where the internal clearance is within ε, and a chord within the
+/// band as a secant too, keeping a verdict only where the two readings
+/// agree. So the carriers re-cross, if at all, within √(2rε) of the
+/// tangency, the pair meets there only as the joint does, and the
+/// joint pass classifies it (a cusp re-crossing that close reads as a
+/// tangent cusp).
 fn end_in_stretch<T: Decide>(
     seg: &Seg<T>,
     other: &Seg<T>,

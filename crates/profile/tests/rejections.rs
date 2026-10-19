@@ -784,6 +784,58 @@ fn a_cusp_on_near_concentric_carriers_refuses_its_crossing() {
     }
 }
 
+/// **A compound joint escalates only where its crossing pair and its
+/// tangency disagree.** Carriers 0.5 to 0.01 apart, internally tangent
+/// at the joint to within ε, cut a chord whose sagitta is about
+/// `g·r/d`: within the band at `d = 0.1`, `g = 0.2ε`. Read as a
+/// tangency or as the two crossings, a smooth joint's arcs meet only at
+/// the joint, so it validates whichever the chord is. A cusp's arcs
+/// both hold a crossing near the joint: as two crossings they cross
+/// there, and as a tangency they meet only at the joint, so the cusp
+/// escalates. Past the band the cusp
+/// crosses, and a nested pair (`g < 0`) reads its tangency without
+/// asking. The `d = 0.01`, `g = 0.03ε` cusp is the band's lower edge:
+/// a sagitta of 3ε, which a chord read a fifth as deep calls tangent.
+#[test]
+fn a_compound_joint_escalates_only_where_its_readings_disagree() {
+    let eps = tol().eps();
+    let pair = (sref(0, 0), sref(0, 1));
+    let crossing = || ProfileError::NonSimple {
+        first: pair.0,
+        second: pair.1,
+        kind: ContactKind::Crossing,
+    };
+    let (smooth, cusp) = (1.0, -0.5);
+    for (d, g, sweep, want) in [
+        (0.5, 0.9, smooth, None),
+        (0.5, -0.9, smooth, None),
+        (0.1, 0.2, smooth, None),
+        (0.1, 0.5, smooth, None),
+        (0.1, 0.9, smooth, None),
+        (0.1, -0.2, smooth, None),
+        (0.1, -0.5, smooth, None),
+        (0.1, -0.9, smooth, None),
+        (0.01, 0.03, smooth, None),
+        (0.5, 0.9, cusp, Some(Err("carrier_circles_chord"))),
+        (0.1, 0.2, cusp, Some(Err("carrier_circles_chord"))),
+        (0.1, 0.9, cusp, Some(Err("carrier_circles_chord"))),
+        (0.01, 0.03, cusp, Some(Err("carrier_circles_chord"))),
+        (0.01, 0.2, cusp, Some(Ok(crossing()))),
+    ] {
+        let p = joint_loop(near_concentric(d, g * eps), 0.0, sweep);
+        let label = format!("d = {d}, g = {g}ε, second arc through {sweep}");
+        match (validate_both(&p), want) {
+            (Ok(()), None) => {}
+            (Err(got), Some(Ok(want))) => assert_eq!(got, want, "{label}"),
+            (Err(ProfileError::Escalated { site, source }), Some(Err(predicate))) => {
+                assert_eq!(site, EscalationSite::SegmentPair(pair.0, pair.1), "{label}");
+                assert_eq!(source.predicate, Some(predicate), "{label}");
+            }
+            (got, _) => panic!("{label}: {got:?}"),
+        }
+    }
+}
+
 #[test]
 fn near_tangent_hole_escalates_on_the_internal_clearance() {
     match err(&near_tangent_hole(tol().eps())) {
