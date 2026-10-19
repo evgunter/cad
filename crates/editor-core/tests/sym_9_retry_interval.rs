@@ -539,6 +539,8 @@ fn sym_9_what_each_retry_recovers() {
 /// at `1e1·ε` the ladder takes four decisions the first attempt left
 /// numeric (`symbolic` 1311 → 1315, `retried` 4 against 0).
 ///
+/// numeric (`symbolic` 1348 → 1352, `retried` 4 against 0).
+///
 /// Every extruded cap decides `cap_plane_orientation` once, numeric
 /// on both sides: the plate's `numeric` 704 → 710, the annulus's
 /// 451 → 455, the boss's 414 → 418, the bracket's 1050 → 1056 and the
@@ -550,6 +552,27 @@ fn sym_9_what_each_retry_recovers() {
 /// annulus 566 → 539, boss 549 → 516, bracket 1448 → 1387, link
 /// 862 → 827, the pad's leaf 1376 → 1315. No decision moved; one left.
 ///
+/// Placing each row over its edge's span in the chart's principal
+/// window (C4) reads two half-period marks per placed azimuth, numeric
+/// on both sides, and a cylinder's meridian azimuth is read only on a
+/// meridian, so a rim circle centred on the axis no longer takes the
+/// frame read the tier proved zero. With the ladder and without it
+/// alike: the plate 1048/654 → 1032/726, the annulus 566/399 →
+/// 550/471, the boss 549/376 → 537/428, the bracket 1448/1004 →
+/// 1428/1092 and the link 862/663 → 846/731, `retried` zero on all
+/// five. `symbolic` falls here because the decisions are gone, not
+/// because a retry took them; the pad's leaf moves 1372/1284 →
+/// 1348/1384 bare and 1376/1280 → 1352/1380 with the ladder, its four
+/// recovered decisions held. Main's final non-finite check and the
+/// placement add, with the ladder and without it alike: `symbolic` falls
+/// by main's count on each (plate −45, annulus −27, boss −33, bracket −61,
+/// link −35, the pad's leaf −61) from the placement's, `numeric` the
+/// placement's: plate 987/726, annulus 523/471, boss 504/428, bracket
+/// 1367/1092, link 811/731, the pad's leaf 1287/1384 bare and 1291/1380
+/// with the ladder. The frame decided across the window's cut sends the
+/// pad leaf's four theorems on the old frame's cut (`x ≡ 0`) to the
+/// numeric channel: 1283/1388 bare and 1287/1384 with the ladder.
+///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
@@ -559,11 +582,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1003, 654], [1003, 654], 0),
-        ("r1_annulus", [539, 399], [539, 399], 0),
-        ("r1_segment_boss", [516, 376], [516, 376], 0),
-        ("r2_filleted_bracket", [1387, 1004], [1387, 1004], 0),
-        ("r2_link", [827, 663], [827, 663], 0),
+        ("two_hole_plate", [987, 726], [987, 726], 0),
+        ("r1_annulus", [523, 471], [523, 471], 0),
+        ("r1_segment_boss", [504, 428], [504, 428], 0),
+        ("r2_filleted_bracket", [1367, 1092], [1367, 1092], 0),
+        ("r2_link", [811, 731], [811, 731], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -678,7 +701,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1315, 1280, 4],
+        [1287, 1384, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -690,7 +713,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1311, 1284, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1283, 1388, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

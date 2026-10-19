@@ -139,11 +139,14 @@ fn every_family_and_traversal_images_exactly_and_certifies() {
         assert_eq!((vl.abs(), sense.abs()), (1.0, 1.0), "{what}");
         assert_eq!(beta, want_beta, "{what}");
         // The vertex is the point farthest from the axis, on the outer
-        // equator, where the tube angle is zero.
+        // equator, where the tube angle is zero modulo a turn: the image
+        // is placed in the window over the carrier's turn (C4), so a
+        // reversed traversal can name the vertex's tube angle `τ`.
         let vertex = image.eval(t0);
         let outer = surface.eval(vertex.x, 0.0);
+        let tube = vertex.y - core::f64::consts::TAU * (vertex.y / core::f64::consts::TAU).round();
         assert!(
-            carrier.eval(t0).distance(outer) < 1e-12 && vertex.y.abs() < 1e-12,
+            carrier.eval(t0).distance(outer) < 1e-12 && tube.abs() < 1e-12,
             "{what}: the vertex {vertex:?} is not the outer-equator point"
         );
         let sup = sampled_sup(&image, &carrier, -3.0, 9.0);
