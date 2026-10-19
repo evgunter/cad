@@ -478,7 +478,7 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
     on the block's top, are recorded and reported alike. The report's
     rows are the evaluation's unproven rows, word for word."""
 
-    def test_a_glued_rest_is_one_unproven_coincidence(self):
+    def test_a_glued_rest_and_its_corners_are_unproven_coincidences(self):
         doc = Doc()
         lower = slab(doc, 0.0, 1.0)
         upper = slab(doc, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5)

@@ -364,6 +364,10 @@ pub struct BooleanNaming {
     /// [`Self::discards`] (`boolean::discard`'s `carved_lineage`). Only
     /// the section path carves.
     pub carved_lineage: [BTreeMap<EdgeKey, EdgeKey>; 2],
+    /// Every decision the op took with a margin whose input cells would
+    /// state another relation than the one decided, in decision order
+    /// (`boolean::ops::spell`): kept here rather than published as a row.
+    pub unspelled: Vec<crate::UnspelledDecision>,
 }
 
 impl Default for BooleanNaming {
@@ -400,6 +404,7 @@ impl Default for BooleanNaming {
             edge_joins: Default::default(),
             killed_lineage: Default::default(),
             carved_lineage: Default::default(),
+            unspelled: Vec::new(),
         }
     }
 }
@@ -958,7 +963,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // untouched bit-identically.
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
-    let (contacts, coincidences) = carry(
+    let (contacts, coincidences, unspelled) = carry(
         &body,
         &ledger,
         views,
@@ -991,6 +996,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         reduction_contacts,
         discards: fin.discards,
         carved_lineage: fin.carved_lineage,
+        unspelled,
         covered,
         edge_classes,
         unread_partners,
@@ -1124,14 +1130,9 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
             if let BooleanResult::Body(out) = &mut result {
                 // A row names the cells of the op's inputs, not of the
-                // cut operands ([`crate::coincidence`]).
-                for row in &mut out.coincidences {
-                    for end in &mut row.cells {
-                        if let crate::RowCell::Input { input, cell } = end {
-                            *cell = cuts[usize::from(*input == Operand::B)].input_cell(*cell);
-                        }
-                    }
-                }
+                // cut operands ([`crate::coincidence`]), through the one
+                // door ([`spell`]).
+                respell_through_cuts(out, &cuts)?;
                 // The cut-ins divided faces before the join did, in the
                 // operand keys the join's rows are in.
                 let n = &mut out.naming;
@@ -3761,7 +3762,9 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 ///
 /// **Every decision the op took with a margin is a row**, cited or
 /// not (D10 `[coincidence.door]`): emitted in decision order after the
-/// op's own coincidences, the records renumbered onto them. A decision
+/// op's own coincidences, the records renumbered onto them, or, where
+/// its inputs' cells would state another relation, held unspelled
+/// ([`spell`], [`BooleanNaming::unspelled`]). A decision
 /// with no margin (a transverse pierce's landing) placed topology and
 /// is not a coincidence (D1); a surviving record whose decisions all
 /// decided no margin is a touch without a decision, which the op
@@ -3780,7 +3783,7 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
     desc: &Descendants,
     discarded: [&BTreeSet<FaceKey>; 2],
     band: Band,
-) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
+) -> Result<Carried, BooleanError> {
     let mut pending = ledger.pending.clone();
     let [a, b] = carried(body, ledger, views, desc, discarded, &mut pending, band)?;
     let mut records = carry_rows(
@@ -4246,38 +4249,49 @@ fn record_classes<T: Real>(
 }
 
 /// The records `carry_rows` left and every decision the op took with a
-/// margin, emitted after the op's own coincidences in decision order,
-/// the records' citations renumbered onto them ([`carry`]).
+/// margin, each spelled in its inputs' cells ([`spell`]) and emitted
+/// after the op's own coincidences in decision order, the records'
+/// citations renumbered onto them ([`carry`]). A decision its input
+/// cells cannot state truthfully is held unspelled, unless a surviving
+/// record cites it: that record's backing is published as read.
 fn cite_rows(
     records: ContactRecords,
     ledger: &Ledger,
     pending: &[PendingRow],
-) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
-    if records
-        .decided()
-        .last()
-        .is_some_and(|&k| k as usize >= pending.len())
-    {
+) -> Result<Carried, BooleanError> {
+    let decided = records.decided();
+    if decided.last().is_some_and(|&k| k as usize >= pending.len()) {
         return Err(BooleanError::JoinDesync {
             what: "a contact record cites a decision the reduction did not make",
         });
     }
-    // A decision with no margin (a transverse pierce's landing) is not
-    // a coincidence, and a record citing only such is refused below.
-    let used: Vec<u32> = (0..pending.len())
-        .filter(|&k| pending[k].margin.is_some())
-        .map(super::reduce::index)
-        .collect();
     // A row the op recorded already (a tangency the glue door decided)
     // is cited where it stands: one decision, one row.
     let mut coincidences = ledger.recorded.clone();
-    let mut at = Vec::with_capacity(used.len());
-    for &k in &used {
-        let row = pending[k as usize];
-        let Some(margin) = row.margin else {
-            unreachable!("only a decided row is emitted")
+    let mut unspelled = Vec::new();
+    let mut used = Vec::new();
+    let mut at = Vec::new();
+    for (k, row) in pending.iter().enumerate() {
+        // A decision with no margin (a transverse pierce's landing) is
+        // not a coincidence, and a record citing only such is refused
+        // below.
+        let Some(margin) = row.margin else { continue };
+        let k = super::reduce::index(k);
+        let read = |end| input_end(end, &ledger.splits);
+        let cells = match spell(row.cells, row.relation, read) {
+            Ok(cells) => cells,
+            Err(read) if decided.binary_search(&k).is_ok() => read,
+            Err(_) => {
+                unspelled.push(crate::UnspelledDecision {
+                    cells: row.cells,
+                    relation: row.relation,
+                    site: crate::DecisionSite::VertexFusion,
+                    margin,
+                });
+                continue;
+            }
         };
-        let cells = row.cells.map(|end| input_cell(end, &ledger.splits));
+        used.push(k);
         if let Some(&(_, c)) = ledger.glued.iter().find(|&&(p, _)| p == k) {
             let recorded = &coincidences[c as usize];
             if recorded.cells != cells || recorded.relation != row.relation {
@@ -4302,14 +4316,67 @@ fn cite_rows(
         .map_err(|_| BooleanError::ClassificationInvariant {
             what: "a contact record surviving into the result cites no decision",
         })?;
-    Ok((records, coincidences))
+    Ok((records, coincidences, unspelled))
+}
+
+/// What [`carry`] hands the result: its records, its rows, and the
+/// decisions it holds unspelled.
+type Carried = (
+    ContactRecords,
+    Vec<crate::Coincidence>,
+    Vec<crate::UnspelledDecision>,
+);
+
+/// **The one door a decision's cells pass to become a row's**: `read`
+/// takes each cell to the cell of the op's input it lies in, and a
+/// cell read as one of higher dimension (a vertex minted on an edge
+/// read as that edge, a chart cut read as the face it runs in) is
+/// widened. The row keeps the relation decided only where widening
+/// cannot change what it says: no cell widened; or, for a cell decided
+/// on another's carrier, the second widened under a first that is a
+/// point, which lies on whatever the second lies in; or two points
+/// decided one with the first widened, spelled the other way round.
+/// Any other spelling is returned as `Err`, read, for the caller to
+/// hold.
+fn spell(
+    cells: [End; 2],
+    relation: crate::Relation,
+    read: impl Fn(End) -> End,
+) -> Result<[crate::RowCell; 2], [crate::RowCell; 2]> {
+    let dim = |c: Cell| match c {
+        Cell::Vertex(_) => 0,
+        Cell::Edge(_) => 1,
+        Cell::Face(_) => 2,
+    };
+    let read = cells.map(&read);
+    let widened = [0, 1].map(|i| dim(read[i].1) > dim(cells[i].1));
+    let row = |[x, y]: [End; 2]| [x, y].map(|(input, cell)| crate::RowCell::Input { input, cell });
+    let point = |c: Cell| matches!(c, Cell::Vertex(_));
+    match widened {
+        [false, false] => Ok(row(read)),
+        [false, true] if relation == crate::Relation::OnCarrier && point(cells[0].1) => {
+            Ok(row(read))
+        }
+        [true, false]
+            if relation == crate::Relation::OnCarrier && point(cells[0].1) && point(cells[1].1) =>
+        {
+            Ok(row([read[1], read[0]]))
+        }
+        _ => Err(row(read)),
+    }
 }
 
 /// A pending row's cell as the deciding op's input holds it: a vertex
 /// the reduction minted by splitting an edge is read as the input edge
 /// it was minted on, through every split of that edge's pieces
 /// ([`super::EdgeSplits::root`], total).
-pub(super) fn input_cell((input, cell): End, splits: &super::EdgeSplits) -> crate::RowCell {
+pub(super) fn input_cell(end: End, splits: &super::EdgeSplits) -> crate::RowCell {
+    let (input, cell) = input_end(end, splits);
+    crate::RowCell::Input { input, cell }
+}
+
+/// [`input_cell`], as an operand and its cell.
+fn input_end((input, cell): End, splits: &super::EdgeSplits) -> End {
     let root = |edge: EdgeKey| splits.root(input, edge);
     let cell = match cell {
         Cell::Vertex(v) => splits
@@ -4321,7 +4388,7 @@ pub(super) fn input_cell((input, cell): End, splits: &super::EdgeSplits) -> crat
         // clone is the input's.
         Cell::Face(_) => cell,
     };
-    crate::RowCell::Input { input, cell }
+    (input, cell)
 }
 
 /// [`carry`] for records already keyed in the body's own arena, through
@@ -6756,6 +6823,67 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
     Ok(made)
 }
 
+/// **The recut's rows read through the cut-ins** ([`spell`]): each row
+/// whose cells the cuts made is spelled in the op's inputs' cells,
+/// and one that spelling would misstate is held unspelled
+/// ([`BooleanNaming::unspelled`]) unless a surviving record cites it,
+/// as [`cite_rows`] holds one; the records are renumbered onto the rows
+/// that stay.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] on a record left citing
+/// no row.
+fn respell_through_cuts<T: Real>(
+    out: &mut BooleanBody<T>,
+    cuts: &CutsPerOperand,
+) -> Result<(), BooleanError> {
+    let read = |(input, cell): End| {
+        (
+            input,
+            cuts[usize::from(input == Operand::B)].input_cell(cell),
+        )
+    };
+    let cited = out.contacts.decided();
+    let mut kept = Vec::with_capacity(out.coincidences.len());
+    let mut at = Vec::with_capacity(out.coincidences.len());
+    for (i, row) in out.coincidences.iter().enumerate() {
+        let i = super::reduce::index(i);
+        let [
+            crate::RowCell::Input { input: x, cell: cx },
+            crate::RowCell::Input { input: y, cell: cy },
+        ] = row.cells
+        else {
+            at.push(Some(super::reduce::index(kept.len())));
+            kept.push(*row);
+            continue;
+        };
+        let cells = match spell([(x, cx), (y, cy)], row.relation, read) {
+            Ok(cells) => cells,
+            Err(read) if cited.binary_search(&i).is_ok() => read,
+            Err(_) => {
+                out.naming.unspelled.push(crate::UnspelledDecision {
+                    cells: [(x, cx), (y, cy)],
+                    relation: row.relation,
+                    site: row.site,
+                    margin: row.margin,
+                });
+                at.push(None);
+                continue;
+            }
+        };
+        at.push(Some(super::reduce::index(kept.len())));
+        kept.push(crate::Coincidence { cells, ..*row });
+    }
+    out.coincidences = kept;
+    out.contacts = core::mem::take(&mut out.contacts)
+        .renumbered(|k| at.get(k as usize).copied().flatten())
+        .map_err(|_| BooleanError::ClassificationInvariant {
+            what: "a contact record surviving into the result cites no decision",
+        })?;
+    Ok(())
+}
+
 /// What [`apply_cut_ins`] made in each operand, A's then B's.
 type CutsPerOperand = [ChartCuts; 2];
 
@@ -6775,29 +6903,38 @@ impl ChartCuts {
     /// The input cell `cell` of the cut operand lies in: a division's
     /// face is the face it was cut from, a meridian the face it runs
     /// in, and an arc split's vertex or second piece the arc it split.
-    fn input_cell(&self, cell: Cell) -> Cell {
-        let face = |mut f: FaceKey| {
-            while let Some(&(_, from)) = self.divisions.iter().find(|&&(new, _)| new == f) {
-                f = from;
+    fn input_cell(&self, mut cell: Cell) -> Cell {
+        // One step at a time to a fixed point, so a cell a later cut
+        // made of an earlier cut's (an arc split of a meridian) reads
+        // through both.
+        loop {
+            let next = match cell {
+                Cell::Face(f) => self
+                    .divisions
+                    .iter()
+                    .find(|&&(new, _)| new == f)
+                    .map(|&(_, from)| Cell::Face(from)),
+                Cell::Edge(e) => self
+                    .edges
+                    .iter()
+                    .position(|&m| m == e)
+                    .map(|i| Cell::Face(self.divisions[i].1))
+                    .or_else(|| {
+                        self.arc_splits
+                            .iter()
+                            .find(|&&(_, new, _)| new == e)
+                            .map(|&(_, _, split)| Cell::Edge(split))
+                    }),
+                Cell::Vertex(v) => self
+                    .arc_splits
+                    .iter()
+                    .find(|&&(w, _, _)| w == v)
+                    .map(|&(_, _, split)| Cell::Edge(split)),
+            };
+            match next {
+                Some(next) => cell = next,
+                None => return cell,
             }
-            f
-        };
-        let edge = |mut e: EdgeKey| {
-            while let Some(&(_, _, split)) = self.arc_splits.iter().find(|&&(_, new, _)| new == e) {
-                e = split;
-            }
-            e
-        };
-        match cell {
-            Cell::Face(f) => Cell::Face(face(f)),
-            Cell::Edge(e) => match self.edges.iter().position(|&m| m == e) {
-                Some(i) => Cell::Face(face(self.divisions[i].1)),
-                None => Cell::Edge(edge(e)),
-            },
-            Cell::Vertex(v) => match self.arc_splits.iter().find(|&&(w, _, _)| w == v) {
-                Some(&(_, _, split)) => Cell::Edge(edge(split)),
-                None => cell,
-            },
         }
     }
 }
@@ -6982,7 +7119,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let output = output_substitutions(&merged, &edge_joins)?;
             crate::pcurves::mint_pcurves(&mut body, tol)
                 .map_err(|source| BooleanError::Pcurves { source })?;
-            let (contacts, coincidences) = carry(
+            let (contacts, coincidences, unspelled) = carry(
                 &body,
                 &ledger,
                 views,
@@ -7010,6 +7147,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 null_copies: super::null_copy_rows(&red.null_edges),
                 edge_joins,
                 killed_lineage,
+                unspelled,
                 ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {
@@ -7086,7 +7224,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     let output = output_substitutions(&merged, &edge_joins)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
-    let (contacts, coincidences) = carry(
+    let (contacts, coincidences, unspelled) = carry(
         &body,
         &ledger,
         [&a_view, &b_view],
@@ -7110,6 +7248,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
             killed_lineage: killed_lineage.clone(),
+            unspelled: unspelled.clone(),
             ..BooleanNaming::default()
         },
         // The result arena IS the B clone: B keys direct, A absent.
@@ -7126,6 +7265,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
             killed_lineage: killed_lineage.clone(),
+            unspelled: unspelled.clone(),
             ..BooleanNaming::default()
         },
     };

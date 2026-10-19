@@ -162,7 +162,8 @@ pub(super) struct ContactAcc {
 }
 
 /// **A vertex identity the reduction decided**: one with a margin is a
-/// coincidence, whether or not a surviving record cites it; a landing
+/// coincidence, whether or not a surviving record cites it, published
+/// as a row or held unspelled ([`super::ops::carry`]); a landing
 /// no margin decided only placed topology (D1). The result's carry
 /// emits each coincidence as a [`crate::Coincidence`]
 /// ([`super::ops::carry`]).

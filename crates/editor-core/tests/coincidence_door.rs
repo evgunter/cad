@@ -114,7 +114,7 @@ fn entity(input: VarId, name: &StableName) -> NamedCell {
 /// two caps are two constructions. The plate's four bottom corners,
 /// each decided on the block's top, are a row each, reported alike.
 #[test]
-fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
+fn a_glued_rest_and_its_corners_are_unproven_rows_named_by_their_operands() {
     let doc = ProfileDoc::empty_derived("coincide-declared-rest", Tol::witness());
     let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, plate) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
@@ -1513,12 +1513,13 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 
 /// **What the door proves on the tour's composed dies**: the blend
 /// joints whose `fillet3_chain_g1` margin is the zero polynomial. One of
-/// `die_composed`'s two joints and 21 of `die_composed_tour`'s 42 prove
-/// as theorems; the rest, and the boolean vertex identities beside them
-/// (two and 42), stay unproven.
+/// `die_composed`'s two and 21 of `die_composed_tour`'s 42 prove as
+/// theorems, and the rest stay unproven. The dies' unions decide vertex
+/// identities too, which their inputs' cells cannot spell yet and they
+/// hold unspelled (`topo::BooleanNaming::unspelled`).
 #[test]
 fn the_door_proves_half_the_composed_dies_joints() {
-    for (name, proved, rows) in [("die_composed", 1, 4), ("die_composed_tour", 21, 84)] {
+    for (name, proved, rows) in [("die_composed", 1, 2), ("die_composed_tour", 21, 42)] {
         let cd = crate::corpus::documents()
             .into_iter()
             .find(|cd| cd.name == name)

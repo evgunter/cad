@@ -11,7 +11,7 @@ use crate::common;
 use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Backing, BooleanBody, BooleanInputs, BooleanResult, Cell, Coincidence,
+    AtRestBody, Backing, Body, BooleanBody, BooleanInputs, BooleanResult, Cell, Coincidence,
     DecisionSite, Operand, Relation, RowCell, union,
 };
 
@@ -646,6 +646,31 @@ fn at_pinch(r: &BooleanBody<f64>) -> (Vec<topo::PointKey>, usize) {
     (keys, rows)
 }
 
+/// `r`'s `VertexFusion` rows, each as the inputs `x`, `y` hold its
+/// cells: whether a vertex cell of it sits at [`PINCH_AT`], and whether
+/// its other cell is a face.
+fn corner_rows(r: &BooleanBody<f64>, x: &Body<f64>, y: &Body<f64>) -> Vec<(bool, bool)> {
+    let at_corner = |input: Operand, v| {
+        let body = if input == Operand::A { x } else { y };
+        body.vertex_points()
+            .any(|(k, p)| k == v && (p.x, p.y, p.z) == (PINCH_AT[0], PINCH_AT[1], PINCH_AT[2]))
+    };
+    r.coincidences
+        .iter()
+        .filter(|c| c.site == DecisionSite::VertexFusion)
+        .map(|c| {
+            let corner = c.cells.iter().any(|end| {
+                matches!(*end, RowCell::Input { input, cell: Cell::Vertex(v) } if at_corner(input, v))
+            });
+            let onto_face = c
+                .cells
+                .iter()
+                .any(|end| matches!(end, RowCell::Input { cell: Cell::Face(_), .. }));
+            (corner, onto_face)
+        })
+        .collect()
+}
+
 fn built(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>) -> BooleanBody<f64> {
     match r {
         Ok(BooleanResult::Body(r)) => r,
@@ -675,30 +700,48 @@ fn a_decision_at_copies_an_operand_already_held_is_a_row() {
         "the lobes hold two copies on one key: {keys:?}"
     );
     let lobes = pinched.body;
-    for m in [[1.0, 1.0, 0.0], [-0.3, 1.0, -0.5], [1.0, -0.2, -0.4]] {
+    // The two copies at the corner, each decided on the halfspace's
+    // face, in every case; at `(1, 1, 0)` the face also takes two of the
+    // lobes' vertices off the corner.
+    for (m, all) in [
+        ([1.0, 1.0, 0.0], 4),
+        ([-0.3, 1.0, -0.5], 2),
+        ([1.0, -0.2, -0.4], 2),
+    ] {
         let half = cube_beyond(m, 8.0);
         for (order, x, y) in [("lobes-half", &lobes, &half), ("half-lobes", &half, &lobes)] {
             let what = format!("{m:?} {order} intersect");
-            let (keys, rows) = at_pinch(&built(&what, topo::intersect(x, y, tol())));
+            let r = built(&what, topo::intersect(x, y, tol()));
+            let (keys, _) = at_pinch(&r);
             assert!(
                 keys.len() == 2 && keys[0] == keys[1],
                 "{what}: both copies stay on one key: {keys:?}"
             );
+            let rows = corner_rows(&r, x, y);
             assert!(
-                rows > 0,
-                "{what}: the copies decided onto the face record rows"
+                rows.len() == all
+                    && rows.iter().filter(|&&(corner, _)| corner).count() == 2
+                    && rows.iter().all(|&(_, onto_face)| onto_face),
+                "{what}: both copies decided onto the face, {all} rows in all: {rows:?}"
             );
         }
     }
     let half = cube_beyond([-1.0, -1.0, 0.0], 8.0);
     for (order, x, y) in [("lobes-half", &lobes, &half), ("half-lobes", &half, &lobes)] {
         let what = format!("{order} union");
-        let (keys, rows) = at_pinch(&built(&what, topo::union(x, y, tol())));
+        let r = built(&what, topo::union(x, y, tol()));
+        let (keys, _) = at_pinch(&r);
         assert!(
             keys.len() == 2 && keys[0] == keys[1],
             "{what}: an inherited copy and the op's on one key: {keys:?}"
         );
-        assert!(rows > 0, "{what}: the pinch the op made records its row");
+        let rows = corner_rows(&r, x, y);
+        assert!(
+            rows.len() == 4
+                && rows.iter().filter(|&&(corner, _)| corner).count() == 2
+                && rows.iter().all(|&(_, onto_face)| onto_face),
+            "{what}: both vertices at the corner decided onto the face, four rows in all: {rows:?}"
+        );
     }
 }
 

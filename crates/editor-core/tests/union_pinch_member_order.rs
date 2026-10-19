@@ -1589,12 +1589,17 @@ fn pencil(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     (doc, vec![a, b, c])
 }
 
-/// **A face through a seam is a decision of the step that meets it**:
-/// folding the prism into the boxes' union decides the seam edge on the
-/// prism's two diagonal rim edges, and records both, though no contact
-/// record of the result cites them.
+/// **A face through a seam is decided by the step that meets it, and
+/// held unspelled**: folding the prism into the boxes' union decides
+/// the seam crossing each of the prism's two diagonal rim edges, one
+/// point each. Read back to the inputs, each crossing would be the seam
+/// edge on a rim edge, which says more than was decided, so the step
+/// publishes no row and holds both decisions
+/// (`BooleanNaming::unspelled`), each a point minted on the seam decided
+/// one with a point minted on a rim edge. Red if a crossing is
+/// published as an edge on an edge, or dropped.
 #[test]
-fn a_face_through_a_seam_is_recorded_by_the_step_that_meets_it() {
+fn a_face_through_a_seam_is_held_unspelled_by_the_step_that_meets_it() {
     for order in [[0, 1, 2], [1, 0, 2]] {
         let (doc, m) = pencil(ProfileDoc::empty_derived("pencil", Tol::witness()));
         let ev = run(&doc);
@@ -1610,37 +1615,32 @@ fn a_face_through_a_seam_is_recorded_by_the_step_that_meets_it() {
         else {
             panic!("{order:?}: the prism folds in");
         };
-        let seam: Vec<_> = out
-            .coincidences
-            .iter()
-            .map(|c| (c.site, c.relation, c.cells))
-            .collect();
-        let [first, second] = seam.as_slice() else {
-            panic!("{order:?}: the step records the seam on both rim edges: {seam:?}");
+        assert!(
+            out.coincidences.is_empty(),
+            "{order:?}: no row states the crossings: {:?}",
+            out.coincidences
+        );
+        let held = &out.naming.unspelled;
+        let [first, second] = held.as_slice() else {
+            panic!("{order:?}: the step holds both crossings: {held:?}");
         };
-        for (site, relation, cells) in [first, second] {
+        for d in [first, second] {
             assert!(
-                *site == topo::DecisionSite::VertexFusion
-                    && *relation == topo::Relation::OnCarrier
+                d.site == topo::DecisionSite::VertexFusion
+                    && d.relation == topo::Relation::OnCarrier
                     && matches!(
-                        cells,
+                        d.cells,
                         [
-                            topo::RowCell::Input {
-                                input: topo::Operand::A,
-                                cell: topo::Cell::Edge(_)
-                            },
-                            topo::RowCell::Input {
-                                input: topo::Operand::B,
-                                cell: topo::Cell::Edge(_)
-                            },
+                            (topo::Operand::A, topo::Cell::Vertex(_)),
+                            (topo::Operand::B, topo::Cell::Vertex(_)),
                         ]
                     ),
-                "{order:?}: a seam edge on a rim edge: {seam:?}"
+                "{order:?}: a point of the seam one with a point of a rim edge: {held:?}"
             );
         }
         assert!(
-            first.2[0] == second.2[0] && first.2[1] != second.2[1],
-            "{order:?}: one seam, two rim edges: {seam:?}"
+            first.cells != second.cells,
+            "{order:?}: two crossings: {held:?}"
         );
     }
 }

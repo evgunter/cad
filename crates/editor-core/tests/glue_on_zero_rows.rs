@@ -40,7 +40,7 @@ fn plate_on_a_block(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
 /// decided — unproven, since the two caps are two constructions —
 /// beside the plate's four corners, each decided on the block's top.
 #[test]
-fn a_flush_rest_glues_and_records_one_unproven_row() {
+fn a_flush_rest_glues_and_records_its_unproven_rows() {
     let (doc, _, _, union) = plate_on_a_block(0.0);
     let ev = run(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
@@ -71,19 +71,24 @@ fn a_flush_rest_glues_and_records_one_unproven_row() {
     )
     .expect("an uncanceled door")
     .remove(0);
-    assert_eq!(proofs.len(), 5, "the door answers every row: {proofs:?}");
-    assert!(
-        matches!(
-            proofs[0],
-            Proof::Unproven {
-                recourse: coincide::Recourse::OneConstruction,
-                ..
-            }
-        ),
-        "two constructions, no proof; the offset's form freezes at the door's budget \
-         (declared-rest-rows-are-two-values-or-too-big-to-close), which is no value \
-         computed apart from the variables, so the recourse is to build one construction"
-    );
+    // Every row, the rest and each corner alike, is two constructions
+    // the replay finds no identity between.
+    for (row, proof) in rows.iter().zip(&proofs) {
+        assert!(
+            matches!(
+                proof,
+                Proof::Unproven {
+                    residual,
+                    recourse: coincide::Recourse::OneConstruction,
+                } if residual.replay == coincide::Unreplayed::Numeric
+            ),
+            "{row:?}: two constructions, no proof; the offset's form freezes at the door's \
+             budget (declared-rest-rows-are-two-values-or-too-big-to-close), which is no \
+             value computed apart from the variables, so the recourse is to build one \
+             construction: {proof:?}"
+        );
+    }
+    assert_eq!(proofs.len(), rows.len(), "the door answers every row");
 }
 
 /// **Row 16: a sliver still refuses.** The same plate `2ε` above the

@@ -188,14 +188,18 @@ fn a_sphere_cut_in_refuses_only_where_its_rows_are_filed() {
     }
 }
 
-/// **The cap's rows name the lens's own cells**: the kernel cuts the
-/// lens's top face along a meridian before the op, and the cap decides
-/// the section circle's crossings of that meridian on the brick's near
-/// face. Each row names the cell of the lens the cut lies in, the face
-/// it divided, never the cut, which no input holds. Red if a row names
-/// a cell the cut minted.
+/// **The cap holds its meridian crossings unspelled**: the kernel cuts
+/// the lens's top face along a meridian before the op, and the cap
+/// decides each point where the section circle crosses that meridian
+/// on the brick's near face. Read back to the lens, the point would be
+/// the face the meridian runs in, and the row would say the lens's face
+/// lies on the brick's: so the cap publishes no such row and holds both
+/// decisions, each a point of the cut lens on the brick's face. Every
+/// row it does publish names cells of its inputs that hold the point
+/// decided: a vertex on a face lies on that face's surface. Red if a
+/// crossing is published face on face, or dropped.
 #[test]
-fn the_caps_rows_name_the_lenss_own_cells() {
+fn the_cap_holds_its_meridian_crossings_unspelled() {
     for lens_first in [true, false] {
         let (doc, [lens, brick, _]) = document("intersect", lens_first);
         let ev = run(&doc);
@@ -207,33 +211,93 @@ fn the_caps_rows_name_the_lenss_own_cells() {
             )
         };
         let (lens, brick) = (operand(lens), operand(brick));
-        let (a, b) = if lens_first {
-            (&lens, &brick)
+        let (a, b, brick_is) = if lens_first {
+            (&lens, &brick, topo::Operand::B)
         } else {
-            (&brick, &lens)
+            (&brick, &lens, topo::Operand::A)
         };
         let Ok(topo::BooleanResult::Body(cap)) = topo::intersect(a, b, Tol::witness()) else {
             panic!("lens first {lens_first}: the cap builds");
         };
-        let holds = |input: topo::Operand, cell: topo::Cell| {
-            let body = if input == topo::Operand::A { a } else { b };
-            match cell {
-                topo::Cell::Vertex(v) => body.vertices().any(|(k, _)| k == v),
-                topo::Cell::Edge(e) => body.edges().any(|(k, _)| k == e),
-                topo::Cell::Face(f) => body.faces().any(|(k, _)| k == f),
+        let body = |input| if input == topo::Operand::A { a } else { b };
+        let point = |input, v| {
+            body(input)
+                .vertex_points()
+                .find(|&(k, _)| k == v)
+                .map(|(_, p)| p)
+        };
+        // Whether `p` lies on face `f`'s surface, read for the planes and
+        // spheres this fixture holds.
+        let on_face = |input, f, p: geom_core::Point3<f64>| {
+            let b = body(input);
+            let Some((_, face)) = b.faces().find(|&(k, _)| k == f) else {
+                return false;
+            };
+            match b.get_surface(face.surface) {
+                Some(topo::Surface::Plane { origin, normal, .. }) => {
+                    (p - *origin).dot(*normal).abs() < 1e-9
+                }
+                Some(topo::Surface::Sphere { center, radius, .. }) => {
+                    ((p - *center).norm() - radius).abs() < 1e-9
+                }
+                _ => false,
             }
         };
+        for row in &cap.coincidences {
+            let holds = match row.cells {
+                [
+                    topo::RowCell::Input {
+                        input: x,
+                        cell: topo::Cell::Vertex(v),
+                    },
+                    topo::RowCell::Input {
+                        input: y,
+                        cell: topo::Cell::Face(f),
+                    },
+                ] => point(x, v).is_some_and(|p| on_face(y, f, p)),
+                [
+                    topo::RowCell::Input {
+                        input: x,
+                        cell: topo::Cell::Vertex(v),
+                    },
+                    topo::RowCell::Input {
+                        input: y,
+                        cell: topo::Cell::Vertex(w),
+                    },
+                ] => {
+                    matches!((point(x, v), point(y, w)), (Some(p), Some(q)) if (p - q).norm() < 1e-9)
+                }
+                [
+                    topo::RowCell::Input {
+                        cell: topo::Cell::Face(_),
+                        ..
+                    },
+                    topo::RowCell::Input {
+                        cell: topo::Cell::Face(_),
+                        ..
+                    },
+                ] => row.relation != topo::Relation::OnCarrier,
+                _ => false,
+            };
+            assert!(
+                holds,
+                "lens first {lens_first}: a row whose cells hold its point: {row:?}"
+            );
+        }
+        let held = &cap.naming.unspelled;
+        let brick_face = |(input, cell): (topo::Operand, topo::Cell)| {
+            input == brick_is
+                && matches!(cell, topo::Cell::Face(f) if body(input).faces().any(|(k, _)| k == f))
+        };
         assert!(
-            !cap.coincidences.is_empty()
-                && cap
-                    .coincidences
+            held.len() == 2
+                && held
                     .iter()
-                    .all(|c| c.cells.iter().all(|end| matches!(
-                        *end,
-                        topo::RowCell::Input { input, cell } if holds(input, cell)
-                    ))),
-            "lens first {lens_first}: every row names an input's cell: {:?}",
-            cap.coincidences
+                    .all(|d| d.site == topo::DecisionSite::VertexFusion
+                        && d.relation == topo::Relation::OnCarrier
+                        && matches!(d.cells[0], (input, topo::Cell::Vertex(_)) if input != brick_is)
+                        && brick_face(d.cells[1])),
+            "lens first {lens_first}: both crossings held, a point of the lens on the brick's face: {held:?}"
         );
     }
 }

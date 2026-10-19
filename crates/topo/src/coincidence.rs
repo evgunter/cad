@@ -17,8 +17,10 @@
 //! result holds. A pair on one surface key is structure and is not
 //! recorded, and an ON verdict that only places topology is not a
 //! coincidence (D1): a boolean records every vertex identity it decides
-//! with a margin, and a face-pair decision only where the two faces
-//! meet, at a point, an edge or an area.
+//! with a margin, as a row where its inputs' cells state it and as an
+//! [`UnspelledDecision`] where they would state another relation, and a
+//! face-pair decision only where the two faces meet, at a point, an
+//! edge or an area.
 
 use geom_core::MarginDiag;
 
@@ -172,7 +174,8 @@ pub enum DecisionSite {
     /// A boolean's vertex identity: a vertex of one operand decided on
     /// a vertex, an edge or a face of the other, or a carried record's
     /// vertex on a vertex the reduction minted, every one the boolean
-    /// decides with a margin.
+    /// decides with a margin whose input cells state it
+    /// ([`UnspelledDecision`] holds the rest).
     VertexFusion,
     /// The at-rest census: two cells of different groups of a body at
     /// rest (two copies, two imported instances) decided one, or two
@@ -220,6 +223,27 @@ pub struct Coincidence {
     pub margin: MarginDiag,
     /// How that margin's Zero was discharged.
     pub discharge: Discharge,
+}
+
+/// **A decision an operation took with a margin and has not spelled
+/// as a row**: its cells, read back to the operation's inputs, would
+/// state a different relation than the one decided. A vertex minted on
+/// an edge read as that edge, decided on a face, would say the edge
+/// lies on the face where the decision put one point of it there. The
+/// decision is kept with the cells it was taken between, in the keys of
+/// the operand the operation worked on, until its meeting is spelled by
+/// the cells that meet.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct UnspelledDecision {
+    /// The two cells decided, in the order the decision read them,
+    /// each in its operand's working keys.
+    pub cells: [(Operand, Cell); 2],
+    /// What was decided between them.
+    pub relation: Relation,
+    /// Where it was decided.
+    pub site: DecisionSite,
+    /// The margin that decision read.
+    pub margin: MarginDiag,
 }
 
 impl Coincidence {
