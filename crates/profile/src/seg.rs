@@ -884,15 +884,18 @@ pub(crate) enum TurnSense {
 /// **`path_junction_turn`** — whether a junction turns: the cross
 /// product `sin φ` of the arriving and departing unit headings (its
 /// magnitude under [`TurnSense::Unsigned`]), levered by `arm`, the
-/// displacement the turn makes at that reach. Zero = the directions
-/// agree (a continuation or a reversal, which [`junction_reverses`]
-/// tells apart); definite = a corner; in band escalates. The one home
-/// of that question: the path door asks it of every junction it
-/// builds, at the arriving leg's arm, the one leg it has;
+/// shorter of the two legs' arms ([`Seg::arm`]): the two legs lie side
+/// by side only over the shorter one, so that is the displacement the
+/// turn opens between them. Zero = the directions agree (a continuation
+/// or a reversal, which [`junction_reverses`] tells apart); definite = a
+/// corner; in band escalates. The one home of that question: the path
+/// door asks it of every junction it builds, and of a declared seam
+/// arrival under that check's own `name` (`path_seam_arrival_turn`);
 /// [`joint_tangency`] asks it of every joint validation judges and
 /// every stored fillet joint the door verifies. Returned with the
 /// signed levered turn, which a refusal quotes.
 pub(crate) fn junction_turn<T: Decide>(
+    name: &'static str,
     arriving: Vec2<T>,
     departing: Vec2<T>,
     arm: T,
@@ -905,7 +908,7 @@ pub(crate) fn junction_turn<T: Decide>(
         TurnSense::Unsigned => turn.abs(),
     };
     Ok((
-        decide_reported("path_junction_turn", Margin::levered(read, arm), band)?,
+        decide_reported(name, Margin::levered(read, arm), band)?,
         turn * arm,
     ))
 }
@@ -934,11 +937,10 @@ fn heading_scale<T: Real>(s: &Seg<T>) -> T {
 /// turn ([`junction_turn`], `path_junction_turn`), because tangency is
 /// a fact about the directions: Zero ⇒ [`JointClass::Tangent`],
 /// definite ⇒ [`JointClass::Transversal`], in band or poisoned ⇒
-/// escalated verbatim. The turn is levered by the longer of the two
-/// legs' arms ([`Seg::arm`]): a validated loop has no arriving leg of
-/// its own (canonicalization may reverse it), and a turn either leg
-/// shows past ε is a corner. A junction the path door built as a
-/// corner, definite at its arriving leg's arm, is definite here too.
+/// escalated verbatim. The turn is levered by the shorter of the two
+/// legs' arms ([`Seg::arm`]), as the path door levers it: the legs lie
+/// side by side only over the shorter one, and the minimum does not
+/// depend on which way the loop is traversed.
 pub(crate) fn joint_tangency<T: Decide>(
     prev: &Seg<T>,
     next: &Seg<T>,
@@ -974,9 +976,10 @@ pub(crate) fn joint_tangency<T: Decide>(
         (SegKind::Line, SegKind::Arc(_)) | (SegKind::Arc(_), SegKind::Line) => {}
     }
     let (turn, margin) = junction_turn(
+        "path_junction_turn",
         prev.heading_at(prev.b),
         next.heading_at(next.a),
-        prev.arm().max(next.arm()),
+        prev.arm().min(next.arm()),
         TurnSense::Unsigned,
         band,
     )?;

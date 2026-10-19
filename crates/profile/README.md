@@ -484,8 +484,10 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   constructor made is a tangent joint all the same, recorded for the
   `unproven-coincidence` lint ([coincidence]); the sliver band refuses. Every
   zero-turn joint is a tangent joint. A junction's tangency is decided
-  by its turn levered by the leg's arm (`path_junction_turn`), the one
-  reading the path door, validation and the sweep share; no new ε. The
+  by its turn levered by the shorter of its two legs' arms
+  (`seg::junction_turn`, `path_junction_turn`): one reading, at one
+  arm, that the path door and validation both call; the sweep reads
+  the same turn of the body's faces, levered at their reach; no new ε. The
   simplicity pass reads where a loop meets itself, never how far two
   adjacent segments run within ε of each other past their joint: that
   neighbourhood is the joint's own ([topology.census]). Whether a

@@ -398,6 +398,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
                 }),
             },
             start_ang,
+            core.first_leg_arm()?,
             true,
             tol,
         )?;
@@ -420,6 +421,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
                 carrier: Some(trims.arc),
             },
             start_ang,
+            core.first_leg_arm()?,
             true,
             tol,
         )?;
@@ -1565,7 +1567,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let incoming_radius = spec.to_wire(tol).carries_radius();
         match spec.incoming(DirectedPoint { at, dir: inc.ang }, tol)? {
             FusedIncoming::Anchored((centre, winding, start, anchor)) => {
-                junction_check(&inc, start, false, tol)?;
+                self.core.pend_junction(&inc, start, tol);
                 open_arc(
                     &mut self.core,
                     PendingArc {

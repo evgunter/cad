@@ -45,9 +45,10 @@
 //!    (adjacent-segment junction at its shared vertex) is classified by
 //!    [`seg::joint_tangency`]: carrier identity first (`chord_side` of
 //!    a line/line joint's far endpoint, `carrier_circles_identity` of
-//!    an arc/arc one), then the joint's turn levered by the arriving
-//!    leg's arm (`path_junction_turn`, the reading the path door asks
-//!    of the same junction — no new ε). A joint whose turn reads Zero,
+//!    an arc/arc one), then the joint's turn levered by the shorter of
+//!    its two legs' arms (`path_junction_turn`, through
+//!    [`seg::junction_turn`], the one reading and the one arm the path
+//!    door asks of the same junction — no new ε). A joint whose turn reads Zero,
 //!    or whose carriers are one, is a tangent joint: identity is a fact
 //!    about carriers, tangency a fact about directions, and the
 //!    directions agree there (Ev, in-chat, 2026-09-02). The tangent-joint set is
@@ -124,7 +125,7 @@
 //! | `carrier_circles_identity` | d + |Δr| | direct |
 //! | `carrier_circles_external` | d − (r₁+r₂) | direct |
 //! | `carrier_circles_internal` | d − |Δr| | direct |
-//! | `path_junction_turn` | sin φ · arm | arriving leg's arm: a line's length, an arc's min(radius, chord) |
+//! | `path_junction_turn` | sin φ · arm | the shorter of the two legs' arms, each a line's length or an arc's min(radius, chord) |
 //! | `carrier_circles_chord` | the radical foot's mean depth inside both circles, or zero outside them | direct |
 //! | `arc_apex_identity` | apex distance | direct |
 //! | `collinear_overlap` | overlap length | direct |
@@ -982,8 +983,8 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_junction_side",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
     },
-    // the sine of a junction's turn: the path door's at the arriving arm, validation's joint
-    // pass's (`seg::joint_tangency`) at the longer leg's
+    // the sine of a junction's turn at the shorter leg's arm: the path door's, and validation's
+    // joint pass's (`seg::joint_tangency`)
     DecisionEnding {
         name: "path_junction_turn",
         kind: EndingKind::Lever(JUNCTION_TANGENT_LEVER),
@@ -2821,7 +2822,7 @@ fn judge_joints<T: Decide>(
             && seg::junction_reverses(
                 arriving.heading_at(arriving.b),
                 leaving.heading_at(leaving.a),
-                arriving.arm(),
+                arriving.arm().min(leaving.arm()),
                 band,
             )
             .map_err(escalated)?;
