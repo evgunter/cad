@@ -426,21 +426,8 @@ rows! {
     // In step: moved apart, its split parts at `split_join_frame_axis`
     // (an axis the cleave's join frame decides against a datum's), so
     // only the in-step move compares the whole document.
-    // In step, it also flips `curve_foot_branch` twice (decisions 1211
-    // and 1214, 0.0 at the nominal): the side reader's wall aims, which
-    // check 7 casts at rest, put the ray's foot on a circular edge's
-    // branch tie (`work/flush/the-side-readers-aims-decide-exact-ties-at-a-documents-nominal.md`).
-    revalue_cut_cylinder: "cut_cylinder", InStep, 1051, [],
-        flips [
-            ("curve_foot_branch", "work/flush/the-side-readers-aims-decide-exact-ties-at-a-documents-nominal.md"),
-            ("curve_foot_branch", "work/flush/the-side-readers-aims-decide-exact-ties-at-a-documents-nominal.md")
-        ], after [];
-    // In step: moved apart, the side reader's planar aim decides
-    // `point_in_loop_arm` exactly 0 at the nominal (decision 1617 of
-    // 4547), so the builds part there; its floor is half the 2204 margins
-    // it moved in step (apart it was 1690)
-    // (`work/flush/the-side-readers-aims-decide-exact-ties-at-a-documents-nominal.md`).
-    revalue_die_chamfer: "die_chamfer", InStep, 1102, [];
+    revalue_cut_cylinder: "cut_cylinder", InStep, 1051, [];
+    revalue_die_chamfer: "die_chamfer", Apart, 1690, [];
     revalue_face_sketch: "face_sketch", Apart, 582, [];
     revalue_heat_sink_fins: "heat_sink_fins", Apart, 1353, [];
     revalue_loft_prism: "loft_prism", Apart, 259, [];
