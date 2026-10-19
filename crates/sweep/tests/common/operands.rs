@@ -1,7 +1,9 @@
 //! **The plain named operands** several suites build a boolean from:
 //! the axis-aligned boxes below, the three-arc cylinder and the
 //! rounded plate the conic corpus cuts with, and the framed bar the
-//! torus-door suites pierce the donut with. Body authoring, so it
+//! torus-door suites pierce the donut with, and the revolved tube or
+//! rod the tangent-wall suites set beside each other ([`about_y`],
+//! [`turned_about_z`]). Body authoring, so it
 //! routes here beside [`super::cavity`] rather than into a suite.
 //!
 //! Nothing here derives anything — each item is one call to the box
@@ -36,7 +38,7 @@
 //! - [`super::shell_operands`]' vessel, tube and hollow boxes, which
 //!   stay beside the role readers the shell rows run over them.
 
-use geom_core::{Bounds, Decide, Point2, Point3, Tol};
+use geom_core::{Affine3, Bounds, Decide, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, RawLoop};
 use sweep::ExtrudeSide;
@@ -409,4 +411,34 @@ pub fn parallelepiped_at<T: Decide + Bounds + topo::AtRestPolicy>(s: f64) -> Bod
 /// The axis-aligned block `x × y × z` ([`brick`]), at rest.
 pub fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::AtRestBody<f64> {
     sweep::test_support::finished("the bar", brick(x, y, z, Tol::witness()), Tol::witness())
+}
+
+/// A body about `y` from radius `inner` (0 for a rod) to `outer` over
+/// `y ∈ [lo, hi]`, swept by `turn` (full where `None`) and then turned
+/// by `spin` about `y`, its axis moved to `(x, ·, 0)`.
+pub fn about_y(
+    tol: Tol,
+    (inner, outer): (f64, f64),
+    (lo, hi): (f64, f64),
+    turn: Option<f64>,
+    spin: f64,
+    x: f64,
+) -> Body<f64> {
+    let profile = vec![
+        (Point2::new(inner, lo), 0.0),
+        (Point2::new(outer, lo), 0.0),
+        (Point2::new(outer, hi), 0.0),
+        (Point2::new(inner, hi), 0.0),
+    ];
+    let rev = turn.map_or(sweep::Revolution::Full, sweep::Revolution::Partial);
+    let body = sweep::test_support::revolved_about_y(profile, rev, tol);
+    let place = Affine3::translation(Vec3::new(x, 0.0, 0.0))
+        * Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), spin);
+    topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol), tol).unwrap()
+}
+
+/// `b` turned `angle` about the `z` axis through the origin.
+pub fn turned_about_z(tol: Tol, b: Body<f64>, angle: f64) -> Body<f64> {
+    let t = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), angle);
+    topo::transform_rigid(&b, &geom_core::test_support::rigid(&t, tol), tol).unwrap()
 }

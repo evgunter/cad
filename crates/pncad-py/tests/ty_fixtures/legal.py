@@ -491,6 +491,41 @@ declared_bulge: ClosedLoop = (
     .line_to((1 * m, 0 * m))
     .arc_to(Bulge(Start.arrives_tangent(), 1.0))
 )
+declared_via: ClosedLoop = (
+    Open.at((0 * m, 0 * m))
+    .line_to((1 * m, 0 * m))
+    .arc_to(Via((1 * m, 1 * m), Start.arrives_tangent()))
+)
+declared_center: ClosedLoop = (
+    Open.at((0 * m, 0 * m))
+    .line_to((1 * m, 0 * m))
+    .arc_to(Center((0 * m, 1 * m), ArcSweep.Ccw, Start.arrives_tangent()))
+)
+declared_via_arrival: ClosedLoop = (
+    Open.at((0 * m, 0 * m))
+    .toward(1.0, 0.0)
+    .line(2 * m)
+    .toward(-1.0, 1.0)
+    .fillet_arc(0.2 * m, Via((0 * m, 4 * m), Start.arrives_tangent()))
+)
+onto_landed: ClosedLoop = (
+    Open.at((0 * m, 0 * m))
+    .line_to((2 * m, 0 * m))
+    .arc_onto((3 * m, 2 * m))
+    .toward(0.0, 1.0)
+    .tangent()
+    .line(1 * m)
+    .line_to(Start)
+)
+onto_sharp_seam: ClosedLoop = (
+    Open.at((0 * m, 0 * m))
+    .line_to((2 * m, 0 * m))
+    .arc_onto(Start)
+    .angle(90 * deg)
+)
+onto_declared: ClosedLoop = (
+    Open.at((0 * m, 0 * m)).line_to((1 * m, 0 * m)).arc_onto(Start.arrives_tangent())
+)
 declared_stadium: ClosedLoop = (
     Open.at((0 * m, 0 * m))
     .angle(0 * deg)

@@ -120,8 +120,9 @@ pub enum NamingError {
         /// What was inconsistent.
         what: &'static str,
     },
-    /// An edge's split lineage cycles, caught where an emitter chased
-    /// it to its root — the same category of kernel bug as
+    /// An edge's split lineage cycles, as `topo::Body::split_root`
+    /// refuses it where an emitter chases through it (the emitters' own
+    /// walks over the copies panic instead, `names::chase`) — the same category of kernel bug as
     /// [`Self::Emission`], carrying the one thing the repair needs
     /// that a sentence cannot supply: WHICH edge.
     ///
@@ -270,7 +271,7 @@ pub enum NamingError {
     /// would name. It has no identity of its own (`docs/DESIGN.md`,
     /// maximal edges), so no member- or position-citing name may stand
     /// for it, and the edge-derived name it takes instead is unbuilt
-    /// (`work/emit/a-conventional-vertex-mints-no-edge-derived-name`).
+    /// (`work/seamrank/a-conventional-vertex-mints-no-edge-derived-name`).
     /// A construction's own rim self-loop vertex
     /// (`RoleSeg::MeridianVertex` at the seam) keeps its name and is
     /// not refused.
@@ -561,7 +562,7 @@ impl crate::spoken::Say for NamingError {
                 "{UNRULED_FRAMING}: vertex {vertex:?} of output body {body} is a closed \
                  edge's conventional vertex, which has no identity of its own, and the name it \
                  takes from its edge is not built yet \
-                 (work/emit/a-conventional-vertex-mints-no-edge-derived-name)"
+                 (work/seamrank/a-conventional-vertex-mints-no-edge-derived-name)"
             ),
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,
@@ -2449,7 +2450,7 @@ mod walk_tests {
 /// only edge is one closed edge, at both ends, has no identity of its
 /// own, so a table naming it refuses typed — unless the name is a
 /// construction's own rim self-loop vertex. Hand-assembled: no document
-/// reaches a closed join yet (`work/emit/a-conventional-vertex-mints-no-edge-derived-name`).
+/// reaches a closed join yet (`work/seamrank/a-conventional-vertex-mints-no-edge-derived-name`).
 #[cfg(test)]
 mod conventional_vertex_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

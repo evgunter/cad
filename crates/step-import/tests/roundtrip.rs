@@ -50,12 +50,13 @@ fn committed_corpus_row(name: &str) {
     // this run. Both contain the true value, so the budget is the sum
     // of the two half-widths — sound at EVERY ε row — plus ulp
     // accounting:
-    //   * `kernel_faces` ulps of the expected value, twice: each side's
-    //     volume is a fixed-order sum of per-face contributions, each
-    //     rounded (exact only on dyadic inputs), and the two sums may
-    //     accumulate in DIFFERENT arena orders (import traversal need
-    //     not match construction order) — so each side sits up to
-    //     `faces` ulps from the exact value.
+    //   * the gap two fold orders of the body's face terms may round
+    //     apart: each side's volume is a fixed-order sum of per-face
+    //     contributions, and the two sums may accumulate in DIFFERENT
+    //     arena orders (import traversal need not match construction
+    //     order). Computed from the imported body's own terms, which are
+    //     the native body's faces (`topo::test_support::fold_order_bound`):
+    //     it scales with `Σ|tᵢ|`, not `|V|`, since the terms are signed.
     //   * 2 ulps for the mm³ round-trip: × 1e9 at print time and
     //     × 1e-9 here each round once (neither scale is a power of
     //     two).
@@ -70,12 +71,12 @@ fn committed_corpus_row(name: &str) {
     // teeth both ways: the review's scale-corruption probe
     // (`review_k3_probe`) shows the new budget catching corruptions
     // the old slop accepted, at 1600×/8000× margins.
-    let props =
-        topo::mass_properties(&body, Tol::witness()).unwrap_or_else(|e| panic!("{name}: {e}"));
+    let (props, terms) = topo::test_support::mass_properties_with_face_terms(&body, Tol::witness())
+        .unwrap_or_else(|e| panic!("{name}: {e}"));
     let expected_m3 = expect.kernel_volume_mm3 * 1e-9;
     let native_pad_m3 = expect.kernel_volume_pad_mm3 * 1e-9;
     let ulp = expected_m3.next_up() - expected_m3;
-    let ulps = (2.0 * expect.kernel_faces as f64 + 2.0) * ulp;
+    let ulps = topo::test_support::fold_order_bound(&terms).0 + 2.0 * ulp;
     let tolerance = props.volume_pad + native_pad_m3 + ulps;
     assert!(
         (props.volume - expected_m3).abs() <= tolerance,

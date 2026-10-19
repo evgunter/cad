@@ -72,6 +72,8 @@ pub fn way_in(state: TipState) -> Option<Vec<Step<f64>>> {
         TipState::RadiusArrivalDir => vec![arrival(radius), Step::Angle(1.5)],
         TipState::ViaArrival => vec![arrival(via(Target::Point(Point2::new(10.0, 10.0))))],
         TipState::ViaArrivalStart => vec![arrival(via(Target::Start))],
+        TipState::ArcOnto => vec![Step::ArcOnto(Target::Point(Point2::new(20.0, 10.0)))],
+        TipState::ArcOntoStart => vec![Step::ArcOnto(Target::Start)],
         TipState::Closed => vec![
             Step::LineTo(Target::Point(Point2::new(0.0, 10.0))),
             Step::LineTo(Target::Start),
@@ -82,8 +84,8 @@ pub fn way_in(state: TipState) -> Option<Vec<Step<f64>>> {
 /// **A program that leaves the tip in `state`**: the shortest lead
 /// that takes each state, then [`way_in`]. The fused and fillet ways
 /// in follow `at, angle 0`, which puts the tip at the origin heading
-/// `+x`; `turn` and the closing legs need a leg end, `at` then a leg to
-/// `(10, 0)`.
+/// `+x`; `turn`, `arc_onto` and the closing legs need a leg end, `at`
+/// then a leg to `(10, 0)`.
 #[must_use]
 pub fn prefix(state: TipState) -> Vec<Step<f64>> {
     let at = Step::At(Point2::new(0.0, 0.0));
@@ -91,7 +93,11 @@ pub fn prefix(state: TipState) -> Vec<Step<f64>> {
         TipState::Entry => return Vec::new(),
         TipState::PlainPoint => return vec![at],
         TipState::DirectedPlain => return vec![at, Step::Angle(0.0)],
-        TipState::DirectedPoint | TipState::DirectedIncoming | TipState::Closed => {
+        TipState::DirectedPoint
+        | TipState::DirectedIncoming
+        | TipState::ArcOnto
+        | TipState::ArcOntoStart
+        | TipState::Closed => {
             vec![at, Step::LineTo(Target::Point(Point2::new(10.0, 0.0)))]
         }
         _ => prefix(TipState::DirectedPlain),

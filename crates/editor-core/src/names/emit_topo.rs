@@ -5,6 +5,8 @@
 //! fragment (with N2 qualifiers), seam, section, or merged. Nothing
 //! is matched; unresolvable descent is a typed error.
 
+use core::convert::Infallible;
+use core::ops::ControlFlow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::k_stats::decide;
@@ -14,6 +16,7 @@ use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::borders::Obstacles;
 use super::canonical;
+use super::chase;
 use super::defer::{TieRows, Upstream, mint_candidates, put, upstream_name};
 use super::discriminate::{
     CHORD_ON_RIM, Extent, ON_MEMBER_EDGE, ORDER_ALONG, band, extent_before, rank_by,
@@ -64,40 +67,22 @@ struct HalfNames {
 /// operand's own entities belong to earlier ops (a union's rim fragment
 /// must not chase past its own union-level name into its grand-parent).
 ///
-/// # Errors
-///
-/// A cycling lineage is a corrupt record, surfaced as an emission bug
-/// — [`NamingError::SplitLineage`], carrying the cycling edge, which
-/// is the only locator this failure has.
-///
-/// **The `SplitEdge` records alone cannot cycle, and the reason is
-/// WRITER ACCESS, not a survey of call sites.** `Body::edge_provenance`
-/// is `pub(crate)` to `topo`; the one door that writes a `SplitEdge`
-/// record is `Body::split_edge`, and it records the parent on the child
-/// it has just minted, so every record points at a key that already
-/// existed and a chain is strictly decreasing in age in the arena that
-/// wrote it. A graft does not keep that order — a dead-on-arrival key
-/// is minted after the grafted edges whose records name it — but it
-/// forwards injectively (each source key to its own result key), and an
-/// injective image of an acyclic chain is acyclic. `chase_b` below walks
-/// the same records and reads the caller's graft rows only to decide
-/// where to stop, so the argument covers it too.
-///
-/// **The kills' hops are copies of the same records.** `killed` comes
-/// from `BooleanNaming::discards`' boundary chains and
-/// `BooleanNaming::killed_lineage` ([`KilledSplits`]), which copy the
-/// clone's `SplitEdge` records before the kills drop them, so as the
-/// kernel writes them they are as acyclic as the records
-/// (`topo::Provenance::SplitEdge`). They are public fields a caller can
-/// also write, and nothing checks the records where `Body::split_edge`
-/// writes them, so this walk keeps its own bound and refusal
-/// (`work/origin/the-split-edge-lineage-walk-has-four-homes.md`).
-///
 /// Where the lineage stops at a key the table does not name and a kill
 /// took ([`KilledSplits`]), the walk steps to that key's parent and goes
 /// on: the boolean's kills drop birth records, and `killed` holds the
-/// hops they dropped. Each hop is taken at most once in an acyclic
-/// lineage, which bounds the walk.
+/// hops they dropped.
+///
+/// # Errors
+///
+/// [`NamingError::SplitLineage`], carrying the edge, where
+/// `Body::split_root` refuses a cycling lineage.
+///
+/// # Panics
+///
+/// Where the kills' hops cycle ([`chase::to_root`]). `killed` copies
+/// `SplitEdge` records, and a copy cycles only where the records do
+/// (`topo::Provenance::SplitEdge`); the boolean that wrote them is the
+/// only source of the rows this emitter reads.
 fn chase_edge_to_table<T: Decide>(
     body: &Body<T>,
     table: &NameTable,
@@ -105,18 +90,18 @@ fn chase_edge_to_table<T: Decide>(
     e: EdgeKey,
 ) -> Result<EdgeKey, NamingError> {
     let named = |k: EdgeKey| table.name_of(&ent(0, EntityKey::Edge(k))).is_some();
-    let mut k = e;
-    for _ in 0..=killed.len() {
-        k = body.split_root(k, named)?;
-        if named(k) {
-            return Ok(k);
-        }
-        match killed.get(&k) {
-            Some(&up) => k = up,
-            None => return Ok(k),
-        }
-    }
-    Err(topo::SplitLineageCycle { edge: e }.into())
+    chase::to_root(
+        e,
+        killed.len(),
+        "see `emit_topo::chase_edge_to_table`'s Panics",
+        |k| {
+            let k = body.split_root(k, named)?;
+            Ok(match killed.get(&k) {
+                Some(&up) if !named(k) => ControlFlow::Continue(up),
+                _ => ControlFlow::Break(k),
+            })
+        },
+    )
 }
 
 /// **The split hops a boolean's kills took out of the provenance**:
@@ -191,18 +176,14 @@ impl KilledSplits {
 /// piece on one side and the outer two on the other, so an outer
 /// piece's lineage can run through a key its own half does not hold.
 ///
-/// # Errors
+/// # Panics
 ///
-/// [`NamingError::SplitLineage`] on a cycling lineage; the halves'
-/// records are restrictions of one acyclic record set, so their union
-/// is acyclic by the same writer-access argument, and so is its union
-/// with the split's copy of the records its joins killed
-/// (`SplitNaming::joined_lineage`).
+/// As [`chase_split_lineage`].
 fn chase_split_edge_to_table<T: Decide>(
     sides: &[Side<'_, T>],
     table: &NameTable,
     e: EdgeKey,
-) -> Result<EdgeKey, NamingError> {
+) -> EdgeKey {
     chase_split_lineage(sides, table, &BTreeMap::new(), e)
 }
 
@@ -210,30 +191,43 @@ fn chase_split_edge_to_table<T: Decide>(
 /// records an edge its join killed with the edge it was split from
 /// (`SplitNaming::joined_lineage`), since the kill took the birth
 /// record the halves would otherwise hold.
+///
+/// # Panics
+///
+/// Where the lineage cycles ([`chase::to_root`]): the halves' records
+/// are restrictions of one body's records, and `lineage` copies records
+/// its joins killed, so the walk cycles only where the records do
+/// (`topo::Provenance::SplitEdge`).
 fn chase_split_lineage<T: Decide>(
     sides: &[Side<'_, T>],
     table: &NameTable,
     lineage: &BTreeMap<EdgeKey, EdgeKey>,
     e: EdgeKey,
-) -> Result<EdgeKey, NamingError> {
+) -> EdgeKey {
     let bound: usize = sides.iter().map(|s| s.body.edges().count()).sum::<usize>() + lineage.len();
-    let mut root = e;
-    for _ in 0..=bound {
-        if table.name_of(&ent(0, EntityKey::Edge(root))).is_some() {
-            return Ok(root);
-        }
-        let mut held = sides.iter().filter_map(|s| s.body.edge_provenance_of(root));
-        let record = held.next();
-        debug_assert!(
-            held.all(|other| Some(other) == record),
-            "split halves disagree on edge {root:?}'s birth record"
-        );
-        match (record, lineage.get(&root)) {
-            (Some(Provenance::SplitEdge { edge }), _) | (None, Some(edge)) => root = *edge,
-            _ => return Ok(root),
-        }
-    }
-    Err(topo::SplitLineageCycle { edge: e }.into())
+    let Ok(root) = chase::to_root::<_, Infallible>(
+        e,
+        bound,
+        "see `emit_topo::chase_split_lineage`'s Panics",
+        |k| {
+            if table.name_of(&ent(0, EntityKey::Edge(k))).is_some() {
+                return Ok(ControlFlow::Break(k));
+            }
+            let mut held = sides.iter().filter_map(|s| s.body.edge_provenance_of(k));
+            let record = held.next();
+            debug_assert!(
+                held.all(|other| Some(other) == record),
+                "split halves disagree on edge {k:?}'s birth record"
+            );
+            Ok(match (record, lineage.get(&k)) {
+                (Some(Provenance::SplitEdge { edge }), _) | (None, Some(edge)) => {
+                    ControlFlow::Continue(*edge)
+                }
+                _ => ControlFlow::Break(k),
+            })
+        },
+    );
+    root
 }
 
 /// Names both sides of a split (spec D2's split vocabulary + N2), each
@@ -732,7 +726,7 @@ fn split_joined_readings<T: Decide>(
         let mut roots = BTreeSet::new();
         let mut chords = 0usize;
         for &c in cover {
-            let root = chase_split_lineage(sides, target_table, lineage, c)?;
+            let root = chase_split_lineage(sides, target_table, lineage, c);
             if named(root) {
                 roots.insert(root);
             } else {
@@ -868,7 +862,7 @@ fn name_split_edges_vertices<T: Decide>(
     let mut root_of: BTreeMap<EdgeKey, EdgeKey> = BTreeMap::new();
     for sb in sides {
         for (e, _) in sb.body.edges() {
-            root_of.insert(e, chase_split_edge_to_table(sides, target_table, e)?);
+            root_of.insert(e, chase_split_edge_to_table(sides, target_table, e));
         }
     }
     // A divided parent is collected across BOTH sides first: a
@@ -1035,7 +1029,7 @@ fn name_split_edges_vertices<T: Decide>(
             // null-pair copy rows (a copy can be minted at an earlier
             // copy; the original's record lives in whichever side kept
             // it).
-            let src = pair_original(&copy_to_original, v)?;
+            let src = pair_original(&copy_to_original, v);
             let parent_edge = sides
                 .iter()
                 .find_map(|sb| match sb.body.vertex_provenance_of(src) {
@@ -1043,8 +1037,7 @@ fn name_split_edges_vertices<T: Decide>(
                         Some(chase_split_edge_to_table(sides, target_table, *edge))
                     }
                     _ => None,
-                })
-                .transpose()?;
+                });
             if let Some(parent_edge) = parent_edge {
                 // Crossing vertex: minted where the plane crossed an
                 // operand edge's interior.
@@ -1174,26 +1167,26 @@ fn name_split_edges_vertices<T: Decide>(
 }
 
 /// The operand vertex a split's copy `v` stands for: `v` itself, or
-/// the end of its chain of null-pair rows (`copy_to_original`), each
-/// copy minted at an earlier one or at the operand vertex.
+/// the end of its chain of null-pair rows (`copy_to_original`).
 ///
-/// # Errors
+/// # Panics
 ///
-/// [`NamingError::Emission`] where the rows cycle.
-fn pair_original(
-    copy_to_original: &BTreeMap<VertexKey, VertexKey>,
-    v: VertexKey,
-) -> Result<VertexKey, NamingError> {
-    let mut at = v;
-    for _ in 0..=copy_to_original.len() {
-        match copy_to_original.get(&at) {
-            Some(&o) => at = o,
-            None => return Ok(at),
-        }
-    }
-    Err(NamingError::Emission {
-        what: "a split's null-pair rows cycle",
-    })
+/// Where the rows cycle ([`chase::to_root`]): each row is a copy
+/// `SplitNaming` records with the vertex the null edge that minted it
+/// was minted at, so it names an earlier key.
+fn pair_original(copy_to_original: &BTreeMap<VertexKey, VertexKey>, v: VertexKey) -> VertexKey {
+    let Ok(original) = chase::to_root::<_, Infallible>(
+        v,
+        copy_to_original.len(),
+        "see `emit_topo::pair_original`'s Panics",
+        |k| {
+            Ok(match copy_to_original.get(&k) {
+                Some(&o) => ControlFlow::Continue(o),
+                None => ControlFlow::Break(k),
+            })
+        },
+    );
+    original
 }
 
 /// **The sense of a Split's crossing at `v`** (N2) against the half
@@ -4008,7 +4001,7 @@ pub(super) enum EdgeCarrier<T: Decide> {
     /// on it covers nothing (`emit_union::Flush::edge_cover`): the
     /// readings refuse nothing they would not refuse on a straight
     /// edge, at the cost of not counting such edges flush
-    /// (`work/emit/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
+    /// (`work/seamrank/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
     Unread,
 }
 
@@ -5008,7 +5001,7 @@ impl<T: Decide> KeepsReading<'_, '_, T> {
         let mut lines = BTreeSet::new();
         for e in edges {
             for c in self.covers.get(&e).cloned().unwrap_or_else(|| vec![e]) {
-                let root = chase_split_lineage(self.sides, self.target_table, self.lineage, c)?;
+                let root = chase_split_lineage(self.sides, self.target_table, self.lineage, c);
                 if parents.contains(&root) {
                     let up = upstream_name(
                         self.target_table,
@@ -6519,7 +6512,7 @@ mod split_edge_lineage {
                     continue;
                 }
                 fresh += 1;
-                let root = chase_split_edge_to_table(&sides, table, e).expect("acyclic");
+                let root = chase_split_edge_to_table(&sides, table, e);
                 assert!(
                     named(root),
                     "{:?} edge {e:?} chases to {root:?}, which the extrude never named",

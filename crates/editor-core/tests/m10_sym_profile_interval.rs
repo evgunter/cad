@@ -302,22 +302,35 @@ fn eps_row(eps: f64) -> usize {
 /// forms it used to build first are now built under `Plain/Assertion`
 /// (2690 → 2697). Its digests move at every row; the `Early/*` lines
 /// and the largest form hold.
+///
+/// A chord's director spelled as its components, prescaled by the
+/// largest and normalized (`profile`'s `path::chord_director`), where
+/// it was the `sin_cos` of an `atan2`, builds more forms under the
+/// assertions for the slab's straight legs: `Plain/Assertion`
+/// 2697 → 2733 and `Early/Assertion` 4121 → 4157, and their digests, at
+/// every row; calls, frozen counts, both `*/Decision` lines and the
+/// largest form hold.
+///
+/// The joint's turn and the door's second junction read, as on the
+/// plate: `Plain/Assertion` and `Early/Assertion` +14 calls
+/// (514 → 528) and +30 forms, with their digests, at every row; both
+/// `*/Decision` lines and the largest form hold.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 9fd9683c510b6d13533481894aff86fe\n\
-     Plain/Assertion calls 514 forms 2697 frozen 0 digest 987caa300000f10b707150f4903f8be1\n\
+     Plain/Assertion calls 528 forms 2763 frozen 0 digest de77b0b2c47cea9e7045c8471e184cb8\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4121 frozen 0 digest 05a8fa1aaad6a11bf8548406e96878e4",
+     Early/Assertion calls 528 forms 4187 frozen 0 digest fd25d46abfb0d394dbb3d2cc79b79f20",
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 7572a0635345c9fe906c50fadd763ce0\n\
-     Plain/Assertion calls 514 forms 2697 frozen 0 digest 9a2a9a3f8ddf5ff8d89e4b9066866446\n\
+     Plain/Assertion calls 528 forms 2763 frozen 0 digest 32b4131f53a420ef27309ad73c84bf01\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4121 frozen 0 digest dcc9543706fd55fd98e91ebcd58ab72a",
+     Early/Assertion calls 528 forms 4187 frozen 0 digest d7d94722c1d348616d16414a2cc582c0",
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 4c421c5d18739546779e9a8966c18e71\n\
-     Plain/Assertion calls 514 forms 2697 frozen 0 digest f4ccbb5ade82a6f3191ad5729591c479\n\
+     Plain/Assertion calls 528 forms 2763 frozen 0 digest 214d14c7211d40f17dac0abfb356f2c1\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4121 frozen 0 digest e8e45d5267b25b64b653e18901a234c1",
+     Early/Assertion calls 528 forms 4187 frozen 0 digest e2aad0e30e65d05b5b701fe7c90eca55",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -664,11 +677,23 @@ const PLATE_MAX_TERMS: usize = 28;
 /// `Early/Decision` and `Early/Assertion` +3 forms and `Door/Decision`
 /// +10, with every digest; every call, every freeze and the largest
 /// form hold.
+///
+/// A chord's director spelled as its components, as on the slab:
+/// forms `Plain/Assertion` 7003 → 7043 and `Early/Assertion`
+/// 8165 → 8205, and their digests; every call, frozen count, the three
+/// `*/Decision` lines and the largest form hold.
+///
+/// The profile's joint pass reading each joint's turn, levered by the
+/// shorter leg's arm, and the path door reading each junction a
+/// departing leg follows again once that leg is stored (#5354's ruling
+/// and #5377's fix pass): `Plain/Assertion` and `Early/Assertion` +7
+/// calls (686 → 693) and +30 forms, with their digests; the
+/// `*/Decision` lines, the freezes and the largest form hold.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 939 forms 15836 frozen 324 digest ac360a3480da30b765ada11e3a3550c7\n\
-     Plain/Assertion calls 686 forms 7003 frozen 405 digest 8d1ea8d4812fe2b0aa85cda0c308edfa\n\
+     Plain/Assertion calls 693 forms 7073 frozen 405 digest ac98c9fa756d2ff62148806efb245556\n\
      Early/Decision calls 352 forms 8892 frozen 0 digest 61a2facb711fb0a70f13d4cfa3ece435\n\
-     Early/Assertion calls 686 forms 8165 frozen 0 digest 97a4cf4126af3c7869dc275a5f227dba\n\
+     Early/Assertion calls 693 forms 8235 frozen 0 digest c6b94455a9fdd240760bec7120a63c11\n\
      Door/Decision calls 428 forms 9525 frozen 0 digest c92c1df17252cd30da849fc47ba1a121";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
