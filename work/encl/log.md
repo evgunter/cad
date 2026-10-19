@@ -1595,3 +1595,22 @@ coincidence is now a margined verdict (no declarations), checked by the
   - Implementation is the open row `a-proven-zero-is-definite-yet-ends-as-no-size-at-rest`. Its panic arms wait on EXCH closing the import gaps; a seam note is on the EXCH row.
   - The rows that waited on 5134 are unblocked as far as the design goes.
   (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5157** (`zero-arm-payload-wording-doubles-words-and-hedges-a-definite-verdict`, closed): zero-arm payloads no longer double words or hedge a definite verdict, and margins print through `MarginDiag::readable` ("0 m", not "0e0 m").
+  - A lane merged main in. Under TANG's U-lever nouns ("faces wide enough"), the step-import `TANGENT_SECOND_ORDER_ZERO` pin was retired on main. Local: 8375/8375. `gate ok` passed on 745a2bfbaf.
+  - **Filed:**
+    - encl `the-dihedral-arm-noun-is-spelled-twice-and-its-docs-still-say-edge-length`
+    - encl `zero-and-negative-payloads-of-one-decision-use-different-nouns`
+    - scalar `readable-below-zero-restates-the-bracket-layout`
+  - **Evidence added to:**
+    - restfront `validate-window-leads-say-no-length-on-a-zero-arm`
+    - scalar `user-facing-number-format-is-not-one-across-payloads-endings-and-escalations`
+  - **Seam:** the payload text changed in geom-brep `certify.rs` (select's territory). The exch, tcost and offset tests that pin those payloads were re-baselined in the PR.
+  (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5349.** It implements Ev's (iv) ruling (PR 5134). `RefusedSide { Lever, StoredContradiction, Unminted }` replaces `StoredDefinite`, and both the no-size class and the past-band class read it. A proved zero now ends as its exact and in-band siblings do. The import door past ε_in gives `DAMAGED_FILE_ENDING`.
+  - **Review.** One MAJOR: a plane×NURBS tube straddle was encoded as `Zero(0.0)` and ended as a defect at rest. Fixed by a `CertCheck::TransversalityTube` decision on the `Lever` side, like `TangentTube`; a test covers every door. The orchestrator gave both transversality decisions one lever constant.
+  - **Closed:** the unit row, and `dihedral-arm-lever-says-curves-tightly-of-a-radius-below-zero`.
+  - **Open, not landed:**
+    - `param-span-unminted-side-is-reached-at-a-build-by-public-euler-doors`. Public Euler doors reach a non-forward span. Adjudicated as option 1 (the doors refuse it typed, then the build panic lands); not an Ev question. It is the next unit.
+    - `at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything`, parked on EXCH's import row.
+  - **Filed:** `import-door-residual-and-unsized-endings-past-eps-in-name-kernel-or-file`, `a-defect-endings-culprit-has-two-choosers`.
+  (ENCL orchestrator)

@@ -19,4 +19,8 @@ Since that unit, geom-brep's Zero-arm payloads print their margin and claim no s
 
 ## Repair shape
 
-Say "not shown to cross" of the reading and print `(margin … m)`, as `CertifyError::NotTransverse` now does ("at sample {s} the faces are not shown to cross (margin … m, their angle levered by …), where the edge's description says they cross"); describe the reading the margin shows rather than the arm.
+Say "not shown to cross" of the reading and print `(margin … m)`, as `CertifyError::NotTransverse` now does ("at sample {s} the faces are not shown to cross (margin … m, their angle levered by …), though the edge's description says they do"; its Negative arm says "the faces do not cross"); describe the reading the margin shows rather than the arm.
+
+## Also: the numbers print in exponent form (added by `encl/zero-arm-wording`)
+
+Both `TubeStraddles` Displays (`PlaneNurbsRefusal`'s and `AnalyticRung3Refusal`'s) print the clearance with `{:e}`, and that clearance is `0.0` on every straddling refusal by construction (the variant's own doc), so the rendered text reads "proven clearance from zero is 0e0 m". The `Limb` arms print `{margin:e}` the same way. ENCL's payloads now print a margin through `MarginDiag::readable()` (geom-core `predicate.rs`), which is `geom_core::Readable` applied to each number: "0 m", "2 m", "5e-10 m". The repair is to use it here too.
