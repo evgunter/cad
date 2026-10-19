@@ -642,8 +642,8 @@ pub const FILLET_FLATTENED_RECOURSE: &str = "turn the corner further, or use a L
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "place the geometry nearer the origin, or keep the radius no larger than the \
-     geometry's distance from it; or drop the fillet and leave the corner sharp";
+pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "move the geometry nearer the origin, keep the radius no larger than its distance from the \
+     origin, or leave the corner sharp";
 
 /// **The recourse when the stored form's own classification is in
 /// band** — the undecided twin of the two above.
