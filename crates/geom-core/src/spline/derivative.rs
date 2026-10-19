@@ -2031,9 +2031,10 @@ mod tests {
     /// `f64` by the quotient rule on the Bernstein form (no code under test)
     /// lies in the hull of every piece's coefficient ratios `a_k/b_k`.
     /// Red when the numerators and `W²` are cut over different regions
-    /// (`W²` restricted along `u` only: the review of #5391's M3), which
-    /// the bit-for-bit guard row above cannot see, since its reference
-    /// runs the same restriction.
+    /// (`W²` restricted along `u` only: the review of #5391's M3), at
+    /// either restriction site or both. The bit-for-bit guard row above
+    /// sees one site changed alone, since each side of it runs the other,
+    /// but not both changed alike.
     #[test]
     fn a_cut_quotient_holds_the_sampled_derivative_over_its_region() {
         // `B_{n,i}(t)` and its derivative in `t`.
