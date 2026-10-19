@@ -1149,3 +1149,17 @@ the one window read for `CapSliver::of` and `attach_contact`. A shear
 ladder of both signs, convex and concave, both verbs, at both scalars.
 Filed `a-rim-split-at-its-carriers-anti-seam-refuses-at-interval` and
 one issue for the seam-anchored reads in `topo`.
+## 2026-10-19 — the slate re-banded for the hand-back
+
+Ev (in chat): finish what matters, then hand the tail back rather than
+working through it. The eight unbanded items now carry a band and a
+cost (the Interval oblique cut-off's `BodyNotIntact`, a normal fillet
+refusing on the certified scalar, P2; the precision and funnel items
+P2; the overrun and dependent-normals refusals P3).
+`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver` closes:
+its four steps are built and its void residue is the concave item's
+step 4. `blend-reach-never-meters-the-bands-of-one-chain-against-each-other`
+drops to P3 (no door reaches it while every chain is straight). Being
+finished before the hand-back: step 3b (strip-mouth cups), the two
+`arms.rs` centre placements, and the Interval oblique cut-off. Step 4
+(whole shells and the seal) and the P3 tail stay on the slate.

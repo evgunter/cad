@@ -4,6 +4,8 @@ kind: issue
 title: blend arms' perp_unit is a hand Gram-Schmidt on an undecided normalize
 status: open
 opened: 2026-10-01
+priority: P2
+cost: E
 ---
 
 

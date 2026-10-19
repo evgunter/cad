@@ -6,6 +6,8 @@ status: closed
 closed: 2026-10-19
 pr: 5346
 opened: 2026-10-13
+priority: P2
+cost: M
 ---
 
 
