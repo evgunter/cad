@@ -542,7 +542,7 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
     );
     // That read is the extrude's first-order wall join, `SliverJoin`,
     // an arm no point input reaches since the wedge is levered at its
-    // faces (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`):
+    // faces (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`):
     // this row is where it is reached.
     assert!(
         why.iter().any(|f| f.contains("SliverJoin")),
