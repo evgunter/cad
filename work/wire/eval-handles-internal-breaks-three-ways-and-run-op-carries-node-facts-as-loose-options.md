@@ -2,10 +2,13 @@
 id: eval-handles-internal-breaks-three-ways-and-run-op-carries-node-facts-as-loose-options
 kind: issue
 title: eval/: an internal break is handled three ways a few lines apart, and run_op carries node-kind facts as loose Options beside &Node
-status: review
+status: closed
 opened: 2026-10-17
 priority: P3
 cost: M
+closed: 2026-10-19
+pr: 5406
+branch: wire/eval-internal-breaks
 ---
 
 
@@ -58,3 +61,15 @@ Constraint (why PR 5262 did not do it): `ProfilePre` is computed
 before the memo check, because its decisions are pre-key log
 entries. So the enum has to be built at the point `eval_node` now
 builds `profile_pre`, not inside `run_op`.
+
+## Closed by PR 5406 (WIRE orchestrator, 2026-10-19)
+
+- Finding 2 is done: `wire::OpInput`, one arm per node kind that carries
+  facts, built in `eval_node` before the memo check. It carries the
+  profile's form, so the op no longer resolves it twice; the assertion
+  payload is a typed pair.
+- The silent defaults are gone.
+- Finding 1, the rule, came back as a design question. It continues as
+  `a-kernel-defect-is-a-panic-or-a-typed-refusal-and-nothing-says-which`
+  ([ev] PR 5411); the typed-defect sites are untouched until it is
+  answered.

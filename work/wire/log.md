@@ -6640,3 +6640,7 @@ Signed (WIRE orchestrator).
     - NITs.
   - CI skipped demos, and this PR turns insert_tied's dedup loud, so the lane runs demos/tour before merge.
   - Class note: a weld that fixes a hand-kept list must not add its own hand-kept list. Mutate the weld, not just the rows.
+
+- 2026-10-19 (WIRE orchestrator) PR 5406 merged (6bb0052fc3).
+  - I read the fix pass. The assertion payload is a typed pair whose key is fed the same bytes; `ProfileForm` decides the profile's form once, before the key; `pairwise` has one spelling.
+  - Part 2 is closed. Part 1 continues as FORK-DEFECT ([ev] 5411).
