@@ -2998,7 +2998,7 @@ fn run_checks<T: Decide>(
             } else {
                 // Two analytic surfaces' `OnPair` holds no lane for a
                 // spline carrier yet
-                // (`work/tang/onpair-on-two-analytic-surfaces-refuses-a-spline-carrier.md`).
+                // (`work/select/onpair-on-two-analytic-surfaces-refuses-a-spline-carrier.md`).
                 if matches!(spec.carrier, Curve3::Nurbs(_)) {
                     return Err(CertifyError::Unimplemented);
                 }
@@ -3713,7 +3713,7 @@ fn run_checks<T: Decide>(
     // they meet. The wall side is metered against its spline chart, an
     // `Approx` wall's fit; incidence on that wall's description adds the
     // fit's own recorded distance, which this certificate does not
-    // read (`work/tang/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`,
+    // read (`work/tangtail/an-approx-walls-edge-residual-is-recorded-against-its-fit.md`,
     // the `Intersection` lane's posture too). ----
     if let Resolved::OnPairNurbs {
         plane,

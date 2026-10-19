@@ -1139,6 +1139,38 @@ and `a-cup-leaning-off-the-spine-under-a-fillet-is-charged-its-boxs-diagonal`.
   Band the 7 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
   (tracker sweep)
 
+## 2026-10-19 — a cup on a support's strip goes with the band (PR 5338, step 3)
+
+The strip half of step 3: a dimple under a convex plane–plane band and
+a boss under a concave one, their mouths rings on a support's strip,
+wholly inside the region, go at `ΔV = ∓(A·L − π·a²·h)`, where the band
+is one link cut off at both ends. The ring pass reads a support's ring
+against the strip across the edge; the clearance screen stands down on
+a ring that reading decides; the reach reads the cup in the band's core
+less that support's side, its other edges in the whole core. A ruling
+square to the support pays nothing where the section is convex (the
+chamfer's) or the face lies on the support's side of the fillet ball's
+centre; a cup reaching past that centre pays its run across the spine,
+since at an acute dihedral a line along the support's normal can leave
+the section through the arc and come back in the cusp by the other
+support (both reviewers' probes, now rows in `band_dihedral_cups`, with
+the cap half's at 30°, 60°, 120° and 135°, which main builds right).
+The screen and arm (a) read a ring through one piece set
+(`surgery::strip_ring`), so a leaning round dimple's elliptic mouth now
+goes too. `consume` needed nothing new. The followability row's blind
+hole from the support face now builds. Filed
+`a-cup-on-a-strip-beside-a-band-not-cut-off-at-both-ends-is-not-carved`.
+## 2026-10-19 — a cut-off arc at an oblique end reads off atan2's cut
+
+`an-interval-fillet-cut-off-at-an-oblique-end-reads-its-arc-backward`
+closed: a foot half a turn from its end ellipse's `u_ref` read the hull
+`[−π, π]` at `Interval`, so the sheared box's fillet refused where
+`f64` built. `surgery::arc_window` re-anchors at the half turn and is
+the one window read for `CapSliver::of` and `attach_contact`. A shear
+ladder of both signs, convex and concave, both verbs, at both scalars.
+Filed `a-rim-split-at-its-carriers-anti-seam-refuses-at-interval` and
+one issue for the seam-anchored reads in `topo`.
+
 ## 2026-10-19 — the blend arms place their centres at their inputs' scale (`band/arms-centre-placement`)
 
 `sheet_center`'s round × round arm reads `geom_core::Circles` for the
@@ -1150,6 +1182,7 @@ for the centre's offset from its first vertex. Rows in
 and `blend-corner-ball-cramer-anchors-at-the-world-origin`. Filed
 `plane-sphere-blend-spine-radius-by-differences-of-squares` here and
 `work/shell/topo-planar-offset-cramer-anchors-at-the-world-origin.md`.
+
 ## 2026-10-19 — the slate re-banded for the hand-back
 
 Ev (in chat): finish what matters, then hand the tail back rather than
@@ -1164,3 +1197,16 @@ drops to P3 (no door reaches it while every chain is straight). Being
 finished before the hand-back: step 3b (strip-mouth cups), the two
 `arms.rs` centre placements, and the Interval oblique cut-off. Step 4
 (whole shells and the seal) and the P3 tail stay on the slate.
+
+## 2026-10-19 — the track handed back (`ready`, P2)
+
+Ev (in chat): finish what matters, then hand the tail back. Finished
+before the hand-back: step 3's strip half (PR 5338, a dimple or boss on
+a support's strip; its dual review found a wrong body at acute
+dihedrals, fixed by giving the ν-stray only inside the fillet ball's
+centre half-space, and the merged cap half was probed at 30°–135° and
+is unaffected), the two `arms.rs` centre placements (PR 5348), and the
+Interval oblique cut-off (PR 5346). The program is `ready` at P2: step 4
+(whole shells and the seal, H), the anti-seam Interval refusal, three
+error-propagation rows, and the P3 tail. The 1e-12 needle main red
+filed here is closed as a duplicate of CPAIR's bisected item.

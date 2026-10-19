@@ -19,7 +19,7 @@
 //! than the faces support. One over-statement remains: the reach is
 //! measured from the edge's middle, so a face's run ALONG the edge
 //! counts as lever, though two faces separate only with distance from
-//! the edge (`work/tang/the-wedge-reach-counts-a-faces-run-along-its-edge.md`;
+//! the edge (`work/twice/the-wedge-reach-counts-a-faces-run-along-its-edge.md`;
 //! the edge's own extent read it the same way). A face is read at its
 //! boundary's vertices, so a short
 //! arc of a large circle reads the arc's ends and not the circle, and a

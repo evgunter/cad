@@ -952,7 +952,9 @@ impl<T: Real> Shelled<T> {
     /// ([`ShellNaming::dead`]) into the rims, the rest removed. On a
     /// void, the designated faces are removed, the rim being their
     /// cavity twin's. The cavity twins are new cells and no operand
-    /// record names one.
+    /// record names one. Any other operand cell whose geometry the shell
+    /// changed under its key is read, not kept: the lineage carries the
+    /// operand's geometry ([`crate::Lineage::from_source`]).
     #[must_use]
     pub fn lineage(&self) -> crate::Lineage {
         use crate::boolean::Cell;
@@ -1046,7 +1048,7 @@ impl<T: Real> Shelled<T> {
                 );
             }
         }
-        lineage
+        lineage.from_source(naming.source.clone())
     }
 }
 
@@ -1104,6 +1106,11 @@ pub struct ShellNaming {
     /// but listed here, not there, and its `kept` covers what `gone` did
     /// besides its own ([`crate::join_covers`]).
     pub edge_joins: Vec<crate::EdgeJoin>,
+    /// The operand's geometry before the shell wrote
+    /// ([`crate::SourceGeometry`]): a record lands unread only on images
+    /// that hold it. Empty on a naming no shell made, and every record is
+    /// then read.
+    pub source: crate::SourceGeometry,
 }
 
 impl ShellNaming {
@@ -2179,6 +2186,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             refusal: crate::boolean::JoinRefusal::of(&refusal),
         })?;
     validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
+    naming.source = crate::SourceGeometry::of(body);
     Ok(Shelled {
         body: out_body,
         naming,
