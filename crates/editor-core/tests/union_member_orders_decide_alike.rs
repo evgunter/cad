@@ -218,12 +218,14 @@ fn decide(
 }
 
 /// What [`cells_are_held`] checked: published rows, and their entity
-/// cells read from a member and minted by the fold.
+/// cells read from a member and minted by the fold, and of those the
+/// vertices.
 #[derive(Debug, Default, Clone, Copy)]
 struct Held {
     rows: usize,
     member: usize,
     minted: usize,
+    minted_vertex: usize,
 }
 
 /// **Every cell of a union's published row denotes a live entity of the
@@ -266,6 +268,7 @@ fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &[usize]) ->
             assert!(live, "{}", at("denotes no entity of its read's body"));
             if *input == own {
                 held.minted += 1;
+                held.minted_vertex += usize::from(name.kind == editor_core::EntityKind::Vertex);
             } else {
                 held.member += 1;
             }
@@ -800,19 +803,27 @@ fn flush_onto_an_edge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 
 /// **Every published row's cells denote entities of their reads, in
 /// every member order** ([`cells_are_held`]), on a fixture whose rows
-/// cite member cells (the plate pinch) and one whose rows cite a cell
-/// the fold minted (a `Merged` edge, in the orders that fold the flush
-/// pair before the third block). Every order must publish rows, and each
+/// cite member cells (the plate pinch), one whose rows cite an edge the
+/// fold minted (a `Merged` edge, in the orders that fold the flush pair
+/// before the third block), and one whose rows cite a vertex the fold
+/// minted and a later step re-spelled (the plate's crossing of two
+/// wedges' seam, which the third wedge's edge makes a junction, in the
+/// orders that fold the seam's wedges, then the plate, then the third). Every order must publish rows, and each
 /// fixture cells of the kind it is here for, so neither half passes on
 /// nothing.
 #[test]
 fn published_row_cells_denote_entities_of_their_reads() {
     type Row = (&'static str, Members, fn(Held) -> bool);
-    let rows: [Row; 2] = [
+    let rows: [Row; 3] = [
         (
             "two blocks pinching on a plate",
             crate::union_pinch_member_order::pinch,
             |h| h.member > 0,
+        ),
+        (
+            "a prism crossing one wedge about the line, with the plate",
+            crate::union_pinch_member_order::crossing_one_wedge,
+            |h| h.minted_vertex > 0,
         ),
         ("a flush pair on an edge", flush_onto_an_edge, |h| {
             h.minted > 0
@@ -841,6 +852,7 @@ fn published_row_cells_denote_entities_of_their_reads() {
             total.rows += held.rows;
             total.member += held.member;
             total.minted += held.minted;
+            total.minted_vertex += held.minted_vertex;
         }
         assert!(reaches(total), "{what}: checked {total:?}");
     }

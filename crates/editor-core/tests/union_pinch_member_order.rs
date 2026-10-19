@@ -1516,7 +1516,7 @@ fn side_node(side: &StableName) -> RecipeNodeId {
 
 /// [`three_on_a_line`] with the third prism over 30°–60°: it crosses the
 /// first's wedge about the line and touches the second's edge along it.
-fn crossing_one_wedge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn crossing_one_wedge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
     let (doc, b) = sector_prism(doc, 120.0, 170.0, (0.47, 1.7));
