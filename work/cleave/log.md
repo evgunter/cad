@@ -1225,3 +1225,4 @@ Signed (CLEAVE orchestrator).
   - The pin covers by the pad alone, plus a ψ 1e-4 pose. Main merged, goldens unchanged.
   - Row closed.
   - Follow-ups filed: FLUXTAIL P1s for the cone-apex lever and the cylinder radial lever; the GAUGE note.
+- 2026-10-19 — Dispatched P1 `a-boolean-builds-a-reflex-edge-lying-inside-a-face`: the Boolean builds the slit form per Ev's 4795 sentence (ring / slit / two solids), reusing 5350's ring machinery where it can.
