@@ -408,7 +408,13 @@ fn tilt_slack(
 ) -> Interval {
     use geom_core::Bounds;
     let across = va - normal * (va.dot(normal) / normal.dot(normal));
-    let b = (lever.norm() * across.norm()).hi();
+    let bound = lever.norm() * across.norm();
+    // A refused bracket's ends bound nothing: the slack is then the
+    // whole line, and the face's term encloses nothing it can decide.
+    if !bound.is_certified() {
+        return Interval::from_bounds(f64::NEG_INFINITY, f64::INFINITY);
+    }
+    let b = bound.hi();
     Interval::from_bounds(-b, b)
 }
 
@@ -468,8 +474,9 @@ pub(super) fn exact_polygon_volume(polygons: &[Vec<Vec<Point3<Interval>>>]) -> O
     use geom_core::Bounds;
     let coords = |p: Point3<Interval>| {
         let c = [p.x, p.y, p.z];
+        // A refused bracket is no exact coordinate, whatever its ends.
         c.iter()
-            .all(|x| x.lo().to_bits() == x.hi().to_bits())
+            .all(|x| x.is_certified() && x.lo().to_bits() == x.hi().to_bits())
             .then(|| [c[0].lo(), c[1].lo(), c[2].lo()])
     };
     let mut sum = geom_core::exact::Expansion::default();
