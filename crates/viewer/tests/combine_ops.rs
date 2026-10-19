@@ -2299,7 +2299,6 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
                 fresh: Vec::new(),
             },
             tol,
-            &pncad::document::RefusingReach,
         );
         let refused_as_operand = matches!(
             probe,
@@ -2812,7 +2811,6 @@ fn the_part_seats_track_the_part_door() {
                     fresh: Vec::new(),
                 },
                 tol,
-                &pncad::document::RefusingReach,
             ) {
                 Err(_) => true,
                 Ok(applied) => {

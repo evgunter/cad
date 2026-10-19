@@ -578,7 +578,6 @@ fn toleranced_block(
             distribution,
         },
         Tol::witness(),
-        &pncad::document::RefusingReach,
     )
     .expect("a length takes a normal")
     .doc;

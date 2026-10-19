@@ -156,7 +156,6 @@ impl Scene {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap_or_else(|e| panic!("the value is admitted: {e}"));
         self.doc = applied.doc;

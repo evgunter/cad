@@ -85,6 +85,8 @@ mod curves_fitting;
 mod curves_held_weights_and_knots;
 #[path = "curves/hull_circle_rehearsal.rs"]
 mod curves_hull_circle_rehearsal;
+#[path = "curves/knot_algebra_at_interval.rs"]
+mod curves_knot_algebra_at_interval;
 #[path = "curves/lt_r1_probes.rs"]
 mod curves_lt_r1_probes;
 #[path = "curves/m5_pr7_speed_meter.rs"]

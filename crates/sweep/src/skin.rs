@@ -70,9 +70,10 @@
 //! (`SplineError::CarrierWeightNotAPoint`, until C6's S4/S5), as does an
 //! interior averaged knot wider than a point. An arc's sweep structure
 //! (non-zero, its sub-arc count, a turn) is certified for every value
-//! it stands for ([`SkinError::ArcSweepUndecided`]). The knot
-//! algebra, which is projective ([`ProjectiveScalar`]), does not run
-//! ([`SkinError::IncompatibleAtEnclosure`]). No topology decision is
+//! it stands for ([`SkinError::ArcSweepUndecided`]). The knot algebra
+//! that makes sections compatible runs homogeneous at an enclosure
+//! scalar ([`make_compatible`], C6 S4), and its result enters through
+//! the same door. No topology decision is
 //! made here, so nothing routes through `k_stats`; the raw `f64`
 //! comparisons below are structure selection under C6.
 
@@ -84,9 +85,7 @@ use geom::NurbsSurface;
 use geom::curves::fit::{FitError, interpolate_columns_in};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
-use geom_core::spline::{
-    KnotAlgebraError, Knots, ProjectiveScalar, ProjectiveSplit, SpanLocate, SplineError,
-};
+use geom_core::spline::{KnotAlgebraError, Knots, SpanLocate, SplineError};
 use geom_core::{
     Affine3, Arc2, COINCIDENCE_RECOURSE, Decide, MarginDiag, Point2, Point3, Real, Vec3,
 };
@@ -287,14 +286,6 @@ pub enum SkinError {
         /// The sweep's distance to the breakpoint, as read.
         margin: MarginDiag,
     },
-    /// Section `section`'s curve differs from section 0's in degree or
-    /// knots at an enclosure scalar. Making them compatible is the
-    /// projective knot algebra, which that scalar does not run
-    /// (`ProjectiveScalar`).
-    IncompatibleAtEnclosure {
-        /// The section.
-        section: usize,
-    },
     /// The v-direction interpolation refused.
     Fit(FitError),
     /// A knot-algebra operation (degree elevation, refinement) refused.
@@ -372,12 +363,6 @@ impl core::fmt::Display for SkinError {
                  range of that sweep or those endpoints until it clears the breakpoint; the width \
                  may be rounding alone (a constant sweep of exactly a full turn), and then \
                  evaluate at a point scalar"
-            ),
-            Self::IncompatibleAtEnclosure { section } => write!(
-                f,
-                "section {section}'s curve differs from section 0's in degree or knots, and an \
-                 interval scalar does not run the knot algebra that would make them \
-                 compatible. Recourse: evaluate the loft at a point scalar"
             ),
             Self::Fit(e) => write!(f, "{e}"),
             Self::KnotAlgebra(e) => write!(f, "{e}"),
@@ -628,17 +613,20 @@ pub fn segment_curve<T: SpanLocate>(
 /// same knots, and therefore the same control-point count — which is
 /// what makes a tensor-product skin possible at all.
 ///
-/// They are the projective knot algebra, so they run at a
-/// [`ProjectiveScalar`] only. At an enclosure scalar sections that are
-/// already compatible come back as themselves, and any others refuse:
-/// a refinement there would hold its weights as enclosures, which a
-/// carrier does not.
+/// They are the knot algebra, at every scalar: projective at an
+/// evaluation scalar, homogeneous at an enclosure scalar (C6 S4: the
+/// net as `(w·P, w)`, no weight quotient formed). At an enclosure
+/// scalar the result enters through the carrier's door, so a rational
+/// section, whose refined weights are enclosures from rounding alone,
+/// refuses there ([`SplineError::CarrierWeightNotAPoint`], C6's interim
+/// until S5), while a polynomial one keeps its unit weights exactly and
+/// is admitted.
 ///
 /// # Errors
 ///
 /// [`SkinError::TooFewSections`], [`SkinError::DomainNotUnit`] for a
-/// section off the unit domain, the propagated knot-algebra /
-/// structure refusals, and [`SkinError::IncompatibleAtEnclosure`].
+/// section off the unit domain, and the propagated knot-algebra /
+/// structure refusals.
 pub fn make_compatible<T: SpanLocate>(
     sections: &[NurbsCurve3<T>],
 ) -> Result<Vec<NurbsCurve3<T>>, SkinError> {
@@ -654,48 +642,22 @@ pub fn make_compatible<T: SpanLocate>(
             return Err(SkinError::DomainNotUnit { section: i, domain });
         }
     }
-    T::split_projective(Compatible(sections))
-}
-
-/// [`make_compatible`]'s two halves, after its checks.
-struct Compatible<'a, T: Real>(&'a [NurbsCurve3<T>]);
-
-impl<T: SpanLocate> ProjectiveSplit<T> for Compatible<'_, T> {
-    type Out = Result<Vec<NurbsCurve3<T>>, SkinError>;
-
-    fn projective(self) -> Self::Out
-    where
-        T: ProjectiveScalar,
-    {
-        // §5.5: one common degree.
-        let degree = self.0.iter().map(NurbsCurve3::degree).max().unwrap_or(0);
-        let elevated: Vec<NurbsCurve3<T>> = self
-            .0
-            .iter()
-            .map(|c| {
-                let raise = degree - c.degree();
-                if raise == 0 {
-                    Ok(c.clone())
-                } else {
-                    c.elevate_degree(raise).map_err(SkinError::KnotAlgebra)
-                }
-            })
-            .collect::<Result<_, _>>()?;
-        // §5.3: one common knot vector — the union, at one degree and on
-        // one domain by the two checks above.
-        NurbsCurve3::refine_to_union(&elevated).map_err(SkinError::KnotAlgebra)
-    }
-
-    fn enclosure(self) -> Self::Out {
-        let first = &self.0[0];
-        match self.0.iter().position(|c| {
-            c.degree() != first.degree()
-                || c.knots_f64_interim().knots() != first.knots_f64_interim().knots()
-        }) {
-            Some(section) => Err(SkinError::IncompatibleAtEnclosure { section }),
-            None => Ok(self.0.to_vec()),
-        }
-    }
+    // §5.5: one common degree.
+    let degree = sections.iter().map(NurbsCurve3::degree).max().unwrap_or(0);
+    let elevated: Vec<NurbsCurve3<T>> = sections
+        .iter()
+        .map(|c| {
+            let raise = degree - c.degree();
+            if raise == 0 {
+                Ok(c.clone())
+            } else {
+                c.elevate_degree(raise).map_err(SkinError::KnotAlgebra)
+            }
+        })
+        .collect::<Result<_, _>>()?;
+    // §5.3: one common knot vector — the union, at one degree and on
+    // one domain by the two checks above.
+    NurbsCurve3::refine_to_union(&elevated).map_err(SkinError::KnotAlgebra)
 }
 
 // ---------------------------------------------------------------------

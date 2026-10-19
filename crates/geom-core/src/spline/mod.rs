@@ -57,6 +57,7 @@ pub mod knots;
 pub mod locate;
 pub mod net;
 pub mod pieces;
+pub mod plan_inputs;
 pub mod projective;
 pub mod range;
 pub mod weight_scale;

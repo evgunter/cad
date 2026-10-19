@@ -28,9 +28,9 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, Coord, DocEdit, DocRef, DocumentId, EvalOptions, MateReach,
-    Node, NodeErrorKind, NodeResult, PartFault, PartResolver, ProfileDoc, ReachRefusal,
-    RecipeNodeId, ResolveFailure, ResolveFault, SlideAxis, Value, mate_reach, product,
+    CapEnd, ContactClass, ContentPin, Coord, DocEdit, DocRef, DocumentId, EvalOptions, Node,
+    NodeErrorKind, NodeResult, PartFault, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure,
+    ResolveFault, SlideAxis, Value, product,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, on_frame, run, square, step};
@@ -188,9 +188,8 @@ fn deepest(kind: &NodeErrorKind) -> (usize, &NodeErrorKind, String) {
     (levels.len(), last.refusal.kind(), last.line())
 }
 
-/// **One past the bound refuses typed, at every door that descends**:
-/// the evaluation and the mate solve's reach, each on the wasm32
-/// stack. The refusal is raised `BOUND` documents down, is
+/// **One past the bound refuses typed** where the evaluation descends,
+/// on the wasm32 stack. The refusal is raised `BOUND` documents down, is
 /// `DepthExceeded`, and its sentence states the bound and meets the
 /// refusal standard.
 #[test]
@@ -226,32 +225,6 @@ fn a_chain_one_past_the_bound_refuses_depth_exceeded_on_the_smallest_stack() {
         );
         let problems = test_utils::refusal::problems("DepthExceeded", &line, &[], false);
         assert!(problems.is_empty(), "{problems:#?}");
-
-        // The mate solve's reach descends through the same cache from
-        // outside any evaluation, and refuses the same way.
-        let reach = mate_reach::<f64>(&opts, Tol::witness());
-        let Err(ReachRefusal::PartUnresolved { fault }) = reach.reach(&top_ref) else {
-            panic!("the reach refuses the part that nests too deep");
-        };
-        let refused = NodeErrorKind::Part {
-            doc_ref: top_ref,
-            fault,
-        };
-        let (levels, last, line) = deepest(&refused);
-        assert_eq!(
-            levels, BOUND,
-            "the reach's refusal is raised at the bound too"
-        );
-        assert!(
-            matches!(
-                last,
-                NodeErrorKind::Part {
-                    fault: PartFault::DepthExceeded,
-                    ..
-                }
-            ),
-            "the reach's chain ends in DepthExceeded: {line}"
-        );
     });
 }
 

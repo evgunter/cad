@@ -25,7 +25,7 @@ fn p(name: &'static str) -> VarName {
 }
 
 fn edit(doc: &ProfileDoc, e: DocEdit<ProfileProgram>) -> Result<ProfileDoc, EditError> {
-    apply(doc, &e, Tol::witness(), &editor_core::RefusingReach).map(|a| a.doc)
+    apply(doc, &e, Tol::witness()).map(|a| a.doc)
 }
 
 fn length(mm: f64) -> FreeVar {

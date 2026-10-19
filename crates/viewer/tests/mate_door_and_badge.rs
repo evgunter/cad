@@ -66,7 +66,7 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
 #[test]
 fn the_at_rest_badge_checks_a_loose_space() {
     use pncad::document::{
-        CancelToken, DocEdit, EvalOptions, Value, apply, assemble, evaluate, load, mate_reach, save,
+        CancelToken, DocEdit, EvalOptions, Value, apply, assemble, evaluate, load, save,
     };
     let tol = Tol::witness();
     let bench = asm::bench("r2badge", tol);
@@ -78,10 +78,9 @@ fn the_at_rest_badge_checks_a_loose_space() {
         )),
         ..EvalOptions::default()
     };
-    let reach = mate_reach::<f64>(&opts, tol);
     let step = |doc: &mut pncad::document::Doc<pncad::document::ProfileProgram>,
                 edit: DocEdit<pncad::document::ProfileProgram>| {
-        let applied = apply(doc, &edit, tol, &reach).unwrap();
+        let applied = apply(doc, &edit, tol).unwrap();
         *doc = applied.doc;
         applied.record.minted_constraints
     };

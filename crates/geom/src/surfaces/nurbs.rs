@@ -1198,17 +1198,18 @@ impl<T: ProjectiveScalar> Column<T> {
     }
 }
 
-/// The knot algebra: at the evaluation scalars only
-/// ([`ProjectiveScalar`]'s docs say why not at `Interval`), on curves
-/// and surfaces alike. At the certification scalar a refinement does
-/// not typecheck:
+/// The surface's knot algebra: at the evaluation scalars only
+/// ([`ProjectiveScalar`]'s docs say why not at `Interval`). A curve's
+/// runs at every scalar, homogeneous at an enclosure scalar (C6 S4); a
+/// surface's has no caller at an enclosure scalar yet, so at the
+/// certification scalar its refinement does not typecheck while the
+/// curve's does:
 ///
 /// ```compile_fail,E0599
-/// use geom::{NurbsCurve3, NurbsSurface};
+/// use geom::NurbsSurface;
 /// use geom_core::Interval;
-/// fn refine(s: &NurbsSurface<Interval>, c: &NurbsCurve3<Interval>) {
+/// fn refine(s: &NurbsSurface<Interval>) {
 ///     let _ = s.refine_knots_u(&[0.5]);
-///     let _ = c.refine_knots(&[0.5]);
 /// }
 /// ```
 ///
@@ -1216,7 +1217,8 @@ impl<T: ProjectiveScalar> Column<T> {
 ///
 /// ```
 /// use geom::{NurbsCurve3, NurbsSurface};
-/// fn refine(s: &NurbsSurface<f64>, c: &NurbsCurve3<f64>) {
+/// use geom_core::Interval;
+/// fn refine(s: &NurbsSurface<f64>, c: &NurbsCurve3<Interval>) {
 ///     let _ = s.refine_knots_u(&[0.5]);
 ///     let _ = c.refine_knots(&[0.5]);
 /// }
@@ -1232,9 +1234,10 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
         let (_, nv) = self.control_counts();
         let mut cols = Vec::with_capacity(nv);
         let mut new_knots_u = self.knots_u.clone();
+        let kv = spline::plan_inputs::point_knots(&self.knots_u)?;
         for iv in 0..nv {
             let col = self.u_column(iv);
-            let plans = build(self.knots_u_f64_interim(), &col.channel)?;
+            let plans = build(kv, &col.channel)?;
             let (col, knots) = col.through(&self.knots_u, &plans, &T::from_f64);
             new_knots_u = knots;
             cols.push(col);
@@ -1340,7 +1343,7 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
             for iv in 0..nv {
                 let col = cur.u_column(iv);
                 let steps = spline::algebra::remove_knot_plan(
-                    cur.knots_u_f64_interim(),
+                    spline::plan_inputs::point_knots(&cur.knots_u)?,
                     &col.channel,
                     u,
                     1,
@@ -1359,12 +1362,17 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
                 );
                 // The reinsertion puts back the knot the removal took out:
                 // its held value (the curve's `remove_knot` says why).
-                let held = |v: f64| match cur.knots_u.value_at(v) {
-                    Ok(k) => k.unwrap_or_else(|| T::from_f64(v)),
-                    Err(e) => {
-                        unreachable!(
-                            "a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}"
-                        )
+                // The reinsertion brings in `u` alone.
+                let held_u = cur
+                    .knots_u
+                    .value_at(u)
+                    .map_err(KnotAlgebraError::Structure)?
+                    .unwrap_or_else(|| T::from_f64(u));
+                let held = |v: f64| {
+                    if v.to_bits() == u.to_bits() {
+                        held_u
+                    } else {
+                        T::from_f64(v)
                     }
                 };
                 let (reinserted, _) = Column {

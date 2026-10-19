@@ -527,12 +527,7 @@ fn one_copy_twice_is_not_on_the_copy() {
         },
     );
     let copy_end = || head(in_copy(pattern, 2, leg_part.cap(leg, CapEnd::End)));
-    let refusal = at_the_door_of(
-        &doc,
-        &editor_core::RefusingReach,
-        leg,
-        rest(copy_end(), copy_end(), ContactClass::Rest),
-    );
+    let refusal = at_the_door_of(&doc, leg, rest(copy_end(), copy_end(), ContactClass::Rest));
     assert!(
         matches!(
             refusal,
@@ -571,7 +566,6 @@ fn sibling_copies_of_one_instances_pattern_are_not_on_the_copy() {
     );
     let refusal = at_the_door_of(
         &doc,
-        &editor_core::RefusingReach,
         leg,
         rest(
             head(in_copy(pattern, 0, leg_part.cap(leg, CapEnd::End))),

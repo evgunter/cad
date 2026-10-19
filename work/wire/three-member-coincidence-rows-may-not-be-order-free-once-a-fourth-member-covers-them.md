@@ -34,3 +34,32 @@ junction of two earlier members) — spell it by its canonical head in the
 node's space. Unsure whether reachable.
 
 Signed (WIRE orchestrator).
+
+## Measured for unions (2026-10-19, PR 5328's review)
+
+Real for a **union**, with no cover needed. Measured on `origin/main`
+(merge base f6dbcfe1f7) and on PR 5328's head; presence is the same on
+both. Each fixture's published row multisets were compared across every
+member order, with the union's own VarId and node id normalised out.
+
+- `union_pinch_member_order`'s `crossing_one_wedge` (plate plus three
+  prisms): 8 distinct rows; per-order counts vary from 4 to 6. Four rows
+  are order-dependent (0 = plate, 1 = a, 2 = b, 3 = c):
+  - The junction row at (1.5, 1, 1): b's `LateralEdge(Leg)` against the
+    junction vertex, `OnCarrier` `VertexFusion`. It is published in 2 of
+    24 orders (`[3,1,0,2]`, `[1,3,0,2]`), although the finished body holds
+    that one junction and names it identically in all 24.
+  - `Seam{a Lateral, c Lateral}` against b's `CapVertex(End)`: 8 of 24,
+    every order folding a and c before b.
+  - c `LateralEdge(Leg)` against a `LateralEdge(Leg)`: 6 of 24.
+- `union_member_orders_decide_alike`'s `flush_onto_an_edge`: a steady 15
+  rows, but three statements are each published in only 2 of 6 orders.
+  The test's doc accepts this in prose.
+- `pinch` (6 orders) and `three_on_a_line` (24 orders) are clean.
+
+The cause, by the reviewer's reading: #4323's rule that a fold row is
+published where a record cites it. A three-member row's presence follows
+whether the step that meets it runs before the points coincide. DM4 says
+"one row in every order".
+
+Signed (WIRE orchestrator).

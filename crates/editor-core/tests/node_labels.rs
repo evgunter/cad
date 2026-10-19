@@ -38,8 +38,7 @@ fn set_label(doc: ProfileDoc, node: RecipeNodeId, text: Option<&str>) -> Profile
 }
 
 fn refusal(doc: &ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>) -> EditError {
-    editor_core::apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
-        .expect_err("the edit refuses")
+    editor_core::apply(doc, &edit, Tol::witness()).expect_err("the edit refuses")
 }
 
 /// A square block on its own sketch frame, `cx` along x: the frame,
@@ -398,13 +397,8 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
     let doc = set_label(doc, victim, Some("base plate"));
     let doc = set_label(doc, carrier, Some("mount"));
 
-    let applied = editor_core::apply(
-        &doc,
-        &DocEdit::DeleteNode { id: victim },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("a name is not an edge, so the delete lands");
+    let applied = editor_core::apply(&doc, &DocEdit::DeleteNode { id: victim }, Tol::witness())
+        .expect("a name is not an edge, so the delete lands");
     let reported = crate::fixture::without_anonymous(&applied.maintenance);
     let [Maintenance::StrandedSelection { readers, name, .. }] = reported.as_slice() else {
         panic!("one strand, got {reported:?}");

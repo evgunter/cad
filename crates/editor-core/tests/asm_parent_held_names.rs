@@ -149,7 +149,6 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
             attr: Attr::Color(Rgba8::opaque(1, 2, 3)),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc;
@@ -173,7 +172,6 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap();
     assert_eq!(
@@ -197,7 +195,6 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc;
@@ -214,7 +211,6 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
             new_pin: r2.pin,
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap();
     let after_ev = run(&updated.doc, &shelf);
@@ -262,7 +258,6 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
             fresh: Vec::new(),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc;
@@ -348,7 +343,6 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc;
@@ -371,7 +365,6 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
             new_pin: rb.pin,
         },
         tol(),
-        &editor_core::RefusingReach,
     )
     .unwrap();
     assert_eq!(

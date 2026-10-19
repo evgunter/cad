@@ -200,6 +200,14 @@ pub(crate) fn session_memo<V: Copy>(cell: &OnceLock<V>, compute: impl FnOnce() -
     *cell.get_or_init(compute)
 }
 
+/// A curve and a plan chain to apply to its net
+/// (`apply_plans`, at either half of [`spline::ProjectiveSplit`]).
+struct PlanChain<'a, C, T> {
+    curve: &'a C,
+    plans: &'a [spline::CurvePlan],
+    fresh: &'a dyn Fn(f64) -> T,
+}
+
 macro_rules! nurbs_curve {
     ($Curve:ident, $Window:ident, $Point:ident, $Vector:ident, $dim:literal, $($c:ident),+) => {
         #[doc = concat!("The control window one knot span selects on **one** [`", stringify!($Curve), "`]")]
@@ -701,36 +709,39 @@ macro_rules! nurbs_curve {
 
         }
 
-        /// The knot algebra: at the evaluation scalars only
-        /// ([`ProjectiveScalar`]'s docs say why not at `Interval`).
-        impl<T: ProjectiveScalar> $Curve<T> {
-            /// A value a knot operation brings in at the caller's `f64`
-            /// parameter, entered as the constant it is.
-            fn inserted(v: f64) -> T {
-                T::from_f64(v)
-            }
+        /// [`$Curve::apply_plans`]'s two halves: the projective
+        /// applier at an evaluation scalar, the homogeneous one at an
+        /// enclosure scalar (C6 S4).
+        impl<T: SpanLocate> spline::ProjectiveSplit<T> for PlanChain<'_, $Curve<T>, T> {
+            type Out = Result<$Curve<T>, KnotAlgebraError>;
 
-            /// Applies a chain of structure plans to this curve's net
-            /// held in `T` ([`spline::CurvePlan::apply_rational`]: each
-            /// step's coefficient, weight and `λ` formed at `T` from the
-            /// held knots and weights, points via `lerp(x, y, λ)`, the
-            /// fixed association), the held knots carried plan to plan
-            /// ([`Knots::restructure`]). A value a plan brings in is
-            /// `fresh(v)`: the caller's `f64` parameter entered as the
-            /// constant it is ([`Self::inserted`]), or, for a removal's
-            /// reinsertion, the held value the removal took out. The
-            /// weights' value channel is the final plan's, which the
-            /// plans computed on the channel with the same operations,
-            /// and whose every written weight the plan admitted
+            /// Each step's coefficient, weight and `λ` formed at `T`
+            /// from the held knots and weights
+            /// ([`spline::CurvePlan::apply_rational`]), points via
+            /// `lerp(x, y, λ)`, the fixed association. The weights'
+            /// value channel is the final plan's, which the plans
+            /// computed on the channel with the same operations, and
+            /// whose every written weight the plan admitted
             /// (`geom_core::spline::algebra`'s written-weight check:
-            /// strictly positive and finite, or the plan refused).
-            /// Empty chain ⇒ clone.
-            fn apply_plans(&self, plans: &[spline::CurvePlan], fresh: &dyn Fn(f64) -> T) -> Self {
+            /// strictly positive and finite, or the plan refused). That
+            /// holds of reference plans, the only ones a carrier at a
+            /// projective scalar makes (its knots and weights are points);
+            /// a plan decided against a stand-in refuses
+            /// [`KnotAlgebraError::StandInPlan`] rather than leave the
+            /// stand-in's unit weights as the channel.
+            fn projective(self) -> Self::Out
+            where
+                T: ProjectiveScalar,
+            {
+                let PlanChain { curve, plans, fresh } = self;
                 let Some(last) = plans.last() else {
-                    return self.clone();
+                    return Ok(curve.clone());
                 };
-                let mut knots = self.knots.clone();
-                let (mut control, mut weights) = (self.control.clone(), self.weights.values().to_vec());
+                if !plans.iter().all(spline::CurvePlan::is_reference) {
+                    return Err(KnotAlgebraError::StandInPlan);
+                }
+                let mut knots = curve.knots.clone();
+                let (mut control, mut weights) = (curve.control.clone(), curve.weights.values().to_vec());
                 for plan in plans {
                     (control, weights) = plan.apply_rational(
                         knots.values(),
@@ -741,7 +752,86 @@ macro_rules! nurbs_curve {
                     );
                     knots = knots.restructure(plan.knots().clone(), fresh);
                 }
-                Self::from_validated_parts(knots, control, Weights::from_point_parts(weights, last.weights().to_vec()))
+                Ok($Curve::from_validated_parts(knots, control, Weights::from_point_parts(weights, last.weights().to_vec())))
+            }
+
+            /// The net as `(w·P, w)` through
+            /// [`spline::CurvePlan::apply_homogeneous`], each step's
+            /// coefficient formed at `T` from the held knots, then
+            /// de-homogenized once. No weight quotient `λ` is formed. The
+            /// result enters through the carrier's door: written weights
+            /// certified positive for every member
+            /// ([`SplineError::WeightSignUndecided`] where some are not),
+            /// and refused as [`SplineError::CarrierWeightNotAPoint`]
+            /// where one is wider than a point (C6's interim until S5). A
+            /// polynomial net keeps its unit weights exactly, so it is
+            /// admitted.
+            fn enclosure(self) -> Self::Out {
+                let PlanChain { curve, plans, fresh } = self;
+                if plans.is_empty() {
+                    return Ok(curve.clone());
+                }
+                let origin = $Point::<T>::origin();
+                let poison = (
+                    net::poison_point::<T, $Point<T>>() - origin,
+                    spline::poison_from(T::one()),
+                );
+                let mut knots = curve.knots.clone();
+                let mut hom: Vec<($Vector<T>, T)> = curve
+                    .control
+                    .iter()
+                    .zip(curve.weights.values())
+                    .map(|(p, w)| ((*p - origin) * *w, *w))
+                    .collect();
+                for plan in plans {
+                    hom = plan.apply_homogeneous(knots.values(), &hom, (poison, fresh), |x, y, t: T| {
+                        $Vector::new($(T::homogeneous_step(x.$c, y.$c, t)),+)
+                    });
+                    knots = knots.restructure(plan.knots().clone(), fresh);
+                }
+                let (control, weights): (Vec<$Point<T>>, Vec<T>) =
+                    hom.into_iter().map(|(v, w)| (origin + v / w, w)).unzip();
+                // A removal's ratio read from knots within rounding of each
+                // other can reach 0 or 1, and its unblend divides by it: an
+                // unbounded enclosure, which the door's poison test does not
+                // see. Refused here, typed; a poison value is the door's.
+                let unbounded = |v: &T| !v.is_poison() && !v.is_bounded();
+                if let Some(index) = control.iter().zip(&weights).position(|(p, w)| {
+                    unbounded(w) $(|| unbounded(&p.$c))+
+                }) {
+                    return Err(KnotAlgebraError::UnboundedAtEnclosure { index });
+                }
+                $Curve::new(knots, control, weights).map_err(KnotAlgebraError::Structure)
+            }
+        }
+
+        /// The knot algebra, at every scalar: projective at an
+        /// evaluation scalar, homogeneous at an enclosure scalar
+        /// ([`PlanChain`]'s two halves; C6 S4).
+        impl<T: SpanLocate> $Curve<T> {
+            /// A value a knot operation brings in at the caller's `f64`
+            /// parameter, entered as the constant it is.
+            fn inserted(v: f64) -> T {
+                T::from_f64(v)
+            }
+
+            /// Applies a chain of structure plans to this curve's net
+            /// held in `T` ([`PlanChain`]: the projective applier at an
+            /// evaluation scalar, the homogeneous one at an enclosure
+            /// scalar), the held knots carried plan to plan
+            /// ([`Knots::restructure`]). A value a plan brings in is
+            /// `fresh(v)`: the caller's `f64` parameter entered as the
+            /// constant it is ([`Self::inserted`]), or, for a removal's
+            /// reinsertion, the held value the removal took out. Empty
+            /// chain ⇒ clone.
+            ///
+            /// # Errors
+            ///
+            /// At an enclosure scalar, the carrier's door's refusals of
+            /// the result ([`KnotAlgebraError::Structure`]); none at an
+            /// evaluation scalar.
+            fn apply_plans(&self, plans: &[spline::CurvePlan], fresh: &dyn Fn(f64) -> T) -> Result<Self, KnotAlgebraError> {
+                T::split_projective(PlanChain { curve: self, plans, fresh })
             }
 
             /// Knot insertion (§5.2), single value `times`-fold — the
@@ -755,8 +845,8 @@ macro_rules! nurbs_curve {
             /// inserted weight rounds out of the positive regime (both
             /// blend terms underflowing, on subnormal weights).
             pub fn insert_knot(&self, u: f64, times: usize) -> Result<Self, KnotAlgebraError> {
-                let plans = spline::algebra::insert_knot_plan(self.knots_f64_interim(), self.weights.weights_f64_interim(), u, times)?;
-                Ok(self.apply_plans(&plans, &Self::inserted))
+                let plans = spline::plan_inputs::insert_knot_plan(&self.knots, &self.weights, u, times)?;
+                self.apply_plans(&plans, &Self::inserted)
             }
 
             /// Splits the curve at interior parameter `u` into two
@@ -779,46 +869,31 @@ macro_rules! nurbs_curve {
             /// ([`Self::insert_knot`]).
             pub fn split_at(&self, u: f64) -> Result<(Self, Self), KnotAlgebraError> {
                 let p = self.knots.degree();
-                let (d0, d1) = self.domain();
-                if !u.is_finite() || !(u > d0 && u < d1) {
-                    return Err(KnotAlgebraError::ParameterOutsideDomain { u });
-                }
-                let have = self.knots_f64_interim().multiplicity_of(u).map_or(0, |(m, _)| m);
+                // `u`'s place, the domain test included, decided for every
+                // member of the held knots (`spline::plan_inputs`).
+                let have = spline::plan_inputs::split_multiplicity(&self.knots, u)?;
                 let full = if have < p {
                     self.insert_knot(u, p - have)?
                 } else {
                     self.clone()
                 };
-                // First occurrence of `u` in the saturated vector
-                // (multiplicity is exactly `p` there). Present by
-                // construction; `ok_or` keeps the path total.
-                let knots = full.knots_f64_interim().knots();
-                let f = knots
-                    .iter()
-                    .position(|k| *k == u)
-                    .ok_or(KnotAlgebraError::KnotNotPresent { u })?;
                 // Child 1: every knot below `u` plus `p + 1` copies of
                 // `u`; control points 0..f (C(u) is control index
                 // f − 1 of the saturated curve, shared by both).
-                // Each child's knots are breakpoints of the saturated
-                // curve, so each keeps its held value (`u` included:
-                // present at multiplicity `p`); nothing is entered fresh.
-                let mut k1: Vec<f64> = knots[..f + p].to_vec();
-                k1.push(u);
-                let k1 = KnotVector::clamped(k1, p).map_err(KnotAlgebraError::Structure)?;
+                // Child 2: one extra copy of `u`, then every knot from
+                // index f on; control points f − 1 onward. Each child's
+                // knots are breakpoints of the saturated curve, so each
+                // keeps its held value (`u` included: present at
+                // multiplicity `p`); nothing is entered fresh.
+                let (f, k1, k2) = spline::plan_inputs::split_knots(&full.knots, u, Self::inserted)?;
                 let c1 = Self::new(
-                    full.knots.restructure(k1, Self::inserted),
+                    k1,
                     full.control[..f].to_vec(),
                     full.weights.values()[..f].to_vec(),
                 )
                 .map_err(KnotAlgebraError::Structure)?;
-                // Child 2: one extra copy of `u`, then every knot from
-                // index f on; control points f − 1 onward.
-                let mut k2: Vec<f64> = vec![u];
-                k2.extend_from_slice(&knots[f..]);
-                let k2 = KnotVector::clamped(k2, p).map_err(KnotAlgebraError::Structure)?;
                 let c2 = Self::new(
-                    full.knots.restructure(k2, Self::inserted),
+                    k2,
                     full.control[f - 1..].to_vec(),
                     full.weights.values()[f - 1..].to_vec(),
                 )
@@ -834,8 +909,8 @@ macro_rules! nurbs_curve {
             /// As [`Self::insert_knot`], against the cumulative
             /// structure, [`KnotAlgebraError::WeightCollapse`] included.
             pub fn refine_knots(&self, add: &[f64]) -> Result<Self, KnotAlgebraError> {
-                let plans = spline::algebra::refine_plan(self.knots_f64_interim(), self.weights.weights_f64_interim(), add)?;
-                Ok(self.apply_plans(&plans, &Self::inserted))
+                let plans = spline::plan_inputs::refine_plan(&self.knots, &self.weights, add)?;
+                self.apply_plans(&plans, &Self::inserted)
             }
 
             /// Knot merging (§5.3): every curve refined onto the UNION
@@ -862,7 +937,10 @@ macro_rules! nurbs_curve {
                 T: 'a,
             {
                 let curves: Vec<&Self> = curves.into_iter().collect();
-                let vectors: Vec<&KnotVector> = curves.iter().map(|c| c.knots_f64_interim()).collect();
+                let vectors: Vec<&KnotVector> = curves
+                    .iter()
+                    .map(|c| spline::plan_inputs::point_knots(&c.knots))
+                    .collect::<Result<_, _>>()?;
                 curves
                     .iter()
                     .zip(spline::algebra::union_refinements(&vectors))
@@ -895,20 +973,20 @@ macro_rules! nurbs_curve {
             /// removal chain writes, or one its reinsertion writes,
             /// out of the positive regime.
             pub fn remove_knot(&self, u: f64, times: usize) -> Result<(Self, T), KnotAlgebraError> {
-                let steps = spline::algebra::remove_knot_plan(self.knots_f64_interim(), self.weights.weights_f64_interim(), u, times)?;
+                let steps = spline::plan_inputs::remove_knot_plan(&self.knots, &self.weights, u, times)?;
                 let mut cur = self.clone();
                 let mut bound = T::zero();
                 for step in &steps {
-                    let removed = cur.apply_plans(core::slice::from_ref(&step.plan), &Self::inserted);
+                    let removed = cur.apply_plans(core::slice::from_ref(&step.plan), &Self::inserted)?;
                     // The reinsertion puts back the knot the removal took
                     // out: its held value, so the bound reads the curve's
                     // own knot rather than a constant copy of it.
-                    let held = |v: f64| match cur.knots.value_at(v) {
-                        Ok(k) => k.unwrap_or_else(|| Self::inserted(v)),
-                        Err(e) => unreachable!("a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}"),
-                    };
+                    // The reinsertion brings in `u` alone.
+                    let held_u = spline::plan_inputs::breakpoint_at(&cur.knots, u)?
+                        .unwrap_or_else(|| Self::inserted(u));
+                    let held = |v: f64| if v.to_bits() == u.to_bits() { held_u } else { Self::inserted(v) };
                     let reinserted =
-                        removed.apply_plans(core::slice::from_ref(&step.reinsert), &held);
+                        removed.apply_plans(core::slice::from_ref(&step.reinsert), &held)?;
                     bound = bound + net::removal_pass_bound(
                         (&cur.control, cur.weights.values()),
                         (&reinserted.control, reinserted.weights.values()),
@@ -1402,7 +1480,7 @@ macro_rules! nurbs_curve {
 
         }
 
-        impl<T: ProjectiveScalar> $Curve<T> {
+        impl<T: SpanLocate> $Curve<T> {
             /// Degree elevation (§5.5) by `raise` (≥ 1), via the Bézier
             /// route (`geom_core::spline::algebra::elevate_plan`):
             /// decompose, elevate each segment binomially, recompose
@@ -1418,8 +1496,8 @@ macro_rules! nurbs_curve {
             pub fn elevate_degree(&self, raise: usize) -> Result<Self, KnotAlgebraError> {
                 let mut cur = self.clone();
                 for _ in 0..raise {
-                    let plans = spline::algebra::elevate_plan(cur.knots_f64_interim(), cur.weights.weights_f64_interim())?;
-                    cur = cur.apply_plans(&plans, &Self::inserted);
+                    let plans = spline::plan_inputs::elevate_plan(&cur.knots, &cur.weights)?;
+                    cur = cur.apply_plans(&plans, &Self::inserted)?;
                 }
                 Ok(cur)
             }

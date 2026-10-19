@@ -16,7 +16,6 @@ use crate::doc::{
 use crate::expr::Unlowered;
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::formula::{Formula, FreshFault, LowerFault, NameFault, SlotRoot};
-use crate::mate::reach::MateReach;
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::{EntityKind, ProfileEdgeRef};
 use crate::node::{
@@ -5221,13 +5220,12 @@ pub struct Recording<'a, P: crate::ProfilePayload> {
     minted: Vec<Option<RecipeNodeId>>,
     maintenance: MaintenanceNet,
     tol: Tol,
-    reach: &'a dyn MateReach,
 }
 
 impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     /// An action starting from `doc`, each edit applied at `tol`
-    /// through `reach` ([`apply`]).
-    pub fn start(doc: &'a Doc<P>, tol: Tol, reach: &'a dyn MateReach) -> Self {
+    /// ([`apply`]).
+    pub fn start(doc: &'a Doc<P>, tol: Tol) -> Self {
         Self {
             start: doc,
             produced: None,
@@ -5236,7 +5234,6 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
             minted: Vec::new(),
             maintenance: MaintenanceNet::new(),
             tol,
-            reach,
         }
     }
 
@@ -5276,7 +5273,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     /// As [`Self::apply`]'s.
     pub fn apply_recorded(&mut self, edit: DocEdit<P>) -> Result<EditRecord, EditError> {
         self.open()?;
-        let applied = apply(self.doc(), &edit, self.tol, self.reach).map_err(|e| self.end(e))?;
+        let applied = apply(self.doc(), &edit, self.tol).map_err(|e| self.end(e))?;
         let record = applied.record.clone();
         self.take(edit, applied);
         Ok(record)
@@ -5290,8 +5287,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     /// As [`Self::apply`]'s.
     pub fn insert(&mut self, node: Node<P::Authored, Formula>) -> Result<RecipeNodeId, EditError> {
         self.open()?;
-        let (applied, id) =
-            apply_insert(self.doc(), &node, self.tol, self.reach).map_err(|e| self.end(e))?;
+        let (applied, id) = apply_insert(self.doc(), &node, self.tol).map_err(|e| self.end(e))?;
         self.take(
             DocEdit::InsertNode {
                 node: Box::new(node),
@@ -5337,7 +5333,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
     pub fn declare(&mut self, name: VarName, def: VarDecl) -> Result<VarId, EditError> {
         self.open()?;
         let edit = DocEdit::DeclareVar { name, def };
-        let applied = apply(self.doc(), &edit, self.tol, self.reach).map_err(|e| self.end(e))?;
+        let applied = apply(self.doc(), &edit, self.tol).map_err(|e| self.end(e))?;
         let Some(id) = applied.record.minted_var else {
             unreachable!("an accepted declare mints a variable")
         };
@@ -6164,9 +6160,8 @@ pub fn measure<P: Clone + crate::ProfilePayload, R: Clone + Into<crate::Operand>
     doc: &Doc<P>,
     primitives: &[crate::measure::MeasurePrimitive<R>],
     tol: Tol,
-    reach: &dyn MateReach,
 ) -> Result<MeasureOutcome<P>, EditError> {
-    let mut action = Recording::start(doc, tol, reach);
+    let mut action = Recording::start(doc, tol);
     let measured = action.measure(primitives)?;
     let Recorded {
         doc,
@@ -6225,15 +6220,11 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
 /// here — refs resolve, no cycles, dimension checks re-run on touched
 /// expressions (spec D6), and a mate being inserted passes the solve's
 /// own per-mate admission ([`EditError::MateRefused`]).
-///
-/// `reach` is unread (`work/intent/the-edit-door-takes-a-reach-it-never-reads.md`).
 pub fn apply<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
     tol: Tol,
-    reach: &dyn MateReach,
 ) -> Result<Applied<P>, EditError> {
-    let _ = reach;
     apply_with(doc, edit, tol)
 }
 
@@ -6275,9 +6266,7 @@ pub(crate) fn apply_insert<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     node: &Node<P::Authored, Formula>,
     tol: Tol,
-    reach: &dyn MateReach,
 ) -> Result<(Applied<P>, RecipeNodeId), EditError> {
-    let _ = reach;
     let (doc, minted, maintenance) =
         door(doc, tol, |new, _| insert_into(doc, new, node, &[], tol))?;
     let id = minted.0;
@@ -7925,13 +7914,8 @@ fn set_slot<P: Clone + crate::ProfilePayload>(
 impl<P: Clone + crate::ProfilePayload> Doc<P> {
     /// Method form of [`apply`] (spec D2's pure edit entry point —
     /// pure over the document and the reach).
-    pub fn apply(
-        &self,
-        edit: &DocEdit<P>,
-        tol: Tol,
-        reach: &dyn MateReach,
-    ) -> Result<Applied<P>, EditError> {
-        apply(self, edit, tol, reach)
+    pub fn apply(&self, edit: &DocEdit<P>, tol: Tol) -> Result<Applied<P>, EditError> {
+        apply(self, edit, tol)
     }
 
     /// Replay a logged edit list from the EMPTY document under the
