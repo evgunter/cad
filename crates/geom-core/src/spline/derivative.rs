@@ -1940,9 +1940,11 @@ mod tests {
     /// then [`super::CellFirstQuotients::pieces`] read, and an unasked
     /// axis is `None`. Drawn rational blocks of degree 1–3 per axis with
     /// widened coefficients, on non-dyadic Bézier spans, cut along `u`,
-    /// `v` or both at drawn ends, at 1×1 and 2×2 pieces, for every
-    /// choice of axes. Red if a one-axis cut restricts `W²` differently
-    /// from the two-axis cut, or hands back the other axis's pieces.
+    /// `v` or both at drawn ends, at 1×1 and 2×2 pieces and the
+    /// asymmetric 1×2, 2×1 and 4×2, for every choice of axes. Red if a
+    /// one-axis cut restricts `W²` differently from the two-axis cut,
+    /// hands back the other axis's pieces, or reads the piece counts
+    /// swapped.
     #[test]
     fn a_one_axis_cut_reads_the_two_axis_cuts_pieces_to_the_bit() {
         type Pieces = Vec<super::QuotientPiece<Interval, 3>>;
@@ -1996,7 +1998,7 @@ mod tests {
                 (which != 1).then(|| cut(&mut rng, du)),
                 (which != 0).then(|| cut(&mut rng, dv)),
             );
-            for splits in [(1, 1), (2, 2)] {
+            for splits in [(1, 1), (2, 2), (1, 2), (2, 1), (4, 2)] {
                 let both = whole
                     .restrict(cuts)
                     .pieces(splits)
