@@ -6627,3 +6627,7 @@ Signed (WIRE orchestrator).
     - S1, pairwise spelled two ways.
   - M3 (row bookkeeping) is mine at merge. S2–S4 are taste.
   - Class note: a 'keeps the key bytes' reason must be checked against how the key is fed. A hand-fed key is not a layout.
+
+- 2026-10-19 (WIRE orchestrator) PR 5405 merged (8d59072d88). The fix pass was read: a chain-local set gates `stop`, and a cycle test reds on the old order. Row closed.
+  - Parked a-split-merging-a-two-piece-wall… on the FORK-DEFECT row: its question is which ending a carrier-rounding pinch corner gets.
+  - Dispatched wire-mchord, an investigation (no PR), to find whether any door reaches MergedChordOffRim before a design fork is spent on its sides' order.

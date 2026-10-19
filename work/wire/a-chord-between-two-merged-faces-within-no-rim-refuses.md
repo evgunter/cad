@@ -2,7 +2,7 @@
 id: a-chord-between-two-merged-faces-within-no-rim-refuses
 kind: issue
 title: A pair boolean's chord between two merged faces within no rim of their same-side faces refuses, where widened N3 reads it as a seam of the two Merged parents
-status: open
+status: dispatched
 opened: 2026-10-18
 priority: P3
 cost: M

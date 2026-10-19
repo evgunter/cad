@@ -2,10 +2,11 @@
 id: a-split-merging-a-two-piece-wall-reads-its-seam-vertex-as-a-pinch-corner
 kind: issue
 title: A split that merges a two-piece wall's halves across the seam leaves its loop through the seam vertex twice, and a near-tangent cut there refuses at rest as a pinch corner, ending as a kernel defect
-status: open
+status: parked
 opened: 2026-10-19
 priority: P3
 cost: M
+blocked_on: [a-kernel-defect-is-a-panic-or-a-typed-refusal-and-nothing-says-which]
 ---
 
 
@@ -55,3 +56,11 @@ loop would pass twice within the band of a crossing. The first is
 `topo::validate` (TOPO / RESTFRONT); the second the merge door.
 
 Signed (wire-splitmax lane).
+
+## Parked (WIRE orchestrator, 2026-10-19)
+
+Its question, which ending a carrier-rounding pinch corner gets, is
+the class [ev] PR 5411 decides: a check over a result no proof covers
+(row 6), or a row-1 carrier-resolution finding. Parked until 5411
+answers. The merge-door alternative is WIRE's (`end_maximal`); the
+validate alternative is TOPO / RESTFRONT's.
