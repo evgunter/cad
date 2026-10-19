@@ -258,13 +258,14 @@ pub(crate) struct OpEnv<'a, T: Decide> {
 /// precompute decides on the node's behalf ahead of the key (its
 /// decisions are the log's first entries) and an assertion's payload
 /// feeds the key.
-pub(crate) enum OpInput<'n, T> {
+pub(crate) enum OpInput<'n, T: geom_core::Real> {
     /// A profile, with its program resolved at the nominal and the f64
     /// precompute made from it.
     Profile {
         program: &'n ProfileProgram,
         resolved: Vec<Vec<profile::Step<f64>>>,
         pre: Box<ProfilePre>,
+        form: ProfileForm<T>,
     },
     /// An assertion, with its value and bound evaluated
     /// ([`super::Payload`]) and the dimensions they are read at.
@@ -278,7 +279,17 @@ pub(crate) enum OpInput<'n, T> {
     Other(&'n Node<ProfileProgram>),
 }
 
-impl<T> OpInput<'_, T> {
+/// **How a profile's lane value is formed** ([`super::ProfileLane`]).
+pub(crate) enum ProfileForm<T: geom_core::Real> {
+    /// The `f64` lane over the nominal IS the first pass: its validated
+    /// form is the value.
+    FirstPass(profile::ValidatedProfile<T>),
+    /// Every other lane replays the program, resolved at the lane
+    /// scalar, guided by the first pass's records.
+    Lane(Vec<Vec<profile::Step<T>>>),
+}
+
+impl<T: geom_core::Real> OpInput<'_, T> {
     /// The assertion's payload, for the content key.
     pub(crate) fn payload(&self) -> Option<&super::Payload<T>> {
         match self {
@@ -293,6 +304,23 @@ impl<T> OpInput<'_, T> {
         match self {
             Self::Profile { resolved, .. } => Some(resolved),
             Self::Assertion { .. } | Self::Other(_) => None,
+        }
+    }
+
+    /// The profile's program resolved at the lane scalar, where the
+    /// lane replays it, for the content key.
+    pub(crate) fn lane_program(&self) -> Option<&[Vec<profile::Step<T>>]> {
+        match self {
+            Self::Profile {
+                form: ProfileForm::Lane(resolved),
+                ..
+            } => Some(resolved),
+            Self::Profile {
+                form: ProfileForm::FirstPass(_),
+                ..
+            }
+            | Self::Assertion { .. }
+            | Self::Other(_) => None,
         }
     }
 }
@@ -325,8 +353,10 @@ where
     // A profile reads its frame, a datum, and an assertion reads no
     // operand, so neither has a read to project.
     let node = match input {
-        OpInput::Profile { program, pre, .. } => {
-            let value = wire_profile(doc, program, results, pre, env.lane, tol)?;
+        OpInput::Profile {
+            program, pre, form, ..
+        } => {
+            let value = wire_profile(doc, program, results, pre, form, env.lane, tol)?;
             let rows = crate::coincide::name_junctions(id, &value.validated, &value.pieces)
                 .map_err(NodeErrorKind::Naming)?;
             return Ok(
@@ -1926,8 +1956,9 @@ pub(crate) fn prepare_profile(
     })
 }
 
-/// The lift's SECOND PASS (M10-P PP1/PP5): the same program resolved at
-/// the lane scalar and elaborated there, GUIDED by pass 1's record.
+/// The lift's SECOND PASS (M10-P PP1/PP5): the same program, `resolved`
+/// at the lane scalar (`eval_node`), elaborated there, GUIDED by pass
+/// 1's record.
 ///
 /// This is where a profile parameter reaches the lane, over the
 /// evaluation's own environment ([`LaneEnv::params`]) — a `Dual` seed
@@ -1939,17 +1970,13 @@ pub(crate) fn prepare_profile(
 /// and the canonical permutation they hang off is pinned by the record,
 /// so `T`-valued geometry changes no name.
 pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
-    program: &ProfileProgram,
+    resolved: &[Vec<profile::Step<T>>],
     plane: profile::SketchPlane<T>,
-    lane: LaneEnv<'_, T>,
     pre: &ProfilePre,
     tol: Tol,
 ) -> Result<profile::ValidatedProfile<T>, NodeErrorKind> {
-    let resolved = program
-        .resolve(lane.params)
-        .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
     let mut loops = Vec::with_capacity(resolved.len());
-    for (li, steps) in loop_coordinates(resolved.len())?.zip(&resolved) {
+    for (li, steps) in loop_coordinates(resolved.len())?.zip(resolved) {
         let record = pre
             .structure
             .replay
@@ -1977,19 +2004,20 @@ fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
     program: &ProfileProgram,
     results: &Results<T>,
     pre: &ProfilePre,
+    form: &ProfileForm<T>,
     lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> Result<Arc<ProfileValue<T>>, NodeErrorKind> {
     let plane = frame_plane_lane(doc, results, program.frame, lane.params, tol)?;
-    let validated = match lane.pass_one(pre) {
-        // The `f64` lane IS the first pass, so its validated form is the
-        // value, on the plane minted at the lane, and the node logs what
-        // the second pass it skips decides.
-        Some(pass_one) => {
+    let validated = match form {
+        // The first pass's validated form is the value, on the plane
+        // minted at the lane, and the node logs what the second pass it
+        // skips decides.
+        ProfileForm::FirstPass(first) => {
             geom_core::k_stats::relog(&pre.decided);
-            pass_one.clone().on_plane(plane)
+            first.clone().on_plane(plane)
         }
-        None => lane_profile::<T>(program, plane, lane, pre, tol)?,
+        ProfileForm::Lane(resolved) => lane_profile::<T>(resolved, plane, pre, tol)?,
     };
     Ok(Arc::new(ProfileValue {
         validated,
@@ -2799,14 +2827,19 @@ fn wire_assertion<T: Decide>(
     // A measured value with no value at this scalar is not a failed
     // node, so the assertion answers with E10's third state and the
     // requirement stays visible in a build that cannot check it.
-    if let Some((_, reason)) = payload.unavailable {
-        return Ok(OpOut::plain(
-            ValuePayload::Assertion(crate::measure::AssertionVerdict::Unevaluated {
-                reason: crate::measure::UnevaluatedReason::MeasureUnavailable(reason),
-            }),
-            names::empty(),
-        ));
-    }
+    use super::measure::Observed;
+    let (value, bound) = match payload.observed {
+        [Observed::Unavailable(reason), _]
+        | [Observed::Value(_), Observed::Unavailable(reason)] => {
+            return Ok(OpOut::plain(
+                ValuePayload::Assertion(crate::measure::AssertionVerdict::Unevaluated {
+                    reason: crate::measure::UnevaluatedReason::MeasureUnavailable(reason),
+                }),
+                names::empty(),
+            ));
+        }
+        [Observed::Value(value), Observed::Value(bound)] => (value, bound),
+    };
     // The bound's DECLARED dimension must agree (units erase at the
     // evaluation boundary), through the rule the document doors ask.
     if crate::node::AssertionBoundFault::against(value_dim, bound_dim).is_some() {
@@ -2815,17 +2848,10 @@ fn wire_assertion<T: Decide>(
             bound: bound_dim,
         });
     }
-    let [value, bound] = payload.values.as_slice() else {
-        unreachable!(
-            "an assertion with a value has its value and its bound evaluated, yet the payload \
-             vector holds {}",
-            payload.values.len()
-        )
-    };
     Ok(OpOut::plain(
         ValuePayload::Assertion(crate::measure::decide_assertion(
-            *value,
-            *bound,
+            value,
+            bound,
             relation,
             band(tol)?,
             certified,
@@ -3822,9 +3848,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 // member's.
                 let base = fold_rows.len();
                 let decided = out.coincidences.len();
-                // A pairwise step carries its given pairs, and only one
-                // does (above).
-                if let Some(given) = inputs.given.as_deref() {
+                if pairwise {
+                    let given = inputs.given.as_deref().unwrap_or_else(|| {
+                        unreachable!("a pairwise step's inputs carry its given pairs (set above)")
+                    });
                     let acc_view =
                         names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
                     let inputs_named = crate::coincide::RowInputs {
