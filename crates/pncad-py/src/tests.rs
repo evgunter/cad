@@ -6462,6 +6462,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a constraint the per-mate
     // admission refuses, its fault carried whole.
     ("mate_refused", 2),
+    // Two vocabularies: a pose constructed where two others meet, and a
+    // coincidence row whose cells share one point.
+    ("meet", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
     // fact (`editor_core::refactor::Unmapped::Step`), one word.
     ("name_on_dropped_step", 2),
