@@ -7661,6 +7661,9 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             // backs are taken on the records' word — reading them
             // refuses ratified declared seats
             // (`work/contacthold/declared-only-meetings-clear-at-the-census-gate-unread.md`).
+            // A point the two share a key at is no declaration: such a
+            // pair is probed too, and its shared points are read strictly,
+            // an undecided reading refusing (`blocks`).
             if !unclaimable && (reaches || found || declared_only) {
                 // The material test, both orderings, every vertex. An
                 // `In` is the decided interference whatever else stands.
