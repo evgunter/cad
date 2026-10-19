@@ -940,6 +940,10 @@ enum Ending {
     Undefined(&'static str),
 }
 
+/// The lever of both transversality decisions: the sampled angle and
+/// the uniqueness tube's bound are moved by the same change.
+const CROSS_LEVER: &str = "move the geometry so the surfaces cross at a clearer angle";
+
 impl CertCheck {
     /// Whether this check refuses on a certified upper bound on a miss
     /// rather than on the miss: its refusal says only that the
@@ -988,7 +992,7 @@ impl CertCheck {
                 no_size: None,
             }),
             Self::Transversality => Ending::Sized(SizedDecision {
-                lever: "move the geometry so the surfaces cross at a clearer angle",
+                lever: CROSS_LEVER,
                 size: "angle",
                 passes: SizedPass::Positive,
                 side: RefusedSide::StoredContradiction,
@@ -998,7 +1002,7 @@ impl CertCheck {
             // definite refusal of it is the certificate's limit, which the
             // lever reaches, never a stored contradiction.
             Self::TransversalityTube => Ending::Sized(SizedDecision {
-                lever: "move the geometry so the surfaces cross at a clearer angle",
+                lever: CROSS_LEVER,
                 size: "angle",
                 passes: SizedPass::Positive,
                 side: RefusedSide::Lever,
