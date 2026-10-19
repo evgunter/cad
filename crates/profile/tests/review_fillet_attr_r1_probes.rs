@@ -12,7 +12,7 @@
 //! - `a_construction_stage_refusal_about_the_bracketed_corner_is_not_hidden_behind_a_window_entry`
 //!   — C1 across the two stages: the bracketed corner reaches the
 //!   construction and refuses there with a PAIR-level reason
-//!   (`AlreadyTangent` → `CarriersParallel`, a collapsed turn lever),
+//!   (`TurnInBand` → `CarriersParallel`, a collapsed turn lever),
 //!   the other corner is window-discarded. The row asserts that the
 //!   refusal is either about the pair or names the bracketed corner.
 //!   It is RED on the frozen head: the envelope names only the
@@ -253,7 +253,7 @@ fn grid_a_every_two_entry_envelope_is_ordered_by_the_anchors() {
 /// and the ray meets the circle at the small angle `phi`, so the
 /// construction's `fillet_corner_turn` margin `t * sin(phi)` classifies
 /// Zero while every window and meet gate is definite — the construction
-/// refuses `AlreadyTangent`, which `map_refusal` maps to the PAIR-level
+/// refuses `TurnInBand`, which `map_refusal` maps to the PAIR-level
 /// `NoCornerForFillet { CarriersParallel }`.
 ///
 /// The merge base reported that construction refusal (its build channel

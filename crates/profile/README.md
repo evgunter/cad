@@ -317,18 +317,24 @@ STORES, and a loop stores an arc as its chord and a carrier. Two things
 can happen to that claim between the door's arithmetic and the stored
 form, and both are refused at the door rather than left for validation:
 
-- **The arc flattens.** A fillet whose sagitta `r(1 − cos(θ/2))` sits at
-  or below ε is read back as a straight segment, so the carrier is not
-  there (`PathError::FilletArcFlattenedInStorage`; the levers are a
+- **The arc flattens.** A fillet whose sagitta `r(1 − cos(θ/2))` sits
+  at or below ε is read back as a straight segment, its chord. The
+  chord turns from each leg by half the fillet's turn over its own
+  length, so at the shorter arm its joints turn by about four times
+  the sagitta: within ε the declared tangency holds on the chord and
+  the loop validates; in band the door escalates; past the band it
+  refuses (`PathError::FilletArcFlattenedInStorage`; the levers are a
   larger turn or a larger radius).
-- **The joint falls below scene resolution.** A carrier clearance is a
-  difference of lengths at the scene's own magnitude, so it resolves
-  only to about that magnitude times 2⁻⁵². Past the radius, or the
-  distance from the origin, where that floor is coarser than ε, the
+- **The joint falls below scene resolution.** A joint's turn is read
+  off its legs' headings, each a difference of coordinates at the
+  scene's own magnitude over the length it is taken across, so levered
+  by the joint's arm it resolves only to about that magnitude times
+  2⁻⁵² times `arm/ρ`, at most about the magnitude times 2⁻⁵². Past the
+  distance from the origin where that floor is coarser than ε, the
   joint cannot be classified, nor the stored carrier read against its
-  own vertex (`PathError::FilletCarrierBelowSceneResolution`; the levers
-  run the other way — a smaller radius, or the geometry nearer the
-  origin).
+  own vertex (`PathError::FilletCarrierBelowSceneResolution`; the lever
+  is the magnitude — the geometry nearer the origin, a radius no larger
+  than its distance from it — not the turn).
 
 Both read back through `seg::build_seg` and `seg::joint_tangency`, the
 verify layer's own classifications, so the door's answer is the verify
@@ -484,8 +490,10 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   constructor made is a tangent joint all the same, recorded for the
   `unproven-coincidence` lint ([coincidence]); the sliver band refuses. Every
   zero-turn joint is a tangent joint. A junction's tangency is decided
-  by its turn levered by the leg's arm (`path_junction_turn`), the one
-  reading the path door, validation and the sweep share; no new ε. The
+  by its turn levered by the shorter of its two legs' arms
+  (`seg::junction_turn`, `path_junction_turn`): one reading, at one
+  arm, that the path door and validation both call; the sweep reads
+  the same turn of the body's faces, levered at their reach; no new ε. The
   simplicity pass reads where a loop meets itself, never how far two
   adjacent segments run within ε of each other past their joint: that
   neighbourhood is the joint's own ([topology.census]). Whether a

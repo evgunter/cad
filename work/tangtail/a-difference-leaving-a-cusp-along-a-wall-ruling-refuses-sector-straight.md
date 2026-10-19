@@ -68,3 +68,21 @@ as `work/cleave/subtracting-a-slit-tool-resting-its-floor-on-a-face-escalates-se
 Does a result with a cusp edge build (a wedge-0 edge, D1's wedge-end
 rules) or refuse typed, with a recourse? Today it refuses `Escalated`,
 which reads as a band question, and no tolerance answers it.
+
+## 2026-10-19: cells A and B build (CLEAVE, `cleave/gate-refuses-overlapping-wedges`)
+
+The refusal came from ∖'s reverted-line check (PR 5106): it read the
+line body's coincident edges along the ruling and then the result's
+wedge there, where `sector_straight` rejects the cusp edge's zero angle
+(a definite reading, reported as an escalation). That check is folded
+into the Boolean's result gate, which reads only lines where two or
+more of the result's edges lie, and the result here keeps one cusp edge
+on the ruling. So `tool ∖ line` builds in both cells at the closed form
+(the cusp sliver under the tool's far side plus the triangle beyond the
+piece's far side, times the height), tier 3 clean, its cusp read by
+tier 3's wedge-end arm: the pin is now
+`a_difference_leaving_a_cusp_along_the_ruling_builds`. Where a cusp or
+slit edge does share a line with another edge, the gate refuses typed
+(`LineWedgeFault::WedgeEnd`, D1: a consumer with no wedge-end answer
+refuses at the consumer), not as an in-band escalation. The row's
+question, build or refuse, is answered for this shape: it builds.

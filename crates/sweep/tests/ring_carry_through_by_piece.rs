@@ -385,18 +385,19 @@ fn an_elliptical_ring_beside_a_hole_rim_refuses_unmetered() {
     }
 }
 
-/// **A ring pinched to a hole's rim at a vertex builds, and filleting
-/// the rim refuses.** A diamond pocket whose vertex meets the rim's
-/// vertex runs one edge down the hole's seam ruling, a ruling lying on
-/// the wall, which the subtract places as an ON event: in either order
-/// it builds at its closed form (the cube less the bore and the pocket's
-/// `0.02 × 0.2`), valid at tiers 3 and 3′, the pocket's floor vertex
-/// recorded touching the ruling and its edge recorded lying along it.
-/// Its top face's boundary then passes
-/// through the rim vertex twice, so the rim's ring carries the pocket's
-/// edges, and a fillet of the rim alone refuses on that chain.
+/// **A ring pinched to a hole's rim at a vertex refuses its overlapping
+/// wedges.** A diamond pocket whose vertex meets the rim's vertex runs
+/// one edge down the hole's seam ruling, a ruling lying on the wall. The
+/// material there is two 45° wedges, each between a pocket face and the
+/// wall; the subtract keeps the bore's seam edge (180°) and the pocket's
+/// vertical edge (270°) on the line from `(0.5, 0.5, 0.8)` to
+/// `(0.5, 0.5, 1)`, overlapping, which tiers 3 and 3′ passed at the
+/// closed form's volume. In either order the result gate refuses. The
+/// rim fillet's refusal on the pocket's ring, which this pinch drew,
+/// returns with the re-pairing
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
 #[test]
-fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
+fn a_ring_pinched_to_a_rim_vertex_refuses_its_overlapping_wedges() {
     let hole = bore(0.3, 0.5, 0.2, -0.2, 1.4);
     let pocket = at(
         prism(
@@ -413,7 +414,6 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
         0.0,
         0.8,
     );
-    let want = 1.0 - PI * 0.04 - 0.02 * 0.2;
     let holed = sub(&cube(1.0, tol()), &hole);
     let pocketed = sub(&cube(1.0, tol()), &pocket);
     for (what, a, b) in [
@@ -421,7 +421,6 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
         ("pocket first", &pocketed, &hole),
     ] {
         use sweep::test_support::finished;
-        use topo::BooleanResult;
         use topo::boolean::{SweepStrategy, boolean_op_with};
         let r = boolean_op_with(
             BooleanOp::Subtract,
@@ -431,49 +430,18 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
             SweepStrategy::Realized,
             tol(),
         );
-        let Ok(BooleanResult::Body(bb)) = r else {
-            panic!("{what}: the pinch builds: {r:?}");
-        };
-        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
-            .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
-        let body = bb.body;
-        validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
-        let got = topo::mass_properties(&body, tol()).unwrap().volume;
         assert!(
-            (got - want).abs() <= 1e-12,
-            "{what}: the closed form: {got} vs {want}"
-        );
-        assert_eq!(
-            (
-                body.faces().count(),
-                body.edges().count(),
-                body.vertices().count(),
-                body.shells().count(),
+            matches!(
+                &r,
+                Err(topo::BooleanError::LineWedges {
+                    fault: topo::LineWedgeFault::Overlap { .. },
+                    from,
+                    to,
+                }) if [from.as_str(), to.as_str()].contains(&"(0.5, 0.5, 0.8)")
+                    && [from.as_str(), to.as_str()].contains(&"(0.5, 0.5, 1.0)")
             ),
-            (13, 30, 19, 1),
-            "{what}: F, E, V, shells"
+            "{what}: {r:?}, not the overlap's refusal on the seam ruling"
         );
-        assert_eq!(
-            (
-                bb.contacts.vertex_vertex().count(),
-                bb.contacts.vertex_face().count(),
-                bb.contacts.vertex_edge().count(),
-                bb.contacts.edge_edge().count(),
-            ),
-            (0, 0, 1, 1),
-            "{what}: [v-v, v-f, v-e, e-e] records"
-        );
-        let rim = rim_at(&body, 1.0, 0.2);
-        for r in [0.02, 0.05] {
-            let err = fillet_edges(&body, &rim, r, tol())
-                .expect_err("refuses")
-                .error;
-            assert!(
-                matches!(&err, BlendError::UnsupportedChain { detail, .. }
-                    if detail.contains("a rim ring carries edges outside the requested chain")),
-                "{what}, r = {r}: the rim's ring carries the pocket, got {err:?}"
-            );
-        }
     }
 }
 

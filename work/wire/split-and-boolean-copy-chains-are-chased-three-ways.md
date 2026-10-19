@@ -2,10 +2,13 @@
 id: split-and-boolean-copy-chains-are-chased-three-ways
 kind: issue
 title: Three hand-written chain chases (pair_original, chase_split_lineage, Fused::origin) handle a cycle three different ways
-status: review
+status: closed
 opened: 2026-10-18
 priority: P3
 cost: M
+pr: 5405
+branch: wire/one-chain-chase
+closed: 2026-10-19
 ---
 
 

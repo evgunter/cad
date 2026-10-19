@@ -2470,6 +2470,63 @@ mod fold_pad_rows {
 }
 
 #[cfg(test)]
+mod fold_order_rows {
+    use super::*;
+
+    /// Every order of six signed terms whose volume is small against
+    /// them (a body `10⁵` m out), each summed as the fold sums them and
+    /// divided by 3.
+    fn volumes(terms: &[f64]) -> Vec<f64> {
+        fn perms(rest: &mut Vec<f64>, at: usize, out: &mut Vec<f64>) {
+            if at == rest.len() {
+                out.push(rest.iter().fold(0.0, |s, &t| s + t) / 3.0);
+                return;
+            }
+            for i in at..rest.len() {
+                rest.swap(at, i);
+                perms(rest, at + 1, out);
+                rest.swap(at, i);
+            }
+        }
+        let mut out = Vec::new();
+        perms(&mut terms.to_vec(), 0, &mut out);
+        out
+    }
+
+    /// **Two fold orders round apart by the terms, not the volume**: over
+    /// every order of these terms the volumes spread by `≈ 6.4e-12`,
+    /// thousands of the volume's ulps (an ulp count of `faces − 1` is the
+    /// wrong shape for signed terms), and within [`fold_order_bound`].
+    #[test]
+    fn two_fold_orders_round_apart_within_the_terms_bound() {
+        let terms = [
+            18528.182125433123,
+            -73915.44078297145,
+            83188.96234619622,
+            -5189.292690574687,
+            16170.416870011173,
+            -38781.41946879917,
+        ];
+        let v = volumes(&terms);
+        let (lo, hi) = v
+            .iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), &x| {
+                (l.min(x), h.max(x))
+            });
+        let face_terms: Vec<FaceTerm> = terms.iter().map(|&t| (FaceKey::null(), t, 0.0)).collect();
+        let (bound, pad) = fold_order_bound(&face_terms);
+        assert!(lo > 0.0, "a positive volume: {lo}");
+        assert!(
+            hi - lo > 5.0 * (lo.next_up() - lo),
+            "the orders spread past faces − 1 ulps: {}",
+            hi - lo
+        );
+        assert!(hi - lo <= bound, "spread {} within {bound}", hi - lo);
+        assert_eq!(pad, 0.0, "no pads, no pad gap");
+    }
+}
+
+#[cfg(test)]
 mod continuation_refusal_order_tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
@@ -2621,6 +2678,37 @@ fn mass_properties_impl<T: Decide>(
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub type FaceTerm = (FaceKey, f64, f64);
+
+/// **How far two fold orders of one body's face terms may round apart**:
+/// `(volume, volume_pad)` bounds on `|V₁ − V₂|` and `|P₁ − P₂|` for two
+/// bodies whose faces carry these terms, stored in different orders
+/// (D9: storage is part of the input, so the bits may differ; the gap
+/// may not exceed this). An `n`-term sum rounded to nearest in any
+/// order is within `E = γₙ₋₁·Σ|tᵢ|` of the exact one (`γₖ = k·u/(1 − k·u)`,
+/// `u = 2⁻⁵³`), and its third rounds once more, by at most
+/// `u·(Σ|tᵢ| + E)/3`, so the volumes differ by at most twice their
+/// distance from the exact third. The pads are non-negative and summed
+/// rounding up, so each order's sum is within `γₙ₋₁·Σpᵢ` above the exact
+/// one, and its third is rounded up once more. The bound scales with the
+/// terms, not the volume: a body far from the origin has terms far larger
+/// than its volume. Read with a margin of `1%` for this arithmetic's own
+/// rounding.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[must_use]
+pub fn fold_order_bound(terms: &[FaceTerm]) -> (f64, f64) {
+    let u = f64::EPSILON / 2.0;
+    #[allow(clippy::cast_precision_loss)]
+    let k = terms.len().saturating_sub(1) as f64;
+    let gamma = k * u / (1.0 - k * u);
+    let (abs, pads) = terms.iter().fold((0.0, 0.0), |(a, p), &(_, flux, pad)| {
+        (a + flux.abs(), p + pad)
+    });
+    let e = gamma * abs;
+    let volume = 2.0 * (e + u * (abs + e)) / 3.0;
+    let pad = (gamma * pads + 2.0 * u * pads * (1.0 + gamma)) / 3.0;
+    (1.01 * volume, 1.01 * pad)
+}
 
 /// [`mass_properties`] together with every face's own flux term and
 /// its half-width, in the order the fold sums them (face-arena order).

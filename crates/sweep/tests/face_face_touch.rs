@@ -642,3 +642,174 @@ fn a_given_tangency_whose_faces_part_along_its_line_records_nothing() {
         other => panic!("raised ∪ rod, given: {:?}", other.map(|_| ())),
     }
 }
+
+/// The points of `f`'s vertices.
+fn face_points(body: &Body<f64>, f: topo::FaceKey) -> Vec<[f64; 3]> {
+    body.half_edges()
+        .filter(|(_, h)| body.get_loop(h.parent_loop).is_some_and(|l| l.face == f))
+        .map(|(_, h)| point(body, h.start))
+        .collect()
+}
+
+/// The x-range of `f`'s vertices.
+fn face_x_range(body: &Body<f64>, f: topo::FaceKey) -> (f64, f64) {
+    face_points(body, f)
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
+            (lo.min(v[0]), hi.max(v[0]))
+        })
+}
+
+/// Two disjoint parts as one operand.
+fn parts(what: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> AtRestBody<f64> {
+    match topo::union(x, y, tol()) {
+        Ok(BooleanResult::Body(u)) => finished(what, u.body.into_body(), tol()),
+        other => panic!("{what}: {:?}", other.map(|_| ())),
+    }
+}
+
+/// **A face–face record whose two faces the op divides lands on the
+/// piece pair the line runs through, and passes every other.** The rod
+/// on the plate's y = 2 face along the ruling x = 0, z ∈ [0.25, 0.75];
+/// one block crosses the rod's far wall (y ∈ [2.8, 3.2]) and another
+/// the plate's face at x ∈ [1, 1.5]. Outside: A = plate + far block,
+/// B = rod + face block. Inside: A = a plate slotted through the rod's
+/// wall near y = 1, B = a rod tangent to y = 2 from inside + the face
+/// block. Each op's found row is confirmed on the result's piece pairs;
+/// a pair on the record's carriers that the line does not reach (the
+/// face block's cavity face, a piece of the plate's face past x = 1)
+/// does not meet, whatever its material sides, and the row lands on
+/// the pair that holds the line or nowhere. Red when such a pair reads
+/// contradicted: the op then refuses `CarryRefused { Found, Unread }`.
+///
+/// Volumes are closed form: the far block takes from the rod
+/// `0.5·∫₋.₁^.₁ (√(.25 − x²) − .3) dx`, and the slot takes the same
+/// from the bore's rod.
+#[test]
+fn a_record_whose_faces_the_op_divides_lands_on_the_pair_holding_its_line() {
+    let pi = core::f64::consts::PI;
+    let brick_at = |what, x: (f64, f64), y: (f64, f64), z: (f64, f64)| {
+        finished(what, brick::<f64>(x, y, z, tol()), tol())
+    };
+    let plate = brick_at("plate", (-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0));
+    let far_block = brick_at("far block", (-0.1, 0.1), (2.8, 3.2), (0.0, 1.0));
+    let face_block = brick_at("face block", (1.0, 1.5), (1.5, 2.5), (-0.5, 1.5));
+    let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.25, 0.5);
+    let slotted = ext(
+        "slotted plate",
+        vec![
+            bulge_loop(
+                [(-2.0, -2.0), (2.0, -2.0), (2.0, 2.0), (-2.0, 2.0)]
+                    .map(|(x, y)| (Point2::new(x, y), 0.0))
+                    .to_vec(),
+            ),
+            bulge_loop(
+                [(-0.1, 0.8), (0.1, 0.8), (0.1, 1.2), (-0.1, 1.2)]
+                    .map(|(x, y)| (Point2::new(x, y), 0.0))
+                    .to_vec(),
+            ),
+        ],
+        0.0,
+        1.0,
+    );
+    let bore_rod = ext("bore rod", vec![circle(0.0, 1.5, 0.5, 0.0)], 0.25, 0.5);
+    let notch = {
+        let f = |x: f64| x * (0.25 - x * x).sqrt() / 2.0 + 0.125 * (2.0 * x).asin();
+        0.5 * (2.0 * f(0.1) - 0.06)
+    };
+    let (rod_v, block_v, overlap) = (0.125 * pi, 0.5 * 1.0 * 2.0, 0.5 * 0.5 * 1.0);
+    let out_a = parts("plate + far block", &plate, &far_block);
+    let out_b = parts("rod + face block", &rod, &face_block);
+    let in_b = parts("bore rod + face block", &bore_rod, &face_block);
+    let (va, vb) = (16.0 + 0.08, rod_v + block_v);
+    let (va_in, vb_in) = (16.0 - 0.08, rod_v + block_v);
+    let (vi, vi_in) = (notch + overlap, rod_v - notch + overlap);
+    // (label, x, y, op, solids, volume, face–face records)
+    let rows = {
+        use topo::BooleanOp::{Intersect, Subtract, Union};
+        [
+            ("out A∪B", &out_a, &out_b, Union, 2, va + vb - vi, 1),
+            ("out B∪A", &out_b, &out_a, Union, 2, va + vb - vi, 1),
+            ("out A∖B", &out_a, &out_b, Subtract, 2, va - vi, 0),
+            ("out B∖A", &out_b, &out_a, Subtract, 2, vb - vi, 0),
+            ("out A∩B", &out_a, &out_b, Intersect, 2, vi, 0),
+            ("out B∩A", &out_b, &out_a, Intersect, 2, vi, 0),
+            (
+                "in A∪B",
+                &slotted,
+                &in_b,
+                Union,
+                1,
+                va_in + vb_in - vi_in,
+                0,
+            ),
+            ("in B∖A", &in_b, &slotted, Subtract, 2, vb_in - vi_in, 0),
+            ("in A∩B", &slotted, &in_b, Intersect, 2, vi_in, 0),
+            ("in B∩A", &in_b, &slotted, Intersect, 2, vi_in, 0),
+        ]
+    };
+    for (label, x, y, op, solids, want_v, ff) in rows {
+        let got = match op {
+            topo::BooleanOp::Union => topo::union(x, y, tol()),
+            topo::BooleanOp::Subtract => topo::subtract(x, y, tol()),
+            topo::BooleanOp::Intersect => topo::intersect(x, y, tol()),
+        };
+        let r = match got {
+            Ok(BooleanResult::Body(r)) => r,
+            other => panic!("{label}: {:?}", other.map(|_| ())),
+        };
+        assert_eq!(r.body.solids().count(), solids, "{label}: solids");
+        let v = topo::mass_properties(&r.body, tol()).unwrap().volume;
+        assert!(
+            (v - want_v).abs() < tol().eps(),
+            "{label}: volume {v}, want {want_v}"
+        );
+        assert_eq!(
+            r.contacts.face_face().count(),
+            ff,
+            "{label}: face–face records"
+        );
+        for (p, q) in r.contacts.face_face() {
+            let kind = |f: topo::FaceKey| {
+                r.body
+                    .get_surface(r.body.get_face(f).unwrap().surface)
+                    .unwrap()
+                    .kind()
+            };
+            let (plane, wall) = if kind(p) == SurfaceKind::Plane {
+                (p, q)
+            } else {
+                (q, p)
+            };
+            let walls: Vec<topo::FaceKey> = r
+                .body
+                .faces()
+                .filter(|(_, f)| {
+                    r.body.get_surface(f.surface).unwrap().kind() == SurfaceKind::Cylinder
+                })
+                .map(|(k, _)| k)
+                .collect();
+            let on_rod = face_points(&r.body, wall)
+                .iter()
+                .all(|v| ((v[0]).hypot(v[1] - 2.5) - 0.5).abs() < 1e-9);
+            let beside = topo::point_in_solid(
+                &r.body,
+                geom_core::Point3::new(0.0, 2.01, 0.5),
+                geom_core::Band::linear(tol()).unwrap(),
+                tol(),
+            );
+            assert!(
+                walls == [wall] && on_rod && beside == Ok(topo::SolidContainment::In),
+                "{label}: the record's cylinder face is the rod's one wall piece, which bounds \
+                 the rod's material beside the line: walls {walls:?}, record's {wall:?}, \
+                 on the rod {on_rod}, (0, 2.01, 0.5) {beside:?}"
+            );
+            let (lo, hi) = face_x_range(&r.body, plane);
+            assert!(
+                lo < 0.0 && hi < 1.0 + 1e-9,
+                "{label}: the record's plane face is the piece of the plate's face \
+                 holding x = 0, not the one past the face block: x in [{lo}, {hi}]"
+            );
+        }
+    }
+}

@@ -324,6 +324,47 @@ struct Closed<'a> {
     volume: f64,
 }
 
+/// The cells of [`every_op`] the result gate refuses
+/// (`BooleanError::LineWedges`), by the cell's name: each result
+/// carries coincident edges on the line whose wedges overlap, which
+/// every tier passed. They return with the re-pairing
+/// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
+const OVERLAPPING: &[&str] = &[
+    "subtraction of the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body [0, 1, 2], the line body first: true",
+    "subtraction of the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body [0, 2, 1], the line body first: true",
+    "subtraction of the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body [1, 0, 2], the line body first: true",
+    "subtraction of the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body [1, 2, 0], the line body first: true",
+    "subtraction of the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body [2, 0, 1], the line body first: true",
+    "subtraction of the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body [2, 1, 0], the line body first: true",
+    "subtraction of the wedge towards 350°, the line body [0, 1, 2], the prism over [(1.5, 1.0), (1.569459271066772, 0.6060768987951167), (1.8464101615137753, 0.7999999999999998)], the line body first: true",
+    "subtraction of the wedge towards 350°, the line body [0, 1, 2], the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body first: true",
+    "subtraction of the wedge towards 350°, the line body [1, 0, 2], the prism over [(1.5, 1.0), (1.569459271066772, 0.6060768987951167), (1.8464101615137753, 0.7999999999999998)], the line body first: true",
+    "subtraction of the wedge towards 350°, the line body [1, 0, 2], the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body first: true",
+    "subtraction of the wedge towards 350°, the line body [1, 2, 0], the prism over [(1.5, 1.0), (1.569459271066772, 0.6060768987951167), (1.8464101615137753, 0.7999999999999998)], the line body first: true",
+    "subtraction of the wedge towards 350°, the line body [1, 2, 0], the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body first: true",
+    "subtraction of the wedge towards 350°, the line body [2, 1, 0], the prism over [(1.5, 1.0), (1.569459271066772, 0.6060768987951167), (1.8464101615137753, 0.7999999999999998)], the line body first: true",
+    "subtraction of the wedge towards 350°, the line body [2, 1, 0], the prism over [(1.5, 1.0), (1.9, 1.0), (1.7571150438746157, 1.3064177772475911)], the line body first: true",
+];
+
+/// Whether `got` is the result gate's refusal of overlapping wedges in
+/// a cell [`OVERLAPPING`] names; a cell it names that does not refuse so
+/// is a pin gone stale.
+fn overlap_pinned(what: &str, got: &Result<BooleanResult<f64>, topo::BooleanError>) -> bool {
+    let overlap = matches!(
+        got,
+        Err(topo::BooleanError::LineWedges {
+            fault: topo::LineWedgeFault::Overlap { .. },
+            ..
+        })
+    );
+    let pinned = OVERLAPPING.contains(&what);
+    assert!(
+        overlap || !pinned,
+        "{what}: {got:?}, where the result gate refuses its overlapping wedges"
+    );
+    overlap && pinned
+}
+
 /// **Every op of `line` and `tool`, either operand first**: each builds
 /// a body [`sound`] against the two closed forms, its volume theirs and
 /// `common`'s, their common part's; or refuses the kind `refuses` names
@@ -343,7 +384,11 @@ fn every_op(
             } else {
                 (tool, line)
             };
-            let body = match (op(x.body, y.body, t()), refuses(name, line_first)) {
+            let got = op(x.body, y.body, t());
+            if overlap_pinned(&what, &got) {
+                continue;
+            }
+            let body = match (got, refuses(name, line_first)) {
                 (Err(e), Some(want)) => {
                     assert_eq!(e.kind(), want, "{what}: {e:?}");
                     continue;
@@ -854,7 +899,11 @@ fn edges_on_the_line_recorded(what: &str, x: &AtRestBody<f64>, y: &AtRestBody<f6
     for (name, op, _) in OPS {
         for (first, a, b) in [(true, x, y), (false, y, x)] {
             let what = format!("{name} of {what}, the line body first: {first}");
-            let r = match op(a, b, t()) {
+            let got = op(a, b, t());
+            if overlap_pinned(&what, &got) {
+                continue;
+            }
+            let r = match got {
                 Ok(BooleanResult::Body(r)) => r,
                 Ok(BooleanResult::Empty) => continue,
                 Err(e) => panic!("{what}: builds, got {e:?}"),

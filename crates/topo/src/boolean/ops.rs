@@ -111,7 +111,6 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign,
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::BooleanDecision;
 use super::SphereQuestion;
 use super::boxes;
 use super::combine::{GraftMap, graft_solids_disjoint};
@@ -127,6 +126,7 @@ use super::shell_witness::{
 use super::solid_contain::{SolidContainment, closed_sphere_group};
 use super::voids;
 use super::zip::{Fusions, Seam, SeamCorrespondence, zip_seam, zip_split};
+use super::{BooleanDecision, LineWedgeFault};
 use super::{
     BooleanError, BooleanInputs, BooleanOp, BooleanReduction, Cell, Contact, ContactRecords,
     EeContact, EfContact, FfContact, Glue, GlueVerdict, GluedPair, Operand, OperandRecords,
@@ -752,7 +752,7 @@ fn no_unjoined_line<T: Decide + Bounds>(
     body: &crate::body::Body<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let lines = crate::census::collinear_overlaps(body, |_| true, band).map_err(line_edges)?;
+    let lines = crate::census::collinear_overlaps(body, band).map_err(collinear_escalated)?;
     match lines.first() {
         Some(line) => Err(BooleanError::Revert {
             operand: Operand::B,
@@ -762,77 +762,74 @@ fn no_unjoined_line<T: Decide + Bounds>(
     }
 }
 
-/// An in-band reading of whether two edges of the subtracted solid lie
-/// on one line: a reading of the input, which moving its geometry
-/// reaches.
-fn line_edges((_, diag): ([crate::entity::EdgeKey; 2], Indeterminate)) -> BooleanError {
+/// An in-band reading of whether two straight edges lie on one line
+/// ([`BooleanDecision::LineEdges`]), of the subtracted solid's or of the
+/// result's: a reading of the input, which moving its geometry reaches.
+fn collinear_escalated((_, diag): ([crate::entity::EdgeKey; 2], Indeterminate)) -> BooleanError {
     BooleanError::Escalated {
         decision: BooleanDecision::LineEdges,
         diag,
     }
 }
 
-/// **∖'s check on the lines it reverted**: on each line where two
-/// edges of B's input lie ([`crate::census::collinear_overlaps`]) and
-/// the reverted part kept a piece of both (`kept`, read back through the
-/// reduction's splits), the result's material wedges
-/// ([`crate::census::line_wedges`]) must not overlap. Reversing each
-/// face's side turns the coincident edges' wedges into their
-/// complements, which overlap; where the other operand's faces meet the
-/// line the join can re-pair the sheets, and where none do the reversed
-/// pair reaches the result as it was reversed. The result says which
-/// happened.
-///
-/// Only the edges `kept` names are read, so two edges of B the result
-/// keeps nothing of never escalate it.
+/// **The result's coincident edges bound disjoint material**: on each
+/// line where two or more of the result's edges lie along a length
+/// ([`crate::census::collinear_overlaps`]), their material wedges
+/// ([`crate::census::line_wedges`]) do not overlap. D1 admits coincident
+/// distinct edges only as each classifying its own wedge; where four or
+/// more sheets meet on a line the material decides which pair into
+/// edges, and an op that pairs them otherwise (a join that pairs each
+/// solid's faces with the other's, ∖'s reversal that keeps its
+/// operand's pairing) counts the line's material twice, with the
+/// volume still right and every tier passing.
 ///
 /// # Errors
 ///
-/// [`BooleanError::Revert`]: an overlap, naming two of the result's
-/// edges and where B's line runs, with no claim which operand's edges
-/// carry it; or a face with no sheet on the line.
-/// [`BooleanError::Escalated`]: a reading in band, of B's edges
-/// ([`BooleanDecision::LineEdges`]) or of the result's wedges
-/// ([`BooleanDecision::LineWedges`]). The faces meeting on the line are
-/// A's and B's, carried into the result exactly, so both are readings
-/// of the input, and moving the geometry reaches them.
-fn reverted_lines_disjoint<T: Decide + Bounds>(
-    result: &crate::body::Body<T>,
-    b: &crate::body::Body<T>,
-    kept: &BTreeSet<crate::entity::EdgeKey>,
+/// [`BooleanError::LineWedges`]: an overlap, whose re-pairing is not
+/// built; or a wedge the reading cannot take, a face with no sheet on
+/// the line or a cusp or slit edge (D1: a consumer with no wedge-end
+/// answer refuses typed).
+/// [`BooleanError::Escalated`]: a reading in band, of whether two of the
+/// result's straight edges lie on one line ([`BooleanDecision::LineEdges`])
+/// or of their wedges ([`BooleanDecision::LineWedges`]). Both read where
+/// the operands' faces meet: the result carries their surfaces
+/// unchanged, and a vertex minted where they meet carries the rounding
+/// of its computation, far inside the band (where a minted pair's gap is
+/// in band the reduction reads it first, at the operands' own gap:
+/// `a_doubled_line_does_not_revert::a_minted_edges_in_band_gap_is_the_operands_own`).
+/// So a reading in band is a near-coincidence of the operands' geometry,
+/// and moving it reaches the reading.
+fn coincident_wedges_disjoint<T: Decide + Bounds>(
+    result: &Body<T>,
     band: Band,
 ) -> Result<(), BooleanError> {
-    if kept.is_empty() {
-        return Ok(());
-    }
-    let refused = |source| BooleanError::Revert {
-        operand: Operand::B,
-        source,
-    };
-    let lines = crate::census::collinear_overlaps(b, |edge| kept.contains(&edge), band)
-        .map_err(line_edges)?;
-    for line in &lines {
-        match crate::census::line_wedges(result, line.ends, band) {
-            Ok(crate::census::LineWedges::Disjoint) => {}
-            Ok(crate::census::LineWedges::Overlap(edges)) => {
-                return Err(refused(crate::RevertError::WedgesOverlap {
-                    edges,
-                    from: crate::census::witness(line.ends[0]),
-                    to: crate::census::witness(line.ends[1]),
-                }));
-            }
-            Err(crate::census::WedgeRefusal::Undecided(diag)) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::LineWedges,
-                    diag,
-                });
-            }
-            Err(crate::census::WedgeRefusal::NoSheet(_)) => {
-                return Err(refused(crate::RevertError::NoSheet { edges: line.edges }));
-            }
+    let pairs = crate::census::collinear_overlaps(result, band).map_err(collinear_escalated)?;
+    let (i, fault) = match crate::census::line_wedges(result, &pairs, band) {
+        Ok(None) => return Ok(()),
+        Ok(Some(i)) => (
+            i,
+            LineWedgeFault::Overlap {
+                edges: pairs[i].edges,
+            },
+        ),
+        Err((_, crate::census::WedgeRefusal::Undecided(diag))) => {
+            return Err(BooleanError::Escalated {
+                decision: BooleanDecision::LineWedges,
+                diag,
+            });
         }
-    }
-    Ok(())
+        Err((i, crate::census::WedgeRefusal::NoSheet(edge))) => {
+            (i, LineWedgeFault::NoSheet { edge })
+        }
+        Err((i, crate::census::WedgeRefusal::WedgeEnd(edge))) => {
+            (i, LineWedgeFault::WedgeEnd { edge })
+        }
+    };
+    Err(BooleanError::LineWedges {
+        fault,
+        from: crate::census::witness(pairs[i].ends[0]),
+        to: crate::census::witness(pairs[i].ends[1]),
+    })
 }
 
 /// `body` as the pipeline reads an operand: as is when it holds at most
@@ -971,7 +968,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     share_recorded_points(&mut body, &contacts, &coincidences, band)?;
     body.sweep_and_close();
     let body = gate(finished, band, tol)?;
-    reverted_lines_disjoint(&body, b, &fin.reverted_roots, band)?;
     interior_loops?;
     T::gate_volume_backstop(op, a, b, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
@@ -5308,14 +5304,16 @@ pub(super) fn declared_surface_pairs<T: Real>(
 /// findings are typed by [`finished_body_refusal`]; the structural
 /// gate's are structure alone, the kernel's. A solid whose only shell
 /// check 7 certified in band passes: how thin a result is gets judged
-/// by its pairs alone (D10, Booleans).
+/// by its pairs alone (D10, Booleans). Last, the edges on every line
+/// where two or more lie are read for disjoint material
+/// ([`coincident_wedges_disjoint`]), at every scalar.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Pieces`] where the body's pieces cannot be read;
 /// [`BooleanError::Escalated`] where every finding is the operands'
 /// ill-conditioning, and [`BooleanError::ResultInvalid`] carrying the
-/// validator's findings otherwise.
+/// validator's findings otherwise; [`coincident_wedges_disjoint`]'s.
 pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     body: Body<T>,
     band: Band,
@@ -5338,6 +5336,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     if kept.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
         structural_gate(&kept, band)?;
     }
+    coincident_wedges_disjoint(&kept, band)?;
     Ok(kept)
 }
 
