@@ -1234,6 +1234,7 @@ fn line_arc<T: Decide>(
                 &[foot],
                 CKind::Tangency,
                 spans,
+                Settle::InStretch,
                 band,
             )?;
         }
@@ -1246,6 +1247,7 @@ fn line_arc<T: Decide>(
                 &crossings,
                 CKind::Crossing,
                 spans,
+                Settle::InStretch,
                 band,
             )?;
         }
@@ -1412,7 +1414,15 @@ fn arc_arc<T: Decide>(
                     // Externally tangent; d = r₁ + r₂ ≥ the definite
                     // identity margin, so the division is safe.
                     let q = tangency(g1.arc.radius, -g2.arc.radius);
-                    candidates(&mut contacts, (s1, s2), &[q], CKind::Tangency, spans, band)?;
+                    candidates(
+                        &mut contacts,
+                        (s1, s2),
+                        &[q],
+                        CKind::Tangency,
+                        spans,
+                        Settle::InStretch,
+                        band,
+                    )?;
                 }
                 Sign::Negative => {
                     match decide(
@@ -1432,17 +1442,21 @@ fn arc_arc<T: Decide>(
                             let depth = (g1.arc.radius - g1.arc.rim(foot) + g2.arc.radius
                                 - g2.arc.rim(foot))
                                 * T::from_f64(0.5);
-                            let read = |points: &[Point2<T>], kind| {
+                            let read = |points: &[Point2<T>], kind, settle| {
                                 let mut found = Vec::new();
-                                candidates(&mut found, (s1, s2), points, kind, spans, band)
+                                candidates(&mut found, (s1, s2), points, kind, spans, settle, band)
                                     .map(|()| found)
                             };
                             let tangent = || {
                                 let side = |r: T| pair.radical().select_le_zero(-r, r);
                                 let q = tangency(side(g1.arc.radius), side(g2.arc.radius));
-                                read(&[q], CKind::Tangency)
+                                read(&[q], CKind::Tangency, Settle::InStretch)
                             };
-                            let secant = || read(&circles.crossings(), CKind::Crossing);
+                            // The carriers stay within ε between the
+                            // crossings, so an end there is on both.
+                            let secant = || {
+                                read(&circles.crossings(), CKind::Crossing, Settle::ApartFromEnds)
+                            };
                             // Only a chord definitely deeper than the
                             // band changes the reading, so a foot outside
                             // the circles reads as the tangency it is.
@@ -1477,6 +1491,7 @@ fn arc_arc<T: Decide>(
                                 &crossings,
                                 CKind::Crossing,
                                 spans,
+                                Settle::InStretch,
                                 band,
                             )?;
                         }
@@ -1498,6 +1513,19 @@ fn carrier_pair<T: Real>(g1: &ArcGeom<T>, g2: &ArcGeom<T>) -> Circles2<T> {
     )
 }
 
+/// Which ends may settle a candidate a span reads in band
+/// ([`end_in_stretch`]).
+#[derive(Clone, Copy)]
+enum Settle {
+    /// Any end in the candidate's stretch.
+    InStretch,
+    /// An end in the candidate's stretch that stands definitely apart
+    /// from both of the other segment's ends: for carriers within ε of
+    /// each other between their crossings ([`end_in_stretch`] says
+    /// why).
+    ApartFromEnds,
+}
+
 /// Reads the candidate contacts of two carriers, `points`, each from
 /// the two spans' readings of it (`spans`, through [`joint`]): held by
 /// both, a candidate is a contact, of kind `interior` inside both spans
@@ -1512,6 +1540,7 @@ fn candidates<T: Decide>(
     points: &[Point2<T>],
     interior: CKind,
     spans: impl Fn(Point2<T>) -> (Result<Sign, Indeterminate>, Result<Sign, Indeterminate>),
+    settle: Settle,
     band: Band,
 ) -> Result<(), Indeterminate> {
     let mut missed = false;
@@ -1535,7 +1564,7 @@ fn candidates<T: Decide>(
                 let settled = read
                     .into_iter()
                     .filter(|&(_, _, in_band)| in_band)
-                    .all(|(seg, other, _)| end_in_stretch(seg, other, q, rival, band));
+                    .all(|(seg, other, _)| end_in_stretch(seg, other, q, rival, settle, band));
                 if !settled {
                     return Err(source);
                 }
@@ -1584,6 +1613,12 @@ fn candidates<T: Decide>(
 /// Where `seg` and `other` are adjacent, their shared vertex is on both
 /// carriers. If the carriers read secant it is one candidate, `rival`
 /// to the other, and settles that one only from nearer it than itself.
+/// That fails where the carriers stay within ε between the crossings,
+/// an internal near-tangency read as a secant: the shared vertex is on
+/// both carriers anywhere there, and the touch the settle leaves may be
+/// its own, which the discount absorbs. There the end must stand apart
+/// from both of `other`'s ends ([`Settle::ApartFromEnds`], decided as
+/// `contact_at_shared_vertex`).
 /// If they read tangent, they cut no chord deeper than ε: a line's
 /// `carrier_line_circle` margin is that depth, and two circles' is
 /// `carrier_circles_chord`, which reads a deeper chord as a secant even
@@ -1598,6 +1633,7 @@ fn end_in_stretch<T: Decide>(
     other: &Seg<T>,
     q: Point2<T>,
     rival: Option<&Point2<T>>,
+    settle: Settle,
     band: Band,
 ) -> bool {
     let half = seg.len * T::from_f64(0.5);
@@ -1620,7 +1656,19 @@ fn end_in_stretch<T: Decide>(
             Ok(Sign::Positive)
         )
     });
+    let apart = || {
+        [other.a, other.b].into_iter().all(|e| {
+            matches!(
+                coincident("contact_at_shared_vertex", end, e, band),
+                Ok(Sign::Positive)
+            )
+        })
+    };
     own && matches!(carrier_side(other, end, band), Ok(Sign::Zero))
+        && match settle {
+            Settle::InStretch => true,
+            Settle::ApartFromEnds => apart(),
+        }
 }
 
 /// Which side of `host`'s carrier the point `p` lies on: `chord_side`

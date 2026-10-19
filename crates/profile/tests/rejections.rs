@@ -836,6 +836,50 @@ fn a_compound_joint_escalates_only_where_its_readings_disagree() {
     }
 }
 
+/// **A cusp whose crossing one arc's span reads in band escalates.**
+/// Carriers 0.015 apart cut a chord whose sagitta, 1.5ε, is within the
+/// band, so the crossings stand `√(3ε)` rad either side of the tangency
+/// direction. The joint stands 10ε along toward one of them, and the
+/// second arc leaves it back the way the first came, round to just
+/// past the joint: a gap wide enough to read as an arc, narrow enough
+/// that its span reads the crossing in band. The carriers stay within ε
+/// from the joint to the crossing, so the joint is on both of them, but
+/// a touch there is the shared vertex's: the crossing escalates rather
+/// than settle on it.
+#[test]
+fn a_cusp_whose_crossing_one_arc_reads_in_band_escalates() {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let eps = tol().eps();
+    let (d, sagitta) = (0.015, 1.5 * eps);
+    let (one, two) = near_concentric(d, sagitta * d);
+    let arc = |(centre, radius): (Point2<f64>, f64), sweep| {
+        Segment::Arc(Arc2 {
+            centre,
+            radius,
+            sweep,
+        })
+    };
+    let v = rim(one, -10.0 * eps);
+    let from = (v.y - two.0.y).atan2(v.x - two.0.x);
+    let sweep = -(std::f64::consts::TAU - 1.05 * (160.0 * eps).sqrt());
+    let out = |angle: f64| rim((Point2::new(0.0, 0.0), 2.0), angle);
+    let p = profile(vec![ProfileLoop::new([
+        (rim(one, -10.0 * eps - 0.34), arc(one, 0.34)),
+        (v, arc(two, sweep)),
+        (rim(two, from + sweep), Segment::Line),
+        (out(from + sweep), Segment::Line),
+        (out(-0.34), Segment::Line),
+    ])]);
+    match validate_both(&p) {
+        Err(ProfileError::Escalated { site, source }) => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(0, 1)));
+            assert_eq!(source.predicate, Some("carrier_circles_chord"));
+        }
+        got => panic!("the cusp's crossing should escalate: {got:?}"),
+    }
+}
+
 #[test]
 fn near_tangent_hole_escalates_on_the_internal_clearance() {
     match err(&near_tangent_hole(tol().eps())) {

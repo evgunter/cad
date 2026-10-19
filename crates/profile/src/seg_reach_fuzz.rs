@@ -778,10 +778,13 @@ fn joint(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape, P) {
 /// sagitta is within ε, whose ends stand within √(2r·ε) of its foot,
 /// and a cusp there is a tangent cusp. A sagitta within the band reads
 /// clear only where the crossings and the tangency agree, which a cusp
-/// holding a crossing does not. So any crossing of the two arcs
-/// farther than 1.5·√(2r·ε) from the joint (that half-chord, with room
-/// for the two circles' sagittas differing by g) is one the
-/// shared-vertex discount must not absorb.
+/// holding a crossing does not. So a crossing of the two arcs that
+/// stands farther from the joint than the joint does from the tangency
+/// direction, plus 1.5·√(2r·ε) (that half-chord, with room for the two
+/// circles' sagittas differing by g), is one the shared-vertex discount
+/// must not absorb. One nearer the tangency is a tangent cusp's, which
+/// `a-cusp-on-nested-near-concentric-carriers-validates-along-a-long-eps-stretch`
+/// holds.
 #[test]
 fn a_joint_reads_clear_only_where_its_arcs_cross_near_it() {
     let t = Tol::witness().get();
@@ -813,7 +816,8 @@ fn a_joint_reads_clear_only_where_its_arcs_cross_near_it() {
             else {
                 unreachable!("a joint draws two arcs")
             };
-            let reach = 1.5 * (2.0 * r1.max(r2) * t.eps).sqrt();
+            let tangency = at(c1, r1, (c2.1 - c1.1).atan2(c2.0 - c1.0));
+            let reach = dist(v, tangency) + 1.5 * (2.0 * r1.max(r2) * t.eps).sqrt();
             let far = crossings((c1, r1), (c2, r2)).into_iter().find(|&p| {
                 on_arc(a1, w1, (p.1 - c1.1).atan2(p.0 - c1.0))
                     && on_arc(a2, w2, (p.1 - c2.1).atan2(p.0 - c2.0))
