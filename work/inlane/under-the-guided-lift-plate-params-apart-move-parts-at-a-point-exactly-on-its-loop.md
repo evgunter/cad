@@ -25,3 +25,5 @@ Under the pinned lift the profile did not move with its variables, so this decis
 The gating row `revalue_plate_param` is now pinned under the in-step move (15,539 compared, 7,877 moved, nothing laundered). The apart move's power over this document is lost until this is resolved.
 
 declared_tangency's exact-zero flips, once described here as a second instance, are another mechanism and have their own item, `under-the-guided-lift-declared-tangencys-pcurve-chart-azimuth-frame-flips-from-an-exact-zero`.
+
+**Pinned (2026-10-19, PATHS #5068's fix pass).** `revalue_corpus::revalue_plate_param_apart_to_its_parting` holds plate_param under the apart move over the 5,939 decisions before the `point_in_loop_arm` flip (5,079 moved, nothing laundered), and pins the parting there. A fix here moves that pin, and returns `revalue_plate_param` to the apart move.

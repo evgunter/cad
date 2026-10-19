@@ -6473,3 +6473,46 @@ Signed (WIRE orchestrator).
     in one function.
   Class note: a cell map that changes a cell's dimension must own the
   relation, or it turns a crossing into a coincidence. (WIRE orchestrator)
+- 2026-10-19 — PR 5334 fix pass adjudicated by the orchestrator's read;
+  merged over the two known main reds (the needle, `steep_frusta`, both
+  on the 2026-10-19 nightly), with a comment.
+  - The skip record is shipped. No pose moved on the pinch corner: only
+    the finding changed, and that is filed.
+  - The TOPO row was updated.
+  - One digest (seat7/seat8 `cut_cylinder`) was re-blessed. The lane
+    found identical edge descriptions and no moved point, but did not
+    isolate the cause; noted here.
+  - Five rows closed (the in-plane, two-builders, `-y` revolved,
+    section-root and CLEAVE split-half rows).
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5352 fix pass adjudicated by the orchestrator's read;
+  merged on green.
+  - One spelling door; widened decisions are held, not published, so the
+    cap's face-face and the pencil's edge-edge rows moved to held.
+  - Exception accepted: a decision a surviving record cites is still
+    published with its old spelling, as on main, because the record
+    needs a row. That is pre-existing and filed on CLEAVE.
+  - Twins still arise on coincident lines (filed). CLEAVE's citing-filter
+    row is closed.
+  - Next, unit 2 (`wire`):
+    - k-ary member-cell rows with an origin mark;
+    - spell the held decisions;
+    - drop `wire_combine`'s #4323 citing filter;
+    - re-pin the order tests;
+    - carry over the closed PR 5328's 120-order cover test and site
+      check.
+  (WIRE orchestrator)
+
+- 2026-10-19 — PR 5352 merged; CLEAVE's citing-filter row closed.
+  Dispatched unit 2, `wire/union-decision-log`:
+  - k-ary member-cell rows with an origin mark;
+  - spelling the held `UnspelledDecision`s;
+  - dropping #4323's citing filter;
+  - the door proving k-ary rows;
+  - re-pinned order tests, and 5328's carried tests.
+  Re-triaged to the DUAL review tier: it changes the published
+  `NamedCoincidence` type (Python's `coincidences`) and the door's proof
+  shape, which is broad and hard to reverse. The lane stops if a
+  truthful meeting relation needs more than `CoincidenceRelation`
+  states. (WIRE orchestrator)

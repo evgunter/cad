@@ -55,3 +55,15 @@ readings:
 
 Which one D1 means decides whether the skip stays whole or narrows to
 copies the op decided nothing about.
+
+## Answered (2026-10-19, WIRE `wire-citerows`)
+
+The second reading. DM4 (`crates/editor-core/REFERENCES.md`, approved
+on PR 5329) makes a node's rows its evaluation's decisions, complete,
+and `a-boolean-records-a-zero-decision-only-where-a-record-cites-it`
+(cleave) makes every vertex identity a boolean decides with a margin a
+row, cited or not. `pinch_rows` and its skip rule are gone; the witness
+is now `records_cite_their_decision::a_decision_at_copies_an_operand_already_held_is_a_row`
+(4 rows at normal `(1, 1, 0)`), and
+`coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`
+asserts the slab's intersection records the copies on its face.

@@ -14,7 +14,8 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{Point2, Point3, Vec3};
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve};
@@ -31,9 +32,9 @@ fn offset_square_prism() -> Body<f64> {
     };
     let sections = vec![square(), square(), square()];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.5, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")

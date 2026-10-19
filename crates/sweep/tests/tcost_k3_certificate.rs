@@ -83,6 +83,7 @@ test_utils::gated_to![
 ];
 
 use crate::common::{arc_section, quad_verdicts, stacked};
+use geom_core::Point3;
 use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::loft_body;
@@ -113,8 +114,7 @@ fn arc_prism(s: f64) -> Body<f64> {
 fn arc_prism_at(s: f64, dx: f64) -> Body<f64> {
     loft_body::<f64>(
         &[arc_section(s), arc_section(s)],
-        &[0.0, 1.0]
-            .map(|h| geom_core::Affine3::translation(geom_core::Vec3::new(dx * s, 0.0, h * s))),
+        &[0.0, 1.0].map(|h| SketchPlane::xy_at(Point3::new(dx * s, 0.0, h * s))),
         1,
         Tol::witness(),
     )

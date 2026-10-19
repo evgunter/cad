@@ -12,7 +12,7 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use step_import::{ImportOptions, StepImport, import_step};
 use topo::{Body, SolidContainment};
@@ -56,10 +56,7 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
         Point2::new(x.1, y.1),
         Point2::new(x.0, y.1),
     ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::identity(),
-        Vec3::new(0.0, 0.0, z.0),
-    ));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z.0));
     let vp = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
     sweep::extrude(
         &vp,

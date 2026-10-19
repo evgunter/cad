@@ -262,7 +262,7 @@ The second pass greps `-> Expr\b` and `serde_json::from_str::<.*Expr` and takes 
 - **Analysis axes.** Every anonymous continuous free variable is an axis (VR8):
   - **ParamBox** gains degenerate (`FIXED`) axes only. `varying()` is unchanged, so the drive's splits are unchanged.
   - **MC** draws only `varying()`, in declaration order, so the sheets stay bit-equal (test 9).
-  - **Stackup** gains one dual pass and one report row per anonymous continuous variable (Q4). Its cost grows with the number of written dimensions, outside profiles; profile arguments resolve at f64 under `ProfileLift::Pinned`.
+  - **Stackup** gains one dual pass and one report row per anonymous continuous variable (Q4). Its cost grows with the number of written dimensions, profile arguments included: every evaluation elaborates profile geometry at its own scalar (`editor_core::ProfileLane`).
   - **Sym lane.** Every former literal outside a profile binds as `nominal + param_over(id, [0,0])`, a symbol, where it was a `Lit` constant. A0's constant fold and the coefficient ring see more indeterminates. Pins on `sym_9_retry_interval`, the `m10_*_interval` probes (22 files hold `Sym<`) and `sym11_*` are expected to move (Q3).
 - **Interval pins.** In D, non-dyadic constants enclose their true value instead of the nearest double: one-ulp widenings, and they are correct.
 - **f64 geometry does not move** in C or D. Literal value bits become free-variable value bits, and `Ratio` evaluation bits equal the decimal parse's. A tour frame that changes is a bug, not a re-baseline.

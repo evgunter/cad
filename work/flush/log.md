@@ -458,3 +458,14 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 — (FLUSH orchestrator)
 - 2026-10-19 — **Picked up `coincident-faces-are-not-imprinted-on-each-other-before-the-lump`** (P1, H, design: true), filed from EMIT's `[ev]` PR 5153 after Ev ruled "no stopgap". Its opening question goes to a designer pair first (byte 96, labels on `analysis/design-fork/flush-coincident-imprint`); the lane follows once the pair's recommendation is clear, or after Ev if it is a fork that is Ev's. Filed BAND's main red `main-red-band-turn-overrun-needle-refuses-its-census-at-eps-1e-12`, met on PR 5119's merge with main. PR 5119 is back from the usage pause: another session merged main at Ev's request after #5230 (fork row now 153, then 171 on the lane's next merge), and the lane is sorting its reds. One ruling: the reader's ray decisions rank last on N5's flip lane (a family prefix, mirroring `name_frag_*`), with a crossing note on DOCTAIL's log.
 — (FLUSH orchestrator)
+- 2026-10-19 — **The imprint fork converged; the lane is dispatched.**
+  - Designer pair, byte 96: A = Opus, B = Fable, labels on `analysis/design-fork/flush-coincident-imprint`, protocol `26db1af89e`.
+  - Round 1 split:
+    - A: imprint both copies at the glue door, plus a `[coincidence.booleans]` sentence;
+    - B: cut only where a fragment's fate changes, at the classifier's sites, with substitution lineage and no text change.
+  - Both rejected the row's framing and both corrected its premise: the three-box reproducer is EMIT's, and PR 4650/4737's tier-3′ records stay.
+  - Round 2 (each shown the other's report): A withdrew and adopted B's design. A corrected B's swap-symmetry claim, which holds for the readers but not for the operand pieces; B answered it with a worked partial-overlap table.
+  - No ratified text changes and Ev had already ruled, so this is not an `[ev]` fork and not a fork-log row.
+  - **Tier: dual review**, letter H: an architectural change on the boolean's hot path, crossing into CLEAVE's `boolean/*`.
+  - **Filed:** CONTACTHOLD `edge-in-face-spans-are-re-derived-in-the-carry-…` (B's off-question finding). A note on EMIT's held-edge row.
+— (FLUSH orchestrator)

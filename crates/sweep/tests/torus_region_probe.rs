@@ -9,8 +9,10 @@
 //! - points ON the torus, which the boundary pre-pass hands the wall's
 //!   region directly: on a kept wall the answer is `OnBoundary`, on a
 //!   wall the op cut away the side of the material;
-//! - points NEAR the torus, `10⁻⁷` to `10⁻⁴` off it along its normal: off
-//!   the boundary past the band, so their side, never `OnBoundary`.
+//! - points NEAR the torus, `10⁻⁷` to `10⁻⁴` off it along its normal:
+//!   their side, never `OnBoundary`, except within the band's zero of
+//!   the tube, where the door reads the point on it (a ε row whose zero
+//!   reaches `10⁻⁷` draws such points), so the truth is the tube's.
 //!
 //! The tori are the donut, the one-face torus, a thin tube and the wide
 //! ring `(100, 1)`, the poses scaled to each.
@@ -58,8 +60,8 @@ use sweep::{Revolution, revolve};
 use topo::{AtRestBody, BooleanOp, SolidContainment};
 
 /// How far off every operand's boundary a point off the surfaces must
-/// lie, and the band of an edge of the torus face a point on or near the
-/// tube must clear: far past the band at every ε row.
+/// lie, and how far a point on or near the tube must clear an edge of
+/// the torus face: past the band at every ε row.
 const MARGIN: f64 = 1e-4;
 
 /// The bulge of a quarter arc turning counterclockwise.
@@ -405,7 +407,7 @@ type Query = (Point3<f64>, Option<At>);
 /// Asks every body of `built` at each query of `of(pair)`, the pose's
 /// place read off its shape, and tallies against the truth.
 fn probe(pairs: &[Pair], built: &[Built], mut of: impl FnMut(&Pair) -> Vec<Query>) -> Tally {
-    let band = Band::linear(Tol::witness()).expect("the run's band");
+    let band = band();
     let mut tally = Tally::default();
     for (i, pair) in pairs.iter().enumerate() {
         let queries = of(pair);
@@ -423,6 +425,11 @@ fn probe(pairs: &[Pair], built: &[Built], mut of: impl FnMut(&Pair) -> Vec<Query
         }
     }
     tally
+}
+
+/// The band every query is asked under: the run's.
+fn band() -> Band {
+    Band::linear(Tol::witness()).expect("the run's band")
 }
 
 /// The box a pair's queries are drawn in: about the torus-bearing shape.
@@ -451,6 +458,7 @@ fn random_queries_read_the_truth() {
     );
     let mut rng = test_utils::fuzz::start("torus_region_probe");
     let n = test_utils::fuzz::scaled(4);
+    let on = band().zero();
     let mut draw = |pair: &Pair, kind: u8| -> Vec<Query> {
         let shape = pair.shapes.0;
         let tube = shape.tube().unwrap();
@@ -479,9 +487,12 @@ fn random_queries_read_the_truth() {
                     let delta = rng.log_uniform(1e-7, MARGIN);
                     let out = rng.unit() < 0.5;
                     let q = q + n * if out { delta } else { -delta };
-                    shape
-                        .tube_face(v)?
-                        .then_some((q, Some(if out { At::Out } else { At::In })))
+                    let t = match (delta <= on, out) {
+                        (true, _) => At::On,
+                        (false, true) => At::Out,
+                        (false, false) => At::In,
+                    };
+                    shape.tube_face(v)?.then_some((q, Some(t)))
                 }
             })
             .collect()

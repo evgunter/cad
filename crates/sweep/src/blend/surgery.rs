@@ -1036,6 +1036,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                 },
             // Written below, after these rows are checked.
             edge_joins: _,
+            source: _,
         } = &rec;
         let edge_sources = blends
             .iter()
@@ -1111,6 +1112,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     rec.dead.vertices.sort_unstable();
     rec.dead.vertices.dedup();
     rec.dead.faces.sort_unstable();
+    rec.source = topo::SourceGeometry::of(source);
     Ok(Blended {
         body,
         shells,
@@ -5249,6 +5251,34 @@ impl SourceFaces {
     }
 }
 
+/// **A cut-off arc's window from `p0` to `p1`** on its carrier: `p0`'s
+/// parameter, then `p1`'s within half a turn of it. `p0` is read at the
+/// carrier's seam, or — where its enclosure there spans a half turn or
+/// more — at the half turn. That is the foot on `atan2`'s cut, half a
+/// turn from `u_ref`: an oblique end's ellipse puts a foot on a major
+/// vertex, and an enclosure straddling the cut reads the whole turn
+/// (`Interval::atan2`'s hull). The two anchors' cuts are half a turn
+/// apart, so a foot sits on at most one; a point read is never wide, so
+/// a point scalar reads at the seam. A read that is not finite is no
+/// window.
+pub(super) fn arc_window<T: Decide + Bounds>(
+    c: &Curve3<T>,
+    p0: Point3<T>,
+    p1: Point3<T>,
+) -> Option<(T, T)> {
+    let at_seam = c.param_near(p0, T::zero())?;
+    let t0 = if at_seam.hi() - at_seam.lo() < core::f64::consts::PI {
+        at_seam
+    } else {
+        c.param_near(p0, T::pi())?
+    };
+    let t1 = c.param_near(p1, t0)?;
+    [t0.lo(), t0.hi(), t1.lo(), t1.hi()]
+        .iter()
+        .all(|v| v.is_finite())
+        .then_some((t0, t1))
+}
+
 /// The prefer-intrinsic upgrade for one new edge: rebuild the exact
 /// carrier and describe it — over the rim arcs' stored carriers as
 /// well as over the straight trimlines — as the geometry IS: a seam, a
@@ -5335,10 +5365,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         // reads before `p0` the carrier is run back, the same locus.
         ContactCarrier::Transverse(curve) => {
             let unread = || disagrees(EntityId::Edge(edge), "a cut-off arc's end parameter");
-            let window = |c: &Curve3<T>| {
-                let t0 = c.param_near(p0, T::zero()).ok_or_else(unread)?;
-                Ok::<_, BlendError>((t0, c.param_near(p1, t0).ok_or_else(unread)?))
-            };
+            let window = |c: &Curve3<T>| arc_window(c, p0, p1).ok_or_else(unread);
             let (t0, t1) = window(&curve)?;
             if (t1 - t0).lo() > 0.0 {
                 (curve, t0, t1)
