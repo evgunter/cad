@@ -1264,3 +1264,9 @@ Signed (CLEAVE orchestrator).
   - Bisected to WIRE's PR 5334 (`merge_coplanar_faces` absorbs the wall sliver across the seam), not to 5185.
   - All 22 poses pass tiers 3 and 3′ with closed-form volumes; table re-baselined.
   - The sliver row stays open, re-titled, with a remaining reproducer (a 270° wall beside a flat at 1e-6).
+- 2026-10-19 — PR 5350 merged: the keel builds as Ev's ratified zero-area ring.
+  - Straight trees build (ring, crossing, T, chain, kinks); curved trees refuse `CurvedSlitTrace` (not yet).
+  - The slit is nested by `point_in_loop`, with islands and holes subtracted.
+  - `RingHoming`/`SlitHoming` share one `PointInLoopError` rendering. `Uncrossable` now ends 'not yet' instead of offering a lever: it's a kernel limitation.
+  - Keel row closed.
+  - Filed during the work: CLEAVE P2 `a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses`, P2 `the-splits-at-rest-gate-reads-tier-3-…`, P2 `a-curved-slit-fails-tier-3-prime-…`, P3 `the-split-reads-a-slit-twice-…`, P3 `the-split-keeps-an-in-plane-edge-it-doubles-at-a-dead-key`.
