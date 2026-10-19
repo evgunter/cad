@@ -2,7 +2,7 @@
 id: intent
 kind: program
 title: INTENT — build DESIGN.md D10, one way to say dependency, placement and intent
-status: active
+status: ready
 opened: 2026-10-03
 area: api
 prefix: intent/
@@ -68,3 +68,9 @@ The INTENT orchestrator stopped here when the account's weekly usage ran low. A 
 - Merge main with `git merge --no-commit`, grep for conflict markers, and commit only after a clean grep. Never `commit -a` during a merge: bf2fa7c4ef pushed markers that way.
 - Fork-log rows collide across concurrent PRs. Take the next free number at merge time and re-check before pushing.
 - Reviewer pairs need separate `CARGO_TARGET_DIR`s (`work/issues/a-review-lane-runs-another-lanes-binary.md`).
+
+**Addendum at stop (2026-10-19 10:30Z).**
+- **Merged:** J #5325 (a part's census findings cross the seam), INLANE S5c #5332 and its handoff #5340, and #5335 (this handoff).
+- **Stage 3 D parked, unmerged.** Its branch is `intent/s3-d-transform-retires-into-a-placement` at 54306ddbe4. Its item's `## Handoff` lists the remaining reds with next steps. The PR is not opened and the Tier-H pair has not run. Before the PR, revert the uncommitted probe `[[test]]` entries in `crates/editor-core/Cargo.toml`.
+- **Ruling for the next D lane** (orchestrator-owned C-5, code-level since 99774f9395): the rest snap applies only to a bundle that reads no variable. A placement whose bundle reads a toleranced or free variable always runs its map. Without this the tour's 1-link chain drive certifies 0 leaves: f64 snaps at the nominal, the other leaves do not, and the decision lists differ.
+- **Nightly run 65 (main 07a57312bf) is red in 7 jobs:** the full suite, viewer app, rustdoc, three k-lint rows and the gui montage. Triage was in flight at the stop. Its findings follow on this PR, and the next orchestrator owns any red that is INTENT's or INLANE's.

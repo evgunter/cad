@@ -2,10 +2,13 @@
 id: a-seated-entity-collision-refuses-as-a-name-minted-twice
 kind: issue
 title: A seating door refuses an entity already named as SeatingRefusal::Duplicate, which says the name was minted twice
-status: open
+status: closed
 opened: 2026-10-19
 priority: P4
 cost: E
+closed: 2026-10-19
+pr: 5407
+branch: wire/p4-refusal-bundle
 ---
 
 

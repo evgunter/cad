@@ -1108,6 +1108,12 @@ pub(crate) fn through_the_join<T: geom_core::Decide + crate::props::AtRestPolicy
 /// ([`SplitReduceError::ScaffoldingOperand`],
 /// [`SplitReduceError::InsideOutOperand`]).
 ///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
+///
 /// # Errors
 ///
 /// [`SplitError`], each stage's typed refusals passed through whole (no

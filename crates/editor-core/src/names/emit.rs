@@ -27,8 +27,8 @@ use crate::node::RecipeNodeId;
 /// **Four kinds of thing live here, and the reader is told which.**
 ///
 /// 1. An emission BUG — a mint-time fact inconsistent with the result
-///    body. [`Self::Duplicate`], [`Self::KindMismatch`],
-///    [`Self::ShortTie`], [`Self::Unnamed`],
+///    body. [`Self::Duplicate`], [`Self::EntityNamed`],
+///    [`Self::KindMismatch`], [`Self::ShortTie`], [`Self::Unnamed`],
 ///    [`Self::MissingUpstream`], [`Self::Emission`],
 ///    [`Self::SplitLineage`], [`Self::Settle`].
 /// 2. An honest in-band escalation: [`Self::Escalated`].
@@ -77,11 +77,18 @@ use crate::node::RecipeNodeId;
 #[derive(Debug)]
 pub enum NamingError {
     /// A would-be duplicate name outside the tie path (the
-    /// no-silent-aliasing guarantee N1 rests on), or an entity
-    /// collision at insertion.
+    /// no-silent-aliasing guarantee N1 rests on).
     Duplicate {
         /// The colliding name.
         name: Box<StableName>,
+    },
+    /// A row seated on an entity that already holds a name
+    /// ([`super::table::EntityNamed`]).
+    EntityNamed {
+        /// The name the row was to be seated under.
+        name: Box<StableName>,
+        /// The name the entity already holds.
+        held: Box<StableName>,
     },
     /// A row seated on an entity of another kind than its name's
     /// ([`super::table::KindMismatch`]).
@@ -120,8 +127,9 @@ pub enum NamingError {
         /// What was inconsistent.
         what: &'static str,
     },
-    /// An edge's split lineage cycles, caught where an emitter chased
-    /// it to its root — the same category of kernel bug as
+    /// An edge's split lineage cycles, as `topo::Body::split_root`
+    /// refuses it where an emitter chases through it (the emitters' own
+    /// walks over the copies panic instead, `names::chase`) — the same category of kernel bug as
     /// [`Self::Emission`], carrying the one thing the repair needs
     /// that a sentence cannot supply: WHICH edge.
     ///
@@ -372,6 +380,8 @@ pub enum NamingError {
 /// fact's consistency with the body, an acyclic lineage — found broken.
 /// Each speaks it followed by what it caught —
 /// [`NamingError::Duplicate`] the name minted twice,
+/// [`NamingError::EntityNamed`] the entity offered a second name, or
+/// offered twice,
 /// [`NamingError::KindMismatch`] the name seated on another kind,
 /// [`NamingError::ShortTie`] the tie offered short,
 /// [`NamingError::Unnamed`] the entity left uncovered,
@@ -441,6 +451,24 @@ impl crate::spoken::Say for NamingError {
                  alias silently only over the kernel's dead body",
                 by.name(name),
                 name.path
+            ),
+            // A held name that IS the offered one is a list that
+            // offered one entity twice, and says so.
+            Self::EntityNamed { name, held } if name == held => write!(
+                f,
+                "{EMISSION_FRAMING}: {} was offered the same {} twice — a name's \
+                 candidates are distinct entities",
+                by.name(name),
+                name.kind.noun()
+            ),
+            Self::EntityNamed { name, held } => write!(
+                f,
+                "{EMISSION_FRAMING}: {} was seated on {} {} that {} already names — an \
+                 entity holds one name",
+                by.name(name),
+                name.kind.article(),
+                name.kind.noun(),
+                by.name(held)
             ),
             Self::KindMismatch { name, found } => write!(
                 f,
@@ -642,6 +670,7 @@ impl NamingError {
     pub(crate) fn category(&self) -> Option<Category> {
         match self {
             Self::Duplicate { .. }
+            | Self::EntityNamed { .. }
             | Self::KindMismatch { .. }
             | Self::ShortTie { .. }
             | Self::Unnamed { .. }
@@ -699,6 +728,10 @@ impl From<SeatingRefusal> for NamingError {
     fn from(e: SeatingRefusal) -> Self {
         match e {
             SeatingRefusal::Duplicate(d) => Self::Duplicate { name: d.name },
+            SeatingRefusal::EntityNamed(n) => Self::EntityNamed {
+                name: n.name,
+                held: n.held,
+            },
             SeatingRefusal::KindMismatch(k) => Self::KindMismatch {
                 name: k.name,
                 found: k.found,
@@ -2015,6 +2048,21 @@ mod display_tests {
                 },
                 vec!["the end cap", "a tie of one candidate"],
             ),
+            (
+                NamingError::EntityNamed {
+                    name: Box::new(name.clone()),
+                    held: Box::new(StableName {
+                        path: vec![RoleSeg::Cap(super::super::role::CapEnd::Start)],
+                        ..name.clone()
+                    }),
+                },
+                vec![
+                    "the end cap",
+                    "seated on a face",
+                    "the start cap",
+                    "already names",
+                ],
+            ),
         ];
         // The category is `NamingError::category`'s, which also chooses
         // the ending. Which framing each arm's `Display` interpolates is
@@ -2049,6 +2097,7 @@ mod display_tests {
                 NamingError::PartnerUnread { .. } => 17,
                 NamingError::KindMismatch { .. } => 18,
                 NamingError::ShortTie { .. } => 19,
+                NamingError::EntityNamed { .. } => 20,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

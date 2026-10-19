@@ -1859,6 +1859,12 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// [`MergeCoplanarOutcome::joins`]); a body that also has nothing to
     /// join is untouched (deterministic no-op).
     ///
+    /// # Panics
+    ///
+    /// On a kernel bug: an edge the body stores, re-minted or restated on its
+    /// own carrier and interval, whose span or winding reads certainly
+    /// refused at the run's band.
+    ///
     /// # Errors
     ///
     /// [`MergeCoplanarError`], the body untouched in every case.
@@ -1970,6 +1976,12 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// [`MergeCoplanarOutcome::joins`]), so the body it leaves has
     /// maximal faces and maximal edges (`docs/DESIGN.md`, maximal
     /// edges); a body with nothing to merge is still joined.
+    ///
+    /// # Panics
+    ///
+    /// On a kernel bug: an edge the body stores, re-minted or restated on its
+    /// own carrier and interval, whose span or winding reads certainly
+    /// refused at the run's band.
     ///
     /// # Errors
     ///
