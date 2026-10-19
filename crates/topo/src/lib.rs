@@ -885,8 +885,8 @@ pub use boolean::{
     ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeJoin,
     EdgePieceClass, EeContact, EfContact, FaceContainment, FfContact, Fusions, GlueVerdict,
     GluedPair, HeldEdge, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
-    LeverArm, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace,
-    PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
+    LeverArm, LineWedgeFault, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords,
+    PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
     PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow,
     SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
     SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace,
@@ -955,7 +955,6 @@ pub use coherence::{
 };
 pub use coincidence::{
     Backing, Cited, Cites, Coincidence, DecisionSite, Discharge, Relation, RowCell,
-    UnspelledDecision,
 };
 pub use geom::Curve3;
 pub use geom::Surface;

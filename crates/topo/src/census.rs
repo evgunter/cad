@@ -324,25 +324,12 @@ struct EdgeGeo<T: Real> {
 }
 
 /// A straight span: its start, unit direction and length — what
-/// [`collinear_overlap`] reads of an edge, or of a line no edge of the
-/// body holds.
+/// [`collinear_overlap`] reads of an edge.
 #[derive(Clone, Copy)]
 struct Span<T: Real> {
     p0: Point3<T>,
     dir: Vec3<T>,
     len: T,
-}
-
-impl<T: Real> Span<T> {
-    /// The span from `from` to `to`.
-    fn between(from: Point3<T>, to: Point3<T>) -> Self {
-        let chord = to - from;
-        Self {
-            p0: from,
-            dir: chord.normalize(),
-            len: chord.norm(),
-        }
-    }
 }
 
 /// What has a straight span.
@@ -1351,30 +1338,35 @@ fn line_edges<T: Real>(body: &Body<T>) -> Vec<EdgeGeo<T>> {
     body.edges
         .iter()
         .filter(|&(key, _)| edge_is_line(body, key))
-        .filter_map(|(key, edge)| {
-            let plus = body.half_edges.get(edge.he_plus)?;
-            let v0 = plus.start;
-            let v1 = body.half_edge_end(edge.he_plus)?;
-            let (k0, k1) = (body.vertices.get(v0)?.point, body.vertices.get(v1)?.point);
-            let p0 = *body.points.get(k0)?;
-            let p1 = *body.points.get(k1)?;
-            let sides = crate::readback::edge_sides(body, key).ok()?;
-            let (f_plus, f_minus) = sides.faces();
-            let chord = p1 - p0;
-            Some(EdgeGeo {
-                key,
-                v0,
-                v1,
-                p0,
-                p1,
-                points: [Some(k0), Some(k1)],
-                dir: chord.normalize(),
-                len: chord.norm(),
-                f_plus,
-                f_minus,
-            })
-        })
+        .filter_map(|(key, _)| edge_geo(body, key))
         .collect()
+}
+
+/// One edge's census geometry ([`line_edges`]); `None` where a link
+/// does not resolve.
+fn edge_geo<T: Real>(body: &Body<T>, key: EdgeKey) -> Option<EdgeGeo<T>> {
+    let edge = body.edges.get(key)?;
+    let plus = body.half_edges.get(edge.he_plus)?;
+    let v0 = plus.start;
+    let v1 = body.half_edge_end(edge.he_plus)?;
+    let (k0, k1) = (body.vertices.get(v0)?.point, body.vertices.get(v1)?.point);
+    let p0 = *body.points.get(k0)?;
+    let p1 = *body.points.get(k1)?;
+    let sides = crate::readback::edge_sides(body, key).ok()?;
+    let (f_plus, f_minus) = sides.faces();
+    let chord = p1 - p0;
+    Some(EdgeGeo {
+        key,
+        v0,
+        v1,
+        p0,
+        p1,
+        points: [Some(k0), Some(k1)],
+        dir: chord.normalize(),
+        len: chord.norm(),
+        f_plus,
+        f_minus,
+    })
 }
 
 /// **Two distinct line edges whose interiors overlap along a positive
@@ -1388,13 +1380,12 @@ pub(crate) struct CollinearOverlap<T: Real> {
     pub(crate) ends: [Point3<T>; 2],
 }
 
-/// Every [`CollinearOverlap`] among `body`'s line edges that `keep`
-/// holds: the edge-edge pass's candidates ([`Trees`]' edge class), its
+/// Every [`CollinearOverlap`] among `body`'s line edges: the edge-edge
+/// pass's candidates ([`Trees`]' edge class), its
 /// parallel screen ([`parallel_reading`]) and its overlap
 /// ([`collinear_overlap`]), with no backing asked of any. Two edges on
 /// one line overlap whatever backs them, so a structural pair (one point
 /// key at each bound), a recorded pair and a partial overlap read alike.
-/// An edge `keep` drops is not read at all, so no pair of it escalates.
 ///
 /// The pairs are read as pass 5 reads them ([`parallel_overlap`]): an
 /// in-band parallel reading is settled where the overlap reading
@@ -1407,13 +1398,9 @@ pub(crate) struct CollinearOverlap<T: Real> {
 /// escalation.
 pub(crate) fn collinear_overlaps<T: Decide + Bounds>(
     body: &Body<T>,
-    keep: impl Fn(EdgeKey) -> bool,
     band: Band,
 ) -> Result<Vec<CollinearOverlap<T>>, ([EdgeKey; 2], Indeterminate)> {
-    let edges: Vec<_> = line_edges(body)
-        .into_iter()
-        .filter(|e| keep(e.key))
-        .collect();
+    let edges = line_edges(body);
     let pad = sweep_pad(band);
     let class = Class::build(
         CensusStrategy::Realized,
@@ -1483,31 +1470,23 @@ pub(crate) fn shared_segments<T: Real>(body: &Body<T>) -> Vec<CollinearOverlap<T
     found
 }
 
-/// **How the material wedges of a body's edges on one line stand**
-/// ([`line_wedges`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum LineWedges {
-    /// No two wedges share an interior direction.
-    Disjoint,
-    /// The two edges' wedges overlap: the line's material is counted
-    /// twice, which D1's coincident-distinct-edges class (each edge
-    /// classifying its own wedge) does not admit.
-    Overlap([EdgeKey; 2]),
-}
-
 /// Why [`line_wedges`] could not answer.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum WedgeRefusal {
     /// A decision landed in band, or a wedge has no reading at this
     /// tolerance (a spike, an arm too short to meter). Every reading is
-    /// of the faces meeting on the line, which a Boolean's result
-    /// carries exactly from its operands, so moving the parts reaches
-    /// it: the Boolean types it as an escalation of its input
-    /// ([`crate::boolean::BooleanDecision::LineWedges`]).
+    /// of the surfaces of the faces meeting on the line, which a
+    /// Boolean's result carries unchanged from its operands, so moving
+    /// the parts reaches it: the Boolean types it as an escalation of
+    /// its input ([`crate::boolean::BooleanDecision::LineWedges`]).
     Undecided(Indeterminate),
     /// A face of this edge has no tangent plane where it meets the
     /// line, so it has no sheet to read there.
     NoSheet(EdgeKey),
+    /// This edge's two sheets definitely meet at a zero angle or a full
+    /// turn: a cusp or a knife slit, D1's wedge ends, which this reading
+    /// has no interior direction for.
+    WedgeEnd(EdgeKey),
 }
 
 /// One edge's material wedge on the line: its two face sheets (the
@@ -1515,8 +1494,6 @@ pub(crate) enum WedgeRefusal {
 /// direction it turns about, an interior direction, and the arm its
 /// readings are levered at.
 struct Wedge<T: Real> {
-    key: EdgeKey,
-    span: Span<T>,
     axis: Vec3<T>,
     own: Vec3<T>,
     next: Vec3<T>,
@@ -1524,10 +1501,14 @@ struct Wedge<T: Real> {
     arm: T,
 }
 
-/// **Whether the material wedges of the line edges on one segment
-/// overlap**: every line edge of `body` lying on the segment `line`
-/// along a positive length, each read as its material wedge, and
-/// whether two of them overlap.
+/// **The first coincident pair whose material wedges overlap**: for
+/// each pair `pairs` lists ([`collinear_overlaps`]), the two edges'
+/// material wedges, read at the middle of the span they share, and
+/// whether they overlap. `Ok(Some(i))` names the first such pair,
+/// `Ok(None)` says none does. Each edge's census geometry is read once;
+/// its sheets are read per pair at the shared span, so a partial overlap
+/// on a face whose tangent plane turns along a ruling compares the two
+/// wedges at one point.
 ///
 /// A wedge is the material between an edge's two face sheets, CCW
 /// about the edge's own direction from its minus half's sheet to its
@@ -1536,65 +1517,65 @@ struct Wedge<T: Real> {
 /// whether a direction lies strictly inside it is tier 3's pinch-corner
 /// reading ([`crate::validate::wedge_holds_named`], under names of its
 /// own, [`LINE_WEDGE`]), the same question that
-/// check asks of two corners at a pinch vertex. Two wedges whose edges
-/// overlap along the line overlap where a sheet or the interior
-/// direction of one lies strictly inside the other: two arcs of a
-/// circle share an interior point exactly where one holds an end or a
-/// middle of the other.
+/// check asks of two corners at a pinch vertex. Two wedges overlap
+/// where a sheet or the interior direction of one lies strictly inside
+/// the other: two arcs of a circle share an interior point exactly
+/// where one holds an end or a middle of the other.
 ///
-/// This is the reading tier 3′'s side check owes over every line where
-/// coincident edges lie (restread's
-/// `census-passes-a-face-inside-an-edges-material-wedge`): coincident
-/// edges' material must lie on opposite sides. A face that crosses the
-/// line with no edge of its own there is not read: it holds no sheet
-/// at the line, and finding it is that check's point-in-face question.
+/// The Boolean's result gate runs it over every line where coincident
+/// edges lie; it is the reading tier 3′'s side check owes there too
+/// (restread's `census-passes-a-face-inside-an-edges-material-wedge`):
+/// coincident edges' material must lie on opposite sides. A face that
+/// crosses the line with no edge of its own there is not read: it holds
+/// no sheet at the line, and finding it is that check's point-in-face
+/// question.
 ///
 /// # Errors
 ///
-/// [`WedgeRefusal`]: an in-band reading, or a face with no sheet.
+/// The pair, by its index, whose reading refused ([`WedgeRefusal`]): an
+/// in-band reading, a face with no sheet, or a cusp or slit edge.
 pub(crate) fn line_wedges<T: Decide>(
     body: &Body<T>,
-    line: [Point3<T>; 2],
+    pairs: &[CollinearOverlap<T>],
     band: Band,
-) -> Result<LineWedges, WedgeRefusal> {
-    let segment = Span::between(line[0], line[1]);
-    let mut wedges = Vec::new();
-    for e in line_edges(body) {
-        let mut errors = Vec::new();
-        let Some(on) = parallel_overlap(&segment, &e, band, &mut errors) else {
-            return Err(WedgeRefusal::Undecided(escalation_pushed(errors)));
-        };
-        if on.is_some() {
-            wedges.push(wedge(body, &e, band)?);
+) -> Result<Option<usize>, (usize, WedgeRefusal)> {
+    let mut geo = std::collections::BTreeMap::new();
+    for pair in pairs {
+        for key in pair.edges {
+            if let std::collections::btree_map::Entry::Vacant(slot) = geo.entry(key) {
+                // Tier 1 resolves every link of an edge `collinear_overlaps` read.
+                let Some(e) = edge_geo(body, key) else {
+                    unreachable!("a line edge the overlap read resolves: {key:?}")
+                };
+                slot.insert(e);
+            }
         }
     }
-    for (i, a) in wedges.iter().enumerate() {
-        for b in &wedges[i + 1..] {
-            let mut errors = Vec::new();
-            let Some(along) = parallel_overlap(&a.span, &b.span, band, &mut errors) else {
-                return Err(WedgeRefusal::Undecided(escalation_pushed(errors)));
-            };
-            if along.is_none() {
-                continue;
-            }
-            for (w, probes) in [(a, b), (b, a)] {
-                for v in [probes.own, probes.next, probes.inside] {
-                    if strictly_inside(w, v, band)? {
-                        return Ok(LineWedges::Overlap([a.key, b.key]));
-                    }
+    for (i, pair) in pairs.iter().enumerate() {
+        let at = pair.ends[0] + (pair.ends[1] - pair.ends[0]) * T::from_f64(0.5);
+        let read = |key: EdgeKey| wedge(body, &geo[&key], at, band).map_err(|r| (i, r));
+        let (a, b) = (read(pair.edges[0])?, read(pair.edges[1])?);
+        for (w, probes) in [(&a, &b), (&b, &a)] {
+            for v in [probes.own, probes.next, probes.inside] {
+                if strictly_inside(w, v, band).map_err(|r| (i, r))? {
+                    return Ok(Some(i));
                 }
             }
         }
     }
-    Ok(LineWedges::Disjoint)
+    Ok(None)
 }
 
-/// `e`'s material wedge ([`line_wedges`]), its sheets read at the
-/// middle of the edge.
-fn wedge<T: Decide>(body: &Body<T>, e: &EdgeGeo<T>, band: Band) -> Result<Wedge<T>, WedgeRefusal> {
-    let mid = e.p0 + e.dir * (T::from_f64(0.5) * e.len);
+/// `e`'s material wedge ([`line_wedges`]), its sheets read at `at`, a
+/// point of the edge.
+fn wedge<T: Decide>(
+    body: &Body<T>,
+    e: &EdgeGeo<T>,
+    at: Point3<T>,
+    band: Band,
+) -> Result<Wedge<T>, WedgeRefusal> {
     let normal =
-        |face: FaceKey| match crate::face_normal::face_outward_normal_at(body, face, mid, band) {
+        |face: FaceKey| match crate::face_normal::face_outward_normal_at(body, face, at, band) {
             Ok(Some(n)) => Ok(n),
             Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => {
                 Err(WedgeRefusal::Undecided(diag))
@@ -1610,14 +1591,16 @@ fn wedge<T: Decide>(body: &Body<T>, e: &EdgeGeo<T>, band: Band) -> Result<Wedge<
     let arm = e.len;
     let shape = crate::sector_shape::edge_wedge_shape(own * arm, next * arm, e.dir, band).map_err(
         |fault| match fault {
+            crate::sector_shape::SectorFault::Rung {
+                rung: crate::sector_shape::SectorRung::Straight { .. },
+                diag,
+            } if diag.margin.rejected_sign().is_some() => WedgeRefusal::WedgeEnd(e.key),
             crate::sector_shape::SectorFault::Rung { diag, .. } => WedgeRefusal::Undecided(diag),
             crate::sector_shape::SectorFault::NonFiniteChord
             | crate::sector_shape::SectorFault::UnderflowedChord => WedgeRefusal::NoSheet(e.key),
         },
     )?;
     Ok(Wedge {
-        key: e.key,
-        span: e.span(),
         axis: e.dir,
         own: shape.unit_own,
         next: shape.unit_next,
@@ -15688,5 +15671,67 @@ mod edge_pairs_as_segments {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod split_wedge_tests {
+    use super::*;
+    use crate::test_support_fixtures::{brick, split_plane};
+    use crate::{AtRestBody, BooleanResult, SplitPart, split, union};
+    use geom_core::Tol;
+
+    /// **The split door hands back no coincident edges whose wedges
+    /// overlap**, so its at-rest gate reads no line's wedges: the pinch
+    /// of two bricks united along `(1, 1, z)`, split across the line, and
+    /// along planes through it, leaves each side's coincident edges on
+    /// the line bounding disjoint wedges ([`line_wedges`]). It pins the
+    /// measurement the Boolean gate's PR took over every split side of
+    /// the suites at three ε (no overlap); a split that pairs a pinch's
+    /// sheets as the material does not goes red here.
+    #[test]
+    fn a_split_through_a_pinch_keeps_its_wedges_disjoint() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let at_rest = |b| AtRestBody::validate(b, tol).unwrap();
+        let a = at_rest(brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol));
+        let b = at_rest(brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0), tol));
+        let BooleanResult::Body(pinch) = union(&a, &b, tol).unwrap() else {
+            panic!("the pinch is empty");
+        };
+        let mut read = 0;
+        for (what, origin, normal) in [
+            ("across the line", [1.0, 1.0, 0.5], [0.0, 0.0, 1.0]),
+            (
+                "along a diagonal through it",
+                [1.0, 1.0, 0.0],
+                [1.0, -1.0, 0.0],
+            ),
+            ("along a face through it", [1.0, 1.0, 0.0], [1.0, 0.0, 0.0]),
+        ] {
+            let plane = split_plane(
+                Point3::new(origin[0], origin[1], origin[2]),
+                Vec3::new(normal[0], normal[1], normal[2]),
+                tol,
+            );
+            let r = split(&pinch.body, &plane, tol).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            for side in [r.above, r.below] {
+                let SplitPart::Body(body) = side else {
+                    continue;
+                };
+                let pairs = collinear_overlaps(&body, band).unwrap();
+                read += pairs.len();
+                assert_eq!(
+                    line_wedges(&body, &pairs, band),
+                    Ok(None),
+                    "{what}: a side's coincident edges bound overlapping wedges"
+                );
+            }
+        }
+        assert!(
+            read > 0,
+            "a split side kept the pinch's two edges on the line"
+        );
     }
 }
