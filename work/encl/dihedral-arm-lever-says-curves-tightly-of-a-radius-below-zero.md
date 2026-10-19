@@ -2,11 +2,12 @@
 id: dihedral-arm-lever-says-curves-tightly-of-a-radius-below-zero
 kind: issue
 title: geom-brep: DIHEDRAL_ARM's lever names a short edge or a tight curve, and is already met by a stored radius below zero
-status: review
+status: closed
 pr: 5349
 opened: 2026-10-14
 priority: P3
 cost: E
+closed: 2026-10-19
 ---
 
 (Filed by the ENCL implementer of `param-span-lever-says-vanishingly-short-of-a-reversed-span`, from that unit's sweep of levers about length.)

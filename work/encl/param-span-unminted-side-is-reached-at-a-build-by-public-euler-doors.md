@@ -2,8 +2,9 @@
 id: param-span-unminted-side-is-reached-at-a-build-by-public-euler-doors
 kind: issue
 title: geom-brep/topo: ParamSpan's unminted refused side is reached at a build from public input (Body::mev's caller span, mev_line's coincident points), so its build panic cannot land
-status: open
+status: dispatched
 opened: 2026-10-19
+branch: encl/param-span-doors
 ---
 
 
