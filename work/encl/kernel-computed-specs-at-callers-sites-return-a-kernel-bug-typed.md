@@ -48,7 +48,9 @@ are the ones that restate a stored edge's carrier and interval: the seam
 description pass (`describe_edges`), a split's section boundary
 description and section re-chart, a shell's rim re-chart,
 `describe_at_rest` and the parted-wrap restatement. Each now names a
-`KernelSite` through the `pub(crate)` `set_edge_curve_from` /
-`set_face_surfaces_describing_from`. The PR carries the full site table.
+`KernelSite` through a `pub(crate)` door that takes only the new
+description and restates the stored carrier and interval itself
+(`Body::restate_edge`, `Body::rechart_restating`). The PR carries the
+full site table.
 Sweep's own restatements go through the public door and are filed as
 `work/encl/cross-crate-restatements-of-stored-edges-certify-as-callers.md`.
