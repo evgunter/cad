@@ -416,12 +416,12 @@ fn a_signed_zero_lands_in_the_mirrored_image_and_never_in_its_certificate() {
         radius: 1.0,
         u_ref: Vec3::unit_x(),
     };
-    let image = Pcurve::Harmonic {
-        p0: Point2::new(0.0, 0.0),
-        pa: Vec2::new(1.0, 0.0),
-        pb: Vec2::new(0.0, 1.0),
-        pl: Vec2::new(0.0, 0.0),
-    };
+    let image = Pcurve::free_harmonic(
+        Point2::new(0.0, 0.0),
+        Vec2::new(1.0, 0.0),
+        Vec2::new(0.0, 1.0),
+        Vec2::new(0.0, 0.0),
+    );
     let body = plane_face_with(image, circle, 0.0, core::f64::consts::PI);
     let reverted = body.revert().unwrap();
     let m = only_curve(&reverted);

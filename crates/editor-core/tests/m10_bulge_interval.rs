@@ -112,6 +112,15 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// - `pcurve_chart_placement` is new, 0/0/0/52: each of the 26 placed
 ///   azimuths reads its two half-period marks about the window's
 ///   centre ([`geom_brep::Period::decide`]), each decided numerically.
+///
+/// **PCERT unit B2a (a harmonic row's windings are structure, `[ev]`
+/// PR 5113's first decision) retired three rows** on every spelling:
+/// `pcurve_chart_azimuth_affine` 24/0/0/0, `pcurve_chart_winding`
+/// 12/0/0/18 and `pcurve_azimuth_period` 0/0/0/12 decide nothing now.
+/// An angle channel stores its phase and its windings, an integer
+/// certification compares exactly, so no decision reads a winding off
+/// a slope, and the harmonic lane's period gate is gone with the slope
+/// it read.
 /// - `pcurve_fidelity_branch` is new, 0/0/0/24: fidelity's branch, two
 ///   sign decisions per row at the half-period marks, definite, read
 ///   off the value.
@@ -196,13 +205,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("newell_plane_residual", [30, 0]),
     ("path_circle_radius", [0, 1]),
     ("path_junction_turn", [0, 4]),
-    ("pcurve_azimuth_period", [0, 12]),
-    ("pcurve_chart_azimuth_affine", [24, 0]),
     ("pcurve_chart_cut_side", [0, 26]),
     ("pcurve_chart_orientation", [0, 12]),
     ("pcurve_chart_placement", [0, 52]),
     ("pcurve_chart_radial_moving", [14, 12]),
-    ("pcurve_chart_winding", [12, 18]),
     ("pcurve_envelope", [8, 4]),
     ("pcurve_fidelity_branch", [0, 24]),
     ("pcurve_interval_forward", [0, 12]),
@@ -325,13 +331,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("newell_plane_residual", [18, 0]),
             ("path_circle_radius", [0, 1]),
             ("path_junction_turn", [0, 2]),
-            ("pcurve_azimuth_period", [0, 12]),
-            ("pcurve_chart_azimuth_affine", [24, 0]),
             ("pcurve_chart_cut_side", [0, 26]),
             ("pcurve_chart_orientation", [0, 12]),
             ("pcurve_chart_placement", [0, 52]),
             ("pcurve_chart_radial_moving", [14, 12]),
-            ("pcurve_chart_winding", [12, 18]),
             ("pcurve_envelope", [12, 0]),
             ("pcurve_fidelity_branch", [0, 24]),
             ("pcurve_interval_forward", [0, 12]),

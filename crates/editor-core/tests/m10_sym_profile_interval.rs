@@ -647,12 +647,29 @@ const PLATE_MAX_TERMS: usize = 28;
 /// forms Plain/Assertion 6946 → 7020, Early/Assertion 8108 → 8182,
 /// Door/Decision 9469 → 9545, and their digests; every call and frozen
 /// count holds.
+///
+/// A harmonic row's windings are structure it stores and certification
+/// compares exactly (PCERT B2a, `[ev]` PR 5113's first decision), so
+/// the decisions that read a winding off a slope are gone: the angle
+/// channel's two affine decisions, the winding walk and the harmonic
+/// lane's period gate, `Plain/Decision` 987 → 939 calls and
+/// `Plain/Assertion`, `Early/Assertion` 726 → 686, `Door/Decision`
+/// 468 → 428; forms and digests move with them, and freezes and the
+/// largest form hold.
+///
+/// A winding read as its slope through the chart channel's `Period`
+/// (`Period::rate`: `times(k)` over the carrier's period, PCERT B2a's
+/// fix pass, H1) rather than as a literal: each angle channel's slope
+/// is a quotient of two forms, so `Plain/Decision`, `Plain/Assertion`,
+/// `Early/Decision` and `Early/Assertion` +3 forms and `Door/Decision`
+/// +10, with every digest; every call, every freeze and the largest
+/// form hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 987 forms 15839 frozen 324 digest 04d4c1ba4b5642ca49c5cecc33637690\n\
-     Plain/Assertion calls 726 forms 7020 frozen 405 digest 7ac76e11189bac7ff161e0dbc9d23c35\n\
-     Early/Decision calls 352 forms 8889 frozen 0 digest 6f1681a49fcf6ea64087b7abc15695bf\n\
-     Early/Assertion calls 726 forms 8182 frozen 0 digest a5fe34682216bf66fc159334803f12a4\n\
-     Door/Decision calls 468 forms 9545 frozen 0 digest 875c1ba5bed1ebcfaef22c011ee2d4b8";
+     Plain/Decision calls 939 forms 15836 frozen 324 digest ac360a3480da30b765ada11e3a3550c7\n\
+     Plain/Assertion calls 686 forms 7003 frozen 405 digest 8d1ea8d4812fe2b0aa85cda0c308edfa\n\
+     Early/Decision calls 352 forms 8892 frozen 0 digest 61a2facb711fb0a70f13d4cfa3ece435\n\
+     Early/Assertion calls 686 forms 8165 frozen 0 digest 97a4cf4126af3c7869dc275a5f227dba\n\
+     Door/Decision calls 428 forms 9525 frozen 0 digest c92c1df17252cd30da849fc47ba1a121";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
