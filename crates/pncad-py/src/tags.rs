@@ -2468,6 +2468,7 @@ pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
         AssemblyError::Space { .. } => "own_space",
         AssemblyError::Mint { .. } => "unminted_mates",
         AssemblyError::CarriedMintRefusal { .. } => "carried_mint_refusal",
+        AssemblyError::CarriedAtRest { .. } => "carried_at_rest",
         AssemblyError::AtRest { .. } => "at_rest",
         AssemblyError::Uncertified { .. } => "uncertified",
     }

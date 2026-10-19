@@ -863,6 +863,29 @@ where
                 }
             })
             .collect(),
+        interference: part
+            .interference
+            .iter()
+            .map(|row| {
+                let (route, finding, _) = row.through(id);
+                crate::assembly::CarriedInterference { route, finding }
+            })
+            .collect(),
+        at_rest: part
+            .at_rest
+            .iter()
+            .map(|row| {
+                let (route, finding, held) = row.through(id);
+                crate::assembly::CarriedAtRestFinding {
+                    route,
+                    finding,
+                    held,
+                }
+            })
+            .collect(),
+        // Keyed in the part's body, which the placement moves without
+        // re-minting a key (`place`), so they key the placed copy too.
+        census_pairs: part.census_pairs.as_ref().clone(),
     };
     // The same material copy by copy, under the same map, for a reader
     // of one copy: each named as the instance names it, and placed when

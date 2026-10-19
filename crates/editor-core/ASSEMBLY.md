@@ -510,7 +510,8 @@ each copy its own group) as a `CensusAtRest` row of the product
 pass confirms, and the `unproven-coincidence` check reports each row
 the coincidence door does not prove. Such a record backs no mate, so it
 quiets no `Separation` finding. A touch inside one copy that no record
-backs is that copy's defect, and refuses.
+backs is that copy's defect, and refuses, unless it is a part's own
+finding found again (*A part's own census findings*, below).
 `AssemblyError::AtRest` is a verdict against the document;
 `AssemblyError::Uncertified` is the declared direction's frontier
 (every finding declined, none refuted). A disjoint assembly certifies as
@@ -569,6 +570,34 @@ the outer gate (`AssemblyError::CarriedMintRefusal`), carrying every
 such row in gather order, before this document's own unminted rows and
 before the at-rest gate: an outer assembly is unusable while an inner
 part's contact is unverified.
+
+*A part's own census findings.* A part crosses the seam as one copy, so
+the census over the instantiating product finds the part's own findings
+again inside that copy. The part's verdict crosses with it instead,
+judged as the part's own gate judges it (`assembly::seam_verdict`, at the
+part store): each overlap between two of its copies rides
+`PartValue::interference`, and a refusal of its gate's over a finding
+none of its declarations answers for rides `PartValue::at_rest` whole,
+its attributed findings with it, both routed like a carried
+declaration. A refusal whose every finding the part's gate ties to one
+of its declarations does not cross this way: those declarations'
+records do, and the outer census verifies them again (*Attribution*),
+so a carried decline still reaches `Uncertified`. The pairs of
+solids the crossing findings are about ride `PartValue::census_pairs`,
+re-keyed through every graft by the graft's own solid order
+(`Product::census_pairs`). At the gate, each verdict about one of those
+pairs is the part's, and is not a finding of this document's
+(`checks::at_rest::less_carried`). Each carried finding is reported
+once per part row, by the first route in gather order, so a part placed
+twice reports its overlap once. A carried overlap is reported on
+`Assembly::carried_interference` and never refuses (D10). A carried
+refusal refuses the outer gate as the part's
+(`AssemblyError::CarriedAtRest`), after `CarriedMintRefusal` and before
+this document's own refusals, for the same reason. A census escalation
+names no pair of solids, so the outer census's re-finding of one inside
+the copy matches nothing and is refused as this document's; the part's
+own refusal is raised first
+(`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
 
 *Interference.* An overlap of two copies' material is a finding of its
 own, never a refusal (D10; `checks::at_rest`). The census decides that

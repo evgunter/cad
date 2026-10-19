@@ -602,6 +602,102 @@ impl CarriedRefusal {
     }
 }
 
+/// An overlap a document BELOW this one reported between two of its own
+/// copies, with the route this document reached it by: reported on
+/// `Assembly.carried_interference`, never raised, quiet or loud as the
+/// part's own assertions judged it.
+///
+/// The finding is the part's: its copies are variables of `of`, and its
+/// faces are named as `of` names them.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct CarriedInterference {
+    finding: InterferenceFinding,
+    route: d::Route,
+}
+
+#[pymethods]
+impl CarriedInterference {
+    /// The part's own finding, its copies variables of `of`.
+    #[getter]
+    fn finding(&self) -> InterferenceFinding {
+        self.finding.clone()
+    }
+
+    /// The instantiating node OF THIS DOCUMENT the finding came through.
+    #[getter]
+    fn through(&self) -> NodeId {
+        NodeId(self.route.through)
+    }
+
+    /// The document whose copies overlap, as opaque id text.
+    #[getter]
+    fn of(&self, py: Python<'_>) -> Py<PyAny> {
+        route_fields(py, &self.route).0
+    }
+
+    /// The instances this document reached it through, nearest first.
+    #[getter]
+    fn via(&self, py: Python<'_>) -> Py<PyAny> {
+        route_fields(py, &self.route).1
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CarriedInterference(of={}, loud={})",
+            self.route.of,
+            self.finding.quiet_by.is_none()
+        )
+    }
+}
+
+/// One at-rest census finding a document BELOW this one refused, naming
+/// none of its declarations, with the route this document reached it
+/// by: a row of `AssemblyError.findings` on the `carried_at_rest` arm.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct CarriedAtRestFinding(d::CarriedAtRestFinding, SpokenFrom);
+
+#[pymethods]
+impl CarriedAtRestFinding {
+    /// The part's own finding, said as the part holds its nodes.
+    #[getter]
+    fn finding(&self) -> AtRestFinding {
+        AtRestFinding(
+            self.0.finding.clone(),
+            SpokenFrom::Held(Arc::clone(&self.0.held)),
+        )
+    }
+
+    /// The instantiating node OF THIS DOCUMENT the finding came through.
+    #[getter]
+    fn through(&self) -> NodeId {
+        NodeId(self.0.route.through)
+    }
+
+    /// The document whose census found it, as opaque id text.
+    #[getter]
+    fn of(&self, py: Python<'_>) -> Py<PyAny> {
+        route_fields(py, &self.0.route).0
+    }
+
+    /// The instances this document reached it through, nearest first.
+    #[getter]
+    fn via(&self, py: Python<'_>) -> Py<PyAny> {
+        route_fields(py, &self.0.route).1
+    }
+
+    /// The row in the library's own words: which document, and what its
+    /// census found.
+    fn __str__(&self) -> String {
+        self.1.say(&self.0)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("CarriedAtRestFinding(of={})", self.0.route.of)
+    }
+}
+
 /// A validated assembly: the gathered body, its product names, and one
 /// minted declaration per solved mate.
 ///
@@ -616,6 +712,7 @@ pub(crate) struct Assembly {
     minted: Vec<MintedDeclaration>,
     carried: Vec<CarriedDeclaration>,
     interference: Vec<InterferenceFinding>,
+    carried_interference: Vec<CarriedInterference>,
 }
 
 /// A face of a copy, as the copy's own name table spells it: the name
@@ -674,7 +771,22 @@ pub(crate) struct InterferenceFinding {
 
 impl InterferenceFinding {
     fn of(py: Python<'_>, doc: &d::ProfileDoc, finding: &d::InterferenceFinding) -> PyResult<Self> {
-        let copy = |c: &d::CopyRef| (Var::of(doc, c.var), c.member);
+        Self::read(py, &|id| Var::of(doc, id), finding)
+    }
+
+    /// A part's own finding, carried up: its copies are variables of
+    /// the part, which this document does not hold, so their handles
+    /// carry no kind.
+    fn carried(py: Python<'_>, finding: &d::InterferenceFinding) -> PyResult<Self> {
+        Self::read(py, &|id| Var(id, None), finding)
+    }
+
+    fn read(
+        py: Python<'_>,
+        var: &dyn Fn(d::VarId) -> Var,
+        finding: &d::InterferenceFinding,
+    ) -> PyResult<Self> {
+        let copy = |c: &d::CopyRef| (var(c.var), c.member);
         let (faces, unlocalized) = match &finding.overlap {
             d::Overlap::Bounded { faces } => (
                 Some(
@@ -682,7 +794,7 @@ impl InterferenceFinding {
                         .iter()
                         .map(|site| {
                             Ok(FaceSite {
-                                copy: Var::of(doc, site.copy.var),
+                                copy: var(site.copy.var),
                                 member: site.copy.member,
                                 face: name_text(py, &site.face)?,
                             })
@@ -841,13 +953,23 @@ impl Assembly {
         self.interference.clone()
     }
 
+    /// Every overlap a document BELOW this one reported between two of
+    /// its own copies, once per part row, in gather order: the part's
+    /// findings, reported here and never raised.
+    #[getter]
+    fn carried_interference(&self) -> Vec<CarriedInterference> {
+        self.carried_interference.clone()
+    }
+
     fn __repr__(&self) -> String {
         format!(
-            "Assembly({} names, {} minted declaration(s), {} carried, {} interference)",
+            "Assembly({} names, {} minted declaration(s), {} carried, {} interference, {} \
+             carried interference)",
             self.names.len(),
             self.minted.len(),
             self.carried.len(),
-            self.interference.len()
+            self.interference.len(),
+            self.carried_interference.len()
         )
     }
 }
@@ -887,6 +1009,17 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
                 .into_pyobject(py)
                 .map(|v| v.unbind().into_any())),
             none(),
+        ),
+        // Each row carries its own route, as a carried mint refusal's
+        // does: the finding is the part's.
+        E::CarriedAtRest { findings } => (
+            none(),
+            obj(findings
+                .iter()
+                .map(|f| CarriedAtRestFinding(f.clone(), from.clone()))
+                .collect::<Vec<_>>()
+                .into_pyobject(py)
+                .map(|v| v.unbind().into_any())),
         ),
         E::Product(inner) => {
             let (node, through, name) = product_fields(py, inner);
@@ -1024,6 +1157,16 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         .iter()
         .map(|finding| InterferenceFinding::of(py, &read, finding))
         .collect::<PyResult<Vec<_>>>()?;
+    let carried_interference = assembly
+        .carried_interference
+        .iter()
+        .map(|row| {
+            Ok(CarriedInterference {
+                finding: InterferenceFinding::carried(py, &row.finding)?,
+                route: row.route.clone(),
+            })
+        })
+        .collect::<PyResult<Vec<_>>>()?;
     Ok(Assembly {
         // The at-rest body keeps the record set the gate certified it
         // against — the parts' own carried declarations (D-1) plus
@@ -1040,6 +1183,7 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
             .map(CarriedDeclaration)
             .collect(),
         interference,
+        carried_interference,
     })
 }
 
@@ -1047,6 +1191,8 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Assembly>()?;
     m.add_class::<InterferenceFinding>()?;
+    m.add_class::<CarriedInterference>()?;
+    m.add_class::<CarriedAtRestFinding>()?;
     m.add_class::<FaceSite>()?;
     m.add_class::<MintedDeclaration>()?;
     m.add_class::<CarriedDeclaration>()?;

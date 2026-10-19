@@ -2,8 +2,9 @@
 id: a-part-drops-its-census-findings-at-the-seam
 kind: issue
 title: A part's census findings do not cross into its parent, which re-finds them inside one copy and refuses them
-status: open
+status: closed
 opened: 2026-10-16
+closed: 2026-10-19
 priority: P2
 cost: M
 ---
@@ -33,3 +34,50 @@ whose finding names no entity need
 
 Found by both census-over-solids designers (fork-log row 113 follow-up,
 PR 4666, 2026-10-16). Not run; read from `parts.rs` and `checks/at_rest.rs`.
+
+## Closed (2026-10-19)
+
+The part's verdict crosses the seam as a verdict, in the shape the
+orchestrator approved.
+
+- **At the seam.** The part store judges the part's census the way the
+  part's own gate does (`assembly::seam_verdict`).
+  - Overlaps between the part's copies ride `PartValue::interference`.
+  - If its gate refuses over a finding that names none of its
+    declarations, the whole refusal rides `PartValue::at_rest`, its
+    attributed findings included. Both are routed like a carried
+    declaration.
+  - A refusal whose every finding is tied to one of the part's
+    declarations stays out. Those records cross already, and the outer
+    census verifies them again under `Attribution::Carried`, so a carried
+    decline still reaches `Uncertified`.
+  - The pairs of solids the crossing findings are about ride
+    `PartValue::census_pairs`. Each graft re-keys them by its solid
+    order (`Product::census_pairs`).
+- **At the gate.** `checks::at_rest::less_carried` drops every verdict
+  about a carried pair. An in-copy verdict that matches nothing is
+  refused as before, as the copy's door's own unrecorded contact.
+  - Carried overlaps are reported on `Assembly::carried_interference` and
+    never refuse.
+  - Carried refusals raise `AssemblyError::CarriedAtRest` after
+    `CarriedMintRefusal` and before this document's own refusals.
+  - Each is reported once per part row, by its first route in gather
+    order.
+- **Python.** `Assembly.carried_interference`, the `CarriedInterference`
+  and `CarriedAtRestFinding` classes, and the `carried_at_rest` tag.
+- **Consequence for the scalar set.** `EvalScalar` gains
+  `checks::at_rest::LocalizeLane`, because the seam judges overlaps at
+  every evaluation scalar. `Sym` and every `Dual` take the default,
+  `Unlocalized::Lane`. `e4_dual_door`'s literal records the term.
+
+**The gap this leaves.** A census escalation (`CensusEscalated`) names
+no pair, so the outer census's re-finding of one inside the copy matches
+nothing. It is refused as the outer document's own. The part's own
+refusal (`CarriedAtRest`) is raised first, so the outer verdict is never
+reached while the part refuses. That holds until
+`work/contacthold/an-escalated-census-finding-names-no-pair.md` makes
+every escalation name its pair.
+
+Rows: `crates/editor-core/tests/intent_part_census_seam.rs`, plus the
+Python row in `crates/pncad-py/tests/test_interference.py`.
+
