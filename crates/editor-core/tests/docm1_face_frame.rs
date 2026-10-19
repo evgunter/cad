@@ -603,7 +603,6 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
     };
     let turned = set(ang(-theta)).expect("an angle goes in").doc;
@@ -696,7 +695,6 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
                 to,
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a rebind between face names applies")
         .doc

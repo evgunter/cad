@@ -830,7 +830,7 @@ pub fn census_traces_planted<T: Decide + crate::props::AtRestPolicy + Bounds>(
 }
 
 /// `tol` rides beside `band` for one consumer: the instance-containment
-/// arm's material test, whose at-infinity fold reads a closed-form
+/// arm's material test, whose at-infinity fold reads the sign of a
 /// volume through the props lane (`Tol` is never witnessed here).
 #[allow(clippy::too_many_arguments)] // the census's whole state: the doors' four, the region door, and the trace's three
 fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
@@ -4386,29 +4386,28 @@ pub(crate) fn boundary_unclaimable<T: Decide>(body: &Body<T>, f: crate::entity::
     body.face_boundary_linked(f, face)
         .any(|member| match member {
             BoundaryMember::Isolated { .. } => false,
-            BoundaryMember::Edge { ek, edge, .. } => axial_carrier(body, ek, edge).is_none(),
+            BoundaryMember::Edge { ek, edge, .. } => matches!(
+                axial_carrier(body, ek, edge),
+                crate::boolean::boxes::AxialCarrier::Unclaimable
+            ),
         })
 }
 
 /// One boundary edge's carrier as an axial span reads it
-/// ([`crate::boolean::boxes::axial_carrier`], at this lane's scalar);
-/// `None` where it claims nothing.
+/// ([`crate::boolean::boxes::axial_carrier`], at this lane's scalar).
 fn axial_carrier<T: Decide>(
     body: &Body<T>,
     ek: EdgeKey,
     e: &crate::entity::Edge,
-) -> Option<crate::boolean::boxes::AxialCarrier<T>> {
-    use crate::boolean::boxes::{AxialCarrier, SpanBox, edge_box_rule};
-    match crate::boolean::boxes::axial_carrier(
+) -> crate::boolean::boxes::AxialCarrier<T> {
+    use crate::boolean::boxes::{SpanBox, edge_box_rule};
+    crate::boolean::boxes::axial_carrier(
         edge_box_rule(body.edge_curve_linked(ek, e).certified()),
         SpanBox::point,
         SpanBox::vector,
         |x| x,
         |span| span,
-    ) {
-        AxialCarrier::Unclaimable => None,
-        claimed => Some(claimed),
-    }
+    )
 }
 
 /// The face boundary's AXIAL range about `(origin, axis)` — the
@@ -4437,7 +4436,10 @@ fn boundary_axial<T: Decide>(
             }
             BoundaryMember::Edge { ek, edge: e, .. } => {
                 let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
-                let axial = axial_carrier(body, ek, e)?;
+                let axial = axial_carrier(body, ek, e);
+                if let AxialCarrier::Unclaimable = axial {
+                    return None;
+                }
                 let (a, b) = (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus"));
                 edge_axial_span(&o, &ax, &axial, (&a, &b))
             }
@@ -4499,107 +4501,45 @@ pub(crate) fn edge_reach_in<T: Decide>(
 }
 
 /// [`edge_reach_in`] past its edge's lookup: `e` is `ek`'s record.
+///
+/// No public door builds a spiric-bearing operand that reaches the
+/// contact census at this head (the boolean's operand gate refuses the
+/// kind; a hollowed partial revolve stops at tier 3's check 7 before
+/// the census), so the spiric arm is exercised by the box module's
+/// hand-built sector rows.
 fn edge_reach_of<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
     e: &crate::entity::Edge,
     frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    use crate::boolean::boxes::edge_end_point;
-    let (a, b) = (
-        frame.point(edge_end_point(body, ek, e.he_plus, "he_plus")),
-        frame.point(edge_end_point(body, ek, e.he_minus, "he_minus")),
-    );
-    let chord = (
-        Point3::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)),
-        Point3::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)),
-    );
-    match crate::boolean::boxes::edge_box_rule(body.edge_curve_linked(ek, e).certified()) {
-        crate::boolean::boxes::EdgeBoxRule::NoSoundBox => None,
-        crate::boolean::boxes::EdgeBoxRule::Chord => Some(chord),
-        // The spiric's whole-period amplitude box at this lane's
-        // scalar — `spiric_arc_aabb`'s construction without its
-        // outward rounding, as every conic arm here is: per axis the
-        // `m` channel ranges over `[f_min, f_max]` (the one
-        // `geom::spiric_f_range` spelling) and the `axis` channel over
-        // `r·[−1, 1]`, hulled with the chord. No public door builds a
-        // spiric-bearing operand that reaches the contact census at
-        // this head (the boolean's operand gate refuses the kind; a
-        // hollowed partial revolve stops at tier 3's check 7 before
-        // the census), so the arm is exercised by the box module's
-        // hand-built sector row (`boolean/boxes.rs`,
-        // `the_spiric_edge_box_and_reach_contain_a_dense_sample`).
-        crate::boolean::boxes::EdgeBoxRule::Spiric {
-            center,
-            axis,
-            u_ref,
-            major_radius,
-            minor_radius,
-            offset,
-            ..
-        } => {
-            let m = frame.vector(axis.cross(u_ref));
-            let (f_min, f_max) = geom::spiric_f_range(major_radius, minor_radius, offset);
-            let base = frame.point(center + u_ref * offset);
-            let axis = frame.vector(axis);
-            let per = |b: T, me: T, ae: T| {
-                let (p, q) = (me * f_min, me * f_max);
-                let amp = ae.abs() * minor_radius;
-                (b + p.min(q) - amp, b + p.max(q) + amp)
-            };
-            let (xl, xh) = per(base.x, m.x, axis.x);
-            let (yl, yh) = per(base.y, m.y, axis.y);
-            let (zl, zh) = per(base.z, m.z, axis.z);
-            Some((
-                Point3::new(xl.min(chord.0.x), yl.min(chord.0.y), zl.min(chord.0.z)),
-                Point3::new(xh.max(chord.1.x), yh.max(chord.1.y), zh.max(chord.1.z)),
-            ))
-        }
-        crate::boolean::boxes::EdgeBoxRule::ConicAmplitude {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-            params: (t0, t1),
-            ..
-        } => {
-            let (center, u_ref, v_ref) = (
-                frame.point(center),
-                frame.vector(u_ref),
-                frame.vector(axis.cross(u_ref)),
-            );
-            // The ARC's own extent, by `arc_extent`'s subdivision plus
-            // sagitta charge — not the exact arc box `edge_box` reads
-            // (`conic_arc_aabb`), because that one asks whether an
-            // extremal angle lies in the span and this scalar carries no
-            // ordering to answer. One rule, two arithmetics, the census
-            // box wider by at most the charge: `EdgeBoxRule`'s conic
-            // bullet states it, `the_two_box_lanes_agree_face_for_face`
-            // pins it.
-            let (flo, fhi) = span_pts(crate::boolean::boxes::arc_extent(
-                &crate::boolean::boxes::SpanBox::point(center),
-                &crate::boolean::boxes::SpanBox::vector(u_ref),
-                &crate::boolean::boxes::SpanBox::vector(v_ref),
-                crate::boolean::boxes::Span::exact(semi_u),
-                crate::boolean::boxes::Span::exact(semi_v),
-                t0,
-                t1,
-            ));
-            Some((
-                Point3::new(
-                    flo.x.min(chord.0.x),
-                    flo.y.min(chord.0.y),
-                    flo.z.min(chord.0.z),
-                ),
-                Point3::new(
-                    fhi.x.max(chord.1.x),
-                    fhi.y.max(chord.1.y),
-                    fhi.z.max(chord.1.z),
-                ),
-            ))
-        }
-    }
+    use crate::boolean::boxes::{ConicArc, Span, SpanBox, arc_extent, edge_end_point};
+    let end = |he, field| SpanBox::point(frame.point(edge_end_point(body, ek, he, field)));
+    // The ARC's own extent, by `arc_extent`'s subdivision plus sagitta
+    // charge — not the exact arc box `edge_box` reads, because that one
+    // asks whether an extremal angle lies in the span and this scalar
+    // carries no ordering to answer. One rule, two arithmetics, the
+    // census box wider by at most the charge: `EdgeBoxRule`'s conic
+    // bullet states it, `the_two_box_lanes_agree_face_for_face` pins it.
+    let conic = |arc: &ConicArc<'_, T>| {
+        arc_extent(
+            &SpanBox::point(frame.point(arc.center)),
+            &SpanBox::vector(frame.vector(arc.u_ref)),
+            &SpanBox::vector(frame.vector(arc.axis.cross(arc.u_ref))),
+            Span::exact(arc.semi_u),
+            Span::exact(arc.semi_v),
+            arc.params.0,
+            arc.params.1,
+        )
+    };
+    crate::boolean::boxes::edge_rule_box(
+        crate::boolean::boxes::edge_box_rule(body.edge_curve_linked(ek, e).certified()),
+        (end(e.he_plus, "he_plus"), end(e.he_minus, "he_minus")),
+        frame,
+        SpanBox::point,
+        conic,
+    )
+    .map(span_pts)
 }
 
 /// A [`crate::boolean::boxes::SpanBox`] as this lane's `(lo, hi)`
@@ -4679,7 +4619,7 @@ pub(crate) enum Undecided {
     /// check passes a volume in band of zero, so the part is the
     /// model's to fix, as tier 3 reads it too.
     ZeroVolume,
-    /// Arm 2: an instance whose closed-form volume is uncertified.
+    /// Arm 2: an instance whose volume's sign is uncertified.
     VolumeUncertified,
     /// Arm 2: an instance with a face kind the door does not serve.
     FaceKindUnsupported,
@@ -7133,10 +7073,23 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
         /// `inner` has no vertex to probe.
         NoVertex,
     }
+    // One selection per container, shared by every pair it outers, so
+    // its side at infinity is read once.
+    let selections: std::collections::BTreeMap<
+        SolidKey,
+        std::sync::OnceLock<Result<crate::boolean::SolidFaces, crate::boolean::PointInSolidError>>,
+    > = body
+        .solids()
+        .map(|(s, _)| (s, std::sync::OnceLock::new()))
+        .collect();
     let probe = |outer: SolidKey, inner: SolidKey| -> Probe {
-        let sel = match crate::boolean::SolidFaces::of(body, outer) {
+        let selected = match selections.get(&outer) {
+            Some(cell) => cell.get_or_init(|| crate::boolean::SolidFaces::of(body, outer)),
+            None => &Err(crate::boolean::PointInSolidError::NoSuchSolid { solid: outer }),
+        };
+        let sel = match selected {
             Ok(sel) => sel,
-            Err(e) => return Probe::Refused(Undecided::of_point_in_solid(&e).what()),
+            Err(e) => return Probe::Refused(Undecided::of_point_in_solid(e).what()),
         };
         let (mut refused, mut out_seen, mut any) = (None, false, false);
         for &(v, p) in geo
@@ -7145,7 +7098,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             .filter(|(v, _)| vertex_solid(*v) == Some(inner))
         {
             any = true;
-            match crate::boolean::point_in_solid_faces(body, &sel, p, band, tol) {
+            match crate::boolean::point_in_solid_faces(body, sel, p, band, tol) {
                 Ok(SolidContainment::In) => return Probe::In(v),
                 Ok(SolidContainment::Out) => out_seen = true,
                 Ok(SolidContainment::OnBoundary) => {}

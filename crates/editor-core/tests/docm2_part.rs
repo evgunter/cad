@@ -560,7 +560,6 @@ fn a4_every_refusal_is_typed() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a structural edit")
     .doc;
@@ -607,7 +606,6 @@ fn a4_every_refusal_is_typed() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .err()
     };
@@ -647,7 +645,6 @@ fn a4_every_refusal_is_typed() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(
@@ -701,7 +698,6 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a structural edit")
     .doc;

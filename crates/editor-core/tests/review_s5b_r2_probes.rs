@@ -77,7 +77,6 @@ fn r2_a_construction_reading_a_measures_world_copy_selection_by_var() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     let doc = match edited {
         Err(e) => panic!("a construction reads a copy's selection, refused: {e}"),
@@ -128,11 +127,7 @@ fn r2_a_named_world_copy_selection_outlives_its_measure() {
             name: Some(editor_core::VarName::from_static("face_of_copy")),
         },
     );
-    let deleted = doc.apply(
-        &DocEdit::DeleteNode { id: measure },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    );
+    let deleted = doc.apply(&DocEdit::DeleteNode { id: measure }, Tol::witness());
     let doc = match deleted {
         Ok(o) => o.doc,
         Err(e) => {

@@ -734,22 +734,6 @@ pub(crate) fn after_turn<T: Real>(g: Subgroup<T>) -> Option<Subgroup<T>> {
     }
 }
 
-/// **The line across two directions** — their cross product,
-/// normalised, as [`parallel`] decides it at `arm`'s lever — or `None`
-/// where they are parallel.
-///
-/// # Errors
-///
-/// [`Indeterminate`] when the verdict lands in the band.
-pub(crate) fn across<T: SolveScalar>(
-    u: UnitVec3<T>,
-    v: UnitVec3<T>,
-    band: Band,
-    arm: Arm,
-) -> Result<Option<UnitVec3<T>>, Indeterminate> {
-    parallel(u, v, band, arm.lever())
-}
-
 /// **Whether two directions are parallel**, decided over `arm`
 /// ([`parallel`]'s verdict as a yes or no).
 ///
@@ -778,59 +762,4 @@ pub(crate) fn on_the_line<T: SolveScalar>(
     band: Band,
 ) -> Result<bool, Indeterminate> {
     point_on_line(p, origin, direction, band)
-}
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
-    use super::{Arm, across};
-    use geom_core::linalg::{UnitVec3, Vec3};
-    use geom_core::predicate::{Band, Decide, Sign};
-    use geom_core::{ParamSymbol, Sym, SymBudget, Tol};
-
-    type S = Sym<f64>;
-
-    fn band() -> Band {
-        Band::linear(Tol::witness()).expect("the witness tolerance has a linear band")
-    }
-
-    /// **The line across two directions carries no lever arm.** Over two
-    /// symbolic directions it is their cross product normalised and
-    /// nothing else, so a value's slide along it (`value::settle`) is a
-    /// function of the poses alone, and the arm stays inside the
-    /// decision it levers. Red where the line is minted from the levered
-    /// cross product (the arm, opaque at `Sym`, then stays in it).
-    #[test]
-    fn the_line_across_two_directions_carries_no_lever_arm() {
-        let (proven, _) = geom_core::sym::with_session(
-            SymBudget {
-                max_terms: 256,
-                max_degree: 128,
-            },
-            || {
-                let p = |k: u64, v: f64| Sym::param(ParamSymbol::new(k), v);
-                let unit = |k: u64, v: [f64; 3]| {
-                    UnitVec3::new(
-                        Vec3::new(p(k, v[0]), p(k + 1, v[1]), p(k + 2, v[2])),
-                        "test",
-                        band(),
-                    )
-                    .unwrap()
-                };
-                let (u, v) = (unit(1, [0.0, 0.1, 1.0]), unit(10, [1.0, 0.2, 0.1]));
-                let line = across(u, v, band(), Arm::of(1.0, 2.0).unwrap())
-                    .unwrap()
-                    .expect("two directions at a definite angle");
-                let d: Vec3<S> = line.get() - u.get().cross(v.get()).normalize();
-                [d.x, d.y, d.z].map(|x| {
-                    let decided = x.sign_within(band()).unwrap();
-                    decided.sign == Sign::Zero && decided.margin.proven()
-                })
-            },
-        );
-        assert_eq!(
-            proven, [true; 3],
-            "the line is the cross product normalised"
-        );
-    }
 }

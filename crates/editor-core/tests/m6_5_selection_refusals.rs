@@ -71,7 +71,6 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the fillet inserts");
     let id = applied.record.minted.expect("a minted id");
@@ -93,7 +92,6 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the fixture builds");
         let id = a.record.minted.expect("a minted id");
@@ -193,7 +191,6 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::DeclareNamesMissingNode { name }) => {
             assert_eq!(name.name().node, RecipeNodeId::new(0, 99));
@@ -223,7 +220,6 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the spare extrude inserts");
     let spare_id = spare.record.minted.expect("a minted id");
@@ -238,7 +234,6 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the fillet inserts while the spare is live");
     let fillet = with_fillet.record.minted.expect("a minted id");
@@ -246,7 +241,6 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
         &with_fillet.doc,
         &DocEdit::DeleteNode { id: spare_id },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("deleting a node a NAME references is allowed (N5)")
     .doc;
@@ -333,7 +327,6 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the shell inserts");
     let shell = applied.record.minted.expect("a minted id");

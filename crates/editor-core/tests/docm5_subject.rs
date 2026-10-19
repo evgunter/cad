@@ -762,7 +762,6 @@ fn the_registry_split_is_measured_at_a_pinned_point() {
             fresh: Vec::new(),
         },
         tol,
-        &editor_core::RefusingReach,
     )
     .expect("the fin count is a document parameter")
     .doc;

@@ -87,7 +87,9 @@ pub(crate) use role::{FOLD_A, FOLD_B, read_edge};
 pub(crate) use role::{VerbatimEdge, verbatim_edge};
 pub(crate) use role::{edge_line, fragment_tail_start, name_free_seg, wrapped_edge};
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
-pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};
+pub use table::{
+    DuplicateName, EntityKey, EntityRef, Entry, KindMismatch, NameTable, SeatingRefusal,
+};
 /// The kernel's contact vocabulary, re-exported so a refusal the recipe
 /// layer renders quotes the kernel's own words.
 pub use topo::{

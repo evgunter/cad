@@ -47,7 +47,6 @@
 
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
-use geom_core::predicate::Indeterminate;
 
 pub mod anchor;
 pub mod coset;
@@ -62,7 +61,7 @@ pub use anchor::Anchor;
 pub use coset::{Coset, PoseSymmetry, Subgroup, SubgroupFamily};
 pub use member::{Member, Placing, head_face, head_of, member_of, member_reading};
 pub use pin::{PinRefusal, Placed, PlacedBy, pin_at, pinned_at, place_at};
-pub use reach::{MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach};
+pub use reach::{ReachRefusal, SurfaceKind, body_reach, part_reach};
 pub use solve::{
     PoseRefusal, SolveScalar, SolvedPoses, Space, mate_coset, relative_freedom_components,
     solve_document, solve_document_at,
@@ -1025,7 +1024,7 @@ pub fn class_admission(class: ContactClass) -> ClassAdmission {
 }
 
 /// Why a lever could not be formed for a mate: one of its parts' reach
-/// ([`MateReach::reach`]) is not in hand, the member stands on no
+/// is not in hand, the member stands on no
 /// instance, or the lever the two parts form is out of the format's
 /// range.
 #[derive(Debug, Clone, PartialEq)]
@@ -1152,25 +1151,6 @@ pub enum MateFault {
         mate: MateRef,
     },
 
-    /// A case-split predicate landed in the ambiguity band — the typed
-    /// escalation, never a silent pick.
-    Indeterminate {
-        /// The mate being folded when it fired.
-        mate: MateRef,
-        /// The predicate's diagnostics (it names itself).
-        diag: Box<Indeterminate>,
-    },
-    /// The pair's mates meet at a pose the floating-point format
-    /// cannot hold: the translation the fold solved for has no finite
-    /// length. The mates can both hold; the place they meet is past the
-    /// session's range.
-    PoseOutOfRange {
-        /// The mate already folded, **equal to `added` when the bundle
-        /// has no earlier mate**.
-        held: MateRef,
-        /// The mate whose intersection named the meeting point.
-        added: MateRef,
-    },
     /// **A constraint any of whose equations the rest of its bundle
     /// already fixes** (D10; FORK-S3O): a mate places and never checks,
     /// so none is verified and kept. Decided by subgroup algebra over
@@ -1306,8 +1286,6 @@ impl MateFault {
             Self::SideUnevaluated { refusal, mate, .. } => Some((mate.placement, refusal)),
             Self::PosesOfAnotherDocument { .. }
             | Self::ClassNotAdmitted { .. }
-            | Self::Indeterminate { .. }
-            | Self::PoseOutOfRange { .. }
             | Self::Overconstrained { .. }
             | Self::TargetsDiffer { .. }
             | Self::NotOnTheCopy { .. }
@@ -1361,26 +1339,6 @@ impl crate::spoken::Say for MateFault {
                 mate_(*mate),
                 topo::FIT_DEFERRAL
             ),
-            Self::Indeterminate { mate, diag } => write!(
-                f,
-                "{}: a case split could not be decided — {}. Recourse: {}",
-                mate_(*mate),
-                diag.payload(),
-                geom_core::COINCIDENCE_RECOURSE
-            ),
-            Self::PoseOutOfRange { held, added } => {
-                if held == added {
-                    write!(f, "{}'s constraints meet", mate_(*added))?;
-                } else {
-                    write!(f, "{} and {} meet", mate_(*held), mate_(*added))?;
-                }
-                write!(
-                    f,
-                    " at a point further away than the solve can measure a distance to. \
-                     Recourse: {}",
-                    geom_core::RANGE_RECOURSE
-                )
-            }
             Self::Overconstrained {
                 placement,
                 constraints,

@@ -1390,16 +1390,6 @@ BOUND_AS = {
     "all_faces": "Evaluation.all_faces",
     "all_vertices": "Evaluation.all_vertices",
     "apply": "Doc.apply",
-    # The mate solve's reach — the mated parts' own extent, what a
-    # solve and a mate-graph edit lever through — is spelled in Python
-    # as the `resolver=` keyword `evaluate` already has, on
-    # `solve_document`, `Doc.apply`, `Doc.insert` and `split`: a
-    # `Workspace` IS the reach's seam, and absent it every door refuses
-    # typed the way the kernel's refusing reach does.
-    "MateReach": "Doc.apply",
-    "PartReach": "Doc.apply",
-    "RefusingReach": "Doc.apply",
-    "mate_reach": "Doc.apply",
     # A part whose reach is not in hand faults the mate; Python reads
     # it as `MateFault`'s `mate_unleverable` variant, with the lever
     # refusal's own word as `inner_variant` (its row is in NOT_BOUND's
@@ -1858,7 +1848,8 @@ FAMILIES: dict[str, str] = {
 #: `ProgramTarget`, `ProgramArcData`, `StepArg`): the PATHS lattice
 #: hands `Node.profile` a `ClosedLoop` and the program is built inside
 #: Rust, so no Python value is ever one of these. The naming table and
-#: its provenance payloads (`NameTable`, `DuplicateName`,
+#: its provenance payloads (`NameTable`, `SeatingRefusal`,
+#: `DuplicateName`, `KindMismatch`,
 #: `ProfileEdgeRef`, `ProfileVertexRef`, `edge_name`, `face_name` —
 #: key-to-name inversions with no key to invert), the declared-contact
 #: interior (`DeclaredContact`, `ContactVerdict`, `ContactRefusal`,
@@ -2860,6 +2851,8 @@ NOT_BOUND = {
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
+    "KindMismatch": INTERIOR,
+    "SeatingRefusal": INTERIOR,
     # What an edge's locus IS, read back off a certified carrier.
     # Python holds an opaque `Body` handle and no door on it answers a
     # description, so nothing here is a thing Python can read.
@@ -3828,8 +3821,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::Edit": "InlineError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::ClassNotAdmitted": "MateFault.variant",
-    "MateFault::Indeterminate": "MateFault.variant",
-    "MateFault::PoseOutOfRange": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
     "MateFault::TargetsDiffer": "MateFault.variant",
     "MateFault::NotOnTheCopy": "MateFault.variant",

@@ -654,7 +654,6 @@ fn a_spins_angle_is_offered_only_free_values() {
                 def,
             },
             tol,
-            &pncad::document::RefusingReach,
         )
         .expect("declares")
         .doc;

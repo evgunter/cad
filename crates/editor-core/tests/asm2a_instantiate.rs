@@ -686,7 +686,6 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::ConstraintOnNonPlacement { node }) => assert_eq!(node.id(), target),
         other => panic!("a non-instance target must refuse, got {other:?}"),
@@ -1705,5 +1704,83 @@ fn a_canceled_door_stops_in_its_replay() {
     assert_eq!(
         editor_core::coincide::prove(&doc, &[(union, &rows[..])], None, Tol::witness(), &cancel),
         Err(editor_core::coincide::Canceled)
+    );
+}
+
+/// A [`StubStore`] that fires `cancel` the first time it resolves, so
+/// a run under it is canceled inside the census pass: the pass is
+/// evaluating its first part when the token fires, and stops before
+/// its second.
+#[derive(Debug)]
+struct CancelingStore {
+    store: StubStore,
+    cancel: CancelToken,
+    resolved: std::sync::atomic::AtomicUsize,
+}
+
+impl PartResolver for CancelingStore {
+    fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
+        self.resolved
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.cancel.cancel();
+        self.store.resolve(doc_ref, tol)
+    }
+}
+
+/// **A run canceled during the census pass places nothing**: no node
+/// ran, so no copy's space is read off a part table the pass only
+/// partly entered. The same document uncanceled has both instances as
+/// loose copies, which is what the empty map is measured against.
+#[test]
+fn a_run_canceled_in_the_census_has_no_loose_copies() {
+    let mut store = StubStore::default();
+    let a = store.insert(part("asm2a-census-cancel-a", 0.0, 1.0), Tol::witness());
+    let b = store.insert(part("asm2a-census-cancel-b", 3.0, 1.0), Tol::witness());
+    let (doc, ids) = assembly("asm2a-census-cancel-asm", &[a, b]);
+
+    let whole = run(&doc, &with_resolver(store.clone()));
+    assert_eq!(
+        whole.outcome,
+        editor_core::EvalOutcome::Completed,
+        "uncanceled, the run completes"
+    );
+    let mut loose = ids.clone();
+    loose.sort();
+    assert_eq!(
+        whole.loose_roots(),
+        loose,
+        "uncanceled, each instance is a loose copy"
+    );
+
+    let cancel = CancelToken::new();
+    let resolver = Arc::new(CancelingStore {
+        store,
+        cancel: cancel.clone(),
+        resolved: std::sync::atomic::AtomicUsize::new(0),
+    });
+    let opts = EvalOptions {
+        resolver: Some(resolver.clone()),
+        ..EvalOptions::default()
+    };
+    let canceled = evaluate::<f64>(&doc, None, &cancel, &opts, Tol::witness());
+    assert_eq!(
+        resolver.resolved.load(std::sync::atomic::Ordering::Relaxed),
+        1,
+        "the census stopped before its second part"
+    );
+    assert_eq!(
+        canceled.outcome,
+        editor_core::EvalOutcome::Canceled,
+        "the token fired in the census pass"
+    );
+    assert!(
+        canceled.nodes.is_empty(),
+        "no node ran: {:?}",
+        canceled.nodes.keys()
+    );
+    assert!(
+        canceled.loose.is_empty(),
+        "a canceled census places no copy: {:?}",
+        canceled.loose
     );
 }

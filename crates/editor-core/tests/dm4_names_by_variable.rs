@@ -430,7 +430,6 @@ fn an_appearance_read_must_hold_a_body_and_its_delete_strands_the_key() {
                 attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
     };
     let plane = doc.output(tool, 0).expect("the plane's output");
@@ -443,13 +442,8 @@ fn an_appearance_read_must_hold_a_body_and_its_delete_strands_the_key() {
     );
     let above = doc.output(split, 0).unwrap();
     let painted = paint(&doc, above).expect("a half's read holds a body").doc;
-    let applied = editor_core::apply(
-        &painted,
-        &DocEdit::DeleteNode { id: split },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("a delete strands, it does not refuse");
+    let applied = editor_core::apply(&painted, &DocEdit::DeleteNode { id: split }, Tol::witness())
+        .expect("a delete strands, it does not refuse");
     assert!(
         applied.maintenance.iter().any(|m| matches!(
             m,
@@ -551,7 +545,6 @@ fn a_repoint_that_takes_a_keys_name_out_of_reach_strands_it() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a re-point applies");
     assert!(

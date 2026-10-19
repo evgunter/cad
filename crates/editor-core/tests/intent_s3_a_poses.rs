@@ -335,7 +335,6 @@ fn tilted_revolve(width: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             }),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("declares")
     .doc;
@@ -690,7 +689,6 @@ fn a_pose_trees_leaves_are_keyed_by_the_port_they_read() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("re-tools")
     .doc;
@@ -820,7 +818,6 @@ fn a_pose_whose_scalar_becomes_observed_refuses_the_redefinition() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(

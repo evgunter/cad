@@ -7,9 +7,7 @@
 //! pin; [`Placed::edits`] is that sequence, so a scene that exports its
 //! edit log replays exactly what it applied.
 
-use pncad::document::{
-    BodyRead, Doc, DocEdit, Formula, Node, ProfileProgram, RecipeNodeId, RefusingReach, apply,
-};
+use pncad::document::{BodyRead, Doc, DocEdit, Formula, Node, ProfileProgram, RecipeNodeId, apply};
 use pncad::geom_core::Tol;
 
 /// What the placement left: the document, the placement it minted, and
@@ -36,7 +34,7 @@ pub fn place_in_world(
 ) -> Placed {
     let mut edits = Vec::new();
     let mut step = |doc: &Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>| {
-        let applied = apply(doc, &edit, tol, &RefusingReach)
+        let applied = apply(doc, &edit, tol)
             .unwrap_or_else(|err| panic!("the placement's edit applies: {err}"));
         edits.push(edit);
         applied

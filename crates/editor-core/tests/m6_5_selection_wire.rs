@@ -78,7 +78,6 @@ fn the_selection_reaches_the_wire_canonical() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the fillet node inserts")
     .doc;

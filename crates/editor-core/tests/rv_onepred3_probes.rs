@@ -76,7 +76,6 @@ fn rv_a_retyped_pattern_count_is_refused_at_both_doors() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
             slot,
