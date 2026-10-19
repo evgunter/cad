@@ -4,7 +4,7 @@ kind: issue
 title: Crossings of a union seam whose pieces lie on one open carrier rank along that carrier's parameter; a closed carrier ties
 status: closed
 opened: 2026-10-15
-closed: 2026-10-14
+closed: 2026-10-19
 priority: P3
 cost: M
 ---
