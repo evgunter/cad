@@ -183,8 +183,12 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
                 new_count: 0,
             },
             editor_core::SummaryDivergence {
+                // The two line/arc joints of each validation pass read
+                // their turn (`path_junction_turn`), not this clearance,
+                // and that count does not diverge: the straight branch's
+                // joints read it too.
                 predicate: "carrier_line_circle".into(),
-                old_count: 10,
+                old_count: 6,
                 new_count: 0,
             },
             editor_core::SummaryDivergence {
