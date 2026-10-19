@@ -114,12 +114,16 @@ pub struct CheckEvidencePayload<'a> {
     /// measurement read without the band it was judged at is a number
     /// without a claim.
     pub eps: Option<f64>,
-    /// What an unproven coincidence decided between its two cells
+    /// What an unproven coincidence decided between its cells
     /// ([`crate::tags::coincidence_relation_tag`]).
     pub relation: Option<&'static str>,
     /// Where that coincidence was decided
     /// ([`crate::tags::decision_site_tag`]).
     pub site: Option<&'static str>,
+    /// How many fold steps' rows an unproven coincidence reports with
+    /// it, each decided at a vertex it names (the rows themselves cross
+    /// on the Python value).
+    pub restated: Option<usize>,
 }
 
 impl CheckEvidencePayload<'_> {
@@ -129,7 +133,7 @@ impl CheckEvidencePayload<'_> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`CheckEvidence`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 14] {
+    pub fn presence(&self) -> [(&'static str, bool); 15] {
         let Self {
             actual,
             expected,
@@ -145,6 +149,7 @@ impl CheckEvidencePayload<'_> {
             eps,
             relation,
             site,
+            restated,
         } = self;
         [
             ("actual", actual.is_some()),
@@ -161,6 +166,7 @@ impl CheckEvidencePayload<'_> {
             ("eps", eps.is_some()),
             ("relation", relation.is_some()),
             ("site", site.is_some()),
+            ("restated", restated.is_some()),
         ]
     }
 
@@ -189,6 +195,7 @@ impl CheckEvidencePayload<'_> {
         eps: None,
         relation: None,
         site: None,
+        restated: None,
     };
 }
 
@@ -257,13 +264,20 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
         // attribute is set — the TAG is the whole answer, and it is
         // the answer a caller must not read as a clean body.
         CheckEvidence::ChartCoherenceUnavailable => none,
-        // The row's two words, and the residual's sentence as the
-        // reason: what separates the two cells' constructions. The
-        // cells themselves cross as names on the Python value.
-        CheckEvidence::UnprovenCoincidence { row, residual, .. } => CheckEvidencePayload {
+        // The row's two words, the residual's sentence as the reason
+        // (what separates the cells' constructions), and how many fold
+        // rows it reports with it. The cells and those rows themselves
+        // cross on the Python value.
+        CheckEvidence::UnprovenCoincidence {
+            row,
+            residual,
+            restated,
+            ..
+        } => CheckEvidencePayload {
             reason: Some(Cow::Owned(residual.to_string())),
             relation: Some(coincidence_relation_tag(row.relation)),
             site: Some(decision_site_tag(row.site)),
+            restated: Some(restated.len()),
             ..none
         },
         CheckEvidence::SeparationUnavailable { refusal } => CheckEvidencePayload {

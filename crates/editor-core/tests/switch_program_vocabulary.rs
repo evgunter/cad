@@ -250,6 +250,7 @@ fn chain_steps() -> Vec<ProgramStep<Formula>> {
     );
     steps.extend([
         ProgramStep::TangentArcTo(ProgramTarget::Start),
+        ProgramStep::ArcOnto(ProgramTarget::Start),
         ProgramStep::Fillet(len(0.2)),
     ]);
     // Every mode in the ARRIVAL (spec₂) position, then every mode in
@@ -402,7 +403,8 @@ fn step_members<S: std::fmt::Debug>(step: &ProgramStep<S>) -> StepMembers {
         }
         ProgramStep::LineTo(target)
         | ProgramStep::ContinueTo(target)
-        | ProgramStep::TangentArcTo(target) => (vec![], vec![variant_name(&format!("{target:?}"))]),
+        | ProgramStep::TangentArcTo(target)
+        | ProgramStep::ArcOnto(target) => (vec![], vec![variant_name(&format!("{target:?}"))]),
         ProgramStep::At(_)
         | ProgramStep::Angle(_)
         | ProgramStep::Toward { .. }
@@ -606,7 +608,8 @@ fn every_target_form_is_a_document_program() {
     .flat_map(|step| match step {
         profile::Step::LineTo(t)
         | profile::Step::ContinueTo(t)
-        | profile::Step::TangentArcTo(t) => vec![t.kind()],
+        | profile::Step::TangentArcTo(t)
+        | profile::Step::ArcOnto(t) => vec![t.kind()],
         profile::Step::ArcTo(spec)
         | profile::Step::FilletArc { spec, .. }
         | profile::Step::ArcFillet { spec, .. } => spec
@@ -717,6 +720,7 @@ fn every_arc_mode_is_a_document_program() {
         | profile::Step::LineTo(_)
         | profile::Step::ContinueTo(_)
         | profile::Step::TangentArcTo(_)
+        | profile::Step::ArcOnto(_)
         | profile::Step::Fillet { .. }
         | profile::Step::FarEndTo(_)
         | profile::Step::CloseTo
@@ -1458,6 +1462,7 @@ const PERSISTED_SPELLING: &[&str] = &[
     "Angle",
     "ArcFillet",
     "ArcFilletArc",
+    "ArcOnto",
     "ArcTo",
     "At",
     "CloseTo",

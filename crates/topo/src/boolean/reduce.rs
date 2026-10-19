@@ -163,7 +163,7 @@ pub(super) struct ContactAcc {
 
 /// **A vertex identity the reduction decided**: one with a margin is a
 /// coincidence, whether or not a surviving record cites it, published
-/// as a row or held unspelled ([`super::ops::carry`]); a landing
+/// as a row ([`super::ops::carry`]); a landing
 /// no margin decided only placed topology (D1). The result's carry
 /// emits each coincidence as a [`crate::Coincidence`]
 /// ([`super::ops::carry`]).
@@ -582,11 +582,11 @@ pub(super) fn gate_operand<T: Decide>(
 /// [`crate::AtRestBody::gate_unverdicted`] — the split's door reads the
 /// same), refused as [`BooleanError::ScaffoldingOperand`],
 /// [`BooleanError::InsideOutOperand`] or [`BooleanError::UnjoinedOperand`].
-/// Then the orientation of each solid the at-rest gate passed as a
-/// sliver ([`gate_sliver_orientation`]).
-/// It runs before the pipeline reads
-/// a several-solid operand as one solid (`ops::one_solid`), since the
-/// orientation read's subjects are the solid and, within it, the shell.
+/// Its orientation read is check 7's, the reader of a shell's role, so an
+/// inside-out operand refuses here as it does at the at-rest gate. It
+/// runs before the pipeline reads a several-solid operand as one solid
+/// (`ops::one_solid`), since the orientation read's subjects are the
+/// solid and, within it, the shell.
 pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
     body: &crate::AtRestBody<T>,
     operand: Operand,
@@ -594,95 +594,7 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), BooleanError> {
     body.gate_unverdicted(format_args!("operand {operand:?}"), band, tol)
-        .map_err(|unfinished| BooleanError::unfinished(operand, unfinished))?;
-    gate_sliver_orientation(body, operand, band, tol)
-}
-
-/// **An operand's thin solids' orientation, read by a ray, before
-/// anything else reads the operand.** Check 7 passes a solid whose `V/A`
-/// is certified in band without reading its sign (D1's +V invariant
-/// exempts it), so an inside-out sliver finishes at rest, and a dual's
-/// gate passes a sign it leaves open the same way. Every read of a
-/// missed ray's side against the operand refuses such a solid where it
-/// is made ([`super::solid_contain::SolidFaces::read_as_given`]); this reads
-/// it once, up front, for the routes that never ask: a solid the
-/// operation cuts is classified by its section, not by a missed ray.
-///
-/// The solids read: those the at-rest gate passed as slivers
-/// ([`crate::AtRestBody::slivers`]), or every solid of an operand that
-/// carries no verdict (a dual's). Each is read as given at one point
-/// outside the hull of its faces' reach boxes
-/// ([`crate::census::face_reach`], each a superset of its face, so a
-/// looser one only puts the point farther out), and a solid holding the
-/// side at infinity refuses [`BooleanError::InsideOutOperand`] with
-/// [`crate::ValidationError::SliverInsideOut`].
-///
-/// A reading that does not decide refuses with that reading
-/// ([`BooleanError::Containment`]), and so does a solid a face of which
-/// has no reach box, so that no point is known to lie outside it (as
-/// the face's kind, or as a broken face): an operation that cuts such a
-/// solid would read it as given with nothing to say which side its
-/// material is on.
-fn gate_sliver_orientation<T: Decide + crate::props::AtRestPolicy>(
-    body: &crate::AtRestBody<T>,
-    operand: Operand,
-    band: Band,
-    tol: Tol,
-) -> Result<(), BooleanError> {
-    let solids: Vec<crate::entity::SolidKey> = match body.outcome() {
-        crate::AtRestOutcome::Validated => body.slivers().to_vec(),
-        crate::AtRestOutcome::NotRunAtThisScalar => body.solids().map(|(k, _)| k).collect(),
-    };
-    for solid in solids {
-        let Ok(sel) = super::SolidFaces::of(body, solid) else {
-            continue;
-        };
-        let mut corners = Vec::with_capacity(2 * sel.faces().len());
-        for &face in sel.faces() {
-            let Some((lo, hi)) = crate::census::face_reach(body, face, band) else {
-                return Err(BooleanError::Containment(
-                    match crate::query::face_surface_kind(body, face) {
-                        Some(kind @ geom::SurfaceKind::Nurbs) => {
-                            super::PointInSolidError::KindUnsupported { face, kind }
-                        }
-                        // A whole wall whose window a boundary edge
-                        // leaves unclaimed (a spiric, or no sound box).
-                        Some(geom::SurfaceKind::Cylinder)
-                            if crate::census::boundary_unclaimable(body, face) =>
-                        {
-                            super::PointInSolidError::WallOutlineUnsupported { face }
-                        }
-                        Some(geom::SurfaceKind::Cone)
-                            if crate::census::boundary_unclaimable(body, face) =>
-                        {
-                            super::PointInSolidError::PartialConeFace { face }
-                        }
-                        _ => super::PointInSolidError::CorruptFace { face },
-                    },
-                ));
-            };
-            corners.extend([lo, hi]);
-        }
-        let Some((lo, hi)) = crate::census::point_hull(corners) else {
-            continue;
-        };
-        let span = (hi.x - lo.x).max(hi.y - lo.y).max(hi.z - lo.z) + T::one();
-        let far = Point3::new(hi.x + span, hi.y + span, hi.z + span);
-        match super::point_in_solid_faces(body, &sel.read_as_given(), far, band, tol) {
-            Ok(super::SolidContainment::Out) => {}
-            Ok(super::SolidContainment::In) | Err(super::PointInSolidError::InsideOut) => {
-                return Err(BooleanError::InsideOutOperand {
-                    operand,
-                    errors: vec![crate::ValidationError::SliverInsideOut { solid }],
-                });
-            }
-            Ok(super::SolidContainment::OnBoundary) => {
-                unreachable!("a point outside every face's reach box is on no face of the solid")
-            }
-            Err(e) => return Err(BooleanError::Containment(e)),
-        }
-    }
-    Ok(())
+        .map_err(|unfinished| BooleanError::unfinished(operand, unfinished))
 }
 
 /// [`gate_operand`]'s edge carriers.

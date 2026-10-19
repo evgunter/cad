@@ -17,8 +17,8 @@ hardware not shared with any other lane and its result is a durable artifact.
 
 **The per-PR gate is sized for latency, and the nightly holds the rest.**
 `.github/workflows/ci.yml` runs the default-eps suite minus the slow set (the
-`ci` profile in `.config/nextest.toml`), the slow tests of the crates your diff
-touches, the 1e-6 and 1e-12 rows of the eps-sensitive crates your diff touches
+`ci` profile in `.config/nextest.toml`), the slow tests your diff adds or
+edits, the 1e-6 and 1e-12 rows of the eps-sensitive crates your diff touches
 and of every test file it adds or edits, lint (fmt, clippy `--all-features`,
 `scripts/gates/`), and the rows whose own subject you touched (viewer, python,
 demos, tools, mesh budget, topo release, step import, interval).
@@ -35,9 +35,9 @@ wasm32. The `change filter` job's log prints what this run selected, and
 - **A red nightly is a red main, and the orchestrator owns it.** An
   implementer that notices one reports it to its orchestrator rather than
   fixing it; the orchestrator assigns the fix.
-- **A test that costs ≥ 0.5 s goes in the slow set** unless it has caught
-  something the fast set would miss. Add it to `.config/nextest.toml`'s `ci`
-  filter in the PR that adds the test.
+- **A test that costs ≥ 0.5 s goes in the slow set.** Add it to
+  `.config/nextest.toml`'s `ci` filter in the PR that adds the test. It runs on
+  that PR (and on any PR whose added lines name it) and every night after.
 
 **Draft PRs do not run the gate at all.** Mark the PR ready for review when you
 want it gated; undrafting triggers a full run on the same head.

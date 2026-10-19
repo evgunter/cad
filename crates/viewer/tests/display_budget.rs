@@ -533,6 +533,15 @@ struct Answer {
 /// what the fit costs is as much a behaviour as what it answers, and
 /// a rung count that grows — or a body that stops being read as flat
 /// — moves a number in this table rather than going unnoticed.
+///
+/// `declared_tangency`'s two rows moved when a chord's director came to
+/// be its components (PR 5370): its tangent arc's stored sweep is now
+/// `1.5707963267948968`, an ulp above `FRAC_PI_2` where it was
+/// `1.5707963267948961` below it, so at the coarse rungs, where the
+/// step is capped at `π/4`, `ceil(sweep / step)` reads three chords
+/// where it read two — one more chord on one arc, four more triangles
+/// (`probe_triangles` 388 → 392 and 732 → 736). The δ, the prediction
+/// and the largest rung hold.
 const ANSWERS: &[Answer] = &[
     Answer {
         document: "die",
@@ -681,7 +690,7 @@ const ANSWERS: &[Answer] = &[
         predicted: 1600,
         requested_cost: None,
         largest_probe: 200,
-        probe_triangles: 388,
+        probe_triangles: 392,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -691,7 +700,7 @@ const ANSWERS: &[Answer] = &[
         predicted: 4352,
         requested_cost: None,
         largest_probe: 544,
-        probe_triangles: 732,
+        probe_triangles: 736,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {

@@ -69,10 +69,10 @@ pub use ::profile::{lift, path};
 // The lattice: authoring states, targets, the closed-carrier verbs.
 pub use ::profile::{
     ArcCarrierScalar, ArcData, ArcLen, ArcMode, ArcSide, ArrivesTangent, Bulge, Center, ClosedLoop,
-    ContinueTarget, CornerReason, CornerRefusal, CornerWindow, LineTarget, Open, PartialPath,
-    PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, ReplayError, ReplayErrorKind,
-    SpecForms, Start, Step, Sweep, TangentArcTarget, Target, TargetKind, TipState, Verb, Via,
-    arc_specs_at, circle, circle_split, replay,
+    ContinueTarget, CornerReason, CornerRefusal, CornerWindow, LineTarget, OntoTarget, Open,
+    PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, ReplayError,
+    ReplayErrorKind, SpecForms, Start, Step, Sweep, TangentArcTarget, Target, TargetKind, TipState,
+    Verb, Via, arc_specs_at, circle, circle_split, replay,
 };
 // The §2c family's traits and arrival builders: the admissibility
 // matrix (one impl per admissible (state, mode) pair) and the states a
@@ -81,6 +81,9 @@ pub use ::profile::path::{
     ArrivalSpec, LegEndIncoming, PointIncoming, RadiusArrival, RadiusArrivalAt, RadiusArrivalDir,
     TangentIncoming, ViaArrival, ViaArrivalStart,
 };
+// `arc_onto`'s pending states: the target bound, its one director
+// pending.
+pub use ::profile::path::{ArcOnto, ArcOntoStart};
 
 // The data types (nameable, not mintable) and the bulge sugar that
 // computes a single segment's parameter — sugar over ARITHMETIC, not a

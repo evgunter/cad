@@ -53,6 +53,25 @@ const BORE: f64 = 1.0e-3;
 /// `scale` multiplies every tolerance, so `1.0` is the study a user
 /// would ask for.
 pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
+    pad_built(scale, tol, false)
+}
+
+/// [`pad`] with its first straight leg spelled as an ANGLE and a length
+/// (`Angle(π/2)`, `Line`) rather than a point target, so the leg's
+/// director is the `sin_cos` round trip of `π/2` and not the exact ray a
+/// chord's components give.
+pub(crate) fn pad_first_leg_by_angle(
+    scale: f64,
+    tol: Tol,
+) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
+    pad_built(scale, tol, true)
+}
+
+fn pad_built(
+    scale: f64,
+    tol: Tol,
+    first_leg_by_angle: bool,
+) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::DeclareVar {
@@ -88,30 +107,43 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, Reci
     // The rounded rectangle: four straight legs joined by four
     // PARAMETRIC fillet arcs, all sharing one radius parameter.
     let pt = |x: f64, y: f64| ProgramTarget::Point(len2([x, y]));
-    let pad_loop = LoopProgram::Chain(vec![
-        ProgramStep::At([len(-HALF_W), len(0.0)]),
-        ProgramStep::LineTo(pt(-HALF_W, HALF_H - 2.0 * CORNER)),
-        ProgramStep::Fillet(plen("corner_r")),
-        ProgramStep::Toward {
-            dx: scl(1.0),
-            dy: scl(0.0),
-        },
-        ProgramStep::FarEndTo([len(HALF_W - 2.0 * CORNER), len(HALF_H)]),
-        ProgramStep::Fillet(plen("corner_r")),
-        ProgramStep::Toward {
-            dx: scl(0.0),
-            dy: scl(-1.0),
-        },
-        ProgramStep::FarEndTo([len(HALF_W), len(-HALF_H + 2.0 * CORNER)]),
-        ProgramStep::Fillet(plen("corner_r")),
-        ProgramStep::Toward {
-            dx: scl(-1.0),
-            dy: scl(0.0),
-        },
-        ProgramStep::FarEndTo([len(-HALF_W + 2.0 * CORNER), len(-HALF_H)]),
-        ProgramStep::Fillet(plen("corner_r")),
-        ProgramStep::CloseTo,
-    ]);
+    let first_leg = if first_leg_by_angle {
+        vec![
+            ProgramStep::Angle(crate::fixture::ang(core::f64::consts::FRAC_PI_2)),
+            ProgramStep::Line(len(HALF_H - 2.0 * CORNER)),
+        ]
+    } else {
+        vec![ProgramStep::LineTo(pt(-HALF_W, HALF_H - 2.0 * CORNER))]
+    };
+    let pad_loop = LoopProgram::Chain(
+        [
+            vec![ProgramStep::At([len(-HALF_W), len(0.0)])],
+            first_leg,
+            vec![
+                ProgramStep::Fillet(plen("corner_r")),
+                ProgramStep::Toward {
+                    dx: scl(1.0),
+                    dy: scl(0.0),
+                },
+                ProgramStep::FarEndTo([len(HALF_W - 2.0 * CORNER), len(HALF_H)]),
+                ProgramStep::Fillet(plen("corner_r")),
+                ProgramStep::Toward {
+                    dx: scl(0.0),
+                    dy: scl(-1.0),
+                },
+                ProgramStep::FarEndTo([len(HALF_W), len(-HALF_H + 2.0 * CORNER)]),
+                ProgramStep::Fillet(plen("corner_r")),
+                ProgramStep::Toward {
+                    dx: scl(-1.0),
+                    dy: scl(0.0),
+                },
+                ProgramStep::FarEndTo([len(-HALF_W + 2.0 * CORNER), len(-HALF_H)]),
+                ProgramStep::Fillet(plen("corner_r")),
+                ProgramStep::CloseTo,
+            ],
+        ]
+        .concat(),
+    );
     let profile = r.insert(Node::Profile(ProfileProgram {
         frame: plane.into(),
         loops: vec![pad_loop],

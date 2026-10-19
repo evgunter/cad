@@ -1629,22 +1629,15 @@ fn a_lone_vertex_ring_on_the_b_side_refuses_the_pair() {
 /// faces unglued.
 #[test]
 fn a_glued_pair_exempts_itself_only() {
-    use crate::boolean::{Glue, GluedPair};
     let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let b = brick::<f64>((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), Tol::witness());
     let fa: Vec<FaceKey> = a.faces().map(|(k, _)| k).collect();
     let fb: Vec<FaceKey> = b.faces().map(|(k, _)| k).collect();
-    let decls = Glue {
-        pairs: vec![GluedPair {
-            a: fa[0],
-            b: fb[0],
-            class: crate::contact::GlueClass::Rest,
-        }],
-        ..Glue::default()
-    };
-    assert!(ops::glues_pair(&decls, fa[0], fb[0]));
-    assert!(!ops::glues_pair(&decls, fa[0], fb[1]));
-    assert!(!ops::glues_pair(&decls, fa[1], fb[0]));
+    let glued = [(fa[0], fb[0])];
+    let exempt = ops::Exempt::Glued(&glued);
+    assert!(exempt.answers(fa[0], fb[0]));
+    assert!(!exempt.answers(fa[0], fb[1]));
+    assert!(!exempt.answers(fa[1], fb[0]));
 }
 
 // -------------------------------------------------------------------

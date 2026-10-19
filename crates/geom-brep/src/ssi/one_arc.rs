@@ -1376,25 +1376,29 @@ mod tests {
         );
     }
 
-    /// **A touch inside an edge is no crossing.** `z = (x − ½)² + y − 0.2`
-    /// touches the edge `y = 0.2` of `[0, 1] × [0.2, 1]` at `x = ½` from
+    /// **A touch inside an edge is no crossing.** `z = (x − ½)² + y − ¼`
+    /// touches the edge `y = ¼` of `[0, 1] × [¼, 1]` at `x = ½` from
     /// outside. No piece there is zero-free or monotone. Red under a run
-    /// marked monotone with no slope proof.
+    /// marked monotone with no slope proof. The control is dyadic so the
+    /// touch is exact: on `z = (x − ½)² + y − 0.2` built in `f64` the
+    /// stored wall clears `y = 0.2` by `1.1e-17` (its control sums
+    /// round), and a walk with a tight enough slope and midpoint rightly
+    /// reads that edge clear.
     #[test]
     fn a_touch_inside_an_edge_resolves_no_count() {
-        let wall = biq([0.25, -0.25, 0.25], [-0.2, 0.3, 0.8]);
+        let wall = biq([0.25, -0.25, 0.25], [-0.25, 0.25, 0.75]);
         let boxes = NurbsBoxes::new(&wall);
         assert_eq!(
-            boundary_zeros(&boxes, ground(), rect((0.0, 1.0), (0.2, 1.0))),
+            boundary_zeros(&boxes, ground(), rect((0.0, 1.0), (0.25, 1.0))),
             None
         );
         // The touched edge itself refuses, rather than walking past it.
         assert!(
-            edge_runs(&boxes, ground(), (true, 0.2, (0.0, 1.0)), &mut 0).is_none(),
+            edge_runs(&boxes, ground(), (true, 0.25, (0.0, 1.0)), &mut 0).is_none(),
             "the touched edge resolved"
         );
         assert_eq!(
-            boundary_zeros(&boxes, ground(), rect((0.0, 1.0), (0.1, 1.0))),
+            boundary_zeros(&boxes, ground(), rect((0.0, 1.0), (0.125, 1.0))),
             Some(2),
             "the control: the edge below cuts the parabola twice"
         );
