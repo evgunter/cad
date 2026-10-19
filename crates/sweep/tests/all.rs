@@ -110,6 +110,8 @@ mod a_swaying_loft_corner_meters;
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "a_tangent_arc_at_other_boolean_vertices.rs"]
 mod a_tangent_arc_at_other_boolean_vertices;
+#[path = "a_tangent_joint_on_near_concentric_carriers.rs"]
+mod a_tangent_joint_on_near_concentric_carriers;
 #[path = "a_thin_cap_keeps_its_digits.rs"]
 mod a_thin_cap_keeps_its_digits;
 #[path = "a_tube_ending_on_a_ball.rs"]
