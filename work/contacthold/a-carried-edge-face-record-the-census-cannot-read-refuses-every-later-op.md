@@ -2,10 +2,13 @@
 id: a-carried-edge-face-record-the-census-cannot-read-refuses-every-later-op
 kind: issue
 title: A union ships edge–face records its census cannot read, and the one carry refuses the same records in every later op, even one touching neither cell
-status: open
+status: closed
 opened: 2026-10-13
 priority: P1
 design: true
+branch: contacthold/carry-by-lineage
+pr: 4996
+closed: 2026-10-19
 ---
 
 

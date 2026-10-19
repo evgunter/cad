@@ -21,8 +21,8 @@
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
-use crate::common::interval::{iv, p2, v3};
-use geom_core::{Affine3, Bounds, Interval, Tol};
+use crate::common::interval::{iv, p2, p3};
+use geom_core::{Bounds, Interval, Tol};
 use profile::{Profile, SketchPlane};
 use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
@@ -36,7 +36,7 @@ use topo::{AtRestBody, BooleanError};
 fn pipe() -> AtRestBody<Interval> {
     let tol = Tol::witness();
     let lp = profile::circle(p2(0.0, 0.0), iv(1.0), tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, -2.0)));
+    let plane = SketchPlane::xy_at(p3(0.0, 0.0, -2.0));
     let vp = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     let pipe = extrude(
         &vp,

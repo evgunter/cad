@@ -148,21 +148,22 @@ fn an_edge_at_the_apex_in_the_plane_splits_sound_exact_and_near() {
 /// `MEET`, so every germ there is one of a pair either side of an
 /// in-plane valley edge, and the pairs alone fix the corners. Five
 /// corners, two valleys: the floor of a V-groove bent at the vertex,
-/// with its walls rising either side. The volume above the top is the
-/// closed form [`crown_above`].
+/// with its walls rising either side. Below, the sections either side
+/// of each valley edge merge into one face, so no vertex is left at
+/// `MEET`. The volume above the top is the closed form [`crown_above`].
 #[test]
 fn a_crown_whose_valleys_lie_in_the_plane_splits_sound() {
     let rings: [(&str, &[f64], [usize; 2]); 3] = [
-        ("three valleys", &[0.3, 0.0, 0.3, 0.0, 0.3, 0.0], [3, 1]),
+        ("three valleys", &[0.3, 0.0, 0.3, 0.0, 0.3, 0.0], [3, 0]),
         (
             "a V-groove floor bent at the vertex",
             &[0.3, 0.0, 0.25, 0.0, 0.2],
-            [2, 1],
+            [2, 0],
         ),
         (
             "three valleys, uneven",
             &[0.3, 0.0, 0.25, 0.0, 0.2, 0.0],
-            [3, 1],
+            [3, 0],
         ),
     ];
     for (name, heights, pieces) in rings {
@@ -553,19 +554,16 @@ fn germs_within_the_band_or_on_one_line_refuse_typed() {
     }
 }
 
-/// **A conventional edge between two planes in band of one carrier is
-/// never re-derived from them.** Random base 2 of
-/// [`random_bases_with_corners_in_the_band_split_sound`] splits with
-/// edges between the section and a base face whose coincidence the
-/// carrier ladder reads in band: the describe pass states them as their
-/// pair (`topo::rest_locus`: its certificate, incidence on both, holds
-/// whether or not they are one carrier), and the finish's re-chart
-/// leaves them images in one plane's chart. Two planes `ε` apart have an
-/// ill-conditioned line, so a door that moves either face, or both, must
-/// carry or re-section the edge's own carrier, never the planes' line:
-/// each offset builds tier-3 sound or refuses typed.
+/// **A split leaves no edge between a section and a base face it lies
+/// flush with.** Random base 2 of
+/// [`random_bases_with_corners_in_the_band_split_sound`] cuts a section
+/// lying on a base face's plane within the tolerance, which the merge's
+/// plane ladder decides one carrier (Zero); each half ends with maximal
+/// faces, so the merge takes the pair into one face, at least one group
+/// per half, and no conventional edge (`OnPair`, or an image in one
+/// plane's chart) is left between two distinct planes.
 #[test]
-fn an_in_band_pair_moved_by_an_offset_builds_sound_or_refuses_typed() {
+fn a_split_merges_a_section_flush_with_a_base_face() {
     let corners = [
         (0.0069, -0.1705, false),
         (0.1677, 0.0167, false),
@@ -580,14 +578,20 @@ fn an_in_band_pair_moved_by_an_offset_builds_sound_or_refuses_typed() {
         (-0.1799, -0.2115, false),
     ];
     let base = base_of(&corners);
-    let band = geom_core::Band::linear(t()).unwrap();
-    let mut pairs = 0;
     for pose in poses() {
         let u = apex_pyramid(&base, &pose, t());
         for up in [true, false] {
             let r = split(&u, &plane_at(&pose, up), t()).expect("random base 2 splits");
-            for part in [&r.above, &r.below] {
+            for (side, part) in [
+                (topo::splitting::PlaneSide::Above, &r.above),
+                (topo::splitting::PlaneSide::Below, &r.below),
+            ] {
                 let SplitPart::Body(b) = part else { continue };
+                assert!(
+                    r.naming.merge_groups.iter().any(|(s, _)| *s == side),
+                    "{}, up {up}: the {side:?} half merges the flush pair",
+                    pose.label
+                );
                 let plane = |f: topo::FaceKey| {
                     matches!(
                         b.get_surface(b.get_face(f).unwrap().surface),
@@ -601,10 +605,6 @@ fn an_in_band_pair_moved_by_an_offset_builds_sound_or_refuses_typed() {
                     else {
                         continue;
                     };
-                    // A conventional edge between two distinct planes: the
-                    // section and a base face read in band of one carrier,
-                    // stated as their pair or, where the split's finish
-                    // re-charted it, an image in one of them.
                     let sides = topo::readback::edge_sides(b, edge).unwrap();
                     let (sa, sb) = sides.surfaces();
                     let conventional = matches!(
@@ -613,40 +613,13 @@ fn an_in_band_pair_moved_by_an_offset_builds_sound_or_refuses_typed() {
                             | geom_brep::EdgeDescription::Chart(_)
                     );
                     let (fa, fb) = sides.faces();
-                    if !conventional || sa == sb || !(plane(fa) && plane(fb)) {
-                        continue;
-                    }
-                    pairs += 1;
-                    let what = format!("{}, up {up}, {edge:?}", pose.label);
-                    let sound = |moved: &topo::Body<f64>, how: &str| {
-                        assert_eq!(
-                            validate_geometric(moved, t()),
-                            Ok(()),
-                            "{what}: {how} builds unsound"
-                        );
-                    };
-                    for d in [1e-3, -1e-3] {
-                        for face in [fa, fb] {
-                            let mut moved = (*b).clone();
-                            if topo::replace_face_offset(&mut moved, face, d, t()).is_ok() {
-                                sound(&moved, &format!("{face:?} offset by {d:e}"));
-                            }
-                        }
-                        let mut moved = (*b).clone();
-                        let together = [fa, fb].map(|face| topo::ChartMove {
-                            faces: vec![face],
-                            distance: d,
-                        });
-                        if topo::offset_planes_together(&mut moved, &together, band, t()).is_ok() {
-                            sound(&moved, &format!("both faces offset by {d:e}"));
-                        }
-                    }
+                    assert!(
+                        !conventional || sa == sb || !(plane(fa) && plane(fb)),
+                        "{}, up {up}: {edge:?} is a conventional edge between two planes",
+                        pose.label
+                    );
                 }
             }
         }
     }
-    assert!(
-        pairs > 0,
-        "random base 2's split holds a conventional edge between two planes"
-    );
 }

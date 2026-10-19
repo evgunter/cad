@@ -26,9 +26,9 @@ fn turned_round(theta: f64) -> AtRestBody<f64> {
     let rz = Vec3::new(s, 0.0, c);
     let centre = Vec3::new(2.0, 0.0, 1.0);
     let origin = centre - (rx * 2.0 + rz * 1.0);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        geom_core::Mat3::from_cols(rz, rx, Vec3::unit_y()),
-        origin,
+    let plane = SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(geom_core::Mat3::from_cols(rz, rx, Vec3::unit_y()), origin),
+        geom_core::Tol::witness(),
     ));
     let b90 = (core::f64::consts::PI / 8.0).tan();
     let profile = Profile::new(

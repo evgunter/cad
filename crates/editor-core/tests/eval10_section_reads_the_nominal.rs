@@ -1,19 +1,15 @@
 //! **A loft's section is its profile's value, as an extrude's profile
-//! is** — read off the profile node under the evaluation's lift, never
-//! re-resolved.
+//! is** — read off the profile node, never re-resolved.
 //!
 //! At `f64` the lane environment and the nominal differ only under a
 //! degenerate box at a non-zero offset (`f64::axis` accepts `lo == hi`
 //! by bits and binds `nominal + c`), so that is the shape: a loft whose
 //! lower section's radius is the parameter `p`, evaluated under
-//! `p ∈ nominal + [c, c]`. Under the pinned lift the profile's value is
-//! the `f64` elaboration at the nominal, and the boxed loft is the
-//! unboxed document's, bit for bit. Under the guided lift the profile
-//! is elaborated over the lane's environment, and the boxed loft is
-//! the document re-authored at `nominal + c`: the section reads what
-//! the lane reads (it was pinned to the nominal under both lifts while
-//! a section stayed `f64`). The two differ, which is what makes each
-//! equality a row rather than a tautology.
+//! `p ∈ nominal + [c, c]`. The profile is elaborated over the lane's
+//! environment, and the boxed loft is the document re-authored at
+//! `nominal + c`: the section reads what the lane reads. That differs
+//! from the unboxed document, which is what makes the equality a row
+//! rather than a tautology.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -144,9 +140,7 @@ fn boxed_at(doc: &ProfileDoc, offset: f64) -> EvalOptions {
     }
 }
 
-/// A box makes the lift guided (`EvalOptions::profile_lift`), so the
-/// boxed loft is the offset document's: its section is its profile's
-/// value at the lane, not the nominal's.
+/// The boxed loft is the offset document's, not the unboxed one's.
 #[test]
 fn a_section_under_a_degenerate_offset_box_reads_its_profile_value() {
     const NOMINAL: f64 = 0.5;
@@ -176,7 +170,7 @@ fn a_section_under_a_degenerate_offset_box_reads_its_profile_value() {
     assert_eq!(
         loft_digest(&boxed, loft),
         loft_digest(&shifted, loft),
-        "the boxed profile is the lane's, and so is the loft's section"
+        "the profile is the lane's, and so is the loft's section"
     );
 }
 
@@ -191,8 +185,8 @@ fn loft_digest(ev: &editor_core::Evaluation<f64>, loft: RecipeNodeId) -> Vec<u64
 }
 
 /// **A seed on a section's radius reaches the loft's walls.** At
-/// `Dual64` with the seed on `p` (the lower section's radius) and the
-/// guided lift, the lower rim's vertex moves with `p`: the section is
+/// `Dual64` with the seed on `p` (the lower section's radius), the
+/// lower rim's vertex moves with `p`: the section is
 /// its profile's value at the lane scalar, carried through the skin
 /// (it was a dual constant while a section stayed `f64`).
 #[test]
@@ -226,13 +220,13 @@ fn a_seed_on_a_section_radius_moves_the_lofted_wall() {
 }
 
 /// **A box over a section's width lofts the family it spans, never the
-/// nominal over the box.** At `Interval` under the guided lift (the
-/// drive's), with `p` widened by ε/256, the lower section's value is
+/// nominal over the box.** At `Interval`, with `p` widened by ε/256,
+/// the lower section's value is
 /// wider than a point and the loft skins it in `T`. (At ε/16 a wall's
 /// pcurve residual encloses about 13 times the box's width and
 /// escalates at the band, which the drive bisects.) Every vertex of the
-/// `f64` loft at each end of the box and at its middle (the guided
-/// lift's degenerate box at that offset, [`boxed_at`]) lies in the
+/// `f64` loft at each end of the box and at its middle (the degenerate
+/// box at that offset, [`boxed_at`]) lies in the
 /// enclosing body's vertex of the same index. Were the nominal lofted over the box, the
 /// ends would fall outside it.
 #[test]
@@ -288,16 +282,14 @@ fn a_box_over_a_section_width_lofts_the_family_it_spans() {
 }
 
 /// **A loft on a face frame evaluates at `Dual64` and at `Sym<f64>`**
-/// (the `Interval` row is `docm1_face_frame_interval`'s), under the
-/// guided lift: the section on the derived frame is its profile's
+/// (the `Interval` row is `docm1_face_frame_interval`'s): the section
+/// on the derived frame is its profile's
 /// value there, placed on the frame's landed value.
 #[test]
 fn a_loft_on_a_face_frame_evaluates_at_dual_and_sym() {
-    use editor_core::ProfileLift;
     use geom_core::{Dual64, Sym, SymBudget};
     let (doc, loft) = crate::docm1_face_frame::lofted_on_face_frame();
-    let opts = crate::corpus::options_under(&doc, ProfileLift::Guided)
-        .expect("the face-frame loft has a continuous variable");
+    let opts = EvalOptions::default();
     let dual = editor_core::evaluate::<Dual64>(
         &doc,
         None,

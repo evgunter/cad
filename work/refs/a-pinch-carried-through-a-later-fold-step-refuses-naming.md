@@ -45,3 +45,19 @@ The corner's copies named where an earlier step made the pinch as
 where the last step makes it, so every member order of the union
 builds the body `[far, prism, cube]` builds and publishes one table. A
 pin over every member order of the three members closes it.
+
+## Re-measured (2026-10-19, WIRE `wire-citerows`, PR 5352)
+
+PR 5352 deletes topo's `pinch_rows`: a boolean now records every
+decision it takes with a margin, or holds it unspelled
+(`BooleanNaming::unspelled`), whatever the result made of the vertex.
+The refusal does not depend on it. On the PR's head,
+`editor-core` `union_member_orders_decide_alike::a_vertex_row_is_the_unions_once_in_every_member_order`
+("the pinch with a far member") still asserts that every order folding
+the far block last after the pinch refuses with "a copy of a corner held
+as several meets no recorded discard between them", and it passes. The
+far block's step decides nothing at the corner, so no row, emitted or
+held, reaches the end pass there. The cause is the end pass reading a
+corner the accumulation already holds as several
+(`names/borders.rs` `Obstacles::split_corner`), not a missing topo
+row. `Intersect [prism, cube, big]` was not re-run.

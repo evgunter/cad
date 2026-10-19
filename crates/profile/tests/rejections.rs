@@ -39,8 +39,7 @@ fn empty_profile_is_rejected() {
 /// would otherwise be a validated profile with no place in space.
 #[test]
 fn a_plane_that_is_not_finite_is_rejected() {
-    use geom_core::{Affine3, Vec3};
-    let at = |z: f64| SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z)));
+    let at = |z: f64| SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, z));
     for z in [f64::NAN, f64::INFINITY] {
         let p = profile::Profile::new(at(z), vec![rect(0.0, 0.0, 1.0, 1.0)]);
         assert_eq!(err(&p), ProfileError::PlaneNotFinite, "validate, z = {z}");

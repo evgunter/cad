@@ -339,7 +339,7 @@ fn vesica_near_pick_agrees_with_the_f64_lane_at_interval() {
 /// than handing out a validated profile holding NaN.
 #[test]
 fn the_value_channel_refuses_a_value_with_no_single_point() {
-    use geom_core::{Affine3, Vec3};
+    use geom_core::Point3;
     use profile::test_support::bulge_loop;
     use profile::{Profile, SketchPlane, ValueNotAPoint};
     let quad = |corner: Interval, z: Interval| {
@@ -353,11 +353,7 @@ fn the_value_channel_refuses_a_value_with_no_single_point() {
             ),
             (p(0.0, 1.0), Interval::zero()),
         ]);
-        let plane = SketchPlane::new(Affine3::translation(Vec3::new(
-            Interval::zero(),
-            Interval::zero(),
-            z,
-        )));
+        let plane = SketchPlane::xy_at(Point3::new(Interval::zero(), Interval::zero(), z));
         Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .expect("the quad validates at Interval")
@@ -371,10 +367,7 @@ fn the_value_channel_refuses_a_value_with_no_single_point() {
         .iter()
         .find(|v| v.y == 1.0 && v.x > 0.0)
         .expect("the moving corner");
-    assert_eq!(
-        (corner.x, point.plane().placement.translation.z),
-        (2.5, 1.0)
-    );
+    assert_eq!((corner.x, point.plane().origin().z), (2.5, 1.0));
     let wide = Interval::from_bounds(2.5 - w, 2.5 + w);
     match quad(wide, Interval::from_f64(1.0)).value_channel() {
         Err(ValueNotAPoint::Vertex {
@@ -411,7 +404,7 @@ fn the_value_channel_refuses_an_arc_carrier_at_its_segment() {
     use profile::{Profile, ValueNotAPoint};
     let p = |x: f64, y: f64| Point2::new(Interval::from_f64(x), Interval::from_f64(y));
     let form = Profile::new(
-        profile::SketchPlane::new(geom_core::Affine3::identity()),
+        profile::SketchPlane::xy(),
         vec![bulge_loop(vec![
             (p(0.0, 0.0), Interval::zero()),
             (p(2.0, 0.0), Interval::from_f64(0.5)),

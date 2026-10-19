@@ -1098,81 +1098,96 @@ mod tests {
             }
         }
     }
-    /// R1 review probe: a strip between two Villarceau circles of one
-    /// family, against a numeric oracle for the family parameter.
-    /// **A strip between two Villarceau circles reads its side at random
-    /// points** (a counterexample search: the seed varies and is logged,
-    /// the count rides `CAD_FUZZ_EFFORT`). The circles of one family, at
-    /// family parameters `0` and `φ₁`, bound the strip `0 < φ < φ₁`; each
-    /// point's parameter is found numerically (the plane's root on the
-    /// circle that holds it), and every answer is that membership.
-    #[test]
-    fn a_villarceau_strip_reads_its_side_at_random_points() {
-        let b = Band::new(1e-9, 1e-8).unwrap();
-        let sa = MINOR / R;
-        let ca = (1.0 - sa * sa).sqrt();
-        let rot = |phi: f64, v: Vec3<f64>| {
-            let (s, c) = phi.sin_cos();
-            Vec3::new(c * v.x - s * v.y, s * v.x + c * v.y, v.z)
-        };
-        let c0 = Vec3::new(0.0, MINOR, 0.0);
-        let n0 = Vec3::new(-sa, 0.0, ca);
-        let e0 = Vec3::new(ca, 0.0, sa);
+    /// The strip `0 < φ < φ₁` between two circles of one Villarceau
+    /// family of the torus `(R, MINOR)`: the circle at family parameter
+    /// `φ` is the one at `0` turned by `φ` about the axis.
+    fn villarceau_strip(phi1: f64) -> TorusFaceRegion<f64> {
+        let (c0, n0, e0) = villarceau_frame();
         let circle = |phi: f64, forward: bool, key: u64| RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
             carrier: Carrier::Circle {
-                center: Point3::origin() + rot(phi, c0),
-                axis: rot(phi, n0),
+                center: Point3::origin() + turned(phi, c0),
+                axis: turned(phi, n0),
                 radius: R,
-                u_ref: rot(phi, e0),
+                u_ref: turned(phi, e0),
             },
             t0: 0.0,
             t1: TAU,
             forward,
         };
+        TorusFaceRegion {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major: R,
+            minor: MINOR,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            sense: true,
+            outer: LoopKey::default(),
+            edges: vec![circle(0.0, true, 1), circle(phi1, false, 2)],
+        }
+    }
+
+    /// The family's circle at `φ = 0`: its centre, axis and `u_ref`.
+    fn villarceau_frame() -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
+        let sa = MINOR / R;
+        let ca = (1.0 - sa * sa).sqrt();
+        (
+            Vec3::new(0.0, MINOR, 0.0),
+            Vec3::new(-sa, 0.0, ca),
+            Vec3::new(ca, 0.0, sa),
+        )
+    }
+
+    /// `v` turned by `phi` about `z`.
+    fn turned(phi: f64, v: Vec3<f64>) -> Vec3<f64> {
+        let (s, c) = phi.sin_cos();
+        Vec3::new(c * v.x - s * v.y, s * v.x + c * v.y, v.z)
+    }
+
+    /// The family parameter of `p` on the torus: the `φ` whose circle
+    /// holds it, in closed form. `p` lies in the plane of circle `φ`
+    /// where `n(φ)·w = ca·w_z − sa·ρ·cos(φ − θ)` vanishes, at
+    /// `φ = θ ± acos(ca·w_z / (sa·ρ))`. That cosine is at most one on
+    /// the torus, and is one where a bitangent plane touches it: a
+    /// double root, which no sign change brackets. Of the two planes
+    /// through `p`, the one whose family circle holds `p` is kept. A
+    /// rounding of the cosine near one moves the root by its square
+    /// root, so the circle is asked to hold `p` within `10⁻⁶`, far
+    /// inside the `10⁻⁴` the strip's readers keep off its edges.
+    fn villarceau_family(p: Point3<f64>) -> f64 {
+        let (c0, n0, _) = villarceau_frame();
+        let w = p - Point3::origin();
+        let (theta, rho) = (w.y.atan2(w.x), w.x.hypot(w.y));
+        let half = (n0.z * w.z / (-n0.x * rho)).clamp(-1.0, 1.0).acos();
+        let on = |phi: f64| ((w - turned(phi, c0)).norm() - R).abs();
+        let best = [theta + half, theta - half]
+            .map(|phi| (on(phi), phi.rem_euclid(TAU)))
+            .into_iter()
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .unwrap();
+        assert!(best.0 < 1e-6, "no family circle holds {p:?}: {best:?}");
+        best.1
+    }
+
+    /// **A strip between two Villarceau circles reads its side at random
+    /// points** (a counterexample search: the seed varies and is logged,
+    /// the count rides `CAD_FUZZ_EFFORT`). The circles of one family, at
+    /// family parameters `0` and `φ₁`, bound the strip `0 < φ < φ₁`;
+    /// each point's parameter is [`villarceau_family`]'s, and every
+    /// answer is that membership.
+    #[test]
+    fn a_villarceau_strip_reads_its_side_at_random_points() {
+        let b = Band::new(1e-9, 1e-8).unwrap();
         for phi1 in [0.7, 2.5, 4.0] {
-            let region = TorusFaceRegion {
-                center: Point3::origin(),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                major: R,
-                minor: MINOR,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-                sense: true,
-                outer: LoopKey::default(),
-                edges: vec![circle(0.0, true, 1), circle(phi1, false, 2)],
-            };
-            // the family parameter of p: the phi whose circle holds p
-            let fam = |p: Point3<f64>| -> f64 {
-                let w = p - Point3::origin();
-                let g = |phi: f64| rot(phi, n0).dot(w);
-                let on = |phi: f64| ((w - rot(phi, c0)).norm() - R).abs();
-                let n = 20000;
-                let mut best = (f64::INFINITY, 0.0);
-                for i in 0..n {
-                    let (a, bb) = (TAU * i as f64 / n as f64, TAU * (i + 1) as f64 / n as f64);
-                    if g(a) * g(bb) <= 0.0 {
-                        let (mut lo, mut hi) = (a, bb);
-                        for _ in 0..60 {
-                            let m = 0.5 * (lo + hi);
-                            if g(lo) * g(m) <= 0.0 { hi = m } else { lo = m }
-                        }
-                        let r = 0.5 * (lo + hi);
-                        if on(r) < best.0 {
-                            best = (on(r), r);
-                        }
-                    }
-                }
-                assert!(best.0 < 1e-9, "oracle {best:?}");
-                best.1
-            };
+            let region = villarceau_strip(phi1);
             let (mut agree, mut wrong) = (0, Vec::new());
             let mut rng = test_utils::fuzz::start("torus_region_villarceau");
             let mut rnd = || rng.unit();
             for _ in 0..test_utils::fuzz::scaled(60) {
                 let (u, v) = (rnd() * TAU, rnd() * TAU);
                 let p = at(u, v);
-                let f = fam(p);
+                let f = villarceau_family(p);
                 if f.min(TAU - f) < 1e-4 || (f - phi1).abs() < 1e-4 {
                     continue;
                 }
@@ -1189,6 +1204,23 @@ mod tests {
                 test_utils::fuzz::replay()
             );
         }
+    }
+
+    /// **A point where a bitangent plane touches the torus reads the
+    /// strip's side**: the chart point seed `0xaaece85fd941a95f` drew for
+    /// [`a_villarceau_strip_reads_its_side_at_random_points`]. Its two
+    /// plane roots lie `2·10⁻⁴` apart, inside one step of a sign scan;
+    /// the family circle that holds it is the one at `φ ≈ 0.5332`,
+    /// inside the strip to `0.7`.
+    #[test]
+    fn a_bitangent_point_reads_the_strips_side() {
+        let p = at(3.674_920_436_474_422, 4.459_602_276_695_849);
+        let f = villarceau_family(p);
+        assert!((f - 0.533_2).abs() < 1e-4, "family parameter {f}");
+        assert_eq!(
+            villarceau_strip(0.7).contains(p, Band::new(1e-9, 1e-8).unwrap()),
+            Ok(Some(true))
+        );
     }
     /// **The Villarceau strip reads its side near its edges**: at points
     /// `10⁻⁷` to `0.1` rad of family parameter either side of each edge

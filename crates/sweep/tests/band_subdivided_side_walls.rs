@@ -26,7 +26,7 @@
 use std::f64::consts::FRAC_PI_2;
 use sweep::ExtrudeSide;
 
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::{ClosedLoop, Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start};
 use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
@@ -104,10 +104,7 @@ fn cube_at(x0: f64, y0: f64, z0: f64, s: f64) -> AtRestBody<f64> {
         Point2::new(x0 + s, y0 + s),
         Point2::new(x0, y0 + s),
     ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::identity(),
-        Point3::new(0.0, 0.0, z0) - Point3::origin(),
-    ));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let v = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -406,9 +403,9 @@ fn revolved_continuation_builds_one_wall_per_run_and_unions_as_built() {
 fn lofted_continuation_walls_carry_one_key_per_segment() {
     let t = Tol::witness();
     let lp: ProfileLoop<f64> = subdivided_square(t).into();
-    let places: Vec<Affine3<f64>> = [0.0, 2.0]
+    let places: Vec<SketchPlane<f64>> = [0.0, 2.0]
         .iter()
-        .map(|z| Affine3::from_parts(Mat3::identity(), Vec3::new(0.0, 0.0, *z)))
+        .map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, *z)))
         .collect();
     let l = loft_body::<f64>(&[vec![lp.clone()], vec![lp]], &places, 1, t).unwrap();
     let (w0, w1) = (l.side_faces[0][0], l.side_faces[0][1]);
