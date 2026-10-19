@@ -2166,6 +2166,7 @@ fn attribute(
         | ValidationError::SliverInsideOut { .. }
         | ValidationError::VolumeUncomputable { .. }
         | ValidationError::VolumeSignUnresolved { .. }
+        | ValidationError::OrientationUndecided { .. }
         | ValidationError::Pcurve { .. }
         | ValidationError::RingMeetsOuter { .. }
         | ValidationError::RingContactEscalated { .. }

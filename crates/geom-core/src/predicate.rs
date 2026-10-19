@@ -405,6 +405,23 @@ impl Band {
         Ok(Self { zero, escalate })
     }
 
+    /// **The band a certified enclosure's sign alone is read against**:
+    /// zero at the smallest normal `f64` and escalation at twice it, so
+    /// an [`Interval`](crate::interval::Interval) wholly on one side of
+    /// zero decides that side, one holding zero is indeterminate, and
+    /// nothing in between is held against a tolerance. For a sign the
+    /// design certifies by its enclosure alone, never against the run's
+    /// band (D10: a shell's role and a solid's orientation off the sign
+    /// of its volume, where no ray reads). Not a tolerance: no recourse
+    /// offers to tighten below a margin read against it.
+    #[must_use]
+    pub const fn enclosure_sign() -> Self {
+        Self {
+            zero: f64::MIN_POSITIVE,
+            escalate: 2.0 * f64::MIN_POSITIVE,
+        }
+    }
+
     /// **The tolerance below which `margin` is decided**, `|m|/K`: below
     /// it the band's escalation edge falls under `|m|`. The one home of
     /// the value every sized recourse offers to tighten below
@@ -762,6 +779,17 @@ impl<T: crate::real::Real> Margin<T> {
     /// kernel-invariant (Corrupt-class) error, not a validity refusal.
     pub fn over_lever(measure: T, lever: T) -> Self {
         Self(measure / lever)
+    }
+
+    /// Door: a quantity **read for its sign alone**, against
+    /// [`Band::enclosure_sign`] and no tolerance — a certified volume's
+    /// enclosure, whose side of zero is a shell's role (D10: certified by
+    /// its enclosure alone, never held against the band). No length is
+    /// claimed, because no band in metres is held against it, and none
+    /// may be: a margin from this door is decided under
+    /// [`Band::enclosure_sign`] only. One operation, the identity.
+    pub fn sign_of(measure: T) -> Self {
+        Self(measure)
     }
 
     /// The wrapped margin, for the classify seam and for diagnostics
@@ -1861,6 +1889,18 @@ impl MarginDiag {
     #[must_use]
     pub fn sized_recourse(self, band: Band, words: SizedWords<'_>) -> String {
         self.shows(band, words.passes).ending(words)
+    }
+
+    /// **Whether this reading is certainly on the refused side** of a
+    /// decision passing `passes`: it shows no size — an exact or proved
+    /// zero, or a reading in band or past it wholly on a side the
+    /// decision refuses — so [`MarginDiag::sized_recourse`] ends it as
+    /// [`SizedWords::refused`] says. A class, never the number; like the
+    /// sentence it reads the margin's side, so its production callers are
+    /// counted by `scripts/gates/reporting-margin-door.sh`.
+    #[must_use]
+    pub fn shows_no_size(self, band: Band, passes: SizedPass) -> bool {
+        matches!(self.shows(band, passes), Shows::NoSize | Shows::Refused)
     }
 
     /// **The sized recourse read at the import door** (D4 ¶1, D7): a size

@@ -169,6 +169,17 @@
 //! three numbers by `kitchen_sink`'s ids: the merged values are
 //! neither tree's, and the id-masked fence held across the merge.
 //!
+//! **ALL FOUR NUMBERS MOVED WHEN A CHORD'S DIRECTOR BECAME ITS
+//! COMPONENTS** (`path::chord_director`, not `atan2`), through
+//! `declared_tangency` alone, measured by dumping every node's outcome
+//! and every point at `f64` and at `Interval` before and after. At
+//! `f64` four of its points moved, by at most `3.3e-16`: the tangent arc
+//! that leaves the `LineTo` along −x now starts on the exact ray
+//! `(−1, 0)` rather than `(−1, 1.2e-16)`. At `Interval` its profile no
+//! longer refuses its junction, so the profile, the extrude and the
+//! placement evaluate where they were failed and poisoned. Nothing else
+//! moved, fixture included.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -920,7 +931,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x2e03_527c_cebb_fff7, 0x6672_c1c3_d4af_bf7b),
+        (0x63cb_9654_8918_588f, 0x3bbf_ca21_e4a7_b7b3),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -931,10 +942,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
 ///
 /// **RE-BLESSED WHEN THE PINNED LIFT RETIRED** (Ev's ruling A on
 /// #5068): the profiles' loops are the lane's own elaboration, not the
-/// `f64` elaboration lifted, and `declared_tangency`'s bracket refuses
-/// its junction at `Interval`
-/// (`work/paths/the-declared-tangency-bracket-refuses-its-closing-junction-at-interval.md`).
-/// The `f64` row did not move.
+/// `f64` elaboration lifted. The `f64` row did not move.
 #[test]
 fn the_corpus_evaluation_is_bit_identical_at_interval() {
     use geom_core::{Bounds, Interval};
@@ -953,7 +961,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x8679_d77d_670a_da36, 0x43aa_c11a_3bac_d39a),
+        (0x385b_7814_3b4b_6c16, 0x0f94_3dcb_8b3c_15ca),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -977,7 +985,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x2e03_527c_cebb_fff7, 0x6672_c1c3_d4af_bf7b),
+        (0x63cb_9654_8918_588f, 0x3bbf_ca21_e4a7_b7b3),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -1055,7 +1063,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x11fd_f174_84df_1e57, 0x5313_d5ea_f44e_df93),
+        (0x27f7_a941_3d23_2dd7, 0xf0a8_b0a4_3724_cd63),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

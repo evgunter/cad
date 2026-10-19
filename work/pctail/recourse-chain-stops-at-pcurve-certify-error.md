@@ -139,3 +139,24 @@ into `UnsupportedCarrier { chart, carrier, class }`, `CarrierOffChart
 whose `Display` names its pair and ends in a `Recourse:` clause, pinned
 by `pcurve_cache::tests::every_carrier_refusal_arm_names_its_pair_and_a_recourse`.
 The other six stand, and the variant count is nineteen.
+
+## Evidence: the conflation now keeps the image's span off the edge's decision (ENCL, 2026-10-19)
+
+`encl/param-span-doors` makes the edge certifier's `CertCheck::ParamSpan`
+and `CertCheck::ParamWinding` `RefusedSide::Unminted`, so a reading
+certainly on their refused side panics at a build
+(`SizedDecision::recourse`, `crates/geom-brep/src/recourse.rs`). The
+image checks could not keep routing there: `PcurveCertifyError::IntervalNotForward`
+still folds a `Sign::Zero` verdict into a sign-certain refusal (the
+`pcurve_interval_forward` sites in `crates/geom-brep/src/pcurve_cache.rs`
+and `pcurve_cache/projected.rs`), so a positive span in band, which an
+operation at a looser tolerance reaches on an edge minted at a tighter
+one, would read as certainly refused and panic. `PcurveCheck`'s routing
+now reads `ParamSpan` as the forward decision on the image
+(`SpanDecision::Forward`, as `CertCheck::ImageSpan` does) and
+`AzimuthPeriod` / `TubePeriod` as the winding decision on it
+(`SpanDecision::Winding`), both `RefusedSide::StoredContradiction` in
+the edge's levers (`PcurveCheck::routing`). Once the image's span
+verdict carries its `Refused` margin, its span check can return to the
+edge's decision; the period gates stay apart, since a spline image can
+sweep past a period from input no door refuses.

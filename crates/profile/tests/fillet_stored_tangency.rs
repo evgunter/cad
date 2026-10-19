@@ -695,16 +695,19 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 /// `ConstructedProfile`, which verifies them rather than re-deciding
 /// the stored arcs' consistency; five rows' joint lists re-ordered, the
 /// two circle forms joined the corpus (`shared coverage corpus 14`,
-/// `15`), and no vertex, arc field or verdict moved.
-const GOLDEN_DEFAULT: u64 = 0xe1b3_65a1_364f_8e39;
-/// The same at `CAD_TOLERANCE_EPS=1e-6`. Re-derived when the joints
-/// began to read their turn: the eight `arc x arc` corners at
-/// `c = 0.1` (r = 0.2, 0.5), `0.3` and `1` left the corpus, their
-/// fillet stored as a chord that turns from each leg by half the
-/// corner's turn, which the door now refuses; no other row moved.
-const GOLDEN_1E6: u64 = 0xc092_9140_5699_3b16;
+/// `15`), and no vertex, arc field or verdict moved. Then an arc leg's
+/// end tangents came to be its chord's unit ray turned by half its sweep
+/// rather than the angles `γ ± θ/2` read off `atan2`: `shared coverage
+/// corpus 5`'s second arc, tangent to the first, stores its centre at
+/// `(2⁻⁵⁴, 2⁻⁵⁴)` rather than `(0, 3.1e-17)` about the nominal origin, at
+/// every ε row, and nothing else moved.
+const GOLDEN_DEFAULT: u64 = 0x21b4_38ef_3b0a_c547;
+/// The same at `CAD_TOLERANCE_EPS=1e-6`, where `arc x arc c=0.3
+/// r=0.05` validates: its legs stand ≈ 1.5Kε apart across the carriers'
+/// shallow crossing, which their ends settle.
+const GOLDEN_1E6: u64 = 0xbcf6_6ce8_88ac_2e10;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0x91bf_eae3_1d8f_d451;
+const GOLDEN_1E12: u64 = 0x3114_b0fa_bb49_528f;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the

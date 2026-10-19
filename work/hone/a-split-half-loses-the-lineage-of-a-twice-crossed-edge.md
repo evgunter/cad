@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-30
 priority: P3
 cost: M
-refs: [a-cylinder-split-refuses-missing-upstream-once-its-pieces-rank]
 ---
 
 
