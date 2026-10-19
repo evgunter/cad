@@ -269,10 +269,9 @@ fn vertex_grazing_plane() {
 }
 
 /// (iii) + the Fig. 14.2 story: the notched block at the face-coplanar
-/// plane — Above lands as THREE disconnected prisms; the coplanar
-/// notch floor survives as a Below wall (artifact face, F7: not
-/// auto-merged); the tangent tip disconnects via distinct vertex
-/// copies (PR 2 carry-forward 1).
+/// plane — Above lands as THREE disconnected prisms; Below's coplanar
+/// notch floor and section faces merge into one top face; the tangent
+/// tip disconnects via distinct vertex copies.
 #[test]
 fn notched_block_end_to_end() {
     let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
@@ -295,8 +294,9 @@ fn notched_block_end_to_end() {
 
     // Tangent-tip carry-forward: the Above side holds TWO distinct
     // coincident vertices at each tip position (one per flanking
-    // prism), in different shells; Below keeps ONE, with the tip edge
-    // surviving as an artifact edge inside its coplanar top.
+    // prism), in different shells. Below ends with maximal faces: its
+    // top at y = 1 is one face, the notch floor and the three section
+    // faces merged, so no vertex is left at the tip.
     for z in [0.0, 1.0] {
         let above_tips = vertices_at(above, 4.0, 1.0, z);
         assert_eq!(above_tips.len(), 2, "two coincident distinct copies");
@@ -311,35 +311,31 @@ fn notched_block_end_to_end() {
             shell_of(above, above_tips[1]),
             "the copies live in different components"
         );
-        assert_eq!(vertices_at(below, 4.0, 1.0, z).len(), 1);
+        assert_eq!(
+            vertices_at(below, 4.0, 1.0, z).len(),
+            0,
+            "no tip vertex below"
+        );
     }
-    let (tb, tt) = (
-        vertices_at(below, 4.0, 1.0, 0.0)[0],
-        vertices_at(below, 4.0, 1.0, 1.0)[0],
-    );
-    let tip_edges = below
-        .edges()
-        .filter(|(_, e)| {
-            let s1 = below.get_half_edge(e.he_plus).unwrap().start;
-            let s2 = below.get_half_edge(e.he_minus).unwrap().start;
-            (s1 == tb && s2 == tt) || (s1 == tt && s2 == tb)
-        })
-        .count();
-    assert_eq!(tip_edges, 1, "tip edge survives in Below's coplanar top");
-
-    // Coplanar artifacts: Below's top at y = 1 carries the operand's
-    // notch-floor face (outward +y) alongside the three +y section
-    // faces — four y = 1 faces in total, none merged (F7).
     let up_faces = below
         .faces()
         .filter(|(_, f)| match below.get_surface(f.surface) {
-            Some(Surface::Plane { origin, normal, .. }) => {
-                normal.x == 0.0 && normal.y == 1.0 && normal.z == 0.0 && origin.y == 1.0
+            Some(Surface::Plane { normal, .. }) => {
+                normal.x == 0.0 && normal.y == 1.0 && normal.z == 0.0
             }
             _ => false,
         })
         .count();
-    assert_eq!(up_faces, 4, "3 section faces + the artifact floor");
+    assert_eq!(up_faces, 1, "the floor and the sections are one top face");
+    assert_eq!(
+        (
+            below.faces().count(),
+            below.edges().count(),
+            below.vertices().count()
+        ),
+        (6, 12, 8),
+        "below is the box a plane just under the tip gives"
+    );
 
     // Volume conservation.
     let (va, vb, v0) = (
@@ -503,8 +499,12 @@ fn a_plane_within_eps_of_a_pinch_cuts_it_and_records_the_pinch() {
                     }
                 }
                 assert!(sections > 0, "{at}: the halves carry section faces");
+                // A half's top merges the floor at y = 1 with the
+                // sections at y = 1 + δ into one face on one of the two
+                // planes, so the halves may hold `δ` times the 8 × 1 top
+                // more or less.
                 assert!(
-                    (volume - v0).abs() <= 1e-12 * v0,
+                    (volume - v0).abs() <= 1e-12 * v0 + 8.0 * k.abs() * eps,
                     "{at}: the halves hold the operand's volume ({volume} vs {v0})"
                 );
             }
@@ -673,11 +673,11 @@ fn bob_mirror_pinch_refuses_typed() {
     assert_eq!(validate_closed(pieces), Ok(()));
     assert_eq!(pieces.shells().count(), 3, "three pinched floor pieces");
     assert_eq!(slab.shells().count(), 1);
-    // Distinct coincident tip copies on the pieces side; one vertex on
-    // the slab side (same census as the flipped-plane presentation).
+    // Distinct coincident tip copies on the pieces side; none on the
+    // slab side, whose top at y = 1 is one maximal face.
     for z in [0.0, 1.0] {
         assert_eq!(vertices_at(pieces, 4.0, 1.0, z).len(), 2);
-        assert_eq!(vertices_at(slab, 4.0, 1.0, z).len(), 1);
+        assert_eq!(vertices_at(slab, 4.0, 1.0, z).len(), 0);
     }
     let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
     let (vs, vp) = (

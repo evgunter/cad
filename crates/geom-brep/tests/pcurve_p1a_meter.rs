@@ -70,6 +70,7 @@ fn a_cone_edge_inside_the_band_certifies_at_its_perpendicular_drift() {
         p0,
         p1,
         &lookup,
+        1.0,
         band(),
     )
     .expect("a drift inside the band certifies")
@@ -151,6 +152,7 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
             p0,
             p1,
             &lookup,
+            1.0,
             band(),
         )
         .unwrap_or_else(|e| panic!("{name} seam certifies at a {d:e} drift: {e:?}"))
@@ -197,6 +199,7 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
         p0,
         p1,
         &lookup,
+        1.0,
         band(),
     )
     .expect_err("an ellipse is not a locus of any sphere chart image");
@@ -257,6 +260,7 @@ mod at_intervals {
             p0,
             p1,
             &lookup,
+            geom_core::Real::from_f64(1.0),
             band(),
         )
         .expect("the seam certifies at the interval scalar");
@@ -309,6 +313,7 @@ mod at_intervals {
             p0,
             p1,
             &lookup,
+            geom_core::Real::from_f64(1.0),
             band(),
         )
         .expect("a 2.5e-10 drift is inside the band");

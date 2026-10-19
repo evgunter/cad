@@ -117,6 +117,7 @@
 //! | `carrier_circles_identity` | d + |Δr| | direct |
 //! | `carrier_circles_external` | d − (r₁+r₂) | direct |
 //! | `carrier_circles_internal` | d − |Δr| | direct |
+//! | `carrier_circles_chord` | the radical foot's mean depth inside both circles, or zero outside them | direct |
 //! | `arc_apex_identity` | apex distance | direct |
 //! | `collinear_overlap` | overlap length | direct |
 //! | `contact_at_shared_vertex` | contact-to-vertex distance | direct |
@@ -799,6 +800,11 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "carrier_circles_external",
         kind: EndingKind::Sized,
     },
+    // the depth of the chord two nearly internally tangent circles cut, at its midpoint
+    DecisionEnding {
+        name: "carrier_circles_chord",
+        kind: EndingKind::Sized,
+    },
     // two circles told apart by their centre separation plus their radius difference
     DecisionEnding {
         name: "carrier_circles_identity",
@@ -1096,6 +1102,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "full_turn_reach" => "whether a full turn reaches round its carrier",
         "full_turn_sense" => "which way a full turn runs",
         "canonical_order_y" => "which of two points comes first along y",
+        "carrier_circles_chord" => "whether two circles touching from inside cut a chord",
         "carrier_circles_external" => "whether two circles touch from outside",
         "carrier_circles_identity" => "whether two circles are one circle",
         "carrier_circles_internal" => "whether two circles touch from inside",
@@ -1161,6 +1168,10 @@ pub enum ProfileError {
     Band(BandError),
     /// The profile has no loops — there is no region to sweep.
     EmptyProfile,
+    /// The sketch plane's placement has a component that is not finite
+    /// for every value it stands for (poison, an infinity, or an
+    /// enclosure reaching one), so the profile has no place in space.
+    PlaneNotFinite,
     /// A loop has no vertex. One is enough: D1's full turn is one
     /// segment at one vertex.
     EmptyLoop {
@@ -1305,6 +1316,10 @@ impl fmt::Display for ProfileError {
         match self {
             Self::Band(e) => write!(f, "profile validation could not form a band: {e}"),
             Self::EmptyProfile => f.write_str("profile has no loops — nothing to sweep"),
+            Self::PlaneNotFinite => f.write_str(
+                "the profile's sketch plane is not finite, so the profile has no place in \
+                 space. Recourse: give the plane finite values",
+            ),
             Self::EmptyLoop { loop_index } => write!(
                 f,
                 "loop {loop_index} has no vertex; a closed loop needs at least one \
@@ -1418,7 +1433,7 @@ impl fmt::Display for ProfileError {
                 // carries the levers, and a name without a row names its
                 // hole there.
                 //
-                // The three names below ALSO carry a sentence at
+                // The four names below ALSO carry a sentence at
                 // `PathError::Escalated`'s stored-form arm, and the two
                 // deliberately differ: here the segment pair is one the
                 // CALLER authored, so the construct lever is theirs to
@@ -1435,6 +1450,7 @@ impl fmt::Display for ProfileError {
                             "carrier_line_circle"
                                 | "carrier_circles_external"
                                 | "carrier_circles_internal"
+                                | "carrier_circles_chord"
                         )
                     );
                 if near_tangency {
@@ -1792,6 +1808,14 @@ pub struct BlendArc<T: Real> {
 /// stated rather than hidden. It is **not** invariant under reordering
 /// the input's loop *list*: holes keep discovery (input) order, and D9
 /// recipes replay that order — see the crate docs.
+///
+/// **Its mints**, the one list of them: [`Profile::validate`],
+/// [`Profile::validate_recording`] and [`Profile::validate_guided`] from
+/// a raw profile; [`ConstructedProfile`]'s three validations from a
+/// replayed one; [`ValidatedProfile::lift_onto`] from an `f64` one;
+/// [`ValidatedProfile::value_channel`] from one at another scalar; and
+/// [`ValidatedProfile::on_plane`] from one at the same scalar. Nothing
+/// else mints one.
 #[derive(Debug, Clone)]
 pub struct ValidatedProfile<T: Real> {
     plane: crate::SketchPlane<T>,
@@ -1805,6 +1829,15 @@ impl<T: Real> ValidatedProfile<T> {
         &self.plane
     }
 
+    /// **The same canonical form on `plane`**, at the same scalar:
+    /// validation is 2-D and reads nothing of the plane
+    /// ([`ValidatedProfile::plane`]), so every decision it made holds on
+    /// any plane. Nothing is computed, and no scalar is crossed.
+    #[must_use]
+    pub fn on_plane(self, plane: crate::SketchPlane<T>) -> Self {
+        Self { plane, ..self }
+    }
+
     /// The canonicalized loops (outer first, then holes in input
     /// order).
     pub fn loops(&self) -> &[ValidatedLoop<T>] {
@@ -1812,48 +1845,118 @@ impl<T: Real> ValidatedProfile<T> {
     }
 }
 
+/// Where a canonical form holds a value with no single point (poison,
+/// or an enclosure wider than a point): [`ValidatedProfile::value_channel`]'s
+/// refusal. Indices are the canonical form's own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ValueNotAPoint {
+    /// A component of the sketch plane's placement.
+    Plane,
+    /// Vertex `vertex` of canonical loop `loop_index`.
+    Vertex {
+        /// The canonical loop.
+        loop_index: usize,
+        /// The vertex.
+        vertex: usize,
+    },
+    /// Segment `segment` of canonical loop `loop_index`: an endpoint,
+    /// or an arc's carrier or sweep.
+    Segment {
+        /// The canonical loop.
+        loop_index: usize,
+        /// The segment.
+        segment: usize,
+    },
+}
+
+impl fmt::Display for ValueNotAPoint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let what = match self {
+            Self::Plane => "the sketch plane".to_owned(),
+            Self::Vertex { loop_index, vertex } => format!("vertex {vertex} of loop {loop_index}"),
+            Self::Segment {
+                loop_index,
+                segment,
+            } => {
+                format!("segment {segment} of loop {loop_index}")
+            }
+        };
+        write!(
+            f,
+            "{what} of the profile holds a value with no single point, so the profile has no \
+             f64 value channel"
+        )
+    }
+}
+
+impl std::error::Error for ValueNotAPoint {}
+
 impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
     /// **This canonical form's value channel**: every stored scalar —
     /// the plane, each vertex, each segment's endpoints, each arc's
-    /// carrier and sweep — read through
-    /// [`SpanLocate::value_channel`](geom_core::spline::SpanLocate::value_channel)
-    /// (its one `f64`, NaN where it has none), and everything else —
-    /// roles, the segment classifications and turns, the joint sets —
-    /// carried. The decisions were made along this channel (C6), so
-    /// they hold of it as they hold of the form; a value with no point
-    /// comes back NaN, for the reader to refuse.
-    #[must_use]
-    pub fn value_channel(&self) -> ValidatedProfile<f64> {
-        let v = geom_core::spline::SpanLocate::value_channel;
-        ValidatedProfile {
-            plane: self.plane.map(v),
-            loops: self
-                .loops
+    /// carrier and sweep — read as its one `f64`
+    /// ([`SpanLocate::point_value`](geom_core::spline::SpanLocate::point_value)),
+    /// and everything else — roles, the segment classifications and
+    /// turns, the joint sets — carried. The decisions were made along
+    /// this channel (C6), so they hold of it as they hold of the form.
+    ///
+    /// # Errors
+    ///
+    /// [`ValueNotAPoint`] naming the first value with no single point
+    /// (poison, or an enclosure wider than a point): a canonical form's
+    /// values are validated ones, so there is no `f64` form to mint.
+    pub fn value_channel(&self) -> Result<ValidatedProfile<f64>, ValueNotAPoint> {
+        let point2 =
+            |p: Point2<T>, site: ValueNotAPoint| match (p.x.point_value(), p.y.point_value()) {
+                (Some(x), Some(y)) => Ok(Point2::new(x, y)),
+                _ => Err(site),
+            };
+        let plane = self.plane.point_value().ok_or(ValueNotAPoint::Plane)?;
+        let mut loops = Vec::with_capacity(self.loops.len());
+        for (loop_index, lp) in self.loops.iter().enumerate() {
+            let vertices = lp
+                .vertices
                 .iter()
-                .map(|lp| ValidatedLoop {
-                    vertices: lp.vertices.iter().map(|p| p.map(v)).collect(),
-                    segments: lp
-                        .segments
-                        .iter()
-                        .map(|s| ValidatedSegment {
-                            start: s.start.map(v),
-                            end: s.end.map(v),
-                            kind: match s.kind {
-                                SegmentKind::Line => SegmentKind::Line,
-                                SegmentKind::Arc { arc, turn } => SegmentKind::Arc {
-                                    arc: arc.map(v),
-                                    turn,
-                                },
+                .enumerate()
+                .map(|(vertex, p)| point2(*p, ValueNotAPoint::Vertex { loop_index, vertex }))
+                .collect::<Result<Vec<_>, _>>()?;
+            let segments = lp
+                .segments
+                .iter()
+                .enumerate()
+                .map(|(segment, s)| {
+                    let site = ValueNotAPoint::Segment {
+                        loop_index,
+                        segment,
+                    };
+                    let kind = match s.kind {
+                        SegmentKind::Line => SegmentKind::Line,
+                        SegmentKind::Arc { arc, turn } => SegmentKind::Arc {
+                            arc: Arc2 {
+                                centre: point2(arc.centre, site)?,
+                                radius: arc.radius.point_value().ok_or(site)?,
+                                sweep: arc.sweep.point_value().ok_or(site)?,
                             },
-                        })
-                        .collect(),
-                    tangent_joints: lp.tangent_joints.clone(),
-                    cusp_joints: lp.cusp_joints.clone(),
-                    decided_joints: lp.decided_joints.clone(),
-                    role: lp.role,
+                            turn,
+                        },
+                    };
+                    Ok(ValidatedSegment {
+                        start: point2(s.start, site)?,
+                        end: point2(s.end, site)?,
+                        kind,
+                    })
                 })
-                .collect(),
+                .collect::<Result<Vec<_>, ValueNotAPoint>>()?;
+            loops.push(ValidatedLoop {
+                vertices,
+                segments,
+                tangent_joints: lp.tangent_joints.clone(),
+                cusp_joints: lp.cusp_joints.clone(),
+                decided_joints: lp.decided_joints.clone(),
+                role: lp.role,
+            });
         }
+        Ok(ValidatedProfile { plane, loops })
     }
 }
 
@@ -1861,14 +1964,11 @@ impl ValidatedProfile<f64> {
     /// The `f64` canonical form embedded at `U`, on `plane`: every
     /// stored scalar — each vertex's position, each segment's endpoints,
     /// each arc's carrier and sweep — through [`Real::from_f64`]; the
-    /// plane taken as given (validation is 2-D and reads nothing of it
-    /// — [`ValidatedProfile::plane`]); everything else carried. No
-    /// predicate runs and no verdict is logged. A `ValidatedProfile` is
-    /// minted by [`Profile::validate`] and [`Profile::validate_recording`]
-    /// from a raw profile, by [`ConstructedProfile`]'s three validations
-    /// from a replayed one, by this
-    /// from an `f64` one, and by [`ValidatedProfile::value_channel`]
-    /// from one at another scalar; nothing else mints one.
+    /// plane taken as given once it is finite (validation is 2-D and
+    /// decides nothing of it — [`ValidatedProfile::plane`]); everything
+    /// else carried. No
+    /// predicate runs and no verdict is logged. One of the mints
+    /// [`ValidatedProfile`] lists.
     ///
     /// # What is carried, and on whose authority
     ///
@@ -1884,26 +1984,37 @@ impl ValidatedProfile<f64> {
     /// tangency, the absence of contact — are the verdicts `validate`
     /// made at `f64`. They are carried AS THE `f64` DECISIONS, and that
     /// is the design of this door rather than a claim that a validation
-    /// at `U` would agree: under the evaluator's pinned lift, structure
-    /// is selected once, at `f64`, identically for every lane, and the
-    /// guided lift is the lane that re-verifies every decision at its
-    /// own scalar and refuses what that scalar cannot confirm
-    /// (`ProfileLift`'s doc in `editor-core`). What a validation at `U`
+    /// at `U` would agree: the door is for a build whose structure is the
+    /// `f64` one by construction (sweep's loft at an enclosure scalar,
+    /// which encloses the `f64` loft its sections' value channel
+    /// describes), while a profile elaborated at its own scalar
+    /// re-verifies every decision there through
+    /// [`ConstructedProfile::validate_guided`]. What a validation at `U`
     /// would say, for the record: at `Dual64` the value channel is bit
     /// for bit the `f64` computation, so every predicate would decide
     /// the same; at `Interval` every margin is an enclosure of the
     /// `f64` margin, so a predicate would decide the same or escalate
     /// as indeterminate — and that escalation is deliberately the
-    /// guided lift's job, not re-consulted here. The one bit the two
+    /// guided validation's job, not re-consulted here. The one bit the two
     /// forms can differ in is a `Dual64` derivative channel: constants
     /// embed with `+0.0` where a negated constant's derivative at `U`
     /// would be `-0.0` — equal as numbers, read by no predicate.
-    #[must_use]
-    pub fn lift_onto<U: Real>(self, plane: crate::SketchPlane<U>) -> ValidatedProfile<U> {
-        ValidatedProfile {
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError::PlaneNotFinite`] for a `plane` with a component
+    /// that is not finite, as [`Profile::validate`] refuses one.
+    pub fn lift_onto<U: Real>(
+        self,
+        plane: crate::SketchPlane<U>,
+    ) -> Result<ValidatedProfile<U>, ProfileError> {
+        if !plane_is_finite(&plane) {
+            return Err(ProfileError::PlaneNotFinite);
+        }
+        Ok(ValidatedProfile {
             plane,
             loops: self.loops.into_iter().map(|lp| lp.lift()).collect(),
-        }
+        })
     }
 }
 
@@ -2043,6 +2154,17 @@ fn recording_loops<T: Decide, L: LoopInput<T>>(
     Ok((vp, CanonicalStructure { loops }))
 }
 
+/// Whether every component of `plane`'s placement is finite for every
+/// value it stands for ([`Real::is_bounded`]): validation is 2-D and
+/// decides nothing on the plane, but a validated profile carries it.
+fn plane_is_finite<T: Real>(plane: &SketchPlane<T>) -> bool {
+    plane
+        .placement()
+        .components()
+        .iter()
+        .all(|c| c.is_bounded())
+}
+
 /// The validation of `loops` on `plane` ([`Profile::validate`]'s body),
 /// over any loop that reads as a [`ProfileLoop`]: a table, or a
 /// [`ConstructedLoop`] whose provenance its caller carries.
@@ -2055,9 +2177,12 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
 ) -> Result<ValidatedProfile<T>, ProfileError> {
     {
         let band = Band::linear(tol).map_err(ProfileError::Band)?;
+        if !plane_is_finite(&plane) {
+            return Err(ProfileError::PlaneNotFinite);
+        }
         // The exact-order band for the containment representative
         // (module docs): no representable f64 lies strictly inside it.
-        let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
+        let exact = Band::least();
 
         if loops_in.is_empty() {
             return Err(ProfileError::EmptyProfile);
@@ -2406,6 +2531,15 @@ impl<T: Decide> ConstructedProfile<T> {
     }
 }
 
+/// **The predicates a guided validation does not run**: the
+/// containment representative's lexicographic order and each loop's
+/// orientation, which guidance takes from the record rather than asking
+/// a lane scalar (`lex_min_index`, `loop_orientation`). Each is decided
+/// at that site and nowhere else, so where the guided pass decides what
+/// the recording one did, its log is the recording's less these.
+pub const PINNED_UNDER_GUIDANCE: [&str; 3] =
+    ["canonical_order_x", "canonical_order_y", "loop_orientation"];
+
 /// How a validation treats its own discrete decisions: selecting
 /// freely and writing them down, or consuming a prior pass's and
 /// re-verifying what can be re-verified.
@@ -2438,7 +2572,7 @@ impl CanonGuide {
 /// Arity check + segment construction for one input loop. One vertex
 /// is enough: D1's full turn is one segment at one vertex
 /// ([`seg::build_loop_seg`]).
-fn build_loop_segs<T: Decide>(
+pub(crate) fn build_loop_segs<T: Decide>(
     lp: &ProfileLoop<T>,
     loop_index: usize,
     consistency: Consistency,
@@ -2497,7 +2631,7 @@ fn seg_refusal<T: Real>(
 /// Judges one segment pair: classifies contacts and applies the
 /// adjacency discount (adjacent segments may touch exactly at their
 /// shared vertex/vertices; everything else is an error).
-fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
+pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
     loops: &[L],
     loop_segs: &[Vec<Seg<T>>],
     (li, si): (usize, usize),

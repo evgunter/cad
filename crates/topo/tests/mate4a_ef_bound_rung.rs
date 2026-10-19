@@ -233,11 +233,35 @@ fn the_declared_straddle_seat_certifies() {
 /// shelf from its lower corner up to where it crosses the shelf's
 /// `y = 0.30` edge, and that stretch is its own edge-on-face overlap
 /// (witness `y = 0.25`, the cell's midpoint); the shelf edge's overlap
-/// with the cap is the cell between the two crossings.
+/// with the cap is the cell between the two crossings. A crossing's
+/// margin is the Zero that made the lines meet, read off its rounding
+/// charge's upper bound: it is held to `[0, ε]`, and pinned as `None`.
 #[test]
 fn the_bare_straddle_seat_is_untouched() {
     let (body, _, _) = straddle_seat();
-    let found = errors(&body, &ContactRecords::default());
+    let eps = Tol::witness().eps();
+    let found: Vec<ValidationError> = errors(&body, &ContactRecords::default())
+        .into_iter()
+        .map(|e| match e {
+            ValidationError::UnrecordedContact {
+                contact: contact @ CensusContact::EdgeEdgeCross { .. },
+                witness,
+                margin,
+            } => {
+                let read = margin.map(geom_core::MarginDiag::diagnostic_f64_for_error_text);
+                assert!(
+                    matches!(read, Some(geom_core::ErrorTextReading::Value(m)) if (0.0..=eps).contains(&m)),
+                    "{contact:?}'s margin is a Zero reading in [0, ε]: {read:?}"
+                );
+                ValidationError::UnrecordedContact {
+                    contact,
+                    witness,
+                    margin: None,
+                }
+            }
+            e => e,
+        })
+        .collect();
     assert_eq!(
         format!("{found:?}"),
         "[UnrecordedContact { contact: VertexOnFace { vertex: VertexKey(5v1), \
@@ -260,10 +284,10 @@ fn the_bare_straddle_seat_is_untouched() {
          margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
          UnrecordedContact { contact: EdgeEdgeCross { a: EdgeKey(10v1), \
          b: EdgeKey(15v1), side: None }, witness: \"(0.6, 0.3, 0.5)\", \
-         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }, \
+         margin: None }, \
          UnrecordedContact { contact: EdgeEdgeCross { a: EdgeKey(12v1), \
          b: EdgeKey(15v1), side: None }, witness: \"(0.3, 0.3, 0.5)\", \
-         margin: Some(MarginDiag(Value(0.0, None, ZeroWord(0)))) }]",
+         margin: None }]",
         "the bare straddle seat's whole census"
     );
 }

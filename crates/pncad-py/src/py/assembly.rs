@@ -3,8 +3,8 @@
 //! `product` is the gather of the document's world: every copy a
 //! placement defines, in the placements' document order, as one body.
 //! It answers "what IS this document", which for an assembly is the
-//! only useful question — an assembly's nodes are instances and mates,
-//! and no single node's value is the assembly.
+//! only useful question — an assembly's nodes are placements, and no
+//! single node's value is the assembly.
 //!
 //! `assemble` is the gather PLUS the check: it mints every solved
 //! mate's declaration into the product's contact-record set and runs
@@ -46,7 +46,7 @@ use pncad::document as d;
 use pncad::tolerance::Tol;
 
 use super::doc::{Doc, NodeId, Var, name_text};
-use super::mate::MateSide;
+use super::mate::{MateRef, MateSide};
 use super::value::{Body, Evaluation};
 
 /// **What a row's `__str__` speaks its nodes from**: the evaluated
@@ -98,6 +98,12 @@ pub(crate) fn product_err(py: Python<'_>, err: &d::ProductError, doc: &d::Profil
     )
 }
 
+/// A mate's address as a repr spells it: the placement's full id and
+/// the constraint's.
+fn mate_text(mate: d::MateRef) -> String {
+    format!("{}/{}", mate.placement.full(), mate.id)
+}
+
 /// The gather refusal's payload, flattened: the node it is about, the
 /// node it was reached through, and an empty world's unplaced bodies.
 fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny>, Py<PyAny>) {
@@ -125,7 +131,8 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
         E::StrandedPlacement { placement } => (id(placement), none(), none()),
         // The bodies to place, in document order, each its output
         // variable — the handle `Doc.place` takes.
-        E::EmptyProduct { unplaced } => (
+        // The loose copies are every one in the message.
+        E::EmptyProduct { unplaced, loose: _ } => (
             none(),
             none(),
             unplaced
@@ -134,13 +141,6 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
                 .collect::<Vec<_>>()
                 .into_pyobject(py)
                 .map_or_else(|_| py.None(), |list| list.unbind()),
-        ),
-        // The unplaced groups are every one in the message, each
-        // with its cause.
-        E::Unplaced { groups } => (
-            groups.first().map_or_else(none, |(group, _)| id(group)),
-            none(),
-            none(),
         ),
         // The document-mismatch arm names two DOCUMENTS, which these
         // attributes cannot carry; the message states both.
@@ -154,8 +154,8 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
 /// defines, in the placements' document order, gathered into one body.
 ///
 /// This is what a document IS, and for an assembly it is the only
-/// useful reading: an assembly's nodes are instances and mates, and no
-/// single node's value is the assembly. What is gathered is what the
+/// useful reading: an assembly's nodes are placements, and no single
+/// node's value is the assembly. What is gathered is what the
 /// document places — read through `Doc.placements`, written through
 /// `Doc.place` — and nothing places as a side effect of another edit.
 ///
@@ -302,10 +302,10 @@ pub(crate) struct MintedDeclaration(d::MintedDeclaration);
 
 #[pymethods]
 impl MintedDeclaration {
-    /// The mate this declaration came from.
+    /// The mate this declaration came from, by its address.
     #[getter]
-    fn mate(&self) -> NodeId {
-        NodeId(self.0.mate)
+    fn mate(&self) -> MateRef {
+        MateRef(self.0.mate)
     }
 
     /// The `a` reference, as opaque name text.
@@ -328,7 +328,7 @@ impl MintedDeclaration {
     }
 
     fn __repr__(&self) -> String {
-        format!("MintedDeclaration(mate={})", self.0.mate.full())
+        format!("MintedDeclaration(mate={})", mate_text(self.0.mate))
     }
 }
 
@@ -388,7 +388,7 @@ impl Attribution {
     }
 
     /// The declaration named. Under a `carried_*` relation its `mate`
-    /// is a node of `of`, not of the document that was gathered.
+    /// is a constraint of `of`, not of the document that was gathered.
     #[getter]
     fn declaration(&self) -> MintedDeclaration {
         MintedDeclaration(self.0.declaration().clone())
@@ -478,10 +478,11 @@ impl MintRefusal {
         mint_refusal_tag(&self.0)
     }
 
-    /// The mate that did not mint. Every arm carries one.
+    /// The mate that did not mint, by its address. Every arm carries
+    /// one.
     #[getter]
-    fn mate(&self) -> NodeId {
-        NodeId(self.0.mate())
+    fn mate(&self) -> MateRef {
+        MateRef(self.0.mate())
     }
 
     /// Which side of the mate the refused reference is on, for a
@@ -540,7 +541,7 @@ impl MintRefusal {
         format!(
             "MintRefusal({:?}, mate={})",
             self.variant(),
-            self.0.mate().full()
+            mate_text(self.0.mate())
         )
     }
 }
@@ -548,7 +549,7 @@ impl MintRefusal {
 /// One mate a document BELOW this one could not mint, with the route
 /// this document reached it by.
 ///
-/// The mate is a node of `of`, not of the document that was gathered
+/// The mate is a constraint of `of`, not of the document that was gathered
 /// — the same rule every foreign-mate row follows — so `of` is the
 /// file to open and `via` the instances in between, nearest first.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
@@ -595,9 +596,120 @@ impl CarriedRefusal {
     fn __repr__(&self) -> String {
         format!(
             "CarriedRefusal(mate={}, of={})",
-            self.0.refusal.mate().full(),
+            mate_text(self.0.refusal.mate()),
             self.0.route.of
         )
+    }
+}
+
+/// An overlap a document BELOW this one reported between two of its own
+/// copies, with the route this document reached it by: reported on
+/// `Assembly.carried_interference`, never raised, quiet or loud as the
+/// part's own assertions judged it.
+///
+/// The finding is the part's: its copies are variables of `of`, and its
+/// faces are named as `of` names them.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct CarriedInterference {
+    finding: InterferenceFinding,
+    route: d::Route,
+    pin: d::ContentPin,
+}
+
+#[pymethods]
+impl CarriedInterference {
+    /// The part's own finding, its copies variables of `of`.
+    #[getter]
+    fn finding(&self) -> InterferenceFinding {
+        self.finding.clone()
+    }
+
+    /// The instantiating node OF THIS DOCUMENT the finding came through.
+    #[getter]
+    fn through(&self) -> NodeId {
+        NodeId(self.route.through)
+    }
+
+    /// Which version of `of` found it.
+    #[getter]
+    fn pin(&self) -> super::store::ContentPin {
+        super::store::ContentPin(self.pin)
+    }
+
+    /// The document whose copies overlap, as opaque id text.
+    #[getter]
+    fn of(&self, py: Python<'_>) -> Py<PyAny> {
+        route_fields(py, &self.route).0
+    }
+
+    /// The instances this document reached it through, nearest first.
+    #[getter]
+    fn via(&self, py: Python<'_>) -> Py<PyAny> {
+        route_fields(py, &self.route).1
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CarriedInterference(of={}, loud={})",
+            self.route.of,
+            self.finding.quiet_by.is_none()
+        )
+    }
+}
+
+/// One finding of an at-rest refusal a document BELOW this one raised
+/// over something none of its declarations answers for, with the route
+/// this document reached it by: a row of `AssemblyError.findings` on the
+/// `carried_at_rest` arm. Its attribution, where it has one, names the
+/// part's own declaration.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct CarriedAtRestFinding(d::CarriedAtRestFinding, SpokenFrom);
+
+#[pymethods]
+impl CarriedAtRestFinding {
+    /// The part's own finding, said as the part holds its nodes.
+    #[getter]
+    fn finding(&self) -> AtRestFinding {
+        AtRestFinding(
+            self.0.finding.clone(),
+            SpokenFrom::Held(Arc::clone(&self.0.held)),
+        )
+    }
+
+    /// The instantiating node OF THIS DOCUMENT the finding came through.
+    #[getter]
+    fn through(&self) -> NodeId {
+        NodeId(self.0.route.through)
+    }
+
+    /// Which version of `of` found it.
+    #[getter]
+    fn pin(&self) -> super::store::ContentPin {
+        super::store::ContentPin(self.0.pin)
+    }
+
+    /// The document whose census found it, as opaque id text.
+    #[getter]
+    fn of(&self, py: Python<'_>) -> Py<PyAny> {
+        route_fields(py, &self.0.route).0
+    }
+
+    /// The instances this document reached it through, nearest first.
+    #[getter]
+    fn via(&self, py: Python<'_>) -> Py<PyAny> {
+        route_fields(py, &self.0.route).1
+    }
+
+    /// The row in the library's own words: which document, and what its
+    /// census found.
+    fn __str__(&self) -> String {
+        self.1.say(&self.0)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("CarriedAtRestFinding(of={})", self.0.route.of)
     }
 }
 
@@ -615,6 +727,7 @@ pub(crate) struct Assembly {
     minted: Vec<MintedDeclaration>,
     carried: Vec<CarriedDeclaration>,
     interference: Vec<InterferenceFinding>,
+    carried_interference: Vec<CarriedInterference>,
 }
 
 /// A face of a copy, as the copy's own name table spells it: the name
@@ -673,7 +786,22 @@ pub(crate) struct InterferenceFinding {
 
 impl InterferenceFinding {
     fn of(py: Python<'_>, doc: &d::ProfileDoc, finding: &d::InterferenceFinding) -> PyResult<Self> {
-        let copy = |c: &d::CopyRef| (Var::of(doc, c.var), c.member);
+        Self::read(py, &|id| Var::of(doc, id), finding)
+    }
+
+    /// A part's own finding, carried up: its copies are variables of
+    /// the part, which this document does not hold, so their handles
+    /// carry no kind.
+    fn carried(py: Python<'_>, finding: &d::InterferenceFinding) -> PyResult<Self> {
+        Self::read(py, &|id| Var(id, None), finding)
+    }
+
+    fn read(
+        py: Python<'_>,
+        var: &dyn Fn(d::VarId) -> Var,
+        finding: &d::InterferenceFinding,
+    ) -> PyResult<Self> {
+        let copy = |c: &d::CopyRef| (var(c.var), c.member);
         let (faces, unlocalized) = match &finding.overlap {
             d::Overlap::Bounded { faces } => (
                 Some(
@@ -681,7 +809,7 @@ impl InterferenceFinding {
                         .iter()
                         .map(|site| {
                             Ok(FaceSite {
-                                copy: Var::of(doc, site.copy.var),
+                                copy: var(site.copy.var),
                                 member: site.copy.member,
                                 face: name_text(py, &site.face)?,
                             })
@@ -768,8 +896,8 @@ impl InterferenceFinding {
 /// One declaration a document BELOW this one authored, certified here
 /// with everything else the gate was given.
 ///
-/// The same rule as the foreign-mate arms above: the mate is a node of
-/// `of`, so `of` and `via` travel with it.
+/// The same rule as the foreign-mate arms above: the mate is a
+/// constraint of `of`, so `of` and `via` travel with it.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct CarriedDeclaration(d::CarriedDeclaration);
@@ -797,7 +925,7 @@ impl CarriedDeclaration {
     fn __repr__(&self) -> String {
         format!(
             "CarriedDeclaration(mate={}, of={})",
-            self.0.declaration.mate.full(),
+            mate_text(self.0.declaration.mate),
             self.0.route.of
         )
     }
@@ -840,13 +968,23 @@ impl Assembly {
         self.interference.clone()
     }
 
+    /// Every overlap a document BELOW this one reported between two of
+    /// its own copies, once per part row, in gather order: the part's
+    /// findings, reported here and never raised.
+    #[getter]
+    fn carried_interference(&self) -> Vec<CarriedInterference> {
+        self.carried_interference.clone()
+    }
+
     fn __repr__(&self) -> String {
         format!(
-            "Assembly({} names, {} minted declaration(s), {} carried, {} interference)",
+            "Assembly({} names, {} minted declaration(s), {} carried, {} interference, {} \
+             carried interference)",
             self.names.len(),
             self.minted.len(),
             self.carried.len(),
-            self.interference.len()
+            self.interference.len(),
+            self.carried_interference.len()
         )
     }
 }
@@ -863,10 +1001,10 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
     let from = SpokenFrom::Doc(Arc::clone(&doc));
     let mut node = none();
     let (refusals, findings) = match err {
-        // The group is the subject; the space's own gather refusal is
-        // in the message.
-        E::Space { group, .. } => {
-            node = Py::new(py, NodeId(*group))
+        // The loose copy is the subject; the space's own gather
+        // refusal is in the message.
+        E::Space { root, .. } => {
+            node = Py::new(py, NodeId(*root))
                 .map(|v| v.into_any())
                 .unwrap_or_else(|_| py.None());
             (none(), none())
@@ -886,6 +1024,17 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
                 .into_pyobject(py)
                 .map(|v| v.unbind().into_any())),
             none(),
+        ),
+        // Each row carries its own route, as a carried mint refusal's
+        // does: the finding is the part's.
+        E::CarriedAtRest { findings } => (
+            none(),
+            obj(findings
+                .iter()
+                .map(|f| CarriedAtRestFinding(f.clone(), from.clone()))
+                .collect::<Vec<_>>()
+                .into_pyobject(py)
+                .map(|v| v.unbind().into_any())),
         ),
         E::Product(inner) => {
             let (node, through, name) = product_fields(py, inner);
@@ -1023,6 +1172,17 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         .iter()
         .map(|finding| InterferenceFinding::of(py, &read, finding))
         .collect::<PyResult<Vec<_>>>()?;
+    let carried_interference = assembly
+        .carried_interference
+        .iter()
+        .map(|row| {
+            Ok(CarriedInterference {
+                finding: InterferenceFinding::carried(py, &row.finding)?,
+                route: row.route.clone(),
+                pin: row.pin,
+            })
+        })
+        .collect::<PyResult<Vec<_>>>()?;
     Ok(Assembly {
         // The at-rest body keeps the record set the gate certified it
         // against — the parts' own carried declarations (D-1) plus
@@ -1039,6 +1199,7 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
             .map(CarriedDeclaration)
             .collect(),
         interference,
+        carried_interference,
     })
 }
 
@@ -1046,6 +1207,8 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Assembly>()?;
     m.add_class::<InterferenceFinding>()?;
+    m.add_class::<CarriedInterference>()?;
+    m.add_class::<CarriedAtRestFinding>()?;
     m.add_class::<FaceSite>()?;
     m.add_class::<MintedDeclaration>()?;
     m.add_class::<CarriedDeclaration>()?;

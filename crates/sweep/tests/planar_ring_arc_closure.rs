@@ -191,7 +191,7 @@ fn poses() -> Vec<(&'static str, Affine3<f64>, f64)> {
 /// a station is construction state, which no door takes.
 fn prism(shape: &Shape, pose: &Affine3<f64>, stations: &[Point2<f64>]) -> AtRestBody<f64> {
     let tol = Tol::witness();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -LENGTH / 2.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, -LENGTH / 2.0));
     let profile = Profile::new(plane, vec![bulge_loop(shape.chain.clone())])
         .validate(tol)
         .unwrap_or_else(|e| panic!("{}: the profile validates: {e:?}", shape.name));

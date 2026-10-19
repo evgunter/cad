@@ -2,11 +2,12 @@
 id: route-declarations-ranks-the-step-question-above-the-pairs-kinds
 kind: issue
 title: route_declarations refuses UnionDeclareStep before the pair's kinds can be asked, the where-before-what shape of the doors rule
-status: open
+status: closed
 opened: 2026-09-15
 refs: [a-declared-pairs-kinds-can-refuse-without-a-side]
 priority: P1
 cost: D
+closed: 2026-10-17
 ---
 
 
@@ -71,3 +72,9 @@ re-deriving the other's argument.
   field a kind-only pre-question cannot fill.
 - `crates/editor-core/src/assembly.rs`, `operand_answer` rung 2 — the
   precedent for what-before-where.
+
+## Closed (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. `route_declarations`, `UnionDeclareStep` and `declared_step` are gone, deleted by INTENT stage 4 F (`declared-pairs-retire`). Same finding as `a-declared-pairs-kinds-can-refuse-without-a-side`, at the other door.
+
+Signed (WIRE orchestrator).

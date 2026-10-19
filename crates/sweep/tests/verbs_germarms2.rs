@@ -32,10 +32,9 @@
 //!   both operands' faces is minted in the reduction as a ring in both
 //!   walls, four struts paired across the operands, so every arc of
 //!   the section runs node to node and every boolean of the pair builds
-//!   at its closed form, for two rods and for two bores. A node the
-//!   placement cannot certify inside or outside both faces, or one
-//!   where a rod crosses a bore, refuses typed (`NodeUnbuilt`). Branch
-//!   stubs,
+//!   at its closed form, for rods and bores in any pairing. A node the
+//!   placement cannot certify inside or outside both faces refuses
+//!   typed (`NodeUnbuilt`). Branch stubs,
 //!   whose nodes miss a face, build without a ring
 //!   (`bisector_lane_stubs`); the full family is `bisector_nodes`.
 //!
@@ -50,7 +49,7 @@ use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
 use crate::common::germ_pair::{cyl, repose, same_door, seams_off_the_pinch, spin, steinmetz};
-use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
@@ -314,7 +313,7 @@ fn the_fenced_poses_keep_their_own_outcomes() {
     // whose cap discs are coplanar and glue.
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(1.2, 0.0), 1.0, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -2.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, -2.0));
     let parallel = extrude(
         &Profile::new(plane, vec![lp.into()]).validate(tol).unwrap(),
         Extrusion::Distance {

@@ -16,7 +16,9 @@
 //! (`CAD_M10_10_DOC=r1_segment_boss|r2_d_tab_literal|r2_d_tab_parameter`,
 //! and the dyadic controls `r2_d_tab_literal_dyadic|r2_d_tab_parameter_dyadic`);
 //! `m10_bulge_renders.txt` beside this file is the record of those
-//! renders at this tree: per document the whole split, then every
+//! renders at the tree that shipped rule G. It is stale: it has not been
+//! re-rendered since PCERT B1 renamed the frame row to
+//! `pcurve_chart_cut_side`. Per document the whole split, then every
 //! decision the tier was asked and left numeric on an arc-family
 //! predicate with its freeze causes and its attributed cause — every
 //! form attributed to the sign of `b` or of the apothem UNCUT, so the
@@ -95,9 +97,30 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///   their schedule.
 /// - `pcurve_envelope` 0/0/2/10 -> 8/0/0/4: incidence plus fidelity in
 ///   place of the image pushed through the chart, and, with the loop
-///   walk's branch a literal `k` (`geom_brep::whole_periods`), the
+///   walk's branch a literal `k` (`geom_brep::Period::decide`), the
 ///   stored azimuth is `α + k·τ`; the envelope is a theorem on eight
 ///   of its twelve rows.
+///
+/// **PCERT's placement unit (C4: a row is its image placed over the
+/// edge's span in the chart's principal window) moved two rows**, on
+/// every spelling:
+///
+/// - `pcurve_chart_azimuth_frame` 12/0/0/26 -> 0/0/0/26: a cylinder's
+///   meridian azimuth is read only on a meridian, so a rim circle
+///   centred on the axis no longer reads the frame of its zero radial
+///   offset (the 12 the tier proved zero).
+/// - `pcurve_chart_placement` is new, 0/0/0/52: each of the 26 placed
+///   azimuths reads its two half-period marks about the window's
+///   centre ([`geom_brep::Period::decide`]), each decided numerically.
+///
+/// **PCERT unit B2a (a harmonic row's windings are structure, `[ev]`
+/// PR 5113's first decision) retired three rows** on every spelling:
+/// `pcurve_chart_azimuth_affine` 24/0/0/0, `pcurve_chart_winding`
+/// 12/0/0/18 and `pcurve_azimuth_period` 0/0/0/12 decide nothing now.
+/// An angle channel stores its phase and its windings, an integer
+/// certification compares exactly, so no decision reads a winding off
+/// a slope, and the harmonic lane's period gate is gone with the slope
+/// it read.
 /// - `pcurve_fidelity_branch` is new, 0/0/0/24: fidelity's branch, two
 ///   sign decisions per row at the half-period marks, definite, read
 ///   off the value.
@@ -105,6 +128,11 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///   decisions, definite.
 /// - `pcurve_loop_continuity` 9/0/0/9 -> 9/0/4/5: with no `floor`
 ///   node between them, four joints' two ends go through the door.
+///
+/// **The frame decided across the window's cut** renames one row and
+/// moves no count: `pcurve_chart_azimuth_frame` 0/0/0/26 ->
+/// `pcurve_chart_cut_side` 0/0/0/26, the side of the principal window's
+/// cut line each of the 26 azimuths lies on.
 ///
 /// **The circles store their authored carrier.** Each hole's rim is the
 /// authored centre and `|r|`, so the rim at a vertex folds onto the
@@ -146,6 +174,11 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// 4/0/0/10 -> 6/0/0/12, `line_span` 4/0/0/4 -> 6/0/0/4, `arc_span`
 /// 4/0/0/4 -> 4/0/2/4 and `contact_at_shared_vertex` 8/0/0/4 ->
 /// 12/0/0/4.
+///
+/// **The final non-finite check decides nothing**
+/// (`expr-non-finite-asks-value-times-zero`): it asks boundedness, not
+/// `value · 0` against a band, so `expr_non_finite` (37/0/0/0) leaves
+/// the table. Nothing else moves.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -165,7 +198,6 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("datum_unit_norm", [0, 2]),
     ("dihedral_arm", [0, 128]),
     ("dihedral_wedge", [0, 128]),
-    ("expr_non_finite", [37, 0]),
     ("extrusion_normal_component", [0, 2]),
     ("interval_span_forward", [0, 36]),
     ("interval_span_winding", [0, 12]),
@@ -173,12 +205,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("newell_plane_residual", [30, 0]),
     ("path_circle_radius", [0, 1]),
     ("path_junction_turn", [0, 4]),
-    ("pcurve_azimuth_period", [0, 12]),
-    ("pcurve_chart_azimuth_affine", [24, 0]),
-    ("pcurve_chart_azimuth_frame", [12, 26]),
+    ("pcurve_chart_cut_side", [0, 26]),
     ("pcurve_chart_orientation", [0, 12]),
+    ("pcurve_chart_placement", [0, 52]),
     ("pcurve_chart_radial_moving", [14, 12]),
-    ("pcurve_chart_winding", [12, 18]),
     ("pcurve_envelope", [8, 4]),
     ("pcurve_fidelity_branch", [0, 24]),
     ("pcurve_interval_forward", [0, 12]),
@@ -265,6 +295,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// anonymous defined variable, which the environment binds through the
 /// non-finite door like every definition, so `expr_non_finite` gains
 /// those bindings' theorems: 29/0/0/0 -> 33/0/0/0. Nothing else moves.
+///
+/// **The final non-finite check decides nothing**
+/// (`expr-non-finite-asks-value-times-zero`): it asks boundedness, so
+/// `expr_non_finite` (33/0/0/0) leaves the table. Nothing else moves.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -290,7 +324,6 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("datum_unit_norm", [0, 2]),
             ("dihedral_arm", [0, 80]),
             ("dihedral_wedge", [0, 80]),
-            ("expr_non_finite", [33, 0]),
             ("extrusion_normal_component", [0, 2]),
             ("interval_span_forward", [0, 24]),
             ("interval_span_winding", [0, 12]),
@@ -298,12 +331,10 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("newell_plane_residual", [18, 0]),
             ("path_circle_radius", [0, 1]),
             ("path_junction_turn", [0, 2]),
-            ("pcurve_azimuth_period", [0, 12]),
-            ("pcurve_chart_azimuth_affine", [24, 0]),
-            ("pcurve_chart_azimuth_frame", [12, 26]),
+            ("pcurve_chart_cut_side", [0, 26]),
             ("pcurve_chart_orientation", [0, 12]),
+            ("pcurve_chart_placement", [0, 52]),
             ("pcurve_chart_radial_moving", [14, 12]),
-            ("pcurve_chart_winding", [12, 18]),
             ("pcurve_envelope", [12, 0]),
             ("pcurve_fidelity_branch", [0, 24]),
             ("pcurve_interval_forward", [0, 12]),

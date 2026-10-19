@@ -7,8 +7,7 @@ use std::collections::BTreeMap;
 
 use eframe::egui;
 use pncad::document::{
-    AxisSense, Doc, DocumentId, MatePrimitive, ProfileProgram, RecipeNodeId, Said, Speaker,
-    SpokenNode,
+    Coord, Doc, DocumentId, ProfileProgram, RecipeNodeId, Said, Speaker, SpokenNode, VarKind,
 };
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
@@ -18,11 +17,11 @@ use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
-    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
-    PatternKindChoice, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
+    ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, PatternKindChoice,
+    ShapeKind, UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
-use crate::matetool::{MateChoice, MateToolState, admitted_classes};
+use crate::matetool::{MATE_KINDS, MateChoice, MateFreedom, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
@@ -33,7 +32,7 @@ use crate::session::{
 };
 use crate::sketch;
 use crate::theme::Theme;
-use crate::tools::{ToolKind, ToolNotice};
+use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
 use crate::widgets::{
     angle_picker, length_picker, number_field, point_fields, unit_field, unit_vec3_row, vec3_row,
@@ -211,7 +210,7 @@ pub(crate) fn mate_picks_row(
 /// **The smallest pattern count the form offers.**
 ///
 /// A pattern of zero instances refuses at evaluation
-/// (`NonPositiveCount`, typed, on the node's own badge), so the form
+/// (`CountOutOfRange`, typed, on the node's own badge), so the form
 /// declines to author one — the same rule the bore field follows. There
 /// is deliberately NO upper bound: the property panel imposes none on
 /// the slot afterwards, and a cap here would be a limit the document
@@ -673,36 +672,67 @@ impl ViewerBehavior<'_> {
             );
         }
         ui.horizontal(|ui| {
-            for (ix, (_, label)) in MATE_PRIMITIVES.iter().enumerate() {
-                ui.radio_value(&mut self.drafts.mate_primitive, ix, *label);
+            for (ix, (_, label)) in MATE_KINDS.iter().enumerate() {
+                ui.radio_value(&mut self.drafts.mate_kind, ix, *label);
             }
         });
-        ui.checkbox(&mut self.drafts.mate_opposed, "axes opposed");
+        let kind = MATE_KINDS
+            .get(self.drafts.mate_kind)
+            .map_or(VarKind::Plane, |(kind, _)| *kind);
+        ui.checkbox(&mut self.drafts.mate_flip, "faces rest against each other");
+        // The freedoms this kind leaves, each set only when ticked: an
+        // unset freedom is free.
+        for (freedom, (set, value)) in MateFreedom::ALL.iter().zip(&mut self.drafts.mate_values) {
+            let coord = freedom.coord();
+            if coord.admitted_by(kind).is_err() {
+                continue;
+            }
+            ui.horizontal(|ui| {
+                ui.checkbox(set, coord.name());
+                let (unit, speed) = match coord {
+                    Coord::Slide(_) => (self.notation.length.def(), FIELD_DRAG_SPEED),
+                    Coord::Spin => (self.notation.angle.def(), ANGLE_DRAG_SPEED),
+                };
+                unit_field(ui, unit, speed, value);
+            });
+        }
         self.creation_label_row(ui, MATE_NOUN);
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(ToolKind::Mate.commit()).clicked() {
+                let values: Result<Vec<_>, _> = MateFreedom::ALL
+                    .iter()
+                    .map(|freedom| freedom.coord())
+                    .zip(self.drafts.mate_values)
+                    .filter(|(coord, (set, _))| *set && coord.admitted_by(kind).is_ok())
+                    .map(|(coord, (_, value))| {
+                        match coord {
+                            Coord::Slide(_) => self.notation.length_literal(value),
+                            Coord::Spin => self.notation.angle_literal(value),
+                        }
+                        .map(|by| (coord, by))
+                    })
+                    .collect();
                 match (
                     classes.get(self.drafts.mate_class),
+                    values,
                     self.session.landed_pair(),
                 ) {
-                    (Some(entry), Some((doc, eval))) => {
+                    (_, Err(error), _) => {
+                        self.notices
+                            .push(frame::tool_news(&ToolKind::Mate.refuses(&error)));
+                    }
+                    (Some(entry), Ok(values), Some((doc, _))) => {
                         let choice = MateChoice {
                             class: entry.class,
-                            primitive: MATE_PRIMITIVES
-                                .get(self.drafts.mate_primitive)
-                                .map_or(MatePrimitive::FrameCoincidence, |(p, _)| *p),
-                            sense: if self.drafts.mate_opposed {
-                                AxisSense::Opposed
-                            } else {
-                                AxisSense::Aligned
-                            },
-                            clocking: None,
+                            kind,
+                            flip: self.drafts.mate_flip,
+                            values,
                         };
-                        match tool.proposal(doc, eval, choice) {
+                        match tool.proposal(doc, choice) {
                             Ok(proposal) => {
-                                // Exactly one committed DocEdit (and
-                                // its label); the tool closes with it.
+                                // One committed action (and its
+                                // label); the tool closes with it.
                                 self.push_labelled(MATE_NOUN, proposal.op());
                                 close = true;
                             }
@@ -711,16 +741,14 @@ impl ViewerBehavior<'_> {
                             // not landed reads the same in both.
                             Err(error) => {
                                 self.notices.push(frame::tool_news(
-                                    ToolKind::Mate.says(&error.respoken(self.session.doc())),
-                                    frame::Retold::Again,
+                                    &ToolKind::Mate.refuses(&error.respoken(self.session.doc())),
                                 ));
                             }
                         }
                     }
                     _ => {
                         self.notices.push(frame::tool_news(
-                            ToolKind::Mate.says(&"no landed evaluation to derive frames from"),
-                            frame::Retold::Again,
+                            &ToolKind::Mate.refuses(&"no landed document to read the picks on"),
                         ));
                     }
                 }
@@ -908,14 +936,9 @@ impl ViewerBehavior<'_> {
                     );
                 }
                 Ok(None) => {}
-                // The add-datum form is not a seated TOOL, so it has
-                // no `ToolKind` to compose the prefix — the form's own
-                // name is the sentence's subject here.
                 Err(error) => {
-                    self.notices.push(frame::tool_news(
-                        format!("add datum: {error}"),
-                        frame::Retold::Again,
-                    ));
+                    self.notices
+                        .push(frame::tool_news(&FormKind::AddDatum.refuses(&error)));
                 }
             }
         }
@@ -1218,15 +1241,12 @@ impl ViewerBehavior<'_> {
                 // this one does not assume the other got it right.
                 (None, _) => {
                     self.notices.push(frame::tool_news(
-                        "add profile: no frame picked",
-                        frame::Retold::Again,
+                        &FormKind::AddProfile.refuses(&"no frame picked"),
                     ));
                 }
                 (_, Err(error)) => {
-                    self.notices.push(frame::tool_news(
-                        format!("add profile: {error}"),
-                        frame::Retold::Again,
-                    ));
+                    self.notices
+                        .push(frame::tool_news(&FormKind::AddProfile.refuses(&error)));
                 }
             }
         }
@@ -1270,10 +1290,8 @@ impl ViewerBehavior<'_> {
                             },
                         ),
                         Err(error) => {
-                            self.notices.push(frame::tool_news(
-                                format!("extrude: {error}"),
-                                frame::Retold::Again,
-                            ));
+                            self.notices
+                                .push(frame::tool_news(&FormKind::Extrude.refuses(&error)));
                         }
                     }
                 }
@@ -1312,24 +1330,23 @@ impl ViewerBehavior<'_> {
         }
         let unit = self.notation.length.def();
         ui.horizontal(|ui| {
-            ui.label("axis origin");
-            point_fields(ui, unit, &mut self.drafts.revolve_axis_origin);
-            length_picker(ui, "revolve_axis_origin", &mut self.notation.length);
+            ui.label("axis through");
+            point_fields(ui, unit, &mut self.drafts.revolve_axis_through);
+            length_picker(ui, "revolve_axis_through", &mut self.notation.length);
         });
         ui.horizontal(|ui| {
-            ui.label("axis direction");
-            for (axis, component) in ["x", "y"]
-                .into_iter()
-                .zip(&mut self.drafts.revolve_axis_direction)
-            {
-                ui.label(axis);
-                ui.add(number_field(component, UNIT_DRAG_SPEED));
-            }
+            ui.label("axis heading");
+            unit_field(
+                ui,
+                self.notation.angle.def(),
+                ANGLE_DRAG_SPEED,
+                &mut self.drafts.revolve_axis_heading,
+            );
         });
         // Where the numbers are measured, said where they are typed.
         crate::widgets::message(
             ui,
-            "x and y are the profile's own; the axis lies in its plane",
+            "x, y and the heading from x are the profile's own; the axis lies in its plane",
         );
         ui.horizontal(|ui| {
             ui.label("angle");
@@ -1343,8 +1360,8 @@ impl ViewerBehavior<'_> {
         });
         self.tool_commit_row(ui, ToolKind::Revolve, |drafts, notation| {
             Ok(tool.op(
-                notation.point_literals(drafts.revolve_axis_origin.to_array())?,
-                crate::drafts::scalars2(drafts.revolve_axis_direction)?,
+                notation.point_literals(drafts.revolve_axis_through.to_array())?,
+                notation.angle_literal(drafts.revolve_axis_heading)?,
                 notation.angle_literal(drafts.revolve_angle)?,
             )?)
         });
@@ -1755,19 +1772,15 @@ impl ViewerBehavior<'_> {
                         match op {
                             Some(Ok(op)) => self.push_labelled(noun, op),
                             Some(Err(error)) => {
-                                self.notices.push(frame::tool_news(
-                                    ToolKind::Blend.says(&error),
-                                    frame::Retold::Again,
-                                ));
+                                self.notices
+                                    .push(frame::tool_news(&ToolKind::Blend.refuses(&error)));
                             }
                             None => {}
                         }
                     }
                     Err(error) => {
-                        self.notices.push(frame::tool_news(
-                            ToolKind::Blend.says(&error),
-                            frame::Retold::Again,
-                        ));
+                        self.notices
+                            .push(frame::tool_news(&ToolKind::Blend.refuses(&error)));
                     }
                 }
             }
@@ -1864,17 +1877,15 @@ impl ViewerBehavior<'_> {
                     // that does not is committed as it is and said.
                     (_, Err(op)) => {
                         self.notices.push(frame::tool_news(
-                            "label: this form creates no node to label",
-                            frame::Retold::Again,
+                            &FormKind::Label.refuses(&"this form creates no node to label"),
                         ));
                         self.ops.push(*op);
                     }
                 }
             }
-            Err(fault) => self.notices.push(frame::tool_news(
-                format!("label: {fault}"),
-                frame::Retold::Again,
-            )),
+            Err(fault) => self
+                .notices
+                .push(frame::tool_news(&FormKind::Label.refuses(&fault))),
         }
     }
 
@@ -1901,8 +1912,7 @@ impl ViewerBehavior<'_> {
                 match op(self.drafts, *self.notation) {
                     Ok(op) => self.push_labelled(noun, op),
                     Err(error) => {
-                        self.notices
-                            .push(frame::tool_news(kind.says(&error), frame::Retold::Again));
+                        self.notices.push(frame::tool_news(&kind.refuses(&error)));
                     }
                 }
             }
@@ -1990,14 +2000,14 @@ mod tests {
         assert_eq!(painted(&MateToolState::Idle), "no picks yet");
         assert_eq!(
             painted(&MateToolState::One(face_on(3))),
-            "pick a: face of node 000000000003; pick b: —"
+            "on: face of node 000000000003; to: —"
         );
         assert_eq!(
             painted(&MateToolState::Two {
-                a: face_on(3),
-                b: face_on(5),
+                on: face_on(3),
+                to: face_on(5),
             }),
-            "pick a: face of node 000000000003; pick b: face of node 000000000005"
+            "on: face of node 000000000003; to: face of node 000000000005"
         );
     }
 
@@ -2990,7 +3000,7 @@ mod tools_respeak {
             .into_iter()
             .filter_map(|notice| match notice {
                 ToolNotice::Mate(crate::matetool::MateToolEvent::PickLost {
-                    side: MateSide::A,
+                    side: MateSide::On,
                     node,
                     ..
                 }) => Some(node.to_string()),
@@ -3001,7 +3011,7 @@ mod tools_respeak {
         assert_eq!(
             said,
             [last],
-            "pick a's drop names the block by its last label"
+            "the on pick's drop names the block by its last label"
         );
     }
 }

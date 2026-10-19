@@ -27,8 +27,10 @@ use geom_brep::{EdgeDescription, Pcurve, SectionError};
 use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::{Revolution, revolve};
-use topo::splitting::{SplitError, SplitJoinError, SplitPart, SplitPlane, SplitResult, split};
-use topo::{Body, DATUM_UNIT_NORM, validate, validate_closed, validate_geometric};
+use topo::splitting::{
+    SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitResult, split,
+};
+use topo::{Body, DATUM_UNIT_NORM, ValidationError, validate, validate_closed, validate_geometric};
 
 /// The cone's half-angle: the radius changes by 1/2 per unit height.
 fn alpha() -> f64 {
@@ -440,10 +442,11 @@ fn an_upright_cone_splits_at_every_pose_through_its_apex_faces() {
 /// `φ = f·(π/2 − α)` off the axis: a well-conditioned ellipse on a
 /// near-flat cone, whose carrier must close on the vertices where the
 /// plane crosses the caps' rims at a shallow dihedral angle. The split
-/// succeeds and its halves are valid at tiers 1 and 2 at every ε; at
-/// tier 3, with volumes that sum to the whole and to its closed form
-/// within the certified pads and a relative `1e-12`, wherever the props
-/// lane can read them.
+/// succeeds and its halves are valid at tiers 1 to 3, with volumes that
+/// sum to the whole and to its closed form within the certified pads and
+/// a relative `1e-12`, wherever the props lane can read them; where it
+/// cannot, the split's at-rest gate refuses the halves, and every finding
+/// is the volume the props lane could not compute.
 ///
 /// Two ε floors are not this cut's: the `(1.55, 100)` operand does not
 /// revolve below ε = 1e-9, its far cap rim's return half missing its
@@ -451,7 +454,8 @@ fn an_upright_cone_splits_at_every_pose_through_its_apex_faces() {
 /// (`a-full-revolves-return-half-rim-misses-its-start-by-two-rounded-half-turns`), and at
 /// scale 100 the props lane's bound on the section ellipse's elevation
 /// escalates at ε = 1e-12
-/// (`props-cone-ellipse-elevation-over-reads-a-section-ellipse-by-twenty-fold`).
+/// (`props-cone-ellipse-elevation-over-reads-a-section-ellipse-by-twenty-fold`),
+/// so the `(1.3, 100)` split refuses there.
 #[test]
 fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
     use geom_core::{Affine3, test_support::rigid};
@@ -498,7 +502,29 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
             tol,
         );
         let operand = sweep::test_support::finished("the frustum", body, tol);
-        let result = split(&operand, &cut, tol).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let answer = split(&operand, &cut, tol);
+        if eps < measured_from {
+            match answer {
+                Err(SplitError::Finish(SplitFinishError::ResultNotAtRest {
+                    ref errors, ..
+                })) if !errors.is_empty()
+                    && errors
+                        .iter()
+                        .all(|e| matches!(e, ValidationError::VolumeUncomputable { .. })) =>
+                {
+                    println!(
+                        "SKIPPED at ε {eps:e}: {what}: the halves' volumes, below ε \
+                         {measured_from:e}; the split's at-rest gate refuses them"
+                    );
+                    continue;
+                }
+                other => panic!(
+                    "{what}: below ε {measured_from:e} the at-rest gate refuses on the \
+                     props lane's volume alone, not {other:?}"
+                ),
+            }
+        }
+        let result = answer.unwrap_or_else(|e| panic!("{what}: {e:?}"));
         let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below)
         else {
             panic!("{what}: both sides carry material");
@@ -506,12 +532,6 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
         for part in [above, below] {
             assert_eq!(validate(part), Ok(()), "{what}: tier 1");
             assert_eq!(validate_closed(part), Ok(()), "{what}: tier 2");
-        }
-        if eps < measured_from {
-            println!(
-                "SKIPPED at ε {eps:e}: {what}: tier 3 and the volumes, below ε {measured_from:e}"
-            );
-            continue;
         }
         halves(&result, &what);
         let props = |b: &Body<f64>| topo::props::mass_properties(b, tol).unwrap();

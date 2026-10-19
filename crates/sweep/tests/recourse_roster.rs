@@ -49,6 +49,11 @@ const CARRIERS: &[NameCarrier] = &[
     // table supplies, so the extrude's side walls and the revolve's
     // walls are separate rows of the K inventory.
     NameCarrier::Call("CosurfaceNames"),
+    // The direction and turn mints decide in `geom-core` under the
+    // name the caller hands them, held in these constants.
+    NameCarrier::Const("REVOLVE_AXIS_DIRECTION"),
+    NameCarrier::Const("SWEEP_PATH_TANGENT"),
+    NameCarrier::Const("SWEEP_PATH_TURN"),
 ];
 
 /// The `decide*` calls whose name the reader cannot read at the site,
@@ -97,6 +102,8 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("extrusion_normal_component", EXTRUDE),
     ("extrusion_obliquity", EXTRUDE),
     ("loft_stacking", LOFT),
+    ("sweep_path_tangent", PATH),
+    ("sweep_path_turn", PATH),
     ("cap_plane_orientation", CAP),
     ("side_cylinders_cosurface", COSURFACE),
     ("side_planes_cosurface", COSURFACE),
@@ -109,6 +116,7 @@ const AXIS: &str = "the revolve axis's own classifications: an escalation here i
 const REVOLVE: &str = "the revolve window's classifications, typed on `RevolveError`";
 const EXTRUDE: &str = "the extrusion direction's classifications, typed on `ExtrudeError`";
 const LOFT: &str = "the loft's section stacking, typed on `LoftError`";
+const PATH: &str = "the path sweep's station tangents and turns, typed on `SkinError`";
 const CAP: &str = "the swept caps' orientation, decided once for every verb with planar caps; \
                    the escalation is typed as `CapPlaneError` inside that verb's `CapPlane`";
 const COSURFACE: &str = "the swept traversal's cosurface decision, one row name per calling \

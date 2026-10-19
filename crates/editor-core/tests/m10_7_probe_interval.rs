@@ -54,7 +54,7 @@ fn probe_the_tier_on_the_slab() {
 #[ignore = "evidence-only probe: names the surviving indeterminacies"]
 fn probe_which_predicate_still_widens() {
     use editor_core::analysis::{ParamBox, var_env_over};
-    use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileLift, evaluate};
+    use editor_core::{CancelToken, EvalOptions, NodeResult, evaluate};
     use std::sync::Arc;
 
     let doc = slab(1.0, 0.05);
@@ -63,7 +63,6 @@ fn probe_which_predicate_still_widens() {
     let _ = var_env_over::<geom_core::Interval, _>(&doc, &box_);
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_)),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     let (ev, counts) = geom_core::sym::with_session(
@@ -90,7 +89,7 @@ fn probe_which_predicate_still_widens() {
 #[ignore = "evidence-only probe: sweeps the freezing budget"]
 fn probe_the_budget_the_slab_needs() {
     use editor_core::analysis::ParamBox;
-    use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileLift, evaluate};
+    use editor_core::{CancelToken, EvalOptions, NodeResult, evaluate};
     use std::sync::Arc;
 
     let doc = slab(1.0, 0.05);
@@ -98,7 +97,6 @@ fn probe_the_budget_the_slab_needs() {
     let box_ = ParamBox::of(&analyzed);
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_)),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     for max_degree in [8u32, 16, 24, 32, 48, 64, 128, 256] {
@@ -133,7 +131,7 @@ fn probe_the_budget_the_slab_needs() {
 #[ignore = "evidence-only probe: key differential across the tier"]
 fn probe_key_differential() {
     use editor_core::analysis::ParamBox;
-    use editor_core::{CancelToken, EvalOptions, ProfileLift, evaluate};
+    use editor_core::{CancelToken, EvalOptions, evaluate};
     use std::sync::Arc;
 
     for half in [Tol::witness().eps() / 8.0, 0.05] {
@@ -142,7 +140,6 @@ fn probe_key_differential() {
         let box_ = ParamBox::of(&analyzed);
         let opts = EvalOptions {
             param_box: Some(Arc::new(box_)),
-            profile_lift: ProfileLift::Guided,
             ..EvalOptions::default()
         };
         let plain: editor_core::Evaluation<geom_core::Interval> =

@@ -615,7 +615,7 @@ fn a_revolved_quarter_band_is_windowed_and_holds() {
     let quarter = r.insert(fixture::revolve_about(
         profile,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(core::f64::consts::FRAC_PI_2),
     ));
     let block = extruded(

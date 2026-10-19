@@ -141,7 +141,8 @@ pub use frame::{FrameError, FrameInput, FrameVector};
 pub use mat::Mat3;
 pub use point::{Point2, Point3};
 pub use rigid_motion::{
-    MotionPart, OrthoAxis, OrthonormalizeError, RigidMotion, RigidMotionError, not_rigid_reading,
+    MotionPart, OrthoAxis, OrthonormalizeError, RigidMotion, RigidMotionError, TurnError,
+    not_rigid_reading,
 };
 pub use svd::{Svd, Svd2x3, Svd3x4};
 pub use unit_vec::{

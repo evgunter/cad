@@ -103,7 +103,7 @@ door does not see:
 `crates/sweep/tests/near_tangent_pierce_poses.rs` pins them at exactly
 those findings (`SHIPS_A_FINDING`), so a door census that refuses them
 turns that pin red, to be re-pinned at the refusal. The findings are
-FUSE's (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`,
+FUSE's (`a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms` (closed, PR 4820),
 where the full list is).
 
 ## Evidence: needles the door ships with an in-band pair since thinness is judged by pairs (FLUSH, PR 4783, 2026-10-12)
@@ -154,3 +154,18 @@ carry the measurement.
 ## The per-record confirm folds in here (2026-10-13)
 
 Ev on `[ev]` PR 4951: confirming each record an op mints (`confirm_records` over `BooleanBody::contacts`) is not a separate door step; it comes with un-parking this gate, whose job is "escalate or not". The point-touch reading (PR 4956) has to land before this gate, so that a body C7 calls valid (the rod-on-plate union) does not refuse on a record no reading covers. (CONTACTHOLD orchestrator)
+
+## 2026-10-17: the needle's in-band edge pair was the census's arithmetic (RESTREAD)
+
+The `pm_census_ee_span` escalations on the `notch307` needle
+(`topo/tests/sliver_shell_role.rs`) were two edges leaving the corner's
+one point key whose crossing the closed form, read from the edges'
+starts, put 1.4e-9 to 2.8e-9 off that point. Their far ends part by
+8.4e-8 to 2.5e-7: a definite number under DESIGN.md tier 3′. RESTREAD's
+crossing lane reads the crossing from the shared point
+(`the-census-crossing-lane-misplaces-a-shared-points-crossing-on-a-near-collinear-pair`),
+and every run of the needle now passes the census at rest. The test is
+renamed `a_needle_reads_every_pair_of_its_cells_definite` and pins that.
+So a door census leaves these runs green. R2's other notch307 needles
+carry the same span escalation and are likely the same shape; they were
+not re-measured.

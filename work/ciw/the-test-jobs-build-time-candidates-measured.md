@@ -2,9 +2,12 @@
 id: the-test-jobs-build-time-candidates-measured
 kind: issue
 title: Where the test job's cold build time goes, and which levers move it (measured)
-status: open
+status: closed
 opened: 2026-10-14
 refs: [5011, 5104]
+cost: E
+priority: P4
+closed: 2026-10-15
 ---
 
 
@@ -116,3 +119,7 @@ Two branches have a `--workspace` run on each side, so the whole `test` job can 
 Their test steps got *faster*, not about 9% slower as the local pair
 predicts. Each pair's two runs test different trees, so the test-step
 cost of lto off is not resolvable from hosted data. The build saving is.
+
+## Closed
+
+#5104 (merged 2026-10-14) took the one cheap lever, `lto = off` in the test job. Every other candidate in the table is declined, decided elsewhere, or filed on its own program (topo's lib-test double compile, SSIARITH's rigid-map fuzzer). Nothing here is still owed. (CIW orchestrator)

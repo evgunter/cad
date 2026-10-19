@@ -10,7 +10,7 @@
 use geom::Curve3;
 use geom_brep::{
     DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, SmoothJoin,
-    SurfacePair, classify_dihedral, edge_extent, must_carry_description,
+    SurfacePair, classify_dihedral, must_carry_description,
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
@@ -20,33 +20,22 @@ use super::RevolveError;
 use geom_core::Tol;
 
 /// An edge's stored certified carrier: `(carrier, t0, t1, witness,
-/// extent, chord)` — the mid-parameter witness computed with
-/// the certification schedule's own association `t0 + (t1 − t0)·½`
-/// (chord midpoints fail on arcs), the extent through
-/// [`geom_brep::edge_extent`] (carrier diameter for closed rims).
+/// reach)` — the mid-parameter witness computed with the certification
+/// schedule's own association `t0 + (t1 − t0)·½` (chord midpoints fail
+/// on arcs), and the faces' extent its wedge is levered at
+/// ([`topo::wedge_reach`]).
 struct EdgeData<T: Real> {
     carrier: Curve3<T>,
     t0: T,
     t1: T,
     witness: Point3<T>,
-    extent: T,
-    chord: T,
+    reach: T,
 }
 
-/// The point of `vertex`, read off a live half-edge.
-///
-/// # Panics
-///
-/// If the vertex or its point does not resolve: both are links a
-/// live half-edge holds on a tier-1-valid body.
-#[track_caller]
-fn vertex_point<T: Real>(body: &Body<T>, vertex: topo::VertexKey) -> Point3<T> {
-    topo::readback::vertex_point(body, vertex).unwrap_or_else(|_| {
-        unreachable!("vertex {vertex:?}, held by a live half-edge, does not resolve")
-    })
-}
-
-fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, RevolveError> {
+fn edge_data<T: SpanLocate + Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+) -> Result<EdgeData<T>, RevolveError> {
     let edge_rec = body.get_edge(edge).unwrap_or_else(|| {
         unreachable!(
             "edge {edge:?} was minted by this revolve and is upgraded before any kill of it"
@@ -62,25 +51,13 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
     let carrier = curve.carrier().clone();
     let (t0, t1) = curve.params();
     let witness = curve.mid_point();
-    let he_plus = edge_rec.he_plus;
-    let start = body
-        .get_half_edge(he_plus)
-        .unwrap_or_else(|| unreachable!("half-edge {he_plus:?} is live edge {edge:?}'s plus half"))
-        .start;
-    let end = body.half_edge_end(he_plus).unwrap_or_else(|| {
-        unreachable!("half-edge {he_plus:?}'s end is its live mate's start on a tier-1-valid body")
-    });
-    let p_start = vertex_point(body, start);
-    let p_end = vertex_point(body, end);
-    let chord = p_start.distance(p_end);
-    let extent = edge_extent(&carrier, t0, t1, chord);
+    let reach = topo::wedge_reach(body, topo::edge_faces(body, edge), &carrier, (t0, t1));
     Ok(EdgeData {
         carrier,
         t0,
         t1,
         witness,
-        extent,
-        chord,
+        reach,
     })
 }
 
@@ -113,7 +90,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
         .get_surface(s2)
         .cloned()
         .unwrap_or_else(|| unreachable!("surface {s2:?} was read off a live face of this revolve"));
-    match classify_dihedral(&surf1, &surf2, data.witness, data.extent, band) {
+    match classify_dihedral(&surf1, &surf2, data.witness, data.reach, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
@@ -154,7 +131,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                     surfaces: [(s1, &surf1), (s2, &surf2)],
                     carrier: &data.carrier,
                     interval: (data.t0, data.t1),
-                    chord: data.chord,
+                    reach: data.reach,
                     witness: data.witness,
                 },
                 band,

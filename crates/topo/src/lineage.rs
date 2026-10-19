@@ -101,24 +101,33 @@ pub enum LineageError {
 
 /// **One op's lineage** (D1): the [`Fate`] of each input cell it
 /// touched, read through the joins it ended with. A cell no row names
-/// is kept under its key; where the result does not hold it there, the
-/// lineage does not cover it and the carry refuses
-/// ([`crate::CarryRefusal::Unmapped`]).
+/// is kept under its key. The carry lands a record on kept and
+/// substituted cells unread, relying on each image being on its input
+/// cell's carrier and holding its old interior; an op that writes new
+/// geometry under kept keys hands its input's geometry over
+/// ([`Self::from_source`]), and the carry then reads every image that
+/// does not hold its cell's geometry. Where the result does not hold a
+/// cell no row names, the lineage does not cover it and the carry
+/// refuses ([`crate::CarryRefusal::Unmapped`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Lineage {
     rows: BTreeMap<Cell, Fate>,
+    merged: BTreeMap<Cell, Cell>,
     joins: Vec<EdgeJoin>,
     meeting: MintedBacking,
     glues: bool,
+    source: Option<SourceGeometry>,
 }
 
 impl Default for Lineage {
     fn default() -> Self {
         Self {
             rows: BTreeMap::new(),
+            merged: BTreeMap::new(),
             joins: Vec::new(),
             meeting: MintedBacking::Refused,
             glues: false,
+            source: None,
         }
     }
 }
@@ -193,11 +202,37 @@ impl Lineage {
         Ok(self)
     }
 
+    /// The lineage of an op that wrote new geometry under kept keys,
+    /// `source` its input's geometry taken before it wrote: a record
+    /// lands unread only where each of its cells' images holds that
+    /// cell's geometry ([`SourceGeometry::holds_as`]), and is read by the
+    /// census's confirm otherwise.
+    #[must_use]
+    pub fn from_source(mut self, source: SourceGeometry) -> Self {
+        self.source = Some(source);
+        self
+    }
+
+    pub(crate) fn source(&self) -> Option<&SourceGeometry> {
+        self.source.as_ref()
+    }
+
     /// The lineage read through `joins`, the joins the op ended with:
     /// each image a join killed is the edge it made.
     #[must_use]
     pub fn through_joins(mut self, joins: &[EdgeJoin]) -> Self {
         self.joins.extend_from_slice(joins);
+        self
+    }
+
+    /// The lineage read through `merged`, the coplanar merges the op
+    /// ended with before its joins, each `(dead, by)` a cell a merge
+    /// killed with the face holding its interior
+    /// ([`crate::MergedGroup::substitutions`]): each image a merge
+    /// killed is its kept face.
+    #[must_use]
+    pub fn through_merges(mut self, merged: impl IntoIterator<Item = (Cell, Cell)>) -> Self {
+        self.merged.extend(merged);
         self
     }
 
@@ -254,8 +289,10 @@ impl Lineage {
         out
     }
 
-    /// An image read through the joins.
+    /// An image read through the merges, then the joins. A merge's
+    /// substitute is a live kept face, so the chase ends at once.
     pub(crate) fn joined(&self, cell: Cell) -> Cell {
+        let cell = self.merged.get(&cell).copied().unwrap_or(cell);
         crate::boolean::joined_cell(&self.joins, cell)
     }
 }
@@ -298,6 +335,129 @@ impl Fate {
                     ..
                 })
         )
+    }
+}
+
+/// One cell's geometry, as keys: what the carry compares an image
+/// against its input cell to land a record unread.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Shape {
+    Vertex(crate::geometry::PointKey),
+    Edge(
+        crate::geometry::CurveKey,
+        [Option<crate::geometry::PointKey>; 2],
+    ),
+    Face {
+        surface: crate::geometry::SurfaceKey,
+        sense: bool,
+        points: BTreeSet<crate::geometry::PointKey>,
+        curves: BTreeSet<crate::geometry::CurveKey>,
+    },
+}
+
+impl Shape {
+    /// `cell`'s shape in `body`: a vertex's point; an edge's carrier and
+    /// its ends' points; a face's carrier, sense, and the points and
+    /// carriers of its boundary. None where `body` does not hold it.
+    fn of<T: geom_core::Real>(body: &crate::Body<T>, cell: Cell) -> Option<Self> {
+        let point = |v| body.get_vertex(v).map(|d| d.point);
+        let start = |h| body.get_half_edge(h).and_then(|h| point(h.start));
+        match cell {
+            Cell::Vertex(v) => point(v).map(Self::Vertex),
+            Cell::Edge(e) => {
+                let edge = body.get_edge(e)?;
+                let mut ends = [start(edge.he_plus), start(edge.he_minus)];
+                ends.sort();
+                Some(Self::Edge(edge.curve, ends))
+            }
+            Cell::Face(f) => {
+                let face = body.get_face(f)?;
+                let (mut points, mut curves) = (BTreeSet::new(), BTreeSet::new());
+                // Read off each half-edge's loop, walking no loop: the
+                // snapshot is taken before a door's own checks run.
+                for (_, h) in body.half_edges() {
+                    if body.get_loop(h.parent_loop).is_some_and(|l| l.face == f) {
+                        points.extend(point(h.start));
+                        curves.extend(body.get_edge(h.edge).map(|e| e.curve));
+                    }
+                }
+                Some(Self::Face {
+                    surface: face.surface,
+                    sense: face.sense,
+                    points,
+                    curves,
+                })
+            }
+        }
+    }
+}
+
+/// **An op's input cells' geometry, as keys**, taken before the op
+/// writes: every vertex's point, every edge's carrier and ends, every
+/// face's carrier, sense and boundary. An op that keeps a cell's key
+/// while writing new geometry hands it to its lineage
+/// ([`Lineage::from_source`]), and the carry then lands a record unread
+/// only on images whose geometry is the input cell's
+/// ([`Self::holds_as`]). The kernel writes new geometry under a new key,
+/// so a key held is geometry held.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SourceGeometry {
+    cells: BTreeMap<Cell, Shape>,
+}
+
+impl SourceGeometry {
+    /// Every cell of `body`, as its geometry's keys.
+    #[must_use]
+    pub fn of<T: geom_core::Real>(body: &crate::Body<T>) -> Self {
+        type Bounds = (
+            BTreeSet<crate::geometry::PointKey>,
+            BTreeSet<crate::geometry::CurveKey>,
+        );
+        let mut bounds: BTreeMap<FaceKey, Bounds> = BTreeMap::new();
+        for (_, h) in body.half_edges() {
+            let Some(f) = body.get_loop(h.parent_loop).map(|l| l.face) else {
+                continue;
+            };
+            let (points, curves) = bounds.entry(f).or_default();
+            points.extend(body.get_vertex(h.start).map(|d| d.point));
+            curves.extend(body.get_edge(h.edge).map(|e| e.curve));
+        }
+        let mut cells: BTreeMap<Cell, Shape> = body
+            .vertices()
+            .map(|(v, _)| Cell::Vertex(v))
+            .chain(body.edges().map(|(e, _)| Cell::Edge(e)))
+            .filter_map(|c| Shape::of(body, c).map(|s| (c, s)))
+            .collect();
+        for (f, face) in body.faces() {
+            let (points, curves) = bounds.remove(&f).unwrap_or_default();
+            cells.insert(
+                Cell::Face(f),
+                Shape::Face {
+                    surface: face.surface,
+                    sense: face.sense,
+                    points,
+                    curves,
+                },
+            );
+        }
+        Self { cells }
+    }
+
+    /// Whether `image`, a cell of `result`, holds input cell `cell`'s
+    /// geometry unchanged: the same kind of cell, on the same carrier,
+    /// with the same bounding points and carriers. An image of another
+    /// kind (a vertex a join took into an edge), on another carrier, or
+    /// trimmed or grown, does not, and neither does a cell this source
+    /// never held.
+    pub(crate) fn holds_as<T: geom_core::Real>(
+        &self,
+        cell: Cell,
+        image: Cell,
+        result: &crate::Body<T>,
+    ) -> bool {
+        self.cells
+            .get(&cell)
+            .is_some_and(|s| Shape::of(result, image).as_ref() == Some(s))
     }
 }
 

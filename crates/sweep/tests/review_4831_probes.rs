@@ -521,7 +521,7 @@ fn p10_the_sliver_family() {
         );
         let (Ok(a), Ok(b)) = built else {
             assert_eq!(
-                sliver_refusal(h, true),
+                sliver_refusal(h),
                 Some(Sliver::Unbuilt),
                 "p10 h={h:e} eps {eps:e}: the extrusion refused {built:?}"
             );
@@ -537,7 +537,7 @@ fn p10_the_sliver_family() {
             ("B ∩ A", topo::intersect(&b, &a, tol()), meet),
         ] {
             let row = format!("p10 h={h:e} {name} eps {eps:e}");
-            let pinned = sliver_refusal(h, name.starts_with('A'));
+            let pinned = sliver_refusal(h);
             match got {
                 Ok(topo::BooleanResult::Body(r)) => {
                     let v = topo::mass_properties(&r.body, tol()).unwrap().volume;
@@ -579,7 +579,7 @@ fn p10_the_sliver_family() {
 enum Sliver {
     /// The fat disc's extrusion refuses: `h` lies in the band.
     Unbuilt,
-    /// The op refuses with this kind.
+    /// Every op refuses with this kind.
     Refuses(topo::BooleanErrorKind),
 }
 
@@ -588,24 +588,17 @@ enum Sliver {
 ///
 /// - `h` short of the escalation width: the extrusion refuses; at it,
 ///   to rounding, every op reads a vertex `h` from a face in band.
-/// - `h/8` in band, the fat disc the first operand: the glue door's
-///   interiors schedule samples the tangent line `h/8` from the fat
-///   disc's bottom corner and escalates on `bool_contact_vertex`:
-///   `work/contacthold/the-tangent-interiors-schedule-escalates-on-a-sample-it-places-in-band-of-a-corner.md`.
 /// - the bisector's sagitta `½·κ_rel·h²` (κ_rel = ½) in band, either
 ///   order: a bisector
 ///   bound levered at its sector's arm `h` reads its second-order
 ///   departure in band:
 ///   `work/contacthold/a-glued-tangencys-bisector-reads-its-curving-at-its-sectors-short-arm.md`.
-fn sliver_refusal(h: f64, fat_first: bool) -> Option<Sliver> {
+fn sliver_refusal(h: f64) -> Option<Sliver> {
     let b = Band::linear(tol()).unwrap();
     let in_band = |m: f64| (b.zero()..=b.escalate()).contains(&m);
     if h < b.escalate() {
         Some(Sliver::Unbuilt)
-    } else if h <= b.escalate() * (1.0 + 1e-9)
-        || (fat_first && in_band(h / 8.0))
-        || in_band(0.25 * h * h)
-    {
+    } else if h <= b.escalate() * (1.0 + 1e-9) || in_band(0.25 * h * h) {
         Some(Sliver::Refuses(topo::BooleanErrorKind::Escalated))
     } else {
         None

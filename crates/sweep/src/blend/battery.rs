@@ -2,7 +2,7 @@
 //! the INPUTS before a single surface is minted.
 //!
 //! Each predicate below is a named Q1 trilean through the crate's
-//! [`super::decide`] funnel, with a margin in METERS at a named lever
+//! [`decide`](crate::swept::decide) funnel, with a margin in METERS at a named lever
 //! arm (never a raw dimensionless quantity — a sin or a determinant
 //! only becomes classifiable once it is folded against a length the
 //! user can reason about). `Positive` proceeds, `Zero` and `Negative`
@@ -45,9 +45,10 @@ use super::arms::{
     plane_sphere_blend,
 };
 use super::build::fan_at;
+use super::open::end_face::CycleReading;
 use super::surgery::{
-    CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, scaffolding, unbuilt_geometry,
-    unresolved, unwalked,
+    CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, scaffolding, strip_frame, strip_reading,
+    strip_ring, unbuilt_geometry, unresolved, unwalked,
 };
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
@@ -1018,14 +1019,14 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let start = body.get_half_edge(he_plus).ok_or_else(broken)?.start;
     let end = body.half_edge_end(he_plus).ok_or_else(broken)?;
     let (carrier, t0, t1) = carrier_of(body, edge)?;
+    // The edge's own extent levers what is read ALONG the edge: the
+    // chain's G1 at a shared vertex ([`Link::arm_len`]) and a ruled
+    // pair's co-ruling.
     let extent = extent_of(&carrier, t0, t1);
     let mid = geom::mid_param(t0, t1);
     let (p, tau) = carrier.ders1(mid);
     let n_a = outward(body, face_a, p).ok_or_else(broken)?;
     let n_b = outward(body, face_b, p).ok_or_else(broken)?;
-    // Predicate 5 first at the link level: the arm's side depends on
-    // the convexity, so the sign is established before any geometry.
-    let (convexity, convexity_margin) = convexity_at(n_a, n_b, tau, extent, edge, band)?;
     let sa = body
         .get_surface(body.get_face(face_a).ok_or_else(broken)?.surface)
         .ok_or_else(broken)?
@@ -1034,6 +1035,18 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
         .get_surface(body.get_face(face_b).ok_or_else(broken)?.surface)
         .ok_or_else(broken)?
         .clone();
+    // Predicate 5 first at the link level: the arm's side depends on
+    // the convexity, so the sign is established before any geometry.
+    // The convexity is the wedge between the edge's two faces, levered
+    // as every reader of that wedge levers it: the faces' extent
+    // (`topo::wedge_reach`) folded with their curvature arms.
+    let wedge_arm = geom_brep::folded_lever_arm(
+        &sa,
+        &sb,
+        p,
+        topo::wedge_reach(body, [face_a, face_b], &carrier, (t0, t1)),
+    );
+    let (convexity, convexity_margin) = convexity_at(n_a, n_b, tau, wedge_arm, edge, band)?;
     // A face's stored sense bit read STRUCTURALLY, never re-derived
     // from a normal: for a sphere the chart normal is the outward
     // radial, so `sense` says on which side of that sphere the material
@@ -3014,6 +3027,7 @@ fn consumption_sweep<T: Decide + Bounds>(
         for lp in core::iter::once(fa.outer).chain(fa.rings.iter().copied()) {
             boundary.extend(screened_loop(body, lp)?);
         }
+        let decided = strip_decided(body, chains, face, &fa.rings, band)?;
         for i in 0..boundary.len() {
             for j in (i + 1)..boundary.len() {
                 let (ei, pi) = (&boundary[i].0, &boundary[i].2);
@@ -3027,6 +3041,9 @@ fn consumption_sweep<T: Decide + Bounds>(
                     continue;
                 }
                 if touches(*ei, *ej)? {
+                    continue;
+                }
+                if decided.contains(&(*ei, *ej)) || decided.contains(&(*ej, *ei)) {
                     continue;
                 }
                 // The closest approach of the two sampled boundaries,
@@ -3093,6 +3110,66 @@ fn consumption_sweep<T: Decide + Bounds>(
         }
     }
     Ok(())
+}
+
+/// **The rings of a support `face` that the strip meter decides**, each
+/// edge paired with the requested edge whose strip it is read against:
+/// a ring carrying no requested edge, read through the pieces arm (a)
+/// reads it through ([`strip_ring`]) wholly inside, or crossing, the
+/// strip a plane–plane band takes off `face` ([`strip_reading`]), where
+/// that band is a whole open chain of one link and no other requested
+/// edge meets either end, so predicate 6 cuts it off at both ends or
+/// refuses. The screen stands down on those pairs alone: the strip
+/// meter reads a ring inside as a cup's mouth the band may take, and
+/// refuses one crossing, measured (`surgery::ring_clearance_pass`, arm
+/// (a)); a ring it reads neither way, or one beside a band of another
+/// shape, is screened as before.
+fn strip_decided<T: Decide + Bounds>(
+    body: &Body<T>,
+    chains: &[Chain<T>],
+    face: FaceKey,
+    rings: &[topo::LoopKey],
+    band: Band,
+) -> Result<Vec<(EdgeKey, EdgeKey)>, BlendError> {
+    let requested: Vec<EdgeKey> = chains
+        .iter()
+        .flat_map(|c| c.links().map(|l| l.edge))
+        .collect();
+    let mut decided = Vec::new();
+    for chain in chains {
+        let mut links = chain.links();
+        let (Some(l), None) = (links.next(), links.next()) else {
+            continue;
+        };
+        let open = matches!(chain.closure, ChainClosure::Open { .. });
+        if !(open && l.arm.is_plane_plane() && (l.face_a == face || l.face_b == face)) {
+            continue;
+        }
+        let mut alone = true;
+        for v in [l.start, l.end] {
+            let fan = body
+                .edges_of_vertex(v)
+                .ok_or_else(|| unwalked(EntityId::Vertex(v), "a requested edge's end"))?;
+            alone &= fan.iter().all(|e| *e == l.edge || !requested.contains(e));
+        }
+        if !alone {
+            continue;
+        }
+        let frame = strip_frame(body, l, face)?;
+        for &lp in rings {
+            let (edges, pieces, witnesses) = strip_ring(body, lp)?;
+            // Arm (a) reads a ring carrying no requested edge alone.
+            if edges.iter().any(|e| requested.contains(e)) {
+                continue;
+            }
+            if let Some(CycleReading::Inside(_) | CycleReading::Crossing(_)) =
+                strip_reading(&pieces, &witnesses, frame, band)
+            {
+                decided.extend(edges.iter().map(|&e| (e, l.edge)));
+            }
+        }
+    }
+    Ok(decided)
 }
 
 /// One boundary edge as predicate 2 reads it: its key, its certified

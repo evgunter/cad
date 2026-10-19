@@ -253,7 +253,7 @@ fn u_cutter_tied_face(label: &str) -> UCutterTie {
     let (doc, sub) = fixture::u_cutter_tie(ProfileDoc::empty_derived(label, Tol::witness()));
     let ev = eval(&doc);
     let (tied, candidates, unique) = {
-        let table = &ev.value(sub).expect("the U subtract evaluates").name_table;
+        let table = ev.table_at(sub).expect("the U subtract evaluates");
         let (tied, candidates) = table
             .iter()
             .find_map(|(n, e)| match e {
@@ -398,7 +398,7 @@ fn a_frameless_carrier(
 }
 
 type ReadDoor =
-    fn(&editor_core::Evaluation<f64>, RecipeNodeId, &StableName) -> Option<InterrogateError>;
+    fn(&editor_core::Evaluation<f64>, editor_core::VarId, &StableName) -> Option<InterrogateError>;
 
 /// Each door paired with its own name, spelled by `stringify!` off the
 /// path rather than typed beside it: a door renamed in `src/` moves
@@ -408,7 +408,7 @@ macro_rules! read_doors {
     ($($door:path),+ $(,)?) => {
         &[$((
             stringify!($door),
-            (|ev, node, name| $door(ev, node, name).err()) as ReadDoor,
+            (|ev, var, name| $door(ev, var, name).err()) as ReadDoor,
         )),+]
     };
 }
@@ -473,11 +473,17 @@ fn sweep_the_corpus_for_body_index_rungs() -> BodyIndexSweep {
     for doc in crate::corpus::documents() {
         let ev = eval(&doc.doc);
         let nodes: Vec<RecipeNodeId> = ev.nodes.keys().copied().collect();
-        for node in nodes {
-            let Some(value) = ev.value(node) else {
+        // Each output variable's table (NAMES N1), a split's halves two.
+        let reads = nodes.into_iter().flat_map(|node| {
+            ev.named_outputs(node)
+                .into_iter()
+                .map(move |var| (node, var))
+        });
+        for (node, var) in reads.collect::<Vec<_>>() {
+            let Some(table) = ev.table(var) else {
                 continue;
             };
-            for (name, entry) in value.name_table.iter() {
+            for (name, entry) in table.iter() {
                 out.rows += 1;
                 let refs: &[EntityRef] = match entry {
                     Entry::Unique(e) => core::slice::from_ref(e),
@@ -487,7 +493,7 @@ fn sweep_the_corpus_for_body_index_rungs() -> BodyIndexSweep {
                     out.off_first_body += 1;
                 }
                 for (door, ask) in READ_DOORS {
-                    let Some(err) = ask(&ev, node, name) else {
+                    let Some(err) = ask(&ev, var, name) else {
                         continue;
                     };
                     if matches!(
@@ -594,6 +600,11 @@ fn the_reachable_ladder_is_driven_through_its_doors() {
     let (face_frameless_at, face_frameless) = a_frameless_carrier(&loft_ev, EntityKind::Face);
     let (edge_frameless_at, edge_frameless) = a_frameless_carrier(&loft_ev, EntityKind::Edge);
 
+    // A split named alone: its halves are two reads, each its own table
+    // (NAMES N1), so the node alone answers no one table.
+    let (split_doc, [_, _, split]) = editor_core::test_support::clipped_cylinder(Tol::witness());
+    let split_ev = eval(&split_doc);
+
     // Each entry: what the door was asked, what it must answer, and
     // what it actually answered.
     let driven = [
@@ -637,6 +648,11 @@ fn the_reachable_ladder_is_driven_through_its_doors() {
             "a whole-body name, which has no single frame",
             InterrogateError::WholeBody,
             face_frame(&ev, good, &body),
+        ),
+        (
+            "a split named alone, whose halves are two reads",
+            InterrogateError::SeveralOutputs { node: split },
+            face_frame(&split_ev, split, &face),
         ),
         (
             "a face whose carrier is a NURBS patch",

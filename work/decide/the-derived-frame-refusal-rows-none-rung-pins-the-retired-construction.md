@@ -72,3 +72,16 @@ frozen. Its doc cites this item for the measurement. The question this
 row put to Ev ("re-aimed … is put to Ev") was answered in the code
 before it was asked; the orchestrator found it on 2026-10-06 when Ev
 asked what it was. Nothing is left to do.
+
+## The `none` rung reads the attachment gate again (2026-10-14, #5068)
+
+With the pinned lift retired (Ev's ruling A on #5068), the derived-frame
+document's profile is elaborated at the lane rather than lifted from the
+`f64` elaboration, and `m10_the_derived_frames_refusal_is_not_a_freeze`
+(`crates/editor-core/tests/m10_derived_frame_interval.rs`) moved at its
+`none` rung: the plain form now freezes 12 forms (2 checks frozen) and
+its one refusal is the extrude's attachment gate, `carrier_endpoint_start`
+escalating over `[0, 0.32]`, where it read `newell_plane_residual`
+`Invalid` with nothing frozen. The A0 rung did not move: nothing
+freezes and the refusal is clause 1's `newell_plane_residual`. The row
+is re-pinned to both.

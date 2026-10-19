@@ -156,7 +156,7 @@ impl Pieces {
             .iter()
             .map(|c| [c.x, c.y, c.z].map(Interval::point))
             .collect();
-        Self::enclosed(curve.knots(), &control, curve.weights(), (o, n))
+        Self::enclosed(curve.knots_f64_interim(), &control, curve.weights(), (o, n))
     }
 
     /// [`Pieces::of`] from a curve's parts, its control points enclosed:
