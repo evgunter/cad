@@ -3584,6 +3584,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "KindMismatch",
+            NamingError::KindMismatch {
+                name: Box::new(name()),
+                found: EntityKind::Vertex,
+            },
+        ),
+        (
             "Unnamed",
             NamingError::Unnamed {
                 kind: EntityKind::Edge,

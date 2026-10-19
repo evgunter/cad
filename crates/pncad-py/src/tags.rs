@@ -1765,6 +1765,7 @@ pub fn rim_share_tag(found: &RimShare) -> &'static str {
 pub fn naming_error_tag(err: &NamingError) -> &'static str {
     match err {
         NamingError::Duplicate { .. } => "duplicate",
+        NamingError::KindMismatch { .. } => "kind_mismatch",
         NamingError::Unnamed { .. } => "unnamed",
         NamingError::MissingUpstream { .. } => "missing_upstream",
         NamingError::Emission { .. } => "emission",

@@ -1164,8 +1164,7 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     // above, so what is left belongs to no one root.
     if let Err(e) = tie_rows.finish(&mut names) {
         unreachable!(
-            "two copies carried one name, {:?}: a copy's names are qualified by its placement",
-            e.name
+            "two copies carried one name, {e:?}: a copy's names are qualified by its placement"
         )
     }
     // Pass 4: MINTING (A3's "Declaration minting"). Every evaluated
@@ -1474,8 +1473,7 @@ fn carry_names(
     });
     if let Err(e) = carried {
         unreachable!(
-            "{node:?} carried {:?} twice: a copy's names are qualified by its placement",
-            e.name
+            "{node:?} carried a name twice, {e:?}: a copy's names are qualified by its placement"
         )
     }
 }
