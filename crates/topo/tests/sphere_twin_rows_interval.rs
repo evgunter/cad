@@ -89,7 +89,7 @@ fn half_cap<T: Real + SpanLocate + AtRestPolicy>(phi: f64) -> Result<Body<T>, St
 /// joint that carries it lifts only through the twin: the derivation's
 /// own azimuth sits on a half-period mark of a whole-period decision.
 fn twins<T: Real + SpanLocate + AtRestPolicy + Bounds>(body: &Body<T>) -> usize {
-    use geom_brep::{Pcurve, chart_pcurve};
+    use geom_brep::chart_pcurve_over;
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let near = |x: T, to: f64| (x.lo() - to).abs() < 1e-12 && (x.hi() - to).abs() < 1e-12;
     let mut twins = 0;
@@ -103,9 +103,10 @@ fn twins<T: Real + SpanLocate + AtRestPolicy + Bounds>(body: &Body<T>) -> usize 
         let sphere = body
             .get_surface(body.get_face(face).unwrap().surface)
             .unwrap();
-        let derived = chart_pcurve(curve.carrier(), sphere, band).unwrap();
-        let (Pcurve::Harmonic { p0: d, .. }, Pcurve::Harmonic { p0: s, .. }) =
-            (&derived, row.pcurve())
+        let (t0, t1) = row.params();
+        let derived = chart_pcurve_over(curve.carrier(), t0, t1, sphere, band).unwrap();
+        let (Some((d, ..)), Some((s, ..))) =
+            (derived.harmonic_form(), row.pcurve().harmonic_form())
         else {
             panic!("the cap's rows are harmonic")
         };
@@ -147,7 +148,7 @@ fn the_pole_crossing_half_cap_mints_at_f64_and_at_interval() {
 /// naming a sheet the row is no longer on, which tier 3 refuses as a
 /// discontinuity.
 fn tight_k<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str, eps: f64) {
-    use geom_brep::{Pcurve, PcurveCache};
+    use geom_brep::PcurveCache;
     let r = 0.75_f64.sqrt();
     let mut body = half_cap::<T>(0.99 * eps / r).unwrap_or_else(|e| panic!("{lane}: {e}"));
     assert_eq!(twins(&body), 2, "{lane}: the walk stores the twin joints");
@@ -167,18 +168,13 @@ fn tight_k<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str, eps: f64) {
             };
             let face = body.face_of_half_edge(he)?;
             let sphere = body.get_surface(body.get_face(face)?.surface)?.clone();
-            let Pcurve::Harmonic { p0, pa, pb, pl } = row.pcurve() else {
-                return None;
-            };
+            row.pcurve().harmonic_form()?;
             let twin = body.joint(he)?.deck().twin;
             twin.then(|| {
-                let flip = |w: geom_core::Vec2<T>| geom_core::Vec2::new(w.x, T::zero() - w.y);
-                let other = Pcurve::Harmonic {
-                    p0: geom_core::Point2::new(p0.x + T::pi(), T::pi() - p0.y),
-                    pa: flip(*pa),
-                    pb: flip(*pb),
-                    pl: flip(*pl),
-                };
+                let other = row
+                    .pcurve()
+                    .map_affine(geom_brep::ChartMap::sphere_involution())
+                    .expect("a sphere row has its twin");
                 let (t0, t1) = row.params();
                 let cache = PcurveCache::certify(other, t0, t1, curve.carrier(), &sphere, band)
                     .expect("the other sheet certifies: it is the same locus");

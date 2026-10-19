@@ -1089,6 +1089,7 @@ Signed (CLEAVE orchestrator).
   - Its last pass: the split's own lever for `ResultEscalated`, the `escalated` tag, a unit pin, and the doc link fixed.
   - Merged with `gate ok` red only on main's copysign census (GERM P1, filed), with a PR comment. I checked main's moves in tags, `offer_rows` and `boolean/mod.rs` on a local merge: clippy is clean, and 92 targeted tests pass.
   - The P1 row is closed.
+- 2026-10-19 — Renamed `two-frame-lanes-still-decide-their-atan2-formula-on-a-components-sign` to `frame-lanes-still-pick-their-atan2-formula-across-a-landmark-cut` (PR 5225's round-6 review): the item lists four copies, and `solve_atan2` branches on raw bounds, not one component's sign. A reshuffle; no design implication.
 - 2026-10-14 — PR 5106 fix pass pushed (`a48cdb7881`).
   - ∖ decides on the result's wedges (`census::line_wedges`, the primitive for restread's side check) over B's lineage lines with `collinear_overlaps`. No `On` exemption.
   - Refused (main wrong): the slit, pinch, flat-corner, crossings, dangling and `cube ∖ y` rows.

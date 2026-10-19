@@ -663,8 +663,16 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         },
         PcurveCertifyError::IntervalNotForward,
         PcurveCertifyError::ChartWindingUnsupported,
+        PcurveCertifyError::ChannelKindMismatch {
+            chart: geom::SurfaceKind::Cylinder,
+        },
+        PcurveCertifyError::WindingMismatch {
+            stored: [Some(1), None],
+            derived: [Some(-1), None],
+        },
         PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
+        PcurveCertifyError::PlacementTurnsExceeded,
         PcurveCertifyError::TubePeriodExceeded,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
