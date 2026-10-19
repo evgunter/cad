@@ -1189,3 +1189,12 @@ Signed (CLEAVE orchestrator).
   - Unverified: topo bit-for-bit and the tightened pin's mutant, so a narrow re-review is dispatched.
   - Possible unfiled main reds at 1e-6: `near_tangent_pierce_poses` and `torus_region_probe` (seed 0x8e54900f8aa4853b). The reviewer is capturing them to file.
 - 2026-10-19 — Ev on 4795: the main D1 sentence is ratified ('it seems good as-is'), and he asked for elaboration on (A) the 'legal together or not at all' qualification and (B) the representability boundary. I posted explanations recommending yes on both. Waiting before the merge.
+- 2026-10-19 — Ev ruled on 4795.
+  - (A): add 'isolated'.
+  - (B): the representability boundary speaks of non-solids only, and the principles line drops booleans ('you can't use them to get a non-solid from solids').
+  - Main had moved D1 into `crates/topo/README.md`, so I merged main and applied all of 4795's D1 text there, plus DESIGN.md's 'Manifold solids only' summary.
+  - Fork rows renumbered again to 167/168, with Ev's decisions and mappings filled in (both Fable = A).
+  - Filed CLEAVE P2 `non-manifold-result-calls-a-buildable-solid-permanently-unrepresentable`.
+  - Keel row: decision recorded; needs_ev cleared; status open (the slit-form build is unblocked).
+  - `[ev]` taken off the title; the body leads with the decision. Merge on CI.
+  - Lesson: `work.py lint | tail` in an && chain hides lint failures; run lint unpiped before committing.
