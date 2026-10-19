@@ -10173,8 +10173,8 @@ mod tests {
     /// and as `CertifyError::WindingExceeded` does at rest, where both are
     /// a contradiction of what is stored, and an in-band headroom as
     /// `CertCheck::ParamWinding`'s undecided arm does (D4 ¶1 (iv)). Its
-    /// definite arm does not panic at a build, as the edge's does: a
-    /// spline image can sweep past a period from input no door refuses.
+    /// side is a stored contradiction, not unminted: a spline image can
+    /// sweep past a period from input no door refuses.
     #[test]
     fn the_azimuth_gate_ends_in_the_edge_winding_lever() {
         use crate::CertCheck;
