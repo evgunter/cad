@@ -202,6 +202,8 @@ mod pcurve_p1b_r2_probes;
 mod pcurve_parameter_finding;
 #[path = "pcurve_villarceau.rs"]
 mod pcurve_villarceau;
+#[path = "review_b2b_r2_probes.rs"]
+mod review_b2b_r2_probes;
 #[path = "periodic_chart_closure.rs"]
 mod periodic_chart_closure;
 #[path = "r1_pxn_probes.rs"]
