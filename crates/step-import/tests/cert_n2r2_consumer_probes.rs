@@ -3,10 +3,11 @@
 //! file — not for merge. Every row prints what LEAVES the door.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+use profile::SketchPlane;
 use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol};
 use profile::{ProfileLoop, test_support::bulge_loop};
 use topo::{Body, FaceKey, FaceSurface};
 
@@ -25,9 +26,9 @@ fn square() -> Vec<ProfileLoop<f64>> {
 fn loft() -> Body<f64> {
     let sections = vec![square(), square(), square()];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.5, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
@@ -53,8 +54,8 @@ fn corrupt(
         .map(|(i, p)| f(i, *p))
         .collect();
     NurbsSurface::new(
-        wall.knots_u().clone(),
-        wall.knots_v().clone(),
+        wall.knots_u_f64_interim().clone(),
+        wall.knots_v_f64_interim().clone(),
         control,
         wall.weights().to_vec(),
     )

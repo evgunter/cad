@@ -115,7 +115,7 @@ use crate::dihedral::{
     decide, decide_magnitude, decide_magnitude_reported, decide_nonzero, decide_reported,
 };
 use crate::extent::Reach;
-use crate::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::Decide;
 use geom_core::k_stats::{Magnitude, NonzeroSign};
 
@@ -808,7 +808,7 @@ impl SectionRadius {
             lever,
             size: "radius",
             passes: SizedPass::Positive,
-            stored: StoredDefinite::Lever,
+            side: RefusedSide::Lever,
             no_size: None,
         }
     }
@@ -1485,9 +1485,11 @@ pub enum EqualCylinderSection<T: Real> {
         /// spanned by the axes, and the ellipses cross square, along
         /// `a1 + a2` (`e1`) and `a1 − a2` (`e2`). Round a node each
         /// wall's four sectors between the four arcs alternate sides of
-        /// the other solid: on wall 1 the sectors about `±a1` lie outside
-        /// wall 2 and those about `±a2` inside it; on wall 2 the same
-        /// sectors, the other way round.
+        /// the other CYLINDER: on wall 1 the sectors about `±a1` lie
+        /// outside cylinder 2 and those about `±a2` inside it; on wall 2
+        /// the same sectors, the other way round. Which side of a
+        /// cylinder is its solid's material is the face's, not the
+        /// surface's.
         nodes: [Point3<T>; 2],
     },
     /// Parallel axes, gap definitely < r₁ + r₂: two parallel rulings.
@@ -2419,13 +2421,6 @@ pub fn plane_cone_section<T: Decide>(
             let v_ref = a.cross(cone_u);
             let (nu, nv) = (cone_u.dot(n), v_ref.dot(n));
             let phi = nv.atan2(nu);
-            // Clamped acos argument (outward-rounding can push
-            // it a hair past ±1 at the tangency boundary —
-            // min/max are Real lattice ops, evaluation-legal).
-            let arg = ((T::zero() - cos_a * c) / (sin_a * s))
-                .min(T::one())
-                .max(T::zero() - T::one());
-            let delta = arg.acos();
             let gen_at = |u: T| -> Curve3<T> {
                 let (su, cu) = u.sin_cos();
                 Curve3::Line {
@@ -2434,8 +2429,23 @@ pub fn plane_cone_section<T: Decide>(
                 }
             };
             return Ok(if verdict == Sign::Zero {
-                PlaneConeSection::ApexTangentLine(gen_at(phi + delta))
+                // A graze's one root is the extremum of g·n over the
+                // azimuth: φ where the normal leans down the axis
+                // (c < 0), φ + π where it leans up. The residue's
+                // quotient sits up to the band off ∓1 here, and its acos
+                // √(2·band) off the extremum. `c` is definite on this
+                // arm: D Zero puts |c| at tan α·s, and the aperture
+                // guard decided sin α.
+                let half_turn = T::pi() * T::from_f64(0.5);
+                PlaneConeSection::ApexTangentLine(gen_at(phi + half_turn.copysign(c) + half_turn))
             } else {
+                // Clamped acos argument (outward-rounding can push
+                // it a hair past ±1 at the tangency boundary —
+                // min/max are Real lattice ops, evaluation-legal).
+                let delta = ((T::zero() - cos_a * c) / (sin_a * s))
+                    .min(T::one())
+                    .max(T::zero() - T::one())
+                    .acos();
                 PlaneConeSection::ApexLinePair {
                     l1: gen_at(phi + delta),
                     l2: gen_at(phi - delta),

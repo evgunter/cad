@@ -23,6 +23,7 @@
 //!
 //! D2 bump: the hand-declared bracket's extrude `Distance`.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, SlotId};
 
@@ -103,8 +104,8 @@ pub fn document() -> CorpusDoc {
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
-    r.place(fillet_body);
-    r.place(tangent_body);
+    r.place_part(fillet_body);
+    r.place_part(tangent_body);
 
     CorpusDoc {
         name: "declared_tangency",

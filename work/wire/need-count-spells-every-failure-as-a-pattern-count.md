@@ -2,11 +2,14 @@
 id: need-count-spells-every-failure-as-a-pattern-count
 kind: issue
 title: need_count's one refusal says "pattern count" and it is never used for a pattern count
-status: open
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: E
 refs: [a-pattern-count-has-no-upper-bound-at-the-loop-that-uses-it]
+closed: 2026-10-17
+pr: 5262
+branch: wire/refusal-endings
 ---
 
 
@@ -102,3 +105,9 @@ there, and the two should be decided together rather than twice.
 `scripts/work.py territory --files -`. Filed, not fixed: a numeric door
 the viewer consumes is a hand-off and never a diff from VGEOM
 (`work/vgeom/program.md`'s `keep_out`).
+
+## Closed (2026-10-17)
+
+PR 5262 (merged `90a7974563`, branch `wire/refusal-endings`). See the PR body for the change; style review mergeable, fix pass taken.
+
+Signed (WIRE orchestrator).

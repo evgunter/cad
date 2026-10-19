@@ -578,12 +578,12 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
                     );
                     assert_eq!(
                         real(&a[1]),
-                        ns.knots_u().degree() as f64,
+                        ns.knots_u_f64_interim().degree() as f64,
                         "FRAME: {name} u-degree"
                     );
                     assert_eq!(
                         real(&a[2]),
-                        ns.knots_v().degree() as f64,
+                        ns.knots_v_f64_interim().degree() as f64,
                         "FRAME: {name} v-degree"
                     );
                     let control_refs = refs(&a[3]);
@@ -834,7 +834,7 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
 #[test]
 fn reverting_a_sphere_moves_the_flag_and_nothing_about_the_surface() {
     let ball = common::ball();
-    let reverted = ball.revert();
+    let reverted = ball.revert().unwrap();
     let a = export(&ball, "ball");
     let b = export(&reverted, "ball");
     assert_ne!(a, b, "revert is visible in the text");

@@ -96,6 +96,13 @@ fn quantity(obj: &Bound<'_, PyAny>) -> PyResult<(f64, d::Dimension)> {
     ))
 }
 
+/// A count as the `value` a refusal reports, rounded where it is wider
+/// than a float carries exactly.
+#[allow(clippy::cast_precision_loss)]
+fn u64_value(n: u64) -> f64 {
+    n as f64
+}
+
 /// Raise `LiteralError` for a value the expression layer refused,
 /// carrying the refusal's stable tag and the offending number.
 fn literal_err(py: Python<'_>, value: f64, err: &d::DimensionError) -> PyErr {
@@ -310,6 +317,39 @@ impl Formula {
     #[staticmethod]
     fn turn() -> Self {
         Self(d::Formula::turn())
+    }
+
+    /// The exact angle `turn / den` (`Formula::turn_over`): a right
+    /// angle is `Formula.turn_over(4)`. `LiteralError` (`kind`
+    /// `"constant_out_of_range"`) for a zero denominator or one past
+    /// 2^53.
+    #[staticmethod]
+    fn turn_over(py: Python<'_>, den: u64) -> PyResult<Self> {
+        d::Formula::turn_over(den)
+            .map(Self)
+            .map_err(|err| literal_err(py, u64_value(den), &err))
+    }
+
+    /// The constant zero at `dimension` (`"length"`, `"angle"`,
+    /// `"scalar"` or `"count"`): the one constant of every dimension, a
+    /// lone `0` that writes no value (VR6), where `0 * mm` is a written
+    /// length.
+    #[staticmethod]
+    fn zero(dimension: &str) -> PyResult<Self> {
+        [
+            d::Dimension::Length,
+            d::Dimension::Angle,
+            d::Dimension::Scalar,
+            d::Dimension::Count,
+        ]
+        .into_iter()
+        .find(|&dim| crate::errors::dimension_tag(dim) == dimension)
+        .map(|dim| Self(d::Formula::zero(dim)))
+        .ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "not a dimension: {dimension:?} — one of \"length\", \"angle\", \"scalar\" or \"count\""
+            ))
+        })
     }
 
     /// What this expression measures: `"length"`, `"angle"`,

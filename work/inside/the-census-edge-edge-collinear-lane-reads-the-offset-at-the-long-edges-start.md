@@ -2,11 +2,12 @@
 id: the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start
 kind: issue
 title: The census's collinear edge-edge lane reads two edges' line offset at the second edge's start, so its overlap verdict depends on arena order: a body whose edges part by 21 bands reads an undeclared overlap
-status: open
+status: closed
 opened: 2026-10-04
 priority: P2
 cost: M
 refs: [boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
+closed: 2026-10-17
 ---
 
 
@@ -93,3 +94,18 @@ shape to give above covers them.
 ## CONTACT close-out triage (2026-10-08)
 
 P0 to P2: a false refusal on a 1e-7 rad near-tangent pose, not a wrong answer. It absorbs the closed duplicate `census-edge-overlap-decides-parallel-and-line-gap-one-at-a-time`: one summed-margin fix (parallelism and line gap decided together) closes both.
+
+## Closed
+
+2026-10-17, by RESTREAD's crossing lane
+(`census-collinear-overlap-reads-along-the-first-edges-line`, the same
+reading). `census::collinear_overlap` reads the projected overlap
+first, then the gap as the least distance from the first edge's points
+over that run to the second's line (`census::overlap_gap`), never at the
+second edge's start. On main `43cac0bf` the near-tangent probe at
+ε = 1e-9 shipped four `EdgeEdgeOverlap` findings of this shape:
+`shallow200 nt e0 a3 d1e-7 pc` ∪ and ∖ (this row's pair) and
+`w345 nt e0 a4 d1e-6 pc` ∪ and ∖ (`21v1`×`45v1`, ends 2.08e-6 apart).
+None on the branch. Pinned by `census::edge_pairs_as_segments`
+`a_long_edge_starting_on_a_short_edges_line_is_read_beside_it`, this
+row's pair by its exact coordinates, in both orders.

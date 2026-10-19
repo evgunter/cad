@@ -38,6 +38,7 @@ pub fn assert_certificates_fresh(
                 start,
                 end,
                 |k| body.get_surface(k).cloned(),
+                1.0,
                 band,
                 Some(geom_brep::NurbsLane::certified()),
             )

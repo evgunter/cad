@@ -88,7 +88,9 @@ use std::collections::HashMap;
 use geom::{
     Curve3, CurveData, DatumValue, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface, SurfaceData,
 };
-use geom_brep::{FocalImage, FramedCarrier, Pcurve, ProjectedChart, SpiricImage, WallTorus};
+use geom_brep::{
+    Channel, FocalImage, FramedCarrier, Pcurve, ProjectedChart, SpiricImage, WallTorus,
+};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use topo::{Body, FaceKey};
@@ -1002,7 +1004,7 @@ impl KeyWriter {
     }
 
     fn nurbs3(&mut self, c: &NurbsCurve3<f64>) {
-        self.knots(c.knots());
+        self.knots(c.knots_f64_interim());
         self.len(c.control().len());
         for &p in c.control() {
             self.p3(p);
@@ -1011,7 +1013,7 @@ impl KeyWriter {
     }
 
     fn nurbs2(&mut self, c: &NurbsCurve2<f64>) {
-        self.knots(c.knots());
+        self.knots(c.knots_f64_interim());
         self.len(c.control().len());
         for &p in c.control() {
             self.p2(p);
@@ -1020,8 +1022,8 @@ impl KeyWriter {
     }
 
     fn nurbs_surface(&mut self, s: &NurbsSurface<f64>) {
-        self.knots(s.knots_u());
-        self.knots(s.knots_v());
+        self.knots(s.knots_u_f64_interim());
+        self.knots(s.knots_v_f64_interim());
         self.len(s.control().len());
         for &p in s.control() {
             self.p3(p);
@@ -1093,12 +1095,30 @@ impl KeyWriter {
 
     fn pcurve(&mut self, p: &Pcurve<f64>) {
         match p {
-            Pcurve::Harmonic { p0, pa, pb, pl } => {
+            Pcurve::Harmonic { u, v } => {
+                // Channel by channel, kind first: an angle's phase and
+                // windings, a free channel's four coefficients. An angle
+                // winding once and a free channel of slope 1 are
+                // different rows, so they key apart.
                 self.u8(0);
-                self.p2(*p0);
-                self.v2(*pa);
-                self.v2(*pb);
-                self.v2(*pl);
+                for channel in [*u, *v] {
+                    match channel {
+                        Channel::Angle { phase, winding } => {
+                            self.u8(0);
+                            self.f64(phase);
+                            for byte in winding.to_le_bytes() {
+                                self.u8(byte);
+                            }
+                        }
+                        Channel::Free { c, a, b, l } => {
+                            self.u8(1);
+                            self.f64(c);
+                            self.f64(a);
+                            self.f64(b);
+                            self.f64(l);
+                        }
+                    }
+                }
             }
             Pcurve::Fitted(c) => {
                 self.u8(1);

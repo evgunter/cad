@@ -193,7 +193,18 @@ fn the_mint_pass_re_derives_a_split_line_wall_and_refuses_a_split_arc_rim() {
 
         let mut body = body_of(which);
         let (edge, (t0, t1)) = edge_with_kind(&body, which);
-        body.split_edge(edge, (t0 + t1) * 0.5, tol()).unwrap();
+        let split = body.split_edge(edge, (t0 + t1) * 0.5, tol()).unwrap();
+        // Beside a spline face the edge falls outside the must-carry
+        // rule, so the split keeps each piece's image unasked.
+        for piece in [edge, split.new_edge] {
+            let curve = body.get_edge(piece).unwrap().curve;
+            let c = body.get_curve_geom(curve).unwrap().certified().unwrap();
+            assert!(
+                matches!(c.description(), geom_brep::EdgeDescription::Chart(ch) if !ch.wrap),
+                "{which}: a piece beside the spline wall keeps its image: {:?}",
+                c.description()
+            );
+        }
         let minted = topo::mint_pcurves(&mut body, tol());
         match (which, &minted) {
             // The arc rim's own arm refuses typed: each candidate

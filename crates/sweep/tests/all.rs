@@ -56,6 +56,8 @@ mod mate2_common;
 mod revolve_common;
 mod seam_region_common;
 
+#[path = "a_carried_record_no_reading_covers.rs"]
+mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_curved_keel_in_the_plane.rs"]
@@ -68,8 +70,12 @@ mod a_flank_touch_at_a_shared_corner;
 mod a_flipped_shallow_dimple;
 #[path = "a_loft_computes_its_walls_in_t.rs"]
 mod a_loft_computes_its_walls_in_t;
+#[path = "a_minted_vertex_on_a_curved_face.rs"]
+mod a_minted_vertex_on_a_curved_face;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
+#[path = "a_pierce_held_in_a_curved_face.rs"]
+mod a_pierce_held_in_a_curved_face;
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
 #[path = "a_plane_along_an_elliptic_cut.rs"]
@@ -80,6 +86,10 @@ mod a_plane_holding_a_conic_tangent_at_a_vertex;
 mod a_plane_moved_to_a_cone_apex;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
+mod a_rigid_turn_keeps_a_slivers_volume;
+#[path = "a_rim_in_a_face_beside_a_resting_ridge.rs"]
+mod a_rim_in_a_face_beside_a_resting_ridge;
 #[path = "a_ring_on_a_cone_face.rs"]
 mod a_ring_on_a_cone_face;
 #[path = "a_ring_on_a_sphere_face.rs"]
@@ -92,6 +102,8 @@ mod a_ruling_through_a_box_corner_edge;
 mod a_seam_region_carrying_both_poles;
 #[path = "a_seam_region_covering_the_sphere_twice.rs"]
 mod a_seam_region_covering_the_sphere_twice;
+#[path = "a_short_shallow_strut_between_wide_walls_is_a_corner.rs"]
+mod a_short_shallow_strut_between_wide_walls_is_a_corner;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
@@ -114,6 +126,8 @@ mod an_annular_tube_through_a_plate;
 mod an_arc_rim_picks_the_row_it_lies_on;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
 mod an_arc_tangent_at_a_boolean_vertex;
+#[path = "an_arcs_sweep_structure_is_certified_for_every_member.rs"]
+mod an_arcs_sweep_structure_is_certified_for_every_member;
 #[path = "an_inside_out_thin_tube_operand.rs"]
 mod an_inside_out_thin_tube_operand;
 #[path = "at_rest_pcurve_faces.rs"]
@@ -124,6 +138,10 @@ mod band_apart_partners_on_a_steep_ellipse;
 mod band_subdivided_side_walls;
 #[path = "bisector_lane_stubs.rs"]
 mod bisector_lane_stubs;
+#[path = "bisector_nodes.rs"]
+mod bisector_nodes;
+#[path = "blend_arms_centre_placement.rs"]
+mod blend_arms_centre_placement;
 #[path = "bool1_fix_pass.rs"]
 mod bool1_fix_pass;
 #[path = "bool1_r1_probes.rs"]
@@ -190,6 +208,8 @@ mod offset_restates_a_neighbour_chart_rim;
 mod one_door_for_coincident_sections;
 #[path = "one_segment_loop.rs"]
 mod one_segment_loop;
+#[path = "onpair_rim_pcurves.rs"]
+mod onpair_rim_pcurves;
 #[path = "operand_gate_pose.rs"]
 mod operand_gate_pose;
 #[path = "operand_gate_support_plates.rs"]
@@ -234,6 +254,8 @@ mod r2_mesh1_donut_probes;
 mod rehome_rings_lune;
 #[path = "review_4704_flush_round_oracle.rs"]
 mod review_4704_flush_round_oracle;
+#[path = "review_4996_blend_cap.rs"]
+mod review_4996_blend_cap;
 #[path = "review_r2_vv_probes.rs"]
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]
@@ -282,6 +304,8 @@ mod topo_ring_nesting;
 mod torax_axial;
 #[path = "torax_interval.rs"]
 mod torax_interval;
+#[path = "torus_region_probe.rs"]
+mod torus_region_probe;
 #[path = "transform_nurbs_walls.rs"]
 mod transform_nurbs_walls;
 #[path = "trim_3_chart_bound_bodies.rs"]
@@ -299,12 +323,20 @@ mod verbs_shell;
 
 #[path = "a_thin_wall_bounds_the_band.rs"]
 mod a_thin_wall_bounds_the_band;
+#[path = "a_tiny_lune_on_a_wide_sphere_reads_its_own_extent.rs"]
+mod a_tiny_lune_on_a_wide_sphere_reads_its_own_extent;
 #[path = "axis_lap.rs"]
 mod axis_lap;
 #[path = "band_annulus_host_boundary.rs"]
 mod band_annulus_host_boundary;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
+#[path = "band_concave_bar.rs"]
+mod band_concave_bar;
+#[path = "band_dihedral_cups.rs"]
+mod band_dihedral_cups;
+#[path = "band_one_cycle_members.rs"]
+mod band_one_cycle_members;
 #[path = "band_planar_consume.rs"]
 mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]
@@ -325,6 +357,8 @@ mod band_reads_three_ways;
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
+#[path = "band_strip_mouth_cups.rs"]
+mod band_strip_mouth_cups;
 #[path = "band_turn_overrun_chamfer.rs"]
 mod band_turn_overrun_chamfer;
 #[path = "band_turn_overrun_fillet.rs"]
@@ -680,6 +714,8 @@ mod strut_cover_on_cylinder_pairs;
 mod run_walls_built;
 #[path = "section_ellipse_seam_poses.rs"]
 mod section_ellipse_seam_poses;
+#[path = "section_end_poses.rs"]
+mod section_end_poses;
 #[path = "split_across_a_revolve_seam.rs"]
 mod split_across_a_revolve_seam;
 #[path = "split_along_a_face_plane.rs"]
@@ -692,6 +728,8 @@ mod split_edge_fitted_rows;
 mod split_edge_loft_charts;
 #[path = "split_edge_on_faces_poses.rs"]
 mod split_edge_on_faces_poses;
+#[path = "split_seam_vanishing_tilt.rs"]
+mod split_seam_vanishing_tilt;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
@@ -867,6 +905,8 @@ mod mate2_r2_probes;
 mod mate7a_r1_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "near_tangent_census_edge_face_lane.rs"]
+mod near_tangent_census_edge_face_lane;
 #[path = "near_tangent_pierce_poses.rs"]
 mod near_tangent_pierce_poses;
 #[path = "pi_seam_and_kiss_through_the_boolean.rs"]
@@ -1102,6 +1142,9 @@ mod shell10_r2_cost;
 #[path = "shell10_r2_dump.rs"]
 mod shell10_r2_dump;
 
+#[path = "cross_solid_apart.rs"]
+mod cross_solid_apart;
+
 #[path = "census_containment_cause.rs"]
 mod census_containment_cause;
 
@@ -1155,6 +1198,8 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "a_closed_conic_in_the_partners_face.rs"]
+mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]
 mod a_cone_with_a_tilted_seam;
 #[path = "join_lever_is_the_joined_edge.rs"]

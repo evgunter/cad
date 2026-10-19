@@ -14,8 +14,8 @@ use geom_core::FileCoincidence;
 pub struct AdoptionAttempt {
     /// The interpretation attempted.
     pub candidate: AdoptionCandidate,
-    /// The certification/attachment gate's refusal, rendered as at rest
-    /// with the file's ε_in words (`topo::EulerOpError::render`).
+    /// The certification/attachment gate's refusal, rendered at the
+    /// import door with the file's ε_in (`topo::EulerOpError::render`).
     pub refusal: topo::EulerOpError,
 }
 

@@ -323,7 +323,7 @@ The row keeps its id. Its title is restated as "the product is the world" (FORK-
 
 ## 6. PR E — `select-defines-face-and-edge-variables` (cost H; ~200 files, 5–8k lines)
 
-- `VarKind::{Face, Edge, Vertex}` and `Select` per FORK-3 and FORK-VTX. Its evaluation is `named_entity` (`wire.rs:2317`) plus the kind check that `BlendSelectionKind`, `ShellOpenKind`, `FaceFrameKind` and `MeasureSelectionKind` each make today. That is four error families folded into one, `SelectKind { expected, found }`.
+- `VarKind::{Face, Edge, Vertex}` and `Select` per FORK-3 and FORK-VTX. Its evaluation is `eval::wire`'s `select`, which resolves each name into a key of the selection's kind. The kind check that `BlendSelectionKind`, `ShellOpenKind`, `FaceFrameKind` and `MeasureSelectionKind` each made is the edit and load doors': a name's kind is authored data, so a seat that reads no selection of it refuses `SelectionFault::Seat`, and a name of another kind than its selection's `SelectionFault::Kind`.
 - **Converted payloads:**
   - `Fillet`/`Chamfer.selection`: 12 src and 25 test non-empty sites, 25 in the viewer and 1 in the tour.
   - `Shell.open`: 11 src, 12 tests, 16 viewer, 4 tour and 1 py.

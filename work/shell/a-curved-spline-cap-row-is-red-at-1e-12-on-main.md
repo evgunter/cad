@@ -32,3 +32,7 @@ clean main `e71d719f1`. It is red at `CAD_TOLERANCE_EPS=1e-12` and green at
 ## 2026-10-14 — still red at 1e-12 on main (NURBS, fresh target)
 
 Re-run alone with a fresh `CARGO_TARGET_DIR` per commit: red at `a71403e3` and still red on main at `307ed404`. Not moved by NURBS PR 4984 (red on both sides of it). (NURBS build A)
+
+## 2026-10-19 — bisected to PR 4551 (NURBS)
+
+CONTACTHOLD's nightly-red lane bisected it over first-parent merges from `61ee8bf5a4` (green) to `360cf55eb2` (the 2026-10-12 nightly, red), at ε 1e-12. It passes at `071a630b58` and fails at **`aa1f124298`**, the merge of PR 4551 (`nurbs/monotone-step-and-blossom`: `Certification::between` and `CoeffWindow::blossom`), stopping at 3.2397e-12 on (48, 48). `encl_curved_loft_shell`'s curved fitted cap row (`a-curved-fitted-cap-rows-sample-cap-grid-pin-is-red-at-1e-12-on-main`) moved at the same merge. Still red in the 2026-10-19 nightly (run 39205007024).

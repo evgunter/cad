@@ -324,12 +324,13 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/props/spiric.rs",
-        10,
-        9,
+        14,
+        13,
         "the remaining 1 is `trig_range`'s half-width, safe by construction: it reads \
          `pt` differences of two f64 ends the function has checked finite and ordered, \
          so no operand can be refused. Every other read sits in a function that refuses \
-         a refused input by name (`trig_of`, `span_rates`, `composite`, `wall_chart`)",
+         a refused input by name (`trig_of`, `window_rates`, `span_rates`, \
+         `spiric_length_bound`, `piece_speed`, `composite`, `wall_chart`)",
     ),
     (
         "crates/geom-brep/src/ssi.rs",
@@ -342,12 +343,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        11,
+        12,
         2,
         "the 2 that ask are the chart tube's span-hull window (`chart_tube_windows` \
          refuses either window hull by name before padding it — a refused hull is NaI, \
-         and its NaN ends name no window). The other 9 are `T: Bounds` reads on the \
+         and its NaN ends name no window). The other 10 are `T: Bounds` reads on the \
          evaluation scalar and not certification endpoints at all — blind spot 1: two \
+         are `nurbs_limbs`' projection seeds, limb 1's at each sample and the image-miss \
+         tell's at a refusing break, a parameter the foot search starts from (structure; \
+         the carried distance stays honest whatever the seed), two \
          of them are `probe_tube_chart`'s reads of the pcurve's tangent, which select \
          a direction (structure, not a bound) and whose norm the probe refuses unless \
          positive finite, and one is `probe_tube_analytic`'s midpoint of the box \

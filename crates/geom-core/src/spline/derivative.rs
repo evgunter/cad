@@ -949,7 +949,7 @@ pub fn speed_pieces<T: Real, const D: usize>(
 ) -> Option<Vec<QuotientPiece<T, D>>> {
     let kv = knots.structure();
     let mut out = Vec::new();
-    for span in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
+    for span in (kv.first_span()..=kv.last_span()).filter_map(|i| knots.span(i).map(|s| s.span())) {
         let (axis, p, pts) = span_window(knots, span, points)?;
         let raised = match weights {
             None => {
@@ -1117,7 +1117,7 @@ pub fn accel_pieces<T: Real, const D: usize>(
 ) -> Option<Vec<QuotientPiece<T, D>>> {
     let kv = knots.structure();
     let mut out = Vec::new();
-    for span in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
+    for span in (kv.first_span()..=kv.last_span()).filter_map(|i| knots.span(i).map(|s| s.span())) {
         let (axis, p, pts) = span_window(knots, span, points)?;
         let h = HomogeneousSpan::of(&axis, &pts, weights.get(span.window())?)?;
         let second = if p >= 2 {
@@ -1526,8 +1526,10 @@ pub fn stretch_pieces<T: Real>(
     let (ku, kv) = (knots_u.structure(), knots_v.structure());
     let nv = kv.control_count();
     let mut out = Vec::new();
-    for su in (ku.first_span()..=ku.last_span()).filter_map(|i| ku.span(i)) {
-        for sv in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
+    for su in (ku.first_span()..=ku.last_span()).filter_map(|i| knots_u.span(i).map(|s| s.span())) {
+        for sv in
+            (kv.first_span()..=kv.last_span()).filter_map(|i| knots_v.span(i).map(|s| s.span()))
+        {
             let mut block = Vec::with_capacity((su.degree() + 1) * (sv.degree() + 1));
             for iu in su.window() {
                 for iv in sv.window() {

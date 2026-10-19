@@ -341,13 +341,16 @@ fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
     let path = inflecting_path();
     let profile = quad([(-H, -H), (H, -H), (H, H), (-H, H)]);
     let place = normal_start_place(&path);
-    let [x, y, z] = place.linear.cols();
-    let rolled = Affine3::from_parts(Mat3::from_cols(-y, x, z), place.translation);
+    let [x, y, z] = place.placement().linear.cols();
+    let rolled = common::plane_of(&Affine3::from_parts(
+        Mat3::from_cols(-y, x, z),
+        place.placement().translation,
+    ));
     let tol = Tol::witness();
     let build = |place| {
         let params = sweep::loft_parameters(
             &vec![profile.clone(); 13],
-            &sweep::skin::sweep_places(place, &path, 13).expect("the duct's frames"),
+            &sweep::skin::sweep_places(place, &path, 13, tol).expect("the duct's frames"),
             3,
             tol,
         )
@@ -377,8 +380,8 @@ fn the_inflecting_duct_is_one_solid_whatever_the_start_frames_roll() {
     for (j, wall) in other.walls[0].iter().enumerate() {
         let want = &base.walls[0][(j + n - 1) % n];
         assert!(
-            wall.knots_u().knots() == want.knots_u().knots()
-                && wall.knots_v().knots() == want.knots_v().knots()
+            wall.knots_u_f64_interim().knots() == want.knots_u_f64_interim().knots()
+                && wall.knots_v_f64_interim().knots() == want.knots_v_f64_interim().knots()
                 && wall.weights() == want.weights()
                 && wall
                     .control()
@@ -468,7 +471,7 @@ fn a_start_tangent_leaning_on_world_z_takes_the_first_rung_anyway() {
     let place = normal_start_place(&path);
     let (lo, _) = path.domain();
 
-    let [x, y, z] = place.linear.cols();
+    let [x, y, z] = place.placement().linear.cols();
     let tangent = path.deriv(lo) / path.deriv(lo).norm();
     assert!(
         (z - tangent).norm() < 1e-15,
@@ -476,7 +479,7 @@ fn a_start_tangent_leaning_on_world_z_takes_the_first_rung_anyway() {
     );
     let start = path.eval(lo);
     assert!(
-        (place.translation - Vec3::new(start.x, start.y, start.z)).norm() < 1e-15,
+        (place.origin() - start).norm() < 1e-15,
         "the frame sits at the path's start"
     );
     assert!(

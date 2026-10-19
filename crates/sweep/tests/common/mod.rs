@@ -100,6 +100,9 @@
 //! - [`quadrature`] — the 7–15 Gauss–Kronrod panel the volume oracles
 //!   integrate with: a tool for deriving a truth without the kernel,
 //!   so beside [`oracles`];
+//! - [`enclosure`] — the box an `Interval` loft row lofts over, and
+//!   the check of the enclosing body against one member's `f64` loft:
+//!   a check of a body, so beside [`orient`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -283,6 +286,10 @@ pub mod touch_union;
 /// The 7–15 Gauss–Kronrod panel the volume oracles integrate with.
 pub mod quadrature;
 
+/// Whether a loft at `Interval` encloses one member of its family: a
+/// check of a body, so beside [`orient`].
+pub mod enclosure;
+
 /// A station cut back into a rim by hand, and the reader that finds a
 /// body's stations, curved carriers included. Body authoring plus the
 /// one reader the run-wall and blend rows check with, so it routes
@@ -302,6 +309,15 @@ use sweep::ExtrudeSide;
 use sweep::{ProfileLoop, Section};
 use topo::Body;
 
+/// **A sketch plane from a placement a suite holds as twelve numbers**,
+/// admitted at the decided door (`geom_core::test_support::rigid`) at
+/// the witness tolerance: a suite that writes its plane as a matrix
+/// asks this before the plane exists. Panics, naming the refusal, when
+/// the map is not rigid.
+pub fn plane_of(map: &Affine3<f64>) -> SketchPlane<f64> {
+    SketchPlane::from_frame(geom_core::test_support::rigid(map, Tol::witness()))
+}
+
 /// The placement a path sweep starts from, read off the path's start:
 /// `geom_core::linalg::frame::path_start_frame`, the kernel's own
 /// door for it. The frame's local +Z is the start TANGENT, so the
@@ -314,10 +330,12 @@ use topo::Body;
 /// The door returns a typed refusal for a path whose start tangent
 /// fixes no frame; a fixture whose path is that degenerate is a fixture
 /// bug, so this unwraps with the refusal in the message.
-pub fn normal_start_place(path: &NurbsCurve3<f64>) -> Affine3<f64> {
+pub fn normal_start_place(path: &NurbsCurve3<f64>) -> SketchPlane<f64> {
     let (lo, _) = path.domain();
-    path_start_frame(path.eval(lo), path.deriv(lo), Tol::witness())
-        .unwrap_or_else(|e| panic!("the path's start tangent must fix a frame: {e:?}"))
+    SketchPlane::from_frame(
+        path_start_frame(path.eval(lo), path.deriv(lo), Tol::witness())
+            .unwrap_or_else(|e| panic!("the path's start tangent must fix a frame: {e:?}")),
+    )
 }
 
 /// A closed four-line quad section (one loop, four vertices) — the
@@ -343,10 +361,11 @@ pub fn chain(s: f64) -> Section {
 
 /// **The arc section**: a square of half-width `s` with a
 /// quarter-circle bulge on the `+x` side — the arc-bearing profile
-/// whose lofted wall is RATIONAL (weights `1, cos 22.5°, 1` over two
-/// 45° sub-arcs), and so the cheapest profile in this corpus that puts
-/// a body's enclosure on the QUADRATURE lane rather than a closed
-/// form.
+/// whose lofted wall is RATIONAL (weights `1, cos 45°, 1` over one 90°
+/// sub-arc: its sweep `4·atan(tan(π/8))` rounds just past π/2, which
+/// the sub-arc rule's η keeps at one; C6), and so the cheapest profile
+/// in this corpus that puts a body's enclosure on the QUADRATURE lane
+/// rather than a closed form.
 ///
 /// One copy for the crate. It was four — `m8_3_rational_volume`,
 /// `cert5_offgrid_knot_rational` and the certificate suite each held a
@@ -805,7 +824,7 @@ pub fn strip_section(s: f64, delta: f64, reversed: bool) -> Section {
 /// Loft placements: the given heights, each scaled by `s`, as pure
 /// `+z` translations — the stacking that makes a loft of identical
 /// sections reproduce the EXTRUSION of that section exactly.
-pub fn stacked(z: &[f64], s: f64) -> Vec<Affine3<f64>> {
+pub fn stacked(z: &[f64], s: f64) -> Vec<SketchPlane<f64>> {
     sweep::test_support::stacked_at(&z.iter().map(|h| h * s).collect::<Vec<_>>())
 }
 

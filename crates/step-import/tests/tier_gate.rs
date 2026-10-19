@@ -152,11 +152,11 @@ const EPS_IN_ROWS: [(&str, Option<f64>); 3] =
 /// compared in FULL: the whole census for a solid, the whole refusal
 /// message for a refusal, not the coarse [`Disposition`] class. Across
 /// the entire corpus **exactly one file's outcome moves with ε_in**,
-/// and it is `ftc11_uref_off` at all three bands (`file` imports, its
-/// generator a wrap edge at the rim vertices' azimuth; `1e-6` and
-/// `1e-12` reach the intersection arm, the param span, or pass — see
-/// [`EPS_ROWS`]). The other 61 are invariant
-/// to the byte.
+/// and it is `ftc11_uref_off` (`file` imports, its generator a wrap
+/// edge at the rim vertices' azimuth; `1e-6` and `1e-12` reached the
+/// intersection arm, the param span, or passed — see [`EPS_ROWS`],
+/// where since U-lever they pass at every band but 1e-6). The other 61
+/// are invariant to the byte.
 ///
 /// Comparing full messages rather than classes is what makes that
 /// negative result worth acting on: a file that changed WHY it refused
@@ -213,12 +213,13 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   so the mint splits the rims at the `u_ref` azimuth and leaves a
 ///   1.6e-6 m edge beside each rim vertex: at ambient 1e-6 that span
 ///   lands INSIDE the ambiguity band and the refusal is an ESCALATION;
-///   at ambient 1e-12 it is decisively outside every band, so the
-///   coincidence predicates that refused it at coarser ε ("tangent
-///   planes coincide", the Intersection transversality precondition)
-///   no longer fire, and the file imports. A coincidence test refusing
-///   what is TOO CLOSE must stop refusing as ε shrinks; that direction
-///   is the predicate being right, not the gate being loosened.
+///   at ambient 1e-9 and 1e-12 it is outside every band, and the file
+///   imports. Until the wedge between an edge's faces was levered at
+///   the faces' extent (`topo::wedge_reach`, TANG's U-lever) the
+///   1e-9 cells refused there too: the Intersection transversality
+///   precondition read the two walls' angle at the 1.6e-6 m edge's own
+///   length, where they read as one ("tangent planes coincide"); at the
+///   walls' extent they cross clearly.
 /// * **`nist_ftc_09_asme1_rd`** refuses at ambient 1e-12 with definite
 ///   `EndpointStart` residuals on both the seam and the mapped-curve
 ///   arm. This is the floor `wild.rs` already measures and documents:
@@ -256,8 +257,8 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Pass(1, 1, 6, 12, 8)),
-    (FTC11, 1e-9, "1e-6", Refused(TANGENT_PLANES_COINCIDE)),
-    (FTC11, 1e-9, "1e-12", Refused(TANGENT_PLANES_COINCIDE)),
+    (FTC11, 1e-9, "1e-6", Pass(1, 1, 6, 12, 8)),
+    (FTC11, 1e-9, "1e-12", Pass(1, 1, 6, 12, 8)),
     (FTC11, 1e-6, "file", Pass(1, 1, 6, 12, 8)),
     (
         FTC11,
@@ -339,8 +340,9 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     // 0.9e-9 m by construction, so which certification refuses is a
     // function of the ambient band alone: the span escalates in the
     // default band's indeterminate zone, certifies ZERO at 1e-6, and
-    // at 1e-12 the spans clear and the rim/sphere near-tangency
-    // refuses at adoption — `poleguard.rs` holds the route argument.
+    // at 1e-12 the spans clear, the rim/sphere near-tangency certifies
+    // at its faces' extent, and the pcurve re-mint refuses —
+    // `poleguard.rs` holds the route argument.
     (
         POLEBAND,
         1e-9,
@@ -348,7 +350,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
         Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
     ),
     (POLEBAND, 1e-6, "file", Refused(POLEBAND_ZERO_SPAN_TOLD)),
-    (POLEBAND, 1e-12, "file", Refused(TANGENT_SECOND_ORDER_ZERO)),
+    (POLEBAND, 1e-12, "file", Refused(POLEBAND_PCURVE_REMINT)),
     // The ε-relative sibling's cells mirror the twins' one band down:
     // its 5.65e-12 m span escalates exactly where the band is 1e-12
     // and certifies ZERO at both coarser bands.
@@ -372,12 +374,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
         "file",
         Refused(POLEFRUSTUM_ZERO_SPAN_TOLD),
     ),
-    (
-        POLEFRUSTUM,
-        1e-12,
-        "file",
-        Refused(TANGENT_SECOND_ORDER_ZERO),
-    ),
+    (POLEFRUSTUM, 1e-12, "file", Refused(POLEBAND_PCURVE_REMINT)),
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
@@ -405,12 +402,12 @@ const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
 /// A span of no length ends in the lever and a note instead, which the
 /// offer's words cannot match.
 const POLEBAND_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not shown to run \
-     forward (margin 5.654866773844621e-9 m). Recourse: move the geometry so this \
+     forward (length 5.654866773844621e-9 m). Recourse: move the geometry so this \
      edge runs forward over a clear length, or, if this length is intended, tighten the tolerance \
      below 5.654866773844621e-10 m";
 /// [`POLEBAND_ZERO_SPAN_TOLD`], for the frustum twin's shorter span.
 const POLEFRUSTUM_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not shown to run \
-     forward (margin 1.799999999166981e-9 m). Recourse: move the geometry so this \
+     forward (length 1.799999999166981e-9 m). Recourse: move the geometry so this \
      edge runs forward over a clear length, or, if this length is intended, tighten the tolerance \
      below 1.799999999166981e-10 m";
 /// The ε-relative sibling at every band: its span lies within the
@@ -421,11 +418,23 @@ const POLEFRUSTUM_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not s
 /// span together — declare the file's uncertainty below it, and tighten
 /// below it over K (D4 ¶1). The values pin the span.
 const INTERVAL_ZERO_SPAN_UNTOLD: &str = "the stored parameter interval is not shown to run \
-     forward (margin 5.65487109168879e-12 m). This length is within the file's \
+     forward (length 5.65487109168879e-12 m). This length is within the file's \
      declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it from zero. \
      Recourse: move the geometry so this edge runs forward over a clear length, or, if this length \
      is intended, re-export the file with its uncertainty declared below 5.65487109168879e-12 m \
      and tighten the tolerance below 5.65487109168879e-13 m";
+/// The poleguard twins' fine-band sub-reason since the wedge between an
+/// edge's faces is levered at the faces' extent (`topo::wedge_reach`,
+/// TANG's U-lever). With the spans certified, adoption refused the
+/// rim/sphere near-tangency ("at sample 1 the faces are not shown to
+/// curve apart at second order (margin 1.62e-16 m)"), read at the
+/// edge's own length; at the faces' extent it reads determinate and
+/// adoption passes, so the import refuses one door later, loudly, at
+/// the pcurve re-mint on the adopted body: a chart image near the
+/// 0.9e-9 m feature by the pole whose map residual (5.9e-12 m) lies in
+/// the fine band
+/// (`work/pcert/the-poleband-twins-pcurve-re-mint-escalates-at-the-fine-band.md`).
+const POLEBAND_PCURVE_REMINT: &str = "pcurve re-mint on the adopted body: the pcurve of half-edge";
 /// [`INTERVAL_ZERO_SPAN_UNTOLD`]'s sentence on the fine band's
 /// escalation of the same span.
 const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). This length is \
@@ -433,18 +442,6 @@ const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). 
      from zero. Recourse: move the geometry so this edge runs forward over a clear length, or, if \
      this length is intended, re-export the file with its uncertainty declared below \
      5.65487109168879e-12 m and tighten the tolerance below 5.65487109168879e-13 m";
-/// Their fine-band sub-reason: with the spans certified, adoption
-/// refuses the rim/sphere near-tangency — the second-order arm's own
-/// verdict, so a regression that moves the refusal to another door
-/// fails these cells. Band-decided, like the tangent-plane zero, and
-/// within the files' ε_in: the import door's one sentence for a size the
-/// file cannot tell from zero. The margin (1.62e-16) over K lies below
-/// `EPS_MIN`, so the ending is the lever alone (D4 ¶4).
-const TANGENT_SECOND_ORDER_ZERO: &str = "at sample 1 the faces are not shown to curve apart at \
-     second order (margin 1.6199999985005657e-16 m), so they are not shown to fix \
-     where the edge runs, which its description says they do. This curvature difference is within \
-     the file's declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it from \
-     zero. Recourse: move the geometry so the faces curve apart more clearly where they touch";
 /// dm1's former coarse-band sub-reason: the convergence predicate
 /// declines to decide, by name. **No cell reaches it any more** — the
 /// gate stops on a definite SIGN before the round whose width lands in
@@ -490,18 +487,6 @@ const HALFCAP_EPS7_TIGHTEN: &str = "step import: joining the edges of the solid 
      vertex clear of the pole, apex or tangency it sits near, or, if this size is intended, \
      tighten the tolerance below 1.00000000119619e-10 m";
 
-/// Coarse enough for the two walls to read as one: the Intersection
-/// transversality precondition fails, and the ladder says which. A zero
-/// verdict is band-decided — at a finer ambient band the coincidence
-/// predicates no longer fire here, and the file imports — but the angle
-/// lies within both ε_in overrides, so the import door ends it in its
-/// one sentence for a size the file cannot tell from zero (D4 ¶1), and
-/// the attempt ends there (the `;` before the next rung). The margin is
-/// rounding noise whose tolerance lies below `EPS_MIN`, so the ending
-/// is the lever alone (D4 ¶4). The fragment starts after the
-/// override's own ε_in, which differs per cell.
-const TANGENT_PLANES_COINCIDE: &str = " m, so the file cannot tell it from zero. Recourse: move \
-     the geometry so the surfaces cross at a clearer angle;";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
 const PARAM_SPAN_ESCALATED: (&str, &str) = (

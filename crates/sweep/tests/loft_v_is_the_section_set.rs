@@ -15,9 +15,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, TAU};
+use geom_core::Point3;
+use profile::SketchPlane;
 
 use geom::NurbsSurface;
-use geom_core::{Affine3, Mat3, Point2, Tol, Vec3};
+use geom_core::{Mat3, Point2, Tol, Vec3};
 use profile::{RawLoop, test_support::bulge_loop};
 use sweep::skin::{LoftGeometry, Section, loft_geometry, loft_parameters};
 use sweep::test_support::stacked_at;
@@ -43,8 +45,8 @@ fn poly(pts: &[(f64, f64)], start: usize, reversed: bool) -> ProfileLoop<f64> {
 }
 
 fn same_bits(a: &NurbsSurface<f64>, b: &NurbsSurface<f64>) -> bool {
-    a.knots_u().knots() == b.knots_u().knots()
-        && a.knots_v().knots() == b.knots_v().knots()
+    a.knots_u_f64_interim().knots() == b.knots_u_f64_interim().knots()
+        && a.knots_v_f64_interim().knots() == b.knots_v_f64_interim().knots()
         && a.weights() == b.weights()
         && a.control().len() == b.control().len()
         && a.control()
@@ -54,7 +56,7 @@ fn same_bits(a: &NurbsSurface<f64>, b: &NurbsSurface<f64>) -> bool {
 }
 
 /// The loft's walls at its own parameters, and its body.
-fn build(sections: &[Section], places: &[Affine3<f64>]) -> (LoftGeometry, Lofted<f64>) {
+fn build(sections: &[Section], places: &[SketchPlane<f64>]) -> (LoftGeometry, Lofted<f64>) {
     let tol = Tol::witness();
     let params = loft_parameters(sections, places, 2, tol).expect("the sections parameterize");
     let geometry = loft_geometry(sections, places, 2, &params, tol).expect("the sections skin");
@@ -143,12 +145,15 @@ fn a_loft_whose_sections_are_rolled_by_their_own_symmetry_builds_the_same_body()
         Vec3::new(-1.0, 0.0, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
     );
-    let placed = |rolled: bool| -> Vec<Affine3<f64>> {
+    let placed = |rolled: bool| -> Vec<SketchPlane<f64>> {
         centres
             .iter()
             .map(|c| {
                 let linear = if rolled { quarter } else { Mat3::identity() };
-                Affine3::from_parts(linear, *c)
+                SketchPlane::from_frame(geom_core::test_support::rigid(
+                    &geom_core::Affine3::from_parts(linear, *c),
+                    Tol::witness(),
+                ))
             })
             .collect()
     };
@@ -211,10 +216,10 @@ fn parameters_are_order_free_bit_for_bit() {
         vec![poly(&pts, start, false)]
     };
     #[allow(clippy::cast_precision_loss)]
-    let places: Vec<Affine3<f64>> = zs
+    let places: Vec<SketchPlane<f64>> = zs
         .iter()
         .enumerate()
-        .map(|(k, z)| Affine3::translation(Vec3::new(0.09 * k as f64, -0.04 * (k * k) as f64, *z)))
+        .map(|(k, z)| SketchPlane::xy_at(Point3::new(0.09 * k as f64, -0.04 * (k * k) as f64, *z)))
         .collect();
     let p = |start| {
         loft_parameters(

@@ -59,11 +59,11 @@ use crate::fixture;
 
 use editor_core::test_support::{VerbatimKind, verbatim_kind};
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocumentId, EvalOptions, MateFrame, MatePrimitive,
-    Node, ProfileDoc, RecipeNodeId, StableName,
+    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId,
+    SlideAxis, StableName, Value,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{insert, len, on_frame, step};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 type ProfileNode = AuthoredNode;
@@ -90,24 +90,23 @@ test_utils::f6_variants! {
         Subtract,
         Union,
         Transform,
-        PlaceInWorld,
+        Place,
+        World,
         Pattern,
         Part,
         PlacedUnion,
         InstantiatePart,
-        Gauge,
-        Mate,
         Measure,
         Assertion,
     ];
 }
 
 /// **The node kinds whose value carries no names**: a datum, a profile,
-/// a solved mate, a measurement and an assertion verdict are not
-/// bodies, so their tables are empty and the equivalence holds of them
-/// vacuously. Listed so that vacuity is asserted — every sample publishes zero rows — rather than counted as
+/// the world, a measurement and an assertion verdict are not bodies, so
+/// their tables are empty and the equivalence holds of them vacuously.
+/// Listed so that vacuity is asserted — every sample publishes zero rows — rather than counted as
 /// coverage.
-const ROW_FREE: [&str; 6] = ["Datum", "Profile", "Mate", "Gauge", "Measure", "Assertion"];
+const ROW_FREE: [&str; 4] = ["Datum", "Profile", "Measure", "Assertion"];
 
 /// The unit cube `[0,1]³` as a whole part document, and its body.
 fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
@@ -129,19 +128,9 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(
-        origin,
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame")
-}
-
-/// **Two instanced blocks on a gauge, one seated on the other** — the
-/// assembly kinds the Band 4 corpus does not author (`InstantiatePart`,
-/// `Gauge`, `Mate`).
+/// **Two instanced blocks, one seated on the other by a mate** — the
+/// assembly kind the Band 4 corpus does not author (`InstantiatePart`,
+/// with a constraint in its bundle).
 /// An instance's rows wrap its part's names in `InPart` under the
 /// instance's own head, which is the shape the head comparison exists
 /// to read correctly.
@@ -150,39 +139,41 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
     let (base, base_body) = store.insert_part(block("vedge-base"), Tol::witness());
     let (top, top_body) = store.insert_part(block("vedge-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("vedge-stack"), Tol::witness());
-    let (doc, gauge) = insert(doc, Node::gauge(None, editor_core::Placement::IDENTITY));
-    let (doc, base) = insert(doc, Node::instantiate_part(base));
-    let (doc, top) = insert(doc, Node::instantiate_part(top));
-    let (doc, _) = step(
+    let opts = with_resolver(store);
+    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base), &opts);
+    let (doc, top) = insert(doc, fixture::mated_instance(top));
+    let (doc, mate) = fixture::constrain(
         doc,
-        editor_core::DocEdit::SetGauge {
-            node: base,
-            gauge: Some(gauge),
-        },
+        fixture::rest(
+            fixture::head(in_part(top, top_body, CapEnd::Start)),
+            fixture::head(in_part(base, base_body, CapEnd::End)),
+            ContactClass::Rest,
+        ),
     );
-    let (doc, _) = step(
-        doc,
-        editor_core::DocEdit::SetGauge {
-            node: top,
-            gauge: Some(gauge),
-        },
-    );
-    let (doc, _mate) = insert(
-        doc,
-        Node::Mate {
-            a: fixture::head(in_part(base, base_body, CapEnd::End)).into(),
-            b: fixture::head(in_part(top, top_body, CapEnd::Start)).into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
-                a: mate_frame([0.0, 0.0, 1.0]),
-                b: mate_frame([0.0, 0.0, 0.0]),
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Opposed,
-                clocking: None,
+    // The freedoms the rest leaves, each zero: the top stands square on
+    // the base.
+    let doc = [
+        (Coord::Slide(SlideAxis::X), len(0.0)),
+        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Spin, fixture::ang(0.0)),
+    ]
+    .into_iter()
+    .fold(doc, |doc, (coord, by): (Coord, Formula)| {
+        fixture::step(
+            doc,
+            DocEdit::AddValue {
+                placement: mate.placement,
+                value: Box::new(Value {
+                    mate: mate.id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
             },
-        },
-    );
-    (doc, with_resolver(store))
+        )
+        .0
+    });
+    (doc, opts)
 }
 
 /// The documents the guard evaluates: the Band 4 registry, the two
@@ -234,13 +225,15 @@ fn evaluated() -> Vec<Sample> {
                 continue;
             };
             let node = doc.node(id).expect("an evaluated node is in its document");
-            let heads = || value.name_table.iter().map(|(n, _)| n);
+            let _ = value;
+            let tables = crate::fixture::tables(&ev, id);
+            let heads = || tables.iter().flat_map(|t| t.iter()).map(|(n, _)| n);
             out.push(Sample {
                 doc: name,
                 id,
                 kind: test_utils::f6::variant_identifier(node),
                 edge: verbatim_kind(node),
-                rows: value.name_table.len(),
+                rows: tables.iter().map(|t| t.len()).sum(),
                 foreign: heads().find(|n| n.node != id).cloned(),
                 own: heads().find(|n| n.node == id).cloned(),
             });

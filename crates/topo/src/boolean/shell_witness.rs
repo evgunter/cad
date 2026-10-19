@@ -76,7 +76,9 @@
 use geom_core::{Band, Decide, Tol};
 use std::collections::BTreeSet;
 
-use super::solid_contain::{PointInSolidError, SolidContainment, point_in_operand, point_in_solid};
+use super::solid_contain::{
+    PointInSolidError, SolidContainment, operand_faces, point_in_solid, point_in_solid_faces,
+};
 use super::{
     BooleanError, BooleanOp, CarrierRelation, Operand, ReductionContacts, SettledPair, SideCode,
 };
@@ -101,7 +103,8 @@ impl From<LadderRefusal> for BooleanError {
 /// The side of `other` the cell complex `faces` of `body` lies on,
 /// read off its first decisive witness ([`crate::stands::ladder`]).
 /// `other` is the operand `other_operand` as its caller handed it in,
-/// read as given ([`super::solid_contain::point_in_operand`]).
+/// read as given ([`super::solid_contain::operand_faces`]), selected
+/// once for every witness.
 ///
 /// # Errors
 ///
@@ -117,9 +120,14 @@ pub(super) fn complex_side<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<Reading, BooleanError> {
+    let sel = operand_faces(other);
     ladder(body, faces, band, |q| {
+        let read = sel
+            .as_ref()
+            .map_err(Clone::clone)
+            .and_then(|sel| point_in_solid_faces(other, sel, q, band, tol));
         Ok(
-            match Witness::of(point_in_operand(other, q, band, tol)).map_err(|e| match e {
+            match Witness::of(read).map_err(|e| match e {
                 PointInSolidError::InsideOut => {
                     inside_out_operand(other, other_operand, q, band, tol)
                 }

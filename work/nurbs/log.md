@@ -1521,3 +1521,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **r1:** essentially all quotient. Its +30% at 2d1a8d73 was `split_restrict`/`between`, which the thin step has since fixed (−35% against main).
   - **Piece counts:** `RATIONAL_CERT_SPLITS` 16 → 8 doesn't move these rows. `BLOCK_PIECE_SPLITS` 2 → 1 gives −36% shell and −24% r1, but reds `a_block_is_read_on_its_pieces` and the m5_pr7 flat-wall slope margin at 1e-9, a real decision. It is filed as the converged plan's step 5 (an adaptive split), with those rows as its guard.
   - **Build A's next unit:** offset-fit Bernstein products. Measure repeated `Composite::build` calls and a cheaper sound inner term, then implement what's real. It stays out of #5123's files.
+- 2026-10-14 19:25Z — **#5123's re-review found a decoration hole in the equal-neighbour arm.** The arm compared only lo/hi, so a certified bracket beside a refused one with the same ends came back certified (probe: [0,2] Com beside sqrt([-1,4]) Trv).
+  - **First fix** (b6326d27): the arm also requires `is_certified` equality. That was still able to upgrade Def to Com.
+  - **Second fix** (049bbf51): the arm uses `Interval::same_enclosure` (ends plus decoration, `pub(crate)` in interval.rs). It has two witness rows, each red on its weaker arm, and the census is unchanged against main.
+  - **Independent timing** at 68dfd27a against main b41d2fe3, both with #5114: shelling 123 → 92 s, r1 43 → 30 s. Five margins move beyond 2e-13, all tighter (up to 5.6e-12 on m5).
+  - **Open for the reviewer:** whether the bit-equality fast path, which decides nothing because both branches are sound, sits inside D10's retirement of coincidence decisions.
+  - **Build A's #5163** (`mul_nonneg`: a 2-corner product for a nonnegative weight, bit-identical to the general product) is in FULL review. It gives −14.5% instructions on the offset-fit row and −2.9% shell wall. Of 44 `Composite::build` calls per shell row, 4 are repeats; they were reported, not cached.
+  - **`viewer::review_pick_r2`** is red on main since #4861 (CLEAVE). It was bisected and filed on CLEAVE's slate via #5158.

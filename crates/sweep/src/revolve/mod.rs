@@ -451,15 +451,6 @@ pub enum RevolveError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// The sketch axis, carried into space by the sketch placement, has
-    /// no decided direction there: the placement collapsed it, or its
-    /// length is not a finite number. A different decision from the
-    /// sketch axis's own ([`RevolveError::DegenerateAxis`] and its
-    /// siblings), which the sketch pair passed.
-    PlacedAxis {
-        /// The direction door's refusal, unaltered.
-        error: geom_core::UnitVec3Error,
-    },
     /// The turn about the placed axis was not minted as a rigid
     /// motion: its angle or axis point is not a finite number.
     Turn(geom_core::RigidMotionError),
@@ -565,8 +556,8 @@ pub enum RevolveError {
     /// ([`topo::insert_void`]). The evidence and destination arms are
     /// unreachable from this construction (every hole shell is
     /// certified from the profile's own validation before the call, into
-    /// the solid the build minted); the revert arm surfaces a torn
-    /// cavity typed.
+    /// the solid the build minted); the revert arm refuses a cavity two
+    /// of whose edges lie on one line ([`topo::RevertError`]).
     VoidInsertion {
         /// Canonical index of the hole loop whose insertion refused.
         loop_index: usize,
@@ -772,10 +763,6 @@ impl fmt::Display for RevolveError {
                     "whether the revolve axis has a length",
                     source.lever_ending(geom_core::COINCIDENCE_RECOURSE),
                 )
-            ),
-            Self::PlacedAxis { error } => write!(
-                f,
-                "the revolve axis, carried into space by the sketch placement: {error}"
             ),
             Self::Turn(e) => write!(f, "the revolve's turn: {e}"),
             Self::DegenerateAngle => write!(
@@ -984,8 +971,7 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     let band = Band::linear(tol).map_err(RevolveError::Band)?;
-    let place = profile.plane().placement;
-    let frame = axis::AxisFrame::build(place, &axis, band)?;
+    let frame = axis::AxisFrame::build(*profile.plane(), &axis, band)?;
 
     // ---- Angle classification (module docs), metered at the
     // profile's maximum radial extent (the named lever arm). ----

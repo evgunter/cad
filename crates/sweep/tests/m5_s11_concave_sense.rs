@@ -63,7 +63,7 @@ use common::orient::{
 };
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Point3, RigidMotion, Vec3};
+use geom_core::{Point2, Point3, RigidMotion, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::{assert_all_tiers, axis_y, validated};
 use sweep::test_support::{finished, swept_elbow_lofted};
@@ -561,8 +561,8 @@ fn notched_ring_torus_band_mints_sense_false() {
 fn loft_pair(loops: &[ProfileLoop<f64>], h: f64) -> Lofted<f64> {
     let sections: Vec<Section> = vec![loops.to_vec(), loops.to_vec()];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, h)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, h)),
     ];
     loft_body::<f64>(&sections, &places, 1, Tol::witness()).expect("the section pair lofts")
 }
@@ -780,8 +780,8 @@ fn a_tapered_concave_loft_keeps_the_prism_wall_directions() {
     ])];
     let sections: Vec<Section> = vec![notched_loops(), scaled];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
     ];
     let tapered =
         loft_body::<f64>(&sections, &places, 1, Tol::witness()).expect("the tapered pair lofts");
@@ -918,8 +918,8 @@ fn flipping_loops(sign: f64) -> Vec<ProfileLoop<f64>> {
 fn a_convexity_flipping_loft_faces_out_at_every_level() {
     let sections: Vec<Section> = vec![flipping_loops(1.0), flipping_loops(-1.0)];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
     ];
     let lofted = loft_body::<f64>(&sections, &places, 1, Tol::witness())
         .expect("the convexity-flipping pair lofts");
@@ -960,9 +960,9 @@ fn a_convexity_flipping_loft_faces_out_at_every_level() {
 fn a_three_section_curved_v_loft_faces_out_at_every_level() {
     let sections: Vec<Section> = vec![notched_loops(), notched_loops(), notched_loops()];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.35, 0.25, 0.5)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.35, 0.25, 0.5)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
     ];
     let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("the dogleg lofts");
     assert_eq!(topo::validate(&lofted.body), Ok(()), "tier 1");

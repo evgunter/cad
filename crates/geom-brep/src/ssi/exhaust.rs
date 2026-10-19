@@ -79,7 +79,7 @@ use geom_core::{Interval, Point3, SizedPass, SupSpeed, Vec3};
 use super::SsiError;
 use super::enclose::{Box3, NurbsBoxes, UvWindow, implicit_enclosure, refused_box};
 use super::four::{Box4, PairBoxes};
-use crate::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite, defect_ending};
+use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, defect_ending};
 
 /// The refinement floor, as a multiple of ε: a cell narrower than this
 /// is not split again. Fixed and named (C3: "a named constant tied to
@@ -469,7 +469,7 @@ pub(super) const R3_SCALE: SizedDecision = SizedDecision {
             coordinates resolve the tolerance",
     size: "scale",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -481,7 +481,7 @@ pub(super) const CHART_SCALE: SizedDecision = SizedDecision {
             zero, so its finest parameter step moves it less than the tolerance",
     size: "scale",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -492,7 +492,7 @@ const CHART_TOO_SLOW: SizedDecision = SizedDecision {
             in metres to be stated in its parameters",
     size: "scale",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 

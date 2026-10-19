@@ -46,3 +46,27 @@ crossing lane's arm is the reference, and its rows
 ## Found by
 
 CLEAVE's review of PR 4179 (MUST 1), from `cleave/inband-graze`'s sweep.
+
+## Since filed
+
+The apex lane's copy has its graze arm fixed (branch
+`germ/pn-apex-tangent-generator`). On `pn_apex_section` `Zero` it returns
+the extremum generator, `φ` or `φ + π` by the sign of `c`, and no longer
+reads the residue's ratio. The line pair's clamped `acos` is unchanged.
+
+
+Review r5152 of PR 5152 notes a difference in decision posture between
+the two fixed graze arms:
+- `splitting/classify.rs:640` decides the graze side as a named
+  decision, `decide_nonzero("split_conic_graze_side", …)`.
+- The apex lane (`geom-brep/src/intersect.rs`, `pn_apex_section`'s
+  `Zero` arm) picks it on the raw sign of `c` with `copysign`, on the
+  argument that `pn_aperture_sin`'s guard keeps `|c|` past about
+  `Kε/extent`.
+
+That argument thins at EPS_MIN with a lever near 1 km and
+`CAD_AMBIGUITY_K` near 1, where the bound reaches about `K·u`. There the
+f64 arm could pick the wrong side silently; the miss is bounded by about
+`2Kε` at the lever. The Interval arm widens to both generators instead.
+
+The one home this item proposes should take the decided form.

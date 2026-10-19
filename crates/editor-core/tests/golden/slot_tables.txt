@@ -42,12 +42,11 @@ Profile(ProfileProgram { frame: @0, loops: [Chain([At([#0, #1]), LineTo(Point([#
 Extrude { profile: @0, distance: #0, side: Along }
   #0 Distance
   @0 Operand(Profile)
-Revolve { profile: @0, axis_origin: [#0, #1], axis_direction: [#2, #3], angle: #4 }
+Revolve { profile: @0, axis_through: [#0, #1], axis_heading: #2, angle: #3 }
   #0 Origin(X)
   #1 Origin(Y)
-  #2 Direction(X)
-  #3 Direction(Y)
-  #4 RevolveAngle
+  #2 AxisHeading
+  #3 RevolveAngle
   @0 Operand(Profile)
 Tube { frame: @0, major_radius: #0, window: Full, minor_radius: #1 }
   #0 TubeMajorRadius
@@ -123,17 +122,15 @@ Transform { input: @0, placement: Placement { steps: [Rigid { translation: [#0, 
   @0 Operand(Input)
 Transform { input: @0, placement: Placement { steps: [Literal(Frame { columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], translation: [0.0, 0.0, 2.0] })] } }
   @0 Operand(Input)
-PlaceInWorld { body: @0, pose: Placement { steps: [] } }
-  @0 Operand(Body)
-PlaceInWorld { body: @0, pose: Placement { steps: [Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }] } }
-  #0 Translation(X)
-  #1 Translation(Y)
-  #2 Translation(Z)
-  #3 RotationAxis(X)
-  #4 RotationAxis(Y)
-  #5 RotationAxis(Z)
-  #6 RotationAngle
-  @0 Operand(Body)
+Place { shapes: [@0], constraints: [Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 1 }), kind: Mate(Mate { on: @1, to: World(Role { pose: Frame, role: Xy }), class: Rest }) }] }
+  @0 Operand(Shape(0))
+  @1 Operand(Side { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }), side: On })
+Place { shapes: [@0], constraints: [Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 1 }), kind: Mate(Mate { on: @1, to: World(Spin { pose: Slide { pose: Role { pose: Frame, role: Xy }, along: Role { pose: Frame, role: Z }, by: #0 }, about: Role { pose: Frame, role: Z }, by: #1 }), class: Rest }) }] }
+  #0 WorldSlide { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }), step: 0 }
+  #1 WorldSpin { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }), step: 1 }
+  @0 Operand(Shape(0))
+  @1 Operand(Side { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }), side: On })
+World
 Pattern { input: @0, count: #0, kind: Linear { direction: [#1, #2, #3], spacing: #4 } }
   #0 Count
   #1 Direction(X)
@@ -177,32 +174,18 @@ PlacedUnion { input: @0, count: None, kind: Explicit([]) }
 Part { of: @0, select: Instance(#0) }
   #0 Instance
   @0 Operand(Of)
-InstantiatePart { doc_ref: DocRef { id: DocumentId(272522191089886152265255929154993748228), pin: ContentPin([205, 5, 221, 101, 178, 25, 73, 194, 233, 249, 132, 107, 246, 149, 121, 4, 119, 31, 132, 192, 233, 43, 185, 169, 63, 156, 228, 98, 7, 179, 48, 228]) }, interface: InterfaceRecord { crossings: [] }, gauge: None, offset: Some(Placement { steps: [Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }] }) }
-  #0 Translation(X)
-  #1 Translation(Y)
-  #2 Translation(Z)
-  #3 RotationAxis(X)
-  #4 RotationAxis(Y)
-  #5 RotationAxis(Z)
-  #6 RotationAngle
-Gauge { parent: None, placement: Placement { steps: [Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }] } }
-  #0 Translation(X)
-  #1 Translation(Y)
-  #2 Translation(Z)
-  #3 RotationAxis(X)
-  #4 RotationAxis(Y)
-  #5 RotationAxis(Z)
-  #6 RotationAngle
-Mate { a: @0, b: @1, class: Rest, alignment: Alignment { a: MateFrame { base: Part, offset: Placement { steps: [Literal(Frame { columns: [[0.0, -1.0, 0.0], [1.0, 0.0, -0.0], [0.0, 0.0, 1.0]], translation: [0.0, 0.0, 0.0] })] } }, b: MateFrame { base: Face, offset: Placement { steps: [Literal(Frame { columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], translation: [0.0, 0.0, 1.0] }), Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }] } }, primitive: Coaxial, sense: Aligned, clocking: None } }
-  #0 MateFrameStep { side: B, step: 1, arg: Translation(X) }
-  #1 MateFrameStep { side: B, step: 1, arg: Translation(Y) }
-  #2 MateFrameStep { side: B, step: 1, arg: Translation(Z) }
-  #3 MateFrameStep { side: B, step: 1, arg: RotationAxis(X) }
-  #4 MateFrameStep { side: B, step: 1, arg: RotationAxis(Y) }
-  #5 MateFrameStep { side: B, step: 1, arg: RotationAxis(Z) }
-  #6 MateFrameStep { side: B, step: 1, arg: RotationAngle }
-  @0 Operand(Side(A))
-  @1 Operand(Side(B))
+InstantiatePart { doc_ref: DocRef { id: DocumentId(272522191089886152265255929154993748228), pin: ContentPin([205, 5, 221, 101, 178, 25, 73, 194, 233, 249, 132, 107, 246, 149, 121, 4, 119, 31, 132, 192, 233, 43, 185, 169, 63, 156, 228, 98, 7, 179, 48, 228]) }, interface: InterfaceRecord { crossings: [] }, constraints: [Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 1 }), kind: Mate(Mate { on: @0, to: World(Slide { pose: Role { pose: Frame, role: Xy }, along: Role { pose: Frame, role: Z }, by: #0 }), class: Rest }) }] }
+  #0 WorldSlide { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }), step: 0 }
+  @0 Operand(Side { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }), side: On })
+Place { shapes: [@0], constraints: [Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 1 }), kind: Mate(Mate { on: @1, to: World(Spin { pose: Slide { pose: Role { pose: Frame, role: Xy }, along: Role { pose: Frame, role: Z }, by: #0 }, about: Role { pose: Frame, role: Z }, by: #1 }), class: Rest }) }, Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 2 }), kind: Mate(Mate { on: @2, to: Pose(@3), class: Rest }) }, Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 3 }), kind: Value(Value { mate: ConstraintId(MintId { ordinal: 0, digest: 2 }), coord: Spin, by: #2 }) }, Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 4 }), kind: Value(Value { mate: ConstraintId(MintId { ordinal: 0, digest: 2 }), coord: Slide(Z), by: #3 }) }] }
+  #0 WorldSlide { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }), step: 0 }
+  #1 WorldSpin { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }), step: 1 }
+  #2 ValueSpin { constraint: ConstraintId(MintId { ordinal: 0, digest: 3 }) }
+  #3 ValueSlide { constraint: ConstraintId(MintId { ordinal: 0, digest: 4 }) }
+  @0 Operand(Shape(0))
+  @1 Operand(Side { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }), side: On })
+  @2 Operand(Side { constraint: ConstraintId(MintId { ordinal: 0, digest: 2 }), side: On })
+  @3 Operand(Side { constraint: ConstraintId(MintId { ordinal: 0, digest: 2 }), side: To })
 Measure { primitive: Distance { a: @0, b: @1 } }
   @0 Operand(Measured(Distance, 0))
   @1 Operand(Measured(Distance, 1))
