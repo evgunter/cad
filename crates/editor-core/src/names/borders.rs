@@ -48,9 +48,10 @@ use super::least_root::LeastRoot;
 struct Discard {
     /// The result edges it bordered a kept face along.
     seams: Vec<EdgeKey>,
-    /// Seam edges of earlier steps its boundary descends from: the
-    /// region across them was discarded before, so it is one obstacle
-    /// with this one.
+    /// Seam edges of earlier steps its boundary descends from, or a
+    /// piece of which ends where a stretch of it ends: the region across
+    /// them was discarded before, and its closure meets this one, so it
+    /// is one obstacle with this one.
     touches: Vec<EdgeKey>,
     /// Its other boundary edges, which it died with: another discard of
     /// the parent across one of them — a fragment of the same face
@@ -284,10 +285,28 @@ impl<K: Ord + Clone> Obstacles<K> {
                     note_split(&mut self.split_from, w[0], w[1]);
                 }
             }
+            let ends: BTreeSet<VertexKey> = row
+                .bordered
+                .iter()
+                .chain(&row.held)
+                .flat_map(|&(u, w)| [u, w])
+                .flat_map(|v| points.get(&v).cloned().unwrap_or_else(|| vec![v]))
+                .collect();
             // A chain edge an earlier seam was split into since that
             // seam's step still touches it: its lineage reaches the seam.
+            // So does a stretch that ends on such a piece: the earlier
+            // discard's closure holds the point.
+            let mut at_ends = Vec::new();
+            for &v in &ends {
+                if body.get_vertex(v).is_some() {
+                    at_ends.extend(
+                        body.edges_of_vertex(v)
+                            .ok_or_else(|| bug("a stretch end's star does not resolve"))?,
+                    );
+                }
+            }
             let mut touches = BTreeSet::new();
-            for &k in chains.iter().flatten() {
+            for &k in chains.iter().flatten().chain(&at_ends) {
                 self.up_lineage(body, k, |up| {
                     let hit = earlier.contains(&up);
                     if hit {
@@ -309,13 +328,6 @@ impl<K: Ord + Clone> Obstacles<K> {
                 .iter()
                 .filter_map(|c| c.first().copied())
                 .map(|k| (self.records, row.operand, k))
-                .collect();
-            let ends = row
-                .bordered
-                .iter()
-                .chain(&row.held)
-                .flat_map(|&(u, w)| [u, w])
-                .flat_map(|v| points.get(&v).cloned().unwrap_or_else(|| vec![v]))
                 .collect();
             self.discards.push(Discard {
                 seams,

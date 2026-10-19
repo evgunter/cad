@@ -539,6 +539,46 @@ fn a_boss_on_one_piece_is_not_cited_and_one_straddling_the_divider_is() {
     ));
 }
 
+/// **A boss whose corner touches the divider is part of it.** A
+/// diamond's corner rests on the slab's wall, so its footprint meets the
+/// slab's only at that point, and through its closure the two are one
+/// obstacle (N2): the left piece cites the diamond's walls beside the
+/// slab's.
+#[test]
+fn a_boss_whose_corner_touches_the_divider_is_part_of_it() {
+    check(&u(
+        "corner_boss",
+        vec![
+            ("plate", plate()),
+            ("slab", slab()),
+            (
+                "boss",
+                Mem::Prism(
+                    vec![vec![(1.4, 1.0), (1.0, 1.4), (0.6, 1.0), (1.0, 0.6)]],
+                    0.47,
+                    1.03,
+                ),
+            ),
+        ],
+        vec![
+            (
+                "plate:z=1.00",
+                vec![
+                    w(&[
+                        "boss:slant",
+                        "boss:slant",
+                        "boss:slant",
+                        "boss:slant",
+                        "slab:x=1.40",
+                    ]),
+                    w(&["slab:x=1.60"]),
+                ],
+            ),
+            slab_bottom(),
+        ],
+    ));
+}
+
 /// The T-junction's top: three pieces, told apart by the stem's walls.
 fn t_top() -> (&'static str, Vec<Vec<String>>) {
     (
