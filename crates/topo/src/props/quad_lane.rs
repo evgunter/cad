@@ -1120,10 +1120,10 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
         centre,
     );
     let out = quad::nurbs_patch_face_rounds::<T>(
-        payload.knots_u(),
-        payload.knots_v(),
+        payload.knots_u_f64_interim(),
+        payload.knots_v_f64_interim(),
         &control,
-        payload.weight_channel(),
+        payload.weights_f64_interim(),
         (u0, u1, v0, v1),
         perimeter,
         boundary_defect,
@@ -1260,13 +1260,13 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                     });
                 }
                 Some(TrimPiece {
-                    knots: image.knots().clone(),
+                    knots: image.knots_f64_interim().clone(),
                     control: image
                         .control()
                         .iter()
                         .map(|p| (ring(p.x), ring(p.y)))
                         .collect(),
-                    weights: image.weight_channel().to_vec(),
+                    weights: image.weights_f64_interim().to_vec(),
                 })
             }
             Pcurve::Fitted(_) => {
@@ -1348,10 +1348,10 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
         centre,
     );
     quad::trimmed_patch_face_rounds::<T>(
-        payload.knots_u(),
-        payload.knots_v(),
+        payload.knots_u_f64_interim(),
+        payload.knots_v_f64_interim(),
         &control,
-        payload.weight_channel(),
+        payload.weights_f64_interim(),
         &chords,
         tol.eps(),
         band,

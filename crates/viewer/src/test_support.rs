@@ -24,8 +24,7 @@ use editor_core::ExtrudeSide;
 use pncad::document::{
     AuthoredNode, BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocRef,
     DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
-    NodeErrorKind, PartFault, Placement, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload,
-    VarName, apply, evaluate,
+    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, ValuePayload, VarName, apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
@@ -103,7 +102,7 @@ pub fn try_edited(
     edit: DocEdit<ProfileProgram>,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, Option<RecipeNodeId>), EditError> {
-    let applied = apply(doc, &edit, tol, &RefusingReach)?;
+    let applied = apply(doc, &edit, tol)?;
     Ok((applied.doc, applied.record.minted))
 }
 
@@ -216,14 +215,147 @@ pub fn declared(label: &str, name: &VarName, value: FreeVar, tol: Tol) -> Doc<Pr
     .0
 }
 
-/// **`doc` with `body` placed in the world** at the identity (A10),
+/// **`doc`'s node ids without the world** ([`Doc::ids`] less
+/// `RecipeNodeId::WORLD`): the nodes an author made, in id order.
+pub fn authored_ids(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
+    doc.ids()
+        .into_iter()
+        .filter(|&id| id != RecipeNodeId::WORLD)
+        .collect()
+}
+
+/// **`doc` with `body` placed in the world** at the identity (A10): a
+/// placement of it, pinned there over its geometry ([`pinned`]),
 /// answering the document and the placement.
 pub fn placed(
     doc: &Doc<ProfileProgram>,
     body: RecipeNodeId,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    inserted(doc, Node::place_in_world(body, Placement::IDENTITY), tol)
+    placed_read(
+        doc,
+        pncad::document::Operand::from(body),
+        &EvalOptions::default(),
+        tol,
+    )
+}
+
+/// [`placed`] of any body read — an operation's port, an instance's
+/// copies — evaluated under `opts` to read the pin off it.
+pub fn placed_read(
+    doc: &Doc<ProfileProgram>,
+    read: pncad::document::Operand,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let (doc, placement) = inserted(
+        doc,
+        Node::place(vec![pncad::document::BodyRead::plain(read)]),
+        tol,
+    );
+    (pinned(&doc, placement, opts, tol), placement)
+}
+
+/// The copy `placement` defines, pinned where its body stands: the
+/// named interim's world pin ([`DocEdit::PinWhereItStands`], stage 3
+/// C), which reads nothing, so the copy follows its body's variables.
+pub fn pinned(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    _opts: &EvalOptions,
+    tol: Tol,
+) -> Doc<ProfileProgram> {
+    apply(doc, &DocEdit::PinWhereItStands { placement }, tol)
+        .expect("a world pin stands alone in its bundle")
+        .doc
+}
+
+/// **The copy `placement` defines, pinned to the world at `pose`**
+/// through the migration helper ([`editor_core::pin_at`]): a frame read
+/// off the copy's geometry equated with the world's frame moved to
+/// where that frame sits at `pose`. A `Place` is read through its first
+/// shape, an instance through its own copies; `opts` evaluates them.
+///
+/// A copy whose body does not evaluate has no geometry to read a frame
+/// off, and a fixture that places one is about the failure: it is
+/// pinned all the same — a plane mate on a face of the body by a bare
+/// name, which is never read, to the world's `xy` plane, and the three
+/// values naming it — so the placement stands against the world and
+/// is poisoned through its body, as the product reads it. Any other
+/// refusal is the fixture's bug.
+pub fn pin(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    pose: &pncad::document::Frame,
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Doc<ProfileProgram> {
+    let copy = match doc.node(placement) {
+        Some(Node::Place { shapes, .. }) => {
+            pncad::document::Operand::Var(shapes.first().expect("a placement copies a shape").read)
+        }
+        Some(Node::InstantiatePart { .. }) => pncad::document::Operand::Var(
+            doc.output(placement, 0)
+                .expect("an instance defines its copies"),
+        ),
+        other => panic!("{placement} is no placement: {other:?}"),
+    };
+    let (mate, values) = match editor_core::pin_at(doc, &copy, pose, opts, tol) {
+        Ok(mate) => (mate, Vec::new()),
+        Err(editor_core::PinRefusal::Unevaluated { node }) => {
+            use pncad::document::{Coord, SlideAxis, Target, WorldRead};
+            let face = StableName {
+                kind: EntityKind::Face,
+                node,
+                path: Vec::new(),
+            };
+            let on =
+                pncad::document::Operand::Pose(Box::new(pncad::document::pose::PoseDef::Plane {
+                    face: pncad::document::Operand::select(copy, vec![face]),
+                }));
+            let mate = pncad::document::Mate {
+                on,
+                to: Target::World(WorldRead::through(pncad::document::pose::PoseRole::Xy)),
+                class: pncad::select::ContactClass::Rest,
+            };
+            let zero = vec![
+                (Coord::Slide(SlideAxis::X), len(0.0)),
+                (Coord::Slide(SlideAxis::Y), len(0.0)),
+                (Coord::Spin, ang(0.0)),
+            ];
+            (mate, zero)
+        }
+        Err(refusal) => panic!("the copy pins over its geometry: {refusal}"),
+    };
+    let applied = apply(
+        doc,
+        &DocEdit::AddConstraint {
+            placement,
+            mate: Box::new(mate),
+            fresh: Vec::new(),
+        },
+        tol,
+    )
+    .expect("the pin is admitted");
+    let [id] = applied.record.minted_constraints[..] else {
+        unreachable!("a mate mints one constraint id")
+    };
+    values.into_iter().fold(applied.doc, |doc, (coord, by)| {
+        edited(
+            &doc,
+            DocEdit::AddValue {
+                placement,
+                value: Box::new(pncad::document::Value {
+                    mate: id,
+                    coord,
+                    by,
+                }),
+                fresh: Vec::new(),
+            },
+            tol,
+        )
+        .0
+    })
 }
 
 /// The `&mut` spelling of `inserted`: insert a node in place and

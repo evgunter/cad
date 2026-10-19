@@ -256,11 +256,11 @@ of the record channel the result arrives in. Five exist — `BlendVerb`,
 `PairVerb`, `ProfileVerb`, `SplitVerb`, `ShellVerb` — each per-instance
 data (function pointers and literals, no match over a verb vocabulary
 anywhere in those files), and the generic lowerings in `eval/wire.rs`
-run off them: `wire_blend`, `wire_boolean`, `wire_swept`, `wire_split`,
-`wire_shell`.
+run off them: `wire_blend`, `wire_subtract` and `wire_combine`,
+`wire_swept`, `wire_split`, `wire_shell`.
 
 Document semantics stay upstairs where they are authored — the
-boolean's `resolve_declarations` over the operands' name tables, the
+boolean's pairwise contact judgement over its members, the
 revolve's axis frame check and angle classification, the split's
 not-a-plane refusal. `read_record` is the one rule for taking a family's
 record out of the closed channel: the correspondence's own exhaustive

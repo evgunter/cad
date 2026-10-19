@@ -281,7 +281,7 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         strict = ChecksConfig(connectedness=Severity.Error)
         report = run_checks(doc, evaluation, strict)
         (finding,) = report.findings
-        spoken = 'check connectedness: PlaceInWorld "joined" ('
+        spoken = 'check connectedness: Place "joined" ('
         self.assertIn(spoken, str(report))
         self.assertIn(spoken, str(finding))
         self.assertNotIn("renamed", str(report))
@@ -396,7 +396,7 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
         instance = doc.insert(
             Node.instantiate_part(DocRef(ident, store.current_pin(ident)))
         )
-        doc.place(instance)
+        doc.pin(instance, resolver=store)
         return doc, instance, evaluate(doc, resolver=store)
 
     def test_the_subject_is_the_body_its_producer_minted(self):
@@ -443,9 +443,24 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         reporting over what did evaluate."""
         doc = Doc("checks-sliver")
         a = slab(doc, 0.0, 1.0)
-        # 2 nm apart: in band, so the union refuses.
-        b = slab(doc, 1.0 + 2e-9, 2.0)
+        # Placed while it builds — the gesture reads the union's faces —
+        # then its second slab is lowered to 2 nm above the first: in
+        # band, so the union refuses.
+        frame = doc.sketch_frame(elevation=Formula.length_in(1.5, m))
+        profile = doc.insert(
+            Node.polygon(
+                [
+                    (Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(1, m), Formula.length_in(0, m)),
+                    (Formula.length_in(1, m), Formula.length_in(1, m)),
+                    (Formula.length_in(0, m), Formula.length_in(1, m)),
+                ],
+                plane=frame,
+            )
+        )
+        b = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
         root = doc.place(doc.insert(Node.union([a, b])))
+        doc.apply(DocEdit.set_param(frame, "origin_z", Formula.length_in(1.0 + 2e-9, m)))
         ev = evaluate(doc)
         with self.assertRaises(ChecksError) as caught:
             run_checks(doc, ev)

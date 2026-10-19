@@ -908,8 +908,12 @@ fn the_uniqueness_tube_margin_dies_on_a_tangent_pair() {
 fn displaced(curve: &NurbsCurve3<f64>, i: usize, d: f64) -> NurbsCurve3<f64> {
     let mut control = curve.control().to_vec();
     control[i] = control[i] + Vec3::new(0.0, 0.0, d);
-    NurbsCurve3::new(curve.knots().clone(), control, curve.weights().to_vec())
-        .expect("structure unchanged")
+    NurbsCurve3::new(
+        curve.knots_f64_interim().clone(),
+        control,
+        curve.weights().to_vec(),
+    )
+    .expect("structure unchanged")
 }
 
 fn certify_against(carrier: &NurbsCurve3<f64>) -> Result<geom_brep::SsiCertificate<f64>, SsiError> {
@@ -1138,8 +1142,12 @@ fn shape_iii_the_wall_cut_certifies_all_three_limbs_and_refuses_a_corrupted_pcur
     let mid = control.len() / 2;
     let d = definitely_positive();
     control[mid] = geom_core::Point2::new(control[mid].x + d, control[mid].y);
-    let bad = geom::NurbsCurve2::new(pb.knots().clone(), control, pb.weights().to_vec())
-        .expect("structure unchanged");
+    let bad = geom::NurbsCurve2::new(
+        pb.knots_f64_interim().clone(),
+        control,
+        pb.weights().to_vec(),
+    )
+    .expect("structure unchanged");
     let (p, w) = (cutting_plane(), certifiable_wall());
     let err = ssi::certify_rung3(
         carrier,
@@ -1257,12 +1265,18 @@ fn the_composite_bound_tracks_dense_scan_truth_on_the_pr7_fixture() {
     };
     use geom_core::spline::compose::{CurveCertData, tensor};
     let scoords = w.certified_coords();
-    let sdata =
-        tensor::SurfaceCertData::new(w.knots_u(), w.knots_v(), w.weights(), &scoords).unwrap();
+    let sdata = tensor::SurfaceCertData::new(
+        w.knots_u_f64_interim(),
+        w.knots_v_f64_interim(),
+        w.weights(),
+        &scoords,
+    )
+    .unwrap();
     let ccoords = carrier.certified_coords();
-    let cdata = CurveCertData::new(carrier.knots(), carrier.weights(), &ccoords).unwrap();
+    let cdata =
+        CurveCertData::new(carrier.knots_f64_interim(), carrier.weights(), &ccoords).unwrap();
     let pcoords = pb.certified_coords();
-    let pdata = CurveCertData::new(pb.knots(), pb.weights(), &pcoords).unwrap();
+    let pdata = CurveCertData::new(pb.knots_f64_interim(), pb.weights(), &pcoords).unwrap();
     let sup = tensor::surface_curve_residual(&sdata, &pdata, &cdata, &[])
         .unwrap()
         .sup_bound();
@@ -3875,7 +3889,7 @@ fn one_cubic_span(at: &str, b: &geom_brep::SsiBranch) -> bool {
     let geom::Curve3::Nurbs(carrier) = &b.carrier else {
         panic!("{at}: a NURBS carrier, got {:?}", b.carrier);
     };
-    carrier.control().len() == 4 && carrier.knots().knots().len() == 8
+    carrier.control().len() == 4 && carrier.knots_f64_interim().knots().len() == 8
 }
 
 /// **A straight branch is one Hermite span, at any length.** The

@@ -32,7 +32,7 @@ Measured on main 69700de2c, `Tol::witness()`, brick
   the volume backstop catching it, not a gate.
 
 Found by `fuse/shared-vertex-crossings`: the row
-`work/fuse/a-vertex-crossing-both-sides-of-a-pinch-refuses-shared-vertex-crossings.md`
+`a-vertex-crossing-both-sides-of-a-pinch-refuses-shared-vertex-crossings` (closed, PR 3927)
 gave its witness wedge in this clockwise order, so the refusal it pinned
 was reached through an inside-out operand (the counterclockwise wedge
 refused the same way on main, so the row itself stands).

@@ -63,7 +63,7 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let (doc, collar) = insert(
         doc,
-        revolve_about(section, (0.0, 0.0), (0.0, 1.0), ang(TAU)),
+        revolve_about(section, (0.0, 0.0), crate::fixture::along_y(), ang(TAU)),
     );
     // x along azimuth `a` about `y`, and y chosen so the normal is `+y`.
     let (c, s) = (a.cos(), a.sin());

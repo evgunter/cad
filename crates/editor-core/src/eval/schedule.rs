@@ -35,10 +35,14 @@ pub(crate) fn schedule<P: crate::ProfilePayload>(doc: &Doc<P>) -> Schedule {
     // no edge and the node fails later at operand lookup.
     let mut indegree: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     let mut dependents: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
+    // The world is scheduled nowhere: it defines no variable, so no
+    // node reads a value of it, and an evaluation is of the nodes the
+    // document's edits inserted.
     let upstream: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = doc
         .nodes
         .iter()
-        .map(|(&id, node)| (id, doc.upstream_of(node)))
+        .filter(|&(&id, _)| id != RecipeNodeId::WORLD)
+        .map(|(&id, node)| (id, doc.upstream_of(id, node)))
         .collect();
     for (&id, inputs) in &upstream {
         let live_inputs: Vec<RecipeNodeId> = inputs

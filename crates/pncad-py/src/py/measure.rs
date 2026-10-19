@@ -20,7 +20,7 @@
 //!
 //! Each reference is a kernel `SitedRef` — a `StableName` and the node
 //! its carrier is READ AT — and it crosses as the `(NodeId, str)` pair
-//! `Node.mate` already takes each of its two sides as. The type itself
+//! `Mate` already takes each of its two face sides as. The type itself
 //! never crosses: a name is opaque text by the ordinal-28 contract, and
 //! a read site is a node id, so a class wrapping the two would add
 //! ceremony and no reach.

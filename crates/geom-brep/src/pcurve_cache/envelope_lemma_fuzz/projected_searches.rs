@@ -166,7 +166,9 @@ fn the_envelope_dominates_a_certified_lower_bound_at_interval() {
                     .iter()
                     .map(|p| *p + unit(&mut s) * (size * s.range(0.0, 1.0)))
                     .collect();
-                net = NurbsCurve3::new(net.knots().clone(), ctl, net.weights().to_vec()).unwrap();
+                net =
+                    NurbsCurve3::new(net.knots_f64_interim().clone(), ctl, net.weights().to_vec())
+                        .unwrap();
             }
             let carrier = Curve3::Nurbs(Arc::new(net));
             let ci = lift(&carrier);
@@ -369,7 +371,12 @@ fn the_envelope_dominates_pushed_nets_and_corners() {
             .map(|&p| p + unit(&mut s) * (push * s.range(0.0, 1.0)))
             .collect();
         let c = Curve3::Nurbs(Arc::new(
-            NurbsCurve3::new(base.knots().clone(), ctl, base.weights().to_vec()).unwrap(),
+            NurbsCurve3::new(
+                base.knots_f64_interim().clone(),
+                ctl,
+                base.weights().to_vec(),
+            )
+            .unwrap(),
         ));
         let Ok(image64) = project(&c, None, &surf, b) else {
             continue;

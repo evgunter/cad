@@ -16,7 +16,9 @@
 //! (`CAD_M10_10_DOC=r1_segment_boss|r2_d_tab_literal|r2_d_tab_parameter`,
 //! and the dyadic controls `r2_d_tab_literal_dyadic|r2_d_tab_parameter_dyadic`);
 //! `m10_bulge_renders.txt` beside this file is the record of those
-//! renders at this tree: per document the whole split, then every
+//! renders at the tree that shipped rule G. It is stale: it has not been
+//! re-rendered since PCERT B1 renamed the frame row to
+//! `pcurve_chart_cut_side`. Per document the whole split, then every
 //! decision the tier was asked and left numeric on an arc-family
 //! predicate with its freeze causes and its attributed cause — every
 //! form attributed to the sign of `b` or of the apothem UNCUT, so the
@@ -127,6 +129,11 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// - `pcurve_loop_continuity` 9/0/0/9 -> 9/0/4/5: with no `floor`
 ///   node between them, four joints' two ends go through the door.
 ///
+/// **The frame decided across the window's cut** renames one row and
+/// moves no count: `pcurve_chart_azimuth_frame` 0/0/0/26 ->
+/// `pcurve_chart_cut_side` 0/0/0/26, the side of the principal window's
+/// cut line each of the 26 azimuths lies on.
+///
 /// **Check 4 decides no whole period** (PCERT B2b): a row is its
 /// placed image, so fidelity reads its offsets raw and
 /// `pcurve_fidelity_branch` 0/0/0/24 decides nothing now, on every
@@ -203,7 +210,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("newell_plane_residual", [30, 0]),
     ("path_circle_radius", [0, 1]),
     ("path_junction_turn", [0, 4]),
-    ("pcurve_chart_azimuth_frame", [0, 26]),
+    ("pcurve_chart_cut_side", [0, 26]),
     ("pcurve_chart_orientation", [0, 12]),
     ("pcurve_chart_placement", [0, 52]),
     ("pcurve_chart_radial_moving", [14, 12]),
@@ -328,7 +335,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("newell_plane_residual", [18, 0]),
             ("path_circle_radius", [0, 1]),
             ("path_junction_turn", [0, 2]),
-            ("pcurve_chart_azimuth_frame", [0, 26]),
+            ("pcurve_chart_cut_side", [0, 26]),
             ("pcurve_chart_orientation", [0, 12]),
             ("pcurve_chart_placement", [0, 52]),
             ("pcurve_chart_radial_moving", [14, 12]),

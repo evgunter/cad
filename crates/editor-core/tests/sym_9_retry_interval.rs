@@ -58,7 +58,7 @@ use std::time::Instant;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
-use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileDoc, ProfileLift, evaluate};
+use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileDoc, evaluate};
 use geom_core::sym::report::{
     DecisionShape, ShapeOutcome, name_param, start_shape_report, take_shape_report,
 };
@@ -202,7 +202,6 @@ fn replay(
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     if report {
@@ -538,7 +537,7 @@ fn sym_9_what_each_retry_recovers() {
 /// any more, so the half that shows the ladder RECOVERING something is
 /// [`sym_9_the_drive_writes_the_ladders_receipt`]'s: on the pad's leaf
 /// at `1e1·ε` the ladder takes four decisions the first attempt left
-/// numeric (`symbolic` 1215 → 1219, `retried` 4 against 0).
+/// numeric (`symbolic` 1211 → 1215, `retried` 4 against 0).
 ///
 /// Every extruded cap decides `cap_plane_orientation` once, numeric
 /// on both sides: the plate's `numeric` 704 → 710, the annulus's
@@ -568,7 +567,9 @@ fn sym_9_what_each_retry_recovers() {
 /// link −35, the pad's leaf −61) from the placement's, `numeric` the
 /// placement's: plate 987/726, annulus 523/471, boss 504/428, bracket
 /// 1367/1092, link 811/731, the pad's leaf 1287/1384 bare and 1291/1380
-/// with the ladder.
+/// with the ladder. The frame decided across the window's cut sends the
+/// pad leaf's four theorems on the old frame's cut (`x ≡ 0`) to the
+/// numeric channel: 1283/1388 bare and 1287/1384 with the ladder.
 ///
 /// A harmonic row's windings are structure (PCERT B2a, `[ev]` PR 5113's
 /// first decision): the angle channels' affine decisions, the winding
@@ -576,7 +577,7 @@ fn sym_9_what_each_retry_recovers() {
 /// and without it alike. The plate 987/726 → 939/686, the annulus
 /// 523/471 → 475/431, the boss 504/428 → 468/398, the bracket 1367/1092
 /// → 1307/1042, the link 811/731 → 763/691, `retried` zero on all five;
-/// the pad's leaf 1287/1384 → 1215/1324 bare and 1291/1380 → 1219/1320
+/// the pad's leaf 1283/1388 → 1211/1328 bare and 1287/1384 → 1215/1324
 /// with the ladder, its four recovered decisions held. Every column
 /// falls because the decisions are gone, not because a retry took
 /// them.
@@ -585,7 +586,7 @@ fn sym_9_what_each_retry_recovers() {
 /// branch decisions are gone, with the ladder and without it alike. The
 /// plate's `numeric` 686 → 654, the annulus 431 → 399, the boss
 /// 398 → 374, the bracket 1042 → 1002, the link 691 → 659; the pad's
-/// leaf 1324 → 1276 bare and 1320 → 1272 with the ladder. `symbolic`
+/// leaf 1328 → 1280 bare and 1324 → 1276 with the ladder. `symbolic`
 /// and `retried` hold.
 ///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
@@ -716,7 +717,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1219, 1272, 4],
+        [1215, 1276, 4],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -728,7 +729,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1215, 1276, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1211, 1280, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

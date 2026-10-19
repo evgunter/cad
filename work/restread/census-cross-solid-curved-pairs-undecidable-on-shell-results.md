@@ -316,3 +316,12 @@ The pairs touch at the nodes, so no box gap separates them, but one
 plane always does: the plane through `q` with normal `â₁` has each
 piece of `A ∖ B` (`B ∖ A`: normal `â₂`) wholly on one side, and meets
 the pieces only at the two nodes, which are shared point keys.
+
+## 2026-10-17 — scope under the D10 hold (RESTREAD)
+
+RESTREAD builds the half that certifies curved × curved and
+curved × planar cross-solid pairs apart. Where such a pair turns out
+to be a genuine coincidence, what the census does with it is the
+"census records what it decides" path of the open [ev] PR 4666 and
+INTENT stage 5; that half is not built here, and a pair the lane finds
+touching keeps its `CensusUndecidable` until then.

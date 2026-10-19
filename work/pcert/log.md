@@ -818,3 +818,5 @@ coincidence is now a margined verdict (no declarations), checked by the
 - 2026-10-15 — **No live row is at or above this track's own band (P0).** The 35 rows left are 28 at P3, 3 at P4, 4 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
   Band the 4 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
   (tracker sweep)
+
+- 2026-10-17 — B1's frame lane is decided across the window's cut (two designers concurred independently; (a) rotated read and (j) per-frame names withdrawn).

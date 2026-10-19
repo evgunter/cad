@@ -805,7 +805,11 @@ fn a_promoted_line_certifies_where_its_spline_did_on_the_same_image() {
         .into_iter()
         .map(|c| {
             let image = fitted.general_image(c, (0.0, 1.0), &flat_wall()).unwrap();
-            assert_eq!(image.knots().domain(), (0.0, 1.0), "on the edge's interval");
+            assert_eq!(
+                image.knots_f64_interim().domain(),
+                (0.0, 1.0),
+                "on the edge's interval"
+            );
             image.control().iter().map(|p| (p.x, p.y)).collect()
         })
         .collect();

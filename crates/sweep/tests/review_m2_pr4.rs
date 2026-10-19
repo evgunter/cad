@@ -1197,29 +1197,15 @@ fn survives_error_paths_extended() {
         .unwrap_err(),
         ExtrudeError::ObliqueExtrusion
     );
-    // NaN placement: 2-D validation cannot see it; the geometry gate
-    // refuses at the first certification, typed, body discarded.
+    // NaN placement: validation refuses the plane before any loop is
+    // read, so no profile with no place in space reaches the extrude.
     let bad_plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(f64::NAN, 0.0, 0.0)));
-    let vp_bad = Profile::new(bad_plane, vec![l_loop()])
-        .validate(Tol::witness())
-        .expect("validation is 2-D; the poisoned placement passes through");
-    let err = extrude(
-        &vp_bad,
-        Extrusion::Distance {
-            depth: 1.0,
-            side: ExtrudeSide::Along,
-        },
-        Tol::witness(),
-    )
-    .unwrap_err();
-    assert!(
-        matches!(
-            err,
-            ExtrudeError::Op {
-                source: EulerOpError::Certification { .. }
-            }
-        ),
-        "poisoned placement must surface the certification report, got {err:?}"
+    assert_eq!(
+        Profile::new(bad_plane, vec![l_loop()])
+            .validate(Tol::witness())
+            .map(|_| ()),
+        Err(profile::ProfileError::PlaneNotFinite),
+        "a poisoned placement refuses at validation"
     );
 }
 

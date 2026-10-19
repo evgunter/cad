@@ -85,8 +85,8 @@ impl ApproxWindow {
     /// The window a NURBS surface's own knot vectors span.
     pub fn of<T: Real>(s: &NurbsSurface<T>) -> Self {
         Self {
-            u: s.knots_u().domain(),
-            v: s.knots_v().domain(),
+            u: s.knots_u_f64_interim().domain(),
+            v: s.knots_v_f64_interim().domain(),
         }
     }
 }

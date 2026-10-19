@@ -724,8 +724,8 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
     let mut weights = net.weights().to_vec();
     weights[0] *= 1.0 + 1.0 / 64.0;
     let moved = geom::NurbsSurface::new(
-        net.knots_u().clone(),
-        net.knots_v().clone(),
+        net.knots_u_f64_interim().clone(),
+        net.knots_v_f64_interim().clone(),
         net.control().to_vec(),
         weights,
     )

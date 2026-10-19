@@ -2,8 +2,9 @@
 id: no-persistent-setplacement-session-op
 kind: issue
 title: SessionOp vocabulary gap - no persistent SetPlacement, free-move cannot be committed as a document edit
-status: open
+status: closed
 opened: 2026-08-28
+closed: 2026-10-17
 github: 1120
 priority: P0
 cost: D
@@ -53,3 +54,34 @@ So the sequencing the G1 item states holds and now sits on one slate:
 this row first, then the two gesture machines' shared rules.
 
 Not dispatched in this wave.
+
+## The edit DI5 names is retired (INTENT stage 3 B, 2026-10-17)
+
+INTENT stage 3 B retires `DocEdit::SetOffset` and the gauge it set an
+offset in. A placement is now a bundle of constraints. DI5
+(`crates/editor-core/IDENTITY.md`) still says a free-move release emits
+one `SetOffset`, and that cannot be built as written.
+
+Re-wording it as "a world pin on the instance at the released frame" is
+not a mechanical rename. `docs/INTENT-STAGE3-SPEC.md` §3 (Viewer) says
+a gesture may author a mate, "but the mate reads poses off geometry and
+the numbers are values the user supplies; the viewer's display location
+is never read". A release that pins the dragged frame reads exactly
+that.
+
+So DI5's commit is a design question again, and it waits for Ev: either
+retire DI5's persisted release, or restate it against the spec's
+gesture rule (`offer/viewer-free-move-and-place-where-shown-over-a-whole-group`).
+Stage 3 B leaves DI5's text alone and builds nothing on it.
+
+## Closed — a documented no (Ev on PR 5241, 2026-10-17)
+
+DI5 is restated (`crates/editor-core/IDENTITY.md`, fork log row 154):
+releasing a free-move writes nothing to the document. The frame belongs
+to the loose space it was drawn for, keyed by that space's root and
+dropped by `DisplayState::prune`. Keeping a position means stating it:
+a placement's mates read poses off geometry and its values are numbers
+the user types. So the session vocabulary gets no persistent
+`SetPlacement` and no commit-the-probe edit. The "place where shown"
+gesture stays with `offer/viewer-free-move-and-place-where-shown-over-a-whole-group`,
+which authors a mate and values and never reads the display frame.

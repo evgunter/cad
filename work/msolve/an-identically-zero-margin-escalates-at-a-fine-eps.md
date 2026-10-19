@@ -2,13 +2,13 @@
 id: an-identically-zero-margin-escalates-at-a-fine-eps
 kind: issue
 title: At eps = 1e-12 an identically-zero mate membership margin escalates unboxed, so no certified run over a pinned assembly can certify
-status: parked
+status: closed
 priority: P2
 cost: M
 design: true
 opened: 2026-10-03
-blocked_on: [intent-stage3-is-built]
 refs: [MSOLVE-14, a-box-over-a-solved-clocking-widens-thirty-thousandfold]
+closed: 2026-10-18
 ---
 
 ## Finding
@@ -67,3 +67,12 @@ is the extreme case of that.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage3-is-built`, not on the whole program: the escalation is member_of and check_offsets re-measuring zero-by-construction residuals; stage 3 decides overconstraint by subgroup algebra and closes checked offsets as assertions. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed (INTENT stage 3 F)
+
+No residual met by construction is re-measured: `coset::member_of` and
+`check_offsets` are gone, and the values a bundle sets are placed with
+no decision about whether the residual holds them
+(`mate::value::settle`). msolve14's `INTERVAL_ESCALATIONS` holds no
+membership row at any ε; its one row is a copied edge's certification
+(`carrier_endpoint_start`).

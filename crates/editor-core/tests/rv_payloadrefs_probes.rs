@@ -66,7 +66,6 @@ fn patterned_on_a_count_param() -> (ProfileDoc, VarName, RecipeNodeId) {
             def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a count parameter declares")
     .doc;
@@ -184,7 +183,6 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a length parameter declares")
     .doc;
@@ -200,7 +198,6 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::PayloadVarKind {
             declared,

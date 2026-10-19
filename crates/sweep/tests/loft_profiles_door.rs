@@ -148,7 +148,18 @@ fn at_interval_a_point_polygon_lofts_on_its_value_channel() {
         Tol::witness(),
     )
     .expect("the f64 sections loft");
-    assert_eq!(lofted.section_params, nominal.section_params);
+    assert_eq!(
+        lofted
+            .section_params
+            .iter()
+            .map(|u| geom_core::spline::SpanLocate::point_value(*u))
+            .collect::<Vec<_>>(),
+        nominal
+            .section_params
+            .iter()
+            .map(|u| Some(*u))
+            .collect::<Vec<_>>()
+    );
     assert_eq!(wall_bits(&lofted), wall_bits(&nominal));
 }
 
@@ -206,7 +217,8 @@ fn at_interval_a_wide_plane_encloses_its_family() {
 }
 
 /// A section or placement holding a value that is not finite refuses
-/// by name, and both doors spell it the same way.
+/// by name at `loft_body`; a form validated over a plane that is not
+/// finite cannot exist, so none reaches `loft_profiles`.
 #[test]
 fn a_value_that_is_not_finite_refuses_by_name_at_both_doors() {
     match loft_body::<f64>(
@@ -233,16 +245,15 @@ fn a_value_that_is_not_finite_refuses_by_name_at_both_doors() {
             other.map(|_| ())
         ),
     }
-    let poisoned = Profile::new(SketchPlane::new(at(f64::NAN)), section(1.2, 0.0))
-        .validate(Tol::witness())
-        .expect("validation reads the loops, not the plane");
-    match loft_profiles::<f64>(&[validated(1.0, 0.0, 0.0), poisoned], 1, Tol::witness()) {
-        Err(LoftError::PlacementNotFinite { section: 1 }) => {}
-        other => panic!(
-            "loft_profiles: expected section 1's placement refusal, got {:?}",
-            other.map(|_| ())
-        ),
-    }
+    // `loft_profiles` takes forms already validated, and validation
+    // refuses a plane that is not finite before it is a form.
+    assert_eq!(
+        Profile::new(SketchPlane::new(at(f64::NAN)), section(1.2, 0.0))
+            .validate(Tol::witness())
+            .map(|_| ()),
+        Err(profile::ProfileError::PlaneNotFinite),
+        "a NaN plane never reaches loft_profiles"
+    );
 }
 
 /// The value channel of a form validated at `Dual64` is the form the

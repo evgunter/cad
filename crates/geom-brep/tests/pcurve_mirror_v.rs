@@ -349,7 +349,7 @@ fn the_nurbs_arms_are_map_points_and_agree_with_a_re_validated_rebuild() {
         };
         seen += 1;
         let via_new = NurbsCurve2::new(
-            img.knots().clone(),
+            img.knots_f64_interim().clone(),
             img.control()
                 .iter()
                 .map(|q| Point2::new(q.x, -q.y))

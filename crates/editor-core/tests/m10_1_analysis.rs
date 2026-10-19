@@ -28,7 +28,6 @@ fn doc_with(params: &[(&'static str, FreeVar)]) -> ProfileDoc {
                 def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a valid parameter sets")
         .doc;

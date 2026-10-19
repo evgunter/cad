@@ -32,11 +32,8 @@ fn run(
     evaluate::<Interval>(doc, prior, &CancelToken::new(), opts, Tol::witness())
 }
 
-fn lifted(lift: ProfileLift) -> EvalOptions {
-    EvalOptions {
-        profile_lift: lift,
-        ..EvalOptions::default()
-    }
+fn lifted(doc: &ProfileDoc, lift: ProfileLift) -> EvalOptions {
+    corpus::options_under(doc, lift).expect("the document has a continuous variable")
 }
 
 /// **The corpus document's profile is placed at the lane scalar under
@@ -55,7 +52,7 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
         .find(|id| matches!(cd.doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
         .expect("the derived frame");
     for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let ev = run(&cd.doc, None, &lifted(lift));
+        let ev = run(&cd.doc, None, &lifted(&cd.doc, lift));
         assert!(
             corpus::failures(&ev).is_empty(),
             "{lift:?}: {:?}",
@@ -110,7 +107,7 @@ fn a_section_on_a_derived_frame_lofts_and_encloses_at_interval() {
         .collect();
     assert!(!nominal.is_empty(), "the f64 loft has vertices");
     for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let ev = run(&doc, None, &lifted(lift));
+        let ev = run(&doc, None, &lifted(&doc, lift));
         assert!(
             ev.node_error(loft).is_none(),
             "{lift:?}: the loft evaluates: {:?}",
@@ -226,13 +223,23 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
 fn widening_the_frames_body_parameter_recomputes_the_profile() {
     let width = Tol::witness().eps() / 8.0;
     let (doc, boss_p) = boxed_on_param(width);
-    let nominal = run(&doc, None, &EvalOptions::default());
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    // The prior is the drive's witness: the box collapsed to the
+    // nominal, so it elaborates under the widened run's (guided) lift
+    // and the memo compares like with like (`ParamBox::at_nominal`).
+    let nominal = run(
+        &doc,
+        None,
+        &EvalOptions {
+            param_box: Some(Arc::new(ParamBox::of(&analyzed).at_nominal())),
+            ..EvalOptions::default()
+        },
+    );
     assert!(
         corpus::failures(&nominal).is_empty(),
         "{:?}",
         corpus::failures(&nominal)
     );
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
         ..EvalOptions::default()
@@ -371,13 +378,23 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     )));
     let doc = r.doc;
 
-    let nominal = run(&doc, None, &EvalOptions::default());
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    // The prior is the drive's witness: the box collapsed to the
+    // nominal, so it elaborates under the widened run's (guided) lift
+    // and the memo compares like with like (`ParamBox::at_nominal`).
+    let nominal = run(
+        &doc,
+        None,
+        &EvalOptions {
+            param_box: Some(Arc::new(ParamBox::of(&analyzed).at_nominal())),
+            ..EvalOptions::default()
+        },
+    );
     assert!(
         corpus::failures(&nominal).is_empty(),
         "nominal: {:?}",
         corpus::failures(&nominal)
     );
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
         ..EvalOptions::default()

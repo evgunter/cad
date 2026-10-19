@@ -2,11 +2,11 @@
 id: a-placer-row-states-what-a-poisoned-row-cannot
 kind: issue
 title: A Part's index and a pattern's count refuse with PlacerRow::States over a node that may be poisoned, so the cause is stated on no row
-status: parked
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: E
-blocked_on: [a-placement-is-the-bundle-of-mates]
+closed: 2026-10-16
 ---
 
 
@@ -57,3 +57,7 @@ Waits on `a-mate-reads-face-variables`, not on the whole program: the raise site
 ## Re-parked at F's close (2026-10-10)
 
 F (`a-mate-reads-face-variables`, PR 4566) made a mate's sides selections, but kept the solve's member walk: `mate/member.rs`'s `check_reference` still raises `PlacerRow::States` over a pattern's count and a `Part`'s index, and a mate the solve faults fails with that fault before poison propagation, so the pinned row stands as written. The walk goes with the spanning tree and roots in stage 3 B, so the row waits there.
+
+## Closed by INTENT stage 3 B (PR #5232)
+
+The decision moved where the standing is known, as the row's Shape proposed. The placement reporting a solve fault (`placement_fault`, `crates/editor-core/src/eval/wire.rs`) reads a `PlacerRow::States` fault's placer off the evaluation, and turns it `Silent` when the placer did not fail in its own right. The fault then carries the refusal. The pinned row in `msolve11_mate_log` is flipped: the fault is `Silent` and carries the `Part`'s index refusal.

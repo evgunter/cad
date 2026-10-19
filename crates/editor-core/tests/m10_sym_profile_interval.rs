@@ -59,7 +59,7 @@ use crate::m10_7_plate::plate;
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::nominal_box;
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
-use editor_core::{CancelToken, EvalOptions, ProfileLift, evaluate};
+use editor_core::{CancelToken, EvalOptions, evaluate};
 use geom_core::SymBudget;
 use geom_core::sym::with_session_rules;
 use std::sync::Arc;
@@ -71,7 +71,6 @@ use std::sync::Arc;
 fn bare_replay(doc: &editor_core::ProfileDoc, box_: &ParamBox, tol: Tol) -> geom_core::SymCounts {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     let budget = SymBudget {
@@ -643,7 +642,11 @@ const PLATE_MAX_TERMS: usize = 28;
 /// Door/Decision 9469. Main's final non-finite check and the placement
 /// add: `Plain/Decision` 1032 → 987 calls (main's −45) and forms
 /// 15888 → 15839, `Plain/Assertion` forms 6909 → 6946, both digests;
-/// every other line is the placement's.
+/// every other line is the placement's. The frame decided across the
+/// window's cut builds the cut-side margin's form in place of `x`'s:
+/// forms Plain/Assertion 6946 → 7020, Early/Assertion 8108 → 8182,
+/// Door/Decision 9469 → 9545, and their digests; every call and frozen
+/// count holds.
 ///
 /// A harmonic row's windings are structure it stores and certification
 /// compares exactly (PCERT B2a, `[ev]` PR 5113's first decision), so
@@ -669,10 +672,10 @@ const PLATE_MAX_TERMS: usize = 28;
 /// `Plain/Decision`'s calls, every freeze and the largest form hold.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 939 forms 15828 frozen 324 digest 106c6e8f656834241d3861faf20e7799\n\
-     Plain/Assertion calls 654 forms 6869 frozen 405 digest ed7d268316dceb1a7790d5614772729a\n\
+     Plain/Assertion calls 654 forms 6943 frozen 405 digest 2544c0a78ce8187ccc270e458e566291\n\
      Early/Decision calls 352 forms 8884 frozen 0 digest 77472cc4b2b651d309e31f2086d5b20a\n\
-     Early/Assertion calls 654 forms 8031 frozen 0 digest 3a71a5b798da445e4269e1a52db3d499\n\
-     Door/Decision calls 396 forms 9389 frozen 0 digest 2fb1e8b2185a5af2da2ea99e9f63ea6f";
+     Early/Assertion calls 654 forms 8105 frozen 0 digest 39572c133e0d8ba3e7dcef3c5d779851\n\
+     Door/Decision calls 396 forms 9465 frozen 0 digest c689a400e4425e2426a805dc6619c228";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

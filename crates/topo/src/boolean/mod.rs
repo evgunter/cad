@@ -125,6 +125,7 @@ pub use refusal_routes::{
     PlaneRung, SectionRadius, SectorRung, SelfCheck, Settling, SphereQuestion, TorusConvention,
     WallRung,
 };
+pub(crate) mod region;
 mod rim_wedge;
 pub(crate) mod sectors;
 pub(crate) mod separating;
@@ -137,6 +138,7 @@ pub mod tables;
 mod torn_hop_rows;
 #[cfg(test)]
 mod torus_frame_rows;
+pub(crate) mod torus_region;
 pub mod voids;
 pub(crate) mod vtxfac;
 pub(crate) mod zip;
@@ -309,17 +311,9 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "curve_carrier_straddle"
         | "curve_carrier_piece_clear"
         | "curve_carrier_piece" => "whether a point lies on an edge's carrier",
-        "curve_pair_pose_tilt"
-        | "curve_pair_pose_offset"
-        | "curve_pair_pose_sense"
-        | "curve_pair_pose_swing"
-        | "curve_pair_pose_extreme"
-        | "curve_pair_pose_root_gap"
-        | "curve_pair_pose_centres"
-        | "curve_pair_pose_radii"
-        | "curve_pair_pose_one_curve"
-        | "curve_pair_meet_same"
-        | "curve_pair_meet_stretch" => "how two edges' carriers meet",
+        // Every row of `geom_brep::curve_pair::pose`, by its prefix.
+        p if p.starts_with("curve_pair_pose_") => "how two edges' carriers meet",
+        "curve_pair_meet_same" | "curve_pair_meet_stretch" => "how two edges' carriers meet",
         "bool_split_span_period" => BooleanDecision::ArcSpan.subject(),
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
@@ -338,8 +332,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_wall_section_seat"
         | "bool_sphere_iso_meridian"
         | "bool_sphere_iso_rim"
-        | "bool_torus_trim_major_period"
-        | "bool_torus_trim_minor_period"
         | "bool_sphere_trim_antipode"
         | "bool_sphere_trim_latitude"
         | "bool_sphere_trim_meridian_span"
@@ -357,10 +349,24 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_region_roots_slack"
         | "bool_sphere_region_arc_span"
         | "bool_sphere_region_arc_straddle"
-        | "bool_torus_chart_box"
-        | "bool_torus_chart_closure"
+        | "bool_torus_region_component"
+        | "bool_torus_region_family"
+        | "bool_torus_region_span"
+        | "bool_torus_region_at"
+        | "bool_torus_region_corner"
+        | "bool_torus_region_order"
+        | "bool_torus_region_cross"
+        | "bool_torus_region_roots_noise"
+        | "bool_torus_region_roots_coaxial"
+        | "bool_torus_region_roots_extreme"
+        | "bool_torus_region_roots_slack"
+        | "bool_torus_region_arc_span"
+        | "bool_torus_region_arc_straddle"
+        | "bool_torus_region_spiric_end"
+        | "bool_torus_region_spiric_clear"
+        | "bool_torus_region_spiric_on"
+        | "bool_torus_region_spiric_leaf"
         | "bool_torus_frame_radius"
-        | "bool_torus_trim"
         | "bool_cone_chart_box"
         | "bool_cone_group_slant"
         | "bool_cone_trim"
@@ -959,12 +965,18 @@ impl GlueVerdict {
         self.class.relation()
     }
 
-    /// **This verdict, given to a fold step**: the pair of `a` and the
-    /// judged B face, under the judged class. The fold passes each
-    /// accumulation face whose lineage holds the judged A face, over
-    /// the judged B operand; nothing here checks either.
-    pub fn given_at(self, a: FaceKey) -> GluedPair {
-        GluedPair::new(a, self.b, self.class)
+    /// **This verdict, given to a fold step**: the pair of `at`, an
+    /// accumulation face whose lineage holds the judged `held` face, and
+    /// the judged face of the other operand, under the judged class
+    /// (every class is symmetric in its two faces). The fold passes each
+    /// such accumulation face, over the operand that other face belongs
+    /// to; nothing here checks either.
+    pub fn given_at(self, held: Operand, at: FaceKey) -> GluedPair {
+        let other = match held {
+            Operand::A => self.b,
+            Operand::B => self.a,
+        };
+        GluedPair::new(at, other, self.class)
     }
 
     /// The verdicts `rows` record: each row relating an A-operand face
@@ -3305,7 +3317,7 @@ pub enum BooleanError {
     /// (`Curve3::param_near`). A carrier with no period, or no
     /// parameter inverse there (a spline), cannot be run on, and the
     /// join refuses rather than leave the vertex standing
-    /// (`work/fuse/joining-a-spline-carrier-is-unbuilt`).
+    /// (`work/hone/joining-a-spline-carrier-is-unbuilt`).
     JoinCarrierUnsupported {
         /// The edge the join keeps.
         edge: EdgeKey,
@@ -4582,7 +4594,7 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the Boolean cannot yet join edge {edge:?} across a vertex on its {} carrier: \
                  the join runs the edge on along its carrier {}, which this carrier has no \
-                 reading for (work/fuse/joining-a-spline-carrier-is-unbuilt)",
+                 reading for (work/hone/joining-a-spline-carrier-is-unbuilt)",
                 carrier.name(),
                 if *closed {
                     "over a whole period"

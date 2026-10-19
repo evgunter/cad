@@ -99,7 +99,12 @@ fn p2_dented_circle_above_eps_stays_nurbs() {
     let base = rational_circle(0.005);
     let mut control = base.control().to_vec();
     control[2] = control[2] + Vec3::new(1e-8, 0.0, 0.0);
-    let curve = NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
+    let curve = NurbsCurve3::new(
+        base.knots_f64_interim().clone(),
+        control,
+        base.weights().to_vec(),
+    )
+    .unwrap();
     assert!(
         !matches!(recognize(&curve, EPS_IN), CurveRecognition::Promoted { .. }),
         "a 1e-8 dent must not certify at 1e-9"
@@ -117,8 +122,12 @@ fn p3_small_eccentricity_ellipses_stay_nurbs() {
             .iter()
             .map(|p| Point3::new(p.x * (1.0 + e), p.y, p.z))
             .collect();
-        let curve =
-            NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
+        let curve = NurbsCurve3::new(
+            base.knots_f64_interim().clone(),
+            control,
+            base.weights().to_vec(),
+        )
+        .unwrap();
         assert!(
             !matches!(recognize(&curve, EPS_IN), CurveRecognition::Promoted { .. }),
             "an ellipse with a = r(1+{e:e}) must not certify at 1e-9 (dev ~{:e})",
@@ -137,7 +146,12 @@ fn p4_out_of_plane_wobble_stays_nurbs() {
         .enumerate()
         .map(|(k, p)| Point3::new(p.x, p.y, p.z + if k % 2 == 0 { 1e-8 } else { -1e-8 }))
         .collect();
-    let curve = NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
+    let curve = NurbsCurve3::new(
+        base.knots_f64_interim().clone(),
+        control,
+        base.weights().to_vec(),
+    )
+    .unwrap();
     assert!(
         !matches!(recognize(&curve, EPS_IN), CurveRecognition::Promoted { .. }),
         "a 1e-8 out-of-plane wobble must not certify at 1e-9"
@@ -152,7 +166,12 @@ fn p5_reported_residual_dominates_measured_deviation() {
     let mut control = base.control().to_vec();
     // A sub-eps dent (5e-11): still certifies; residual must cover it.
     control[3] = control[3] + Vec3::new(0.0, 5e-11, 0.0);
-    let curve = NurbsCurve3::new(base.knots().clone(), control, base.weights().to_vec()).unwrap();
+    let curve = NurbsCurve3::new(
+        base.knots_f64_interim().clone(),
+        control,
+        base.weights().to_vec(),
+    )
+    .unwrap();
     let CurveRecognition::Promoted {
         curve:
             Curve3::Circle {
