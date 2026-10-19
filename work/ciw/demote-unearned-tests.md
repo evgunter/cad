@@ -70,39 +70,54 @@ Result:
 | | tests | s per PR run |
 |---|---|---|
 | candidates | 615 | 1,249 |
-| keep per-PR (an unshared PR red) | 45 | 205 |
-| demote to nightly-only | 570 | 1,044 |
+| an unshared PR red | 45 | 205 |
+| no unshared PR red | 570 | 1,044 |
 
-Of the 570:
-- 535 were already in the slow set; they are now in
-  `.config/nightly-only.txt`.
-- 26 were fast-set tests. Six of them had been deleted or renamed on main
-  by 10-19, so 20 are now in the slow set and nightly-only.
-- 9 are demo-tour rows, in `demos/tour/.config/nextest.toml`'s `ci`
-  profile. These include `tour_runs_green_at_default_eps` and `_at_eps_1e_6`.
-  `_at_eps_1e_12` stays, because every one of their PR reds was also its
-  red.
+## What changed
 
-What stays per-PR is the 45 with an unshared PR red. The biggest are
-`tour_runs_green_at_eps_1e_12`, `certified_cells_run_green_at_default_eps`,
-the gallery denotation row, three `m10_9_pins_interval` rows, `sym11`'s
-exact-channel row, `mass_props_are_thread_count_invariant`'s serial golden
-and `lily`'s finding-13 table.
+There is one list of slow tests: the slow set, the `ci` profile's
+`default-filter` in `.config/nextest.toml`. A slow test runs per PR only
+when the diff's added lines spell it, i.e. on the PR that adds or edits it.
+That uses `is_new`, the same rule check-fast-set-times.py holds new fast-set
+tests to its 0.5 s bar by. Every other slow test, the ones with a catch
+record included, runs in the nightly.
+
+Before this, the seeded slow-set step ran every slow test of every crate
+the diff seeded. That step was 63% of the per-PR test time, and the slow
+set's own definition ("no record of catching a bug the fast set would
+miss") already said those tests had not earned it.
+
+- **20 fast-set tests join the slow set.** 26 of the 570 were fast-set
+  tests under 0.5 s a run but over the per-PR-run bar. Six of them had been
+  deleted or renamed on main by 10-19, which leaves 20.
+- **9 demo-tour rows** go in a new `ci` profile in
+  `demos/tour/.config/nextest.toml`. These include
+  `tour_runs_green_at_default_eps` and `_at_eps_1e_6`. The demos row runs
+  only when a diff touches `demos/`, so the tour keeps its earned rows
+  per-PR. `_at_eps_1e_12` stays, because every PR red of the other two was
+  also its red.
+
+**Coverage given up.** 38 slow-set tests have an unshared PR red and no
+longer run per PR. Together they cost 110 s per PR run. A regression one
+of them would have caught now reaches the next nightly instead of the PR.
+The biggest are three `m10_9_pins_interval` rows, `sym11`'s exact-channel
+row and `mass_props_are_thread_count_invariant`'s serial golden. The other
+7 of the 45 are fast-set or tour rows and stay.
 
 ## Expected effect
 
-These numbers replay the window's logs with the demoted tests removed. A
-step's wall time is estimated as max(longest test, cpu-s / 4); for the slow
-set this reproduces the measured 6.0-min median as 5.8.
+These numbers replay the window's logs. A step's wall time is estimated as
+max(longest test, cpu-s / 4); for the slow set this reproduces the measured
+6.0-min median as 5.8.
 
 | step | median (min) | p90 (min) |
 |---|---|---|
-| seeded slow set | 5.8 → 1.3 | 14.2 → 2.4 |
+| slow set | 5.8 → ≈ 0 (only slow tests the PR spells) | 14.2 → ≈ 0 |
 | tour suite | 7.7 → 5.6 | 9.0 → 6.3 |
 | extra ε | 0.5 → 0.4 | 2.8 → 1.9 |
 
 `test` is the critical job in most code runs, so the run median should fall
-by about 4.5 min, from 21.7 to about 17.
+by about 6 min, from 21.7 to about 16.
 
 ## Blind spots
 
@@ -110,6 +125,8 @@ by about 4.5 min, from 21.7 to about 17.
   rarely seeded in the window, is under-counted.
 - **The red-history match is by test name.** It is not by binary, and a
   rename splits a test's history.
+- **A slow test whose body a PR edits without touching its `fn` line** is
+  not spelled, so it waits for the nightly.
 - **The "existed on main" check greps the last path segment.** A helper
   with the same name could make an introducing PR's red count as a catch.
   That errs toward keeping the test.

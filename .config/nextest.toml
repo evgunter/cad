@@ -1,17 +1,22 @@
 # nextest profiles. `ci` is the per-PR gate: the suite minus the SLOW SET
-# below — the tests that took >= 1 s on a 4-vCPU runner and are not deleted
-# (work/ciw/latency-cut.md has the measurement and the verdicts). The slow set
-# runs every night, at every eps row, under this profile with
-# `--ignore-default-filter`; per PR, only the slow tests of the crates the
-# diff seeds run, less the ones .config/nightly-only.txt lists, and a
-# workspace-level file seeds none. scripts/slow_set.py
-# is the one reader of this list. A renamed test drops out of it and runs
-# per-PR, never silently nowhere; scripts/check-slow-set-names.py fails the
-# test job on the dead name. Put a test here when it costs >= 0.5 s and has
-# no record of catching a bug the fast set would miss; take it out when it
-# earns one. The per-PR default-eps step enforces two bars on the runner's
-# own times (scripts/check-fast-set-times.py): a fast-set test the diff adds
-# fails it at >= 0.5 s, and every other fast-set test at >= 1 s.
+# below (work/ciw/latency-cut.md has the first measurement and verdicts). The
+# slow set runs every night, at every eps row, under this profile with
+# `--ignore-default-filter`. Per PR, a slow test runs only when the diff's
+# added lines spell it (scripts/slow_set.py's `is_new`: the PR that adds or
+# edits it); a renamed one is spelled too. scripts/slow_set.py is the one
+# reader of this list. A renamed test drops out of it and runs per-PR, never
+# silently nowhere; scripts/check-slow-set-names.py fails the test job on the
+# dead name.
+#
+# Put a test here when it costs >= 0.5 s a run, whatever it has caught: a
+# slow test that catches something still catches it the next night. A
+# cheaper test goes here too when it costs more than a fraction of a second
+# averaged over every PR run and has never gone red on a PR after the one
+# that added it, unless a test the gate kept went red with it
+# (work/ciw/demote-unearned-tests.md). The per-PR default-eps step enforces
+# two bars on the runner's own times (scripts/check-fast-set-times.py): a
+# fast-set test the diff adds fails it at >= 0.5 s, and every other fast-set
+# test at >= 1 s.
 
 [profile.ci]
 fail-fast = false

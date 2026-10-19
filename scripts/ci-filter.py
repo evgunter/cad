@@ -1263,9 +1263,10 @@ def _seeds(files: list[str], root: str) -> str:
 # workspace-level — a profile setting moves every run — except for the one
 # edit the implementer discipline asks of every PR that adds a slow test: an
 # exact-name entry of the `ci` profile's `default-filter` added, dropped or
-# moved. That edit moves only the tests it names, so it seeds their crates: an
-# added name runs in the slow-set step of its crate, a dropped one in that
-# crate's default step, and the name check reads both binaries' listings.
+# moved. That edit moves only the tests it names, so it seeds their crates: a
+# dropped name runs in that crate's default step, an added one in the
+# slow-set step when the diff's Rust lines also spell it (else the nightly),
+# and the name check reads both binaries' listings.
 #
 # THE TEST IS STRUCTURAL AND FAILS SAFE. Both revisions must parse; the file
 # outside the filter's string must be byte-identical; `slow_set.entries` (the
@@ -1509,10 +1510,6 @@ AUX_PREFIXES: tuple[str, ...] = (
     "docs/k-report-data/",
     "docs/tess-budget-data/",
     "docs/perf-data/",
-    # Read only by the seeded slow-set step, which it narrows; the lint job
-    # checks it against the slow set on every tier, and the nightly runs
-    # every test it names.
-    ".config/nightly-only.txt",
 )
 
 

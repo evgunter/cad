@@ -16,13 +16,15 @@ one.
     slow_set.py --expr     print the slow set as one nextest filterset
                            (the filter without its `not`), read from
                            .config/nextest.toml
-    slow_set.py --per-pr-expr
-                           the same, less .config/nightly-only.txt: what
-                           ci.yml's seeded slow-set step runs
-    slow_set.py --check    every nightly-only line is a slow-set entry, once
+    slow_set.py --new-expr <new-tests.txt>
+                           the same, narrowed to the entries the diff adds
+                           or edits: what ci.yml's slow-set step runs
 
-`.config/nightly-only.txt` is the part of the slow set no PR runs; its header
-says what earns a place there. This is its one reader too.
+A slow test runs per PR only on a PR whose added lines spell it, which is the
+PR that adds it or edits it; every other night it runs in the nightly. What
+counts as spelling it is `is_new`, the rule check-fast-set-times.py holds new
+fast-set tests to its stricter bar by, read from the same
+`check-fast-set-times.py --new-since` tokens.
 """
 
 from __future__ import annotations
@@ -32,7 +34,6 @@ import sys
 import tomllib
 
 CONFIG = ".config/nextest.toml"
-NIGHTLY_ONLY = ".config/nightly-only.txt"
 _BINARY_RE = re.compile(r"[A-Za-z0-9_-]+(?:::[A-Za-z0-9_-]+)?")
 _NAME_RE = re.compile(r"[A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)*")
 
@@ -125,32 +126,18 @@ def expr(pairs: list[tuple[str, str]]) -> str:
     return "(" + " | ".join(terms) + ")"
 
 
-def nightly_only(text: str) -> list[tuple[str, str]]:
-    """The `(binary id, exact test name)` lines of a nightly-only list, in
-    file order. `#` starts a comment line; blank lines are skipped."""
-    pairs: list[tuple[str, str]] = []
-    for n, line in enumerate(text.splitlines(), 1):
-        if not line.strip() or line.startswith("#"):
-            continue
-        parts = line.split(" ")
-        if len(parts) != 2 or not _BINARY_RE.fullmatch(parts[0]) or not _NAME_RE.fullmatch(parts[1]):
-            raise SlowSetError(f"line {n}: not `<binary id> <test name>`: {line!r}")
-        pairs.append((parts[0], parts[1]))
-    return pairs
+def is_new(binary_id: str, name: str, tokens: set[str]) -> bool:
+    """Whether the diff's `pkg:ident` / `pkg:mod:name` tokens spell this
+    test: its leaf name, or a module on its path the diff declares."""
+    pkg = binary_id.split("::")[0]
+    *mods, leaf = name.split("::")
+    return f"{pkg}:{leaf}" in tokens or any(f"{pkg}:mod:{m}" in tokens for m in mods)
 
 
-def check(slow: list[tuple[str, str]], nightly: list[tuple[str, str]]) -> list[str]:
-    """What is wrong with a nightly-only list against the slow set: an entry
-    the slow set does not hold (the default-eps step would still run it), or
-    one listed twice."""
-    held = set(slow)
-    errors = [f"{b} {n}: not in the slow set" for b, n in nightly if (b, n) not in held]
-    seen: set[tuple[str, str]] = set()
-    for pair in nightly:
-        if pair in seen:
-            errors.append(f"{pair[0]} {pair[1]}: listed twice")
-        seen.add(pair)
-    return errors
+def new_expr(pairs: list[tuple[str, str]], tokens: set[str]) -> str:
+    """The entries `tokens` spell, as one filterset; `none()` when none is."""
+    spelled = [(b, n) for b, n in pairs if is_new(b, n, tokens)]
+    return expr(spelled) if spelled else "none()"
 
 
 def selftest() -> None:
@@ -171,17 +158,9 @@ def selftest() -> None:
         except SlowSetError:
             continue
         raise SystemExit(f"slow_set selftest FAILED: {why} was read")
-    listed = nightly_only("# header\n\na::all m::y\nb n::z\n")
-    assert listed == [("a::all", "m::y"), ("b", "n::z")], listed
-    assert check(want, listed) == [], check(want, listed)
-    assert check(want, [("a::all", "m::q")]) == ["a::all m::q: not in the slow set"]
-    assert check(want, listed + listed[:1]) == ["a::all m::y: listed twice"]
-    for bad in ("a::all  m::y", "a::all m::y extra", "a::all"):
-        try:
-            nightly_only(bad)
-        except SlowSetError:
-            continue
-        raise SystemExit(f"slow_set selftest FAILED: nightly-only line {bad!r} was read")
+    assert new_expr(want, set()) == "none()"
+    assert new_expr(want, {"a:y", "b:x"}) == expr([("a::all", "m::y")]), "a leaf, in its own package"
+    assert new_expr(want, {"b:mod:n"}) == expr([("b", "n::z")]), "a module on the path"
     print("slow_set: selftest ok")
 
 
@@ -189,33 +168,18 @@ def main(argv: list[str]) -> int:
     if argv == ["--selftest"]:
         selftest()
         return 0
-    if argv not in (["--expr"], ["--per-pr-expr"], ["--check"]):
-        sys.exit("usage: slow_set.py --expr | --per-pr-expr | --check | --selftest")
+    if argv != ["--expr"] and not (len(argv) == 2 and argv[0] == "--new-expr"):
+        sys.exit("usage: slow_set.py --expr | --new-expr <new-tests.txt> | --selftest")
     try:
         with open(CONFIG, encoding="utf-8") as fh:
-            slow = entries(ci_filter(fh.read()))
+            pairs = entries(ci_filter(fh.read()))
     except (OSError, SlowSetError) as exc:
         sys.exit(f"slow_set: {CONFIG}: {exc}")
     if argv == ["--expr"]:
-        print(expr(slow))
+        print(expr(pairs))
         return 0
-    try:
-        with open(NIGHTLY_ONLY, encoding="utf-8") as fh:
-            nightly = nightly_only(fh.read())
-    except (OSError, SlowSetError) as exc:
-        sys.exit(f"slow_set: {NIGHTLY_ONLY}: {exc}")
-    if argv == ["--check"]:
-        errors = check(slow, nightly)
-        for e in errors:
-            print(f"::error file={NIGHTLY_ONLY}::{e}")
-        if errors:
-            return 1
-        print(f"slow_set: {len(nightly)} of the slow set's {len(slow)} entries are nightly-only")
-        return 0
-    skip = set(nightly)
-    per_pr = [pair for pair in slow if pair not in skip]
-    # An empty filterset is not one nextest reads; `none()` runs nothing.
-    print(expr(per_pr) if per_pr else "none()")
+    with open(argv[1], encoding="utf-8") as fh:
+        print(new_expr(pairs, set(fh.read().split())))
     return 0
 
 

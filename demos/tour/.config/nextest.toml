@@ -1,10 +1,11 @@
 # nextest profiles for the tour workspace. `ci` is ci.yml's per-PR `demos`
-# row: the whole tour suite less the rows below, which run only in the
-# nightly (nightly.yml's tour step uses the default profile, so it runs
-# them all). A row is here when it costs more than a fraction of a second per
-# PR run and has no PR red after its introduction that no row the PR gate
-# still runs shared; the measurement is work/ciw/demote-unearned-tests.md,
-# the same bar as the kernel workspace's .config/nightly-only.txt.
+# row, which runs only when the diff touches demos/: the whole tour suite less
+# the rows below, which run only in the nightly (nightly.yml's tour step uses
+# the default profile, so it runs them all). A row is here when it costs more
+# than a fraction of a second averaged over every PR run and has never gone
+# red on a PR after the one that added it, unless a row the gate kept went
+# red with it: the kernel slow set's second bar (.config/nextest.toml,
+# work/ciw/demote-unearned-tests.md).
 
 [profile.ci]
 fail-fast = false
