@@ -94,17 +94,20 @@ far end, and what decides an edge is the sweep.
   reads how far two adjacent segments run within ε past their joint,
   and that the neighbourhood is the joint's own (`[topology.census]`).
 - **The joint reads its turn**: `seg::joint_tangency` decides
-  tangency by `seg::junction_turn` (`path_junction_turn`), the one home
-  the path door's junction check calls too; carrier identity stays on
-  `carrier_circles_identity` / `chord_side`.
+  tangency by `seg::junction_turn` (`path_junction_turn`) levered by
+  the shorter of the two legs' arms, the one home the path door's
+  junction check and seam arrival call too, at the same arm; carrier
+  identity stays on `carrier_circles_identity` / `chord_side`.
 - **The rows that pin it** (`crates/profile/tests/rejections.rs`, f64
   and Interval, at 1e-6, 1e-9 and 1e-12):
   `a_tangent_cusps_far_end_draws_its_line` (the far-end table: a
   sweep of 0.05–0.2 rad touches, 0.3–1.0 escalates, 1.3–1.6
   validates); `a_tangent_cusp_on_near_concentric_carriers_validates_its_long_stretch`
-  (this row's two tables); `a_cusp_on_crossing_carriers_95_eps_apart_escalates_its_turn`
-  (the wider witness, which the turn reading escalates at the joint
-  on the number the extrude used to read); and
+  (this row's two tables); `a_cusp_on_crossing_carriers_95_eps_apart_validates`
+  (the wider witness at 1e-12: its turn, levered by the shorter leg's
+  arm, the 6.27 rad arc's 0.0285 m chord, reads 0.0106ε, a tangent
+  cusp, as the ruling has it; at the longer leg's 2.71 m it would read
+  1.006ε and escalate); and
   `a_joint_at_a_crossing_of_near_concentric_carriers_is_a_corner`.
   On the sweep side (`crates/sweep/tests/a_tangent_joint_on_near_concentric_carriers.rs`):
   the 17ε walls refuse `SliverJoin` on `tangent_second_order` (8.5ε),

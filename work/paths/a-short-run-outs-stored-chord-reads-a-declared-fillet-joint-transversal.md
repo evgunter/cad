@@ -49,30 +49,38 @@ that works (a longer run, or no run at all). In both cases,
 `FilletCarrierBelowSceneResolution` should only be raised when its
 `resolution` is at least ε.
 
-## Wider since the joint reads its turn (2026-10-19)
+## Narrower since the joint reads its turn at the shorter arm (2026-10-19)
 
-`paths/joint-reads-its-turn` (Ev's ruling on #5354) decides a joint by
-its turn levered by the longer leg's arm, so the stored chord now reads
-as what it is, a corner of half its sweep at the fillet's arm, rather
-than through the chord line's rounding. The predicate the refusal names
-is `path_junction_turn`, and the class reaches the default ε and wide
-margins:
+`paths/joint-reads-its-turn` (Ev's ruling on #5354, and its fix pass)
+decides a joint by its turn levered by the SHORTER leg's arm
+(`seg::joint_tangency`; the stored-form read names it
+`path_fillet_joint_turn`). A stored chord turns half its sweep from the
+fillet over its own length, about four times its sagitta, so a chord
+whose sagitta is below the band reads as the tangent joint it was
+declared. Re-measured on the construction above, turns 1e-13 to 0.3 rad
+in quarter decades, against main:
 
-- the construction above, at `CAD_TOLERANCE_EPS=1e-9`: turns 1e-7 to
-  3e-5 rad refuse `FilletCarrierBelowSceneResolution` (margin 2.5e-8 at
-  1e-7, `resolution` 4.2e-16); at 1e-12 turns 1e-11 to 1e-6; at 1e-6,
-  1e-4 to 1e-3. The run out builds once its sagitta, about `turn²`
-  m, clears the band, so `arc_fillet.rs`'s row now reads turns of a few
-  `√(Kε)`.
-- grid A's recourse census (`review_fillet_overrun_nearest_fit_r1/r2`):
-  following the reported deficit leaves an arc leg's remnant past the
-  fillet short enough to flatten, and the door refuses it the same way
-  at 4 entries at 1e-9 and 30 at 1e-6 (`margin` 2.8e-6 to 5e-4, every
-  `resolution` near 1e-17). The census counts them past the corner
-  (`common::past_the_corner`) with a per-row pin.
+| ε | main | this branch |
+|---|---|---|
+| 1e-12 | 5.6e-12 to 1.8e-11: `FilletCarrierBelowSceneResolution` on `carrier_line_circle`; 3.2e-11, 5.6e-11: door escalates `carrier_line_circle` | 5.6e-12: builds, validation escalates `arc_span`; 1e-11, 1.8e-11: validates; 3.2e-11, 5.6e-11: builds, validation's pair pass escalates `carrier_line_circle`; 1.8e-6: door escalates `path_fillet_joint_turn` |
+| 1e-9 | builds and validates from 1e-8 up, but for 1e-4 and 1.8e-4 (validation escalates `segment_straightness`) | the same, but for 3.2e-5 and 5.6e-5: door escalates `path_fillet_joint_turn` |
+| 1e-6 | unchanged | unchanged |
 
-The refusal is right in kind: the stored chord turns definitely from
-the fillet, and the body extruded from it would build that corner sharp
-under a constructed tangency. What this row asks is unchanged and more
-pressing: the variant blames the scene's resolution, whose own field
-reads four to thirteen decades below ε.
+So this construction no longer reaches `FilletCarrierBelowSceneResolution`
+at any ε. What remains is an in-band band of turns where the run out's
+chord turns within `K·ε` of the fillet at its own length, refused as an
+escalation that names the stored-form read, and the pair escalations the
+door now hands on to validation
+(`an-adjacent-line-arc-pair-tangent-at-its-joint-escalates-its-carriers-clearance`).
+Grid A's recourse census (`common::past_the_corner`) counts the same
+in-band class: 4 entries at 1e-9 and 16 at 1e-6, the closer's junction
+included.
+
+The variant's resolution is now the joint read's own floor,
+`2⁻⁵²·scale·arm·(1/b_prev + 1/b_next)` with `b` a line's length or an
+arc's radius, and its text names that floor and its levers (nearer the
+origin, a radius no larger than the geometry's distance from it).
+`fillet_recourse_followability.rs` still reaches it with a radius far
+larger than the scene. What this row still asks is whether a refusal
+that names the stored form should ever name scene resolution when its
+`resolution` reads below ε.
