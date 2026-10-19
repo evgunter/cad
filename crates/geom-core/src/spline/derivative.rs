@@ -2004,14 +2004,16 @@ mod tests {
 
     /// A rational bicubic-by-quadratic cell block, its weights uneven,
     /// at the interval scalar.
-    fn rational_cell() -> (
-        Vec<[Interval; 3]>,
-        Vec<Interval>,
-        [Interval; 8],
-        [Interval; 6],
-        super::super::KnotVector,
-        super::super::KnotVector,
-    ) {
+    struct RationalCell {
+        a: Vec<[Interval; 3]>,
+        w: Vec<Interval>,
+        knots_u: [Interval; 8],
+        knots_v: [Interval; 6],
+        ku: super::super::KnotVector,
+        kv: super::super::KnotVector,
+    }
+
+    fn rational_cell() -> RationalCell {
         let (p, q) = (3, 2);
         let n = (p + 1) * (q + 1);
         let a = (0..n)
@@ -2027,14 +2029,14 @@ mod tests {
             .expect("a Bézier vector");
         let kv = super::super::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], q)
             .expect("a Bézier vector");
-        (
+        RationalCell {
             a,
             w,
-            [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0].map(Interval::from_f64),
-            [0.0, 0.0, 0.0, 1.0, 1.0, 1.0].map(Interval::from_f64),
+            knots_u: [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0].map(Interval::from_f64),
+            knots_v: [0.0, 0.0, 0.0, 1.0, 1.0, 1.0].map(Interval::from_f64),
             ku,
             kv,
-        )
+        }
     }
 
     /// **A cell halves each weight power once.** `S_u` and `S_v` share
@@ -2045,7 +2047,14 @@ mod tests {
     /// second order).
     #[test]
     fn a_cell_halves_each_weight_power_once() {
-        let (a, w, knots_u, knots_v, ku, kv) = rational_cell();
+        let RationalCell {
+            a,
+            w,
+            knots_u,
+            knots_v,
+            ku,
+            kv,
+        } = rational_cell();
         let axes = || {
             (
                 super::CellAxis::Span(ku.span(3).expect("the span"), &knots_u[..]),
@@ -2094,7 +2103,14 @@ mod tests {
     /// second partials' `W³` formed apart.
     #[test]
     fn a_shared_weight_halving_is_each_quotients_own_to_the_bit() {
-        let (a, w, knots_u, knots_v, ku, kv) = rational_cell();
+        let RationalCell {
+            a,
+            w,
+            knots_u,
+            knots_v,
+            ku,
+            kv,
+        } = rational_cell();
         let axes = || {
             (
                 super::CellAxis::Span(ku.span(3).expect("the span"), &knots_u[..]),
