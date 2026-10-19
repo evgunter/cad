@@ -253,8 +253,11 @@ fn a_rod_between_the_pads_refuses() {
 /// refuses**: a rod of radius 0.2 along `x` over `[-2, 2]` through a
 /// unit ball poled on `y`. The rod's rims lie 2 from the ball's centre
 /// and the ball's poles 1 from the rod's axis, so no vertex is inside
-/// and only the walls' crossing says they meet. Red where a cylinder
-/// face's least depth about a foreign centre is read off its boundary.
+/// and only the walls' crossing says they meet: the material test
+/// cannot see it, so the curved pair has to refuse. Red where the depth
+/// gap clears the rod's wall against the ball. (Reading the wall's
+/// least depth off its boundary alone does not: the seam chord passes
+/// 0.2 from the centre.)
 #[test]
 fn a_skewer_through_a_ball_with_every_vertex_outside_refuses() {
     let mut out = sweep::test_support::ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), tol());
@@ -369,4 +372,52 @@ fn a_rod_wider_than_an_elliptical_rim_refuses_on_the_plate() {
         _ => false,
     });
     assert!(top_on_rod, "the top face against the rod refuses: {errs:?}");
+}
+
+/// **A ball flush in a bore refuses; one clear of it passes.** A ball of
+/// radius 0.6 centred on the axis of the bore `r = 0.6` touches its wall
+/// along the equator, and its poles lie in the bore, outside the tube's
+/// material, so the material test cannot see the touch: only the curved
+/// pair can refuse it. A ball of radius 0.5 is clear by 0.1 and passes.
+/// Red where a sphere face's cover holds less than the ball.
+#[test]
+fn a_ball_flush_in_a_bore_refuses() {
+    let in_bore = |r: f64| {
+        let mut out = revolved(0.6, 1.0, 2.0);
+        let ball = sweep::test_support::ball_poled_y(r, Vec3::new(0.0, 1.0, 0.0), tol());
+        topo::graft_disjoint(&mut out, &ball).expect("grafts");
+        finished("the ball in the bore", out, tol())
+    };
+    let flush = in_bore(0.6);
+    let errs = census(&flush).expect_err("the flush ball touches the bore");
+    assert!(refuses_curved_within_reach(&flush, &errs), "{errs:?}");
+    assert_eq!(census(&in_bore(0.5)), Ok(()), "a ball 0.1 clear");
+}
+
+/// **A ring torus flush in a bore refuses; one clear of it passes.** A
+/// torus of radii 0.35 and 0.25 about the axis of the bore `r = 0.6`
+/// touches its wall along its outer equator; its profile's vertices sit
+/// at the top and bottom of the tube, off the wall and outside the
+/// tube's material, so only the curved pair can refuse it. Radii 0.3
+/// and 0.2 leave 0.1 and pass. Red where a torus face's cover holds less
+/// than the tube.
+#[test]
+fn a_torus_flush_in_a_bore_refuses() {
+    let in_bore = |major: f64, minor: f64| {
+        let mut out = revolved(0.6, 1.0, 2.0);
+        let torus = sweep::test_support::revolved_about_y(
+            vec![
+                (Point2::new(major, 1.0 - minor), 1.0),
+                (Point2::new(major, 1.0 + minor), 1.0),
+            ],
+            sweep::Revolution::Full,
+            tol(),
+        );
+        topo::graft_disjoint(&mut out, &torus).expect("grafts");
+        finished("the torus in the bore", out, tol())
+    };
+    let flush = in_bore(0.35, 0.25);
+    let errs = census(&flush).expect_err("the flush torus touches the bore");
+    assert!(refuses_curved_within_reach(&flush, &errs), "{errs:?}");
+    assert_eq!(census(&in_bore(0.3, 0.2)), Ok(()), "a torus 0.1 clear");
 }

@@ -3811,7 +3811,8 @@ pub(crate) mod tests {
     ///   against a CONTAINING box, so over-width would send a separated
     ///   pair to the material test instead of clearing it — a case the
     ///   planar-only corpus does not reach (the hull is the box) and a
-    ///   curved reach box hands to arm 1 first.
+    ///   curved reach box reaches once arm 1 has proved its face's
+    ///   pairs apart, where it costs probes, never a wrong clear.
     /// - `census/depth_gap.rs` — arm 1's depth-gap clear: one
     ///   [`face_box_rule`] read, which picks a face's cover and its
     ///   carrier's depth, and one [`edge_box_rule`] read per boundary

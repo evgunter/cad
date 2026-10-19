@@ -38,7 +38,8 @@ const REL: f64 = 1e-14;
 
 /// How far a sample's own rounding may carry it off its piece,
 /// relative to the draw's scale, in the `Interval` lane: the worst of
-/// four runs at effort 400 stood 1.1e-15 past.
+/// four runs at effort 400 (240 000 draws each) stood 1.1e-15 past, at
+/// seed `0x7925458d5bba5dab`; a run at effort 1 typically sees ~1e-17.
 const SAMPLE_REL: f64 = 5e-15;
 
 fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
