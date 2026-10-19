@@ -4982,141 +4982,93 @@ fn every_check_finding_renders_within_the_budget() {
     }
 }
 
-/// **The checks window's escalated evidence ends in the decision that
-/// escalated** (D4 ¶1 (i)). The shell-role sign passes on either
-/// definite sign and its margin is a thickness, so every band-decided
-/// arm ends in its lever plus the tolerance that decides it, valued at
-/// `|m|/K` where the verdict carries a margin and without a value where
-/// it does not (a zero, a straddle); an enclosure across zero is passed
-/// by no tolerance and names the lever alone. A source that is not that decision's
-/// ends in its own payload's recourse and no invented lever. No row the
-/// window writes itself advises lowering the tolerance.
+/// **The checks window's shell-role evidence ends in the reading that
+/// refused it** (D4 ¶1 (i)), on refusals real bodies make through the
+/// real doors.
+///
+/// A shell's role off its volume is the sign of the volume's enclosure
+/// alone (D10). At ε 1e-9 a brick less a needle `1 × 10.5ε × 10.5ε` holds
+/// the needle as a cavity no aimed ray reads; read through the structural
+/// door, which holds no interval lane, its volume lies within its sums'
+/// rounding, so its role is unresolved in that scalar: a capability limit
+/// of the measurement, with no tolerance offered and no defect claimed.
+/// Read through the certifying door, its enclosure decides it a void. A
+/// certified enclosure that holds zero is the kernel's or the file's, and
+/// the one real body that reaches it, a cube whose planes are NaN, is
+/// pinned at topo's own door (`pieces::tests::a_poisoned_role_beside_two_pieces_offers_no_tolerance`).
+/// No row the window writes itself advises lowering the tolerance.
 #[test]
 fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     use editor_core::{CheckEvidence, CheckFinding, CheckId};
-    use geom_core::{Band, Indeterminate, MarginDiag};
-    use topo::{ShellClassifyError as S, ShellKey};
-    const LEVER: &str = "Recourse: thicken or remove the degenerate geometry";
-    let shell = ShellKey::default();
-    // `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
-    let band = Band::new(1e-9, 1e-8).expect("a band");
-    let escalated = |margin| S::Escalated {
-        shell,
-        source: Indeterminate {
-            margin,
-            band,
-            predicate: Some("chk_shell_volume_sign"),
-            terminal_sliver: false,
-        },
-    };
-    let render = |source| {
+    use geom_core::Tol;
+    let tol = Tol::witness();
+    let render = |evidence| {
         CheckFinding {
             check: CheckId::Connectedness,
             subject: editor_core::FindingSubject::Output {
                 root: RecipeNodeId::new(0, tagged(4)),
                 output_ix: 0,
             },
-            evidence: CheckEvidence::Escalated { source },
+            evidence,
         }
         .to_string()
     };
-    let head =
-        "check connectedness: placement 000000000004 output 0: the component count is unknowable: ";
-    let sign = "the sign of a shell's volume is undecided: ";
-    let in_band =
-        |m: &str| format!("{head}{sign}margin {m} lies inside the ambiguity band (1e-9, 1e-8). ");
-    let pinned = [
-        (
-            "in band, outer side",
-            escalated(MarginDiag::value(5e-9)),
-            format!(
-                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 5e-10 m",
-                in_band("5e-9")
+    let head = "check connectedness: placement 000000000004 output 0: ";
+    if (tol.eps() - 1e-9).abs() < 1e-15 {
+        let at_rest = |b| topo::AtRestBody::validate(b, tol).expect("the brick is at rest");
+        let outer = at_rest(topo::test_support::brick::<f64>(
+            (-1.0, 2.0),
+            (-1.0, 2.0),
+            (-1.0, 2.0),
+            tol,
+        ));
+        let w = 10.5 * tol.eps();
+        let needle = at_rest(topo::test_support::brick::<f64>(
+            (0.0, 1.0),
+            (0.0, w),
+            (0.0, w),
+            tol,
+        ));
+        let cut = topo::subtract(&outer, &needle, tol).expect("the needle cavity builds");
+        let body: &topo::Body<f64> = &cut.body().expect("a body").body;
+        let source = topo::classify_shells_structural(body, tol)
+            .expect_err("the lane-free door reads no role for the needle cavity");
+        assert!(
+            matches!(
+                source,
+                topo::ShellClassifyError::SignUnresolved {
+                    limit: topo::SignLimit::Scalar,
+                    ..
+                }
             ),
-        ),
-        (
-            "in band, void side",
-            escalated(MarginDiag::value(-2e-9)),
-            format!(
-                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 2e-10 m",
-                in_band("-2e-9")
-            ),
-        ),
-        (
-            "in band, bracket across zero",
-            escalated(MarginDiag::enclosure(-2e-9, 3e-9)),
-            format!(
-                "{head}{sign}enclosure [-2e-9, 3e-9] cannot be classified against the ambiguity band (1e-9, 1e-8). {LEVER}"
-            ),
-        ),
-        (
-            "invalid margin",
-            escalated(MarginDiag::INVALID),
-            format!(
-                "{head}{sign}margin is invalid (NaN or a refused enclosure) against the ambiguity \
-                 band (1e-9, 1e-8). {LEVER}; an unreadable margin may indicate a kernel or file \
-                 defect worth reporting"
-            ),
-        ),
-        (
-            "zero",
-            S::ZeroVolume {
-                shell,
-                verdict: geom_brep::recourse::Classified {
-                    margin: MarginDiag::value(-5.0e-10),
-                    band,
-                },
-            },
-            format!(
-                "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
-                 this tolerance. {LEVER}, or, if this thickness is intended, tighten the \
-                 tolerance below 5e-11 m"
-            ),
-        ),
-        (
-            "zero, of no size",
-            S::ZeroVolume {
-                shell,
-                verdict: geom_brep::recourse::Classified {
-                    margin: MarginDiag::value(0.0),
-                    band,
-                },
-            },
-            format!(
-                "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
-                 this tolerance. {LEVER}"
-            ),
-        ),
-        (
-            "straddle",
-            S::Straddles { shell },
-            format!(
-                "{head}a shell's certified volume bracket straddles zero at this tolerance. \
-                 {LEVER}"
-            ),
-        ),
-    ];
-    for (name, source, want) in pinned {
-        let text = render(source.clone());
-        assert_eq!(text, want, "{name}");
-        // The finding ends in the shell-role decision's ending read at
-        // rest; the shell door's own Display reads it at a build.
-        let arm = source.arm().expect("the shell-role decision's refusal");
-        let ending = topo::props::SHELL_ROLE.recourse(arm, geom_brep::recourse::Reading::AtRest);
-        assert!(text.ends_with(&ending), "{name}: {text}");
-        let built = source.ending().expect("the shell-role decision's refusal");
-        let whole = source.to_string();
-        assert!(whole.ends_with(&format!(". {built}")), "{name}: {whole}");
-        assert_eq!(
-            test_utils::refusal::recourse_markers(&whole),
-            1,
-            "{name}: {whole}"
+            "{source:?}"
         );
+        let words = "the sign of a shell's volume cannot be read: this scalar carries no \
+                     interval to certify its sums, and the volume lies within their rounding";
+        let ending = geom_core::NOT_YET_ENDING;
+        assert_eq!(source.to_string(), format!("{words}. {ending}"));
+        let text = render(CheckEvidence::Unsupported {
+            source: source.clone(),
+        });
+        assert!(text.starts_with(head), "{text}");
+        assert!(text.ends_with(&format!("{words}. {ending}")), "{text}");
+        assert!(
+            !text.contains("tolerance") && !text.contains("defect"),
+            "{text}"
+        );
+        let roles: Vec<topo::ShellRole> = topo::classify_shells(body, tol)
+            .expect("the certifying door reads the cavity")
+            .iter()
+            .map(|c| c.role)
+            .collect();
+        assert_eq!(roles, [topo::ShellRole::Outer, topo::ShellRole::Void]);
     }
     // A band failure is the run's configuration, not the shell-role
     // decision: the finding forwards its payload and adds no lever.
     let error = payloads::band_error();
-    let unowned = render(S::Band { error });
+    let unowned = render(CheckEvidence::Escalated {
+        source: topo::ShellClassifyError::Band { error },
+    });
     assert!(unowned.ends_with(&error.to_string()), "{unowned}");
     assert!(!unowned.contains("thicken"), "{unowned}");
     for (name, finding) in &check_findings() {
@@ -5200,7 +5152,11 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             finding(
                 CheckId::Connectedness,
                 E::Escalated {
-                    source: ShellClassifyError::Straddles { shell },
+                    source: ShellClassifyError::Straddles {
+                        shell,
+                        low: MarginDiag::value(-1e-18),
+                        high: MarginDiag::value(1e-18),
+                    },
                 },
             ),
         ),
