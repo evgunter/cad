@@ -46,10 +46,10 @@ fn refused(result: Result<impl core::fmt::Debug, EulerOpError>, row: &str) -> Sp
     };
     let text = error.to_string();
     assert!(
-        text.ends_with(&format!("Recourse: {}", refused.decision.lever())),
+        text.ends_with(&format!("Recourse: {}", refused.decision().lever())),
         "{row}: {text}"
     );
-    refused.decision
+    refused.decision()
 }
 
 /// `Body::mev` from a lone vertex at `(1, 0)` with the caller's spec.
@@ -183,10 +183,7 @@ fn every_door_refuses_a_callers_interval_typed() {
         matches!(
             direct,
             CertifyError::StatedInterval {
-                refused: StatedSpan {
-                    decision: SpanDecision::Forward,
-                    ..
-                },
+                refused: StatedSpan::Forward(_),
             }
         ),
         "EdgeCurve::certify, coincident: {direct:?}"

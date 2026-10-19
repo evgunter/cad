@@ -2400,13 +2400,14 @@ enum Routing {
 impl PcurveCheck {
     fn routing(self) -> Routing {
         match self {
-            // The span decisions read on the image, each a stored
-            // contradiction, not a side no input reaches: its span, over a
-            // cache the kernel derives at the band the operation passes
-            // (as `CertCheck::ImageSpan` names it on the edge), and its
-            // winding on a spline image, which can sweep past a period no
-            // edge check counts (the projected lane's gate).
-            Self::ParamSpan => Routing::Sized(SpanDecision::Forward.on(StoredContradiction)),
+            // The image's span is the edge's image-span check.
+            Self::ParamSpan => match crate::CertCheck::ImageSpan.span() {
+                Some((decision, side)) => Routing::Sized(decision.on(side)),
+                None => unreachable!("ImageSpan is a span check"),
+            },
+            // The winding on a spline image, which can sweep past a period
+            // no edge check counts (the projected lane's gate): a stored
+            // contradiction, over a cache the kernel derives.
             Self::AzimuthPeriod | Self::TubePeriod => {
                 Routing::Sized(SpanDecision::Winding.on(StoredContradiction))
             }

@@ -9,6 +9,10 @@
 //! answer, so the absence is the scalar's, and the result type says so:
 //! [`ByPolicy::NoLane`] is not a [`CertifyError`], so a door cannot pass
 //! it on as a certification failure without naming it.
+//!
+//! It is also the home of the kernel's reading of a span refusal of
+//! data the body stores ([`kernels_own`]): there the input is the
+//! kernel's own, so the refusal is a kernel bug and panics.
 
 use geom::Surface;
 use geom_brep::{Certificate, CertifyError, EdgeCurve, EdgeCurveSpec};
@@ -95,26 +99,16 @@ pub(crate) fn recertify<T: AtRestPolicy>(
 }
 
 /// **A span refusal of an interval the body stores is a kernel bug**
-/// (`[failure]`): the one check every kernel re-mint or
-/// re-certification of stored data passes its refusal through — a
-/// rigid motion's, a graft's, a re-description in place's, a split
-/// child's, and a re-based run's. `geom_brep`'s doors report a span
-/// check's reading certainly on its refused side as their input's
-/// ([`CertifyError::StatedInterval`]); here the input is the kernel's
-/// own, so it panics, naming `site`. Every other refusal passes through.
+/// (`[failure]`): every kernel re-mint or re-certification of stored
+/// data passes its refusal through here, naming `site`.
+/// [`CertifyError::StatedInterval`] panics; every other refusal passes
+/// through.
 ///
-/// The invariant it guards: each such call reads at the run's one band
-/// ([`Band::linear`] of its one `Tol`), which the stored edge was minted
-/// at, its span decided forward and short of a full turn there. The
-/// interval's parameters travel bitwise, so the span's sign does. Its
-/// meter is the carrier's own rate: a conic's radius, which a rigid
-/// motion carries exactly, so a winding headroom reads as it was minted;
-/// or a spline's speed floor, which a rigid motion recomputes as another
-/// positive bound (its own gate, `SpanMeterCollapsed`, refuses first
-/// otherwise), so a forward span stays positive though its metered
-/// length may move. A split child's interval is one side of a parameter
-/// the split decided interior at this band and meter, so it reads
-/// forward, and short of its parent's turn.
+/// The invariant: each such call reads at the band the stored edge was
+/// minted at, where its span was decided forward and short of a full
+/// turn; its parameters travel bitwise and its carrier's rate stays a
+/// positive bound, so the span's sign does (a split child's interval is
+/// one side of a parameter the split decided interior at that band).
 pub(crate) fn kernels_own(error: CertifyError, site: &str) -> CertifyError {
     if let CertifyError::StatedInterval { refused } = error {
         unreachable!(

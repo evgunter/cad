@@ -489,16 +489,12 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::WindingExceeded,
         // A door's input interval, of no length and past a full turn.
         CertifyError::StatedInterval {
-            refused: geom_brep::StatedSpan {
-                decision: geom_brep::recourse::SpanDecision::Forward,
-                reading: geom_brep::SpanReading::Decided(Some(zero_verdict(0.0))),
-            },
+            refused: geom_brep::StatedSpan::Forward(geom_brep::ForwardReading::Decided(
+                zero_verdict(0.0),
+            )),
         },
         CertifyError::StatedInterval {
-            refused: geom_brep::StatedSpan {
-                decision: geom_brep::recourse::SpanDecision::Winding,
-                reading: geom_brep::SpanReading::Decided(None),
-            },
+            refused: geom_brep::StatedSpan::Winding(geom_brep::WindingReading::Exceeded),
         },
         CertifyError::ResidualExceeded {
             check: CertCheck::SurfaceResidual { surface: key },

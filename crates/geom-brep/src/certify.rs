@@ -911,20 +911,6 @@ impl CertifyError {
         })
     }
 
-    /// The band-decided verdict this refusal carries, where it carries
-    /// one.
-    fn verdict(&self) -> Option<Refused> {
-        match *self {
-            Self::NotTransverse { verdict, .. }
-            | Self::NotSecondOrderSeparated { verdict, .. }
-            | Self::TubeNotSeparated { verdict }
-            | Self::IntervalNotForward { verdict }
-            | Self::SpanMeterCollapsed { verdict }
-            | Self::ArmCollapsed { verdict, .. } => Some(verdict),
-            _ => None,
-        }
-    }
-
     /// The ending this refusal's decision gives it, read at `at`
     /// ([`recourse`] over [`CertifyError::decision`]), or `None` for a
     /// refusal that is no decision's refused arm. The exceptions have no
@@ -992,27 +978,32 @@ enum Ending {
 }
 
 /// **What a span check refused of a door's input**
-/// ([`CertifyError::StatedInterval`]): the decision, and the reading it
-/// refused on.
+/// ([`CertifyError::StatedInterval`]): the decision, each carrying the
+/// reading it refused on.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct StatedSpan {
-    /// The span decision that refused ([`CertCheck::ParamSpan`]'s
-    /// [`SpanDecision::Forward`], [`CertCheck::ParamWinding`]'s
-    /// [`SpanDecision::Winding`]).
-    pub decision: SpanDecision,
-    /// The reading it refused on.
-    pub reading: SpanReading,
+pub enum StatedSpan {
+    /// [`CertCheck::ParamSpan`]'s decision refused.
+    Forward(ForwardReading),
+    /// [`CertCheck::ParamWinding`]'s decision refused.
+    Winding(WindingReading),
 }
 
-/// The reading a span check refused a door's input on.
+/// The reading [`CertCheck::ParamSpan`] refused a door's input on.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum SpanReading {
-    /// Decided past the band: the check's verdict
-    /// ([`CertifyError::IntervalNotForward`]), or `None` where the check
-    /// keeps no number ([`CertifyError::WindingExceeded`]).
-    Decided(Option<Refused>),
-    /// In band wholly on the refused side, where the check escalated
-    /// ([`CertifyError::Escalated`]).
+pub enum ForwardReading {
+    /// Decided past the band ([`CertifyError::IntervalNotForward`]).
+    Decided(Refused),
+    /// In band wholly on the refused side ([`CertifyError::Escalated`]).
+    InBand(Indeterminate),
+}
+
+/// The reading [`CertCheck::ParamWinding`] refused a door's input on.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum WindingReading {
+    /// Decided past the band ([`CertifyError::WindingExceeded`]), which
+    /// keeps no number.
+    Exceeded,
+    /// In band wholly on the refused side ([`CertifyError::Escalated`]).
     InBand(Indeterminate),
 }
 
@@ -1021,20 +1012,30 @@ impl StatedSpan {
     /// its refused side is one no kernel construction produces and its
     /// reading is certainly on that side.
     fn of(error: &CertifyError) -> Option<Self> {
-        let (check, arm) = error.decision()?;
-        let (decision, RefusedSide::Unminted) = check.span()? else {
-            return None;
-        };
-        if !decision.on(RefusedSide::Unminted).certainly_refused(arm) {
-            return None;
-        }
-        let reading = match arm {
-            RefusedArm::Undecided(cause) => SpanReading::InBand(*cause),
-            RefusedArm::Zero(_) | RefusedArm::SignCertain(_) | RefusedArm::Straddle => {
-                SpanReading::Decided(error.verdict())
+        let refused = match *error {
+            CertifyError::IntervalNotForward { verdict } => {
+                Self::Forward(ForwardReading::Decided(verdict))
             }
+            CertifyError::WindingExceeded => Self::Winding(WindingReading::Exceeded),
+            CertifyError::Escalated {
+                check: CertCheck::ParamSpan,
+                cause,
+                ..
+            } => Self::Forward(ForwardReading::InBand(cause)),
+            CertifyError::Escalated {
+                check: CertCheck::ParamWinding,
+                cause,
+                ..
+            } => Self::Winding(WindingReading::InBand(cause)),
+            _ => return None,
         };
-        Some(Self { decision, reading })
+        let (decision, RefusedSide::Unminted) = refused.check().span()? else {
+            return None;
+        };
+        decision
+            .on(RefusedSide::Unminted)
+            .certainly_refused(refused.arm())
+            .then_some(refused)
     }
 
     /// **A public door's reading of a refusal**: a span check's refusal
@@ -1044,28 +1045,40 @@ impl StatedSpan {
         Self::of(&error).map_or(error, |refused| CertifyError::StatedInterval { refused })
     }
 
+    /// The check that refused.
+    #[must_use]
+    pub const fn check(self) -> CertCheck {
+        match self {
+            Self::Forward(_) => CertCheck::ParamSpan,
+            Self::Winding(_) => CertCheck::ParamWinding,
+        }
+    }
+
+    /// The span decision that refused ([`CertCheck::span`] of
+    /// [`StatedSpan::check`]).
+    #[must_use]
+    pub fn decision(self) -> SpanDecision {
+        let Some((decision, _)) = self.check().span() else {
+            unreachable!("{:?} is a span check", self.check())
+        };
+        decision
+    }
+
     /// The decision this refusal ends by. The interval is the door's
     /// input, so at a build it ends in the check's lever, and at the
     /// import door it is the file's as every reading of the check's
     /// refused side is there: a stored contradiction's ending.
     fn ends_by(self) -> SizedDecision {
-        self.decision.on(RefusedSide::StoredContradiction)
+        self.decision().on(RefusedSide::StoredContradiction)
     }
 
     /// The refused arm its reading is.
     fn arm(&self) -> RefusedArm<'_> {
-        match &self.reading {
-            SpanReading::Decided(Some(verdict)) => verdict.arm(),
-            SpanReading::Decided(None) => RefusedArm::SignCertain(None),
-            SpanReading::InBand(cause) => RefusedArm::Undecided(cause),
-        }
-    }
-
-    /// The reading's margin, where it keeps one.
-    fn margin(&self) -> Option<MarginDiag> {
-        match self.reading {
-            SpanReading::Decided(verdict) => verdict.map(|v| v.margin()),
-            SpanReading::InBand(cause) => Some(cause.margin),
+        match self {
+            Self::Forward(ForwardReading::Decided(verdict)) => verdict.arm(),
+            Self::Winding(WindingReading::Exceeded) => RefusedArm::SignCertain(None),
+            Self::Forward(ForwardReading::InBand(cause))
+            | Self::Winding(WindingReading::InBand(cause)) => RefusedArm::Undecided(cause),
         }
     }
 
@@ -1079,32 +1092,37 @@ impl StatedSpan {
     }
 }
 
+/// The reading's words come from its verdict, never its number: only a
+/// decided negative runs backwards by an amount.
 impl core::fmt::Display for StatedSpan {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let given = "this edge's parameter interval";
-        let margin = self.margin();
-        let below = margin.filter(|m| m.wholly_below_zero());
-        match (self.decision, below) {
-            (SpanDecision::Forward, Some(by)) => write!(
+        match self {
+            Self::Forward(ForwardReading::Decided(Refused::Negative { margin })) => write!(
                 f,
                 "{given} runs backwards by {} m",
-                by.readable_below_zero()
+                margin.readable_below_zero()
             ),
-            (SpanDecision::Forward, None) => {
-                write!(f, "{given} does not run forward over any length")?;
-                match margin {
-                    Some(m) => write!(f, " (length {} m)", m.readable()),
-                    None => Ok(()),
-                }
+            Self::Forward(reading) => {
+                let length = match reading {
+                    ForwardReading::Decided(verdict) => verdict.margin(),
+                    ForwardReading::InBand(cause) => cause.margin,
+                };
+                write!(
+                    f,
+                    "{given} is not shown to run forward (length {} m)",
+                    length.readable()
+                )
             }
-            (SpanDecision::Winding, Some(by)) => write!(
-                f,
-                "{given} spans more than one full turn of its carrier, by {} m",
-                by.readable_below_zero()
-            ),
-            (SpanDecision::Winding, None) => {
+            Self::Winding(WindingReading::Exceeded) => {
                 write!(f, "{given} spans more than one full turn of its carrier")
             }
+            Self::Winding(WindingReading::InBand(cause)) => write!(
+                f,
+                "{given} is not shown to stay within one full turn of its carrier (headroom {} \
+                 m)",
+                cause.margin.readable()
+            ),
         }
     }
 }
@@ -1136,7 +1154,7 @@ impl CertCheck {
     ///   derives the image at the band the operation passes, where a
     ///   span its edge's mint decided forward can read in band at a
     ///   looser one.
-    const fn span(self) -> Option<(SpanDecision, RefusedSide)> {
+    pub(crate) const fn span(self) -> Option<(SpanDecision, RefusedSide)> {
         match self {
             Self::ParamSpan => Some((SpanDecision::Forward, RefusedSide::Unminted)),
             Self::ParamWinding => Some((SpanDecision::Winding, RefusedSide::Unminted)),
@@ -6152,17 +6170,13 @@ mod tests {
                 .recertify(start, end, |_| None, 1.0, finer)
                 .unwrap_err();
             let CertifyError::StatedInterval {
-                refused:
-                    StatedSpan {
-                        decision: SpanDecision::Winding,
-                        reading,
-                    },
+                refused: StatedSpan::Winding(reading),
             } = error
             else {
                 panic!("{finer:?}: {error:?}");
             };
             assert_eq!(
-                matches!(reading, SpanReading::InBand(_)),
+                matches!(reading, WindingReading::InBand(_)),
                 in_band,
                 "{finer:?}: {error:?}"
             );
@@ -6262,12 +6276,12 @@ mod tests {
                     panic!("{door}, {row}: {error:?}");
                 };
                 assert_eq!(
-                    refused.decision == SpanDecision::Forward,
+                    refused.decision() == SpanDecision::Forward,
                     forward,
                     "{door}, {row}: {refused:?}"
                 );
                 assert_eq!(
-                    refused.decision.lever(),
+                    refused.decision().lever(),
                     lever.trim_start_matches("Recourse: ")
                 );
                 for (at, want) in [
@@ -6304,10 +6318,7 @@ mod tests {
             matches!(
                 reversed,
                 CertifyError::StatedInterval {
-                    refused: StatedSpan {
-                        decision: SpanDecision::Forward,
-                        reading: SpanReading::Decided(Some(Refused::Negative { .. })),
-                    },
+                    refused: StatedSpan::Forward(ForwardReading::Decided(Refused::Negative { .. })),
                 }
             ),
             "{reversed:?}"
@@ -6319,9 +6330,10 @@ mod tests {
     }
 
     /// **No public door panics on a span it refuses**: each minting door
-    /// handed a reversed line, a chord between coincident points, an arc
-    /// past a full turn, or one past a turn by less than a coarse band
-    /// but more than its own finer one, and each re-certification door
+    /// handed a reversed line, one reversed by less than the band, a chord
+    /// between coincident points, an arc past a full turn, or one past a
+    /// turn by less than a coarse band but more than its own finer one,
+    /// and each re-certification door
     /// handed that last arc minted at the coarse band and read at a finer
     /// band (past it, or in band), refuses it as its input
     /// ([`CertifyError::StatedInterval`]), and the refusal renders at a
@@ -6345,6 +6357,14 @@ mod tests {
                 EdgeCurveSpec {
                     param_start: 1.0,
                     param_end: 0.0,
+                    ..EdgeCurveSpec::line_between(Point3::origin(), Point3::new(1.0, 0.0, 0.0))
+                },
+            ),
+            (
+                "reversed within the band",
+                EdgeCurveSpec {
+                    param_start: 0.5,
+                    param_end: 0.5 - 5e-9,
                     ..EdgeCurveSpec::line_between(Point3::origin(), Point3::new(1.0, 0.0, 0.0))
                 },
             ),
@@ -6416,12 +6436,19 @@ mod tests {
                 ));
             }
         }
-        assert_eq!(refusals.len(), 18, "every door and row");
+        assert_eq!(refusals.len(), 21, "every door and row");
+        let mut forward_in_band = 0;
         for (row, refusal) in refusals {
             let error = match refusal {
                 Err(error @ CertifyError::StatedInterval { .. }) => error,
                 other => panic!("{row}: {other:?}"),
             };
+            if let CertifyError::StatedInterval {
+                refused: StatedSpan::Forward(ForwardReading::InBand(_)),
+            } = error
+            {
+                forward_in_band += 1;
+            }
             for at in [
                 ReadAt::Run(Reading::Build),
                 ReadAt::Run(Reading::AtRest),
@@ -6436,6 +6463,10 @@ mod tests {
                 );
             }
         }
+        assert_eq!(
+            forward_in_band, 3,
+            "each minting door refuses the reversed line within the band in band"
+        );
     }
 
     /// **A coincident-points edge and a sibling whose length the run's
@@ -6486,16 +6517,10 @@ mod tests {
             }),
         };
         let stated = |verdict| CertifyError::StatedInterval {
-            refused: StatedSpan {
-                decision: SpanDecision::Forward,
-                reading: SpanReading::Decided(Some(verdict)),
-            },
+            refused: StatedSpan::Forward(ForwardReading::Decided(verdict)),
         };
         let past = |reading| CertifyError::StatedInterval {
-            refused: StatedSpan {
-                decision: SpanDecision::Winding,
-                reading,
-            },
+            refused: StatedSpan::Winding(reading),
         };
         let rows = [
             (
@@ -6504,8 +6529,8 @@ mod tests {
                     band,
                 })),
                 Reading::Build,
-                "this edge's parameter interval does not run forward over any length (length 0 m). \
-                 Recourse: move the geometry so this edge runs forward over a clear length",
+                "this edge's parameter interval is not shown to run forward (length 0 m). Recourse: \
+                 move the geometry so this edge runs forward over a clear length",
             ),
             (
                 in_band(0.0),
@@ -6529,37 +6554,34 @@ mod tests {
             ),
             (
                 CertifyError::StatedInterval {
-                    refused: StatedSpan {
-                        decision: SpanDecision::Forward,
-                        reading: SpanReading::InBand(Indeterminate {
-                            margin: MarginDiag::value(-5e-10),
-                            band,
-                            predicate: Some("interval_span_forward"),
-                            terminal_sliver: false,
-                        }),
-                    },
+                    refused: StatedSpan::Forward(ForwardReading::InBand(Indeterminate {
+                        margin: MarginDiag::value(-5e-10),
+                        band,
+                        predicate: Some("interval_span_forward"),
+                        terminal_sliver: false,
+                    })),
                 },
                 Reading::Build,
-                "this edge's parameter interval runs backwards by 5e-10 m. Recourse: move the \
-                 geometry so this edge runs forward over a clear length",
+                "this edge's parameter interval is not shown to run forward (length -5e-10 m). \
+                 Recourse: move the geometry so this edge runs forward over a clear length",
             ),
             (
-                past(SpanReading::Decided(None)),
+                past(WindingReading::Exceeded),
                 Reading::Build,
                 "this edge's parameter interval spans more than one full turn of its carrier. \
                  Recourse: move the geometry so this arc stays clearly short of a full turn",
             ),
             (
-                past(SpanReading::InBand(Indeterminate {
+                past(WindingReading::InBand(Indeterminate {
                     margin: MarginDiag::value(-5e-9),
                     band,
                     predicate: Some("interval_span_winding"),
                     terminal_sliver: false,
                 })),
                 Reading::Build,
-                "this edge's parameter interval spans more than one full turn of its carrier, by \
-                 5e-9 m. Recourse: move the geometry so this arc stays clearly short of a full \
-                 turn",
+                "this edge's parameter interval is not shown to stay within one full turn of its \
+                 carrier (headroom -5e-9 m). Recourse: move the geometry so this arc stays clearly \
+                 short of a full turn",
             ),
         ];
         let wrong: Vec<String> = rows

@@ -18,7 +18,10 @@ races two concurrent rows (one restores while the other is still inside
 `catch_unwind`, so its message reaches the default hook), and a hook
 that does not chain to the previous one swallows every other thread's
 panic during the window. Each site below takes the hook, sets its own,
-and restores it around one capture, with that flaw:
+and restores it around one capture. The first two serialize on
+`surgery::tests::PANIC_HOOK`, so they do not race each other, and
+`PanicCapture` chains to the previous hook, so it swallows nothing;
+the race and the swallowing hold in full at the other seven:
 
 - `topo::surgery`'s `caught` (`crates/topo/src/surgery.rs:577`), a copy
   of `caught` whose own doc names `review_d18::PanicCapture` as its twin;
@@ -31,6 +34,20 @@ and restores it around one capture, with that flaw:
 - `scanner_fires_on_planted_violations` (`crates/mesh/tests/profile_overrides.rs:140`);
 - `the_halfcap_eps7_witness_is_band_shaped` (`crates/step-import/tests/poleguard.rs:231`);
 - `d2_no_input_reaches_a_panic` (`crates/sweep/tests/review_d2_adv_probes.rs:444`).
+
+**A hazard inside one binary.** topo's lib test binary holds
+`test_utils::panic_capture::caught` (the tier-3 row,
+`crates/topo/src/tier3_tests.rs:1429`) beside `surgery::caught` and
+`PanicCapture`, and `PANIC_HOOK` does not serialize the first. Under
+in-process `cargo test` threads, a tier-3 panic raised inside a
+concurrent `surgery::caught` window reaches `surgery`'s hook, which
+does not chain, and the tier-3 row reads an empty message. Worse, if
+`caught`'s `INSTALL.call_once` first runs inside either window, it
+wraps that window's hook, and the window's restore puts back the hook
+from before it: the one-time install is gone for the rest of the
+process, and every later `caught` in the binary reads its panic
+through the default hook. CI runs nextest, one process per test, so it
+stays green; a local `cargo test -p topo --lib` can flake.
 
 The sites that only silence the hook (`set_hook(Box::new(|_| {}))`)
 want `caught` and its `None`/`Some`; the two capturing ones want it

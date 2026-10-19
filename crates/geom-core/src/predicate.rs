@@ -1983,18 +1983,6 @@ impl MarginDiag {
         fmt::from_fn(move |f| self.render(f, |x, f| readable_number(*x, f)))
     }
 
-    /// Whether the reading lies wholly below zero: a negative value, or an
-    /// enclosure whose upper bound is negative. A zero of either sign, and
-    /// a poisoned margin, do not.
-    #[must_use]
-    pub fn wholly_below_zero(self) -> bool {
-        match self.0 {
-            Reading::Value(m, ..) => m < 0.0,
-            Reading::Enclosure { hi, .. } => hi < 0.0,
-            Reading::Invalid => false,
-        }
-    }
-
     /// [`Self::readable`] of how far the reading lies below zero, for a
     /// payload that states a decided negative as a positive amount: `-m`,
     /// or `[-hi, -lo]` for an enclosure.
