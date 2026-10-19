@@ -139,11 +139,11 @@ fn chan<T: Decide + Bounds + CertifiedEnclosure>(
 /// ([`planar_face_about`]).
 ///
 /// A quadrature face (`quadrature` is its lane's flux and area
-/// enclosures, about the world origin) arrives here only where its lane
-/// refused to measure it about `centre` (`rederive` asks
-/// [`cut_face_rounds`] first): the flux less `centre · A⃗`, with `A⃗` the
+/// enclosures and the point `from` they are about, the walk's reference)
+/// arrives here only where the walk is carried to the world origin
+/// (`rederive`'s docs): the flux less `(centre − from) · A⃗`, with `A⃗` the
 /// face's vector area from its own loops — the same value, at the width
-/// the quadrature returned it with.
+/// the quadrature returned it with plus `A⃗`'s times the lever.
 ///
 /// The second half says whether the face was RECENTRED, its width the
 /// body's own: `false` for such a quadrature face, and for a closed-form face
@@ -155,7 +155,7 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
     sense: bool,
     band: Band,
     centre: Point3<Interval>,
-    quadrature: Option<(Interval, Interval)>,
+    quadrature: Option<((Interval, Interval), Point3<Interval>)>,
 ) -> Result<(FaceContribution<Interval>, bool), PropsError> {
     let loops: Vec<Vec<LoopEdge<Interval>>> = loops
         .iter()
@@ -174,18 +174,20 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
                 .collect()
         })
         .collect();
-    let about_centre = |flux: Interval, area| -> Result<_, PropsError> {
+    // A flux about `from` carried to `centre`: less `(centre − from)·A⃗`,
+    // which keeps the width of `A⃗` times that lever.
+    let about_centre = |flux: Interval, area, from: Point3<Interval>| -> Result<_, PropsError> {
         let va = loops_vector_area(&loops)?;
         Ok((
             FaceContribution {
-                flux: flux - (centre - Point3::origin()).dot(va),
+                flux: flux - (centre - from).dot(va),
                 area,
             },
             false,
         ))
     };
-    if let Some((flux, area)) = quadrature {
-        return about_centre(flux, area);
+    if let Some(((flux, area), from)) = quadrature {
+        return about_centre(flux, area, from);
     }
     let surface = surface.map_scalar(Interval::from_certified);
     if let Surface::Plane { normal, .. } = surface {
@@ -212,16 +214,17 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
         )),
         None => {
             let about_origin = super::closed_form_of(&surface, &loops, sense, band)?;
-            about_centre(about_origin.flux, about_origin.area)
+            about_centre(about_origin.flux, about_origin.area, Point3::origin())
         }
     }
 }
 
 /// A face's vector area `A⃗ = ∫ n dA`, from its loops, each summed about
 /// a point of its own (a closed loop's does not depend on it). A
-/// spiric-bounded face has no closed form here and refuses, which sends
-/// [`super::rederive`] about the world origin (its docs): the face's
-/// tight read is its own lane's, about the centre.
+/// spiric-bounded face has no closed form here and refuses, so a walk
+/// [`super::rederive`] carries to the world origin (its docs) refuses at
+/// that face: its enclosure is about the walk's reference and cannot be
+/// moved.
 fn loops_vector_area(
     loops: &[Vec<LoopEdge<Interval>>],
 ) -> Result<geom_core::Vec3<Interval>, PropsError> {
@@ -238,11 +241,11 @@ fn loops_vector_area(
 /// `surface` carried by `−by`: every point-valued datum moved, every
 /// direction and length kept. `None` for a kind with no analytic datum
 /// to move (a spline or fitted surface).
-fn translated_surface(
-    surface: &Surface<Interval>,
-    by: Point3<Interval>,
-) -> Option<Surface<Interval>> {
-    let shift = |p: Point3<Interval>| Point3::origin() + (p - by);
+pub(super) fn translated_surface<T: geom_core::Real>(
+    surface: &Surface<T>,
+    by: Point3<T>,
+) -> Option<Surface<T>> {
+    let shift = |p: Point3<T>| Point3::origin() + (p - by);
     Some(match surface.clone() {
         Surface::Plane {
             origin,
@@ -306,8 +309,11 @@ fn translated_surface(
 /// `curve` carried by `−by`: the analytic kinds' centre or origin moved,
 /// a spline's control net moved point for point (its net is stored
 /// Euclidean, so a translation is the curve's image).
-fn translated_curve(curve: &Curve3<Interval>, by: Point3<Interval>) -> Option<Curve3<Interval>> {
-    let shift = |p: Point3<Interval>| Point3::origin() + (p - by);
+pub(super) fn translated_curve<T: geom_core::Real>(
+    curve: &Curve3<T>,
+    by: Point3<T>,
+) -> Option<Curve3<T>> {
+    let shift = |p: Point3<T>| Point3::origin() + (p - by);
     Some(match curve.clone() {
         Curve3::Line { origin, dir } => Curve3::Line {
             origin: shift(origin),
@@ -1821,8 +1827,9 @@ mod tests {
         fn runs(body: &Body<f64>, band: Band, tol: Tol) -> Vec<FaceRun<f64>> {
             let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
             let hook = reporting_hook(Some(QuadLane::<f64>::certified()));
+            let about = crate::props::walk_reference(body, faces.iter().copied()).unwrap();
             decide_faces_serially(&faces, |&f| {
-                face_flux(body, f, band, &hook, tol, RoundWindow::SCHEDULE)
+                face_flux(body, f, band, &hook, tol, RoundWindow::SCHEDULE, about)
             })
             .unwrap()
         }

@@ -396,13 +396,22 @@ fn reporting_hook<T: Decide>(
     Band,
     Tol,
     RoundWindow,
+    Point3<T>,
 ) -> Result<Option<RoundOutcome>, PropsError>
 + Sync {
     let rounds = round_hook(quad);
-    move |body, surface, loops, band, tol, _window| {
-        rounds(body, surface, loops, band, tol, RoundWindow::SCHEDULE)?
-            .map(|outcome| outcome.into_target().map(RoundOutcome::Converged))
-            .transpose()
+    move |body, surface, loops, band, tol, _window, about| {
+        rounds(
+            body,
+            surface,
+            loops,
+            band,
+            tol,
+            RoundWindow::SCHEDULE,
+            about,
+        )?
+        .map(|outcome| outcome.into_target().map(RoundOutcome::Converged))
+        .transpose()
     }
 }
 
@@ -427,12 +436,18 @@ fn round_hook<T: Decide>(
     Band,
     Tol,
     RoundWindow,
+    Point3<T>,
 ) -> Result<Option<RoundOutcome>, PropsError>
 + Sync
 + Copy {
-    move |body, surface, loops, band, tol, window| match quad {
+    move |body, surface, loops, band, tol, window, about: Point3<T>| match quad {
         Some(lane) => {
-            (lane.cut_face_rounds)(body, surface, loops, band, tol, window, None).map(Some)
+            let about = Point3::new(
+                (lane.lift)(about.x),
+                (lane.lift)(about.y),
+                (lane.lift)(about.z),
+            );
+            (lane.cut_face_rounds)(body, surface, loops, band, tol, window, Some(about)).map(Some)
         }
         None => Ok(None),
     }
@@ -525,11 +540,12 @@ pub(crate) fn sign_walk<'b, T: Decide, V>(
     last_word: impl Fn(Option<MassPropsError>) -> V,
 ) -> Result<(V, SignCertificate<'b, T>), MassPropsError> {
     let hook = round_hook(quad);
+    let about = walk_reference(body, faces.iter().copied())?;
     // Round 0 over every face, then the rounds after it over the faces
     // still open — both idiom 1 into slots in the caller's order, both
     // composed sequentially in it ([`mass_properties_impl`]'s note).
     let mut runs = decide_faces(faces, |&face_key| {
-        face_flux(body, face_key, band, &hook, tol, RoundWindow::at(0))
+        face_flux(body, face_key, band, &hook, tol, RoundWindow::at(0), about)
     })?;
     let mut round = 0usize;
     loop {
@@ -581,7 +597,15 @@ pub(crate) fn sign_walk<'b, T: Decide, V>(
             .map(|(slot, run)| (slot, run.face))
             .collect();
         let decided = decide_faces(&open, |&(_, face_key)| {
-            face_flux(body, face_key, band, &hook, tol, RoundWindow::at(round))
+            face_flux(
+                body,
+                face_key,
+                band,
+                &hook,
+                tol,
+                RoundWindow::at(round),
+                about,
+            )
         })?;
         for ((slot, _), run) in open.iter().zip(decided) {
             runs[*slot] = run;
@@ -705,8 +729,11 @@ impl<T: Decide> PastTarget<'_, T> {
         }
         let hook = round_hook(walk.quad);
         let (body, band, tol) = (walk.body, walk.band, walk.tol);
+        let Ok(about) = walk_reference(body, walk.runs.iter().map(|r| r.face)) else {
+            return false;
+        };
         match decide_faces(&next, |&(_, face, round)| {
-            face_flux(body, face, band, &hook, tol, RoundWindow::at(round))
+            face_flux(body, face, band, &hook, tol, RoundWindow::at(round), about)
         }) {
             Ok(runs) => {
                 for ((slot, _, _), run) in next.iter().zip(runs) {
@@ -1251,11 +1278,11 @@ fn rederived<T: Decide>(
 ///
 /// Taken about a point of the body, no face's width is scaled by the
 /// body's distance from the world origin. A quadrature face whose lane
-/// refuses about `c` keeps the enclosure it was measured with less
-/// `c · A⃗`, at the world-origin width, and says so; a walk with no
-/// faces, such a face whose vector area has no closed form, or a
-/// closed-form face that refuses about `c` (its inventory read again
-/// there in band), is taken about the world origin, unrecentred.
+/// refuses about `c` keeps the enclosure the walk measured, which is
+/// about `c` already; a walk with no faces, or with a closed-form face
+/// that refuses about `c` (its inventory read again there in band), is
+/// taken about the world origin, unrecentred, each quadrature face's
+/// enclosure carried there by its vector area.
 ///
 /// # Errors
 ///
@@ -1271,20 +1298,22 @@ fn rederive<T: Decide>(
     runs: &[FaceRun<T>],
     tight: bool,
 ) -> Result<Rederived, MassPropsError> {
+    // Every run's enclosure is about the walk's reference, which is
+    // `corner` lifted: the world origin for a walk with no loop point.
+    let corner = corner_of(body, lane, runs)?;
     if runs.is_empty() {
-        return rederive_about(body, band, tol, lane, runs, None, tight)?.ok_or(
+        return rederive_about(body, band, tol, lane, runs, corner, false, tight)?.ok_or(
             MassPropsError::Corrupt {
                 what: "a walk about the world origin asked for a recentring",
             },
         );
     }
-    let centre = corner_of(body, lane, runs)?;
     if let Some(polygons) = shell_polygons(body, lane, runs)? {
-        return rederive_polygons(&polygons, centre, runs);
+        return rederive_polygons(&polygons, corner, runs);
     }
-    match rederive_about(body, band, tol, lane, runs, Some(centre), tight)? {
+    match rederive_about(body, band, tol, lane, runs, corner, true, tight)? {
         Some(rederived) => Ok(rederived),
-        None => rederive_about(body, band, tol, lane, runs, None, tight)?.ok_or(
+        None => rederive_about(body, band, tol, lane, runs, corner, false, tight)?.ok_or(
             MassPropsError::Corrupt {
                 what: "a walk about the world origin asked for a recentring",
             },
@@ -1292,21 +1321,23 @@ fn rederive<T: Decide>(
     }
 }
 
-/// [`rederive`] about `centre` (`None`: the world origin). `Ok(None)`
-/// when a quadrature face's vector area has no closed form, so its flux
-/// cannot be carried to `centre`, or a closed-form face refuses about
-/// `centre`, and the walk is taken about the world origin instead.
+/// [`rederive`] about `from`, the walk's reference and every run's
+/// enclosure's (`recentre`), or about the world origin. `Ok(None)` when
+/// a closed-form face refuses about `from`, and the walk is taken about
+/// the world origin instead.
+#[allow(clippy::too_many_arguments)]
 fn rederive_about<T: Decide>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
     lane: QuadLane<T>,
     runs: &[FaceRun<T>],
-    centre: Option<Point3<Interval>>,
+    from: Point3<Interval>,
+    recentre: bool,
     tight: bool,
 ) -> Result<Option<Rederived>, MassPropsError> {
     let (mut flux, mut area) = (Interval::zero(), Interval::zero());
-    let mut recentred = centre.is_some();
+    let mut recentred = recentre;
     let mut quadrature = false;
     for run in runs {
         let (face, surface) = resolve_face(body, run.face);
@@ -1316,60 +1347,58 @@ fn rederive_about<T: Decide>(
             face: run.face,
             source,
         };
-        let (f, a) = match (run.contribution.enclosure, centre) {
-            (Some(enclosure), None) => {
+        let (f, a) = match (run.contribution.enclosure, recentre) {
+            // The walk's enclosure, carried from `from` to the world
+            // origin by the face's vector area.
+            (Some(enclosure), false) => {
                 quadrature = true;
-                enclosure
+                let (c, _) = (lane.closed_form)(
+                    surface,
+                    &loops,
+                    face.sense,
+                    band,
+                    Point3::origin(),
+                    Some((enclosure, from)),
+                )
+                .map_err(refused)?;
+                (c.flux, c.area)
             }
-            (Some(enclosure), Some(centre)) => {
-                // The quadrature again, about `centre`, at the round the
-                // walk reached; failing that, the walk's enclosure less
-                // `centre · A⃗`, which keeps the world-origin width.
+            (Some(enclosure), true) => {
+                // The quadrature again, about `from`, at the round the
+                // walk reached; failing that, the walk's own enclosure,
+                // which is about `from` already.
                 let window = run
                     .open_at
                     .or(run.converged_at)
                     .map_or(RoundWindow::SCHEDULE, RoundWindow::at);
                 let rerun = if tight {
-                    (lane.cut_face_rounds)(body, surface, &flat, band, tol, window, Some(centre))
+                    (lane.cut_face_rounds)(body, surface, &flat, band, tol, window, Some(from))
                 } else {
                     Err(PropsError::QuadratureUnsupported {
                         what: "the untight read keeps the walk's enclosure",
                     })
                 };
+                quadrature = true;
                 match rerun {
                     Ok(RoundOutcome::Converged(b) | RoundOutcome::Open { bounds: b, .. }) => {
-                        quadrature = true;
                         (b.flux, b.area)
                     }
-                    Err(_) => match (lane.closed_form)(
-                        surface,
-                        &loops,
-                        face.sense,
-                        band,
-                        centre,
-                        Some(enclosure),
-                    ) {
-                        Ok((c, _)) => {
-                            recentred = false;
-                            (c.flux, c.area)
-                        }
-                        Err(_) => return Ok(None),
-                    },
+                    Err(_) => enclosure,
                 }
             }
-            (None, None) => {
+            (None, false) => {
                 let (c, _) =
                     (lane.closed_form)(surface, &loops, face.sense, band, Point3::origin(), None)
                         .map_err(refused)?;
                 (c.flux, c.area)
             }
-            // A closed form read again about `centre` decides its
+            // A closed form read again about `from` decides its
             // inventory again there, at the interval's rounding about
             // that point, and may read it in band where the walk decided
             // it: the walk is then taken about the world origin, where a
             // refusal the face itself earns refuses.
-            (None, Some(centre)) => {
-                match (lane.closed_form)(surface, &loops, face.sense, band, centre, None) {
+            (None, true) => {
+                match (lane.closed_form)(surface, &loops, face.sense, band, from, None) {
                     Ok((c, moved)) => {
                         recentred &= moved;
                         (c.flux, c.area)
@@ -1534,7 +1563,7 @@ impl Rederived {
 }
 
 /// **The reference point the re-derivation takes the flux about**: the
-/// first loop point of the first run, a vertex of the body, lifted
+/// walk's own ([`walk_reference`]), a vertex of the body, lifted
 /// through `lane` (a point interval at `f64`). A point of the body lies
 /// within the body's extent along each face's normal of that face's
 /// plane: a needle's or a slab's thickness for its long faces. A plane's
@@ -1569,17 +1598,7 @@ fn corner_of<T: Decide>(
     lane: QuadLane<T>,
     runs: &[FaceRun<T>],
 ) -> Result<Point3<Interval>, MassPropsError> {
-    let mut first = None;
-    for run in runs {
-        let (face, _) = resolve_face(body, run.face);
-        if let Some(e) = face_loops(body, face)?.iter().flatten().next() {
-            first = Some(e.carrier.eval(e.t0));
-            break;
-        }
-    }
-    let c = first.ok_or(MassPropsError::Corrupt {
-        what: "a walk with faces has no loop point",
-    })?;
+    let c = walk_reference(body, runs.iter().map(|r| r.face))?;
     Ok(Point3::new(
         (lane.lift)(c.x),
         (lane.lift)(c.y),
@@ -1835,6 +1854,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
             refused,
         } = self;
         let hook = round_hook(quad);
+        let about = walk_reference(body, runs.iter().map(|r| r.face)).map_err(hard)?;
         let resume = |face, round: usize| {
             face_flux(
                 body,
@@ -1846,6 +1866,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
                     first: round + 1,
                     last: usize::MAX,
                 },
+                about,
             )
         };
         // **How far the walk below can get**: it returns at the first
@@ -2114,7 +2135,7 @@ pub(crate) fn mass_properties_closed_form_of<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, faces, band, &|_, _, _, _, _, _| Ok(None), tol)
+    mass_properties_impl(body, faces, band, &|_, _, _, _, _, _, _| Ok(None), tol)
 }
 
 /// The per-face certified-quadrature hook: `Ok(None)` = no lane / not
@@ -2128,6 +2149,7 @@ type QuadHook<'h, T> = dyn Fn(
         Band,
         Tol,
         RoundWindow,
+        Point3<T>,
     ) -> Result<Option<RoundOutcome>, PropsError>
     // `Sync` because the walks below hand this hook to an indexed
     // parallel map over faces: every face calls the same hook, so the
@@ -2617,7 +2639,8 @@ fn mass_properties_impl<T: Decide>(
     mass_properties_runs(body, faces, band, quad, tol).map(|(props, _)| props)
 }
 
-/// One face's flux term and its half-width, keyed by the face.
+/// One face's flux term about the walk's reference ([`walk_reference`])
+/// and its half-width, keyed by the face.
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub type FaceTerm = (FaceKey, f64, f64);
@@ -2628,7 +2651,9 @@ pub type FaceTerm = (FaceKey, f64, f64);
 /// [`mass_properties`], so the properties are its bits, and the terms
 /// are what a caller compares face by face where two bodies store
 /// their faces in different orders (the fold's sum depends on the
-/// order, each face's term does not).
+/// order; each face's term depends only on the point it is about, the
+/// first loop point of the walk's first face, so two such bodies compare
+/// face by face where that point is one vertex of both).
 ///
 /// # Errors
 ///
@@ -2659,8 +2684,17 @@ fn mass_properties_runs<T: Decide>(
     quad: &QuadHook<'_, T>,
     tol: Tol,
 ) -> Result<(MassProperties<T>, Vec<FaceRun<T>>), MassPropsError> {
+    let about = walk_reference(body, faces.iter().copied())?;
     let runs = decide_faces(faces, |&face_key| {
-        face_flux(body, face_key, band, quad, tol, RoundWindow::SCHEDULE)
+        face_flux(
+            body,
+            face_key,
+            band,
+            quad,
+            tol,
+            RoundWindow::SCHEDULE,
+            about,
+        )
     })?;
     // The refusal arm is not dead, and it is not reachable from
     // either hook this door is called with: both answer `Converged`
@@ -2815,6 +2849,64 @@ fn closed_form_of<U: Decide>(
     }
 }
 
+/// [`closed_form_of`] about `about`: the face's surface and loops
+/// carried by `−about`, so its flux is read about that point and its
+/// width is the face's own size's, wherever the body sits. A kind with
+/// no analytic datum to move refuses ([`quad_lane::translated_surface`];
+/// a spline face takes the quadrature, never this).
+fn closed_form_about<U: Decide>(
+    surface: &Surface<U>,
+    loops: &[Vec<LoopEdge<U>>],
+    sense: bool,
+    band: Band,
+    about: Point3<U>,
+) -> Result<FaceContribution<U>, PropsError> {
+    let unmoved = || PropsError::QuadratureUnsupported {
+        what: "a closed-form face whose carrier has no datum to carry to the walk's reference",
+    };
+    let moved = quad_lane::translated_surface(surface, about).ok_or_else(unmoved)?;
+    let loops = loops
+        .iter()
+        .map(|edges| {
+            edges
+                .iter()
+                .map(|e| {
+                    quad_lane::translated_curve(&e.carrier, about).map(|carrier| LoopEdge {
+                        carrier,
+                        ..e.clone()
+                    })
+                })
+                .collect::<Option<Vec<_>>>()
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(unmoved)?;
+    closed_form_of(&moved, &loops, sense, band)
+}
+
+/// **The point a walk reads every face's flux about** — the first point
+/// of the first loop of the walk's first face with a loop (the world
+/// origin for a walk with no loop point, a sum it carries nowhere). A closed surface's volume
+/// is a third of its faces' fluxes about any one point, so the sum does
+/// not depend on it; each face's width does, by the lever from it, and a
+/// point of the body bounds that lever by the body's own diameter
+/// wherever the body sits (D4 ¶4's box, W1). One rule for every walk: a
+/// body's (`mass_properties`) and a shell's (`classify_shells`) alike,
+/// each about its own faces, and every resumption of a walk about the
+/// same point (its runs are its faces, in order). [`corner_of`] is this point,
+/// lifted.
+fn walk_reference<T: Decide>(
+    body: &Body<T>,
+    faces: impl IntoIterator<Item = FaceKey>,
+) -> Result<Point3<T>, MassPropsError> {
+    for key in faces {
+        let (face, _) = resolve_face(body, key);
+        if let Some(e) = face_loops(body, face)?.iter().flatten().next() {
+            return Ok(e.carrier.eval(e.t0));
+        }
+    }
+    Ok(Point3::origin())
+}
+
 /// The per-face body of the flux walk (module docs): resolve the
 /// surface, flatten the loops, dispatch closed form vs certified
 /// quadrature over the round window asked for. Every refusal that
@@ -2827,6 +2919,7 @@ fn face_flux<T: Decide>(
     quad: &QuadHook<'_, T>,
     tol: Tol,
     window: RoundWindow,
+    about: Point3<T>,
 ) -> Result<FaceRun<T>, MassPropsError> {
     let (face, surface) = resolve_face(body, face_key);
     let wrap = |source| MassPropsError::Face {
@@ -2854,7 +2947,7 @@ fn face_flux<T: Decide>(
     });
     let contribution: FaceContribution<T> = match plane_loops {
         Some(loops) if !spiric_plane => {
-            closed_form_of(surface, &loops, face.sense, band).map_err(wrap)?
+            closed_form_about(surface, &loops, face.sense, band, about).map_err(wrap)?
         }
         _ => {
             let loops = flat_loops(body, face)?;
@@ -2901,7 +2994,7 @@ fn face_flux<T: Decide>(
             // its fit, which is the geometry the face actually carries.
             let is_trimmed = trimmed && !matches!(surface, Surface::Cone { .. });
             let quad_out = if is_trimmed || spiric_plane || surface.spline_chart().is_some() {
-                quad(body, surface, &loops, band, tol, window).map_err(wrap)?
+                quad(body, surface, &loops, band, tol, window, about).map_err(wrap)?
             } else {
                 None
             };
@@ -2944,7 +3037,7 @@ fn face_flux<T: Decide>(
                 None => {
                     let loops: Vec<Vec<LoopEdge<T>>> =
                         loops.into_iter().map(|(edges, _)| edges).collect();
-                    closed_form_of(surface, &loops, face.sense, band).map_err(wrap)?
+                    closed_form_about(surface, &loops, face.sense, band, about).map_err(wrap)?
                 }
             }
         }
@@ -3772,8 +3865,17 @@ fn measured_at_target<T: Decide>(
 ) -> Result<MassProperties<T>, MassPropsError> {
     let hook = reporting_hook(quad);
     // Serial, for [`decide_faces_serially`]'s reason.
+    let about = walk_reference(body, faces.iter().copied())?;
     let runs = decide_faces_serially(faces, |&face_key| {
-        face_flux(body, face_key, band, &hook, tol, RoundWindow::SCHEDULE)
+        face_flux(
+            body,
+            face_key,
+            band,
+            &hook,
+            tol,
+            RoundWindow::SCHEDULE,
+            about,
+        )
     })?;
     let (sums, refused) = fold_runs(&runs);
     if let Some((face, source)) = refused {
@@ -3906,7 +4008,7 @@ pub struct QuadLane<T: Decide> {
         bool,
         Band,
         Point3<Interval>,
-        Option<(Interval, Interval)>,
+        Option<((Interval, Interval), Point3<Interval>)>,
     ) -> Result<(FaceContribution<Interval>, bool), PropsError>,
     /// A value of the walk's scalar as the interval holding it —
     /// `Interval::from_certified` (`wiring_rows` pins the pointer).
@@ -5768,8 +5870,9 @@ mod exact_enclosure_rows {
                         };
                         let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
                         let hook = reporting_hook(Some(lane));
+                        let about = walk_reference(&body, faces.iter().copied()).unwrap();
                         let runs = decide_faces_serially(&faces, |&f| {
-                            face_flux(&body, f, band, &hook, tol, RoundWindow::SCHEDULE)
+                            face_flux(&body, f, band, &hook, tol, RoundWindow::SCHEDULE, about)
                         })
                         .unwrap();
                         let got = rederive(&body, band, tol, lane, &runs, true).unwrap();
