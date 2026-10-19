@@ -48,9 +48,9 @@ use crate::entity::FaceKey;
 pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
-    decls: &'d Glue,
+    decls: &'d Glue<T>,
     band: Band,
-) -> Result<Cow<'d, Glue>, BooleanError> {
+) -> Result<Cow<'d, Glue<T>>, BooleanError> {
     if decls.verdicts == super::Verdicts::Given {
         return Ok(Cow::Borrowed(decls));
     }
@@ -143,7 +143,7 @@ fn tangency<T: Decide>(
 
 /// Whether two carriers' kinds are the witness lane's line pairs: a
 /// plane and a cylinder, or two cylinders.
-pub(crate) fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
+fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
     use geom::SurfaceKind::{Cylinder, Plane};
     matches!(
         kinds,
@@ -209,7 +209,7 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
 pub(crate) fn frame_rows<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
-    decls: &Glue,
+    decls: &Glue<T>,
     band: Band,
 ) -> Result<Vec<crate::Coincidence>, BooleanError> {
     if decls.verdicts == super::Verdicts::Given {
