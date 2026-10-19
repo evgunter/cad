@@ -2,7 +2,8 @@
 id: a-fold-steps-coincidence-rows-are-named-without-the-end-passes
 kind: issue
 title: A union fold step's coincidence rows are named against collapse_table(acc_table) and published without the end passes, so a row citing an intermediate entity can keep fold qualifiers
-status: open
+status: dispatched
+branch: wire/fold-steps-end-pass
 opened: 2026-10-17
 priority: P2
 cost: M
