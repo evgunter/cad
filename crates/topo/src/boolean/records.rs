@@ -505,8 +505,9 @@ impl ContactRecords {
     ///
     /// [`CarryRefusal::Unmapped`] for a cell the lineage does not cover;
     /// [`CarryRefusal::Unread`] for a pair drawn from a divided cell
-    /// that the confirm cannot read; [`CarryRefusal::MintedMeeting`] for two cells the op minted on
-    /// the record's two cells meeting at a point it cannot back;
+    /// that the confirm cannot read; [`CarryRefusal::MintedMeeting`] for
+    /// two cells the op minted on the record's two cells meeting at a
+    /// point it cannot back;
     /// [`CarryRefusal::Stale`] for a record that lands nowhere with no
     /// removal to consume it, and [`CarryRefusal::Pair`] for one whose
     /// every pair of images is one cell or incident.

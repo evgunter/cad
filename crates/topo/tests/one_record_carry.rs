@@ -608,3 +608,197 @@ fn a_notch_that_removes_a_recorded_overlap_consumes_it() {
         "nothing of the touch is left"
     );
 }
+
+/// The face of `body` on the plane `axis = at` (0 = x, 2 = z) whose
+/// normal runs along that axis.
+fn face_on(body: &topo::Body<f64>, axis: usize, at: f64) -> topo::FaceKey {
+    body.faces()
+        .find(|(_, f)| {
+            matches!(
+                body.get_surface(f.surface),
+                Some(topo::Surface::Plane { origin, normal, .. })
+                    if [normal.x, normal.y, normal.z][axis].abs() == 1.0
+                        && [origin.x, origin.y, origin.z][axis] == at
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the face")
+}
+
+/// **A real touch lands unread on cells an op keeps, and is re-read on
+/// cells it reshapes.** The corner-on-slab rest, through offsets of the
+/// slab's side face x = 4:
+///
+/// - by −0.5, which reshapes the slab's top (its region shrinks to
+///   x ≤ 3.5, the corner at x = 2 still inside it): the rest goes to the
+///   census's confirm, reads met, and lands;
+/// - the same offset, the record restated on the slab's bottom
+///   (bookkeeping, no touch): the confirm reads it apart, and it is
+///   consumed, never landed unread.
+///
+/// And through the offset of the tilted cube's own far face, which
+/// moves neither the corner nor the slab's top: the rest lands unread.
+/// Red on the carry that reads a reshaped cell as kept: the bottom
+/// record then landed.
+#[test]
+fn a_reshaped_cell_is_re_read_and_a_kept_one_lands_unread() {
+    let base = corner_on_slab();
+    let [corner, top] = base.contacts.rows()[0].cells();
+    let bottom = Cell::Face(face_on(&base.body, 2, 0.0));
+    let side = face_on(&base.body, 0, 4.0);
+    let mut moved = topo::Body::clone(&base.body);
+    let outcome =
+        topo::replace_face_offset(&mut moved, side, -0.5, tol()).expect("the side moves in");
+    let lineage = outcome.lineage();
+    assert!(
+        matches!(lineage.fate(top), topo::Fate::Divided(_)),
+        "the top is reshaped: {:?}",
+        lineage.fate(top)
+    );
+    assert!(
+        matches!(lineage.fate(corner), topo::Fate::Kept { .. }),
+        "the corner is kept: {:?}",
+        lineage.fate(corner)
+    );
+    let rest = outcome
+        .carry_contacts(
+            &base.contacts,
+            &moved,
+            band(),
+            Some(topo::RegionLane::certified()),
+        )
+        .expect("the rest is confirmed");
+    assert_eq!(
+        rest.cell_pairs().collect::<Vec<_>>(),
+        [(corner, top)],
+        "the rest lands on the reshaped top"
+    );
+    let false_rest: ContactRecords = [topo::Cited::new(
+        topo::Contact::new(&base.body, corner, bottom).unwrap(),
+        topo::Cites::decided(0),
+    )]
+    .into_iter()
+    .collect();
+    assert_eq!(
+        outcome.carry_contacts(
+            &false_rest,
+            &moved,
+            band(),
+            Some(topo::RegionLane::certified())
+        ),
+        Ok(ContactRecords::default()),
+        "the bookkeeping record on the reshaped bottom is read apart and consumed"
+    );
+}
+
+/// **A record whose cell an op substituted lands on the substitute.**
+/// The corner-on-slab body's top is cut by a chord into two halves, the
+/// rest recorded on the half that holds the corner; the merge puts the
+/// halves back into one face, absorbing one of them into the other. In
+/// whichever of the two cuts (x = 1, x = 3) the corner's half is the
+/// absorbed one, its fate is `Substituted` and the rest lands on the
+/// kept face. Red where a substituted cell's record is re-read or
+/// dropped.
+#[test]
+fn a_real_touch_on_a_substituted_face_lands_on_its_substitute() {
+    let mut substituted = 0;
+    for x in [1.0, 3.0] {
+        let base = corner_on_slab();
+        let [corner, top] = base.contacts.rows()[0].cells();
+        let Cell::Face(top) = top else {
+            panic!("the rest is on a face")
+        };
+        let mut body = topo::Body::clone(&base.body);
+        let edge_at = |body: &topo::Body<f64>, y: f64| {
+            body.half_edges()
+                .filter(|(_, h)| body.get_loop(h.parent_loop).unwrap().face == top)
+                .map(|(_, h)| h.edge)
+                .find(|&e| {
+                    body.half_edges()
+                        .filter(|(_, h)| h.edge == e)
+                        .all(|(_, h)| {
+                            let p = body
+                                .get_point(body.get_vertex(h.start).unwrap().point)
+                                .unwrap();
+                            p.y == y
+                        })
+                })
+                .expect("a top edge at y")
+        };
+        let mut ends = Vec::new();
+        for y in [0.0, 4.0] {
+            let e = edge_at(&body, y);
+            let he = body.get_edge(e).unwrap().he_plus;
+            let p0 = *body
+                .get_point(
+                    body.get_vertex(body.get_half_edge(he).unwrap().start)
+                        .unwrap()
+                        .point,
+                )
+                .unwrap();
+            let t = if p0.x == 0.0 { x } else { 4.0 - x };
+            let made = body.split_edge(e, t, tol()).expect("the top edge splits");
+            let p = *body.get_point(made.point).unwrap();
+            assert!((p.x - x).abs() < 1e-12, "the split lands at x = {x}: {p:?}");
+            ends.push((made.vertex, p));
+        }
+        let f = body.get_face(top).unwrap();
+        let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
+            panic!("the top loop is a cycle");
+        };
+        let starting = |v| {
+            body.loop_cycle(first)
+                .unwrap()
+                .into_iter()
+                .find(|&he| body.get_half_edge(he).unwrap().start == v)
+                .unwrap()
+        };
+        let (he1, he2) = (starting(ends[0].0), starting(ends[1].0));
+        let chord = body
+            .mef(
+                topo::MefSite::Chords { he1, he2 },
+                common::line(ends[0].1, ends[1].1),
+                topo::FaceSurface::Inherit,
+                tol(),
+            )
+            .expect("the chord cuts the top");
+        let holder = [top, chord.face]
+            .into_iter()
+            .find(|&h| {
+                body.half_edges()
+                    .filter(|(_, e)| body.get_loop(e.parent_loop).unwrap().face == h)
+                    .any(|(_, e)| {
+                        let p = body
+                            .get_point(body.get_vertex(e.start).unwrap().point)
+                            .unwrap();
+                        (p.x - 2.0) * (x - 2.0) < 0.0
+                    })
+            })
+            .expect("the half holding the corner");
+        let rest: ContactRecords = [topo::Cited::new(
+            topo::Contact::new(&body, corner, Cell::Face(holder)).unwrap(),
+            topo::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect();
+        let outcome = body.merge_coplanar_faces(tol()).expect("the merge");
+        let group = outcome
+            .groups
+            .iter()
+            .find(|g| g.kept == holder || g.absorbed.contains(&holder))
+            .expect("the halves merge");
+        let kept = Cell::Face(group.kept);
+        if outcome.lineage().fate(Cell::Face(holder)) == topo::Fate::Substituted(kept) {
+            substituted += 1;
+        }
+        let landed = outcome
+            .carry_contacts(&rest, &body, band(), Some(topo::RegionLane::certified()))
+            .expect("the rest lands");
+        assert_eq!(
+            landed.cell_pairs().collect::<Vec<_>>(),
+            [(corner, kept)],
+            "cut at x = {x}: the rest lands on the merged face"
+        );
+    }
+    assert!(substituted > 0, "one cut absorbs the corner's half");
+}

@@ -453,7 +453,7 @@ fn an_offset_doors_lineage_reads_through_its_join() {
     }
 }
 
-/// **A record at a conventional vertex is read on its closed edge.** A
+/// **A record at a conventional vertex lands on its closed edge.** A
 /// disc planted in a brick's top is bounded by one closed circle whose
 /// one vertex has no other edge; a record of that vertex against a far
 /// lid's underside, on the circle's plane, carried through an op that
@@ -461,7 +461,7 @@ fn an_offset_doors_lineage_reads_through_its_join() {
 /// plane, which the census has no lane to confirm). Red if the carry
 /// lands it on the vertex, or reads it.
 #[test]
-fn a_record_at_a_conventional_vertex_is_read_on_its_closed_edge() {
+fn a_record_at_a_conventional_vertex_lands_on_its_closed_edge() {
     let mut body = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), tol());
     let top = face_at_z(&body, 1.0);
     let lid = brick::<f64>((5.0, 6.0), (0.0, 2.0), (1.0, 2.0), tol());

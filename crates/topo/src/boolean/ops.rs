@@ -973,7 +973,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         Some(zipped),
         band,
     )?;
-    share_recorded_points(&mut body, &contacts, &coincidences)?;
+    share_recorded_points(&mut body, &contacts, &coincidences, band)?;
     body.sweep_and_close();
     let body = gate(finished, band, tol)?;
     reverted_lines_disjoint(&body, b, &fin.reverted_roots, band)?;
@@ -3720,7 +3720,8 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// **The substitution door**: every contact record an op holds, in
 /// result keys. Each operand's carried records go through the one carry
 /// ([`carried`]): placed on the result by what the op made of each input
-/// cell, by the census's own record confirm (D1). The reduction's own
+/// cell, by lineage where the op kept both cells and by the census's own
+/// record confirm where it divided one (D1). The reduction's own
 /// records are rewritten through the operand views and the descendant
 /// map: a record whose cell an op replaced now names the replacement (a
 /// fused vertex its survivor, an absorbed face its kept face, a zipped
@@ -4262,8 +4263,9 @@ fn share_recorded_points<T: Decide>(
     body: &mut Body<T>,
     contacts: &ContactRecords,
     coincidences: &[crate::Coincidence],
+    band: Band,
 ) -> Result<(), BooleanError> {
-    let classes = record_classes(body, contacts, coincidences)?;
+    let classes = record_classes(body, contacts, coincidences, band)?;
     super::zip::share_points(body, &classes)
 }
 
@@ -4274,24 +4276,31 @@ fn share_recorded_points<T: Decide>(
 /// assembly. A vertex-vertex record of the result states that the two
 /// are one point: the op decided it (the carry refuses a record no
 /// decision backs, and every decision it emits decided its margin
-/// Zero), or an operand carried it in and the carry confirmed it by the
-/// census's own read (`records::landings`, which refuses a carried
-/// record whose cells do not meet as the caller's stale record). So
-/// every key the records reach, through their pairs and through the
-/// keys their vertices share, names one point, and the classes of two
-/// or more keys are returned for `zip::share_points`. No position is
-/// read here: the record is the premise.
+/// Zero), or an operand carried it in, landed by lineage on vertices
+/// the op kept or confirmed by the census where it divided one
+/// (`records::landings`). Moving a vertex onto another's key moves
+/// geometry on the record's word, so each pair on two keys has its gap
+/// decided Zero at `band` first (D10): a carried pair apart is the
+/// caller's stale record, refused, and never moves a vertex. Every key
+/// the records reach, through their pairs and through the keys their
+/// vertices share, then names one point, and the classes of two or more
+/// keys are returned for `zip::share_points`.
 /// The records themselves stay, citing their decisions, which is what
 /// the `unproven-coincidence` lint reads.
 ///
 /// # Errors
 ///
-/// [`BooleanError::JoinDesync`] where a record's vertex does not
+/// [`BooleanError::CarryRefused`] ([`super::CarryRefusal::Stale`]) for a
+/// carried pair whose two points are apart, and
+/// [`BooleanError::JoinDesync`] for a decided one;
+/// [`BooleanError::Escalated`] (`VertexOnVertex`) where a gap is in
+/// band; [`BooleanError::JoinDesync`] where a record's vertex does not
 /// resolve in `body`.
-fn record_classes<T: Real>(
+fn record_classes<T: Decide>(
     body: &Body<T>,
     contacts: &crate::ContactRecords,
     coincidences: &[crate::Coincidence],
+    band: Band,
 ) -> Result<Vec<super::zip::PointClass>, BooleanError> {
     let key = |v: VertexKey| {
         body.get_vertex(v)
@@ -4301,8 +4310,50 @@ fn record_classes<T: Real>(
             })
     };
     let mut roots = super::zip::Roots::new();
-    for (a, b) in contacts.vertex_vertex() {
-        roots.union(key(a)?, key(b)?);
+    for row in contacts.rows() {
+        let crate::ContactKind::VertexVertex(a, b) = row.kind() else {
+            continue;
+        };
+        let (ka, kb) = (key(a)?, key(b)?);
+        if ka != kb {
+            let gap = match (vertex_point(body, a), vertex_point(body, b)) {
+                (Some(p), Some(q)) => Margin::norm3(p - q),
+                _ => {
+                    return Err(BooleanError::JoinDesync {
+                        what: "a vertex-vertex record's vertex has no point",
+                    });
+                }
+            };
+            let (apart, _) = geom_core::k_stats::decide_magnitude_reported(
+                "bool_shared_record_points",
+                gap,
+                band,
+            )
+            .map_err(|diag| BooleanError::Escalated {
+                decision: BooleanDecision::VertexOnVertex,
+                diag,
+            })?;
+            if apart != geom_core::k_stats::Magnitude::Zero {
+                let carried = row.cites.iter().find_map(|b| match b {
+                    Backing::Carried { input, record } => Some((input, record)),
+                    Backing::Decided(_) => None,
+                });
+                return Err(match carried {
+                    Some((input, record)) => BooleanError::CarryRefused {
+                        row: super::RefusedRow::Carried(if input == 0 {
+                            Operand::A
+                        } else {
+                            Operand::B
+                        }),
+                        refusal: super::CarryRefusal::Stale { record },
+                    },
+                    None => BooleanError::JoinDesync {
+                        what: "a decided vertex-vertex record names two points apart",
+                    },
+                });
+            }
+        }
+        roots.union(ka, kb);
     }
     #[cfg_attr(not(feature = "sweep-testing"), allow(unused_mut))]
     let mut classes = roots.classes();
@@ -7043,7 +7094,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 None,
                 band,
             )?;
-            share_recorded_points(&mut body, &contacts, &coincidences)?;
+            share_recorded_points(&mut body, &contacts, &coincidences, band)?;
             let body = gate(body, band, tol)?;
             let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
             let naming = BooleanNaming {
@@ -7148,7 +7199,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         None,
         band,
     )?;
-    share_recorded_points(&mut body, &contacts, &coincidences)?;
+    share_recorded_points(&mut body, &contacts, &coincidences, band)?;
     let body = gate(body, band, tol)?;
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {

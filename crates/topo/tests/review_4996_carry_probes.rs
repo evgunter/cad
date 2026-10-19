@@ -1,5 +1,6 @@
-//! Review rows for PR 4996 (the carry by lineage): an op that keeps a
-//! cell's key while moving its geometry.
+//! The carry by lineage through an op that keeps a cell's key while
+//! moving its geometry: the cell is reshaped, and a record on it is
+//! confirmed.
 #![allow(clippy::panic, clippy::expect_used, clippy::unwrap_used)]
 
 use crate::common;
@@ -42,46 +43,39 @@ fn point(body: &Body<f64>, c: Cell) -> geom_core::Point3<f64> {
     body.vertex_points().find(|(k, _)| *k == v).unwrap().1
 }
 
-/// **An offset that moves one kissing corner away keeps the kiss
-/// record.** The offset door keeps every key, so its lineage calls the
-/// moved face and its corner vertex kept; the carry then lands the
-/// vertex–vertex record unread on two vertices that no longer meet.
+/// **An offset that moves one kissing corner off the kiss consumes the
+/// record.** The offset door keeps every key, and states the cells it
+/// moved reshaped (`Lineage::reshaping`): the moved face, its edges and
+/// corners, and the faces and edges around them. The kiss record on a
+/// moved corner goes to the census's confirm, reads apart, and is
+/// consumed, as a record on a divided cell with its remainder removed
+/// is. Red on the carry that read the moved corner as kept: the record
+/// then landed unread on two vertices 0.1 apart.
 #[test]
-fn an_offset_moving_a_kissing_corner_away_lands_the_kiss_unread() {
+fn an_offset_moving_a_kissing_corner_off_the_kiss_consumes_the_record() {
     let base = kiss();
     assert_eq!(base.contacts.len(), 1);
     let [x, y] = base.contacts.rows()[0].record.cells();
     let faces = faces_at_x(&base.body, 1.0);
-    assert!(!faces.is_empty());
+    assert_eq!(faces.len(), 2, "each cube's face at x = 1");
     for face in faces {
         for d in [-0.1, 0.1] {
             let mut moved = Body::clone(&base.body);
-            let Ok(outcome) = topo::replace_face_offset(&mut moved, face, d, tol()) else {
-                eprintln!("face {face:?} d {d}: offset refused");
-                continue;
-            };
+            let outcome = topo::replace_face_offset(&mut moved, face, d, tol())
+                .unwrap_or_else(|e| panic!("face {face:?} by {d}: the offset builds: {e:?}"));
+            let gap = (point(&moved, x) - point(&moved, y)).norm();
+            assert!(gap > 0.09, "face {face:?} by {d}: the corners part: {gap}");
             let carried = outcome.carry_contacts(
                 &base.contacts,
                 &moved,
                 geom_core::Band::linear(tol()).unwrap(),
                 Some(topo::RegionLane::certified()),
             );
-            let gap = (point(&moved, x) - point(&moved, y)).norm();
-            let rest = carried
-                .as_ref()
-                .ok()
-                .map(|c| topo::validate_pseudomanifold(&moved, c, tol()));
-            eprintln!(
-                "face {face:?} d {d}: corners {:?} {:?} gap {gap}; carry {carried:?}; at rest {rest:?}",
-                point(&moved, x),
-                point(&moved, y)
+            assert_eq!(
+                carried,
+                Ok(topo::ContactRecords::default()),
+                "face {face:?} by {d}: the kiss is consumed"
             );
-            if gap > 1e-3 {
-                assert!(
-                    !matches!(&carried, Ok(c) if c.len() == 1),
-                    "a record on corners {gap} apart lands: {carried:?}"
-                );
-            }
         }
     }
 }
