@@ -256,6 +256,8 @@ mod rehome_rings_lune;
 mod review_4704_flush_round_oracle;
 #[path = "review_4996_blend_cap.rs"]
 mod review_4996_blend_cap;
+#[path = "review_5389_probes.rs"]
+mod review_5389_probes;
 #[path = "review_r2_vv_probes.rs"]
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]
@@ -314,8 +316,6 @@ mod trim_3_chart_bound_bodies;
 mod tube_rim_touch_rows;
 #[path = "two_tubes_in_the_zero_band.rs"]
 mod two_tubes_in_the_zero_band;
-#[path = "review_5389_probes.rs"]
-mod review_5389_probes;
 #[path = "unjoined_operand_at_a_dual.rs"]
 mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]

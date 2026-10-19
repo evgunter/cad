@@ -107,11 +107,16 @@ fn report(pose: &str, x: &topo::Body<f64>, y: &topo::Body<f64>, vx: f64, vy: f64
                     vx + vy,
                     u.kind,
                     records(&u),
-                    f.iter().map(|e| format!("{e:?}").chars().take(600).collect::<String>()).collect::<Vec<_>>()
+                    f.iter()
+                        .map(|e| format!("{e:?}").chars().take(600).collect::<String>())
+                        .collect::<Vec<_>>()
                 )
             }
             Ok(BooleanResult::Empty) => "Empty".into(),
-            Err(e) => format!("Err {}", format!("{e:?}").chars().take(400).collect::<String>()),
+            Err(e) => format!(
+                "Err {}",
+                format!("{e:?}").chars().take(400).collect::<String>()
+            ),
         };
         let d = match topo::subtract(p, q, tol()) {
             Ok(BooleanResult::Body(d)) => format!(
@@ -120,12 +125,18 @@ fn report(pose: &str, x: &topo::Body<f64>, y: &topo::Body<f64>, vx: f64, vy: f64
                 topo::mass_properties(&d.body, tol()).unwrap().volume
             ),
             Ok(BooleanResult::Empty) => "Empty".into(),
-            Err(e) => format!("Err {}", format!("{e:?}").chars().take(400).collect::<String>()),
+            Err(e) => format!(
+                "Err {}",
+                format!("{e:?}").chars().take(400).collect::<String>()
+            ),
         };
         let m = match topo::intersect(p, q, tol()) {
             Ok(BooleanResult::Body(m)) => format!("Ok {:?}", m.kind),
             Ok(BooleanResult::Empty) => "Empty".into(),
-            Err(e) => format!("Err {}", format!("{e:?}").chars().take(400).collect::<String>()),
+            Err(e) => format!(
+                "Err {}",
+                format!("{e:?}").chars().take(400).collect::<String>()
+            ),
         };
         let line = format!("[{pose}] {order}: U {u}\n    D {d}\n    I {m}");
         eprintln!("{line}");
@@ -138,7 +149,12 @@ fn report(pose: &str, x: &topo::Body<f64>, y: &topo::Body<f64>, vx: f64, vy: f64
 /// y-bore of radius `1 + gap`; the cap's rim circle meets the bore's
 /// tangency circle twice. The bore's seam is spun to `seam_at` touch
 /// (Some(0|1)) or away (None).
-fn cap_in_bore(alpha: f64, c: f64, seam_at: Option<usize>, cap_spin: f64) -> (topo::Body<f64>, topo::Body<f64>, f64, f64) {
+fn cap_in_bore(
+    alpha: f64,
+    c: f64,
+    seam_at: Option<usize>,
+    cap_spin: f64,
+) -> (topo::Body<f64>, topo::Body<f64>, f64, f64) {
     let gap = 0.5 * band().zero();
     let r = 1.0;
     let cap0 = cap_about_y(r, c);
@@ -203,11 +219,26 @@ fn rod_on_puck(
 #[test]
 fn probe_rod_on_puck() {
     for (name, span, ps, rs) in [
-        ("seam on ruling, rod past both touches", (-1.5, 1.5), 1.0, 0.0),
-        ("seam off ruling, rod past both touches", (-1.5, 1.5), 1.0, 0.7),
+        (
+            "seam on ruling, rod past both touches",
+            (-1.5, 1.5),
+            1.0,
+            0.0,
+        ),
+        (
+            "seam off ruling, rod past both touches",
+            (-1.5, 1.5),
+            1.0,
+            0.7,
+        ),
         ("seam on ruling, rod ends at T2", (-1.5, 1.0), 1.0, 0.0),
         ("seam off ruling, rod ends at T2", (-1.5, 1.0), 1.0, 0.7),
-        ("seam on ruling, rod ends inside disc", (-1.5, 0.5), 1.0, 0.0),
+        (
+            "seam on ruling, rod ends inside disc",
+            (-1.5, 0.5),
+            1.0,
+            0.0,
+        ),
         ("seam off ruling, rod inside disc", (-0.5, 0.5), 1.0, 0.7),
         ("seam on ruling, puck vertex at T2", (-1.5, 1.5), 0.0, 0.0),
     ] {
@@ -236,11 +267,31 @@ fn probe_rod_on_puck_off_centre() {
     let z0 = 0.5;
     let t = (1.0f64 - z0 * z0).sqrt();
     for (name, span, ps, rs) in [
-        ("off-centre, seam on ruling, past both", (-1.5, 1.5), 0.0, 0.0),
-        ("off-centre, seam off ruling, past both", (-1.5, 1.5), 0.0, 0.7),
+        (
+            "off-centre, seam on ruling, past both",
+            (-1.5, 1.5),
+            0.0,
+            0.0,
+        ),
+        (
+            "off-centre, seam off ruling, past both",
+            (-1.5, 1.5),
+            0.0,
+            0.7,
+        ),
         ("off-centre, seam off, rod ends at T2", (-1.5, t), 0.0, 0.7),
-        ("off-centre, seam off, rod ends at T2, puck spun 0.2", (-1.5, t), 0.2, 0.7),
-        ("off-centre, seam off, rod ends at T2, puck spun -0.2", (-1.5, t), -0.2, 0.7),
+        (
+            "off-centre, seam off, rod ends at T2, puck spun 0.2",
+            (-1.5, t),
+            0.2,
+            0.7,
+        ),
+        (
+            "off-centre, seam off, rod ends at T2, puck spun -0.2",
+            (-1.5, t),
+            -0.2,
+            0.7,
+        ),
         ("off-centre, seam on, rod ends at T2", (-1.5, t), 0.0, 0.0),
         ("off-centre, seam off, rod from T1 to T2", (-t, t), 0.0, 0.7),
         ("off-centre, seam off, rod ends at T1", (-t, 1.5), 0.0, 0.7),
@@ -269,12 +320,24 @@ fn outcome(r: Result<BooleanResult<f64>, topo::BooleanError>) -> String {
 /// (agree, summary).
 fn symmetric(x: &topo::Body<f64>, y: &topo::Body<f64>) -> (bool, String) {
     let (x, y) = (at_rest(x.clone()), at_rest(y.clone()));
-    let u = [outcome(topo::union(&x, &y, tol())), outcome(topo::union(&y, &x, tol()))];
-    let i = [outcome(topo::intersect(&x, &y, tol())), outcome(topo::intersect(&y, &x, tol()))];
+    let u = [
+        outcome(topo::union(&x, &y, tol())),
+        outcome(topo::union(&y, &x, tol())),
+    ];
+    let i = [
+        outcome(topo::intersect(&x, &y, tol())),
+        outcome(topo::intersect(&y, &x, tol())),
+    ];
     let short = |s: &str| s.chars().take(70).collect::<String>();
     (
         u[0] == u[1] && i[0] == i[1],
-        format!("U[{} | {}] I[{} | {}]", short(&u[0]), short(&u[1]), short(&i[0]), short(&i[1])),
+        format!(
+            "U[{} | {}] I[{} | {}]",
+            short(&u[0]),
+            short(&u[1]),
+            short(&i[0]),
+            short(&i[1])
+        ),
     )
 }
 
@@ -288,43 +351,72 @@ fn probe_two_tubes_near_variants() {
         let y = about_y((0.3, 1.0), (0.2, 0.8), None, 0.0, 2.0 + k * z);
         let (ok, s) = symmetric(&x, &y);
         eprintln!("[gap {k}eps] agree={ok} {s}");
-        if !ok { bad.push(format!("gap {k}")); }
+        if !ok {
+            bad.push(format!("gap {k}"));
+        }
     }
     // first tube's seam angle (0 = on the tangent line), second spun too
-    for (s1, s2) in [(0.1, 0.0), (1e-7, 0.0), (0.0, PI), (0.0, 0.3), (PI, PI), (0.3, 0.3), (2.0, 0.0)] {
+    for (s1, s2) in [
+        (0.1, 0.0),
+        (1e-7, 0.0),
+        (0.0, PI),
+        (0.0, 0.3),
+        (PI, PI),
+        (0.3, 0.3),
+        (2.0, 0.0),
+    ] {
         let x = about_y((0.3, 1.0), (0.0, 1.0), None, s1, 0.0);
         let y = about_y((0.3, 1.0), (0.2, 0.8), None, s2, 2.0 + 0.5 * z);
         let (ok, s) = symmetric(&x, &y);
         eprintln!("[seams {s1},{s2}] agree={ok} {s}");
-        if !ok { bad.push(format!("seams {s1},{s2}")); }
+        if !ok {
+            bad.push(format!("seams {s1},{s2}"));
+        }
     }
     // both turned about z, and the pair with equal heights
     for t in [0.2, 1.0, 2.5] {
         let rot = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), t);
         let x = place(&about_y((0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0), rot);
-        let y = place(&about_y((0.3, 1.0), (0.2, 0.8), None, 0.0, 2.0 + 0.5 * z), rot);
+        let y = place(
+            &about_y((0.3, 1.0), (0.2, 0.8), None, 0.0, 2.0 + 0.5 * z),
+            rot,
+        );
         let (ok, s) = symmetric(&x, &y);
         eprintln!("[turned {t}] agree={ok} {s}");
-        if !ok { bad.push(format!("turned {t}")); }
+        if !ok {
+            bad.push(format!("turned {t}"));
+        }
     }
     {
         let x = about_y((0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0);
         let y = about_y((0.3, 1.0), (0.0, 1.0), None, 0.0, 2.0 + 0.5 * z);
         let (ok, s) = symmetric(&x, &y);
         eprintln!("[equal heights] agree={ok} {s}");
-        if !ok { bad.push("equal heights".into()); }
+        if !ok {
+            bad.push("equal heights".into());
+        }
     }
     // rod in the bore at other turns: rod r=0.2 about (0.1 - 0.5eps), spin
-    for spin in [-0.25 * FRAC_PI_2, -0.5 * FRAC_PI_2, -0.75 * FRAC_PI_2, PI, 0.0] {
+    for spin in [
+        -0.25 * FRAC_PI_2,
+        -0.5 * FRAC_PI_2,
+        -0.75 * FRAC_PI_2,
+        PI,
+        0.0,
+    ] {
         let x = about_y((0.3, 1.0), (0.0, 1.0), None, 0.0, 0.0);
         let y = about_y((0.0, 0.2), (0.2, 0.8), Some(FRAC_PI_2), spin, 0.1 - 0.5 * z);
         let (ok, s) = symmetric(&x, &y);
         eprintln!("[quarter rod spin {spin}] agree={ok} {s}");
-        if !ok { bad.push(format!("rod spin {spin}")); }
+        if !ok {
+            bad.push(format!("rod spin {spin}"));
+        }
         let y = about_y((0.0, 0.2), (0.2, 0.8), None, spin, 0.1 - 0.5 * z);
         let (ok, s) = symmetric(&x, &y);
         eprintln!("[full rod spin {spin}] agree={ok} {s}");
-        if !ok { bad.push(format!("full rod spin {spin}")); }
+        if !ok {
+            bad.push(format!("full rod spin {spin}"));
+        }
     }
     eprintln!("DISAGREE: {bad:?}");
 }
@@ -380,10 +472,15 @@ fn rod_z_review(r: f64, z0: f64, len: f64) -> topo::Body<f64> {
     let t = tol();
     let lp = profile::circle(Point2::new(0.0, 0.0), r, t).unwrap();
     let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
-    let p = profile::Profile::new(plane, vec![lp.into()]).validate(t).unwrap();
+    let p = profile::Profile::new(plane, vec![lp.into()])
+        .validate(t)
+        .unwrap();
     sweep::extrude(
         &p,
-        sweep::Extrusion::Distance { depth: len, side: sweep::ExtrudeSide::Along },
+        sweep::Extrusion::Distance {
+            depth: len,
+            side: sweep::ExtrudeSide::Along,
+        },
         t,
     )
     .unwrap()
@@ -405,12 +502,18 @@ fn probe_rod_in_bore_both_orders() {
         sweep::Revolution::Full,
         t,
     );
-    let tube = place(&tube, Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0));
+    let tube = place(
+        &tube,
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), PI / 2.0),
+    );
     let tube = at_rest(tube);
     for k in 0..30 {
         let th = f64::from(k) * core::f64::consts::TAU / 30.0;
         let (cx, cy) = (0.5 * th.cos(), 0.5 * th.sin());
-        let rod = at_rest(place(&rod_z_review(0.5, -0.5, 1.0), Affine3::translation(Vec3::new(cx, cy, 0.0))));
+        let rod = at_rest(place(
+            &rod_z_review(0.5, -0.5, 1.0),
+            Affine3::translation(Vec3::new(cx, cy, 0.0)),
+        ));
         let mut row = Vec::new();
         for (o, p, q) in [("t,r", &tube, &rod), ("r,t", &rod, &tube)] {
             let s = match topo::union(p, q, t) {
@@ -421,19 +524,31 @@ fn probe_rod_in_bore_both_orders() {
                     for i in 0..9 {
                         for j in 0..9 {
                             for kk in 0..5 {
-                                let q = Point3::new(-2.2 + 0.5 * f64::from(i) + 0.013, -2.2 + 0.5 * f64::from(j) + 0.017, -0.45 + 0.2 * f64::from(kk) + 0.011);
+                                let q = Point3::new(
+                                    -2.2 + 0.5 * f64::from(i) + 0.013,
+                                    -2.2 + 0.5 * f64::from(j) + 0.017,
+                                    -0.45 + 0.2 * f64::from(kk) + 0.011,
+                                );
                                 let rho = (q.x * q.x + q.y * q.y).sqrt();
                                 let dr = ((q.x - cx).powi(2) + (q.y - cy).powi(2)).sqrt();
                                 let in_rod = dr < 0.5 - 1e-6 && q.z.abs() < 0.5;
-                                let near = (dr - 0.5).abs() < 1e-6 || (rho - 1.0).abs() < 1e-6 || (rho - 2.0).abs() < 1e-6;
-                                if near { continue; }
-                                let in_tube = (1.0..2.0).contains(&rho) && (-2.0..0.0).contains(&q.z) ;
-                                let in_tube2 = (1.0..2.0).contains(&rho) && (0.0..2.0).contains(&q.z);
+                                let near = (dr - 0.5).abs() < 1e-6
+                                    || (rho - 1.0).abs() < 1e-6
+                                    || (rho - 2.0).abs() < 1e-6;
+                                if near {
+                                    continue;
+                                }
+                                let in_tube =
+                                    (1.0..2.0).contains(&rho) && (-2.0..0.0).contains(&q.z);
+                                let in_tube2 =
+                                    (1.0..2.0).contains(&rho) && (0.0..2.0).contains(&q.z);
                                 let got = topo::point_in_solid(&b.body, q, band(), t);
                                 let got_in = matches!(got, Ok(topo::SolidContainment::In));
                                 // tube's z-range unknown sign; accept either orientation consistently below
                                 let _ = (in_tube, in_tube2);
-                                if in_rod && !got_in { wrong += 1; }
+                                if in_rod && !got_in {
+                                    wrong += 1;
+                                }
                             }
                         }
                     }
@@ -459,12 +574,29 @@ fn probe_unrecorded_contact_detail() {
     let (p, r, _, _) = rod_on_puck(1.0, 0.25, (-1.5, 1.0), 1.0, 0.0, 0.5);
     let (p, r) = (at_rest(p), at_rest(r));
     for (o, x, y) in [("puck,rod", &p, &r), ("rod,puck", &r, &p)] {
-        let Ok(BooleanResult::Body(u)) = topo::union(x, y, tol()) else { panic!() };
-        let f = topo::validate_pseudomanifold(&u.body, &u.contacts, tol()).err().unwrap_or_default();
+        let Ok(BooleanResult::Body(u)) = topo::union(x, y, tol()) else {
+            panic!()
+        };
+        let f = topo::validate_pseudomanifold(&u.body, &u.contacts, tol())
+            .err()
+            .unwrap_or_default();
         for e in f {
-            if let topo::ValidationError::UnrecordedContact { contact: topo::CensusContact::EdgeFaceOverlap { edge, face }, .. } = e {
-                let ends: Vec<String> = u.body.half_edges().filter(|(_, h)| h.edge == edge).map(|(_, h)| at(&u.body, h.start)).collect();
-                let fk = u.body.get_surface(u.body.get_face(face).unwrap().surface).unwrap().kind();
+            if let topo::ValidationError::UnrecordedContact {
+                contact: topo::CensusContact::EdgeFaceOverlap { edge, face },
+                ..
+            } = e
+            {
+                let ends: Vec<String> = u
+                    .body
+                    .half_edges()
+                    .filter(|(_, h)| h.edge == edge)
+                    .map(|(_, h)| at(&u.body, h.start))
+                    .collect();
+                let fk = u
+                    .body
+                    .get_surface(u.body.get_face(face).unwrap().surface)
+                    .unwrap()
+                    .kind();
                 eprintln!("{o}: unrecorded edge {ends:?} in face {fk:?}");
             }
         }
