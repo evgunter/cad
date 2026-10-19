@@ -4,7 +4,9 @@
 //! carves, is tier-3 valid with naming total, and its volume enclosure
 //! brackets the closed form narrowly enough to be a claim. The fillet's
 //! perpendicular end faces are decided `Zero` by `fillet3_cap_transverse`
-//! at the certified scalar, read off the funnel's log.
+//! at the certified scalar, read off the funnel's log. A sheared box's
+//! oblique end faces put a fillet's foot half a turn from its end
+//! ellipse's `u_ref`; those rows build at `Interval` as at `f64`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -12,16 +14,19 @@ use core::f64::consts::PI;
 
 use crate::common::interval::iv;
 use geom_core::k_stats::Bracket;
-use geom_core::{Bounds, Interval, Point3, Sign, Tol};
+use geom_core::{Bounds, Decide, Interval, Point3, Sign, Tol};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_naming_totality, block};
-use topo::{Body, EdgeKey, mass_properties, query, validate_geometric};
+use topo::{
+    Body, ContactRecords, EdgeKey, mass_properties, query, validate_geometric,
+    validate_pseudomanifold,
+};
 
 const D: f64 = 0.1;
 
 /// The box edge between two points, either way round.
-fn edge(body: &Body<Interval>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
-    let near = |p: &Point3<Interval>, q: [f64; 3]| {
+fn edge<T: Bounds>(body: &Body<T>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
+    let near = |p: &Point3<T>, q: [f64; 3]| {
         [p.x, p.y, p.z]
             .iter()
             .zip(q)
@@ -200,6 +205,100 @@ fn a_feature_across_a_requested_edges_line_is_clear_at_the_certified_scalar() {
                 assert!(
                     removed.hi() - removed.lo() < 1e-9,
                     "{what} (round {round}): the enclosure is a claim: {removed:?}"
+                );
+            }
+        }
+    }
+}
+
+/// The sheared box `parallelepiped_at(s)` at `T`, as itself (convex) or
+/// as a void in a block (concave, its top edge a pocket's ceiling edge),
+/// and its top edge out of `(s, s, 1)`, whose end faces both lean.
+fn sheared<T: Decide + Bounds + topo::AtRestPolicy>(
+    s: f64,
+    convex: bool,
+    tol: Tol,
+) -> (topo::AtRestBody<T>, EdgeKey) {
+    use sweep::test_support::{brick, finished};
+    use topo::boolean::{BooleanInputs, BooleanOp, SweepStrategy, boolean_op_with};
+    let leaning = crate::common::operands::parallelepiped_at::<T>(s);
+    let body = if convex {
+        leaning
+    } else {
+        boolean_op_with(
+            BooleanOp::Subtract,
+            &finished("the block", brick::<T>((-1.0, 4.0), (-1.0, 3.0), (-1.0, 2.0), tol), tol),
+            &finished("the sheared box", leaning, tol),
+            &BooleanInputs::default(),
+            SweepStrategy::Realized,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("the void builds, got {e}"))
+        .body()
+        .expect("the void is a body")
+        .body
+        .clone()
+        .into_body()
+    };
+    let body = finished("the sheared fixture", body, tol);
+    let top = edge(&body, [s, s, 1.0], [2.0 + s, s, 1.0]);
+    (body, top)
+}
+
+/// **A cut-off at an oblique end face carves at the certified scalar as
+/// at `f64`**: the sheared box's top edge over a ladder of shears of
+/// both signs, convex and concave, both verbs. The fillet's foot on the
+/// top rim is the end ellipse's major vertex, half a turn from `u_ref`
+/// at one sign of the shear, where a parameter read from the seam
+/// straddles `atan2`'s cut. Every row builds at both scalars, tiers 3
+/// and 3′ and naming total at `Interval`, its `ΔV` enclosure bracketing
+/// the `f64` body's within the props pad and its midpoint within
+/// `midpoint_tol`.
+#[test]
+fn a_cut_off_at_an_oblique_end_carves_at_the_certified_scalar() {
+    use crate::band_planar_cut_off::{midpoint_tol, pad_ceiling};
+    let tol = Tol::witness();
+    for s in [-0.6, -0.3, -0.1, 0.1, 0.3, 0.6] {
+        for convex in [true, false] {
+            let (fbody, fedge) = sheared::<f64>(s, convex, tol);
+            let (ibody, iedge) = sheared::<Interval>(s, convex, tol);
+            let fv0 = mass_properties(&fbody, tol).expect("props").volume;
+            let iv0 = mass_properties(&ibody, tol).expect("interval props");
+            for round in [false, true] {
+                let what = format!("shear {s}, convex {convex}, round {round}");
+                let fout = if round {
+                    fillet_edges(&fbody, &[fedge], D, tol)
+                } else {
+                    chamfer_edges(&fbody, &[fedge], D, tol)
+                }
+                .unwrap_or_else(|e| panic!("{what}: carves at f64, got {e:?}"));
+                let want = fv0 - mass_properties(&fout.body, tol).expect("props").volume;
+                let out = if round {
+                    fillet_edges(&ibody, &[iedge], iv(D), tol)
+                } else {
+                    chamfer_edges(&ibody, &[iedge], iv(D), tol)
+                }
+                .unwrap_or_else(|e| panic!("{what}: carves at Interval, got {e:?}"));
+                validate_geometric(&out.body, tol)
+                    .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
+                validate_pseudomanifold(&out.body, &ContactRecords::default(), tol)
+                    .unwrap_or_else(|e| panic!("{what}: tier 3′, got {e:?}"));
+                assert_naming_totality(&ibody, &out, &[iedge], &what);
+                let p = mass_properties(&out.body, tol).expect("interval props");
+                let removed = iv0.volume - p.volume;
+                let pad = iv0.volume_pad.hi() + p.volume_pad.hi();
+                assert!(
+                    removed.lo() - pad <= want && want <= removed.hi() + pad,
+                    "{what}: ΔV {removed:?} ± {pad} brackets the f64 body's {want}"
+                );
+                let mid = 0.5 * (removed.lo() + removed.hi());
+                assert!(
+                    (mid - want).abs() < midpoint_tol(),
+                    "{what}: ΔV's midpoint {mid} against the f64 body's {want}"
+                );
+                assert!(
+                    removed.hi() - removed.lo() + 2.0 * pad < 2.0 * pad_ceiling(),
+                    "{what}: the enclosure is a claim: {removed:?} ± {pad}"
                 );
             }
         }
