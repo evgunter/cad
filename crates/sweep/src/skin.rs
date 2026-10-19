@@ -35,38 +35,111 @@
 //!
 //! # Structure selection is f64 (C6/D9)
 //!
-//! Degrees, knot vectors, sub-arc counts, and the interpolation
-//! parameters are chosen in `f64`, deterministically: same sections in,
-//! same knots and same control bits out. The produced surface then
-//! evaluates generically over [`geom_core::Real`] (the substrate's
-//! rule) — [`NurbsSurface::map_scalar`] carries a chosen structure to
-//! any scalar. The control bits and the weights are DATA, so that lift
-//! is exact at every scalar and reads the SAME definition Q8 names
-//! above: the interval lane encloses this surface, never an
-//! approximation of it. No topology decision is made here, so nothing
-//! routes through `k_stats`; the raw `f64` comparisons below are
-//! structure selection under C6.
+//! Degrees, knot multiplicities, the degree raise, the merged knots and
+//! the parameters' order are chosen in `f64`, deterministically, on the
+//! value channel of the data ([`SpanLocate::point_value`]): same
+//! sections in, same structure out. An arc's sub-arc count and its turn
+//! and endpoint branches are decided over the brackets they read, for
+//! every member ([`SkinError::ArcSweepUndecided`]).
+//! A positivity the structure asks of a value (a chord that is not
+//! empty, a parameter step that ascends) holds for every value it
+//! stands for ([`SpanLocate::structure_positive`]), so at an enclosure
+//! scalar a value wider than a point passes where its whole bracket
+//! does. Where the answer selects a branch rather than refusing (a
+//! control row that abstains from the parameterization), a value whose
+//! members would not all take one branch refuses
+//! ([`SkinError::RowMotionUndecided`]).
+//!
+//! # The values are computed in the sections' scalar
+//!
+//! Every value is formed in the scalar the sections are held in, under
+//! those decisions: an arc's weight `cos(Δ/2)` and its poles
+//! ([`segment_curve`]), the compatible nets through the knot algebra
+//! ([`make_compatible`]), the chord-length parameters
+//! ([`skin_parameters`]), the averaged knots and the banded collocation
+//! solve ([`skin_on`], `geom::curves::fit::interpolate_columns_in`). So
+//! a section whose arc sweep is a function of a document's variables
+//! gives a wall whose weights, knots and poles are functions of them
+//! too, and at an enclosure scalar a section over a box gives walls
+//! that enclose the box's family. The sines and cosines are `Real`'s,
+//! the pure-Rust `libm` D9 prescribes.
+//!
+//! A carrier's weights and knots are points at every scalar for now, so
+//! at an enclosure scalar an arc whose weight `cos(Δ/2)` is wider than a
+//! point refuses at the carrier's door
+//! (`SplineError::CarrierWeightNotAPoint`, until C6's S4/S5), as does an
+//! interior averaged knot wider than a point. An arc's sweep structure
+//! (non-zero, its sub-arc count, a turn) is certified for every value
+//! it stands for ([`SkinError::ArcSweepUndecided`]). The knot algebra
+//! that makes sections compatible runs homogeneous at an enclosure
+//! scalar ([`make_compatible`], C6 S4), and its result enters through
+//! the same door. No topology decision is
+//! made here, so nothing routes through `k_stats`; the raw `f64`
+//! comparisons below are structure selection under C6.
 
-use core::f64::consts::TAU;
+use core::num::NonZeroUsize;
 use std::sync::Arc;
 
 use geom::NurbsCurve3;
 use geom::NurbsSurface;
-use geom::curves::fit::{FitError, interpolate_columns};
+use geom::curves::fit::{FitError, interpolate_columns_in};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
-use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Affine3, Arc2, COINCIDENCE_RECOURSE, Point2, Point3, Vec3};
+use geom_core::spline::{KnotAlgebraError, Knots, SpanLocate, SplineError};
+use geom_core::{
+    Affine3, Arc2, COINCIDENCE_RECOURSE, Decide, MarginDiag, Point2, Point3, Real, Vec3,
+};
 use profile::{
-    ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop, SketchPlane,
-    ValidatedProfile,
+    CanonicalStructure, ConstructedLoop, ConstructedProfile, Profile, ProfileError, ProfileLoop,
+    SketchPlane, ValidatedProfile,
 };
 
-/// The quarter-turn ceiling on one rational-quadratic arc span: every
+/// η, the slack above a quarter turn one sub-arc may take (C6's
+/// sub-arc rule): the count's breakpoints sit at `k·(π/2)(1 + η)`, off
+/// the multiples of π/2 where documents' sweeps sit, so an arc whose
+/// true sweep is `k·π/2` counts `k` for every value it stands for.
+/// `1/16` is exact, keeps `k·π/2` at count `k` for every `k ≤ 4` (a
+/// full turn: it needs `4/(1 + η) > 3`), and keeps a sub-arc's
+/// tangent-intersection point well conditioned.
+const SUB_ARC_ETA: f64 = 1.0 / 16.0;
+
+/// The ceiling on one rational-quadratic arc span, `(π/2)(1 + η)`: every
 /// sub-arc of a converted profile arc is at most this wide, so the
 /// tangent-intersection control point stays finite and well
-/// conditioned (`cos(Δ/2) ≥ cos(π/4)`).
-const MAX_SUB_ARC: f64 = core::f64::consts::FRAC_PI_2;
+/// conditioned (`cos(Δ/2) ≥ cos((π/4)(1 + η))`).
+const MAX_SUB_ARC: f64 = core::f64::consts::FRAC_PI_2 * (1.0 + SUB_ARC_ETA);
+
+/// Which of an arc's sweep decisions [`SkinError::ArcSweepUndecided`]
+/// names: each is structure read off the sweep, certified for every
+/// value it stands for (C6).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArcSweepDecision {
+    /// That the sweep is not zero.
+    NonZero,
+    /// How many sub-arcs it takes: one sub-arc reaches `(π/2)(1 + η)`.
+    SubArcCount,
+    /// That an arc between two points stops short of a full turn.
+    TurnBetweenPoints,
+    /// That an arc back to its own start is one full turn, nearer one
+    /// than none or two.
+    TurnToItself,
+    /// Whether the arc ends where it starts (its endpoints' distance
+    /// is zero) or between two points: the branch the two turn checks
+    /// above select between.
+    Endpoints,
+}
+
+impl core::fmt::Display for ArcSweepDecision {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::NonZero => "whether its sweep is zero",
+            Self::SubArcCount => "how many sub-arcs its sweep takes",
+            Self::TurnBetweenPoints => "whether its sweep stops short of a full turn",
+            Self::TurnToItself => "whether its sweep is one full turn",
+            Self::Endpoints => "whether it ends where it starts",
+        })
+    }
+}
 
 /// Typed refusal of the §10.3/§10.4 constructions (closed enum, D4 ¶3).
 ///
@@ -185,6 +258,34 @@ pub enum SkinError {
         /// The station where the frame failed.
         station: usize,
     },
+    /// Whether control row `row` moves between the sections is not
+    /// the same for every value they stand for: its chord-length total
+    /// is wider than a point and reaches zero. A row that never moves
+    /// abstains from the parameterization, so the members would not
+    /// share one, and the skin refuses rather than stand for those
+    /// whose row moves.
+    RowMotionUndecided {
+        /// The control row, counted down the rows the
+        /// parameterization reads.
+        row: usize,
+    },
+    /// Section `section` has an arc whose structure is not decided
+    /// over the values it stands for (C6): the bracket a decision reads
+    /// (`which` names it; the sweep's, or for [`ArcSweepDecision::Endpoints`]
+    /// the endpoints' distance) straddles that decision's breakpoint.
+    /// The margin is the bracket's distance to the breakpoint, as read;
+    /// inputs narrow enough that it clears zero lift the refusal. A
+    /// bracket may be wide from rounding alone: a constant sweep of
+    /// exactly a full turn between two points reads `T::tau()`'s own
+    /// enclosure, which no narrower input clears.
+    ArcSweepUndecided {
+        /// The section.
+        section: usize,
+        /// The decision.
+        which: ArcSweepDecision,
+        /// The sweep's distance to the breakpoint, as read.
+        margin: MarginDiag,
+    },
     /// The v-direction interpolation refused.
     Fit(FitError),
     /// A knot-algebra operation (degree elevation, refinement) refused.
@@ -245,6 +346,24 @@ impl core::fmt::Display for SkinError {
                 "the path's tangent reverses or vanishes at station {station}, so no rigid \
                  frame carries the profile through it. Recourse: smooth the path there"
             ),
+            Self::RowMotionUndecided { row } => write!(
+                f,
+                "whether control row {row} moves between the sections is not decided over the \
+                 values they stand for, so the skin's parameterization is not one for them \
+                 all. Recourse: narrow the range, or evaluate the loft at a point scalar"
+            ),
+            Self::ArcSweepUndecided {
+                section,
+                which,
+                margin,
+            } => write!(
+                f,
+                "section {section} has an arc that leaves {which} undecided over the values it \
+                 stands for: what it reads is {margin} from the breakpoint. Recourse: narrow the \
+                 range of that sweep or those endpoints until it clears the breakpoint; the width \
+                 may be rounding alone (a constant sweep of exactly a full turn), and then \
+                 evaluate at a point scalar"
+            ),
             Self::Fit(e) => write!(f, "{e}"),
             Self::KnotAlgebra(e) => write!(f, "{e}"),
             Self::Structure(e) => write!(f, "{e}"),
@@ -281,9 +400,10 @@ impl From<FitError> for SkinError {
 /// - **Line** → degree 1, two control points, unit weights: the chord,
 ///   with the segment's own affine parameter.
 /// - **Arc** → the standard rational-quadratic circular representation
-///   (Book §7.5 / A7.1), split into `⌈|θ| / (π/2)⌉` equal sub-arcs so
-///   every tangent-intersection control point stays finite and the
-///   interior weights `cos(Δ/2)` stay ≥ `cos(π/4)`. Exact in ℝ: the
+///   (Book §7.5 / A7.1), split into `⌈|θ| / ((π/2)(1+η))⌉` equal
+///   sub-arcs, η = 1/16 (`MAX_SUB_ARC`), so every tangent-intersection
+///   control point stays finite and the interior weights `cos(Δ/2)`
+///   stay ≥ `cos((π/4)(1+η))`. Exact in ℝ: the
 ///   locus IS the carrier circle, not a fit of it. The circle is the
 ///   one [`SketchSegment::eval`] describes — `a` turned about the
 ///   centre through the sweep — so the control points are `a − centre`
@@ -302,29 +422,37 @@ impl From<FitError> for SkinError {
 /// distance from its centre, an arc between two points sweeping a full
 /// turn or more, or an arc back to its own start that is not one full
 /// turn (D1's full turn, one segment at one vertex, is the one that
-/// converts); [`SkinError::Structure`] if validated construction
-/// refuses.
+/// converts); [`SkinError::ArcSweepUndecided`] for an arc whose sweep
+/// or endpoints leave one of those decisions, or its sub-arc count,
+/// undecided over the values they stand for;
+/// [`SkinError::Structure`] if validated construction refuses
+/// (`CarrierWeightNotAPoint` for a weight wider than a point, C6's
+/// interim until S4/S5).
 // `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
 // geom-core::spline::algebra note): a poisoned coordinate must take
 // the refusal arm, not slip through a negated comparison.
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
-pub fn segment_curve(
+pub fn segment_curve<T: SpanLocate>(
     section: usize,
-    seg: SketchSegment<f64>,
-    place: Affine3<f64>,
-) -> Result<NurbsCurve3<f64>, SkinError> {
+    seg: SketchSegment<T>,
+    place: Affine3<T>,
+) -> Result<NurbsCurve3<T>, SkinError> {
     let degenerate = |what: &'static str| SkinError::DegenerateSection { section, what };
-    let world = |p: Point2<f64>| place.transform_point(Point3::new(p.x, p.y, 0.0));
+    let world = |p: Point2<T>| place.transform_point(Point3::new(p.x, p.y, T::zero()));
+    let (two, three) = (
+        NonZeroUsize::MIN.saturating_add(1),
+        NonZeroUsize::MIN.saturating_add(2),
+    );
     match seg {
         SketchSegment::Line { a, b } => {
-            if !(a.distance(b) > 0.0) {
+            if !a.distance(b).structure_positive() {
                 return Err(degenerate("zero-length chord"));
             }
-            let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1)?;
+            let knots = Knots::new(vec![(T::zero(), two), (T::one(), two)], 1)?;
             Ok(NurbsCurve3::new(
                 knots,
                 vec![world(a), world(b)],
-                vec![1.0, 1.0],
+                vec![T::one(), T::one()],
             )?)
         }
         SketchSegment::Arc { a, b, arc } => {
@@ -333,41 +461,110 @@ pub fn segment_curve(
                 sweep: theta,
                 ..
             } = arc;
-            if !theta.is_finite() || theta == 0.0 {
+            // The arc's structure is decided for every value it stands
+            // for (C6), over |θ|'s bracket: that it is not zero, how many
+            // sub-arcs it takes, and that it is short of a turn (an arc
+            // between two points) or one turn (an arc back to its start);
+            // and over the endpoints' distance, which of those two it is.
+            // A bracket that straddles a breakpoint refuses typed, with
+            // the margin a narrower box lifts.
+            let undecided = |which, lo: f64, hi: f64| SkinError::ArcSweepUndecided {
+                section,
+                which,
+                margin: MarginDiag::enclosure(lo, hi),
+            };
+            let Some((lo, hi)) = theta.abs().structure_bracket() else {
+                return Err(degenerate("zero or non-finite sweep"));
+            };
+            // A sweep with no finite member, or none but zero, is
+            // degenerate for every member; one some of whose members are
+            // finite and others not straddles every count's breakpoint
+            // and refuses below as the count undecided.
+            if !lo.is_finite() || hi == 0.0 {
                 return Err(degenerate("zero or non-finite sweep"));
             }
+            if lo == 0.0 {
+                return Err(undecided(ArcSweepDecision::NonZero, lo, hi));
+            }
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let count = |x: f64| ((x / MAX_SUB_ARC).ceil() as usize).max(1);
+            let m = count(lo);
+            if count(hi) != m {
+                #[allow(clippy::cast_precision_loss)]
+                let at = m as f64 * MAX_SUB_ARC;
+                return Err(undecided(ArcSweepDecision::SubArcCount, lo - at, hi - at));
+            }
+            #[allow(clippy::cast_precision_loss)]
+            let steps = m as f64;
+            let delta = theta / T::from_f64(steps);
+            let half = T::from_f64(0.5);
+            // The weight `cos(Δ/2)` is held in `T`; where it is no point
+            // (at an enclosure scalar, by rounding alone), the carrier's
+            // door refuses it (`CarrierWeightNotAPoint`) until C6's S4/S5.
+            let (_, half_w) = (delta * half).sin_cos();
             // An arc that ends where it starts lands there after whole
             // turns, and converts only as ONE (D1's full turn): its
             // sweep is nearer one turn than none or two. An arc between
-            // two points stops short of a turn.
-            if a.distance(b) > 0.0 {
-                if !(theta.abs() < TAU) {
+            // two points stops short of a turn. Both read the true 2π's
+            // bracket.
+            let Some((tau_lo, tau_hi)) = T::tau().structure_bracket() else {
+                unreachable!("τ is a number at every scalar")
+            };
+            let chord = a.distance(b);
+            let between = chord.structure_positive();
+            if !between
+                && let Some((chord_lo, chord_hi)) = chord.structure_bracket()
+                && chord_hi > 0.0
+            {
+                return Err(undecided(ArcSweepDecision::Endpoints, chord_lo, chord_hi));
+            }
+            if between {
+                if lo >= tau_hi {
                     return Err(degenerate("a full turn or more between two points"));
                 }
-            } else if !(theta.abs() > TAU / 2.0 && theta.abs() < 1.5 * TAU) {
-                return Err(degenerate(
-                    "an arc from a point back to itself that is not one full turn",
-                ));
+                if hi >= tau_lo {
+                    return Err(undecided(
+                        ArcSweepDecision::TurnBetweenPoints,
+                        lo - tau_lo,
+                        hi - tau_lo,
+                    ));
+                }
+            } else {
+                let (half_lo, half_hi) = (0.5 * tau_lo, 0.5 * tau_hi);
+                let (three_lo, three_hi) = (1.5 * tau_lo, 1.5 * tau_hi);
+                if hi <= half_lo || lo >= three_hi {
+                    return Err(degenerate(
+                        "an arc from a point back to itself that is not one full turn",
+                    ));
+                }
+                if lo <= half_hi {
+                    return Err(undecided(
+                        ArcSweepDecision::TurnToItself,
+                        lo - half_hi,
+                        hi - half_hi,
+                    ));
+                }
+                if hi >= three_lo {
+                    return Err(undecided(
+                        ArcSweepDecision::TurnToItself,
+                        lo - three_lo,
+                        hi - three_lo,
+                    ));
+                }
             }
             let spoke = a - centre;
             let rim = spoke.norm();
-            if !(rim > 0.0) || !rim.is_finite() {
+            if !rim.structure_positive() || !rim.is_bounded() {
                 return Err(degenerate(
                     "arc start is not a finite, positive distance from its centre",
                 ));
             }
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let m = ((theta.abs() / MAX_SUB_ARC).ceil() as usize).max(1);
-            #[allow(clippy::cast_precision_loss)]
-            let steps = m as f64;
-            let delta = theta / steps;
-            let half_w = (delta / 2.0).cos();
             // The on-arc control points are the evaluation's own points
             // ([`Arc2::point_from`], `a` itself at the start); the
             // tangent-intersection points are the spoke `a − centre`
             // turned to mid-span about the centre and pushed out by
             // 1/cos(Δ/2).
-            let tangent_point = |ang: f64| {
+            let tangent_point = |ang: T| {
                 let (s, c) = ang.sin_cos();
                 let (x, y) = (spoke.x / half_w, spoke.y / half_w);
                 world(Point2::new(
@@ -376,28 +573,28 @@ pub fn segment_curve(
                 ))
             };
             let mut control = vec![world(a)];
-            let mut weights = vec![1.0f64];
+            let mut weights = vec![T::one()];
             for k in 0..m {
+                // The sub-arc's breakpoints `k/m` are structure: the
+                // constants the knot vector below holds, and the ones
+                // knot merging enters for the same breakpoint.
                 #[allow(clippy::cast_precision_loss)]
-                let (base, next) = (delta * k as f64, (k + 1) as f64 / steps);
-                control.push(tangent_point(base + delta / 2.0));
+                let (base, next) = (
+                    delta * T::from_f64(k as f64),
+                    T::from_f64((k + 1) as f64 / steps),
+                );
+                control.push(tangent_point(base + delta * half));
                 weights.push(half_w);
                 control.push(world(arc.point_from(a, next)));
-                weights.push(1.0);
+                weights.push(T::one());
             }
-            let mut knots = vec![0.0, 0.0, 0.0];
+            let mut runs = vec![(T::zero(), three)];
             for k in 1..m {
                 #[allow(clippy::cast_precision_loss)]
-                let t = k as f64 / steps;
-                knots.push(t);
-                knots.push(t);
+                runs.push((T::from_f64(k as f64 / steps), two));
             }
-            knots.extend([1.0, 1.0, 1.0]);
-            Ok(NurbsCurve3::new(
-                KnotVector::clamped(knots, 2)?,
-                control,
-                weights,
-            )?)
+            runs.push((T::one(), three));
+            Ok(NurbsCurve3::new(Knots::new(runs, 2)?, control, weights)?)
         }
     }
 }
@@ -416,12 +613,23 @@ pub fn segment_curve(
 /// same knots, and therefore the same control-point count — which is
 /// what makes a tensor-product skin possible at all.
 ///
+/// They are the knot algebra, at every scalar: projective at an
+/// evaluation scalar, homogeneous at an enclosure scalar (C6 S4: the
+/// net as `(w·P, w)`, no weight quotient formed). At an enclosure
+/// scalar the result enters through the carrier's door, so a rational
+/// section, whose refined weights are enclosures from rounding alone,
+/// refuses there ([`SplineError::CarrierWeightNotAPoint`], C6's interim
+/// until S5), while a polynomial one keeps its unit weights exactly and
+/// is admitted.
+///
 /// # Errors
 ///
 /// [`SkinError::TooFewSections`], [`SkinError::DomainNotUnit`] for a
 /// section off the unit domain, and the propagated knot-algebra /
 /// structure refusals.
-pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<f64>>, SkinError> {
+pub fn make_compatible<T: SpanLocate>(
+    sections: &[NurbsCurve3<T>],
+) -> Result<Vec<NurbsCurve3<T>>, SkinError> {
     if sections.len() < 2 {
         return Err(SkinError::TooFewSections {
             have: sections.len(),
@@ -436,7 +644,7 @@ pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<
     }
     // §5.5: one common degree.
     let degree = sections.iter().map(NurbsCurve3::degree).max().unwrap_or(0);
-    let elevated: Vec<NurbsCurve3<f64>> = sections
+    let elevated: Vec<NurbsCurve3<T>> = sections
         .iter()
         .map(|c| {
             let raise = degree - c.degree();
@@ -468,7 +676,7 @@ pub fn make_compatible(sections: &[NurbsCurve3<f64>]) -> Result<Vec<NurbsCurve3<
 /// for sections that did not come out of [`make_compatible`], and
 /// [`SkinError::NoParameterStep`] where the parameters do not strictly
 /// ascend.
-pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinError> {
+pub fn skin_parameters<T: SpanLocate>(sections: &[NurbsCurve3<T>]) -> Result<Vec<T>, SkinError> {
     let k = sections.len();
     if k < 2 {
         return Err(SkinError::TooFewSections { have: k, need: 2 });
@@ -493,7 +701,7 @@ pub fn skin_parameters(sections: &[NurbsCurve3<f64>]) -> Result<Vec<f64>, SkinEr
 
 /// Control row `i` of compatible `sections`: the `i`-th control point
 /// of each section, in section order.
-fn control_row(sections: &[NurbsCurve3<f64>], i: usize) -> Vec<Point3<f64>> {
+fn control_row<T: SpanLocate>(sections: &[NurbsCurve3<T>], i: usize) -> Vec<Point3<T>> {
     sections.iter().map(|c| c.control()[i]).collect()
 }
 
@@ -507,29 +715,32 @@ fn control_row(sections: &[NurbsCurve3<f64>], i: usize) -> Vec<Point3<f64>> {
 ///
 /// [`SkinError::NoParameterStep`] when every row is pinned or the
 /// parameters do not strictly ascend.
-// `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
-// geom-core::spline::algebra note): a poisoned coordinate must take
-// the refusal arm, not slip through a negated comparison.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
-fn chord_length_parameters(
+fn chord_length_parameters<T: SpanLocate>(
     k: usize,
-    rows: impl IntoIterator<Item = Vec<Point3<f64>>>,
-) -> Result<Vec<f64>, SkinError> {
-    let mut shares = vec![Vec::new(); k];
+    rows: impl IntoIterator<Item = Vec<Point3<T>>>,
+) -> Result<Vec<T>, SkinError> {
+    let mut shares: Vec<Vec<T>> = vec![Vec::new(); k];
     let mut counted = 0usize;
-    for row in rows {
-        let chords: Vec<f64> = row.windows(2).map(|w| w[0].distance(w[1])).collect();
-        let total: f64 = chords.iter().sum();
+    for (index, row) in rows.into_iter().enumerate() {
+        let chords: Vec<T> = row.windows(2).map(|w| w[0].distance(w[1])).collect();
+        // Summed from `+0`: every chord is a length, `+0` or above, so
+        // this is `f64`'s `Sum` (which starts at `-0`) bit for bit.
+        let total = chords.iter().fold(T::zero(), |acc, c| acc + *c);
         // A row that never moves (a corner pinned across every
         // section) carries no parameterization information — it is not
-        // an error, it simply abstains from the average.
-        if !(total > 0.0) {
+        // an error, it simply abstains from the average. A row that
+        // moves for some values its bracket stands for and not others
+        // would abstain for some members only, so it refuses.
+        if !total.structure_positive() {
+            if total.point_value().is_none() && !total.is_poison() {
+                return Err(SkinError::RowMotionUndecided { row: index });
+            }
             continue;
         }
         counted += 1;
-        let mut acc = 0.0f64;
+        let mut acc = T::zero();
         for (j, chord) in chords.iter().enumerate() {
-            acc += chord;
+            acc = acc + *chord;
             shares[j + 1].push(acc / total);
         }
     }
@@ -537,26 +748,28 @@ fn chord_length_parameters(
         return Err(SkinError::NoParameterStep { section: 1 });
     }
     #[allow(clippy::cast_precision_loss)]
-    let denom = counted as f64;
+    let denom = T::from_f64(counted as f64);
     // Each section's mean is taken as `min + Σ (sᵢ − min) / m` over its
-    // sorted shares: a function of the multiset, and EXACT when the
-    // rows agree (evenly stacked identical sections give every row the
-    // same share, and the mean must not round it to a neighbour).
-    let mut params: Vec<f64> = shares
+    // shares sorted on the value channel: a function of the multiset,
+    // and EXACT when the rows agree (evenly stacked identical sections
+    // give every row the same share, and the mean must not round it to
+    // a neighbour). Every `sᵢ − min` is `+0` or above, so the sum from
+    // `+0` is `f64`'s `Sum` bit for bit.
+    let mut params: Vec<T> = shares
         .iter_mut()
         .map(|s| {
-            s.sort_by(f64::total_cmp);
-            let lo = s.first().copied().unwrap_or(0.0);
-            lo + s.iter().map(|x| x - lo).sum::<f64>() / denom
+            s.sort_by(|a, b| (*a).value_channel().total_cmp(&(*b).value_channel()));
+            let lo = s.first().copied().unwrap_or_else(T::zero);
+            lo + s.iter().fold(T::zero(), |acc, x| acc + (*x - lo)) / denom
         })
         .collect();
     // The averaged accumulation pins 0 and 1 in exact arithmetic; make
     // the ends EXACT so the averaged-knot construction's clamped
     // `0 → 1` precondition holds bit-for-bit (D9 structure selection).
-    params[0] = 0.0;
-    params[k - 1] = 1.0;
+    params[0] = T::zero();
+    params[k - 1] = T::one();
     for j in 1..k {
-        if !(params[j - 1] < params[j]) {
+        if !geom_core::spline::structure_ascends(params[j - 1], params[j]) {
             return Err(SkinError::NoParameterStep { section: j });
         }
     }
@@ -573,10 +786,8 @@ fn chord_length_parameters(
 ///
 /// The homogeneous treatment above is the RATIONAL lane, and it runs
 /// only when the input is rational. When every section is **integral**
-/// — every weight bit-exactly `1.0`, the kernel's own definition of
-/// non-rational (`NurbsCurve::speed_lower_bound`'s test) — the
-/// sections are interpolated in plain Cartesian ℝ³ and the result
-/// carries exactly `1.0` weights.
+/// — every weight bit-exactly `1.0` — the sections are interpolated in
+/// plain Cartesian ℝ³ and the result carries exactly `1.0` weights.
 ///
 /// The two lanes agree exactly in ℝ: with `w ≡ 1` the homogeneous data
 /// IS the Cartesian data, and the weight column's interpolant is the
@@ -605,9 +816,12 @@ fn chord_length_parameters(
 /// first place — NOT to solve for it and then snap the answer back to
 /// the value it was supposed to have (a silent heal, which would also
 /// leave the control points divided by the pre-snap denominator).
-/// `integral` is decided by `==` on the input's own bits: C6 structure
+/// `integral` is decided by `==` on the input's own bits — its weights'
+/// value channel ([`NurbsCurve3::weights_f64_interim`]): C6 structure
 /// selection about what the caller handed in, never a predicate, never
-/// a tolerance.
+/// a tolerance. The integral lane's output weights are the constant
+/// `1`: every weight it read was exactly `1`, and the lane does not
+/// solve for them.
 ///
 /// The Cartesian lane is bitwise conservative for the cases that
 /// already worked. The collocation solve factors the matrix once from
@@ -645,10 +859,10 @@ fn chord_length_parameters(
 /// [`SkinError::Structure`] — notably a non-positive interpolated
 /// weight, refused at the door because the convex-hull invariant every
 /// C9 bound stands on requires `w > 0`.
-pub fn skin(
-    sections: &[NurbsCurve3<f64>],
+pub fn skin<T: SpanLocate>(
+    sections: &[NurbsCurve3<T>],
     v_degree: usize,
-) -> Result<NurbsSurface<f64>, SkinError> {
+) -> Result<NurbsSurface<T>, SkinError> {
     let k = sections.len();
     if k < 2 {
         return Err(SkinError::TooFewSections { have: k, need: 2 });
@@ -659,10 +873,10 @@ pub fn skin(
             sections: k,
         });
     }
-    let knots_u = sections[0].knots().clone();
+    let knots_u = sections[0].knots_f64_interim().clone();
     let n = sections[0].control().len();
     for (i, c) in sections.iter().enumerate().skip(1) {
-        if c.control().len() != n || c.knots().knots() != knots_u.knots() {
+        if c.control().len() != n || c.knots_f64_interim().knots() != knots_u.knots() {
             return Err(SkinError::SectionShapeMismatch {
                 section: i,
                 expected: n,
@@ -683,11 +897,11 @@ pub fn skin(
 ///
 /// Exactly [`skin`]'s, plus [`SkinError::Fit`] for a parameterization
 /// that is not clamped `0 → 1` and strictly ascending.
-pub fn skin_on(
-    sections: &[NurbsCurve3<f64>],
+pub fn skin_on<T: SpanLocate>(
+    sections: &[NurbsCurve3<T>],
     v_degree: usize,
-    params: &[f64],
-) -> Result<NurbsSurface<f64>, SkinError> {
+    params: &[T],
+) -> Result<NurbsSurface<T>, SkinError> {
     let k = sections.len();
     if k < 2 {
         return Err(SkinError::TooFewSections { have: k, need: 2 });
@@ -698,10 +912,12 @@ pub fn skin_on(
             sections: k,
         });
     }
-    let knots_u = sections[0].knots().clone();
+    let knots_u = sections[0].knot_values().clone();
     let n = sections[0].control().len();
     for (i, c) in sections.iter().enumerate().skip(1) {
-        if c.control().len() != n || c.knots().knots() != knots_u.knots() {
+        if c.control().len() != n
+            || c.knots_f64_interim().knots() != knots_u.structure_f64_interim().knots()
+        {
             return Err(SkinError::SectionShapeMismatch {
                 section: i,
                 expected: n,
@@ -712,20 +928,19 @@ pub fn skin_on(
     }
     // INTEGRAL INPUT ⇒ INTEGRAL OUTPUT, by structure (see the
     // "no synthesized weight channel" section of these docs): the
-    // kernel's own definition of non-rational is bit-exact unit
-    // weights (`NurbsCurve::speed_lower_bound`'s test), so this is a
-    // structure question about the input, decided by `==` — C6
-    // structure selection, never a predicate.
+    // integral lane takes bit-exact unit weights, a structure question
+    // about the input decided by `==` — C6 structure selection, never a
+    // predicate.
     let integral = sections
         .iter()
-        .all(|c| c.weights().iter().all(|w| *w == 1.0));
+        .all(|c| c.weights_f64_interim().iter().all(|w| *w == 1.0));
     // Rows of data: one row per section. Homogeneous `(w·x, w·y, w·z,
     // w)` quadruples (`4·n` wide) for a rational input; plain
     // Cartesian triples (`3·n` wide) when the input is integral, where
     // the weight channel carries no information the output does not
     // already have.
     let stride = if integral { 3 } else { 4 };
-    let rows: Vec<Vec<f64>> = sections
+    let rows: Vec<Vec<T>> = sections
         .iter()
         .map(|c| {
             let mut row = Vec::with_capacity(stride * n);
@@ -733,13 +948,13 @@ pub fn skin_on(
                 if integral {
                     row.extend(p.to_array());
                 } else {
-                    row.extend([p.x * w, p.y * w, p.z * w, *w]);
+                    row.extend([p.x * *w, p.y * *w, p.z * *w, *w]);
                 }
             }
             row
         })
         .collect();
-    let (knots_v, solved) = interpolate_columns(params, v_degree, &rows)?;
+    let (knots_v, solved) = interpolate_columns_in(params, v_degree, &rows)?;
     // Un-homogenize into the surface's row-major (u-major) layout:
     // `idx = iu · nv + iv`, `nv = solved.len()`. The integral lane has
     // nothing to un-homogenize: the solved columns ARE the control
@@ -751,7 +966,7 @@ pub fn skin_on(
         for row in &solved {
             if integral {
                 control.push(Point3::new(row[3 * i], row[3 * i + 1], row[3 * i + 2]));
-                weights.push(1.0);
+                weights.push(T::one());
             } else {
                 let (x, y, z, w) = (row[4 * i], row[4 * i + 1], row[4 * i + 2], row[4 * i + 3]);
                 control.push(Point3::new(x / w, y / w, z / w));
@@ -779,18 +994,18 @@ pub fn skin_on(
 /// the seams. That is the definitional payoff: those edges' pcurves are
 /// exact straight lines in UV, no fit anywhere.
 #[derive(Clone, Debug)]
-pub struct LoftGeometry {
+pub struct LoftGeometry<T: Real = f64> {
     /// Skinned walls, per loop (outer first, then holes in canonical
     /// order), per segment in canonical order.
-    pub walls: Vec<Vec<Arc<NurbsSurface<f64>>>>,
+    pub walls: Vec<Vec<Arc<NurbsSurface<T>>>>,
     /// The v-parameter each section sits at (`params[0] = 0`,
     /// `params[k - 1] = 1`), shared by every wall — the sections are
     /// planar cross-sections of the whole loft at these values.
-    pub section_params: Vec<f64>,
+    pub section_params: Vec<T>,
     /// The compatible section curves per (loop, segment), kept because
     /// the cap and rim geometry is exactly section 0's and section
     /// `k − 1`'s — no re-derivation, no drift.
-    pub sections: Vec<Vec<Vec<NurbsCurve3<f64>>>>,
+    pub sections: Vec<Vec<Vec<NurbsCurve3<T>>>>,
     /// **Each input section's canonical form**, in input order — the
     /// `ValidatedProfile` [`validate_sections`] decided at the door and
     /// the walls were skinned from. Kept for the same reason
@@ -798,7 +1013,7 @@ pub struct LoftGeometry {
     /// 0's and section `k − 1`'s profiles, so handing the decided form
     /// over is what makes the caps the walls' own sections rather than
     /// a second validation of the same data agreeing by determinism.
-    pub canonical: Vec<ValidatedProfile<f64>>,
+    pub canonical: Vec<ValidatedProfile<T>>,
 }
 
 /// One section of a loft or sweep: its loops in the profile
@@ -810,42 +1025,113 @@ pub struct LoftGeometry {
 /// disagreement is unrepresentable.
 pub type Section<L = ProfileLoop<f64>> = Vec<L>;
 
-/// **A loop a section is made of**, and the provenance its validation
-/// reads: a [`ProfileLoop`] is a table, whose arcs [`Profile::validate`]
-/// checks against their vertices, and a [`ConstructedLoop`] is the path
-/// lattice's own output, whose arcs were verified at their construction
-/// (D1) and validate through [`ConstructedProfile::validate`] without
-/// being decided again. A section is all one or all the other.
-pub trait SectionLoop: Clone {
-    /// Validates `loops` as one section on `plane`, by their provenance.
+/// **A loop a section is made of, at the scalar `T`**, and the
+/// provenance its validation reads: a [`ProfileLoop`] is a table, whose
+/// arcs [`Profile::validate`] checks against their vertices, and a
+/// [`ConstructedLoop`] is the path lattice's own output, whose arcs
+/// were verified at their construction (D1) and validate through
+/// [`ConstructedProfile::validate`] without being decided again. A
+/// section is all one or all the other.
+///
+/// A section's structure is decided once, at `f64`, on its loops'
+/// value channel ([`SectionLoop::channel`]); at `T` the section is
+/// validated GUIDED by that record ([`SectionLoop::validate_guided`]),
+/// so its canonical form is the `f64` one and its values are the
+/// loops' own.
+pub trait SectionLoop<T: Decide = f64>: Clone {
+    /// The loop at `f64`.
+    type Channel: SectionLoop<f64>;
+
+    /// This loop's value channel ([`SpanLocate::point_value`]), each
+    /// value's one `f64`; NaN for a value that has none (poison, a wide
+    /// enclosure), which validation refuses.
+    fn channel(&self) -> Self::Channel;
+
+    /// The loop's vertices and segments, as authored.
+    fn as_profile_loop(&self) -> &ProfileLoop<T>;
+
+    /// Validates `loops` as one section on `plane`, by their
+    /// provenance, keeping the structure record.
     ///
     /// # Errors
     ///
     /// [`ProfileError`], as [`Profile::validate`].
-    fn validate_section(
-        plane: SketchPlane<f64>,
+    fn validate_recording(
+        plane: SketchPlane<T>,
         loops: Vec<Self>,
         tol: Tol,
-    ) -> Result<ValidatedProfile<f64>, ProfileError>;
+    ) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError>;
+
+    /// Validates `loops` as one section on `plane`, by their
+    /// provenance, consuming `structure`'s decisions
+    /// ([`ConstructedProfile::validate_guided`]).
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError`], as [`ConstructedProfile::validate_guided`].
+    fn validate_guided(
+        plane: SketchPlane<T>,
+        loops: Vec<Self>,
+        tol: Tol,
+        structure: &CanonicalStructure,
+    ) -> Result<ValidatedProfile<T>, ProfileError>;
 }
 
-impl SectionLoop for ProfileLoop<f64> {
-    fn validate_section(
-        plane: SketchPlane<f64>,
+impl<T: Decide> SectionLoop<T> for ProfileLoop<T> {
+    type Channel = ProfileLoop<f64>;
+
+    fn channel(&self) -> ProfileLoop<f64> {
+        self.map_scalar(SpanLocate::value_channel)
+    }
+
+    fn as_profile_loop(&self) -> &ProfileLoop<T> {
+        self
+    }
+
+    fn validate_recording(
+        plane: SketchPlane<T>,
         loops: Vec<Self>,
         tol: Tol,
-    ) -> Result<ValidatedProfile<f64>, ProfileError> {
-        Profile::new(plane, loops).validate(tol)
+    ) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
+        Profile::new(plane, loops).validate_recording(tol)
+    }
+
+    fn validate_guided(
+        plane: SketchPlane<T>,
+        loops: Vec<Self>,
+        tol: Tol,
+        structure: &CanonicalStructure,
+    ) -> Result<ValidatedProfile<T>, ProfileError> {
+        Profile::new(plane, loops).validate_guided(tol, structure)
     }
 }
 
-impl SectionLoop for ConstructedLoop<f64> {
-    fn validate_section(
-        plane: SketchPlane<f64>,
+impl<T: Decide> SectionLoop<T> for ConstructedLoop<T> {
+    type Channel = ConstructedLoop<f64>;
+
+    fn channel(&self) -> ConstructedLoop<f64> {
+        self.value_channel()
+    }
+
+    fn as_profile_loop(&self) -> &ProfileLoop<T> {
+        self.as_loop()
+    }
+
+    fn validate_recording(
+        plane: SketchPlane<T>,
         loops: Vec<Self>,
         tol: Tol,
-    ) -> Result<ValidatedProfile<f64>, ProfileError> {
-        ConstructedProfile::new(plane, loops).validate(tol)
+    ) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
+        ConstructedProfile::new(plane, loops).validate_recording(tol)
+    }
+
+    fn validate_guided(
+        plane: SketchPlane<T>,
+        loops: Vec<Self>,
+        tol: Tol,
+        structure: &CanonicalStructure,
+    ) -> Result<ValidatedProfile<T>, ProfileError> {
+        ConstructedProfile::new(plane, loops).validate_guided(tol, structure)
     }
 }
 
@@ -855,7 +1141,7 @@ impl SectionLoop for ConstructedLoop<f64> {
 /// it keeps the produced NURBS on one code path). The carrier is
 /// selected by the validated segment's kind; an arc crosses into the
 /// sketch-segment form with its carrier and sweep.
-fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f64> {
+fn vertex_segment<T: Real>(lp: &profile::ValidatedLoop<T>, j: usize) -> SketchSegment<T> {
     crate::swept::sketch_segment(&crate::swept::SweptSeg::forward(lp, j))
 }
 
@@ -865,17 +1151,62 @@ fn vertex_segment(lp: &profile::ValidatedLoop<f64>, j: usize) -> SketchSegment<f
 /// loops (outer counterclockwise first, holes clockwise, canonical
 /// start vertex) are what the skin consumes, so the walls and the
 /// body assembly's caps read the same traversal by construction.
-fn validate_sections<L: SectionLoop>(
+fn validate_sections<T: Decide, L: SectionLoop<T>>(
     sections: &[Section<L>],
-    places: &[Affine3<f64>],
+    places: &[Affine3<T>],
     tol: Tol,
-) -> Result<Vec<ValidatedProfile<f64>>, SkinError> {
+) -> Result<Vec<(ValidatedProfile<T>, CanonicalStructure)>, SkinError> {
     sections
         .iter()
         .zip(places)
         .enumerate()
         .map(|(i, (loops, place))| {
-            L::validate_section(SketchPlane::new(*place), loops.clone(), tol)
+            L::validate_recording(SketchPlane::new(*place), loops.clone(), tol)
+                .map_err(|source| SkinError::SectionProfile { section: i, source })
+        })
+        .collect()
+}
+
+/// Each section validated at `T`, its decisions taken there: the door
+/// for sections with no `f64` value to select a record on (values wider
+/// than a point, at an enclosure scalar).
+///
+/// # Errors
+///
+/// [`SkinError::SectionProfile`] for a section that does not validate.
+pub(crate) fn validate_at_t<T: Decide, L: SectionLoop<T>>(
+    sections: &[Section<L>],
+    places: &[Affine3<T>],
+    tol: Tol,
+) -> Result<Vec<ValidatedProfile<T>>, SkinError> {
+    Ok(validate_sections(sections, places, tol)?
+        .into_iter()
+        .map(|(validated, _)| validated)
+        .collect())
+}
+
+/// Each section at `T`, validated guided by `structures[i]`, the record
+/// its value channel's validation kept ([`validate_loft`]): the
+/// canonical form the `f64` pass decided, holding the loops' own
+/// values.
+///
+/// # Errors
+///
+/// [`SkinError::SectionProfile`] for a section whose values this scalar
+/// cannot validate along the record.
+pub(crate) fn validate_guided<T: Decide, L: SectionLoop<T>>(
+    sections: &[Section<L>],
+    places: &[Affine3<T>],
+    structures: &[CanonicalStructure],
+    tol: Tol,
+) -> Result<Vec<ValidatedProfile<T>>, SkinError> {
+    sections
+        .iter()
+        .zip(places)
+        .zip(structures)
+        .enumerate()
+        .map(|(i, ((loops, place), structure))| {
+            L::validate_guided(SketchPlane::new(*place), loops.clone(), tol, structure)
                 .map_err(|source| SkinError::SectionProfile { section: i, source })
         })
         .collect()
@@ -932,7 +1263,7 @@ pub fn loft_geometry<L: SectionLoop>(
     params: &[f64],
     tol: Tol,
 ) -> Result<LoftGeometry, SkinError> {
-    let validated = validate_loft(sections, places, v_degree, tol)?;
+    let (validated, _) = validate_loft(sections, places, v_degree, tol)?;
     let compat = compatible_strips(&validated, places)?;
     skin_strips(validated, compat, v_degree, params)
 }
@@ -947,7 +1278,7 @@ pub(crate) fn loft_geometry_by_chord_length<L: SectionLoop>(
     tol: Tol,
 ) -> Result<LoftGeometry, SkinError> {
     skin_validated(
-        validate_loft(sections, places, v_degree, tol)?,
+        validate_loft(sections, places, v_degree, tol)?.0,
         places,
         v_degree,
     )
@@ -959,22 +1290,39 @@ pub(crate) fn loft_geometry_by_chord_length<L: SectionLoop>(
 /// counts every section must share. What it returns is the canonical
 /// form [`skin_validated`] skins, so a caller can decide something
 /// about the validated sections (the loft's stacking fold) before any
-/// wall is built.
+/// wall is built, and each section's structure record, which a lane
+/// scalar's sections are validated along ([`validate_guided`]).
+#[allow(clippy::type_complexity)]
 pub(crate) fn validate_loft<L: SectionLoop>(
     sections: &[Section<L>],
     places: &[Affine3<f64>],
     v_degree: usize,
     tol: Tol,
-) -> Result<Vec<ValidatedProfile<f64>>, SkinError> {
-    let k = sections.len();
+) -> Result<(Vec<ValidatedProfile<f64>>, Vec<CanonicalStructure>), SkinError> {
+    check_counts(sections.len(), places.len(), v_degree)?;
+    let (validated, structures): (Vec<_>, Vec<_>) = validate_sections(sections, places, tol)?
+        .into_iter()
+        .unzip();
+    check_shapes(&validated)?;
+    Ok((validated, structures))
+}
+
+/// The counts a loft needs before any section is read: at least two
+/// sections, one placement each, and a v-degree in `1..k`.
+///
+/// # Errors
+///
+/// [`SkinError::TooFewSections`], [`SkinError::SectionShapeMismatch`]
+/// (placements) and [`SkinError::BadDegree`].
+pub(crate) fn check_counts(k: usize, places: usize, v_degree: usize) -> Result<(), SkinError> {
     if k < 2 {
         return Err(SkinError::TooFewSections { have: k, need: 2 });
     }
-    if places.len() != k {
+    if places != k {
         return Err(SkinError::SectionShapeMismatch {
-            section: places.len().min(k),
+            section: places.min(k),
             expected: k,
-            found: places.len(),
+            found: places,
             what: "placements",
         });
     }
@@ -984,7 +1332,17 @@ pub(crate) fn validate_loft<L: SectionLoop>(
             sections: k,
         });
     }
-    let validated = validate_sections(sections, places, tol)?;
+    Ok(())
+}
+
+/// Every canonical section has section 0's loop count and, loop by
+/// loop, its vertex count: the shape a by-index pairing needs.
+///
+/// # Errors
+///
+/// [`SkinError::SectionShapeMismatch`] naming the disagreeing section
+/// and count.
+pub(crate) fn check_shapes<T: Real>(validated: &[ValidatedProfile<T>]) -> Result<(), SkinError> {
     let loops = validated[0].loops().len();
     for (i, s) in validated.iter().enumerate().skip(1) {
         if s.loops().len() != loops {
@@ -1006,20 +1364,21 @@ pub(crate) fn validate_loft<L: SectionLoop>(
             }
         }
     }
-    Ok(validated)
+    Ok(())
 }
 
 /// The compatible section curves of every strip, `[loop][segment]`,
 /// each strip one curve per section.
-fn compatible_strips(
-    validated: &[ValidatedProfile<f64>],
-    places: &[Affine3<f64>],
-) -> Result<Vec<Vec<Vec<NurbsCurve3<f64>>>>, SkinError> {
+#[allow(clippy::type_complexity)]
+fn compatible_strips<T: SpanLocate>(
+    validated: &[ValidatedProfile<T>],
+    places: &[Affine3<T>],
+) -> Result<Vec<Vec<Vec<NurbsCurve3<T>>>>, SkinError> {
     (0..validated[0].loops().len())
         .map(|l| {
             (0..validated[0].loops()[l].vertices().len())
                 .map(|j| {
-                    let raw: Vec<NurbsCurve3<f64>> = validated
+                    let raw: Vec<NurbsCurve3<T>> = validated
                         .iter()
                         .zip(places)
                         .enumerate()
@@ -1045,7 +1404,9 @@ fn compatible_strips(
 /// reading it is still label-free; and a hole cannot move the outer
 /// walls, so a hole that is the outer loop scaled lofts to the outer
 /// surface scaled.
-fn strip_parameters(strips: &[Vec<Vec<NurbsCurve3<f64>>>]) -> Result<Vec<f64>, SkinError> {
+fn strip_parameters<T: SpanLocate>(
+    strips: &[Vec<Vec<NurbsCurve3<T>>>],
+) -> Result<Vec<T>, SkinError> {
     let k = strips[0][0].len();
     chord_length_parameters(
         k,
@@ -1056,12 +1417,12 @@ fn strip_parameters(strips: &[Vec<Vec<NurbsCurve3<f64>>>]) -> Result<Vec<f64>, S
 }
 
 /// Skins every strip at `params` into the loft's geometry.
-fn skin_strips(
-    validated: Vec<ValidatedProfile<f64>>,
-    strips: Vec<Vec<Vec<NurbsCurve3<f64>>>>,
+fn skin_strips<T: SpanLocate>(
+    validated: Vec<ValidatedProfile<T>>,
+    strips: Vec<Vec<Vec<NurbsCurve3<T>>>>,
     v_degree: usize,
-    params: &[f64],
-) -> Result<LoftGeometry, SkinError> {
+    params: &[T],
+) -> Result<LoftGeometry<T>, SkinError> {
     let walls = strips
         .iter()
         .map(|lp| {
@@ -1082,11 +1443,11 @@ fn skin_strips(
 /// [`validate_loft`] already accepted, at [`loft_parameters`]' answer —
 /// one pass over the compatible strips serves both the parameters and
 /// the walls.
-pub(crate) fn skin_validated(
-    validated: Vec<ValidatedProfile<f64>>,
-    places: &[Affine3<f64>],
+pub(crate) fn skin_validated<T: SpanLocate>(
+    validated: Vec<ValidatedProfile<T>>,
+    places: &[Affine3<T>],
     v_degree: usize,
-) -> Result<LoftGeometry, SkinError> {
+) -> Result<LoftGeometry<T>, SkinError> {
     let compat = compatible_strips(&validated, places)?;
     let params = strip_parameters(&compat)?;
     skin_strips(validated, compat, v_degree, &params)
@@ -1171,7 +1532,7 @@ pub fn loft_parameters<L: SectionLoop>(
     v_degree: usize,
     tol: Tol,
 ) -> Result<Vec<f64>, SkinError> {
-    let validated = validate_loft(sections, places, v_degree, tol)?;
+    let (validated, _) = validate_loft(sections, places, v_degree, tol)?;
     strip_parameters(&compatible_strips(&validated, places)?)
 }
 
@@ -1282,14 +1643,25 @@ fn unit_tangent(station: usize, d: Vec3<f64>) -> Result<Vec3<f64>, SkinError> {
 ///
 /// [`SkinError::TooFewSections`] for `stations < 2`,
 /// [`SkinError::PathTangentReversal`] naming the station.
+///
+/// # At a lane scalar
+///
+/// `place` is the caller's, in `T`, and composes into every station as
+/// it is: the turn's centre is its origin, and it is the last factor.
+/// What the path contributes — each station's offset from the start
+/// point, the turn's axis and its angle — is computed in `f64` from the
+/// path and enters `T` as the computed values it is
+/// ([`Real::from_computed`]); the angle is `Real`'s `atan2`, the
+/// pure-Rust `libm` D9 prescribes, so every platform turns the stations
+/// alike. The frame's arms are chosen on those `f64` values.
 // `!(x > 0)` and `!(a < b)` are deliberate NaN-catching (the
 // geom-core::spline::algebra note).
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
-pub fn sweep_places(
-    place: Affine3<f64>,
+pub fn sweep_places<T: Real>(
+    place: Affine3<T>,
     path: &NurbsCurve3<f64>,
     stations: usize,
-) -> Result<Vec<Affine3<f64>>, SkinError> {
+) -> Result<Vec<Affine3<T>>, SkinError> {
     if stations < 2 {
         return Err(SkinError::TooFewSections {
             have: stations,
@@ -1319,7 +1691,11 @@ pub fn sweep_places(
         let sin = axis.norm();
         let cos = base_tangent.dot(tangent);
         let turn = if sin > 0.0 {
-            Affine3::rotation_about_axis(origin, axis / sin, sin.atan2(cos))
+            Affine3::rotation_about_axis(
+                origin,
+                (axis / sin).map(T::from_computed),
+                T::from_computed(<f64 as Real>::atan2(sin, cos)),
+            )
         } else if cos > 0.0 {
             Affine3::identity()
         } else {
@@ -1337,7 +1713,7 @@ pub fn sweep_places(
             // Pinned as executed behaviour, not asserted as intent.
             return Err(SkinError::PathTangentReversal { station: i });
         };
-        places.push(Affine3::translation(p - base_point) * turn * place);
+        places.push(Affine3::translation((p - base_point).map(T::from_computed)) * turn * place);
     }
     Ok(places)
 }

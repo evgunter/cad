@@ -163,7 +163,18 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::BodyNotIntact {
             at: EntityId::HalfEdge(HalfEdgeKey::default()),
+            breach: sweep::blend::Breach::Unresolved,
             detail: "a reference the plan followed",
+        },
+        BlendError::BodyNotIntact {
+            at: EntityId::HalfEdge(HalfEdgeKey::default()),
+            breach: sweep::blend::Breach::Unwalked,
+            detail: "a cycle the plan walked",
+        },
+        BlendError::BodyNotIntact {
+            at: EntityId::HalfEdge(HalfEdgeKey::default()),
+            breach: sweep::blend::Breach::Disagrees,
+            detail: "a corner the verdict classified",
         },
         BlendError::RingClearance {
             face: FaceKey::default(),

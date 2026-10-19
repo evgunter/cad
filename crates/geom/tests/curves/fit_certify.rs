@@ -49,7 +49,7 @@ fn sphere_residual(p: Point3<f64>) -> f64 {
 fn hull_bound(curve: &NurbsCurve3<f64>) -> f64 {
     let c = center();
     let coords = curve.certified_coords();
-    let data = CurveCertData::new(curve.knots(), curve.weights(), &coords).unwrap();
+    let data = CurveCertData::new(curve.knots_f64_interim(), curve.weights(), &coords).unwrap();
     let form = compose::implicit_composite(
         &data,
         &ImplicitSurface::Sphere {
@@ -103,7 +103,7 @@ fn fit_then_certify_and_the_oq2_planted_excursion_pin() {
          {fit_hull:.3e} m² vs dense max {fit_dense:.3e} m² (expected scale \
          2R(B+sag) = {expected_scale:.3e} m²)",
         fit.bound,
-        fit.curve.knots().control_count(),
+        fit.curve.knots_f64_interim().control_count(),
         pts.len(),
         fit.refit_applied,
     );
@@ -136,7 +136,7 @@ fn fit_then_certify_and_the_oq2_planted_excursion_pin() {
 
     // Find a control index whose cubic support (u_i, u_{i+p+1}) fits
     // strictly inside the schedule gap (3/8, 1/2).
-    let kv = interp.knots();
+    let kv = interp.knots_f64_interim();
     let p = kv.degree();
     let idx = (0..kv.control_count())
         .find(|i| kv.knots()[*i] > 0.375 + 0.01 && kv.knots()[i + p + 1] < 0.5 - 0.01)

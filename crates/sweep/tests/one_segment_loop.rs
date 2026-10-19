@@ -273,7 +273,6 @@ fn one_segment_circles_extrude_at_interval() {
 #[test]
 fn a_boolean_on_an_extruded_seam_wall_builds_along_and_across_it() {
     use sweep::test_support::brick;
-    use topo::BooleanDeclarations;
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 
     let cyl = extruded(vec![circle(0.0, 0.0, 1.0, TAU)], 2.0, ExtrudeSide::Along).body;
@@ -317,7 +316,7 @@ fn a_boolean_on_an_extruded_seam_wall_builds_along_and_across_it() {
             op,
             &topo::test_support::finished("the seam cylinder", cyl.clone(), tol()),
             &topo::test_support::finished("the tool", tool, tol()),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             tol(),
         );
@@ -613,8 +612,13 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
             "{what}: the strut is the body's one wrap edge"
         );
         let at_i = |loops: Vec<ProfileLoop<f64>>| {
-            let lofted = sweep::loft_body::<Interval>(&[loops.clone(), loops], &places, 1, tol())
-                .unwrap_or_else(|e| panic!("{what}: the loft builds at Interval: {e}"));
+            let lofted = sweep::loft_body::<Interval>(
+                &sweep::test_support::lift_sections::<Interval>(&[loops.clone(), loops]),
+                &sweep::test_support::lift_places::<Interval>(&places),
+                1,
+                tol(),
+            )
+            .unwrap_or_else(|e| panic!("{what}: the loft builds at Interval: {e}"));
             assert_eq!(validate(&lofted.body), Ok(()), "{what} at Interval: tier 1");
             assert_eq!(
                 validate_closed(&lofted.body),
@@ -1212,8 +1216,8 @@ fn a_one_segment_strut_runs_its_column_back_on_the_negated_knots() {
         };
         assert_eq!(c.params(), (-1.0, 0.0), "{z:?}: the strut's interval");
         assert_eq!(
-            carrier.knots().knots(),
-            chart.knots_v().negated().knots(),
+            carrier.knots_f64_interim().knots(),
+            chart.knots_v_f64_interim().negated().knots(),
             "{z:?}: the strut's knots are the column's, negated"
         );
     }

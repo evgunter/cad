@@ -20,13 +20,17 @@
 //!   six member orders: a seam line's pieces are a seam chain in some
 //!   orders and a later step's cut of a whole seam in others, and no
 //!   name binds a different entity in any two orders;
-//! - two declared-flush members and a bar across both, in both orders
+//! - two flush members and a bar across both, in both orders
 //!   of the flush pair: the bar's cap pieces carry their `Borders`
-//!   walls in member space, so each piece has one name.
+//!   walls in member space, so each piece has one name;
+//! - a block glued on a slab's top and a third block cutting its far
+//!   end, in all six member orders, and with the block sunk into the
+//!   slab or lifted clear: the edge along the glued block's bottom rim
+//!   is the seam of the slab's top and its wall, not a piece of the rim.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::blocks::{block, run};
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, run};
 use crate::emit_boolean_vertex_keys::{
     edge_touch_outside, ell_and_tip, face_touch, named_geometry, nested, seamed_touch,
 };
@@ -50,7 +54,7 @@ enum Op {
 }
 
 impl Op {
-    /// The node of this kind over `a` and `b`, declaring nothing.
+    /// The node of this kind over `a` and `b`.
     fn node(
         self,
         a: impl Into<editor_core::Operand>,
@@ -60,16 +64,13 @@ impl Op {
         match self {
             Self::Union => Node::Union {
                 members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-                declare: Vec::new(),
             },
             Self::Intersect => Node::Intersect {
                 members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-                declare: Vec::new(),
             },
             Self::Subtract => Node::Subtract {
                 from: a.into(),
                 tool: b.into(),
-                declare: Vec::new(),
             },
         }
     }
@@ -121,7 +122,7 @@ fn union_of(
     let doc = ProfileDoc::empty_derived("emit_union_member_order", Tol::witness());
     let (doc, x, y) = fixture(doc);
     let members = if swap { vec![y, x] } else { vec![x, y] };
-    let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
+    let (doc, u) = crate::fixture::union_over(doc, &members);
     let (xr, yr) = (out(&doc, x), out(&doc, y));
     (run(&doc), u, [(x, xr), (y, yr)])
 }
@@ -271,18 +272,18 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
     out
 }
 
-/// **No name binds different geometry in any two member orders of a
-/// union whose seam lines are cut.**
+/// **Every member order of a union whose seam lines are cut publishes
+/// one table.**
 ///
 /// A seam line's pieces are ranked by the seam-chain ranker in one
 /// order and by the descent ranker in another — after one step or
-/// several, through one wrapper or more. Every ranker along a seam line
-/// must use one orientation, or one name lands on another piece. The
-/// tables need not be identical — which step cut the line shows in a
-/// name's structure — but a name present in two orders names the same
-/// entity in both. Three fixtures, every order: 6, 24 and 24.
+/// several, through one wrapper or more — and a point where a cutter
+/// crosses a seam is minted by whichever step met it. The union names
+/// both from the finished body (N2), so every order publishes the same
+/// names, each bound to the same geometry. Three fixtures, every order:
+/// 6, 24 and 24.
 #[test]
-fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
+fn every_member_order_of_a_cut_seam_union_publishes_one_table() {
     type Members = fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>);
     let fixtures: [(&str, Members); 3] = [
         ("slab_rib_cutall", slab_rib_cutall),
@@ -290,46 +291,56 @@ fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
         ("slab_rib_cutall_two", slab_rib_cutall_two),
     ];
     for (what, fixture) in fixtures {
-        let n = fixture(ProfileDoc::empty_derived("count", Tol::witness()))
-            .1
-            .len();
-        let tables: Vec<_> = orders(n)
-            .into_iter()
-            .map(|p| {
-                let doc = ProfileDoc::empty_derived("emit_union_member_order_cut", Tol::witness());
-                let (doc, m) = fixture(doc);
-                let (doc, u) = insert(
-                    doc,
-                    Node::Union {
-                        members: editor_core::Bodies::Spelled(
-                            p.iter().map(|&i| m[i].into()).collect(),
-                        ),
-                        declare: Vec::new(),
-                    },
-                );
-                let ev = run(&doc);
-                let t = bindings(&ev, u);
-                (p, t)
-            })
-            .collect();
-        let mut rebound = Vec::new();
-        for (i, (pi, a)) in tables.iter().enumerate() {
-            for (pj, b) in &tables[i + 1..] {
-                for (n, ga) in a {
-                    if let Some(gb) = b.get(n)
-                        && ga != gb
-                    {
-                        rebound.push(format!("{pi:?} vs {pj:?}: {n} binds {ga} vs {gb}"));
-                    }
-                }
+        one_table(what, &fixture);
+    }
+}
+
+/// The one table every member order of `fixture`'s union publishes,
+/// each name beside the geometry it binds; a panic listing every name
+/// two orders bind differently or only one order holds.
+fn one_table(
+    what: &str,
+    fixture: &dyn Fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>),
+) -> std::collections::BTreeMap<String, String> {
+    let n = fixture(ProfileDoc::empty_derived("count", Tol::witness()))
+        .1
+        .len();
+    let mut tables: Vec<_> = orders(n)
+        .into_iter()
+        .map(|p| {
+            let doc = ProfileDoc::empty_derived("emit_union_member_order_cut", Tol::witness());
+            let (doc, m) = fixture(doc);
+            let (doc, u) = insert(
+                doc,
+                Node::Union {
+                    members: editor_core::Bodies::Spelled(p.iter().map(|&i| m[i].into()).collect()),
+                },
+            );
+            let ev = run(&doc);
+            let t = bindings(&ev, u);
+            (p, t)
+        })
+        .collect();
+    let (p0, first) = tables.remove(0);
+    let mut moved = Vec::new();
+    for (p, t) in &tables {
+        for (n, g) in t {
+            match first.get(n) {
+                Some(g0) if g0 == g => {}
+                Some(g0) => moved.push(format!("{p:?}: {n} binds {g}, {p0:?} {g0}")),
+                None => moved.push(format!("{p:?}: {n} is absent from {p0:?}")),
             }
         }
-        assert!(
-            rebound.is_empty(),
-            "{what}: {} rebinds:\n{rebound:#?}",
-            rebound.len()
-        );
+        for n in first.keys().filter(|n| !t.contains_key(*n)) {
+            moved.push(format!("{p0:?}: {n} is absent from {p:?}"));
+        }
     }
+    assert!(
+        moved.is_empty(),
+        "{what}: {} names differ between orders:\n{moved:#?}",
+        moved.len()
+    );
+    first
 }
 
 /// **A seam a split passed through, cut by a later boolean, is named by
@@ -369,7 +380,7 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
     let (doc, plus) = pair(doc, Op::Union, below, cut);
     let ev = run(&doc);
     for (what, id) in [("subtract", minus), ("union", plus)] {
-        if let Some(e) = crate::docm7_union_declare::failure(&ev, id) {
+        if let Some(e) = crate::blocks::failure(&ev, id) {
             panic!("{what} refused: {e}");
         }
         let ranked = named_geometry(&ev, id)
@@ -423,13 +434,12 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![rib.into(), turned.into()]),
-            declare: Vec::new(),
         },
     );
     ids.push(("union node", node));
     let ev = run(&doc);
     for (what, id) in ids {
-        if let Some(e) = crate::docm7_union_declare::failure(&ev, id) {
+        if let Some(e) = crate::blocks::failure(&ev, id) {
             panic!("{what} refused: {e}");
         }
         let seams = named_geometry(&ev, id)
@@ -448,7 +458,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
 /// order** (the `abys` witness of
 /// `name-ordered-positions-in-a-path-have-no-single-home`).
 ///
-/// `a` and `b` overlap in x and are declared flush; the bar `y` crosses
+/// `a` and `b` overlap in x and are flush; the bar `y` crosses
 /// both, so `y`'s start cap is cut into two pieces told apart by the
 /// walls of `a` and `b` each borders. The pair emitter writes the walls
 /// in the FOLD's space, where the first member is the A side; the
@@ -457,7 +467,6 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
 /// same face.
 #[test]
 fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
-    use crate::docm7_union_declare::{declared_union, flush_pairs};
     let tables: Vec<std::collections::BTreeMap<String, String>> = [[0usize, 1, 2], [1, 0, 2]]
         .into_iter()
         .map(|p| {
@@ -467,8 +476,7 @@ fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
             let (doc, y) = block(doc, (-1.0, 2.0), (0.3, 0.4), 0.5, 3.5);
             let m = [a, b, y];
             let members: Vec<RecipeNodeId> = p.iter().map(|&i| m[i]).collect();
-            let pairs = flush_pairs(&doc, (a, a), (b, b));
-            let (doc, u) = declared_union(doc, &members, pairs);
+            let (doc, u) = crate::fixture::union_over(doc, &members);
             let ev = run(&doc);
             bindings(&ev, u)
                 .into_iter()
@@ -484,4 +492,208 @@ fn a_fragments_borders_walls_are_one_spelling_in_every_member_order() {
         tables[0], tables[1],
         "the fragments' names depend on the member order"
     );
+}
+
+/// What `glued_rim(lift)` names, in member order `[a, b, c]`: the edge
+/// along `b`'s y = 0.25 bottom rim from x = 0.5 to the x = 1.2 wall of
+/// `c`, and the vertex where that wall cuts it, each with its name's
+/// spelling as [`bindings`] writes it; and the member faces the names
+/// are read against (`a`'s top, `b`'s y = 0.25 wall, `c`'s x = 1.2
+/// wall) and `b`'s read.
+struct GluedRim {
+    edge: (StableName, String),
+    vertex: (StableName, String),
+    faces: [StableName; 3],
+    b_read: editor_core::VarId,
+}
+
+fn glued_rim_names(lift: f64) -> GluedRim {
+    let doc = ProfileDoc::empty_derived("emit_union_member_order_glued", Tol::witness());
+    let (doc, m) = crate::fixture::glued_rim(lift)(doc);
+    let [a, b, c] = [m[0], m[1], m[2]];
+    let faces = [
+        member_face_of(&doc, a, RoleSeg::Cap(CapEnd::End)),
+        member_face_of(&doc, b, crate::fixture::wall(&doc, b, 0)),
+        member_face_of(&doc, c, crate::fixture::wall(&doc, c, 3)),
+    ];
+    let b_read = out(&doc, b);
+    let (doc, u) = crate::fixture::union_over(doc, &m);
+    let faces = faces.map(|(read, of)| member_face(u, read, of));
+    let ev = run(&doc);
+    let body = body_of(&ev, u);
+    let z = 1.0 + lift.max(0.0);
+    let near = |p: geom_core::Point3<f64>, (x, y): (f64, f64)| {
+        (p.x - x).abs() < 1e-9 && (p.y - y).abs() < 1e-9 && (p.z - z).abs() < 1e-9
+    };
+    let named = |hit: &dyn Fn(EntityKey) -> bool| {
+        let found: Vec<StableName> = table(&ev, u)
+            .iter()
+            .filter(|(_, e)| matches!(e, Entry::Unique(r) if hit(r.key)))
+            .map(|(n, _)| n.clone())
+            .collect();
+        let [n] = found.as_slice() else {
+            panic!(
+                "lift {lift}: {} names hold the entity: {found:?}",
+                found.len()
+            );
+        };
+        n.clone()
+    };
+    let edge = named(&|k| {
+        let EntityKey::Edge(e) = k else { return false };
+        let [p, q] = ends(body, e).map(|v| point(body, v));
+        (near(p, (0.5, 0.25)) && near(q, (1.2, 0.25)))
+            || (near(q, (0.5, 0.25)) && near(p, (1.2, 0.25)))
+    });
+    let vertex = named(&|k| matches!(k, EntityKey::Vertex(v) if near(point(body, v), (1.2, 0.25))));
+    let table = bindings(&ev, u);
+    let spelled = |geo: &str| {
+        let hits: Vec<&String> = table
+            .iter()
+            .filter(|(_, g)| *g == geo)
+            .map(|(n, _)| n)
+            .collect();
+        let [n] = hits.as_slice() else {
+            panic!("lift {lift}: {} names bind {geo}: {hits:?}", hits.len());
+        };
+        (*n).clone()
+    };
+    let at = |x: f64, y: f64| {
+        let m = |v: f64| (v * 1e6).round() as i64;
+        (m(x), m(y), m(z))
+    };
+    let mut e = [at(0.5, 0.25), at(1.2, 0.25)];
+    e.sort_unstable();
+    GluedRim {
+        edge: (edge, spelled(&format!("{e:?}"))),
+        vertex: (vertex, spelled(&format!("{:?}", at(1.2, 0.25)))),
+        faces,
+        b_read,
+    }
+}
+
+/// `node`'s face `seg`, read at `node`'s output: the member read and
+/// the name a union cites it under through that read.
+fn member_face_of(
+    doc: &ProfileDoc,
+    node: RecipeNodeId,
+    seg: RoleSeg,
+) -> (editor_core::VarId, StableName) {
+    (out(doc, node), fname(node, seg))
+}
+
+/// `spelled` with every mint id's digest erased, so ids compare by
+/// ordinal alone.
+fn by_ordinal(spelled: &str) -> String {
+    let mut out = String::with_capacity(spelled.len());
+    let mut rest = spelled;
+    while let Some(i) = rest.find("digest: ") {
+        let (head, tail) = rest.split_at(i + "digest: ".len());
+        out.push_str(head);
+        out.push('_');
+        rest = tail.trim_start_matches(|c: char| c.is_ascii_digit());
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The `Seam` head over two member faces, in name order.
+fn seam_of(x: &StableName, y: &StableName) -> RoleSeg {
+    let (a, b) = if x <= y { (x, y) } else { (y, x) };
+    RoleSeg::Seam {
+        a: NameRef::new(a.clone()),
+        b: NameRef::new(b.clone()),
+    }
+}
+
+/// **An edge whose member face was glued away is the seam of the faces
+/// it separates, in every member order** (the names README's flush
+/// bullet, "lies within").
+///
+/// `b` stands on `a`, so `b`'s bottom face is glued to `a`'s top; the
+/// union's edge along `b`'s y = 0.25 bottom rim, up to `c`'s x = 1.2
+/// wall, lies on that rim but its faces are `a`'s top and `b`'s wall,
+/// and `a`'s top descends from neither of the rim's faces. It is the
+/// seam of `a`'s top and `b`'s wall; the vertex where `c`'s wall cuts
+/// it is the run of the three seams through it (a.top/b.wall,
+/// a.top/c.wall, b.wall/c.wall), none with a sense. All six member
+/// orders publish one table.
+///
+/// Sunk 0.1 into `a`, `b`'s bottom is inside `a` and the same edge and
+/// vertex carry the same names, node ids compared by mint ordinal
+/// ([`by_ordinal`]): each fixture is built in a fresh document by the
+/// same insertions, so each node has the same ordinal in all three,
+/// while its digest hashes its content, `b`'s height among it. Lifted 0.1 clear, the
+/// edge (now at z = 1.1) is a piece of `b`'s bottom rim, `c`'s wall
+/// crosses that rim at the vertex, and the glued fixture's names are
+/// gone.
+#[test]
+fn an_edge_whose_member_face_was_glued_away_is_a_seam_in_every_member_order() {
+    let mut spelled = Vec::new();
+    for (what, lift) in [("glued", 0.0), ("sunk", -0.1), ("lifted", 0.1)] {
+        let all = one_table(what, &crate::fixture::glued_rim(lift));
+        let r = glued_rim_names(lift);
+        for (n, s) in [&r.edge, &r.vertex] {
+            assert!(
+                all.contains_key(s),
+                "{what}: {n:?} is not the every-order table's {s}"
+            );
+        }
+        let [top, wall, cut] = &r.faces;
+        if lift > 0.0 {
+            assert!(
+                matches!(
+                    r.edge.0.path.as_slice(),
+                    [RoleSeg::From { read, .. }, RoleSeg::Fragment(Qualifier::Ends(_))]
+                        if *read == r.b_read
+                ),
+                "{what}: the edge is a piece of b's rim: {:?}",
+                r.edge.0
+            );
+            assert!(
+                matches!(
+                    r.vertex.0.path.as_slice(),
+                    [RoleSeg::Crossing { edge, face, .. }]
+                        if edge.path.first() == r.edge.0.path.first() && **face == *cut
+                ),
+                "{what}: the cut is b's rim crossing c's wall: {:?}",
+                r.vertex.0
+            );
+        } else {
+            assert_eq!(
+                r.edge.0.path.first(),
+                Some(&seam_of(top, wall)),
+                "{what}: the edge is the seam of a's top and b's wall: {:?}",
+                r.edge.0
+            );
+            let [RoleSeg::EdgeCrossing(run)] = r.vertex.0.path.as_slice() else {
+                panic!("{what}: the cut is a run: {:?}", r.vertex.0);
+            };
+            let heads: std::collections::BTreeSet<_> = run
+                .iter()
+                .map(|l| {
+                    assert_eq!(l.sense, None, "{what}: a seam carries no sense: {l:?}");
+                    l.line.path.first().cloned()
+                })
+                .collect();
+            let want: std::collections::BTreeSet<_> =
+                [seam_of(top, wall), seam_of(top, cut), seam_of(wall, cut)]
+                    .into_iter()
+                    .map(Some)
+                    .collect();
+            assert_eq!(heads, want, "{what}: the run is the three seams");
+            assert_eq!(run.len(), 3, "{what}: {run:?}");
+        }
+        spelled.push((what, by_ordinal(&r.edge.1), by_ordinal(&r.vertex.1)));
+    }
+    let [(_, ge, gv), (_, se, sv), (_, le, lv)] = spelled.as_slice() else {
+        panic!("three variants")
+    };
+    assert_eq!(
+        (ge, gv),
+        (se, sv),
+        "sinking b renames neither the edge nor the cut"
+    );
+    assert_ne!(ge, le, "lifted clear, the edge is no longer the seam");
+    assert_ne!(gv, lv, "lifted clear, the cut is no longer the seams' run");
 }

@@ -1,34 +1,34 @@
 //! The PROJECTIVE knot algebra's scalars, and the homogeneous applier
 //! at a generic scalar.
 //!
-//! [`crate::spline::algebra`] computes every knot-algebra plan as `f64`
-//! structure. Its two appliers combine control data off one schedule:
-//! [`CurvePlan::apply_points`] in the projective form, at the scalars
-//! named by [`ProjectiveScalar`] only, and [`CurvePlan::apply_certified`]
-//! in the homogeneous form, in the certification ring.
-//! [`CurvePlan::apply_homogeneous`] is the homogeneous form at a
-//! caller's generic scalar.
+//! [`crate::spline::algebra`] decides every knot-algebra plan as `f64`
+//! structure. Its appliers combine control data off one schedule:
+//! [`CurvePlan::apply_rational`](super::CurvePlan::apply_rational) in the projective form, at the scalars
+//! named by [`ProjectiveScalar`] only, over the knots and weights held
+//! there; [`CurvePlan::apply_points`](super::CurvePlan::apply_points) the same form on the plan's own
+//! `f64` channel; and [`CurvePlan::apply_certified`](super::CurvePlan::apply_certified) in the homogeneous
+//! form, in the certification ring.
 
-use super::algebra::CurvePlan;
-use super::knots::knot_difference;
+use super::algebra::{Coef, CurvePlan, Form, KnotAt};
 use super::locate::SpanLocate;
-use crate::real::Real;
-use crate::{Point2, Point3};
+use crate::{Point2, Point3, Real};
 
 /// The scalars the PROJECTIVE knot algebra means something at: `f64`,
 /// `Probe`, and `Dual` and `Sym` over them — not `Interval`, and not
 /// `Dual<Interval>`.
 ///
-/// [`CurvePlan::apply_points`] combines de-homogenized points with
-/// [`CurvePlan::weights`]' stored `f64` quotient `λ`. At an evaluation
+/// [`CurvePlan::apply_rational`](super::CurvePlan::apply_rational) combines de-homogenized points with
+/// a quotient `λ` it forms from the held weights. At an evaluation
 /// scalar that is the fixed association the tree documents. In the
-/// certification ring it would enclose `x + (y − x)·fl(λ)` under the
-/// rounded `f64` weights the plan minted, which is a neighbour of the
-/// described carrier and not that carrier (C6: a refinement inside a
-/// certificate is held only as homogeneous enclosures `(w·P, w)`,
-/// [`CurvePlan::apply_certified`]). So the applier, and every knot
-/// operation built on it, is bounded by this trait, and a call at the
-/// certification scalar does not typecheck:
+/// certification ring it would enclose a de-homogenized combination
+/// of the plan's projective form, which is not how a certificate holds
+/// a refinement (C6: a refinement inside a certificate is held only as
+/// homogeneous enclosures `(w·P, w)`, [`CurvePlan::apply_certified`](super::CurvePlan::apply_certified)).
+/// So the projective applier is bounded by this trait, and a call at
+/// the certification scalar does not typecheck. A carrier's knot
+/// operation is not: it runs this applier at a projective scalar and
+/// [`CurvePlan::apply_homogeneous`](super::CurvePlan::apply_homogeneous) on `(w·P, w)` at an enclosure
+/// scalar ([`ProjectiveSplit`], C6 S4):
 ///
 /// ```compile_fail,E0277
 /// use geom_core::Interval;
@@ -37,14 +37,22 @@ use crate::{Point2, Point3};
 /// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
 /// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
 /// let pt = |x: f64| Interval::from_bounds(x, x);
+/// let knots: Vec<Interval> = kv.knots().iter().map(|k| pt(*k)).collect();
 /// let old = [pt(0.0), pt(1.0), pt(2.0)];
-/// let _ = plan.apply_points(&old, Interval::refused(), |x, y, l: Interval| x + (y - x) * l);
+/// let _ = plan.apply_rational(
+///     &knots,
+///     &old,
+///     &[pt(1.0); 3],
+///     (Interval::refused(), &pt),
+///     |x, y, l: Interval| x + (y - x) * l,
+/// );
 /// ```
 ///
-/// The points are bounded with it ([`ProjectivePoint`]), so `λ` cannot
-/// stay an `f64` while the points it combines are ring enclosures —
-/// the shape that lifts `λ` inside the closure (an `f64` scalar over
-/// `Interval` points) does not typecheck either:
+/// The points are bounded with it ([`ProjectivePoint`]), so the
+/// scalar cannot stay at an evaluation scalar while the points it
+/// combines are ring enclosures: the shape that lifts `λ` inside the
+/// closure (an `f64` scalar over `Interval` points) does not typecheck
+/// either:
 ///
 /// ```compile_fail,E0277
 /// use geom_core::Interval;
@@ -54,7 +62,27 @@ use crate::{Point2, Point3};
 /// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
 /// let pt = |x: f64| Interval::from_bounds(x, x);
 /// let old = [pt(0.0), pt(1.0), pt(2.0)];
-/// let _ = plan.apply_points::<f64, Interval>(&old, Interval::refused(), |x, y, l| {
+/// let _ = plan.apply_rational::<f64, Interval>(
+///     kv.knots(),
+///     &old,
+///     &[1.0; 3],
+///     (Interval::refused(), &|v| v),
+///     |x, y, l| x + (y - x) * Interval::from_bounds(l, l),
+/// );
+/// ```
+///
+/// Nor does [`CurvePlan::apply_points`](super::CurvePlan::apply_points), the plan's own `f64` reference,
+/// combine ring enclosures with its `f64` `λ`:
+///
+/// ```compile_fail,E0277
+/// use geom_core::Interval;
+/// use geom_core::interval::certification::Certification;
+/// use geom_core::spline::{KnotVector, algebra::refine_plan};
+/// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+/// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
+/// let pt = |x: f64| Interval::from_bounds(x, x);
+/// let old = [pt(0.0), pt(1.0), pt(2.0)];
+/// let _ = plan.apply_points(&old, Interval::refused(), |x, y, l: f64| {
 ///     x + (y - x) * Interval::from_bounds(l, l)
 /// });
 /// ```
@@ -69,8 +97,14 @@ use crate::{Point2, Point3};
 /// use geom_core::spline::{KnotVector, algebra::refine_plan};
 /// let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
 /// let plan = refine_plan(&kv, &[1.0, 1.0, 1.0], &[0.5]).unwrap().remove(0);
-/// let refined = plan.apply_points(&[0.0, 1.0, 2.0], f64::NAN, |x, y, l: f64| x + (y - x) * l);
-/// assert_eq!(refined.len(), 4);
+/// let (refined, weights) = plan.apply_rational(
+///     kv.knots(),
+///     &[0.0, 1.0, 2.0],
+///     &[1.0; 3],
+///     (f64::NAN, &|v| v),
+///     |x, y, l: f64| x + (y - x) * l,
+/// );
+/// assert_eq!((refined.len(), weights.len()), (4, 4));
 /// ```
 ///
 /// A methodless sealed marker over [`SpanLocate`]: it adds no
@@ -100,8 +134,74 @@ impl<T: ProjectiveScalar> ProjectiveScalar for crate::dual::Dual<T> where
 impl<T: ProjectiveScalar> sealed::Sealed for crate::sym::Sym<T> {}
 impl<T: ProjectiveScalar> ProjectiveScalar for crate::sym::Sym<T> {}
 
-/// The control data [`CurvePlan::apply_points`] combines at the
-/// projective scalar `T`: `T` itself, and the points and coordinate
+/// **A computation with one half per side of the projective
+/// partition**, run by [`SpanLocate::split_projective`] at the scalar
+/// `S`: [`Self::projective`] where `S` is a [`ProjectiveScalar`], so the
+/// half may call the projective knot algebra, and [`Self::enclosure`]
+/// where `S`'s value channel is an enclosure (`Interval`, and `Dual`
+/// and `Sym` over it), where that algebra does not typecheck. No value
+/// is read to choose: the scalar's type answers.
+pub trait ProjectiveSplit<S: SpanLocate> {
+    /// What either half returns.
+    type Out;
+
+    /// The half run at a projective scalar.
+    fn projective(self) -> Self::Out
+    where
+        S: ProjectiveScalar;
+
+    /// The half run at an enclosure scalar.
+    fn enclosure(self) -> Self::Out;
+}
+
+/// `Dual<T>`'s answer is its base's: `arm` runs at `Dual<T>` on the
+/// half `T` takes (a projective `T` makes `Dual<T>` projective).
+pub(crate) struct DualArm<A>(pub(crate) A);
+
+impl<T, A> ProjectiveSplit<T> for DualArm<A>
+where
+    T: SpanLocate + crate::dual::KinkJacobian,
+    A: ProjectiveSplit<crate::dual::Dual<T>>,
+{
+    type Out = A::Out;
+
+    fn projective(self) -> A::Out
+    where
+        T: ProjectiveScalar,
+    {
+        self.0.projective()
+    }
+
+    fn enclosure(self) -> A::Out {
+        self.0.enclosure()
+    }
+}
+
+/// `Sym<T>`'s answer is its base's, as [`DualArm`].
+pub(crate) struct SymArm<A>(pub(crate) A);
+
+impl<T, A> ProjectiveSplit<T> for SymArm<A>
+where
+    T: SpanLocate,
+    A: ProjectiveSplit<crate::sym::Sym<T>>,
+{
+    type Out = A::Out;
+
+    fn projective(self) -> A::Out
+    where
+        T: ProjectiveScalar,
+    {
+        self.0.projective()
+    }
+
+    fn enclosure(self) -> A::Out {
+        self.0.enclosure()
+    }
+}
+
+/// The control data [`CurvePlan::apply_rational`](super::CurvePlan::apply_rational) combines at the
+/// projective scalar `T` (and [`CurvePlan::apply_points`](super::CurvePlan::apply_points) at `f64`):
+/// `T` itself, and the points and coordinate
 /// arrays over it. The applier's `λ` and its points share one scalar,
 /// so neither can be a certification enclosure ([`ProjectiveScalar`]).
 ///
@@ -119,33 +219,115 @@ impl<T: ProjectiveScalar, const N: usize> sealed::SealedPoint<T> for [T; N] {}
 impl<T: ProjectiveScalar, const N: usize> ProjectivePoint<T> for [T; N] {}
 
 impl CurvePlan {
-    /// **The same homogeneous schedule at the caller's scalar**, for a
-    /// caller generic over [`Real`] that refines a homogeneous channel
-    /// (`w`, or one coordinate of `w·P`): each step is
-    /// `β·x + α·y` with `α = (u − U_j)/Δ` and `β = (U_{j+p} − u)/Δ`
-    /// taken in `T` from the knots, so at `Interval` both ratios are
-    /// outward-rounded enclosures and the result encloses the refined
-    /// channel of the described curve, with no `f64` ratio standing in.
-    /// It has no hull meet, which `Real` cannot spell, so it is not the
-    /// ring's step: a caller generic over the scalar refines through
-    /// [`SpanLocate::refine_homogeneous`], which is this at every
-    /// scalar but `Interval` and
-    /// [`RingRefinement::refine`](super::RingRefinement::refine) there,
-    /// and a caller that holds `Interval` channels refines through
-    /// [`RingRefinement`](super::RingRefinement).
+    /// **The schedule over a HOMOGENEOUS net held at `T`**, at any
+    /// scalar: each control point as `(w·P, w)`, the pair combined as
+    /// one, so no weight quotient `λ` is formed (C6 S4: a refinement
+    /// at an enclosure scalar is held as homogeneous enclosures, and
+    /// the projective [`Self::apply_rational`] does not run there). Each
+    /// step's coefficient `a` is formed at `T` from `knots`, as
+    /// [`Self::apply_rational`] forms it, and the step is
+    /// [`SpanLocate::homogeneous_step`] (`x + (y − x)·t`; at `Interval`
+    /// a blend takes the ring's monotone step) on both members of the
+    /// pair, `affine` applying it per channel of the homogeneous point,
+    /// with
+    /// - `t = a` for an insertion's and an elevation's blend;
+    /// - `t = 1/a` for a removal's forward unblend
+    ///   (`(y − (1 − a)·x)/a`, rearranged);
+    /// - `t = 1/(1 − a)` for its backward unblend (`(y − a·x)/(1 − a)`).
     ///
-    /// Total: a ratio-less step (elevation, removal), a malformed plan
-    /// or a short channel yields `T`'s poison (`from_f64(NaN)`) in the
-    /// targets it reaches.
-    pub fn apply_homogeneous<T: Real>(&self, old: &[T]) -> Vec<T> {
-        self.apply_ratios(old, T::from_f64(f64::NAN), |x, y, r| {
-            let span = knot_difference::<T>(r.lo, r.hi);
-            let (lo, hi, u) = (
-                T::from_f64(r.lo),
-                T::from_f64(r.hi),
-                T::from_f64(r.inserted),
-            );
-            x * ((hi - u) / span) + y * ((u - lo) / span)
-        })
+    /// The form keeps a constant column exact (`y − x` is zero), so a
+    /// polynomial net's unit weights come out as unit weights. The
+    /// caller de-homogenizes once at the end.
+    ///
+    /// It is the ring applier's schedule ([`Self::apply_certified`],
+    /// which takes one `Interval` channel and re-derives each ratio from
+    /// its exact knots) at a generic scalar: `Dual` and `Sym` over
+    /// `Interval` carry a derivative or a symbol the ring does not.
+    ///
+    /// Total: a malformed plan, a short channel or a knot index past
+    /// `knots` leaves `poison` in the targets it reaches.
+    pub fn apply_homogeneous<T: SpanLocate, V: Copy>(
+        &self,
+        knots: &[T],
+        old: &[(V, T)],
+        (poison, fresh): ((V, T), &dyn Fn(f64) -> T),
+        affine: impl Fn(V, V, T) -> V,
+    ) -> Vec<(V, T)> {
+        let one = T::from_f64(1.0);
+        let step = |(vx, wx): (V, T), (vy, wy): (V, T), form: Form| -> Option<(V, T)> {
+            let t = match form {
+                Form::Blend(c) => form_coef(c, knots, fresh)?,
+                Form::UnblendForward(c) => one / form_coef(c, knots, fresh)?,
+                Form::UnblendBackward(c) => one / (one - form_coef(c, knots, fresh)?),
+            };
+            Some((affine(vx, vy, t), T::homogeneous_step(wx, wy, t)))
+        };
+        self.apply_ratios(old, poison, |x, y, _, form| step(x, y, form))
+    }
+}
+
+/// A combination's coefficient `a` formed at `T` (the projective and
+/// homogeneous appliers): a ratio of `knots`, the input vector's held
+/// values, with a value the step brings in entered by `fresh`, or
+/// elevation's quotient of two integers. `None` for a knot index past
+/// `knots`.
+pub(super) fn form_coef<T: Real>(c: Coef, knots: &[T], fresh: &dyn Fn(f64) -> T) -> Option<T> {
+    match c {
+        Coef::Knots { u, lo, hi } => {
+            let u = match u {
+                KnotAt::Index(i) => *knots.get(i)?,
+                KnotAt::Fresh(v) => fresh(v),
+            };
+            let (lo, hi) = (*knots.get(lo)?, *knots.get(hi)?);
+            Some((u - lo) / (hi - lo))
+        }
+        Coef::Constant { num, den } => Some(T::from_f64(num) / T::from_f64(den)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ProjectiveScalar, ProjectiveSplit, SpanLocate};
+    use crate::dual::Dual;
+    use crate::{Interval, Sym};
+
+    /// Names the half the dispatch ran.
+    struct Which;
+
+    impl<S: SpanLocate> ProjectiveSplit<S> for Which {
+        type Out = &'static str;
+
+        fn projective(self) -> &'static str
+        where
+            S: ProjectiveScalar,
+        {
+            "projective"
+        }
+
+        fn enclosure(self) -> &'static str {
+            "enclosure"
+        }
+    }
+
+    #[test]
+    fn a_wrapper_takes_its_bases_half() {
+        assert_eq!(
+            [
+                f64::split_projective(Which),
+                Dual::<f64>::split_projective(Which),
+                Sym::<f64>::split_projective(Which),
+                Interval::split_projective(Which),
+                Dual::<Interval>::split_projective(Which),
+                Sym::<Interval>::split_projective(Which),
+            ],
+            [
+                "projective",
+                "projective",
+                "projective",
+                "enclosure",
+                "enclosure",
+                "enclosure",
+            ]
+        );
     }
 }

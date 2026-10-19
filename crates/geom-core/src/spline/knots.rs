@@ -9,8 +9,10 @@ use crate::readable::Readable;
 use crate::real::Real;
 use core::num::NonZeroUsize;
 
-/// `hi − lo` for two stored `f64` knots, the difference taken in `T`:
-/// each knot lifted, then subtracted at the scalar. At `Interval` that is
+/// `hi − lo` for two `f64` knots of a bare [`KnotVector`] (one that
+/// holds no values in a scalar; a carrier's held knots are subtracted
+/// in their own scalar), the difference taken in `T`: each knot
+/// lifted, then subtracted at the scalar. At `Interval` that is
 /// an outward enclosure of the exact difference, which
 /// `T::from_f64(hi - lo)` is not when the `f64` subtraction rounds (two
 /// knots more than a factor of two apart, Sterbenz's lemma failing); at
@@ -77,11 +79,11 @@ pub enum SplineError {
         /// The requested upper end.
         hi: f64,
     },
-    /// A breakpoint held in the scalar reads as no single `f64` point
-    /// (`SpanLocate::point_value`): poison, or an enclosure wider than a
-    /// point. The `f64` knot vector is the values' value channel, and
-    /// such a value names no knot structure.
-    KnotNotAPoint {
+    /// A breakpoint held in the scalar is poison: it stands for no
+    /// value, so it names no place in the structure. (An enclosure wider
+    /// than a point is a breakpoint, C6: it is held, and its runs'
+    /// order is certified for every member.)
+    KnotIsPoison {
         /// Index of the offending run.
         index: usize,
     },
@@ -92,6 +94,46 @@ pub enum SplineError {
     KnotRunsNotIncreasing {
         /// Index of the offending run.
         index: usize,
+    },
+    /// Whether a breakpoint lies above the one before it is not decided
+    /// for every value the two stand for: their enclosures overlap, so
+    /// some members' runs ascend and others' meet or cross (C6). The
+    /// margin is the enclosure of the step `b − a`; inputs refined so
+    /// that it clears zero lift the refusal.
+    KnotRunsUndecided {
+        /// Index of the offending run.
+        index: usize,
+        /// The step from the previous breakpoint, as read.
+        margin: crate::MarginDiag,
+    },
+    /// A curve or surface was built over knots one of whose breakpoints
+    /// is an enclosure wider than a point. The knots hold such a value
+    /// (C6), but a carrier's evaluation, its span reads and its knot
+    /// algebra still read its knots as `f64` points, so the carrier's
+    /// door refuses it rather than hand them a vector they cannot read.
+    CarrierKnotNotAPoint {
+        /// Index of the offending run.
+        index: usize,
+    },
+    /// A curve or surface was built over weights one of which is an
+    /// enclosure wider than a point. Held weights take one (C6,
+    /// [`super::Weights`]), but a carrier's knot algebra and its
+    /// certificates still read its weights as `f64` points, so the
+    /// carrier's door refuses it.
+    CarrierWeightNotAPoint {
+        /// Index of the offending weight.
+        index: usize,
+    },
+    /// Whether a weight is strictly positive is not decided for every
+    /// value it stands for: its enclosure reaches zero or below for some
+    /// members and lies above zero for others (C6). The margin is the
+    /// weight's enclosure; inputs refined so that it clears zero lift
+    /// the refusal.
+    WeightSignUndecided {
+        /// Index of the offending weight.
+        index: usize,
+        /// The weight, as read.
+        margin: crate::MarginDiag,
     },
 }
 
@@ -135,11 +177,10 @@ impl core::fmt::Display for SplineError {
                 Readable(*lo),
                 Readable(*hi)
             ),
-            SplineError::KnotNotAPoint { index } => write!(
+            SplineError::KnotIsPoison { index } => write!(
                 f,
-                "breakpoint {index} is not one point (poison, or an enclosure wider than a \
-                 point), so it names no knot structure for the spans to be located in. \
-                 Recourse: supply a breakpoint that is a single number there"
+                "breakpoint {index} is poison, so it names no place for the spans to be \
+                 located in. Recourse: supply a breakpoint that is a number there"
             ),
             SplineError::KnotRunsNotIncreasing { index } => write!(
                 f,
@@ -148,11 +189,89 @@ impl core::fmt::Display for SplineError {
                  breakpoint with the summed multiplicity where the two are one knot, or \
                  breakpoints that increase"
             ),
+            SplineError::KnotRunsUndecided { index, margin } => write!(
+                f,
+                "whether breakpoint {index} lies above the one before it is undecided over \
+                 the values they stand for: the step between them is {margin}, which does \
+                 not clear zero, so some members' runs would merge or cross. Recourse: \
+                 supply those breakpoints from inputs narrow enough that the step clears zero"
+            ),
+            SplineError::CarrierKnotNotAPoint { index } => write!(
+                f,
+                "breakpoint {index} is an enclosure wider than a point, and a curve or \
+                 surface reads its knots as single numbers. The width may be rounding alone \
+                 (a re-expressed or averaged breakpoint at an enclosure scalar), so narrower \
+                 inputs need not lift it. Recourse: supply the carrier built at a point \
+                 scalar (`f64`) and lifted, so its breakpoints stay the numbers it was \
+                 built on"
+            ),
+            SplineError::CarrierWeightNotAPoint { index } => write!(
+                f,
+                "weight {index} is an enclosure wider than a point, and a curve or surface \
+                 reads its weights as single numbers. The width may be rounding alone (an \
+                 arc's cosine at an enclosure scalar), so narrower inputs need not lift it. \
+                 Recourse: supply the carrier built at a point scalar (`f64`) and lifted, so \
+                 its weights stay the numbers it was built on"
+            ),
+            SplineError::WeightSignUndecided { index, margin } => write!(
+                f,
+                "whether weight {index} is strictly positive is undecided over the values it \
+                 stands for: it is {margin}, which does not clear zero, so some members' \
+                 weights are not positive. Recourse: supply that weight from inputs narrow \
+                 enough that it clears zero, and, for a curve or surface, narrow enough that \
+                 it is a single number, which is all a carrier admits for now"
+            ),
         }
     }
 }
 
 impl core::error::Error for SplineError {}
+
+/// **The weight regime**: a rational net's weight is strictly positive
+/// and finite. The one spelling of that predicate: every constructor's
+/// check ([`check_weight_values`]), the knot-algebra plans' admission of
+/// what they write, and the hull bound's licence read it. Written in
+/// the positive form, so NaN (`NaN > 0` is false) is outside the regime.
+#[must_use]
+pub fn weight_in_regime(w: f64) -> bool {
+    w > 0.0 && w.is_finite()
+}
+
+/// Every weight in [`weight_in_regime`], or the first that is not, named:
+/// [`SplineError::NonPositiveWeight`] for zero, negative and NaN, then
+/// [`SplineError::NonFiniteWeight`] for `+∞`. Counts are the caller's
+/// check; this reads values only.
+///
+/// # Errors
+///
+/// As above, at the offending index.
+pub fn check_weight_values(weights: &[f64]) -> Result<(), SplineError> {
+    for (index, &weight) in weights.iter().enumerate() {
+        check_weight_value(index, weight)?;
+    }
+    Ok(())
+}
+
+/// One weight in [`weight_in_regime`], or its refusal at `index`:
+/// [`SplineError::NonPositiveWeight`] for zero, negative and NaN,
+/// [`SplineError::NonFiniteWeight`] for `+∞`. The one spelling of a
+/// point weight's positivity, which [`check_weight_values`] and
+/// [`super::Weights::new`] share.
+///
+/// # Errors
+///
+/// As above.
+pub fn check_weight_value(index: usize, weight: f64) -> Result<(), SplineError> {
+    if weight_in_regime(weight) {
+        return Ok(());
+    }
+    // Outside the regime and still `> 0` is `+∞`.
+    Err(if weight > 0.0 {
+        SplineError::NonFiniteWeight { index, weight }
+    } else {
+        SplineError::NonPositiveWeight { index, weight }
+    })
+}
 
 /// The exact structural violation behind
 /// [`SplineError::KnotVectorInvalid`].
@@ -331,8 +450,10 @@ impl core::fmt::Display for KnotMirrorError {
 impl core::error::Error for KnotMirrorError {}
 
 /// A validated **clamped** knot vector with its degree — the structural
-/// half of every B-spline/NURBS entity (knots and degree are `f64`/
-/// `usize` structure per C6; generic scalar types never appear here).
+/// half of every B-spline/NURBS entity whose knots are points: the `f64`
+/// vector of the knots a carrier holds in its scalar ([`super::Knots`]),
+/// with its combinatorial [`KnotStructure`]. C6's interim reads it as
+/// the knots' positions; generic scalar types never appear here.
 ///
 /// # Invariants (established at construction, relied on by indexing)
 ///
@@ -352,6 +473,151 @@ impl core::error::Error for KnotMirrorError {}
 pub struct KnotVector {
     knots: Vec<f64>,
     degree: usize,
+    /// The combinatorial part, read off `knots` once (C6).
+    structure: KnotStructure,
+}
+
+/// **A clamped knot vector's combinatorial part** (C6): its degree, its
+/// knot count, and its runs of equal knots with their multiplicities, in
+/// order. No knot position is here. A carrier whose knots are points has
+/// this beside its `f64` [`KnotVector`]; a carrier whose knots are wide
+/// enclosures has only this, certified for every member
+/// ([`super::Knots::new`]), so whatever reads it reads structure and
+/// never a position past the funnel.
+///
+/// The clamped contract is [`KnotVector`]'s: degree ≥ 1, end runs of
+/// exactly `degree + 1`, interior runs of at most `degree`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KnotStructure {
+    degree: usize,
+    /// For each knot index, the index of its run.
+    run_of: Vec<usize>,
+    /// Each run's multiplicity, ascending, clamp runs included.
+    multiplicities: Vec<usize>,
+}
+
+impl KnotStructure {
+    /// The structure of runs of `multiplicities` at degree `degree`,
+    /// validated against the clamped contract. Each multiplicity is a
+    /// run's, so nonzero: the callers hold them as `NonZeroUsize`.
+    ///
+    /// # Errors
+    ///
+    /// [`SplineError::KnotVectorInvalid`] naming the violated clause
+    /// (the knot index of an interior run's first knot, as
+    /// [`KnotVector::clamped`] names it).
+    pub(crate) fn clamped(multiplicities: Vec<usize>, degree: usize) -> Result<Self, SplineError> {
+        let issue = |reason| Err(SplineError::KnotVectorInvalid { reason });
+        if degree == 0 {
+            return issue(KnotVectorIssue::DegreeZero);
+        }
+        let len: usize = multiplicities.iter().sum();
+        if len < 2 * (degree + 1) || multiplicities.len() < 2 {
+            return issue(KnotVectorIssue::TooShort);
+        }
+        if multiplicities[0] != degree + 1 {
+            return issue(KnotVectorIssue::StartNotClamped);
+        }
+        if multiplicities[multiplicities.len() - 1] != degree + 1 {
+            return issue(KnotVectorIssue::EndNotClamped);
+        }
+        let mut index = degree + 1;
+        for &m in &multiplicities[1..multiplicities.len() - 1] {
+            if m > degree {
+                return issue(KnotVectorIssue::InteriorMultiplicityTooHigh { index });
+            }
+            index += m;
+        }
+        Ok(Self::assembled(multiplicities, degree))
+    }
+
+    /// The structure of runs already validated.
+    fn assembled(multiplicities: Vec<usize>, degree: usize) -> Self {
+        let run_of = multiplicities
+            .iter()
+            .enumerate()
+            .flat_map(|(run, &m)| core::iter::repeat_n(run, m))
+            .collect();
+        Self {
+            degree,
+            run_of,
+            multiplicities,
+        }
+    }
+
+    /// The degree `p`.
+    pub fn degree(&self) -> usize {
+        self.degree
+    }
+
+    /// The knot count.
+    pub fn len(&self) -> usize {
+        self.run_of.len()
+    }
+
+    /// Never: a clamped structure holds at least `2(p + 1)` knots.
+    pub fn is_empty(&self) -> bool {
+        self.run_of.is_empty()
+    }
+
+    /// The control-point count: `len − degree − 1`.
+    pub fn control_count(&self) -> usize {
+        self.len() - self.degree - 1
+    }
+
+    /// Each run's multiplicity, ascending, clamp runs included.
+    pub fn multiplicities(&self) -> &[usize] {
+        &self.multiplicities
+    }
+
+    /// The run knot `index` belongs to.
+    pub fn run_of(&self, index: usize) -> usize {
+        self.run_of[index]
+    }
+
+    /// Whether knots `i` and `j` are one run: one breakpoint, so their
+    /// difference is the zero a basis recursion's convention reads.
+    pub fn same_run(&self, i: usize, j: usize) -> bool {
+        self.run_of[i] == self.run_of[j]
+    }
+
+    /// The index of the first (nonempty) span: `degree`.
+    pub fn first_span(&self) -> usize {
+        self.degree
+    }
+
+    /// The index of the last (nonempty) span: `len − degree − 2`.
+    pub fn last_span(&self) -> usize {
+        self.len() - self.degree - 2
+    }
+
+    /// Whether `span` is nonempty: its two knots are two runs.
+    pub fn span_is_nonempty(&self, span: usize) -> bool {
+        span + 1 < self.len() && !self.same_run(span, span + 1)
+    }
+
+    /// The validated [`Span`] at `index`, as [`KnotVector::span`], over
+    /// this structure alone: its [`Span::knots_f64_interim`] refuses.
+    /// Crate-internal: [`super::Knots::span`] is the door, and it takes
+    /// the vector's span where there is one.
+    pub(crate) fn span(&self, index: usize) -> Option<Span<'_>> {
+        self.span_over(None, index)
+    }
+
+    /// The span at `index` over this structure, beside `kv` when the
+    /// knots are points.
+    fn span_over<'a>(&'a self, kv: Option<&'a KnotVector>, index: usize) -> Option<Span<'a>> {
+        if index < self.first_span() || index > self.last_span() || !self.span_is_nonempty(index) {
+            return None;
+        }
+        Some(Span {
+            structure: self,
+            kv,
+            index,
+            first_control: index - self.degree,
+            degree: self.degree,
+        })
+    }
 }
 
 /// A knot value **proven strictly interior** to the domain of the
@@ -371,14 +637,10 @@ pub struct KnotVector {
 /// another one, it carries no borrow of its vector: a knot interior to
 /// vector A handed to vector B's raw list IS representable, so the type
 /// alone does not make the insertion guard unnecessary. What does is the type PLUS the
-/// privacy of its consumers, of which there are two, and they use it
-/// in opposite ways:
+/// privacy of its consumers:
 ///
-/// - `compose::insert_once_ring` is a private function whose only
-///   caller mints every `InteriorKnot` from the very `KnotVector` it
-///   read the raw list from, and mutates that list without touching
-///   either clamp run — so the domain the knot was minted against is
-///   the list's domain at every step. Here the type IS the guard.
+/// - [`super::algebra::insert_knot_plan`] and its siblings mint every
+///   `InteriorKnot` from the vector they plan against.
 /// - [`super::algebra::union_refinements`] reads several vectors' runs
 ///   and hands each vector the values it lacks from the OTHERS — the
 ///   one place a knot crosses vectors. It therefore returns plain
@@ -407,15 +669,21 @@ impl InteriorKnot {
 /// at construction, so `span − degree` never appears at a use site and
 /// cannot underflow there.
 ///
-/// **Branded to its knot vector by the borrow.** The fields are
+/// **Branded to its knot structure by the borrow.** The fields are
 /// private and the only constructors are [`KnotVector::span`]
-/// (checked) and [`KnotVector::span_of`] (total over a [`Param`]), so an index invalid
-/// for the vector it names is not a representable state — and neither
-/// is a span held beside a *different* vector: every door that
-/// consumes a `Span` reads its knots through the span
-/// ([`Span::knots`]) and takes no second [`KnotVector`] parameter to
-/// disagree with it. [`super::basis`] and [`super::hull`] therefore
+/// (checked), [`KnotVector::span_of`] (total over a [`Param`]) and
+/// [`KnotStructure::span`] (checked, over a structure with no `f64`
+/// vector, whose [`Span::knots_f64_interim`] refuses), so an index
+/// invalid for the structure it names is not a representable state —
+/// and neither is a span held beside a *different* vector: every door
+/// that consumes a `Span` reads its knots through the span
+/// ([`Span::knots_f64_interim`], or the held values the same
+/// [`super::KnotSpan`] pairs with it) and takes no second
+/// [`KnotVector`] parameter to disagree with it. [`super::basis`] and [`super::hull`] therefore
 /// index without a pairing guard and without a poison route for one.
+/// (A span over knots wider than a point has no `f64` vector: its
+/// [`Span::knots_f64_interim`] refuses loud, the reader's kernel bug,
+/// and the held entry points read its values instead.)
 /// `geom` carries the shape one level further: `CurveWindow{2,3}`
 /// borrows the curve and `SurfaceWindow` the surface, so the doors
 /// that read a control net get the net and the knots from one borrow
@@ -430,8 +698,8 @@ impl InteriorKnot {
 /// minted — a `Span` of ITS vector beside the pair. `InteriorKnot` is
 /// the third member of the family and stays crate-private for it.
 ///
-/// **Equality is address equality on the vector**, plus the indices:
-/// a `Span` is a proof about *that* vector, and two bit-equal vectors
+/// **Equality is address equality on the structure**, plus the indices:
+/// a `Span` is a proof about *that* structure, and two bit-equal vectors
 /// at different addresses are two structures a proof does not
 /// transfer between. (`KnotVector` is not [`Eq`] — its knots are
 /// `f64` — so a by-value derive is not available here in any case.)
@@ -526,7 +794,9 @@ impl InteriorKnot {
 /// two codes there rather than the only one.
 #[derive(Clone, Copy)]
 pub struct Span<'a> {
-    kv: &'a KnotVector,
+    structure: &'a KnotStructure,
+    /// The `f64` vector, where the knots are points (C6's interim).
+    kv: Option<&'a KnotVector>,
     index: usize,
     first_control: usize,
     degree: usize,
@@ -547,13 +817,15 @@ pub struct Span<'a> {
 impl core::fmt::Debug for Span<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
+            structure,
             kv,
             index,
             first_control,
             degree,
         } = self;
         f.debug_struct("Span")
-            .field("kv", &core::ptr::from_ref(*kv))
+            .field("structure", &core::ptr::from_ref(*structure))
+            .field("kv", &kv.map(core::ptr::from_ref))
             .field("index", index)
             .field("first_control", first_control)
             .field("degree", degree)
@@ -564,18 +836,20 @@ impl core::fmt::Debug for Span<'_> {
 impl PartialEq for Span<'_> {
     fn eq(&self, other: &Self) -> bool {
         let Self {
-            kv,
+            structure,
+            kv: _,
             index,
             first_control,
             degree,
         } = self;
         let Self {
-            kv: other_kv,
+            structure: other_structure,
+            kv: _,
             index: other_index,
             first_control: other_first_control,
             degree: other_degree,
         } = other;
-        core::ptr::eq(*kv, *other_kv)
+        core::ptr::eq(*structure, *other_structure)
             && index == other_index
             && first_control == other_first_control
             && degree == other_degree
@@ -585,10 +859,35 @@ impl PartialEq for Span<'_> {
 impl Eq for Span<'_> {}
 
 impl<'a> Span<'a> {
-    /// The [`KnotVector`] this span is a proof about — the one every
-    /// door that takes a span reads its knots from.
-    pub fn knots(self) -> &'a KnotVector {
-        self.kv
+    /// The structure this span is a proof about.
+    pub fn structure(self) -> &'a KnotStructure {
+        self.structure
+    }
+
+    /// **C6's interim**: the `f64` [`KnotVector`] this span is a proof
+    /// about, where the carrier's knots are points. A span over a
+    /// carrier with a knot wider than a point has none, and reaching
+    /// for it there is a kernel bug, refused loud with the reader's
+    /// location: such a carrier's positions are read through its held
+    /// values ([`super::KnotSpan`]), never past the funnel. Counted by
+    /// `scripts/gates/knots-f64-interim.sh`; it goes in C6's S5.
+    ///
+    /// # Panics
+    ///
+    /// On a span over a carrier whose knots are not all points.
+    #[track_caller]
+    #[allow(clippy::panic)]
+    pub fn knots_f64_interim(self) -> &'a KnotVector {
+        // A `match`, not `unwrap_or_else`: `Location::caller()` inside a
+        // closure names this file, not the reader.
+        match self.kv {
+            Some(kv) => kv,
+            None => panic!(
+                "a reader at {} took the f64 knot vector of a carrier whose knots are not \
+                 all points (C6: its positions are its held values)",
+                core::panic::Location::caller()
+            ),
+        }
     }
 
     /// The span index itself (the `i` of `knots[i] ≤ t < knots[i+1]`).
@@ -641,6 +940,20 @@ impl<'a> Span<'a> {
 }
 
 impl KnotVector {
+    /// The Bézier vector of degree `degree` on `[s0, s1]`: each end
+    /// `degree + 1` times and no interior knot — the vector a bare
+    /// Bernstein row on `[s0, s1]` is a proof about.
+    ///
+    /// # Errors
+    ///
+    /// As [`KnotVector::clamped`]: degree zero, or ends that are not
+    /// finite and ordered.
+    pub fn bezier(degree: usize, (s0, s1): (f64, f64)) -> Result<Self, SplineError> {
+        let mut knots = vec![s0; degree + 1];
+        knots.extend(core::iter::repeat_n(s1, degree + 1));
+        Self::clamped(knots, degree)
+    }
+
     /// Validates and wraps a clamped knot vector. See the type docs for
     /// the exact invariants.
     ///
@@ -695,7 +1008,22 @@ impl KnotVector {
             }
             index += mult;
         }
-        Ok(Self { knots, degree })
+        Ok(Self::assemble(knots, degree))
+    }
+
+    /// A validated vector with its structure read off it.
+    fn assemble(knots: Vec<f64>, degree: usize) -> Self {
+        let multiplicities = runs_in(&knots).map(|(_, m)| m).collect();
+        Self {
+            structure: KnotStructure::assembled(multiplicities, degree),
+            knots,
+            degree,
+        }
+    }
+
+    /// The combinatorial part (C6).
+    pub fn structure(&self) -> &KnotStructure {
+        &self.structure
     }
 
     /// The degree `p` this knot vector is clamped for.
@@ -966,12 +1294,7 @@ impl KnotVector {
         // the subtraction cannot underflow, and `index <= last_span()`
         // puts `index + 1` inside the knot array. Every consumer of the
         // resulting `Span` inherits both facts.
-        Some(Span {
-            kv: self,
-            index,
-            first_control: index - self.degree,
-            degree: self.degree,
-        })
+        self.structure.span_over(Some(self), index)
     }
 
     /// Locates the span containing `t`: the index `i` with
@@ -1012,7 +1335,8 @@ impl KnotVector {
             "span_at located an empty span {index}"
         );
         Span {
-            kv: self,
+            structure: &self.structure,
+            kv: Some(self),
             index,
             first_control,
             degree: self.degree,
@@ -1137,7 +1461,7 @@ impl KnotVector {
         let p = degree.get();
         let mut knots = vec![0.0; p + 1];
         knots.extend(core::iter::repeat_n(1.0, p + 1));
-        Self { knots, degree: p }
+        Self::assemble(knots, p)
     }
 
     /// Crate-internal constructor for knot vectors produced by the
@@ -1164,11 +1488,11 @@ impl KnotVector {
                  ({:?}): degree {degree}, knots {knots:?}",
                 revalidated.as_ref().err(),
             );
-            revalidated.unwrap_or(Self { knots, degree })
+            revalidated.unwrap_or_else(|_| Self::assemble(knots, degree))
         }
         #[cfg(not(debug_assertions))]
         {
-            Self { knots, degree }
+            Self::assemble(knots, degree)
         }
     }
 }
@@ -1978,8 +2302,18 @@ mod tests {
                 control: 4,
             },
             SplineError::DomainInvalid { lo: 1.0, hi: 1.0 },
-            SplineError::KnotNotAPoint { index: 1 },
+            SplineError::KnotIsPoison { index: 1 },
             SplineError::KnotRunsNotIncreasing { index: 2 },
+            SplineError::KnotRunsUndecided {
+                index: 2,
+                margin: crate::MarginDiag::enclosure(-0.25, 0.5),
+            },
+            SplineError::CarrierKnotNotAPoint { index: 1 },
+            SplineError::CarrierWeightNotAPoint { index: 1 },
+            SplineError::WeightSignUndecided {
+                index: 1,
+                margin: crate::MarginDiag::enclosure(-0.25, 0.5),
+            },
         ];
         // Exhaustive by the compiler: a new arm fails to build here
         // until it is listed above.
@@ -1991,11 +2325,15 @@ mod tests {
                 | SplineError::ControlCountMismatch { .. }
                 | SplineError::WeightCountMismatch { .. }
                 | SplineError::DomainInvalid { .. }
-                | SplineError::KnotNotAPoint { .. }
-                | SplineError::KnotRunsNotIncreasing { .. } => {}
+                | SplineError::KnotIsPoison { .. }
+                | SplineError::KnotRunsNotIncreasing { .. }
+                | SplineError::KnotRunsUndecided { .. }
+                | SplineError::CarrierKnotNotAPoint { .. }
+                | SplineError::CarrierWeightNotAPoint { .. }
+                | SplineError::WeightSignUndecided { .. } => {}
             }
         }
-        assert_eq!(arms.len(), 8, "an arm was added without a row here");
+        assert_eq!(arms.len(), 12, "an arm was added without a row here");
         // The repair is labelled, once: a wrapper that forwards this
         // carrier whole and adds a `Recourse:` of its own is then two
         // to the checker, not one it cannot see.

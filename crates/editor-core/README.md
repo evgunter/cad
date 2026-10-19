@@ -44,7 +44,7 @@ distributions, duals, stackups), `docs/ERROR-DESIGN.md` and
 |---|---|
 | Witness W1–W9 | `src/witness.rs` (`WitnessDatum`, `BranchCertification`, `WitnessBifurcation`); `src/edit.rs` (`ReWitness`, `ReWitnessBulk`); `src/doc.rs` (`Doc::witness`); `src/eval/mod.rs` (`NodeErrorKind::WitnessBifurcation`, `content_key`); `src/resolve/mod.rs` (`Diagnosis::WitnessBifurcation`) |
 | Group boolean | `src/node.rs` (`Node::PlacedUnion`, `PatternKind::Explicit`, `Node::placement_rule_fault`); `src/eval/wire.rs` (`wire_placed_union`); `src/names/emit.rs` (`name_placed_union`); `crates/topo/src/separation.rs` (`Separation`); `crates/topo/src/instance.rs` (the graft doors) |
-| Profile lift PP1–PP6 | `src/eval/wire.rs` (`prepare_profile`, `lane_profile`, `section_of`); `src/eval/mod.rs` (`ProfileLift`, `EvalOptions`, `content_key`); `src/eval/anchor.rs` (`derive_naming`); `src/program.rs` (resolution at `T`); `crates/profile/src/structure.rs`; `crates/profile/src/path/program.rs` (`replay_recording`, `replay_guided`); `crates/profile/src/validate.rs` (`validate_recording`, `validate_guided`); consumers `src/drive.rs`, `src/stackup.rs` |
+| Profile lift PP1–PP6 | `src/eval/wire.rs` (`prepare_profile`, `lane_profile`, `section_value`); `src/eval/mod.rs` (`ProfileLift`, `EvalOptions`, `content_key`); `src/eval/anchor.rs` (`derive_naming`); `src/program.rs` (resolution at `T`); `crates/profile/src/structure.rs`; `crates/profile/src/path/program.rs` (`replay_recording`, `replay_guided`); `crates/profile/src/validate.rs` (`validate_recording`, `validate_guided`); consumers `src/drive.rs`, `src/stackup.rs` |
 
 ## The witness mechanism (W1–W9)
 
@@ -220,18 +220,43 @@ also feed the key through `ContentBits::feed` (both channels of a dual,
 DUAL-DESIGN DL2), so a seeded or widened profile parameter cannot alias the
 nominal memo entry. Keys never persist.
 
-**PP6 — Scope and the bit-identity fence.** `ProfileLift::Pinned` is the
-default and the build path: profile geometry is the f64 elaboration embedded
-through `from_f64`, unchanged. `Guided` is set by the E6 driver (`src/drive.rs`)
-and the E4 sensitivities (`src/stackup.rs`). Guided replay at `f64` reproduces
-plain replay bitwise (`tests/m10_p_fence.rs`,
+**PP6 — Scope and the bit-identity fence.** The evaluator chooses the lift
+from what the evaluation binds (`EvalOptions::profile_lift_over`: the
+options' half, `EvalOptions::profile_lift`, and the environment's,
+`VarEnv::binds_symbols`); no caller sets it. The build is `ProfileLift::Pinned`, at any scalar: profile geometry
+is the f64 elaboration embedded through `from_f64`, unchanged. An analysis —
+an evaluation whose box varies an axis (`[0, 0]` included), which carries a
+seed, or which binds every variable a symbol — is `Guided`: the E6 driver (`src/drive.rs`, its
+witness over the root box collapsed to the nominal, `ParamBox::at_nominal`),
+the E4 sensitivities (`src/stackup.rs`), Monte Carlo (`src/mc.rs`) and the
+coincidence door's symbolic replay. The lift follows what the environment
+binds: a `Fixed` axis holds its variable at the nominal (at `Sym` a constant),
+and an environment that binds any variable as a parameter symbol — at `Sym`, a
+toleranced variable under any box, named or not (VR8) — is guided whatever the
+box's shape (`VarEnv::binds_symbols`). So an empty or all-`Fixed` box is the
+build at every numeric scalar, and at `Sym` exactly when it binds no symbol.
+Guided replay at `f64` reproduces plain
+replay bitwise (`tests/m10_p_fence.rs`,
 `crates/profile/tests/scalar_channels.rs`).
 
-- **Sections.** The sweep/loft ladder is the same function: `section_of` calls
-  `prepare_profile` and runs pass 2 as a gate only. A section's geometry stays
-  f64, because the skinned surface's structure must be lane-identical, so a
-  seed on a parameter the section reads refuses `SeedPinnedSection` rather
-  than arriving as a zero.
+- **Sections.** A loft reads each section operand's Profile value at the
+  lane scalar, as an extrude reads its profile: the loops and plane the
+  profile node produced under this lift, and its pass-1 pieces for naming.
+  Nothing is re-resolved and no section has a second placement path. The
+  skin's structure is selected on the sections' value channel where its
+  values are points, and over a range is what every value shares or a
+  typed refusal (`sweep::loft_profiles`). At a projective scalar the walls are computed
+  from the section values themselves, so a seed on a parameter a section
+  reads rides to the walls under the guided lift. At `Interval` the loft
+  encloses the family its sections stand for: sections and planes whose
+  values are points loft as the `f64` skin of that value channel,
+  enclosed, and wider ones (a box over the section, or under the guided
+  lift values a few ulps wide with no box at all, as the plane of a rotated
+  or derived frame) are skinned at the lane scalar. An arc's weight is no
+  point at `Interval`, so an arc section there refuses typed at the
+  carrier's door (`SplineError::CarrierWeightNotAPoint`, until C6's S4/S5)
+  rather than standing for the nominal over its box. Under the pinned lift a section's values are its `f64` form
+  lifted, so neither a seed nor a box reaches them.
 - **The sketch plane, by frame kind.** An authored frame's plane is the f64
   plane embedded under the pinned lift (`mint_frame_placement`, from the frame
   node's own slots, carried on its value and read by `profile_plane_f64`), so
@@ -242,10 +267,7 @@ plain replay bitwise (`tests/m10_p_fence.rs`,
   its profile is placed at the lane scalar through `frame_plane_lane` under
   every lift, and its placed coordinates at `Interval` are enclosures, which is
   what a derived frame is at that scalar. The 2-D structure record (PP1) stays
-  f64-pinned; the placement is the one thing that moves to `T`. A loft or
-  sweep section on a derived frame refuses typed at any scalar but f64
-  (`DerivedFrameSection`, the `SeedPinnedSection` shape), since a section's
-  geometry stays f64.
+  f64-pinned; the placement is the one thing that moves to `T`.
 - **Out of scope:** naming, persistence, the sketch solver.
 
 ## Open

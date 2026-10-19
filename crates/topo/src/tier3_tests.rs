@@ -928,8 +928,8 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
     let ellipse = |axis: Vec3<f64>, major: f64, u_ref: Vec3<f64>| Curve3::Ellipse {
         center: c,
         axis,
-        major,
-        minor: 0.3,
+        semi_u: major,
+        semi_v: 0.3,
         u_ref,
     };
     let axis = Vec3::unit_z();
@@ -968,7 +968,7 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
             "ellipse, negative major with u_ref flipped",
             ellipse(axis, -0.5, x),
             K::Ellipse,
-            D::Major,
+            D::SemiU,
             Verdict::Unrepresentable(Value, Lower),
         ),
         (
@@ -1095,11 +1095,11 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
             Curve3::Ellipse {
                 center: o,
                 axis: z,
-                major: 1.0,
-                minor: 0.0,
+                semi_u: 1.0,
+                semi_v: 0.0,
                 u_ref: x,
             },
-            Some(V::Unrepresentable(D::Minor, Value, Lower)),
+            Some(V::Unrepresentable(D::SemiV, Value, Lower)),
         ),
         ("honest spiric", spiric(0.5, 0.3), None),
         (
@@ -1239,8 +1239,8 @@ fn the_frame_lever_is_the_kinds_radius() {
     let ellipse = |major: f64, minor: f64, d: f64| Curve3::Ellipse {
         center: o,
         axis: Vec3::new(0.0, 0.0, long(d)),
-        major,
-        minor,
+        semi_u: major,
+        semi_v: minor,
         u_ref: Vec3::unit_x(),
     };
     let surface_verdict = |s: &Surface<f64>| {
@@ -1347,8 +1347,8 @@ fn the_elliptic_lever_is_the_larger_semi_axis_magnitude() {
         let carrier = Curve3::Ellipse {
             center: Point3::new(0.5, 0.0, 0.0),
             axis: Vec3::unit_z(),
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         };
         let (body, edge) = pillow_with_carrier(carrier, 0.0, pi, tol)
@@ -1841,7 +1841,7 @@ fn revert_maps_the_legal_cusp_to_the_legal_slit() {
     let tol = Tol::witness();
     let p = cusp_prism(tol);
     let kiss = kiss_edge(&p);
-    let reverted = p.body.revert();
+    let reverted = p.body.revert().unwrap();
     assert_eq!(validate(&reverted), Ok(()));
     assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
     assert_eq!(
@@ -1863,7 +1863,7 @@ fn revert_maps_the_legal_cusp_to_the_legal_slit() {
     // this body's wedges.
     // Bit-faithful: revert is an involution, so the pair really is one
     // body read two ways.
-    let back = reverted.revert();
+    let back = reverted.revert().unwrap();
     assert_eq!(
         crate::fixtures::deep_snapshot(&back),
         crate::fixtures::deep_snapshot(&p.body)
@@ -1881,8 +1881,9 @@ fn revert_maps_the_legal_cusp_to_the_legal_slit() {
 ///   conventional line both edges carry;
 /// - osculating (radii 1 and 1) — conformal along the locus, the
 ///   lamina the material arm does not admit;
-/// - in-band (κ_rel = 6ε on a unit arm, so the sagitta margin is 3ε
-///   at every CI ε row) — the honest escalation, naming
+/// - in-band (κ_rel = 24ε levered at the faces' reach, half the
+///   seam, so the sagitta margin is 3ε at every CI ε row) — the
+///   honest escalation, naming
 ///   `tangent_second_order`, and NOT a refusal: ε-tightening escalates
 ///   an edge, it never flips a valid body to invalid.
 #[test]
@@ -1904,7 +1905,7 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
             .all(|e| matches!(e, ValidationError::LaminaWedge { .. })),
         "{osculating:?}"
     );
-    let (in_band, _) = kissing_cylinder_pillow(tol, 1.0 / (1.0 - 6.0 * eps));
+    let (in_band, _) = kissing_cylinder_pillow(tol, 1.0 / (1.0 - 24.0 * eps));
     assert!(
         in_band.iter().all(|e| matches!(
             e,
@@ -2020,7 +2021,10 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
         origin: Point3::new(0.0, 0.0, 0.0),
         dir: Vec3::unit_y(),
     };
-    let extent = geom_brep::edge_extent(&carrier, 0.0, 1.0, 1.0);
+    // The pillow's two faces are bounded by its two coincident seams, so
+    // each reaches half a seam from the seam's middle: the wedge's
+    // reach tier 3 reads (`crate::wedge_reach`).
+    let reach = 0.5;
     let rule = |r2: f64| {
         must_carry_over_edge(
             &cylinder(1.0),
@@ -2028,7 +2032,7 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
             &carrier,
             0.0,
             1.0,
-            extent,
+            reach,
             band,
         )
     };
@@ -2060,7 +2064,7 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
         "osculating: tier 3 reads the same under-determination as a lamina: {tier3:?}"
     );
 
-    let r2 = 1.0 / (1.0 - 6.0 * eps);
+    let r2 = 1.0 / (1.0 - 24.0 * eps);
     let (tier3, _) = kissing_cylinder_pillow(tol, r2);
     assert!(
         matches!(
@@ -2092,8 +2096,13 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
 
 /// The 3′ pass judges a wedge end exactly as tier 3 does: the local
 /// battery reads no contact record, so a jet-determinate cusp passes
-/// 3′ with no records, and a curve record naming its edge — which the
-/// census certifies on the jet schedule — changes nothing about it.
+/// 3′ with no records. A face–face record of the cusp's two walls is
+/// the census's to read, never the battery's, and the census refuses
+/// it: the walls are tangent along their shared edge, but the cusp's
+/// material is the crescent between them, so as a contact of two
+/// materials their sheets overlap (`contact_tangent_overlap`). Nor do
+/// the walls' interiors meet: they touch only along the edge both
+/// bound.
 #[test]
 fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
     let tol = Tol::witness();
@@ -2106,18 +2115,31 @@ fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
         ),
         Ok(())
     );
-    let mut records = crate::boolean::ContactRecords::default();
-    records.curves.push(crate::Cited::new(
-        crate::boolean::CurveContact {
-            face_a: p.face_side[0],
-            face_b: p.face_side[2],
-            witness: kiss_edge(&p),
-        },
+    let records: crate::boolean::ContactRecords = [crate::Cited::new(
+        crate::Contact::new(
+            &p.body,
+            crate::Cell::Face(p.face_side[0]),
+            crate::Cell::Face(p.face_side[2]),
+        )
+        .unwrap(),
         crate::Cites::decided(0),
-    ));
-    assert_eq!(
-        crate::validate::validate_pseudomanifold(&p.body, &records, tol),
-        Ok(())
+    )]
+    .into_iter()
+    .collect();
+    let errors = crate::validate::validate_pseudomanifold(&p.body, &records, tol)
+        .expect_err("the census reads the record");
+    assert!(
+        matches!(
+            &errors[..],
+            [ValidationError::ContactContradicted {
+                margin: Indeterminate {
+                    predicate: Some("contact_tangent_overlap"),
+                    ..
+                },
+                ..
+            }]
+        ),
+        "only the record's own confirm refuses, on the material crescent: {errors:?}"
     );
 }
 
@@ -2447,9 +2469,9 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         cause: stop.cause,
     };
     let lead = "which side of an edge the material of its two smoothly meeting faces lies on \
-                is undecided. Recourse: move the geometry so that edge is clearly longer and no \
-                face curves tightly there, or, if this length is intended, tighten the tolerance \
-                below ";
+                is undecided. Recourse: move the geometry so that edge's faces clearly run farther \
+                and none curves tightly there, or, if this length is intended, tighten the \
+                tolerance below ";
     let sin42 = 42.0_f64.to_radians().sin();
     let cos30 = 30.0_f64.to_radians().cos();
     for (label, degrees, offered) in [
@@ -3091,7 +3113,7 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
         (Outer, Outer),
         "upright: the roles"
     );
-    let inverted = upright.revert();
+    let inverted = upright.revert().unwrap();
     let solid = inverted.solids().next().expect("one solid").0;
     assert_eq!(
         validate_geometric(&inverted, tol),
@@ -3146,7 +3168,7 @@ fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
         Void,
         "the premise: read with no lane, the upright slab's rounded sum calls it a cavity"
     );
-    let inverted = upright.revert();
+    let inverted = upright.revert().unwrap();
     for (body, want) in [(&upright, Outer), (&inverted, Void)] {
         let classified = crate::classify_shells(body, tol).expect("the shell classifies")[0].role;
         let gate = crate::census::gate_role(body, shell, band, tol);
@@ -3170,7 +3192,7 @@ fn an_inside_out_slab_just_past_the_band_is_refused() {
     let band = geom_core::Band::linear(tol).expect("a band");
     let t = 4.0 * band.escalate();
     for far in [0.0, 1e3, 5e3] {
-        let inverted = far_anchored_slab(0.0, 1e-3, t, far, tol).revert();
+        let inverted = far_anchored_slab(0.0, 1e-3, t, far, tol).revert().unwrap();
         let solid = inverted.solids().next().expect("one solid").0;
         assert_eq!(
             validate_geometric(&inverted, tol),
@@ -3323,7 +3345,7 @@ fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol)
 mod line_conic_review {
     use super::*;
     use crate::FaceKey;
-    use crate::boolean::{ContactRecords, PatchContact};
+    use crate::boolean::{Cell, Contact, ContactRecords};
     use crate::test_support_fixtures::{
         FaceGeometry, describe_as_intersections, prism_ops, prism_z,
     };
@@ -3363,16 +3385,12 @@ mod line_conic_review {
     }
 
     fn patch(a: FaceKey, b: FaceKey) -> ContactRecords {
-        ContactRecords {
-            patches: vec![crate::Cited::new(
-                PatchContact {
-                    face_a: a,
-                    face_b: b,
-                },
-                crate::Cites::decided(0),
-            )],
-            ..ContactRecords::default()
-        }
+        [crate::Cited::new(
+            Contact::of(Cell::Face(a), Cell::Face(b)).unwrap(),
+            crate::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect()
     }
 
     fn validate(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
@@ -3391,7 +3409,7 @@ mod line_conic_review {
             assert!(
                 errors.iter().any(|e| matches!(
                     e,
-                    ValidationError::UndeclaredContact {
+                    ValidationError::UnrecordedContact {
                         contact: crate::CensusContact::EdgeFaceOverlap { face, .. },
                         ..
                     } if *face == cap
@@ -3430,8 +3448,9 @@ mod line_conic_review {
     /// through the apex touches the post there and nowhere else (above
     /// the cap on one side of the apex, outside the wall on the other).
     /// Pass 4 reads the touch as `OnEdge` of the cap and reports nothing,
-    /// pass 5 never sees the arc, and the cross-solid backstop is what
-    /// refuses.
+    /// pass 5 never sees the arc, and the cross-solid backstop refuses;
+    /// pass 5′ reads the touch itself, the rim's and the wedge edge's
+    /// interiors meeting with no record.
     #[test]
     fn a_wedge_edge_touching_the_rim_transversally_never_validates_clean() {
         let (mut body, cap) = post();
@@ -3460,12 +3479,19 @@ mod line_conic_review {
             )),
             "the backstop holds the cap against the wedge: {errors:?}"
         );
-        assert!(
-            !errors
-                .iter()
-                .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
-            "no census lane reads the touch itself: {errors:?}"
-        );
+        let rim_touch = errors
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    ValidationError::UnrecordedContact {
+                        contact: crate::CensusContact::EdgeEdgeCross { side: None, .. },
+                        ..
+                    }
+                )
+            })
+            .count();
+        assert_eq!(rim_touch, 1, "pass 5′ reads the touch itself: {errors:?}");
     }
 }
 
@@ -3515,7 +3541,7 @@ fn far_thin_half_disc_reads(far: bool, tol: Tol) {
     }
     // Check 7 on the inside-out body first: an enclosure that lets it
     // pass is the defect this row exists to see.
-    let inverted = upright.revert();
+    let inverted = upright.revert().unwrap();
     let solid = inverted.solids().next().expect("one solid").0;
     assert_eq!(
         validate_geometric(&inverted, tol),
@@ -3557,7 +3583,7 @@ fn check_10_reads_every_shell_s_role_or_refuses_the_solid() {
         cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
         let mut slab = far_anchored_slab(3.0, 1e-3, t, 1e3, tol);
         if inside_out {
-            slab = slab.revert();
+            slab = slab.revert().unwrap();
         }
         crate::graft_disjoint_all_keyed(&mut body, &slab).expect("the slab grafts");
         let [keeper, donor] = solids_of(&body)[..] else {
@@ -3621,8 +3647,9 @@ fn the_census_gate_finds_a_far_slab_nested_in_another_solid() {
     }
     let band = geom_core::Band::linear(tol).expect("a band");
     let mut body = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
-    let cavity =
-        crate::test_support::brick::<f64>((5e-3, 6e-3), (0.0, 1e-3), (0.0, 1e-3), tol).revert();
+    let cavity = crate::test_support::brick::<f64>((5e-3, 6e-3), (0.0, 1e-3), (0.0, 1e-3), tol)
+        .revert()
+        .unwrap();
     crate::graft_disjoint_all_keyed(&mut body, &cavity).expect("the graft");
     body.merge_all_solids().expect("one solid");
     let [slab] = solids_of(&body)[..] else {
@@ -3650,4 +3677,71 @@ fn the_census_gate_finds_a_far_slab_nested_in_another_solid() {
         )),
         "the slab stands inside the block's material: {errors:?}"
     );
+}
+
+/// The cusp prism and a brick whose top face y = 0 is tangent to the
+/// outer wall along the cusp's line (x = 0, y = 0), the normals opposed.
+mod a_tangent_record_off_the_cusp {
+    use super::*;
+    use crate::boolean::{Cell, ContactRecords};
+
+    /// **A face–face record on two carriers needs the faces to meet.**
+    /// The brick stands 4 m above the prism along the tangent line, so
+    /// the record of the outer wall and the brick's top names two faces
+    /// whose extents along the line are disjoint: stale, and so is the
+    /// inner wall's, before any sense is read. Red when the table runs
+    /// over the union of the two extents.
+    #[test]
+    fn a_tangent_record_of_two_faces_four_metres_apart_is_stale() {
+        let tol = Tol::witness();
+        let mut p = cusp_prism(tol);
+        let block =
+            crate::test_support_fixtures::brick::<f64>((-0.5, 0.5), (-1.0, 0.0), (5.0, 6.0), tol);
+        let keys = crate::graft_disjoint_all_keyed(&mut p.body, &block).unwrap();
+        let top = block
+            .faces()
+            .find(|(_, f)| match block.get_surface(f.surface) {
+                Some(Surface::Plane { origin, normal, .. }) => {
+                    normal.y.abs() > 0.5 && origin.y.abs() < 1e-12
+                }
+                _ => false,
+            })
+            .and_then(|(k, _)| keys.face(k))
+            .unwrap();
+        let record = |wall| -> ContactRecords {
+            [crate::Cited::new(
+                crate::Contact::new(&p.body, Cell::Face(wall), Cell::Face(top)).unwrap(),
+                crate::Cites::decided(0),
+            )]
+            .into_iter()
+            .collect()
+        };
+        let gate = |r: &ContactRecords| crate::validate::validate_pseudomanifold(&p.body, r, tol);
+        assert_eq!(
+            gate(&ContactRecords::default()),
+            Ok(()),
+            "apart, unrecorded"
+        );
+        let outer = gate(&record(p.face_side[0])).expect_err("apart along the line");
+        assert!(
+            outer.iter().any(|e| matches!(
+                e,
+                ValidationError::StaleContactDeclaration {
+                    declaration: crate::validate::StaleDeclaration::Patch { .. }
+                }
+            )),
+            "{outer:?}"
+        );
+        let inner = gate(&record(p.face_side[2])).expect_err("apart along the line");
+        assert_eq!(inner.len(), 1, "{inner:?}");
+        assert!(
+            matches!(
+                inner[0],
+                ValidationError::StaleContactDeclaration {
+                    declaration: crate::validate::StaleDeclaration::Patch { .. }
+                }
+            ),
+            "{inner:?}"
+        );
+    }
 }

@@ -75,8 +75,12 @@ pub(crate) fn ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
         Tol::witness(),
     );
     let to = Affine3::translation(Vec3::new(c[0], c[1], c[2]));
-    let ball =
-        topo::transform_rigid(&at_origin, &to, Tol::witness()).expect("a translation is rigid");
+    let ball = topo::transform_rigid(
+        &at_origin,
+        &geom_core::test_support::rigid(&to, Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("a translation is rigid");
     finished("the ball", ball, Tol::witness())
 }
 
@@ -85,8 +89,12 @@ pub(crate) fn ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
 fn polar_ball(r: f64, c: [f64; 3]) -> AtRestBody<f64> {
     let k = Vec3::new(TILT.cos(), 0.0, -TILT.sin());
     let turn = Affine3::rotation_about_axis(Point3::from_array(c), k, core::f64::consts::FRAC_PI_2);
-    let ball =
-        topo::transform_rigid(&ball(r, c), &turn, Tol::witness()).expect("a rotation is rigid");
+    let ball = topo::transform_rigid(
+        &ball(r, c),
+        &geom_core::test_support::rigid(&turn, Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("a rotation is rigid");
     finished("the polar ball", ball, Tol::witness())
 }
 
@@ -345,11 +353,7 @@ fn a_rim_crossing_reaches_the_join() {
 /// plane's section of it is not a latitude circle, as charted about the
 /// cut's normal — and every op builds its closed form: the ball is
 /// centred on the cut plane, clear of the wall and the floor, so the
-/// drum holds exactly its lower half. The classification's at-infinity
-/// probe cannot measure the cut wall in closed form
-/// (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`), so
-/// a probe ray that meets nothing is set aside and one that meets the
-/// boundary answers.
+/// drum holds exactly its lower half.
 #[test]
 fn a_ball_through_the_cut_face_clears_the_rim_and_builds() {
     let a = drum_lower();

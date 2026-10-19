@@ -2,10 +2,12 @@
 id: the-probe-gated-assembly-battery-gathers-an-unplaced-fixture
 kind: issue
 title: assemble_one_local_battery gathers an unplaced fixture and reds under --features probe, which CI never runs
-status: open
+status: closed
 opened: 2026-10-10
 priority: P2
 cost: E
+closed: 2026-10-11
+branch: intent/probe-battery-places-its-fixture
 ---
 
 
@@ -25,3 +27,18 @@ compiles the suite; no CI job runs editor-core's tests with `probe`).
 union node, as stage 2 C's re-placed fixtures do), and give the probe
 suites a CI row, or roster this one as not executed
 (`scripts/gates/probe-suite-census.sh`).
+
+## Closed
+
+The row's caller places the union (`fixture::place` on the node
+`two_blocks_and_their_union` returns), so the gather has a product and
+the battery comparison runs; the fixture itself is unchanged, and its
+other callers (`parallel_node_map_probe`, `parallel_node_map_interval`)
+read node maps, not the product. No other probe-gated suite calls
+`product_recorded`, `assemble_gathered` or names `EmptyProduct`.
+
+No new CI row and no unrun declaration: the suite is already in the
+census's executed set (`RUN_FLOOR`'s `plain:editor-core:assemble_one_local_battery`),
+which nightly `k-lint (dev-probe)` runs through `k_probe_sweep.sh`'s
+plain pre-pass, and `probe-suite-census.sh` refuses a suite that is
+both rostered and declared unrun. The row was red there, not unrun.

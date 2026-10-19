@@ -235,8 +235,8 @@ fn undo_restores_a_reader_a_delete_stranded() {
     assert_eq!(error_of(&doc), None, "the plate builds");
     let mut history = History::new(doc.clone());
     let edit = DocEdit::DeleteNode { id: profile };
-    let deleted = pncad::document::apply(&doc, &edit, tol, &pncad::document::RefusingReach)
-        .expect("a delete with a reader is accepted");
+    let deleted =
+        pncad::document::apply(&doc, &edit, tol).expect("a delete with a reader is accepted");
     history.commit(edit, deleted.doc);
     let stranded = error_of(history.doc()).unwrap_or_default();
     assert!(

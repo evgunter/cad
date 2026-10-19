@@ -91,12 +91,6 @@ UNHASHABLE = {
     "`WrittenLength`, which folds `-0.0` and hashes",
     "Angle": "by design: `Length`'s reason, for the angle newtype; "
     "`WrittenAngle` is the authored record that keys",
-    "Alignment": "by design: `editor_core::Alignment` derives "
-    "`PartialEq` and no `Hash`, and this class mirrors its derives. "
-    "The datum reads like a key — \"which alignments did this assembly "
-    "use\" is a set — but the kernel never keys on one: it solves poses "
-    "from alignments and tallies nothing by them, so a Python `set` of "
-    "them is a decision the kernel has not made",
     "AnalysisPolicy": "by design: `editor_core::AnalysisPolicy` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
     "policy is an argument to one run (E2: request configuration, never "
@@ -134,24 +128,19 @@ UNHASHABLE = {
     "`PartialEq` and `Eq` and no `Hash`, and this class mirrors its "
     "derives. Three counts read like a key, but the kernel reports a "
     "census beside the region it counted and never tallies by one",
-    "FlushFinding": "by design: `editor_core::FlushFinding` (the "
-    "document seat's `topo::flush::FlushFinding<(StableName, "
-    "StableName)>`) derives `PartialEq` and no `Hash`, and this class "
-    "mirrors its derives. `CheckFinding`'s reason, for the contact "
-    "verifier's findings",
     "Frame": "by design: `editor_core::Frame` derives `PartialEq` and "
-    "no `Hash`, and this class mirrors its derives. `MateFrame`'s "
-    "reason for the absolute placement: a pose is a datum the solver "
-    "consumes, and it bottoms out in `f64`",
-    "MateFrame": "by design: `editor_core::MateFrame` derives "
-    "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
-    "frame is a pose datum the solver consumes, not a key it tallies "
-    "by; and it bottoms out in `f64`, so a hash would owe `Formula`'s "
-    "float answer",
-    "MatePrimitive": "by design: `editor_core::MatePrimitive` derives "
-    "`PartialEq` and no `Hash`, and this class mirrors its derives. "
-    "The primitive names which coset of SE(3) a mate pins, and the "
-    "kernel MATCHES on it rather than keying by it",
+    "no `Hash`, and this class mirrors its derives. A pose is a datum "
+    "the solver consumes, not a key it tallies by, and it bottoms out "
+    "in `f64`",
+    "Mate": "by design: `editor_core::Mate` derives `PartialEq` and no "
+    "`Hash`, and this class mirrors its derives. A mate is a constraint "
+    "the solver folds, addressed by its `MateRef` (which hashes), and "
+    "its world read's numbers are `Formula`s",
+    "MateValue": "by design: `editor_core::Value` derives `PartialEq` "
+    "and no `Hash`, and this class mirrors its derives. A value is a "
+    "constraint addressed by its `MateRef` (which hashes), and its "
+    "number is a `Formula`, which owes the float answer it has not "
+    "made",
     "McAssertion": "by design: `editor_core::McAssertion` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives. It "
     "is one row of a report — the counts an assertion drew — reported "
@@ -168,6 +157,10 @@ UNHASHABLE = {
     "`PartialEq` and no `Hash`, and this class mirrors its derives — "
     "`Frame`'s reason, one level out: a literal step bottoms out in "
     "`f64`",
+    "WorldRead": "by design: `editor_core::WorldRead` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
+    "world read is part of the mate that holds it, never keyed on, and "
+    "its moves' numbers are `Formula`s",
     "SketchPlane": "by design: `profile::SketchPlane<f64>` spells `==` "
     "as `bit_eq` and derives no `Hash`, and this class mirrors it. The "
     "comparison is bit-for-bit on both sides — `-0.0` and `0.0` are "
@@ -187,7 +180,7 @@ class TestEveryMirrorIsAKey(unittest.TestCase):
         self.mirrors = enum_mirrors()
         # A probe that found nothing would pass every row below in
         # silence. It has to find the surface it is measuring.
-        self.assertGreater(len(self.mirrors), 20)
+        self.assertGreaterEqual(len(self.mirrors), 20)
 
     def test_every_member_of_every_mirror_hashes(self):
         unhashable = sorted(

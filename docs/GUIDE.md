@@ -202,7 +202,7 @@ material. Three boxes, a union and a subtract.
 The web stands flush on the plate's top, and the pocket's floor is
 flush with the plate's bottom. Where two faces meet on one plane the
 kernel decides it from their margins — "these two planes are one
-plane" within the tolerance — and glues them, declared or not; it
+plane" within the tolerance — and glues them; it
 records each such decision so the document can say which ones its
 construction proves (the `unproven-coincidence` lint). Two faces whose
 planes lie apart inside the tolerance's ambiguity band — too far to
@@ -548,7 +548,7 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, 
         .line_to(p2(x.1, y.1), tol)?
         .line_to(p2(x.0, y.1), tol)?
         .line_to(Start, tol)?;
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![rect.into()], tol)?;
     let body = extrude(&profile, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body;
     // The boolean takes finished bodies: the at-rest gate (tier 3) makes one.
@@ -597,7 +597,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+#     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -624,7 +624,7 @@ validate_pseudomanifold(body, &result.contacts, tol)
   on. It runs tier 2 first.
 - **Tier 3′, `validate_pseudomanifold(body, contacts)`** — tier 3 for
   a body that legitimately touches itself, checked against the
-  declared contacts the boolean pipeline carried into the result.
+  contact records the boolean pipeline carried into the result.
 
 The 3-versus-3′ choice is mechanical, and the tour makes it the same
 way you should: **if the value came from a boolean, gate it at 3′
@@ -633,12 +633,13 @@ body from `split` carries no contacts, so it takes plain tier 3.
 
 All four rungs are bound in Python as methods on `Body`, and the
 fourth takes **no** contacts argument there: a Python `Body` carries
-the declarations its own producer minted for it, so
+the contact records its own producer minted for it, so
 `body.validate_pseudomanifold()` certifies against those and the
 choice above is already made. An `assemble`d at-rest body arrives
-with its mates' records and passes over its seats; `product`, which
-gathers the same solids and declares nothing, reports every seat as
-an undeclared contact.
+with its mates' records and the records its gather made of every
+other touch between copies, and passes over its seats; `product`,
+which gathers the same solids and carries no records, reports every
+seat as an unrecorded contact.
 
 ```
 use pncad::prelude::*;
@@ -652,7 +653,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+#     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -681,7 +682,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+#     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -754,7 +755,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+#     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -794,7 +795,7 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+#     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -844,7 +845,7 @@ use pncad::step_import::StepImport;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
+#     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -1276,12 +1277,13 @@ frame = doc.sketch_frame(
     plane=SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
 )
 # The axis of revolution is written IN that frame, in its own two
-# coordinates — an origin and a direction the revolve itself holds:
-# the frame's v is world +z, so the pole axis is its +y through
-# (0, 0). An axis written in the frame cannot leave the plane it turns.
+# coordinates — a point and a heading the revolve itself holds: the
+# frame's v is world +z, so the pole axis is its +y through (0, 0), a
+# quarter turn from its x. An axis written in the frame cannot leave
+# the plane it turns.
 axis = (
     (Formula.length_in(0, m), Formula.length_in(0, m)),
-    (Formula.literal(0.0), Formula.literal(1.0)),
+    Formula.turn_over(4),
 )
 ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), *axis, Formula.angle_in(2 * math.pi, rad)))
 # A revolve defines two outputs, its body and its axis, so a read of
@@ -1645,7 +1647,7 @@ ring = doc.insert(
     Node.revolve(
         profile,
         (Formula.length_in(0, m), Formula.length_in(0, m)),
-        (Formula.literal(0.0), Formula.literal(1.0)),
+        Formula.turn_over(4),
         Formula.angle_in(2 * math.pi, rad),
     )
 )
@@ -1709,7 +1711,7 @@ let hole = LoopProgram::Circle {
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1767,7 +1769,7 @@ use pncad::prelude::*;
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
 # let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
-#     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("applies");
+#     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
 # let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
@@ -1784,7 +1786,7 @@ let thicker = apply(&doc, &DocEdit::SetParam {
     slot: SlotId::Distance,
     value: len(1.0).into(),
     fresh: Vec::new(),
-}, tol, &pncad::document::RefusingReach)?.doc;
+}, tol)?.doc;
 
 // Pass the PRIOR evaluation: the frame and the profile are
 // untouched, so their values are reused by content key and only the
@@ -1868,10 +1870,10 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 doc = apply(&doc, &DocEdit::DeclareVar {
     name: VarName::from_static("hole_r"),
     def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
-}, tol, &pncad::document::RefusingReach)?.doc;
+}, tol)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1918,7 +1920,6 @@ let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: 
 doc = next;
 let (next, solid) = insert(&doc, Node::Union {
     members: Bodies::Spelled(vec![plate.into(), tab.into()]),
-    declare: Vec::new(),
 });
 doc = next;
 
@@ -1948,7 +1949,7 @@ let bigger = apply(&doc, &DocEdit::DefineVar {
     var: VarName::from_static("hole_r").into(),
     def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.4)),
     fresh: Vec::new(),
-}, tol, &pncad::document::RefusingReach)?.doc;
+}, tol)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
 assert_eq!(ev2.reused, 4);     // both frames and the tab's whole
@@ -1962,7 +1963,7 @@ let held = bigger.var_named("hole_r").expect("declared");
 let renamed = apply(&bigger, &DocEdit::RenameVar {
     var: VarName::from_static("hole_r").into(),
     name: Some(VarName::from_static("hole_radius")),
-}, tol, &pncad::document::RefusingReach)?.doc;
+}, tol)?.doc;
 assert_eq!(renamed.var_named("hole_radius"), Some(held));
 let ev3 = evaluate::<f64>(&renamed, Some(&ev2), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev3.recomputed, 0);
@@ -2030,7 +2031,7 @@ let tol = Tol::witness();
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
 
 let declare = |doc: &Doc<ProfileProgram>, name: &'static str, value: FreeVar| {
-    apply(doc, &DocEdit::DeclareVar { name: VarName::from_static(name), def: VarDecl::Free(value) }, tol, &pncad::document::RefusingReach)
+    apply(doc, &DocEdit::DeclareVar { name: VarName::from_static(name), def: VarDecl::Free(value) }, tol)
         .expect("the declaration applies").doc
 };
 
@@ -2078,7 +2079,7 @@ let bore_r = id("bore_r");
 doc = apply(&doc, &DocEdit::SetVarValue {
     var: bore_r.into(),
     value: FreeValue::Continuous(0.0045),
-}, tol, &pncad::document::RefusingReach)?.doc;
+}, tol)?.doc;
 assert!(doc.free(bore_r).expect("declared").distribution().is_some());
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```

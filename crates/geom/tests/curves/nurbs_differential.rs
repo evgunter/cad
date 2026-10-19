@@ -14,6 +14,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
+use geom_core::spline::Knots;
 use geom_core::spline::{KnotVector, SplineError};
 use geom_core::{Dual64, Interval, Point2, Point3, Real, Vec3};
 
@@ -272,7 +273,7 @@ fn determinism_bitwise() {
     }
     let r1 = n.insert_knot(0.4, 2).unwrap().remove_knot(0.4, 1).unwrap();
     let r2 = n.insert_knot(0.4, 2).unwrap().remove_knot(0.4, 1).unwrap();
-    assert_eq!(r1.0.knots(), r2.0.knots());
+    assert_eq!(r1.0.knots_f64_interim(), r2.0.knots_f64_interim());
     let bits = |v: &[f64]| v.iter().map(|f| f.to_bits()).collect::<Vec<_>>();
     assert_eq!(bits(r1.0.weights()), bits(r2.0.weights()));
     let pbits = |c: &NurbsCurve3<f64>| {
@@ -283,6 +284,49 @@ fn determinism_bitwise() {
     };
     assert_eq!(pbits(&r1.0), pbits(&r2.0));
     assert_eq!(r1.1.to_bits(), r2.1.to_bits());
+}
+
+/// **A knot operation that would write a weight out of the positive
+/// regime is refused, not admitted.** On a net of the least subnormal
+/// weight a half-and-half blend rounds each half to zero, so a midpoint
+/// insertion, the same point as a refinement, and a degree-1 elevation
+/// (coefficient `½`) would each write a zero weight the constructor
+/// refuses. Each answers `WeightCollapse` at the slot instead.
+#[test]
+fn a_knot_operation_that_would_write_a_zero_weight_is_refused() {
+    let w = f64::from_bits(1);
+    let collapse = geom_core::spline::KnotAlgebraError::WeightCollapse { index: 1 };
+    let quad = NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+        ],
+        vec![w, w, w],
+    )
+    .expect("a least-subnormal weight is positive and finite");
+    assert_eq!(
+        quad.insert_knot(0.5, 1).unwrap_err(),
+        collapse,
+        "insert_knot"
+    );
+    assert_eq!(
+        quad.refine_knots(&[0.5]).unwrap_err(),
+        collapse,
+        "refine_knots"
+    );
+    let line = NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+        vec![w, w],
+    )
+    .unwrap();
+    assert_eq!(
+        line.elevate_degree(1).unwrap_err(),
+        collapse,
+        "elevate_degree"
+    );
 }
 
 /// Spec row 3: refusals pinned — typed errors, exact variants.
@@ -382,7 +426,12 @@ fn removal_bound_is_honest_under_planted_perturbation() {
     let mut ctrl = base.control().to_vec();
     let mid = ctrl.len() / 2;
     ctrl[mid] = ctrl[mid] + Vec3::new(8e-4, -5e-4, 6e-4);
-    let pert = NurbsCurve3::new(base.knots().clone(), ctrl, base.weights().to_vec()).unwrap();
+    let pert = NurbsCurve3::new(
+        base.knots_f64_interim().clone(),
+        ctrl,
+        base.weights().to_vec(),
+    )
+    .unwrap();
     let (removed, bound) = pert.remove_knot(0.6, 1).unwrap();
     assert!(
         bound > 1e-5,
@@ -417,7 +466,12 @@ fn dual_channels_are_consistent_with_derivatives() {
         .iter()
         .map(|p| p.map(Dual64::constant))
         .collect();
-    let nd = NurbsCurve3::new(n64.knots().clone(), ctrl, n64.weights().to_vec()).unwrap();
+    let nd = NurbsCurve3::new(
+        n64.knot_values().lift(Dual64::constant),
+        ctrl,
+        n64.weights().iter().map(|w| Dual64::constant(*w)).collect(),
+    )
+    .unwrap();
     for i in 0..=100usize {
         let t = i as f64 / 100.0;
         let p = nd.eval(Dual64::variable(t));
@@ -457,7 +511,12 @@ fn dual_kink_convention_at_knot_follows_the_tie_break() {
     ];
     let n64 = NurbsCurve3::new(kv.clone(), ctrl64.clone(), vec![1.0; 5]).unwrap();
     let ctrl: Vec<Point3<Dual64>> = ctrl64.iter().map(|p| p.map(Dual64::constant)).collect();
-    let nd = NurbsCurve3::new(kv, ctrl, vec![1.0; 5]).unwrap();
+    let nd = NurbsCurve3::new(
+        Knots::from(kv).lift(geom_core::Real::from_f64),
+        ctrl,
+        vec![Dual64::constant(1.0); 5],
+    )
+    .unwrap();
     let t = 0.5;
     let span_right = n64.span_at(t).expect("a numeric parameter"); // the span starting at 0.5
     // The [0, 0.5) span (mult-2 knot between).
@@ -506,7 +565,12 @@ fn a_poison_parameter_evaluates_to_poison_in_every_channel() {
         Point3::new(3.0, 2.0, 1.0),
     ];
     let ctrl: Vec<Point3<Dual64>> = ctrl64.iter().map(|p| p.map(Dual64::constant)).collect();
-    let nd = NurbsCurve3::new(kv.clone(), ctrl, vec![1.0; 4]).unwrap();
+    let nd = NurbsCurve3::new(
+        Knots::from(kv.clone()).lift(geom_core::Real::from_f64),
+        ctrl,
+        vec![Dual64::constant(1.0); 4],
+    )
+    .unwrap();
     let t = Dual64::variable(f64::NAN);
     let all_nan = |p: [Dual64; 3]| p.iter().all(|c| c.value.is_nan() && c.deriv.is_nan());
     let p = nd.eval(t);
@@ -522,9 +586,9 @@ fn a_poison_parameter_evaluates_to_poison_in_every_channel() {
         assert!(all_nan(v), "ders at NaN, {name}: {v:?}");
     }
     let ci = NurbsCurve3::new(
-        kv,
+        Knots::from(kv).lift(geom_core::Real::from_f64),
         ctrl64.iter().map(|p| p.map(Interval::from_f64)).collect(),
-        vec![1.0; 4],
+        vec![Interval::from_f64(1.0); 4],
     )
     .unwrap();
     let pi = ci.eval(Interval::from_f64(f64::NAN));

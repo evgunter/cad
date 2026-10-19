@@ -1,7 +1,7 @@
 //! **Every document-reachable operand refusal, both halves, byte-exact.**
 //!
 //! Every typed operand mismatch in `eval::wire` is built by one door
-//! (`operand`, or `node_operand` for the road that holds no value) out
+//! (`operand`) out
 //! of two independent parts: the `expected:` phrase the door was asked
 //! for, and the `found:` family the input actually carries, which the
 //! door reads for itself.
@@ -151,7 +151,6 @@ fn wired() -> (
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         ) {
             Ok(applied) => {
                 rows.push(Row {
@@ -240,8 +239,8 @@ fn wired() -> (
         Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Profile)),
         Node::Revolve {
             profile: plane.into(),
-            axis_origin: [len(0.0), len(0.0)],
-            axis_direction: [scl(0.0), scl(1.0)],
+            axis_through: [len(0.0), len(0.0)],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(1.0),
         },
         plane,
@@ -308,12 +307,12 @@ fn wired() -> (
         plane,
     );
 
-    // ---- the node road: `found:` is the NODE's family ----
+    // ---- the section reads: a loft's and a sweep's profiles ----
 
     doc = add(
         doc,
         &mut rows,
-        "section_of (a Loft over a body)",
+        "a Loft section that is a body",
         Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Profile)),
         Node::Loft {
             profiles: vec![profile.into(), body.into()],
@@ -324,7 +323,7 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "section_of (a Loft over a frame datum)",
+        "a Loft section that is a frame datum",
         Owes::EditDoor(VarKind::Frame, SlotKind::Is(VarKind::Profile)),
         Node::Loft {
             profiles: vec![profile.into(), sketch.into()],
@@ -335,7 +334,7 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "section_of on the sweep road (a Sweep whose profile is a body)",
+        "a Sweep whose profile is a body",
         Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Profile)),
         Node::Sweep {
             profile: body.into(),
@@ -750,10 +749,9 @@ mod source_rules {
     /// counted.
     ///
     /// It also refuses a family word spelled anywhere but the macro:
-    /// `ValuePayload::kind_name` and `eval::node_value_kind` answer the
-    /// vocabulary over a value and over a node, and a new variant whose
-    /// arm returned a fresh literal would mint a word nothing knows
-    /// about.
+    /// `ValuePayload::kind_name` answers the vocabulary over a value,
+    /// and a new variant whose arm returned a fresh literal would mint a
+    /// word nothing knows about.
     #[test]
     fn every_family_word_has_exactly_one_const() {
         // The LITERAL-bearing view: the macro's arms ARE literals, and
@@ -810,9 +808,9 @@ mod source_rules {
             "every `family_word!` arm owes exactly one `family::` const and every const owes \
              an arm; an arm with no const is dead text no lint reads"
         );
-        // No arm of either kind function spells a family word itself.
+        // No arm of the kind function spells a family word itself.
         let code = source::blanked(source::code_only, "eval/mod.rs", MOD);
-        for head in ["pub fn kind_name", "pub(crate) fn node_value_kind"] {
+        for head in ["pub fn kind_name"] {
             let at = code
                 .find(head)
                 .unwrap_or_else(|| panic!("`{head}` is declared"));

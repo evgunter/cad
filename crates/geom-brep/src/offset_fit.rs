@@ -43,11 +43,13 @@
 //! offset — that can be resampled at any parameter, so the loop runs
 //! the other way: interpolate, certify, and **insert** sample
 //! parameters (hence knots, through Eq. 9.8) inside the cells that
-//! carry the sup, until every cell certifies or the budget expires.
+//! carry the sup, until every cell certifies or the crate's stop rule
+//! ([`crate::descent`]) ends it: the bound stops falling, or a work
+//! bound is reached.
 //! What the two share is the thing that matters: a bound decides every
 //! step, and exhaustion is a **typed refusal naming what ran out** —
-//! the round budget ([`OffsetFitError::BudgetExhausted`]) or the
-//! per-direction sample cap ([`OffsetFitError::SampleCapReached`]),
+//! a work bound ([`OffsetFitError::WallReached`]) or the
+//! refinement itself ([`OffsetFitError::RefinementStalled`]),
 //! each carrying the bound its last grid achieved and the smallest any
 //! round reached, or [`OffsetFitError::BoundNotFinite`] when the last
 //! round's bound is not one, carrying the smallest finite one — the
@@ -152,8 +154,8 @@
 //! the cell and the componentwise assembly collapses, while the
 //! projection reads `‖E‖ ≈ |d|`. On the quarter cylinder at
 //! `d = 1e-6` the sup cell's two readings are `1.58e-8` and
-//! `5.64e-7`, and the cell's bound is `1.70e-5` rather than
-//! `3.22e-4`.
+//! `5.64e-7`, and the cell's bound is `1.51e-5` rather than
+//! `2.63e-4`.
 //!
 //! The `τ²/‖E‖` term takes the same floor, or `|d| − dist` when that
 //! is larger — three lower bounds on one norm, whose max is one too.
@@ -167,7 +169,7 @@
 //! does. What that bought is translation invariance, which the
 //! residual always had and the bound did not: a micron offset on a
 //! metre patch a kilometre from the origin certified as `inf` and now
-//! certifies at the same `1.7e-5` the patch gives at the origin.
+//! certifies at the same `1.5e-5` the patch gives at the origin.
 //!
 //! What it does not reach is the floor on `‖E‖`: that one is not a
 //! rounding problem at any origin, and it is answered above by the
@@ -198,7 +200,7 @@
 //! The **`_at`** form takes a chosen target and is `#[doc(hidden)]`,
 //! because it is an INSTRUMENT rather than a door: this engine is a
 //! general approximation routine, and the only way to measure its
-//! refinement, its round budget, its stall guard and each limb of its
+//! refinement, its walls, its stall rule and each limb of its
 //! classification is to run it at targets chosen for the measurement —
 //! 1e-2 through 1e-18, and bounds derived from a measured residual.
 //! One committed ε cannot express any of that, and rewriting those rows
@@ -234,10 +236,11 @@ use geom_core::{
     Band, BandError, Interval, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, Point3, Tol,
 };
 
+use crate::descent::{self, Descent, Work};
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig};
-use crate::patch_bound::{PatchBoundError, is_rational};
+use crate::patch_bound::{PatchBoundError, check_direction, is_rational, unit_scaled_weights};
 use crate::recourse::Reading;
-use geom_core::spline::TensorCoeffs;
+use geom_core::spline::{Derived, TensorCoeffs};
 
 /// The fitted surface's degree in both directions. A CONSTANT (D9:
 /// structure, never data-dependent tuning). Bicubic is the kernel's
@@ -251,46 +254,50 @@ pub const OFFSET_FIT_DEGREE: usize = 3;
 /// fit. A CONSTANT (D9).
 pub const OFFSET_FIT_SEED_PER_SPAN: usize = 3;
 
-/// The refinement-round budget of the fit loop.
-/// [`OffsetFitError::BudgetExhausted`] is raised when this many rounds
-/// ran and the stall guard had not refused, and this constant is that
-/// face's lever on [`LastRound::Improved`] only, where another round
-/// of the same refinement was still paying. On
-/// [`LastRound::DidNotImprove`] the round it would buy is the
-/// both-directions step, which can stall in its turn, so no lever is
-/// known there. A last round that gained nothing on the strongest step
-/// is [`OffsetFitError::RefinementStalled`] instead. Expiry with a
-/// non-finite last bound is [`OffsetFitError::BoundNotFinite`], whose
-/// lever this is not. All are the Book's own "both can fail to
-/// converge and this eventuality must be dealt with" honesty, as a
-/// type.
-pub const OFFSET_FIT_BUDGET: usize = 6;
+/// The cap on every sample grid the fit interpolates: the product of
+/// its per-direction sample counts, `us.len() · vs.len()`, the seed's
+/// included.
+///
+/// It bounds the size of each fit, and with it the cost of each round:
+/// the interpolation solves and the certificate's cells both scale with
+/// the sample count. The total work is [`OFFSET_FIT_WORK`]'s.
+///
+/// A refinement round bisects, in each worst-carrying cell, the sample
+/// intervals of the ONE direction that cell's model-space extent names,
+/// so the grid can grow in one direction while its partner stands
+/// still. The product admits that anisotropy up to the same total a
+/// square grid has. A direction never loses samples, so neither
+/// direction exceeds the cap divided by its partner's seed count — 576
+/// against the `OFFSET_FIT_DEGREE + 1` samples an interpolation needs,
+/// since a seed with fewer refuses at round 0's interpolation.
+///
+/// This constant is the lever of [`OffsetFitError::SeedOverCap`], raised
+/// before round 0 when the seed alone exceeds it, and of
+/// [`OffsetFitError::WallReached`] at [`OffsetFitWall::SampleCap`],
+/// raised when the NEXT round's schedule would; a wall stop with a
+/// non-finite bound on the grid it stopped on is
+/// [`OffsetFitError::BoundNotFinite`] instead. Never an uncertified
+/// return.
+pub const OFFSET_FIT_SAMPLE_CAP: usize = 48 * 48;
 
-/// The per-direction cap on sample parameters.
+/// The fit's cumulative work budget: the sample counts of every grid
+/// its rounds fit, summed, the seed's included. A round runs only if
+/// its grid fits in what is left. Where [`OFFSET_FIT_SAMPLE_CAP`] bounds
+/// one fit, this bounds the wait for all of them: it is what stops a
+/// loop whose grid grows by a sample a round, which the cap alone lets
+/// run for 760 rounds (`scripted_rounds`).
 ///
-/// A refinement round bisects, in each worst-carrying cell, the
-/// sample intervals of the ONE direction that cell's model-space
-/// extent names — so a direction grows only while the residual keeps
-/// asking for it, and the growth is per direction rather than
-/// uniform. That is why the cap is per direction too: the binding
-/// case is a patch whose error lives wholly in one direction, where
-/// an unreachable tolerance would drive that direction alone toward
-/// an unbounded grid while its partner stands still. The
-/// both-directions fallback the stall guard falls back to can double
-/// both at once, which the same cap bounds.
+/// No measured run reaches it. The most any fitted (2026-10-12, over
+/// the offset-fit rows of geom-brep and sweep at the default ε and
+/// 1e-12) is 8851 samples, the quarter cylinder at `d = -2e-8` and
+/// 1e-15, which stops on the cap after 10 rounds; a budget under a
+/// run's fitted samples stops it on an earlier round, so that row's
+/// pinned rounds and grid (`a_bound_found_then_lost_carries_the_bound_it_lost`)
+/// are the guard.
 ///
-/// It is the second stopping condition, with its own face: this
-/// constant is the lever of [`OffsetFitError::SampleCapReached`],
-/// which is raised only when the NEXT round's schedule would exceed
-/// the cap in some direction. Its payload carries how many of
-/// [`OFFSET_FIT_BUDGET`]'s rounds ran, and its message names the cap
-/// and not the rounds, so that a cap stop is never read as the round
-/// budget running out. A cap stop with a non-finite
-/// bound on the grid it stopped on is [`OffsetFitError::BoundNotFinite`]
-/// instead.
-/// Never an uncertified return, and never an unbounded amount of
-/// work.
-pub const OFFSET_FIT_SAMPLE_CAP: usize = 48;
+/// This constant is the lever of [`OffsetFitError::WallReached`] at
+/// [`OffsetFitWall::Work`].
+pub const OFFSET_FIT_WORK: usize = 16_384;
 
 /// The per-direction on-locus sample count inside each certificate
 /// cell (limb 1's fixed schedule, D9).
@@ -347,8 +354,7 @@ impl core::fmt::Display for Against {
 
 /// **The smallest bound the refinement loop reached**, and the grid it
 /// was first reached on: what every refinement refusal reports
-/// ([`OffsetFitError::BudgetExhausted`],
-/// [`OffsetFitError::SampleCapReached`],
+/// ([`OffsetFitError::WallReached`],
 /// [`OffsetFitError::RefinementStalled`], and
 /// [`OffsetFitError::BoundNotFinite`] when a round reached one), and
 /// the size a last-resort loosening names where no other lever is left.
@@ -358,7 +364,7 @@ impl core::fmt::Display for Against {
 /// **At the fit's band, a request at `bound` certifies on the round
 /// that reached it, on `grid`, and a looser request certifies no
 /// later.** The loop's schedule never reads the tolerance: `measure`,
-/// `stall_verdict` and `refine_schedule` take none, and that signature
+/// the stop rule and `refine_schedule` take none, and that signature
 /// is the guard. Only the certify test reads it, so the run follows the
 /// same rounds until that test passes.
 ///
@@ -379,18 +385,24 @@ pub struct BestBound {
     pub grid: (usize, usize),
 }
 
-/// Whether the last round of a loop that ran out of rounds lowered the
-/// bound: the reading [`OffsetFitError::BudgetExhausted`] carries,
-/// because its two values name two different recourses.
+/// The work bound that stopped the offset fit's refinement loop
+/// ([`OffsetFitError::WallReached`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LastRound {
-    /// The last round lowered its predecessor's bound, or had no finite
-    /// predecessor to lower. Refinement was still paying.
-    Improved,
-    /// The last round did not lower its predecessor's finite bound: it
-    /// rose, or stayed level. The both-directions step the next round
-    /// would have taken was never tried.
-    DidNotImprove,
+pub enum OffsetFitWall {
+    /// The next round's grid would have carried more samples than
+    /// [`OFFSET_FIT_SAMPLE_CAP`].
+    SampleCap {
+        /// The cap, `us.len() · vs.len()`.
+        cap: usize,
+    },
+    /// The next round's grid would have passed [`OFFSET_FIT_WORK`],
+    /// the samples fitted over all the rounds.
+    Work {
+        /// The budget.
+        budget: usize,
+        /// The samples the rounds that ran fitted.
+        spent: usize,
+    },
 }
 
 /// A typed refusal of the offset fit door (fail-loud; the kernel never
@@ -405,43 +417,35 @@ pub enum LastRound {
 /// [`Self::Structure`], [`Self::NonFiniteSample`]) and the certificate
 /// assembly's ([`Self::PatchBound`]). The other four are the loop's
 /// own terminations, each a face whose doc below names the kernel
-/// lever that would have changed it:
+/// lever that would have changed it. They are the crate's stop rule
+/// ([`crate::descent`]), with a stall speaking over a wall on the
+/// round both fire.
 ///
-/// 1. **The round budget ran out past a verdict that did not refuse**
-///    — [`Self::BudgetExhausted`]. The last round either lowered the
-///    bound or was the first not to, with the both-directions step
-///    still untried; the payload's [`LastRound`] says which, and
-///    [`OFFSET_FIT_BUDGET`] is the lever on [`LastRound::Improved`]
-///    only. The stall verdict is taken before the budget test on
-///    every round, the last included, so this face never speaks for a
-///    round the guard would have refused.
-/// 2. **The per-direction sample cap stopped the next round** —
-///    [`Self::SampleCapReached`]; the lever is
-///    [`OFFSET_FIT_SAMPLE_CAP`]. The payload carries how many rounds
-///    ran, and the message names the cap and not the rounds, so the
-///    budget is never read as the knob.
-/// 3. **The strongest step gained nothing, or could not grow the
-///    schedule at all** — [`Self::RefinementStalled`]; no lever, more
-///    rounds cannot help. A round that marks nothing ends here and
-///    nowhere else, in two steps: the budget exit is taken before any
-///    marking, so an unmarked round cannot reach it; and a marking
-///    that grew nothing leaves the next schedule the size of the
-///    current grid, which the cap test admitted when that grid was
-///    built, so the cap exit cannot fire on it either. What is left
-///    is the schedule-exhaustion arm, which is this face's.
-/// 4. **The last round's bound is not finite** —
-///    [`Self::BoundNotFinite`], whichever of the budget or the cap
-///    stopped the loop, and a stall with no finite round behind it; it
+/// 0. **The seed grid is already over the sample cap** —
+///    [`Self::SeedOverCap`], before any round; the lever is
+///    [`OFFSET_FIT_SAMPLE_CAP`], and the caller's is a face split.
+/// 1. **A work bound stopped the next round** —
+///    [`Self::WallReached`], naming which: the sample cap on the next
+///    grid ([`OFFSET_FIT_SAMPLE_CAP`]) or the cumulative budget over
+///    all the rounds ([`OFFSET_FIT_WORK`]). Each is the lever of its
+///    own wall. A stall on the same round speaks instead, so this face
+///    never speaks for a round the stall rule refused.
+/// 2. **Two rounds in a row did not lower the lowest bound, or the
+///    both-directions step could not grow the schedule at all** —
+///    [`Self::RefinementStalled`]; no lever, more rounds cannot help.
+/// 3. **The last round's bound is not finite** —
+///    [`Self::BoundNotFinite`], when a wall stopped the loop or on a
+///    stall with no finite round behind it; it
 ///    carries the smallest finite bound any round
 ///    reached in place of an `inf`, and its lever is the schedule
 ///    when there was one and no constant of this loop when there was
 ///    not.
 ///
-/// The levers above are the kernel's. Neither constant is a caller's
-/// to change, so each face's message names the caller's repair
+/// The levers above are the kernel's. The walls are not a caller's to
+/// change, so each face's message names the caller's repair
 /// instead: a face split into pieces that need less refinement where
-/// more refinement was still paying (the cap, and the budget on
-/// [`LastRound::Improved`]), or, when no bound was ever finite, an
+/// more refinement was still paying (either wall), or, when no bound was
+/// ever finite, an
 /// offset distance of larger magnitude. A face whose last round did not
 /// fall has no such lever: nothing in the loop's state says a smaller
 /// piece would fall further. It names loosening the tolerance to no
@@ -516,47 +520,16 @@ pub enum OffsetFitError {
         /// The offending parameters.
         uv: (f64, f64),
     },
-    /// The refinement loop spent all [`OFFSET_FIT_BUDGET`] rounds and
-    /// the stall guard did not refuse on the last one. That verdict
-    /// has two readings, and `last_round` says which ([`LastRound`]).
-    /// A last round whose bound is not finite is
-    /// [`Self::BoundNotFinite`]; a last round whose strongest step
-    /// gained nothing is [`Self::RefinementStalled`].
-    ///
-    /// The kernel lever is the round budget on [`LastRound::Improved`]
-    /// only: on [`LastRound::DidNotImprove`] a further round is the
-    /// both-directions step, which can stall in its turn, so no lever
-    /// is known. The message names no rounds as the way through either
-    /// way. The caller's recourse on [`LastRound::Improved`] is a face
-    /// split so each piece needs fewer rounds; on
-    /// [`LastRound::DidNotImprove`] it is `best`, as the last resort.
-    /// Classification: the enum's, above.
-    BudgetExhausted {
-        /// The round budget that expired.
-        budget: usize,
-        /// The sample grid the loop stopped on, per direction.
-        grid: (usize, usize),
-        /// The certified sup bound on that grid, in metres. Finite.
-        achieved: f64,
-        /// The tolerance it had to reach.
-        tolerance: f64,
-        /// Whether the last round lowered its predecessor's bound.
-        last_round: LastRound,
-        /// The smallest bound any round reached ([`BestBound`]).
-        best: BestBound,
-    },
-    /// The per-direction [`OFFSET_FIT_SAMPLE_CAP`] stopped the loop:
+    /// A work bound stopped the loop, [`OffsetFitWall`] naming which:
     /// the next round's schedule would have carried more samples than
-    /// the cap in at least one direction, so the rounds the budget
-    /// still had were unusable. Carries the FINITE bound achieved on
+    /// the cap, or would have passed the cumulative budget, while the
+    /// stall rule had not refused. Carries the FINITE bound achieved on
     /// the grid the loop stopped on (a stop whose bound is not finite
-    /// is [`Self::BoundNotFinite`]). The lever is the sample cap, not
-    /// the round budget — `rounds` carries how many of the budget's
-    /// rounds actually ran. Classification: the enum's, above.
-    SampleCapReached {
-        /// The per-direction sample cap that stopped the next round.
-        cap: usize,
-        /// How many refinement rounds ran before the cap stopped the
+    /// is [`Self::BoundNotFinite`]). Classification: the enum's, above.
+    WallReached {
+        /// Which work bound stopped the next round.
+        wall: OffsetFitWall,
+        /// How many refinement rounds ran before the wall stopped the
         /// next one — the same count a certificate's `rounds` carries.
         rounds: u32,
         /// The sample grid the loop stopped on, per direction.
@@ -568,48 +541,53 @@ pub enum OffsetFitError {
         /// The smallest bound any round reached ([`BestBound`]).
         best: BestBound,
     },
+    /// The seed grid alone carries more samples than
+    /// [`OFFSET_FIT_SAMPLE_CAP`]: the base has so many knot spans that
+    /// seeding [`OFFSET_FIT_SEED_PER_SPAN`] pieces in each exceeds the
+    /// cap before any fit is made. Refused before round 0, so there is
+    /// no bound to carry. Classification: the enum's, above.
+    SeedOverCap {
+        /// The sample cap, `us.len() · vs.len()`.
+        cap: usize,
+        /// The seed grid, per direction.
+        grid: (usize, usize),
+    },
     /// The loop stopped with the bound on its last grid not finite —
-    /// on the round budget or on the sample cap, or on a stall with no
-    /// finite round behind it: the certifying limb answered `+∞`
-    /// there, so there is no achieved bound on that grid, and the type
-    /// carries `best` in place of an `inf` where the caller needs a
-    /// number. Two cases, told apart by that field, because they send
-    /// the caller to different places:
+    /// on a wall, or on a stall with no finite round behind it:
+    /// the certifying limb answered `+∞` there, so there is no achieved
+    /// bound on that grid, and the type carries `best` in place of an
+    /// `inf` where the caller needs a number. Two cases, told apart by
+    /// that field, because they send the caller to different places:
     ///
     /// - **`best: None` — no round ever produced a finite
     ///   bound.** A cell's sign witness or its lower bound on `‖E‖`
     ///   could not be proved at the sampled cells on any grid, and a
     ///   finer schedule did not change that; the module docs'
     ///   small-`|d|` limit is the shape of it. The lever is NOT a
-    ///   constant of this loop — neither the budget nor the cap is
-    ///   worth raising. What decides it is the limb's floors against
-    ///   the request's own `|d|`: the regularity floor the door meters
-    ///   certify and the floor on `‖E‖` — the larger of the
-    ///   componentwise mignitude assembly and the projection through
-    ///   the sign witness. The caller's move is there, not at the
-    ///   budget. Every instance the shipped corpus reaches stops on
-    ///   the cap; a round-budget stop with no finite bound is
-    ///   reachable by the same test and has no row. The third route,
-    ///   a stall with no finite round behind it, has no row either,
-    ///   and none was constructed: the stall guard stays silent until
-    ///   a round is finite, so the route is the schedule's exhaustion
-    ///   on a never-finite run, a both-directions marking that grows
-    ///   no direction. That needs every marked sample interval
-    ///   narrowed to adjacent floats, where `bisect` drops the
-    ///   midpoint, and [`OFFSET_FIT_BUDGET`]'s halvings reach that
-    ///   only from seed intervals a few dozen ulps wide, so every
-    ///   failing cell inside a knot span that narrow; or a composite
-    ///   with no cells, to which a clamped knot pair never decomposes.
+    ///   constant of this loop, so the walls are not worth raising. What
+    ///   decides it is the limb's floors against the request's own
+    ///   `|d|`: the regularity floor the door meters certify and the
+    ///   floor on `‖E‖` — the larger of the componentwise mignitude
+    ///   assembly and the projection through the sign witness. The
+    ///   caller's move is there, not at a wall. Every instance the
+    ///   shipped corpus reaches stops on the cap. The stall route, a
+    ///   stall with no finite round behind it, has no row and none was
+    ///   constructed: no round is idle until one is finite, so on a
+    ///   never-finite run the only stall is the
+    ///   schedule's exhaustion, a both-directions marking that grows no
+    ///   direction. That needs every marked sample interval narrowed to
+    ///   adjacent floats, where `bisect` drops the midpoint, and each
+    ///   halving is a round of its own; or a composite with no cells,
+    ///   to which a clamped knot pair never decomposes.
     /// - **`best: Some(b)` — a coarser grid reached the finite
     ///   bound `b.bound` and a finer one lost it.** The bound was
     ///   there and the schedule moved off it, so the schedule is the
     ///   lever and `b.bound` is the number the caller can size
-    ///   against ([`BestBound`]).
-    ///   Structurally reachable — the stall guard answers a first
-    ///   finite-then-infinite round with the both-directions step
-    ///   rather than a verdict, so a budget or cap stop can land on
-    ///   it — and no fixture reaches it: no request in the shipped
-    ///   corpus produces a finite round followed by a non-finite one.
+    ///   against ([`BestBound`]). An infinite round after a finite one
+    ///   is idle, so the stall rule answers the first with the
+    ///   both-directions step and a second with the stall's face; this
+    ///   case is a wall stop on the first. The quarter cylinder at
+    ///   `d = -2e-8` and `1e-15` reaches it (`tests/offset_fit.rs`).
     ///
     /// Classification: the enum's, above.
     BoundNotFinite {
@@ -625,14 +603,14 @@ pub enum OffsetFitError {
         /// `None` when no round's bound was finite.
         best: Option<BestBound>,
     },
-    /// The refinement loop stopped IMPROVING: a round that bisected
-    /// every failing cell in both directions did not lower the bound
-    /// its predecessor reached — on the budget's last round as on any
-    /// other, since the verdict is taken before the budget test — or
-    /// that step could not grow the schedule at all.
+    /// The refinement loop stopped IMPROVING: two rounds in a row did
+    /// not lower the lowest bound any round reached, the second on a
+    /// grid that bisected every failing cell in both directions (the
+    /// crate's stop rule, [`crate::descent`]), or that step could not
+    /// grow the schedule at all.
     ///
-    /// A different finding from [`Self::BudgetExhausted`], whose last
-    /// round never took this step and failed it. This says the
+    /// A different finding from [`Self::WallReached`], whose last
+    /// round was still falling or had not yet taken this step. This says the
     /// strongest step the loop has gained nothing, or could not be
     /// taken, so more rounds are not the lever: the tolerance is below
     /// what this fit's structure reached on this patch, and `best` is
@@ -803,41 +781,35 @@ impl core::fmt::Display for OffsetFitError {
                  surface description there",
                 uv.0, uv.1
             ),
-            Self::BudgetExhausted {
-                budget,
-                tolerance,
-                last_round: LastRound::Improved,
-                best: BestBound { bound: best, .. },
-                ..
-            } => write!(
-                f,
-                "the offset surface's fit used all {budget} refinement rounds while still \
-                 improving, and its best certified error was {best} m against a tolerance of \
-                 {tolerance} m. Recourse: split the face so each piece fits in fewer rounds"
-            ),
-            Self::BudgetExhausted {
-                budget,
-                tolerance,
-                last_round: LastRound::DidNotImprove,
-                best: BestBound { bound: best, .. },
-                ..
-            } => write!(
-                f,
-                "the offset surface's fit used all {budget} refinement rounds, the last of \
-                 which did not improve on the one before, and its best certified error was \
-                 {best} m against a tolerance of {tolerance} m. Recourse: loosen the \
-                 tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
-            ),
-            Self::SampleCapReached {
-                cap,
+            Self::WallReached {
+                wall,
                 tolerance,
                 best: BestBound { bound: best, .. },
                 ..
-            } => write!(
+            } => {
+                match wall {
+                    OffsetFitWall::SampleCap { cap } => write!(
+                        f,
+                        "the offset surface's fit reached its limit of {cap} samples"
+                    )?,
+                    OffsetFitWall::Work { budget, .. } => write!(
+                        f,
+                        "the offset surface's fit reached its limit of {budget} samples \
+                         fitted in total"
+                    )?,
+                }
+                write!(
+                    f,
+                    ", and its best certified error was {best} m against a tolerance of \
+                     {tolerance} m. Recourse: split the face so each piece needs fewer samples"
+                )
+            }
+            Self::SeedOverCap { cap, grid } => write!(
                 f,
-                "the offset surface's fit reached its limit of {cap} samples per direction, \
-                 and its best certified error was {best} m against a tolerance of \
-                 {tolerance} m. Recourse: split the face so each piece needs fewer samples"
+                "the offset surface's fit would start from {} x {} samples, more than its \
+                 limit of {cap} samples, because the face's surface has that many knot spans. \
+                 Recourse: split the face",
+                grid.0, grid.1
             ),
             Self::BoundNotFinite {
                 d,
@@ -868,8 +840,8 @@ impl core::fmt::Display for OffsetFitError {
             } => write!(
                 f,
                 "the offset surface's fit stopped improving: refining it in both directions \
-                 either did not lower its certified error or added no samples, and its best \
-                 certified error was {best} m against a tolerance of {tolerance} m. Recourse: \
+                 either did not lower its best certified error or added no samples, and that \
+                 error was {best} m against a tolerance of {tolerance} m. Recourse: \
                  loosen the tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
             ),
             Self::WindowUnsupported { window } => write!(
@@ -1016,7 +988,7 @@ pub fn fit_offset(
 ///
 /// Refuses — never degrades — on a patch whose chart normal is not
 /// certifiably non-degenerate, on an offset distance that reaches the
-/// patch's curvature reach, on budget exhaustion, and on a refinement
+/// patch's curvature reach, on reaching the sample cap, and on a refinement
 /// loop whose strongest step stops lowering the bound.
 ///
 /// Geometry only: no `Surface` variant, no storage, no topology. The
@@ -1051,8 +1023,8 @@ pub fn fit_offset(
 /// [`OffsetFitError`] — the two door meters and their escalations,
 /// the patch-bound refusals, the interpolation stack's refusals,
 /// non-finite samples, and the refinement loop's four terminations —
-/// [`OffsetFitError::BudgetExhausted`],
-/// [`OffsetFitError::SampleCapReached`] and
+/// [`OffsetFitError::SeedOverCap`] before any round,
+/// [`OffsetFitError::WallReached`] and
 /// [`OffsetFitError::RefinementStalled`] each carrying the last grid's
 /// bound and the smallest any round reached, and
 /// [`OffsetFitError::BoundNotFinite`] carrying that smallest finite
@@ -1103,12 +1075,20 @@ pub fn fit_offset_at(
 /// `(us, vs)`, and so part of that numeric-target instrument (its
 /// chosen `tolerance` is the point): `round_at` fits and measures one
 /// schedule, and every
-/// decision about the next one — the certificate, the stall verdict
-/// before the budget test, the cap, the marking and its fallback — is
-/// taken here. Returns the certifying round's fit, report and round
-/// count. Generic over the fit so the loop's ordering can be driven by
-/// a scripted bound sequence (this module's tests), which no fixture
-/// grounded in the enclosure's width holds for long.
+/// decision about the next one — the certificate, the stop rule, the
+/// marking and its fallback — is taken here. Returns the certifying
+/// round's fit, report and round count. Generic over the fit so the
+/// loop's ordering can be driven by a scripted bound sequence (this
+/// module's tests), which no fixture grounded in the enclosure's width
+/// holds for long.
+///
+/// **The stop rule is the crate's** ([`crate::descent`]): a round that
+/// does not lower the lowest bound is idle, the second idle round in a
+/// row is [`OffsetFitError::RefinementStalled`], the cap and the
+/// cumulative budget are [`OffsetFitError::WallReached`], and a stall
+/// speaks over a wall on the round both fire. This loop's action on
+/// the first idle round is the both-directions marking
+/// ([`Refine::BothDirections`]).
 fn refine_rounds_at<S>(
     (mut us, mut vs): (Vec<f64>, Vec<f64>),
     (speed_u, speed_v): (f64, f64),
@@ -1116,34 +1096,33 @@ fn refine_rounds_at<S>(
     tolerance: f64,
     mut round_at: impl FnMut(&[f64], &[f64]) -> Result<(S, Report), OffsetFitError>,
 ) -> Result<(S, Report, usize), OffsetFitError> {
-    // The stall guard's state: the previous round's bound, and
-    // whether the marking that produced this grid was the
-    // both-directions fallback.
-    let mut prev_sup = f64::INFINITY;
-    let mut marked_both = false;
-    // The smallest finite bound any round reached, and the grid it was
-    // reached on. Strictly smaller replaces, so it is the FIRST round
-    // to reach the minimum, which is the round `BestBound`'s recourse
-    // claim names.
-    let mut best: Option<BestBound> = None;
+    // The lowest bound and the grid it was first reached on, which is
+    // the grid `BestBound`'s recourse claim names.
+    let mut descent: Option<Descent<(usize, usize)>> = None;
+    let mut work = Work::new(OFFSET_FIT_WORK);
     // `round` counts the refinement rounds that produced the current
     // grid — the number a certificate and every refusal below carry.
     // The loop has no fall-through: every exit is a certificate or a
-    // named refusal, so the round count is bounded by the budget test
-    // and nothing else.
+    // named refusal.
     let mut round = 0usize;
+    // The cap reads every grid the loop fits, the seed's included.
+    if us.len() * vs.len() > OFFSET_FIT_SAMPLE_CAP {
+        return Err(OffsetFitError::SeedOverCap {
+            cap: OFFSET_FIT_SAMPLE_CAP,
+            grid: (us.len(), vs.len()),
+        });
+    }
     loop {
         let (fit, report) = round_at(&us, &vs)?;
         let achieved = report.hull_sup;
         let grid = (us.len(), vs.len());
-        if achieved.is_finite() && best.is_none_or(|b| achieved < b.bound) {
-            best = Some(BestBound {
-                bound: achieved,
-                grid,
-            });
-        }
+        work.spend(grid.0 * grid.1);
+        let rounds = Descent::after(descent.take(), achieved, grid);
+        let best = Some(rounds.lowest())
+            .filter(|(bound, _)| bound.is_finite())
+            .map(|(bound, &grid)| BestBound { bound, grid });
         nan_residual_at(report.on_locus_max, tolerance)?;
-        if report.hull_sup <= tolerance {
+        if achieved <= tolerance {
             return Ok((fit, report, round));
         }
         // Insert a sample parameter at the midpoint of every sample
@@ -1156,93 +1135,48 @@ fn refine_rounds_at<S>(
         // `h_d · sup‖S_d‖` is larger — the tessellation split
         // selection's own rule. A patch whose error is anisotropic
         // then pays a linear grid for a linear need instead of a
-        // quadratic one.
-        //
-        // **The stall guard is what makes that safe.** The speed
-        // ratio is a prediction, and a residual it mispredicts would
-        // otherwise refine the useless direction until the budget
-        // ran out. A round that did not improve on its predecessor
-        // falls back to marking BOTH directions; a both-directions
-        // round that still does not improve is not a budget problem
-        // and does not become one — it refuses, named.
-        let stalled =
-            |grid: (usize, usize)| expiry(Stop::Stall, round, grid, achieved, best, d, tolerance);
-        // The verdict is taken BEFORE the budget test, on every round
-        // including the last: a last round whose strongest step gained
-        // nothing is the stall, and the budget face below is reached
-        // only past a verdict that did not refuse.
-        let verdict = stall_verdict(prev_sup, report.hull_sup, marked_both);
-        if verdict == Refine::Refuse {
-            return Err(stalled(grid));
-        }
-        if round == OFFSET_FIT_BUDGET {
-            // The rounds ran out past a verdict that did not refuse
-            // (the receipt that the bound was still falling, or had
-            // not yet been given the strongest step): the round
-            // budget's own face, or the not-finite one. Taken before
-            // any marking, so no unmarked round reaches it.
-            return Err(expiry(
-                Stop::RoundBudget {
-                    last_round: if verdict == Refine::Directional {
-                        LastRound::Improved
-                    } else {
-                        LastRound::DidNotImprove
-                    },
-                },
-                round,
-                grid,
-                achieved,
-                best,
-                d,
-                tolerance,
-            ));
-        }
-        prev_sup = report.hull_sup;
-        // The mode is CARRIED out of the step that used it, not
-        // inferred from a local set beside it: the refusal's admission
-        // set is "the round whose schedule came from a both-directions
-        // marking", and that is a fact about `next`, not about the
-        // order of two statements.
-        let mut next = refine_schedule(&us, &vs, &report, speed_u, speed_v, verdict);
+        // quadratic one. The speed ratio is a prediction, so an idle
+        // round marks BOTH directions, and a second idle round after
+        // that is the stall.
+        let mode = if rounds.idle() == 0 {
+            Refine::Directional
+        } else {
+            Refine::BothDirections
+        };
+        let mut next = refine_schedule(&us, &vs, &report, speed_u, speed_v, mode);
         // A directional marking can fail to grow the schedule even
         // though it marked intervals: `bisect` drops a midpoint that
         // is not strictly between its endpoints, which is what an
-        // interval narrowed to consecutive floats gives. That is the
-        // same evidence as a round that gained nothing, so it takes
-        // the same fallback rather than escaping to the budget.
-        if !next.grew(&us, &vs) && next.mode == Refine::Directional {
+        // interval narrowed to consecutive floats gives. That takes the
+        // idle round's fallback rather than escaping to a wall, but it
+        // is not an idle round: idle is read on the bound alone, so the
+        // round after it stalls only if it is the second idle one.
+        if !next.grew(&us, &vs) && mode == Refine::Directional {
             next = refine_schedule(&us, &vs, &report, speed_u, speed_v, Refine::BothDirections);
         }
-        if next.us.len() > OFFSET_FIT_SAMPLE_CAP || next.vs.len() > OFFSET_FIT_SAMPLE_CAP {
-            // The per-direction cap: a REFINEMENT limit, not a
-            // convergence one, with its own face naming the cap and
-            // the rounds that ran — or the not-finite face. The bound
-            // and grid reported are this round's, not the schedule
-            // the cap refused.
-            return Err(expiry(
-                Stop::SampleCap,
-                round,
-                grid,
-                achieved,
-                best,
-                d,
-                tolerance,
-            ));
+        let size = next.us.len() * next.vs.len();
+        let wall = if size > OFFSET_FIT_SAMPLE_CAP {
+            Some(OffsetFitWall::SampleCap {
+                cap: OFFSET_FIT_SAMPLE_CAP,
+            })
+        } else if !work.admits(size) {
+            Some(OffsetFitWall::Work {
+                budget: OFFSET_FIT_WORK,
+                spent: work.spent(),
+            })
+        } else {
+            None
+        };
+        // Every stop goes through the stop rule, a stall over a wall.
+        // Bisecting every failing cell in both directions that moves
+        // nothing is the loop's exhaustion: no later round can move it
+        // either — the intervals only narrow — so it stops as the stall
+        // does, on the schedule rather than on the bound. A round that
+        // marks nothing ends there too.
+        if let Some(stop) = rounds.stop(!next.grew(&us, &vs), wall) {
+            return Err(expiry(stop, round, grid, achieved, best, d, tolerance));
         }
-        if !next.grew(&us, &vs) {
-            // Bisecting every failing cell in both directions moved
-            // nothing. No later round can move it either — the
-            // intervals only narrow — so this is the stall, reached
-            // by exhaustion of the schedule rather than of the bound.
-            // A round that marks nothing ends HERE and nowhere else,
-            // in two steps: the budget exit above is taken before any
-            // marking, so an unmarked round cannot reach it; and a
-            // marking that grew nothing leaves `next` the size of the
-            // current grid, which the cap test admitted when that grid
-            // was built, so the cap exit above cannot fire on it.
-            return Err(stalled(grid));
-        }
-        marked_both = next.mode == Refine::BothDirections;
+        descent = Some(rounds);
         us = next.us;
         vs = next.vs;
         round += 1;
@@ -1586,16 +1520,7 @@ pub fn recertify_approx_at(
 
 /// Which stopping condition ended the refinement loop without a
 /// certificate.
-#[derive(Clone, Copy)]
-enum Stop {
-    /// [`OFFSET_FIT_BUDGET`] rounds ran, the last with this reading.
-    RoundBudget { last_round: LastRound },
-    /// The next round's schedule would exceed [`OFFSET_FIT_SAMPLE_CAP`].
-    SampleCap,
-    /// The stall guard refused, or the strongest step could not grow
-    /// the schedule.
-    Stall,
-}
+type Stop = descent::Stop<OffsetFitWall>;
 
 /// The refusal for a loop that `stop` ended after `rounds` refinement
 /// rounds, with `achieved` measured on `grid` and `best` the smallest
@@ -1603,11 +1528,11 @@ enum Stop {
 ///
 /// Every face that carries a finite number carries `best`
 /// ([`BestBound`]). [`OffsetFitError::BoundNotFinite`] speaks for a
-/// budget or cap stop whose last bound is not finite, and for a stall
+/// wall stop whose last bound is not finite, and for a stall
 /// with no finite round behind it, whose "loosen the tolerance" would
 /// have no number to name. A stall with a finite round behind it keeps
-/// the stall's face even when its own bound is `+∞`: the guard's
-/// evidence is about the round, and `best` is still a bound reached.
+/// the stall's face even when its own bound is `+∞`: the stall's
+/// evidence is about the rounds, and `best` is still a bound reached.
 ///
 /// The routing is one match over `(stop, best, achieved is finite)`
 /// whose arms are pairwise disjoint, so their order decides nothing.
@@ -1620,8 +1545,8 @@ fn expiry(
     d: f64,
     tolerance: f64,
 ) -> OffsetFitError {
-    // `rounds` never exceeds `OFFSET_FIT_BUDGET`, so the narrowing is
-    // exact.
+    // Every round adds a sample to a grid the cap bounds, so `rounds`
+    // is below `OFFSET_FIT_SAMPLE_CAP` and the narrowing is exact.
     #[allow(clippy::cast_possible_truncation)]
     let rounds = rounds as u32;
     let not_finite = || OffsetFitError::BoundNotFinite {
@@ -1632,7 +1557,7 @@ fn expiry(
         best,
     };
     match (stop, best, achieved.is_finite()) {
-        (_, None, _) | (Stop::RoundBudget { .. } | Stop::SampleCap, Some(_), false) => not_finite(),
+        (_, None, _) | (Stop::Wall(_), Some(_), false) => not_finite(),
         (Stop::Stall, Some(best), _) => OffsetFitError::RefinementStalled {
             rounds,
             grid,
@@ -1640,16 +1565,8 @@ fn expiry(
             tolerance,
             best,
         },
-        (Stop::RoundBudget { last_round }, Some(best), true) => OffsetFitError::BudgetExhausted {
-            budget: OFFSET_FIT_BUDGET,
-            grid,
-            achieved,
-            tolerance,
-            last_round,
-            best,
-        },
-        (Stop::SampleCap, Some(best), true) => OffsetFitError::SampleCapReached {
-            cap: OFFSET_FIT_SAMPLE_CAP,
+        (Stop::Wall(wall), Some(best), true) => OffsetFitError::WallReached {
+            wall,
             rounds,
             grid,
             achieved,
@@ -1666,8 +1583,8 @@ fn expiry(
 /// The seed sample parameters, per direction (module docs).
 fn seed_params(base: &NurbsSurface<f64>) -> (Vec<f64>, Vec<f64>) {
     (
-        seed_direction(base.knots_u()),
-        seed_direction(base.knots_v()),
+        seed_direction(base.knots_u_f64_interim()),
+        seed_direction(base.knots_v_f64_interim()),
     )
 }
 
@@ -1761,8 +1678,8 @@ fn interpolate_offset_grid(
     vs: &[f64],
 ) -> Result<NurbsSurface<f64>, OffsetFitError> {
     let (nu, nv) = (us.len(), vs.len());
-    let (ulo, uhi) = base.knots_u().domain();
-    let (vlo, vhi) = base.knots_v().domain();
+    let (ulo, uhi) = base.knots_u_f64_interim().domain();
+    let (vlo, vhi) = base.knots_v_f64_interim().domain();
     let ubar = normalized(us, ulo, uhi);
     let vbar = normalized(vs, vlo, vhi);
     // `Q_{k,ℓ}`, flattened per u-row as `3·nv` scalars so the u pass
@@ -1900,89 +1817,22 @@ fn measure(
     })
 }
 
-/// What the stall guard says about a round that did not certify.
+/// How a round that did not certify marks the next schedule.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Refine {
     /// Bisect each failing cell in the one direction its model-space
     /// extent names.
     Directional,
-    /// Bisect every failing cell in BOTH directions: the last round
-    /// did not lower the bound, so the direction rule's prediction is
-    /// not to be trusted on this patch.
+    /// Bisect every failing cell in BOTH directions: the round was
+    /// idle (it did not lower the lowest bound), so the direction
+    /// rule's prediction is not to be trusted on this patch.
     BothDirections,
-    /// Refuse: a both-directions round did not lower the bound
-    /// either.
-    Refuse,
 }
 
-/// **The stall guard.** `prev_sup` is the bound the previous round
-/// reached, `hull_sup` this round's, and `marked_both` whether the
-/// marking that produced this round's grid was the both-directions
-/// fallback.
-///
-/// The admission set of [`Refine::Refuse`] — what
-/// [`OffsetFitError::RefinementStalled`] refuses — is exactly this: a
-/// round whose grid came from bisecting every failing cell in both
-/// directions, reporting a bound that did not fall below a finite
-/// predecessor. Bisecting everything is the strongest step the loop
-/// has, so a round that takes it and gains nothing is telling the
-/// caller that the remaining rounds cannot reach the tolerance
-/// either. That is a different finding from running out of rounds
-/// before that step was taken, and the two are not merged.
-///
-/// **`+∞` is not a failure to improve.** A cell whose sign witness or
-/// weight hull is not yet proved bounds at `+∞`, which early rounds
-/// routinely report; a loop on its way from `+∞` to a finite bound is
-/// converging. So the comparison is made only against a FINITE
-/// predecessor, and the guard stays silent until there is one.
-///
-/// # Reachability
-///
-/// The test is `hull_sup < prev_sup` with no epsilon, so any decrease
-/// counts as improvement; but a round whose bound ROSE failed to fall
-/// as surely as a flat one, and near the enclosure's floor the bound
-/// rises — a finer schedule re-interpolates a different fit, and the
-/// assembly's rounding grows with the grid. Whether a given request
-/// reaches the refusal through the door therefore rides on that
-/// rounding, and every fixture pinned there has moved as the assembly
-/// narrowed (the convex insertion form, then the Bézier cut from each
-/// segment's own row). So the loop's ordering — the verdict taken
-/// before the budget test, on the budget's round too — is pinned on
-/// scripted bound sequences driven through [`refine_rounds_at`] itself
-/// (this module's `scripted_rounds` rows), which no narrowing moves.
-///
-/// **`+∞` is not a failure to improve**, which is the other half of why
-/// the arm is reached at all: the first guard below exempts a
-/// non-finite `prev_sup`, so the rounds before a bound first becomes
-/// finite are `Directional` and cannot make a later non-improving round
-/// the SECOND one. A fixture whose early rounds carry no finite bound
-/// therefore still reaches the budget's face rather than the stall's.
-///
-/// The test carries no epsilon on purpose. Widening it ("improved by
-/// less than 1%") would refuse loops that are converging slowly, at a
-/// tolerance the fit CAN reach; deleting the arm would leave a loop
-/// that has stopped converging spending its budget silently.
-fn stall_verdict(prev_sup: f64, hull_sup: f64, marked_both: bool) -> Refine {
-    if !prev_sup.is_finite() || hull_sup < prev_sup {
-        Refine::Directional
-    } else if marked_both {
-        Refine::Refuse
-    } else {
-        Refine::BothDirections
-    }
-}
-
-/// One refinement round's next sample schedule, together with the
-/// marking mode that produced it.
-///
-/// The mode travels WITH the schedule because it is what the stall
-/// guard's admission set is stated in terms of. Held instead as a
-/// local beside the marking, it records the mode that was *intended*;
-/// held here, it records the mode that actually ran.
+/// One refinement round's next sample schedule.
 struct Marking {
     us: Vec<f64>,
     vs: Vec<f64>,
-    mode: Refine,
 }
 
 impl Marking {
@@ -1996,11 +1846,6 @@ impl Marking {
 }
 
 /// Marks and bisects one refinement round under `mode`.
-///
-/// [`Refine::Refuse`] never reaches here: it is the loop's exit, not a
-/// marking. It is treated as the both-directions marking so that this
-/// function is total, and the loop's own `verdict == Refuse` test is
-/// what makes that arm unreachable.
 fn refine_schedule(
     us: &[f64],
     vs: &[f64],
@@ -2020,7 +1865,6 @@ fn refine_schedule(
     Marking {
         us: bisect(us, &mu),
         vs: bisect(vs, &mv),
-        mode,
     }
 }
 
@@ -2164,8 +2008,8 @@ fn channel<'n>(
     form: NetForm,
     origin: &Origin,
 ) -> TensorCoeffs<'n> {
-    let nv = n.knots_v().control_count();
-    TensorCoeffs::from_fn(n.knots_u(), n.knots_v(), |i, j| {
+    let nv = n.knots_v_f64_interim().control_count();
+    TensorCoeffs::from_fn(n.knots_u_f64_interim(), n.knots_v_f64_interim(), |i, j| {
         // Row-major layout: control[iu·nv + iv] — the net's own.
         let (p, w) = (n.control()[i * nv + j], n.weights()[i * nv + j]);
         let x = Interval::point(match c {
@@ -2182,8 +2026,8 @@ fn channel<'n>(
 
 /// The weight net `w` of a control net, as point enclosures.
 fn weight_net(n: &NurbsSurface<f64>) -> TensorCoeffs<'_> {
-    let nv = n.knots_v().control_count();
-    TensorCoeffs::from_fn(n.knots_u(), n.knots_v(), |i, j| {
+    let nv = n.knots_v_f64_interim().control_count();
+    TensorCoeffs::from_fn(n.knots_u_f64_interim(), n.knots_v_f64_interim(), |i, j| {
         Interval::point(n.weights()[i * nv + j])
     })
 }
@@ -2305,14 +2149,19 @@ impl Composite {
         fit: &NurbsSurface<f64>,
         d: f64,
     ) -> Result<Self, OffsetFitError> {
-        let (ku, kv) = (base.knots_u(), base.knots_v());
-        let rational = is_rational(base);
+        // The arms are the DESCRIBED nets' ([`is_rational`]); the
+        // arithmetic reads them at unit weight scale.
+        let (base_form, fit_form) = (NetForm::of(base), NetForm::of(fit));
+        let rational = base_form == NetForm::Homogeneous;
+        let (base, fit) = (unit_scaled_weights(base), unit_scaled_weights(fit));
+        let (base, fit) = (&*base, &*fit);
+        let (ku, kv) = (base.knots_u_f64_interim(), base.knots_v_f64_interim());
         // One break list per direction, carrying every operand's
         // interior knots — the alignment substrate (patch docs).
         let mut extra_u: Vec<f64> = ku.interior_knots().map(|(t, _)| t).collect();
-        extra_u.extend(fit.knots_u().interior_knots().map(|(t, _)| t));
+        extra_u.extend(fit.knots_u_f64_interim().interior_knots().map(|(t, _)| t));
         let mut extra_v: Vec<f64> = kv.interior_knots().map(|(t, _)| t).collect();
-        extra_v.extend(fit.knots_v().interior_knots().map(|(t, _)| t));
+        extra_v.extend(fit.knots_v_f64_interim().interior_knots().map(|(t, _)| t));
         let dec = |grid: &TensorCoeffs<'_>| PatchSpans::decompose(grid, &extra_u, &extra_v);
         // The FIT's homogeneous net `F̃ = w_fit·P_fit` and its weight
         // channel. On a unit-weight fit `w_fit ≡ 1`, the spatial net
@@ -2320,54 +2169,50 @@ impl Composite {
         // product would widen the enclosure for nothing.
         // The one recentring origin every net below is built against.
         let ctr = recentre_origin(base);
-        let fit_form = NetForm::of(fit);
         let fc = |c: usize| channel(fit, c, fit_form, &ctr);
         let f: [PatchSpans; 3] = [dec(&fc(0)), dec(&fc(1)), dec(&fc(2))];
         let wf = (fit_form == NetForm::Homogeneous).then(|| dec(&weight_net(fit)));
         // The base's homogeneous nets and their first derivatives.
         let a_grid: [TensorCoeffs<'_>; 3] =
-            core::array::from_fn(|c| channel(base, c, NetForm::of(base), &ctr));
-        // A degree-1 direction's partial is constant on each span; its
-        // derived vector would be degree 0, which no clamped vector
-        // spells. On a single span it is decomposed on the direction's
-        // own vector as the constant's degree-1 form, both coefficients
-        // the one difference. Across an interior knot the partial jumps,
-        // which no continuous degree-1 form spells, so that direction is
-        // refused as the crease it is. Every base channel is then raised
-        // one degree in each degree-1 direction it varies along, in the
-        // ring: exact in ℝ, so the composite is still about the base's
-        // own nets. The raise buys hull tightness, measured once on
-        // `tests/offset_fit.rs`' degree-1 rows (certified sup, raised
-        // against not): bilinear 4.26e-5 against 4.58e-5, rational
-        // bilinear 7.58e-5 against 9.46e-5, ruled 1.228e-5 against
-        // 1.229e-5, with the same cells and rounds. A degree ≥ 2
-        // direction whose derived vector is not clamped is refused typed.
-        let lift = |k: &KnotVector| match k.degree() {
-            1 if k.interior_knots().next().is_some() => Err(PatchBoundError::Degree1Crease),
-            1 => Ok(1),
-            _ => Ok(0),
-        };
-        let (lift_u, lift_v) = (lift(ku)?, lift(kv)?);
+            core::array::from_fn(|c| channel(base, c, base_form, &ctr));
+        // `check_direction` admits a degree-1 direction only as one
+        // span, so its partial is one constant: span 0's difference,
+        // decomposed on the direction's own vector as its degree-1 form.
+        // Every base channel is then raised one degree in each degree-1
+        // direction, in the ring: exact in ℝ, so the composite is still
+        // about the base's own nets. The raise buys hull tightness,
+        // measured once on `tests/offset_fit.rs`' degree-1 rows
+        // (certified sup, raised against not): bilinear 4.26e-5 against
+        // 4.58e-5, rational bilinear 7.58e-5 against 9.46e-5, ruled
+        // 1.228e-5 against 1.229e-5, with the same cells and rounds.
+        check_direction(ku)?;
+        check_direction(kv)?;
+        let lift = |k: &KnotVector| usize::from(matches!(k.derived(), Derived::SpanConstant(_)));
+        let (lift_u, lift_v) = (lift(ku), lift(kv));
         let raise = |p: PatchSpans, lu: usize, lv: usize| {
             let (pu, pv) = p.degree();
             p.elevated(pu + lu, pv + lv)
         };
         let val = |g: &TensorCoeffs<'_>| raise(dec(g), lift_u, lift_v);
         let du = |g: &TensorCoeffs<'_>| {
-            let p = if lift_u == 1 {
-                let diff = g.diff_u();
-                dec(&TensorCoeffs::from_fn(ku, kv, |_, j| diff.get(0, j)))
-            } else {
-                dec(&g.derivative_u().ok_or(PatchBoundError::DerivedKnots)?)
+            let p = match g.derived_u() {
+                Derived::Vector(t) => dec(&t),
+                Derived::SpanConstant(_) => {
+                    let diff = g.diff_u();
+                    dec(&TensorCoeffs::from_fn(ku, kv, |_, j| diff.get(0, j)))
+                }
+                Derived::Discontinuous { .. } => return Err(PatchBoundError::DerivedKnots),
             };
             Ok::<_, PatchBoundError>(raise(p, 0, lift_v))
         };
         let dv = |g: &TensorCoeffs<'_>| {
-            let p = if lift_v == 1 {
-                let diff = g.diff_v();
-                dec(&TensorCoeffs::from_fn(ku, kv, |i, _| diff.get(i, 0)))
-            } else {
-                dec(&g.derivative_v().ok_or(PatchBoundError::DerivedKnots)?)
+            let p = match g.derived_v() {
+                Derived::Vector(t) => dec(&t),
+                Derived::SpanConstant(_) => {
+                    let diff = g.diff_v();
+                    dec(&TensorCoeffs::from_fn(ku, kv, |i, _| diff.get(i, 0)))
+                }
+                Derived::Discontinuous { .. } => return Err(PatchBoundError::DerivedKnots),
             };
             Ok::<_, PatchBoundError>(raise(p, lift_u, 0))
         };
@@ -2622,7 +2467,7 @@ impl Composite {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{Composite, Refine, directional_mark, e_low_witness, stall_verdict};
+    use super::{Composite, directional_mark, e_low_witness};
     use geom_core::Bounds;
     use geom_core::interval::{max_bound, min_bound, norm_sup};
     use geom_core::spline::KnotVector;
@@ -2755,7 +2600,7 @@ mod tests {
     /// where `‖E‖ ≈ 1e-6`. The projection through the sign witness,
     /// `|D|/(w̃·‖M̃‖)`, reads the same cell at `5.64e-7` — within a
     /// factor of two of `|d|` — and the `τ²/‖E‖` term that carried
-    /// 96% of the cell's bound falls with it.
+    /// 95% of the cell's bound falls with it.
     ///
     /// The row measures the two readings on ONE composite, so the
     /// only thing that differs between them is the expression under
@@ -2799,7 +2644,7 @@ mod tests {
             "the sup cell {:?} is one of a tie: {tie:?}",
             (su, sv)
         );
-        assert!(near(sup, 1.7006e-5), "sup cell bound is {sup:e}");
+        assert!(near(sup, 1.5141e-5), "sup cell bound is {sup:e}");
         assert!(
             near(cert.hull_sup, sup),
             "the certificate carries another cell's bound"
@@ -2810,7 +2655,7 @@ mod tests {
             "the floor on ‖E‖ reads {e_lo:e} where ‖E‖ ≈ {d:e}"
         );
         assert!(near(e_lo, 5.6395e-7), "floor is {e_lo:e}");
-        assert!(near(dist, 6.0900e-6) && near(tau, 2.2152e-6) && near(t3, 8.7009e-6));
+        assert!(near(dist, 6.0900e-6) && near(tau, 1.9948e-6) && near(t3, 7.0563e-6));
 
         // The same cell read componentwise: the collapsed floor, and
         // the `τ²/‖E‖` term it inflates. `τ` is untouched — it divides
@@ -2818,14 +2663,14 @@ mod tests {
         let (dist_c, tau_c, t3_c, e_mig, sup_c) =
             decompose(&comp, su, sv, reg.floor, d, ELow::Componentwise);
         assert!(near(e_mig, 1.5814e-8), "componentwise floor is {e_mig:e}");
-        assert!(near(sup_c, 3.2189e-4) && near(dist_c, 9.3762e-6) && near(t3_c, 3.1030e-4));
+        assert!(near(sup_c, 2.6302e-4) && near(dist_c, 9.3762e-6) && near(t3_c, 2.5165e-4));
         assert!(near(tau_c, tau), "τ moved: {tau_c:e} against {tau:e}");
         assert!(
-            t3_c > 0.96 * sup_c,
+            t3_c > 0.95 * sup_c,
             "the componentwise reading's sup is not its τ²/‖E‖ term"
         );
         assert!(
-            near(sup_c / sup, 18.928),
+            near(sup_c / sup, 17.371),
             "the bound moved by {}",
             sup_c / sup
         );
@@ -2834,7 +2679,7 @@ mod tests {
         // over the one it replaces, and the row measures that rather
         // than resting on the argument.
         let worst = no_cell_loosens(&comp, reg.floor, d);
-        assert!(near(worst, 18.928), "the widest cell gain is {worst}");
+        assert!(near(worst, 17.371), "the widest cell gain is {worst}");
 
         // One round finer — the grid the `1e-9` request stops on at
         // the sample cap. The cells are small enough that the
@@ -2850,10 +2695,12 @@ mod tests {
         // `a_micron_scale_offset_certifies_and_names_its_limit` pins as
         // the cap stop's `achieved`, and it is pinned there to 5e-11
         // absolute. Re-measured here rather than left to ride `near`'s
-        // 5e-4: one number must not have two precisions, and under the
-        // convex insertion form it moved (3.7544e-7 before).
-        assert!(near(sup5, 3.74718e-7), "cap-grid sup is {sup5:e}");
-        assert!(near(e_lo5, 8.39898e-7) && near(dist5, 1.21528e-7) && near(t35, 4.79507e-8));
+        // 5e-4: one number must not have two precisions. It moved
+        // under the convex insertion form (3.7544e-7 before) and again
+        // when the regularity floor became the area quotient's inf
+        // (3.74718e-7 before): `τ` divides by that floor.
+        assert!(near(sup5, 3.45243e-7), "cap-grid sup is {sup5:e}");
+        assert!(near(e_lo5, 8.39898e-7) && near(dist5, 1.21528e-7) && near(t35, 3.88872e-8));
         assert!(
             tau5 > dist5 && tau5 > t35,
             "τ = {tau5:e} no longer carries the cap grid's sup"
@@ -2863,7 +2710,7 @@ mod tests {
             near(e_mig5, 7.79946e-7),
             "componentwise floor is {e_mig5:e}"
         );
-        assert!(near(sup5_c, 3.79036e-7) && near(sup5_c / sup5, 1.01152));
+        assert!(near(sup5_c, 3.49518e-7) && near(sup5_c / sup5, 1.01238));
         let worst5 = no_cell_loosens(&comp5, reg.floor, d);
         assert!(worst5 >= 1.0, "the cap grid's widest cell gain is {worst5}");
     }
@@ -2971,19 +2818,20 @@ mod tests {
         }
     }
 
-    /// **The certificate's vector upper bounds are frame-invariant to
-    /// rounding (D4 ¶2).** A bowed patch and an offset "fit" of it are
-    /// rotated rigidly, and every cell's `sup‖Y‖` and `sup‖M̃‖`, the
-    /// regularity meter's chart speeds, and every cell's
+    /// **The certificate's and the meters' vector upper bounds are
+    /// frame-invariant to rounding (D4 ¶2).** A bowed patch, an offset
+    /// "fit" of it, and a rational twin of the patch are rotated
+    /// rigidly, and every cell's `sup‖Y‖` and `sup‖M̃‖`, every cell's
     /// [`Composite::cell_bound`] (at the unrotated frame's regularity
     /// floor, so the bound reads `Y` and `M̃` the way the certificate
-    /// does) are compared with the unrotated frame's, each against its
-    /// own largest value over the patch.
+    /// does), and both patches' chart speeds and per-cell
+    /// `sup‖S_u × S_v‖` (the meters' cells) are compared with the
+    /// unrotated frame's, each against its own largest value over the
+    /// patch.
     /// Read from the coefficient vectors' norms they move by rounding
-    /// alone (measured worst `5.6e-13`, on `‖Y‖`); a box of three
-    /// channel hulls folded into a norm reads up to `√3`× the vector's
-    /// reach depending on how it sits against the axes, and moves `‖Y‖`
-    /// by `8.7e-2` here.
+    /// alone; a box of three channel hulls folded into a norm reads up
+    /// to `√3`× the vector's reach depending on how it sits against the
+    /// axes, and moves `‖Y‖` by `8.7e-2` here.
     ///
     /// The fit is deliberately crude — the base lifted by `d` along
     /// `z` — so that `Y` is a real vector, the normal's tilt times `d`,
@@ -2993,7 +2841,12 @@ mod tests {
         // `Y`'s coefficients cancel products of size `|d|·‖M̃‖ ≈ 0.05` down
         // to `≈ 8e-4`, so each carries ~1e-17 of rounding per term, ~1e-14
         // of its scale, compounded over the products' terms to the measured
-        // 5.6e-13; 1e-10 is ~200× that and nine decades under a box fold.
+        // 5.6e-13 (7.5e-13 through `cell_bound`). The other columns are
+        // norms of uncancelled vectors, a few products deep, and measure
+        // 2e-15 to 4e-15: `sup‖M̃‖` 3.6e-15, both patches' speeds 2.0e-15
+        // and 1.1e-15, the meters' `sup‖S_u × S_v‖` 2.2e-15 (integral) and
+        // 4.0e-15 (rational). 1e-10 is ~130× the worst and nine decades
+        // under a box fold.
         const DRIFT: f64 = 1e-10;
         let splits = [0.25, 0.5, 0.75];
         let base = bowed_patch()
@@ -3003,22 +2856,41 @@ mod tests {
             .unwrap();
         let d = 0.05;
         let fit = base.map_points(|p| Point3::new(p.x, p.y, p.z + d));
+        // Weights that vary along both directions, so every quotient
+        // term of the rational forms is live.
+        let weights: Vec<f64> = (0..base.weights().len())
+            .map(|k| 1.0 + 0.15 * f64::from(u32::try_from(k % 5).unwrap()) / 4.0)
+            .collect();
+        let rational = geom::NurbsSurface::new(
+            base.knots_u_f64_interim().clone(),
+            base.knots_v_f64_interim().clone(),
+            base.control().to_vec(),
+            weights,
+        )
+        .unwrap();
         // The regularity floor `τ` divides by is box-assembled, so it is
         // held at the unrotated frame's value: the `cell_bound` column
         // then moves only with the readings it takes from `Y` and `M̃`.
         let floor = crate::offset_meters::patch_regularity(
-            &crate::patch_bound::patch_cells(&base).unwrap(),
+            &crate::patch_bound::patch_cells_refined(&base, 1).unwrap(),
         )
         .floor;
-        let reading = |base: &geom::NurbsSurface<f64>, fit: &geom::NurbsSurface<f64>| {
+        let meters = |n: &geom::NurbsSurface<f64>| {
+            let cells = crate::patch_bound::patch_cells_refined(n, 1).unwrap();
+            let reg = crate::offset_meters::patch_regularity(&cells);
+            let normal = cells.iter().map(|c| c.m_sup).collect::<Vec<_>>();
+            (vec![reg.speed_u.get(), reg.speed_v.get()], normal)
+        };
+        let reading = |base: &geom::NurbsSurface<f64>,
+                       fit: &geom::NurbsSurface<f64>,
+                       rational: &geom::NurbsSurface<f64>| {
             let comp = Composite::build(base, fit, d).unwrap();
             let (nu, nv) = comp.x.cell_counts();
             let cells: Vec<(usize, usize)> = (0..nu)
                 .flat_map(|su| (0..nv).map(move |sv| (su, sv)))
                 .collect();
-            let reg = crate::offset_meters::patch_regularity(
-                &crate::patch_bound::patch_cells(base).unwrap(),
-            );
+            let (speeds, normal) = meters(base);
+            let (r_speeds, r_normal) = meters(rational);
             [
                 cells
                     .iter()
@@ -3028,26 +2900,41 @@ mod tests {
                     .iter()
                     .map(|&(su, sv)| comp.m_tilde_sup(su, sv))
                     .collect(),
-                vec![reg.speed_u.get(), reg.speed_v.get()],
+                speeds,
                 cells
                     .iter()
                     .map(|&(su, sv)| comp.cell_bound(su, sv, floor, d))
                     .collect(),
+                normal,
+                r_speeds,
+                r_normal,
             ]
         };
-        let names = ["sup‖Y‖", "sup‖M̃‖", "the chart speeds", "cell_bound"];
-        let at_rest = reading(&base, &fit);
+        let names = [
+            "sup‖Y‖",
+            "sup‖M̃‖",
+            "the chart speeds",
+            "cell_bound",
+            "the meters' sup‖S_u × S_v‖",
+            "the rational chart speeds",
+            "the rational meters' sup‖S_u × S_v‖",
+        ];
+        let at_rest = reading(&base, &fit, &rational);
         assert_eq!(
             at_rest[0].len(),
             16,
             "the refined bowed patch has 4×4 cells"
         );
-        let mut worst = [0.0f64; 4];
+        let mut worst = [0.0f64; 7];
         for axis in [[1.0, 1.0, 1.0], [0.3, -0.4, 0.8]] {
             for k in 1..=8 {
                 let t = 0.405 * f64::from(k);
                 let r = rotation(axis, t);
-                let moved = reading(&base.map_points(&r), &fit.map_points(&r));
+                let moved = reading(
+                    &base.map_points(&r),
+                    &fit.map_points(&r),
+                    &rational.map_points(&r),
+                );
                 for (q, (now, then)) in moved.iter().zip(&at_rest).enumerate() {
                     assert_eq!(now.len(), then.len());
                     let scale = then.iter().copied().fold(0.0f64, f64::max);
@@ -3064,8 +2951,8 @@ mod tests {
             }
         }
         eprintln!(
-            "worst drift: sup‖Y‖ {:e}, sup‖M̃‖ {:e}, speeds {:e}, cell_bound {:e}",
-            worst[0], worst[1], worst[2], worst[3]
+            "worst drift: {:?}",
+            names.iter().zip(worst).collect::<Vec<_>>()
         );
         for (q, w) in worst.iter().enumerate() {
             assert!(
@@ -3086,10 +2973,15 @@ mod tests {
             .map(|w| Point3::new(*w, 0.0, 0.0))
             .collect();
         let ones = vec![1.0; n.weights().len()];
-        geom::NurbsSurface::new(n.knots_u().clone(), n.knots_v().clone(), control, ones)
-            .unwrap()
-            .eval(u, v)
-            .x
+        geom::NurbsSurface::new(
+            n.knots_u_f64_interim().clone(),
+            n.knots_v_f64_interim().clone(),
+            control,
+            ones,
+        )
+        .unwrap()
+        .eval(u, v)
+        .x
     }
 
     /// **`sup‖M̃‖` and `sup‖Y‖` are certified from above, and never
@@ -3241,57 +3133,6 @@ mod tests {
         );
     }
 
-    /// The guard is silent while the bound is still `+∞`: an
-    /// unbounded round is unproved, not unimproved, and a loop on its
-    /// way from `+∞` to a finite bound is converging.
-    #[test]
-    fn an_infinite_predecessor_is_never_a_stall() {
-        for marked_both in [false, true] {
-            assert_eq!(
-                stall_verdict(f64::INFINITY, f64::INFINITY, marked_both),
-                Refine::Directional
-            );
-            assert_eq!(
-                stall_verdict(f64::INFINITY, 1e-3, marked_both),
-                Refine::Directional
-            );
-        }
-    }
-
-    /// A round that lowered the bound keeps refining directionally,
-    /// whichever marking produced it.
-    #[test]
-    fn an_improving_round_stays_directional() {
-        assert_eq!(stall_verdict(1e-3, 1e-4, false), Refine::Directional);
-        assert_eq!(stall_verdict(1e-3, 1e-4, true), Refine::Directional);
-    }
-
-    /// A directional round that gained nothing does not refuse — it
-    /// falls back to bisecting both directions, which is the answer
-    /// when the speed ratio mispredicted where the error lives.
-    /// Equality counts as no gain: a bound that held still is a bound
-    /// that did not fall.
-    #[test]
-    fn a_directional_round_that_gains_nothing_falls_back_to_both() {
-        assert_eq!(stall_verdict(1e-3, 1e-3, false), Refine::BothDirections);
-        assert_eq!(stall_verdict(1e-3, 2e-3, false), Refine::BothDirections);
-        assert_eq!(
-            stall_verdict(1e-3, f64::INFINITY, false),
-            Refine::BothDirections
-        );
-    }
-
-    /// **The refusal's admission set.** Only a BOTH-directions round
-    /// that still gains nothing refuses: the loop took the strongest
-    /// step it has and got nothing, so the rounds it has left cannot
-    /// reach the tolerance either.
-    #[test]
-    fn only_a_both_directions_round_that_gains_nothing_refuses() {
-        assert_eq!(stall_verdict(1e-3, 1e-3, true), Refine::Refuse);
-        assert_eq!(stall_verdict(1e-3, 2e-3, true), Refine::Refuse);
-        assert_eq!(stall_verdict(1e-3, f64::INFINITY, true), Refine::Refuse);
-    }
-
     /// The direction rule reads model-space extent, not chart extent:
     /// the same cell box marks `u` or `v` depending only on which
     /// chart speed makes its side longer in metres.
@@ -3393,6 +3234,105 @@ mod tests {
         }
     }
 
+    /// The bits of every cell bound of the `(base, fit)` composite at
+    /// `d`, on the meters' floor for `base`.
+    fn cell_bound_bits(
+        base: &geom::NurbsSurface<f64>,
+        fit: &geom::NurbsSurface<f64>,
+        d: f64,
+    ) -> Vec<u64> {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (reg, _) = crate::offset_meters::meter_patch(base, d, band).unwrap();
+        let comp = Composite::build(base, fit, d).unwrap();
+        let (nu, nv) = comp.x.cell_counts();
+        (0..nu)
+            .flat_map(|su| (0..nv).map(move |sv| (su, sv)))
+            .map(|(su, sv)| comp.cell_bound(su, sv, reg.floor, d).to_bits())
+            .collect()
+    }
+
+    /// `n` with its control net scaled by `k` about the `z` axis.
+    fn radially_scaled(n: &geom::NurbsSurface<f64>, k: f64) -> geom::NurbsSurface<f64> {
+        n.map_points(|p| Point3::new(k * p.x, k * p.y, p.z))
+    }
+
+    /// **One power of two on every weight moves no cell bound.** The
+    /// quarter cylinder against its exact offset (the cylinder of
+    /// radius `1 + d`, same weights): at `2⁻³⁰⁰` the base's `w³` and
+    /// `w⁴` underflow to zero, so `cell_terms`' weight and sign-witness
+    /// guards would refuse every cell; at `2³⁰⁰` they overflow;
+    /// `2⁻¹⁰⁰⁰` sits at the bottom of the normal range. Each scale, on
+    /// the base or on the fit, describes the same surface, so each cell
+    /// bound is the unit pair's to the bit.
+    ///
+    /// **The arm is the described net's.** The same control net with
+    /// every weight `2` is a polynomial surface described rationally,
+    /// and it is read by the rational arm at every scale — `2⁻¹`,
+    /// `2⁻³⁰⁰` and `2³⁰⁰` as at `2¹` — with the sup bound pinned at the
+    /// value that arm gives.
+    #[test]
+    fn a_uniform_weight_scale_moves_no_cell_bound() {
+        use crate::patch_bound::tests::weights_times_pow2;
+        let d = 0.3;
+        let cylinder = quarter_cylinder();
+        let offset = radially_scaled(&cylinder, 1.0 + d);
+        let want = cell_bound_bits(&cylinder, &offset, d);
+        assert!(
+            want.iter().all(|b| f64::from_bits(*b).is_finite()),
+            "the unit pair left a cell unbounded"
+        );
+        for (kb, kf) in [(-300, 0), (300, 0), (-1000, 0), (0, -300), (-300, 600)] {
+            let got = cell_bound_bits(
+                &weights_times_pow2(&cylinder, kb),
+                &weights_times_pow2(&offset, kf),
+                d,
+            );
+            assert_eq!(got, want, "base 2^{kb}, fit 2^{kf}: a cell bound moved");
+        }
+
+        let twos = geom::NurbsSurface::new(
+            cylinder.knots_u_f64_interim().clone(),
+            cylinder.knots_v_f64_interim().clone(),
+            cylinder.control().to_vec(),
+            vec![2.0; 6],
+        )
+        .unwrap();
+        let fit = radially_scaled(&twos, 1.0 + d);
+        let want = cell_bound_bits(&twos, &fit, d);
+        let sup = want.iter().map(|b| f64::from_bits(*b)).fold(0.0, f64::max);
+        assert_eq!(
+            sup.to_bits(),
+            1.018_060_029_513_912e-1_f64.to_bits(),
+            "the weights-2 net's sup bound is {sup:e}, not the rational arm's"
+        );
+        for k in [-2, -301, 299] {
+            let got = cell_bound_bits(&weights_times_pow2(&twos, k), &fit, d);
+            assert_eq!(got, want, "weights 2^{}: a cell bound moved", k + 1);
+        }
+    }
+
+    /// **The fit certifies a uniformly scaled face as it does the unit
+    /// face.** At `2⁻³⁰⁰` the loop's every round would otherwise end
+    /// unbounded, and the fit `BoundNotFinite` with no bound behind it.
+    #[test]
+    fn a_uniformly_scaled_face_certifies_as_the_unit_face() {
+        use crate::patch_bound::tests::weights_times_pow2;
+        let (d, tol) = (0.3, 1e-3);
+        let band = Band::linear(Tol::witness()).unwrap();
+        let unit = quarter_cylinder();
+        let (_, cert) = super::fit_offset_at(&unit, d, tol, band).unwrap();
+        let (_, scaled) = super::fit_offset_at(&weights_times_pow2(&unit, -300), d, tol, band)
+            .unwrap_or_else(|e| panic!("the 2^-300 face refused: {e}"));
+        assert_eq!(scaled.rounds, 3, "the 2^-300 face's rounds");
+        assert_eq!(
+            scaled.hull_sup.to_bits(),
+            cert.hull_sup.to_bits(),
+            "the 2^-300 face certified {:e}, the unit face {:e}",
+            scaled.hull_sup,
+            cert.hull_sup
+        );
+    }
+
     /// A degree-1 direction with an interior knot has a partial that
     /// jumps there, and the composite refuses it as the crease it is
     /// rather than reading the first span's constant across both.
@@ -3430,7 +3370,7 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod recourse_tests {
-    use super::{BestBound, LastRound, OffsetFitError, OffsetLimb};
+    use super::{BestBound, OffsetFitError, OffsetFitWall, OffsetLimb};
     use crate::offset_meters::MeterError;
     use crate::patch_bound::PatchBoundError;
     use crate::recourse::{Classified, Reading, Refused};
@@ -3513,30 +3453,12 @@ mod recourse_tests {
                 tolerance: 0.0,
             },
             OffsetFitError::NonFiniteSample { uv: (0.5, 0.5) },
-            OffsetFitError::BudgetExhausted {
-                budget: 8,
-                grid: (5, 5),
-                achieved: 2e-9,
-                tolerance: 1e-9,
-                last_round: LastRound::Improved,
-                best: BestBound {
-                    bound: 1.5e-9,
-                    grid: (4, 5),
-                },
-            },
-            OffsetFitError::BudgetExhausted {
-                budget: 8,
-                grid: (5, 5),
-                achieved: 2e-9,
-                tolerance: 1e-9,
-                last_round: LastRound::DidNotImprove,
-                best: BestBound {
-                    bound: 1.5e-9,
-                    grid: (4, 5),
-                },
-            },
-            OffsetFitError::SampleCapReached {
+            OffsetFitError::SeedOverCap {
                 cap: 64,
+                grid: (9, 8),
+            },
+            OffsetFitError::WallReached {
+                wall: OffsetFitWall::SampleCap { cap: 64 },
                 rounds: 3,
                 grid: (64, 5),
                 achieved: 2e-9,
@@ -3544,6 +3466,20 @@ mod recourse_tests {
                 best: BestBound {
                     bound: 1.5e-9,
                     grid: (32, 5),
+                },
+            },
+            OffsetFitError::WallReached {
+                wall: OffsetFitWall::Work {
+                    budget: 512,
+                    spent: 480,
+                },
+                rounds: 3,
+                grid: (32, 5),
+                achieved: 2e-9,
+                tolerance: 1e-9,
+                best: BestBound {
+                    bound: 1.5e-9,
+                    grid: (16, 5),
                 },
             },
             OffsetFitError::BoundNotFinite {
@@ -3607,10 +3543,9 @@ mod recourse_tests {
             OffsetFitError::Band(bands[0]),
             OffsetFitError::Band(bands[1]),
         ];
-        // Fourteen variants; `BudgetExhausted` is rendered at both of
-        // its `LastRound` readings, which are two different
-        // sentences, `BoundNotFinite` at both of its `best`
-        // cases, which are two different messages sending the caller
+        // Fourteen variants; `WallReached` at both walls, which the
+        // message names in two different words, `BoundNotFinite` at
+        // both of its `best` cases, which are two different messages sending the caller
         // to two different repairs, `Limb` at both limbs, which the
         // message names in two different words, and at a NaN bound,
         // which it names as no number, `MintLimb` at its limb's NaN and
@@ -3694,50 +3629,90 @@ mod recourse_tests {
 }
 
 /// The refinement loop's ORDERING, driven by scripted bound sequences
-/// through [`refine_rounds_at`] itself: the stall verdict before the
-/// budget test, and the budget's face past a verdict that did not
-/// refuse. A fixture grounded in the enclosure's width stops stalling
-/// whenever the assembly narrows, so the ordering is pinned here, on
-/// bounds that cannot move.
+/// through [`refine_rounds_at`] itself: idle rounds counted against the
+/// lowest bound, the stall before the walls, and both walls, the cap
+/// read as a total. A fixture
+/// grounded in the enclosure's width stops stalling whenever the
+/// assembly narrows, so the ordering is pinned here, on bounds that
+/// cannot move.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod scripted_rounds {
-    use super::{LastRound, OFFSET_FIT_BUDGET, OffsetFitError, Report, refine_rounds_at};
+    use super::{
+        OFFSET_FIT_SAMPLE_CAP, OFFSET_FIT_WORK, OffsetFitError, OffsetFitWall, Report,
+        refine_rounds_at,
+    };
 
-    /// Runs the loop from a 3 × 3 seed, round `k` reporting
-    /// `bounds[k]` with one failing cell, the schedule's first, against
-    /// a tolerance of 1 — so each round grows the grid by a sample or
-    /// two and the sample cap never answers first.
-    fn run(bounds: &[f64]) -> Result<usize, OffsetFitError> {
-        let seed = (vec![0.0, 0.5, 1.0], vec![0.0, 0.5, 1.0]);
+    /// Runs the loop from a 3 × 3 seed at chart speeds `speeds`, round
+    /// `k` reporting `bound(k)` against a tolerance of 1, with one
+    /// failing cell: the schedule's first, so each round grows the grid
+    /// by a sample or two, or where `whole` the whole chart, so each
+    /// round bisects every interval it marks.
+    fn run_over(
+        speeds: (f64, f64),
+        whole: bool,
+        bound: impl Fn(usize) -> f64,
+    ) -> Result<usize, OffsetFitError> {
+        run_from(
+            (vec![0.0, 0.5, 1.0], vec![0.0, 0.5, 1.0]),
+            speeds,
+            whole,
+            bound,
+        )
+    }
+
+    /// [`run_over`] from the seed `seed`.
+    fn run_from(
+        seed: (Vec<f64>, Vec<f64>),
+        speeds: (f64, f64),
+        whole: bool,
+        bound: impl Fn(usize) -> f64,
+    ) -> Result<usize, OffsetFitError> {
         let mut k = 0;
-        refine_rounds_at(seed, (1.0, 1.0), 0.1, 1.0, |us, vs| {
-            let hull_sup = bounds[k];
+        refine_rounds_at(seed, speeds, 0.1, 1.0, |us, vs| {
+            let hull_sup = bound(k);
             k += 1;
+            let (u1, v1) = if whole {
+                (us[us.len() - 1], vs[vs.len() - 1])
+            } else {
+                (us[1], vs[1])
+            };
             Ok((
                 (),
                 Report {
                     cells: 1,
                     on_locus_max: 0.0,
                     hull_sup,
-                    failing: vec![((us[0], us[1]), (vs[0], vs[1]))],
+                    failing: vec![((us[0], u1), (vs[0], v1))],
                 },
             ))
         })
         .map(|(_, _, round)| round)
     }
 
-    #[test]
-    fn a_bound_under_the_tolerance_certifies_on_its_round() {
-        assert_eq!(run(&[f64::INFINITY, 4.0, 0.5]).unwrap(), 2);
+    fn run_at(speeds: (f64, f64), bound: impl Fn(usize) -> f64) -> Result<usize, OffsetFitError> {
+        run_over(speeds, false, bound)
     }
 
-    /// Round 3 does not fall, so its successor is marked both ways;
-    /// round 4 does not fall either, and the loop refuses there, two
-    /// rounds before the budget.
+    fn run(bound: impl Fn(usize) -> f64) -> Result<usize, OffsetFitError> {
+        run_at((1.0, 1.0), bound)
+    }
+
+    fn script(bounds: &[f64]) -> impl Fn(usize) -> f64 + '_ {
+        |k| bounds[k]
+    }
+
     #[test]
-    fn a_both_directions_round_that_gains_nothing_stalls_before_the_budget() {
-        match run(&[f64::INFINITY, 5.0, 4.0, 4.0, 4.0]) {
+    fn a_bound_under_the_tolerance_certifies_on_its_round() {
+        assert_eq!(run(script(&[f64::INFINITY, 4.0, 0.5])).unwrap(), 2);
+    }
+
+    /// Round 3 does not lower the lowest bound, so its successor is
+    /// marked both ways; round 4 does not either, and the loop refuses
+    /// there.
+    #[test]
+    fn a_both_directions_round_that_gains_nothing_stalls() {
+        match run(script(&[f64::INFINITY, 5.0, 4.0, 4.0, 4.0])) {
             Err(
                 ref e @ OffsetFitError::RefinementStalled {
                     rounds,
@@ -3757,39 +3732,183 @@ mod scripted_rounds {
         }
     }
 
-    /// The same stall on the budget's own round: the verdict comes
-    /// first, so the round wears the stall's face, not the budget's.
+    /// One idle round is answered by the both-directions step, not a
+    /// refusal, and a loop that lowers its bound again after it goes on
+    /// to certify.
     #[test]
-    fn a_stall_on_the_budgets_round_is_the_stall_not_the_budget() {
-        let mut bounds = vec![f64::INFINITY, 6.0, 5.0, 4.0, 3.0];
-        bounds.resize(OFFSET_FIT_BUDGET + 1, 3.0);
-        assert_eq!(bounds.len(), 7, "the budget this row is written against");
-        match run(&bounds) {
-            Err(OffsetFitError::RefinementStalled { rounds, .. }) => {
-                assert_eq!(rounds as usize, OFFSET_FIT_BUDGET);
+    fn a_single_idle_round_takes_the_both_directions_step() {
+        assert_eq!(
+            run(script(&[f64::INFINITY, 5.0, 6.0, 4.0, 0.5])).unwrap(),
+            4
+        );
+    }
+
+    /// **Idle is counted against the LOWEST bound.** Round 2 rises
+    /// above round 1's 5, and round 3 recovers part of the way, to 5.5:
+    /// below its predecessor, so a previous-round reading would call it
+    /// progress and refine on, but still above the lowest, so it is the
+    /// second idle round and the loop stalls there, naming round 1's
+    /// bound and grid.
+    #[test]
+    fn a_rise_then_a_partial_recovery_stalls() {
+        match run(script(&[f64::INFINITY, 5.0, 6.0, 5.5, 0.5])) {
+            Err(OffsetFitError::RefinementStalled {
+                rounds,
+                grid,
+                achieved,
+                best,
+                ..
+            }) => {
+                assert_eq!((rounds, achieved, best.bound), (3, 5.5, 5.0));
+                assert_eq!(best.grid, (4, 3), "the grid round 1 reached it on");
+                assert_eq!(grid, (5, 5), "round 3's grid, marked both ways");
             }
-            other => panic!("the stall's face on the budget's round: {other:?}"),
+            other => panic!("the stall's face: {other:?}"),
         }
     }
 
-    /// One non-improving round, the last: its grid was marked one way,
-    /// so the verdict asks for both directions and the budget's face
-    /// answers, naming a last round that did not improve.
+    /// **A fallback marking is not an idle round.** `v` is the faster
+    /// direction, so the directional marking bisects the failing cell's
+    /// `v` interval, `[0, 5e-324]`, which has no midpoint strictly
+    /// inside it: round 0's marking grows nothing and falls back to both
+    /// directions. Round 1's bound rises, its first idle round, and is
+    /// answered by the both-directions step again rather than refused;
+    /// round 2 certifies. Idle is read on the bound alone, so the
+    /// fallback does not stand in for the first idle round.
     #[test]
-    fn a_single_non_improving_last_round_is_the_budgets_face() {
-        let mut bounds: Vec<f64> = vec![f64::INFINITY, 7.0, 6.0, 5.0, 4.0, 3.0];
-        bounds.push(3.0);
-        assert_eq!(bounds.len(), OFFSET_FIT_BUDGET + 1);
-        match run(&bounds) {
-            Err(OffsetFitError::BudgetExhausted {
-                budget, last_round, ..
-            }) => {
+    fn a_fallback_marking_is_not_an_idle_round() {
+        let seed = (vec![0.0, 0.5, 1.0], vec![0.0, 5e-324, 1.0]);
+        assert_eq!(
+            run_from(seed, (0.0, 1.0), false, script(&[5.0, 6.0, 0.5])).unwrap(),
+            2
+        );
+    }
+
+    /// An unbounded round after a finite one is idle: two of them
+    /// stall, carrying the finite bound behind them.
+    #[test]
+    fn a_bound_lost_for_two_rounds_stalls_on_the_bound_it_lost() {
+        let inf = f64::INFINITY;
+        match run(script(&[inf, 5.0, inf, inf, 0.5])) {
+            Err(OffsetFitError::RefinementStalled {
+                rounds,
+                achieved,
+                best,
+                ..
+            }) => assert_eq!((rounds, achieved, best.bound), (3, inf, 5.0)),
+            other => panic!("the stall's face: {other:?}"),
+        }
+    }
+
+    /// No round count stops a loop whose bound keeps falling: twenty
+    /// improving rounds, then a certifying one.
+    #[test]
+    fn a_loop_still_improving_is_not_stopped_by_a_round_count() {
+        let rounds = run(|k| if k < 20 { 100.0 - k as f64 } else { 0.5 }).unwrap();
+        assert_eq!(rounds, 20);
+    }
+
+    /// A seed over the cap refuses before any round is fitted: the cap
+    /// reads the seed's grid as it reads every later one.
+    #[test]
+    fn a_seed_over_the_cap_refuses_before_round_0() {
+        let side: Vec<f64> = (0..49).map(|i| f64::from(i) / 48.0).collect();
+        assert!(side.len() * side.len() > OFFSET_FIT_SAMPLE_CAP);
+        let mut fitted = 0;
+        let r = refine_rounds_at((side.clone(), side), (1.0, 1.0), 0.1, 1.0, |_, _| {
+            fitted += 1;
+            Ok((
+                (),
+                Report {
+                    cells: 1,
+                    on_locus_max: 0.0,
+                    hull_sup: 0.5,
+                    failing: Vec::new(),
+                },
+            ))
+        });
+        assert!(
+            matches!(
+                r,
+                Err(OffsetFitError::SeedOverCap {
+                    cap: OFFSET_FIT_SAMPLE_CAP,
+                    grid: (49, 49)
+                })
+            ),
+            "a 49 x 49 seed: {:?}",
+            r.as_ref().err()
+        );
+        assert_eq!(fitted, 0, "a round was fitted on a seed over the cap");
+    }
+
+    /// A loop that never certifies and never stalls, growing its grid
+    /// by one sample a round, ends on the cumulative budget: the cap
+    /// would let it run for over seven hundred rounds. A `v` that does
+    /// not move in model space keeps every directional marking in `u`.
+    #[test]
+    fn a_slowly_growing_loop_ends_on_the_work_budget() {
+        match run_at((1.0, 0.0), |k| 1e3 / (1.0 + k as f64)) {
+            Err(
+                ref e @ OffsetFitError::WallReached {
+                    wall: OffsetFitWall::Work { budget, spent },
+                    grid,
+                    rounds,
+                    ..
+                },
+            ) => {
+                assert_eq!(budget, OFFSET_FIT_WORK);
+                assert_eq!(grid.1, 3, "a still v is never refined");
+                assert_eq!(rounds as usize, grid.0 - 3, "one sample a round");
+                let fitted: usize = (3..=grid.0).map(|n| n * 3).sum();
                 assert_eq!(
-                    (budget, last_round),
-                    (OFFSET_FIT_BUDGET, LastRound::DidNotImprove)
+                    spent, fitted,
+                    "every grid fitted is spent, the seed's included"
+                );
+                assert!(
+                    spent <= budget && spent + (grid.0 + 1) * 3 > budget,
+                    "the budget stops the first round that would pass it: {spent}"
+                );
+                assert!(
+                    grid.0 * grid.1 < OFFSET_FIT_SAMPLE_CAP,
+                    "under the cap: {grid:?}"
+                );
+                assert!(
+                    e.to_string()
+                        .contains(&format!("limit of {budget} samples fitted in total,")),
+                    "the message names the budget: {e}"
                 );
             }
-            other => panic!("the budget's face: {other:?}"),
+            other => panic!("the work budget's face: {other:?}"),
+        }
+    }
+
+    /// A loop that never certifies and never stalls, doubling its grid
+    /// in `u` each round, ends on the cap, and the cap is a TOTAL: the
+    /// grid stops with one direction far past `sqrt(cap)` and its
+    /// product within the cap, which a per-direction cap at `sqrt(cap)`
+    /// would have refused long before.
+    #[test]
+    fn a_fast_growing_loop_ends_on_the_total_sample_cap() {
+        match run_over((1.0, 0.0), true, |k| 1e3 / (1.0 + k as f64)) {
+            Err(OffsetFitError::WallReached {
+                wall: OffsetFitWall::SampleCap { cap },
+                grid,
+                rounds,
+                ..
+            }) => {
+                assert_eq!(cap, OFFSET_FIT_SAMPLE_CAP);
+                assert_eq!(grid, (513, 3), "u doubles its intervals each round");
+                assert_eq!(rounds, 8);
+                assert!(
+                    (2 * grid.0 - 1) * grid.1 > cap,
+                    "the cap stops the first round whose grid would exceed it: {grid:?}"
+                );
+                assert!(
+                    grid.0 * grid.0 > cap,
+                    "the u direction alone outgrows a square of the cap: {grid:?}"
+                );
+            }
+            other => panic!("the cap's face: {other:?}"),
         }
     }
 }

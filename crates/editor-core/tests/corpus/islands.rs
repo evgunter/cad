@@ -41,6 +41,7 @@
 //!   strictly inside both the tube's `[0.5,3]` and the pillar's
 //!   `[0.75,2.75]`, so the cross section is constant through it)
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, Node, RecipeNodeId, SlotId};
 
@@ -72,11 +73,9 @@ fn plate_with_tube(r: &mut Recorder) -> RecipeNodeId {
     let tube = r.insert(Node::Subtract {
         from: outer.into(),
         tool: hole.into(),
-        declare: Vec::new(),
     });
     r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![plate.into(), tube.into()]),
-        declare: Vec::new(),
     })
 }
 
@@ -87,9 +86,8 @@ pub fn document_105() -> CorpusDoc {
     let pillar = block(&mut r, (1.75, 2.25), (1.75, 2.25), 0.75, 2.0);
     let u2 = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![u1.into(), pillar.into()]),
-        declare: Vec::new(),
     });
-    r.place(u2);
+    r.place_part(u2);
 
     CorpusDoc {
         name: "nested_islands_105",
@@ -119,9 +117,8 @@ pub fn document_106_depth1() -> CorpusDoc {
     let slab = block(&mut r, (-1.0, 5.0), (-1.0, 5.0), 1.375, 1.0);
     let cut = r.insert(Node::Intersect {
         members: editor_core::Bodies::Spelled(vec![u1.into(), slab.into()]),
-        declare: Vec::new(),
     });
-    r.place(cut);
+    r.place_part(cut);
 
     CorpusDoc {
         name: "nested_islands_106_depth1",
@@ -152,14 +149,12 @@ pub fn document_106_depth2() -> CorpusDoc {
     let pillar = block(&mut r, (1.75, 2.25), (1.75, 2.25), 0.75, 2.0);
     let u2 = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![u1.into(), pillar.into()]),
-        declare: Vec::new(),
     });
     let slab = block(&mut r, (-1.0, 5.0), (-1.0, 5.0), 1.375, 1.0);
     let cut = r.insert(Node::Intersect {
         members: editor_core::Bodies::Spelled(vec![u2.into(), slab.into()]),
-        declare: Vec::new(),
     });
-    r.place(cut);
+    r.place_part(cut);
 
     CorpusDoc {
         name: "nested_islands_106_depth2",

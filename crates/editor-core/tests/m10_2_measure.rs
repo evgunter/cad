@@ -45,7 +45,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
+    apply(doc, edit, Tol::witness())
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
@@ -61,7 +61,6 @@ fn mint(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Recip
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_or_else(|e| panic!("edit refused: {e}"));
     let id = applied.record.minted.expect("an insert mints an id");
@@ -1019,7 +1018,6 @@ fn a_whole_body_is_no_distance_reference() {
             b: whole[0].clone(),
         }],
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(
@@ -1261,7 +1259,7 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
     );
     let (doc, rev) = mint(
         &doc,
-        fixture::revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(1.0)),
+        fixture::revolve_about(profile, (0.0, 0.0), crate::fixture::along_y(), ang(1.0)),
     );
     let body = gathers(&doc, rev);
     // The cusp joint (h, h) revolves about the sketch's y axis to the
@@ -1341,7 +1339,6 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
         Node::Subtract {
             from: ex.into(),
             tool: tool.into(),
-            declare: Vec::new(),
         },
     );
     let body = gathers(&doc, cut);
@@ -1413,12 +1410,12 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
             tool: tool.into(),
         },
     );
-    let (doc, _) = mint(
-        &doc,
-        Node::place_in_world(
+    let (doc, _) = fixture::insert_pinned(
+        doc,
+        Node::place(vec![editor_core::BodyRead::plain(
             editor_core::Operand::output(split, SplitHalf::Above.port()),
-            editor_core::Placement::IDENTITY,
-        ),
+        )]),
+        &EvalOptions::default(),
     );
     let ev = eval(&doc);
     assert!(

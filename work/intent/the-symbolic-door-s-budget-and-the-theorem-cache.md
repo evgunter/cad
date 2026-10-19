@@ -109,9 +109,14 @@ cache staying parked unless that fails?
   unfortunate but since it'll hopefully be fixed i am not sure if
   it's worth a special case".
 - So an unproven row is one finding. Its recourse names an assertion
-  where the residual keeps an opaque atom, as D10 already says a
-  contact beyond what the construction fixes is "recorded and linted,
-  and its recourse is an assertion".
+  where the residual keeps an opaque numerical computation (a value
+  computed apart from the variables), or where the door has no form of
+  the residual at all, as D10 already says a contact beyond what the
+  construction fixes is "recorded and linted, and its recourse is an
+  assertion". A form frozen on the door's budget is not such a case
+  ("not sure if it's worth a special case"): it reads as any other
+  replayed residual, and SYM's row fixes the mitre (orchestrator's
+  reading of these two sentences, 2026-10-11).
 
 **Q2: SYM first; the cache stays parked.** SYM's
 `the-mitres-feet-distance-freezes-at-sym` goes first.

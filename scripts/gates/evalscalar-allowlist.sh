@@ -9,7 +9,7 @@
 # geom_core::Bounds + Send + Sync + topo::AtRestPolicy` (whose one
 # supertrait is `Decide` — it hands out no bracket door) `+
 # crate::analysis::AxisScalar + crate::analysis::SeedScalar +
-# crate::measure::MinClearanceLane + SectionScalar +
+# crate::measure::MinClearanceLane +
 # crate::mate::SolveScalar` — declared once at
 # the seam the rule above already ratifies, so `eval/parts.rs` names
 # the requirement instead of restating `+ Bounds`. THE LIST IS READ FROM

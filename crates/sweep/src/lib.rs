@@ -1,7 +1,8 @@
 //! Sweep operations: solids from validated 2-D profiles —
-//! [`fn@extrude`], [`fn@revolve`], [`loft_body`], [`sweep_body`] (path
-//! sweep), [`fn@skin`], [`tube_along_arc`], and the blend family
-//! ([`mod@fillet`], [`mod@chamfer`], [`mod@blend`]).
+//! [`fn@extrude`], [`fn@revolve`], [`loft_body`] and
+//! [`loft_profiles`], [`sweep_body`] (path sweep), [`fn@skin`],
+//! [`tube_along_arc`], and the blend family ([`mod@fillet`],
+//! [`mod@chamfer`], [`mod@blend`]).
 //!
 //! This crate sits on top of the whole M2 stack: it consumes the
 //! `profile` crate's [`profile::ValidatedProfile`] (the only accepted
@@ -168,11 +169,13 @@ mod swept;
 pub mod test_support;
 
 pub use extrude::{ExtrudeError, ExtrudeSide, Extruded, Extrusion, SideWall, extrude};
-pub use loft::{LoftError, Lofted, loft_body, sweep_body};
-pub use revolve::tube::{TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow};
+pub use loft::{LoftError, Lofted, loft_body, loft_profiles, sweep_body};
+pub use revolve::tube::{
+    TubeDecision, TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow,
+};
 pub use revolve::{
-    BandWall, Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, WedgeCapsError,
-    WedgeFrames, revolve, revolved_caps,
+    BandWall, ClearanceDecision, Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind,
+    WedgeCapsError, WedgeFrames, revolve, revolved_caps,
 };
 pub use swept::CapPlaneError;
 // `SketchSegment` is re-exported for `segment_curve`, the retained
@@ -186,8 +189,9 @@ pub use swept::CapPlaneError;
 pub use geom_brep::SketchSegment;
 pub use profile::{ConstructedLoop, ProfileLoop};
 pub use skin::{
-    LoftGeometry, Section, SectionLoop, SkinError, loft_geometry, loft_parameters, make_compatible,
-    segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
+    ArcSweepDecision, LoftGeometry, Section, SectionLoop, SkinError, loft_geometry,
+    loft_parameters, make_compatible, segment_curve, skin, skin_on, skin_parameters,
+    sweep_geometry, sweep_places,
 };
 
 pub mod blend;

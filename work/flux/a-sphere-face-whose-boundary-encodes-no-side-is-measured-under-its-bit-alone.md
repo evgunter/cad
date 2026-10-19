@@ -2,11 +2,13 @@
 id: a-sphere-face-whose-boundary-encodes-no-side-is-measured-under-its-bit-alone
 kind: issue
 title: A sphere face whose boundary encodes no side (the rimless band, a tilted-circle face with a pole on its loop) is measured under its sense bit alone, so a flipped bit measures the complement silently
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
 refs: [sphere-flux-arm-carries-two-closed-forms-for-one-face-kind]
+pr: 4573
+closed: 2026-10-11
 ---
 
 
@@ -50,3 +52,31 @@ the neighbouring faces' sides carried across a shared edge into a
 global orientation pass, or the chart walk's pole junction stated
 without the bit — or the reason none exists, recorded where
 `MaterialSign::Unencoded` is documented.
+
+## Shrunk (`flux/sphere-arm`, 2026-10-10)
+
+`sphere_loop_side` reads a one-loop face as the side of its loop that
+holds no chart pole, by each pole's stereographic turning number, and a
+face with holes by the sign of its Gauss–Bonnet area. What remains
+`Unencoded`: faces with both poles on the loop, or within the band of
+it (seam siblings meeting tangentially, where check 4 reads a flip of
+one sibling as a lamina but sees nothing when both are flipped:
+`a-pair-of-seam-siblings-flipped-together-is-silent`), and faces with a
+pole off the loop on each side, which hold a pole under either sense and
+are validity's to refuse
+(`work/restfront/validity-refuses-an-interior-chart-singularity.md`).
+Witness: `sweep/tests/tilted_sphere_pair.rs`,
+`a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name`.
+
+## Closed (2026-10-11, PR 4573)
+
+(FLUX orchestrator) What this row measured is closed. Every encoded face
+now reads its side from the boundary. Each part of the residual has its
+own row, so this one closes rather than staying open as a container:
+
+- seam siblings flipped together:
+  `a-pair-of-seam-siblings-flipped-together-is-silent`;
+- a pole off the loop on each side: validity's
+  `validity-refuses-an-interior-chart-singularity`;
+- the in-band twin: pinned by
+  `a_pole_in_the_band_of_a_great_carriers_plane_leaves_the_loop_unread`.

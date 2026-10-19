@@ -9,32 +9,37 @@
 //! under the class its senses decide: opposed senses a `Rest` contact,
 //! aligned senses a continuation. A pair of distinct carriers the
 //! tangent witness lane verifies tangent along its locus joins them as
-//! a `Tangent` contact or, its senses aligned, a seam. From there the
-//! pair takes the arm a verified declaration of that class opens, and
-//! the declaration door records the decision ([`crate::coincidence`]),
-//! so a declared and an undeclared scene are one body. The decision is
+//! one `Tangent` coincidence, which claims nothing of the materials
+//! (C4): the consumers read which side each lies on. From there the
+//! pair takes the arm its class opens, and the declaration door records
+//! the decision ([`crate::coincidence`]). The decision is
 //! kept only where the two faces meet, at a point, an edge or an area
 //! ([`touched`]): the boxes offer a frame-dependent superset of the
 //! pairs that do.
 //!
-//! A pair whose coincidence does not decide (in band, or poisoned) is
-//! left to the stage that meets it, which refuses it there: two faces
-//! whose carriers do not decide one may never touch.
+//! A pair whose one-carrier coincidence does not decide (in band, or
+//! poisoned) is left to the stage that meets it, which refuses it there:
+//! two faces whose carriers do not decide one may never touch. The door
+//! keeps what it read of each such pair ([`Glue::in_band`]), for a
+//! corner that meets the pair to quote where that reading binds.
 
 use std::borrow::Cow;
 
 use geom_core::{Band, Bounds, Decide};
 
 use super::{
-    BooleanDeclarations, BooleanError, CarrierRelation, FacePairDeclaration, Operand, PairUnread,
-    Tangency, boxes, carrier_pair_relation, verify_tangency_declaration,
+    BooleanError, CarrierRelation, DeclarationRead, DoorReading, Glue, GluedPair, InBandPair,
+    Operand, PairUnread, TangencyFailure, boxes, carrier_pair_relation, glued_tangency,
 };
 use crate::body::Body;
-use crate::contact::BooleanCoincidence;
+use crate::contact::GlueClass;
 use crate::entity::FaceKey;
 
 /// `decls` with every undeclared pair the operation decides one carrier
-/// added under its class, in A's face order and B's within each.
+/// added under its class, and every pair it reads in band added to
+/// [`Glue::in_band`] with that reading, each in A's face order and B's
+/// within each. `decls` itself comes back where neither adds anything,
+/// and an owned copy where either does, an in-band pair alone included.
 ///
 /// # Errors
 ///
@@ -43,56 +48,72 @@ use crate::entity::FaceKey;
 pub(crate) fn decided_declarations<'d, T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
-    decls: &'d BooleanDeclarations,
+    decls: &'d Glue,
     band: Band,
-) -> Result<Cow<'d, BooleanDeclarations>, BooleanError> {
+) -> Result<Cow<'d, Glue>, BooleanError> {
     if decls.verdicts == super::Verdicts::Given {
         return Ok(Cow::Borrowed(decls));
     }
-    let declared = |fa, fb| {
-        decls
-            .coincident_faces
-            .iter()
-            .any(|d| d.a == fa && d.b == fb)
-    };
-    let mut found = Vec::new();
+    let declared = |fa, fb| decls.pairs.iter().any(|d| d.a == fa && d.b == fb);
+    let (mut found, mut in_band) = (Vec::new(), Vec::new());
     for (fa, fb) in overlapping_pairs(a, b, |_| true, band)? {
         if declared(fa, fb) {
             continue;
         }
         let class = match carrier_pair_relation(a, fa, b, fb, false, band) {
-            Ok(Ok(CarrierRelation::SameOpposite)) => Some(BooleanCoincidence::REST),
-            Ok(Ok(CarrierRelation::SameOriented)) => Some(BooleanCoincidence::Continuation),
+            Ok(Ok(CarrierRelation::SameOpposite)) => Some(GlueClass::Rest),
+            Ok(Ok(CarrierRelation::SameOriented)) => Some(GlueClass::Continuation),
             Ok(Ok(CarrierRelation::Distinct)) | Err(PairUnread::OutsideInventory) => {
-                tangency(a, fa, b, fb, band)?
+                tangency(a, fa, b, fb, band)?.then_some(GlueClass::Tangent)
             }
-            Ok(Err(_)) | Err(PairUnread::Extent(_)) => None,
+            Ok(Err(refusal)) => {
+                in_band.extend(DoorReading::of(refusal).map(|reading| InBandPair {
+                    a: fa,
+                    b: fb,
+                    reading,
+                }));
+                None
+            }
+            // Unread, like in band: left to the stage that meets the pair (module doc).
+            Err(PairUnread::Extent(_)) => None,
         };
         if let Some(class) = class {
-            found.push(FacePairDeclaration::new(fa, fb, class));
+            found.push(GluedPair::new(fa, fb, class));
         }
     }
-    if found.is_empty() {
+    if found.is_empty() && in_band.is_empty() {
         return Ok(Cow::Borrowed(decls));
     }
     let mut out = decls.clone();
-    out.coincident_faces.extend(found);
+    out.pairs.extend(found);
+    out.in_band.extend(in_band);
     Ok(Cow::Owned(out))
 }
 
-/// **The tangency the witness lane verifies between `fa` and `fb`**: a
-/// `Tangent` contact where the pair verifies as one, else a seam where
-/// it verifies as one, else `None`. Asked only of a pair the witness
-/// lane has a locus for: a plane and a cylinder, two cylinders, or two
-/// faces ending on one circle.
+/// **Whether the witness lane verifies `fa` and `fb` tangent** along a
+/// locus ([`glued_tangency`]), asked only of a pair it has a locus for:
+/// a plane and a cylinder, two cylinders, or two faces ending on one
+/// circle. Along a rim the routing must also read the junction the two
+/// faces make as one the zip builds, the smooth seam.
+///
+/// Counter-evidence, a pair outside the lane and a junction the routing
+/// places outside what the zip builds are no tangency. A refusal no
+/// reading of the pair settles (an in-band margin, an undecidable rim
+/// identity, an unreadable face) is the operation's: a pair the lane has
+/// a locus for never reaches a later stage unglued on a reading the
+/// door could not take (C8).
+///
+/// # Errors
+///
+/// That refusal, typed; [`BooleanError::ClassificationInvariant`] where
+/// an enumerated face has no surface.
 fn tangency<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<Option<BooleanCoincidence>, BooleanError> {
-    use geom::SurfaceKind::{Cylinder, Plane};
+) -> Result<bool, BooleanError> {
     let kind = |body: &Body<T>, f| {
         body.get_face(f)
             .and_then(|face| body.get_surface(face.surface))
@@ -101,22 +122,33 @@ fn tangency<T: Decide>(
                 what: "the glue door: a face it enumerated has no surface",
             })
     };
-    let ruled = matches!(
-        (kind(a, fa)?, kind(b, fb)?),
-        (Plane, Cylinder) | (Cylinder, Plane) | (Cylinder, Cylinder)
-    );
-    if !ruled
-        && !matches!(
-            super::rim_wedge::shared_rim(a, fa, b, fb, band),
-            Ok(Some(_))
-        )
+    let read = DeclarationRead::Moot;
+    if !ruled((kind(a, fa)?, kind(b, fb)?))
+        && super::rim_wedge::shared_rim(a, fa, b, fb, band)
+            .map_err(|diag| BooleanError::coincidence(super::Coincide::Rim, read, diag))?
+            .is_none()
     {
-        return Ok(None);
+        return Ok(false);
     }
-    Ok([Tangency::Contact, Tangency::Seam]
-        .into_iter()
-        .find(|&claim| verify_tangency_declaration(a, fa, b, fb, claim, band).is_ok())
-        .map(Tangency::coincidence))
+    match glued_tangency(a, fa, b, fb, read, band) {
+        Ok(_) => Ok(true),
+        Err(TangencyFailure::Refused(e)) => Err(e),
+        Err(
+            TangencyFailure::Contradicted { .. }
+            | TangencyFailure::Unsupported
+            | TangencyFailure::Unrouted(_),
+        ) => Ok(false),
+    }
+}
+
+/// Whether two carriers' kinds are the witness lane's line pairs: a
+/// plane and a cylinder, or two cylinders.
+pub(crate) fn ruled(kinds: (geom::SurfaceKind, geom::SurfaceKind)) -> bool {
+    use geom::SurfaceKind::{Cylinder, Plane};
+    matches!(
+        kinds,
+        (Plane, Cylinder) | (Cylinder, Plane) | (Cylinder, Cylinder)
+    )
 }
 
 /// **The cross pairs whose face boxes overlap**: each face of `a` against
@@ -127,7 +159,7 @@ fn tangency<T: Decide>(
 ///
 /// A face box's own refusal; [`BooleanError::ClassificationInvariant`]
 /// where the face tree returns an index past its input.
-fn overlapping_pairs<T: Decide + Bounds>(
+pub(super) fn overlapping_pairs<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     keep: impl Fn(&geom::Surface<T>) -> bool,
@@ -161,20 +193,23 @@ fn overlapping_pairs<T: Decide + Bounds>(
     Ok(out)
 }
 
-/// **The coaxial cylinder×sphere pairs of the two operands**, one row
-/// each: the sphere's centre decided on the cylinder's axis by its
-/// margin (`geom_brep::cylinder_sphere_section`), the classification
-/// the join's germ frame reads for the pair. In A's face order and B's
-/// within each; none where the operation's verdicts are given.
+/// **The coincidences the join's germ frames read, per face pair of
+/// the two operands**: a coaxial cylinder×sphere pair's one row, the
+/// sphere's centre decided on the cylinder's axis by its margin
+/// (`geom_brep::cylinder_sphere_section`); and a crossing cylinder
+/// pair's two rows, its radii decided equal and its axes decided
+/// meeting ([`super::join::crossing_cylinder_margins`]), the
+/// classification the join's bisector lane reads. In A's face order and
+/// B's within each; none where the operation's verdicts are given.
 ///
 /// # Errors
 ///
 /// A face box's own refusal; [`BooleanError::ClassificationInvariant`]
 /// where the face tree returns an index past its input.
-pub(crate) fn coaxial_rows<T: Decide + Bounds>(
+pub(crate) fn frame_rows<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
-    decls: &BooleanDeclarations,
+    decls: &Glue,
     band: Band,
 ) -> Result<Vec<crate::Coincidence>, BooleanError> {
     if decls.verdicts == super::Verdicts::Given {
@@ -191,6 +226,16 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
             geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. }
         )
     };
+    let row = |(fa, fb), relation, site, margin| crate::Coincidence {
+        cells: [
+            crate::RowCell::face(Operand::A, fa),
+            crate::RowCell::face(Operand::B, fb),
+        ],
+        relation,
+        site,
+        margin,
+        discharge: crate::Discharge::of(margin),
+    };
     let mut rows = Vec::new();
     for (fa, fb) in overlapping_pairs(a, b, curved, band)? {
         let (Some(sa), Some(sb)) = (surface(a, fa), surface(b, fb)) else {
@@ -203,19 +248,27 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
             (geom::Surface::Sphere { .. }, geom::Surface::Cylinder { .. }) => {
                 geom_brep::cylinder_sphere_section(&sb, &sa, band)
             }
+            (geom::Surface::Cylinder { .. }, geom::Surface::Cylinder { .. }) => {
+                if let Some([radii, meet]) =
+                    super::join::crossing_cylinder_margins((a, fa), (b, fb), band)
+                {
+                    let site = crate::DecisionSite::CrossingCylinders;
+                    rows.push(row((fa, fb), crate::Relation::SameRadius, site, radii));
+                    rows.push(row((fa, fb), crate::Relation::AxesMeet, site, meet));
+                }
+                continue;
+            }
             _ => continue,
         };
+        // A refusal adds no row: where the faces meet, a later decision
+        // refuses (`hone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
         if let Ok((_, margin)) = section {
-            rows.push(crate::Coincidence {
-                cells: [
-                    crate::RowCell::face(Operand::A, fa),
-                    crate::RowCell::face(Operand::B, fb),
-                ],
-                relation: crate::Relation::OnCarrier,
-                site: crate::DecisionSite::CoaxialSphere,
+            rows.push(row(
+                (fa, fb),
+                crate::Relation::OnCarrier,
+                crate::DecisionSite::CoaxialSphere,
                 margin,
-                discharge: crate::Discharge::of(margin),
-            });
+            ));
         }
     }
     Ok(rows)
@@ -230,13 +283,14 @@ pub(crate) fn coaxial_rows<T: Decide + Bounds>(
 /// meet does not. A row is kept where the faces meet whether or not the
 /// decision shaped the result: two faces meeting at one corner keep
 /// theirs (`intent/a-face-pair-row-only-where-its-decision-shaped-the-result`).
-/// Rows of any other shape are kept as they are.
+/// Rows of any other shape are kept as they are. Returns the kept rows'
+/// indices in `rows`, ascending.
 pub(crate) fn touched<T: geom_core::Real>(
     rows: &[crate::Coincidence],
     pending: &[super::reduce::PendingRow],
-    splits: &[super::EdgeSplit],
+    splits: &super::EdgeSplits,
     [a, b]: [&Body<T>; 2],
-) -> Vec<crate::Coincidence> {
+) -> Vec<usize> {
     use crate::{Cell, RowCell};
     // Each face's closure in its input, read once: the face, its edges
     // and their ends.
@@ -262,18 +316,9 @@ pub(crate) fn touched<T: geom_core::Real>(
         .map(|row| row.cells.map(|end| super::ops::input_cell(end, splits)))
         .collect();
     rows.iter()
-        .filter(|row| {
-            let [
-                RowCell::Input {
-                    input: Operand::A,
-                    cell: Cell::Face(fa),
-                },
-                RowCell::Input {
-                    input: Operand::B,
-                    cell: Cell::Face(fb),
-                },
-            ] = row.cells
-            else {
+        .enumerate()
+        .filter(|(_, row)| {
+            let Some((fa, fb)) = row.face_pair() else {
                 return true;
             };
             let (on_a, on_b) = (closure(Operand::A, fa), closure(Operand::B, fb));
@@ -285,6 +330,6 @@ pub(crate) fn touched<T: geom_core::Real>(
                     || (on(y, Operand::A, on_a) && on(x, Operand::B, on_b))
             })
         })
-        .cloned()
+        .map(|(i, _)| i)
         .collect()
 }

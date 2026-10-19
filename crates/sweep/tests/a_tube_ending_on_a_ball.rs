@@ -22,7 +22,7 @@ use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Tol, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::test_support::{ball_poled_z, ball_poled_z_at, brick, extruded, finished, sketch_at};
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::{AtRestBody, BooleanError, BooleanResult, MassPropsError, ValidationError};
+use topo::{AtRestBody, BooleanError, BooleanResult};
 
 use crate::common::differential::{assert_sound_and_meshed, every_op_both_orders, outcome};
 use crate::common::oracles::{ball_volume, cap_volume};
@@ -76,7 +76,9 @@ impl Pose {
         let o = Point3::origin();
         let place = Affine3::rotation_about_axis(o, Vec3::unit_z(), self.turn)
             * Affine3::rotation_about_axis(o, Vec3::unit_x(), self.tilt);
-        let placed = topo::transform_rigid(&body, &place, tol).unwrap();
+        let placed =
+            topo::transform_rigid(&body, &geom_core::test_support::rigid(&place, tol), tol)
+                .unwrap();
         (finished("the tube", placed, tol), vt, shared)
     }
 }
@@ -139,36 +141,16 @@ fn a_tilted_tube_builds_at_its_closed_form() {
 }
 
 /// **A rim inside one ball face holes it.** Tilted far enough, the rim
-/// crosses neither seam meridian, so the ball face keeps it as a ring:
-/// the union and `ball ∖ tube` refuse at the result gate
-/// (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`), and the
-/// four ops that keep no holed ball face build sound, read without a
-/// mesh as the tilted tube's are.
+/// crosses neither seam meridian, so the ball face keeps it as a ring.
+/// The sphere arm measures a face over every loop, so every op builds
+/// sound at its closed form, read without a mesh as the tilted tube's
+/// are (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`).
 #[test]
 fn a_rim_inside_one_ball_face_holes_it() {
     let tol = Tol::witness();
     for (label, r, want) in runs("tilted 1.2", &Pose::new(1.0, 2.0, 1.2, 0.0)) {
-        if label.contains('∪') || label.starts_with("tilted 1.2, B ∖ A") {
-            let Err(BooleanError::ResultInvalid { errors }) = &r else {
-                panic!(
-                    "{label}: wanted the result gate, got {}",
-                    outcome(r, want, tol)
-                );
-            };
-            assert!(
-                matches!(
-                    errors.as_slice(),
-                    [ValidationError::VolumeUncomputable {
-                        source: MassPropsError::RingOnCurvedFace { .. },
-                        ..
-                    }]
-                ),
-                "{label}: {errors:?}"
-            );
-        } else {
-            let line = outcome(r, want, tol);
-            assert!(line.starts_with("OK SOUND"), "{label}: {line}");
-        }
+        let line = outcome(r, want, tol);
+        assert!(line.starts_with("OK SOUND"), "{label}: {line}");
     }
 }
 
@@ -184,7 +166,12 @@ struct Probe {
 /// `tube_at(a, z0, len)` turned by `place` about the origin.
 fn placed_tube(a: f64, z0: f64, len: f64, place: Affine3<f64>) -> AtRestBody<f64> {
     let tol = Tol::witness();
-    let body = topo::transform_rigid(&tube_at(a, z0, len), &place, tol).unwrap();
+    let body = topo::transform_rigid(
+        &tube_at(a, z0, len),
+        &geom_core::test_support::rigid(&place, tol),
+        tol,
+    )
+    .unwrap();
     finished("the tube", body, tol)
 }
 

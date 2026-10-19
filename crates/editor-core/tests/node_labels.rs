@@ -14,8 +14,8 @@ use std::sync::Arc;
 use crate::fixture::split_world as split;
 use editor_core::{
     CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance,
-    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError, content_pin, evaluate,
-    inline, load, save,
+    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError, Uncarried,
+    content_pin, evaluate, inline, load, save,
 };
 use fixture::resolver::PartStore;
 use fixture::{die, insert, len, on_frame, square, step};
@@ -38,8 +38,7 @@ fn set_label(doc: ProfileDoc, node: RecipeNodeId, text: Option<&str>) -> Profile
 }
 
 fn refusal(doc: &ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>) -> EditError {
-    editor_core::apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
-        .expect_err("the edit refuses")
+    editor_core::apply(doc, &edit, Tol::witness()).expect_err("the edit refuses")
 }
 
 /// A square block on its own sketch frame, `cx` along x: the frame,
@@ -345,9 +344,8 @@ fn the_spoken_node_says_kind_label_and_tag_as_the_document_holds_them() {
 }
 
 /// **An edit refusal speaks each node it names at the raise**, from the
-/// document the door holds: kind, label and tag for a held node, and
-/// kind and tag for the node an insert is minting, which carries no
-/// label. The typed field keeps the id a caller matches on.
+/// document the door holds: kind, label and tag for a held node. The
+/// typed field keeps the id a caller matches on.
 #[test]
 fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
     let doc = ProfileDoc::empty_derived("node-labels-refusals", Tol::witness());
@@ -376,109 +374,6 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
             .starts_with(&format!("Extrude \"base plate\" ({e})'s profile reads")),
         "{wrong}"
     );
-
-    // A union over the extrude declaring a side read through the
-    // profile, which is no operand of it.
-    let wall = fixture::fname(extrude, fixture::wall(&doc, extrude, 0));
-    let stray = refusal(
-        &doc,
-        DocEdit::InsertNode {
-            node: Box::new(stray_union(&doc, profile, extrude)),
-            fresh: Vec::new(),
-        },
-    );
-    let EditError::DeclaredSiteNotAnOperand { node, name, .. } = &stray else {
-        panic!("a side read through a non-operand refuses DeclaredSiteNotAnOperand, got {stray:?}");
-    };
-    assert_eq!(
-        (node.kind(), node.label(), name),
-        (Some("Union"), None, &doc.spoken_name(&wall)),
-        "the minted node by its kind alone, the name as the document holds it"
-    );
-    assert!(
-        stray
-            .to_string()
-            .contains(&format!("Extrude \"base plate\" ({e})")),
-        "{stray}"
-    );
-}
-
-/// A one-member union over `extrude` whose declared pair puts one side
-/// at `profile`'s read — a read the union does not take, so every door
-/// that writes the pair refuses it `DeclaredSiteNotAnOperand`.
-fn stray_union(
-    doc: &ProfileDoc,
-    profile: RecipeNodeId,
-    extrude: RecipeNodeId,
-) -> editor_core::AuthoredNode {
-    Node::Union {
-        members: editor_core::Bodies::Spelled(vec![extrude.into()]),
-        declare: editor_core::declare_rest(vec![(
-            editor_core::SitedRef::new(
-                fixture::out(doc, profile),
-                fixture::fname(extrude, fixture::wall(doc, extrude, 0)),
-            ),
-            editor_core::SitedRef::new(
-                fixture::out(doc, extrude),
-                fixture::fname(extrude, fixture::wall(doc, extrude, 1)),
-            ),
-        )]),
-    }
-}
-
-/// **A held node an edit rewrites is spoken with its label**: a
-/// `SetDeclare` that reads a side through a non-operand refuses about
-/// the union as the document holds it, label and all, not as the insert
-/// door's kind-and-tag spelling of a node being minted.
-#[test]
-fn a_set_declare_refusal_names_the_labelled_union_it_rewrites() {
-    let doc = ProfileDoc::empty_derived("node-labels-set-members", Tol::witness());
-    let (doc, [_, left_profile, left]) = block(doc, 0.0);
-    let (doc, [_, _, right]) = block(doc, 2.0);
-    let (doc, union) = insert(
-        doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![left.into(), right.into()]),
-            declare: Vec::new(),
-        },
-    );
-    let doc = set_label(doc, union, Some("pair"));
-    let doc = set_label(doc, left, Some("left"));
-
-    // `left`'s wall, read through `left`'s profile rather than `left`.
-    let wall = fixture::fname(left, fixture::wall(&doc, left, 0));
-    let stray = refusal(
-        &doc,
-        DocEdit::SetDeclare {
-            node: union,
-            pairs: editor_core::declare_rest(vec![(
-                editor_core::SitedRef::new(fixture::out(&doc, left_profile), wall.clone()),
-                editor_core::SitedRef::new(
-                    fixture::out(&doc, right),
-                    fixture::fname(right, fixture::wall(&doc, right, 0)),
-                ),
-            )]),
-        },
-    );
-    let EditError::DeclaredSiteNotAnOperand { node, name, .. } = &stray else {
-        panic!("a side read through a non-operand refuses DeclaredSiteNotAnOperand, got {stray:?}");
-    };
-    assert_eq!(
-        (node, name),
-        (&doc.spoken(union), &doc.spoken_name(&wall)),
-        "the union and the name as the document holds them"
-    );
-    assert_eq!(
-        node.label(),
-        Some(&label("pair")),
-        "the rewritten union keeps its label"
-    );
-    assert!(
-        stray
-            .to_string()
-            .contains(&format!("Extrude \"left\" ({})", tag(left.0.digest()))),
-        "{stray}"
-    );
 }
 
 /// **A delete's report speaks from the document the door was handed.**
@@ -502,13 +397,8 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
     let doc = set_label(doc, victim, Some("base plate"));
     let doc = set_label(doc, carrier, Some("mount"));
 
-    let applied = editor_core::apply(
-        &doc,
-        &DocEdit::DeleteNode { id: victim },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("a name is not an edge, so the delete lands");
+    let applied = editor_core::apply(&doc, &DocEdit::DeleteNode { id: victim }, Tol::witness())
+        .expect("a name is not an edge, so the delete lands");
     let reported = crate::fixture::without_anonymous(&applied.maintenance);
     let [Maintenance::StrandedSelection { readers, name, .. }] = reported.as_slice() else {
         panic!("one strand, got {reported:?}");
@@ -661,11 +551,18 @@ fn a_split_forward_reference_speaks_from_the_document_being_split() {
 fn an_inline_forward_reference_speaks_from_the_part() {
     let tol = Tol::witness();
     let (part_doc, late, c) = forward_reference("node-labels-inline-forward");
+    // The late block is the part's world, so the instance has a copy
+    // to pin where it stands.
+    let (part_doc, _) = fixture::place(part_doc, c);
     let mut store = PartStore::default();
     let doc_ref = store.insert(part_doc.clone(), tol);
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
+    let opts = editor_core::EvalOptions {
+        resolver: Some(Arc::clone(&resolver)),
+        ..editor_core::EvalOptions::default()
+    };
     let host = ProfileDoc::empty_derived("node-labels-inline-forward-host", tol);
-    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, inst) = fixture::insert_pinned(host, Node::instantiate_part(doc_ref), &opts);
     let refused = inline(&host, inst, &resolver, tol).expect_err("the part splices in order");
     let InlineError::Edit { error } = &refused else {
         panic!("the replay refuses, got {refused:?}");
@@ -685,8 +582,8 @@ fn an_inline_forward_reference_speaks_from_the_part() {
     );
 }
 
-/// A document holding a fillet whose selection was rebound onto the
-/// wall of a block inserted after the fillet, labelled `late block`:
+/// A document holding a shell whose open faces were rebound onto the
+/// wall of a block inserted after the shell, labelled `late block`:
 /// the rebound name and that block's extrude. A selection is a frozen
 /// name with no document-order rule, so the rebind is admitted and the
 /// reference points forward.
@@ -695,11 +592,11 @@ fn forward_reference(id: &str) -> (ProfileDoc, editor_core::StableName, RecipeNo
     let (doc, [_, _, a]) = block(doc, 0.0);
     let (doc, [_, _, b]) = block(doc, 0.5);
     let early = fixture::fname(b, fixture::wall(&doc, b, 0));
-    let (doc, _fillet) = insert(
+    let (doc, _shell) = insert(
         doc,
-        Node::Fillet {
-            radius: len(0.1),
-            selection: editor_core::Operand::select(a, vec![early.clone()]),
+        Node::Shell {
+            thickness: len(0.1),
+            open: editor_core::Operand::select(a, vec![early.clone()]),
         },
     );
     let (doc, [_, _, c]) = block(doc, 0.5);
@@ -736,38 +633,45 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
     let pair_ref = store.insert(pair, tol);
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let host = ProfileDoc::empty_derived("node-labels-inline-host", tol);
-    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    // The instance's bundle is empty: placed by no world pin, so only
+    // a part whose one world placement is an instance at the identity
+    // could take it, and this part's is a copy of a body.
+    let (host, inst) = insert(host, fixture::mated_instance(doc_ref));
     let host = set_label(host, inst, Some("left bracket"));
 
-    let (placed, _) = step(
-        host.clone(),
-        DocEdit::SetOffset {
-            instance: inst,
-            offset: Some(editor_core::Placement::literal(
-                &editor_core::Frame::translation([3.0, 0.0, 0.0]),
-            )),
-            fresh: Vec::new(),
-        },
-    );
-    let refused = inline(&placed, inst, &resolver, tol).expect_err("a placed plain part");
-    let InlineError::UnplaceableFrame { root } = &refused else {
-        panic!("the frame is not expressible, got {refused:?}");
+    let refused = inline(&host, inst, &resolver, tol).expect_err("a loose plain part");
+    let InlineError::UnplaceablePart {
+        instance,
+        why: Uncarried::NotAnInstance { placement },
+    } = &refused
+    else {
+        panic!("the part's placement takes no bundle, got {refused:?}");
     };
     assert_eq!(
-        (root.id(), root.label()),
+        (instance.id(), instance.label()),
+        (inst, Some(&label("left bracket"))),
+        "the instance is the host's, spoken from the host"
+    );
+    assert_eq!(
+        (placement.id(), placement.label()),
         (body, Some(&label("bracket"))),
         "the placement is the part's, spoken from the part"
     );
     assert!(
         refused.to_string().contains(&format!(
-            "part placement PlaceInWorld \"bracket\" ({})",
+            "Place \"bracket\" ({}) copies recipe content",
             tag(body.0.digest())
         )),
         "{refused}"
     );
 
     let pair_host = ProfileDoc::empty_derived("node-labels-inline-pair-host", tol);
-    let (pair_host, inst) = insert(pair_host, Node::instantiate_part(pair_ref));
+    let opts = editor_core::EvalOptions {
+        resolver: Some(Arc::clone(&resolver)),
+        ..editor_core::EvalOptions::default()
+    };
+    let (pair_host, inst) =
+        fixture::insert_pinned(pair_host, Node::instantiate_part(pair_ref), &opts);
     let pair_host = set_label(pair_host, inst, Some("left bracket"));
     let (consumed, by) = insert(
         pair_host,
@@ -785,8 +689,8 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
         .expect_err("a reader of a two-body world has no one body to read");
     assert!(
         refused.to_string().starts_with(&format!(
-            "inline: Transform \"offset\" ({b}) reads the instance, and the referenced \
-             document places 2 bodies",
+            "inline: Transform \"offset\" ({b}) reads the instance's copies, and the world \
+             in question places 2 copies",
             b = tag(by.0.digest())
         )),
         "{refused}"
@@ -810,7 +714,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     let (doc, [_, profile, extrude]) = block(doc, 0.0);
     let doc = set_label(doc, profile, Some("sketch"));
     let doc = set_label(doc, extrude, Some("base plate"));
-    let (p, e) = (tag(profile.0.digest()), tag(extrude.0.digest()));
+    let e = tag(extrude.0.digest());
     let plate = format!("Extrude \"base plate\" ({e})");
 
     let unknown_slot = derive(
@@ -841,23 +745,19 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         "{not_a_measure}"
     );
 
-    let pinned = Sensitivity {
+    let unlifted = Sensitivity {
         document: doc.id(),
         param: editor_core::VarId::new(0, 7),
         outcome: SensitivityOutcome::Unliftable {
             node: extrude,
-            refusal: LiftRefusal::PinnedSection {
-                section: profile,
-                param: editor_core::VarId::new(0, 7),
-            },
+            refusal: LiftRefusal::GuidedReplay { loop_: 0, step: 1 },
         },
     };
     assert_eq!(
-        render_sensitivity(&pinned, &doc),
+        render_sensitivity(&unlifted, &doc),
         format!(
-            "unliftable at {plate}: {} feeds the section of Profile \"sketch\" ({p}), which \
-             stays f64 (C6/D9)",
-            doc.spoken_var(editor_core::VarId::new(0, 7))
+            "unliftable at {plate}: the guided elaboration could not re-confirm loop 0 step 1 at \
+             this pass's scalar"
         )
     );
 
@@ -967,10 +867,7 @@ fn a_report_rendered_from_another_document_fails_loud() {
         param: editor_core::VarId::new(0, 7),
         outcome: SensitivityOutcome::Unliftable {
             node: extrude,
-            refusal: editor_core::LiftRefusal::PinnedSection {
-                section: extrude,
-                param: editor_core::VarId::new(0, 7),
-            },
+            refusal: editor_core::LiftRefusal::GuidedReplay { loop_: 0, step: 1 },
         },
     };
     let _ = render_sensitivity(&entry, &other);
@@ -1017,8 +914,8 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
     let spoken = report.spoken(&doc);
     assert!(
         spoken.contains(&format!(
-            "check separation: PlaceInWorld \"base\" ({b}) output 0: not certifiably \
-             disjoint from PlaceInWorld \"boss\" ({o}) output 0"
+            "check separation: Place \"base\" ({b}) output 0: not certifiably \
+             disjoint from Place \"boss\" ({o}) output 0"
         )),
         "the separation finding speaks both placements from the document: {spoken}"
     );
@@ -1038,7 +935,7 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
     let spoken = refusal.spoken(&doc);
     assert!(
         spoken.contains(&format!(
-            "check connectedness: PlaceInWorld \"base\" ({b}) output 0:"
+            "check connectedness: Place \"base\" ({b}) output 0:"
         )),
         "the refusal speaks its placement from the document: {spoken}"
     );
@@ -1101,7 +998,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     use editor_core::{
         ChecksError, Cmp, Diagnosis, EntityKind, HitTestError, InterrogateError, NamePat, NodePick,
         NodePickError, NodeStanding, Resolution, ResolveError, RunCtx, SelectRefusal, Selector,
-        SlotId, resolve, select, select_where,
+        SlotId, select, select_where,
     };
 
     let tol = Tol::witness();
@@ -1230,7 +1127,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
 
     let (gone, _) = step(doc.clone(), DocEdit::DeleteNode { id: extrude });
     let gone_ev = eval(&gone);
-    let Resolution::Failed(failure) = resolve(
+    let Resolution::Failed(failure) = crate::fixture::resolve_at_mint(
         RunCtx {
             doc: &gone,
             eval: &gone_ev,
@@ -1255,7 +1152,7 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
 fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     use editor_core::clearance::{ClearanceRefusal, SelectionRefusal};
     use editor_core::{
-        MateFault, MateSide, NodeErrorKind, NodeRefusal, PoseRefusal, Speaker, Unplaced, spoken_by,
+        MateFault, MateRef, NodeErrorKind, NodeRefusal, PoseRefusal, Speaker, spoken_by,
     };
     let doc = ProfileDoc::empty(DocumentId::derive("speak-inner"), Tol::witness());
     let (doc, [_, _, body]) = block(doc, 0.0);
@@ -1285,45 +1182,43 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
         "{measured}"
     );
 
-    // A placement refusal's own kind is about the placement's node.
-    let placement = PoseRefusal::Placement {
-        node: body,
-        error: NodeRefusal::from(NodeErrorKind::Unplaced {
-            group: body,
-            cause: Unplaced::NoOffset,
-        }),
+    // A pose refusal names the placement it is about once.
+    let placement = PoseRefusal::Loose {
+        placement: body,
+        root: body,
     };
-    let said = placement.spoken(&doc);
+    let said = spoken_by(&placement, &doc);
     assert!(
         said.starts_with(&format!(
-            "the placement at {spoken} does not evaluate: this reads the group rooted at this \
-             node,"
+            "{spoken} is a loose copy: nothing pins it against the world, so it has no world \
+             pose"
         )),
         "{said}"
     );
     assert_eq!(said.matches(&t).count(), 1, "{said}");
 
-    // A mate fault recorded against an instance names the instance once,
-    // by its noun where it has one and as `this node` where it has none.
-    let self_mate = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::SelfMate {
-        mate: RecipeNodeId::new(0, 7),
-        instance: body,
+    // A mate fault recorded against a placement names the placement
+    // once, by its noun where it has one and as `this node` where it has
+    // none.
+    let constraint = editor_core::ConstraintId(editor_core::MintId::new(8, 0x8));
+    let targets = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::TargetsDiffer {
+        placement: body,
+        constraints: vec![constraint],
     })));
-    let line = self_mate.line_at(body, Speaker::of(&doc));
+    let line = targets.line_at(body, Speaker::of(&doc));
     assert!(
-        line.starts_with(&format!("{spoken} failed: the mate solve refused: mate "))
-            && line.contains("(it stands on this instance)"),
+        line.starts_with(&format!(
+            "{spoken} failed: the mate solve refused: this node's constraints "
+        )) && line.matches(&t).count() == 1,
         "{line}"
     );
-    let dangling = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::DanglingHead {
-        mate: RecipeNodeId::new(0, 7),
-        side: MateSide::A,
-        head: body,
+    let off_the_copy = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::NotOnTheCopy {
+        mate: MateRef::new(body, constraint),
     })));
-    let line = dangling.line_at(body, Speaker::TAG);
+    let line = off_the_copy.line_at(body, Speaker::TAG);
     assert!(
         line.starts_with(&format!("node {t} failed:"))
-            && line.contains("reference resolves through this node, which")
+            && line.contains("constraint #8 of this node's `on` pose reads geometry other than")
             && line.matches(&t).count() == 1,
         "{line}"
     );
@@ -1333,8 +1228,8 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
 /// says each node as that version holds it** (`EditError::respoken`): a
 /// rename since the refusal is the label it says, in a node arm, a root
 /// arm and a name arm. A node the later version does not hold is said as
-/// the door said it — the node a refused insert was minting keeps its
-/// kind, a node deleted since keeps its label — and `LabelUnchanged`,
+/// the door said it — a node deleted since keeps its label — and
+/// `LabelUnchanged`,
 /// whose sentence is about the label the node held at the refusal, stays
 /// as raised. Red if a renamed node keeps its old label, if a node the
 /// later version lacks drops to its tag, or if `LabelUnchanged` takes
@@ -1353,14 +1248,6 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
             node: extrude,
             slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Profile),
             value: editor_core::SlotValue::Read(frame.into()),
-            fresh: Vec::new(),
-        },
-    );
-    let wall = fixture::fname(extrude, fixture::wall(&doc, extrude, 0));
-    let stray = refusal(
-        &doc,
-        DocEdit::InsertNode {
-            node: Box::new(stray_union(&doc, profile, extrude)),
             fresh: Vec::new(),
         },
     );
@@ -1388,14 +1275,6 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
     assert!(
         said.starts_with(&format!("Extrude \"slab\" ({e})'s profile reads ")),
         "a node arm says its node's new label: {said}"
-    );
-    let EditError::DeclaredSiteNotAnOperand { node, name, .. } = stray.respoken(&later) else {
-        panic!("respoken keeps the arm, got {stray:?}");
-    };
-    assert_eq!(
-        (node.kind(), node.label(), name),
-        (Some("Union"), None, later.spoken_name(&wall)),
-        "the minted node, which no version holds, by its kind; the name as renamed"
     );
     assert_eq!(
         rebind.respoken(&later),

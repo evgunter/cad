@@ -17,9 +17,10 @@ did not ask it to.
 | Exact arithmetic | `src/exact.rs` (`two_sum`, the error-free transform a structural door decides a real identity with) |
 | Linear algebra | `src/linalg.rs`, `src/linalg/` |
 | The planar arc carrier | `src/arc.rs` (`Arc2`: centre, radius and signed sweep, the one arc value `profile` and `geom-brep` share, and its one evaluation) |
+| Two coplanar circles | `src/arc/pair.rs` (`Circles`: the identity, external, internal and nesting margins and the radical foot and half-chord, from one `d`, `r₁ + r₂` and `r₁ − r₂`; `CirclesAt`, and `Circles2` in the plane: the foot and the chord's ends placed at the centres) |
 | Knot structure | `src/spline/knots.rs` (`KnotVector`, `Span`, `InteriorKnot`), `src/spline/locate.rs` (`SpanLocate`, `SpanSet`) — the S1 clause below |
 | Knot algebra | `src/spline/algebra.rs` (insertion, refinement, removal, degree elevation, the union-and-refine routine) |
-| Evaluation and bounds | `src/spline/basis.rs` (basis values and derivatives), `src/spline/hull.rs` (the C2.2 sup-norm mechanism), `src/spline/compose.rs`, `src/spline/net.rs` |
+| Evaluation and bounds | `src/spline/basis.rs` (basis values and derivatives), `src/spline/hull.rs` (the C2.2 sup-norm mechanism), `src/spline/blossom.rs` (the certified blossom of a span window, every level through `Certification::between`), `src/spline/compose.rs`, `src/spline/net.rs` |
 
 ## The spline layer's pairing rule (SPLINE-DESIGN S1)
 
@@ -66,9 +67,9 @@ clause:
 - **Equality on all three types is address equality on the borrow**,
   plus the indices. A proof is about *that* structure; two bit-equal
   knot vectors at different addresses are two structures. (None of
-  `KnotVector`, `NurbsCurve` or `NurbsSurface` is `Eq` — their knots and
-  weights are `f64` — so a by-value equality is not available in any
-  case.) `Debug` prints the borrow as an **address** and never follows
+  `KnotVector`, `NurbsCurve` or `NurbsSurface` is `Eq` — a carrier's
+  data is held in a scalar that has no equality — so a by-value
+  equality is not available in any case.) `Debug` prints the borrow as an **address** and never follows
   it: the alternative dumps a whole control net at every `{:?}`.
 - **A borrow cannot be held across a rebinding of what it borrows.**
   That costs nothing here: every knot-algebra door in this crate and in
@@ -101,7 +102,7 @@ its window (`CoeffWindow<'a, E>`, `RationalWindow<'a, E>`) holding the
 pair beside a `Span<'a>` of its own vector, and every door reads
 everything from the borrow. `SplineCoeffs` carries the **nonrational**
 doors and no other — per span `CoeffWindow::{hull, derivative_hull,
-sup_norm_bound}`, over the domain `SplineCoeffs::{domain_hull,
+sup_norm_bound, blossom, restrict}`, over the domain `SplineCoeffs::{domain_hull,
 derivative_coeffs, derivative_domain_hull, sup_norm_bound}`;
 `RationalCoeffs` carries the **rational** doors and no other — per span
 `RationalWindow::hull_rational`, over the domain
@@ -162,6 +163,69 @@ description's parameter):
     producers hand it, since a width no producer makes is not evidence;
   - and on f64 error against an exact reference, never against a
     carrier, whose agreement is not accuracy.
+
+## The recourse rules at each door
+
+How DESIGN `[tolerance.recourse]` is applied: its text before the
+rules and their application were split (2026-10-18), verbatim except for
+clause (iv), which DESIGN keeps. Bracketed ids are `docs/DESIGN.md`'s
+clauses.
+
+Two roles are kernel-wide
+vocabulary: **ε_precision** (this ε — certification residuals, what
+gets built) and **ε_input** — the least precision a user might care
+about: what counts as too-close-to-a-coincidence when interpreting
+input. ε_input IS K·ε, a synonym, not a third dial; K stays the one
+knob (`Tolerance.k`, env `CAD_AMBIGUITY_K`). Binding consequences:
+(i) user-facing messages and recourse never fork on exactly-on vs
+in-band below ε_input — ONE message, ONE recourse per **decision**
+(the one question a site asks), written once in the decision's own
+levers and shared by all its refused arms, with the margin riding
+the payload as data; kernel semantics keep the distinction (message
+policy, not predicate policy). The recourse follows from the
+decision and its verdict: *make the two one construction* ([coincidence])
+only where the refused side is a coincidence a shared construction
+would decide; *move the geometry*, phrased as the decision's own lever, always;
+*tighten the tolerance* only where the refused margin is a size the
+user may intend and a smaller ε decides it — the band-decided arms
+(in band, or Zero where Zero does not pass) of a decision that passes
+on a nonzero sign — phrased conditionally and with the value the
+margin gives ("if this size is intended, tighten the tolerance below
+m/K"); never on a sign-certain arm, and never on a decision that
+passes only at Zero (a residual), whose refused margin is a miss,
+not a size. No refusal advises loosening ε, with one exception: a
+refusal that would otherwise name no recourse at all (a kernel
+approximation limit — an offset fit that stalls, a quadrature budget
+spent, a built curve's residual) names loosening the tolerance as a
+last resort and says the refusal may indicate a kernel bug worth
+reporting. At adoption, certification runs at ε and a refusal reads
+as at rest. ε_in is the file's own coincidence distance ([import]): it
+governs interpretation — what the file's data is evidence of, where
+healing may move geometry by up to O(ε_in) — and its refusals are
+the import door's, named in ε_in with the value the margin gives; a
+size below ε_in is not one the file intends, so no refusal offers to
+keep it. Until adoption rebuilds its caches from the file's
+descriptions ([import]), a certification refusal whose miss lies within
+ε_in but beyond ε (the file's data agrees to its own declared
+coincidence distance, not to this run's) names setting ε to ε_in as
+a stopgap, beside re-exporting the file more precisely. A change to
+a document's ε reports what it flips at the change itself. The
+three-arm sentence (make them one construction / move the geometry
+/ tighten the tolerance) is thus the recourse of a decision whose
+refused side is a coincidence a construction could decide; an
+`unproven-coincidence` finding refuses nothing, and its recourse is
+one construction or an assertion at its site ([assertions]). The decision is a closed type at its site (as
+`CertCheck` is), so its recourse is an exhaustive match, never a
+lookup by predicate name. (ii) Error variants may stay distinct as
+data; their user stories converge per decision. `Indeterminate`
+carries data, not a recourse: its Display renders the payload, and
+the site that knows the decision appends the one ending
+(`COINCIDENCE_RECOURSE` is the sentence coincidence decisions
+compose). (iii) [import]'s ε_in is an instance of ε_input, not a separate
+concept.
+
+Review checklist form: for every arm added to a decision, name which
+ε_input story it belongs to, or say why it belongs to none.
 
 ## Related pages
 

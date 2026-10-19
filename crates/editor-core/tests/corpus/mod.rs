@@ -77,6 +77,32 @@ pub mod vessel;
 
 pub use super::fixture::Recorder;
 
+/// **A body placed in the world where it stands, recorded**: the
+/// loose placement, then the named interim's world pin
+/// ([`DocEdit::PinWhereItStands`], stage 3 C), which the Python
+/// bindings' `Doc.place(shapes)` writes too, so a corpus document and
+/// its bound re-authoring are one log. The pin reads nothing, so the
+/// copy follows every variable its body reads.
+pub trait PlacePart {
+    /// **One copy of `body` in the world** (A10), placed where it
+    /// stands. Returns the placement.
+    fn place_part(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId;
+}
+
+impl PlacePart for Recorder {
+    fn place_part(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId {
+        let read = super::fixture::body_read(&self.doc, body.into());
+        let placement = self
+            .push(DocEdit::InsertNode {
+                node: Box::new(Node::place(vec![editor_core::BodyRead::plain(read)])),
+                fresh: Vec::new(),
+            })
+            .expect("a placement mints its node");
+        self.push(DocEdit::PinWhereItStands { placement });
+        placement
+    }
+}
+
 /// **Each of a pattern's `count` copies placed in the world**, in
 /// instance order: a `Part` per instance, each placed at the identity.
 pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
@@ -85,7 +111,7 @@ pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
             of: pattern.into(),
             select: PartSelect::Instance(editor_core::Formula::count(i)),
         });
-        r.place(copy);
+        r.place_part(copy);
     }
 }
 
@@ -103,12 +129,13 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
         .placements()
         .into_iter()
         .filter(|&p| match doc.node(p) {
-            Some(Node::PlaceInWorld { body, .. }) => doc
-                .operation_of(body.read)
-                .and_then(|picked| doc.node(picked))
-                .is_some_and(|picked| {
-                    matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
-                }),
+            Some(Node::Place { shapes, .. }) => shapes.iter().any(|shape| {
+                doc.operation_of(shape.read)
+                    .and_then(|picked| doc.node(picked))
+                    .is_some_and(|picked| {
+                        matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
+                    })
+            }),
             _ => false,
         })
         .count();
@@ -129,8 +156,8 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
 /// **A split's two halves placed in the world**, above then below:
 /// each half is its port.
 pub fn place_halves(r: &mut Recorder, split: RecipeNodeId) {
-    r.place(editor_core::Operand::output(split, 0));
-    r.place(editor_core::Operand::output(split, 1));
+    r.place_part(editor_core::Operand::output(split, 0));
+    r.place_part(editor_core::Operand::output(split, 1));
 }
 
 /// An exact mass-property oracle (dyadic dimensions only — see each
@@ -186,14 +213,9 @@ impl CorpusDoc {
 
     /// The bumped document (the incremental-recompute probe's input).
     pub fn bumped(&self) -> ProfileDoc {
-        apply(
-            &self.doc,
-            &self.bump,
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("corpus bump edit must apply")
-        .doc
+        apply(&self.doc, &self.bump, Tol::witness())
+            .expect("corpus bump edit must apply")
+            .doc
     }
 }
 
@@ -281,9 +303,8 @@ pub fn documents() -> Vec<CorpusDoc> {
         plate_param::document(),
         // `kiss_carry` (SEAT-5): the one corpus boolean whose result
         // carries NON-EMPTY surviving contacts — the discovered
-        // corner kiss, then the same record re-entered by name as a
-        // declared pair (the carried v-v arm of `resolve_declarations`,
-        // reached nowhere else in the corpus). Registered so a pin can
+        // corner kiss, then the same record carried from the operand
+        // into the next union. Registered so a pin can
         // tell a lowering that carries the tier-3′ records from one
         // that drops them.
         kiss_carry::document(),
@@ -336,6 +357,44 @@ pub fn cone(doc: &editor_core::ProfileDoc, root: RecipeNodeId) -> BTreeSet<Recip
     set
 }
 
+/// **Options under which an evaluation of `doc` at its nominal takes
+/// `lift`**, `None` for `Guided` on a document with no continuous
+/// variable. The lift is read off the environment
+/// ([`editor_core::EvalOptions::profile_lift`]), so a row that compares
+/// the two at the nominal asks for each by environment: the build
+/// (`Pinned`), or an analysis over a box spanning `[0, 0]` on every
+/// continuous variable, whose every value is still its nominal
+/// (`Guided`).
+pub fn options_under(
+    doc: &ProfileDoc,
+    lift: editor_core::ProfileLift,
+) -> Option<editor_core::EvalOptions> {
+    use editor_core::analysis::{BoxAxis, ParamBox};
+    let options = match lift {
+        editor_core::ProfileLift::Pinned => editor_core::EvalOptions::default(),
+        editor_core::ProfileLift::Guided => {
+            let axes: BTreeMap<_, _> = doc
+                .free_vars()
+                .filter(|(_, p)| matches!(p, editor_core::FreeVar::Continuous { .. }))
+                .map(|(id, _)| (id, BoxAxis::Varying { lo: 0.0, hi: 0.0 }))
+                .collect();
+            if axes.is_empty() {
+                return None;
+            }
+            editor_core::EvalOptions {
+                param_box: Some(std::sync::Arc::new(ParamBox::from_axes(axes))),
+                ..editor_core::EvalOptions::default()
+            }
+        }
+    };
+    assert_eq!(
+        options.profile_lift(),
+        lift,
+        "the environment reads as {lift:?}"
+    );
+    Some(options)
+}
+
 /// Evaluates a document at scalar `T` with default options.
 pub fn eval<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
     evaluate::<T>(
@@ -361,12 +420,13 @@ pub fn failures<T: Decide>(ev: &Evaluation<T>) -> Vec<String> {
         .collect()
 }
 
-/// The single body a node evaluated to (`Body` payload or a boolean's
-/// nonempty body).
+/// The single body a node evaluated to (`Body` payload, a boolean's
+/// nonempty body, or an instance's copies read as its part product).
 pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
     match &ev.value(id).expect("node evaluated to a value").payload {
         ValuePayload::Body(b) => b,
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("expected a single body, got {}", other.kind_name()),
     }
 }
@@ -395,10 +455,13 @@ pub fn read_body<'e, T: Decide>(
 ///
 /// - `Sweep`: every recipe-expressible sweep refuses at one door, for
 ///   the reason `eval::wire::SWEEP_FRONTIER` states.
+/// - `World`: the world defines no variable and is scheduled nowhere
+///   (`eval::schedule`); a constraint reads it as a side, never as a
+///   value.
 ///
 /// Each reader holds its entries in both directions, so a kind that
 /// starts evaluating reds until it is removed here.
-pub const NEVER_EVALUATES: [&str; 1] = ["Sweep"];
+pub const NEVER_EVALUATES: [&str; 2] = ["Sweep", "World"];
 
 /// **The node kinds that evaluate, but only in documents beside this
 /// registry** — so [`documents`] cannot cover them while
@@ -416,7 +479,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 22] = [
+pub const NODE_KINDS: [&str; 23] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -473,18 +536,26 @@ pub const NODE_KINDS: [&str; 22] = [
     // direction.
     "Measure",
     "Assertion",
-    // The world placement: every document's product is its copies.
-    "PlaceInWorld",
+    // The placement: every document's product is its copies.
+    "Place",
+    // The world: in every document, authored by none, so it reads zero
+    // here and is exempt through `NEVER_EVALUATES`.
+    "World",
 ];
 
 /// The edit kinds the corpus is required to exercise — the coverage
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
 /// It is a SUBSET, deliberately and visibly: `SetMembers`,
-/// `SetOffset`, `SetGauge`, `Promote`, `Fold`, `UpdateReference` and
-/// `SetDeclare` are arms of `DocEdit` that no corpus document authors,
-/// and listing them here would report seven permanent misses rather
-/// than covering anything. `SetProgram` is
+/// `RemoveConstraint`, `RenameVar`, `DeleteVar` and `UpdateReference`
+/// are arms of `DocEdit` that no corpus document authors, and listing
+/// them here would report five permanent misses rather than covering
+/// anything. `PinWhereItStands` is listed: every placement the recorder
+/// authors at the identity writes the named interim's world pin.
+/// `AddConstraint` and `AddValue` are listed: the documents that mate
+/// copies to each other write mates and the values that set their
+/// freedoms.
+/// `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
 /// vocabulary itself is not this list but [`edit_kind`]'s match, which
@@ -495,7 +566,7 @@ pub const NODE_KINDS: [&str; 22] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 21] = [
+pub const EDIT_KINDS: [&str; 24] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
@@ -517,19 +588,19 @@ pub const EDIT_KINDS: [&str; 21] = [
     "SetAppearanceMeta",
     "ClearAppearanceMeta",
     "SetLabel",
+    "AddConstraint",
+    "AddValue",
+    "PinWhereItStands",
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: every datum
-/// flavour, the declared boolean, and
-/// both pattern kinds.
-pub const SUB_KINDS: [&str; 15] = [
+/// flavour and both pattern kinds.
+pub const SUB_KINDS: [&str; 14] = [
     "Datum::Plane",
     "Datum::Axis",
     "Datum::Point",
     "Datum::Frame",
     "Datum::FaceFrame",
-    // A boolean that declares a coincidence, of any of the three.
-    "Boolean+Declare",
     "Pattern::Linear",
     "Pattern::Circular",
     // The projection node: `part_select` reads a pattern's middle
@@ -568,15 +639,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         Node::Datum(Datum::Frame { .. }) => vec!["Datum::Frame"],
         // Listed: `face_sketch` draws on a frame derived from a face.
         Node::Datum(Datum::FaceFrame { .. }) => vec!["Datum::FaceFrame"],
-        Node::Union { declare, .. }
-        | Node::Intersect { declare, .. }
-        | Node::Subtract { declare, .. } => {
-            if declare.is_empty() {
-                Vec::new()
-            } else {
-                vec!["Boolean+Declare"]
-            }
-        }
+        Node::Union { .. } | Node::Intersect { .. } | Node::Subtract { .. } => Vec::new(),
         Node::Pattern { kind, .. } => vec![match kind {
             PatternKind::Linear { .. } => "Pattern::Linear",
             PatternKind::Circular { .. } => "Pattern::Circular",
@@ -624,14 +687,13 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         | Node::Shell { .. }
         | Node::Split { .. }
         | Node::Transform { .. }
-        | Node::PlaceInWorld { .. }
+        | Node::Place { .. }
+        | Node::World
         | Node::Loft { .. }
         | Node::Sweep { .. }
-        | Node::Mate { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. }
-        | Node::InstantiatePart { .. }
-        | Node::Gauge { .. } => Vec::new(),
+        | Node::InstantiatePart { .. } => Vec::new(),
     }
 }
 
@@ -655,17 +717,16 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Intersect { .. } => "Intersect",
         Node::Subtract { .. } => "Subtract",
         Node::Transform { .. } => "Transform",
-        Node::PlaceInWorld { .. } => "PlaceInWorld",
+        Node::Place { .. } => "Place",
+        Node::World => "World",
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
-        Node::Mate { .. } => "Mate",
         Node::Measure { .. } => "Measure",
         Node::Assertion { .. } => "Assertion",
         Node::InstantiatePart { .. } => "InstantiatePart",
-        Node::Gauge { .. } => "Gauge",
     }
 }
 
@@ -695,13 +756,12 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetTolerance { .. } => "SetTolerance",
         DocEdit::SetAppearanceMeta { .. } => "SetAppearanceMeta",
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
-        DocEdit::SetOffset { .. } => "SetOffset",
-        DocEdit::SetGauge { .. } => "SetGauge",
-        DocEdit::Promote { .. } => "Promote",
-        DocEdit::Fold { .. } => "Fold",
+        DocEdit::AddConstraint { .. } => "AddConstraint",
+        DocEdit::RemoveConstraint { .. } => "RemoveConstraint",
+        DocEdit::AddValue { .. } => "AddValue",
+        DocEdit::PinWhereItStands { .. } => "PinWhereItStands",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",
-        DocEdit::SetDeclare { .. } => "SetDeclare",
     }
 }
 

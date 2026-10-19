@@ -16,7 +16,7 @@ use editor_core::{
     CancelToken, Datum, Entry, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, SplitHalf,
     evaluate,
 };
-use fixture::{declare_x_offset_flush, insert, len, on_frame, scl, wall};
+use fixture::{insert, len, on_frame, scl, wall};
 use geom_core::Interval;
 use geom_core::Tol;
 
@@ -52,12 +52,10 @@ fn corpus() -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_interval", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let decl_u = declare_x_offset_flush(&doc, a, b);
     let (doc, _union) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: decl_u,
         },
     );
     let (doc, c) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
@@ -82,7 +80,6 @@ fn corpus() -> ProfileDoc {
         Node::Subtract {
             from: c.into(),
             tool: slot.into(),
-            declare: Vec::new(),
         },
     );
     let (doc, d) = block(doc, (4.0, 6.0), (0.0, 2.0), 0.0, 2.0);
@@ -130,7 +127,6 @@ fn corpus() -> ProfileDoc {
         Node::Subtract {
             from: e.into(),
             tool: u.into(),
-            declare: Vec::new(),
         },
     );
     let (doc, between) = insert(
@@ -180,12 +176,8 @@ fn f64_and_interval_lanes_emit_identical_name_tables() {
     let ties = ef
         .order
         .iter()
-        .filter_map(|id| ef.value(*id))
-        .flat_map(|v| {
-            v.name_table
-                .iter()
-                .map(|(_, e)| matches!(e, Entry::Tied(_)))
-        })
+        .flat_map(|id| crate::fixture::tables(&ef, *id))
+        .flat_map(|t| t.iter().map(|(_, e)| matches!(e, Entry::Tied(_))))
         .filter(|tied| *tied)
         .count();
     assert!(
@@ -199,8 +191,10 @@ fn f64_and_interval_lanes_emit_identical_name_tables() {
         let vi = ei
             .value(*id)
             .unwrap_or_else(|| panic!("interval node {id:?} failed: {:?}", ei.nodes.get(id)));
+        let _ = (vf, vi);
         assert_eq!(
-            vf.name_table, vi.name_table,
+            crate::fixture::tables(&ef, *id),
+            crate::fixture::tables(&ei, *id),
             "lane disagreement at node {id:?}"
         );
     }

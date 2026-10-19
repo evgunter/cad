@@ -143,19 +143,6 @@ pub enum StepImportError {
         /// The rejected value.
         value: f64,
     },
-    /// A position-anchored import declaration
-    /// ([`crate::ImportContact`]) did not resolve to exactly the
-    /// entities its kind names on the assembled body (M9-2, D7 step
-    /// 4): a declaration that cannot be pinned to real entities is a
-    /// typed refusal, never a silent drop — the same posture as the
-    /// boolean door's dangling-declaration refusal.
-    DeclarationUnresolved {
-        /// The anchor position that failed to resolve.
-        at: [f64; 3],
-        /// How many candidate vertices were found within ε_in of the
-        /// anchor (a vertex-rest anchor needs exactly two).
-        found: usize,
-    },
     /// A real token failed to parse as an f64.
     MalformedReal {
         /// The entity instance carrying the token.
@@ -278,11 +265,21 @@ pub enum StepImportError {
         /// Why the join refused.
         refusal: topo::JoinRefusal,
     },
+    /// An assembly instance's placement map is not admitted as a rigid
+    /// motion at the kernel's decided door
+    /// ([`geom_core::RigidMotion::check_rigid`]): a map this reader's
+    /// ε_in classification let through that the kernel's decided
+    /// predicates would not.
+    PlacementMap {
+        /// The `ITEM_DEFINED_TRANSFORMATION` that states this
+        /// instance's frame.
+        transform: u64,
+        /// The decided door's refusal.
+        source: geom_core::RigidMotionError,
+    },
     /// An assembly instance's rigid placement refused at the kernel's
-    /// own [`topo::transform_rigid`] door (M7-4 Leg D): a map this
-    /// reader's ε_in classification let through that the kernel's
-    /// decided predicates would not, or a carrier that failed to
-    /// re-certify against the mapped geometry.
+    /// own [`topo::transform_rigid`] door (M7-4 Leg D): a carrier that
+    /// failed to re-certify against the mapped geometry.
     Placement {
         /// The `ITEM_DEFINED_TRANSFORMATION` that states this
         /// instance's frame — with N instances in a file, which one
@@ -384,13 +381,6 @@ impl fmt::Display for StepImportError {
             Self::InvalidEpsOverride { value } => write!(
                 f,
                 "step import: ε_in override {value} is not finite and strictly positive"
-            ),
-            Self::DeclarationUnresolved { at, found } => write!(
-                f,
-                "step import: the declared contact anchored at {at:?} resolved to {found} \
-                 coincident vertices on the assembled body (a vertex-rest anchor needs \
-                 exactly two) — fix the anchor or remove the declaration; unresolved \
-                 intent never silently drops"
             ),
             Self::MalformedReal { id, token } => write!(
                 f,
@@ -510,6 +500,11 @@ impl fmt::Display for StepImportError {
                     _ => write!(f, "{refusal}"),
                 }
             }
+            Self::PlacementMap { transform, source } => write!(
+                f,
+                "step import: the assembly placement stated at #{transform} is not admitted \
+                 as a rigid motion: {source}"
+            ),
             Self::Placement { transform, source } => write!(
                 f,
                 "step import: the assembly placement stated at #{transform} refused \
@@ -526,3 +521,60 @@ impl fmt::Display for StepImportError {
 }
 
 impl std::error::Error for StepImportError {}
+
+#[cfg(test)]
+mod join_text {
+    //! **The import door's join reads the adopted body at rest**: an
+    //! undecided join keeps the reading's own lever in front of the
+    //! join's, and a poisoned margin takes the stored-geometry note in
+    //! place of a lever about an operation's inputs.
+    #![allow(clippy::unwrap_used)]
+
+    use geom_core::{Band, Indeterminate, MarginDiag, UNREADABLE_STORED_MARGIN_NOTE};
+
+    use super::StepImportError;
+
+    fn join(margin: MarginDiag) -> (Indeterminate, String) {
+        let diag = Indeterminate {
+            margin,
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("dihedral_arm"),
+            terminal_sliver: false,
+        };
+        let error = StepImportError::Join {
+            solid: 7,
+            refusal: topo::JoinRefusal::Undecided(topo::JoinUndecided {
+                vertex: topo::VertexKey::default(),
+                reading: topo::JoinReading::Regularity(diag),
+            }),
+        };
+        (diag, error.to_string())
+    }
+
+    #[test]
+    fn an_undecided_join_at_import_keeps_the_readings_lever() {
+        let lead = "step import: joining the edges of the solid at #7: ";
+        let subject = topo::JOIN_SUBJECT;
+        let lever = topo::JOIN_LEVER;
+        let (straddle, text) = join(MarginDiag::enclosure(-2e-9, 5e-9));
+        assert_eq!(
+            text,
+            format!(
+                "{lead}{subject} is undecided ({}). Recourse: subdivide the parameter box \
+                 for a tighter enclosure, or {lever}",
+                straddle.payload()
+            ),
+            "a straddle"
+        );
+        let (poisoned, text) = join(MarginDiag::INVALID);
+        assert_eq!(
+            text,
+            format!(
+                "{lead}{subject} is undecided ({}). Recourse: {lever}; \
+                 {UNREADABLE_STORED_MARGIN_NOTE}",
+                poisoned.payload()
+            ),
+            "an unreadable margin"
+        );
+    }
+}

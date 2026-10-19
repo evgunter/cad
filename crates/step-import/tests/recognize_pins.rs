@@ -47,19 +47,7 @@ fn promotions(
 }
 
 fn solid(text: &str, who: &str) -> (topo::Body<f64>, Vec<(u64, PromotedKind, f64)>) {
-    let options = if who.contains("kiss") {
-        // The corner kiss is declared through the M9-2 import channel
-        // (D7 step 4); undeclared it refuses at the shared 3′ gate.
-        ImportOptions {
-            declared_contacts: vec![step_import::ImportContact::VertexRest {
-                at: [1.0, 1.0, 1.0],
-            }],
-            ..ImportOptions::default()
-        }
-    } else {
-        ImportOptions::default()
-    };
-    match import_step(text, &options, Tol::witness()) {
+    match import_step(text, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid {
             body,
             normalizations,
@@ -217,8 +205,9 @@ fn offset_square_prism() -> topo::Body<f64> {
 /// * **the seam** — our own writer emits every seam carrier
 ///   bit-identical to the wall's boundary column, so the bitwise
 ///   `IsoCurve` rung answers first and declare-and-check is never
-///   reached (measured here: with our own bytes NO seam takes the
-///   `Intersection` rung). State the same seam in a foreign form —
+///   reached for a seam (measured here: with our own bytes NO seam
+///   takes the `Intersection` rung; the bowed walls' four straight cap
+///   rims do, the plane × NURBS certificate taking their line). State the same seam in a foreign form —
 ///   this restates one control point one ULP up in `z`, the smallest
 ///   difference a decimal round-trip can make — and the seam certifies
 ///   through the declare-and-check plane × NURBS rung and CHARTS on
@@ -232,14 +221,14 @@ fn offset_square_prism() -> topo::Body<f64> {
 /// carrying that number in its payload. Both cells are pinned; neither
 /// is widened.
 ///
-/// **The boundary moved from 1e-9 to 1e-13 when `insert_once_ring` took
-/// the convex insertion form** (the sup was ~6.2e-12 m, 178x wider):
-/// the sup is assembled over a Bézier decomposition, and the lerp form
-/// multiplied each coefficient's own dust up once per insertion. So the
-/// 1e-12 matrix row now takes the first-class cell where it took the
-/// refusal; the refusal cell is measured at ε_in = 1e-14 and no row the
-/// gate or the nightly runs reaches it, which is filed rather than
-/// absorbed.
+/// **Why the boundary sits at 1e-13**: the sup is assembled over a
+/// Bézier decomposition whose every row is restricted from its own span
+/// window (`CoeffWindow::restrict`), so a coefficient's width is added
+/// once per step and never multiplied per insertion (a step that
+/// multiplies it reads ~6.2e-12 m here, and the boundary at 1e-9). So
+/// the 1e-12 matrix row takes the first-class cell; the refusal cell is
+/// measured at ε_in = 1e-14 and no row the gate or the nightly runs
+/// reaches it, which is filed rather than absorbed.
 #[test]
 fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     let native = offset_square_prism();
@@ -284,6 +273,16 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
         "our own writer's carriers are bit-identical to the walls' columns, \
          so every seam takes the IsoCurve rung"
     );
+    // The cap rims of the two bowed walls are straight, and the plane ×
+    // NURBS certificate takes their line carrier: they adopt at the
+    // `Intersection` rung, which the ladder offers before the
+    // conventional one.
+    let rims = plane_nurbs_intersections(own_body);
+    assert!(
+        rims.len() == 4 && rims.iter().all(|(_, plane, _)| is_cap(plane)),
+        "the plane × NURBS Intersections with our own bytes are the bowed walls' four \
+         cap rims: {rims:?}"
+    );
 
     // ---- The half the Intersection arm opened: a foreign
     // restatement, first-class and charted. ----
@@ -308,6 +307,11 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
                 1,
                 "exactly the restated seam takes the declare-and-check rung: {seams:?}"
             );
+            assert_eq!(
+                plane_nurbs_intersections(&body).len(),
+                5,
+                "beside the restated seam, the same four cap rims as our own bytes"
+            );
             let (curve, _, wall) = &seams[0];
             // The seam CHARTS. The NURBS wall stores its side (the
             // boundary-column iso image); the plane keeps M2's
@@ -328,7 +332,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
                 panic!("a seam's chart image is the wall's boundary iso line: {stored:?}");
             };
             assert_eq!(pl.x, 0.0, "a seam image holds u constant: {pl:?}");
-            let (du0, du1) = wall.knots_u().domain();
+            let (du0, du1) = wall.knots_u_f64_interim().domain();
             assert!(
                 p0.x == du0 || p0.x == du1,
                 "on the chart's OWN boundary column, not a [0, 1] literal: \
@@ -343,9 +347,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
         // The ε-fine cell, pinned as a REFUSAL with its own number:
         // this seam's certified between-samples sup is ~3.55e-14 m, so
         // below ε_in = 1e-13 the carrier refuses during ADOPTION and
-        // never reaches the pcurve stage. Measured, not widened. (It was
-        // ~6.2e-12 m and refused at 1e-12, before `insert_once_ring`
-        // took the convex insertion form.)
+        // never reaches the pcurve stage. Measured, not widened.
         Err(refusal) => {
             assert!(
                 eps < 1e-13,
@@ -423,11 +425,11 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
         }) => {
             topo::validate_geometric(&body, Tol::witness())
                 .expect("first-class at rest: the rational wall's flux reaches its target");
-            let seams = plane_nurbs_seams(&body);
+            let taken = plane_nurbs_intersections(&body);
             assert!(
-                seams.is_empty(),
+                taken.is_empty(),
                 "both seams are the arc wall's own columns, bit for bit; the \
-                 declare-and-check rung has no takers: {seams:?}"
+                 declare-and-check rung has no takers, seam or cap rim: {taken:?}"
             );
             let line_promotions: Vec<_> = curve_promotions
                 .iter()
@@ -454,7 +456,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                     _ => None,
                 })
                 .expect("the arc wall stays NURBS at every band");
-            let (du0, du1) = wall.knots_u().domain();
+            let (du0, du1) = wall.knots_u_f64_interim().domain();
             let images: Vec<_> = body
                 .edges()
                 .flat_map(|(_, e)| [e.he_plus, e.he_minus])
@@ -534,11 +536,14 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
         Tol::witness(),
     )
     .expect("the arc prism exports");
-    // #127 is the middle control point of #129, the B-spline carrier
-    // of EDGE_CURVE #130 — the seam this unit certifies.
+    // #121 is the middle control point of #123, the B-spline carrier
+    // of EDGE_CURVE #124 — the seam this unit certifies. (The ids are
+    // emission order: they moved from #127 / #129 / #130 when C6's
+    // sub-arc η made the prism's quarter arc one span, three control
+    // points a row where there were five.)
     let doctored = text.replace(
-        "#127 = CARTESIAN_POINT('', (1.0, 1.0, 1.0));",
-        "#127 = CARTESIAN_POINT('', (1.001, 1.0, 1.0));",
+        "#121 = CARTESIAN_POINT('', (1.0, 1.0, 1.0));",
+        "#121 = CARTESIAN_POINT('', (1.001, 1.0, 1.0));",
     );
     assert_ne!(text, doctored, "the falsifier applied");
 
@@ -547,7 +552,7 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
     else {
         panic!("a carrier displaced 1e-3 m off the locus is NEVER trusted");
     };
-    assert_eq!(id, 130, "the doctored seam, named");
+    assert_eq!(id, 124, "the doctored seam, named");
     let msg = format!("{:?}", attempts);
     let measured = attempts.iter().find_map(|a| match a.refusal {
         topo::EulerOpError::Certification {
@@ -578,6 +583,28 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
 /// M7-8 class, located by DESCRIPTION rather than by key so the pin
 /// survives arena renumbering.
 fn plane_nurbs_seams(
+    body: &topo::Body<f64>,
+) -> Vec<(
+    geom_brep::keys::CurveKey,
+    geom::Surface<f64>,
+    geom::NurbsSurface<f64>,
+)> {
+    plane_nurbs_intersections(body)
+        .into_iter()
+        .filter(|(_, plane, _)| !is_cap(plane))
+        .collect()
+}
+
+/// Whether a plane is one of the prisms' two caps, `z` constant: a
+/// plane × NURBS `Intersection` on a cap is a cap RIM, which the plane ×
+/// NURBS certificate takes for the line it is, not a wall–wall seam.
+fn is_cap(plane: &geom::Surface<f64>) -> bool {
+    matches!(plane, geom::Surface::Plane { normal, .. } if normal.z.abs() > 0.5)
+}
+
+/// Every plane × described-NURBS `Intersection` edge: the seams of
+/// [`plane_nurbs_seams`] and the cap rims beside them.
+fn plane_nurbs_intersections(
     body: &topo::Body<f64>,
 ) -> Vec<(
     geom_brep::keys::CurveKey,

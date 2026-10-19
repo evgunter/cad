@@ -27,7 +27,7 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     Axis3, CancelToken, Datum, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
     GroupCutters, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx,
-    SlotId, StableName, evaluate, resolve_with_prior,
+    SlotId, StableName, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -96,15 +96,24 @@ fn vanished(
     node: RecipeNodeId,
     pick: impl Fn(&StableName, &Entry) -> bool,
 ) -> Vec<(StableName, Diagnosis)> {
-    let now = &ev2.value(node).expect("the node evaluates now").name_table;
-    ev1.value(node)
-        .expect("the node evaluated before")
-        .name_table
-        .iter()
-        .filter(|(n, e)| matches!(n.path.last(), Some(RoleSeg::Fragment(_))) && pick(n, e))
-        .filter(|(n, _)| now.lookup(n).is_none())
-        .map(|(n, _)| {
-            let res = resolve_with_prior(
+    // Each output's table against the same output's now (NAMES N1: a
+    // split's halves are two).
+    let reads = ev1.named_outputs(node);
+    assert!(!reads.is_empty(), "the node evaluated before");
+    reads
+        .into_iter()
+        .flat_map(|var| {
+            let now = ev2.table(var).expect("the node evaluates now");
+            ev1.table(var)
+                .expect("the node evaluated before")
+                .iter()
+                .filter(move |(n, _)| now.lookup(n).is_none())
+                .map(move |(n, e)| (var, n, e))
+        })
+        .filter(|(_, n, e)| matches!(n.path.last(), Some(RoleSeg::Fragment(_))) && pick(n, e))
+        .map(|(var, n, _)| {
+            // Resolved in the read whose table held it.
+            let res = editor_core::resolve_with_prior(
                 RunCtx {
                     doc: doc2,
                     eval: ev2,
@@ -113,8 +122,10 @@ fn vanished(
                     doc: doc1,
                     eval: ev1,
                 },
+                var,
                 n,
-            );
+            )
+            .unwrap();
             let Resolution::Failed(f) = res else {
                 panic!("{n:?}: expected Failed, got {res:?}");
             };
@@ -163,7 +174,6 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
         Node::Subtract {
             from: a.into(),
             tool: u.into(),
-            declare: Vec::new(),
         },
     );
     let (doc, bar) = block(doc, (2.9, 3.1), (0.5, 3.5), 0.5, 3.0);
@@ -183,7 +193,6 @@ fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
         Node::Subtract {
             from: sub.into(),
             tool: tr.into(),
-            declare: Vec::new(),
         },
     );
     (doc, sub, tr, cut)
@@ -387,7 +396,6 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
             doc,
             Node::Union {
                 members: editor_core::Bodies::Spelled(order.iter().map(|&i| m[i].into()).collect()),
-                declare: Vec::new(),
             },
         );
         // Member `member`'s wall `segment` (of the block `of`), as the
@@ -469,7 +477,7 @@ fn a_seam_group_tied_parents_share_is_not_counted() {
     let ev2 = silent(run(&doc2, Some(&ev1)));
     let ev1 = silent(ev1);
     // A seam whose A face is one of the first cut's TIED rows.
-    let tied = &ev1.value(sub).expect("the first cut evaluates").name_table;
+    let tied = ev1.table_at(sub).expect("the first cut evaluates");
     let rows = vanished((&doc, &ev2), (&doc, &ev1), cut, |n, _| {
         match n.path.first() {
             Some(RoleSeg::Seam { a, .. }) => matches!(tied.lookup(a), Some(Entry::Tied(_))),
@@ -525,7 +533,6 @@ fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
             doc,
             Node::Union {
                 members: editor_core::Bodies::Spelled(vec![plate.into(), tr.into(), cblock.into()]),
-                declare: Vec::new(),
             },
         );
         let ev1 = run(&doc, None);
@@ -541,7 +548,7 @@ fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
         });
         assert!(rows.is_empty(), "{label}: {rows:?}");
         for ev in [&ev1, &ev2] {
-            let t = &ev.value(u).expect("the union evaluates").name_table;
+            let t = ev.table_at(u).expect("the union evaluates");
             let plate_faces: Vec<_> = t
                 .iter()
                 .filter(|(n, _)| {
@@ -578,7 +585,6 @@ fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
             doc,
             Node::Union {
                 members: editor_core::Bodies::Spelled(order.iter().map(|&i| m[i].into()).collect()),
-                declare: Vec::new(),
             },
         );
         let ev1 = run(&doc, None);
@@ -650,7 +656,6 @@ fn plate_and_bar() -> (
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![plate.into(), tr.into()]),
-            declare: Vec::new(),
         },
     );
     (doc, plate, bar, tr, u)
@@ -824,7 +829,6 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
                     m[order[1]].into(),
                     plate.into(),
                 ]),
-                declare: Vec::new(),
             },
         );
         let ev1 = run(&doc, None);
@@ -883,7 +887,6 @@ fn the_pieces_of_one_line_from_two_parents_are_one_group() {
         Node::Subtract {
             from: bar.into(),
             tool: notch.into(),
-            declare: Vec::new(),
         },
     );
     let u = |reach: f64| {
@@ -918,7 +921,6 @@ fn the_pieces_of_one_line_from_two_parents_are_one_group() {
         Node::Subtract {
             from: notched.into(),
             tool: cutter.into(),
-            declare: Vec::new(),
         },
     );
     let Some(Node::Profile(p)) = doc.node(u_profile) else {
@@ -943,9 +945,8 @@ fn the_pieces_of_one_line_from_two_parents_are_one_group() {
     let ev1 = silent(ev1);
     let from_read = crate::fixture::out(&doc, notched);
     let pieces = |ev: &Evaluation<f64>| {
-        ev.value(cut)
+        ev.table_at(cut)
             .expect("the cut evaluates")
-            .name_table
             .iter()
             .filter(|(n, _)| {
                 n.kind == EntityKind::Edge

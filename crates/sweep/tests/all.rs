@@ -54,39 +54,88 @@
 mod common;
 mod mate2_common;
 mod revolve_common;
+mod seam_region_common;
 
+#[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
+mod a_circle_of_one_radius_elsewhere_is_no_rim;
+#[path = "a_curved_keel_in_the_plane.rs"]
+mod a_curved_keel_in_the_plane;
+#[path = "a_face_off_the_tangent_ruling.rs"]
+mod a_face_off_the_tangent_ruling;
+#[path = "a_flank_touch_at_a_shared_corner.rs"]
+mod a_flank_touch_at_a_shared_corner;
+#[path = "a_flipped_shallow_dimple.rs"]
+mod a_flipped_shallow_dimple;
+#[path = "a_loft_computes_its_walls_in_t.rs"]
+mod a_loft_computes_its_walls_in_t;
+#[path = "a_minted_vertex_on_a_curved_face.rs"]
+mod a_minted_vertex_on_a_curved_face;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
 mod a_move_through_a_neighbour_inverts_the_body;
+#[path = "a_pierce_held_in_a_curved_face.rs"]
+mod a_pierce_held_in_a_curved_face;
 #[path = "a_plane_across_a_one_face_wall.rs"]
 mod a_plane_across_a_one_face_wall;
+#[path = "a_plane_along_an_elliptic_cut.rs"]
+mod a_plane_along_an_elliptic_cut;
+#[path = "a_plane_holding_a_conic_tangent_at_a_vertex.rs"]
+mod a_plane_holding_a_conic_tangent_at_a_vertex;
 #[path = "a_plane_moved_to_a_cone_apex.rs"]
 mod a_plane_moved_to_a_cone_apex;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_rim_in_a_face_beside_a_resting_ridge.rs"]
+mod a_rim_in_a_face_beside_a_resting_ridge;
 #[path = "a_ring_on_a_cone_face.rs"]
 mod a_ring_on_a_cone_face;
 #[path = "a_ring_on_a_sphere_face.rs"]
 mod a_ring_on_a_sphere_face;
 #[path = "a_ruling_lying_on_a_wall.rs"]
 mod a_ruling_lying_on_a_wall;
+#[path = "a_ruling_through_a_box_corner_edge.rs"]
+mod a_ruling_through_a_box_corner_edge;
+#[path = "a_seam_region_carrying_both_poles.rs"]
+mod a_seam_region_carrying_both_poles;
+#[path = "a_seam_region_covering_the_sphere_twice.rs"]
+mod a_seam_region_covering_the_sphere_twice;
+#[path = "a_short_shallow_strut_between_wide_walls_is_a_corner.rs"]
+mod a_short_shallow_strut_between_wide_walls_is_a_corner;
+#[path = "a_split_through_a_wrap_edges_vertex.rs"]
+mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
 mod a_swaying_loft_corner_meters;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "a_tangent_arc_at_other_boolean_vertices.rs"]
 mod a_tangent_arc_at_other_boolean_vertices;
+#[path = "a_thin_cap_keeps_its_digits.rs"]
+mod a_thin_cap_keeps_its_digits;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
+#[path = "a_vertex_on_a_grazing_plane.rs"]
+mod a_vertex_on_a_grazing_plane;
+#[path = "a_wall_seam_takes_the_column_it_lies_on.rs"]
+mod a_wall_seam_takes_the_column_it_lies_on;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
+mod an_arc_rim_picks_the_row_it_lies_on;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
 mod an_arc_tangent_at_a_boolean_vertex;
+#[path = "an_arcs_sweep_structure_is_certified_for_every_member.rs"]
+mod an_arcs_sweep_structure_is_certified_for_every_member;
+#[path = "an_inside_out_thin_tube_operand.rs"]
+mod an_inside_out_thin_tube_operand;
 #[path = "at_rest_pcurve_faces.rs"]
 mod at_rest_pcurve_faces;
 #[path = "band_apart_partners_on_a_steep_ellipse.rs"]
 mod band_apart_partners_on_a_steep_ellipse;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
+#[path = "bisector_lane_stubs.rs"]
+mod bisector_lane_stubs;
+#[path = "bisector_nodes.rs"]
+mod bisector_nodes;
 #[path = "bool1_fix_pass.rs"]
 mod bool1_fix_pass;
 #[path = "bool1_r1_probes.rs"]
@@ -123,6 +172,8 @@ mod cone_join_lane;
 mod cone_operand_rows;
 #[path = "continuation_pose.rs"]
 mod continuation_pose;
+#[path = "crossing_equal_rods.rs"]
+mod crossing_equal_rods;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]
@@ -151,6 +202,8 @@ mod offset_restates_a_neighbour_chart_rim;
 mod one_door_for_coincident_sections;
 #[path = "one_segment_loop.rs"]
 mod one_segment_loop;
+#[path = "onpair_rim_pcurves.rs"]
+mod onpair_rim_pcurves;
 #[path = "operand_gate_pose.rs"]
 mod operand_gate_pose;
 #[path = "operand_gate_support_plates.rs"]
@@ -179,6 +232,8 @@ mod pocket_ring_steep_ellipse;
 mod pocket_wall_crossing_a_side_face;
 #[path = "point_in_loop_arc_cap.rs"]
 mod point_in_loop_arc_cap;
+#[path = "point_touch_records.rs"]
+mod point_touch_records;
 #[path = "pole_slit_window.rs"]
 mod pole_slit_window;
 #[path = "r1_lane0_e2e.rs"]
@@ -191,10 +246,14 @@ mod r2_mate3_probes;
 mod r2_mesh1_donut_probes;
 #[path = "rehome_rings_lune.rs"]
 mod rehome_rings_lune;
+#[path = "review_4704_flush_round_oracle.rs"]
+mod review_4704_flush_round_oracle;
 #[path = "review_r2_vv_probes.rs"]
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]
 mod review_sixx_r2_probes;
+#[path = "saddle_wall_offset_fit.rs"]
+mod saddle_wall_offset_fit;
 #[path = "scaffolding_on_a_blend_support_face_does_not_finish.rs"]
 mod scaffolding_on_a_blend_support_face_does_not_finish;
 #[path = "sf2a_r1.rs"]
@@ -237,6 +296,8 @@ mod topo_ring_nesting;
 mod torax_axial;
 #[path = "torax_interval.rs"]
 mod torax_interval;
+#[path = "torus_region_probe.rs"]
+mod torus_region_probe;
 #[path = "transform_nurbs_walls.rs"]
 mod transform_nurbs_walls;
 #[path = "trim_3_chart_bound_bodies.rs"]
@@ -254,12 +315,20 @@ mod verbs_shell;
 
 #[path = "a_thin_wall_bounds_the_band.rs"]
 mod a_thin_wall_bounds_the_band;
+#[path = "a_tiny_lune_on_a_wide_sphere_reads_its_own_extent.rs"]
+mod a_tiny_lune_on_a_wide_sphere_reads_its_own_extent;
 #[path = "axis_lap.rs"]
 mod axis_lap;
 #[path = "band_annulus_host_boundary.rs"]
 mod band_annulus_host_boundary;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
+#[path = "band_concave_bar.rs"]
+mod band_concave_bar;
+#[path = "band_one_cycle_members.rs"]
+mod band_one_cycle_members;
+#[path = "band_planar_consume.rs"]
+mod band_planar_consume;
 #[path = "band_planar_cut_off.rs"]
 mod band_planar_cut_off;
 #[path = "band_planar_cut_off_interval.rs"]
@@ -272,12 +341,24 @@ mod band_planar_cut_off_shapes;
 mod band_planar_mitre;
 #[path = "band_planar_oblique_fillet.rs"]
 mod band_planar_oblique_fillet;
+#[path = "band_reads_three_ways.rs"]
+mod band_reads_three_ways;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
+#[path = "band_turn_overrun_chamfer.rs"]
+mod band_turn_overrun_chamfer;
+#[path = "band_turn_overrun_fillet.rs"]
+mod band_turn_overrun_fillet;
+#[path = "band_turn_overrun_fillet_model.rs"]
+mod band_turn_overrun_fillet_model;
+#[path = "band_turn_overrun_oracles.rs"]
+mod band_turn_overrun_oracles;
 #[path = "band_turn_overrun_probe.rs"]
 mod band_turn_overrun_probe;
+#[path = "band_turn_overrun_verdict.rs"]
+mod band_turn_overrun_verdict;
 #[path = "bitdump.rs"]
 mod bitdump;
 #[path = "blend1_r1_probes.rs"]
@@ -320,6 +401,8 @@ mod blend_tworims;
 mod blend_value_decided_rows;
 #[path = "bool5r1_probes.rs"]
 mod bool5r1_probes;
+#[path = "census_reads_conic_records.rs"]
+mod census_reads_conic_records;
 #[path = "cert5_offgrid_knot_rational.rs"]
 mod cert5_offgrid_knot_rational;
 #[path = "cert8_r1_probes.rs"]
@@ -338,6 +421,8 @@ mod contained_flush_cylinder;
 mod contfp_reads_arcs_on_their_carriers;
 #[path = "copied_carriers_at_interval.rs"]
 mod copied_carriers_at_interval;
+#[path = "corner_patch_chart_poles.rs"]
+mod corner_patch_chart_poles;
 #[path = "ellipse_torus.rs"]
 mod ellipse_torus;
 #[path = "encl_curved_loft_shell.rs"]
@@ -350,6 +435,8 @@ mod euler_site_rows_equal_the_pass;
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
 mod extrude_interval;
+#[path = "face_face_touch.rs"]
+mod face_face_touch;
 #[path = "issue93_az_intersect.rs"]
 mod issue93_az_intersect;
 #[path = "join1_r2_probes.rs"]
@@ -366,6 +453,8 @@ mod ladder_split_key;
 mod lamina_annulus;
 #[path = "lib_u3_sections.rs"]
 mod lib_u3_sections;
+#[path = "loft_profiles_door.rs"]
+mod loft_profiles_door;
 #[path = "loft_v_is_the_section_set.rs"]
 mod loft_v_is_the_section_set;
 #[path = "m3_pr5_extrude_booleans.rs"]
@@ -484,6 +573,12 @@ mod reach_wall_chord_rows;
 mod readback_doors;
 #[path = "recourse_roster.rs"]
 mod recourse_roster;
+#[path = "review_4704_r1_probes.rs"]
+mod review_4704_r1_probes;
+#[path = "review_4781_r1_probes.rs"]
+mod review_4781_r1_probes;
+#[path = "review_4781_r2_probes.rs"]
+mod review_4781_r2_probes;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_arms2_r1_probes.rs"]
@@ -605,14 +700,24 @@ mod strut_cover_on_cylinder_pairs;
 
 #[path = "run_walls_built.rs"]
 mod run_walls_built;
+#[path = "section_ellipse_seam_poses.rs"]
+mod section_ellipse_seam_poses;
+#[path = "section_end_poses.rs"]
+mod section_end_poses;
 #[path = "split_across_a_revolve_seam.rs"]
 mod split_across_a_revolve_seam;
 #[path = "split_along_a_face_plane.rs"]
 mod split_along_a_face_plane;
 #[path = "split_cylindrical_feature_box.rs"]
 mod split_cylindrical_feature_box;
+#[path = "split_edge_fitted_rows.rs"]
+mod split_edge_fitted_rows;
 #[path = "split_edge_loft_charts.rs"]
 mod split_edge_loft_charts;
+#[path = "split_edge_on_faces_poses.rs"]
+mod split_edge_on_faces_poses;
+#[path = "split_seam_vanishing_tilt.rs"]
+mod split_seam_vanishing_tilt;
 #[path = "split_section_rings.rs"]
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
@@ -736,6 +841,12 @@ mod germ_coplanar_conic;
 mod germ_interior_oval;
 #[path = "germ_interior_saddle.rs"]
 mod germ_interior_saddle;
+#[path = "germ_plane_torus_chord.rs"]
+mod germ_plane_torus_chord;
+#[path = "germ_plane_torus_frame.rs"]
+mod germ_plane_torus_frame;
+#[path = "germ_plane_torus_spiric.rs"]
+mod germ_plane_torus_spiric;
 #[path = "germ_radial_hole.rs"]
 mod germ_radial_hole;
 #[path = "germ_sphere_no_crossings.rs"]
@@ -760,8 +871,6 @@ mod join2_r1_probes;
 mod join2_r2_probes;
 #[path = "join3_r2_probes.rs"]
 mod join3_r2_probes;
-#[path = "join3_r2_r1copy.rs"]
-mod join3_r2_r1copy;
 #[path = "join3_review_r1.rs"]
 mod join3_review_r1;
 #[path = "join_pierce_runs_sweep.rs"]
@@ -782,10 +891,10 @@ mod mate2_r1_probes;
 mod mate2_r2_probes;
 #[path = "mate7a_r1_probes.rs"]
 mod mate7a_r1_probes;
-#[path = "mate7a_r2_probes.rs"]
-mod mate7a_r2_probes;
 #[path = "mate7a_torus_rest.rs"]
 mod mate7a_torus_rest;
+#[path = "near_tangent_census_edge_face_lane.rs"]
+mod near_tangent_census_edge_face_lane;
 #[path = "near_tangent_pierce_poses.rs"]
 mod near_tangent_pierce_poses;
 #[path = "pi_seam_and_kiss_through_the_boolean.rs"]
@@ -817,6 +926,9 @@ mod r1_probes_m9_3;
 
 #[path = "curved_mergedoor.rs"]
 mod curved_mergedoor;
+
+#[path = "curved_notch_pinch.rs"]
+mod curved_notch_pinch;
 
 #[path = "verbs_gate_r1_probes.rs"]
 mod verbs_gate_r1_probes;
@@ -858,6 +970,8 @@ mod fillet_h5_r2_probes;
 #[path = "review_fillet_h5_r1_probes.rs"]
 mod review_fillet_h5_r1_probes;
 
+#[path = "blend_carries_records.rs"]
+mod blend_carries_records;
 #[path = "blend_per_shell.rs"]
 mod blend_per_shell;
 #[path = "blend_per_shell_carry.rs"]
@@ -866,6 +980,8 @@ mod blend_per_shell_carry;
 mod blend_recourse_followability;
 #[path = "review_blend3_r3_probes.rs"]
 mod review_blend3_r3_probes;
+#[path = "shell_carries_records.rs"]
+mod shell_carries_records;
 
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;
@@ -1023,6 +1139,9 @@ mod wire_loft_end_profile_lift;
 #[path = "wedge_end_doors.rs"]
 mod wedge_end_doors;
 
+#[path = "review_4831_probes.rs"]
+mod review_4831_probes;
+
 #[path = "review_3701_probes.rs"]
 mod review_3701_probes;
 
@@ -1044,8 +1163,6 @@ mod witness_ladder;
 mod boss_flush_with_a_block_edge;
 #[path = "far_thin_disc_sign.rs"]
 mod far_thin_disc_sign;
-#[path = "join1_delta2_harness.rs"]
-mod join1_delta2_harness;
 #[path = "pinch_faces_tessellate.rs"]
 mod pinch_faces_tessellate;
 #[path = "rest_nested_strut.rs"]
@@ -1053,9 +1170,24 @@ mod rest_nested_strut;
 #[path = "rest_zip_admission.rs"]
 mod rest_zip_admission;
 
+#[path = "a_grazed_rim_never_pinches.rs"]
+mod a_grazed_rim_never_pinches;
 #[path = "letterform_intersects_in_every_order.rs"]
 mod letterform_intersects_in_every_order;
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;
+#[path = "seam_siblings_flipped_together.rs"]
+mod seam_siblings_flipped_together;
 #[path = "shell_curved_mouth.rs"]
 mod shell_curved_mouth;
+#[path = "sphere_face_flips_are_refused.rs"]
+mod sphere_face_flips_are_refused;
+
+#[path = "a_closed_conic_in_the_partners_face.rs"]
+mod a_closed_conic_in_the_partners_face;
+#[path = "a_cone_with_a_tilted_seam.rs"]
+mod a_cone_with_a_tilted_seam;
+#[path = "join_lever_is_the_joined_edge.rs"]
+mod join_lever_is_the_joined_edge;
+#[path = "review_4737_span_probes.rs"]
+mod review_4737_span_probes;

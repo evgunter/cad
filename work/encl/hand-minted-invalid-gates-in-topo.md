@@ -24,6 +24,12 @@ as one; the second kind should come from the funnel, which now carries
 the decided margin tagged with the refused sign
 (`MarginDiag::rejected_sign`).
 
+GERM's U-T1 fix pass (PR 4614) adds one through `invalid_margin`:
+`boolean::join::pt_germ_frame`'s `PT_TOUCHING_UNDER_A_GERM`, where the
+plane×torus table routes a pose to its general rung and the section
+certificate's margins decide it touching or empty. The certificate's
+decided margin is the verdict a funnel gate would carry.
+
 `dihedral::classify_material_pairing_as`'s `decide_nonzero` gate is
 the same class through the funnel: its definite zero reaches the
 validator as `WedgeCheck::MaterialSide`, whose ending reads no margin.

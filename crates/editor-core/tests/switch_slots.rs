@@ -14,12 +14,11 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Alignment, AssertionRelation, AxisSense, CancelToken, CapEnd, ContactClass, ContentPin, Datum,
-    Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula, Frame,
-    FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, Node, NodeErrorKind,
-    NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram, ProgramArcData,
-    ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId, Step, StepArg,
-    TubeWindow, ValuePayload, VarName, evaluate,
+    AssertionRelation, CancelToken, CapEnd, ContactClass, ContentPin, Datum, Dimension, DocEdit,
+    DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula, Frame, FreeVar, InterfaceRecord,
+    LoopProgram, Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, SlotId, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -35,7 +34,6 @@ fn circle_doc(r: f64) -> ProfileDoc {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -49,7 +47,6 @@ fn circle_doc(r: f64) -> ProfileDoc {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc
@@ -110,7 +107,6 @@ fn set_param_on_a_program_slot_moves_geometry() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("a legal radius edit applies");
     assert!(
@@ -155,7 +151,6 @@ fn set_expression_and_expr_at_route_into_programs() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -176,7 +171,6 @@ fn set_expression_and_expr_at_route_into_programs() {
                 expr: len(0.375),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("sub-path edit applies")
         .doc;
@@ -205,7 +199,6 @@ fn program_slots_refuse_wrong_dimensions() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
             expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
@@ -231,7 +224,6 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused { node, refusal }) => {
             assert_eq!(node.id(), doc.ids()[1]);
@@ -262,7 +254,6 @@ fn define_var_never_refuses_for_downstream_profiles() {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.5)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -273,7 +264,6 @@ fn define_var_never_refuses_for_downstream_profiles() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -291,7 +281,6 @@ fn define_var_never_refuses_for_downstream_profiles() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -304,7 +293,6 @@ fn define_var_never_refuses_for_downstream_profiles() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("DefineVar never refuses for downstream profile breakage (VQ9)")
         .doc;
@@ -343,7 +331,6 @@ fn insert_node_checks_program_dimensions() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -362,7 +349,6 @@ fn insert_node_checks_program_dimensions() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
             expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
@@ -446,7 +432,6 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -530,7 +515,6 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         ) {
             Err(EditError::ProfileProgramRefused { refusal, .. }) => match *refusal {
                 ProgramRefusal::Transition {
@@ -570,13 +554,12 @@ test_utils::f6_variants! {
         Union,
         Intersect,
         Transform,
-        PlaceInWorld,
+        Place,
+        World,
         Pattern,
         Part,
         PlacedUnion,
         InstantiatePart,
-        Gauge,
-        Mate,
         Measure,
         Assertion,
     ];
@@ -594,6 +577,48 @@ type ProfileNode = AuthoredNode;
 
 fn nid(n: u64) -> RecipeNodeId {
     RecipeNodeId::new(0, n)
+}
+
+/// A constraint holding `mate` under the id minted at `n`.
+fn constraint(n: u64, mate: editor_core::Mate<Formula>) -> editor_core::Constraint<Formula> {
+    editor_core::Constraint {
+        id: editor_core::ConstraintId(editor_core::MintId::new(0, n)),
+        kind: editor_core::ConstraintKind::Mate(mate),
+    }
+}
+
+/// A constraint holding `value` under the id minted at `n`.
+fn value(n: u64, value: editor_core::Value<Formula>) -> editor_core::Constraint<Formula> {
+    editor_core::Constraint {
+        id: editor_core::ConstraintId(editor_core::MintId::new(0, n)),
+        kind: editor_core::ConstraintKind::Value(value),
+    }
+}
+
+/// A mate of the cap plane of `body`'s copy with the world's `xy`
+/// plane as `world` moves it.
+fn to_world(
+    body: RecipeNodeId,
+    world: editor_core::WorldRead<Formula>,
+) -> editor_core::Mate<Formula> {
+    editor_core::Mate {
+        on: fixture::plane(fixture::head(fixture::fname(
+            body,
+            RoleSeg::Cap(CapEnd::Start),
+        ))),
+        to: editor_core::Target::World(world),
+        class: ContactClass::Rest,
+    }
+}
+
+/// The world's `xy` plane.
+fn world_xy() -> editor_core::WorldRead<Formula> {
+    editor_core::WorldRead::through(editor_core::pose::PoseRole::Xy)
+}
+
+/// The world's `z` axis.
+fn world_z() -> editor_core::WorldRead<Formula> {
+    editor_core::WorldRead::through(editor_core::pose::PoseRole::Z)
 }
 
 fn datum_shapes() -> Vec<Datum<Formula>> {
@@ -644,8 +669,8 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         Node::Revolve {
             profile: nid(1).into(),
-            axis_origin: [len(0.0), len(0.0)],
-            axis_direction: [scl(1.0), scl(0.0)],
+            axis_through: [len(0.0), len(0.0)],
+            axis_heading: Formula::zero(Dimension::Angle),
             angle: ang(1.0),
         },
         Node::Tube {
@@ -696,15 +721,12 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         Node::Subtract {
             from: nid(1).into(),
             tool: nid(2).into(),
-            declare: Vec::new(),
         },
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
-            declare: Vec::new(),
         },
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
-            declare: Vec::new(),
         },
         Node::transform(
             nid(1),
@@ -739,22 +761,28 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             input: nid(1).into(),
             placement: Placement::literal(&Frame::translation([0.0, 0.0, 2.0])),
         },
-        // A world placement at the identity: its pose is an empty chain.
-        Node::PlaceInWorld {
-            body: nid(1).into(),
-            pose: Placement::IDENTITY,
+        // A world mate reading the world's plane as it stands: its read
+        // holds no scalar, so no slot.
+        Node::Place {
+            shapes: vec![nid(1).into()],
+            constraints: vec![constraint(1, to_world(nid(1), world_xy()))],
         },
-        // A world placement at a pose of its own: one rigid step.
-        Node::PlaceInWorld {
-            body: nid(1).into(),
-            pose: Placement {
-                steps: vec![Step::Rigid {
-                    translation: [len(2.0), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.25),
-                }],
-            },
+        // A world mate reading the world's plane slid and spun: a slide
+        // slot and a spin slot, in the read's pre-order.
+        Node::Place {
+            shapes: vec![nid(1).into()],
+            constraints: vec![constraint(
+                1,
+                to_world(
+                    nid(1),
+                    world_xy()
+                        .slide(world_z(), len(2.0))
+                        .spin(world_z(), ang(0.25)),
+                ),
+            )],
         },
+        // The world: no slot at all.
+        Node::World,
     ]);
     for kind in [
         PatternKind::Linear {
@@ -796,50 +824,57 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             interface: InterfaceRecord {
                 crossings: Vec::new(),
             },
-            gauge: None,
-            offset: Some(Placement::from(Step::Rigid {
-                translation: [len(1.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            })),
+            constraints: vec![constraint(
+                1,
+                to_world(nid(1), world_xy().slide(world_z(), len(1.0))),
+            )],
         },
-        Node::gauge(
-            None,
-            Step::Rigid {
-                translation: [len(0.0), len(2.0), len(0.0)],
-                axis: [scl(1.0), scl(0.0), scl(0.0)],
-                angle: ang(0.25),
-            },
-        ),
-        Node::Mate {
-            a: crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))).into(),
-            b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))).into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
-                a: MateFrame::authored(
-                    [0.0; 3],
-                    [0.0, 0.0, 1.0],
-                    [1.0, 0.0, 0.0],
-                    geom_core::Tol::witness(),
-                )
-                .expect("a definite frame"),
-                // A face base whose offset is a literal then a rigid
-                // step: the rigid step's slots carry the side and the
-                // step's own index.
-                b: MateFrame::on_face(
-                    Placement::literal(&Frame::translation([0.0, 0.0, 1.0])).compose(
-                        &Step::Rigid {
-                            translation: [len(0.5), len(0.0), len(0.0)],
-                            axis: [scl(0.0), scl(0.0), scl(1.0)],
-                            angle: ang(0.5),
-                        }
-                        .into(),
+        // A placement whose bundle is a world mate, a mate onto a face
+        // and a value on that mate: each constraint's slots carry its
+        // own id.
+        Node::Place {
+            shapes: vec![nid(2).into()],
+            constraints: vec![
+                constraint(
+                    1,
+                    to_world(
+                        nid(2),
+                        world_xy()
+                            .slide(world_z(), len(2.0))
+                            .spin(world_z(), ang(0.25)),
                     ),
                 ),
-                primitive: MatePrimitive::Coaxial,
-                sense: AxisSense::Aligned,
-                clocking: None,
-            },
+                constraint(
+                    2,
+                    fixture::mate(
+                        fixture::axis(fixture::head(fixture::fname(
+                            nid(2),
+                            RoleSeg::Cap(CapEnd::End),
+                        ))),
+                        fixture::axis(fixture::head(fixture::fname(
+                            nid(1),
+                            RoleSeg::Cap(CapEnd::Start),
+                        ))),
+                        ContactClass::Rest,
+                    ),
+                ),
+                value(
+                    3,
+                    editor_core::Value {
+                        mate: editor_core::ConstraintId(editor_core::MintId::new(0, 2)),
+                        coord: editor_core::Coord::Spin,
+                        by: ang(0.5),
+                    },
+                ),
+                value(
+                    4,
+                    editor_core::Value {
+                        mate: editor_core::ConstraintId(editor_core::MintId::new(0, 2)),
+                        coord: editor_core::Coord::Slide(editor_core::SlideAxis::Z),
+                        by: len(0.5),
+                    },
+                ),
+            ],
         },
         Node::Measure {
             primitive: editor_core::MeasurePrimitive::Distance {

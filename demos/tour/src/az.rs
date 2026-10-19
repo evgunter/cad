@@ -6,15 +6,14 @@
 //!
 //! Both letters are drawn in one block, x ∈ [0, 2], y ∈ [0, 2.5],
 //! z ∈ [0, 2]: the Z's bars end on the A's feet and apex planes, and
-//! the A's caps lie on the Z's outer bar faces. Those contacts are
-//! DECLARED ([`crate::booleans::try_intersect_declared`]).
+//! the A's caps lie on the Z's outer bar faces. The intersect glues
+//! those contacts on their decided zero (D10).
 //!
 //! The Z's diagonal has slope 9/14, so its seam vertices are
 //! non-dyadic.
 //!
-//! Built `A ∩ Z`: `Z ∩ A` refuses `JoinDesync` on the same
-//! declarations — a live wall probe in [`stops`], filed as
-//! `work/flush/declared-flush-intersect-refuses-in-one-operand-order.md`.
+//! Built `A ∩ Z`; [`stops`] builds `Z ∩ A` too, and it lands the same
+//! volume.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -23,11 +22,11 @@ use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{AtRestBody, BooleanBody};
 
-use crate::booleans::{check, expect_seamed, finished, try_intersect_declared};
+use crate::booleans::{check, expect_seamed, finished, try_intersect};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p3, polygon, validated};
-use pncad::geom_core::{OrthoFrame, Tol};
+use pncad::geom_core::{RigidMotion, Tol};
 
 /// Exact volume, 38627/14336: V = ∫ len_x(A at y) · len_z(Z at y) dy
 /// over y ∈ [0, 5/2] (each prism spans the other's extrusion). Both
@@ -75,7 +74,7 @@ fn lp<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> ConstructedLoop<S> {
 
 /// The A prism: xy sketch at z = 0, extruded 2 along +z.
 fn a_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, 0.0)));
     let body = extrude(
         &validated(plane, vec![lp(&A_OUTLINE, tol), lp(&A_COUNTER, tol)], tol).expect("A profile"),
         Extrusion::Distance {
@@ -91,7 +90,7 @@ fn a_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
 
 /// The Z prism: yz sketch at x = 0, extruded 2 along +x.
 fn z_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
-    let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(p3(0.0, 0.0, 0.0)));
+    let plane = SketchPlane::from_frame(RigidMotion::axes_yz(p3(0.0, 0.0, 0.0)));
     let body = extrude(
         &validated(plane, vec![lp(&Z_OUTLINE, tol)], tol).expect("Z profile"),
         Extrusion::Distance {
@@ -109,9 +108,9 @@ fn z_prism<S: Scalar>(tol: Tol) -> AtRestBody<S> {
 /// the same construction).
 pub(crate) fn build<S: Scalar>(tol: Tol) -> BooleanBody<S> {
     expect_seamed(
-        "declared A x Z intersect (counter-hole A)",
+        "A x Z intersect (counter-hole A)",
         check(
-            try_intersect_declared(&a_prism::<S>(tol), &z_prism::<S>(tol), tol),
+            try_intersect(&a_prism::<S>(tol), &z_prism::<S>(tol), tol),
             V_AZ,
             tol,
         ),
@@ -122,12 +121,11 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> BooleanBody<S> {
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let az = build::<f64>(tol);
     // The other order, Z x A, builds the same body's volume: intersection
-    // is commutative, and the join no longer refuses it
-    // (`work/flush/declared-flush-intersect-refuses-in-one-operand-order.md`).
+    // is commutative.
     expect_seamed(
-        "declared Z x A intersect",
+        "Z x A intersect",
         check(
-            try_intersect_declared(&z_prism::<f64>(tol), &a_prism(tol), tol),
+            try_intersect(&z_prism::<f64>(tol), &a_prism(tol), tol),
             V_AZ,
             tol,
         ),
@@ -141,12 +139,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         montage: false,
         story: "the A x Z silhouette intersect: counter-hole A (a true inner loop) x Z, \
                 both letters filling one block",
-        ops: "extrude A with counter (xy sketch, +z) x extrude Z (yz sketch, +x), flush \
-              contacts declared -> 1 intersect node",
+        ops: "extrude A with counter (xy sketch, +z) x extrude Z (yz sketch, +x) -> 1 \
+              intersect node",
         delta: 1e-2,
         note: Some(format!(
             "volume gated on the exact oracle 38627/14336 = {V_AZ} (exact-fraction \
-             integration); both letters fill one block, so their contacts are declared"
+             integration); both letters fill one block, and the intersect glues their \
+             flush contacts"
         )),
         view: View {
             elev: 22.0,

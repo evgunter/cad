@@ -127,8 +127,8 @@ pub fn narration(tol: Tol) {
         let (nu, nv) = wall.control_counts();
         println!(
             "   wall {j}: degree {}x{} NURBS, {nu}x{nv} control points, weights {}",
-            wall.knots_u().degree(),
-            wall.knots_v().degree(),
+            wall.knots_u_f64_interim().degree(),
+            wall.knots_v_f64_interim().degree(),
             if wall.weights().iter().all(|w| *w == 1.0) {
                 "all 1 (integral)"
             } else {
@@ -649,7 +649,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // placement is not part of the shape.
     let nonuniform = pncad::topo::transform_rigid(
         &nonuniform_at_origin,
-        &Affine3::translation(Vec3::new(LOFT_PAIR_GAP, 0.0, 0.0)),
+        &pncad::geom_core::RigidMotion::translation(Vec3::new(LOFT_PAIR_GAP, 0.0, 0.0))
+            .expect("a finite translation"),
         tol,
     )
     .expect("the non-uniform loft is placed beside its twin");
@@ -730,7 +731,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     let twisted = pncad::topo::transform_rigid(
         &twisted_at_origin,
-        &Affine3::translation(Vec3::new(2.0 * LOFT_PAIR_GAP, 0.0, 0.0)),
+        &pncad::geom_core::RigidMotion::translation(Vec3::new(2.0 * LOFT_PAIR_GAP, 0.0, 0.0))
+            .expect("a finite translation"),
         tol,
     )
     .expect("the twisted loft is placed beside the pair");

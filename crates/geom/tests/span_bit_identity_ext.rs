@@ -68,21 +68,10 @@ fn curve(k: KnotVector, rational: bool) -> NurbsCurve3<f64> {
     NurbsCurve3::new(k, control, weights).unwrap()
 }
 fn lift<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
-    NurbsCurve3::new(
-        c.knots().clone(),
-        c.control().iter().map(|p| p.map(T::from_f64)).collect(),
-        c.weights().to_vec(),
-    )
-    .unwrap()
+    c.map_scalar(T::from_f64)
 }
 fn lift_s<T: Real>(s: &NurbsSurface<f64>) -> NurbsSurface<T> {
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        s.control().iter().map(|p| p.map(T::from_f64)).collect(),
-        s.weights().to_vec(),
-    )
-    .unwrap()
+    s.map_scalar(T::from_f64)
 }
 fn pf(o: &mut Rows, t: &str, p: Point3<f64>) {
     o.push((format!("{t}.x"), p.x.to_bits()));
@@ -507,14 +496,14 @@ fn jet2<T: SpanLocate>(c: &NurbsCurve2<T>, t: T, bits: fn(T) -> Vec<u64>, what: 
         );
     }
 }
-fn lift2<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve2<T> {
+fn lift2<T: SpanLocate>(c: &NurbsCurve3<f64>) -> NurbsCurve2<T> {
     NurbsCurve2::new(
-        c.knots().clone(),
+        c.knot_values().lift(T::from_f64),
         c.control()
             .iter()
             .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
             .collect(),
-        c.weights().to_vec(),
+        c.weights().iter().map(|w| T::from_f64(*w)).collect(),
     )
     .unwrap()
 }

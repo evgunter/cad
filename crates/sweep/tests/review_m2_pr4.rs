@@ -20,7 +20,7 @@ use sweep::ExtrudeSide;
 use geom::Surface;
 use geom_brep::{EdgeDescription, newell_plane};
 use geom_core::Tol;
-use geom_core::{Band, OrthoFrame, Point2, Point3, Real, Vec3};
+use geom_core::{Band, Point2, Point3, Real, RigidMotion, Vec3};
 use profile::{
     LoopRole, Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
 };
@@ -150,25 +150,6 @@ fn edge_face_surfaces(body: &Body<f64>, edge: EdgeKey) -> (topo::SurfaceKey, top
         body.get_face(f).unwrap().surface
     };
     (surface_of(e.he_plus), surface_of(e.he_minus))
-}
-
-/// **A conventional description the profile DECLARED**: an image in
-/// `chart` that is not that chart's parameterization seam, carrying
-/// the sketch entity's pushforward as its authority. The post-collapse
-/// spelling of "this strut stays a `MappedCurve`" — stricter, because
-/// it pins the chart the image is drawn in as well.
-fn assert_declared_image_in(body: &Body<f64>, edge: EdgeKey, chart: topo::SurfaceKey) {
-    match description(body, edge) {
-        EdgeDescription::Chart(c) => {
-            assert_eq!(c.surface, chart, "the image must be drawn in {chart:?}");
-            assert!(!c.wrap, "a declared image is not the chart's seam");
-        }
-        other => panic!("expected a conventional chart image, got {other:?}"),
-    }
-    assert!(
-        authority(body, edge).is_declared(),
-        "a sketch entity under the sweep map determined this locus"
-    );
 }
 
 /// Independent orientation oracle: signed volume by the ch. 13
@@ -565,11 +546,15 @@ fn survives_reversal_maps_and_orientation() {
     }
 }
 
-/// A typed error's canonical indices survive the reversal map: the
-/// sliver corner sits at canonical vertex 1 and is reported there for
-/// BOTH extrusion directions.
+/// The canonical indices survive the reversal map: the shallow corner
+/// sits at canonical vertex 1, and in BOTH extrusion directions the
+/// strut swept from it is that corner's, its two walls' corner (their
+/// wedge levered at the walls' metre, `topo::wedge_reach`). The
+/// `SliverJoin` this row pinned the canonical index of is reached only
+/// through a box now, and the index has no row
+/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
-fn survives_sliver_join_reports_canonical_index_both_directions() {
+fn survives_shallow_corner_strut_keeps_its_canonical_index_both_directions() {
     let theta = 3000.0 * eps();
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
@@ -582,25 +567,23 @@ fn survives_sliver_join_reports_canonical_index_both_directions() {
     // corner is canonical vertex 1.
     assert_eq!(vp.loops()[0].vertices()[1].x, 1.0);
     for d in [1.0e-3, -1.0e-3] {
-        let err = extrude(&vp, crate::common::to_offset(d), Tol::witness()).unwrap_err();
-        match err {
-            ExtrudeError::SliverJoin {
-                loop_index,
-                vertex_index,
-                reading,
-                source,
-            } => {
-                assert_eq!(
-                    reading,
-                    topo::DihedralReading::Lever(geom_brep::LeverRung::Reading),
-                    "a sliver corner is the first-order wedge's escalation"
-                );
-                assert_eq!(loop_index, 0);
-                assert_eq!(vertex_index, 1, "canonical index broken for d = {d}");
-                assert_eq!(source.predicate, Some("dihedral_wedge"));
-            }
-            other => panic!("expected SliverJoin, got {other:?}"),
+        let t = extrude(&vp, crate::common::to_offset(d), Tol::witness()).unwrap();
+        assert_all_tiers(&t.body);
+        // Swept order runs the canonical chain backwards for `d < 0`.
+        let swept = if d > 0.0 { 1 } else { 4 - 1 };
+        match description(&t.body, t.strut_edges()[0][swept].unwrap()) {
+            EdgeDescription::Intersection { witness, .. } => assert_eq!(
+                (witness.x, witness.y),
+                (1.0, 0.0),
+                "canonical strut 1 is the shallow corner's for d = {d}"
+            ),
+            other => panic!("expected the corner's intersection for d = {d}, got {other:?}"),
         }
+        // The quad's area `(1 + cos θ + sin θ)/2` swept `|d|` (the fan
+        // formula is exact on planar faces).
+        let exact = 0.5 * (1.0 + theta.cos() + theta.sin()) * d.abs();
+        let v = signed_volume(&t.body);
+        assert!((v - exact).abs() < 1e-12, "d {d}: V = {v}, want {exact}");
     }
 }
 
@@ -608,13 +591,13 @@ fn survives_sliver_join_reports_canonical_index_both_directions() {
 // Assignment 3 — join classification across the sliver band.
 // =====================================================================
 
-/// A profile-definite corner swept across the extrude-scale band by the
-/// lever arm |w| = 1e-3: dihedral margin sinθ·|w| at 0.5ε ⇒ definite
-/// Smooth (conventional strut, distinct plane keys — never silently
-/// shared); at 3ε ⇒ SliverJoin; at 30ε ⇒ definite Transverse
-/// (Intersection). Never a wrong definite, and the in-band case is the
-/// honest typed answer to "profile passed it, extrude cannot certify
-/// it at ITS lever arm".
+/// A profile-definite corner extruded `|w| = 1e-3`, at the turns that
+/// put the wedge levered at the strut's own length at 0.5ε, 3ε and 30ε:
+/// the strut levers it at its walls' metre (`topo::wedge_reach`), so
+/// every turn is a definite corner, the strut the walls'
+/// `Intersection`, and the body valid at every tier. The ladder's
+/// `OnPair` and `SliverJoin` rungs have no row now
+/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn survives_dihedral_band_sweep_at_the_strut_arm() {
     let w = 1.0e-3;
@@ -626,136 +609,29 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
             Point2::new(0.0, 1.0),
         ])
     };
-    // margin = sin θ · w. Choose θ so margins land at 0.5ε, 3ε, 30ε.
-    let smooth_theta = 0.5 * eps() / w; // 500ε: profile-definite corner
-    let sliver_theta = 3.0 * eps() / w;
-    let corner_theta = 30.0 * eps() / w;
-
-    // (a) Definite Smooth at the strut arm: builds, strut 1 stays
-    // conventional, wall keys distinct (cosurface margin ≈ θ·1 m =
-    // 500ε ≫ K·ε — definitely two planes, no silent sharing).
-    let t = extrude(
-        &validated(vec![corner_profile(smooth_theta)]),
-        Extrusion::Distance {
-            depth: w,
-            side: ExtrudeSide::Along,
-        },
-        Tol::witness(),
-    )
-    .unwrap();
-    assert_all_tiers(&t.body);
-    let k0 = t.body.get_face(t.side_faces()[0][0]).unwrap().surface;
-    let k1 = t.body.get_face(t.side_faces()[0][1]).unwrap().surface;
-    assert_ne!(k0, k1, "smooth-at-arm join must not silently share keys");
-    // The strut stays conventional: two DISTINCT planes meeting
-    // smoothly have zero relative normal curvature, so the pair
-    // under-determines the locus and no intrinsic description exists
-    // for it. It is still an edge at rest, so it says where it rests —
-    // an image in the FIRST wall's chart (the strut is that wall's
-    // boundary), with the profile vertex's extrusion as its authority.
-    //
-    // **Re-expressed at PCURVE P-1b, and the row grew teeth doing it.**
-    // "Stays `MappedCurve`" was a variant test, and the variant is
-    // gone. Worse, it was passing for the wrong reason: this join is
-    // the one under-determined lane in `extrude` that never converted,
-    // so the body it built was one tier 3 refuses — which the variant
-    // test could not see and `assert_all_tiers` above now does. The
-    // row asserts the authority record AND the chart, so a strut that
-    // stopped at the scaffolding door fails here as well as there.
-    let strut = t.strut_edges()[0][1].unwrap();
-    let (wall_a, wall_b) = edge_face_surfaces(&t.body, strut);
-    assert_ne!(wall_a, wall_b, "the strut separates two distinct walls");
-    let chart = match description(&t.body, strut) {
-        EdgeDescription::Chart(c) => c,
-        other => panic!("expected a conventional chart image, got {other:?}"),
-    };
-    assert!(
-        chart.surface == wall_a || chart.surface == wall_b,
-        "the image is drawn in one of the strut's OWN two wall charts"
-    );
-    assert!(!chart.wrap, "a declared image is not the chart's seam");
-    assert!(
-        authority(&t.body, strut).is_declared(),
-        "the profile vertex's extrusion determined this locus"
-    );
-    // **Either chart is a legitimate home — demonstrated, not
-    // asserted.** `extrude` names `k_prev`, and the certification
-    // meter only ever checks the chart it is GIVEN, so the pick would
-    // be load-bearing if the strut lay in just one wall. It lies in
-    // both: an extruded wall is ruled in the extrusion vector, and the
-    // strut IS the ruling through the vertex the two segments share.
-    // Re-describing it in the other wall's chart therefore certifies
-    // and validates identically — which is why the row does not pin
-    // WHICH of the two the verb happened to name. (Contrast #1116: a
-    // fillet strut on a curved support is a chord, i.e. a secant, and
-    // lies in NEITHER adjacent surface — same word, opposite outcome,
-    // and this is the row that tells them apart.)
-    let other_chart = if chart.surface == wall_a {
-        wall_b
-    } else {
-        wall_a
-    };
-    //
-    // The re-homing states the other chart EXPLICITLY rather than
-    // going through `at_rest_in_chart`, which is the scaffolding
-    // door's conversion and a deliberate no-op on a spec that already
-    // names a chart — an already-described edge is re-homed by saying
-    // where, not by asking the door again. Carrier, interval and the
-    // declaration are carried verbatim; only the chart differs.
-    let mut other = t.body.clone();
-    let certified = other
-        .get_edge(strut)
-        .and_then(|e| other.get_curve_geom(e.curve))
-        .and_then(topo::CurveGeom::certified)
+    for margin in [0.5, 3.0, 30.0].map(|m| m * eps()) {
+        let t = extrude(
+            &validated(vec![corner_profile(margin / w)]),
+            Extrusion::Distance {
+                depth: w,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
         .unwrap();
-    let mut restated = certified.restated_spec();
-    let geom_brep::EdgeAuthority::Declared(mc) = certified.authority() else {
-        panic!("the strut's locus was declared by the profile vertex's extrusion");
-    };
-    restated.description = geom_brep::EdgeDescriptionSpec::chart(other_chart).declared_by(mc);
-    other
-        .set_edge_curve(strut, restated, Tol::witness())
-        .expect("the strut lies in the OTHER wall's chart too");
-    assert_all_tiers(&other);
-    assert_declared_image_in(&other, strut, other_chart);
-
-    // (b) In-band: the typed sliver, at the canonical vertex.
-    let err = extrude(
-        &validated(vec![corner_profile(sliver_theta)]),
-        Extrusion::Distance {
-            depth: w,
-            side: ExtrudeSide::Along,
-        },
-        Tol::witness(),
-    )
-    .unwrap_err();
-    assert!(
-        matches!(
-            err,
-            ExtrudeError::SliverJoin {
-                loop_index: 0,
-                vertex_index: 1,
-                ..
-            }
-        ),
-        "{err:?}"
-    );
-
-    // (c) Definite Transverse: Intersection at strut 1.
-    let t = extrude(
-        &validated(vec![corner_profile(corner_theta)]),
-        Extrusion::Distance {
-            depth: w,
-            side: ExtrudeSide::Along,
-        },
-        Tol::witness(),
-    )
-    .unwrap();
-    assert_all_tiers(&t.body);
-    assert!(matches!(
-        description(&t.body, t.strut_edges()[0][1].unwrap()),
-        EdgeDescription::Intersection { .. }
-    ));
+        assert_all_tiers(&t.body);
+        let strut = t.strut_edges()[0][1].unwrap();
+        let (wall_a, wall_b) = edge_face_surfaces(&t.body, strut);
+        assert_ne!(wall_a, wall_b, "the strut separates two distinct walls");
+        assert!(
+            matches!(
+                description(&t.body, strut),
+                EdgeDescription::Intersection { pair, .. }
+                    if pair == geom_brep::SurfacePair::new(wall_a, wall_b)
+            ),
+            "the turn at margin {margin:e} over |w| is the walls' corner"
+        );
+    }
 }
 
 // =====================================================================
@@ -1321,29 +1197,15 @@ fn survives_error_paths_extended() {
         .unwrap_err(),
         ExtrudeError::ObliqueExtrusion
     );
-    // NaN placement: 2-D validation cannot see it; the geometry gate
-    // refuses at the first certification, typed, body discarded.
-    let bad_plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(f64::NAN, 0.0, 0.0)));
-    let vp_bad = Profile::new(bad_plane, vec![l_loop()])
-        .validate(Tol::witness())
-        .expect("validation is 2-D; the poisoned placement passes through");
-    let err = extrude(
-        &vp_bad,
-        Extrusion::Distance {
-            depth: 1.0,
-            side: ExtrudeSide::Along,
-        },
-        Tol::witness(),
-    )
-    .unwrap_err();
-    assert!(
-        matches!(
-            err,
-            ExtrudeError::Op {
-                source: EulerOpError::Certification { .. }
-            }
-        ),
-        "poisoned placement must surface the certification report, got {err:?}"
+    // NaN placement: validation refuses the plane before any loop is
+    // read, so no profile with no place in space reaches the extrude.
+    let bad_plane = SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(f64::NAN, 0.0, 0.0)));
+    assert_eq!(
+        Profile::new(bad_plane, vec![l_loop()])
+            .validate(Tol::witness())
+            .map(|_| ()),
+        Err(profile::ProfileError::PlaneNotFinite),
+        "a poisoned placement refuses at validation"
     );
 }
 

@@ -40,13 +40,7 @@ impl Rec {
             node: Box::new(node),
             fresh: Vec::new(),
         };
-        let applied = apply(
-            &self.doc,
-            &edit,
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect("edit applies");
+        let applied = apply(&self.doc, &edit, Tol::witness()).expect("edit applies");
         self.doc = applied.doc;
         self.edits.push(edit);
         applied.record.minted.expect("minted id")
@@ -89,7 +83,6 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
     });
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
-        declare: Vec::new(),
     });
     (r.doc, r.edits, union)
 }

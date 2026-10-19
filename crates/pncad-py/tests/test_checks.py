@@ -281,7 +281,7 @@ class TestTheRegistryVocabulary(unittest.TestCase):
         strict = ChecksConfig(connectedness=Severity.Error)
         report = run_checks(doc, evaluation, strict)
         (finding,) = report.findings
-        spoken = 'check connectedness: PlaceInWorld "joined" ('
+        spoken = 'check connectedness: Place "joined" ('
         self.assertIn(spoken, str(report))
         self.assertIn(spoken, str(finding))
         self.assertNotIn("renamed", str(report))
@@ -364,7 +364,7 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
     door dropped the `ContactRecords` `product::sources_of` had built
     beside it one line earlier — so a subject whose declarations were
     the whole reason its seam is legal reported that seam as an
-    undeclared contact, while the identical body read off its own
+    unrecorded contact, while the identical body read off its own
     `Value` passed. The narrowing failed loud rather than silently (an
     absent record set can only make the gate REFUSE), which is what
     made it a diagnosis a caller could not act on rather than a wrong
@@ -396,7 +396,7 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
         instance = doc.insert(
             Node.instantiate_part(DocRef(ident, store.current_pin(ident)))
         )
-        doc.place(instance)
+        doc.pin(instance, resolver=store)
         return doc, instance, evaluate(doc, resolver=store)
 
     def test_the_subject_is_the_body_its_producer_minted(self):
@@ -443,9 +443,24 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         reporting over what did evaluate."""
         doc = Doc("checks-sliver")
         a = slab(doc, 0.0, 1.0)
-        # 2 nm apart: in band, so the union refuses.
-        b = slab(doc, 1.0 + 2e-9, 2.0)
+        # Placed while it builds — the gesture reads the union's faces —
+        # then its second slab is lowered to 2 nm above the first: in
+        # band, so the union refuses.
+        frame = doc.sketch_frame(elevation=Formula.length_in(1.5, m))
+        profile = doc.insert(
+            Node.polygon(
+                [
+                    (Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(1, m), Formula.length_in(0, m)),
+                    (Formula.length_in(1, m), Formula.length_in(1, m)),
+                    (Formula.length_in(0, m), Formula.length_in(1, m)),
+                ],
+                plane=frame,
+            )
+        )
+        b = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
         root = doc.place(doc.insert(Node.union([a, b])))
+        doc.apply(DocEdit.set_param(frame, "origin_z", Formula.length_in(1.0 + 2e-9, m)))
         ev = evaluate(doc)
         with self.assertRaises(ChecksError) as caught:
             run_checks(doc, ev)
@@ -456,31 +471,30 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
 
 class TestTheUnprovenCoincidenceResident(unittest.TestCase):
     """The `unproven-coincidence` lint (D10): a plate resting flush on
-    a block, unioned under the declared `Rest` the flush detector
-    offers. The declaration is verified from values, so the union
-    records one coincidence, and the door does not prove it: the two
-    caps are two constructions, and the block's top and the plate's
+    a block, unioned. The margin decides the rest from values, so the
+    union records one coincidence, and the door does not prove it: the
+    two caps are two constructions, and the block's top and the plate's
     floor are two variables typed to one value. The report's rows are
     the evaluation's unproven rows, word for word."""
 
-    def test_a_declared_rest_is_one_unproven_coincidence(self):
+    def test_a_glued_rest_is_one_unproven_coincidence(self):
         doc = Doc()
         lower = slab(doc, 0.0, 1.0)
         upper = slab(doc, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5)
-        findings = evaluate(doc).find_flush_candidates(lower, upper)
-        glued = doc.insert(
-            Node.union([lower, upper], declare=findings)
-        )
+        glued = doc.insert(Node.union([lower, upper]))
         ev = evaluate(doc)
         rows = ev.coincidences(glued)
         self.assertEqual(len(rows), 1)
         (row,) = rows
         self.assertEqual((row.relation, row.site), ("same_opposite", "plane_ladder"))
+        # The door replays the document with every variable a symbol,
+        # and says so of a row it does not prove.
         self.assertIsNone(row.rung)
         self.assertEqual(
             row.residual,
-            "the two cells are two constructions; unproven at the resident budget; "
-            "the full symbolic pass decides",
+            "the two cells are two constructions; with every variable a symbol, "
+            "neither the carriers' verdict nor the deciding margin is shown "
+            "identically zero within the door's budget",
         )
         # Each cell is named in the table of the read it came in
         # through: the two members' outputs.
@@ -515,26 +529,6 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertEqual(
             [f for f in off.findings if f.check == CheckId.UnprovenCoincidence], []
         )
-
-        # The full pass replays the document with every variable a
-        # symbol, and says so of a row it does not prove.
-        full = (
-            "the two cells are two constructions; with every variable a symbol, "
-            "neither the carriers' verdict nor the deciding margin is shown "
-            "identically zero within the full pass's budget"
-        )
-        (row,) = ev.coincidences(glued, full_symbolic_pass=True)
-        self.assertIsNone(row.rung)
-        self.assertEqual(row.residual, full)
-        self.assertFalse(cfg.full_symbolic_pass)
-        cfg = ChecksConfig(
-            connectedness=Severity.Off,
-            separation=Advisory.Off,
-            full_symbolic_pass=True,
-        )
-        self.assertTrue(cfg.full_symbolic_pass)
-        (finding,) = run_checks(doc, ev, cfg).findings
-        self.assertEqual(finding.evidence.reason, full)
 
 
 if __name__ == "__main__":

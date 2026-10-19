@@ -9,6 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::spline::Knots;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
@@ -88,21 +89,33 @@ fn control(n: usize) -> Vec<Point3<f64>> {
         .collect()
 }
 
-fn lift3<T: Real>(k: &KnotVector, w: &[f64]) -> Curve3<T> {
+fn lift3<T: SpanLocate>(k: &KnotVector, w: &[f64]) -> Curve3<T> {
     let n = k.control_count();
     let ctl: Vec<Point3<T>> = control(n).iter().map(|p| p.map(T::from_f64)).collect();
+    let w = w.iter().map(|w| T::from_f64(*w)).collect();
     Curve3::Nurbs(Arc::new(
-        NurbsCurve3::new(k.clone(), ctl, w.to_vec()).unwrap(),
+        NurbsCurve3::new(
+            Knots::from(k.clone()).lift(geom_core::Real::from_f64),
+            ctl,
+            w,
+        )
+        .unwrap(),
     ))
 }
 
-fn lift2<T: Real>(k: &KnotVector, w: &[f64]) -> NurbsCurve2<T> {
+fn lift2<T: SpanLocate>(k: &KnotVector, w: &[f64]) -> NurbsCurve2<T> {
     let n = k.control_count();
     let ctl: Vec<Point2<T>> = control(n)
         .iter()
         .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
         .collect();
-    NurbsCurve2::new(k.clone(), ctl, w.to_vec()).unwrap()
+    let w = w.iter().map(|w| T::from_f64(*w)).collect();
+    NurbsCurve2::new(
+        Knots::from(k.clone()).lift(geom_core::Real::from_f64),
+        ctl,
+        w,
+    )
+    .unwrap()
 }
 
 /// The fixtures: (name, knots, weights), every one a shape the shipped
@@ -262,8 +275,8 @@ fn tilted_ellipse<T: Real>() -> Curve3<T> {
     Curve3::Ellipse {
         center: Point3::new(f(-0.5), f(4.0), f(1.25)),
         axis: Vec3::new(f(2.0 / 3.0), f(2.0 / 3.0), f(1.0 / 3.0)),
-        major: f(2.5),
-        minor: f(1.0),
+        semi_u: f(2.5),
+        semi_v: f(1.0),
         u_ref: Vec3::new(f(1.0 / 3.0), f(-2.0 / 3.0), f(2.0 / 3.0)),
     }
 }

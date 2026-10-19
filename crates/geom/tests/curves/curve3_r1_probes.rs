@@ -30,22 +30,17 @@ fn curve3(k: &KnotVector, weights: Vec<f64>) -> NurbsCurve3<f64> {
 }
 
 fn lift3<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
-    NurbsCurve3::new(
-        c.knots().clone(),
-        c.control().iter().map(|p| p.map(T::from_f64)).collect(),
-        c.weights().to_vec(),
-    )
-    .unwrap()
+    c.map_scalar(T::from_f64)
 }
 
-fn lift2<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve2<T> {
+fn lift2<T: SpanLocate>(c: &NurbsCurve3<f64>) -> NurbsCurve2<T> {
     NurbsCurve2::new(
-        c.knots().clone(),
+        c.knot_values().lift(T::from_f64),
         c.control()
             .iter()
             .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.z)))
             .collect(),
-        c.weights().to_vec(),
+        c.weights().iter().map(|w| T::from_f64(*w)).collect(),
     )
     .unwrap()
 }
@@ -144,7 +139,7 @@ fn adversarial() -> Vec<(&'static str, NurbsCurve3<f64>)> {
 }
 
 fn probe_params(c: &NurbsCurve3<f64>) -> Vec<f64> {
-    let knots = c.knots().knots();
+    let knots = c.knots_f64_interim().knots();
     let mut ts: Vec<f64> = knots.to_vec();
     ts.extend(knots.windows(2).filter(|w| w[1] > w[0]).flat_map(|w| {
         let (a, b) = (w[0], w[1]);
@@ -188,7 +183,7 @@ fn probe_nurbs_ders1_is_the_pair_on_adversarial_curves_f64_and_dual() {
         }
         // Out-of-domain parameters: the locator decides where these
         // land, and both doors must land them the same way.
-        let (lo, hi) = c.knots().domain();
+        let (lo, hi) = c.knots_f64_interim().domain();
         for t in [lo - 1.0, hi + 1.0, lo - 1e-14, hi + 1e-14] {
             same3(&c, t, bf64, &format!("{name} oob @{t}"));
             same_enum(&enum_c, t, &format!("{name} enum oob @{t}"));
@@ -205,7 +200,7 @@ fn probe_nurbs_ders1_is_the_pair_on_adversarial_curves_interval() {
     for (name, c) in adversarial() {
         let ci: NurbsCurve3<Interval> = lift3(&c);
         let ci2: NurbsCurve2<Interval> = lift2(&c);
-        let (lo, hi) = c.knots().domain();
+        let (lo, hi) = c.knots_f64_interim().domain();
         let span = hi - lo;
         let mut ivs: Vec<Interval> = Vec::new();
         for t in probe_params(&c) {
@@ -331,8 +326,8 @@ fn probe_analytic_arms_at_extreme_parameters() {
             Curve3::Ellipse {
                 center,
                 axis,
-                major: 4.5,
-                minor: 0.125,
+                semi_u: 4.5,
+                semi_v: 0.125,
                 u_ref,
             },
         ),
@@ -341,8 +336,8 @@ fn probe_analytic_arms_at_extreme_parameters() {
             Curve3::Ellipse {
                 center,
                 axis,
-                major: 1e12,
-                minor: 1e-12,
+                semi_u: 1e12,
+                semi_v: 1e-12,
                 u_ref,
             },
         ),

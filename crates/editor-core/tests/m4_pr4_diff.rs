@@ -90,12 +90,10 @@ fn slide_union(tx: f64) -> Slide {
     // The sliding overlap's flush planes are declared on the union.
     // The B side is read at the TRANSFORM, the boolean's operand;
     // a transform carries `b0`'s names verbatim (N1).
-    let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (doc, union) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
-            declare: decl,
         },
     );
     Slide {
@@ -268,7 +266,6 @@ fn parallel_schedule_preserves_verdict_logs() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     let seq = run(&doc, None);

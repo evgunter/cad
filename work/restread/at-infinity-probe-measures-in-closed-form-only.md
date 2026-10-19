@@ -2,12 +2,12 @@
 id: at-infinity-probe-measures-in-closed-form-only
 kind: issue
 title: point-in-solid's at-infinity probe measures in closed form only, so an obliquely trimmed wall refuses VolumeUncertified
-status: open
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: M
+closed: 2026-10-18
 ---
-
 
 ## What
 
@@ -115,7 +115,6 @@ body that battery builds refuses to unite with a far brick,
 `operand=false`): 1 151 runs on main, 1 817 once the join pairs the
 steep ellipses along the conic. The rod and the plate alone unite with
 the brick. Probed at θ = 30° and 70°, plate ∩ rod.
-
 
 ## Another witness (JOIN, the parallel cylinder arm)
 
@@ -240,3 +239,129 @@ that brick. The brick ∖ plug result is accepted. The refusal is the
 same at all 13 poses of that suite. Each body measures at its closed
 form through `topo::mass_properties`. The suite's apart pin does not
 assert legality for this reason.
+
+## 2026-10-11 — 1 023 boolean results at a curved corner pinch (FLUSH)
+
+`sweep` `curved_notch_pinch::curved_notch_pinch`
+(ignored, release; `notch343` with one face bowed into a cylinder arc,
+against a two-cube corner pinch, 84 directions × 3 turns, every op in
+both orders, plain booleans) on main `6e3985cb7`: 1 023 of 1 497
+built bodies refuse a union with a far brick
+`Containment(VolumeUncertified)`. Each has the right volume and
+passes tier 2 and the certificate. Instrumented on three poses, the
+probe's props refusal is the one this row names, on the bowed wall:
+`Face { source: NotIsoRectangle { what: "cylinder boundary carries an
+ellipse arc (curved cut) …" } }`. A cube face cutting the wall
+obliquely leaves an ellipse arc on its boundary. The 474 bodies whose
+further union passes are the poses where no cube face cuts the wall
+that way.
+
+Pinned by `a_curved_notch_at_a_corner_pinch_builds_bodies_two_lanes_cannot_read_yet`
+(poses `0 0 0 ab I` and `0 0 0 ab U` refuse; `9 4 4 ab S` passes):
+when this lane lands, flip those two expectations.
+
+## Two batteries read it as their one failure (FLUSH, 2026-10-11)
+
+Measured on `flush/e-tail` (main at `121741a2b` plus FLUSH's E tail),
+ε = 1e-9, once `crates/sweep/tests/pocket_ring_steep_ellipse.rs`
+`steep_quad_prism_battery` and `crates/sweep/tests/join3_r2_probes.rs`
+`j3r2_tilted_battery` judge their bodies through
+`common::differential::outcome`, which asks each built body to unite
+with the far brick `[50, 51]³`. Every body the two batteries read BAD
+passes tiers 2 and 3′ and the certificate and fails only that union:
+849 of 960 runs and 2 153 of 2 160. The cutters alone are legal
+operands (`j3r2_tilted_operands`: every one unites); the results
+carrying their ellipse-trimmed walls are not, and
+`j3r2_tilted_rod_operand` prints the refusal,
+`Containment(VolumeUncertified)`, for a tilted round rod and a tilted
+D at θ = 0.15 (a tilted square, with no curved wall, unites).
+
+## Measured (CLEAVE `cleave/missed-ray-side`, 2026-10-11)
+
+CLEAVE's missed-ray unit
+(`work/cleave/a-missed-ray-reads-the-solids-volume-sign-for-its-side`)
+reads a missed ray's side off a ray aimed at a planar face wherever the
+selection's volume does not decide it, and that includes this row's
+`VolumeUncertified` (`solid_contain.rs` `missed_side`, `aimed_side`).
+Each pin this row names was measured on the branch at ε 1e-9, 1e-6 and
+1e-12, and re-baselined to the answer it now gives:
+
+- `pis_arc_capped_poses::a_ray_meeting_nothing_refuses_only_where_no_ray_settles`
+  is now `a_ray_meeting_nothing_is_sided_by_a_ray_aimed_at_a_planar_face`:
+  `Out` at both bands.
+- `pis_arc_capped_poses` grids and `pis_cut_cavity`: no at-infinity
+  refusal on any case, so their `VolumeUncertified` escape arms are
+  gone.
+- `band_planar_oblique_fillet`: ∖ and ∪ with a brick apart build at
+  the closed-form volumes, and ∩ is empty.
+- `curved_notch_pinch`: the further union builds on all three pinned
+  poses, the brick's volume added. The test is renamed
+  `a_curved_notch_at_a_corner_pinch_builds_bodies_the_census_cannot_read_yet`.
+- `parallel_cylinder_join::the_rim_crossing_rods_build_in_every_op`: all
+  18 builds now take a union with a far brick.
+- `germ_tilted_rod` and `pole_slit_window`: every outside probe answers.
+
+What stays: a selection with no planar face offers no aim point, so
+where its closed form refuses, the refusal stands. No such pose was
+measured.
+
+FLUSH's `join3_r2_probes::j3r2_tilted_rod_operand`, re-run on
+`cleave/missed-ray-side` after main's E tail merged in (ε 1e-9): the
+tilted round rod and the tilted D at θ = 0.15 now unite with the far
+brick (`operand Ok(())`), along with every other row of the probe. The
+two batteries above were not re-run.
+
+## Evidence: spiric-trimmed torus walls reach it (2026-10-18)
+
+With torus faces read by their region (`restread/torus-region`), the
+plane × torus bodies whose torus walls an oval bounds reach this probe
+on a point whose rays all miss: `germ_plane_torus_spiric.rs`, the
+one-face tori under S1 and the spiric box (∩ both orders and `T ∖ P`),
+refuse `VolumeUncertified` at 9 to 24 of 48 sampled points, and
+`torus_region_probe.rs` counts it as the only refusal of its random
+queries. Both rows admit exactly this refusal and cite this item
+(`germ_plane_torus_chord::volume_and_points`'s `probe_gap`), so they go
+red on any other and read these points once the probe measures by
+quadrature.
+
+## Closed
+
+A ray that meets nothing now reads its side from the first of three
+readings that decides (`boolean::solid_contain::missed_side`):
+
+1. the sign of the selection's volume in closed form;
+2. the rays aimed at its planar faces;
+3. the same sign measured through the scalar's quadrature lane
+   (`AtRestPolicy::quad_lane`), refined only until the bracket's sign
+   decides (`props::role_walk`).
+
+The third reading runs only where the closed form had no value for a
+face, and it does not run at all at a dual. Every query main answered
+is answered by the same reading. Both volume readings belong to the
+selection (`SolidFaces`' `VolumeReads`) and are read once per selection
+at a band. The census arm, the boolean's witness ladder
+(`operand_faces`), and any caller that holds `SolidFaces::of_body`
+therefore pay for them once and not once per point.
+
+An undecided read is typed `ZeroVolumeBody` only where the reading that
+decides it, the certified one where it was taken, reads zero at both
+ends, or certifies a sliver (`props::RoleUnread::reads_zero`,
+`unread_refusal`). With an end off zero it is `VolumeUncertified`.
+
+Measured at ε 1e-9:
+
+- `torus_region_probe` at seed `0x5eed1234`: 16 `VolumeUncertified`
+  of 1 176 queries on main, 0 on the branch.
+- `germ_plane_torus_spiric`'s one-face tori: 324 refused points over 18
+  bodies on main, 0 on the branch. The `probe_gap` escape is gone, and
+  `every_point_of_the_spiric_box_on_the_one_face_torus_reads_its_side`
+  pins the fast subset.
+- The wall pieces of `a_plane_across_a_one_face_wall` are now legal
+  operands. Every result in `continuation_pose` was already one on main,
+  through the aimed rays. Both suites now assert the far-brick union's
+  volume.
+
+The shell-role refusal shares the zero-at-one-end typing. It is filed on
+TALLY as `a-shell-role-left-open-at-the-target-is-typed-zero-volume`.
+The batteries this row cites (`join3_*`, `pocket_ring_steep_ellipse`,
+`curved_notch_pinch`) were not re-run.

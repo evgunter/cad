@@ -16,8 +16,7 @@
 //!    Asked BEFORE the walk, on rim structure, through the predicate's
 //!    own door `geom_brep::props::require_iso_rectangle` (the S58
 //!    single home of `props_rim_level`, which also requires every rim
-//!    to encode the SAME material side — the sense-free half of the
-//!    flux lane's interior-side premise, `props_rim_side`), refusing
+//!    to encode the SAME material side, `props_rim_side`), refusing
 //!    [`TessellateError::UnsupportedCurvedShape`] — this lane cites
 //!    the predicate itself rather than leaning on the boolean's or
 //!    tier 3's inability to answer ([`require_iso_rectangle_face`]).
@@ -506,10 +505,9 @@ pub(crate) fn tessellate_curved(
 /// comparand and no margin of `mesh`'s.
 ///
 /// **A rimless sphere band passes**: it is a chart rectangle, and the
-/// door says so at its definition — which lunes the flux lane measures
-/// (`Δu = π` for one great circle, the meridian pair's azimuth for two)
-/// is that lane's premise, not the shape's, so a partial sphere wedge
-/// meshes here on the door's answer alone.
+/// door says so at its definition, so a partial sphere wedge meshes
+/// here on the door's answer alone (the flux lane measures it by
+/// Gauss–Bonnet, as it does any circle-bounded sphere face).
 ///
 /// An empty loop is reported by this lane's own name for that state
 /// ([`TessellateError::EmptyLoop`]) before the flatten runs, which
@@ -741,8 +739,10 @@ fn entries_off_bbox(
 /// general rigid placement with a multiply-carried iso side). The
 /// notched domains that used to be kept out of this lane only by other
 /// modules' limits — the boolean's `CurvedPierceUnsupported`, tier 3's
-/// `VolumeUncomputable { NotIsoRectangle }` — now refuse at the shape
-/// door in this crate; when either of those limits moves, the line
+/// `VolumeUncomputable { NotIsoRectangle }`, which tier 3 no longer
+/// raises on a cylinder, cone or sphere, whose closed forms read any
+/// boundary of their kind — now refuse at the shape door in this
+/// crate; when either of those limits moves, the line
 /// that has to change is [`require_iso_rectangle_face`]'s call in
 /// [`tessellate_curved`], and it is in `mesh`.
 ///
@@ -1465,7 +1465,7 @@ mod tests {
         .body;
         let ball = topo::transform_rigid(
             &ball,
-            &Affine3::translation(Vec3::new(2.0, 2.0, 1.2)),
+            &geom_core::RigidMotion::translation(Vec3::new(2.0, 2.0, 1.2)).unwrap(),
             Tol::witness(),
         )
         .unwrap();
@@ -1551,7 +1551,11 @@ mod tests {
                 skipped.push(why);
                 continue;
             }
-            match topo::transform_rigid(&b, &placement, Tol::witness()) {
+            match topo::transform_rigid(
+                &b,
+                &geom_core::test_support::rigid(&placement, Tol::witness()),
+                Tol::witness(),
+            ) {
                 Ok(placed) => out.push((i, placed)),
                 Err(e) => skipped.push(format!("edge {i}: transform_rigid {e:?}")),
             }
@@ -2190,7 +2194,12 @@ mod tests {
             Affine3::rotation_about_axis(Point3::origin(), irr, 1.0 / 3.0).linear,
             Vec3::new(0.117, -0.339_1, 5.001_7),
         );
-        topo::transform_rigid(&body, &placement, Tol::witness()).unwrap()
+        topo::transform_rigid(
+            &body,
+            &geom_core::test_support::rigid(&placement, Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
     }
 
     /// **THE REGRESSION ROW (issue #653).** This body meshed

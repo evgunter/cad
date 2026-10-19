@@ -15,7 +15,7 @@ use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::{AtRestBody, BooleanDeclarations, BooleanResult, mass_properties};
+use topo::{AtRestBody, BooleanResult, mass_properties};
 
 fn extrude_on(
     plane: SketchPlane<f64>,
@@ -113,7 +113,6 @@ fn outcome(r: R) -> Result<f64, String> {
 #[ignore = "reviewer probe: prints; run with --ignored --nocapture"]
 fn a_tilted_dip_at_vertex_edge_and_vertex_vertex_postures() {
     let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
-    let d = BooleanDeclarations::none();
     let mut wrong = 0;
     for alpha in [0.3f64, 0.6] {
         let round = tilted_dipping_round(alpha);
@@ -150,26 +149,18 @@ fn a_tilted_dip_at_vertex_edge_and_vertex_vertex_postures() {
         ] {
             let vs = vol(&s);
             for (op, r, want) in [
-                (
-                    "∪",
-                    topo::union_with(&s, &round, &d, Tol::witness()),
-                    vs + vr - meet,
-                ),
+                ("∪", topo::union(&s, &round, Tol::witness()), vs + vr - meet),
                 (
                     "slab∖round",
-                    topo::subtract_with(&s, &round, &d, Tol::witness()),
+                    topo::subtract(&s, &round, Tol::witness()),
                     vs - meet,
                 ),
                 (
                     "round∖slab",
-                    topo::subtract_with(&round, &s, &d, Tol::witness()),
+                    topo::subtract(&round, &s, Tol::witness()),
                     vr - meet,
                 ),
-                (
-                    "∩",
-                    topo::intersect_with(&s, &round, &d, Tol::witness()),
-                    meet,
-                ),
+                ("∩", topo::intersect(&s, &round, Tol::witness()), meet),
             ] {
                 let got = outcome(r);
                 let verdict = match &got {
@@ -203,7 +194,6 @@ fn a_tilted_dip_at_vertex_edge_and_vertex_vertex_postures() {
 #[test]
 fn a_rising_round_tilted_onto_a_slab_edge_keeps_its_operands() {
     let vol = |b: &AtRestBody<f64>| mass_properties(b, Tol::witness()).unwrap().volume;
-    let d = BooleanDeclarations::none();
     let round = tilted_round(0.3, false);
     let vr = vol(&round);
     for (posture, s) in [
@@ -212,26 +202,18 @@ fn a_rising_round_tilted_onto_a_slab_edge_keeps_its_operands() {
     ] {
         let vs = vol(&s);
         for (op, r, want) in [
-            (
-                "∪",
-                topo::union_with(&s, &round, &d, Tol::witness()),
-                vs + vr,
-            ),
+            ("∪", topo::union(&s, &round, Tol::witness()), vs + vr),
             (
                 "slab ∖ round",
-                topo::subtract_with(&s, &round, &d, Tol::witness()),
+                topo::subtract(&s, &round, Tol::witness()),
                 vs,
             ),
             (
                 "round ∖ slab",
-                topo::subtract_with(&round, &s, &d, Tol::witness()),
+                topo::subtract(&round, &s, Tol::witness()),
                 vr,
             ),
-            (
-                "∩",
-                topo::intersect_with(&s, &round, &d, Tol::witness()),
-                0.0,
-            ),
+            ("∩", topo::intersect(&s, &round, Tol::witness()), 0.0),
         ] {
             let got = outcome(r).unwrap_or_else(|e| panic!("{posture}, {op}: refused {e}"));
             assert!(

@@ -14,8 +14,8 @@
 
 use super::BooleanError;
 use super::join::{
-    FrameError, FrameExtent, frame_extent, frame_reading, frame_refusal, pair_section_frame,
-    pair_section_frame_at,
+    FrameError, FrameExtent, frame_extent, frame_reading, frame_refusal, one_loop,
+    pair_section_frame, pair_section_frame_at,
 };
 use crate::entity::FaceKey;
 use geom_brep::{OutsideConic, SectionError};
@@ -66,11 +66,24 @@ fn wall_reach() -> f64 {
     (on_wall() - Point3::new(-1.0, 1.0, 0.0)).norm()
 }
 
+/// A cone face's reach as a length measured from `at`.
+fn measured(at: Point3<f64>, lever: f64) -> geom_brep::Reach<f64> {
+    geom_brep::Reach::Measured { at, lever }
+}
+
 /// The frame both ways round, levered at the frustum face's reach
-/// ([`FrameExtent::Reach`]). The two readings must agree; the row reads
+/// ([`FrameExtent::Cone`]). The two readings must agree; the row reads
 /// the first.
 fn frame(p: &geom::Surface<f64>, cone: &geom::Surface<f64>, at: Point3<f64>) -> Frame {
-    let read = |a, b| pair_section_frame_at(a, b, at, FrameExtent::Reach(wall_reach()), band());
+    let read = |a, b| {
+        one_loop(pair_section_frame_at(
+            a,
+            b,
+            at,
+            FrameExtent::Cone(measured(at, wall_reach())),
+            band(),
+        ))
+    };
     let (first, other) = (read(p, cone), read(cone, p));
     assert_eq!(
         shape(&first),
@@ -86,21 +99,21 @@ fn shape(frame: &Frame) -> String {
     match frame {
         Ok(Some((c, a))) => format!("frame {c:?} {a:?}"),
         Ok(None) => "straight".into(),
-        Err(FrameError::Escalated(d)) => format!("escalated {:?}", d.predicate),
+        Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
         Err(FrameError::OutsideInventory { conic, section }) => {
             format!("outside {conic:?} {section}")
         }
         Err(FrameError::NoArm) => "no arm".into(),
-        Err(FrameError::RadiusEscalated { .. }) => "radius escalated".into(),
-        Err(FrameError::IntersectingCylinderAxes { .. }) => "pinch".into(),
+        Err(FrameError::Spiric { loops, .. }) => format!("spiric {loops:?}"),
     }
 }
 
 /// The Dandelin construction for a plane `(q, n)` cutting the cone
 /// `(A, â, α)` off its apex, as `PlaneConeSection::TiltedEllipse`'s docs
-/// state it: centre `A − (δ/K)·(c·â − sin²α·n)`, with `c = â·n`,
-/// `δ = (A − q)·n` and `K = c² − sin²α`.
+/// state it: centre `A − δ·n + (c·δ·s/K)·û`, with `c = â·n`,
+/// `s = ‖â × n‖`, `δ = (A − q)·n`, `û = (â × n)/s × n` and
+/// `K = (cos α·|c| − sin α·s)·(cos α·|c| + sin α·s)`.
 fn dandelin_centre(cone: &geom::Surface<f64>, q: Point3<f64>, n: Vec3<f64>) -> Point3<f64> {
     let &geom::Surface::Cone {
         apex,
@@ -111,11 +124,14 @@ fn dandelin_centre(cone: &geom::Surface<f64>, q: Point3<f64>, n: Vec3<f64>) -> P
     else {
         panic!("a cone")
     };
-    let n = n.normalize();
-    let (c, s2) = (axis.dot(n), half_angle.sin().powi(2));
+    let (axis, n) = (axis.normalize(), n.normalize());
+    let (sin_a, cos_a) = half_angle.sin_cos();
+    let (c, s_vec) = (axis.dot(n), axis.cross(n));
+    let s = s_vec.norm();
+    let k = (cos_a * c.abs() - sin_a * s) * (cos_a * c.abs() + sin_a * s);
     let delta = (apex - q).dot(n);
-    let k = c * c - s2;
-    apex - (axis * c - n * s2) * (delta / k)
+    let u_major = (s_vec / s).cross(n);
+    apex - n * delta + u_major * (c * delta * s / k)
 }
 
 fn assert_conic_frame(got: &Frame, centre: Point3<f64>, normal: Vec3<f64>, what: &str) {
@@ -301,12 +317,19 @@ fn a_near_parabola_escalates_and_is_never_snapped_to_an_ellipse() {
             Vec3::new((alpha + theta).cos(), -(alpha + theta).sin(), 0.0),
         )
     };
-    let read =
-        |p: &geom::Surface<f64>| pair_section_frame_at(p, &cone, at, FrameExtent::Reach(lever), b);
+    let read = |p: &geom::Surface<f64>| {
+        one_loop(pair_section_frame_at(
+            p,
+            &cone,
+            at,
+            FrameExtent::Cone(measured(at, lever)),
+            b,
+        ))
+    };
     let sliver = (b.zero() * b.escalate()).sqrt();
     let got = read(&turned(sliver));
     assert!(
-        matches!(&got, Err(FrameError::Escalated(d)) if d.predicate == Some("pn_conic_type")),
+        matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some("pn_conic_type")),
         "in band, the conic type escalates, got {}",
         shape(&got)
     );
@@ -378,12 +401,12 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
             (on.clone(), Vec::new())
         };
         let (at, span) = frame_reading(a, c, on_a, on_b).unwrap();
-        let extent = frame_extent((a, &body, face), (c, &body, face), at, span).unwrap();
+        let extent = frame_extent((a, &body, face), (c, &body, face), at, span, b).unwrap();
         (at, extent)
     };
     let probe = plane([0.5, 0.5, 0.0], Vec3::new(1.0, 0.0, 0.0));
     let (at, extent) = reading(&probe, &cone);
-    let FrameExtent::Reach(reach) = extent else {
+    let FrameExtent::Cone(geom_brep::Reach::Face { across: reach, .. }) = extent else {
         panic!("a plane×cone pair is levered at the cone face's reach, got {extent:?}");
     };
     let half = (Point3::new(1.01, 1.0, 0.0) - Point3::new(1.0, 0.0, 0.0)).norm() / 2.0;
@@ -403,10 +426,10 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
         let p = turned(margin);
         for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
             let (at, extent) = reading(a, c);
-            let got = pair_section_frame_at(a, c, at, extent, b);
+            let got = one_loop(pair_section_frame_at(a, c, at, extent, b));
             let verdict = match &got {
                 Ok(Some(_)) => "served",
-                Err(FrameError::Escalated(d)) => d.predicate.unwrap_or("unnamed"),
+                Err(FrameError::Escalated { diag: d, .. }) => d.predicate.unwrap_or("unnamed"),
                 _ => "another outcome",
             };
             assert_eq!(
@@ -436,7 +459,7 @@ fn a_near_circular_tilt_escalates_the_circle_question_not_a_desync() {
         Vec3::new(theta.sin(), theta.cos(), 0.0)
     };
     let verdict = |got: &Frame| match got {
-        Err(FrameError::Escalated(d)) => d.predicate.unwrap_or("unnamed"),
+        Err(FrameError::Escalated { diag: d, .. }) => d.predicate.unwrap_or("unnamed"),
         _ => "another outcome",
     };
     let cone = widening();
@@ -485,7 +508,13 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
             round: 1.0,
         },
     ] {
-        let got = pair_section_frame_at(&p, &cone, on_wall(), extent, b);
+        let got = one_loop(pair_section_frame_at(
+            &p,
+            &cone,
+            on_wall(),
+            extent.clone(),
+            b,
+        ));
         assert!(
             matches!(got, Err(FrameError::Desync(_))),
             "plane×cone under {extent:?}: got {}",
@@ -505,8 +534,13 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
         u_ref: Vec3::new(0.0, 1.0, 0.0),
     };
     for (label, a, c) in [("plane, wall", &p, &wall), ("wall, wall", &wall, &other)] {
-        let got =
-            pair_section_frame_at(a, c, Point3::new(1.0, 0.3, 0.0), FrameExtent::Reach(1.0), b);
+        let got = one_loop(pair_section_frame_at(
+            a,
+            c,
+            Point3::new(1.0, 0.3, 0.0),
+            FrameExtent::Cone(measured(Point3::new(1.0, 0.3, 0.0), 1.0)),
+            b,
+        ));
         assert!(
             matches!(got, Err(FrameError::Desync(_))),
             "{label} under a cone face's reach: got {}",
@@ -540,9 +574,52 @@ fn declared_equal_walls_meeting_at_a_sliver_escalate_the_circle_question() {
     for (label, x, y) in [("a, b", &a, &c), ("b, a", &c, &a)] {
         let got = pair_section_frame(x, y, Point3::new(0.0, 0.0, 0.0), None, b);
         assert!(
-            matches!(&got, Err(FrameError::Escalated(d)) if d.predicate == Some("ellipse_axes_distinct")),
+            matches!(&got, Err(FrameError::Escalated { diag: d, .. }) if d.predicate == Some("ellipse_axes_distinct")),
             "{label}: got {}",
             shape(&got)
         );
+    }
+}
+
+/// **The frame's cone face window holds the face.** [`frame_extent`] on
+/// patches `u ∈ [0, u1] × z ∈ [z0, z1]` of the cone of half-angle `1/2`
+/// about `z` from the origin (`boxes::tests::cone_wall`), read from a
+/// corner in both member orders: its [`FrameExtent::Cone`] window is
+/// `[z0, z1]` to rounding under three quarters of a turn, and holds the
+/// apex past it. A window that misses any of the face lets the frame
+/// serve a line pair over points nearer the apex than it reads.
+#[test]
+fn the_frames_cone_window_holds_its_face() {
+    let b = band();
+    let cone = geom::Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        half_angle: 0.5,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let p = plane([0.0, 0.0, 0.6], Vec3::new(1.0, 0.0, 0.0));
+    for (u1, (z0, z1)) in [(1.0, (0.5, 1.0)), (1.0, (0.01, 2.0)), (5.0, (0.25, 0.75))] {
+        let (body, face) = crate::boolean::boxes::tests::cone_wall(0.5, 0.0, u1, z0, z1);
+        let at = body.vertex_points().next().map(|(_, q)| q).unwrap();
+        for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
+            let label = format!("u ∈ [0, {u1}], z ∈ [{z0}, {z1}], {label}");
+            let extent = frame_extent((a, &body, face), (c, &body, face), at, None, b).unwrap();
+            let FrameExtent::Cone(reach) = extent else {
+                panic!("{label}: a plane×cone pair reads the cone face, got {extent:?}");
+            };
+            let (lo, hi) = reach.range_along(Point3::origin(), Vec3::new(0.0, 0.0, 1.0));
+            assert!(
+                lo <= z0 + 1e-12 && hi >= z1 - 1e-12,
+                "{label}: the window [{lo}, {hi}] misses some of the face"
+            );
+            if u1 < 1.5 * core::f64::consts::PI {
+                assert!(
+                    lo >= z0 - 1e-12 && hi <= z1 + 1e-12,
+                    "{label}: the window [{lo}, {hi}] reaches past the face"
+                );
+            } else {
+                assert!(lo <= 0.0, "{label}: the window [{lo}, {hi}] holds the apex");
+            }
+        }
     }
 }

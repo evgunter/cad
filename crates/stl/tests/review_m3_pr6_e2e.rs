@@ -16,7 +16,7 @@
 use crate::common::finished;
 use mesh::validate::{check_mesh, signed_volume};
 use topo::{
-    AtRestBody, BooleanResult, ContactRecords, ValidationError, mass_properties, subtract, union,
+    AtRestBody, BooleanResult, ContactRecords, mass_properties, subtract, union,
     validate_pseudomanifold,
 };
 
@@ -39,7 +39,7 @@ fn die(x0: f64, y0: f64, z0: f64) -> AtRestBody<f64> {
     let BooleanResult::Body(b) = subtract(&cube, &cutter, Tol::witness()).unwrap() else {
         panic!("die subtract is a body");
     };
-    assert!(b.contacts.vv.is_empty() && b.contacts.a_on_b.is_empty());
+    assert!(b.contacts.is_empty());
     assert_eq!(
         mass_properties(&b.body, Tol::witness()).unwrap().volume,
         0.875
@@ -54,20 +54,26 @@ fn r6_pocketed_dice_kiss_e2e() {
     let BooleanResult::Body(assembly) = union(&d1, &d2, Tol::witness()).unwrap() else {
         panic!("kiss union is a body");
     };
-    // 3′ gate: green with carried contacts, red without.
-    assert_eq!(assembly.contacts.vv.len(), 1, "one corner kiss");
+    // 3′ gate: green with carried contacts, and without them too: the
+    // union put the kissing corners on one point key, which the census
+    // reads as structure.
+    assert_eq!(
+        assembly.contacts.vertex_vertex().count(),
+        1,
+        "one corner kiss"
+    );
     assert_eq!(
         validate_pseudomanifold(&assembly.body, &assembly.contacts, Tol::witness()),
         Ok(())
     );
-    let withheld =
-        validate_pseudomanifold(&assembly.body, &ContactRecords::default(), Tol::witness())
-            .unwrap_err();
-    assert!(
-        withheld
-            .iter()
-            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
-        "{withheld:?}"
+    for (x, y) in assembly.contacts.vertex_vertex() {
+        let key = |v| assembly.body.get_vertex(v).unwrap().point;
+        assert_eq!(key(x), key(y), "the kissing corners share one key");
+    }
+    assert_eq!(
+        validate_pseudomanifold(&assembly.body, &ContactRecords::default(), Tol::witness()),
+        Ok(()),
+        "withheld, the kiss reads off its shared key: ratified on PR 4793: the record is the lint's evidence, not the census's"
     );
     // Structure + exact oracles (the parts=2 discipline: shell count
     // is asserted HERE, not inferred from admesh part count).

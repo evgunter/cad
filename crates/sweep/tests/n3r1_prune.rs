@@ -166,7 +166,7 @@ fn n3r1_prune_corpus_examines_154_pairs_and_loses_no_accepted_one() {
 /// pair one of them refuses the other refuses the same way.
 #[test]
 fn n3r1_prune_realized_and_idealized_sweeps_record_the_same_contacts() {
-    let key = |r: &topo::ContactRecords| {
+    let key = |r: &topo::ReductionContacts| {
         let mut v: Vec<String> = r.vv.iter().map(|c| format!("{c:?}")).collect();
         v.extend(r.a_on_b.iter().map(|c| format!("A{c:?}")));
         v.extend(r.b_on_a.iter().map(|c| format!("B{c:?}")));

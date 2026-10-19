@@ -25,7 +25,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError};
 
 /// The seat, as one body: a post standing under a shelf, both built as
 /// prisms and grafted into one arena. Returns the body and the two
@@ -62,17 +62,11 @@ fn flush_seat() -> (Body<f64>, FaceKey, FaceKey) {
 
 /// The declaration a `Rest` mate mints for a seat: one face-pair
 /// record, said once.
-fn declared(a: FaceKey, b: FaceKey) -> ContactRecords {
-    ContactRecords {
-        patches: vec![topo::Cited::new(
-            PatchContact {
-                face_a: a,
-                face_b: b,
-            },
-            topo::Cites::decided(0),
-        )],
-        ..ContactRecords::default()
-    }
+fn declared(body: &Body<f64>, a: FaceKey, b: FaceKey) -> ContactRecords {
+    topo::ContactRecords::from_iter(vec![topo::Cited::new(
+        topo::Contact::new(body, topo::Cell::Face(a), topo::Cell::Face(b)).unwrap(),
+        topo::Cites::decided(0),
+    )])
 }
 
 fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
@@ -82,12 +76,12 @@ fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
     }
 }
 
-/// Every undeclared-contact finding, by its census contact.
+/// Every unrecorded-contact finding, by its census contact.
 fn undeclared(errors: &[ValidationError]) -> Vec<CensusContact> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact { contact, .. } => Some(*contact),
+            ValidationError::UnrecordedContact { contact, .. } => Some(*contact),
             _ => None,
         })
         .collect()
@@ -163,9 +157,9 @@ fn pair_declined(errors: &[ValidationError], face_a: FaceKey, face_b: FaceKey) {
 /// trim edge as a touching boundary, and the interior-witness
 /// rung proves the disc. This is #943's whole repro, certified.
 #[test]
-fn a_declared_flush_seat_leaves_no_undeclared_contact() {
+fn a_declared_flush_seat_leaves_no_unrecorded_contact() {
     let (body, post_top, shelf_bottom) = flush_seat();
-    let errors = errors(&body, &declared(post_top, shelf_bottom));
+    let errors = errors(&body, &declared(&body, post_top, shelf_bottom));
     assert!(
         undeclared(&errors).is_empty(),
         "the seat's own induced events are backed by the pair that \
@@ -187,12 +181,12 @@ fn a_declared_flush_seat_leaves_no_undeclared_contact() {
 fn the_flush_seat_certifies_in_both_argument_orders() {
     let (body, post_top, shelf_bottom) = flush_seat();
     assert_eq!(
-        errors(&body, &declared(post_top, shelf_bottom)),
+        errors(&body, &declared(&body, post_top, shelf_bottom)),
         [],
         "cap first",
     );
     assert_eq!(
-        errors(&body, &declared(shelf_bottom, post_top)),
+        errors(&body, &declared(&body, shelf_bottom, post_top)),
         [],
         "underside first",
     );
@@ -207,7 +201,7 @@ fn the_flush_seat_certifies_in_both_argument_orders() {
 fn the_inset_seat_certifies_too() {
     let (body, post_top, shelf_bottom) = inset_seat();
     assert_eq!(
-        errors(&body, &declared(post_top, shelf_bottom)),
+        errors(&body, &declared(&body, post_top, shelf_bottom)),
         [],
         "an inset seat's trims overlap in plain area",
     );
@@ -256,7 +250,7 @@ fn the_same_flush_seat_undeclared_is_the_hard_error() {
 #[test]
 fn the_rung_backs_an_event_outside_the_declared_pairs_overlap_region() {
     let (body, post_top, shelf_bottom) = line_contact_seat();
-    let errors = errors(&body, &declared(post_top, shelf_bottom));
+    let errors = errors(&body, &declared(&body, post_top, shelf_bottom));
     assert!(
         undeclared(&errors).is_empty(),
         "the pair holds the entities, so it backs the event — even \

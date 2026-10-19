@@ -1,6 +1,6 @@
 //! **Four jobs**: node-to-kernel wiring, the mid-evaluation name
-//! ladder, the declaration routing that has no kernel op to wire to,
-//! and the placement-rule arithmetic two modules share.
+//! ladder, the union's fold, and the placement-rule arithmetic two
+//! modules share.
 //!
 //! **The wiring** (spec D3: wire, don't invent). Each F4 node that
 //! names a geometric operation maps to an EXISTING public kernel op;
@@ -13,19 +13,12 @@
 //! **The mid-evaluation name ladder** ([`ladder`]). A name a slot reads
 //! is a selection's ([`crate::VarDef::Select`]), and [`select`] is where
 //! it is resolved, against the tables THIS run has built so far, in the
-//! order [`ladder`] gives, and its entity's kind checked through
-//! [`super::entity_door`]. A declared pair's names are the ladder's only
-//! other reader.
+//! order [`ladder`] gives, into a key of the kind the selection holds.
 //!
-//! **The declaration routing.** A union's declared face pairs are SITED
-//! at its members and consumed by a fold of pairwise booleans, so
-//! something decides which fold step each pair belongs to and which
-//! side of it each site takes: [`side_by_operand`] for the pair
-//! boolean, [`route_declarations`] and [`look_through_fold`] for the
-//! union, and the refusal menu beneath them. The kernel takes a
-//! [`BooleanDeclarations`] already resolved to operands and entity
-//! keys; every decision about where an authored pair resolves is made
-//! here.
+//! **The union's fold.** A union judges every member pair pairwise
+//! before its fold and hands each fold step the pass's verdicts, read
+//! through member lineage ([`given_pairs`]), with each operand's own
+//! records carried in; the kernel takes them as [`BooleanInputs`].
 //!
 //! **The placement-rule arithmetic.** [`transform_map`],
 //! [`SteppedOperands`], [`stepped_rule_map`] and the direction-role
@@ -43,24 +36,21 @@ use std::sync::Arc;
 
 use geom_brep::OutwardNormal;
 use geom_core::{
-    Affine3, Band, Decide, Mat3, OrthoAxis, OrthoFrame, Point2, Point3, Sign, Tol, UnitVec3,
+    Affine3, Band, Decide, OrthoAxis, Point2, Point3, RigidMotion, Sign, Tol, UnitVec3,
     UnitVec3Error, Vec2, Vec3,
 };
 use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
 use topo::transform::transform_rigid;
-use topo::{
-    Body, BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, DATUM_UNIT_NORM,
-    FacePairDeclaration, VfContact, VvContact,
-};
+use topo::{Body, BooleanInputs, DATUM_UNIT_NORM};
 
 use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, NodeErrorKind, NodeResult, PoseValue, SplitSide, ValuePayload};
+use crate::decision::Decision;
 use crate::names::{self, NameTable, SplitHalf};
-use crate::node::{Axis3, Datum, DeclaredPair, Node, PatternKind, RecipeNodeId, SitedRef, SlotId};
+use crate::node::{Axis3, Datum, Node, PatternKind, RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
-use crate::resolve::FoldConsumption;
 use topo::BooleanOp;
 
 type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
@@ -81,10 +71,10 @@ type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
 /// this field — "output body 0" would be a lie for its other bodies.
 pub(crate) struct OpOut<T: Decide> {
     pub payload: ValuePayload<T>,
-    pub names: Arc<NameTable>,
-    /// The fragment groups the op's emitter formed
-    /// (`names::FragmentGroups`); empty for an op that forms none.
-    pub groups: Arc<names::FragmentGroups>,
+    /// Each output's names, by port (`NodeValue::outputs`): one for an
+    /// op with one body output, a split's two halves apart; the
+    /// fragment groups beside them empty for an op that forms none.
+    pub outputs: Vec<super::OutputNames>,
     pub contacts: Arc<topo::ContactRecords>,
     /// Whose mate authored each of those records, and which mates of
     /// the documents below could not be minted at all; same arena, same
@@ -98,6 +88,11 @@ pub(crate) struct OpOut<T: Decide> {
     /// What each input a carried record cites is
     /// (`NodeValue::cited_inputs`).
     pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
+    /// A placement's solved motion (`NodeValue::motion`).
+    pub motion: Option<RigidMotion<T>>,
+    /// A placement's space (`NodeValue::space`), `None` for every other
+    /// op, whose value lives in its inputs'.
+    pub space: Option<crate::mate::Space>,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -105,13 +100,23 @@ impl<T: Decide> OpOut<T> {
     fn plain(payload: ValuePayload<T>, names: Arc<NameTable>) -> Self {
         Self {
             payload,
-            names,
-            groups: Arc::default(),
+            outputs: vec![super::OutputNames::new(names, Arc::default())],
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
             parts: 1,
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
+            motion: None,
+            space: None,
+        }
+    }
+
+    /// This output, a placement's, sitting at `motion` in `space`.
+    fn moved(self, (motion, space): (Option<RigidMotion<T>>, crate::mate::Space)) -> Self {
+        Self {
+            motion,
+            space: Some(space),
+            ..self
         }
     }
 
@@ -151,13 +156,38 @@ impl<T: Decide> OpOut<T> {
 }
 
 impl<T: Decide> OpOut<T> {
-    /// This output with the fragment groups its emitter formed.
+    /// This output with the fragment groups its emitter formed beside
+    /// its one table.
     fn grouped(self, groups: Arc<names::FragmentGroups>) -> Self {
-        Self { groups, ..self }
+        let outputs = self
+            .outputs
+            .iter()
+            .map(|names| super::OutputNames::new(names.shared_table(), Arc::clone(&groups)))
+            .collect();
+        Self { outputs, ..self }
+    }
+
+    /// An op whose outputs carry names apart (a split's two halves):
+    /// `outputs` by port.
+    fn per_output(payload: ValuePayload<T>, outputs: Vec<super::OutputNames>) -> Self {
+        Self {
+            outputs,
+            ..Self::plain(payload, names::empty())
+        }
     }
 }
 
 type OpResult<T> = Result<OpOut<T>, NodeErrorKind>;
+
+/// **The table a read holds**: the names of the one output the read
+/// names, its value already resolved to that output (`reads_projected`
+/// for a split's port or a family's member, the operation's own value
+/// otherwise). Empty for an output that carries no names.
+fn read_table<T: Decide>(value: &super::NodeValue<T>) -> Arc<NameTable> {
+    value
+        .output(0)
+        .map_or_else(names::empty, super::OutputNames::shared_table)
+}
 /// A bare payload (datum/profile lanes — empty tables).
 type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
@@ -179,17 +209,11 @@ pub(crate) struct LaneEnv<'a, T> {
     /// no seed, built once per evaluation beside `params`. Every
     /// f64-pinned decision the evaluation makes reads it — the nominal
     /// slots an authored frame's placement is minted from
-    /// ([`mint_frame_placement`]), a profile or section's program
-    /// resolution ([`section_of`]), the placement the pinned lift
-    /// embeds — so it is what a content key owes
+    /// ([`mint_frame_placement`]), a profile's program resolution,
+    /// the placement the pinned lift embeds — so it is what a content key owes
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
     pub nominal: &'a crate::expr::VarEnv<f64>,
-    /// The E4 seed this evaluation carries, by its variable (`None` on
-    /// the build path). Consulted by the one place the lift cannot
-    /// reach: a C6/D9-pinned section refuses a seed it would otherwise
-    /// embed as a constant ([`section_of`]).
-    pub seed: Option<crate::var::VarId>,
 }
 
 impl<T> Clone for LaneEnv<'_, T> {
@@ -201,19 +225,12 @@ impl<T> Clone for LaneEnv<'_, T> {
 impl<T> Copy for LaneEnv<'_, T> {}
 
 /// The evaluation-wide context an op may need beyond its own inputs:
-/// the boolean candidate-generation switch, the document seam, the
-/// mate solve, and the lane environment — everything ambient to the
+/// the boolean candidate-generation switch, the document seam's part
+/// table, and the lane environment — everything ambient to the
 /// run, as opposed to the op's inputs and slots.
 pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
-    pub parts: &'a super::parts::PartCache<'a, T>,
-    /// The document's mate solve, run once per evaluation (ASM-R2a
-    /// D-5) at its scalar: every instance's pose relative to its group
-    /// root, and every mate's role.
-    pub poses: &'a crate::mate::SolvedPoses<T>,
-    /// The nodes whose inputs lie in two spaces, each naming the
-    /// unplaced group it would compare (`mate::solve::spaces_of`).
-    pub across: &'a std::collections::BTreeMap<RecipeNodeId, (RecipeNodeId, crate::mate::Unplaced)>,
+    pub parts: &'a super::parts::Reached<T>,
     /// Where profile geometry comes from, and over which environment.
     pub lane: LaneEnv<'a, T>,
 }
@@ -223,7 +240,7 @@ pub(crate) struct OpEnv<'a, T: Decide> {
 /// `profile_pre` is the profile node's f64 precompute (present exactly
 /// for `Node::Profile` — computed in `eval_node`'s resolution stage,
 /// inside the node's verdict frame and ahead of this op).
-#[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness, not a duty of its own
+#[allow(clippy::too_many_arguments)] // the run-tolerance witness and the pre-key reads are not duties of their own
 pub(crate) fn run_op<T>(
     id: RecipeNodeId,
     node: &Node<ProfileProgram>,
@@ -245,7 +262,6 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar
         + crate::mate::SolveScalar,
 {
     use crate::OperandSlot as O;
@@ -255,17 +271,21 @@ where
     // the split cannot hold. Every other node reads at most one body.
     let per_operand = matches!(
         node,
-        Node::Subtract { .. } | Node::Union { .. } | Node::Intersect { .. } | Node::Measure { .. }
+        Node::Subtract { .. }
+            | Node::Union { .. }
+            | Node::Intersect { .. }
+            | Node::Measure { .. }
+            | Node::Place { .. }
     );
     let projected = if per_operand {
         None
     } else {
-        reads_projected(node, &body_rows(node, doc), doc, results, vals)?
+        reads_projected(node, &body_rows(node, doc), doc, (results, vals), tol)?
     };
     let results = projected.as_ref().unwrap_or(results);
     let project_each = |rows: &[(O, crate::VarId)]| {
         rows.iter()
-            .map(|&row| reads_projected(node, &[row], doc, unprojected, vals))
+            .map(|&row| reads_projected(node, &[row], doc, (unprojected, vals), tol))
             .collect::<Result<Vec<_>, _>>()
     };
     // An operand reads an output; the op reads the operation's value.
@@ -308,18 +328,12 @@ where
         Node::Revolve { profile, .. } => {
             wire_revolve(id, at(O::Profile, *profile)?, results, vals, tol)
         }
-        Node::Loft { profiles, .. } => wire_loft(
-            id,
-            &all(O::Section, profiles)?,
-            doc,
-            results,
-            vals,
-            env.lane,
-            tol,
-        ),
+        Node::Loft { profiles, .. } => {
+            wire_loft(id, &all(O::Section, profiles)?, results, vals, tol)
+        }
         Node::Sweep { profile, path, .. } => {
             let (profile, path) = (at(O::Profile, *profile)?, at(O::Path, *path)?);
-            wire_sweep(profile, path, doc, results, vals, env.lane, tol)
+            wire_sweep(profile, path, results, vals)
         }
         Node::Tube { frame, window, .. } => {
             let frame = frame_pose(doc, unprojected, *frame, env.lane.params, tol)?;
@@ -364,11 +378,7 @@ where
             results,
             tol,
         ),
-        Node::Subtract {
-            from,
-            tool,
-            declare,
-        } => {
+        Node::Subtract { from, tool } => {
             let each = project_each(&[(O::From, from.read), (O::Cut, tool.read)])?;
             let [ra, rb] = [&each[0], &each[1]].map(|p| p.as_ref().unwrap_or(unprojected));
             wire_subtract(
@@ -376,13 +386,11 @@ where
                 id,
                 (from.read, at(O::From, from.read)?, ra),
                 (tool.read, at(O::Cut, tool.read)?, rb),
-                declare,
-                doc,
                 env.boolean_sweep,
                 tol,
             )
         }
-        Node::Union { members, declare } | Node::Intersect { members, declare } => {
+        Node::Union { members } | Node::Intersect { members } => {
             let op = if matches!(node, Node::Union { .. }) {
                 BooleanOp::Union
             } else {
@@ -393,7 +401,6 @@ where
                 (op, node, members),
                 id,
                 (unprojected, vals),
-                declare,
                 doc,
                 env.boolean_sweep,
                 tol,
@@ -402,11 +409,48 @@ where
         Node::Transform { input, placement } => {
             wire_transform(at(O::Input, *input)?, placement, results, vals, tol)
         }
-        Node::PlaceInWorld { body, pose } => {
-            let at = at(O::Body, body.read)?;
-            let port = doc.defined_by(body.read).map_or(0, |(_, port)| port);
-            wire_place_in_world(id, (at, body.read), port, pose, results, vals, tol)
+        Node::Place {
+            shapes,
+            constraints,
+        } => {
+            // Each shape projected by itself: two halves of one split
+            // are two bodies, which one map keyed by the split cannot
+            // hold.
+            let rows: Vec<(O, crate::VarId)> = shapes
+                .iter()
+                .enumerate()
+                .map(|(i, shape)| (O::Shape(u32::try_from(i).unwrap_or(u32::MAX)), shape.read))
+                .collect();
+            let each = project_each(&rows)?;
+            let reads = rows
+                .iter()
+                .zip(&each)
+                .map(|(&(seat, read), projected)| {
+                    Ok((
+                        at(seat, read)?,
+                        read,
+                        projected.as_ref().unwrap_or(unprojected),
+                    ))
+                })
+                .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+            let reach = reads
+                .iter()
+                .map(|&(at, _, values)| copy_reach(values, at))
+                .try_fold(0.0_f64, |held, r| r.map(|r| held.max(r)));
+            let placed = fold_with(
+                doc,
+                unprojected,
+                unprojected,
+                id,
+                constraints,
+                reach,
+                env,
+                tol,
+            )?;
+            wire_place(id, &reads, placed.0.as_ref(), tol).map(|out| out.moved(placed))
         }
+        // The world DENOTES NO BODY and defines no variable.
+        Node::World => unreachable!("the world is scheduled nowhere (`eval::schedule`)"),
         Node::Pattern { input, kind, .. } => {
             let input = at(O::Input, *input)?;
             let rule = RuleEnv {
@@ -458,83 +502,278 @@ where
             wire_assertion(*value_dim, *bound_dim, certified, node, payload, tol)
         }
         Node::InstantiatePart {
-            doc_ref, interface, ..
+            doc_ref,
+            interface,
+            constraints,
         } => {
-            if let Some(fault) = env.poses.fault(id) {
-                return Err(NodeErrorKind::Mate(Box::new(fault.clone())));
-            }
-            let frame = instance_frame(doc, id, env.poses, env.lane.params, tol)?
-                .unwrap_or(crate::placement::Motion::Identity);
-            let pose = env
-                .poses
-                .pose(id)
-                .unwrap_or_else(crate::mate::solve::Pose::identity);
-            let map = pose.compose_around(frame).non_identity();
-            wire_instantiate_part(id, doc_ref, interface, map, env, tol)
-        }
-        // A gauge DENOTES NO BODY (A11 (2)): its slots evaluated above,
-        // and the instances on it read where it sits.
-        Node::Gauge { .. } => Ok(OpOut::plain(ValuePayload::Gauge, names::empty())),
-        // A mate DENOTES NO BODY: it evaluates to its role in the
-        // solve. Its two faces are read first, so a side whose name no
-        // longer resolves refuses in the selection's own words. A
-        // refusing mate fails here rather than at the instance it would
-        // have placed, so the message names the mate.
-        Node::Mate { a, b, .. } => {
-            select(doc, results, O::Side(crate::mate::MateSide::A), *a)?;
-            select(doc, results, O::Side(crate::mate::MateSide::B), *b)?;
-            match env.poses.fault(id) {
-                Some(fault) => Err(NodeErrorKind::Mate(Box::new(fault.clone()))),
-                None => Ok(OpOut::plain(
-                    ValuePayload::Mate(env.poses.role(id).unwrap_or_else(|| {
-                        unreachable!(
-                            "the solve of this document records a role for every mate in its \
-                         order, or faults it, yet mate {id:?} has neither"
-                        )
-                    })),
-                    names::empty(),
-                )),
-            }
+            // The copy before placement is what its mates' `on` poses
+            // read: the part's product where the part put it.
+            let unplaced = wire_instantiate_part(id, doc_ref, interface, None, env, tol)?;
+            let reach = payload_reach(&unplaced.payload, id);
+            // `on` reads the copy alone (the door's `on_reads_the_copy`),
+            // so the copy is all its reads need.
+            let own: Results<T> =
+                BTreeMap::from([(id, NodeResult::Ok(super::NodeValue::scratch(unplaced)))]);
+            let placed = fold_with(doc, &own, unprojected, id, constraints, reach, env, tol)?;
+            let out = wire_instantiate_part(id, doc_ref, interface, placed.0, env, tol)?;
+            Ok(out.moved(placed))
         }
     }
 }
 
-/// **The frame an instance's group sits in, in this lane** (A11 (5)):
-/// its gauge chain composed with its group root's offset, evaluated at
-/// `env`; the identity in an unplaced group's own space. `None` for a
-/// node that is not a posed instance — the solve's own fault is the
-/// op's to raise.
+/// **A copy's reach in its own coordinates** — a shape's body's, as
+/// [`crate::mate::part_reach`] bounds a part's — for the fold's arm.
+fn copy_reach<T: crate::mate::SolveScalar>(
+    results: &Results<T>,
+    at: RecipeNodeId,
+) -> Result<f64, crate::mate::LeverRefusal> {
+    match results.get(&at) {
+        Some(NodeResult::Ok(value)) => payload_reach(&value.payload, at),
+        _ => Ok(0.0),
+    }
+}
+
+/// [`copy_reach`] of a value's payload: its body's, or the farthest of
+/// its copies'. A value that is no body reaches nowhere.
+fn payload_reach<T: crate::mate::SolveScalar>(
+    payload: &ValuePayload<T>,
+    at: RecipeNodeId,
+) -> Result<f64, crate::mate::LeverRefusal> {
+    match payload {
+        ValuePayload::Body(body) => body_reach(body, at),
+        ValuePayload::Copies(copies) => copies
+            .bodies
+            .iter()
+            .map(|body| body_reach(body, at))
+            .try_fold(0.0_f64, |held, r| r.map(|r| held.max(r))),
+        _ => Ok(0.0),
+    }
+}
+
+/// [`copy_reach`] of one body, read off the node `at`.
+fn body_reach<T: crate::mate::SolveScalar>(
+    body: &topo::Body<T>,
+    at: RecipeNodeId,
+) -> Result<f64, crate::mate::LeverRefusal> {
+    crate::mate::part_reach(body)
+        .map(crate::mate::SolveScalar::upper)
+        .and_then(|hi| {
+            if hi.is_finite() {
+                Ok(hi)
+            } else {
+                Err(crate::mate::ReachRefusal::NoFiniteBound)
+            }
+        })
+        .map_err(|refusal| crate::mate::LeverRefusal::Shape { shape: at, refusal })
+}
+
+/// **A placement's bundle, folded where it evaluates** (INTENT stage 3
+/// C), its `on` poses read in `on_results` (an instance's own copy
+/// before placement among them) and its `to` poses in `to_results`.
+/// Each mate's `on` is read off the copied shapes before placement, in
+/// their own coordinates, and its `to` off the target space's geometry,
+/// or the world read inside the mate; the bundle folded
+/// ([`crate::mate::solve::solve_bundle`]). Answers the copy's motion in
+/// its target space's coordinates (`None` the identity) and the space
+/// it joins: a loose copy roots its own.
 ///
 /// # Errors
 ///
-/// [`NodeErrorKind::PlacementRefused`] carrying the refusal of the
-/// gauge or root offset that did not evaluate.
-pub(crate) fn instance_frame<T: Decide>(
+/// [`NodeErrorKind::Mate`] with the bundle's fault.
+#[allow(clippy::too_many_arguments)]
+fn fold_with<T>(
     doc: &crate::doc::Doc<ProfileProgram>,
+    on_results: &Results<T>,
+    to_results: &Results<T>,
     id: RecipeNodeId,
-    poses: &crate::mate::SolvedPoses<T>,
-    env: &crate::expr::VarEnv<T>,
+    constraints: &[crate::mate::Constraint],
+    reach: Result<f64, crate::mate::LeverRefusal>,
+    env: &OpEnv<'_, T>,
     tol: Tol,
-) -> Result<Option<crate::placement::Motion<T>>, NodeErrorKind> {
-    if poses.fault(id).is_some() {
-        return Ok(None);
+) -> Result<(Option<RigidMotion<T>>, crate::mate::Space), NodeErrorKind>
+where
+    T: crate::mate::SolveScalar,
+{
+    use crate::mate::{MateFault, MateRef, MateSide, Space, Target};
+    let fault = |f: MateFault| NodeErrorKind::Mate(Box::new(f));
+    // The named interim's world pin places its copy where its body
+    // stands, by no map, in every lane: it reads nothing and holds no
+    // number. It stands alone, so anything beside it is already fixed.
+    if crate::mate::solve::world_pin_stands_alone(id, constraints).map_err(NodeErrorKind::Mate)? {
+        return Ok((None, Space::World));
     }
-    let (Some(space), Some(root)) = (poses.space(id), poses.root(id)) else {
-        return Ok(None);
-    };
-    if let crate::mate::Space::Own { .. } = space {
-        return Ok(Some(crate::placement::Motion::Identity));
+    let b = band(tol)?;
+    let params = env.lane.params;
+    let mut mates = Vec::with_capacity(constraints.len());
+    let mut values = Vec::new();
+    // Each mate's two poses, its target's sense and the frame of the
+    // body its target is read off: what a value's chart reads.
+    let mut charted = Vec::new();
+    let mut target_space: Option<Space> = None;
+    for c in constraints {
+        let mate = MateRef::new(id, c.id);
+        let m = match &c.kind {
+            crate::mate::ConstraintKind::Mate(m) => m,
+            crate::mate::ConstraintKind::WorldPin(_) => {
+                unreachable!("a bundle holding a world pin is folded above")
+            }
+            crate::mate::ConstraintKind::Value(v) => {
+                let slot = match v.coord {
+                    crate::mate::Coord::Slide(_) => SlotId::ValueSlide { constraint: c.id },
+                    crate::mate::Coord::Spin => SlotId::ValueSpin { constraint: c.id },
+                };
+                let by = crate::expr::eval_var(v.by, v.coord.dimension(), params)
+                    .map_err(|source| NodeErrorKind::Expr { slot, source })?;
+                values.push(crate::mate::value::ReadValue {
+                    value: mate,
+                    mate: v.mate,
+                    coord: v.coord,
+                    by,
+                });
+                continue;
+            }
+        };
+        let unevaluated = |side, kind| {
+            fault(MateFault::SideUnevaluated {
+                mate,
+                side,
+                refusal: Box::new(super::NodeRefusal::from(kind)),
+            })
+        };
+        let seat = |side| crate::OperandSlot::Side {
+            constraint: c.id,
+            side,
+        };
+        let on = pose::eval_pose(
+            doc,
+            on_results,
+            seat(MateSide::On),
+            crate::pose::RoleRead::plain(m.on),
+            params,
+            tol,
+        )
+        .map_err(|kind| unevaluated(MateSide::On, kind))?;
+        let (to, space, body) = match &m.to {
+            Target::Pose(var) => {
+                let to = pose::eval_pose(
+                    doc,
+                    to_results,
+                    seat(MateSide::To),
+                    crate::pose::RoleRead::plain(*var),
+                    params,
+                    tol,
+                )
+                .map_err(|kind| unevaluated(MateSide::To, kind))?;
+                let space = doc
+                    .read_ports(*var)
+                    .iter()
+                    .find_map(|(at, _)| match to_results.get(at) {
+                        Some(NodeResult::Ok(value)) => value.space,
+                        _ => None,
+                    })
+                    .unwrap_or(Space::World);
+                // The body's own frame: its placement's motion in the
+                // space, the identity for the space's own geometry. Two
+                // bodies refuse only where a value asks for the chart.
+                let body = crate::mate::solve::chart_body(doc, *var).map(|body| {
+                    body.and_then(|at| match to_results.get(&at) {
+                        Some(NodeResult::Ok(value)) => value.motion.map(|m| m.to_affine()),
+                        _ => None,
+                    })
+                    .unwrap_or_else(geom_core::Affine3::identity)
+                });
+                (to, space, body)
+            }
+            Target::World(world) => {
+                world
+                    .kind()
+                    .map_err(|f| fault(MateFault::WorldRead { mate, fault: f }))?;
+                let to = pose::eval_world(world, params, b)
+                    .map_err(|kind| unevaluated(MateSide::To, kind))?;
+                (to, Space::World, Ok(geom_core::Affine3::identity()))
+            }
+        };
+        match target_space {
+            None => target_space = Some(space),
+            Some(held) if held != space => {
+                return Err(fault(MateFault::TargetsDiffer {
+                    placement: id,
+                    constraints: constraints.iter().map(|c| c.id).collect(),
+                }));
+            }
+            Some(_) => {}
+        }
+        let flipped = crate::mate::solve::target_flipped(doc, &m.to);
+        charted.push((c.id, on.clone(), to.clone(), flipped, body));
+        mates.push(crate::mate::solve::ReadMate { mate, on, to });
     }
-    let band = geom_core::predicate::Band::linear(tol)
-        .map_err(|error| NodeErrorKind::Mate(Box::new(crate::mate::MateFault::Band { error })))?;
-    crate::mate::solve::group_frame(doc, root, env, band)
-        .map(Some)
-        .map_err(|(node, error)| NodeErrorKind::PlacementRefused { node, error })
+    if mates.is_empty() {
+        // A value names a mate of its bundle; with none, its own.
+        if let Some(v) = values.first() {
+            return Err(fault(MateFault::ValueNamesNoMate {
+                value: v.value,
+                mate: v.mate,
+            }));
+        }
+        return Ok((None, Space::Loose { root: id }));
+    }
+    let reach = reach.map_err(|refusal| {
+        fault(MateFault::Unleverable {
+            mate: mates[0].mate,
+            refusal: Box::new(refusal),
+        })
+    })?;
+    let arm = crate::mate::solve::bundle_arm(reach, &mates).map_err(|f| fault(*f))?;
+    // A chart is read only for a mate a value names.
+    let mut charts = std::collections::BTreeMap::new();
+    for (mate, on, to, flipped, body) in charted {
+        let Some(value) = values.iter().find(|v| v.mate == mate) else {
+            continue;
+        };
+        let body = body.map_err(|why| {
+            fault(MateFault::NoChart {
+                value: value.value,
+                why,
+            })
+        })?;
+        charts.insert(
+            mate,
+            crate::mate::value::Chart::of(&on, &to, flipped, &body, arm, b)?,
+        );
+    }
+    match crate::mate::solve::solve_bundle(
+        id,
+        &crate::mate::solve::equations_of(doc, constraints),
+        &mates,
+        &values,
+        &charts,
+    )? {
+        crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
+        crate::mate::solve::Folded::Pinned(rep) => {
+            // The one at-rest verdict, decided once (fork C-5).
+            let placed = match crate::mate::solve::rest_verdict(&rep, reach, b) {
+                Some(true) if T::carries_no_variation(&rep) => None,
+                Some(true) => T::identity_varying_as(&rep).or(Some(rep)),
+                // A box the band cannot decide at rest spans points the
+                // value lane snaps and points it keeps: its map holds
+                // both.
+                None => T::with_rest(&rep).or(Some(rep)),
+                Some(false) => Some(rep),
+            };
+            Ok((
+                match placed {
+                    Some(map) => crate::mate::solve::marked(map).rigid(b)?,
+                    None => None,
+                },
+                target_space.unwrap_or(Space::World),
+            ))
+        }
+    }
 }
 
 /// ASM-2A D-3: materialize an instance through the shipped doors.
 ///
-/// Resolve (memoized per reference), take the referenced document's A10
+/// Read the part the evaluation entered, take the referenced document's A10
 /// PRODUCT, place it with the kernel's own `transform_rigid`, and hand
 /// back a body-denoting value. The placed body is an ordinary `Body` —
 /// one solid or N, under ONE rigid map — so the root gather and the
@@ -543,7 +782,7 @@ fn wire_instantiate_part<T>(
     id: RecipeNodeId,
     doc_ref: &crate::ident::DocRef,
     interface: &crate::node::InterfaceRecord,
-    map: Option<geom_core::Affine3<T>>,
+    map: Option<RigidMotion<T>>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T>
@@ -557,7 +796,6 @@ where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
-        + super::SectionScalar
         + crate::mate::SolveScalar,
 {
     let part = env
@@ -625,31 +863,48 @@ where
                 }
             })
             .collect(),
-        unplaced: part
-            .unplaced
-            .iter()
-            .map(|row| {
-                let (route, crate::assembly::UnplacedGroup { group, cause }, held) =
-                    row.through(id);
-                crate::assembly::CarriedUnplaced {
-                    route,
-                    group,
-                    cause,
-                    held,
-                }
-            })
-            .collect(),
     };
+    // The same material copy by copy, under the same map, for a reader
+    // of one copy: each named as the instance names it, and placed when
+    // that reader reads it (`KeyedCopy::motion`). A rigid map is
+    // key-stable, so the table names the bodies wherever they stand.
+    let members = part
+        .copies
+        .iter()
+        .map(|copy| {
+            let table = names::name_in_part_copy(id, &copy.table, &copy.bodies)
+                .map_err(NodeErrorKind::Naming)?;
+            let motion = match (map, copy.motion) {
+                (None, inner) => inner,
+                (Some(outer), None) => Some(outer),
+                (Some(outer), Some(inner)) => {
+                    Some(outer.compose(inner).map_err(NodeErrorKind::Motion)?)
+                }
+            };
+            Ok(super::KeyedCopy {
+                key: copy.key.clone(),
+                bodies: copy.bodies.clone(),
+                family: copy.family,
+                parts: copy.parts,
+                table,
+                motion,
+            })
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     Ok(OpOut {
-        payload: ValuePayload::Body(Arc::new(placed)),
-        names: table,
-        groups: Arc::default(),
+        payload: ValuePayload::Copies(Arc::new(super::Copies {
+            bodies: vec![Arc::new(placed)],
+            members,
+        })),
+        outputs: vec![super::OutputNames::new(table, Arc::default())],
         contacts: Arc::new(part.contacts.carried_from(0)),
         carried: Arc::new(carried),
         parts: part.parts,
         // The part's own rows are its document's, read there.
         coincidences: Arc::new([]),
         cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
+        motion: None,
+        space: None,
     })
 }
 
@@ -663,7 +918,7 @@ where
 /// [`NodeErrorKind::Transform`].
 fn place<T: Decide + topo::AtRestPolicy>(
     body: &Body<T>,
-    map: Option<&Affine3<T>>,
+    map: Option<&RigidMotion<T>>,
     tol: Tol,
 ) -> Result<Body<T>, NodeErrorKind> {
     match map {
@@ -672,11 +927,24 @@ fn place<T: Decide + topo::AtRestPolicy>(
     }
 }
 
+/// **One copy's bodies, where its reader reads them**: placed by the
+/// copy's motion ([`super::KeyedCopy::motion`]), here, in the reader's
+/// frame.
+fn member_bodies<T: Decide + topo::AtRestPolicy>(
+    member: &super::KeyedCopy<T>,
+    tol: Tol,
+) -> Result<Vec<Arc<Body<T>>>, NodeErrorKind> {
+    match &member.motion {
+        None => Ok(member.bodies.clone()),
+        Some(motion) => place_each(&member.bodies, motion, tol),
+    }
+}
+
 /// Every body of `bodies` placed by node `by`'s map number `j`, in
 /// order: one placement of a pattern's master.
 fn place_each<T: Decide + topo::AtRestPolicy>(
     bodies: &[Arc<Body<T>>],
-    map: &Affine3<T>,
+    map: &RigidMotion<T>,
     tol: Tol,
 ) -> Result<Vec<Arc<Body<T>>>, NodeErrorKind> {
     bodies
@@ -755,48 +1023,6 @@ fn operand<'v, T: Decide, R>(
     read(v).ok_or_else(|| wrong_operand(v, input, expected))
 }
 
-/// **The same question asked of a NODE** — the recipe-side door, for
-/// the roads that never hold a value. `found:` comes from
-/// [`super::node_value_kind`], which answers over node kinds in the
-/// same words as [`operand`] does over payloads.
-///
-/// # The two halves answer about the same node, except across a placer
-///
-/// `read` tests the node the reference NAMES; `found` walks a
-/// [`Node::Transform`] chain to its source. A `Transform` over a
-/// `Profile` would therefore refuse with `found: "profile"`, a refusal
-/// that states nothing. That is unreachable: `wire_transform` reads
-/// through [`placeable_operand`], which refuses a profile and poisons
-/// every dependent, so this door never sees such an id. A placer that
-/// became shape-preserving over profiles would break this.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::MissingInput`] for a reference that names no live
-/// node; otherwise [`NodeErrorKind::WrongOperand`] naming the family
-/// the node lands in. [`super::node_value_kind`]'s own refusal seat is
-/// dropped because none can arrive: the reference is one of the
-/// consumer's INPUT edges, already evaluated `Ok`, and a transform
-/// there that could refuse would have poisoned the consumer first.
-fn node_operand<'d, P, R>(
-    doc: &'d crate::doc::Doc<P>,
-    input: RecipeNodeId,
-    expected: &'static str,
-    read: impl FnOnce(&'d Node<P>) -> Option<R>,
-) -> Result<R, NodeErrorKind> {
-    let node = doc
-        .node(input)
-        .ok_or(NodeErrorKind::MissingInput { input })?;
-    match read(node) {
-        Some(r) => Ok(r),
-        None => Err(operand_refusal(
-            input,
-            expected,
-            super::node_value_kind(doc, input).map_err(|seated| seated.1)?,
-        )),
-    }
-}
-
 /// [`operand`]'s refusal alone, for callers that already hold the
 /// value.
 fn wrong_operand<T: Decide>(
@@ -857,6 +1083,12 @@ fn finished_operand<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// other in its own one-body word. A reader consumes no material (a
 /// datum's face frame reads a face), so a product is read as it is;
 /// the product refusal is [`body_operand`]'s.
+///
+/// An instance's copies are read as its part product, one body, where
+/// a selection names a face of it by the part-local name path: that is
+/// how a selection reads one copy until it holds a member read (stage
+/// G's question). A seat reading the copies whole refuses at its door,
+/// by kind.
 fn read_body<T: Decide>(
     results: &Results<T>,
     input: RecipeNodeId,
@@ -864,10 +1096,39 @@ fn read_body<T: Decide>(
     let v = value_of(results, input)?;
     match placeable_operand(v, input) {
         Ok(Placeable::Body(b)) => Ok(b),
-        Ok(Placeable::Instances(_)) | Err(NodeErrorKind::WrongOperand { .. }) => {
+        Ok(Placeable::Copies(copies)) if copies.bodies.len() == 1 => {
+            Ok(Arc::clone(&copies.bodies[0]))
+        }
+        Ok(Placeable::Instances(_) | Placeable::Copies(_))
+        | Err(NodeErrorKind::WrongOperand { .. }) => {
             Err(wrong_operand(v, input, super::family::BODY))
         }
         Err(other) => Err(other),
+    }
+}
+
+/// **The body a resolved name lives in**: [`read_body`] for a value of
+/// one body, else the output body the name's row indexes — copy `i` of
+/// a pattern's instances, one copy of a placement's — since a selection
+/// names an entity of one body of the value it reads.
+pub(super) fn read_named_body<T: Decide>(
+    results: &Results<T>,
+    input: RecipeNodeId,
+    body: u32,
+) -> Result<Arc<Body<T>>, NodeErrorKind> {
+    let v = value_of(results, input)?;
+    match placeable_operand(v, input) {
+        Ok(Placeable::Instances(bodies)) => usize::try_from(body)
+            .ok()
+            .and_then(|k| bodies.get(k))
+            .cloned()
+            .ok_or_else(|| wrong_operand(v, input, super::family::BODY)),
+        Ok(Placeable::Copies(copies)) if copies.bodies.len() > 1 => usize::try_from(body)
+            .ok()
+            .and_then(|k| copies.bodies.get(k))
+            .cloned()
+            .ok_or_else(|| wrong_operand(v, input, super::family::BODY)),
+        _ => read_body(results, input),
     }
 }
 
@@ -880,6 +1141,9 @@ enum Placeable<T: Decide> {
     /// Several placed bodies, in the input's own instance order; the
     /// input's name table indexes them by that order.
     Instances(Vec<Arc<Body<T>>>),
+    /// A placement's copies, keyed: moved whole, each copy by the same
+    /// map, the keys and every table kept.
+    Copies(Arc<super::Copies<T>>),
 }
 
 impl<T: Decide> Placeable<T> {
@@ -889,6 +1153,7 @@ impl<T: Decide> Placeable<T> {
         match self {
             Self::Body(b) => core::slice::from_ref(b),
             Self::Instances(bs) => bs,
+            Self::Copies(copies) => &copies.bodies,
         }
     }
 
@@ -898,7 +1163,11 @@ impl<T: Decide> Placeable<T> {
     fn map(
         &self,
         mut f: impl FnMut(&Body<T>, usize) -> Result<Body<T>, NodeErrorKind>,
-    ) -> Result<ValuePayload<T>, NodeErrorKind> {
+        tol: Tol,
+    ) -> Result<ValuePayload<T>, NodeErrorKind>
+    where
+        T: topo::AtRestPolicy,
+    {
         Ok(match self {
             Self::Body(b) => ValuePayload::Body(Arc::new(f(b, 0)?)),
             Self::Instances(bs) => ValuePayload::Instances(
@@ -907,6 +1176,31 @@ impl<T: Decide> Placeable<T> {
                     .map(|(i, b)| f(b, i).map(Arc::new))
                     .collect::<Result<_, _>>()?,
             ),
+            Self::Copies(copies) => {
+                let bodies = copies
+                    .bodies
+                    .iter()
+                    .enumerate()
+                    .map(|(i, b)| f(b, i).map(Arc::new))
+                    .collect::<Result<_, _>>()?;
+                // Each copy where it stands, then moved by `f`.
+                let members = copies
+                    .members
+                    .iter()
+                    .map(|member| {
+                        Ok(super::KeyedCopy {
+                            bodies: member_bodies(member, tol)?
+                                .iter()
+                                .enumerate()
+                                .map(|(i, b)| f(b, i).map(Arc::new))
+                                .collect::<Result<_, _>>()?,
+                            motion: None,
+                            ..member.clone()
+                        })
+                    })
+                    .collect::<Result<_, NodeErrorKind>>()?;
+                ValuePayload::Copies(Arc::new(super::Copies { bodies, members }))
+            }
         })
     }
 }
@@ -914,8 +1208,7 @@ impl<T: Decide> Placeable<T> {
 /// The operand of a placer, read off its evaluated value: one body
 /// (a `Body` value or a boolean's non-empty result), or an `Instances`
 /// value taken whole. Everything else refuses typed naming both
-/// admitted shapes; an empty boolean is a typed absence. The same
-/// rule over NODE kinds lives in [`super::node_value_kind`].
+/// admitted shapes; an empty boolean is a typed absence.
 fn placeable_operand<T: Decide>(
     v: &super::NodeValue<T>,
     input: RecipeNodeId,
@@ -927,12 +1220,13 @@ fn placeable_operand<T: Decide>(
         }
         ValuePayload::Boolean(BooleanValue::Empty) => Err(NodeErrorKind::EmptyOperand { input }),
         ValuePayload::Instances(bodies) => Ok(Placeable::Instances(bodies.clone())),
+        ValuePayload::Copies(copies) => Ok(Placeable::Copies(Arc::clone(copies))),
         _ => Err(wrong_operand(v, input, super::phrase::BODY_OR_INSTANCES)),
     }
 }
 
 /// The linear classification band (kernel-ambient tolerance).
-fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
+pub(crate) fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
     Band::linear(tol).map_err(NodeErrorKind::Band)
 }
 
@@ -943,19 +1237,21 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
 /// constant, so the telemetry and an escalation report the same name.
 pub(crate) const EVAL_DIRECTION_NORM: &str = "eval_direction_norm";
 
-/// What one of this layer's decisions decides, in words
-/// (`crate::decision::words` reads them). `None` for a predicate this
-/// layer does not own.
-pub(crate) fn decision_words(predicate: &str) -> Option<&'static str> {
-    Some(match predicate {
-        EVAL_DIRECTION_NORM => geom_core::DIRECTION_LENGTH_SUBJECT,
-        "revolve_full_vs_partial" => "whether the revolve makes a full turn",
-        PATTERN_SPACING => "whether the pattern spacing is positive",
-        PATTERN_STEP => "whether the pattern step is zero",
-        PATTERN_STEP_TURN => "how many whole turns the pattern step holds",
-        _ => return None,
-    })
-}
+/// What each of this layer's decisions decides, in words
+/// (`crate::decision::words` reads them).
+pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
+    (EVAL_DIRECTION_NORM, geom_core::DIRECTION_LENGTH_SUBJECT),
+    (
+        "revolve_full_vs_partial",
+        "whether the revolve makes a full turn",
+    ),
+    (PATTERN_SPACING, "whether the pattern spacing is positive"),
+    (PATTERN_STEP, "whether the pattern step is zero"),
+    (
+        PATTERN_STEP_TURN,
+        "how many whole turns the pattern step holds",
+    ),
+];
 
 /// Normalizes a direction-valued vector; a non-finite length refuses,
 /// an underflowed one refuses, a decided-zero length refuses, in-band
@@ -980,21 +1276,49 @@ pub(crate) fn unit<T: Decide>(
     role: &'static str,
     band: Band,
 ) -> Result<UnitVec3<T>, NodeErrorKind> {
-    UnitVec3::new(v, EVAL_DIRECTION_NORM, band).map_err(|e| refusal(e, role, EVAL_DIRECTION_NORM))
+    let decision = Decision::DirectionNorm;
+    UnitVec3::new(v, decision.name(), band).map_err(|e| {
+        refusal(e, role, |source| {
+            if role == crate::placement::PLACEMENT_AXIS_ROLE {
+                NodeErrorKind::PlacementAxisEscalated {
+                    predicate: decision.name(),
+                    source,
+                }
+            } else {
+                escalated(decision)(source)
+            }
+        })
+    })
 }
 
 /// **The kernel refusal in this layer's vocabulary** — the ONE map for
-/// both funnel names, which is its parameter.
+/// every direction door.
 ///
 /// `role` names the vector the CALLER passed, which is what a user
-/// reads; `predicate` names the funnel site the length was decided
-/// under, which is what an escalation is comparable by.
-fn refusal(e: UnitVec3Error, role: &'static str, predicate: &'static str) -> NodeErrorKind {
+/// reads; `escalated` is the arm the door puts an escalation in: the
+/// evaluation's ([`NodeErrorKind::Escalated`]), a placement frame's
+/// rotation axis ([`NodeErrorKind::PlacementAxisEscalated`]), or a pose's
+/// or datum's direction ([`pose_direction_escalated`]).
+fn refusal(
+    e: UnitVec3Error,
+    role: &'static str,
+    escalated: impl FnOnce(geom_core::Indeterminate) -> NodeErrorKind,
+) -> NodeErrorKind {
     match e {
         UnitVec3Error::NonFiniteLength => NodeErrorKind::NonFiniteDirection { role },
         UnitVec3Error::UnderflowedLength => NodeErrorKind::UnderflowedDirection { role },
         UnitVec3Error::Degenerate => NodeErrorKind::DegenerateDirection { role },
-        UnitVec3Error::Escalated(source) => NodeErrorKind::Escalated { predicate, source },
+        UnitVec3Error::Escalated(source) => escalated(source),
+    }
+}
+
+/// A pose's or datum's direction length that could not be called,
+/// decided under [`DATUM_UNIT_NORM`]: the arm D10's pose ground keeps,
+/// [`NodeErrorKind::PoseDirectionEscalated`].
+fn pose_direction_escalated(source: geom_core::Indeterminate) -> NodeErrorKind {
+    NodeErrorKind::PoseDirectionEscalated {
+        predicate: DATUM_UNIT_NORM,
+        source,
     }
 }
 
@@ -1039,6 +1363,15 @@ fn need_vec2<T: Decide>(
     slots::vec2(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
 }
 
+/// **A revolve's axis direction in its profile's plane**: the unit
+/// vector at its heading from the profile's x axis, `(cos h, sin h)`.
+/// Unit by construction, up to the rounding of the sine and cosine;
+/// its readers decide it as they decide any authored direction.
+fn axis_heading<T: Decide>(vals: &SlotValues<T>) -> Result<Vec2<T>, NodeErrorKind> {
+    let (sin, cos) = need_scalar(vals, SlotId::AxisHeading)?.sin_cos();
+    Ok(Vec2::new(cos, sin))
+}
+
 fn need_point2<T: Decide>(
     vals: &SlotValues<T>,
     f: fn(Axis3) -> SlotId,
@@ -1073,7 +1406,7 @@ impl DirectionRefusal {
     /// is. `pub` because the carried refusal is: a consumer holding one
     /// asks for the raise here rather than re-spelling it.
     pub fn node_error(self) -> NodeErrorKind {
-        refusal(self.error, self.role, DATUM_UNIT_NORM)
+        refusal(self.error, self.role, pose_direction_escalated)
     }
 }
 
@@ -1102,7 +1435,7 @@ fn datum_unit<T: Decide>(
 /// carries it ([`FramePlacement::Unreadable`]).
 enum FrameRead<T: geom_core::Real> {
     /// The orthonormal frame.
-    Frame(OrthoFrame<T>),
+    Frame(RigidMotion<T>),
     /// The direction door refused `u`, or `v`'s residual.
     NoDirection(DirectionRefusal),
 }
@@ -1229,8 +1562,7 @@ pub(crate) fn mint_frame_placement(
 /// [`NodeErrorKind::WrongOperand`] when the reference does not name a
 /// frame; [`NodeErrorKind::FrameDirection`] where the frame carried a
 /// direction refusal ([`FramePlacement::Unreadable`]), naming BOTH
-/// `profile` and the frame because the section seam raises it on the
-/// loft; and [`NodeErrorKind::MissingInput`] for a reference with no
+/// `profile` and the frame; and [`NodeErrorKind::MissingInput`] for a reference with no
 /// value.
 pub(crate) fn profile_plane_f64<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -1279,7 +1611,7 @@ pub(crate) fn profile_plane_f64<T: Decide>(
 /// # Errors
 ///
 /// [`NodeErrorKind::WrongOperand`] when the landed value is not a
-/// frame, through [`frame_value`].
+/// frame, through `frame_value`.
 pub(crate) fn frame_plane_lane<T: Decide>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
@@ -1300,24 +1632,21 @@ fn frame_pose<T: Decide>(
     frame: crate::VarId,
     env: &crate::expr::VarEnv<T>,
     tol: Tol,
-) -> Result<OrthoFrame<T>, NodeErrorKind> {
-    match pose::eval_pose(doc, results, crate::OperandSlot::Frame, frame, env, tol)? {
+) -> Result<RigidMotion<T>, NodeErrorKind> {
+    match pose::eval_pose(
+        doc,
+        results,
+        crate::OperandSlot::Frame,
+        frame.into(),
+        env,
+        tol,
+    )? {
         PoseValue::Frame(f) => Ok(f),
         other => unreachable!(
             "the door admits a frame alone at a frame seat: {}",
             other.kind()
         ),
     }
-}
-
-/// A lane-scalar placement carried across to `f64`, exactly, where the
-/// scalar is the `f64` lane — every component through
-/// [`super::SectionScalar::pinned_f64`] — and `None` on any analysis
-/// scalar. No component is inspected: the answer is the type's.
-pub(crate) fn pinned_plane<T: super::SectionScalar>(
-    plane: &profile::SketchPlane<T>,
-) -> Option<profile::SketchPlane<f64>> {
-    plane.try_map(|x| x.pinned_f64().ok_or(())).ok()
 }
 
 /// **A frame's authored pair, made orthonormal** — the one spelling of
@@ -1334,8 +1663,8 @@ pub(crate) fn frame_axes<T: Decide>(
     u_raw: Vec3<T>,
     v_raw: Vec3<T>,
     band: Band,
-) -> Result<OrthoFrame<T>, DirectionRefusal> {
-    OrthoFrame::gram_schmidt(origin, u_raw, v_raw, DATUM_UNIT_NORM, band).map_err(|e| {
+) -> Result<RigidMotion<T>, DirectionRefusal> {
+    RigidMotion::gram_schmidt(origin, u_raw, v_raw, DATUM_UNIT_NORM, band).map_err(|e| {
         DirectionRefusal {
             role: match e.axis {
                 OrthoAxis::U => FRAME_X_ROLE,
@@ -1386,15 +1715,12 @@ fn wire_datum<T: Decide>(
         // stored fact copied out or an N5 resolution; nothing here
         // decides a number.
         Datum::FaceFrame { face, .. } => {
-            let face = select(doc, results, crate::OperandSlot::Face, *face)?;
+            let face = select::<T, topo::FaceKey>(doc, results, crate::OperandSlot::Face, *face)?;
             let body = read_body(results, face.at)?;
-            let Some(key) = face
-                .ents
-                .first()
-                .and_then(|ent| names::EntityKey::face(ent.key))
-            else {
+            let [(_, key)] = face.ents.as_slice() else {
                 unreachable!("a face selection holds one face")
             };
+            let key = *key;
             // DM1b / DM2: the carrier's KIND is a stored tag; a
             // comparison of tags, not a predicate.
             let carrier = topo::readback::face_carrier_kind(&body, key)
@@ -1477,18 +1803,14 @@ pub(crate) fn prepare_profile(
     let (validated_f64, canonical) = replayed
         .validate_recording(tol)
         .map_err(NodeErrorKind::Profile)?;
-    let profile_f64 = replayed;
-    let naming = anchor::derive_naming(&validated_f64, profile_f64.loops()).ok_or({
-        // A canonical loop matched no program loop: an internal break.
-        // The loop coordinate is not recoverable; 0 names the walk.
-        NodeErrorKind::ProfileAnchor { loop_: 0 }
-    })?;
+    // A canonical loop matched no program loop: an internal break.
+    let naming = anchor::derive_naming(&validated_f64, replayed.loops())
+        .ok_or(NodeErrorKind::ProfileAnchor)?;
     // The records above and the program's minted ids describe one
     // program, so a disagreement is an internal break.
     let pieces = super::ProfilePieces::publish(&naming, &replay_records, ids)
         .map_err(|fault| NodeErrorKind::ProfilePieces { fault })?;
     Ok(ProfilePre {
-        profile_f64,
         validated_f64,
         placement_f64: placement,
         naming,
@@ -1524,18 +1846,12 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
     let mut loops = Vec::with_capacity(resolved.len());
     for (li, steps) in loop_coordinates(resolved.len())?.zip(&resolved) {
-        // One record per program loop, by construction of pass 1. The
-        // EMPTY fallback is not a guard: a loop with a fillet refuses at
-        // the first resolution (`Guide::consume`), but a loop with none
-        // would elaborate against it. What holds the line is the shape
-        // check in `replay_guided`.
         let record = pre
             .structure
             .replay
             .get(li as usize)
-            .cloned()
-            .unwrap_or_default();
-        let lp = profile::replay_guided(steps, &record, tol).map_err(|error| {
+            .ok_or(NodeErrorKind::ProfileRecordMissing { loop_: Some(li) })?;
+        let lp = profile::replay_guided(steps, record, tol).map_err(|error| {
             NodeErrorKind::ProfileLaneReplay {
                 loop_: li,
                 step: error.step,
@@ -1561,16 +1877,7 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
     lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> PayloadResult<T> {
-    let Some(pre) = pre else {
-        // Unreachable by eval_node's stage order; typed, never a panic.
-        return Err(NodeErrorKind::MissingSlot {
-            slot: SlotId::Profile {
-                loop_: 0,
-                step: 0,
-                arg: crate::node::StepArg::PointX,
-            },
-        });
-    };
+    let pre = pre.ok_or(NodeErrorKind::ProfileRecordMissing { loop_: None })?;
     let validated = match lane.lift {
         // The build path: the precompute's VALIDATED form embedded
         // through `from_f64`, every decision carried as the f64 one and
@@ -1584,7 +1891,10 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
                 Some(placement) => placement.map(T::from_f64),
                 None => frame_plane_lane(doc, results, frame, lane.params, tol)?,
             };
-            pre.validated_f64.clone().lift_onto(plane)
+            pre.validated_f64
+                .clone()
+                .lift_onto(plane)
+                .map_err(NodeErrorKind::Profile)?
         }
         super::ProfileLift::Guided => lane_profile::<T>(
             program,
@@ -1656,7 +1966,7 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
 /// **The profile-operand verbs' ONE lowering**, driven by the verb's
 /// correspondence ([`crate::verbs::sweep`]) rather than written twice.
 ///
-/// It shares a SHAPE with `wire_blend` and `wire_boolean` — build the
+/// It shares a SHAPE with `wire_blend` and `wire_subtract` — build the
 /// verb, run it through its own door, read the birth record, emit
 /// names — but no code, because the operand differs at every step.
 ///
@@ -1733,13 +2043,13 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // the profile's own 2-D coordinates, so the wiring is the identity.
     let axis2 = RevolveAxis {
         origin: need_point2(vals, SlotId::Origin)?,
-        dir: need_vec2(vals, SlotId::Direction)?,
+        dir: axis_heading(vals)?,
     };
     let b = band(tol)?;
     // Kernel contract: exactly-full must SAY Full. Anything else wires
     // Partial and the kernel's own classification rules on it.
     let angle = need_scalar(vals, SlotId::RevolveAngle)?;
-    let revolution = match turns_off("revolve_full_vs_partial", angle, T::tau(), b)? {
+    let revolution = match turns_off(Decision::RevolveFullTurn, angle, T::tau(), b)? {
         Sign::Zero => Revolution::Full,
         _ => Revolution::Partial(angle),
     };
@@ -1761,14 +2071,14 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// frame datum's, and the window and wall verdicts stay the door's
 /// own; a check here would be a weaker second opinion.
 struct TubeArgs<T: geom_core::Real> {
-    frame: geom_core::OrthoFrame<T>,
+    frame: geom_core::RigidMotion<T>,
     major_radius: T,
     window: sweep::TubeWindow<T>,
     minor_radius: T,
 }
 
 fn tube_args<T: Decide>(
-    frame: OrthoFrame<T>,
+    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
 ) -> Result<TubeArgs<T>, NodeErrorKind> {
@@ -1802,7 +2112,7 @@ fn tube_args<T: Decide>(
 /// section's structural locators ([`tube_pieces`]).
 fn wire_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    frame: OrthoFrame<T>,
+    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -1841,7 +2151,7 @@ fn tube_pieces<T: Decide>(
 /// hole-loop vocabulary.
 fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    frame: OrthoFrame<T>,
+    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -1911,7 +2221,7 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
 fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
-    selection: &Selected,
+    selection: &Selected<topo::EdgeKey>,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -1924,13 +2234,9 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
     let body = finished_operand(results, target, tol)?;
     let size = need_scalar(vals, verb.slots.size_slot)?;
-    let target_table = Arc::clone(&value_of(results, target)?.name_table);
+    let target_table = read_table(value_of(results, target)?);
     // D9 order; the kernel refuses a repeated edge itself.
-    let mut edges: Vec<topo::EdgeKey> = selection
-        .ents
-        .iter()
-        .filter_map(|ent| names::EntityKey::edge(ent.key))
-        .collect();
+    let mut edges: Vec<topo::EdgeKey> = selection.ents.iter().map(|&(_, edge)| edge).collect();
     edges.sort_unstable();
     let out = (verb.build)(edges, size)
         .run(&body, tol)
@@ -1977,7 +2283,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::shell::ShellVerb<T>,
     id: RecipeNodeId,
-    open: &Selected,
+    open: &Selected<topo::FaceKey>,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -1985,14 +2291,10 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let (target_read, target) = (open.read, open.at);
     let body = finished_operand(results, target, tol)?;
     let thickness = need_scalar(vals, verb.slots.size_slot)?;
-    let target_table = Arc::clone(&value_of(results, target)?.name_table);
+    let target_table = read_table(value_of(results, target)?);
     // Designation order: the first designated face of a chart carries
     // its rim.
-    let faces: Vec<topo::FaceKey> = open
-        .ents
-        .iter()
-        .filter_map(|ent| names::EntityKey::face(ent.key))
-        .collect();
+    let faces: Vec<topo::FaceKey> = open.ents.iter().map(|&(_, face)| face).collect();
     let built = (verb.build)(faces, thickness);
     // A scalar that may not certify has no shell door and refuses here
     // rather than at an unvalidated hollow.
@@ -2011,77 +2313,39 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ///
 /// Mid-evaluation there is no prior run and no whole-evaluation
 /// index, so [`mod@crate::resolve`]'s full ladder does not apply. Three
-/// rungs remain, in the order the ONE-TABLE doors ask them
-/// ([`ladder::resolve_in`]):
+/// rungs remain, asked in this order by [`ladder::resolve_key`], the
+/// walk every door takes:
 ///
 /// 1. [`ladder::live`] — the minting node must still be in the
 ///    document. Ids are never reused, so an id the mint log holds was
 ///    DELETED and one it does not hold was never this document's
 ///    (`ForeignNode`). The [`ladder::Live`] token makes this rung
 ///    outrank every later refusal, a door's own included.
-/// 2. [`ladder::Landing::Tied`] → `Ambiguous`: the tie row IS the
-///    ambiguity (N5).
-/// 3. [`ladder::Landing::Absent`] → `Vanished`, through
-///    [`ladder::vanished`]: there is no evidence to weigh
-///    mid-evaluation.
+/// 2. a tie row → `Ambiguous`: the tie row IS the ambiguity (N5).
+/// 3. no row → `Vanished`, through [`ladder::vanished`]: there is no
+///    evidence to weigh mid-evaluation.
 ///
-/// Rungs 2 and 3 are ordered by the DOOR. The one-table doors ask 1,
-/// 2, 3. The declare door ([`resolve_declarations`]) asks 1 and 3 of
-/// BOTH names, then its pair's kind question, then 2: a name that names
-/// nothing says so before any question about the pair, and a pair the
-/// vocabulary has no step for is unsupported however many entities
-/// answer to either name, so the tie is the one per-name refusal the
-/// kind question outranks.
-///
-/// A door supplies [`ladder::Landing`]s, one per table, and keeps its
-/// own arity (which table, what a multi-table hit means, which kind it
-/// accepts). Every refusal PAYLOAD is [`mod@crate::resolve`]'s, minted
+/// A door names the ONE table its name is read against and keeps its
+/// own arity (which kind it accepts). Every refusal PAYLOAD is [`mod@crate::resolve`]'s, minted
 /// by one constructor each ([`crate::resolve::ResolveError::node_gone`],
 /// [`crate::resolve::ResolveError::ambiguous`],
 /// [`crate::resolve::ResolveError::vanished_fallback`]); what is this
 /// module's is the rung ORDER. Refusals come out BOXED, as the doors'
 /// error variants carry them.
 mod ladder {
-    use crate::names::{EntityRef, Entry, NameTable, StableName};
+    use crate::names::interrogate::{Denoted, TableRefusal, key_in};
+    use crate::names::{NameTable, NamingError, StableName};
     use crate::program::ProfileProgram;
     use crate::resolve::ResolveError;
 
-    /// Where a name landed in ONE table (rungs 2 and 3, as data).
-    pub(super) enum Landing {
-        /// Exactly one entity carries the name.
-        Unique(EntityRef),
-        /// The name is a tie row of this width.
-        Tied(usize),
-        /// This table does not carry the name.
-        Absent,
-    }
-
     /// Proof that rung 1 passed: `name`'s minting node is live.
     ///
-    /// Constructible only by [`live`], and required by BOTH [`landing`]
-    /// and [`resolve`], so no door can read a table — and so raise a
-    /// refusal ABOUT the tables — before the `NodeGone` check. Carrying
-    /// the name means [`landing`] and [`resolve`] answer for the same
-    /// name.
+    /// Constructible only by [`live`], and required by [`resolve_key`],
+    /// so no door can read a table — and so raise a refusal ABOUT the
+    /// tables — before the `NodeGone` check. Carrying the name means the
+    /// table is read for the same name.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub(super) struct Live<'n>(&'n StableName);
-
-    impl<'n> Live<'n> {
-        /// The name rung 1 was paid on. `Copy` copies the proof, which
-        /// is sound: it is about a name that cannot change under it.
-        pub(super) fn name(self) -> &'n StableName {
-            self.0
-        }
-    }
-
-    /// Reads one table for the live name (N4: resolution IS this read).
-    pub(super) fn landing(live: &Live<'_>, table: &NameTable) -> Landing {
-        match table.lookup(live.0) {
-            Some(Entry::Unique(ent)) => Landing::Unique(*ent),
-            Some(Entry::Tied(ents)) => Landing::Tied(ents.len()),
-            None => Landing::Absent,
-        }
-    }
 
     /// Rung 1: `NodeGone` with the deleted-vs-foreign split, taken
     /// from the one home that mints it ([`ResolveError::node_gone`]).
@@ -2095,45 +2359,54 @@ mod ladder {
         }
     }
 
-    /// **The single-table walk**, all three rungs: rung 1 against the
-    /// document, rungs 2 and 3 against ONE table, every refusal
-    /// through `refuse` in the caller's own vocabulary. The declare
-    /// door walks the rungs itself because it reads TWO tables.
-    pub(super) fn resolve_in(
+    /// **The single-table walk into a key of the kind `K`**: rung 1,
+    /// then the table read through [`key_in`], which asks what the name
+    /// denotes before how many entities answer to it, so a tie is a tie
+    /// of the kind the reader takes.
+    ///
+    /// A name that does not denote a `K` is an invariant broken, not an
+    /// author's fault: every door that writes a selection holds its
+    /// names at its kind ([`crate::var::Select::fault`]), and every
+    /// `NameTable` door that seats a row holds its key at its name's
+    /// kind. It is asserted in debug and refused as the kernel bug it is.
+    pub(super) fn resolve_key<K: Denoted>(
         name: &StableName,
         doc: &crate::doc::Doc<ProfileProgram>,
         table: &NameTable,
         refuse: impl Fn(Box<ResolveError>) -> super::NodeErrorKind,
-    ) -> Result<EntityRef, super::NodeErrorKind> {
+    ) -> Result<(u32, K), super::NodeErrorKind> {
         let live = live(name, doc).map_err(&refuse)?;
-        let landing = landing(&live, table);
-        resolve(live, landing).map_err(refuse)
+        key_in::<K>(table, live.0).map_err(|refusal| match refusal {
+            TableRefusal::NoSuchName => refuse(vanished(&live)),
+            TableRefusal::Ambiguous { candidates } => refuse(tied(&live, candidates)),
+            TableRefusal::Kind { found } => {
+                debug_assert!(
+                    false,
+                    "a selection's name denotes {} {}, not the {} {} the selection holds",
+                    found.article(),
+                    found.noun(),
+                    K::KIND.article(),
+                    K::KIND.noun()
+                );
+                super::NodeErrorKind::Naming(NamingError::Emission {
+                    what: "a selection's name denotes another entity kind than the selection holds",
+                })
+            }
+        })
     }
 
-    /// Rungs 2 and 3: the entity, or the refusal its landing earns.
-    pub(super) fn resolve(
-        live: Live<'_>,
-        landing: Landing,
-    ) -> Result<EntityRef, Box<ResolveError>> {
-        let name = live.0;
-        match landing {
-            Landing::Unique(ent) => Ok(ent),
-            // The tie row is the name itself: there is no widened base
-            // to tie against in one table.
-            Landing::Tied(width) => Err(Box::new(ResolveError::ambiguous(
-                name,
-                name.clone(),
-                name.node,
-                width,
-            ))),
-            Landing::Absent => Err(vanished(&live)),
-        }
+    /// Rung 2's payload: the tie row is the name itself, as there is no
+    /// widened base to tie against in one table.
+    fn tied(live: &Live<'_>, width: usize) -> Box<ResolveError> {
+        Box::new(ResolveError::ambiguous(
+            live.0,
+            live.0.clone(),
+            live.0.node,
+            width,
+        ))
     }
 
     /// Rung 3's payload, from the one home that mints it.
-    ///
-    /// Split out of [`resolve`] for the declare door, which reaches this
-    /// rung on its own.
     pub(super) fn vanished(live: &Live<'_>) -> Box<ResolveError> {
         Box::new(ResolveError::vanished_fallback(live.0))
     }
@@ -2141,71 +2414,130 @@ mod ladder {
 
 /// **A selection, evaluated** ([`select`]): the operation whose value
 /// its body read holds, and the entities its names denote there, in the
-/// selection's stored order.
-pub(super) struct Selected {
+/// selection's stored order, as keys of the kind `K` it holds.
+pub(super) struct Selected<K> {
     /// The body read: what a blend's or a shell's carried names are
     /// keyed by ([`names::RoleSeg::From`]).
     pub(super) read: crate::VarId,
     /// The operation the body read is an output of.
     pub(super) at: RecipeNodeId,
-    /// The entities, one per name.
-    pub(super) ents: Vec<names::EntityRef>,
+    /// The entities, one per name: the output body each lies in, and its
+    /// key.
+    pub(super) ents: Vec<(u32, K)>,
 }
 
 /// **The selection `var` the node reads at `slot`, evaluated** (D10): its
 /// body read resolved to the operation whose value holds it, then each
-/// name through that value's table under the [`ladder`], then the
-/// entity's kind against the selection's. This is the one place a name
-/// a slot reads is resolved; a declared pair's names are the ladder's
-/// other caller.
+/// name through that value's table under the [`ladder`], into a key of
+/// the kind `K` the seat reads. This is the one place a name a slot
+/// reads is resolved.
 ///
-/// The road supplies the key and never the word for what it found:
-/// that word arrives as a token only `entity_door` can mint, which is
-/// why the door lives in a module this one is not an ancestor of
-/// (`eval::entity_door`'s docs carry the other half).
+/// What each name denotes is authored data, held at the selection's
+/// kind by the doors that write one ([`crate::var::Select::fault`]), so
+/// nothing here refuses an author over it ([`ladder::resolve_key`]).
 ///
 /// # Errors
 ///
 /// [`NodeErrorKind::UnresolvedRead`] for a body read no live operation
 /// defines, [`NodeErrorKind::SelectResolve`] for a name the ladder
-/// refuses, [`NodeErrorKind::SelectKind`] for an entity of another kind.
-fn select<T: Decide>(
+/// refuses, and [`NamingError::Emission`](names::NamingError::Emission)
+/// for a caller whose `K` is not the selection's kind (a wiring bug,
+/// [`resolve_selection`]).
+fn select<T: Decide, K: names::interrogate::Denoted>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     slot: crate::OperandSlot,
     var: crate::VarId,
-) -> Result<Selected, NodeErrorKind> {
-    let (Some(selection), Some((entity, _))) = (
-        doc.selection(var),
-        doc.var(var).and_then(|held| held.kind().selection()),
-    ) else {
+) -> Result<Selected<K>, NodeErrorKind> {
+    let Some(selection) = doc.selection(var) else {
         return Err(NodeErrorKind::UnresolvedRead { slot, var });
     };
     let at = super::read_at(doc, slot, selection.body)?;
-    let table = &value_of(results, at)?.name_table;
-    let mut ents = Vec::with_capacity(selection.names.len());
-    for (reference, name) in selection.names.iter().enumerate() {
-        let ent = ladder::resolve_in(name, doc, table, |error| NodeErrorKind::SelectResolve {
-            slot,
-            var,
-            reference,
-            error,
-        })?;
-        let read: fn(names::EntityKey) -> Option<()> = match entity {
-            names::EntityKind::Face => |key| names::EntityKey::face(key).map(|_| ()),
-            names::EntityKind::Edge => |key| names::EntityKey::edge(key).map(|_| ()),
-            names::EntityKind::Vertex => |key| names::EntityKey::vertex(key).map(|_| ()),
-            names::EntityKind::Body => unreachable!("a selection names faces, edges or vertices"),
+    let table = &read_table(value_of(results, at)?);
+    resolve_selection(doc, table, slot, var, at)
+}
+
+/// **A singleton selection `var`, evaluated at the kind its variable
+/// holds** ([`select`]): where its body read lies, and its one entity,
+/// for a reader that admits several kinds (a measure's reference, a
+/// pose read off geometry).
+///
+/// # Errors
+///
+/// [`select`]'s.
+fn select_one<T: Decide>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    slot: crate::OperandSlot,
+    var: crate::VarId,
+) -> Result<(RecipeNodeId, names::EntityRef), NodeErrorKind> {
+    fn one<K: names::interrogate::Denoted>(
+        selected: Selected<K>,
+    ) -> (RecipeNodeId, names::EntityRef) {
+        let [(body, key)] = selected.ents.as_slice() else {
+            unreachable!("a singleton selection holds one name (`Select::fault`)")
         };
-        super::entity_door::entity(ent.key, read, |found| NodeErrorKind::SelectKind {
-            slot,
-            var,
-            name: Box::new(name.clone()),
-            expected: entity,
-            found,
-        })?;
-        ents.push(ent);
+        let ent = names::EntityRef {
+            body: *body,
+            key: key.entity(),
+        };
+        (selected.at, ent)
     }
+    let Some((entity, false)) = doc.var(var).and_then(|held| held.kind().selection()) else {
+        return Err(NodeErrorKind::UnresolvedRead { slot, var });
+    };
+    Ok(match entity {
+        names::EntityKind::Face => one(select::<T, topo::FaceKey>(doc, results, slot, var)?),
+        names::EntityKind::Edge => one(select::<T, topo::EdgeKey>(doc, results, slot, var)?),
+        names::EntityKind::Vertex => one(select::<T, topo::VertexKey>(doc, results, slot, var)?),
+        names::EntityKind::Body => unreachable!("a selection names faces, edges or vertices"),
+    })
+}
+
+/// **A selection's names resolved in `table`**, the value read `at`:
+/// [`select`]'s ladder walk, for a table already in hand.
+fn resolve_selection<K: names::interrogate::Denoted>(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    table: &names::NameTable,
+    slot: crate::OperandSlot,
+    var: crate::VarId,
+    at: RecipeNodeId,
+) -> Result<Selected<K>, NodeErrorKind> {
+    let Some(selection) = doc.selection(var) else {
+        return Err(NodeErrorKind::UnresolvedRead { slot, var });
+    };
+    // The key kind each caller asks for restates the seat's entity, so
+    // it is checked once here against the variable's own kind — which
+    // the edit and load doors hold to the seat's — rather than trusted
+    // at every call site. A mismatch is this module's wiring, never the
+    // author's: loud in a debug build, typed in a release one.
+    let held = doc
+        .var(var)
+        .and_then(|held| held.kind().selection())
+        .map(|(entity, _)| entity);
+    if held != Some(K::KIND) {
+        debug_assert!(
+            false,
+            "the {slot:?} seat is wired to read {} keys from a selection of {held:?}",
+            K::KIND.noun()
+        );
+        return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+            what: "a seat is wired to read another entity kind than its selection holds",
+        }));
+    }
+    let ents = selection
+        .names
+        .iter()
+        .enumerate()
+        .map(|(reference, name)| {
+            ladder::resolve_key(name, doc, table, |error| NodeErrorKind::SelectResolve {
+                slot,
+                var,
+                reference,
+                error,
+            })
+        })
+        .collect::<Result<_, _>>()?;
     Ok(Selected {
         read: selection.body,
         at,
@@ -2281,11 +2613,7 @@ fn wire_measure<'r, T: Decide + crate::measure::MinClearanceLane>(
             u8::try_from(index).unwrap_or_else(|_| unreachable!("a primitive reads two")),
         );
         let (at, ent) = if doc.selection(var).is_some() {
-            let selected = select(doc, results, slot, var)?;
-            let [ent] = selected.ents.as_slice() else {
-                unreachable!("a measure's selection is a singleton (its seat's kind)")
-            };
-            (selected.at, *ent)
+            select_one(doc, results, slot, var)?
         } else {
             let at = super::read_at(doc, slot, var)?;
             (
@@ -2346,7 +2674,7 @@ fn wire_measure<'r, T: Decide + crate::measure::MinClearanceLane>(
     let value = measured.map_err(|refusal| match refusal {
         super::measure::PrimitiveRefusal::Unsupported(u) => NodeErrorKind::MeasureUnsupported(u),
         super::measure::PrimitiveRefusal::Escalated { predicate, source } => {
-            NodeErrorKind::Escalated { predicate, source }
+            NodeErrorKind::MeasureEscalated { predicate, source }
         }
         super::measure::PrimitiveRefusal::NonFinite(source) => {
             NodeErrorKind::MeasureNonFinite { source }
@@ -2437,7 +2765,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,
     (target_read, target): (crate::VarId, RecipeNodeId),
-    (tool, tool_read): (&PoseValue<T>, crate::VarId),
+    (tool, tool_read): (&PoseValue<T>, crate::pose::RoleRead<crate::VarId>),
     results: &Results<T>,
     tol: Tol,
 ) -> OpResult<T> {
@@ -2463,7 +2791,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         SplitSide::Body(b) => Some(Arc::clone(b)),
         SplitSide::Empty => None,
     };
-    let target_table = Arc::clone(&value_of(results, target)?.name_table);
+    let target_table = read_table(value_of(results, target)?);
     let (ab, bb) = (as_body(&above), as_body(&below));
     let emitted = (verb.emitter)(
         id,
@@ -2476,16 +2804,24 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
-    OpOut::plain(ValuePayload::Split { above, below }, emitted.table)
-        .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups)))
-        .recording(
-            &coincidences,
-            &crate::coincide::RowInputs {
-                a: (target_read, &target_table),
-                b: None,
-                tool: Some(tool_read),
-            },
-        )
+    // Each half is its own output with its own names (N1, the scope).
+    let outputs = emitted
+        .iter()
+        .map(|half| {
+            super::OutputNames::new(
+                Arc::clone(&half.table),
+                Arc::new(names::FragmentGroups::minted(&half.groups)),
+            )
+        })
+        .collect();
+    OpOut::per_output(ValuePayload::Split { above, below }, outputs).recording(
+        &coincidences,
+        &crate::coincide::RowInputs {
+            a: (target_read, &target_table),
+            b: None,
+            tool: Some(tool_read),
+        },
+    )
 }
 
 /// **The projection node** (DM3): ONE body out of a pattern's copies,
@@ -2529,8 +2865,7 @@ fn wire_part<T: Decide>(
         }
         _ => return Err(wrong_operand(value, of, super::family::INSTANCES)),
     };
-    let table = value
-        .name_table
+    let table = read_table(value)
         .project(index)
         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
@@ -2593,9 +2928,10 @@ fn body_rows(
 /// the operation it reads: a split's port is that half (FORK-1: a
 /// split defines two bodies); an indexed read at a body seat
 /// ([`crate::BodyRead`], DM3) is the family's member its index picks
-/// ([`instance_of`]). Either is the body alone, its table the
-/// operation's projected onto it ([`NameTable::project`]) and the
-/// operation's part count, so an indexed read and the `Part` spelling
+/// ([`instance_of`]). Either is the body alone with the operation's
+/// part count: a half with its own output's table (N1, the scope), a
+/// member with the family's table projected onto it
+/// ([`NameTable::project`]), so an indexed read and the `Part` spelling
 /// of it give one value. `results` with each such operation's entry
 /// replaced, or `None` when no read in `rows` is either.
 ///
@@ -2603,15 +2939,29 @@ fn body_rows(
 /// their reads at once, a subtract, a union and an intersect read by
 /// read (two reads of one operation are two bodies, which one map
 /// keyed by the operation cannot hold).
-fn reads_projected<T: Decide>(
+fn reads_projected<T: Decide + topo::AtRestPolicy>(
     node: &Node<ProfileProgram>,
     rows: &[(crate::OperandSlot, crate::VarId)],
     doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    vals: &SlotValues<T>,
+    (results, vals): (&Results<T>, &SlotValues<T>),
+    tol: Tol,
 ) -> Result<Option<Results<T>>, NodeErrorKind> {
     let mut replaced: Vec<(RecipeNodeId, u32, super::NodeValue<T>)> = Vec::new();
     for &(seat, var) in rows {
+        if let Some(read) = node.body_read(seat)
+            && let Some(key) = &read.key
+        {
+            let placement = super::read_at(doc, seat, var)?;
+            replaced.push(copy_of(
+                placement,
+                key,
+                read.is_indexed(),
+                seat,
+                (results, vals),
+                tol,
+            )?);
+            continue;
+        }
         if node
             .body_read(seat)
             .is_some_and(crate::BodyRead::is_indexed)
@@ -2622,12 +2972,81 @@ fn reads_projected<T: Decide>(
                 return Err(wrong_operand(value, family, super::family::INSTANCES));
             };
             let (body, index) = instance_of(family, instances, vals, SlotId::Index { seat, k: 0 })?;
-            replaced.push(projected(family, value, body, index)?);
+            // A family's one table holds every member at its place.
+            let table = read_table(value)
+                .project(index)
+                .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+            let names = super::OutputNames::new(Arc::new(table), Arc::default());
+            replaced.push(projected(family, value, body, names, index)?);
             continue;
         }
         replaced.extend(split_port(var, doc, results)?);
     }
     Ok(with_replaced(results, replaced))
+}
+
+/// **One copy of a placement's copies, read by its key**
+/// ([`crate::BodyRead::key`]): the copy alone with its own table, or for
+/// a copy that is a family, the member at the read's index. A key that
+/// names no copy, and a read at the other shape, refuse typed: whether
+/// the key exists, and what it holds, is this evaluation's to answer.
+fn copy_of<T: Decide + topo::AtRestPolicy>(
+    placement: RecipeNodeId,
+    key: &crate::CopyKey,
+    indexed: bool,
+    seat: crate::OperandSlot,
+    (results, vals): (&Results<T>, &SlotValues<T>),
+    tol: Tol,
+) -> Result<(RecipeNodeId, u32, super::NodeValue<T>), NodeErrorKind> {
+    let value = value_of(results, placement)?;
+    let ValuePayload::Copies(copies) = &value.payload else {
+        return Err(wrong_operand(value, placement, super::family::COPIES));
+    };
+    let Some((position, member)) = copies
+        .members
+        .iter()
+        .enumerate()
+        .find(|(_, member)| &member.key == key)
+    else {
+        return Err(NodeErrorKind::NoSuchCopy {
+            input: placement,
+            key: Box::new(key.clone()),
+        });
+    };
+    if member.family != indexed {
+        return Err(NodeErrorKind::CopyShape {
+            input: placement,
+            key: Box::new(key.clone()),
+            family: member.family,
+        });
+    }
+    let bodies = member_bodies(member, tol)?;
+    let (body, table) = if indexed {
+        let (body, index) = instance_of(placement, &bodies, vals, SlotId::Index { seat, k: 0 })?;
+        let table = member
+            .table
+            .project(index)
+            .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+        (body, table)
+    } else {
+        let Some(body) = bodies.first() else {
+            unreachable!("a copy that is a body holds one")
+        };
+        (Arc::clone(body), member.table.as_ref().clone())
+    };
+    names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
+    Ok((
+        placement,
+        u32::try_from(position).unwrap_or(u32::MAX),
+        super::NodeValue {
+            payload: ValuePayload::Body(body),
+            outputs: Arc::new([super::OutputNames::new(Arc::new(table), Arc::default())]),
+            contacts: Arc::default(),
+            carried: Arc::default(),
+            parts: member.parts,
+            ..value.clone()
+        },
+    ))
 }
 
 /// [`reads_projected`]'s split ports alone, for reads no seat holds: a
@@ -2666,29 +3085,33 @@ fn split_port<T: Decide>(
         unreachable!("a split evaluates to its two sides")
     };
     let body = split_side(split, half, above, below)?;
-    projected(split, value, body, half.output_body()).map(Some)
+    // The half's names are its own output's (N1, the scope).
+    let names =
+        value
+            .output(port)
+            .cloned()
+            .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+                what: SPLIT_HALF_UNNAMED,
+            }))?;
+    projected(split, value, body, names, half.output_body()).map(Some)
 }
 
-/// `value`'s output `index` as the body alone: the body, its table the
-/// operation's projected onto it ([`NameTable::project`]).
+/// `value`'s output `index` as the body alone, at output 0, with that
+/// output's names.
 fn projected<T: Decide>(
     of: RecipeNodeId,
     value: &super::NodeValue<T>,
     body: Arc<Body<T>>,
+    names: super::OutputNames,
     index: u32,
 ) -> Result<(RecipeNodeId, u32, super::NodeValue<T>), NodeErrorKind> {
-    let table = value
-        .name_table
-        .project(index)
-        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-    names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
+    names::check_total(names.table(), &body, 0).map_err(NodeErrorKind::Naming)?;
     Ok((
         of,
         index,
         super::NodeValue {
             payload: ValuePayload::Body(body),
-            name_table: Arc::new(table),
-            fragment_groups: Arc::default(),
+            outputs: Arc::new([names]),
             contacts: Arc::default(),
             carried: Arc::default(),
             ..value.clone()
@@ -2740,8 +3163,8 @@ struct Member<T: Decide> {
     read: crate::VarId,
     body: Arc<topo::AtRestBody<T>>,
     table: Arc<NameTable>,
-    /// The member's own contact records, which a two-member node's
-    /// declared same-operand pair cites (D1 (ii)).
+    /// The member's own contact records, carried into the fold step
+    /// that joins it (D1 (ii)).
     records: Arc<topo::ContactRecords>,
 }
 
@@ -2750,49 +3173,29 @@ struct Member<T: Decide> {
 // allowance).
 //
 // The TWO-OPERAND lowering, kept apart from `wire_blend`'s: two operand
-// tables, the declared pairs' N5 resolution, the contact-record
-// carry and the typed empty success would otherwise become runtime
-// arity.
+// tables, the contact-record carry and the typed empty success would
+// otherwise become runtime arity.
 /// **The subtract's lowering** (DM4): `from` cut by `tool`, through the
 /// pair verb, each seat's entities named by its read
 /// ([`names::RoleSeg::From`]).
-#[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
 fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     (a_read, a, results_a): (crate::VarId, RecipeNodeId, &Results<T>),
     (b_read, b, results_b): (crate::VarId, RecipeNodeId, &Results<T>),
-    declare: &[DeclaredPair],
-    doc: &crate::doc::Doc<ProfileProgram>,
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
-    // F5 threading: the declared pairs' names resolve through the
-    // OPERANDS' name tables; failures are the N5 typed errors, never a
-    // silent drop. The kernel verb receives only the arena-key form.
-    let a_table = Arc::clone(&value_of(results_a, a)?.name_table);
-    let b_table = Arc::clone(&value_of(results_b, b)?.name_table);
-    // **The site is the side**: each name resolves in the ONE table its
-    // site designates, so a name carried by both operands is not
-    // ambiguous.
-    let kernel_decls = if declare.is_empty() {
-        BooleanDeclarations::none()
-    } else {
-        let sided = side_by_operand(declare, (a_read, &a_table), (b_read, &b_table), doc)?;
-        let (a_records, b_records) = (
-            records_of(value_of(results_a, a)?),
-            records_of(value_of(results_b, b)?),
-        );
-        resolve_declarations(
-            &sided,
-            doc,
-            (&a_table, Some(&a_records)),
-            (&b_table, Some(&b_records)),
-        )?
+    let a_table = read_table(value_of(results_a, a)?);
+    let b_table = read_table(value_of(results_b, b)?);
+    let inputs = BooleanInputs {
+        given: None,
+        records_a: records_of(value_of(results_a, a)?).carried(),
+        records_b: records_of(value_of(results_b, b)?).carried(),
     };
     let body_a = finished_operand(results_a, a, tol)?;
     let body_b = finished_operand(results_b, b, tol)?;
-    match (verb.build)(BooleanOp::Subtract, kernel_decls)
+    match (verb.build)(BooleanOp::Subtract, inputs)
         .run_pair(&body_a, &body_b, boolean_sweep, tol)
         .map_err(verb_refused)?
     {
@@ -2810,6 +3213,7 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
             let emitted = (verb.emitter)(
                 id,
+                BooleanOp::Subtract,
                 &out.body,
                 &naming,
                 &names::OperandCtx {
@@ -2853,6 +3257,214 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
 }
 
+/// **Where a row was read from**, beside its member-space cells.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum RowOrigin {
+    /// A judged row, from the pair of members `pair` (operands A, B).
+    Judged {
+        /// The judged pair.
+        pair: (usize, usize),
+    },
+    /// A fold row, with the fold-minted names [`names::fold_cell`]
+    /// read as member cells (a crossing read as its edge), sorted. Two
+    /// crossings of one member edge spell alike, and the names they were
+    /// minted under are what keep their two points apart.
+    Fold(Vec<names::StableName>),
+}
+
+/// Where `rows` holds the statement `row` makes, pushing it where none
+/// does; `origins` is `rows`' [`RowOrigin`]s, kept beside it. A
+/// statement is the unordered pair of cells and the relation between
+/// them: which cell a decision read first follows operand order and
+/// sweep order, and says nothing about the coincidence. Beyond that:
+///
+/// - two judged rows are one statement only when two different pairs
+///   made them and they agree exactly, site, margin and discharge too:
+///   that is a member read twice, whose pairs are bit-identical runs.
+///   One pair's two rows are two decisions (an edge touching a curved
+///   face at two isolated points), and both publish;
+/// - two fold rows read from different minted names are two
+///   statements, since each sites another point;
+/// - a judged row states its fact for every fold row spelled as it.
+fn stated_at(
+    rows: &mut Vec<crate::coincide::NamedCoincidence>,
+    origins: &mut Vec<RowOrigin>,
+    row: crate::coincide::NamedCoincidence,
+    origin: RowOrigin,
+) -> usize {
+    let [a, b] = &row.cells;
+    let same = |(r, o): (&crate::coincide::NamedCoincidence, &RowOrigin)| {
+        let [c, d] = &r.cells;
+        let alike = r.relation == row.relation && ((a == c && b == d) || (a == d && b == c));
+        alike
+            && match (o, &origin) {
+                (RowOrigin::Judged { pair: p }, RowOrigin::Judged { pair: q }) => {
+                    p != q
+                        && r.site == row.site
+                        && r.margin == row.margin
+                        && r.discharge == row.discharge
+                }
+                (RowOrigin::Fold(x), RowOrigin::Fold(y)) => x == y,
+                _ => true,
+            }
+    };
+    rows.iter()
+        .zip(origins.iter())
+        .position(same)
+        .unwrap_or_else(|| {
+            rows.push(row);
+            origins.push(origin);
+            rows.len() - 1
+        })
+}
+
+/// **The judged rows a fold row restates** (DM4, "A row names member
+/// cells"): a fold row putting a point of one member's straight edge on
+/// another member's straight edge (`VertexFusion`, `OnCarrier`, both
+/// cells member edges, as [`names::fold_cell`] reads a vertex the fold
+/// minted on an edge) states that the two lines are one there. Their
+/// pair's judgement already holds that as the rows putting an end of
+/// either edge on the other edge itself: two such rows are two distinct
+/// points on both lines, so the lines are one, and they back the
+/// judgement's own record of the edges' overlap. Those rows, by their
+/// place in `judged`; empty where the row is not of that shape, an edge
+/// is not straight, or the judgement holds fewer than two such rows,
+/// and the fold row is its own.
+///
+/// # Errors
+///
+/// [`UNION_ROW_CELL_UNRESOLVED`] where a cell of a judged row or of the
+/// fold row is a name its member's table does not hold uniquely.
+fn restated_overlap<T: Decide>(
+    row: &crate::coincide::NamedCoincidence,
+    judged: &[crate::coincide::NamedCoincidence],
+    members: &[Member<T>],
+) -> Result<Vec<usize>, names::NamingError> {
+    use crate::coincide::NamedCell;
+    use names::{EntityKey, Entry};
+    fn edge_of(cell: &NamedCell) -> Option<(crate::VarId, &names::StableName)> {
+        match cell {
+            NamedCell::Entity { input, name } if name.kind == names::EntityKind::Edge => {
+                Some((*input, name))
+            }
+            _ => None,
+        }
+    }
+    let on_edge = |r: &crate::coincide::NamedCoincidence| {
+        r.relation == topo::Relation::OnCarrier && r.site == topo::DecisionSite::VertexFusion
+    };
+    let [Some(e), Some(f)] = row.cells.each_ref().map(edge_of) else {
+        return Ok(Vec::new());
+    };
+    if !on_edge(row) || e.0 == f.0 {
+        return Ok(Vec::new());
+    }
+    let unresolved = || names::NamingError::Emission {
+        what: UNION_ROW_CELL_UNRESOLVED,
+    };
+    let key = |input: crate::VarId, name: &names::StableName| {
+        let member = members
+            .iter()
+            .find(|m| m.read == input)
+            .ok_or_else(unresolved)?;
+        match member.table.lookup(name) {
+            Some(Entry::Unique(r)) => Ok((member, r.key)),
+            Some(Entry::Tied(_)) | None => Err(unresolved()),
+        }
+    };
+    let straight = |(input, edge): (crate::VarId, &names::StableName)| {
+        Ok::<_, names::NamingError>(match key(input, edge)? {
+            (m, EntityKey::Edge(k)) => m
+                .body
+                .get_edge(k)
+                .and_then(|g| m.body.get_curve_geom(g.curve))
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. })),
+            _ => false,
+        })
+    };
+    if !(straight(e)? && straight(f)?) {
+        return Ok(Vec::new());
+    }
+    type Edge<'n> = (crate::VarId, &'n names::StableName);
+    // `vertex` is an end of `of`, in its member, and `cell` is `on`
+    // itself.
+    let end_on = |vertex: &NamedCell, cell: &NamedCell, of: Edge<'_>, on: Edge<'_>| {
+        let NamedCell::Entity { input, name } = vertex else {
+            return Ok::<_, names::NamingError>(false);
+        };
+        if edge_of(cell) != Some(on) || *input != of.0 || name.kind != names::EntityKind::Vertex {
+            return Ok(false);
+        }
+        Ok(match (key(*input, name)?, key(of.0, of.1)?) {
+            ((m, EntityKey::Vertex(v)), (_, EntityKey::Edge(k))) => m
+                .body
+                .edges_of_vertex(v)
+                .is_some_and(|edges| edges.contains(&k)),
+            _ => false,
+        })
+    };
+    let mut restated = Vec::new();
+    for (i, r) in judged.iter().enumerate() {
+        if !on_edge(r) {
+            continue;
+        }
+        let [c, d] = &r.cells;
+        if end_on(c, d, e, f)? || end_on(c, d, f, e)? || end_on(d, c, e, f)? || end_on(d, c, f, e)?
+        {
+            restated.push(i);
+        }
+    }
+    Ok(if restated.len() >= 2 {
+        restated
+    } else {
+        Vec::new()
+    })
+}
+
+/// A cell of a union's row names nothing its member's table holds
+/// uniquely.
+const UNION_ROW_CELL_UNRESOLVED: &str =
+    "a union row's cell is no name its member's table holds uniquely";
+
+/// A fold row in member space (DM4, "A row names member cells"): each
+/// cell named in the node's own space, `own_read`, by its collapsed fold
+/// name, is the member cell that name lies in, or stays the node's where
+/// the fold minted it ([`names::fold_cell`]).
+fn in_member_space(
+    row: crate::coincide::NamedCoincidence,
+    own_read: crate::VarId,
+) -> Result<(crate::coincide::NamedCoincidence, Vec<names::StableName>), names::NamingError> {
+    use crate::coincide::NamedCell;
+    let mut minted = Vec::new();
+    let mut cell = |cell: NamedCell| match cell {
+        NamedCell::Entity { input, name } if input == own_read => {
+            Ok(match names::fold_cell(&name)? {
+                names::FoldCell::Member { read, name: of } => {
+                    if !matches!(name.path.first(), Some(names::RoleSeg::From { .. })) {
+                        minted.push(name);
+                    }
+                    NamedCell::Entity {
+                        input: read,
+                        name: of,
+                    }
+                }
+                names::FoldCell::Minted(name) => NamedCell::Entity {
+                    input: own_read,
+                    name,
+                },
+            })
+        }
+        _ => Err(names::NamingError::Emission {
+            what: UNION_FOLD_ROW_FOREIGN_CELL,
+        }),
+    };
+    let [a, b] = row.cells;
+    let cells = [cell(a)?, cell(b)?];
+    minted.sort();
+    Ok((crate::coincide::NamedCoincidence { cells, ..row }, minted))
+}
+
 /// **The union's and the intersect's lowering** (DM4): the SAME pair
 /// verb, folded over the members in list order — `((m0 ∘ m1) ∘ m2) ∘ …`,
 /// through the same `run_pair` door and the same refusal menu, one body
@@ -2869,23 +3481,17 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// glue to each other (DM5): every cell meets its twin, and a glued row
 /// is that one name (N3).
 ///
-/// **Declarations are routed, not positioned** (DM4 as re-ruled). The
-/// declared pairs name SITED entities, and [`route_declarations`]
-/// sends each pair to the one step that joins its two sites; each
-/// step's bucket is resolved by the pair verb's own
-/// [`resolve_declarations`] against that step's two tables.
-///
 /// **Contact is judged before the fold, pairwise** (DM4's contact
 /// rule): [`judge_pairwise_contact`] runs each member pair whose boxes
-/// meet, or that carries a declaration, as its own two-member union or
-/// intersect, so its verdicts and refusals are the same in every member
+/// meet as its own two-member union or intersect, so its verdicts and refusals are the same in every member
 /// order, and the face pairs each judgement consumed are the node's face
 /// links (N2, [`names::UnionLinks`]). **One verdict per carrier pair**:
-/// each pair a judgement glued ([`PairVerdict`]) is fed to every fold
-/// step as a declared pair between the accumulation's faces that descend
-/// from its first face (the fold's lineage, [`names::UnionFold`]) and its
-/// second face, and the step decides no carrier pair of its own
-/// ([`topo::Verdicts::Given`]). A refusal only a step raises names the
+/// each pair a judgement glued ([`PairVerdict`]) is given to the fold
+/// step that joins the later-listed of its two members, between that
+/// member's face and every accumulation face that descends from the
+/// other member's (the fold's lineage, [`names::UnionFold`]), whichever
+/// of the two was the judgement's operand A; and the step decides no carrier pair of its own
+/// (`topo::Verdicts::Given`). A refusal only a step raises names the
 /// member that step folds in ([`NodeErrorKind::UnionFoldStep`]). Two
 /// members are one pair: their one step is the judgement, run and
 /// logged once, its refusals the pair's own.
@@ -2906,7 +3512,6 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     ),
     id: RecipeNodeId,
     (results, vals): (&Results<T>, &SlotValues<T>),
-    declared: &[DeclaredPair],
     doc: &crate::doc::Doc<ProfileProgram>,
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
@@ -2925,12 +3530,12 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 let read = member.read;
                 let slot = O::Member(u32::try_from(i).unwrap_or(u32::MAX));
                 let at = super::read_at(doc, slot, read)?;
-                let projected = reads_projected(node, &[(slot, read)], doc, results, vals)?;
+                let projected = reads_projected(node, &[(slot, read)], doc, (results, vals), tol)?;
                 let results = projected.as_ref().unwrap_or(results);
                 Ok::<_, NodeErrorKind>(Member {
                     read,
                     body: Arc::new(finished_operand(results, at, tol)?),
-                    table: Arc::clone(&value_of(results, at)?.name_table),
+                    table: read_table(value_of(results, at)?),
                     records: records_of(value_of(results, at)?),
                 })
             })
@@ -2939,7 +3544,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             // Every door refuses an indexed family argument
             // (`InputFault::IndexedFamily`); one reaching here would
             // union the whole family, so it is refused, not read.
-            if family.is_indexed() {
+            if family.is_member() {
                 return Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: UNION_FAMILY_INDEXED,
                 }));
@@ -2955,8 +3560,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 .enumerate()
                 .map(|(i, body)| {
                     let index = u32::try_from(i).unwrap_or(u32::MAX);
-                    let table = value
-                        .name_table
+                    let table = read_table(value)
                         .project(index)
                         .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
                     names::check_total(&table, body, 0).map_err(NodeErrorKind::Naming)?;
@@ -3008,11 +3612,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     let mut acc_body = Arc::clone(&first.body);
     let mut acc_table = Arc::clone(&views[0]);
-    // Declarations are routed BEFORE the fold, one bucket per step.
-    let buckets = route_declarations(id, &own, declared, doc)?;
     // Contact is judged here, pairwise, and nowhere else (DM4). Each
     // member's box is the separation certificate's hull, read through
-    // the certificate's one box door; a judged pair's body is discarded.
+    // the certificate's one box door; a judged pair's body is read only
+    // for where its classified edge pieces lie ([`names::UnionLinks`]).
     let hulls = members
         .iter()
         .map(|m| {
@@ -3021,7 +3624,6 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 .map_err(NodeErrorKind::Boolean)
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-    let tables: Vec<&NameTable> = views.iter().map(AsRef::as_ref).collect();
     // Two members are one pair: its one fold step IS its judgement, run
     // once and logged once, as the pair verb runs it. Three or more are
     // judged pairwise first, and each step is handed those verdicts.
@@ -3029,9 +3631,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let judged = if !pairwise {
         Some((names::UnionLinks::default(), Vec::new(), Vec::new()))
     } else {
-        judge_pairwise_contact(id, &own, &tables, &hulls, declared, doc, |p, q, decls| {
-            let out = (verb.build)(op, decls)
-                .run_pair(&members[p].body, &members[q].body, boolean_sweep, tol)
+        let reads: Vec<crate::VarId> = members.iter().map(|m| m.read).collect();
+        judge_pairwise_contact(&hulls, &reads, |a, b| {
+            let out = (verb.build)(op, BooleanInputs::default())
+                .run_pair(&members[a].body, &members[b].body, boolean_sweep, tol)
                 .map_err(verb_refused)?;
             let verbs::PairOut::Out(out) = out else {
                 return match op {
@@ -3041,87 +3644,71 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     })),
                 };
             };
-            // The judgement's rows, named in the two members' own tables:
-            // the node's coincidences are its pairwise judgement's (#4323:
-            // the pass is its coincidence door, rows in member space),
-            // each pair's in the author's list order. A vertex identity
-            // is a row only where a record cites it (D1), and the
-            // judgement's records are not the node's: the fold step that
-            // keeps the touch publishes the row its record cites.
-            let judged: Vec<topo::Coincidence> = out
-                .coincidences
-                .iter()
-                .filter(|row| row.site != topo::DecisionSite::VertexFusion)
-                .copied()
-                .collect();
+            // The judgement's rows, whole, named in the two members' own
+            // tables: the node's coincidences are its member pairs' (DM4),
+            // each pair's in the order the pass visits it.
             let rows = crate::coincide::name_rows(
-                &judged,
+                &out.coincidences,
                 &crate::coincide::RowInputs {
-                    a: own[p],
-                    b: Some(own[q]),
+                    a: own[a],
+                    b: Some(own[b]),
                     tool: None,
                 },
             )
             .map_err(NodeErrorKind::Naming)?;
-            let verdicts = pair_verdicts(p, q, &out.coincidences);
             match out.record {
-                verbs::VerbRecord::Boolean { naming, .. } => Ok(Some((naming, rows, verdicts))),
+                verbs::VerbRecord::Boolean {
+                    naming, verdicts, ..
+                } => Ok(Some((
+                    (naming, out.body),
+                    rows,
+                    pair_verdicts(a, b, &verdicts),
+                ))),
                 _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
                     what: verb.foreign_record,
                 })),
             }
         })?
     };
-    let Some((mut links, mut coincidences, verdicts)) = judged else {
+    let Some((mut links, judged, verdicts)) = judged else {
         return empty();
     };
+    // One row per statement: two pairs that state one thing (a member
+    // read twice, beside a third) publish it once.
+    let mut coincidences = Vec::with_capacity(judged.len());
+    let mut origins = Vec::with_capacity(judged.len());
+    for (row, pair) in judged {
+        stated_at(
+            &mut coincidences,
+            &mut origins,
+            row,
+            RowOrigin::Judged { pair },
+        );
+    }
+    let judged_rows = coincidences.len();
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
     // What the end pass reads of every step: each face's member faces
     // and each step's discards.
     let mut fold = names::UnionFold::new(0, &acc_body);
+    // The accumulation's own records in the node's terms: each cites a
+    // fold row (`fold_rows`) or a member's record, by its place in the
+    // member list. Each step carries them in, as it carries the joining
+    // member's.
+    let mut acc_records = Arc::new(first.records.carried_from(0));
+    let mut fold_rows: Vec<(crate::coincide::NamedCoincidence, Vec<names::StableName>)> =
+        Vec::new();
     // Each step's fragment groups, in fold order (`FragmentGroups::folded`).
     let mut step_groups = Vec::with_capacity(rest.len());
     for step in 0..rest.len() {
         let member_body = Arc::clone(&members[step + 1].body);
         let member_table = Arc::clone(&views[step + 1]);
-        // This step's pairs, resolved against the two tables it joins by
-        // the pair verb's own door. The accumulation is presented
-        // COLLAPSED — its fold-side rows are the fold's internal space,
-        // so this is the one space a caller can write.
-        let mut decls = if buckets[step].is_empty() {
-            BooleanDeclarations::none()
-        } else {
-            let acc_view = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
-            let resolved = look_through_fold(&buckets[step], &acc_view)?;
-            // Before the first step the accumulation is the first member
-            // alone, so no face of it was consumed: a name it lacks is a
-            // name that does not resolve, refused by the pair's own door.
-            let resolved = if step == 0 {
-                resolved
-            } else {
-                drop_consumed(resolved, &acc_view)
-            };
-            // A pair's declared same-operand pair cites its member's
-            // record, as a pair verb's does. Past two members a step's
-            // records are not cited from the node, so such a pair has
-            // nothing to cite.
-            let (acc_records, member_records) = if pairwise {
-                (None, None)
-            } else {
-                (
-                    Some(first.records.as_ref()),
-                    Some(members[1].records.as_ref()),
-                )
-            };
-            resolve_declarations(
-                &resolved,
-                doc,
-                (&acc_view, acc_records),
-                (&member_table, member_records),
-            )?
+        let mut inputs = BooleanInputs {
+            given: None,
+            records_a: acc_records.carried(),
+            records_b: members[step + 1].records.carried(),
         };
         if pairwise {
-            given_verdicts(&mut decls, &verdicts, step + 1, &fold, &acc_body)?;
+            inputs.given = Some(given_pairs(&verdicts, step + 1, &fold, &acc_body)?);
         }
         // A pair's refusal is the pair's own; past two members a refusal
         // only a step raises names the member that step folds in.
@@ -3136,7 +3723,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 refusal
             }
         };
-        match (verb.build)(op, decls.clone())
+        match (verb.build)(op, inputs.clone())
             .run_pair(&acc_body, &member_body, boolean_sweep, tol)
             .map_err(|err| step_refusal(verb_refused(err)))?
         {
@@ -3151,12 +3738,13 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             }
             verbs::PairOut::Out(out) => {
                 if pairwise {
-                    debug_assert_given(&out.coincidences, &decls);
+                    debug_assert_given(&out.coincidences, &inputs);
                 }
                 let verbs::VerbRecord::Boolean {
                     kind,
                     contacts,
                     naming,
+                    verdicts: _,
                 } = out.record
                 else {
                     return Err(NodeErrorKind::Naming(names::NamingError::Emission {
@@ -3176,36 +3764,78 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         },
                     )
                     .map_err(NodeErrorKind::Naming)?;
-                    links.judged(0, 1, &naming).map_err(NodeErrorKind::Naming)?;
+                    links
+                        .judged(0, 1, &naming, &out.body)
+                        .map_err(NodeErrorKind::Naming)?;
                 }
-                // The last step's records are the node's, and cite that
-                // step's rows: those are published after the pairwise
-                // judgement's, named in the node's own space (#4323: a
-                // fold row is published), and the records renumbered onto
-                // them.
-                let contacts = if pairwise && step + 1 == rest.len() {
+                // The step's records in the node's terms: a row the step
+                // decided is a fold row, named in the node's own space
+                // (#4323: a fold row is published where a record cites
+                // it); an accumulation record stands for what it cited;
+                // the joining member's is that member's.
+                let base = fold_rows.len();
+                let used = contacts.decided();
+                if pairwise {
+                    let cited =
+                        used.iter()
+                            .map(|&k| {
+                                out.coincidences.get(k as usize).copied().ok_or(
+                                    NodeErrorKind::Naming(names::NamingError::Emission {
+                                        what: UNION_STEP_UNDECIDED_CITE,
+                                    }),
+                                )
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
                     let acc_view =
                         names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
-                    crate::coincide::publish_cited(
-                        &contacts,
-                        &out.coincidences,
+                    for row in crate::coincide::name_rows(
+                        &cited,
                         &crate::coincide::RowInputs {
                             a: (own_read, &acc_view),
                             b: Some((own_read, &member_table)),
                             tool: None,
                         },
-                        &mut coincidences,
                     )
                     .map_err(NodeErrorKind::Naming)?
-                } else {
-                    contacts
-                };
-                last = Some((kind, Arc::new(contacts)));
+                    {
+                        fold_rows
+                            .push(in_member_space(row, own_read).map_err(NodeErrorKind::Naming)?);
+                    }
+                }
+                let member = u32::try_from(step + 1).unwrap_or(u32::MAX);
+                let held = Arc::clone(&acc_records);
+                let refuse = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
+                let contacts = contacts.try_recited(
+                    |b| match b {
+                        topo::Backing::Decided(k) if pairwise => used
+                            .binary_search(&k)
+                            .map(|rank| {
+                                vec![topo::Backing::Decided(
+                                    u32::try_from(base + rank).unwrap_or(u32::MAX),
+                                )]
+                            })
+                            .map_err(|_| refuse(UNION_STEP_UNDECIDED_CITE)),
+                        decided @ topo::Backing::Decided(_) => Ok(vec![decided]),
+                        topo::Backing::Carried { input: 0, record } => held
+                            .rows()
+                            .get(record as usize)
+                            .map(|c| c.cites.iter().collect())
+                            .ok_or_else(|| refuse(UNION_CARRY_LOST_RECORD)),
+                        topo::Backing::Carried { record, .. } => Ok(vec![topo::Backing::Carried {
+                            input: member,
+                            record,
+                        }]),
+                    },
+                    |_| refuse(UNION_CARRY_UNCITED),
+                )?;
+                acc_records = Arc::new(contacts);
+                last = Some((kind, Arc::clone(&acc_records)));
                 // Minted under THIS node's id, its two sides keyed by the
                 // fold's own reads, which tell an intermediate row from a
                 // member's own name when the chain is collapsed.
                 let emitted = (verb.emitter)(
                     id,
+                    op,
                     &out.body,
                     &naming,
                     &names::OperandCtx {
@@ -3223,7 +3853,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     tol,
                 )
                 .map_err(NodeErrorKind::Naming)?;
-                fold.step(step + 1, &naming, &out.body, &emitted.senses)
+                fold.step(step + 1, &naming, &out.body)
                     .map_err(NodeErrorKind::Naming)?;
                 acc_table = emitted.table;
                 step_groups.push(emitted.groups);
@@ -3245,13 +3875,65 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         names::name_union(id, &acc_body, &acc_table, &member_views, &fold, &links, tol)
             .map_err(NodeErrorKind::Naming)?;
     let body = (*acc_body).clone().into_body();
-    // The LAST step's record is the result's, contacts included. A
-    // contact fed at an earlier step is consumed there and does not
-    // reach the value — the pair verb's carry rule.
+    // The LAST step's records are the result's: every earlier step's
+    // were carried into the step after it.
     let Some((kind, contacts)) = last else {
         return Err(NodeErrorKind::Naming(names::NamingError::Emission {
             what: UNION_NO_STEP,
         }));
+    };
+    // A fold row the node's records cite is the published row stating
+    // the same thing where there is one (DM4: a judged row, or a fold
+    // row an earlier citation published), the judged rows it restates
+    // where those state it ([`restated_overlap`]), and is published
+    // after the judgement's otherwise; the records are recited onto the
+    // rows they cite.
+    let contacts = if pairwise {
+        let used = contacts.decided();
+        let mut at = Vec::with_capacity(used.len());
+        for &k in &used {
+            let row = fold_rows
+                .get(k as usize)
+                .cloned()
+                .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: UNION_STEP_UNDECIDED_CITE,
+                }))?;
+            let (row, minted) = row;
+            let restated = restated_overlap(&row, &coincidences[..judged_rows], members)
+                .map_err(NodeErrorKind::Naming)?;
+            at.push(if restated.is_empty() {
+                vec![stated_at(
+                    &mut coincidences,
+                    &mut origins,
+                    row,
+                    RowOrigin::Fold(minted),
+                )]
+            } else {
+                restated
+            });
+        }
+        let refuse = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
+        Arc::new((*contacts).clone().try_recited(
+            |b| {
+                match b {
+                    topo::Backing::Decided(k) => used
+                        .binary_search(&k)
+                        .map(|rank| {
+                            at[rank]
+                                .iter()
+                                .map(|&i| {
+                                    topo::Backing::Decided(u32::try_from(i).unwrap_or(u32::MAX))
+                                })
+                                .collect()
+                        })
+                        .map_err(|_| refuse(UNION_STEP_UNDECIDED_CITE)),
+                    carried @ topo::Backing::Carried { .. } => Ok(vec![carried]),
+                }
+            },
+            |_| refuse(UNION_CARRY_UNCITED),
+        )?)
+    } else {
+        contacts
     };
     Ok(OpOut::plain(
         ValuePayload::Boolean(BooleanValue::Body {
@@ -3267,15 +3949,14 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         &published_groups,
     )))
     .with_coincidences(coincidences)
-    // A pair's records may cite its members' own, by read.
-    .citing(if pairwise {
-        Vec::new()
-    } else {
-        vec![
-            crate::coincide::CitedInput::Read(first.read),
-            crate::coincide::CitedInput::Read(members[1].read),
-        ]
-    }))
+    // The records may cite the members' own, each by its place in the
+    // list.
+    .citing(
+        members
+            .iter()
+            .map(|m| crate::coincide::CitedInput::Read(m.read))
+            .collect(),
+    ))
 }
 
 /// **A union or an intersect of one body is that body** (DM4): no
@@ -3299,6 +3980,26 @@ const UNION_FAMILY_INDEXED: &str =
 /// A union or an intersect the document defines no output for.
 const UNION_NO_OUTPUT: &str = "a union or an intersect defines no output variable";
 
+/// A union fold row's cell is not named in the node's own space, the
+/// only space a fold step's rows are named in.
+const UNION_FOLD_ROW_FOREIGN_CELL: &str =
+    "a union fold row's cell is not named in the node's own space";
+
+/// A union fold step's record cites a row the step did not decide.
+const UNION_STEP_UNDECIDED_CITE: &str = "a union fold step's record cites a row it did not decide";
+
+/// A union fold step's record cites an accumulation record the fold
+/// does not hold.
+const UNION_CARRY_LOST_RECORD: &str =
+    "a union fold step's record cites an accumulation record the fold does not hold";
+
+/// A split's value holds no name table for one of its halves.
+const SPLIT_HALF_UNNAMED: &str = "a split's value holds no name table for one of its halves";
+
+/// A union fold step's record cites nothing once carried into the
+/// node's terms.
+const UNION_CARRY_UNCITED: &str = "a union fold step's record cites nothing in the node's terms";
+
 /// A union's or an intersect's fold of two members or more ran no step.
 const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
 
@@ -3307,47 +4008,40 @@ const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
 /// contacts are decided.
 ///
 /// Each pair of members whose closed boxes meet
-/// ([`topo::Separation::hull`]) runs the pair verb as `m ∪ n`, handed
-/// only the declared pairs between `m` and `n`: it glues what its
-/// margins decide one carrier, refuses a sliver, and refuses a
-/// contradicted declaration as the pair boolean does. A pair
-/// carrying a declaration is run whatever its boxes: the declaration is
-/// a claim to verify, and verifying it here keeps the verdict
-/// independent of whether the fold fed the pair or consumed its face
-/// ([`drop_consumed`]), and tells a mistyped name from a consumed one.
+/// ([`topo::Separation::hull`]) runs the pair verb as `m ∪ n`: it
+/// glues what its margins decide one carrier and refuses a sliver, as
+/// the pair boolean does. A pair whose boxes do not meet is not run.
 ///
 /// **Whether it refuses depends on the members, never on their
-/// order**: every pair that touches or carries a declaration is judged,
-/// in the author's list order (#4323: the list is the author's stated
-/// order, and nothing here sorts it away), the listed-first member as
-/// operand A. So the rows come out in that order, and where two pairs
-/// would refuse, the one the list reaches first is the one named.
+/// order**: every pair whose boxes meet is judged, in the author's list
+/// order (#4323: the list is the author's stated order, and nothing
+/// here sorts it away). So the rows come out in that order, and where
+/// two pairs would refuse, the one the list reaches first is the one
+/// named. Within a pair, operand A is the member whose read `reads`
+/// holds as the lesser (the earlier minted), the listed-first on a
+/// read spelled twice: so one pair is one run of the pair verb in
+/// every member order, and publishes one margin.
 ///
-/// `judge(p, q, decls)` runs the pair verb on members `p` (operand A)
-/// and `q` (operand B) and hands back its record; this function decides
-/// which pairs are judged and with what, and nothing about geometry.
+/// `judge(a, b)` runs the pair verb on members `a` (operand A) and `b`
+/// (operand B) and hands back its record; this function decides which
+/// pairs are judged and which member is A, and nothing about geometry.
 ///
 /// Returns the member faces the judgements consumed
 /// ([`names::UnionLinks`]): the one place a union's faces are linked
 /// (N2), so the links are member order's no more than the verdict is;
-/// the judgements' rows; and the carrier pairs they glued, the fold's
+/// the judgements' rows, each beside the pair that made it; and the carrier pairs they glued, the fold's
 /// one verdict per pair ([`PairVerdict`]). `None` where a judged
 /// intersection is empty.
 #[allow(clippy::type_complexity)] // the judge's one record, or none for an empty intersection
-fn judge_pairwise_contact(
-    id: RecipeNodeId,
-    members: &[(crate::VarId, &NameTable)],
-    tables: &[&NameTable],
+fn judge_pairwise_contact<T: Decide>(
     hulls: &[bvh::Aabb],
-    declared: &[DeclaredPair],
-    doc: &crate::doc::Doc<ProfileProgram>,
+    reads: &[crate::VarId],
     mut judge: impl FnMut(
         usize,
         usize,
-        BooleanDeclarations,
     ) -> Result<
         Option<(
-            topo::BooleanNaming,
+            (topo::BooleanNaming, topo::AtRestBody<T>),
             Vec<crate::coincide::NamedCoincidence>,
             Vec<PairVerdict>,
         )>,
@@ -3355,204 +4049,136 @@ fn judge_pairwise_contact(
     >,
 ) -> Result<
     Option<(
-        names::UnionLinks,
-        Vec<crate::coincide::NamedCoincidence>,
+        names::UnionLinks<T>,
+        Vec<(crate::coincide::NamedCoincidence, (usize, usize))>,
         Vec<PairVerdict>,
     )>,
     NodeErrorKind,
 > {
-    // The declared pairs between two DIFFERENT members, the member the
-    // author listed first as operand A. `route_declarations` already
-    // sited these pairs through the same door, so a refusal here is a
-    // bug.
-    let site = |r: &SitedRef<crate::VarId>, reference: usize| {
-        member_sites(id, members, r, reference, doc).map_err(|_| {
-            NodeErrorKind::Naming(names::NamingError::Emission {
-                what: PAIRWISE_SITE_UNROUTED,
-            })
-        })
-    };
-    let mut between: std::collections::BTreeMap<(usize, usize), Vec<SidedPair<'static>>> =
-        std::collections::BTreeMap::new();
-    for (k, ((r1, r2), class)) in declared.iter().enumerate() {
-        // Two sites at one read are a carried contact (DM4's
-        // same-member pair), fed at its step and judged by no pair.
-        if r1.at == r2.at {
-            continue;
-        }
-        let ((is, n1), (js, n2)) = (site(r1, 2 * k)?, site(r2, 2 * k + 1)?);
-        for &i in &is {
-            for &j in js.iter().filter(|&&j| j != i) {
-                let (lo, hi) = (i.min(j), i.max(j));
-                let op = |k: usize| {
-                    if k == lo {
-                        topo::Operand::A
-                    } else {
-                        topo::Operand::B
-                    }
-                };
-                between.entry((lo, hi)).or_default().push((
-                    (op(i), n1.clone(), 2 * k),
-                    (op(j), n2.clone(), 2 * k + 1),
-                    *class,
-                ));
-            }
-        }
-    }
     let mut links = names::UnionLinks::default();
     let mut rows = Vec::new();
     let mut verdicts = Vec::new();
     // Each pair once, in the author's list order (#4323: the list is
     // the author's stated order; nothing here sorts it away).
-    for p in 0..members.len() {
-        for q in p + 1..members.len() {
-            let pairs = between.remove(&(p, q)).unwrap_or_default();
-            if pairs.is_empty() && !hulls[p].overlaps(&hulls[q]) {
+    for p in 0..hulls.len() {
+        for q in p + 1..hulls.len() {
+            if !hulls[p].overlaps(&hulls[q]) {
                 continue;
             }
-            let decls = if pairs.is_empty() {
-                BooleanDeclarations::none()
-            } else {
-                resolve_declarations(&pairs, doc, (tables[p], None), (tables[q], None))?
-            };
-            let Some((naming, judged, glued)) = judge(p, q, decls)? else {
+            let (a, b) = if reads[q] < reads[p] { (q, p) } else { (p, q) };
+            let Some(((naming, body), judged, glued)) = judge(a, b)? else {
                 return Ok(None);
             };
-            links.judged(p, q, &naming).map_err(NodeErrorKind::Naming)?;
-            rows.extend(judged);
+            links
+                .judged(a, b, &naming, &body)
+                .map_err(NodeErrorKind::Naming)?;
+            rows.extend(judged.into_iter().map(|r| (r, (a, b))));
             verdicts.extend(glued);
         }
     }
     Ok(Some((links, rows, verdicts)))
 }
 
-/// **One carrier pair a union's pairwise judgement glued**: a face of
-/// each of two members, by member index, and the class its decided
-/// relation makes it. The fold reads it through lineage
-/// ([`given_verdicts`]) and decides the pair nowhere else.
+/// **One carrier pair a union's pairwise judgement glued**: the
+/// kernel's verdict and the two members it judged, by member index.
+/// The fold reads it through lineage ([`given_pairs`]) and decides
+/// the pair nowhere else.
 #[derive(Clone, Copy, Debug)]
 struct PairVerdict {
-    /// The listed-first member's face: `(member index, face)`.
-    a: (usize, topo::FaceKey),
-    /// The other member's face.
-    b: (usize, topo::FaceKey),
-    /// The class the judgement's relation makes the pair.
-    class: topo::BooleanCoincidence,
+    /// The judgement's operand A.
+    a: usize,
+    /// Its operand B.
+    b: usize,
+    /// The verdict, in the two members' keys.
+    verdict: topo::GlueVerdict,
 }
 
-/// The carrier pairs the judgement of members `p` (operand A) and `q`
-/// (operand B) glued, read off its rows: each face pair of the two
-/// operands a row relates as one carrier or a tangency.
-fn pair_verdicts(p: usize, q: usize, rows: &[topo::Coincidence]) -> Vec<PairVerdict> {
-    rows.iter()
-        .filter_map(|row| {
-            let [
-                topo::RowCell::Input {
-                    input: topo::Operand::A,
-                    cell: topo::Cell::Face(fa),
-                },
-                topo::RowCell::Input {
-                    input: topo::Operand::B,
-                    cell: topo::Cell::Face(fb),
-                },
-            ] = row.cells
-            else {
-                return None;
-            };
-            let class = row.relation.glued_class()?;
-            Some(PairVerdict {
-                a: (p, fa),
-                b: (q, fb),
-                class,
-            })
-        })
+/// The carrier pairs the judgement of members `a` (operand A) and `b`
+/// (operand B) glued: the kernel's verdicts ([`topo::GlueVerdict`]).
+fn pair_verdicts(a: usize, b: usize, verdicts: &[topo::GlueVerdict]) -> Vec<PairVerdict> {
+    verdicts
+        .iter()
+        .map(|&verdict| PairVerdict { a, b, verdict })
         .collect()
 }
 
 /// **The pass's verdicts for the fold step that folds in member
-/// `member`**, added to `decls` as declared pairs and `decls` marked
-/// [`topo::Verdicts::Given`]: each verdict whose second face is
-/// `member`'s, between that face and every accumulation face whose
-/// lineage holds the verdict's first face. A pair the step's routed
-/// declarations already name is left as declared.
+/// `member`**, the step's given pairs ([`BooleanInputs::given`]): each
+/// verdict one of whose faces is `member`'s, between that face and
+/// every accumulation face whose lineage holds the verdict's other
+/// face. The judgement's operand A may be either member, so either face
+/// may be `member`'s.
 ///
 /// # Errors
 ///
 /// An emission bug ([`UNION_VERDICTS_DISAGREE`]) where two verdicts
-/// glue one accumulation face to one member face under two classes, or
-/// an accumulation face carries no lineage.
-fn given_verdicts<T: Decide>(
-    decls: &mut BooleanDeclarations,
+/// glue one accumulation face to one member face under two relations,
+/// or an accumulation face carries no lineage.
+fn given_pairs<T: Decide>(
     verdicts: &[PairVerdict],
     member: usize,
     fold: &names::UnionFold,
     acc: &topo::Body<T>,
-) -> Result<(), NodeErrorKind> {
+) -> Result<Vec<topo::GluedPair>, NodeErrorKind> {
+    use topo::Operand;
     let bug = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
-    let mut given: std::collections::BTreeMap<(topo::FaceKey, topo::FaceKey), _> = decls
-        .coincident_faces
-        .iter()
-        .map(|d| ((d.a, d.b), (d.class, true)))
-        .collect();
+    let mut given: std::collections::BTreeMap<
+        (topo::FaceKey, topo::FaceKey),
+        (Operand, topo::GlueVerdict),
+    > = std::collections::BTreeMap::new();
     for (f, _) in acc.faces() {
         let parents = fold.member_faces(f).ok_or(bug(UNION_FACE_NO_LINEAGE))?;
-        for v in verdicts.iter().filter(|v| v.b.0 == member) {
-            if !parents.contains(&v.a) {
+        for v in verdicts {
+            // The accumulation's side of the verdict, and `member`'s face.
+            let (held, at) = if v.b == member {
+                (Operand::A, (v.a, v.verdict.a()))
+            } else if v.a == member {
+                (Operand::B, (v.b, v.verdict.b()))
+            } else {
+                continue;
+            };
+            if !parents.contains(&at) {
                 continue;
             }
-            match given.entry((f, v.b.1)) {
+            let joining = match held {
+                Operand::A => v.verdict.b(),
+                Operand::B => v.verdict.a(),
+            };
+            match given.entry((f, joining)) {
                 std::collections::btree_map::Entry::Vacant(slot) => {
-                    slot.insert((v.class, false));
+                    slot.insert((held, v.verdict));
                 }
-                std::collections::btree_map::Entry::Occupied(held) => {
-                    let (class, routed) = *held.get();
-                    if !routed && class != v.class {
+                std::collections::btree_map::Entry::Occupied(prior) => {
+                    if prior.get().1.relation() != v.verdict.relation() {
                         return Err(bug(UNION_VERDICTS_DISAGREE));
                     }
                 }
             }
         }
     }
-    for (&(a, b), &(class, routed)) in &given {
-        if !routed {
-            decls
-                .coincident_faces
-                .push(topo::FacePairDeclaration::new(a, b, class));
-        }
-    }
-    decls.verdicts = topo::Verdicts::Given;
-    Ok(())
+    Ok(given
+        .into_iter()
+        .map(|((f, _), (held, verdict))| verdict.given_at(held, f))
+        .collect())
 }
 
-/// **Every face-pair row a fold step recorded is a pair it was given**
-/// (DM4, the fold re-glues no carrier pair): the verdict reuse, asserted
-/// where the step's rows come back. A step's face-pair rows are its
-/// declaration door's, so one naming a pair outside `decls` is a fresh
-/// glue on a piece — what a glue door or recording site that ignored
-/// `Verdicts::Given` would add. Readings that record no row are outside
-/// it: the merge's continuation reading, the maximal-faces gate and the
-/// join's coaxial frame read a step's carriers by their margins, as the
-/// pairwise pass read the members'.
-fn debug_assert_given(rows: &[topo::Coincidence], decls: &BooleanDeclarations) {
-    if cfg!(debug_assertions) {
+/// **A fold step records no face-pair row** (DM4, the fold re-glues no
+/// carrier pair): the verdict reuse, asserted where the step's rows come
+/// back. A step seeds its glue from its given pairs unmeasured, so the
+/// pairwise pass's rows are the union's and the step adds none; a
+/// face-pair row from a step is a carrier pair judged again at the
+/// piece's extent, whether a given pair re-verified or a fresh glue a
+/// door that ignored the given verdicts added. Readings that record no
+/// row are outside it: the merge's continuation reading, the
+/// maximal-faces gate and the join's coaxial frame read a step's
+/// carriers by their margins, as the pairwise pass read the members'.
+fn debug_assert_given(rows: &[topo::Coincidence], inputs: &BooleanInputs) {
+    if cfg!(debug_assertions) && inputs.given.is_some() {
         for row in rows {
-            if let [
-                topo::RowCell::Input {
-                    input: topo::Operand::A,
-                    cell: topo::Cell::Face(fa),
-                },
-                topo::RowCell::Input {
-                    input: topo::Operand::B,
-                    cell: topo::Cell::Face(fb),
-                },
-            ] = row.cells
-            {
+            if let Some((fa, fb)) = row.face_pair() {
                 debug_assert!(
-                    decls
-                        .coincident_faces
-                        .iter()
-                        .any(|d| d.a == fa && d.b == fb),
-                    "a union fold step decided the carrier pair {fa:?}/{fb:?} itself: its \
+                    false,
+                    "a union fold step judged the carrier pair {fa:?}/{fb:?} itself: its \
                      verdict is the pairwise judgement's, read through lineage"
                 );
             }
@@ -3564,385 +4190,8 @@ fn debug_assert_given(rows: &[topo::Coincidence], decls: &BooleanDeclarations) {
 const UNION_FACE_NO_LINEAGE: &str = "a union fold's accumulation face has no member-face lineage";
 
 /// Two of a union's pairwise verdicts glue one accumulation face to one
-/// member face under two classes.
-const UNION_VERDICTS_DISAGREE: &str =
-    "a union's pairwise judgements glue one accumulation face to one member face under two classes";
-
-/// A declared pair's site did not site in the pairwise judgement,
-/// after [`route_declarations`] sited the same pair through the same
-/// door ([`member_site`]).
-const PAIRWISE_SITE_UNROUTED: &str =
-    "a union's pairwise contact judgement met a declared site the routing did not refuse";
-
-/// **A certified pair whose accumulation-side face the fold consumed
-/// whole is satisfied, and leaves the step's bucket** (DM4, the
-/// declaration channel).
-///
-/// Consumed whole means no face row of the accumulation descends from
-/// the face ([`names::face_descends_from`]): another member contains
-/// it, so the contact has nothing left to back. A face that survives
-/// only in pieces never reaches here; [`look_through_fold`] refused it.
-///
-/// Only a CROSS pair's accumulation side is read. Its names were
-/// resolved at their sites by [`judge_pairwise_contact`], so a name
-/// absent here was consumed, not mistyped. A pair whose two sites are
-/// one member passes through untouched.
-fn drop_consumed<'n>(bucket: Vec<SidedPair<'n>>, acc_table: &NameTable) -> Vec<SidedPair<'n>> {
-    let consumed = |(op, sided, _): &Side<'n>| {
-        let face = sided.name();
-        *op == topo::Operand::A
-            && !acc_table
-                .iter()
-                .any(|(row, _)| names::face_descends_from(row, face))
-    };
-    bucket
-        .into_iter()
-        .filter(|(s1, s2, _)| s1.0 == s2.0 || !(consumed(s1) || consumed(s2)))
-        .collect()
-}
-
-/// One declared pair as the shared resolver takes it: each side's
-/// name in the table of the operand its SITE picked, and the class.
-///
-/// [`wire_boolean`] builds it from the names as authored
-/// ([`side_by_operand`]); [`wire_union`] rewrites each into the node's
-/// member space ([`route_declarations`]). Either way
-/// [`resolve_declarations`] gets one shape.
-type SidedPair<'n> = (Side<'n>, Side<'n>, topo::BooleanCoincidence);
-
-/// One side of a [`SidedPair`]: the operand its site picked, its name,
-/// and its place among the node's payload names
-/// ([`crate::Node::payload_names`]), which a refusal of it carries.
-type Side<'n> = (topo::Operand, SidedName<'n>, usize);
-
-/// One side's name on its way to the shared resolver, and whether
-/// rung 1 is already paid on it.
-///
-/// A pair boolean's authored name travels unchanged, carrying the
-/// rung-1 token [`site_operand`] already paid. A union mints a NEW name
-/// ([`names::member_name`], and maybe [`look_through_fold`]), which
-/// pays its own.
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum SidedName<'n> {
-    /// The authored name, rung 1 paid.
-    Live(ladder::Live<'n>),
-    /// A name a union's door minted from the authored one.
-    Rewritten(names::StableName),
-}
-
-impl SidedName<'_> {
-    /// The name itself, whichever way it got here.
-    fn name(&self) -> &names::StableName {
-        match self {
-            Self::Live(live) => live.name(),
-            Self::Rewritten(name) => name,
-        }
-    }
-}
-
-/// **A subtract's declared pairs, sided by their sites** — `at == a`
-/// is operand A, `at == b` is operand B, and anything else refuses
-/// typed. Rung 1 first: a name whose minting node is gone says THAT,
-/// whatever its site.
-///
-/// Where both seats read one variable, the side is the one whose own
-/// table `holds` the name, and a name both hold does not say which.
-///
-/// The names travel unchanged, with the rung-1 token: a subtract's
-/// operand tables are the operands' own.
-fn side_by_operand<'n>(
-    pairs: &'n [DeclaredPair],
-    (a, a_table): (crate::VarId, &NameTable),
-    (b, b_table): (crate::VarId, &NameTable),
-    doc: &crate::doc::Doc<ProfileProgram>,
-) -> Result<Vec<SidedPair<'n>>, NodeErrorKind> {
-    let side =
-        |r: &'n SitedRef<crate::VarId>, reference: usize| -> Result<Side<'n>, NodeErrorKind> {
-            let live = ladder::live(&r.name, doc)
-                .map_err(|error| NodeErrorKind::DeclareResolve { error, reference })?;
-            let holds = |table: &NameTable| table.lookup(&r.name).is_some();
-            let op = match (r.at == a, r.at == b) {
-                (true, false) => topo::Operand::A,
-                (false, true) => topo::Operand::B,
-                (true, true) if holds(a_table) != holds(b_table) => {
-                    if holds(a_table) {
-                        topo::Operand::A
-                    } else {
-                        topo::Operand::B
-                    }
-                }
-                _ => return Err(NodeErrorKind::DeclareSiteNotAnOperand { at: r.at }),
-            };
-            Ok((op, SidedName::Live(live), reference))
-        };
-    pairs
-        .iter()
-        .enumerate()
-        .map(|(k, ((r1, r2), class))| Ok((side(r1, 2 * k)?, side(r2, 2 * k + 1)?, *class)))
-        .collect()
-}
-
-/// **Routing a union's declared pairs to their fold steps** (DM4, the
-/// declaration channel): one bucket per step, filled from the two
-/// SITES the pair names and from nothing else.
-///
-/// Member `i` is the joining operand at step `i - 1` and inside the
-/// accumulation at every step after, so the step that has both sites
-/// is the LATER member's: bucket `max(i, j) - 1`, the joining member
-/// operand B and the accumulation operand A. A pair whose two sites
-/// are ONE read is a carried contact at the step of each member that
-/// read holds (member 0's saturates to step 0): a read spelled twice
-/// sites both of its members.
-///
-/// Each pair is rewritten into the node's member space
-/// ([`names::member_name`]), so the pair verb's own resolver runs on
-/// it. A site the member list does not hold — what `SetMembers` leaves
-/// by removing a declared member — refuses as a vanished name (N5).
-fn route_declarations(
-    id: RecipeNodeId,
-    members: &[(crate::VarId, &NameTable)],
-    pairs: &[DeclaredPair],
-    doc: &crate::doc::Doc<ProfileProgram>,
-) -> Result<Vec<Vec<SidedPair<'static>>>, NodeErrorKind> {
-    let steps = members.len().saturating_sub(1);
-    let mut buckets: Vec<Vec<SidedPair<'static>>> = vec![Vec::new(); steps];
-    for (k, ((r1, r2), class)) in pairs.iter().enumerate() {
-        let ((is, n1), (js, n2)) = (
-            member_sites(id, members, r1, 2 * k, doc)?,
-            member_sites(id, members, r2, 2 * k + 1, doc)?,
-        );
-        let mut sited: Vec<(usize, usize)> = Vec::new();
-        for &i in &is {
-            for &j in &js {
-                if (r1.at != r2.at || i == j) && !sited.contains(&(i, j)) {
-                    sited.push((i, j));
-                }
-            }
-        }
-        for (i, j) in sited {
-            let bucket = i.max(j).saturating_sub(1);
-            let joining = bucket + 1;
-            let op = |index: usize| {
-                if index == joining {
-                    topo::Operand::B
-                } else {
-                    topo::Operand::A
-                }
-            };
-            buckets[bucket].push((
-                (op(i), n1.clone(), 2 * k),
-                (op(j), n2.clone(), 2 * k + 1),
-                *class,
-            ));
-        }
-    }
-    Ok(buckets)
-}
-
-/// **A union's declared side, sited at its members**: the positions of
-/// the members the site's read holds, and the name rewritten into the
-/// node's member space ([`names::member_name`]), for both of a union's
-/// readers of its declarations ([`route_declarations`],
-/// [`judge_pairwise_contact`]).
-///
-/// A family read whole is several members under one read, each holding
-/// its own instances' names, so the site is the member whose table
-/// holds the name; a read spelled twice holds it in both, and sites
-/// both. Rung 1 first: a name whose minting node is gone says THAT. A
-/// site the member list does not hold refuses as a vanished name (N5).
-/// The rung-1 token is not carried past here: the minted name pays its
-/// own.
-fn member_sites(
-    id: RecipeNodeId,
-    members: &[(crate::VarId, &NameTable)],
-    r: &SitedRef<crate::VarId>,
-    reference: usize,
-    doc: &crate::doc::Doc<ProfileProgram>,
-) -> Result<(Vec<usize>, SidedName<'static>), NodeErrorKind> {
-    let live = ladder::live(&r.name, doc)
-        .map_err(|error| NodeErrorKind::DeclareResolve { error, reference })?;
-    let held: Vec<usize> = (0..members.len())
-        .filter(|&i| members[i].0 == r.at)
-        .collect();
-    let holding: Vec<usize> = held
-        .iter()
-        .copied()
-        .filter(|&i| members[i].1.lookup(&r.name).is_some())
-        .collect();
-    let sites = if holding.is_empty() { held } else { holding };
-    if sites.is_empty() {
-        return Err(NodeErrorKind::DeclareResolve {
-            error: ladder::vanished(&live),
-            reference,
-        });
-    }
-    Ok((
-        sites,
-        SidedName::Rewritten(names::member_name(id, r.at, &r.name)),
-    ))
-}
-
-/// **A member-space name read through the fold's compositions**, one
-/// step's bucket against the accumulation's table, before the pair
-/// boolean's own door ([`resolve_declarations`]) sees the pair: a name
-/// the fold MERGED away is rewritten to the merged row that holds it,
-/// and one the fold left only in PIECES — split, or inside a merge it
-/// later fragmented — refuses, naming the composition.
-///
-/// A face merged at an earlier step is in exactly one `[Merged(set)]`
-/// row (`names::merged::covers`): the one consumption with a unique
-/// successor, so the one looked through. A face one step cut and
-/// partly merged is in that row and in a fragment of its own beside
-/// it, so it is a split.
-///
-/// A split, and a merge a later step fragmented, have no unique
-/// successor, so the pair refuses `Vanished` with
-/// [`crate::resolve::Diagnosis::ConsumedByFold`], the composition read
-/// off the rows that DESCEND from the name ([`fold_descent`]), never
-/// by measuring the face again (DM4).
-///
-/// A name NOTHING in the accumulation descends from is handed on as
-/// written: either another member consumed it whole
-/// ([`drop_consumed`]), or it is in no table and the door refuses it as
-/// vanished. A face split and then consumed whole in every piece is
-/// the first case.
-///
-/// Only the ACCUMULATION side looks through: no composition could have
-/// consumed a face of a member that has not joined yet.
-///
-/// Two refusals are emission bugs the flat mint cannot produce: a face
-/// in the set of TWO bare merged rows, and descendant ROWS that
-/// disagree about which composition consumed it (the first
-/// composition retires the bare name). Disagreement is read across
-/// rows only; within a row [`fold_descent`]'s first reading decides,
-/// so a merged row whose constituents disagree goes unseen: a shape
-/// the mint cannot produce either.
-fn look_through_fold<'n>(
-    bucket: &[SidedPair<'n>],
-    acc_table: &NameTable,
-) -> Result<Vec<SidedPair<'n>>, NodeErrorKind> {
-    use crate::names::RoleSeg;
-    let merged_row_of =
-        |(op, sided, reference): &Side<'n>| -> Result<Option<names::StableName>, NodeErrorKind> {
-            let name = sided.name();
-            if *op == topo::Operand::B || acc_table.lookup(name).is_some() {
-                return Ok(None);
-            }
-            let split = acc_table
-                .iter()
-                .any(|(row, _)| fold_descent(row, name) == Some(FoldConsumption::Split));
-            let mut rows = acc_table
-                .iter()
-                .filter_map(|(row, _)| match row.path.as_slice() {
-                    [RoleSeg::Merged(set)] if names::merged::covers(set, name) => Some(row),
-                    _ => None,
-                });
-            match (rows.next(), rows.next()) {
-                (Some(row), None) if !split => return Ok(Some(row.clone())),
-                (Some(_), Some(_)) => {
-                    return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                        what: MEMBER_FACE_IN_TWO_MERGES,
-                    }));
-                }
-                _ => {}
-            }
-            let mut ways = acc_table
-                .iter()
-                .filter_map(|(row, _)| fold_descent(row, name));
-            let by = match ways.next() {
-                Some(first) if ways.all(|w| w == first) => first,
-                Some(_) => {
-                    return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                        what: MEMBER_FACE_CONSUMED_TWO_WAYS,
-                    }));
-                }
-                None => return Ok(None),
-            };
-            Err(NodeErrorKind::DeclareResolve {
-                error: Box::new(crate::resolve::ResolveError::Vanished {
-                    name: name.clone(),
-                    diagnosis: crate::resolve::Diagnosis::ConsumedByFold { by },
-                    last_good: None,
-                }),
-                reference: *reference,
-            })
-        };
-    bucket
-        .iter()
-        .map(|(s1, s2, class)| {
-            let rewritten = |s: &Side<'n>| {
-                Ok(match merged_row_of(s)? {
-                    Some(row) => (s.0, SidedName::Rewritten(row), s.2),
-                    None => s.clone(),
-                })
-            };
-            Ok((rewritten(s1)?, rewritten(s2)?, *class))
-        })
-        .collect()
-}
-
-/// **How `row` descends from the member-space `name`**, when it does:
-/// the composition that consumed the name, read off the row's SHAPE.
-///
-/// Only a row [`names::face_descends_from`] accepts is classified, so
-/// a face refused here never reads as consumed whole in
-/// [`drop_consumed`]. That predicate asks WHETHER anything of the face
-/// survives; this asks which composition left it in PIECES, and a
-/// piece is a `Fragment` tail, so a descendant without one is `None`.
-///
-/// A fragmented head equal to the name is a
-/// [split](FoldConsumption::Split). A fragmented `Merged` head covering
-/// the name is a [fragmented merge](FoldConsumption::FragmentedMerge).
-/// A `Merged` head that does not cover the name says what its first
-/// descending constituent says: a fragment merged later was still
-/// consumed by the split that made it a fragment. A BARE merged row
-/// covering the name is the look-through's, and `None` here.
-fn fold_descent(row: &names::StableName, name: &names::StableName) -> Option<FoldConsumption> {
-    use crate::names::RoleSeg;
-    // A worklist in the order the first answer is looked for: a row's
-    // constituents in set order, each's own before the next's.
-    let mut rows = vec![row];
-    while let Some(row) = rows.pop() {
-        if !names::face_descends_from(row, name) {
-            continue;
-        }
-        let tail = row
-            .path
-            .iter()
-            .rev()
-            .take_while(|seg| matches!(seg, RoleSeg::Fragment(_)))
-            .count();
-        let head = &row.path[..row.path.len() - tail];
-        let fragmented = tail > 0;
-        // No node or kind test needed: the guard's other routes descend
-        // into names nested inside the path, and no name descends from a
-        // name that contains it, so a head equal to the name's path is the
-        // name's own node and kind.
-        if fragmented && head == name.path.as_slice() {
-            return Some(FoldConsumption::Split);
-        }
-        let [RoleSeg::Merged(set)] = head else {
-            continue;
-        };
-        if !names::merged::covers(set, name) {
-            rows.extend(set.iter().rev());
-        } else if fragmented {
-            return Some(FoldConsumption::FragmentedMerge);
-        }
-    }
-    None
-}
-
-/// A union's accumulation lists one member face in the constituent
-/// sets of two merged rows, which the flat mint cannot produce.
-const MEMBER_FACE_IN_TWO_MERGES: &str =
-    "a union's accumulation holds one member face in two merged rows' constituent sets";
-
-/// A union's accumulation holds rows descending from one member face
-/// by two different compositions, which the retiring mint cannot
-/// produce: the first composition to consume a face retires its name.
-const MEMBER_FACE_CONSUMED_TWO_WAYS: &str =
-    "a union's accumulation holds rows descending from one member face by two compositions";
+/// member face under two relations.
+const UNION_VERDICTS_DISAGREE: &str = "a union's pairwise judgements glue one accumulation face to one member face under two relations";
 
 /// A union's pairwise judgement returned the typed empty from two real
 /// bodies.
@@ -3951,302 +4200,6 @@ const UNION_PAIR_EMPTY: &str =
 
 /// A union fold step returned the typed empty from two real bodies.
 const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-empty operands";
-
-/// Resolves one node's declared pairs against the two operand
-/// tables into the kernel's [`BooleanDeclarations`] (F5).
-///
-/// [`wire_boolean`] calls it with the two operands' tables;
-/// [`wire_union`] once per fold step, with the accumulation (in this
-/// node's published space) and the joining member's `member_view`.
-///
-/// The pair vocabulary is [`DeclaredStep`]. The resolver is
-/// carrier-agnostic: it pushes a `FacePairDeclaration` whatever the
-/// faces' surface kinds, and the kernel's ladder verifies it.
-/// Resolution scope is the OPERANDS' tables (spec D4), so a name minted
-/// elsewhere is Vanished HERE even if another node still carries it.
-/// Each name is read in exactly ONE table, the one its SITE picked, so
-/// two placements of one prototype are told apart.
-fn resolve_declarations<'n>(
-    pairs: &'n [SidedPair<'n>],
-    doc: &crate::doc::Doc<ProfileProgram>,
-    (a_table, a_records): (&NameTable, Option<&topo::ContactRecords>),
-    (b_table, b_records): (&NameTable, Option<&topo::ContactRecords>),
-) -> Result<BooleanDeclarations, NodeErrorKind> {
-    let mut out = BooleanDeclarations::none();
-    for ((o1, n1, r1), (o2, n2, r2), class) in pairs {
-        let (o1, o2, class) = (*o1, *o2, *class);
-        let refused = |reference| move |error| NodeErrorKind::DeclareResolve { error, reference };
-        // Rungs 1 and 3 for both names, the kind question, then rung 2
-        // (the order is `ladder`'s doc).
-        let table_of = |op| match op {
-            topo::Operand::A => a_table,
-            topo::Operand::B => b_table,
-        };
-        let (live1, l1) = declare_landing(n1, *r1, doc, table_of(o1))?;
-        let (live2, l2) = declare_landing(n2, *r2, doc, table_of(o2))?;
-        let (n1, n2) = (n1.name(), n2.name());
-        // Asked of the NAMES' kinds, which every `NameTable` door that
-        // seats a row makes every candidate's kind, so a tie answers it
-        // too.
-        let unsupported = |kinds| NodeErrorKind::DeclareUnsupportedPair {
-            kinds,
-            cross_operand: o1 != o2,
-        };
-        let Some(step) = declared_step((o1, n1.kind), (o2, n2.kind)) else {
-            return Err(unsupported((n1.kind, n2.kind)));
-        };
-        let k1 = ladder::resolve(live1, l1).map_err(refused(*r1))?.key;
-        let k2 = ladder::resolve(live2, l2).map_err(refused(*r2))?.key;
-        // The arms below PROJECT the keys of the step, reading its
-        // ORIENTATION off the step's [`sides`] tokens. A projection that
-        // fails means a table holds a key of another kind than its
-        // name's: asserted in debug, answered off the KEYS in release.
-        let broke = |shape: &'static str| {
-            debug_assert!(
-                false,
-                "a declared {shape} pair projected a key of another kind than its name's: \
-                 every `NameTable` door that seats a row admits it only at its \
-                 name's kind"
-            );
-            unsupported((k1.kind(), k2.kind()))
-        };
-        // A carried row is a CONTACT; a continuation is a relation
-        // between two faces and has no vertex reading, so a vertex step
-        // declared as one is an unsupported pair (the one check, read by
-        // both vertex arms).
-        let vertex_class = class.contact();
-        // A same-operand pair is a contact its operand carries in: it
-        // cites the operand's record of the pair, and a pair the operand
-        // records no contact for, or one at a union step, backs nothing.
-        let backing_record = |op: topo::Operand, pair| {
-            match op {
-                topo::Operand::A => a_records,
-                topo::Operand::B => b_records,
-            }
-            .and_then(|records| records.position(pair))
-            .ok_or(NodeErrorKind::DeclaredContactUnbacked {
-                reference: *r1,
-                at_union_step: a_records.is_none(),
-            })
-        };
-        match step {
-            DeclaredStep::CrossFaces(sides) => {
-                let (a, b) = sides.a_then_b(k1, k2);
-                let (Some(fa), Some(fb)) = (a.face(), b.face()) else {
-                    return Err(broke("cross-operand face"));
-                };
-                out.coincident_faces
-                    .push(FacePairDeclaration::new(fa, fb, class));
-            }
-            DeclaredStep::SameVv(side) => {
-                let Some(class) = vertex_class else {
-                    return Err(unsupported((n1.kind, n2.kind)));
-                };
-                let (Some(va), Some(vb)) = (k1.vertex(), k2.vertex()) else {
-                    return Err(broke("same-operand vertex-vertex"));
-                };
-                let record = backing_record(
-                    side.operand(),
-                    (topo::Cell::Vertex(va), topo::Cell::Vertex(vb)),
-                )?;
-                // The AUTHORED class, carried, not re-defaulted.
-                carried(&mut out, side.operand()).vv.push(CarriedVv {
-                    pair: VvContact { a: va, b: vb },
-                    class,
-                    record,
-                });
-            }
-            DeclaredStep::SameVf(side, roles) => {
-                let Some(class) = vertex_class else {
-                    return Err(unsupported((n1.kind, n2.kind)));
-                };
-                let (v, f) = roles.vertex_then_face(k1, k2);
-                let (Some(vertex), Some(face)) = (v.vertex(), f.face()) else {
-                    return Err(broke("same-operand vertex-face"));
-                };
-                let record = backing_record(
-                    side.operand(),
-                    (topo::Cell::Vertex(vertex), topo::Cell::Face(face)),
-                )?;
-                carried(&mut out, side.operand()).vf.push(CarriedVf {
-                    rest: VfContact { vertex, face },
-                    class,
-                    record,
-                });
-            }
-        }
-    }
-    Ok(out)
-}
-
-/// The carried-contact sink a SAME-operand declaration lands in.
-fn carried(out: &mut BooleanDeclarations, op: topo::Operand) -> &mut CarriedContacts {
-    match op {
-        topo::Operand::A => &mut out.carried_a,
-        topo::Operand::B => &mut out.carried_b,
-    }
-}
-
-/// **The orientation facts a declared pair's step rests on, as tokens
-/// only a COMPARISON of the two sides can mint** (the device
-/// [`ladder::Live`] uses).
-///
-/// [`DeclaredStep`] carries these rather than a bare `Operand` or a
-/// `bool`, so [`resolve_declarations`] reads the orientation
-/// [`declared_step`] decided instead of re-deriving it. The fields are
-/// private and the `of` constructors the only way in, so an arm cannot
-/// fabricate an orientation. What remains spellable is calling a
-/// comparison with ONE side twice (`SameOperand::of(oa, oa)`).
-mod sides {
-    use super::names::EntityKind;
-    use topo::Operand;
-
-    /// Proof that two declared names landed in the SAME operand, and
-    /// which one.
-    #[derive(Clone, Copy)]
-    pub(super) struct SameOperand(Operand);
-
-    impl SameOperand {
-        /// `None` unless the two names landed in one operand.
-        pub(super) fn of(a: Operand, b: Operand) -> Option<Self> {
-            (a == b).then_some(Self(a))
-        }
-
-        /// The operand both names landed in.
-        pub(super) fn operand(self) -> Operand {
-            self.0
-        }
-    }
-
-    /// Proof that two declared names landed in DIFFERENT operands,
-    /// and which of the two is operand A's.
-    #[derive(Clone, Copy)]
-    pub(super) struct CrossOperand {
-        a_is_first: bool,
-    }
-
-    impl CrossOperand {
-        /// `None` unless the two names landed in different operands.
-        pub(super) fn of(a: Operand, b: Operand) -> Option<Self> {
-            (a != b).then_some(Self {
-                a_is_first: a == Operand::A,
-            })
-        }
-
-        /// The pair in OPERAND order, A's first.
-        pub(super) fn a_then_b<T>(self, first: T, second: T) -> (T, T) {
-            if self.a_is_first {
-                (first, second)
-            } else {
-                (second, first)
-            }
-        }
-    }
-
-    /// Proof that of two declared kinds exactly one is a VERTEX and
-    /// the other a FACE, and which is which.
-    #[derive(Clone, Copy)]
-    pub(super) struct VertexAndFace {
-        vertex_is_first: bool,
-    }
-
-    impl VertexAndFace {
-        /// `None` unless the two kinds are one vertex and one face.
-        pub(super) fn of(a: EntityKind, b: EntityKind) -> Option<Self> {
-            match (a, b) {
-                (EntityKind::Vertex, EntityKind::Face) => Some(Self {
-                    vertex_is_first: true,
-                }),
-                (EntityKind::Face, EntityKind::Vertex) => Some(Self {
-                    vertex_is_first: false,
-                }),
-                _ => None,
-            }
-        }
-
-        /// The pair in ROLE order, the vertex's first.
-        pub(super) fn vertex_then_face<T>(self, first: T, second: T) -> (T, T) {
-            if self.vertex_is_first {
-                (first, second)
-            } else {
-                (second, first)
-            }
-        }
-    }
-}
-
-/// **The step a declared pair has in the v1 threading vocabulary** —
-/// the ONE enumeration of that vocabulary in this crate
-/// ([`NodeErrorKind::DeclareUnsupportedPair`] points here).
-///
-/// Each variant carries its ORIENTATION as a [`sides`] token. A fourth
-/// VARIANT fails to compile until the projection covers it (`E0004`);
-/// a fourth pair shape reusing a variant must mint its witness through
-/// a comparison. Not caught: an arm pairing the wrong KINDS with a
-/// variant, which reaches `broke`, fail-loud.
-///
-/// Asked of the two names' KINDS and operands only, none of which needs
-/// a name resolved to one entity, so the question can precede the tie.
-#[derive(Clone, Copy)]
-enum DeclaredStep {
-    /// Cross-operand Face-Face: the cosurface glue intent, on
-    /// whatever carrier the two faces share.
-    CrossFaces(sides::CrossOperand),
-    /// Same-operand Vertex-Vertex: a carried 3' contact.
-    SameVv(sides::SameOperand),
-    /// Same-operand Vertex-Face, either way round in the authored
-    /// pair: a carried 3' contact.
-    SameVf(sides::SameOperand, sides::VertexAndFace),
-}
-
-/// The vocabulary itself; see [`DeclaredStep`]. The KINDS pick the
-/// shape and the SIDES have to witness it, so a pair its operands
-/// cannot support is `None`: [`NodeErrorKind::DeclareUnsupportedPair`].
-fn declared_step(
-    a: (topo::Operand, names::EntityKind),
-    b: (topo::Operand, names::EntityKind),
-) -> Option<DeclaredStep> {
-    use names::EntityKind::{Face, Vertex};
-    let ((oa, ka), (ob, kb)) = (a, b);
-    match (ka, kb) {
-        (Face, Face) => Some(DeclaredStep::CrossFaces(sides::CrossOperand::of(oa, ob)?)),
-        (Vertex, Vertex) => Some(DeclaredStep::SameVv(sides::SameOperand::of(oa, ob)?)),
-        (Vertex, Face) | (Face, Vertex) => Some(DeclaredStep::SameVf(
-            sides::SameOperand::of(oa, ob)?,
-            sides::VertexAndFace::of(ka, kb)?,
-        )),
-        _ => None,
-    }
-}
-
-/// **Where a declared name lands in the ONE table its site picked** —
-/// rungs 1 and 3 of the declare door's walk, stopped short of rung 2
-/// (the order and its reasons: [`ladder`]). The site is the side
-/// (DM4), so there is no side to pick.
-///
-/// # Errors
-///
-/// Rung 1's `NodeGone` and rung 3's `Vanished`, both through
-/// [`NodeErrorKind::DeclareResolve`].
-fn declare_landing<'n>(
-    sided: &'n SidedName<'n>,
-    reference: usize,
-    doc: &crate::doc::Doc<ProfileProgram>,
-    table: &NameTable,
-) -> Result<(ladder::Live<'n>, ladder::Landing), NodeErrorKind> {
-    use ladder::Landing;
-    let refused = |error| NodeErrorKind::DeclareResolve { error, reference };
-    // Rung 1, paid ONCE per name (see [`SidedName`]).
-    let live = match sided {
-        SidedName::Live(live) => *live,
-        SidedName::Rewritten(name) => ladder::live(name, doc).map_err(refused)?,
-    };
-    let landing = ladder::landing(&live, table);
-    if matches!(landing, Landing::Absent) {
-        return Err(refused(ladder::vanished(&live)));
-    }
-    Ok((live, landing))
-}
 
 /// The role word a transform's rotation axis is normalized under,
 /// shared by the evaluation and the mate solve.
@@ -4279,14 +4232,20 @@ pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
 /// by the same arithmetic.
 ///
 /// Rotate about the axis THROUGH THE WORLD ORIGIN by `angle`, then
-/// translate. [`Mat3::rotation_about`] re-normalizes the already-unit
-/// axis, which on a unit input changes no bit the format holds exactly.
+/// translate: a rigid motion by construction
+/// ([`RigidMotion::rotation_then_translation`]), so an angle widened to
+/// a box is carried rather than re-decided from the entries.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::Motion`] naming an angle or translation that is
+/// not a finite number.
 pub(crate) fn transform_map<T: Decide>(
     translation: Vec3<T>,
     axis: UnitVec3<T>,
     angle: T,
-) -> Affine3<T> {
-    Affine3::from_parts(Mat3::rotation_about(axis.get(), angle), translation)
+) -> Result<RigidMotion<T>, NodeErrorKind> {
+    RigidMotion::rotation_then_translation(axis, angle, translation).map_err(NodeErrorKind::Motion)
 }
 
 /// **The transform node**: ONE rigid map, its placement's motion
@@ -4307,79 +4266,230 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let value = value_of(results, input)?;
     let placeable = placeable_operand(value, input)?;
-    let map = placement.motion(vals, band(tol)?)?;
-    let payload = placeable.map(|body, _| place(body, Some(&map), tol))?;
-    Ok(OpOut::plain(payload, Arc::clone(&value.name_table)).carrying(value.parts))
+    let band = band(tol)?;
+    let map = placement
+        .motion_kept(vals, band)?
+        .rigid(band)?
+        .unwrap_or_else(RigidMotion::identity);
+    let payload = placeable.map(|body, _| place(body, Some(&map), tol), tol)?;
+    Ok(OpOut::plain(payload, read_table(value)).carrying(value.parts))
 }
 
-/// **A world placement** (A10): the body read, at port `port` of the
-/// operation `of`, placed at `pose` as one copy named under this node
-/// ([`names::name_placed`]). A split's half is its port, as a read of
-/// any port is that output. A boolean's empty result places as itself:
-/// an empty copy, a typed success (F8) the gather finds no solid in.
+/// **A placement's copies** (D10): each shape read, projected to the
+/// value it reads (a split's half, one copy of a placement's copies, a
+/// family's member), placed at the one motion `map` its bundle solved
+/// to (`None` the bit-exact identity) and named under this node.
 ///
-/// The copy carries the body's declared contact records and the
-/// declaration rows keyed with them (ASM-R2b D-1) with their cells
+/// Over one shape the copy has the shape's shape: a body is one copy
+/// ([`names::name_placed`]), a family is a family, and a placement's
+/// copies are those copies, keyed as they were. A boolean's empty result
+/// places as itself: an empty copy, a typed success (F8) the gather
+/// finds no solid in. Over several shapes the copies are keyed by read
+/// ([`ValuePayload::Copies`], [`names::name_placed_copies`]), a family
+/// among them a family under its key; two reads of one variable key
+/// alike and refuse (FORK-DM4).
+///
+/// A copy of one body carries the body's declared contact records and
+/// the declaration rows keyed with them (ASM-R2b D-1) with their cells
 /// verbatim: a rigid placement keeps every arena key
 /// (`transform_rigid`), so they key the copy as they keyed the body.
-/// Each record cites the body's record it is, through the `body` read.
+/// Each record cites the body's record it is, through the shape's read.
 /// A split's half carries none, as its value carries none.
-fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
+fn wire_place<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    (of, read): (RecipeNodeId, crate::VarId),
-    port: u8,
-    pose: &crate::placement::Placement,
-    results: &Results<T>,
-    vals: &SlotValues<T>,
+    shapes: &[(RecipeNodeId, crate::VarId, &Results<T>)],
+    map: Option<&RigidMotion<T>>,
     tol: Tol,
 ) -> OpResult<T> {
-    let value = value_of(results, of)?;
-    let mut contacts = Arc::clone(&value.contacts);
-    let mut carried = Arc::clone(&value.carried);
-    let (body, index) = match &value.payload {
-        ValuePayload::Boolean(BooleanValue::Empty) => {
-            return Ok(OpOut::plain(
-                ValuePayload::Boolean(BooleanValue::Empty),
-                names::empty(),
-            ));
-        }
-        ValuePayload::Boolean(BooleanValue::Body {
-            body,
-            contacts: records,
-            ..
-        }) => {
-            contacts = Arc::clone(records);
-            (Arc::clone(body), 0)
-        }
-        ValuePayload::Split { above, below } => {
-            let half = if port == 0 {
-                SplitHalf::Above
-            } else {
-                SplitHalf::Below
-            };
-            contacts = Arc::default();
-            carried = Arc::default();
-            match if port == 0 { above } else { below } {
-                SplitSide::Body(b) => (Arc::clone(b), half.output_body()),
-                SplitSide::Empty => return Err(NodeErrorKind::EmptyHalf { input: of, half }),
-            }
-        }
-        _ => (read_body(results, of)?, 0),
+    let placed = |body: &Body<T>| place(body, map, tol).map(Arc::new);
+    let projected = |table: &names::NameTable, index: u32| {
+        table
+            .project(index)
+            .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))
     };
-    let table = value
-        .name_table
-        .project(index)
-        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
-    let map = pose.motion_kept(vals, band(tol)?)?.non_identity();
-    let placed = place(&body, map.as_ref(), tol)?;
-    let table = names::name_placed(id, &table, &placed).map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut {
-        contacts: Arc::new(contacts.carried_from(0)),
-        carried,
-        ..OpOut::plain(ValuePayload::Body(Arc::new(placed)), table)
-            .carrying(value.parts)
-            .citing(vec![crate::coincide::CitedInput::Read(read)])
-    })
+    let citing: Vec<crate::coincide::CitedInput> = shapes
+        .iter()
+        .map(|&(_, read, _)| crate::coincide::CitedInput::Read(read))
+        .collect();
+    if let [(of, read, results)] = shapes {
+        let value = value_of(results, *of)?;
+        let (body, contacts) = match &value.payload {
+            ValuePayload::Boolean(BooleanValue::Empty) => {
+                return Ok(OpOut::plain(
+                    ValuePayload::Boolean(BooleanValue::Empty),
+                    names::empty(),
+                ));
+            }
+            ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
+                (body, Arc::clone(contacts))
+            }
+            ValuePayload::Body(body) => (body, Arc::clone(&value.contacts)),
+            ValuePayload::Instances(bodies) => {
+                let bodies = bodies
+                    .iter()
+                    .map(|b| placed(b))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let table = name_family(id, &read_table(value), &bodies)?;
+                return Ok(OpOut::plain(ValuePayload::Instances(bodies), table)
+                    .carrying(value.parts)
+                    .citing(citing));
+            }
+            ValuePayload::Copies(copies) => {
+                let bodies = copies
+                    .bodies
+                    .iter()
+                    .map(|b| placed(b))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let table = name_family(id, &read_table(value), &bodies)?;
+                let members = copies
+                    .members
+                    .iter()
+                    .map(|member| {
+                        let bodies = member_bodies(member, tol)?
+                            .iter()
+                            .map(|b| placed(b))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        Ok(super::KeyedCopy {
+                            key: member.key.clone(),
+                            table: name_family(id, &member.table, &bodies)?,
+                            family: member.family,
+                            parts: member.parts,
+                            bodies,
+                            motion: None,
+                        })
+                    })
+                    .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+                // The records ride the one body that keys them.
+                let whole = bodies.len() == 1;
+                return Ok(OpOut {
+                    contacts: if whole {
+                        Arc::new(value.contacts.carried_from(0))
+                    } else {
+                        Arc::default()
+                    },
+                    carried: if whole {
+                        Arc::clone(&value.carried)
+                    } else {
+                        Arc::default()
+                    },
+                    ..OpOut::plain(
+                        ValuePayload::Copies(Arc::new(super::Copies { bodies, members })),
+                        table,
+                    )
+                    .carrying(value.parts)
+                    .citing(citing)
+                });
+            }
+            _ => return Err(wrong_operand(value, *of, super::phrase::BODY_OR_INSTANCES)),
+        };
+        let table = projected(&read_table(value), 0)?;
+        let copy = place(body, map, tol)?;
+        let table = names::name_placed(id, &table, &copy).map_err(NodeErrorKind::Naming)?;
+        return Ok(OpOut {
+            contacts: Arc::new(contacts.carried_from(0)),
+            carried: Arc::clone(&value.carried),
+            ..OpOut::plain(ValuePayload::Body(Arc::new(copy)), table)
+                .carrying(value.parts)
+                .citing(vec![crate::coincide::CitedInput::Read(*read)])
+        });
+    }
+    // Several shapes: each copy keyed by its read, its bodies flat in
+    // list order, each with the table its value names it by.
+    let mut keys: Vec<crate::CopyKey> = Vec::with_capacity(shapes.len());
+    let mut flat: Vec<(names::NameTable, Arc<Body<T>>)> = Vec::new();
+    let mut spans: Vec<(core::ops::Range<u32>, bool, usize)> = Vec::with_capacity(shapes.len());
+    let mut parts = 0;
+    for &(of, read, results) in shapes {
+        let key = crate::CopyKey::Read(read);
+        if keys.contains(&key) {
+            return Err(NodeErrorKind::CopiesShareAKey { key: Box::new(key) });
+        }
+        keys.push(key);
+        let value = value_of(results, of)?;
+        let start = u32::try_from(flat.len()).unwrap_or(u32::MAX);
+        let family = match &value.payload {
+            ValuePayload::Boolean(BooleanValue::Empty) => {
+                return Err(NodeErrorKind::EmptyOperand { input: of });
+            }
+            ValuePayload::Boolean(BooleanValue::Body { body, .. }) | ValuePayload::Body(body) => {
+                flat.push((projected(&read_table(value), 0)?, placed(body)?));
+                false
+            }
+            ValuePayload::Instances(bodies) => {
+                for (i, body) in bodies.iter().enumerate() {
+                    let index = names::output_body(i).map_err(NodeErrorKind::Naming)?;
+                    flat.push((projected(&read_table(value), index)?, placed(body)?));
+                }
+                true
+            }
+            _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
+        };
+        parts += value.parts;
+        spans.push((
+            start..u32::try_from(flat.len()).unwrap_or(u32::MAX),
+            family,
+            value.parts,
+        ));
+    }
+    let named: Vec<(&names::NameTable, &Body<T>)> = flat
+        .iter()
+        .map(|(table, body)| (table, body.as_ref()))
+        .collect();
+    let table = names::name_placed_copies(id, &named).map_err(NodeErrorKind::Naming)?;
+    let members = keys
+        .into_iter()
+        .zip(spans)
+        .map(|(key, (span, family, parts))| {
+            let bodies = flat[span.start as usize..span.end as usize]
+                .iter()
+                .map(|(_, body)| Arc::clone(body))
+                .collect();
+            let table = table
+                .reindex(|b| span.contains(&b).then(|| b - span.start))
+                .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+            Ok(super::KeyedCopy {
+                key,
+                bodies,
+                family,
+                parts,
+                table: Arc::new(table),
+                motion: None,
+            })
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+    Ok(OpOut::plain(
+        ValuePayload::Copies(Arc::new(super::Copies {
+            bodies: flat.into_iter().map(|(_, body)| body).collect(),
+            members,
+        })),
+        table,
+    )
+    .carrying(parts)
+    .citing(citing))
+}
+
+/// **A placed family, named**: body `i` of `bodies` is body `i` of the
+/// value `table` names, each of its names qualified by the placement
+/// ([`names::name_placed_copies`]).
+fn name_family<T: Decide>(
+    id: RecipeNodeId,
+    table: &names::NameTable,
+    bodies: &[Arc<Body<T>>],
+) -> Result<Arc<names::NameTable>, NodeErrorKind> {
+    let tables = (0..bodies.len())
+        .map(|i| {
+            let index = names::output_body(i).map_err(NodeErrorKind::Naming)?;
+            table
+                .project(index)
+                .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let named: Vec<(&names::NameTable, &Body<T>)> = tables
+        .iter()
+        .zip(bodies)
+        .map(|(t, b)| (t, b.as_ref()))
+        .collect();
+    names::name_placed_copies(id, &named).map_err(NodeErrorKind::Naming)
 }
 
 /// **What `node`'s slots read as written** ([`crate::Doc::slot_expansion`]),
@@ -4409,19 +4519,21 @@ pub(crate) use stepped::{
 /// radial extent the angle sweeps at, is the kernel's for the revolve
 /// and not in hand for the pattern's derived offset.
 fn turns_off<T: Decide>(
-    predicate: &'static str,
+    decision: Decision,
     angle: T,
     whole: T,
     band: Band,
 ) -> Result<Sign, NodeErrorKind> {
-    geom_core::k_stats::decide_flagged(predicate, angle.max(-angle) - whole, band, "F14")
-        .map_err(escalated(predicate))
+    geom_core::k_stats::decide_flagged(decision.name(), angle.max(-angle) - whole, band, "F14")
+        .map_err(escalated(decision))
 }
 
-/// A decision under `predicate` that could not be called, as the
-/// node's refusal.
-fn escalated(predicate: &'static str) -> impl FnOnce(geom_core::Indeterminate) -> NodeErrorKind {
-    move |source| NodeErrorKind::Escalated { predicate, source }
+/// `decision`, which could not be called, as the node's refusal.
+fn escalated(decision: Decision) -> impl FnOnce(geom_core::Indeterminate) -> NodeErrorKind {
+    move |source| NodeErrorKind::Escalated {
+        predicate: decision.name(),
+        source,
+    }
 }
 
 /// [`stepped_rule_map`] behind the evaluation's slot reads, which stay
@@ -4447,7 +4559,7 @@ fn stepped_map<T: Decide>(
     i: i64,
     vals: &SlotValues<T>,
     tol: Tol,
-) -> Result<Affine3<T>, NodeErrorKind> {
+) -> Result<RigidMotion<T>, NodeErrorKind> {
     let ops = match kind {
         // An explicit rule's frames ARE the maps.
         PatternKind::Explicit(_) => {
@@ -4455,7 +4567,7 @@ fn stepped_map<T: Decide>(
                 crate::node::PlacementRuleFault::CountSpelling { shape: listed },
             ));
         }
-        _ if i == 0 => return Ok(Affine3::identity()),
+        _ if i == 0 => return Ok(RigidMotion::identity()),
         PatternKind::Linear { .. } => SteppedOperands::linear(
             need_vec3(vals, SlotId::Direction)?,
             need_scalar(vals, SlotId::Spacing)?,
@@ -4483,7 +4595,7 @@ fn stepped_map<T: Decide>(
             )?
         }
     };
-    Ok(stepped_rule_map(&ops, i))
+    stepped_rule_map(&ops, i)
 }
 
 /// **The pattern node**: a stepped rule over its input's value,
@@ -4521,7 +4633,11 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
         slot: SlotId::Count,
     })?;
     if n < 1 {
-        return Err(NodeErrorKind::NonPositiveCount { count: n });
+        return Err(NodeErrorKind::CountOutOfRange {
+            slot: SlotId::Count,
+            count: n,
+            admits: 1..=i64::MAX,
+        });
     }
     let naming = NodeErrorKind::Naming;
     let mut instances: Vec<Arc<Body<T>>> = master.to_vec();
@@ -4537,7 +4653,7 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
         instances.extend(place_each(master, &map, tol)?);
     }
     let table =
-        names::name_pattern(id, &value.name_table, n, master.len(), &instances).map_err(naming)?;
+        names::name_pattern(id, &read_table(value), n, master.len(), &instances).map_err(naming)?;
     Ok(OpOut::plain(ValuePayload::Instances(instances), table).carrying(value.parts))
 }
 
@@ -4571,14 +4687,28 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let body = body_operand(results, input)?;
-    let maps: Vec<Affine3<T>> = match kind.placements() {
-        Some(frames) => frames.iter().map(|f| f.affine::<T>()).collect(),
+    let maps: Vec<RigidMotion<T>> = match kind.placements() {
+        // Listed frames are literal: each is admitted at the decided
+        // door.
+        Some(frames) => {
+            let band = band(tol)?;
+            frames
+                .iter()
+                .map(|f| {
+                    RigidMotion::check_rigid(&f.affine::<T>(), band).map_err(NodeErrorKind::Motion)
+                })
+                .collect::<Result<_, _>>()?
+        }
         None => {
             let n = slots::count(vals, SlotId::Count).ok_or(NodeErrorKind::MissingSlot {
                 slot: SlotId::Count,
             })?;
             if n < 1 {
-                return Err(NodeErrorKind::NonPositiveCount { count: n });
+                return Err(NodeErrorKind::CountOutOfRange {
+                    slot: SlotId::Count,
+                    count: n,
+                    admits: 1..=i64::MAX,
+                });
             }
             (0..n)
                 .map(|i| {
@@ -4594,9 +4724,10 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 .collect::<Result<_, _>>()?
         }
     };
+    let affines: Vec<Affine3<T>> = maps.iter().map(|m| m.to_affine()).collect();
     topo::Separation::of(body.as_ref(), tol)
         .map_err(NodeErrorKind::Boolean)?
-        .certify(&maps)
+        .certify(&affines)
         .map_err(|topo::PlacementsMeet { i, j }| NodeErrorKind::PlacementsUncertified { i, j })?;
     let mut fused = topo::Body::new();
     let mut bridges: Vec<topo::GraftKeys> = Vec::with_capacity(maps.len());
@@ -4611,7 +4742,7 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
     // Instance(i) wrapping (A8/N1), re-keyed onto the ONE output body
     // through each instance's graft bridge.
-    let master = Arc::clone(&value_of(results, input)?.name_table);
+    let master = read_table(value_of(results, input)?);
     let table =
         names::name_placed_union(id, &master, &bridges, &fused).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(ValuePayload::Body(Arc::new(fused)), table))
@@ -4631,113 +4762,78 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
      joined-path composition lane; the swept BODY machinery itself is \
      live — sweep::sweep_body at the library API";
 
-/// A loft section of loops the path lattice constructed (the replay's).
-type ConstructedSection = sweep::Section<profile::ConstructedLoop<f64>>;
-
-/// One section of a loft, taken from the RECIPE's own `f64`
-/// description rather than from the evaluated `T` payload.
-///
-/// Structure selection is `f64` (C6/D9): the skinned surface's knots,
-/// degrees and control bits must be identical in every scalar lane, so
-/// taking the `f64` description is the only way the Interval lane
-/// encloses the SAME surface the `f64` lane defines.
-fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
-    doc: &crate::doc::Doc<ProfileProgram>,
+/// **A loft section: the section operand's Profile value at `T`**, as
+/// an extrude reads its profile ([`wire_swept`]): the canonical form
+/// the profile node validated at this scalar, on its own sketch plane
+/// (the section's placement), and the pass-1 pieces its walls and
+/// seams are named by. Nothing is re-resolved; the profile node's
+/// errors are the operand's own.
+fn section_value<T: Decide>(
     results: &Results<T>,
     id: RecipeNodeId,
-    lane: LaneEnv<'_, T>,
-    tol: Tol,
-) -> Result<(ConstructedSection, Affine3<f64>, super::ProfilePieces), NodeErrorKind> {
-    let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
-        Node::Profile(program) => Some(program),
+) -> Result<Arc<ProfileValue<T>>, NodeErrorKind> {
+    operand(results, id, super::family::PROFILE, |v| match &v.payload {
+        ValuePayload::Profile(vp) => Some(Arc::clone(vp)),
         _ => None,
-    })?;
-    // THE SEED STOPS HERE, TYPED. The section stays `f64`, so a seed on
-    // a parameter this program reads would arrive at the skinned
-    // surface as a constant — a finite, wrong zero tangent.
-    // Keyed by the variable, which is what the program's readers read.
-    if let Some(param) = lane.seed
-        && program.reads(param)
-    {
-        return Err(NodeErrorKind::SeedPinnedSection { section: id, param });
-    }
-    // LIB-SWITCH §4b: the section is the node's program RESOLVED at
-    // `LaneEnv::nominal` and REPLAYED through `prepare_profile`, the
-    // profile node's own pipeline, so a bad section reads as a profile
-    // error at the NODE (the §2 compatibility contract).
-    let resolved = program
-        .resolve(lane.nominal)
-        .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
-    // DM1c: a section on a DERIVED frame takes the by-value placement,
-    // which crosses to `f64` only where the scalar IS `f64`
-    // (`SectionScalar`); anywhere else it refuses typed rather than
-    // placing on a fabricated point of the frame's bracket.
-    let frame = program.frame;
-    let plane = match profile_plane_f64(doc, results, id, frame)? {
-        Some(authored) => authored,
-        None => {
-            let lane_plane = frame_plane_lane(doc, results, frame, lane.params, tol)?;
-            pinned_plane(&lane_plane).ok_or(NodeErrorKind::DerivedFrameSection {
-                profile: id,
-                frame: doc.operation_of(frame),
-            })?
-        }
-    };
-    let pre = prepare_profile(Some(plane), &resolved, &program.ids, tol)?;
-    // The lift's second pass runs here too, as a GATE only: the
-    // section stays f64, but the certify-or-abort answer must not
-    // depend on which node consumes the profile.
-    if lane.lift == super::ProfileLift::Guided {
-        lane_profile::<T>(
-            program,
-            frame_plane_lane(doc, results, frame, lane.params, tol)?,
-            lane,
-            &pre,
-            tol,
-        )?;
-    }
-    // `Some` by construction: both arms above passed a placement.
-    let place = pre
-        .placement_f64
-        .ok_or(NodeErrorKind::DerivedFrameSection {
-            profile: id,
-            frame: doc.operation_of(frame),
-        })?
-        .placement;
-    // The REPLAYED loops in program order (LIB-U3), and the canonical
-    // positions' names the skin's walls and seams are named by.
-    Ok((pre.profile_f64.into_parts().1, place, pre.pieces))
+    })
 }
 
-/// A structural (Count) slot, refused typed when absent or unusable.
-fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, NodeErrorKind> {
+/// A structural (Count) slot read as a `usize`, refused typed when
+/// absent or outside `least..=most`: the slot's own domain, which the
+/// caller states (pass `usize::MAX` for a domain with no upper end).
+/// The refusal carries that domain as the slot admits it, clamped to
+/// what an `i64` holds, so `admits` always names values that evaluate.
+fn need_count(
+    vals: &SlotValues<impl Decide>,
+    slot: SlotId,
+    least: usize,
+    most: usize,
+) -> Result<usize, NodeErrorKind> {
     let n = slots::count(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
-    usize::try_from(n).map_err(|_| NodeErrorKind::NonPositiveCount { count: n })
+    let wide = |u: usize| i64::try_from(u).unwrap_or(i64::MAX);
+    usize::try_from(n)
+        .ok()
+        .filter(|u| (least..=most).contains(u))
+        .ok_or(NodeErrorKind::CountOutOfRange {
+            slot,
+            count: n,
+            admits: wide(least)..=wide(most),
+        })
 }
 
-/// The Loft node: the §10.3 walls and their solid assembly.
-fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds + super::SectionScalar>(
+/// The Loft node: the §10.3 walls and their solid assembly, over its
+/// sections' Profile values at `T` ([`section_value`]): a section that
+/// is a function of the document's variables lofts into walls that are
+/// functions of them, and the structure is selected on the sections'
+/// value channel (`sweep::loft_profiles`). At `Interval` a section wider
+/// than a point lofts the family it spans.
+fn wire_loft<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
-    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let v_degree = need_count(vals, SlotId::VDegree)?;
-    let mut sections = Vec::with_capacity(profiles.len());
-    let mut places = Vec::with_capacity(profiles.len());
-    let mut pieces = Vec::with_capacity(profiles.len());
-    for pid in profiles {
-        let (chain, place, named) = section_of::<T>(doc, results, *pid, lane, tol)?;
-        sections.push(chain);
-        places.push(place);
-        pieces.push(named);
+    let values = profiles
+        .iter()
+        .map(|pid| section_value(results, *pid))
+        .collect::<Result<Vec<_>, _>>()?;
+    // The v degree admits `1 ..= sections − 1` (`Node::Loft`). Fewer
+    // than two sections admit no degree at all, and what is wrong then
+    // is the section count, which the skin's own door names.
+    if profiles.len() < 2 {
+        return Err(NodeErrorKind::Skin(sweep::SkinError::TooFewSections {
+            have: profiles.len(),
+            need: 2,
+        }));
     }
+    let v_degree = need_count(vals, SlotId::VDegree, 1, profiles.len() - 1)?;
+    let sections: Vec<profile::ValidatedProfile<T>> =
+        values.iter().map(|v| v.validated.clone()).collect();
+    let pieces: Vec<super::ProfilePieces> = values.iter().map(|v| v.pieces.clone()).collect();
     // Skin refusals keep their own node-error shape (the §2
     // compatibility contract); assembly refusals arrive as `Loft`.
-    let built = sweep::loft_body::<T>(&sections, &places, v_degree, tol).map_err(|e| match e {
+    let built = sweep::loft_profiles::<T>(&sections, v_degree, tol).map_err(|e| match e {
         sweep::LoftError::Skin(s) => NodeErrorKind::Skin(s),
         other => NodeErrorKind::Loft(other),
     })?;
@@ -4754,843 +4850,25 @@ fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds + super::Section
 /// The Sweep node: ONE honest arm.
 ///
 /// Every RECIPE door still runs first — the structural slots, and both
-/// operands through [`section_of`] — because a Sweep on a datum, or
-/// with a bad Count, is a recipe error and must read as one. The
-/// geometry is out of reach: see [`SWEEP_FRONTIER`].
-fn wire_sweep<T: Decide + geom_core::Bounds + super::SectionScalar>(
+/// operands read as profiles ([`section_value`]) — because a Sweep on a
+/// datum, or with a bad Count, is a recipe error and must read as one.
+/// The geometry is out of reach: see [`SWEEP_FRONTIER`].
+fn wire_sweep<T: Decide>(
     profile: RecipeNodeId,
     path: RecipeNodeId,
-    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    lane: LaneEnv<'_, T>,
-    tol: Tol,
 ) -> OpResult<T> {
     // Each door runs for its refusal alone; what it answers has no
     // reader, because the geometry that would read it does not exist.
-    need_count(vals, SlotId::Stations)?;
-    need_count(vals, SlotId::VDegree)?;
-    section_of::<T>(doc, results, profile, lane, tol)?;
-    section_of::<T>(doc, results, path, lane, tol)?;
+    // `Node::Sweep`: stations ≥ 2, and 1 ≤ v degree ≤ stations − 1.
+    let stations = need_count(vals, SlotId::Stations, 2, usize::MAX)?;
+    need_count(vals, SlotId::VDegree, 1, stations - 1)?;
+    section_value(results, profile)?;
+    section_value(results, path)?;
     Err(NodeErrorKind::CurvedSolidFrontier {
         what: SWEEP_FRONTIER,
     })
-}
-
-/// **The lane → `f64` crossing, read directly.** What
-/// [`pinned_plane`] carries across where the lane IS `f64`, and what
-/// it refuses everywhere else. An evaluation shows only the typed
-/// refusal a consumer eventually reports; the crossing's own answer —
-/// which twelve components came back, in which places — is readable
-/// only here.
-#[cfg(test)]
-mod pinned_plane_tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-    use super::pinned_plane;
-    use geom_core::{Affine3, Dual64, Mat3, Real, Vec3};
-    use profile::SketchPlane;
-
-    /// Twelve distinct components and no symmetry, so a crossing that
-    /// transposed a column or dropped the translation could not hide
-    /// behind an axis coincidence.
-    fn distinct() -> SketchPlane<f64> {
-        SketchPlane::new(Affine3::from_parts(
-            Mat3::from_cols(
-                Vec3::new(1.0, 2.0, 3.0),
-                Vec3::new(4.0, 5.5, -6.0),
-                Vec3::new(-7.25, 0.5, 8.0),
-            ),
-            Vec3::new(10.0, 11.0, 12.0),
-        ))
-    }
-
-    /// Where the lane IS `f64`, the crossing is exact and structural:
-    /// all twelve components come back in their places, bit for bit.
-    ///
-    /// The comparison is [`SketchPlane::bit_eq`], which IS that
-    /// twelve-component reading — by bits, in their places, off an
-    /// irrefutable destructuring of the placement rather than through
-    /// any walk. A readout spelled again here would be a second copy of
-    /// it, and the transposed-column mutation reds this row through
-    /// `bit_eq` exactly as it would through one.
-    #[test]
-    fn a_f64_lane_placement_crosses_bit_for_bit_in_its_places() {
-        let plane = distinct();
-        let crossed = pinned_plane(&plane).expect("f64 is the pinned lane");
-        assert!(
-            plane.bit_eq(&crossed),
-            "the crossing keeps the columns and the translation in place"
-        );
-    }
-
-    /// An analysis scalar refuses, and the refusal is the TYPE's, not
-    /// a number's: the placement here is the very one the row above
-    /// crossed successfully, lifted component for component, so every
-    /// value that pinned at `f64` is present and still unpinnable. No
-    /// number is inspected anywhere on the path, and the first
-    /// component refuses, so nothing downstream sees a partly-crossed
-    /// placement.
-    #[test]
-    fn an_analysis_scalar_refuses_the_very_placement_f64_crossed() {
-        let lane: SketchPlane<Dual64> = distinct().map(Dual64::from_f64);
-        assert!(pinned_plane(&lane).is_none());
-    }
-}
-
-/// **The union's declaration routing, read directly.**
-///
-/// The buckets [`route_declarations`] fills are not visible in a
-/// finished evaluation — a document only shows which pairs RESOLVED —
-/// so the rule is read here, where the answer is the bucket list
-/// itself. What a document row cannot pin and this can: that a step
-/// with no declared pair receives NOTHING, that a pair is fed at
-/// exactly one step rather than tried at several, and which SIDE of
-/// that step each of its two sites takes.
-#[cfg(test)]
-mod route_tests {
-    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-    use super::{
-        NodeErrorKind, RecipeNodeId, SidedName, SidedPair, SitedRef, look_through_fold,
-        resolve_declarations, route_declarations,
-    };
-    use crate::names::{
-        CapEnd, EntityKey, EntityKind, EntityRef, NameTable, Qualifier, RoleSeg, StableName,
-    };
-    use crate::node::Node;
-    use crate::resolve::{Diagnosis, FoldConsumption, ResolveError};
-    use crate::{DocEdit, ProfileDoc};
-    use geom_core::Tol;
-    use topo::{BooleanCoincidence, Operand};
-
-    /// A live document and `n` live node ids standing in for a union's
-    /// members, plus one more for the union itself.
-    ///
-    /// The members have to be LIVE: a declared entity is named in its
-    /// member's own table, so rung 1 — is the minting node still in
-    /// the document — is asked of each member before anything is said
-    /// about which step the pair belongs to.
-    fn doc_with_members(n: usize) -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
-        let mut doc = ProfileDoc::empty_derived("union declare routing", Tol::witness());
-        let mut ids = Vec::new();
-        for _ in 0..=n {
-            let applied = doc
-                .apply(
-                    &DocEdit::InsertNode {
-                        node: Box::new(Node::Datum(crate::node::Datum::Plane {
-                            origin: [0.0; 3].map(crate::test_support::len),
-                            normal: [0.0, 0.0, 1.0].map(crate::test_support::scl),
-                        })),
-                        fresh: Vec::new(),
-                    },
-                    Tol::witness(),
-                    &crate::mate::RefusingReach,
-                )
-                .expect("a datum plane inserts");
-            ids.push(applied.record.minted.expect("the insert minted an id"));
-            doc = applied.doc;
-        }
-        let union = ids.remove(0);
-        (doc, union, ids)
-    }
-
-    /// One entity of one member, in the MEMBER's own name space — what
-    /// a declaration names, with the member beside it.
-    fn at(member: RecipeNodeId, end: CapEnd) -> SitedRef<crate::VarId> {
-        SitedRef::new(
-            read(member),
-            StableName {
-                kind: EntityKind::Face,
-                node: member,
-                path: vec![RoleSeg::Cap(end)],
-            },
-        )
-    }
-
-    /// The same entity as the UNION spells it — the row `member_view`
-    /// puts into that member's operand table, which is what the
-    /// routing rewrites a sited pair into.
-    fn member_face(union: RecipeNodeId, member: RecipeNodeId, end: CapEnd) -> StableName {
-        crate::names::member_name(union, read(member), &at(member, end).name)
-    }
-
-    /// The same entity, but MINTED somewhere other than the member it
-    /// is read at — the pass-through case (N1: a transform adds no
-    /// segment, so its table is its input's verbatim). It is the one
-    /// shape that tells a routing by SITE from a routing by the name's
-    /// minting node.
-    fn at_minted_at(
-        member: RecipeNodeId,
-        mint: RecipeNodeId,
-        end: CapEnd,
-    ) -> SitedRef<crate::VarId> {
-        SitedRef::new(
-            read(member),
-            StableName {
-                kind: EntityKind::Face,
-                node: mint,
-                path: vec![RoleSeg::Cap(end)],
-            },
-        )
-    }
-
-    fn pair(
-        a: SitedRef<crate::VarId>,
-        b: SitedRef<crate::VarId>,
-    ) -> (
-        (SitedRef<crate::VarId>, SitedRef<crate::VarId>),
-        BooleanCoincidence,
-    ) {
-        ((a, b), BooleanCoincidence::REST)
-    }
-
-    /// The read a member stands for here: the member's own id, which
-    /// the routing compares and never resolves.
-    fn read(member: RecipeNodeId) -> crate::VarId {
-        crate::VarId(member.0)
-    }
-
-    /// The members as the routing takes them: each read, with an empty
-    /// table, so a site is the member its read names.
-    fn own(members: &[RecipeNodeId]) -> Vec<(crate::VarId, &'static NameTable)> {
-        static EMPTY: std::sync::LazyLock<NameTable> = std::sync::LazyLock::new(NameTable::new);
-        members.iter().map(|&m| (read(m), &*EMPTY)).collect()
-    }
-
-    /// **The routing reads the SITE, not the name's minting node.**
-    /// Both sides here name entities minted at a node that is in no
-    /// member list; their sites are members 1 and 3, so the pair lands
-    /// in step 2 and each side is rewritten under its own member.
-    #[test]
-    fn a_pair_routes_by_its_site_and_not_by_the_names_minting_node() {
-        let (doc, union, ms) = doc_with_members(5);
-        let (members, proto) = (&ms[..4], ms[4]);
-        let p = pair(
-            at_minted_at(members[1], proto, CapEnd::Start),
-            at_minted_at(members[3], proto, CapEnd::End),
-        );
-        let buckets = route_declarations(union, &own(members), std::slice::from_ref(&p), &doc)
-            .expect("the sites are both members");
-        let filled: Vec<usize> = buckets
-            .iter()
-            .enumerate()
-            .filter(|(_, b)| !b.is_empty())
-            .map(|(k, _)| k)
-            .collect();
-        assert_eq!(filled, vec![2]);
-        let ((o1, n1, _), (o2, n2, _), _) = &buckets[2][0];
-        assert_eq!((*o1, *o2), (Operand::A, Operand::B));
-        assert_eq!(
-            *n1.name(),
-            crate::names::member_name(
-                union,
-                read(members[1]),
-                &at_minted_at(members[1], proto, CapEnd::Start).name
-            )
-        );
-        assert_eq!(
-            *n2.name(),
-            crate::names::member_name(
-                union,
-                read(members[3]),
-                &at_minted_at(members[3], proto, CapEnd::End).name
-            )
-        );
-    }
-
-    /// The bucket of each pair on a FOUR-member document, read out of
-    /// the routing itself.
-    #[test]
-    fn each_pair_is_routed_to_the_one_step_that_joins_its_two_sites() {
-        let (doc, union, ms) = doc_with_members(4);
-        let (m0, m1, m2, m3) = (ms[0], ms[1], ms[2], ms[3]);
-        let face = |m| at(m, CapEnd::Start);
-        let other = |m| at(m, CapEnd::End);
-
-        let cases = vec![
-            // Two members meet at the LATER one's step.
-            ("members 0 and 1", pair(face(m0), face(m1)), 0),
-            ("members 1 and 2", pair(face(m1), face(m2)), 1),
-            // Order within the pair is not a fact about the step.
-            ("members 2 and 1", pair(face(m2), face(m1)), 1),
-            // The list's own gap: (1, 3) is fed at step 3 and step 2
-            // receives nothing, which is the half a resolved-or-not
-            // document cannot show.
-            ("members 1 and 3", pair(face(m1), face(m3)), 2),
-            // Two entities of ONE member are that member's carried
-            // contact, at its own step — member 0's at step 0, where it
-            // is the accumulation, exactly as in the pair chain.
-            ("member 2 with itself", pair(face(m2), other(m2)), 1),
-            ("member 0 with itself", pair(face(m0), other(m0)), 0),
-        ];
-
-        for (what, p, want) in cases {
-            let buckets = route_declarations(union, &own(&ms), std::slice::from_ref(&p), &doc)
-                .unwrap_or_else(|e| panic!("{what} routed nowhere: {e:?}"));
-            let filled: Vec<usize> = buckets
-                .iter()
-                .enumerate()
-                .filter(|(_, b)| !b.is_empty())
-                .map(|(i, _)| i)
-                .collect();
-            assert_eq!(filled, vec![want], "{what}");
-            assert_eq!(buckets[want].len(), 1, "{what}");
-        }
-
-        // All of them at once: three steps, and the pair that belongs
-        // to none of the first two leaves step 2 empty.
-        let all = vec![
-            pair(face(m0), face(m1)),
-            pair(face(m1), face(m3)),
-            pair(face(m2), other(m2)),
-        ];
-        let buckets = route_declarations(union, &own(&ms), &all, &doc).expect("all three route");
-        let sizes: Vec<usize> = buckets.iter().map(Vec::len).collect();
-        assert_eq!(sizes, vec![1, 1, 1]);
-    }
-
-    /// **Every sited pair has a step**, which is what the sited payload
-    /// bought: a declaration can only name entities that exist BEFORE
-    /// the union, so there is no pair the routing accepts and then has
-    /// nowhere to feed. The bucket is `max(i, j) - 1`, and `max(i, j)`
-    /// is at most the last member's index, so the bucket is always one
-    /// the fold runs.
-    #[test]
-    fn every_pair_of_member_sites_lands_in_a_step_of_the_fold() {
-        let (doc, union, ms) = doc_with_members(5);
-        let steps = ms.len() - 1;
-        for i in 0..ms.len() {
-            for j in 0..ms.len() {
-                let p = pair(at(ms[i], CapEnd::Start), at(ms[j], CapEnd::End));
-                let buckets = route_declarations(union, &own(&ms), std::slice::from_ref(&p), &doc)
-                    .unwrap_or_else(|e| panic!("({i}, {j}) routed nowhere: {e:?}"));
-                let filled: Vec<usize> = buckets
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, b)| !b.is_empty())
-                    .map(|(k, _)| k)
-                    .collect();
-                assert_eq!(filled, vec![i.max(j).saturating_sub(1)], "({i}, {j})");
-                assert_eq!(buckets.len(), steps);
-            }
-        }
-    }
-
-    /// **The site is the side.** The member joining at a step is that
-    /// step's operand B; every member the fold has already accumulated
-    /// is operand A. Read off the routed bucket, because nothing
-    /// downstream re-derives it — the resolver reads the side the
-    /// routing decided.
-    #[test]
-    fn the_joining_member_is_operand_b_and_the_accumulation_is_operand_a() {
-        let (doc, union, ms) = doc_with_members(4);
-        let sided = |p| {
-            let buckets = route_declarations(union, &own(&ms), std::slice::from_ref(&p), &doc)
-                .expect("routes");
-            buckets.into_iter().flatten().next().expect("one bucket")
-        };
-        // An earlier member against a later one: A then B, and each
-        // name is rewritten into the union's member space.
-        let ((o1, n1, _), (o2, n2, _), _) =
-            sided(pair(at(ms[1], CapEnd::Start), at(ms[3], CapEnd::End)));
-        assert_eq!(o1, Operand::A);
-        assert_eq!(o2, Operand::B);
-        assert_eq!(*n1.name(), member_face(union, ms[1], CapEnd::Start));
-        assert_eq!(*n2.name(), member_face(union, ms[3], CapEnd::End));
-        // The same pair written the other way round: the SITES decide,
-        // not the order the author wrote them in.
-        let ((o1, ..), (o2, ..), _) = sided(pair(at(ms[3], CapEnd::End), at(ms[1], CapEnd::Start)));
-        assert_eq!((o1, o2), (Operand::B, Operand::A));
-        // One member with itself is that member's CARRIED contact, on
-        // the side it enters the step as: operand B at its own step,
-        // and operand A for member 0, which is where the fold starts.
-        let ((o1, ..), (o2, ..), _) = sided(pair(at(ms[2], CapEnd::Start), at(ms[2], CapEnd::End)));
-        assert_eq!((o1, o2), (Operand::B, Operand::B));
-        let ((o1, ..), (o2, ..), _) = sided(pair(at(ms[0], CapEnd::Start), at(ms[0], CapEnd::End)));
-        assert_eq!((o1, o2), (Operand::A, Operand::A));
-    }
-
-    /// **A site the member list does not hold refuses through the N5
-    /// ladder**, as a vanished name does — the state `SetMembers`
-    /// creates by dropping a declared member, and never a silent drop.
-    #[test]
-    fn a_site_outside_the_member_list_refuses_as_a_vanished_name() {
-        let (doc, union, ms) = doc_with_members(4);
-        // A live node that is simply not in the list.
-        let outsider = ms[3];
-        let members = &ms[..3];
-        let p = pair(at(ms[0], CapEnd::Start), at(outsider, CapEnd::End));
-        let refused = route_declarations(union, &own(members), std::slice::from_ref(&p), &doc);
-        assert!(
-            matches!(
-                refused,
-                Err(NodeErrorKind::DeclareResolve { ref error, .. })
-                    if matches!(**error, crate::resolve::ResolveError::Vanished { .. })
-            ),
-            "{refused:?}",
-        );
-    }
-
-    /// **Rung 1 outranks the site question**: a name whose minting node
-    /// the document no longer holds says `NodeGone`, before anything is
-    /// said about which step it would have belonged to.
-    #[test]
-    fn a_dead_minting_node_outranks_a_site_outside_the_list() {
-        let (doc, union, ms) = doc_with_members(4);
-        let gone = ms[3];
-        let doc = doc
-            .apply(
-                &DocEdit::DeleteNode { id: gone },
-                Tol::witness(),
-                &crate::mate::RefusingReach,
-            )
-            .expect("the datum plane deletes")
-            .doc;
-        let p = pair(at(ms[0], CapEnd::Start), at(gone, CapEnd::End));
-        let refused = route_declarations(union, &own(&ms[..3]), std::slice::from_ref(&p), &doc);
-        assert!(
-            matches!(
-                refused,
-                Err(NodeErrorKind::DeclareResolve { ref error, .. })
-                    if matches!(**error, crate::resolve::ResolveError::NodeGone { .. })
-            ),
-            "{refused:?}",
-        );
-    }
-
-    /// A real face key for a hand-built table — a unit cube's top cap.
-    /// Nothing below reads the body; the door reads tables.
-    fn a_face_key() -> topo::FaceKey {
-        use profile::RawLoop;
-        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
-            geom_core::Point3::new(0.0, 0.0, 0.0),
-        ));
-        let square = profile::ProfileLoop::polygon(
-            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-                .into_iter()
-                .map(|(x, y)| geom_core::Point2::new(x, y)),
-        );
-        let profile = profile::Profile::new(plane, vec![square])
-            .validate(Tol::witness())
-            .unwrap();
-        sweep::extrude(
-            &profile,
-            sweep::Extrusion::Distance {
-                depth: 1.0_f64,
-                side: crate::ExtrudeSide::Along,
-            },
-            Tol::witness(),
-        )
-        .unwrap()
-        .top
-    }
-
-    fn face_ref(key: topo::FaceKey) -> EntityRef {
-        EntityRef {
-            body: 0,
-            key: EntityKey::Face(key),
-        }
-    }
-
-    /// A routed pair, as the bucket carries it: the two names already
-    /// in the union's member space, each with the side its site took.
-    fn routed(a: (Operand, StableName), b: (Operand, StableName)) -> SidedPair<'static> {
-        (
-            (a.0, SidedName::Rewritten(a.1), 0),
-            (b.0, SidedName::Rewritten(b.1), 1),
-            BooleanCoincidence::REST,
-        )
-    }
-
-    /// A merged row over member faces, as a fold step mints it: flat,
-    /// sorted, in the union's own space.
-    fn merged(set: Vec<StableName>) -> StableName {
-        let mut set = set;
-        set.sort();
-        StableName {
-            kind: EntityKind::Face,
-            node: RecipeNodeId::new(0, 0),
-            path: vec![RoleSeg::Merged(set)],
-        }
-    }
-
-    /// `name`, minted by `node` instead.
-    fn renode(node: RecipeNodeId, mut name: StableName) -> StableName {
-        name.node = node;
-        name
-    }
-
-    /// The rewrite touches ONE shape: an ACCUMULATION-side member face
-    /// that is no row and sits in a merged row's set goes to that row.
-    /// A face the accumulation still holds, and a face no row holds or
-    /// descends from, are handed on as written — and the JOINING
-    /// member's side never looks through, because no merge the fold has
-    /// performed could have consumed a face of a member that has not
-    /// joined yet.
-    #[test]
-    fn look_through_rewrites_only_an_accumulated_member_face_inside_a_merged_row() {
-        let (_doc, union, ms) = doc_with_members(4);
-        let key = a_face_key();
-        let f = |m, e| member_face(union, m, e);
-        // Step 2's row: the merge of step 1's `{m0, m1}` with `m2`,
-        // flat, minted in the union's space.
-        let wide = renode(
-            union,
-            merged(vec![
-                f(ms[0], CapEnd::Start),
-                f(ms[1], CapEnd::Start),
-                f(ms[2], CapEnd::Start),
-            ]),
-        );
-        let mut acc = NameTable::new();
-        acc.insert(wide.clone(), face_ref(key)).unwrap();
-        acc.insert(
-            f(ms[1], CapEnd::End),
-            EntityRef {
-                body: 1,
-                key: EntityKey::Face(key),
-            },
-        )
-        .unwrap();
-        let mut member = NameTable::new();
-        member
-            .insert(f(ms[3], CapEnd::Start), face_ref(key))
-            .unwrap();
-        let bucket = vec![
-            // Merged away at an earlier step: rewritten.
-            routed(
-                (Operand::A, f(ms[0], CapEnd::Start)),
-                (Operand::B, f(ms[3], CapEnd::Start)),
-            ),
-            // Still a row of the accumulation: untouched.
-            routed(
-                (Operand::A, f(ms[1], CapEnd::End)),
-                (Operand::B, f(ms[3], CapEnd::Start)),
-            ),
-            // In no table and in no set, and nothing descends from it:
-            // untouched, and the door below refuses it as a vanished
-            // name.
-            routed(
-                (Operand::A, f(ms[2], CapEnd::End)),
-                (Operand::B, f(ms[3], CapEnd::Start)),
-            ),
-        ];
-        let out = look_through_fold(&bucket, &acc).unwrap();
-        assert_eq!(out[0].0, (Operand::A, SidedName::Rewritten(wide), 0));
-        assert_eq!(out[1], bucket[1]);
-        assert_eq!(out[2], bucket[2]);
-    }
-
-    /// The joining member's side is never looked through: its face is
-    /// in the accumulation's merged row's set only in a table no fold
-    /// can produce, and the door must not rewrite it there.
-    #[test]
-    fn the_joining_members_side_never_looks_through() {
-        let (_doc, union, ms) = doc_with_members(4);
-        let f = |m, e| member_face(union, m, e);
-        let row = renode(
-            union,
-            merged(vec![f(ms[0], CapEnd::Start), f(ms[3], CapEnd::Start)]),
-        );
-        let mut acc = NameTable::new();
-        acc.insert(row, face_ref(a_face_key())).unwrap();
-        let p = routed(
-            (Operand::A, f(ms[1], CapEnd::End)),
-            (Operand::B, f(ms[3], CapEnd::Start)),
-        );
-        let out = look_through_fold(std::slice::from_ref(&p), &acc).unwrap();
-        assert_eq!(out[0], p);
-    }
-
-    /// One member face in TWO merged rows' sets — a table the flat
-    /// mint cannot produce — is refused as the emission bug it is,
-    /// never resolved to whichever row came first.
-    #[test]
-    fn a_member_face_in_two_merged_rows_refuses_as_an_emission_bug() {
-        let (_doc, union, ms) = doc_with_members(4);
-        let key = a_face_key();
-        let f = |m, e| member_face(union, m, e);
-        let mut acc = NameTable::new();
-        acc.insert(
-            renode(
-                union,
-                merged(vec![f(ms[0], CapEnd::Start), f(ms[1], CapEnd::Start)]),
-            ),
-            face_ref(key),
-        )
-        .unwrap();
-        // A second entity for the second row: the table refuses two
-        // names on one entity, and the shape under test is two rows.
-        acc.insert(
-            renode(
-                union,
-                merged(vec![f(ms[0], CapEnd::Start), f(ms[2], CapEnd::Start)]),
-            ),
-            EntityRef {
-                body: 1,
-                key: EntityKey::Face(key),
-            },
-        )
-        .unwrap();
-        let p = routed(
-            (Operand::A, f(ms[0], CapEnd::Start)),
-            (Operand::B, f(ms[3], CapEnd::Start)),
-        );
-        let refused = look_through_fold(std::slice::from_ref(&p), &acc);
-        assert!(
-            matches!(
-                refused,
-                Err(NodeErrorKind::Naming(crate::names::NamingError::Emission { what }))
-                    if what == super::MEMBER_FACE_IN_TWO_MERGES
-            ),
-            "{refused:?}"
-        );
-    }
-
-    /// The `rank`-th fragment of `name`, as a fold step mints one.
-    fn fragment(name: StableName, rank: u32) -> StableName {
-        let mut name = name;
-        name.path
-            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }));
-        name
-    }
-
-    /// A table holding `rows`, one entity each.
-    fn table_of(rows: Vec<StableName>) -> NameTable {
-        let key = a_face_key();
-        let mut t = NameTable::new();
-        for (body, row) in (0u32..).zip(rows) {
-            t.insert(
-                row,
-                EntityRef {
-                    body,
-                    key: EntityKey::Face(key),
-                },
-            )
-            .unwrap();
-        }
-        t
-    }
-
-    /// The composition a refused A-side name reports, and the name it
-    /// reports it for.
-    fn consumed_by(
-        refused: Result<Vec<SidedPair<'_>>, NodeErrorKind>,
-    ) -> (StableName, FoldConsumption) {
-        match refused {
-            Err(NodeErrorKind::DeclareResolve { error, .. }) => match *error {
-                ResolveError::Vanished {
-                    name,
-                    diagnosis: Diagnosis::ConsumedByFold { by },
-                    last_good: None,
-                } => (name, by),
-                other => panic!("not a fold consumption: {other:?}"),
-            },
-            other => panic!("not a declare refusal: {other:?}"),
-        }
-    }
-
-    /// **Each composition the fold consumes a member face by refuses,
-    /// naming that composition** — read off the rows that descend from
-    /// the name, and nothing re-pointed.
-    ///
-    /// Split: the name's own fragments, bare or merged later.
-    /// Fragmented merge: fragments of a merged row whose set covers it
-    /// — the several fragments of ONE merge, which is not the two-merges
-    /// emission bug.
-    #[test]
-    fn a_member_face_consumed_other_than_by_a_merge_refuses_naming_the_composition() {
-        let (_doc, union, ms) = doc_with_members(4);
-        let f = |m, e| member_face(union, m, e);
-        let named = f(ms[0], CapEnd::End);
-        let pair = routed(
-            (Operand::A, named.clone()),
-            (Operand::B, f(ms[3], CapEnd::End)),
-        );
-        let merged_u = |set| renode(union, merged(set));
-        let cases = [
-            (
-                "split, both fragments rows",
-                table_of(vec![fragment(named.clone(), 0), fragment(named.clone(), 1)]),
-                FoldConsumption::Split,
-            ),
-            (
-                "split, one fragment merged later",
-                table_of(vec![
-                    fragment(named.clone(), 0),
-                    merged_u(vec![fragment(named.clone(), 1), f(ms[1], CapEnd::End)]),
-                ]),
-                FoldConsumption::Split,
-            ),
-            (
-                "split and partly merged in one step",
-                table_of(vec![
-                    fragment(named.clone(), 0),
-                    merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]),
-                ]),
-                FoldConsumption::Split,
-            ),
-            (
-                "a merge fragmented after it",
-                table_of(vec![
-                    fragment(merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]), 0),
-                    fragment(merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]), 1),
-                ]),
-                FoldConsumption::FragmentedMerge,
-            ),
-            (
-                "a fragment of that merge merged again",
-                table_of(vec![merged_u(vec![
-                    fragment(merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]), 0),
-                    f(ms[2], CapEnd::End),
-                ])]),
-                FoldConsumption::FragmentedMerge,
-            ),
-        ];
-        for (label, acc, want) in cases {
-            let refused = look_through_fold(std::slice::from_ref(&pair), &acc);
-            assert_eq!(consumed_by(refused), (named.clone(), want), "{label}");
-        }
-    }
-
-    /// **Every piece merged again still names the composition that made
-    /// the pieces.** With no bare fragment left, only the descent
-    /// through a merged row's constituents reaches the name, and it
-    /// reports what the constituent says — the split, or the fragmented
-    /// merge — never the later merge it was read through.
-    ///
-    /// No real document has been built that reaches this shape: the
-    /// step that merges a fragment again is fed a declared pair naming
-    /// a face that fragment descends from, and that pair meets the bare
-    /// fragment and refuses first.
-    #[test]
-    fn every_piece_merged_again_still_names_the_composition_that_made_it() {
-        let (_doc, union, ms) = doc_with_members(4);
-        let f = |m, e| member_face(union, m, e);
-        let named = f(ms[0], CapEnd::End);
-        let pair = routed(
-            (Operand::A, named.clone()),
-            (Operand::B, f(ms[3], CapEnd::End)),
-        );
-        let merged_u = |set| renode(union, merged(set));
-        let inner = || merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]);
-        let cases = [
-            (
-                "every fragment of the name merged later",
-                table_of(vec![
-                    merged_u(vec![fragment(named.clone(), 0), f(ms[1], CapEnd::End)]),
-                    merged_u(vec![fragment(named.clone(), 1), f(ms[2], CapEnd::End)]),
-                ]),
-                FoldConsumption::Split,
-            ),
-            (
-                "every fragment of a merge over it merged again",
-                table_of(vec![
-                    merged_u(vec![fragment(inner(), 0), f(ms[2], CapEnd::End)]),
-                    merged_u(vec![fragment(inner(), 1), f(ms[2], CapEnd::Start)]),
-                ]),
-                FoldConsumption::FragmentedMerge,
-            ),
-        ];
-        for (label, acc, want) in cases {
-            let refused = look_through_fold(std::slice::from_ref(&pair), &acc);
-            assert_eq!(consumed_by(refused), (named.clone(), want), "{label}");
-        }
-    }
-
-    /// **A fragment of the name under another node is not a piece of
-    /// it.** A row carrying the name's path under ANOTHER node — a
-    /// different union's member-space name for the same member face —
-    /// fragmented, does not descend from the name: nothing consumed the
-    /// name, so the pair is handed on as written, and the door refuses
-    /// it as a vanished name.
-    #[test]
-    fn a_fragment_of_another_nodes_name_is_not_a_piece_of_it() {
-        let (_doc, union, ms) = doc_with_members(4);
-        let f = |m, e| member_face(union, m, e);
-        let named = f(ms[0], CapEnd::End);
-        let pair = routed(
-            (Operand::A, named.clone()),
-            (Operand::B, f(ms[3], CapEnd::End)),
-        );
-        let elsewhere = renode(ms[1], named);
-        let acc = table_of(vec![fragment(elsewhere.clone(), 0), fragment(elsewhere, 1)]);
-        let out = look_through_fold(std::slice::from_ref(&pair), &acc);
-        assert_eq!(out.unwrap(), vec![pair]);
-    }
-
-    /// Rows that descend from one member face by two compositions — a
-    /// table the retiring mint cannot produce — refuse as the emission
-    /// bug they are, never as whichever of the two rows was read first.
-    #[test]
-    fn a_member_face_consumed_two_ways_refuses_as_an_emission_bug() {
-        let (_doc, union, ms) = doc_with_members(4);
-        let f = |m, e| member_face(union, m, e);
-        let named = f(ms[0], CapEnd::End);
-        let acc = table_of(vec![
-            fragment(named.clone(), 0),
-            fragment(
-                renode(union, merged(vec![named.clone(), f(ms[1], CapEnd::End)])),
-                0,
-            ),
-        ]);
-        let pair = routed((Operand::A, named), (Operand::B, f(ms[3], CapEnd::End)));
-        let refused = look_through_fold(std::slice::from_ref(&pair), &acc);
-        assert!(
-            matches!(
-                refused,
-                Err(NodeErrorKind::Naming(crate::names::NamingError::Emission { what }))
-                    if what == super::MEMBER_FACE_CONSUMED_TWO_WAYS
-            ),
-            "{refused:?}"
-        );
-    }
-
-    /// Two FACES of one operand are outside the v1 threading
-    /// vocabulary, and the refusal says so with `cross_operand` false —
-    /// the fact the two sites decide. A same-operand pair reaches this
-    /// door whenever both sites name the one member the step joins.
-    #[test]
-    fn two_faces_of_one_operand_refuse_as_an_unsupported_pair() {
-        let (doc, union, ms) = doc_with_members(4);
-        let f = |m, e| member_face(union, m, e);
-        let key = a_face_key();
-        let mut member = NameTable::new();
-        member
-            .insert(f(ms[1], CapEnd::Start), face_ref(key))
-            .unwrap();
-        member
-            .insert(
-                f(ms[1], CapEnd::End),
-                EntityRef {
-                    body: 1,
-                    key: EntityKey::Face(key),
-                },
-            )
-            .unwrap();
-        let acc = NameTable::new();
-        let p = routed(
-            (Operand::B, f(ms[1], CapEnd::Start)),
-            (Operand::B, f(ms[1], CapEnd::End)),
-        );
-        let refused = resolve_declarations(
-            std::slice::from_ref(&p),
-            &doc,
-            (&acc, None),
-            (&member, None),
-        );
-        assert!(
-            matches!(
-                refused,
-                Err(NodeErrorKind::DeclareUnsupportedPair {
-                    kinds: (EntityKind::Face, EntityKind::Face),
-                    cross_operand: false,
-                })
-            ),
-            "{refused:?}",
-        );
-    }
 }
 
 #[cfg(test)]
@@ -5677,10 +4955,269 @@ mod stepped_operand_tests {
             for i in 1..6 {
                 assert_eq!(
                     bits(mirrored(i).components()),
-                    bits(stepped_rule_map(&followed, i).components()),
+                    bits(
+                        stepped_rule_map(&followed, i)
+                            .unwrap()
+                            .to_affine()
+                            .components()
+                    ),
                     "copy {i} of {reversed:?} lands where the negative spacing put it"
                 );
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod union_row_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{RowOrigin, in_member_space, judge_pairwise_contact, stated_at};
+    use crate::coincide::{NamedCell, NamedCoincidence};
+    use crate::names::{CapEnd, EntityKind, RoleSeg, Sense, StableName};
+    use crate::{RecipeNodeId, VarId};
+
+    fn name(kind: EntityKind, node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
+        StableName { kind, node, path }
+    }
+
+    /// Member `m`'s entity `of`, as the union `union` keys it.
+    fn from(union: RecipeNodeId, m: u64, of: StableName) -> StableName {
+        name(
+            of.kind,
+            union,
+            vec![RoleSeg::From {
+                read: VarId::new(1, m),
+                of: of.into(),
+            }],
+        )
+    }
+
+    fn row(a: NamedCell, b: NamedCell) -> NamedCoincidence {
+        let margin = geom_core::MarginDiag::value(0.0);
+        NamedCoincidence {
+            cells: [a, b],
+            relation: topo::Relation::OnCarrier,
+            site: topo::DecisionSite::VertexFusion,
+            margin,
+            discharge: topo::Discharge::of(margin),
+        }
+    }
+
+    /// **Two crossings of one member edge are two statements** (DM4, "A
+    /// row names member cells"): member 1's edge `e` crossed by member
+    /// 2's two caps, each crossing on member 3's edge `c`, spell alike as
+    /// `(e, c)`, and both publish. A judged row stating `(e, c)` states
+    /// it for both, and a fold row read from no minted name collapses
+    /// into the judged row as it always did.
+    #[test]
+    fn two_crossings_of_one_member_edge_publish_two_rows() {
+        let union = RecipeNodeId::new(0, 9);
+        let own = VarId::new(1, 9);
+        let edge = |m| {
+            name(
+                EntityKind::Edge,
+                RecipeNodeId::new(0, m),
+                vec![RoleSeg::Cap(CapEnd::Start)],
+            )
+        };
+        let e = from(union, 1, edge(1));
+        let c = NamedCell::Entity {
+            input: VarId::new(1, 3),
+            name: edge(3),
+        };
+        let crossing = |end| {
+            let cap = name(
+                EntityKind::Face,
+                RecipeNodeId::new(0, 2),
+                vec![RoleSeg::Cap(end)],
+            );
+            NamedCell::Entity {
+                input: own,
+                name: name(
+                    EntityKind::Vertex,
+                    union,
+                    vec![RoleSeg::Crossing {
+                        edge: e.clone().into(),
+                        face: from(union, 2, cap).into(),
+                        sense: Sense::Leaves,
+                    }],
+                ),
+            }
+        };
+        let own_c = |cell: &NamedCell| match cell {
+            NamedCell::Entity { input, name } => NamedCell::Entity {
+                input: if *input == VarId::new(1, 3) {
+                    own
+                } else {
+                    *input
+                },
+                name: if *input == VarId::new(1, 3) {
+                    from(union, 3, name.clone())
+                } else {
+                    name.clone()
+                },
+            },
+            other => other.clone(),
+        };
+        let folded: Vec<(NamedCoincidence, Vec<StableName>)> = [CapEnd::Start, CapEnd::End]
+            .into_iter()
+            .map(|end| in_member_space(row(crossing(end), own_c(&c)), own).unwrap())
+            .collect();
+        let member_e = NamedCell::Entity {
+            input: VarId::new(1, 1),
+            name: edge(1),
+        };
+        for (r, minted) in &folded {
+            assert_eq!(
+                r.cells,
+                [member_e.clone(), c.clone()],
+                "a crossing reads as its edge"
+            );
+            assert_eq!(minted.len(), 1, "and keeps the name it was minted under");
+        }
+        let publish = |judged: &[NamedCoincidence]| {
+            let mut rows = Vec::new();
+            let mut origins: Vec<RowOrigin> = Vec::new();
+            for j in judged {
+                stated_at(
+                    &mut rows,
+                    &mut origins,
+                    j.clone(),
+                    RowOrigin::Judged { pair: (0, 1) },
+                );
+            }
+            let at: Vec<usize> = folded
+                .iter()
+                .map(|(r, m)| {
+                    stated_at(
+                        &mut rows,
+                        &mut origins,
+                        r.clone(),
+                        RowOrigin::Fold(m.clone()),
+                    )
+                })
+                .collect();
+            (rows.len(), at)
+        };
+        assert_eq!(publish(&[]), (2, vec![0, 1]), "two crossings, two rows");
+        let judged = row(member_e.clone(), c.clone());
+        assert_eq!(
+            publish(std::slice::from_ref(&judged)),
+            (1, vec![0, 0]),
+            "a judged row states the fact for each crossing spelled as it"
+        );
+        let mut rows = vec![judged];
+        let mut origins: Vec<RowOrigin> = vec![RowOrigin::Judged { pair: (0, 1) }];
+        let plain = row(c.clone(), member_e.clone());
+        assert_eq!(
+            stated_at(&mut rows, &mut origins, plain, RowOrigin::Fold(Vec::new())),
+            0,
+            "a fold row read from member cells alone is the judged row"
+        );
+    }
+
+    /// **One pair's two rows are two statements** (DM4: a coincidence
+    /// row is a decision): an edge touching a curved face at two
+    /// isolated points is two rows with one cell pair and one relation,
+    /// and both publish. Two pairs stating one row exactly, a member
+    /// read twice, publish it once; two pairs whose rows differ in their
+    /// margin are two rows.
+    #[test]
+    fn one_pairs_two_rows_publish_and_a_repeated_read_collapses() {
+        let cell = |m: u64, kind| NamedCell::Entity {
+            input: VarId::new(1, m),
+            name: name(
+                kind,
+                RecipeNodeId::new(0, m),
+                vec![RoleSeg::Cap(CapEnd::Start)],
+            ),
+        };
+        let at = |margin: f64| {
+            let margin = geom_core::MarginDiag::value(margin);
+            NamedCoincidence {
+                cells: [cell(1, EntityKind::Edge), cell(2, EntityKind::Face)],
+                relation: topo::Relation::SurfaceTangent,
+                site: topo::DecisionSite::TangentWitness,
+                margin,
+                discharge: topo::Discharge::of(margin),
+            }
+        };
+        let publish = |judged: &[(NamedCoincidence, (usize, usize))]| {
+            let mut rows = Vec::new();
+            let mut origins = Vec::new();
+            judged
+                .iter()
+                .map(|(r, pair)| {
+                    stated_at(
+                        &mut rows,
+                        &mut origins,
+                        r.clone(),
+                        RowOrigin::Judged { pair: *pair },
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            publish(&[(at(0.0), (0, 1)), (at(0.0), (0, 1))]),
+            [0, 1],
+            "one pair's two touches, both published"
+        );
+        assert_eq!(
+            publish(&[(at(1e-9), (0, 2)), (at(1e-9), (1, 2))]),
+            [0, 0],
+            "a member read twice states one row"
+        );
+        assert_eq!(
+            publish(&[(at(0.0), (0, 2)), (at(1e-9), (1, 2))]),
+            [0, 1],
+            "two pairs at two margins are two rows"
+        );
+    }
+
+    /// **A judged pair's operand A is its lesser read**, whatever the
+    /// list order, and the listed-first on a read spelled twice; the
+    /// pairs are visited in list order.
+    #[test]
+    fn a_judged_pairs_operand_a_is_its_lesser_read() {
+        let at = |x: f64| {
+            bvh::Aabb::from_points([geom_core::Point3::new(x, 0.0, 0.0)]).expect("a point's box")
+        };
+        let hull = at(0.0);
+        let hulls = vec![hull; 4];
+        let reads = [
+            VarId::new(7, 7),
+            VarId::new(3, 3),
+            VarId::new(5, 5),
+            VarId::new(3, 3),
+        ];
+        let mut seen = Vec::new();
+        let out = judge_pairwise_contact::<f64>(&hulls, &reads, |a, b| {
+            seen.push((a, b));
+            Ok(None)
+        })
+        .unwrap();
+        assert!(out.is_none(), "an empty judgement ends the pass");
+        assert_eq!(seen, [(1, 0)], "the first pair, its lesser read as A");
+        for (p, q) in [(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (0, 3)] {
+            let mut seen = Vec::new();
+            let mut sub = vec![hull; 4];
+            for (i, h) in sub.iter_mut().enumerate() {
+                if i != p && i != q {
+                    *h = at(100.0 * (i as f64 + 1.0));
+                }
+            }
+            let _ = judge_pairwise_contact::<f64>(&sub, &reads, |a, b| {
+                seen.push((a, b));
+                Ok(None)
+            });
+            let [(a, b)] = seen[..] else {
+                panic!("the pair ({p}, {q}) judged once: {seen:?}");
+            };
+            assert!(
+                reads[a] < reads[b] || (reads[a] == reads[b] && a < b),
+                "the pair ({p}, {q}) runs with {a} as A"
+            );
         }
     }
 }

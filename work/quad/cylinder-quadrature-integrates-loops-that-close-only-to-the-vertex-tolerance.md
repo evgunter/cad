@@ -49,3 +49,54 @@ A line's endpoint read off its vertex point rather than off the
 whole-circle trig bracket, so a junction's chart points are thin; then
 the connector term and its sliver pad cost the enclosure what the gap
 is, not what the bracket is.
+
+## Since `flux/cylinder-band-quad`
+
+The lane now reads `−∮ (v − v_a) du` (`v_a` the middle of the face's
+edge-start levels, `quad::level_anchor`), and the per-junction
+`require_no_period_jump` is gone: each loop's and the face's winding are
+decided instead (`quad::loop_windings`). The residue is unchanged in
+kind: an open chain's integral now differs from the closed region's by
+`≈ −(½(v₁ + v₀) − v_a)·Δu` at each junction gap, which no pad covers.
+The anchor keeps the lever at the face's own height rather than its
+distance from the chart origin, so the term is no larger than the old
+`½(u₁ + u₀)·Δv` lever on a face of comparable extent.
+
+## The junction decide is two-sided (FLUX, PR 4839's verification)
+
+`quad::loop_windings` now closes a junction only when the gap's UPPER
+bound is within the slack (`props_quad_junction_closed`), refuses it only
+when the LOWER bound is definitely beyond (`props_quad_junction_open`),
+and escalates otherwise; each edge's end is read through its own end
+vertex's trig bracket (`TrimEdgeQ::trig1`). Carrying the start's bracket
+through the span had widened a steep conic's far end by its tilt, up to
+20ε at ε = 1e-12, and put 108 real junctions beyond the slack. With the
+end's own bracket none is, at any of the three ε, on the geom-brep, topo
+and sweep suites, so no face moved from measuring to escalating. The
+residue this row is about — the unpadded connector across a gap the
+decide admits, now up to `S + ε` — is unchanged.
+
+## Since `flux/periodic-closure-one-decide` (PR 4938)
+
+The residue is no longer the quadrature's alone. Every lane on a
+periodic chart now admits a junction through one decision
+(`geom_brep::props::closure`): a gap less whole periods is closed when
+its excess over the junction's stated slack is under `ε`. That slack is
+the ends' own certified slack plus `VERTEX_SLACK·ε = 3ε`, so a junction
+open by up to `S + ε` in the chart metric is integrated as closed, with
+no pad for its connector, in:
+
+- the cylinder quadrature (`quad::loop_windings`, as before);
+- the cylinder closed form (`curved::cylinder_windings`): `S = 3ε`, the
+  connector term `−(v − v_m)·turn` per junction (`v_m`, the closed
+  form's `anchor`, the middle of the face's level range);
+- the torus closed form (`curved::torus_chart_loop`): `S = 3ε`, the
+  connectors `−(F(v) − F(v_m))·turn` and `−(G(v) − G(v_m))·turn`;
+- the spiric wall (`spiric::wall_windings`): `S` the two images'
+  envelopes plus `3ε`, its Green form integrating each image as handed.
+
+The closed forms' junction gaps are not padded either: their sums read
+each edge's own span, and the short turn across a junction enters only
+the winding count. The fix shape above (a junction's connector and its
+sliver pad, on thin chart ends) applies to each lane, and the closed
+forms have thin ends already.

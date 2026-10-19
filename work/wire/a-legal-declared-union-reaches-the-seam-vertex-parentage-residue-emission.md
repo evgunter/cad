@@ -2,10 +2,11 @@
 id: a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission
 kind: issue
 title: A legal declared union reaches the seam-vertex-parentage residue Emission once a covered contact is declared
-status: open
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: D
+closed: 2026-10-17
 ---
 
 
@@ -97,3 +98,42 @@ only `(a, b)` is declared, and `row` and `rowids` now reach this
 residue in `[a, h, b, g]` and `[h, a, b, g]`. That is the same pair of
 orders the declared row measured. The test admits it by name
 (`RESIDUES`).
+
+## More orders reach it (stage 4 F, 2026-10-11)
+
+With declarations retired, the member orders that used to refuse `DeclareResolve` first now run, and more of them reach this residue. `emit_seam_junction`'s four members: 2 orders → 8 (every order that folds `a` and `h` before `b`). `emit_union_rim_piece_ranks`' covered contact: 2 → 8. `row` and `rowids`: 2 → 8 each. In each of these the order refused before and refuses now, and no order that fused moved (`emit_shared_rim_several`'s 256 fused cells hold).
+
+## Every witness builds (EMIT, 2026-10-12, branch `emit/touch-crossing`)
+
+A vertex that is one of an operand's own vertices is now named as that
+vertex at every operand key the boolean leaves at the point (the touch
+ruling, PR 4284). In the orders that fold `a` and `h` before `b`, the
+fold reaches `a`'s corners resting on `h`'s wall only through a null
+copy, which is where the residue came from. Measured:
+- `row` and `rowids`: all 24 orders fuse and publish one table
+  (`emit_union_rim_piece_ranks::a_covered_contact_decides_alike_in_every_order`);
+- `{a, b, h}`: all 6 orders fuse
+  (`a_contact_b_covers_decides_in_every_order`);
+- `emit_seam_junction`'s 8 orders fuse and publish one table;
+- `emit_shared_rim_several` fuses 272 cells, up from 256;
+- the quadrilateral arches of `touch_reread_rows` name at every pose.
+
+No witness reaches the catch-all arm now. The arm itself stays, as the
+unenumerated residue.
+
+## No longer reached by the probe corpus (EMIT, PR 4949, 2026-10-13)
+
+`emit_shared_rim_several` now fuses all 282 cells, up from 272. The
+`RESIDUES` admission is gone, and any refusal fails the row. The
+orders that reached this residue (`row` and `rowids` in
+`[a, h, b, g]` and `[h, a, b, g]`, among others) now emit. The cause
+was the `Borders` chase. It stopped at a seam that a later step's join
+had killed, so the chase now follows `EdgeJoin` and each step's split
+lineage. Whether any other document still reaches this row is WIRE's
+call; it is left open here.
+
+## Closed (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. The row's own last sections found no witness reaching the arm; `SEAM_VERTEX_RESIDUE` and `no_rule` are gone, the sibling emit row is closed, and what remains in `emit_topo.rs`'s seam-vertex pass is the deliberate unenumerated-residue arm argued at its site.
+
+Signed (WIRE orchestrator).

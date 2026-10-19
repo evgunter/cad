@@ -10,9 +10,8 @@
 //! - #347's cylinder unions split in two. The coaxial poses and the
 //!   parallel pose — whose rim crossings the circle × cylinder root
 //!   lane certifies — meet their partner in a carrier their margins
-//!   decide one (the walls, or the cap discs), which the boolean glues
-//!   undeclared: each builds the union the flush detector's
-//!   declarations build, at its closed form. The Steinmetz pose
+//!   decide one (the walls, or the cap discs), which the boolean glues:
+//!   each builds its union at its closed form. The Steinmetz pose
 //!   refuses at `CurvedPierceUnsupported`, the curved sweep arm's
 //!   frontier, pinned with the datum that says whose work it waits on.
 //! - #347's bracket bound is GONE. It used to read `r ≤ 4` passes,
@@ -29,7 +28,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::outcomes::outcome;
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
@@ -108,8 +106,7 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
 ///    union, two high. Staggered in height the same pair pierces, and
 ///    stops at the pierce's sector side (`tang_circle_cylinder.rs`).
 ///
-/// Each of rows 1–3 is the union with every flush finding declared, bit
-/// for bit (D10), and meters at its closed form.
+/// Each of rows 1–3 meters at its closed form.
 ///
 /// 4. `steinmetz` — A's seam RULING is TANGENT to B's wall. The two
 ///    walls meet in two ellipses that CROSS at `(±1, 0, 0)`, where the
@@ -141,11 +138,9 @@ fn cylinder_unions_glue_their_coincidences_and_steinmetz_refuses_at_the_pierce()
             finished("operand A", a.clone(), tol),
             finished("operand B", b, tol),
         );
-        let found = topo::flush::find_flush_candidates(&a, &b, tol).unwrap();
-        assert!(!found.is_empty(), "{name}: the pair has a flush finding");
-        let declared = topo::union_with(&a, &b, &topo::flush::declare_all(&found), tol);
-        let Ok(topo::BooleanResult::Body(bb)) = &declared else {
-            panic!("{name}: the declared union builds: {declared:?}");
+        let built = topo::union(&a, &b, tol);
+        let Ok(topo::BooleanResult::Body(bb)) = &built else {
+            panic!("{name}: the union builds: {built:?}");
         };
         assert_eq!(
             topo::validate_geometric(&bb.body, tol),
@@ -157,18 +152,16 @@ fn cylinder_unions_glue_their_coincidences_and_steinmetz_refuses_at_the_pierce()
             (v - want).abs() < 1e-9,
             "{name}: {v} vs the closed form {want}"
         );
-        assert_eq!(
-            outcome(&topo::union(&a, &b, tol)),
-            outcome(&declared),
-            "{name}: undeclared is the declared union"
-        );
     }
     let turned = topo::transform_rigid(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &Affine3::rotation_about_axis(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            PI / 2.0,
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                PI / 2.0,
+            ),
+            tol,
         ),
         tol,
     )
@@ -364,9 +357,14 @@ fn crossing_pair_without_edge_events() -> (Body<f64>, Body<f64>) {
         Vec3::new(0.0, 1.0, 0.0),
         PI / 2.0,
     );
-    let lie = topo::transform_rigid(&rod, &turn, tol).unwrap();
-    let b =
-        topo::transform_rigid(&lie, &Affine3::translation(Vec3::new(0.0, 1.5, 5.0)), tol).unwrap();
+    let lie =
+        topo::transform_rigid(&rod, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
+    let b = topo::transform_rigid(
+        &lie,
+        &geom_core::RigidMotion::translation(Vec3::new(0.0, 1.5, 5.0)).unwrap(),
+        tol,
+    )
+    .unwrap();
     (a, b)
 }
 

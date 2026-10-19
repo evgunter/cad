@@ -18,7 +18,7 @@ use geom_core::Vec3;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{ball_poled, cube, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{AtRestBody, Body, BooleanDeclarations};
+use topo::{AtRestBody, Body};
 
 /// The die's side, meters.
 const DIE_L: f64 = 1.0;
@@ -145,7 +145,7 @@ fn pip_tool() -> AtRestBody<f64> {
             BooleanOp::Union,
             &tool,
             &pip(*c, *n),
-            &BooleanDeclarations::none(),
+            &topo::BooleanInputs::default(),
             SweepStrategy::Realized,
             Tol::witness(),
         )
@@ -163,7 +163,7 @@ fn subtract(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Body<f64> {
         BooleanOp::Subtract,
         a,
         b,
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
@@ -340,7 +340,7 @@ fn deviation_1_both_doors_compose_and_agree() {
         BooleanOp::Subtract,
         &blank(),
         &pip_tool(),
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )

@@ -46,6 +46,7 @@
 //! (`sweep/tests/m6_surgery.rs`) meters the composed volume against
 //! its derived closed form at a stated relative tolerance.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use editor_core::{
@@ -273,7 +274,7 @@ pub fn document() -> CorpusDoc {
     let ball = r.insert(revolve_about(
         ball_p,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(std::f64::consts::TAU),
     ));
 
@@ -289,7 +290,6 @@ pub fn document() -> CorpusDoc {
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),
         tool: pip.into(),
-        declare: Vec::new(),
     });
     // The fourteen selected edges — twelve box edges and the pip
     // rim's two arcs; the cavity meridians are NOT in the set (see
@@ -310,7 +310,7 @@ pub fn document() -> CorpusDoc {
         editor_core::select(&ev, pipped, &selector()),
     ));
 
-    r.place(composed);
+    r.place_part(composed);
 
     CorpusDoc {
         name: "die_composed",

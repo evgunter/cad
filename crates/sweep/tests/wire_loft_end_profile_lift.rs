@@ -232,7 +232,12 @@ mod interval {
     #[test]
     fn a_section_whose_interval_revalidation_escalates_is_not_refused_by_the_profile_door() {
         let (h, b, sections, places) = separating_pair();
-        if let Err(e) = loft_body::<Interval>(&sections, &places, 1, Tol::witness()) {
+        if let Err(e) = loft_body::<Interval>(
+            &sweep::test_support::lift_sections::<Interval>(&sections),
+            &sweep::test_support::lift_places::<Interval>(&places),
+            1,
+            Tol::witness(),
+        ) {
             assert!(
                 !matches!(e, LoftError::Skin(SkinError::SectionProfile { .. })),
                 "(h = {h}, b = {b}) at Interval: the assembly refused the section's \
@@ -244,8 +249,13 @@ mod interval {
     #[test]
     fn each_seam_strut_at_interval_encloses_the_f64_world_points_exactly() {
         let (sections, places) = cone_sections();
-        let lofted =
-            loft_body::<Interval>(&sections, &places, 1, Tol::witness()).expect("the loft builds");
+        let lofted = loft_body::<Interval>(
+            &sweep::test_support::lift_sections::<Interval>(&sections),
+            &sweep::test_support::lift_places::<Interval>(&places),
+            1,
+            Tol::witness(),
+        )
+        .expect("the loft builds");
         let want = expected_struts();
         assert_eq!(lofted.seam_edges[0].len(), want.len());
         for (j, &e) in lofted.seam_edges[0].iter().enumerate() {

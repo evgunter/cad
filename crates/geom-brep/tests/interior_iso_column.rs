@@ -88,23 +88,15 @@ fn imported_wall(perturb: Option<usize>) -> NurbsSurface<f64> {
     NurbsSurface::new(ku, kv, control, weights).unwrap()
 }
 
-/// The surface lifted to `T` (control points through `from_f64`;
-/// weights and knots are `f64` structure and stay so).
+/// The surface lifted to `T`: control points, weights and knots
+/// through `from_f64`.
 fn lift_surface<T: Real>(s: &NurbsSurface<f64>) -> NurbsSurface<T> {
-    let control = s.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        control,
-        s.weights().to_vec(),
-    )
-    .unwrap()
+    s.map_scalar(T::from_f64)
 }
 
 /// The curve lifted to `T`, as [`lift_surface`].
 fn lift_curve<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
-    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
-    NurbsCurve3::new(c.knots().clone(), control, c.weights().to_vec()).unwrap()
+    c.map_scalar(T::from_f64)
 }
 
 /// `certify` of the column `u = u_star` traversing the whole `v`
@@ -114,7 +106,7 @@ fn certify_column<T: Decide>(
     carrier: &NurbsCurve3<f64>,
     u_star: f64,
 ) -> Result<PcurveCache<T>, PcurveCertifyError> {
-    let (v0, v1) = chart.knots_v().domain();
+    let (v0, v1) = chart.knots_v_f64_interim().domain();
     let f = T::from_f64;
     PcurveCache::certify(
         Pcurve::IsoLine {
@@ -167,13 +159,13 @@ fn a1_body<T: Decide + Bounds>(row: &str) {
         .insert_knot_u(0.5, 2)
         .expect("knot insertion to multiplicity p");
     let (_, nv) = refined.control_counts();
-    let kn = refined.knots_u().knots();
-    let p = refined.knots_u().degree();
+    let kn = refined.knots_u_f64_interim().knots();
+    let p = refined.knots_u_f64_interim().degree();
     let index = (0..refined.control_counts().0)
         .find(|i| kn[i + 1..=i + p].iter().sum::<f64>() / p as f64 == 0.5)
         .expect("a control row sits at Greville abscissa 0.5");
     let carrier = NurbsCurve3::new(
-        refined.knots_v().clone(),
+        refined.knots_v_f64_interim().clone(),
         refined.control()[index * nv..(index + 1) * nv].to_vec(),
         refined.weights()[index * nv..(index + 1) * nv].to_vec(),
     )
@@ -221,7 +213,7 @@ fn a2_body<T: Decide + Bounds>(row: &str) {
     let chart = imported_wall(None);
     let u_star = 3f64.sqrt() / 2.0;
     let carrier = NurbsCurve3::new(
-        chart.knots_v().clone(),
+        chart.knots_v_f64_interim().clone(),
         vec![chart.eval(u_star, 0.0), chart.eval(u_star, 1.0)],
         vec![1.0; 2],
     )
@@ -257,7 +249,7 @@ fn a2b_body<T: Decide + Bounds>(row: &str) {
     let chart = imported_wall(Some(11)); // row 5, column 1: `u ∈ [2√3, 3√3]`, far from u*
     let u_star = 3f64.sqrt() / 2.0;
     let carrier = NurbsCurve3::new(
-        chart.knots_v().clone(),
+        chart.knots_v_f64_interim().clone(),
         vec![chart.eval(u_star, 0.0), chart.eval(u_star, 1.0)],
         vec![1.0; 2],
     )

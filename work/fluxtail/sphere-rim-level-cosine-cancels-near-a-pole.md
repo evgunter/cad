@@ -41,3 +41,13 @@ the pole on a coordinate axis, at ε 1e-9 and 1e-12.
 ## Re-homed from FLUX to FLUXTAIL (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. FLUXTAIL collects the curved arms' numeric honesty rows: rim levels, chord lengths, span folds and bounds that cancel, drop a refusal or depend on the frame, under FLUX's closed forms. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Moves to mesh's door (FLUX `flux/sphere-arm`, 2026-10-10)
+
+The sphere flux lane no longer parses rims or lifts levels: every
+sphere face is measured by Gauss–Bonnet over its circle arcs
+(`curved::sphere_face`). `sphere_boundary` and its `RimLevel::Unit`
+lift survive only in `require_iso_rectangle`, the shape door `mesh`'s
+walk cites, so the cancellation now decides only that door's
+rim-at-extreme match (`props_rim_level`) and its rim-side unanimity
+(`props_rim_side`). The "done when" stands, asked of the door.

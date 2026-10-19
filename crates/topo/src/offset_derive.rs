@@ -18,7 +18,10 @@
 //! door transports, at every scalar; everywhere else it derives.
 
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::ssi::{BoundarySection, ChartAxis, SsiDomain, SsiError};
+use geom_brep::SectionReading;
+use geom_brep::ssi::{
+    BoundarySection, ChartAxis, ChartEnd, SsiBoundaryContact, SsiDomain, SsiError,
+};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
@@ -30,12 +33,21 @@ pub enum SectionVerdict {
     Closed(geom_brep::SectionError),
     /// The plane × spline-wall march refused, verbatim.
     Ssi(SsiError),
+    /// The section traced from the old edge's middle refused, verbatim:
+    /// the middle is the trace's seed.
+    FromMiddle(SsiError),
     /// The section has no branch near the edge: the moved surface no
     /// longer meets the neighbour there.
     NoBranch,
     /// The section near the edge is a tangency, which is classification
     /// data rather than a curve an edge can carry.
     Tangent,
+    /// The moved surface meets the neighbour within the band at a corner
+    /// of the neighbour's window only: a point, which no edge carries.
+    Corner {
+        /// The corner.
+        corner: geom_brep::ChartCorner,
+    },
     /// The door does not derive this section, in its own words.
     Unsupported {
         /// What the door could not do.
@@ -48,8 +60,18 @@ impl core::fmt::Display for SectionVerdict {
         match self {
             Self::Closed(e) => write!(f, "the closed-form section refused: {e}"),
             Self::Ssi(e) => write!(f, "the spline-wall section refused: {e}"),
+            Self::FromMiddle(e) => write!(
+                f,
+                "the section traced from the old edge's middle refused (the middle is the \
+                 trace's seed): {e}"
+            ),
             Self::NoBranch => f.write_str("the moved surface no longer meets the neighbour there"),
             Self::Tangent => f.write_str("the moved surface only touches the neighbour there"),
+            Self::Corner { corner } => write!(
+                f,
+                "the moved surface meets the neighbour only at {corner} of its window, a point \
+                 rather than an edge"
+            ),
             Self::Unsupported { what } => f.write_str(what),
         }
     }
@@ -113,8 +135,8 @@ pub enum SplineRoot {
 
 /// The plane × spline-wall section and the plane's root along a spline
 /// carrier — the offset door's spline lane, at the one scalar its
-/// march is written in (`geom_brep::plane_nurbs_ssi` is an `f64`
-/// module). Where a scalar holds none
+/// march is written in (`geom_brep::PlaneSection` traces in
+/// `f64`). Where a scalar holds none
 /// ([`crate::AtRestPolicy::section_lane`]), a slanted spline edge
 /// refuses by name rather than transporting.
 #[derive(Clone, Copy)]
@@ -129,6 +151,14 @@ pub struct SectionLane<T: Real> {
         Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>,
     root: fn(&Surface<T>, &NurbsCurve3<T>, T, T, Band) -> Result<SplineRoot, CornerVerdict<T>>,
+    pair: fn(
+        &NurbsSurface<T>,
+        &NurbsSurface<T>,
+        &Curve3<T>,
+        (T, T),
+        T,
+        Band,
+    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate>,
 }
 
 impl<T: Real> core::fmt::Debug for SectionLane<T> {
@@ -138,12 +168,14 @@ impl<T: Real> core::fmt::Debug for SectionLane<T> {
 }
 
 impl SectionLane<f64> {
-    /// The lane: [`plane_wall_section`] and [`plane_spline_root`].
+    /// The lane: [`plane_wall_section`], [`plane_spline_root`] and
+    /// [`pair_section`].
     #[must_use]
     pub fn f64() -> Self {
         Self {
             section: plane_wall_section,
             root: plane_spline_root,
+            pair: pair_section,
         }
     }
 }
@@ -162,6 +194,20 @@ impl<T: Real> SectionLane<T> {
         band: Band,
     ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
         (self.section)(plane, wall, old, span, extent, band)
+    }
+
+    /// The section of two spline charts through `old`'s middle, running
+    /// with it.
+    pub(crate) fn pair(
+        self,
+        a: &NurbsSurface<T>,
+        b: &NurbsSurface<T>,
+        old: &Curve3<T>,
+        span: (T, T),
+        extent: T,
+        band: Band,
+    ) -> Result<Result<NurbsCurve3<T>, SectionVerdict>, Indeterminate> {
+        (self.pair)(a, b, old, span, extent, band)
     }
 
     /// The root of `plane` along the spline `carrier` nearest `seed`.
@@ -322,17 +368,17 @@ fn normal_in_plane_along<T: Decide>(
     if nu < 2 {
         return false;
     }
-    let (a0, a1) = net.knots_u().domain();
+    let (a0, a1) = net.knot_values_u().domain();
     // The boundary row and the one next in from it.
-    let (first, second) = if zero("offset_holds_row_at_start", at - T::from_f64(a0)) {
+    let (first, second) = if zero("offset_holds_row_at_start", at - a0) {
         (0, 1)
-    } else if zero("offset_holds_row_at_end", at - T::from_f64(a1)) {
+    } else if zero("offset_holds_row_at_end", at - a1) {
         (nu - 1, nu - 2)
     } else {
         return false;
     };
     let row = |r: usize| r * nv..(r + 1) * nv;
-    let (ctl, w) = (net.control(), net.weights());
+    let (ctl, w) = (net.control(), net.weights_f64_interim());
     let mut sense = None;
     ctl[row(first)]
         .iter()
@@ -365,7 +411,7 @@ fn normal_in_plane_along<T: Decide>(
 fn translates_along<T: Decide>(wall: &NurbsSurface<T>, n: Vec3<T>, reach: T, band: Band) -> bool {
     let zero = |name, value| held_zero(name, value, band);
     let (nu, nv) = wall.control_counts();
-    let (ctl, w) = (wall.control(), wall.weights());
+    let (ctl, w) = (wall.control(), wall.weights_f64_interim());
     // `at(i, j)` reads the net with `j` the axis the translation runs.
     let along = |at: &dyn Fn(usize, usize) -> usize, (ni, nj): (usize, usize)| -> bool {
         for i in 0..ni {
@@ -436,10 +482,10 @@ fn nearest<T: Decide>(
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     let mid = old.mid_point(t0, t1);
-    let reach = |c: &Curve3<T>| {
-        c.param_near(mid, T::zero())
-            .map(|t| c.eval(t).distance(mid))
-    };
+    // The distance at the foot ([`Curve3::foot`]): the unit-coordinate
+    // angle alone reads an ellipse's point up to `(1 + a/b)` times
+    // farther off. A carrier with no closed-form parameter is refused.
+    let reach = |c: &Curve3<T>| c.param_near(mid, T::zero()).map(|t| c.foot(mid, t).gap());
     let mut best: Option<(Curve3<T>, T)> = None;
     for c in candidates {
         let Some(r) = reach(&c) else {
@@ -510,18 +556,22 @@ pub(crate) fn section_closed<T: Decide>(
             }));
         }
     };
+    // The old edge's span, which the plane×cylinder and plane×cone arms
+    // read the pose over, as `route_pose` did. A line pair through a
+    // cone's apex is read again over the new edge's span once its ends
+    // are known (`replace_face`'s `pair_over_its_span`).
+    let span_reach = || geom_brep::Reach::Span {
+        carrier: old.clone(),
+        t0: span.0,
+        t1: span.1,
+    };
     let candidates: Vec<Curve3<T>> = match other {
         Surface::Plane { .. } => match plane_plane(plane, other, old, span, extent, band)? {
             Ok(line) => vec![line],
             Err(v) => return Ok(Err(v)),
         },
         Surface::Cylinder { .. } => {
-            let reach = geom_brep::Reach::Span {
-                carrier: old.clone(),
-                t0: span.0,
-                t1: span.1,
-            };
-            match c5::plane_cylinder_section(plane, other, &reach, band) {
+            match c5::plane_cylinder_section(plane, other, &span_reach(), band) {
                 Ok(
                     c5::PlaneCylinderSection::TiltedEllipse(c) | c5::PlaneCylinderSection::Rim(c),
                 ) => {
@@ -535,7 +585,7 @@ pub(crate) fn section_closed<T: Decide>(
                 Err(e) => return closed(e),
             }
         }
-        Surface::Cone { .. } => match c5::plane_cone_section(plane, other, extent, band) {
+        Surface::Cone { .. } => match c5::plane_cone_section(plane, other, &span_reach(), band) {
             Ok(c5::PlaneConeSection::ApexLinePair { l1, l2 }) => vec![l1, l2],
             Ok(
                 c5::PlaneConeSection::AxisNormalCircle(c) | c5::PlaneConeSection::TiltedEllipse(c),
@@ -700,10 +750,14 @@ pub(crate) fn analytic_root<T: Decide>(
 /// one offset away, so far more than the digits need.
 const NEWTON_STEPS: usize = 24;
 
-/// **The plane × spline-wall section** nearest `old`: the wall's exact
-/// row where the plane cuts the wall along one (every control row level
-/// in the plane's normal, the case of a loft between parallel
-/// sections), the march's certified branch otherwise.
+/// **The plane × spline-wall section** through `old`'s middle: the
+/// wall's exact row where the plane cuts the wall along one (every
+/// control row level in the plane's normal, the case of a loft between
+/// parallel sections), otherwise what [`geom_brep::PlaneSection`] reads
+/// at that point: the branch whose certified chart tube holds where the
+/// middle settles, or the wall's boundary row where a `Side` region
+/// holds it (the plane holds that row within the band). A `Corner`
+/// region is a point, and refuses.
 fn plane_wall_section(
     plane: &Surface<f64>,
     wall: &NurbsSurface<f64>,
@@ -736,28 +790,65 @@ fn plane_wall_section(
                 extent,
                 floor_scale: 1.0,
             };
-            let outcome = match geom_brep::plane_nurbs_ssi(plane, wall, domain, band) {
-                Ok(o) => o,
+            let mut section = match geom_brep::PlaneSection::of(plane, wall, domain, band) {
+                Ok(s) => s,
                 Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
             };
-            let mut best: Option<(NurbsCurve3<f64>, f64)> = None;
-            for branch in outcome.branches {
-                let Curve3::Nurbs(c) = branch.carrier else {
-                    continue;
-                };
-                let (_, r) = nearest_sample(&c, mid);
-                if best.as_ref().is_none_or(|(_, rb)| r < *rb) {
-                    best = Some(((*c).clone(), r));
+            match section.branch_at(mid) {
+                Ok(SectionReading::Branch(branch)) => branch_carrier(branch),
+                Ok(SectionReading::Region(SsiBoundaryContact::Side { side, .. })) => {
+                    let (lo, hi) = match side.fixed {
+                        ChartAxis::U => wall.knots_u_f64_interim().domain(),
+                        ChartAxis::V => wall.knots_v_f64_interim().domain(),
+                    };
+                    let at = if side.end == ChartEnd::High { hi } else { lo };
+                    match wall_row(wall, side.fixed, at) {
+                        Some(row) => row,
+                        None => {
+                            return Ok(Err(SectionVerdict::Unsupported {
+                                what: "the moved plane holds a boundary row of a wall whose \
+                                       weights do not factor, which is no exact row",
+                            }));
+                        }
+                    }
                 }
-            }
-            match best {
-                Some((c, _)) => c,
-                None => return Ok(Err(SectionVerdict::NoBranch)),
+                Ok(SectionReading::Region(SsiBoundaryContact::Corner { corner, .. })) => {
+                    return Ok(Err(SectionVerdict::Corner { corner: *corner }));
+                }
+                Err(e) => return Ok(Err(seeded(e))),
             }
         }
     };
-    // Its sense: the old carrier's, read where the section passes
-    // nearest the old middle.
+    running_as(carrier, (mid, tangent), band)
+}
+
+/// A refusal of the section traced from the old edge's middle, as the
+/// door reports it. A middle that settles onto the section outside the
+/// neighbour's window is the moved surface no longer meeting the
+/// neighbour there, which the exact-row reading reports as
+/// [`SectionVerdict::NoBranch`] too; any other refusal is the trace's.
+fn seeded(e: SsiError) -> SectionVerdict {
+    match e {
+        SsiError::SeedOffDomain { .. } => SectionVerdict::NoBranch,
+        e => SectionVerdict::FromMiddle(e),
+    }
+}
+
+/// A certified branch's carrier.
+fn branch_carrier(branch: &geom_brep::SsiBranch) -> NurbsCurve3<f64> {
+    let Curve3::Nurbs(c) = &branch.carrier else {
+        unreachable!("an `SsiBranch`'s carrier is a fitted `Curve3::Nurbs` (C1 rung 3)")
+    };
+    (**c).clone()
+}
+
+/// `carrier` in the old carrier's sense, read where it passes nearest
+/// the old middle `mid`, whose tangent is `tangent`.
+fn running_as(
+    carrier: NurbsCurve3<f64>,
+    (mid, tangent): (Point3<f64>, Vec3<f64>),
+    band: Band,
+) -> Result<Result<NurbsCurve3<f64>, SectionVerdict>, Indeterminate> {
     let (at, _) = nearest_sample(&carrier, mid);
     let along = carrier.deriv(at);
     let cosine = along.dot(tangent) / (along.norm() * tangent.norm());
@@ -772,10 +863,45 @@ fn plane_wall_section(
     )
 }
 
+/// **The section of two spline charts** through the old carrier's
+/// middle: [`geom_brep::Section`]'s branch at that point, the one whose
+/// certified tube holds where the middle settles, in the old carrier's
+/// sense. A pair tangent at the seed refuses by the section's own
+/// transversality decision, and a section outside either chart's window
+/// there by the seed's.
+fn pair_section(
+    a: &NurbsSurface<f64>,
+    b: &NurbsSurface<f64>,
+    old: &Curve3<f64>,
+    (t0, t1): (f64, f64),
+    extent: f64,
+    band: Band,
+) -> Result<Result<NurbsCurve3<f64>, SectionVerdict>, Indeterminate> {
+    let mid = old.mid_point(t0, t1);
+    let tangent = old.deriv(0.5 * (t0 + t1));
+    // The rectangles bound the search; the window a plane would need
+    // is the extent about the middle, and bounds nothing here.
+    let domain = SsiDomain {
+        center: mid,
+        half_extent: extent,
+        extent,
+        floor_scale: 1.0,
+    };
+    let mut section = match geom_brep::Section::of(a, b, domain, band) {
+        Ok(s) => s,
+        Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
+    };
+    let carrier = match section.branch_at(mid) {
+        Ok(branch) => branch_carrier(branch),
+        Err(e) => return Ok(Err(seeded(e))),
+    };
+    running_as(carrier, (mid, tangent), band)
+}
+
 /// The parameter of `c`'s sample nearest `p` on a fixed schedule, and
-/// its distance: which branch an old edge's middle is beside, and the
-/// sense there, are coarse questions a schedule answers without a
-/// projection that may not settle.
+/// its distance: where a section passes beside the old edge's middle,
+/// at which its sense is read, is a coarse question a schedule answers
+/// without a projection that may not settle.
 fn nearest_sample(c: &NurbsCurve3<f64>, p: Point3<f64>) -> (f64, f64) {
     const SAMPLES: u32 = 64;
     let (lo, hi) = c.domain();
@@ -797,11 +923,11 @@ fn level_row(
     extent: f64,
     band: Band,
 ) -> Result<Option<Result<NurbsCurve3<f64>, SectionVerdict>>, Indeterminate> {
-    // Rows of the transpose are columns here: `transposed()` puts the
-    // row's own axis first, so `interior_iso_u` of it is the row.
-    for (net, cross) in [
-        (wall.clone(), wall.transposed()),
-        (wall.transposed(), wall.clone()),
+    // A net whose height depends on its `v` alone holds the plane along
+    // a row of fixed `v`: the wall's own rows first, then its columns.
+    for (net, fixed) in [
+        (wall.clone(), ChartAxis::V),
+        (wall.transposed(), ChartAxis::U),
     ] {
         let (nu, nv) = net.control_counts();
         let ctl = net.control();
@@ -827,16 +953,12 @@ fn level_row(
         }
         // `net`'s height depends on its `v` alone, so the plane's root
         // along one of its columns is the row the plane holds.
-        let (u0, _) = net.knots_u().domain();
+        let (u0, _) = net.knots_u_f64_interim().domain();
         let column = match geom_brep::interior_iso_u(&net, u0) {
             Ok(c) => c,
             Err(_) => continue,
         };
-        let Some(speed) = polynomial_speed(&column) else {
-            return Ok(Some(Err(SectionVerdict::Unsupported {
-                what: "a rational wall column's speed has no bound the section is read at",
-            })));
-        };
+        let speed = certified_speed(&column);
         let roots = match geom_brep::boundary_section(
             &column,
             origin,
@@ -874,9 +996,22 @@ fn level_row(
         let v = bisect(&column, origin, normal, root.bracket);
         // A row whose weights vary along both parameters is not exact
         // structure; the march states the section instead.
-        return Ok(geom_brep::interior_iso_u(&cross, v).ok().map(Ok));
+        return Ok(wall_row(wall, fixed, v).map(Ok));
     }
     Ok(None)
+}
+
+/// The wall's row where the parameter `fixed` holds `at`, extracted
+/// exactly (`None` where the wall's weights do not factor, so no row of
+/// it is exact structure).
+fn wall_row(wall: &NurbsSurface<f64>, fixed: ChartAxis, at: f64) -> Option<NurbsCurve3<f64>> {
+    // `transposed()` puts the `v` axis first, so `interior_iso_u` of it
+    // is the row of fixed `v`.
+    match fixed {
+        ChartAxis::U => geom_brep::interior_iso_u(wall, at),
+        ChartAxis::V => geom_brep::interior_iso_u(&wall.transposed(), at),
+    }
+    .ok()
 }
 
 /// The plane distance's root inside `bracket`, to the last bit.
@@ -903,23 +1038,15 @@ fn bisect(
     if phi(a).abs() <= phi(b).abs() { a } else { b }
 }
 
-/// A certified sup of a polynomial spline's speed: its derivative's
-/// control net, through the knot differences, each rounded outward.
-/// `None` for a rational carrier.
-fn polynomial_speed(c: &NurbsCurve3<f64>) -> Option<f64> {
-    if c.weights().iter().any(|w| *w != 1.0) {
-        return None;
-    }
-    let (p, k, ctl) = (c.degree(), c.knots().knots(), c.control());
-    let mut sup = 0.0f64;
-    #[allow(clippy::cast_precision_loss)]
-    for i in 0..ctl.len().saturating_sub(1) {
-        let dt = k[i + p + 1] - k[i + 1];
-        if dt > 0.0 {
-            sup = sup.max((ctl[i + 1] - ctl[i]).norm() * (p as f64) / dt);
-        }
-    }
-    Some((sup * (1.0 + 1e-12)).next_up())
+/// A certified sup of a spline's speed, polynomial or rational: the
+/// curve's [`NurbsCurve3::speed_upper_bound`] read at `Interval`, whose
+/// upper end bounds the exact quotient bound from above.
+fn certified_speed(c: &NurbsCurve3<f64>) -> f64 {
+    geom_core::Bounds::hi(
+        c.map_scalar(<geom_core::Interval as geom_core::Real>::from_f64)
+            .speed_upper_bound()
+            .get(),
+    )
 }
 
 /// **The plane's root along a spline carrier** nearest `seed`: the
@@ -938,11 +1065,7 @@ fn plane_spline_root(
             what: "a moved surface's root along a spline edge is solved for a plane only",
         });
     };
-    let Some(speed) = polynomial_speed(carrier) else {
-        return Err(CornerVerdict::Unsupported {
-            what: "a rational spline edge's speed has no bound the corner is read at",
-        });
-    };
+    let speed = certified_speed(carrier);
     let section = geom_brep::boundary_section(
         carrier,
         origin,
@@ -997,7 +1120,7 @@ fn plane_spline_root(
 
 #[cfg(test)]
 mod wiring {
-    use super::{SectionLane, plane_spline_root, plane_wall_section};
+    use super::{SectionLane, pair_section, plane_spline_root, plane_wall_section};
 
     /// `Ok(())` when every field holds its routine; otherwise the name
     /// of the first field that does not.
@@ -1012,6 +1135,9 @@ mod wiring {
         if !std::ptr::fn_addr_eq(lane.root, plane_spline_root as fn(_, _, _, _, _) -> _) {
             return Err("root is not `plane_spline_root`");
         }
+        if !std::ptr::fn_addr_eq(lane.pair, pair_section as fn(_, _, _, _, _, _) -> _) {
+            return Err("pair is not `pair_section`");
+        }
         Ok(())
     }
 
@@ -1020,7 +1146,7 @@ mod wiring {
         assert_eq!(
             holds_the_section_lane(),
             Ok(()),
-            "`SectionLane::f64()` holds something other than its two routines"
+            "`SectionLane::f64()` holds something other than its three routines"
         );
     }
 }
@@ -1083,6 +1209,336 @@ mod holds {
                 !holds_beside_z0(Point3::new(0.0, e, 1.0), Point3::new(1.0, e, -1.0)),
                 "e = {e}"
             );
+        }
+    }
+}
+
+/// **A held neighbour meets the moved surface square.** Every closed-form
+/// pose [`holds_the_move`] admits has the held surface contain the moved
+/// surface's normal along the edge, so the two meet at a right angle:
+/// the must-carry rule reads the pair `Intersection` there, never
+/// under-determined, and the pair routes and serves the pose. So an
+/// edge an offset door re-asks beside a held neighbour (`replace_face`'s
+/// chart and pair arms) stores the section, which `neighbour_section`'s
+/// route question is the precondition of, declared or derived alike.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod square {
+    use super::holds_the_move;
+    use crate::geometry::SurfaceKey;
+    use geom::{Curve3, Surface};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    /// A pose by name: the moved surface, the held one, and an edge on
+    /// both over its span.
+    type Pose = (
+        &'static str,
+        Surface<f64>,
+        Surface<f64>,
+        Curve3<f64>,
+        (f64, f64),
+    );
+
+    #[test]
+    fn every_held_pose_routes_and_reads_the_section() {
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let mut keys: slotmap::SlotMap<SurfaceKey, ()> = slotmap::SlotMap::with_key();
+        let (ka, kb) = (keys.insert(()), keys.insert(()));
+        let (x, y, z) = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
+        let o = Point3::origin();
+        let plane = |origin, normal: Vec3<f64>, u_ref| Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        };
+        let line = |origin, dir| Curve3::Line { origin, dir };
+        let circle = |center, axis, radius, u_ref| Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        };
+        let cylinder = Surface::Cylinder {
+            origin: o,
+            axis: z,
+            radius: 1.0,
+            u_ref: x,
+        };
+        let torus = Surface::Torus {
+            center: o,
+            axis: z,
+            major_radius: 3.0,
+            minor_radius: 1.0,
+            u_ref: x,
+        };
+        let s = std::f64::consts::FRAC_1_SQRT_2;
+        let poses: Vec<Pose> = vec![
+            (
+                "plane beside a plane holding its normal",
+                plane(o, z, x),
+                plane(o, x, y),
+                line(o, y),
+                (0.0, 1.0),
+            ),
+            (
+                "plane beside a cylinder along its normal",
+                plane(o, z, x),
+                cylinder.clone(),
+                circle(o, z, 1.0, x),
+                (0.0, 1.0),
+            ),
+            (
+                "cylinder beside a plane across its axis",
+                cylinder.clone(),
+                plane(o, z, x),
+                circle(o, z, 1.0, x),
+                (0.0, 1.0),
+            ),
+            (
+                "cylinder beside a plane holding its axis",
+                cylinder.clone(),
+                plane(o, x, y),
+                line(Point3::new(0.0, 1.0, 0.0), z),
+                (0.0, 1.0),
+            ),
+            (
+                "sphere beside a plane through its centre",
+                Surface::Sphere {
+                    center: o,
+                    radius: 1.0,
+                    axis: z,
+                    u_ref: x,
+                },
+                plane(o, z, x),
+                circle(o, z, 1.0, x),
+                (0.0, 1.0),
+            ),
+            (
+                "cone beside a plane holding its axis",
+                Surface::Cone {
+                    apex: o,
+                    axis: z,
+                    half_angle: std::f64::consts::FRAC_PI_4,
+                    u_ref: x,
+                },
+                plane(o, x, y),
+                line(o, Vec3::new(0.0, s, s)),
+                (0.5, 1.5),
+            ),
+            (
+                "torus beside a meridian plane",
+                torus.clone(),
+                plane(o, x, y),
+                circle(Point3::new(0.0, 3.0, 0.0), x, 1.0, y),
+                (0.0, 1.0),
+            ),
+            (
+                "torus beside its equatorial plane",
+                torus,
+                plane(o, z, x),
+                circle(o, z, 4.0, x),
+                (0.0, 1.0),
+            ),
+        ];
+        for (name, moved, held, carrier, (t0, t1)) in poses {
+            assert!(
+                holds_the_move(&moved, &held, None, 0.1, band),
+                "{name}: holds"
+            );
+            let reach = geom_brep::Reach::Span {
+                carrier: carrier.clone(),
+                t0,
+                t1,
+            };
+            let route = geom_brep::intersect::route_pose(&moved, &held, &reach, band)
+                .expect("the pose is decided");
+            assert!(route.implemented, "{name}: {}", route.note);
+            let read = geom_brep::reask_pair(
+                [(ka, &moved), (kb, &held)],
+                &carrier,
+                (t0, t1),
+                1.0,
+                None,
+                band,
+            )
+            .expect("the rule reads the pair");
+            assert!(
+                matches!(read, geom_brep::EdgeDescriptionSpec::Intersection { .. }),
+                "{name}: {read:?}"
+            );
+        }
+    }
+}
+
+/// The plane × spline-wall door where the old edge's middle settles in a
+/// region the boundary pass reports.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod regions {
+    use super::{SectionVerdict, plane_wall_section, wall_row};
+    use geom::{Curve3, NurbsSurface, Surface};
+    use geom_brep::ssi::ChartAxis;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3, Tol, Vec3};
+    use std::sync::Arc;
+
+    /// A biquadratic over `[0, 1]²` whose height is `z(i, j)` at control
+    /// point `(i, j)`.
+    fn net(z: &dyn Fn(usize, usize) -> f64) -> NurbsSurface<f64> {
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("clamped");
+        let control = (0..9)
+            .map(|n| {
+                let (i, j) = (n / 3, n % 3);
+                Point3::new(0.5 * i as f64, 0.5 * j as f64, z(i, j))
+            })
+            .collect();
+        NurbsSurface::new(k.clone(), k, control, vec![1.0; 9]).expect("a biquadratic")
+    }
+
+    fn ground() -> Surface<f64> {
+        Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness band")
+    }
+
+    /// **A plane holding a wall's boundary row is that row.** The wall
+    /// rises from `z = 0` along its bottom row and leans along its others,
+    /// so no row is level and the march reads the section; the old edge
+    /// is that bottom row. Its middle settles in the pass's `Side`
+    /// region, and the edge is the wall's exact bottom row, as
+    /// `level_row` extracts a row. Red if the region refuses.
+    #[test]
+    fn a_side_region_is_the_walls_boundary_row() {
+        let wall = net(&|i, j| (0.5 + 0.2 * i as f64) * j as f64);
+        let row = geom_brep::boundary_iso_v(&wall, false).expect("the bottom row");
+        let span = row.domain();
+        let old = Curve3::Nurbs(Arc::new(row));
+        let carrier = match plane_wall_section(&ground(), &wall, &old, span, 1.0, band()) {
+            Ok(Ok(c)) => c,
+            other => panic!("the bottom row is the section, got {other:?}"),
+        };
+        let exact = wall_row(&wall, ChartAxis::V, 0.0).expect("an exact row");
+        let xyz = |c: &geom::NurbsCurve3<f64>| -> Vec<[f64; 3]> {
+            c.control().iter().map(|p| [p.x, p.y, p.z]).collect()
+        };
+        assert_eq!(
+            xyz(&carrier),
+            xyz(&exact),
+            "the edge is the wall's exact bottom row"
+        );
+    }
+
+    /// **A plane meeting a wall at a corner only refuses by the corner.**
+    /// The tilted wall `z = x + y` meets `z = 0` at its corner `(0, 0)`
+    /// alone, and an old edge through that corner settles in the pass's
+    /// `Corner` region: a point, which no edge carries.
+    #[test]
+    fn a_corner_region_refuses_by_the_corner() {
+        let wall = net(&|i, j| 0.5 * (i + j) as f64);
+        let old = Curve3::Line {
+            origin: Point3::origin(),
+            dir: Vec3::new(1.0, -1.0, 0.0) / 2.0_f64.sqrt(),
+        };
+        let got = plane_wall_section(&ground(), &wall, &old, (-0.1, 0.1), 1.0, band());
+        assert!(
+            matches!(got, Ok(Err(SectionVerdict::Corner { .. }))),
+            "expected the corner's refusal, got {got:?}"
+        );
+    }
+}
+
+/// **The spline lane reaches rational carriers.** Both doors that meter
+/// a spline's speed ([`certified_speed`]) answer on a rational one:
+/// `level_row`'s column and `plane_spline_root`'s edge each read the
+/// quotient bound, where they refused before it.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod rational_carriers {
+    use super::{SplineRoot, plane_spline_root, plane_wall_section};
+    use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness band")
+    }
+
+    fn quad() -> KnotVector {
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("clamped")
+    }
+
+    /// A biquadratic wall whose rows are level (height `−½, 0, ½` by
+    /// row) and whose weights vary along its columns, so `level_row`
+    /// meters a RATIONAL column: `z = 0` holds its middle row, which
+    /// is the section, every control point on the plane.
+    #[test]
+    fn a_level_row_of_a_rational_wall_is_the_section() {
+        let control = (0..9)
+            .map(|n| {
+                let (i, j) = (n / 3, n % 3);
+                #[allow(clippy::cast_precision_loss)]
+                Point3::new(0.5 * i as f64, 0.1 * (i * j) as f64, 0.5 * j as f64 - 0.5)
+            })
+            .collect();
+        let weights = (0..9).map(|n| [1.0, 0.5, 1.0][n % 3]).collect();
+        let wall = NurbsSurface::new(quad(), quad(), control, weights).expect("a rational wall");
+        let plane = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let old = Curve3::Line {
+            origin: Point3::new(0.0, 0.05, 0.0),
+            dir: Vec3::unit_x(),
+        };
+        let row = match plane_wall_section(&plane, &wall, &old, (0.0, 1.0), 1.0, band()) {
+            Ok(Ok(c)) => c,
+            other => panic!("the middle row is the section, got {other:?}"),
+        };
+        for p in row.control() {
+            assert!(
+                p.z.abs() <= 1e-12,
+                "a row control point off the plane: {p:?}"
+            );
+        }
+    }
+
+    /// A rational quarter arc crossed by the plane `x = ½`: the root is
+    /// the arc's point at 60°.
+    #[test]
+    fn a_rational_edge_has_its_plane_root() {
+        let h = 0.5f64.sqrt();
+        let arc = NurbsCurve3::new(
+            quad(),
+            vec![
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+            ],
+            vec![1.0, h, 1.0],
+        )
+        .expect("a quarter arc");
+        let plane = Surface::Plane {
+            origin: Point3::new(0.5, 0.0, 0.0),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        };
+        match plane_spline_root(&plane, &arc, 0.6, 1.0, band()) {
+            Ok(SplineRoot::At(t)) => {
+                let p = arc.eval(t);
+                assert!(
+                    (p.x - 0.5).abs() <= 1e-9 && (p.y - 0.75f64.sqrt()).abs() <= 1e-9,
+                    "the root reads {p:?}"
+                );
+            }
+            Ok(SplineRoot::Short { .. }) => panic!("the arc crosses the plane; no root read"),
+            Err(e) => panic!("the rational edge refused: {e:?}"),
         }
     }
 }

@@ -22,7 +22,7 @@ use fixture::{ang, len, scl};
 use geom_core::Tol;
 
 fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
+    apply(doc, edit, Tol::witness())
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
@@ -133,7 +133,6 @@ fn r2_measure_free_content_keys() {
             node: Box::new(Node::Subtract {
                 from: a.into(),
                 tool: b.into(),
-                declare: Vec::new(),
             }),
             fresh: Vec::new(),
         },

@@ -23,16 +23,15 @@
 use editor_core::ExtrudeSide;
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
 use crate::emit_shared_rim_several::permutations;
 use crate::emit_union_flush_names::parent_of;
 use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, out, scl, step, table};
 
 use editor_core::{
-    Axis3, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamingError,
-    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId,
-    StableName,
+    Axis3, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, Node,
+    ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId, StableName,
 };
 use geom_core::Tol;
 
@@ -74,7 +73,7 @@ fn union_of(
     order: &[usize],
 ) -> (ProfileDoc, RecipeNodeId) {
     let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| members[i]).collect();
-    crate::fixture::union_over(doc, &ordered, Vec::new())
+    crate::fixture::union_over(doc, &ordered)
 }
 
 /// Each uniquely named face of `union`'s table → the centroid of its
@@ -313,7 +312,7 @@ fn check(fx: &Fixture) -> usize {
             Some(op) => insert(doc.clone(), op.node(ids[0], ids[1])),
             None => {
                 let ordered: Vec<RecipeNodeId> = order.iter().map(|&i| ids[i]).collect();
-                crate::fixture::union_over(doc.clone(), &ordered, Vec::new())
+                crate::fixture::union_over(doc.clone(), &ordered)
             }
         };
         let ev = run(&d);
@@ -362,17 +361,15 @@ enum PairOp {
 }
 
 impl PairOp {
-    /// The node of this kind over `a` and `b`, declaring nothing.
+    /// The node of this kind over `a` and `b`.
     fn node(self, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::AuthoredNode {
         match self {
             Self::Union => Node::Union {
                 members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-                declare: Vec::new(),
             },
             Self::Subtract => Node::Subtract {
                 from: a.into(),
                 tool: b.into(),
-                declare: Vec::new(),
             },
         }
     }
@@ -625,7 +622,7 @@ fn a_boss_moved_onto_the_divider_is_the_border_delta() {
     let [left] = gone.as_slice() else {
         panic!("exactly the left piece's name changes: {before:?} -> {after:?}");
     };
-    let res = editor_core::resolve(
+    let res = crate::fixture::resolve_at_mint(
         editor_core::RunCtx {
             doc: &doc2,
             eval: &ev2,
@@ -1032,7 +1029,6 @@ fn tied_prongs() -> (ProfileDoc, RecipeNodeId) {
         Node::Subtract {
             from: a.into(),
             tool: u.into(),
-            declare: Vec::new(),
         },
     )
 }
@@ -1275,7 +1271,6 @@ fn a_curved_divider_names_as_the_pair_boolean_does() {
         doc.clone(),
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![plate.into(), cyl.into()]),
-            declare: Vec::new(),
         },
     );
     // The edge pieces each table names by their ends: (seam head, the
@@ -1338,14 +1333,10 @@ fn a_curved_divider_names_as_the_pair_boolean_does() {
 /// qualified by the slab wall it borders (N2) rather than both
 /// publishing the parent's bare name.
 ///
-/// The faces name; what refuses is the seam chord where a slab wall
-/// meets a merged face, which holds two faces of the boss on the side
-/// the chord reads through to (`NamingError::MergedChordConstituents`,
-/// the missing rule
-/// `work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`
-/// owns); when that rule lands, this row's expectation flips. The boss
-/// is joined by a pair boolean and by a union in both member orders,
-/// and each refuses the same way.
+/// Each seam chord where a slab wall meets a merged face cites the
+/// merged face's parent ([`assert_wall_chords_cite_the_merged_parent`]).
+/// The boss is joined by a pair boolean and by a union in both member
+/// orders.
 #[test]
 fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
     let doc = ProfileDoc::empty_derived("sunk-boss-slot", Tol::witness());
@@ -1356,7 +1347,6 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
         doc.clone(),
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
-            declare: Vec::new(),
         },
     );
     let mut joins = vec![("pair".to_owned(), pair_doc, pair)];
@@ -1370,7 +1360,6 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
             Node::Subtract {
                 from: joined.into(),
                 tool: slab.into(),
-                declare: Vec::new(),
             },
         );
         let ev = run(&doc);
@@ -1380,16 +1369,91 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
             failure(&ev, joined)
         );
         assert!(
-            matches!(
-                failure(&ev, cut),
-                Some(NodeErrorKind::Naming(
-                    NamingError::MergedChordConstituents { several: 2, .. }
-                ))
-            ),
-            "{label}: the slot's faces name and only the chord rule is missing: {:?}",
+            failure(&ev, cut).is_none(),
+            "{label}: the slot names: {:?}",
             failure(&ev, cut)
         );
+        assert_wall_chords_cite_the_merged_parent(&label, &ev, boss, cut, 4);
     }
+}
+
+/// **A seam chord on the boss wall cites the merged wall's parent.**
+/// The boss of [`cylinder`] about (1.5, 1.5), radius 0.3, keeps its
+/// wall as two pieces, read off the boss's own table. Every edge of
+/// `out`'s table running up that wall (both ends on it, at one x and y)
+/// is a seam chord against a wall of the other operand, and the merged
+/// face beside it is cited by its parent, which lists both pieces,
+/// never by the piece the chord lies on (N3). The chords on one slot
+/// wall are two pieces of one seam, told apart by their `Ends` (N2);
+/// `chords` of them stand.
+fn assert_wall_chords_cite_the_merged_parent(
+    label: &str,
+    ev: &Evaluation<f64>,
+    boss: RecipeNodeId,
+    out: RecipeNodeId,
+    chords: usize,
+) {
+    use crate::fixture::{ends, point};
+    let on_wall = |p: geom_core::Point3<f64>| ((p.x - 1.5).hypot(p.y - 1.5) - 0.3).abs() < 1e-9;
+    let boss_body = body_of(ev, boss);
+    let pieces: Vec<String> = table(ev, boss)
+        .iter()
+        .filter_map(|(name, entry)| match entry {
+            Entry::Unique(ent) => match ent.key {
+                EntityKey::Face(f)
+                    if topo::query::face_surface_kind(boss_body, f)
+                        == Some(geom::SurfaceKind::Cylinder) =>
+                {
+                    Some(name.to_string())
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        pieces.len(),
+        2,
+        "{label}: the boss wall is two pieces: {pieces:?}"
+    );
+    let body = body_of(ev, out);
+    let mut seams: BTreeMap<RoleSeg, usize> = BTreeMap::new();
+    for (name, entry) in table(ev, out).iter() {
+        let Entry::Unique(ent) = entry else { continue };
+        let EntityKey::Edge(e) = ent.key else {
+            continue;
+        };
+        let [p0, p1] = ends(body, e).map(|v| point(body, v));
+        if !(on_wall(p0) && on_wall(p1) && (p0.x - p1.x).abs() < 1e-9 && (p0.y - p1.y).abs() < 1e-9)
+        {
+            continue;
+        }
+        let [
+            head @ RoleSeg::Seam { a, b },
+            RoleSeg::Fragment(Qualifier::Ends(_)),
+        ] = name.path.as_slice()
+        else {
+            panic!("{label}: a chord up the boss wall is a piece of a seam, by its ends: {name}");
+        };
+        let cites_both = |side: &StableName| pieces.iter().all(|p| side.to_string().contains(p));
+        assert!(
+            cites_both(a) != cites_both(b),
+            "{label}: the chord at ({:.3}, {:.3}) cites, on one side, the merged wall's \
+             parent over both pieces: {name}",
+            p0.x,
+            p0.y
+        );
+        *seams.entry(head.clone()).or_default() += 1;
+    }
+    assert_eq!(
+        seams.values().sum::<usize>(),
+        chords,
+        "{label}: the chords up the boss wall"
+    );
+    assert!(
+        seams.values().all(|&n| n == 2),
+        "{label}: each slot wall's seam with the merged wall is two pieces: {seams:?}"
+    );
 }
 
 /// **A slot across a sunk boss, turned 90°, names.** The boss of
@@ -1408,7 +1472,6 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
         doc.clone(),
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![plate.into(), boss.into()]),
-            declare: Vec::new(),
         },
     );
     let mut joins = vec![("pair".to_owned(), pair_doc, pair)];
@@ -1422,7 +1485,6 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
             Node::Subtract {
                 from: joined.into(),
                 tool: slab.into(),
-                declare: Vec::new(),
             },
         );
         let ev = run(&doc);
@@ -1451,5 +1513,196 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
             chains.values().any(|&n| n >= 2),
             "{label}: some chain is two or more pieces told apart by their ends: {chains:?}"
         );
+    }
+}
+
+/// A plate `[0,3] × [0,2] × [0,1]` with a V-notch cut into its far
+/// side, its apex at (1.5, 1.2).
+fn notched_plate() -> Mem {
+    Mem::Prism(
+        vec![vec![
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 2.0),
+            (1.8, 2.0),
+            (1.5, 1.2),
+            (1.2, 2.0),
+            (0.0, 2.0),
+        ]],
+        0.0,
+        1.0,
+    )
+}
+
+/// **Lost regions that meet only at a notch's apex** are read as one
+/// obstacle, in every member order. `m` covers the notched plate's far
+/// side up to the apex, so the top loses a region on each side of the
+/// notch, the two touching at the apex alone, and the top's edge along
+/// `m`'s wall runs through the apex, joined there. The kernel discards
+/// both as one face. The left region and `s`'s footprint divide the
+/// top, so the right piece, which borders the right region only, cites
+/// `m`'s end wall `x = 2` beside it. Whether a region that meets itself
+/// only at a point is one obstacle is N2's open question
+/// (`work/emit/a-borders-join-can-link-two-obstacles-that-meet-only-at-a-notch-apex.md`).
+#[test]
+fn regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today() {
+    check(&u(
+        "notch_apex",
+        vec![
+            ("plate", notched_plate()),
+            ("m", b((-1.0, 2.0), (1.2, 3.0), (0.5, 1.5))),
+            ("s", b((0.6, 0.8), (-1.0, 1.3), (0.47, 1.53))),
+        ],
+        vec![
+            (
+                "plate:z=1.00",
+                vec![
+                    w(&["m:x=2.00", "m:y=1.20", "s:x=0.80"]),
+                    w(&["m:y=1.20", "s:x=0.60"]),
+                ],
+            ),
+            (
+                "m:y=1.20",
+                vec![
+                    w(&["plate:x=0.00", "plate:z=1.00", "s:x=0.60"]),
+                    w(&["plate:z=1.00", "s:x=0.80"]),
+                ],
+            ),
+        ],
+    ));
+}
+
+/// **Two members' discards that meet only at a notch's apex** are one
+/// obstacle too, as [`regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today`]:
+/// `m` is two members abutting at the apex's `x`, so each region is its
+/// own member's discard, and what makes them one is the join at the
+/// apex, which makes one edge of both members' seams, and `s`'s later
+/// split of that edge, whose pieces lead back to it.
+#[test]
+fn two_members_regions_meeting_only_at_a_notch_apex_are_read_as_one_obstacle_today() {
+    check(&u(
+        "notch_apex_two",
+        vec![
+            ("plate", notched_plate()),
+            ("m1", b((-1.0, 1.5), (1.2, 3.0), (0.5, 1.5))),
+            ("m2", b((1.5, 2.0), (1.2, 3.0), (0.47, 1.53))),
+            ("s", b((0.6, 0.8), (-1.0, 1.3), (0.44, 1.56))),
+        ],
+        vec![
+            (
+                "m1:y=1.20+m2:y=1.20",
+                vec![
+                    w(&["plate:x=0.00", "plate:z=1.00", "s:x=0.60"]),
+                    w(&["plate:z=1.00", "s:x=0.80"]),
+                ],
+            ),
+            (
+                "plate:z=1.00",
+                vec![
+                    w(&["m1:y=1.20+m2:y=1.20", "m2:x=2.00", "s:x=0.80"]),
+                    w(&["m1:y=1.20+m2:y=1.20", "s:x=0.60"]),
+                ],
+            ),
+        ],
+    ));
+}
+
+/// **An earlier seam split and joined away in one step** names alike in
+/// every order. `m1`'s wall meets the top along a seam that `m2`, an
+/// L whose leg crosses the plate and whose arm overlaps `m1` flush with
+/// its wall, cuts at the leg; the arm covers `m1`'s end wall, so the
+/// piece the cut minted is joined into the arm's seam in the same step.
+/// The right piece's edge along the walls reaches `m1`'s discard
+/// through that piece's lineage (`topo::BooleanNaming::killed_lineage`).
+#[test]
+fn an_earlier_seam_split_and_joined_away_in_one_step_names_alike() {
+    check(&u(
+        "split_join",
+        vec![
+            ("plate", plate()),
+            ("m1", b((1.5, 2.5), (1.2, 3.0), (0.5, 1.5))),
+            (
+                "m2",
+                Mem::Prism(
+                    vec![vec![
+                        (1.9, -1.0),
+                        (2.0, -1.0),
+                        (2.0, 3.0),
+                        (0.5, 3.0),
+                        (0.5, 1.2),
+                        (1.9, 1.2),
+                    ]],
+                    0.5,
+                    1.0,
+                ),
+            ),
+        ],
+        vec![
+            (
+                "m1:z=0.50+m2:z=0.50",
+                vec![w(&["plate:y=0.00"]), w(&["plate:y=2.00"])],
+            ),
+            (
+                "m2:z=1.50",
+                vec![w(&["m1:x=1.50"]), w(&["m1:y=1.20+m2:y=1.20"])],
+            ),
+            (
+                "plate:z=1.00",
+                vec![
+                    w(&["m1:x=2.50", "m1:y=1.20+m2:y=1.20", "m2:x=2.00"]),
+                    w(&["m1:y=1.20+m2:y=1.20", "m2:x=0.50", "m2:x=1.90"]),
+                ],
+            ),
+        ],
+    ));
+}
+
+/// **A held edge wholly inside a dropped face**: the plate less a
+/// pocket, its floor at z 0.5, unioned with a bar `b` whose top is
+/// flush with the floor and wider than it, so the floor's four edges lie
+/// inside `b`'s top with both ends at vertex-on-face contacts. Every
+/// run should publish one set of names; the pair union and the union
+/// `[a, b]` refuse that a piece borders no recorded discard, and the
+/// union `[b, a]` builds
+/// (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
+#[test]
+#[ignore = "refuses by member order: cargo nextest run -p editor-core --run-ignored only -E 'test(pocket_floor)'"]
+fn a_pocket_floor_held_inside_a_dropped_face_names_alike() {
+    let doc = ProfileDoc::empty_derived("held-pocket", Tol::witness());
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, pocket) = block(doc, (1.0, 2.0), (0.8, 1.2), 0.5, 1.5);
+    let (doc, a) = insert(
+        doc,
+        Node::Subtract {
+            from: plate.into(),
+            tool: pocket.into(),
+        },
+    );
+    let (doc, bar) = block(doc, (0.5, 2.5), (-1.0, 3.0), 0.0, 0.5);
+    let labels: BTreeMap<RecipeNodeId, &str> =
+        [(plate, "plate"), (pocket, "pocket"), (a, "a"), (bar, "b")].into();
+    let mut runs = vec![(
+        "pair".to_owned(),
+        insert(
+            doc.clone(),
+            Node::Union {
+                members: editor_core::Bodies::Spelled(vec![a.into(), bar.into()]),
+            },
+        ),
+    )];
+    for order in permutations(&[0, 1]) {
+        runs.push((
+            format!("{order:?}"),
+            union_of(doc.clone(), &[a, bar], &order),
+        ));
+    }
+    let mut sets = Vec::new();
+    for (at, (d, n)) in runs {
+        let ev = run(&d);
+        assert!(failure(&ev, n).is_none(), "{at}: {:?}", failure(&ev, n));
+        sets.push((at, splits(&ev, &d, n, &labels)));
+    }
+    for (at, got) in &sets[1..] {
+        assert_eq!(got, &sets[0].1, "{at} against {}: the wall sets", sets[0].0);
     }
 }

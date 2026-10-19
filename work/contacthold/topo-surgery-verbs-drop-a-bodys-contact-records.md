@@ -2,12 +2,14 @@
 id: topo-surgery-verbs-drop-a-bodys-contact-records
 kind: issue
 title: No non-boolean topo op carries ContactRecords in or out, so a fillet, shell or replace_face of a touching boolean result loses its declarations and refuses at rest downstream
-status: parked
+status: closed
 opened: 2026-10-02
 priority: P1
 cost: M
 refs: [transform-and-pattern-drop-a-values-contact-records, 3856]
-blocked_on: [at-rest-records-are-unordered-cell-pairs]
+branch: contacthold/surgery-carries-records
+pr: 4694
+closed: 2026-10-11
 ---
 
 
@@ -60,3 +62,38 @@ order, which the open record-shape fork
 the re-citing isn't built twice. The editor-core twin is WIRE's
 `transform-and-pattern-drop-a-values-contact-records`.
 (CONTACTHOLD orchestrator)
+
+## Built (2026-10-11)
+
+Measured first. A corner-kiss union run through `transform_rigid`,
+`shell`, `split` (the side that keeps the kiss), `replace_face_offset`
+or `merge_coplanar_faces` was refused by `validate_pseudomanifold` with
+no records, `UndeclaredContact` at the kiss vertex pair.
+
+`ContactRecords::carried_through` maps each record's cells through an
+op's lineage and re-cites it `Backing::Carried { input: 0, record }`.
+It refuses a cell the op removed without naming a replacement
+(`CarryRefusal::Unmapped`), and a pair that comes out incident
+(`CarryRefusal::Pair`). Each verb's outcome carries through it:
+
+- `OffsetOutcome::carry_contacts`, for all five offset doors;
+- `MergeCoplanarOutcome::carry_contacts`;
+- `Shelled::carry_contacts`;
+- `SplitResult::carry_contacts`, which returns one list per side, reads
+  a vertex the cut copied as each side's copy, and refuses `Parted`;
+- `Blended::carry_contacts`, for fillet and chamfer;
+- `transform_rigid`, which keeps its keys, through `carried_from(0)`.
+
+The merge's lineage has one home, `MergedGroup::substitutions`, which
+both the carry and the boolean's descendant map read. A record whose
+two cells map to one cell is consumed, as in the boolean.
+`RekeyRefusal` was folded into `CarryRefusal`.
+
+Residue:
+`surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key`,
+and the design question
+`a-blend-or-shell-that-consumes-a-recorded-cell-refuses-the-record`.
+
+## Closed 2026-10-11 (PR 4694)
+
+Topo's surgery verbs carry records through `ContactRecords::carried_through` and per-verb `carry_contacts`, refusing typed. The residue is filed: `surgery-carry-keeps-a-divided-cells-record-on-the-piece-that-kept-its-key` (now including the edge-kiss split) and `a-blend-or-shell-that-consumes-a-recorded-cell-refuses-the-record` (design).

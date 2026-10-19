@@ -76,63 +76,32 @@ fn run(label: &str, p: &Body<f64>, q: &Body<f64>) -> Vec<String> {
     }
     for (order, a, b) in [("PA", p, q), ("QA", q, p)] {
         let (va, vb) = (vol(a), vol(b));
-        let dab = match topo::flush::find_flush_candidates(a, b, tol()) {
-            Ok(f) => topo::flush::declare_all(&f),
-            Err(e) => {
-                out.push(format!("{label} {order} decls ERR {e:?}"));
-                continue;
-            }
+        let join = match topo::test_support::boolean_join_refusal(BooleanOp::Union, a, b, tol()) {
+            Ok(None) => "join=builds".to_string(),
+            Ok(Some(e)) => format!(
+                "join=refuses:{}",
+                format!("{e:?}").chars().take(60).collect::<String>()
+            ),
+            Err(e) => format!(
+                "join=reduce-err:{}",
+                format!("{e:?}").chars().take(60).collect::<String>()
+            ),
         };
-        let dba = match topo::flush::find_flush_candidates(b, a, tol()) {
-            Ok(f) => topo::flush::declare_all(&f),
-            Err(e) => {
-                out.push(format!("{label} {order} decls ERR {e:?}"));
-                continue;
-            }
-        };
-        let join =
-            match topo::test_support::boolean_join_refusal(BooleanOp::Union, a, b, &dab, tol()) {
-                Ok(None) => "join=builds".to_string(),
-                Ok(Some(e)) => format!(
-                    "join=refuses:{}",
-                    format!("{e:?}").chars().take(60).collect::<String>()
-                ),
-                Err(e) => format!(
-                    "join=reduce-err:{}",
-                    format!("{e:?}").chars().take(60).collect::<String>()
-                ),
-            };
         out.push(format!(
             "{label} {order} U {} [{join}]",
-            outcome(
-                topo::union_with(&fin(a), &fin(b), &dab, tol()),
-                va + vb,
-                tol()
-            )
+            outcome(topo::union(&fin(a), &fin(b), tol()), va + vb, tol())
         ));
         out.push(format!(
             "{label} {order} S_ab {}",
-            outcome(
-                topo::subtract_with(&fin(a), &fin(b), &dab, tol()),
-                va,
-                tol()
-            )
+            outcome(topo::subtract(&fin(a), &fin(b), tol()), va, tol())
         ));
         out.push(format!(
             "{label} {order} S_ba {}",
-            outcome(
-                topo::subtract_with(&fin(b), &fin(a), &dba, tol()),
-                vb,
-                tol()
-            )
+            outcome(topo::subtract(&fin(b), &fin(a), tol()), vb, tol())
         ));
         out.push(format!(
             "{label} {order} I {}",
-            outcome(
-                topo::intersect_with(&fin(a), &fin(b), &dab, tol()),
-                0.0,
-                tol()
-            )
+            outcome(topo::intersect(&fin(a), &fin(b), tol()), 0.0, tol())
         ));
     }
     out
@@ -472,12 +441,7 @@ fn unions_through_ring_vertices_and_like_far_ends_build_sound() {
         } else {
             (&lower, &upper)
         };
-        let d = topo::test_support::flush_declarations(a, b, tol());
-        let line = outcome(
-            topo::union_with(&fin(a), &fin(b), &d, tol()),
-            vol(a) + vol(b),
-            tol(),
-        );
+        let line = outcome(topo::union(&fin(a), &fin(b), tol()), vol(a) + vol(b), tol());
         println!("{label} {order} U {line}");
         if !line.starts_with("OK SOUND") {
             failed.push(format!("{label} {order}: {line}"));

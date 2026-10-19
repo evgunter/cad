@@ -310,7 +310,6 @@ fn the_parametric_living_walk() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![base.into(), tower_up.into()]),
-            declare: Vec::new(),
         },
     );
     let r1 = BASE_R * TAPER;
@@ -383,7 +382,6 @@ fn the_parametric_living_walk() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![hull.into(), lamp_up.into()]),
-            declare: Vec::new(),
         },
     );
     assert_eq!(

@@ -58,3 +58,14 @@ row in `docs/predicate-dimension-audit.md:399`.
 ## Re-homed from FLUX to FLUXTAIL (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. FLUXTAIL collects the curved arms' numeric honesty rows: rim levels, chord lengths, span folds and bounds that cancel, drop a refusal or depend on the frame, under FLUX's closed forms. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## Moot (FLUX `flux/sphere-arm`, 2026-10-10)
+
+`side_on_meridian` and `props_sphere_side_in_arc` are deleted. The
+sphere's side reader, `sphere_loop_side`, reads a one-loop face's
+pole-free side by each pole's stereographic turning number
+(`curved::pole_side`), which finds no root of any circle against a
+plane: a pole's membership in an arc is the chord to the nearer span
+end (`props_sphere_pole_on_arc`, `arc_point_margin`), and the side is
+the sign of a turning that sits a whole turn from zero. Nothing here
+reads a root near a graze. Close when that lands.

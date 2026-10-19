@@ -497,8 +497,11 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
     let n = segs.len();
     let k = n - run.len;
     let half = theta * T::from_f64(0.5);
-    let far = crate::swept::Placing::turned(place, frame.o3, frame.a3, half);
-    let n_pi = geom_core::Affine3::rotation_about_axis(frame.o3, frame.a3, half).linear * frame.n3;
+    let far = crate::swept::Placing::turned(place, frame.o3, frame.axis, half)
+        .map_err(RevolveError::Turn)?;
+    let Some(n_pi) = far.turn_vec(frame.n3) else {
+        unreachable!("a turned placing has a turn")
+    };
     // Wire segment i is swept segment (run.start + run.len + i) mod n;
     // wire vertex i is wire segment i's start; wire vertex k is the
     // run's start vertex (both tips pinned).
@@ -632,7 +635,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         let k_prev = face_surface_key(&body, faces[i - 1]);
         let k_next = face_surface_key(&body, faces[i]);
         if k_prev == k_next {
-            body.describe_at_rest(strut.edge, k_prev, tol)?;
+            body.describe_at_rest(strut.edge, tol)?;
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
@@ -722,7 +725,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         let k_prev = face_surface_key(&body, band2_faces[i - 1]);
         let k_next = face_surface_key(&body, band2_faces[i]);
         if k_prev == k_next {
-            body.describe_at_rest(rim2, k_prev, tol)?;
+            body.describe_at_rest(rim2, tol)?;
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
@@ -800,7 +803,7 @@ fn build_wire<T: Decide + topo::AtRestPolicy>(
         let edge = he_edge(&body, hes[i]);
         upgrade_meridian_wrap(&mut body, edge, wall, tol)?;
         if body.get_edge(tops[i]).is_some() {
-            body.describe_at_rest(tops[i], wall, tol)?;
+            body.describe_at_rest(tops[i], tol)?;
         }
     }
 

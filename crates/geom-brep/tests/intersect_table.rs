@@ -5,6 +5,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::surf::at_apex;
 use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::{Surface, SurfaceKind};
@@ -102,7 +103,7 @@ fn route_inventory() {
         (Sphere, Nurbs, Rung::General, false),
         (Torus, Torus, Rung::General, false),
         (Torus, Nurbs, Rung::General, false),
-        (Nurbs, Nurbs, Rung::General, false),
+        (Nurbs, Nurbs, Rung::General, true),
     ];
     assert_eq!(rows.len(), 21, "6 kinds ⇒ 21 unordered pairs");
     for &(a, b, rung, implemented) in rows {
@@ -171,8 +172,8 @@ fn plane_cylinder_tilted_is_the_exact_ellipse() {
     };
     // Axes: a = r/cos φ, b = r.
     let Curve3::Ellipse {
-        major,
-        minor,
+        semi_u,
+        semi_v,
         center,
         axis,
         ..
@@ -180,8 +181,8 @@ fn plane_cylinder_tilted_is_the_exact_ellipse() {
     else {
         panic!("carrier is an ellipse");
     };
-    assert!((major - 2.0 / phi.cos()).abs() < 1e-12);
-    assert_eq!(minor, 2.0);
+    assert!((semi_u - 2.0 / phi.cos()).abs() < 1e-12);
+    assert_eq!(semi_v, 2.0);
     // The carrier's plane is the cutting plane; the center is on the
     // cylinder axis and on the plane.
     assert!((center.x - 1.0).abs() < 1e-12 && (center.y - 2.0).abs() < 1e-12);
@@ -352,7 +353,7 @@ fn crossing_pair(r: f64, gamma: f64) -> (Surface<f64>, Surface<f64>) {
 fn equal_cylinders_split_into_two_ellipses() {
     let (c1, c2) = crossing_pair(1.5, 0.6);
     let s = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band()).unwrap();
-    let EqualCylinderSection::TwoEllipses { e1, e2 } = s else {
+    let EqualCylinderSection::TwoEllipses { e1, e2, .. } = s else {
         panic!("expected two ellipses, got {s:?}");
     };
     // The two-ellipse split verified against parametric substitution
@@ -376,11 +377,11 @@ fn equal_cylinders_split_into_two_ellipses() {
     }
     // Both are genuine ellipses centered at the axes' intersection.
     for e in [&e1, &e2] {
-        let Curve3::Ellipse { center, minor, .. } = e else {
+        let Curve3::Ellipse { center, semi_v, .. } = e else {
             panic!("carrier is an ellipse");
         };
         assert!(center.x.abs() < 1e-12 && center.y.abs() < 1e-12 && center.z.abs() < 1e-12);
-        assert_eq!(*minor, 1.5);
+        assert_eq!(*semi_v, 1.5);
     }
 }
 
@@ -477,8 +478,7 @@ fn parallel_equal_cylinders_trio() {
         cylinder_cylinder_section(&c1, &mk(2.0 + 3.0 * eps()), &metre_on(&c1), band()).unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
     // Coaxial equal-radius: the coincident-surface refusal, carrying
-    // the shared recourse exactly once. Coincident operands are what a
-    // declaration exists for, so "declare the coincidence" is the lever.
+    // the shared recourse exactly once.
     let err = cylinder_cylinder_section(&c1, &mk(0.0), &metre_on(&c1), band()).unwrap_err();
     assert!(matches!(err, SectionError::CoincidentSurfaces), "{err:?}");
     let msg = err.to_string();
@@ -514,7 +514,7 @@ fn plane_cone_apex_trio() {
         normal: Vec3::unit_x(),
         u_ref: Vec3::unit_y(),
     };
-    let s = plane_cone_section(&plane, &cone, 1.0, band()).unwrap();
+    let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
     let PlaneConeSection::ApexLinePair { l1, l2 } = s else {
         panic!("expected the apex line pair, got {s:?}");
     };
@@ -544,7 +544,7 @@ fn plane_cone_apex_trio() {
         ),
         u_ref: Vec3::unit_y(),
     };
-    let s = plane_cone_section(&plane, &cone, 1.0, band()).unwrap();
+    let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
     let PlaneConeSection::ApexTangentLine(l) = s else {
         panic!("expected the tangent generator, got {s:?}");
     };
@@ -569,7 +569,7 @@ fn plane_cone_apex_trio() {
         normal: Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
         u_ref: Vec3::unit_y(),
     };
-    let s = plane_cone_section(&plane, &cone, 1.0, band()).unwrap();
+    let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
     let PlaneConeSection::ApexPoint(p) = s else {
         panic!("expected the apex point, got {s:?}");
     };
@@ -580,7 +580,7 @@ fn plane_cone_apex_trio() {
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
-    let err = plane_cone_section(&plane, &cone, 1.0, band()).unwrap_err();
+    let err = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
 }
 
@@ -592,7 +592,7 @@ fn plane_cone_axis_normal_circle() {
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
-    let s = plane_cone_section(&plane, &cone, 1.0, band()).unwrap();
+    let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
     let PlaneConeSection::AxisNormalCircle(c) = s else {
         panic!("expected the circle, got {s:?}");
     };
@@ -634,15 +634,15 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
     let q = Point3::new(0.0, 0.0, 4.0);
     for phi in [0.02f64, 0.2, 0.5, 0.9, 1.0] {
         let plane = tilted_plane(phi, q);
-        let s = plane_cone_section(&plane, &cone, 1.0, band()).unwrap();
+        let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
         let PlaneConeSection::TiltedEllipse(e) = s else {
             panic!("phi {phi}: expected the ellipse, got {s:?}");
         };
         let Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } = e
         else {
@@ -657,7 +657,7 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
             let t = (q - apex).dot(n) / g.dot(n);
             assert!(t > 0.0, "phi {phi}: the ellipse lies on the +axis nappe");
             let d = (apex + g * t) - center;
-            let lhs = (d.dot(u_ref) / major).powi(2) + (d.dot(v_ref) / minor).powi(2);
+            let lhs = (d.dot(u_ref) / semi_u).powi(2) + (d.dot(v_ref) / semi_v).powi(2);
             assert!((lhs - 1.0).abs() < 1e-12, "phi {phi}, u {u}: {lhs}");
         }
         // The major vertices are the in-plane generators' crossings:
@@ -667,10 +667,9 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
             apex + g * ((q - apex).dot(n) / g.dot(n))
         };
         assert!(
-            ((hit(1.0) - hit(-1.0)).norm() - 2.0 * major).abs() < 1e-12,
+            ((hit(1.0) - hit(-1.0)).norm() - 2.0 * semi_u).abs() < 1e-12,
             "phi {phi}: major"
         );
-        assert!(major > minor, "phi {phi}: the constructor's ordering");
         // Residuals against both surfaces, at the carrier's own samples.
         for i in 0..=16 {
             let p = e.eval(f64::from(i) / 16.0 * core::f64::consts::TAU);
@@ -685,11 +684,12 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
     // every ε row resolves.
     let rim = 3.0 * alpha.tan();
     for phi in [0.04f64, 0.02, 0.01] {
-        let s = plane_cone_section(&tilted_plane(phi, q), &cone, 1.0, band()).unwrap();
-        let PlaneConeSection::TiltedEllipse(Curve3::Ellipse { major, minor, .. }) = s else {
+        let s =
+            plane_cone_section(&tilted_plane(phi, q), &cone, &at_apex(&cone, 1.0), band()).unwrap();
+        let PlaneConeSection::TiltedEllipse(Curve3::Ellipse { semi_u, semi_v, .. }) = s else {
             panic!("phi {phi}: expected the ellipse, got {s:?}");
         };
-        for axis in [major, minor] {
+        for axis in [semi_u, semi_v] {
             let rel = (axis / rim - 1.0).abs();
             assert!(rel > 0.0 && rel < 2.0 * phi * phi, "phi {phi}: {rel:e}");
         }
@@ -707,7 +707,8 @@ fn plane_cone_parabola_and_hyperbola_refuse_naming_the_conic() {
     let q = Point3::new(0.0, 0.0, 4.0);
     let parabola = core::f64::consts::FRAC_PI_2 - alpha;
     for (phi, conic) in [(parabola, "PARABOLA"), (1.2, "HYPERBOLA")] {
-        let err = plane_cone_section(&tilted_plane(phi, q), &cone, 1.0, band()).unwrap_err();
+        let err = plane_cone_section(&tilted_plane(phi, q), &cone, &at_apex(&cone, 1.0), band())
+            .unwrap_err();
         let SectionError::RoutesToGeneralRung { pair, why } = err else {
             panic!("phi {phi}: expected the R1 refusal, got {err:?}");
         };
@@ -717,7 +718,7 @@ fn plane_cone_parabola_and_hyperbola_refuse_naming_the_conic() {
         assert!(why.contains("R1"), "phi {phi}: {why}");
     }
     let near = tilted_plane(parabola - 3.0 * eps(), q);
-    let err = plane_cone_section(&near, &cone, 1.0, band()).unwrap_err();
+    let err = plane_cone_section(&near, &cone, &at_apex(&cone, 1.0), band()).unwrap_err();
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
     };
@@ -746,7 +747,7 @@ fn a_plane_along_the_axis_is_a_hyperbola_wherever_its_origin_sits() {
             normal: -Vec3::unit_x(),
             u_ref: Vec3::unit_y(),
         };
-        let got = plane_cone_section(&plane, &cone, 1.0, band());
+        let got = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band());
         let Err(SectionError::RoutesToGeneralRung { why, .. }) = got else {
             panic!("origin {origin:?}: expected the hyperbola's refusal, got {got:?}");
         };
@@ -774,7 +775,7 @@ fn a_needle_cones_plane_along_the_axis_just_off_the_apex_is_a_hyperbola() {
                 normal: Vec3::unit_x(),
                 u_ref: Vec3::unit_y(),
             };
-            match plane_cone_section(&plane, &cone, 1.0, band()) {
+            match plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()) {
                 Err(SectionError::RoutesToGeneralRung { why, .. }) if why.contains("HYPERBOLA") => {
                     None
                 }
@@ -1240,7 +1241,7 @@ mod interval {
         };
         let (c1, c2) = (mk(1.0), mk(-1.0));
         let s = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band()).unwrap();
-        let EqualCylinderSection::TwoEllipses { e1, e2 } = s else {
+        let EqualCylinderSection::TwoEllipses { e1, e2, .. } = s else {
             panic!("expected two ellipses, got {s:?}");
         };
         for e in [&e1, &e2] {
@@ -1643,7 +1644,7 @@ fn pn_apex_section_in_band_escalates() {
         normal: Vec3::new(psi.sin(), 0.0, psi.cos()),
         u_ref: Vec3::unit_y(),
     };
-    let err = plane_cone_section(&plane, &cone, 1.0, band()).unwrap_err();
+    let err = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap_err();
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
     };
@@ -1664,7 +1665,7 @@ fn pn_axis_normal_in_band_escalates() {
         normal: Vec3::new(s, 0.0, (1.0 - s * s).sqrt()),
         u_ref: Vec3::unit_y(),
     };
-    let err = plane_cone_section(&plane, &cone, 1.0, band()).unwrap_err();
+    let err = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap_err();
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
     };
@@ -2217,7 +2218,7 @@ fn plane_torus_tilted_and_offset_route_to_rung_3() {
     };
     assert_eq!(diag.predicate, Some("pt_axis_plane_gap"));
     // In-band on `pt_axis_normal`: normal 3ε/R of a radian off the
-    // axis (sine levered at R = 0.75 ⇒ margin 3ε).
+    // axis (sine levered at R + r ⇒ margin 3ε·(1 + r/R)).
     let t = 3.0 * eps() / 0.75;
     let almost_normal = Surface::Plane {
         origin: Point3::new(1.0, 2.0, 3.0),
@@ -2396,8 +2397,9 @@ fn plane_torus_levers_are_live_at_non_unit_arms() {
         matches!(m, PlaneTorusSection::MeridianCircles { .. }),
         "extent 0.01 puts a 3ε sine inside Zero: got {m:?}"
     );
-    // `pt_axis_normal` — its arm is `R`, not the extent — at R = 0.2:
-    // levered margin 0.6ε ⇒ Zero, and the cap classification proceeds.
+    // `pt_axis_normal` — its arm is `R + r`, not the extent — at
+    // R + r = 0.25: levered margin 0.75ε ⇒ Zero, and the cap
+    // classification proceeds.
     // Delevered, the raw 3ε sine would escalate.
     let small = torus_y(0.2, 0.05);
     let almost_normal = Surface::Plane {
@@ -2408,7 +2410,7 @@ fn plane_torus_levers_are_live_at_non_unit_arms() {
     let c = plane_torus_section(&almost_normal, &small, 1.0, band()).unwrap();
     assert!(
         matches!(c, PlaneTorusSection::ConcentricCircles { .. }),
-        "R = 0.2 puts a 3ε sine inside Zero: got {c:?}"
+        "R + r = 0.25 puts a 3ε sine inside Zero: got {c:?}"
     );
 }
 
@@ -2441,10 +2443,87 @@ fn cc_frame() -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
     (Point3::new(1.0, 2.0, 3.0), axis, u_ref)
 }
 
+/// **A cone's seam off square to its axis serves its circles in their
+/// planes.** The cone of [`cc_frame`] with its `u_ref` leaning along
+/// the axis, and once with its axis 1.5 long (nothing checks a cone's
+/// frame): the coaxial cylinder's two circles and the axis-normal
+/// plane's circle each carry a seam within `6u` of square to their axis
+/// (`geom::square_frame`'s bound), and lie on both surfaces. A seam
+/// along the axis, or within rounding of it, places no azimuth zero and
+/// refuses typed in both arms.
+#[test]
+fn a_cones_tilted_seam_serves_its_circles_in_their_planes() {
+    use geom_brep::intersect::{ConeCylinderSection, cone_cylinder_section};
+    let (apex, axis, u_ref) = cc_frame();
+    let unit_cone = cone_43(apex, axis, u_ref);
+    let cyl = Surface::Cylinder {
+        origin: apex,
+        axis,
+        radius: 0.5,
+        u_ref,
+    };
+    let plane = Surface::Plane {
+        origin: apex + axis * 0.8,
+        normal: axis,
+        u_ref,
+    };
+    let leaning = |tilt: f64| u_ref * (1.0 - tilt * tilt).sqrt() + axis * tilt;
+    for (which, stored_axis, seam) in [
+        ("tilt 1e-6", axis, leaning(1e-6)),
+        ("tilt 0.9", axis, leaning(0.9)),
+        ("tilt 0.995", axis, leaning(0.995)),
+        ("tilt -0.999999", axis, leaning(-0.999_999)),
+        ("axis 1.5 long, tilt 0.9", axis * 1.5, leaning(0.9)),
+    ] {
+        let cone = cone_43(apex, stored_axis, seam);
+        let ConeCylinderSection::CoaxialCircles { c1, c2 } =
+            cone_cylinder_section(&cone, &cyl, 1.0, band()).unwrap();
+        let s = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).unwrap();
+        let PlaneConeSection::AxisNormalCircle(c3) = s else {
+            panic!("{which}: the axis-normal circle, got {s:?}");
+        };
+        for (arm, c, other) in [
+            ("cylinder c1", &c1, &cyl),
+            ("cylinder c2", &c2, &cyl),
+            ("plane", &c3, &plane),
+        ] {
+            let Curve3::Circle { u_ref: c_u, .. } = *c else {
+                panic!("{which}, {arm}: carrier is a circle");
+            };
+            assert!(
+                c_u.dot(axis).abs() < 3.0 * f64::EPSILON,
+                "{which}, {arm}: the seam leans {:e} along the axis",
+                c_u.dot(axis)
+            );
+            for k in 0..17 {
+                let p = c.eval(0.37 * k as f64);
+                assert!(
+                    implicit_residual(&unit_cone, p).abs() < 1e-13
+                        && implicit_residual(other, p).abs() < 1e-13,
+                    "{which}, {arm}: sample {k} stands {:e} off the cone, {:e} off its partner",
+                    implicit_residual(&unit_cone, p),
+                    implicit_residual(other, p)
+                );
+            }
+        }
+    }
+    for (which, seam) in [
+        ("along the axis", axis),
+        ("1e-20 off the axis", axis + u_ref * 1e-20),
+    ] {
+        let cone = cone_43(apex, axis, seam);
+        let refused = |r: Result<(), SectionError>| matches!(r, Err(SectionError::DegenerateOperand { what }) if what.contains("seam"));
+        let coc = cone_cylinder_section(&cone, &cyl, 1.0, band()).map(|_| ());
+        let pn = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()).map(|_| ());
+        assert!(refused(coc.clone()), "{which}: cone×cylinder {coc:?}");
+        assert!(refused(pn.clone()), "{which}: plane×cone {pn:?}");
+    }
+}
+
 /// **The closed form.** A COAXIAL cylinder cuts each nappe in one exact
 /// circle: radius the CYLINDER's `R`, centres `apex ± a·R·cot α`,
-/// carrier axis the cone's axis, `u_ref` the cone's own seam. The
-/// residual is identically zero in ℝ against BOTH surfaces, and `c1`
+/// carrier axis the cone's axis, `u_ref` the cone's seam squared to it.
+/// The residual is identically zero in ℝ against BOTH surfaces, and `c1`
 /// and `c2` sit on OPPOSITE nappes — which is the assertion a flipped
 /// station sign or a single-nappe form fails, since both centres are
 /// on the cone either way and the residual alone cannot see it.

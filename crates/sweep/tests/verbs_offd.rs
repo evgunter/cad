@@ -496,11 +496,13 @@ fn a_shared_surface_key_refuses_typed() {
 /// **The fitted lane, through the door.** A lofted prism's wall face
 /// carries a NURBS surface, so the door reaches the fit door and mints
 /// the certified `Approx`, and then refuses, by name, at a seam with
-/// the next wall. The seam is a row of the moving fit, but the wall
-/// across it is a distinct spline face that does not move with it, so
-/// the edge is the section of the two, `Approx × Nurbs`, which C5 has
-/// no arm for (`NeighborPairUnroutable`). The door decides that before
-/// it mutates.
+/// the next wall. The wall across it is a distinct spline face that does
+/// not move with it, so the edge is the NURBS × NURBS section of the
+/// two, which at the prism's right angle runs along the moved fit's side
+/// (`d·cot 90° = 0`): the arm refuses it typed, an `EdgeSection` of
+/// `Approx × Nurbs` carrying the section's own verdict, per ε and side
+/// as `common::approx::assert_seam_verdict` pins it. The door decides
+/// that before it mutates.
 #[test]
 fn the_fitted_lane_refuses_at_a_seam_with_a_held_spline_wall() {
     for d in [5e-10_f64, -5e-10] {
@@ -511,17 +513,7 @@ fn the_fitted_lane_refuses_at_a_seam_with_a_held_spline_wall() {
         let before = body.clone();
         let e = topo::replace_face_offset(&mut body, wall, d, Tol::witness())
             .expect_err("a fitted face's shared seam has nowhere to go");
-        assert!(
-            matches!(
-                e,
-                ReplaceFaceError::NeighborPairUnroutable {
-                    kind: geom::SurfaceKind::Approx,
-                    other_kind: geom::SurfaceKind::Nurbs,
-                    ..
-                }
-            ),
-            "d = {d}: expected the seam's unroutable pair, got {e}"
-        );
+        common::approx::assert_seam_verdict("planar prism", false, d, &e);
         assert_eq!(
             format!("{:?}", body.faces().collect::<Vec<_>>()),
             format!("{:?}", before.faces().collect::<Vec<_>>()),
@@ -548,8 +540,8 @@ fn a_fitted_charts_iso_row_carries_the_fits_spline_space() {
     let Some(Surface::Nurbs(base)) = body.get_surface(body.get_face(wall).unwrap().surface) else {
         panic!("the wall carries a spline")
     };
-    let seed_degree = base.knots_v().degree();
-    let seed_knots = base.knots_v().knots().to_vec();
+    let seed_degree = base.knots_v_f64_interim().degree();
+    let seed_knots = base.knots_v_f64_interim().knots().to_vec();
 
     let approx = geom_brep::approx_offset_surface_at(base.clone(), d, ENGINE_FIT_TARGET, band())
         .expect("the wall's own offset fits");
@@ -559,13 +551,13 @@ fn a_fitted_charts_iso_row_carries_the_fits_spline_space() {
     let row = geom_brep::boundary_iso_u(a.fit(), false).expect("the fit's u = 0 row extracts");
 
     assert_eq!(
-        row.knots().degree(),
+        row.knots_f64_interim().degree(),
         FIT_DEGREE,
         "the row carries the fit's degree"
     );
     assert_eq!(
-        row.knots().knots(),
-        a.fit().knots_v().knots(),
+        row.knots_f64_interim().knots(),
+        a.fit().knots_v_f64_interim().knots(),
         "the row carries the fit's knot vector, interior knots included"
     );
     assert!(
@@ -574,10 +566,10 @@ fn a_fitted_charts_iso_row_carries_the_fits_spline_space() {
          (seed degree {seed_degree})"
     );
     assert!(
-        row.knots().knots().len() > seed_knots.len(),
+        row.knots_f64_interim().knots().len() > seed_knots.len(),
         "the fit refined past the seed grid, so refinement is a real step too (seed {seed_knots:?}, \
          fit {:?})",
-        row.knots().knots()
+        row.knots_f64_interim().knots()
     );
 }
 

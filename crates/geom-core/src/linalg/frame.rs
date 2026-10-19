@@ -22,7 +22,7 @@
 //! part's columns are the frame's local +X/+Y/+Z axes in world
 //! coordinates, and the translation is the frame's origin. Composition,
 //! inversion, and application are [`Affine3`]'s, unchanged. The two
-//! aiming constructors build their axes through [`OrthoFrame`], the
+//! aiming constructors build their axes through [`RigidMotion`], the
 //! witness that RECORDS the orthonormality they decided, and convert;
 //! [`mirror_across_plane`] cannot, because a reflection is not a frame
 //! (`det = −1`).
@@ -73,7 +73,7 @@
 //! 5. **Both format questions are asked before sign.** Every length
 //!    here is a vector's own norm decided by [`UnitVec3::new`] — the
 //!    aim's and the tangent's directly, the roll offset's inside
-//!    `OrthoFrame::from_aim` — so all of them are classified by
+//!    `RigidMotion::from_aim` — so all of them are classified by
 //!    the same three questions in the same order, and the first is
 //!    [`is_finite_length`](crate::is_finite_length): a direction past
 //!    [`Vec3::normalize`]'s ~1e154 overflow band has an infinite
@@ -137,8 +137,8 @@
 //! typestate; here the ladder applies). Sharing the words is the whole
 //! win; sharing an abstraction would cost a layer.
 
-use crate::linalg::{Affine3, Mat3, OrthoFrame, Point3, UnitVec3, UnitVec3Error, Vec3};
-use crate::predicate::{Band, BandError, Decide, Indeterminate, NO_DECLARATION_RECOURSE};
+use crate::linalg::{Affine3, Mat3, Point3, RigidMotion, UnitVec3, UnitVec3Error, Vec3};
+use crate::predicate::{Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate};
 
 use crate::tolerance::Tol;
 
@@ -349,7 +349,7 @@ impl core::fmt::Display for FrameError {
                 indeterminate: None,
             } => write!(
                 f,
-                "the frame's {} is degenerate. Recourse: {NO_DECLARATION_RECOURSE}",
+                "the frame's {} is degenerate. Recourse: {COINCIDENCE_RECOURSE}",
                 input.name()
             ),
             FrameError::Degenerate {
@@ -358,7 +358,7 @@ impl core::fmt::Display for FrameError {
             } => i
                 .undecided(
                     input.subject(),
-                    crate::predicate::lever_recourse(NO_DECLARATION_RECOURSE, None),
+                    crate::predicate::lever_recourse(COINCIDENCE_RECOURSE, None),
                 )
                 .fmt(f),
             FrameError::NonFiniteLength { input } => write!(
@@ -416,7 +416,7 @@ fn refused_direction(e: UnitVec3Error, input: FrameVector) -> FrameError {
 ///
 /// Evaluation order (fixed, D9): `aim = target − eye`; the aim length
 /// is decided; `ẑ = aim / |aim|`; `perp = roll_reference × ẑ`; then
-/// `OrthoFrame::from_aim`'s order, which decides `perp`'s length,
+/// `RigidMotion::from_aim`'s order, which decides `perp`'s length,
 /// divides by it, and crosses.
 ///
 /// # Errors
@@ -466,13 +466,13 @@ pub fn point_at_frame<T: Decide>(
     target: Point3<T>,
     roll_reference: Vec3<T>,
     tol: Tol,
-) -> Result<OrthoFrame<T>, FrameError> {
+) -> Result<RigidMotion<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
     let aim = target - eye;
     let unit = UnitVec3::new(aim, "frame_point_at_aim", band)
         .map_err(|e| refused_direction(e, FrameVector::Aim))?;
     let perp = roll_reference.cross(unit.get());
-    OrthoFrame::from_aim(eye, unit, perp, "frame_point_at_roll_offset", band)
+    RigidMotion::from_aim(eye, unit, perp, "frame_point_at_roll_offset", band)
         .map_err(|e| refused_direction(e.error, FrameVector::RollReference))
 }
 
@@ -527,7 +527,7 @@ pub fn path_start_frame<T: Decide>(
         ("frame_path_start_reference_x", Vec3::unit_x()),
     ] {
         let perp = reference.cross(unit.get());
-        match OrthoFrame::from_aim(origin, unit, perp, name, band) {
+        match RigidMotion::from_aim(origin, unit, perp, name, band) {
             Ok(frame) => return Ok(frame.to_affine()),
             Err(e) => match e.error {
                 UnitVec3Error::Escalated(i) => last = Some(i),
@@ -761,7 +761,8 @@ mod tests {
         .map(f64::to_bits)
     }
 
-    /// The seven rigidity residuals `transform_rigid` decides on
+    /// The seven rigidity residuals `RigidMotion::check_rigid` decides
+    /// on
     /// (columns unit, columns mutually orthogonal, `det = +1`), as raw
     /// numbers: a frame constructor that returns a non-rigid map is a
     /// bug here, not downstream.
@@ -1262,7 +1263,7 @@ mod tests {
         ] {
             let s = e.to_string();
             assert!(s.contains(needle), "{s}");
-            assert!(s.contains(NO_DECLARATION_RECOURSE), "{s}");
+            assert!(s.contains(COINCIDENCE_RECOURSE), "{s}");
             assert!(!s.contains("declare"), "{s}");
         }
         // The in-band arm: the decision in words, the classifier's
@@ -1292,7 +1293,7 @@ mod tests {
             "{s}"
         );
         assert!(s.contains("ambiguity band"), "{s}");
-        assert!(s.contains(NO_DECLARATION_RECOURSE), "{s}");
+        assert!(s.contains(COINCIDENCE_RECOURSE), "{s}");
         assert!(!s.contains("declare"), "{s}");
     }
 

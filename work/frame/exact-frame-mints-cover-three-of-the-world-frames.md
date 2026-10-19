@@ -12,17 +12,17 @@ cost: D
 ## What
 
 Disclosed by FRAME-WITNESS (`docs/FRAME-WITNESS-SPEC.md`), which built
-`geom_core::OrthoFrame` and its mints.
+`geom_core::RigidMotion` and its mints.
 
-`OrthoFrame`'s decision-free mints are `axes_xy`, `axes_yz` and
+`RigidMotion`'s decision-free mints are `axes_xy`, `axes_yz` and
 `axes_zx` — the three CYCLIC world frames, which is what
 `profile::SketchPlane`'s three sugar doors needed. Every other frame
 whose axes are exact basis vectors has to go through
-`OrthoFrame::gram_schmidt`, which is a DECISION and therefore wants a
+`RigidMotion::gram_schmidt`, which is a DECISION and therefore wants a
 band and a K funnel name the caller has to invent. On an exactly
 orthonormal pair that mint changes no bit (pinned by
 `gram_schmidt_keeps_an_exact_pair_bit_for_bit` in
-`crates/geom-core/src/linalg/ortho_frame.rs`), so what the caller pays
+`crates/geom-core/src/linalg/rigid_motion.rs`), so what the caller pays
 is not arithmetic — it is a name in the K roster and a refusal path
 that cannot fire.
 
@@ -56,3 +56,15 @@ Both shapes above stay inside the ruling
 (SCALAR's `unit-vector-invariants-carried-as-prose` (ruled on PR 2457; `docs/doc-ledger/scalar-leaves-the-tracker.md`) §RATIFIED):
 they add EXACT frames whose axes are literal basis vectors, never a
 constructor that accepts a pair a caller believes is orthonormal.
+
+## Part answered by SYM-17 (2026-10-13)
+
+`RigidMotion` (PR #4197, which replaced `OrthoFrame` with it) adds
+three more decision-free mints, the exact half-turns `half_turn_x`,
+`half_turn_y` and `half_turn_z`, and makes `UnitVec3::exact_x`,
+`exact_y` and `exact_z` public, so a caller can mint
+`RigidMotion::rotation(UnitVec3::exact_z(), angle)` with no name and
+no band. The signed basis frames as frames (shape 1) are still not
+there: a product of the exact mints reaches them
+(`RigidMotion::compose`, not decided again), but there is no door
+that names one, and `sketch_frame` / `sketch_from_axes` still decide.

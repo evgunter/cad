@@ -54,6 +54,7 @@
 //! pins is validity and the census; `lib_placedunion.rs` pins the tool
 //! against the pairwise Transform + Union chain it replaces.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
 
@@ -130,7 +131,7 @@ pub fn document() -> CorpusDoc {
     let ball = r.insert(revolve_about(
         ball_p,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(std::f64::consts::TAU),
     ));
 
@@ -142,10 +143,9 @@ pub fn document() -> CorpusDoc {
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),
         tool: tool.into(),
-        declare: Vec::new(),
     });
 
-    r.place(pipped);
+    r.place_part(pipped);
 
     CorpusDoc {
         name: "die_tool",

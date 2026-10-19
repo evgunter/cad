@@ -38,10 +38,11 @@
 
 use geom_brep::certify::{CertCheck, CertifyError};
 use geom_brep::edge_nurbs::PlaneNurbsRefusal;
-use geom_brep::offset_fit::{OffsetFitError, OffsetLimb};
+use geom_brep::offset_fit::{OFFSET_FIT_SAMPLE_CAP, OFFSET_FIT_WORK, OffsetFitError, OffsetLimb};
 use geom_brep::pcurve_cache::{FittedMagnitude, PcurveCertifyError, PcurveCheck};
 use geom_brep::props::PropsError;
 use geom_brep::recourse::{Classified, Refused};
+use geom_core::k_stats::Magnitude;
 use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag};
 use strum::IntoEnumIterator as _;
 
@@ -93,6 +94,13 @@ fn zero_verdict(margin: f64) -> Refused {
         margin: MarginDiag::value(margin),
         band: band(),
     })
+}
+
+/// A positive-passing gate's rejection of a reading past the band on
+/// the refused side.
+fn rejected_negative(predicate: &'static str) -> Indeterminate {
+    geom_core::k_stats::decide_positive(predicate, geom_core::Margin::of(-1e-3), band())
+        .expect_err("a definitely negative reading is the gate's rejection")
 }
 
 /// A sign-certain negative verdict on `margin`.
@@ -239,6 +247,7 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
             kind: geom::SurfaceKind::Nurbs,
         },
         S::VolumeUncertified,
+        S::InsideOut,
         S::PartialSphereFace { face },
         S::PartialConeFace { face },
         S::PartialTorusFace { face },
@@ -272,6 +281,26 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
     ]
 }
 
+/// [`ContainError::ArcEndClearOfCorners`] at the sample band: an end
+/// decided off both corners (`off_corner`, read only at a band finer
+/// than the run's), or every end at a corner (the band's own parting, the
+/// one the census reaches: the point within the zero band of the end's
+/// point and past the escalation from a corner within the zero band of
+/// it, so `K < 2`).
+#[must_use]
+pub fn arc_end_clear_of_corners(off_corner: bool) -> ContainError {
+    let (zero, off) = (
+        (Magnitude::Zero, MarginDiag::value(5e-10)),
+        (Magnitude::Positive, MarginDiag::value(2e-8)),
+    );
+    let gaps = if off_corner {
+        [[zero, off], [off, off]]
+    } else {
+        [[zero, off], [off, zero]]
+    };
+    ContainError::ArcEndClearOfCorners(Box::new(crate::boolean::ArcEndGaps { gaps, band: band() }))
+}
+
 fn contain_errors() -> Vec<ContainError> {
     use crate::boolean::ContainDecision;
     use crate::splitting::{Escalation, LoopDecision};
@@ -282,9 +311,8 @@ fn contain_errors() -> Vec<ContainError> {
     };
     // Each ending form a site can raise: the valued tighten (or the lever
     // alone where the margin gives none), the lever with the
-    // unreadable-margin note, a straddle of two bounds, and a row decided
-    // and still refused. The span rule escalates only on an over-wound
-    // margin or a straddle.
+    // unreadable-margin note, and a straddle of two bounds. The span rule
+    // escalates only on an over-wound margin or a straddle.
     let arc_span = Some(ContainDecision::Loop(LoopDecision::ArcSpan));
     let escalated = |decision, escalation, diag| ContainError::Escalated {
         decision,
@@ -303,12 +331,14 @@ fn contain_errors() -> Vec<ContainError> {
                 escalated(decision, escalation, value),
                 escalated(decision, escalation, poisoned),
             ],
-            Escalation::Straddle | Escalation::Decided => {
+            Escalation::Straddle => {
                 vec![escalated(decision, escalation, poisoned)]
             }
         })
         .collect();
     v.extend([
+        arc_end_clear_of_corners(true),
+        arc_end_clear_of_corners(false),
         ContainError::RayExhausted,
         ContainError::StaleFace(crate::entity::FaceKey::default()),
         ContainError::EmptyLoop(LoopKey::default()),
@@ -332,14 +362,21 @@ fn carrier_domain_invalid() -> geom_brep::CarrierDomainRefusal {
     }
 }
 
+/// A spiric with no certified net over the span holding its root's
+/// zero.
+fn carrier_enclosure() -> geom_brep::CarrierEnclosureRefusal {
+    geom_brep::CarrierEnclosureRefusal {
+        kind: geom::CurveKind::Spiric,
+        span: (3.140625, 3.15),
+    }
+}
+
 /// The carrier-domain refusal on a domain too narrow for its ends.
 fn carrier_domain_collapsed() -> geom_brep::CarrierDomainRefusal {
     geom_brep::CarrierDomainRefusal {
         lo: 1.0e6,
         hi: 1.0e6 + 1.0e-9,
-        fault: geom_brep::CarrierDomainFault::Collapse(
-            geom_core::spline::KnotVectorIssue::InteriorMultiplicityTooHigh { index: 2 },
-        ),
+        fault: geom_brep::CarrierDomainFault::Merge,
     }
 }
 
@@ -357,6 +394,7 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         PlaneNurbsRefusal::PcurveFit,
         PlaneNurbsRefusal::CarrierDomain(carrier_domain_invalid()),
         PlaneNurbsRefusal::CarrierDomain(carrier_domain_collapsed()),
+        PlaneNurbsRefusal::CarrierEnclosure(carrier_enclosure()),
         PlaneNurbsRefusal::Limb {
             limb: geom_brep::SsiLimb::Tube,
             margin: MarginDiag::value(1e-7),
@@ -430,6 +468,11 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
         CertifyError::NurbsLaneNotSupplied,
+        CertifyError::OnPairArcRim {
+            iso: None,
+            limb: geom_brep::SsiLimb::HullValueChart,
+            bound: MarginDiag::value(4.6e-4),
+        },
         CertifyError::IntersectionSameSurface { key },
         CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
@@ -496,6 +539,18 @@ fn certify_errors() -> Vec<CertifyError> {
             sample: geom_brep::certify::NOT_A_SAMPLE,
             cause: diag(),
         },
+        // A gate's rejected negative, routed as undecided: a stored
+        // contradiction's definite reading, and one the lever reaches.
+        CertifyError::Escalated {
+            check: CertCheck::TransversalityArm,
+            sample: 4,
+            cause: rejected_negative("dihedral_arm"),
+        },
+        CertifyError::Escalated {
+            check: CertCheck::ParamSpanMeter,
+            sample: geom_brep::certify::NOT_A_SAMPLE,
+            cause: rejected_negative("param_span_meter"),
+        },
     ];
     v.extend(band_errors().into_iter().map(CertifyError::Band));
     v.extend(
@@ -519,6 +574,11 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
             limb: geom_brep::Rung3Limb::HullSup,
             margin: MarginDiag::value(7.5e-5),
         },
+        A::Limb {
+            operand: geom::SurfaceKind::Plane,
+            limb: geom_brep::Rung3Limb::HullValue,
+            margin: MarginDiag::value(7.5e-5),
+        },
         A::Escalated {
             operand: Some(geom::SurfaceKind::Cylinder),
             limb: geom_brep::Rung3Limb::HullSup,
@@ -532,6 +592,9 @@ fn analytic_rung3_refusals() -> Vec<geom_brep::AnalyticRung3Refusal> {
         A::NoOffsetBound {
             operand: geom::SurfaceKind::Cone,
             why: geom_brep::SectorChannel::Lever.describe(),
+        },
+        A::NoTubeEnclosure {
+            operand: geom::SurfaceKind::Torus,
         },
         A::TubeStraddles {
             verdict: Refused::Zero(Classified {
@@ -555,11 +618,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Torus,
         },
-        PcurveCertifyError::UnsupportedCarrier {
-            chart: geom::SurfaceKind::Torus,
-            carrier: geom::CurveKind::Nurbs,
-            class: geom_brep::UncoveredClass::NoFittedClass,
-        },
         PcurveCertifyError::CarrierGrazesChart {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
@@ -575,7 +633,6 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             why: "a fitted-grade image at the closed-form door",
         },
         PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
-        PcurveCertifyError::FittedMateMissing,
         PcurveCertifyError::SectorRefused {
             piece: 0,
             channel: geom_brep::SectorChannel::Azimuth,
@@ -587,21 +644,28 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             source: geom_core::spline::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
         },
         PcurveCertifyError::FittedCertificate {
-            limb: Some(geom_brep::SsiLimb::Tube),
-            what: "the uniqueness tube straddles a second branch",
-            magnitude: Some(FittedMagnitude::CertifiedClearance {
-                certified_clearance: MarginDiag::value(1e-7),
-                boxes: 12,
+            limb: Some(geom_brep::SsiLimb::OnLocus),
+            what: "a foot point of the chart-image schedule would not converge",
+            magnitude: Some(FittedMagnitude::LastFootDistance {
+                t: 0.5,
+                last_distance: 1e-7,
             }),
         },
+        PcurveCertifyError::FittedLimb {
+            limb: geom_brep::SsiLimb::HullSupChart,
+            margin: MarginDiag::value(1e-7),
+        },
         PcurveCertifyError::CarrierDomain(carrier_domain_collapsed()),
-        PcurveCertifyError::FittedEscalated { cause: diag() },
+        PcurveCertifyError::CarrierEnclosure(carrier_enclosure()),
+        PcurveCertifyError::FittedEscalated {
+            decision: geom_brep::SsiDecision::Limb(geom_brep::SsiLimb::HullSupChart),
+            cause: diag(),
+        },
         PcurveCertifyError::IntervalNotForward,
         PcurveCertifyError::ChartWindingUnsupported,
         PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
         PcurveCertifyError::TubePeriodExceeded,
-        PcurveCertifyError::BranchOutOfReach,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
             sample: 4,
@@ -668,11 +732,17 @@ fn props_errors() -> Vec<PropsError> {
         },
         PropsError::NappeSpanning,
         PropsError::SphereLoop {
-            what: "props_sphere_loop_closed",
+            what: "props_loop_closed",
         },
+        PropsError::ConeLoop {
+            what: "props_loop_closed",
+        },
+        PropsError::HolesExceedFace,
         PropsError::SenseContradicted,
+        PropsError::SenseInverted,
         PropsError::RingWoundWithFace,
-        PropsError::ChartPeriodJump,
+        PropsError::ChartLoopOpen,
+        PropsError::LoopsWindChart,
         PropsError::NotOneChartBranch {
             edge: 2,
             what: "the edge crosses the seam",
@@ -764,64 +834,62 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             tolerance: 0.0,
         },
         OffsetFitError::NonFiniteSample { uv: (0.5, 0.25) },
-        OffsetFitError::BudgetExhausted {
-            budget: 4096,
-            grid: (64, 64),
-            achieved: 3e-6,
-            tolerance: 1e-6,
-            last_round: geom_brep::LastRound::Improved,
-            best: geom_brep::BestBound {
-                bound: 2e-6,
-                grid: (48, 64),
-            },
+        OffsetFitError::SeedOverCap {
+            cap: OFFSET_FIT_SAMPLE_CAP,
+            grid: (49, 48),
         },
-        OffsetFitError::BudgetExhausted {
-            budget: 4096,
-            grid: (64, 64),
-            achieved: 3e-6,
-            tolerance: 1e-6,
-            last_round: geom_brep::LastRound::DidNotImprove,
-            best: geom_brep::BestBound {
-                bound: 2e-6,
-                grid: (48, 64),
+        OffsetFitError::WallReached {
+            wall: geom_brep::OffsetFitWall::SampleCap {
+                cap: OFFSET_FIT_SAMPLE_CAP,
             },
-        },
-        OffsetFitError::SampleCapReached {
-            cap: 4096,
             rounds: 6,
-            grid: (64, 64),
+            grid: (48, 48),
             achieved: 3e-6,
             tolerance: 1e-6,
             best: geom_brep::BestBound {
                 bound: 2e-6,
-                grid: (48, 64),
+                grid: (36, 48),
+            },
+        },
+        OffsetFitError::WallReached {
+            wall: geom_brep::OffsetFitWall::Work {
+                budget: OFFSET_FIT_WORK,
+                spent: OFFSET_FIT_WORK - 1000,
+            },
+            rounds: 9,
+            grid: (40, 32),
+            achieved: 3e-6,
+            tolerance: 1e-6,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (36, 32),
             },
         },
         OffsetFitError::BoundNotFinite {
             rounds: 6,
-            grid: (64, 64),
+            grid: (48, 48),
             d: 0.1,
             tolerance: 1e-6,
             best: Some(geom_brep::BestBound {
                 bound: 3e-6,
-                grid: (48, 64),
+                grid: (36, 48),
             }),
         },
         OffsetFitError::BoundNotFinite {
             rounds: 6,
-            grid: (64, 64),
+            grid: (48, 48),
             d: 1e-8,
             tolerance: 1e-6,
             best: None,
         },
         OffsetFitError::RefinementStalled {
             rounds: 6,
-            grid: (64, 64),
+            grid: (48, 48),
             achieved: 3e-6,
             tolerance: 1e-6,
             best: geom_brep::BestBound {
                 bound: 2e-6,
-                grid: (48, 64),
+                grid: (36, 48),
             },
         },
         OffsetFitError::WindowUnsupported {
@@ -906,10 +974,9 @@ fn stale_declarations() -> Vec<StaleDeclaration> {
             a: EdgeKey::default(),
             b: EdgeKey::default(),
         },
-        StaleDeclaration::CurveLocus {
-            face_a: face,
-            face_b: face,
-            witness: EdgeKey::default(),
+        StaleDeclaration::EdgeFace {
+            edge: EdgeKey::default(),
+            face,
         },
         StaleDeclaration::Patch {
             face_a: face,
@@ -1178,6 +1245,13 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::PlanarFaceResidual { face, vertex },
         ValidationError::PlanarBoundaryResidual { face, edge },
         ValidationError::TransverseNotIntrinsic { edge },
+        ValidationError::MixedDihedral {
+            edge,
+            stations: geom_brep::MixedStations {
+                transverse: 3,
+                smooth: 4,
+            },
+        },
         ValidationError::ScaffoldAtRest { edge },
         ValidationError::JoinableVertexAtRest { vertex },
         ValidationError::JoinUndecidedAtRest {
@@ -1206,6 +1280,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         },
         ValidationError::CurvedSenseInverted { face },
         ValidationError::NegativeVolume { solid },
+        ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {
             face,
             ring: loop_,
@@ -1445,8 +1520,12 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             _ => "(0.4375, 0.5, 0.25)".to_owned(),
         };
         s.push((
-            label("UndeclaredContact", &contact),
-            ValidationError::UndeclaredContact { contact, witness },
+            label("UnrecordedContact", &contact),
+            ValidationError::UnrecordedContact {
+                contact,
+                witness,
+                margin: Some(geom_core::MarginDiag::value(0.0)),
+            },
         ));
     }
     for declaration in stale_declarations() {
@@ -1455,9 +1534,9 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::StaleContactDeclaration { declaration },
         ));
     }
-    // Door 1's whole-surface verdict (a Rest record) and the curve
-    // record's witnessing edge (a Tangent record), each with and
-    // without the designed-clearance steer.
+    // Door 1's whole-surface verdict (a Rest record) and the tangent
+    // line of a face-face record on two carriers (a Tangent record),
+    // each with and without the designed-clearance steer.
     for (class, witness, predicate) in [
         (
             ContactClass::Rest,
@@ -1466,7 +1545,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ),
         (
             ContactClass::Tangent,
-            crate::census::CURVE_RECORD_WITNESS,
+            crate::census::TANGENT_LOCUS_WITNESS,
             "contact_tangent_opposed",
         ),
     ] {
@@ -1543,6 +1622,13 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
+    let ContainError::ArcEndClearOfCorners(gaps) = arc_end_clear_of_corners(true) else {
+        unreachable!("the sample builds the arc-end finding")
+    };
+    s.push((
+        "ArcEndOffCorner".to_owned(),
+        ValidationError::ArcEndOffCorner { face, gaps },
+    ));
     s
 }
 

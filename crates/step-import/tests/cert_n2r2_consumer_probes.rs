@@ -53,8 +53,8 @@ fn corrupt(
         .map(|(i, p)| f(i, *p))
         .collect();
     NurbsSurface::new(
-        wall.knots_u().clone(),
-        wall.knots_v().clone(),
+        wall.knots_u_f64_interim().clone(),
+        wall.knots_v_f64_interim().clone(),
         control,
         wall.weights().to_vec(),
     )

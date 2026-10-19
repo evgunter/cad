@@ -80,24 +80,29 @@ fn tables_digest(ev: &editor_core::Evaluation<f64>) -> u64 {
     let mut h = Fnv::new();
     for id in &ev.order {
         h.feed(&format!("#{id:?}"));
-        let Some(v) = ev.value(*id) else { continue };
-        for (n, e) in v.name_table.iter() {
-            h.feed(&format!("fwd {n:?}={e:?};"));
-        }
-        for (n, e) in v.name_table.iter() {
-            for ent in match e {
-                editor_core::names::Entry::Unique(one) => vec![*one],
-                editor_core::names::Entry::Tied(many) => many.clone(),
-            } {
-                h.feed(&format!(
-                    "rev {ent:?}={:?};",
-                    v.name_table.name_of(&ent).map(|n| format!("{n:?}"))
-                ));
-            }
-            let _ = n;
+        for t in crate::fixture::tables(ev, *id) {
+            perf2_table_digest(&mut h, t);
         }
     }
     h.0
+}
+
+/// One table's rows into `h`, forward then reverse.
+fn perf2_table_digest(h: &mut Fnv, t: &editor_core::NameTable) {
+    for (n, e) in t.iter() {
+        h.feed(&format!("fwd {n:?}={e:?};"));
+    }
+    for (_, e) in t.iter() {
+        for ent in match e {
+            editor_core::names::Entry::Unique(one) => vec![*one],
+            editor_core::names::Entry::Tied(many) => many.clone(),
+        } {
+            h.feed(&format!(
+                "rev {ent:?}={:?};",
+                t.name_of(&ent).map(|n| format!("{n:?}"))
+            ));
+        }
+    }
 }
 
 /// The saved text with its one `"epsilon":` line removed — the line CI's
@@ -158,44 +163,120 @@ fn sans_epsilon(t: &str) -> String {
 /// row held its word, and no point moved. Re-taken merged over
 /// FORK-DM4 unit 1 (PR 4527), whose names keyed by read had moved the
 /// same rows on main.
+///
+/// **Re-pinned for the killed-lineage chase** (`emit_topo`'s
+/// `KilledSplits`): `crossing_slots` only. Its second slot's bottom rim
+/// reaches the result in pieces split off around stretches the subtract
+/// killed. Those pieces were read as chords, and one was named a seam of
+/// the first slot's floor and the second slot's wall. They are now
+/// pieces of that rim. Two floor corners moved with them: one from a
+/// junction of three seam lines to a crossing of the rim, and one from
+/// a face crossing to the seam vertex of two edges that touch. Every
+/// other document held its word.
+///
+/// **Re-pinned for the vertex run** (N2: an `EdgeCrossing` is a run of
+/// (line, sense) in name order): `corner_table` and `crossing_slots`,
+/// the two documents whose pair booleans meet edge to edge. Their
+/// tables are the old ones with each edge × edge vertex re-spelled: read
+/// as a set of (line, sense), every run is the pair it replaced, and no
+/// other row moved; the persisted text did not move.
+/// **Re-pinned for the output stage's killed lineage** (`topo`'s
+/// output stage copies the records of the edges its merge kills into
+/// `BooleanNaming::killed_lineage`, which `KilledSplits` reads):
+/// `crossing_slots` only. The second subtract's merge of the two flush
+/// floors kills one stretch of the first cavity's bottom rim and keeps
+/// the next, whose lineage stopped at the stretch killed, so it was
+/// named a seam of the cavity's wall and the slot's floor. It is now a
+/// piece of that rim, and the floor corner where the slot's rim meets
+/// the cavity's wall moved from a touch of the wall to a crossing of the
+/// two rims, as the other three such corners are named. Every
+/// other document held its word, and the persisted text did not move.
+///
+/// **Re-pinned for INTENT stage 3 B** (a placement is the bundle of
+/// mates), every row, the persisted text with it (it spells `Place` and
+/// its constraint): a placement is a `Place` holding a world pin where
+/// it was a `PlaceInWorld`, so its stored node, and with it its mint
+/// preimage, moved, and every id the mint chain draws after it. No
+/// outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// **Re-pinned for FORK-DM4 unit 2** (a name is scoped by the variable
+/// holding its body): `cut_cylinder`, `kitchen_sink` and `part_select`,
+/// the three documents holding a split. A split's two halves are two
+/// tables and its names spell no half, so each row walks both tables of
+/// the half-free names; `part_select`'s union, which declares the rest
+/// between the halves by the section face, also took a new id. Every
+/// other row held its word, and the id-masked geometry fence held.
+/// The persisted text moved in `kitchen_sink` (its appearance key is
+/// now a body read and a name) and `part_select` (its union's declared
+/// names); `cut_cylinder`'s held.
+///
+/// Re-taken merged over INTENT stage 3 PR A (a revolve's axis is a
+/// line on the node), which moved `kitchen_sink` too: its merged row is
+/// neither tree's value; every other row is the one of the two trees
+/// that moved it.
+///
+/// **Re-taken merged over INTENT stage 4 F** (declared pairs retire):
+/// main's re-bless and this unit's each moved these rows, so the merged
+/// rows are neither tree's value; the id-masked geometry fence held.
+///
+/// **Re-taken merged over INTENT stage 3 B** (#5232, a placement is the
+/// bundle of mates), which re-pinned every row by its new mint chain:
+/// the merged rows are main's values but for the three split documents,
+/// `cut_cylinder`, `kitchen_sink` and `part_select`, which this unit
+/// moves, and whose merged values are neither tree's.
+///
+/// **Re-pinned for INTENT stage 3 C** (a mate relates two poses), every
+/// row, the persisted text with it (it spells the pin): each document
+/// places its copy where it stands by a loose `Place` and the named
+/// interim's world pin (`DocEdit::PinWhereItStands`), where one edit
+/// minted the placement holding its world pin, so the placement's id
+/// and every id drawn after it moved. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// **Re-pinned for a seam citing the parent face** (N3): `crossing_slots`'
+/// table only, whose two seams beside the merged floor cite its
+/// `Merged` parent where they cited one floor; its persisted text held.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0x7c0063c6f610214a, 0xb9fd427959fee070),
-    ("corner_table", 0xeed262c8399c88d5, 0xa0430bdc34cc13fb),
-    ("heat_sink", 0x0bbbfca1fb4af266, 0xdfc93183609f02d8),
-    ("crossing_slots", 0x2ed2e98ee9fd3948, 0x77a1ef0adf8fcb04),
-    ("nested_islands_105", 0x31b576cdbd937dc7, 0xed62b8e9c476ae64),
+    ("die", 0x8460e9578c470e60, 0x7134dab9e0a2c309),
+    ("corner_table", 0xfe4524cd4290cd89, 0x4e4c3ddbafffeae6),
+    ("heat_sink", 0x74fe7181598471d0, 0x548b2f20591251f3),
+    ("crossing_slots", 0x51165bb2ff33b3fe, 0xdf3ffbe0e05e610d),
+    ("nested_islands_105", 0x67c13cad100b68f6, 0x97d8297c514a94e9),
     (
         "nested_islands_106_depth1",
-        0xcebb92c15da4da36,
-        0x15b75bbc9ae7cbd6,
+        0x354881c4d3dfe7e4,
+        0x647b7eaec4ab6495,
     ),
     (
         "nested_islands_106_depth2",
-        0xc221e76a6daca4a5,
-        0xa95f171e06017d0b,
+        0x8665ba2f77131667,
+        0x93c042bb07455569,
     ),
-    ("declared_tangency", 0xe7249c941ad4e6dd, 0x4ef7c39092eca21a),
-    ("kitchen_sink", 0xa83c6c96412051fa, 0x7c78103d9e3fef09),
-    ("cut_cylinder", 0x366fa42a35257323, 0x0b1584874c6521a2),
-    ("measured_web", 0x2d097b245fc55683, 0xe50e6ef2701011c2),
-    ("boss_union", 0xbcca43ef807fea26, 0x6e5620818bd119f8),
-    ("die_fillet", 0x5f66bd80c3d330ba, 0xcc827f4ab84ab2f7),
-    ("die_chamfer", 0x1bcc33b8f554b03e, 0x955720216d75cf9a),
-    ("die_pips", 0x8be9140aad425067, 0xcfb13f97d15c7892),
-    ("heat_sink_fins", 0x248682fac9898b5a, 0xbdeed2f79c7c0af9),
-    ("die_tool", 0xf31d40e091639263, 0x93b1b819ed560a6c),
-    ("face_sketch", 0x25f0c5c4ab521837, 0x6ff3c25647b7831b),
-    ("part_select", 0x532deffc6bc26c61, 0x1cba794c32dcc54c),
-    ("loft_prism", 0x9f15f3e0cf1e8ace, 0xc7ef1ffc56e06ac4),
-    ("die_composed", 0x6c07e077aa959d0b, 0x49049b3368ccba7e),
-    ("die_composed_tour", 0xdab80b640f0c5ec8, 0xeee21f95f841d961),
-    ("plate_param", 0x4b3a8cc0088d16bd, 0x200677f2f703b7b2),
-    ("kiss_carry", 0xd5c8c49fd0f8dffa, 0x206b1da6857dede9),
-    ("tube_ring", 0x33da3ceb7454021f, 0x9a8176ec901ca54c),
-    ("tube_arc", 0xebcfe2751352a77e, 0xe780b5fe37d515b4),
-    ("hollow_tube_elbow", 0xb1be521411cf3616, 0x27d7a90771dfe921),
-    ("hollow_tube_ring", 0x46f61613d1f6a156, 0x39c2fbc857b67ef1),
-    ("reshaped_rod", 0xb8646c19a710753e, 0xf096667c4f3cb66c),
+    ("declared_tangency", 0xbaa9e6b3d162774a, 0xc95a317280289284),
+    ("kitchen_sink", 0x1225c4d0874ea978, 0x99e65653180c3b54),
+    ("cut_cylinder", 0x2a8edc5183287fe3, 0x394b95d945b2b646),
+    ("measured_web", 0x4dbe5560756047e3, 0xc90bc32f58fb1b9a),
+    ("boss_union", 0x656bf5121430f4fd, 0x41c28dcbc24fa662),
+    ("die_fillet", 0x9a8baa9d147d7044, 0x70955ca41e0dd922),
+    ("die_chamfer", 0x89e1ab0139eee9ed, 0xe3ce852f108f6840),
+    ("die_pips", 0xd16be90f6d29c7aa, 0x492d787849b6a4d3),
+    ("heat_sink_fins", 0x4343509df0fa3673, 0x96d24784173da012),
+    ("die_tool", 0x58fabcdc84d77007, 0x3cb2941aed5896b0),
+    ("face_sketch", 0x668bf6731fcd92d0, 0x537c88785af84d78),
+    ("part_select", 0x37c21b8ec7d5133b, 0xacbfa3bfb57ed085),
+    ("loft_prism", 0x3226abdd88349262, 0x506986cb31940d2e),
+    ("die_composed", 0x5076e08480bdcf6d, 0x943ee1336021f491),
+    ("die_composed_tour", 0xa68d546c0464bd77, 0x0fb9bbeb71f7a9b3),
+    ("plate_param", 0x4d4af4940bbcf6b4, 0x43cc904beefda406),
+    ("kiss_carry", 0xeb5729ade9d7fcc7, 0xd53e88f7a7d82914),
+    ("tube_ring", 0xc6c0297620ada5aa, 0x53a256dbdf51810c),
+    ("tube_arc", 0xa5848d87c790784f, 0x1c08285f83ba6ba0),
+    ("hollow_tube_elbow", 0xa3994b42f48c890e, 0xef9cebaf32dbcd40),
+    ("hollow_tube_ring", 0x852d2de738602c6c, 0x2cd16c543b4a39de),
+    ("reshaped_rod", 0xda8a8ae84a325577, 0x3b01a8ce98da651f),
 ];
 
 #[test]

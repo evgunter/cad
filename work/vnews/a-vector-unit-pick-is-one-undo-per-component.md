@@ -2,10 +2,11 @@
 id: a-vector-unit-pick-is-one-undo-per-component
 kind: issue
 title: a vector unit pick commits one history action per component, so undoing one pick takes several Undos
-status: open
+status: parked
 opened: 2026-09-28
 priority: P3
 cost: E
+blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found by review of `vnews/the-unit-picker-reads-its-refusal`. The

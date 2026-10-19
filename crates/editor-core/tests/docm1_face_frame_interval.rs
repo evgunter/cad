@@ -1,7 +1,7 @@
 //! **DOCM-1 under the Interval lane** — DM1c's rows: a profile on a
 //! derived frame is placed at the lane scalar under EVERY lift (its
 //! 2-D structure record still `f64`-pinned), a loft section on a
-//! derived frame refuses typed off `f64`, and a widened parameter the
+//! derived frame lofts and encloses the `f64` loft, and a widened parameter the
 //! frame's body reads recomputes the profile rather than serving the
 //! nominal memo entry.
 
@@ -18,8 +18,8 @@ use editor_core::PoseValue;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeVar, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc, ProfileLift, RecipeNodeId,
-    RoleSeg, UnitSym, ValuePayload, VarName, evaluate,
+    FreeVar, Node, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg, UnitSym, ValuePayload, VarName,
+    evaluate,
 };
 use geom_core::{Bounds, Interval, Tol, UnitVec3};
 use topo::validate_closed;
@@ -32,11 +32,8 @@ fn run(
     evaluate::<Interval>(doc, prior, &CancelToken::new(), opts, Tol::witness())
 }
 
-fn lifted(lift: ProfileLift) -> EvalOptions {
-    EvalOptions {
-        profile_lift: lift,
-        ..EvalOptions::default()
-    }
+fn lifted(doc: &ProfileDoc, lift: ProfileLift) -> EvalOptions {
+    corpus::options_under(doc, lift).expect("the document has a continuous variable")
 }
 
 /// **The corpus document's profile is placed at the lane scalar under
@@ -55,7 +52,7 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
         .find(|id| matches!(cd.doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
         .expect("the derived frame");
     for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let ev = run(&cd.doc, None, &lifted(lift));
+        let ev = run(&cd.doc, None, &lifted(&cd.doc, lift));
         assert!(
             corpus::failures(&ev).is_empty(),
             "{lift:?}: {:?}",
@@ -88,42 +85,52 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
     }
 }
 
-/// **A loft section on a derived frame refuses typed off f64**, naming
-/// the profile and the frame (the f64 half of the row evaluates, in
-/// the f64 suite).
+/// **A loft whose section is drawn on a derived frame evaluates at
+/// `Interval`, under both lifts, and encloses the `f64` loft.** The
+/// section is its profile's value at this scalar, on the frame's landed
+/// value, which is an enclosure wider than a point; the loft skins it
+/// in `T`. Each vertex of the `f64` body lies in the enclosing body's
+/// vertex of the same index (one construction lists them in one order).
 #[test]
-fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
+fn a_section_on_a_derived_frame_lofts_and_encloses_at_interval() {
     let (doc, loft) = lofted_on_face_frame();
-    let ev = run(&doc, None, &EvalOptions::default());
-    let frame = doc
-        .ids()
-        .iter()
-        .copied()
-        .find(|id| matches!(doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
-        .expect("the derived frame");
-    let Some(Node::Loft { profiles, .. }) = doc.node(loft) else {
-        panic!("the loft");
-    };
-    let section = doc
-        .operation_of(profiles[0])
-        .expect("the section read is live");
-    match ev.nodes.get(&loft) {
-        Some(NodeResult::Failed(NodeError {
-            kind:
-                NodeErrorKind::DerivedFrameSection {
-                    profile,
-                    frame: named,
-                },
-            ..
-        })) => {
-            assert_eq!(*profile, section);
-            assert_eq!(*named, Some(frame));
+    let nominal = editor_core::evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let nominal: Vec<[f64; 3]> = corpus::body_of(&nominal, loft)
+        .points()
+        .map(|(_, p)| [p.x, p.y, p.z])
+        .collect();
+    assert!(!nominal.is_empty(), "the f64 loft has vertices");
+    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+        let ev = run(&doc, None, &lifted(&doc, lift));
+        assert!(
+            ev.node_error(loft).is_none(),
+            "{lift:?}: the loft evaluates: {:?}",
+            ev.node_error(loft)
+        );
+        let body = corpus::body_of(&ev, loft);
+        assert_eq!(validate_closed(body), Ok(()), "{lift:?}");
+        let brackets: Vec<[(f64, f64); 3]> = body
+            .points()
+            .map(|(_, p)| [p.x, p.y, p.z].map(|c| (c.lo(), c.hi())))
+            .collect();
+        assert_eq!(
+            brackets.len(),
+            nominal.len(),
+            "{lift:?}: the vertex counts agree"
+        );
+        for (i, (b, v)) in brackets.iter().zip(&nominal).enumerate() {
+            assert!(
+                b.iter().zip(v).all(|((lo, hi), x)| lo <= x && x <= hi),
+                "{lift:?}: the f64 vertex {i} at {v:?} lies outside its enclosure {b:?}"
+            );
         }
-        other => panic!("the loft must refuse typed, got {other:?}"),
     }
-    // The profile itself is fine: it is the SECTION use that has no
-    // f64 placement, not the profile.
-    assert!(matches!(ev.nodes.get(&section), Some(NodeResult::Ok(_))));
 }
 
 /// An exact unit box LIFTED by a document parameter `lift` (a rigid
@@ -216,13 +223,23 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
 fn widening_the_frames_body_parameter_recomputes_the_profile() {
     let width = Tol::witness().eps() / 8.0;
     let (doc, boss_p) = boxed_on_param(width);
-    let nominal = run(&doc, None, &EvalOptions::default());
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    // The prior is the drive's witness: the box collapsed to the
+    // nominal, so it elaborates under the widened run's (guided) lift
+    // and the memo compares like with like (`ParamBox::at_nominal`).
+    let nominal = run(
+        &doc,
+        None,
+        &EvalOptions {
+            param_box: Some(Arc::new(ParamBox::of(&analyzed).at_nominal())),
+            ..EvalOptions::default()
+        },
+    );
     assert!(
         corpus::failures(&nominal).is_empty(),
         "{:?}",
         corpus::failures(&nominal)
     );
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
         ..EvalOptions::default()
@@ -361,13 +378,23 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     )));
     let doc = r.doc;
 
-    let nominal = run(&doc, None, &EvalOptions::default());
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    // The prior is the drive's witness: the box collapsed to the
+    // nominal, so it elaborates under the widened run's (guided) lift
+    // and the memo compares like with like (`ParamBox::at_nominal`).
+    let nominal = run(
+        &doc,
+        None,
+        &EvalOptions {
+            param_box: Some(Arc::new(ParamBox::of(&analyzed).at_nominal())),
+            ..EvalOptions::default()
+        },
+    );
     assert!(
         corpus::failures(&nominal).is_empty(),
         "nominal: {:?}",
         corpus::failures(&nominal)
     );
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
         ..EvalOptions::default()
@@ -388,15 +415,4 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     );
     assert_eq!(widened.reused, 2, "the two parameter-free leaves");
     assert_eq!(widened.recomputed, doc.len() - 2);
-}
-
-/// **`SectionScalar` answers by type**: `f64` hands its value across,
-/// an interval and a dual answer `None` — decided by the impl, no
-/// number inspected (an exact interval is still an interval).
-#[test]
-fn section_scalar_is_decided_by_the_type() {
-    use editor_core::SectionScalar;
-    assert_eq!(1.5_f64.pinned_f64(), Some(1.5));
-    assert_eq!(Interval::from_bounds(1.0, 1.0).pinned_f64(), None);
-    assert_eq!(geom_core::Dual64::constant(1.0).pinned_f64(), None);
 }

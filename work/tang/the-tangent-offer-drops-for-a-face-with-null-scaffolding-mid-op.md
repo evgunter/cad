@@ -2,8 +2,7 @@
 id: the-tangent-offer-drops-for-a-face-with-null-scaffolding-mid-op
 kind: issue
 title: vtxfac's admission probe drops the Tangent offer for an undeclared pair whose face has a null-scaffold edge mid-op
-status: parked
-blocked_on: [declared-pairs-retire]
+status: open
 opened: 2026-10-02
 priority: P3
 cost: E
@@ -44,3 +43,7 @@ Waits on `intent-stage4-is-built`, not on the whole program: what is lost is vtx
 ## Re-parked by INTENT stage 4 E (`intent/s4-e-glue-on-zero`) (2026-10-09)
 
 E leaves the probe as it was (`crates/topo/src/boolean/vtxfac.rs:599`–`:611`). A pair with no class still reads `pair_extent` mid-operation and drops the `Tangent` offer on a face whose box does not read. E narrows its reach. The glue door verifies every candidate tangency on the operands at rest and declares it (`crates/topo/src/boolean/glue.rs:72`–`:83`), so a pair that is tangent arrives here with a class. The `None` arm sees only pairs the door did not verify. What the probe feeds is the offer of a declaration (`admitted`, read by `DeclaredPairs::read`), and stage 4 F deletes it with `BooleanCoincidence` and the declare menu. Re-parked on `declared-pairs-retire`: close it there if the offer is gone, or fix the extent read if F keeps it.
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

@@ -9,14 +9,11 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
-use std::sync::Arc;
 
-use editor_core::eval::WitnessSlot;
 use editor_core::{
-    Axis3, CancelToken, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
-    EvalOutcome, Evaluation, NameTable, NamingKey, Node, ProfileDoc, Qualifier, RecipeEditRef,
-    RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName, UpstreamCause,
-    evaluate, resolve_with_prior,
+    Axis3, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, NameTable,
+    Node, ProfileDoc, Qualifier, RecipeEditRef, RecipeNodeId, Resolution, ResolveError, RoleSeg,
+    RunCtx, SlotId, StableName, UpstreamCause, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Sign;
@@ -96,7 +93,6 @@ fn slot(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Subtract {
             from: a.into(),
             tool: tr.into(),
-            declare: Vec::new(),
         },
     );
     (doc, tr, cut)
@@ -104,9 +100,8 @@ fn slot(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 /// The unique fragment names of `node`'s table, in table order.
 fn fragments(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
-    ev.value(node)
+    ev.table_at(node)
         .expect("the node evaluates")
-        .name_table
         .iter()
         .filter(|(n, e)| {
             matches!(n.path.last(), Some(RoleSeg::Fragment(_))) && matches!(e, Entry::Unique(_))
@@ -120,7 +115,7 @@ fn diagnosis(
     (doc1, ev1): (&ProfileDoc, &Evaluation<f64>),
     name: &StableName,
 ) -> Diagnosis {
-    let res = resolve_with_prior(
+    let res = crate::fixture::resolve_with_prior_at_mint(
         RunCtx {
             doc: doc2,
             eval: ev2,
@@ -187,7 +182,7 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     for name in &names {
         // The plate's fragments; the bar's edges are lone pieces whose
         // ends the slide moves.
-        if ev2.value(cut1).unwrap().name_table.lookup(name).is_some()
+        if ev2.table_at(cut1).unwrap().lookup(name).is_some()
             || matches!(
                 name.path.first(),
                 Some(RoleSeg::From { read, .. }) if *read == tool_read.read
@@ -243,7 +238,6 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![b1.into(), tr.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, cut) = insert(
@@ -251,7 +245,6 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
         Node::Subtract {
             from: a.into(),
             tool: cutter.into(),
-            declare: Vec::new(),
         },
     );
     let ev1 = run(&doc, None);
@@ -265,7 +258,7 @@ fn a_flip_upstream_of_the_minting_node_is_reported_as_upstream() {
                 n.path.first(),
                 Some(RoleSeg::From { read, .. }) if *read == from_read
             ) && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
-                && ev2.value(cut).unwrap().name_table.lookup(n).is_none()
+                & ev2.table_at(cut).unwrap().lookup(n).is_none()
         })
         .collect();
     assert!(!pieces.is_empty(), "some rim piece vanishes");
@@ -344,10 +337,9 @@ fn vanished_piece(ev1: &Evaluation<f64>, ev2: &Evaluation<f64>, cut: RecipeNodeI
         .into_iter()
         .find(|n| {
             matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
-                && ev2
-                    .value(cut)
+                & ev2
+                    .table_at(cut)
                     .expect("the cut evaluates")
-                    .name_table
                     .lookup(n)
                     .is_none()
         })
@@ -375,14 +367,12 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![c1.into(), c2.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, x) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![tr.into(), p.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, cut) = insert(
@@ -390,7 +380,6 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
         Node::Subtract {
             from: a.into(),
             tool: x.into(),
-            declare: Vec::new(),
         },
     );
     let doc2 = set_members(set_members(doc.clone(), x, vec![tr, c3]), p, vec![c1, r]);
@@ -455,7 +444,6 @@ fn a_node_that_feeds_the_name_only_now_is_upstream_too() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![b1.into(), b2.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, n) = placed(doc, x);
@@ -498,7 +486,6 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![bar.into(), f1.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, tr) = placed(doc, u);
@@ -507,7 +494,6 @@ fn a_recipe_edit_upstream_is_reported_as_upstream() {
         Node::Subtract {
             from: a.into(),
             tool: tr.into(),
-            declare: Vec::new(),
         },
     );
     let doc2 = slide(
@@ -569,7 +555,6 @@ fn a_structural_parameter_upstream_is_reported_as_upstream() {
         Node::Subtract {
             from: a.into(),
             tool: part.into(),
-            declare: Vec::new(),
         },
     );
     let ev1 = run(&doc, None);
@@ -684,22 +669,11 @@ fn hand_eval(
     (named, table): (RecipeNodeId, NameTable),
 ) -> Evaluation<f64> {
     let value = |table: NameTable, log: Vec<Verdict>| {
-        editor_core::NodeResult::Ok(editor_core::NodeValue {
-            payload: editor_core::ValuePayload::Gauge,
-            name_table: Arc::new(table),
-            fragment_groups: Arc::default(),
-            contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(editor_core::CarriedDeclarations::default()),
-            coincidences: Arc::new([]),
-            cited_inputs: Arc::new([]),
-            parts: 1,
-            verdicts: Arc::new(log),
-            escalations: Arc::new(vec![]),
-            placement: None,
-            witness: WitnessSlot::default(),
-            content_key: ContentKey(0),
-            naming_key: NamingKey(0),
-        })
+        editor_core::NodeResult::Ok(editor_core::NodeValue::hand_built(
+            table,
+            editor_core::FragmentGroups::default(),
+            log,
+        ))
     };
     let mut nodes = std::collections::BTreeMap::new();
     let mut order = Vec::new();
@@ -709,22 +683,7 @@ fn hand_eval(
     }
     nodes.insert(named, value(table, vec![]));
     order.push(named);
-    let recomputed = order.len();
-    Evaluation::<f64> {
-        epoch: editor_core::Epoch::mint(),
-        unplaced: Default::default(),
-        unplaced_below: Default::default(),
-        document: doc.id(),
-        prior_refused: None,
-        order,
-        nodes,
-        outcome: EvalOutcome::Completed,
-        recomputed,
-        reused: 0,
-        part_evaluations: 0,
-        appearance: editor_core::AppearanceResolution::default(),
-        env: Default::default(),
-    }
+    Evaluation::<f64>::hand_built(doc.id(), order, nodes)
 }
 
 /// Hand-built tables at `cut` for a fragment group that stops being

@@ -6,8 +6,7 @@
 //! candidates never win in the unit's own suite. P-E flips the chart's
 //! `v` orientation and demands the backward candidate — red if the
 //! direction half of the schedule is decorative. P-F checks that a
-//! description whose operand pair cannot certify never reaches the arm
-//! at all.
+//! description not naming the edge's own faces never reaches the arm.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
@@ -93,9 +92,8 @@ fn flat_bowed_seam(
 /// wall's chart optionally REVERSED in `v` before the description is
 /// attached — same surface point set, opposite `v` orientation.
 /// `None` is the ε-FINE cell, asserted rather than skipped: this seam's
-/// certified between-samples sup is ~5.47e-14 m (it was ~6.22e-12 m
-/// before `insert_once_ring` took the convex insertion form, 114x
-/// wider), so below ε_in = 1e-13 the
+/// certified between-samples sup is ~5.47e-14 m, so below ε_in = 1e-13
+/// the
 /// declare-and-check rung refuses TYPED carrying that number and there
 /// is no chart image to probe at all.
 fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey)> {
@@ -231,13 +229,13 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
         panic!("the boundary seam on the reversed chart mints: {out:?}");
     };
     assert_eq!(pl.x, 0.0, "u stays banded-constant: {pl:?}");
-    let (du0, du1) = chart.knots_u().domain();
+    let (du0, du1) = chart.knots_u_f64_interim().domain();
     assert!(
         p0.x == du0 || p0.x == du1,
         "still a boundary column: u = {} of [{du0}, {du1}]",
         p0.x
     );
-    let (dv0, dv1) = chart.knots_v().domain();
+    let (dv0, dv1) = chart.knots_v_f64_interim().domain();
     assert!(
         (pl.y - (dv0 - dv1)).abs() < 1e-12,
         "the BACKWARD candidate wins on the reversed chart: slope {} on [{dv0}, {dv1}]",
@@ -273,7 +271,7 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
     assert_eq!(
         format!("{:?}", cert.certificate()),
         "PcurveCertificate { samples: 9, max_residual: 0.0, envelope: 0.0, statement: \
-         MapResidualIsoHull, ssi: None }",
+         MapResidualIsoHull }",
         "the carrier is the reversed chart's column run back, exactly"
     );
     println!(
@@ -284,15 +282,19 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
     );
 }
 
-/// **P-F: a description whose operand pair cannot certify never
-/// reaches the arm.** The same locus described as bowed × bowed (no
-/// plane in the pair) must refuse at ATTACHMENT — the declare-and-check
-/// gate — so the mint's indifference to `s1`/`s2` is safe: by the time
-/// the arm runs, some certificate vouched for the pair.
+/// **P-F: a description that does not name the edge's two faces never
+/// reaches the arm.** The flat–bowed seam described as the bowed wall
+/// against itself refuses at ATTACHMENT, by adjacency
+/// (`DescriptionNotAdjacent`), before any certificate is asked: the
+/// pair is not the surfaces the edge's faces wear. That is all this row
+/// reaches. The mint fed a pair with no plane in it that does name the
+/// edge's faces, now certifiable through the NURBS × NURBS lane, is
+/// untested
+/// (`work/iso/the-m8-4-mint-with-a-non-plane-pair-is-untested.md`).
 #[test]
 fn probe_f_uncertifiable_pair_refuses_at_attachment() {
-    // ε-independent: a NURBS × NURBS pair has no certificate at any
-    // tolerance, so this row runs at every matrix cell.
+    // ε-independent: adjacency is decided on keys, at any tolerance, so
+    // this row runs at every matrix cell.
     let mut body = offset_square_prism();
     let (edge, _flat, bowed, _he) = flat_bowed_seam(&body);
     let (carrier, t0, t1) = {
@@ -318,6 +320,12 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
             },
             Tol::witness(),
         )
-        .expect_err("a NURBS × NURBS pair has no certificate and must refuse at attachment");
-    println!("P-F refusal: {err:?}");
+        .expect_err("a pair that is not the edge's faces must refuse at attachment");
+    assert!(
+        matches!(
+            err,
+            topo::EulerOpError::DescriptionNotAdjacent { edge: Some(e) } if e == edge
+        ),
+        "P-F: expected the adjacency refusal naming the seam, got {err:?}"
+    );
 }

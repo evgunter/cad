@@ -8,7 +8,12 @@
 //! answer, so the sphere parse re-decides the bound per meridian arc
 //! as `props_meridian_span_winding` — the same margin, the same band,
 //! the same lever as certification — and refuses typed, on every
-//! consumer, under one name.
+//! consumer. The doors (the shape and branch doors) refuse under that
+//! name as `NotIsoRectangle`; the flux lane and the material sign, which
+//! read the sphere's loops and ask the bound of every arc at the arc's
+//! own radius, refuse under `props_sphere_arc_span_winding` as
+//! `SphereLoop` — a meridian's radius is the sphere's, so the margin is
+//! the same number under either name.
 //!
 //! Every offset below is derived from the run's own `Band`, never from
 //! an ε literal: this file is on CI's `eps ∈ {default, 1e-6, 1e-12}`
@@ -29,10 +34,14 @@ const PI: f64 = core::f64::consts::PI;
 const TAU: f64 = core::f64::consts::TAU;
 /// The sphere under every row: R = 10 mm about +Z at the origin.
 const RS: f64 = 0.010;
-/// The winding decide every consumer refuses under.
+/// The winding decide the doors refuse under.
 const NAME: &str = "props_meridian_span_winding";
-/// The forward decide every consumer refuses under.
+/// The forward decide the doors refuse under.
 const FORWARD: &str = "props_meridian_span_forward";
+/// The winding decide the flux lane and the material sign refuse under.
+const ARC_NAME: &str = "props_sphere_arc_span_winding";
+/// The forward decide the flux lane and the material sign refuse under.
+const ARC_FORWARD: &str = "props_sphere_arc_span_forward";
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -92,19 +101,22 @@ fn saturated<T: Real>(delta: f64) -> Vec<LoopEdge<T>> {
 }
 fn is_winding_refusal<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> bool {
     matches!(r, Err(PropsError::NotIsoRectangle { what }) if *what == NAME)
+        || matches!(r, Err(PropsError::SphereLoop { what }) if *what == ARC_NAME)
 }
 fn is_forward_refusal<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> bool {
     matches!(r, Err(PropsError::NotIsoRectangle { what }) if *what == FORWARD)
+        || matches!(r, Err(PropsError::SphereLoop { what }) if *what == ARC_FORWARD)
 }
 fn is_winding_escalation<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> bool {
     matches!(
         r,
-        Err(PropsError::Escalated { cause, .. }) if cause.predicate == Some(NAME)
+        Err(PropsError::Escalated { cause, .. })
+            if cause.predicate == Some(NAME) || cause.predicate == Some(ARC_NAME)
     )
 }
 
 // ---------------------------------------------------------------------
-// One name, every consumer
+// One bound, every consumer
 // ---------------------------------------------------------------------
 
 /// **The flux lane.** CERT-1's `3π + π` pair used to measure `2πR²`
@@ -278,37 +290,41 @@ fn the_span_decide_admits_and_refuses_at_certifications_band() {
     }
 }
 
-/// **A rim is not decided here.** The bounds are re-decided on
-/// MERIDIAN arcs, whose span feeds the pole fold; a rim's span feeds
-/// the `Δu` sum, a different premise with a different home, and a
-/// full-period rim (the scaffolding shape every revolve mints) must
-/// keep passing the parse: the cap it closes is a chart rectangle at
-/// the shape door and the flux lane measures it, `2πR²(1 − sin v)`.
+/// **A full-period rim passes the bound.** The flux lane decides the
+/// span bound on every arc, rims included (Gauss–Bonnet integrates each
+/// span), and a full-period rim — the scaffolding shape every revolve
+/// mints — sits AT the bound, which certification admits: the zone two
+/// such rims bound, as two loops, measures `2πR²·(sin v₁ − sin v₀)`.
+/// The shape door decides it on meridians alone, and admits the rim.
 #[test]
-fn a_full_period_rim_is_not_a_meridian_span() {
+fn a_full_period_rim_passes_the_span_bound() {
     let bd = band();
-    let cap: Vec<LoopEdge<f64>> = vec![
+    let rim = |v: f64, t0: f64, t1: f64, forward: bool| {
         LoopEdge::hand_built(
             Curve3::Circle {
-                center: Point3::new(0.0, 0.0, RS * 0.3f64.sin()),
+                center: Point3::new(0.0, 0.0, RS * v.sin()),
                 axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: RS * 0.3f64.cos(),
+                radius: RS * v.cos(),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             },
-            0.0,
-            TAU,
-            true,
+            t0,
+            t1,
+            forward,
             0,
             0,
-        ),
-        great(0.0, 0.3, PI / 2.0, 0, 1),
-        great(PI, PI / 2.0, 0.3, 1, 0),
-    ];
-    assert_eq!(require_iso_rectangle(&sphere::<f64>(), &cap, bd), Ok(()));
-    let fc = curved_face(&sphere::<f64>(), &cap, true, bd).unwrap_or_else(|e| panic!("{e:?}"));
-    let exact = TAU * RS * RS * (1.0 - 0.3f64.sin());
+        )
+    };
+    let (low, high) = (rim(0.0, 0.0, TAU, true), rim(0.3, 0.0, TAU, false));
+    assert_eq!(
+        require_iso_rectangle(&sphere::<f64>(), core::slice::from_ref(&low), bd),
+        Ok(())
+    );
+    let loops: [&[LoopEdge<f64>]; 2] = [core::slice::from_ref(&low), core::slice::from_ref(&high)];
+    let fc = geom_brep::props::curved_face_loops(&sphere::<f64>(), &loops, true, bd)
+        .unwrap_or_else(|e| panic!("{e:?}"));
+    let exact = TAU * RS * RS * 0.3f64.sin();
     let rel = (fc.area - exact).abs() / exact;
-    assert!(rel < 1e-12, "cap area {:e} != {exact:e}", fc.area);
+    assert!(rel < 1e-12, "zone area {:e} != {exact:e}", fc.area);
 }
 
 // ---------------------------------------------------------------------
@@ -326,8 +342,13 @@ enum Disp {
 fn disp<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> Disp {
     match r {
         Ok(_) => Disp::Admit,
-        Err(PropsError::Escalated { cause, .. }) if cause.predicate == Some(NAME) => Disp::Escalate,
+        Err(PropsError::Escalated { cause, .. })
+            if cause.predicate == Some(NAME) || cause.predicate == Some(ARC_NAME) =>
+        {
+            Disp::Escalate
+        }
         Err(PropsError::NotIsoRectangle { what }) if *what == NAME => Disp::Refuse,
+        Err(PropsError::SphereLoop { what }) if *what == ARC_NAME => Disp::Refuse,
         Err(e) => Disp::Other(format!("{e:?}")),
     }
 }

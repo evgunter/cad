@@ -116,7 +116,11 @@ fn doors_at<T: geom_core::Bounds + topo::AtRestPolicy>(label: &str, lane: Option
     }
 
     // The transform door DOES reach the seam.
-    match topo::transform_rigid(&body, &turned::<T>(), tol()) {
+    match topo::transform_rigid(
+        &body,
+        &geom_core::test_support::rigid(&turned::<T>(), tol()),
+        tol(),
+    ) {
         Ok(_) => assert!(
             lane.is_none(),
             "{label}: this scalar has no fit, so the map may not carry the certificate"

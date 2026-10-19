@@ -91,12 +91,7 @@ fn f9_enum_arm_nurbs_circle_locus() {
     // derivative channel is tangent to the circle (perpendicular to the
     // radius vector) and matches deriv() at f64.
     let n64 = nurbs_unit_circle();
-    let ctrl_d = n64
-        .control()
-        .iter()
-        .map(|p| p.map(Dual64::constant))
-        .collect();
-    let nd = geom::NurbsCurve3::new(n64.knots().clone(), ctrl_d, n64.weights().to_vec()).unwrap();
+    let nd = n64.map_scalar(Dual64::constant);
     let cd: Curve3<Dual64> = Curve3::Nurbs(Arc::new(nd));
     for t in [0.1, 0.4, 0.62, 0.9] {
         let d = cd.eval(Dual64::variable(t));
@@ -132,7 +127,7 @@ fn f9_certification_pipeline_and_pinned_nurbs_refusal() {
     let p0 = Point3::new(0.25, -1.0, 2.0);
     let p1 = Point3::new(1.25, 0.5, 3.5);
     let spec = EdgeCurveSpec::line_between(p0, p1);
-    let edge = EdgeCurve::certify(spec, p0, p1, |_| None, band).unwrap();
+    let edge = EdgeCurve::certify(spec, p0, p1, |_| None, 1.0, band).unwrap();
     // Arc-length parameterization: [0, |p1 - p0|]; midpoint at len/2.
     let mid = edge.carrier().eval(p0.distance(p1) * 0.5);
     assert!((mid.x - 0.75).abs() < 1e-12, "line midpoint x = {}", mid.x);
@@ -140,7 +135,7 @@ fn f9_certification_pipeline_and_pinned_nurbs_refusal() {
     // the payload is now a real, evaluable curve.
     let mut nurbs_spec = EdgeCurveSpec::line_between(p0, p1);
     nurbs_spec.carrier = Curve3::Nurbs(Arc::new(nurbs_unit_circle()));
-    let err = EdgeCurve::certify(nurbs_spec, p0, p1, |_| None, band).unwrap_err();
+    let err = EdgeCurve::certify(nurbs_spec, p0, p1, |_| None, 1.0, band).unwrap_err();
     assert!(
         matches!(err, CertifyError::Unimplemented),
         "refusal changed: {err:?}"
@@ -148,6 +143,6 @@ fn f9_certification_pipeline_and_pinned_nurbs_refusal() {
     // The placeholder payload also refuses.
     let mut ph_spec = EdgeCurveSpec::line_between(p0, p1);
     ph_spec.carrier = Curve3::nurbs_placeholder();
-    let err = EdgeCurve::certify(ph_spec, p0, p1, |_| None, band).unwrap_err();
+    let err = EdgeCurve::certify(ph_spec, p0, p1, |_| None, 1.0, band).unwrap_err();
     assert!(matches!(err, CertifyError::Unimplemented));
 }

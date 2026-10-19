@@ -5,7 +5,7 @@
 //! # Shape
 //!
 //! The revolve tool's shape, once per tool here, on the shared seat
-//! machinery [`crate::seats`] carries: single-select stays ruled, so
+//! machinery [`crate::seats`] carries: single-select stays ruled (GQ7), so
 //! each tool holds its picks in tool state and consumes the ordinary
 //! selection stream — a tree click is a node pick directly, a viewport
 //! face or edge pick reaches the node whose DRAWN body the ray met
@@ -278,17 +278,13 @@ impl BooleanTool {
     }
 
     /// **The one committed edit**: the session op that inserts the
-    /// boolean node through the ordinary commit door, declaring no
-    /// contact.
+    /// boolean node through the ordinary commit door.
     ///
     /// # Errors
     ///
     /// [`BooleanTool::spec`]'s.
     pub fn op(&self) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::AddBoolean {
-            spec: self.spec()?,
-            declare: Vec::new(),
-        })
+        Ok(SessionOp::AddBoolean { spec: self.spec()? })
     }
 }
 

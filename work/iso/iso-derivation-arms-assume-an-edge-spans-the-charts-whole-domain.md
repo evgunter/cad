@@ -64,3 +64,40 @@ not in evidence anywhere they read. The carrier's start and end chart
 feet (`derive_chart_foot`, already used by the line arm's interior-seam
 case) are the candidate measurement, and the arc arm additionally needs
 `breaks` re-cut for the sub-arc rather than `uniform_breaks(spans)`.
+
+## The line half moved (2026-10-13)
+
+`pcert/off-iso-line-takes-its-general-row` moved the IsoLine half. In
+the measured case the square prism's split sub-edge reached the mint's
+LINE-RIM arm (a `Line` carrier in chart-image or scaffold form), not the
+wall-seam arm named above. That arm now takes the boundary-iso
+schedule: each closed-form candidate is judged a quarter span in, so a
+whole-domain row no longer passes off the start corner, and the row
+the end feet measure holds. `mint_pcurves` re-mints the split square
+prism with every wall row an exact `IsoLine`, and
+`sweep`'s `split_edge_loft_charts` is re-pinned to that.
+
+**The IsoArc half is unchanged.** The arc-rim arm still offers only the
+whole-domain images and refuses a half-rim `IsoUnsupported`; the
+`breaks` re-cut this item names is still owed. The wall-seam arm's
+column positioning is unchanged too (filed separately as
+`work/pcert/the-wall-seam-arm-positions-its-column-off-the-start-foot.md`).
+
+`pcert/arc-rim-row-pick` changed how the arc-rim arm picks its row,
+not its map. Before, the arm picked the row by the carrier's START at
+the chart's `u₀` corner, so the second half of a split rim (which
+starts inside the `u` domain) refused for lying on no boundary
+(`"the carrier's start point lies on neither chart boundary …"`). Now
+the row and the direction are one pick at the interior probe, so both
+halves reach it and are refused there, for the map this item names:
+`IsoUnsupported { what: "no boundary row of this chart, in either u
+direction, holds the circle at the interior probe — not an arc rim
+spanning the chart's u domain" }`. `sweep`'s
+`an_arc_rim_picks_the_row_it_lies_on::a_half_rim_reaches_the_pick_and_is_refused_there`
+pins it; a fix here reds that row.
+
+The arc rim's candidates (each boundary row × each `u` direction, the
+whole domain) are a second spelling of `iso_schedule`'s closed-form
+step, and the arc rim has no measured-map step after it: a rim that
+spans part of the chart's `u` has nowhere to go but the refusal. That
+fall-back is this item's IsoArc half.

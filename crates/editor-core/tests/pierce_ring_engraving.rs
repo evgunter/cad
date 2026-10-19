@@ -120,7 +120,6 @@ fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNode
         Node::Subtract {
             from: cylinder.into(),
             tool: lifted.into(),
-            declare: Vec::new(),
         },
     );
     (eval::<f64>(&doc), [cylinder, prism, lifted, cut])

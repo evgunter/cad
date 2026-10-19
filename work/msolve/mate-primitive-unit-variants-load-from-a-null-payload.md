@@ -2,11 +2,11 @@
 id: mate-primitive-unit-variants-load-from-a-null-payload
 kind: issue
 title: A unit MatePrimitive variant loads from a second spelling, {"coaxial": null}, before and after deny_unknown_fields
-status: parked
+status: closed
 opened: 2026-09-19
 priority: P0
 cost: E
-blocked_on: [intent-stage3-is-built]
+closed: 2026-10-17
 ---
 
 
@@ -43,3 +43,7 @@ which keeps the rider, the unit variants stay and this row is owed.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage3-is-built`, not on the whole program: it dissolves when MSOLVE-15 replaces Coaxial/Clocking with Coaxial { roll } (#3681), a build re-cut on stage 3's mate ground. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed
+
+Stage 3 C retires `MatePrimitive`: the mate's kind is its poses' kind, written in the file as the pose definitions themselves.

@@ -1,10 +1,10 @@
 //! **Document predicates with one home each, asked by both doors.**
 //!
-//! An assertion's bound against the measure it constrains, a mate's
-//! alignment datum, an A11 placement row, a witness row's key, the
+//! An assertion's bound against the measure it constrains, an A11
+//! placement row, a witness row's key, the
 //! recorded ε, a document parameter's declaration and its floats: each
 //! rule is stated once — `Node::assertion_bound_fault`,
-//! `Node::has_non_finite_alignment`, `doc::placement_fault`,
+//! `doc::placement_fault`,
 //! `doc::witness_site_fault`, `doc::epsilon_admissible`,
 //! `FreeVar::is_continuous_count`, `FreeVar::first_non_finite` — and
 //! the edit door and the persistence door each render the one answer
@@ -25,17 +25,17 @@
 //! Two arms of the load door's vocabulary are unreachable from a FILE
 //! and are pinned at the save door instead, in-crate
 //! (`persist::check`'s unit rows): JSON carries no non-finite token, so
-//! a non-finite alignment or placement coordinate can only reach
+//! a non-finite placement coordinate can only reach
 //! `validate_document` from memory. Every other rule below is
 //! reachable from a file and is paired here.
 //!
 //! **One rule below has no edit-door half, by construction rather than
-//! by omission**: a mate head is a `SitedFace` over a `FaceName`, so
-//! "this head names a face" is decided by the TYPE and there is no
-//! edit to refuse — the row pairs the load door against `SitedFace`'s
-//! own `compile_fail` doctest instead, and says so at the site. That
-//! is the same property one rung up: not two doors kept in step, but
-//! one decision the second door cannot restate differently.
+//! by omission**: a mate pose's face is a `SitedFace` over a
+//! `FaceName`, so "this head names a face" is decided by the TYPE and
+//! there is no edit to refuse — the row pairs the load door against
+//! `SitedFace`'s own `compile_fail` doctest instead, and says so at the
+//! site. That is the same property one rung up: not two doors kept in
+//! step, but one decision the second door cannot restate differently.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -46,14 +46,14 @@ use editor_core::ExtrudeSide;
 use crate::wire::doctored;
 use editor_core::CapEnd;
 use editor_core::{
-    Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError,
-    EntityKind, FaceName, Formula, Frame, FreeVar, InterfaceCrossing, InterfaceRecord, MateFrame,
-    MatePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError,
-    StableName, VarName, apply, load, save,
+    ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula,
+    Frame, FrameSite, FreeVar, InterfaceCrossing, InterfaceRecord, Mate, MateRef, Node,
+    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, Target, VarName,
+    apply, load, save,
 };
 use editor_core::{VarNameReason, parse_formula};
 use fixture::resolver::{PartStore, in_part};
-use fixture::{insert, len, on_frame, square, step};
+use fixture::{insert, insert_pinned, len, on_frame, square, step};
 use geom_core::Tol;
 use std::collections::BTreeMap;
 use test_utils::fuzz;
@@ -113,7 +113,6 @@ fn an_assertion_over_a_non_scalar_is_refused_at_both_doors() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::PayloadVarKind {
             declared: editor_core::VarKind::Frame,
@@ -149,7 +148,6 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::AssertionDimension {
             measured: Dimension::Length,
@@ -188,7 +186,6 @@ fn saved_assertion(
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a well-dimensioned assertion inserts");
     let id = applied.record.minted.expect("the insert minted an id");
@@ -230,7 +227,7 @@ fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
     })
 }
 
-// ---- A mate's alignment ----
+// ---- Instances of a stored part ----
 
 /// **`n` instances of a part document that exists**: the reference is
 /// minted by inserting a real part into a [`PartStore`], so its content
@@ -255,20 +252,32 @@ fn instances_of_a_stored_part(
 /// The same fixture, keeping the reference it minted the instances
 /// from — for a row that inserts a FURTHER instance of the same part,
 /// which is the only way to author one carrying an interface record.
+/// Each instance is pinned to the world at the identity.
 fn instances_and_ref_of_a_stored_part(
     label: &str,
     n: usize,
 ) -> (ProfileDoc, DocRef, Vec<RecipeNodeId>, RecipeNodeId) {
     let mut store = PartStore::default();
     let (doc_ref, body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
+    let opts = fixture::resolver::with_resolver(store);
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..n {
-        let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
+        let (next, id) = insert_pinned(doc, Node::instantiate_part(doc_ref), &opts);
         doc = next;
         ids.push(id);
     }
     (doc, doc_ref, ids, body)
+}
+
+/// **Two instances of a stored part, the second for a mate to place**:
+/// the first pinned to the world at the identity, the second's bundle
+/// empty, so a constraint between their faces is the second's and pins
+/// it rather than over-constraining a copy already pinned.
+fn a_pinned_and_a_mated_instance(label: &str) -> (ProfileDoc, [RecipeNodeId; 2], RecipeNodeId) {
+    let (doc, doc_ref, ids, body) = instances_and_ref_of_a_stored_part(label, 1);
+    let (doc, mated) = insert(doc, fixture::mated_instance(doc_ref));
+    (doc, [ids[0], mated], body)
 }
 
 fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
@@ -302,130 +311,84 @@ fn part_face(body: RecipeNodeId) -> StableName {
     }
 }
 
-fn mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> AuthoredNode {
-    Node::Mate {
-        a: crate::fixture::head(in_part(a, body, CapEnd::Start)).into(),
-        b: crate::fixture::head(in_part(b, body, CapEnd::Start)).into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
-            a: MateFrame::authored(
-                origin,
-                [0.0, 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-                geom_core::Tol::witness(),
-            )
-            .expect("a definite frame"),
-            b: MateFrame::authored(
-                [0.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-                geom_core::Tol::witness(),
-            )
-            .expect("a definite frame"),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Aligned,
-            clocking: None,
-        },
-    }
-}
-
-/// **A mate the edit door cannot decide on is refused there.** The
-/// rider is an authored number; a number that is not one
-/// leaves every downstream predicate — the coset solve, the rest
-/// classification — with nothing to read.
-///
-/// The load door asks the SAME question in the same node walk
-/// (`Node::has_non_finite_alignment`); it is unreachable from a file,
-/// because JSON has no non-finite token, and the save door's half is
-/// pinned in-crate beside the validator.
-#[test]
-fn a_non_finite_alignment_is_refused_at_the_edit_door() {
-    let (doc, ids, body) = instances_of_a_stored_part("onepred-align", 2);
-    // Finite, the same mate is accepted — so the refusal below is the
-    // coordinate's and not the fixture's.
-    let (doc, _) = insert(doc, mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]));
-    let mut non_finite = mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]);
-    if let Node::Mate { alignment, .. } = &mut non_finite {
-        alignment.clocking = Some(f64::NAN);
-    }
-    match apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(non_finite),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(EditError::NonFiniteAlignment { .. }) => {}
-        other => panic!("a non-finite alignment must refuse typed, got {other:?}"),
-    }
+/// `placed`'s start cap resting on `on`'s, both instances of the part
+/// whose body is `body`: the mate `placed`'s bundle holds.
+fn mate(body: RecipeNodeId, on: RecipeNodeId, placed: RecipeNodeId) -> Mate<Formula> {
+    fixture::rest(
+        fixture::head(in_part(placed, body, CapEnd::Start)),
+        fixture::head(in_part(on, body, CapEnd::Start)),
+        ContactClass::Rest,
+    )
 }
 
 // ---- The mate head's entity kind ----
 
-/// A two-instance document carrying one FACE-TO-FACE mate, saved and
-/// loaded once — the control the rows below corrupt, and the round
-/// trip in its own right.
-fn saved_mate(label: &str) -> (String, RecipeNodeId) {
-    let (doc, ids, body) = instances_of_a_stored_part(label, 2);
-    let (doc, id) = insert(doc, mate(body, ids[0], ids[1], [0.0, 0.0, 0.0]));
+/// A two-instance document carrying one FACE-TO-FACE mate in the
+/// second instance's bundle, saved and loaded once — the control the
+/// rows below corrupt, and the round trip in its own right. Answers
+/// the text, the mate, and the face selection each of its poses reads,
+/// `on` then `to`.
+fn saved_mate(label: &str) -> (String, MateRef, [editor_core::VarId; 2]) {
+    let (doc, [pinned, mated], body) = a_pinned_and_a_mated_instance(label);
+    let (doc, id) = fixture::constrain_at(doc, mated, mate(body, pinned, mated));
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-to-face mate round trips");
-    (text, id)
+    let written = fixture::constraint(&doc, id);
+    let Target::Pose(to) = written.to else {
+        panic!("the mate's target is a pose of the pinned copy");
+    };
+    let face = |pose| match fixture::face_reads(&doc, pose).as_slice() {
+        [one] => *one,
+        other => panic!("a plane pose reads one face, got {other:?}"),
+    };
+    (text, id, [face(written.on), face(to)])
 }
 
-/// Retypes the name one side of a saved mate selects — its KIND and
-/// nothing else — returning the side's selection variable too.
-fn retype_head(
-    text: &str,
-    mate: RecipeNodeId,
-    side: &str,
-    kind: EntityKind,
-) -> (String, editor_core::VarId) {
-    let mut select = None;
-    let doctored = doctored(text, |wire| {
-        let read: editor_core::VarId = serde_json::from_value(
-            wire["snapshot"]["nodes"][mate.0.to_string()]["Mate"][side].clone(),
-        )
-        .expect("a mate side is a variable id");
-        select = Some(read);
+/// Retypes the name the face selection `read` holds — its KIND and
+/// nothing else.
+fn retype_head(text: &str, read: editor_core::VarId, kind: EntityKind) -> String {
+    doctored(text, |wire| {
         let field =
             &mut wire["snapshot"]["vars"][read.0.to_string()]["def"]["Select"]["names"][0]["kind"];
         assert_eq!(
             *field,
             serde_json::json!("Face"),
-            "the surgery is aimed at a face side"
+            "the surgery is aimed at a face selection"
         );
         *field = serde_json::json!(format!("{kind:?}"));
-    });
-    (doctored, select.expect("the side was read"))
+    })
 }
 
-/// **A saved mate side that selects no face resolves to no head.**
+/// **A saved mate pose whose selection names no face refuses at load.**
 ///
-/// A side is a `Face` selection, and what each of its names denotes is
-/// asked where the name resolves (`Select::fault` leaves it to
-/// evaluation's `SelectKind`). The member walk asks it first, in the
-/// side's head (`editor_core::head_of`, through the one face-name
-/// constructor), so a file whose side names a body, an edge or a vertex
-/// loads, and the solve refuses the mate (`MateFault::SideUnresolved`)
-/// rather than walking a name that is not a face.
+/// A pose reads a `Face` selection, and what each of its names denotes
+/// is the name's own kind, so the load door holds it as it holds any
+/// selection's (`Select::fault`'s per-name arm): a file whose pose
+/// names a body, an edge or a vertex is not one a door writes.
 ///
-/// Both sides and all three non-face kinds.
+/// Both poses and all three non-face kinds.
 #[test]
-fn a_saved_mate_side_that_is_not_a_face_resolves_to_no_head() {
+fn a_saved_mate_side_that_is_not_a_face_refuses_at_load() {
     for kind in [EntityKind::Body, EntityKind::Edge, EntityKind::Vertex] {
-        for side in ["a", "b"] {
-            let (text, _mate) = saved_mate("onepred-matehead");
-            let (corrupt, read) = retype_head(&text, _mate, side, kind);
-            let loaded = load(&corrupt, Tol::witness())
-                .unwrap_or_else(|e| panic!("a {kind:?} side loads: {e:?}"));
-            assert_eq!(
-                editor_core::head_of(&loaded.doc, read),
-                None,
-                "a {kind:?} side on {side} is no face head"
-            );
+        for side in 0..2 {
+            let (text, _, reads) = saved_mate("onepred-matehead");
+            let corrupt = retype_head(&text, reads[side], kind);
+            match load(&corrupt, Tol::witness()) {
+                Err(PersistError::Snapshot(SnapshotError::SelectionShape { fault, .. })) => {
+                    assert_eq!(
+                        fault,
+                        editor_core::SelectionFault::Kind {
+                            at: 0,
+                            found: kind,
+                            expected: EntityKind::Face,
+                        },
+                        "a {kind:?} selection on pose {side}"
+                    );
+                }
+                other => {
+                    panic!("a {kind:?} selection on pose {side} refuses at load, got {other:?}")
+                }
+            }
         }
     }
 }
@@ -440,24 +403,31 @@ fn kind_noun(kind: EntityKind) -> &'static str {
     }
 }
 
-/// **The control**: the same document with both heads naming faces
+/// **The control**: the same document with both poses reading faces
 /// saves, loads and keeps its mate — so the rows above measure the
 /// kind and not the fixture.
 #[test]
 fn a_face_to_face_mate_round_trips() {
-    let (text, mate) = saved_mate("onepred-matehead-ok");
+    let (text, mate, reads) = saved_mate("onepred-matehead-ok");
     let loaded = load(&text, Tol::witness()).expect("a face-to-face mate loads");
-    let Some(Node::Mate { a, b, .. }) = loaded.doc.node(mate) else {
-        panic!("the mate survives the round trip");
+    let kept = fixture::constraint(&loaded.doc, mate);
+    let Target::Pose(to) = kept.to else {
+        panic!("the mate survives the round trip, its target a pose");
     };
     assert_eq!(
-        crate::fixture::side_name(&loaded.doc, *a).kind,
-        EntityKind::Face
+        [
+            fixture::face_reads(&loaded.doc, kept.on),
+            fixture::face_reads(&loaded.doc, to)
+        ],
+        [vec![reads[0]], vec![reads[1]]],
+        "each pose reads the face it was saved reading"
     );
-    assert_eq!(
-        crate::fixture::side_name(&loaded.doc, *b).kind,
-        EntityKind::Face
-    );
+    for read in reads {
+        assert_eq!(
+            crate::fixture::side_name(&loaded.doc, read).kind,
+            EntityKind::Face
+        );
+    }
 }
 
 // ---- An interface crossing's two references ----
@@ -484,15 +454,7 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
             inner: face(part_face(body)),
         }],
     };
-    let (doc, id) = insert(
-        doc,
-        Node::instantiate_part_with(
-            doc_ref,
-            record,
-            None,
-            Some(editor_core::Placement::IDENTITY),
-        ),
-    );
+    let (doc, id) = insert(doc, Node::instantiate_part_with(doc_ref, record));
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-referenced crossing round trips");
     (text, id)
@@ -626,17 +588,20 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
     );
 }
 
-// ---- A11 (2): gauge references and offsets ----
+// ---- A11 (2): constraint sites and placement frames ----
 
-/// **An offset on a node that instantiates nothing, and a gauge
-/// reference to a node that is not a gauge — both doors.** The edit
-/// door names them `OffsetOnNonInstance` and `NotAGauge`; the load
-/// door, which sees only the reference in a file, `NotAGauge`.
+/// **A constraint on a node that places nothing — the edit door.** Only
+/// a `Place` and an instance hold a bundle, so a world mate aimed at a
+/// sketch refuses `ConstraintOnNonPlacement` naming it.
+///
+/// There is no load-door twin, by construction: a bundle is a field
+/// only a placement's node carries on the wire, so a file has no
+/// spelling for a constraint on any other node.
 #[test]
-fn an_offset_or_gauge_on_the_wrong_kind_is_refused_at_both_doors() {
-    let (doc, ids, _) = instances_of_a_stored_part("onepred-site", 1);
-    // A live non-instance, non-gauge node, so the refusal is the kind
-    // rule's and not a dangling id's.
+fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
+    let (doc, ids, body) = instances_of_a_stored_part("onepred-site", 1);
+    // A live non-placement node, so the refusal is the kind rule's and
+    // not a dangling id's.
     let (doc, other) = on_frame(
         doc,
         [0.0, 0.0, 0.0],
@@ -644,87 +609,77 @@ fn an_offset_or_gauge_on_the_wrong_kind_is_refused_at_both_doors() {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
+    let on_the_world = Mate {
+        on: fixture::plane(fixture::head(in_part(ids[0], body, CapEnd::Start))),
+        to: Target::World(editor_core::WorldRead::through(
+            editor_core::pose::PoseRole::Xy,
+        )),
+        class: ContactClass::Rest,
+    };
     match apply(
         &doc,
-        &DocEdit::SetOffset {
-            instance: other,
-            offset: Some(editor_core::Placement::literal(&Frame::translation([
-                1.0, 0.0, 0.0,
-            ]))),
+        &DocEdit::AddConstraint {
+            placement: other,
+            mate: Box::new(on_the_world),
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
-        Err(EditError::OffsetOnNonInstance { node }) => assert_eq!(node.id(), other),
-        other => panic!("an offset on a non-instance must refuse typed, got {other:?}"),
-    }
-    match apply(
-        &doc,
-        &DocEdit::SetGauge {
-            node: ids[0],
-            gauge: Some(other),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(EditError::NotAGauge { node, gauge }) => {
-            assert_eq!((node.id(), gauge.id()), (ids[0], other));
-        }
-        other => panic!("a gauge reference to a non-gauge must refuse typed, got {other:?}"),
-    }
-    match apply(
-        &doc,
-        &DocEdit::SetGauge {
-            node: other,
-            gauge: None,
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(EditError::GaugeOnNonPlaced { node }) => assert_eq!(node.id(), other),
-        other => panic!("a gauge edit on a node that sits on none must refuse, got {other:?}"),
-    }
-
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    let corrupt = doctored(&text, |wire| {
-        let gauge =
-            &mut wire["snapshot"]["nodes"][ids[0].0.to_string()]["InstantiatePart"]["gauge"];
-        assert!(gauge.is_null(), "aimed at the instance's world reference");
-        *gauge = serde_json::json!(other.0);
-    });
-    match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::NotAGauge { node, gauge })) => {
-            assert_eq!((node.id(), gauge.id()), (ids[0], other));
-        }
-        other => {
-            panic!("a gauge reference to a non-gauge must refuse typed at load, got {other:?}")
-        }
+        Err(EditError::ConstraintOnNonPlacement { node }) => assert_eq!(node.id(), other),
+        other => panic!("a constraint on a non-placement must refuse typed, got {other:?}"),
     }
 }
 
-/// **An IMPROPER offset frame — both doors.** A mirror is authored data
-/// this build declines to admit (A6, gated on R4's equivariance audit),
-/// and the load door says so in its own arm rather than folding it in
-/// with a coordinate no predicate can read.
+/// A part document and a transform of its body by `frame`'s literal
+/// step, inserted through the edit door.
+fn transformed(label: &str, frame: Frame) -> Result<(ProfileDoc, RecipeNodeId), EditError> {
+    let (doc, body) = part(label);
+    apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Transform {
+                input: body.into(),
+                placement: editor_core::Placement::literal(&frame),
+            }),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    )
+    .map(|applied| {
+        let id = applied.record.minted.expect("an insert mints");
+        (applied.doc, id)
+    })
+}
+
+/// The saved text of a transform by a unit translation along `x`,
+/// which the rows below corrupt, and the transform.
+fn saved_transform(label: &str) -> (String, RecipeNodeId) {
+    let (doc, transform) =
+        transformed(label, Frame::translation([1.0, 0.0, 0.0])).expect("a proper rigid frame");
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("the fixture loads");
+    (text, transform)
+}
+
+/// The first entry of the first column of a transform's one-step
+/// literal placement, on the wire.
+fn frame_cell(wire: &mut serde_json::Value, transform: RecipeNodeId) -> &mut serde_json::Value {
+    &mut wire["snapshot"]["nodes"][transform.0.to_string()]["Transform"]["placement"]["steps"][0]["Literal"]
+        ["columns"][0][0]
+}
+
+/// **An IMPROPER placement frame — both doors.** A mirror is authored
+/// data this build declines to admit (A6, gated on R4's equivariance
+/// audit), and the load door says so in its own arm rather than folding
+/// it in with a coordinate no predicate can read.
 #[test]
 fn an_improper_placement_is_refused_at_both_doors() {
-    let (doc, ids, _) = instances_of_a_stored_part("onepred-improper", 1);
     let mirror = Frame {
         columns: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.0, 0.0, 0.0],
     };
     assert!(mirror.determinant() < 0.0, "the fixture really mirrors");
-    match apply(
-        &doc,
-        &DocEdit::SetOffset {
-            instance: ids[0],
-            offset: Some(editor_core::Placement::literal(&mirror)),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
+    match transformed("onepred-improper", mirror) {
         Err(EditError::ImproperPlacement { determinant, .. }) => {
             assert!(determinant < 0.0, "the refusal carries the determinant");
         }
@@ -733,9 +688,9 @@ fn an_improper_placement_is_refused_at_both_doors() {
 
     // The load door's half: a proper frame on the wire, mirrored by
     // flipping the first column's sign.
-    let text = saved_offset(&doc, ids[0], Frame::translation([1.0, 0.0, 0.0]));
+    let (text, transform) = saved_transform("onepred-improper");
     let corrupt = doctored(&text, |wire| {
-        let entry = offset_cell(wire, ids[0]);
+        let entry = frame_cell(wire, transform);
         assert_eq!(*entry, serde_json::json!(1.0), "aimed at the first axis");
         *entry = serde_json::json!(-1.0);
     });
@@ -743,36 +698,26 @@ fn an_improper_placement_is_refused_at_both_doors() {
         Err(PersistError::Snapshot(SnapshotError::PlacementImproper {
             node, determinant, ..
         })) => {
-            assert_eq!(node.id(), ids[0]);
+            assert_eq!(node.id(), transform);
             assert!(determinant < 0.0, "the refusal carries the determinant");
         }
         other => panic!("an improper frame must refuse typed at load, got {other:?}"),
     }
 }
 
-/// **A proper offset frame that is not rigid — both doors.** A scaled
-/// frame is refused where it is written, by the predicate the
+/// **A proper placement frame that is not rigid — both doors.** A
+/// scaled frame is refused where it is written, by the predicate the
 /// evaluation moves a body by, rather than admitted and refused later
-/// as `NotRigid` on the instance and on every member mated to it.
+/// as `NotRigid` on the transform and on everything reading it.
 #[test]
 fn a_non_rigid_placement_is_refused_at_both_doors() {
-    let (doc, ids, _) = instances_of_a_stored_part("onepred-non-rigid", 1);
     let mut stretched = Frame::IDENTITY;
     stretched.columns[0] = [2.0, 0.0, 0.0];
     assert!(stretched.determinant() > 0.0, "the fixture is proper");
-    let step0 = editor_core::FrameSite::Step { index: 0 };
-    match apply(
-        &doc,
-        &DocEdit::SetOffset {
-            instance: ids[0],
-            offset: Some(editor_core::Placement::literal(&stretched)),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(ref error @ EditError::NonRigidPlacement { ref node, at, .. }) => {
-            assert_eq!((node.id(), at), (ids[0], step0));
+    let step0 = FrameSite::Step { index: 0 };
+    match transformed("onepred-non-rigid", stretched) {
+        Err(ref error @ EditError::NonRigidPlacement { at, .. }) => {
+            assert_eq!(at, step0, "the transform's first step");
             let text = error.to_string();
             assert!(
                 text.contains("not definitely rigid") && text.contains("Recourse:"),
@@ -783,81 +728,18 @@ fn a_non_rigid_placement_is_refused_at_both_doors() {
     }
 
     // The load door's half: a proper frame on the wire, stretched.
-    let text = saved_offset(&doc, ids[0], Frame::translation([1.0, 0.0, 0.0]));
+    let (text, transform) = saved_transform("onepred-non-rigid");
     let corrupt = doctored(&text, |wire| {
-        let entry = offset_cell(wire, ids[0]);
+        let entry = frame_cell(wire, transform);
         assert_eq!(*entry, serde_json::json!(1.0), "aimed at the first axis");
         *entry = serde_json::json!(2.0);
     });
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PlacementNonRigid { node, at, .. })) => {
-            assert_eq!((node.id(), at), (ids[0], step0));
+            assert_eq!((node.id(), at), (transform, step0));
         }
         other => panic!("a scaled frame must refuse typed at load, got {other:?}"),
     }
-}
-
-/// **A gauge that would sit on itself — both doors.** The edit door
-/// refuses the `SetGauge` that would close the loop; a file that
-/// carries one refuses at load, by the same predicate.
-#[test]
-fn a_gauge_cycle_is_refused_at_both_doors() {
-    let doc = editor_core::ProfileDoc::empty_derived("onepred-gauge-cycle", Tol::witness());
-    let (doc, outer) = insert(doc, Node::gauge(None, editor_core::Placement::IDENTITY));
-    let (doc, inner) = insert(
-        doc,
-        Node::gauge(Some(outer), editor_core::Placement::IDENTITY),
-    );
-    match apply(
-        &doc,
-        &DocEdit::SetGauge {
-            node: outer,
-            gauge: Some(inner),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(EditError::GaugeCycle { node, gauge }) => {
-            assert_eq!((node.id(), gauge.id()), (outer, inner));
-        }
-        other => panic!("a gauge cycle must refuse typed, got {other:?}"),
-    }
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    let corrupt = doctored(&text, |wire| {
-        let parent = &mut wire["snapshot"]["nodes"][outer.0.to_string()]["Gauge"]["parent"];
-        assert!(
-            parent.is_null(),
-            "aimed at the outer gauge's world reference"
-        );
-        *parent = serde_json::json!(inner.0);
-    });
-    match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::GaugeCycle { .. })) => {}
-        other => panic!("a gauge cycle must refuse typed at load, got {other:?}"),
-    }
-}
-
-/// The saved text of `doc` with `node`'s offset set to `frame`, which
-/// the rows above corrupt.
-fn saved_offset(doc: &editor_core::ProfileDoc, node: RecipeNodeId, frame: Frame) -> String {
-    let (doc, _) = step(
-        doc.clone(),
-        DocEdit::SetOffset {
-            instance: node,
-            offset: Some(editor_core::Placement::literal(&frame)),
-            fresh: Vec::new(),
-        },
-    );
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    load(&text, Tol::witness()).expect("the fixture loads");
-    text
-}
-
-/// The first entry of the first column of `node`'s one-step literal
-/// offset, on the wire.
-fn offset_cell(wire: &mut serde_json::Value, node: RecipeNodeId) -> &mut serde_json::Value {
-    &mut wire["snapshot"]["nodes"][node.0.to_string()]["InstantiatePart"]["offset"]["steps"][0]["Literal"]
-        ["columns"][0][0]
 }
 
 // ---- A witness row's key ----
@@ -917,7 +799,6 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
             witness: witness(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::WitnessOnNonSketch { node }) => assert_eq!(node.id(), non_sketch),
         other => panic!("a witness on a non-sketch must refuse typed, got {other:?}"),
@@ -945,14 +826,9 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     // Deleted rather than invented, so the id stays one the document
     // has minted and the load door's id walk passes it — the refusal read
     // is then the site rule's and not `NodeNotMinted`.
-    let doc = apply(
-        &doc,
-        &DocEdit::DeleteNode { id: gone },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("the extrude has no consumer")
-    .doc;
+    let doc = apply(&doc, &DocEdit::DeleteNode { id: gone }, Tol::witness())
+        .expect("the extrude has no consumer")
+        .doc;
     match apply(
         &doc,
         &DocEdit::ReWitness {
@@ -960,7 +836,6 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
             witness: witness(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::UnknownNode { id }) => assert_eq!(id.id(), gone),
         other => panic!("a witness on a missing node must refuse typed, got {other:?}"),
@@ -978,9 +853,10 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
 
 // ---- The recorded ε ----
 
-/// **An ε that is not strictly positive — both doors.** ε parameterizes
-/// every predicate band the document is read through, so a zero or
-/// negative one leaves every geometric answer undefined. The edit door
+/// **An ε that is not strictly positive, or below the floor — both
+/// doors.** ε parameterizes every predicate band the document is read
+/// through, so a zero or negative one leaves every geometric answer
+/// undefined, and one below `EPS_MIN` is no run's (D4 ¶4). The edit door
 /// names it `InvalidTolerance` and the load door
 /// `SnapshotError::EpsilonInvalid`.
 ///
@@ -988,16 +864,16 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
 /// JSON carries no such token — and in memory it refuses one walk
 /// earlier, as `PersistError::NonFinite` at `NonFiniteSite::Epsilon`.
 #[test]
-fn a_non_positive_epsilon_is_refused_at_both_doors() {
+fn an_inadmissible_epsilon_is_refused_at_both_doors() {
     let (doc, _) = with_value();
-    match apply(
-        &doc,
-        &DocEdit::SetTolerance { eps: 0.0 },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
+    match apply(&doc, &DocEdit::SetTolerance { eps: 0.0 }, Tol::witness()) {
         Err(EditError::InvalidTolerance { value }) => assert_eq!(value, 0.0),
         other => panic!("a zero ε must refuse typed, got {other:?}"),
+    }
+    let below = geom_core::tolerance::EPS_MIN.next_down();
+    match apply(&doc, &DocEdit::SetTolerance { eps: below }, Tol::witness()) {
+        Err(EditError::InvalidTolerance { value }) => assert_eq!(value, below),
+        other => panic!("an ε below the floor must refuse typed, got {other:?}"),
     }
 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
@@ -1015,6 +891,15 @@ fn a_non_positive_epsilon_is_refused_at_both_doors() {
             assert_eq!(value, 0.0);
         }
         other => panic!("a zero ε must refuse typed at load, got {other:?}"),
+    }
+    let corrupt = doctored(&text, |wire| {
+        wire["snapshot"]["epsilon"] = serde_json::json!(below);
+    });
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::EpsilonInvalid { value })) => {
+            assert_eq!(value, below);
+        }
+        other => panic!("an ε below the floor must refuse typed at load, got {other:?}"),
     }
 }
 
@@ -1065,7 +950,6 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
                 def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         ) {
             Err(EditError::NonFiniteVar { var: n, field }) => {
                 assert_eq!(n.name(), Some(&name));
@@ -1122,7 +1006,6 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Count, 3.0)),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::ContinuousVarCannotBeCount { var: n }) => {
             assert_eq!(n.name(), Some(&name));
@@ -1237,7 +1120,6 @@ fn saved_with_width() -> (ProfileDoc, String) {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a legal name declares");
     let text = save(&applied.doc, &[], Tol::witness()).expect("the fixture saves");

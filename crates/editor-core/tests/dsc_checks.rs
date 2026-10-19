@@ -73,7 +73,6 @@ fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     fixture::place(doc, result)
@@ -90,7 +89,6 @@ fn voided() -> (ProfileDoc, RecipeNodeId) {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     fixture::place(doc, result)
@@ -215,7 +213,7 @@ fn connectedness_is_labeled_certified() {
 
 /// An annihilated boolean: the intersection of two DISJOINT slabs —
 /// an honest ∅ result (F8: `Empty` is a typed success) denoting zero
-/// subjects.
+/// subjects — and its placement.
 fn annihilated() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-annihilated", Tol::witness());
     let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
@@ -224,10 +222,11 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
-    fixture::place(doc, result)
+    // An empty body has no geometry for a mate to read, so its
+    // placement is a loose copy: placed, in no product.
+    insert(doc, Node::place(vec![editor_core::BodyRead::plain(result)]))
 }
 
 #[test]
@@ -350,9 +349,8 @@ fn in_band_shell_escalates_typed_never_guessed() {
 ///
 /// The sheet is what a unit cube cavity leaves when a box filling all
 /// but its top `(1 + K)·ε` is united into it. Subtracting a thin tool
-/// directly never reaches the census: the Boolean's own orientation
-/// read of the uncut tool (`bool_point_in_solid_infinity`, the same
-/// `V/A`) is in band and refuses the node.
+/// directly never reaches the census either: the cavity it leaves is a
+/// shell whose role is in band, which the same result gate refuses.
 #[test]
 fn in_band_void_shell_escalates_with_its_valued_ending() {
     use geom_core::{Band, ErrorTextReading};
@@ -366,7 +364,6 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
         Node::Subtract {
             from: a.into(),
             tool: b.into(),
-            declare: Vec::new(),
         },
     );
     let (doc, c) = slab(doc, 0.0, 0.8, 0.5, 1.5 - t);
@@ -374,7 +371,6 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![hollow.into(), c.into()]),
-            declare: Vec::new(),
         },
     );
     let (doc, placement) = fixture::place(doc, root);
@@ -453,7 +449,7 @@ fn a_findings_attribution_resolves_to_its_subject() {
     assert_eq!(body.shells().count(), 2);
     // The subject's DECLARATIONS travel with it, so the tier-3′ gate
     // reached through an attribution asks about the same body the
-    // producer minted. This union declares nothing (`declare: Vec::new()`,
+    // producer minted. This union carries no records (no member holds one,
     // and its operands are three metres apart), so the honest claim
     // here is that the empty set is what arrived — not that the pair
     // is populated. The case where a non-empty set is the difference
@@ -497,6 +493,18 @@ fn two_roots(cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, a, b)
 }
 
+/// The report's separation findings: two placed copies that meet are
+/// also the census's rows, which the `unproven-coincidence` check
+/// reports beside them.
+fn separation(report: &editor_core::ChecksReport) -> Vec<CheckFinding> {
+    report
+        .findings
+        .iter()
+        .filter(|f| f.check == CheckId::Separation)
+        .cloned()
+        .collect()
+}
+
 #[test]
 fn overlapping_roots_are_one_finding_naming_both() {
     // Concentric: the two roots are the same cube twice over, which is
@@ -505,7 +513,7 @@ fn overlapping_roots_are_one_finding_naming_both() {
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(report.skipped, vec![CheckId::ChartCoherence]);
     assert_eq!(
-        report.findings,
+        separation(&report),
         vec![CheckFinding {
             check: CheckId::Separation,
             subject: editor_core::FindingSubject::Output {
@@ -559,7 +567,7 @@ fn touching_roots_are_reported_as_uncertified_not_as_overlapping() {
     let (doc, a, b) = two_roots(1.0);
     let report = checks(&doc, &ChecksConfig::default());
     assert_eq!(
-        report.findings,
+        separation(&report),
         vec![CheckFinding {
             check: CheckId::Separation,
             subject: editor_core::FindingSubject::Output {
@@ -608,6 +616,56 @@ fn a_deliberately_disjoint_body_draws_no_separation_finding() {
     );
 }
 
+/// **A world whose gather refuses**: a cube instance pinned to the
+/// world and a second placed on it by a constraint whose side names a
+/// face the part does not have, so that placement fails and the gather
+/// refuses it typed. Answers the document, the options that resolve its
+/// part, and the failed placement.
+fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
+    use editor_core::{CapEnd, ContactClass, EntityKind, RoleSeg, StableName};
+    let mut store = fixture::resolver::PartStore::default();
+    let part = ProfileDoc::empty_derived(&format!("{id}-part"), Tol::witness());
+    let (part, profile) = on_frame(
+        part,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (part, body) = insert(
+        part,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (part_ref, body) = store.insert_part((part, body), Tol::witness());
+    let opts = fixture::resolver::with_resolver(store);
+    let doc = ProfileDoc::empty_derived(id, Tol::witness());
+    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(part_ref), &opts);
+    let (doc, placed) = insert(doc, fixture::mated_instance(part_ref));
+    let nowhere = StableName {
+        kind: EntityKind::Face,
+        node: base,
+        path: vec![RoleSeg::InPart {
+            of: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId::new(0, 99),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            }
+            .into(),
+        }],
+    };
+    let mate = fixture::rest(
+        fixture::head(fixture::resolver::in_part(placed, body, CapEnd::Start)),
+        fixture::head(nowhere),
+        ContactClass::Rest,
+    );
+    let (doc, _) = fixture::constrain_at(doc, placed, mate);
+    (doc, opts, placed)
+}
+
 #[test]
 fn separation_off_is_visibly_skipped_and_independent() {
     let (doc, _, _) = two_roots(0.0);
@@ -620,7 +678,7 @@ fn separation_off_is_visibly_skipped_and_independent() {
         report.skipped,
         vec![CheckId::ChartCoherence, CheckId::Separation]
     );
-    assert_eq!(report.findings, Vec::new());
+    assert_eq!(separation(&report), Vec::new());
 
     // The other direction: turning connectedness off leaves the
     // separation resident running. Before this resident existed the
@@ -640,17 +698,19 @@ fn separation_off_is_visibly_skipped_and_independent() {
 
     // **And `Off` means the subject is never derived**, which is the
     // half a document that gathers cannot show: a document whose
-    // gather REFUSES still reports, because with the only
-    // subject-reading resident off there is nothing to gather for.
-    // An instance whose group nothing places, placed: the world holds
-    // no copy and the gather refuses, while the copy evaluates.
-    let (doc, opts) = fixture::unplaced_world("dsc-checks-unplaced");
+    // gather REFUSES still reports, because with the subject-reading
+    // residents off there is nothing to gather for. A placement whose
+    // constraint names no face fails, and the gather refuses it.
+    // Connectedness reads every placement's value and would refuse the
+    // failed one on its own, so it is off here too.
+    let (doc, opts, _) = failed_placement_world("dsc-checks-unplaced");
     let ev = fixture::run(&doc, &opts);
     assert!(
         editor_core::product_recorded(&doc, &ev, Tol::witness()).is_err(),
         "the premise: this document's gather refuses"
     );
     let off = ChecksConfig {
+        connectedness: Severity::Off,
         separation: Advisory::Off,
         unproven_coincidence: Advisory::Off,
         ..ChecksConfig::default()
@@ -660,14 +720,22 @@ fn separation_off_is_visibly_skipped_and_independent() {
     assert_eq!(
         report.skipped,
         vec![
+            CheckId::Connectedness,
             CheckId::ChartCoherence,
             CheckId::UnprovenCoincidence,
             CheckId::Separation
         ]
     );
-    // …and with it on, the same document refuses on the subject.
+    // …and with separation on, the same document refuses on the subject.
+    let on = ChecksConfig {
+        separation: Advisory::Warn,
+        ..off
+    };
     assert!(
-        run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).is_err(),
+        matches!(
+            run_checks(&doc, &ev, &on, Tol::witness()),
+            Err(ChecksError::Product { .. })
+        ),
         "the control: the resident that reads the subject is what needs one"
     );
 }
@@ -757,7 +825,7 @@ fn separation_cannot_refuse_because_it_ships_no_waiver() {
     let (doc, _, _) = two_roots(0.0);
     let cfg = ChecksConfig::default();
     let report = checks(&doc, &cfg);
-    assert_eq!(report.findings.len(), 1);
+    assert_eq!(separation(&report).len(), 1);
     assert!(
         enforce_checks(&report, &cfg).is_ok(),
         "a finding from a waiver-less resident never gates"
@@ -796,7 +864,12 @@ fn washer() -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, washer) = insert(
         doc,
-        fixture::revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+        fixture::revolve_about(
+            p,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
     );
     fixture::place(doc, washer)
 }
@@ -911,11 +984,13 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
             },
         }],
         skipped: Vec::new(),
+        pending: Vec::new(),
     };
     let chose_not_to = ChecksReport {
         document: editor_core::DocumentId(1),
         findings: Vec::new(),
         skipped: vec![CheckId::ChartCoherence],
+        pending: Vec::new(),
     };
 
     let data = could_not_look.to_string();

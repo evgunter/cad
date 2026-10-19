@@ -151,7 +151,7 @@ pub fn unit_box() -> Body<f64> {
 pub fn moved_box() -> Body<f64> {
     topo::transform_rigid(
         &unit_box(),
-        &Affine3::translation(Vec3::new(0.7, 0.3, 0.4)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.7, 0.3, 0.4)).unwrap(),
         Tol::witness(),
     )
     .expect("a planar box transforms")
@@ -187,13 +187,13 @@ pub fn planar_patch(z: f64) -> NurbsSurface<f64> {
 /// exact on a plane, approximate (to `d·Δn`) on a saddle. See the
 /// module docs for why the base is the pull-back and not the wall.
 pub fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
-    let (u0, u1) = wall.knots_u().domain();
-    let (v0, v1) = wall.knots_v().domain();
+    let (u0, u1) = wall.knots_u_f64_interim().domain();
+    let (v0, v1) = wall.knots_v_f64_interim().domain();
     let jet = wall.ders((u0 + u1) * 0.5, (v0 + v1) * 0.5);
     let n = jet.du.cross(jet.dv).normalize();
     NurbsSurface::new(
-        wall.knots_u().clone(),
-        wall.knots_v().clone(),
+        wall.knots_u_f64_interim().clone(),
+        wall.knots_v_f64_interim().clone(),
         wall.control().iter().map(|p| *p - n * d).collect(),
         wall.weights().to_vec(),
     )
@@ -453,7 +453,7 @@ pub fn try_approx_walls(
         let approx = geom_brep::approx_offset_surface_at(base, d, target, band())
             .unwrap_or_else(|e| panic!("d = {d}: the wall's offset must fit: {e}"));
         if let Surface::Approx(a) = &approx {
-            let kv = a.fit().knots_v().knots();
+            let kv = a.fit().knots_v_f64_interim().knots();
             fit_interior_v = kv[FIT_DEGREE + 1..kv.len() - (FIT_DEGREE + 1)].to_vec();
         }
         // Lifts RechartStrandsDescriptions: the Approx chart goes on first; the edges are re-described on it after.
@@ -489,9 +489,9 @@ pub fn try_approx_walls(
             .with_remapped_surfaces(|k| Some(remap.get(&k).copied().unwrap_or(k)))
             .expect("the remap answers for every key");
         let carrier = match re.carrier() {
-            Curve3::Nurbs(c) if c.knots().degree() < FIT_DEGREE => {
+            Curve3::Nurbs(c) if c.knots_f64_interim().degree() < FIT_DEGREE => {
                 let mut e = c
-                    .elevate_degree(FIT_DEGREE - c.knots().degree())
+                    .elevate_degree(FIT_DEGREE - c.knots_f64_interim().degree())
                     .expect("degree elevation of a clamped carrier");
                 if !fit_interior_v.is_empty() {
                     e = e
@@ -582,5 +582,66 @@ pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool 
     let Ok(band) = geom_core::Band::linear_at(Tol::witness(), eps) else {
         return false;
     };
-    geom_brep::EdgeCurve::certify(spec, start, end, |k| body.get_surface(k).cloned(), band).is_ok()
+    geom_brep::EdgeCurve::certify(
+        spec,
+        start,
+        end,
+        |k| body.get_surface(k).cloned(),
+        1.0,
+        band,
+    )
+    .is_ok()
+}
+
+/// **A moved wall's seam with a held spline wall, its measured verdict.**
+/// The seam is the NURBS × NURBS section of the moved fit and the held
+/// wall, and the arm refuses it, `EdgeSection { Approx, Nurbs, _ }`, the
+/// trace from the old seam's middle refused (`FromMiddle`) by the reading
+/// that meets it first, or no branch there. Measured on `prism` and
+/// `twisted_loft(0.3)` with one wall moved by `d = ±5e-10`:
+/// - inward (`d < 0`), at every ε: the section runs along the fit's side,
+///   and the boundary pass does not resolve that face
+///   (`PairBoundaryUnresolved`);
+/// - outward at ε ≤ 1e-9: the old seam's middle settles onto the section
+///   outside the fit's window, so the moved fit no longer meets the held
+///   wall there (`NoBranch`);
+/// - outward at ε = 1e-6, where `d` is far inside ε: on the loft the
+///   boundary pass refuses as inward; on the prism the middle settles
+///   inside and the trace loses the section at the side, one seam with
+///   no crossing to end at (`CrossingUnmatched`), the other by the
+///   step-progress decision (`Escalated { StepProgress }`).
+pub fn assert_seam_verdict(name: &str, curved: bool, d: f64, e: &topo::ReplaceFaceError<f64>) {
+    use geom_brep::{SsiError, TraceDecision};
+    use topo::SectionVerdict;
+    let topo::ReplaceFaceError::EdgeSection {
+        kind: geom::SurfaceKind::Approx,
+        other_kind: geom::SurfaceKind::Nurbs,
+        verdict,
+        ..
+    } = e
+    else {
+        panic!("{name}, d = {d:e}: expected the seam's section to refuse, got {e}");
+    };
+    let eps = Tol::witness().eps();
+    let traced = |want: &dyn Fn(&SsiError) -> bool| matches!(verdict, SectionVerdict::FromMiddle(ssi) if want(ssi));
+    let ok = if d < 0.0 || (curved && eps > 1e-8) {
+        traced(&|ssi| matches!(ssi, SsiError::PairBoundaryUnresolved { .. }))
+    } else if eps > 1e-8 {
+        traced(&|ssi| {
+            matches!(
+                ssi,
+                SsiError::CrossingUnmatched { .. }
+                    | SsiError::Escalated {
+                        decision: TraceDecision::StepProgress,
+                        ..
+                    }
+            )
+        })
+    } else {
+        matches!(verdict, SectionVerdict::NoBranch)
+    };
+    assert!(
+        ok,
+        "{name}, d = {d:e}, ε = {eps:e}: the seam's verdict moved: {verdict:?}"
+    );
 }

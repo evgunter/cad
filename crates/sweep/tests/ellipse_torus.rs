@@ -76,10 +76,19 @@ fn donut(big: f64, small: f64, c: Vec3<f64>, axis: Vec3<f64>) -> Body<f64> {
             y.cross(a).normalize(),
             y.dot(a).acos(),
         );
-        topo::transform_rigid(&at_origin, &turn, Tol::witness()).expect("a rotation is rigid")
+        topo::transform_rigid(
+            &at_origin,
+            &geom_core::test_support::rigid(&turn, Tol::witness()),
+            Tol::witness(),
+        )
+        .expect("a rotation is rigid")
     };
-    topo::transform_rigid(&turned, &Affine3::translation(c), Tol::witness())
-        .expect("a translation is rigid")
+    topo::transform_rigid(
+        &turned,
+        &geom_core::RigidMotion::translation(c).unwrap(),
+        Tol::witness(),
+    )
+    .expect("a translation is rigid")
 }
 
 /// The torus of `(big, small)` whose tube comes within `gap` of the rim at
@@ -203,8 +212,9 @@ fn a_torus_just_clear_of_the_rim_is_decided_by_its_roots() {
 /// millimetre, and a ring of radius 0.45 about the drum's axis at the
 /// cut's centre whose tube the rim enters and leaves: the rim's pairs are
 /// accepted at its certified roots, the crossing layer passes, and every
-/// op stops at the join, whose oblique plane × torus and wall × torus
-/// germ pairs have no frame (the same filed door).
+/// op stops at the join's germ frame: an oblique plane × torus germ pair
+/// cuts a general spiric quartic, refused by name, and a wall × torus
+/// pair has no frame (the same filed door).
 #[test]
 fn a_torus_crossing_the_rim_reaches_the_join() {
     let a = drum_lower();
@@ -224,7 +234,11 @@ fn a_torus_crossing_the_rim_reaches_the_join() {
         assert!(accepted > 0, "{label}: the rim's crossings are accepted");
         for (op, e) in refusals(&a, &b) {
             assert!(
-                matches!(e, BooleanError::GermFrameUnsupported { .. }),
+                matches!(
+                    e,
+                    BooleanError::GermFrameUnsupported { .. }
+                        | BooleanError::GermSectionSpiric { .. }
+                ),
                 "{label}, {op}: got {e:?}"
             );
         }

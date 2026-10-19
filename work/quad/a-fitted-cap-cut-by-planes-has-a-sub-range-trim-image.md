@@ -35,3 +35,24 @@ over its own span. The closed form is waiting for it: the moved box's
 volume is `4 (1 + d)`, which the row above can then assert in place of
 the refusal. `a-fitted-face-trimmed-by-a-section-has-no-volume-rule` is
 the window refusal the same fit reaches when only a side moves.
+
+**A second producer** (SHELL's NURBS × NURBS section unit, 2026-10-10):
+the shelled twisted loft, `topo::shell(twisted_loft(0.3), 0.05)` at
+`CAD_TOLERANCE_EPS=1e-6`, with its top rims certified (on a scratch
+build, `work/iso/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`),
+builds every edge and corner and stops at tier 3 with this refusal:
+`NotValid { VolumeUncomputable { face: FaceKey(9v1), source:
+QuadratureUnsupported { "a General trim image whose carrier interval is
+not its own knot domain …" } } }`.
+
+**A third producer** (PCERT, PR 4410, 2026-10-12): `Body::split_edge`
+now carries a `General` row to each child, as the parent's image over
+the child's part of the edge's interval
+(`crates/topo/src/pcurves.rs`, `split_cache`). So every split of a seam
+holding a `General` row stores this shape. Before 4410 the split left
+that face rowless, and the lane refused it too, so this is no
+regression. `crates/sweep/tests/split_edge_fitted_rows.rs`'s
+`the_mint_rederives_the_carried_rows_and_the_trimmed_lane_refuses_their_sub_range`
+is a live witness: the interior-column body's volume is `Ok` before the
+split and this refusal, on the widened wall, after it. The fix the
+"Owed" paragraph names serves this producer as well.

@@ -100,8 +100,8 @@ use geom_core::Tol;
 /// never a string.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ResolveError {
-    /// The name's minting node is live but no table in the evaluation
-    /// derives the name any more.
+    /// The name's minting node is live but the table of the read it is
+    /// resolved in no longer derives the name.
     Vanished {
         /// The unresolvable name.
         name: StableName,
@@ -124,6 +124,21 @@ pub enum ResolveError {
         candidates: Vec<StableName>,
         /// The recorded tie's site and width.
         tie: TieWitness,
+    },
+    /// The read the reference is resolved in — its SITE — is no longer
+    /// in the document: the operation defining it was deleted, or the
+    /// document never minted it. The first rung, ahead of `NodeGone`:
+    /// a reference with no read to be read in has no table to ask. The
+    /// repair re-sites the reference in a live read, or removes it — a
+    /// `Rebind` repairs a name, never a site. A read the NAME carries
+    /// (`RoleSeg::From { read }`) is a fact of the name, not this.
+    ReadGone {
+        /// The stranded name.
+        name: StableName,
+        /// The read it was resolved in.
+        read: crate::VarId,
+        /// Whether the document deleted the read or never minted it.
+        edit: ReadEdit,
     },
     /// The name's minting node is no longer in the document (N5
     /// dangling semantics: a later `DeleteNode` may strand a name;
@@ -176,6 +191,7 @@ impl ResolveError {
         match self {
             Self::Vanished { name, .. }
             | Self::Ambiguous { name, .. }
+            | Self::ReadGone { name, .. }
             | Self::NodeGone { name, .. } => name,
         }
     }
@@ -201,16 +217,30 @@ impl ResolveError {
                     f,
                     " no longer resolves in this evaluation: {}",
                     Said(diagnosis, by)
-                )
+                )?;
+                diagnosis.end(f)
             }
             Self::Ambiguous { name, tie, .. } => {
                 lead(f, name)?;
                 write!(
                     f,
                     " is tie-marked: {} equally-admissible candidates at its recorded site — a \
-                     tie is never broken by picking; refine the reference until one candidate \
-                     remains",
-                    tie.width
+                     tie is never broken by picking. {}",
+                    tie.width,
+                    crate::sentence::Recourse("refine the reference until one candidate remains")
+                )
+            }
+            Self::ReadGone { name, read, edit } => {
+                lead(f, name)?;
+                write!(f, " is stranded: the read it is resolved in, {read}, ")?;
+                match edit {
+                    ReadEdit::Deleted => f.write_str("went with the operation defining it")?,
+                    ReadEdit::Foreign => f.write_str("was never minted by this document")?,
+                }
+                write!(
+                    f,
+                    ". {}",
+                    crate::sentence::Recourse("re-site the reference in a live read, or remove it")
                 )
             }
             Self::NodeGone { name, edit } => {
@@ -267,6 +297,30 @@ impl core::error::Error for ResolveError {}
 /// those stay where they are and these do not: a payload shape is
 /// held by one constructor rather than by two sites agreeing.
 impl ResolveError {
+    /// Rung 0: the read the reference is resolved in must still be in
+    /// the document, or the reference is stranded with it. `None` while
+    /// the document holds it. As for a node, ids are never reused: a
+    /// read the document has minted and no longer holds went with the
+    /// operation defining it, and one it never minted is not its own.
+    pub(crate) fn read_gone(
+        name: &StableName,
+        read: crate::VarId,
+        doc: &Doc<ProfileProgram>,
+    ) -> Option<Self> {
+        if doc.var(read).is_some() {
+            return None;
+        }
+        Some(Self::ReadGone {
+            name: name.clone(),
+            read,
+            edit: if doc.has_minted_var(read) {
+                ReadEdit::Deleted
+            } else {
+                ReadEdit::Foreign
+            },
+        })
+    }
+
     /// Rung 1: the minting node must still be in the document, or the
     /// name is stranded. `None` when it is live.
     ///
@@ -337,11 +391,11 @@ impl ResolveError {
 /// Why a name vanished.
 ///
 /// N5's arms, including [`Self::GroupResized`] and the border delta
-/// ([`Self::BorderDelta`]), plus two additions that are NOT N5's and
-/// are marked as such wherever they are read: the reserved
+/// ([`Self::BorderDelta`]), plus one addition that is NOT N5's and is
+/// marked as such wherever it is read: the reserved
 /// `WitnessBifurcation` arm (SOLVER-DESIGN W3, constructed by the M6
-/// solver) and [`Self::ConsumedByFold`]. A consumer matching this enum
-/// is matching more than N5 wrote.
+/// solver). A consumer matching this enum is matching more than N5
+/// wrote.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Diagnosis {
     /// A recorded predicate flip on the name's derivation path — the
@@ -425,66 +479,6 @@ pub enum Diagnosis {
         /// What was found there.
         cause: UpstreamCause,
     },
-    /// An n-ary union's fold consumed the entity a member-space name
-    /// denotes, by a composition that leaves no one entity for the
-    /// name to denote — NOT N5's: the arm the rule *"a composition that
-    /// breaks one name denotes one entity refuses"* adds for the
-    /// compositions other than a merge. A merge's own case is looked
-    /// through, not refused (`Node::Union`).
-    ///
-    /// Read off the accumulation's rows at the step the name is fed
-    /// to, never by re-measuring the face: which composition consumed
-    /// it is the SHAPE of the rows that descend from it
-    /// ([`FoldConsumption`]). A refusal carrying this diagnosis offers
-    /// no replacement, because none is unique: a split and a
-    /// fragmented merge leave several candidates.
-    ///
-    /// The union is not a field: the name this diagnoses is a
-    /// member-space name, minted by that union, so it is the name's own
-    /// minting node, and the refusal carrying the name already says so.
-    ConsumedByFold {
-        /// How the fold consumed it.
-        by: FoldConsumption,
-    },
-}
-
-/// Which composition of a union's fold consumed a member's entity
-/// ([`Diagnosis::ConsumedByFold`]) — the structural shape of what the
-/// accumulation holds in its place.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum FoldConsumption {
-    /// A later member SPLIT it: the accumulation holds fragments of
-    /// it (the name with `Fragment` qualifiers after it), bare or as
-    /// constituents of later merges, and never the name itself as a
-    /// face. The step that split it may also have merged part of it:
-    /// the name is then a constituent of a bare merged row beside its
-    /// own fragment, and that row holds only part of the face.
-    Split,
-    /// A declared MERGE consumed it and a later member split the
-    /// merged face: the accumulation holds fragments of a merged row
-    /// whose constituent set covers the name, and no bare merged row
-    /// that does.
-    FragmentedMerge,
-}
-
-// The composition as the clause of [`Diagnosis::ConsumedByFold`]'s
-// sentence that says what happened to the entity and why nothing is
-// offered in its place.
-impl core::fmt::Display for FoldConsumption {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(match self {
-            Self::Split => {
-                "a later member split it into fragments, some perhaps merged with \
-                 another member's face in the same step, and which piece the \
-                 reference means is not decidable from the names, so none is offered"
-            }
-            Self::FragmentedMerge => {
-                "a declared merge consumed it and a later member then split the merged \
-                 face, and which fragment the reference means is not decidable from the \
-                 names, so none is offered"
-            }
-        })
-    }
 }
 
 /// The seams on a resized group's parent that only one of the two runs
@@ -796,17 +790,39 @@ impl crate::spoken::Say for Diagnosis {
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
             }
-            Self::ConsumedByFold { by } => write!(
-                f,
-                "the union that minted it consumed it before the step its declared pair is \
-                 fed to: {by}"
-            ),
             Self::Upstream { node, cause } => write!(
                 f,
                 "{}, upstream of {}, the name's minting node, but not on its derivation path",
                 Said(cause, by),
                 by.node(*node)
             ),
+        }
+    }
+}
+
+impl Diagnosis {
+    /// How a vanished name's sentence ends after this diagnosis: a
+    /// diagnosis that states its own repair has already ended it, a
+    /// cascade's repair is the name upstream it derives from, and any
+    /// other change to the derivation is repaired by rebinding the name.
+    fn end(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use crate::sentence::Recourse;
+        match self {
+            Self::WitnessBifurcation(_) => Ok(()),
+            Self::Cascade { through } => write!(
+                f,
+                ". {}",
+                Recourse(format_args!(
+                    "repair the {} it derives from first",
+                    through.kind.noun()
+                ))
+            ),
+            Self::PredicateFlip { .. }
+            | Self::BorderDelta { .. }
+            | Self::GroupResized { .. }
+            | Self::StructuralParam { .. }
+            | Self::RecipeEdit { .. }
+            | Self::Upstream { .. } => write!(f, ". {}", Recourse("rebind it")),
         }
     }
 }
@@ -910,6 +926,80 @@ impl core::fmt::Display for RecipeEditRef {
     }
 }
 
+/// **What became of a reference's site read** ([`ResolveError::ReadGone`]),
+/// derived from the document as a node's is: read ids are never reused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadEdit {
+    /// The document minted the read and no longer holds it: it went
+    /// with the operation defining it.
+    Deleted,
+    /// The document never minted the read: a foreign or corrupt
+    /// reference.
+    Foreign,
+}
+
+/// **A resolve the door refuses** — a question with no table to ask,
+/// never an answer about a name: typed, and never a [`Resolution`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ResolveRefusal {
+    /// The read is the document's but is no output holding a body or a
+    /// profile — a scalar, a selection, a datum's output — so no table
+    /// names what it holds. A reference is read in a body output.
+    ReadNotAnOutput {
+        /// The read named.
+        read: crate::VarId,
+    },
+    /// The node a reference kept, rather than its read, is no longer
+    /// in the document, and the name was not minted there: its read
+    /// went with it, and the node handle cannot say which it was.
+    /// Resolve in the read itself, which answers
+    /// [`ResolveError::ReadGone`].
+    NodeNotHeld {
+        /// The node named.
+        node: RecipeNodeId,
+    },
+}
+
+impl crate::spoken::Say for ResolveRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        match self {
+            Self::ReadNotAnOutput { read } => write!(
+                f,
+                "{read} is no output holding a body, so no table names what it holds. {}",
+                crate::sentence::Recourse("resolve the name in the body output it is read in")
+            ),
+            Self::NodeNotHeld { node } => write!(
+                f,
+                "{} is not in the document, and its outputs went with it. {}",
+                by.node(*node),
+                crate::sentence::Recourse("resolve the name in the read it was read in")
+            ),
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for ResolveRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl core::error::Error for ResolveRefusal {}
+
+impl ResolveRefusal {
+    /// **The refusal as `doc` speaks it**: each node as the document
+    /// holds it now, a node it does not hold by its tag.
+    #[must_use]
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
+        crate::spoken::spoken_by(self, doc)
+    }
+}
+
 /// The recorded tie a reference ran into (N2's tie mark, as evidence).
 #[derive(Debug, Clone, PartialEq)]
 pub struct TieWitness {
@@ -951,8 +1041,8 @@ pub struct MeshPatchKey {
     pub entity: EntityRef,
 }
 
-/// A successful resolution: the first (evaluation-order) node whose
-/// table carries the name, and the entity it denotes there.
+/// A successful resolution: the node whose output is the read the name
+/// was resolved in, and the entity it denotes in that node's value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Resolved {
     /// The carrying node.
@@ -1042,25 +1132,73 @@ pub struct RunCtx<'a, T: Decide> {
     pub eval: &'a Evaluation<T>,
 }
 
-/// Resolves `name` against a single run, with no prior-run history
-/// (the diagnosis then rests on current-run evidence only — module
-/// docs). Prefer [`resolve_with_prior`] whenever a last-good run
-/// exists.
-pub fn resolve<T: Decide>(new: RunCtx<'_, T>, name: &StableName) -> Resolution {
-    resolve_impl(new, NoPrior, name)
+/// **Resolves `name` in the table of the read `at`** (NAMES N1, the
+/// scope: a name tells apart only what its variable holds), against a
+/// single run, with no prior-run history (the diagnosis then rests on
+/// current-run evidence only — module docs). Every reference is sited
+/// by the read it is read in — a selection's body, a declaration's
+/// [`crate::SitedRef`], an appearance key's body — and a name minted at
+/// a node with one output is read in that output. The name a split's
+/// other half carries is not this half's, so it does not resolve here.
+/// Prefer [`resolve_with_prior`] whenever a last-good run exists.
+///
+/// # Errors
+///
+/// [`ResolveRefusal::ReadNotAnOutput`] when `at` is a live variable
+/// that is no output holding a body: there is no table to ask.
+pub fn resolve<T: Decide>(
+    new: RunCtx<'_, T>,
+    at: crate::VarId,
+    name: &StableName,
+) -> Result<Resolution, ResolveRefusal> {
+    resolve_impl(new, NoPrior, at, name)
 }
 
-/// Resolves `name` against the new run with the last-good run as
-/// diagnosis context: `Vanished` carries the verdict-diff diagnosis
-/// (N5's promise) and the tombstone when the prior run still resolved
-/// the name. The two runs may use different scalars (verdict logs are
-/// scalar-independent).
+/// [`resolve`] with the last-good run as diagnosis context: `Vanished`
+/// carries the verdict-diff diagnosis (N5's promise) and the tombstone
+/// when the prior run still resolved the name. A piece whose split side
+/// flips when the plane moves leaves its read's table, and N5 diagnoses
+/// the flip from the split's recorded classification (NAMES N2, the
+/// Split op's pieces). The two runs may use different scalars (verdict
+/// logs are scalar-independent).
+///
+/// # Errors
+///
+/// [`resolve`]'s.
 pub fn resolve_with_prior<T: Decide, U: Decide>(
     new: RunCtx<'_, T>,
     prior: RunCtx<'_, U>,
+    at: crate::VarId,
     name: &StableName,
-) -> Resolution {
-    resolve_impl(new, Prior { ctx: prior }, name)
+) -> Result<Resolution, ResolveRefusal> {
+    resolve_impl(new, Prior { ctx: prior }, at, name)
+}
+
+/// **The verdict for a reference kept by `node`, once the document no
+/// longer holds it** — `None` while `node` is live. A caller that keeps
+/// a node rather than the read it was read in — a pick, a binding's
+/// node handle — has no read left to name once the node is deleted,
+/// since its outputs go with it. Where the name was minted at `node`,
+/// the name itself is stranded: `NodeGone`, naming the recipe edit that
+/// removed it. Otherwise the node handle cannot say which read is gone,
+/// and `NodeGone` is about a name's minting node, never a read's, so
+/// the door refuses ([`ResolveRefusal::NodeNotHeld`]): the read the
+/// caller resolved in answers [`ResolveError::ReadGone`].
+pub fn stranded_at(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Option<Result<Resolution, ResolveRefusal>> {
+    if doc.node(node).is_some() {
+        return None;
+    }
+    Some(match ResolveError::node_gone(name, doc) {
+        Some(error) if name.node == node => Ok(Resolution::Failed(ResolutionFailure {
+            error,
+            offers: Vec::new(),
+        })),
+        _ => Err(ResolveRefusal::NodeNotHeld { node }),
+    })
 }
 
 /// Enriches one appearance loss with the full N5 ladder (spec D9's
@@ -1112,39 +1250,80 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
     // The Ambiguous arm maps DIRECTLY off the recorded site (spec D9:
     // candidates and witness by table lookup at `at`); everything
     // else — and any stale row — takes the full ladder below.
+    // The tie is read where the loss read it: the entry's body read
+    // when `at` is its operation, else the read downstream of it at
+    // `at` whose table holds the tie.
     if let AppearanceLossCause::Ambiguous { at, .. } = &loss.cause
-        && let Some(v) = new.eval.value(*at)
-        && let Some(Entry::Tied(ents)) = v.name_table.lookup(&loss.name)
+        && let Some(Entry::Tied(ents)) = core::iter::once(loss.body)
+            .filter(|&body| {
+                new.eval
+                    .read_port(body)
+                    .is_some_and(|(node, _)| node == *at)
+            })
+            .chain(new.eval.named_outputs(*at))
+            .filter_map(|var| new.eval.table(var)?.lookup(&loss.name))
+            .find(|entry| matches!(entry, Entry::Tied(_)))
     {
         return Resolution::Failed(ResolutionFailure {
             error: ResolveError::ambiguous(&loss.name, loss.name.clone(), *at, ents.len()),
             offers: Vec::new(),
         });
     }
-    resolve_impl(new, prior, &loss.name)
+    // The entry's body read is its site (NAMES N1): rung 0 first, then
+    // the rungs. The edit and load doors hold a key's read to a body
+    // output while the document holds it, so a held read is one.
+    if new.eval.read_port(loss.body).is_none()
+        && let Some(error) = ResolveError::read_gone(&loss.name, loss.body, new.doc)
+    {
+        return Resolution::Failed(ResolutionFailure {
+            error,
+            offers: Vec::new(),
+        });
+    }
+    resolve_rungs(new, prior, loss.body, &loss.name)
 }
 
-/// Rebind suggestions for every appearance-carrying name (the spec D9
+/// Re-attachment offers for every appearance entry (the spec D9
 /// BANKED obligation, ruled at PR 7 review A1): the operand→final
 /// paint gap means an attribute on an operand-node name resolves on
 /// the intermediate body only — the final node's corresponding face
 /// is a DIFFERENT derivation (`From(r, x)` ≠ `x`, N1 identity), showing
 /// neither paint nor loss. The explicit repair must be ergonomic:
 /// this maps EVERY appearance key (resolving or not — the gap is
-/// silent by design, so suggestions cannot be gated on a loss) to the
-/// evaluation's derivations wrapping it ([`rebind_suggestions`]'s
-/// ladder). Total over the store: a name with nothing wrapping it
-/// maps to an empty list, never a dropped row. Suggestions feed an
-/// explicit [`crate::edit::DocEdit::Rebind`] — which also MOVES the
-/// appearance key (the attribute rides the name) — and nothing
-/// follows automatically (the ratified EMPTY policy menu).
+/// silent by design, so offers cannot be gated on a loss) to the
+/// evaluation's derivations wrapping its name ([`rebind_suggestions`]'s
+/// ladder), each with every read whose table holds it — a name both of
+/// a split's halves hold is offered in each. Total over the
+/// store: a key with nothing wrapping its name maps to an empty list,
+/// never a dropped row.
+///
+/// An offer names another body than the key's, so taking it is a
+/// RE-ATTACHMENT — [`crate::edit::DocEdit::SetAppearance`] at the
+/// offered read, [`crate::edit::DocEdit::ClearAppearance`] at the key's
+/// — and not a [`crate::edit::DocEdit::Rebind`], which never moves a
+/// key's read (an appearance key is a [`crate::SitedRef`], and a
+/// rebind repairs only the name). Nothing follows automatically (the
+/// ratified EMPTY policy menu).
 pub fn appearance_rebind_suggestions<T: Decide>(
     appearance: &AppearanceMap,
     eval: &Evaluation<T>,
-) -> BTreeMap<StableName, Vec<StableName>> {
+) -> BTreeMap<crate::appearance::AppearanceKey, Vec<crate::appearance::AppearanceKey>> {
     appearance
         .keys()
-        .map(|name| (name.clone(), rebind_suggestions(eval, name)))
+        .map(|key| {
+            let offers = rebind_suggestions(eval, &key.name)
+                .into_iter()
+                .flat_map(|name| {
+                    tables(eval)
+                        .filter(|carrier| carrier.table.lookup(&name).is_some())
+                        .filter_map(|carrier| eval.output_var(carrier.node, carrier.port))
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .map(move |read| crate::appearance::AppearanceKey::new(read, name.clone()))
+                })
+                .collect();
+            (key.clone(), offers)
+        })
         .collect()
 }
 
@@ -1164,13 +1343,25 @@ trait PriorCtx {
         name: &StableName,
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis>;
-    fn tombstone<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone>;
+    /// The last-good entry of `name` in the read `site` (none without
+    /// a prior run).
+    fn tombstone<T: Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        site: crate::VarId,
+        name: &StableName,
+    ) -> Option<Tombstone>;
     /// The group-size rung ([`group_resized`]): with-prior only, since
     /// a size CHANGE needs a size to change from.
-    fn group_resized<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Diagnosis>;
-    /// Whether the last-good run's tables carry `name` (none without a
-    /// prior run).
-    fn carried(&self, name: &StableName) -> bool;
+    fn group_resized<T: Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        site: crate::VarId,
+        name: &StableName,
+    ) -> Option<Diagnosis>;
+    /// Whether the last-good run's table of the read `site` carries
+    /// `name` (none without a prior run).
+    fn carried(&self, site: crate::VarId, name: &StableName) -> bool;
 }
 
 struct NoPrior;
@@ -1190,7 +1381,7 @@ impl<U: Decide> Prior<'_, U> {
 }
 
 impl PriorCtx for NoPrior {
-    fn carried(&self, _name: &StableName) -> bool {
+    fn carried(&self, _site: crate::VarId, _name: &StableName) -> bool {
         false
     }
 
@@ -1211,13 +1402,19 @@ impl PriorCtx for NoPrior {
         None
     }
 
-    fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, _name: &StableName) -> Option<Tombstone> {
+    fn tombstone<T: Decide>(
+        &self,
+        _new: RunCtx<'_, T>,
+        _site: crate::VarId,
+        _name: &StableName,
+    ) -> Option<Tombstone> {
         None
     }
 
     fn group_resized<T: Decide>(
         &self,
         _new: RunCtx<'_, T>,
+        _site: crate::VarId,
         _name: &StableName,
     ) -> Option<Diagnosis> {
         None
@@ -1271,8 +1468,8 @@ enum Evidence {
 }
 
 impl<U: Decide> PriorCtx for Prior<'_, U> {
-    fn carried(&self, name: &StableName) -> bool {
-        lookup(self.ctx.eval, name).is_some()
+    fn carried(&self, site: crate::VarId, name: &StableName) -> bool {
+        lookup_in(self.ctx.eval, site, name).is_some()
     }
 
     /// The PATH scope (the scope rule: [`upstream_nodes`]): the lane
@@ -1339,19 +1536,35 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         })
     }
 
-    fn group_resized<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Diagnosis> {
-        group_resized(self.ctx.eval, new, name)
+    fn group_resized<T: Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        site: crate::VarId,
+        name: &StableName,
+    ) -> Option<Diagnosis> {
+        group_resized(self.ctx.eval, new, site, name)
     }
 
-    fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
-        // A line is no row: its last-good entry is the least row on it,
-        // as a union reads a cited line (N5, "A cited line").
-        let (node, entity) = lookup_unique(self.ctx.eval, name).or_else(|| {
-            line_rows(self.ctx.eval, name)
+    fn tombstone<T: Decide>(
+        &self,
+        _new: RunCtx<'_, T>,
+        site: crate::VarId,
+        name: &StableName,
+    ) -> Option<Tombstone> {
+        // The entry the reference had where it is read: the site's
+        // table in the last-good run. A line is no row: its last-good
+        // entry is the least row on it, as a union reads a cited line
+        // (N5, "A cited line").
+        let unique = |n: &StableName| match lookup_in(self.ctx.eval, site, n)? {
+            (carrier, Entry::Unique(e)) => Some((carrier, *e)),
+            _ => None,
+        };
+        let (carrier, entity) = unique(name).or_else(|| {
+            line_rows_in(self.ctx.eval, site, name)
                 .iter()
-                .find_map(|row| lookup_unique(self.ctx.eval, row))
+                .find_map(|row| unique(row))
         })?;
-        let table = &self.ctx.eval.value(node)?.name_table;
+        let (node, table) = (carrier.node, carrier.table);
         let Some(body) = table.name_of(&EntityRef {
             body: entity.body,
             key: EntityKey::Body,
@@ -1371,7 +1584,10 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         Some(Tombstone {
             kind: name.kind,
             body: body.clone(),
-            patch: MeshPatchKey { node, entity },
+            patch: MeshPatchKey {
+                node,
+                entity: carrier.in_value(entity),
+            },
         })
     }
 }
@@ -1379,6 +1595,36 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
 fn resolve_impl<T: Decide, P: PriorCtx>(
     new: RunCtx<'_, T>,
     prior: P,
+    site: crate::VarId,
+    name: &StableName,
+) -> Result<Resolution, ResolveRefusal> {
+    // 0. ReadGone: the site read is not the document's any more, and
+    // the evaluation of it holds no table there (an evaluation is of
+    // its document, so it holds a read the document does not only
+    // where it was assembled by hand).
+    if new.eval.read_port(site).is_none()
+        && let Some(error) = ResolveError::read_gone(name, site, new.doc)
+    {
+        return Ok(Resolution::Failed(ResolutionFailure {
+            error,
+            offers: Vec::new(),
+        }));
+    }
+    // A live read that is no output holding a body — a scalar, a
+    // selection, a datum's — has no table to ask: the question is
+    // refused, never answered.
+    if new.doc.var(site).is_some() && !new.doc.holds_body(site) {
+        return Err(ResolveRefusal::ReadNotAnOutput { read: site });
+    }
+    Ok(resolve_rungs(new, prior, site, name))
+}
+
+/// [`resolve_impl`]'s rungs from 1 on, for a site read the document
+/// defines as an output.
+fn resolve_rungs<T: Decide, P: PriorCtx>(
+    new: RunCtx<'_, T>,
+    prior: P,
+    site: crate::VarId,
     name: &StableName,
 ) -> Resolution {
     // 1. NodeGone: the minting node is not live.
@@ -1388,20 +1634,26 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             offers: Vec::new(),
         });
     }
+    // A read whose node has no value answers nothing either way.
+    if let Some((node, _)) = new.eval.read_port(site)
+        && let Err(standing) = new.eval.usable(node)
+    {
+        return Resolution::Indeterminate(ResolveIndeterminate { standing });
+    }
+    // The name's own rows, in the read's table.
+    let here = |n: &StableName| lookup_in(new.eval, site, n);
 
-    // 2. The table lookup (N4: resolution IS this read). First
-    //    carrying node in evaluation order wins (deterministic;
-    //    pass-through tables carry the same rows).
-    match lookup(new.eval, name) {
-        Some((node, Entry::Unique(entity))) => {
+    // 2. The table lookup (N4: resolution IS this read).
+    match here(name) {
+        Some((carrier, Entry::Unique(entity))) => {
             return Resolution::Resolved(Resolved {
-                node,
-                entity: *entity,
+                node: carrier.node,
+                entity: carrier.in_value(*entity),
             });
         }
-        Some((node, Entry::Tied(ents))) => {
+        Some((carrier, Entry::Tied(ents))) => {
             return Resolution::Failed(ResolutionFailure {
-                error: ResolveError::ambiguous(name, name.clone(), node, ents.len()),
+                error: ResolveError::ambiguous(name, name.clone(), carrier.node, ents.len()),
                 offers: Vec::new(),
             });
         }
@@ -1413,10 +1665,10 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     //    against the WIDENED base row — never a mis-bind.
     let mut offers = Vec::new();
     if let Some(base) = widened_base(name) {
-        match lookup(new.eval, &base) {
-            Some((node, Entry::Tied(ents))) => {
+        match here(&base) {
+            Some((carrier, Entry::Tied(ents))) => {
                 return Resolution::Failed(ResolutionFailure {
-                    error: ResolveError::ambiguous(name, base, node, ents.len()),
+                    error: ResolveError::ambiguous(name, base, carrier.node, ents.len()),
                     offers: Vec::new(),
                 });
             }
@@ -1429,8 +1681,8 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         // An edge piece's base is its line, which no table publishes:
         // the surviving pieces of the line are offered (N5, "A cited
         // line"), the undivided edge among them where it is one row.
-        for row in line_rows(new.eval, &line) {
-            if matches!(lookup(new.eval, row), Some((_, Entry::Unique(_)))) {
+        for row in line_rows_in(new.eval, site, &line) {
+            if matches!(here(row), Some((_, Entry::Unique(_)))) {
                 offers.push((**row).clone());
             }
         }
@@ -1439,7 +1691,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         // offered for an explicit `Rebind`, never bound. There is no
         // over-tie to widen to here — a `Borders` or `Keeps` tie is a
         // row of the QUALIFIED name, which step 2 already answered.
-        && matches!(lookup(new.eval, &base), Some((_, Entry::Unique(_))))
+        && matches!(here(&base), Some((_, Entry::Unique(_))))
     {
         offers.push(base);
     }
@@ -1470,19 +1722,18 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     // spelled with no piece qualifier that neither run holds as a row.
     let is_line = name.kind == EntityKind::Edge
         && *crate::names::edge_line(&crate::names::NameRef::new(name.clone())) == *name
-        && !prior.carried(name);
+        && !prior.carried(site, name);
     let lines = cited_lines(name, is_line);
-    let mut cascade: Option<StableName> = None;
-    walk_names(name, Partners::Cascade, &mut |inner| {
-        if cascade.is_none()
-            && lookup(new.eval, inner).is_none()
+    let cascade = first_vanished(name, |inner| {
+        lookup(new.eval, inner).is_none()
             && !(lines.iter().any(|l| core::ptr::eq(*l, inner))
                 && !line_rows(new.eval, inner).is_empty())
-        {
-            cascade = Some(inner.clone());
-        }
+            && !retired_into_a_live_merge(new.eval, inner)
     });
-    let path = derivation_nodes(name);
+    // A sited reference's path runs on to the read's node: the name left
+    // that read's table there (a split piece whose side flipped).
+    let mut path = derivation_nodes(name);
+    path.extend(new.eval.read_port(site).map(|(node, _)| node));
     let diagnosis = if let Some(through) = cascade {
         Diagnosis::Cascade { through }
     } else {
@@ -1494,21 +1745,21 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             // population-cancel blind spot, or a single-run resolve —
             // the N2 discriminators recorded IN the names themselves
             // are still evidence.
-            .or_else(|| border_delta(new.eval, name, |n| prior.carried(n)))
+            .or_else(|| border_delta(new.eval, site, name, |n| prior.carried(site, n)))
             // The upstream scope ([`upstream_nodes`]): below every
             // rung that names a cause ON the path, qualifier delta
             // included, because a path cause decided the name and an
             // upstream one only fed it.
             .or_else(|| prior.upstream(new, name, &path))
             // The group-size rung (`group_resized`'s docs).
-            .or_else(|| prior.group_resized(new, name))
+            .or_else(|| prior.group_resized(new, site, name))
             // Every rung above came up empty: no verdict flip, no doc
             // delta, no recorded qualifier delta, and no group-size
             // change the rung could state (unchanged, or too large to
             // count).
             .unwrap_or_else(|| Diagnosis::cause_not_in_evidence(name.node))
     };
-    let last_good = prior.tombstone(new, name);
+    let last_good = prior.tombstone(new, site, name);
     Resolution::Failed(ResolutionFailure {
         error: ResolveError::Vanished {
             name: name.clone(),
@@ -1517,6 +1768,47 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         },
         offers,
     })
+}
+
+/// The cascade rung's walk: the first name embedded in `name`, in
+/// [`walk_names`] order with [`Partners::Cascade`], that `absent` says
+/// the current run does not hold.
+///
+/// The rung blames an OPERAND name, and a name that retired into a
+/// merge (N3) is none: it was never a row, so its absence is no
+/// vanishing. Two kinds of name are retired. A `Merged` set's
+/// constituents are, wherever the set sits, and the walk reads through
+/// them without asking ([`Partners::Cascade`]). And a merge over a
+/// merged face lists that face's constituents re-wrapped, so beneath a
+/// constituent sits a name the inner merge retired, held by a `From`
+/// rather than a set; the walk cannot tell it from a row by its shape,
+/// so `absent` answers for it from the table, where a live merged row
+/// covers it ([`retired_into_a_live_merge`]).
+fn first_vanished<'a>(
+    name: &'a StableName,
+    mut absent: impl FnMut(&'a StableName) -> bool,
+) -> Option<StableName> {
+    let mut cascade = None;
+    walk_names(name, Partners::Cascade, &mut |inner| {
+        if cascade.is_none() && absent(inner) {
+            cascade = Some(inner.clone());
+        }
+    });
+    cascade
+}
+
+/// Whether a live merged row of `name`'s minting node covers it
+/// (`names::merged::row_covers`): the name retired into that merge
+/// (N3), so it is no row and did not vanish.
+fn retired_into_a_live_merge<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> bool {
+    eval.named_outputs(name.node)
+        .into_iter()
+        .filter_map(|var| eval.table(var))
+        .any(|table| {
+            table
+                .iter()
+                .any(|(row, _)| crate::names::merged::row_covers(row, name))
+        })
 }
 
 /// A fragment name's BASE: the name without its trailing `Fragment`
@@ -1549,15 +1841,32 @@ fn piece_line(name: &StableName) -> Option<StableName> {
     .flatten()
 }
 
-/// **The rows that lie on `line`** (N5, "A cited line"): the edge rows
-/// of `line`'s node's table whose line it is, in key order. Empty where
-/// that node has no table in this run or no row lies on it.
+/// **The rows that lie on `line` in the read `site`** (N5, "A cited
+/// line"): the edge rows of that read's table whose line it is, in key
+/// order. Empty where the read has no table in this run or no row lies
+/// on it.
+fn line_rows_in<'a, T: Decide>(
+    eval: &'a Evaluation<T>,
+    site: crate::VarId,
+    line: &StableName,
+) -> &'a [crate::names::NameRef] {
+    eval.table(site).map_or(&[], |table| table.on_line(line))
+}
+
+/// **Whether any row lies on `line`** in this run, in any output of
+/// `line`'s node: the cascade asks whether an embedded line still
+/// stands at all, not where a reference reads it. The first output
+/// with rows on it answers.
 fn line_rows<'a, T: Decide>(
     eval: &'a Evaluation<T>,
     line: &StableName,
 ) -> &'a [crate::names::NameRef] {
-    eval.value(line.node)
-        .map_or(&[], |v| v.name_table.on_line(line))
+    eval.named_outputs(line.node)
+        .into_iter()
+        .filter_map(|var| eval.table(var))
+        .map(|table| table.on_line(line))
+        .find(|rows| !rows.is_empty())
+        .unwrap_or(&[])
 }
 
 /// **Every name `name` cites by its line**, at every depth, `name`
@@ -1587,7 +1896,7 @@ fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
                 | RoleSeg::BandCross { edge, .. } => {
                     lines.push(edge);
                 }
-                RoleSeg::EdgeCrossing { a, b, .. } => lines.extend([&**a, &**b]),
+                RoleSeg::EdgeCrossing(run) => lines.extend(run.iter().map(|l| &*l.line)),
                 RoleSeg::Seam { a, b } if n.kind == EntityKind::Vertex => {
                     lines.extend([&**a, &**b]);
                 }
@@ -1597,7 +1906,7 @@ fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
         }
         let mut children = Vec::new();
         embedded(n, Partners::Include, &mut children);
-        for c in children {
+        for (c, _) in children {
             let line = lines.iter().any(|l| core::ptr::eq(*l, c));
             if line {
                 out.push(c);
@@ -1647,6 +1956,7 @@ fn unqualified(name: &StableName) -> Option<StableName> {
 /// has no `Borders` sibling left, and the group-size rung answers it.
 fn border_delta<T: Decide>(
     eval: &Evaluation<T>,
+    site: crate::VarId,
     name: &StableName,
     carried: impl Fn(&StableName) -> bool,
 ) -> Option<Diagnosis> {
@@ -1656,7 +1966,9 @@ fn border_delta<T: Decide>(
     let base = fragment_base(name)?;
     let was: BTreeSet<&StableName> = was.iter().collect();
     let mut now: BTreeSet<Vec<StableName>> = BTreeSet::new();
-    for (_, table) in tables(eval) {
+    // The site's own table: a sibling piece of another output (a
+    // split's other half) is not where this reference reads.
+    if let Some(table) = eval.table(site) {
         for (candidate, _) in table.iter() {
             if let Some(RoleSeg::Fragment(Qualifier::Borders(walls))) = candidate.path.last()
                 && candidate.kind == name.kind
@@ -1780,26 +2092,31 @@ fn border_delta<T: Decide>(
 fn group_resized<U: Decide, T: Decide>(
     prior: &Evaluation<U>,
     RunCtx { doc, eval: new }: RunCtx<'_, T>,
+    site: crate::VarId,
     name: &StableName,
 ) -> Option<Diagnosis> {
     let base = fragment_base(name)?;
-    let prior_value = prior.value(name.node)?;
-    prior_value.name_table.lookup(name)?;
-    let was = group_reading(&prior_value.fragment_groups, &base)?;
+    // The read the reference is read in, whose table carried the name:
+    // a name is scoped by the variable that holds its body (N1), and a
+    // variable keeps its id across the two runs.
+    let var = site;
+    prior.table(var)?.lookup(name)?;
+    let (prior_table, prior_groups) = (prior.table(var)?, prior.groups(var)?);
+    let was = group_reading(prior_groups, &base)?;
     if was.size == 0 {
         return None;
     }
-    let new_value = new.value(name.node)?;
-    let now = group_reading(&new_value.fragment_groups, &base)?;
+    let (new_table, new_groups) = (new.table(var)?, new.groups(var)?);
+    let now = group_reading(new_groups, &base)?;
     (was.size != now.size).then(|| Diagnosis::GroupResized {
         node: name.node,
         was: was.size,
         now: now.size,
         cutters: group_cutters(
-            &prior_value.name_table,
-            &new_value.name_table,
+            prior_table,
+            new_table,
             &base,
-            prior_value.fragment_groups.is_folded(),
+            prior_groups.is_folded(),
             match doc.node(name.node) {
                 Some(crate::node::Node::Subtract { from, .. }) => Some(from.read),
                 _ => None,
@@ -2033,7 +2350,10 @@ impl<'a> SeamParent<'a> {
             if row.node != base.node || row.kind != seam_kind {
                 continue;
             }
-            let on_parent = row.path.iter().any(|seg| self.cut_by(base, seg).is_some());
+            let on_parent = row
+                .path
+                .iter()
+                .any(|seg| !self.cut_by(base, seg).is_empty());
             if !on_parent {
                 continue;
             }
@@ -2041,20 +2361,39 @@ impl<'a> SeamParent<'a> {
             if fragment_tail_start(tail) != 0 {
                 return None;
             }
-            out.insert(self.normalized(self.cut_by(base, head)?));
+            let cut = self.cut_by(base, head);
+            if cut.is_empty() {
+                return None;
+            }
+            out.extend(cut.into_iter().map(|c| self.normalized(c)));
         }
         Some(out)
     }
 
-    /// The cutter across seam segment `seg` from the parent: across a
-    /// `Seam`'s or an `EdgeCrossing`'s sides ([`SeamParent::across`]),
-    /// and a `Crossing`'s face where its edge is on the parent; `None`
-    /// for a segment of any other shape, or one not on the parent.
-    fn cut_by<'n>(&self, base: &StableName, seg: &'n RoleSeg) -> Option<&'n StableName> {
+    /// The cutters across seam segment `seg` from the parent: across a
+    /// `Seam`'s sides ([`SeamParent::across`]), every other line of an
+    /// `EdgeCrossing` run one of whose lines is on the parent, and a
+    /// `Crossing`'s face where its edge is on the parent; none for a
+    /// segment of any other shape, or one not on the parent.
+    fn cut_by<'n>(&self, base: &StableName, seg: &'n RoleSeg) -> Vec<&'n StableName> {
         match seg {
-            RoleSeg::Seam { a, b } | RoleSeg::EdgeCrossing { a, b, .. } => self.across(base, a, b),
-            RoleSeg::Crossing { edge, face, .. } => self.holds(base, edge).then_some(&**face),
-            _ => None,
+            RoleSeg::Seam { a, b } => self.across(base, a, b).into_iter().collect(),
+            RoleSeg::EdgeCrossing(run) => {
+                let Some(on) = run.iter().position(|l| self.holds(base, &l.line)) else {
+                    return Vec::new();
+                };
+                run.iter()
+                    .enumerate()
+                    .filter(|&(i, _)| i != on)
+                    .map(|(_, l)| &*l.line)
+                    .collect()
+            }
+            RoleSeg::Crossing { edge, face, .. } => self
+                .holds(base, edge)
+                .then_some(&**face)
+                .into_iter()
+                .collect(),
+            _ => Vec::new(),
         }
     }
 }
@@ -2069,31 +2408,61 @@ impl<'a> SeamParent<'a> {
 /// order and not four independent claims. Nodes that failed or were
 /// never evaluated carry no table and are skipped — a resolution
 /// reads what the run actually built.
-fn tables<T: Decide>(
-    eval: &Evaluation<T>,
-) -> impl Iterator<Item = (RecipeNodeId, &crate::names::NameTable)> {
-    eval.order
-        .iter()
-        .filter_map(|&id| eval.value(id).map(|v| (id, &*v.name_table)))
+fn tables<T: Decide>(eval: &Evaluation<T>) -> impl Iterator<Item = Carrier<'_>> {
+    // Each node's outputs in port order: a name is scoped by the
+    // variable that holds its body (N1), so a split is two tables.
+    eval.order.iter().flat_map(move |&id| {
+        eval.named_outputs(id).into_iter().filter_map(move |var| {
+            let (_, port) = eval.read_port(var)?;
+            Some(Carrier {
+                node: id,
+                port,
+                table: eval.table(var)?,
+            })
+        })
+    })
+}
+
+/// One output's table as the resolution ladder reads it: the node, and
+/// the port whose table it is, so an entity in it is said in the
+/// node's value ([`Carrier::in_value`]).
+#[derive(Clone, Copy)]
+struct Carrier<'a> {
+    node: RecipeNodeId,
+    port: u8,
+    table: &'a crate::names::NameTable,
+}
+
+impl Carrier<'_> {
+    /// `entity` of this table as the node's value holds it: a split's
+    /// half at its port, every other output's body as it stands.
+    fn in_value(self, entity: EntityRef) -> EntityRef {
+        EntityRef {
+            body: entity.body + u32::from(self.port),
+            key: entity.key,
+        }
+    }
 }
 
 /// The first (evaluation-order) Ok table carrying `name`.
 fn lookup<'a, T: Decide>(
     eval: &'a Evaluation<T>,
     name: &StableName,
-) -> Option<(RecipeNodeId, &'a Entry)> {
-    tables(eval).find_map(|(id, table)| table.lookup(name).map(|entry| (id, entry)))
+) -> Option<(Carrier<'a>, &'a Entry)> {
+    tables(eval).find_map(|carrier| carrier.table.lookup(name).map(|entry| (carrier, entry)))
 }
 
-/// [`lookup`], demanding a unique entry.
-fn lookup_unique<T: Decide>(
-    eval: &Evaluation<T>,
+/// [`lookup`] in the one table of the read `read`.
+fn lookup_in<'a, T: Decide>(
+    eval: &'a Evaluation<T>,
+    read: crate::VarId,
     name: &StableName,
-) -> Option<(RecipeNodeId, EntityRef)> {
-    match lookup(eval, name)? {
-        (node, Entry::Unique(e)) => Some((node, *e)),
-        _ => None,
-    }
+) -> Option<(Carrier<'a>, &'a Entry)> {
+    let (node, port) = eval.read_port(read)?;
+    let table = eval.table(read)?;
+    table
+        .lookup(name)
+        .map(|entry| (Carrier { node, port, table }, entry))
 }
 
 /// The widened base of a ranked fragment name: the same name without
@@ -2160,7 +2529,7 @@ fn widened_base(name: &StableName) -> Option<StableName> {
 /// depth costs it nothing.
 fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<StableName> {
     let rows: Vec<&StableName> = tables(eval)
-        .flat_map(|(_, table)| table.iter().map(|(candidate, _)| candidate))
+        .flat_map(|carrier| carrier.table.iter().map(|(candidate, _)| candidate))
         .collect();
     crate::names::merged::offers(name, rows.iter().copied())
 }
@@ -2185,7 +2554,7 @@ fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<Stabl
 /// offering un-rebindable names is not ergonomics.
 pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<StableName> {
     let mut out: Vec<StableName> = Vec::new();
-    for (_, table) in tables(eval) {
+    for Carrier { table, .. } in tables(eval) {
         for (candidate, _) in table.iter() {
             if candidate == name || candidate.kind != name.kind || out.contains(candidate) {
                 continue;
@@ -2248,7 +2617,6 @@ pub fn apply_with_names<T: Decide>(
     edit: &crate::edit::DocEdit<ProfileProgram>,
     eval: &Evaluation<T>,
     tol: Tol,
-    reach: &dyn crate::mate::MateReach,
 ) -> Result<crate::edit::Applied<ProfileProgram>, crate::edit::EditError> {
     use crate::edit::{DocEdit, EditError};
     // The pairing, before any name is read (why: this fn's docs).
@@ -2272,8 +2640,11 @@ pub fn apply_with_names<T: Decide>(
             ..
         } => names.extend(read.selected_names()),
         DocEdit::Rebind { to, .. } => names.push(to),
-        DocEdit::SetDeclare { pairs, .. } => {
-            names.extend(pairs.iter().flat_map(|((a, b), _)| [&a.name, &b.name]));
+        DocEdit::AddConstraint { mate, .. } => {
+            names.extend(mate.on.selected_names());
+            if let Some(to) = mate.to.pose() {
+                names.extend(to.selected_names());
+            }
         }
         // Name-carrying and deliberately unchecked here: an appearance
         // name resolves at evaluation, where a miss is a typed
@@ -2287,6 +2658,10 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ClearAppearanceMeta { .. } => {}
         // Carry no `StableName` at all.
         DocEdit::DeleteNode { .. }
+        // A value reads its mate by id and holds a number.
+        | DocEdit::AddValue { .. }
+        // A world pin reads nothing.
+        | DocEdit::PinWhereItStands { .. }
         // A list of node ids carries no name.
         | DocEdit::SetMembers { .. }
         // A program and its step ids carry no name, and the door
@@ -2306,10 +2681,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ReWitness { .. }
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }
-        | DocEdit::SetOffset { .. }
-        | DocEdit::SetGauge { .. }
-        | DocEdit::Promote { .. }
-        | DocEdit::Fold { .. }
+        | DocEdit::RemoveConstraint { .. }
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => {}
     }
@@ -2322,7 +2694,7 @@ pub fn apply_with_names<T: Decide>(
             });
         }
     }
-    crate::edit::apply(doc, edit, tol, reach)
+    crate::edit::apply(doc, edit, tol)
 }
 
 /// The nodes a name's derivation passes through: its minting node,
@@ -2403,16 +2775,19 @@ enum Partners {
     /// Visit a band, and not a piece's walls (cascade): a wall is cited
     /// by its parent's name, which no table holds once the wall is
     /// itself cut, so a wall that does not resolve is no vanished
-    /// operand; a change of walls is the border delta's to state.
+    /// operand; a change of walls is the border delta's to state. A
+    /// `Merged` set's constituents are read through and not visited:
+    /// each retired into the merge (N3), so none is an operand
+    /// ([`first_vanished`] states the rest of that rule).
     Cascade,
     /// Skip partner positions (structural embedding only).
     Skip,
 }
 
 /// Visits every name embedded in `name`'s role path, at every depth,
-/// in path order (operand names, seam pairs, merged constituents,
-/// pattern masters — and discriminator partners iff `partners` says
-/// so). [`embedded`]'s match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
+/// in path order (operand names, seam pairs, pattern masters, merged
+/// constituents unless `partners` is [`Partners::Cascade`], which reads
+/// through them — and discriminator partners iff `partners` says so). [`embedded`]'s match is EXHAUSTIVE on purpose: a future [`RoleSeg`] or
 /// [`Qualifier`] variant embedding names must be
 /// classified here or the compile breaks — or, if it embeds no name,
 /// added to [`crate::names::name_free_seg`], which is the one place
@@ -2425,8 +2800,10 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
     let mut names = Vec::new();
     embedded(name, partners, &mut names);
     names.reverse();
-    while let Some(n) = names.pop() {
-        f(n);
+    while let Some((n, visited)) = names.pop() {
+        if visited {
+            f(n);
+        }
         let deeper = names.len();
         embedded(n, partners, &mut names);
         if let Some(held) = names.get_mut(deeper..) {
@@ -2435,11 +2812,12 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
     }
 }
 
-/// The names [`walk_names`] visits one level down from `name`, in path
-/// order.
-fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a StableName>) {
-    fn visit<'a>(n: &'a StableName, _: Partners, f: &mut Vec<&'a StableName>) {
-        f.push(n);
+/// The names [`walk_names`] reaches one level down from `name`, in path
+/// order, each with whether the walk visits it or only reads through it
+/// to the names below.
+fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<(&'a StableName, bool)>) {
+    fn visit<'a>(n: &'a StableName, _: Partners, f: &mut Vec<(&'a StableName, bool)>) {
+        f.push((n, true));
     }
     for seg in &name.path {
         match seg {
@@ -2514,15 +2892,18 @@ fn embedded<'a>(name: &'a StableName, partners: Partners, f: &mut Vec<&'a Stable
             RoleSeg::Seam { a, b }
             | RoleSeg::Crossing {
                 edge: a, face: b, ..
-            }
-            | RoleSeg::EdgeCrossing { a, b, .. } => {
+            } => {
                 visit(a, partners, f);
                 visit(b, partners, f);
             }
-            RoleSeg::Merged(names) => {
-                for n in names {
-                    visit(n, partners, f);
+            RoleSeg::EdgeCrossing(run) => {
+                for l in run {
+                    visit(&l.line, partners, f);
                 }
+            }
+            RoleSeg::Merged(names) => {
+                let visited = partners != Partners::Cascade;
+                f.extend(names.iter().map(|n| (n, visited)));
             }
             // Discrimination references, not derivation.
             RoleSeg::Fragment(q) => match q {
@@ -2935,6 +3316,40 @@ mod walk_tests {
         seen.clear();
         walk_names(&name, Partners::Skip, &mut |n| seen.push(n.node.0.digest()));
         assert_eq!(seen, [2, 1], "partners skipped");
+    }
+
+    /// A merged face at node 9 whose constituents wrap the operand caps
+    /// of nodes 1 and 3. The constituents are never rows, so absence is
+    /// asked only of the caps they wrap.
+    #[test]
+    fn the_cascade_walk_asks_through_a_merged_set_and_never_of_it() {
+        let wrap = |of: u64| StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId::new(0, 9),
+            path: vec![RoleSeg::From {
+                read: crate::names::FOLD_A,
+                of: NameRef::new(leaf(of)),
+            }],
+        };
+        let merged = StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId::new(0, 9),
+            path: vec![RoleSeg::Merged(vec![wrap(1), wrap(3)])],
+        };
+        // Absent: every name but the caps of `live`.
+        let held = |live: &'static [u64]| {
+            move |n: &StableName| !live.iter().any(|&k| n.node == RecipeNodeId::new(0, k))
+        };
+        assert_eq!(
+            first_vanished(&merged, held(&[1, 3])),
+            None,
+            "both caps held: a constituent, which is no row, is never blamed"
+        );
+        assert_eq!(
+            first_vanished(&merged, held(&[1])),
+            Some(leaf(3)),
+            "the walk reaches the vanished cap through its constituent"
+        );
     }
 
     #[test]

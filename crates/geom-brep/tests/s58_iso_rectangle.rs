@@ -20,12 +20,12 @@
 //! the tree on ONE arm, inside `torus()`, for a periodicity reason;
 //! this suite is the record that it now governs all four.
 //!
-//! **The cylinder and the torus have since left the premise.** Their
-//! flux lanes are chart Green forms — `A = −∮ v du` on the cylinder,
-//! `−∮ G(v) du` over the loop's lift on the torus — which integrate the
-//! region the boundary actually bounds, so their rows below MEASURE the
-//! plus and the L at their exact areas; the cone and sphere still
-//! refuse on the one predicate.
+//! **The flux lanes have since left the premise.** They integrate the
+//! region the boundary actually bounds — chart Green forms on the
+//! cylinder and torus, the boundary's vector area on the cone,
+//! Gauss–Bonnet on the sphere — so their rows below MEASURE the plus
+//! and the L at their exact areas; the predicate is the shape door's,
+//! `mesh`'s, and it still refuses the plus by name.
 //!
 //! Every row is built as key-free `LoopEdge`s and run through the
 //! public `curved_face`, the same entry `topo::mass_properties` uses
@@ -39,7 +39,9 @@ use crate::shared::tol::band;
 use crate::shared::topo::edge;
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::props::{LoopEdge, MaterialSign, PropsError, boundary_material_sign, curved_face};
+use geom_brep::props::{
+    LoopEdge, MaterialSign, PropsError, boundary_material_sign, curved_face, require_iso_rectangle,
+};
 use geom_core::Sign;
 
 /// Rim/meridian carrier factories for one surface kind.
@@ -161,22 +163,6 @@ fn measures_exactly(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>], exact
     );
 }
 
-/// The non-rectangular domain must be refused by the ONE named
-/// predicate — not by some other check that happens to fire, which is
-/// the whole point of S58 (the torus was already protected, by a
-/// private rule, and that is what made the fragmentation invisible).
-fn refuses_on_rim_level(kind: &str, s: &Surface<f64>, edges: &[LoopEdge<f64>]) {
-    let band = band();
-    match curved_face(s, edges, true, band) {
-        Err(PropsError::NotIsoRectangle {
-            what: "props_rim_level",
-        }) => {}
-        other => panic!(
-            "{kind}: a non-rectangular iso domain was not refused by props_rim_level: {other:?}"
-        ),
-    }
-}
-
 // ---------------------------------------------------------------------
 // The four kinds, each with its own control
 // ---------------------------------------------------------------------
@@ -211,7 +197,7 @@ fn cylinder_plus_domain_and_the_rectangle_both_measure() {
 }
 
 #[test]
-fn cone_plus_domain_refuses_and_the_rectangle_still_measures() {
+fn cone_plus_domain_and_the_rectangle_both_measure() {
     let alpha: f64 = 0.5;
     let (sa, ca) = alpha.sin_cos();
     let s = Surface::Cone {
@@ -253,11 +239,26 @@ fn cone_plus_domain_refuses_and_the_rectangle_still_measures() {
         &rect_loop(&rim, &mer, a0, a3, -UO, UO),
         sa * 2.0 * UO * (a3 * a3 - a0 * a0) / 2.0,
     );
-    refuses_on_rim_level("cone", &s, &plus_loop(&rim, &mer, a0, a1, a2, a3, UC, UO));
+    // The vector area reads the plus as it reads the rectangle, at
+    // `sin α·Δu·(v_hi² − v_lo²)/2` per chart rectangle; the shape door
+    // still refuses it by the one named predicate.
+    let plus = plus_loop(&rim, &mer, a0, a1, a2, a3, UC, UO);
+    measures_exactly(
+        "cone",
+        &s,
+        &plus,
+        sa * plus_area(a0 * a0, a1 * a1, a2 * a2, a3 * a3) / 2.0,
+    );
+    assert_eq!(
+        require_iso_rectangle(&s, &plus, band()),
+        Err(PropsError::NotIsoRectangle {
+            what: "props_rim_level"
+        })
+    );
 }
 
 #[test]
-fn sphere_plus_domain_refuses_and_the_rectangle_still_measures() {
+fn sphere_plus_domain_and_the_rectangle_both_measure() {
     let rs = 0.010;
     let s = Surface::Sphere {
         center: p3(0.0, 0.0, 0.0),
@@ -300,7 +301,21 @@ fn sphere_plus_domain_refuses_and_the_rectangle_still_measures() {
         &rect_loop(&rim, &mer, a0, a3, -UO, UO),
         rs * rs * 2.0 * UO * (a3.sin() - a0.sin()),
     );
-    refuses_on_rim_level("sphere", &s, &plus_loop(&rim, &mer, a0, a1, a2, a3, UC, UO));
+    // Gauss–Bonnet reads the plus as it reads the rectangle; the shape
+    // door, `mesh`'s, still refuses it by the one named predicate.
+    let plus = plus_loop(&rim, &mer, a0, a1, a2, a3, UC, UO);
+    measures_exactly(
+        "sphere",
+        &s,
+        &plus,
+        rs * rs * plus_area(a0.sin(), a1.sin(), a2.sin(), a3.sin()),
+    );
+    assert_eq!(
+        require_iso_rectangle(&s, &plus, band()),
+        Err(PropsError::NotIsoRectangle {
+            what: "props_rim_level"
+        })
+    );
 }
 
 #[test]
@@ -540,14 +555,13 @@ fn the_material_side_gate_answers_one_sign_on_a_rectangle() {
     assert_eq!(sides[0], Sign::Positive, "outward-wound wall reads +");
 }
 
-/// **The rim-free cone refuses at the gate, before any margin is
+/// **The rim-free cone refuses at both doors, before any margin is
 /// metered at `cone_arm`'s fallback.** `cone_arm` computes the
 /// azimuthal lever from the first rim and falls back to `1.0` when
 /// there is none — a lever that is not a length of this model at all.
-/// The claim its doc makes is that nothing is ever metered against it;
-/// this row drives the door that does NOT go through `du_of_rims`
-/// (whose `is_empty` refusal is what the doc used to name) and pins
-/// the refusal there too.
+/// Two generators and nothing else do not close: the material-side
+/// gate and the flux lane both refuse the open loop on the closure
+/// decide they share (`props_loop_closed`), and neither reads a rim.
 #[test]
 fn a_rim_free_cone_refuses_at_both_doors() {
     let alpha: f64 = 0.5;
@@ -576,17 +590,17 @@ fn a_rim_free_cone_refuses_at_both_doors() {
     assert!(
         matches!(
             boundary_material_sign(&s, &edges, band),
-            Err(PropsError::NotIsoRectangle {
-                what: "curved face without a rim (non-sphere)"
+            Err(PropsError::ConeLoop {
+                what: "props_loop_closed"
             })
         ),
-        "the gate must refuse a rim-free cone by name"
+        "the gate must refuse the open rim-free loop by name"
     );
     assert!(
         matches!(
             curved_face(&s, &edges, true, band),
-            Err(PropsError::NotIsoRectangle {
-                what: "curved face without a rim (non-sphere)"
+            Err(PropsError::ConeLoop {
+                what: "props_loop_closed"
             })
         ),
         "and so must the flux lane"
@@ -594,24 +608,20 @@ fn a_rim_free_cone_refuses_at_both_doors() {
 }
 
 // ---------------------------------------------------------------------
-// S77: the one exemption, and what it rests on
+// S77: the rimless band, and what its side rests on
 // ---------------------------------------------------------------------
 
-/// The rimless sphere band (M2 PR 5's axis-touching full revolve) is
-/// the predicate's ONE exemption: it carries no rim, so there is
-/// nothing to place at an extreme. `Δu = π` is not free with it — it
-/// comes from `props_band_coplanar`, which requires every meridian of
-/// the boundary to lie on ONE great circle. These two rows are that
-/// arm's evidence: the hemisphere it is written for measures exactly,
-/// and a lune bounded by meridians on two DIFFERENT great circles —
-/// which `Δu = π` would measure at the wrong width — is measured at
-/// its OWN width by the wedge arm (`props_wedge_azimuth`), never at π.
+/// The rimless sphere band (M2 PR 5's axis-touching full revolve) has
+/// no rim to place at an extreme, so the iso predicate is vacuous on
+/// it; the flux lane reads it by Gauss–Bonnet like any sphere face.
+/// These two rows are its evidence: the hemisphere measures exactly,
+/// and a lune bounded by meridians on two DIFFERENT great circles is
+/// measured at its OWN width, never at π. Both poles lie on the loop of
+/// either, so the side is the bit's alone.
 ///
-/// **What these rows do not carry:** the arcs' `v`-extent. The fold
-/// carries each arc's span-derived pole extremes, so the arcs need
-/// not run pole to pole — the same hemisphere split at ±π/4 instead
-/// of at its poles still measures `2πR²`, and that row lives in
-/// `cert1_sphere_polar.rs` with the rest of the polar-extent pins.
+/// The same hemisphere split at ±π/4 instead of at its poles still
+/// measures `2πR²`; that row lives in `cert1_sphere_polar.rs` with the
+/// rest of the polar pins.
 #[test]
 fn the_rimless_band_measures_the_hemisphere_it_is_written_for() {
     let rs = 0.010;
@@ -650,7 +660,7 @@ fn the_rimless_band_measures_the_hemisphere_it_is_written_for() {
         2.0 * core::f64::consts::PI * rs * rs,
     );
 
-    // **The sense BIT is what the exemption rests on, and the two
+    // **The sense BIT is what the band's side rests on, and the two
     // words answer differently.** The domain is the same patch either
     // way, so the area does not move; the flux's radial term is the
     // one thing the bit selects, so the reversed band measures the

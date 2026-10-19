@@ -2,10 +2,11 @@
 id: the-seam-vertex-contact-partner-arms-have-no-planar-witness-under-maximal-edges
 kind: issue
 title: The pair emitter's contact-partner seam-vertex arms have no planar witness once maximal edges join a touch vertex away
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: E
+closed: 2026-10-12
 ---
 
 
@@ -33,9 +34,21 @@ were rewritten to pin the touched edge whole on the right side.
 
 The arms are reachable only where the touched edge is curved, which the
 join does not take yet
-(`work/fuse/curved-joinable-vertices-are-left-unjoined.md`). No row
+(`curved-joinable-vertices-are-left-unjoined` (closed, PR 4233)). No row
 witnesses that today.
 - If curved joins land, the arms' subject is gone everywhere and they
   should go with it.
 - Until then, a curved witness (a tip whose apex touches a cylinder's
   rim circle away from its canonical cut) would keep them honest.
+
+## Closed
+
+Moot: PR 4816 (the #4284 touch ruling) deleted the arms. On its first
+parent (`23de7f9acf^1`), `name_boolean_vertices` matched
+`([ae], [], _, Some(pb))` and `([], [be], Some(pa), _)`. On main after
+the merge, neither arm exists. A vertex on one operand's edge where the
+other operand's vertex touches it is now named as that touching corner
+(N2: a corner keeps its name), through `operand_vertex_keys`, or, where
+no operand names any of its own keys, through `contact_identity`'s
+vertex-pair rows. Neither path is the seam-vertex spelling whose witness
+this row asked for, so there is nothing left to witness.

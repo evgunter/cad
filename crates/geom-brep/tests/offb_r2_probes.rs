@@ -400,8 +400,8 @@ fn p4_certify_offset_on_a_rational_fit() {
         *w = if i % 2 == 0 { 1.0 } else { 1.6 };
     }
     let rational_fit = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         fit.control().to_vec(),
         weights,
     )
@@ -493,11 +493,11 @@ fn p6_a_regular_patch_is_refused_when_d_is_small() {
 /// pinned from outside: an unreachable tolerance must stop, and the
 /// `achieved` it reports must be a bound the same door re-derives.
 #[test]
-fn p5_budget_refusal_payload_is_the_bound_the_door_re_derives() {
+fn p5_cap_refusal_payload_is_the_bound_the_door_re_derives() {
     let base = skinned_loft();
     let d = 0.08;
     match fit_offset_at(&base, d, 1e-14, band()) {
-        Err(OffsetFitError::BudgetExhausted {
+        Err(OffsetFitError::WallReached {
             achieved,
             tolerance,
             grid,
@@ -516,7 +516,7 @@ fn p5_budget_refusal_payload_is_the_bound_the_door_re_derives() {
             });
             assert!(cert.hull_sup <= achieved * 1.5);
             eprintln!(
-                "P5: budget refusal grid={grid:?} achieved={achieved:.3e}; \
+                "P5: cap refusal grid={grid:?} achieved={achieved:.3e}; \
                  re-fit at 1.5x certifies at {:.3e}",
                 cert.hull_sup
             );

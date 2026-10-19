@@ -44,7 +44,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError};
 
 /// The PR's overhang seat, plus the side-face keys its own suite does
 /// not expose: `post.side_faces[7]` is H→A, `[0]` is A→B (the two cap
@@ -89,18 +89,13 @@ fn overhang_seat_full() -> (Body<f64>, FaceKey, FaceKey, FaceKey, FaceKey, FaceK
     )
 }
 
-fn records(pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
-    ContactRecords {
-        patches: pairs
+fn records(body: &Body<f64>, pairs: &[(FaceKey, FaceKey)]) -> ContactRecords {
+    topo::test_support::records(
+        body,
+        pairs
             .iter()
-            .map(|&(a, b)| PatchContact {
-                face_a: a,
-                face_b: b,
-            })
-            .map(|c| topo::Cited::new(c, topo::Cites::decided(0)))
-            .collect(),
-        ..ContactRecords::default()
-    }
+            .map(|&(a, b)| (topo::Cell::Face(a), topo::Cell::Face(b))),
+    )
 }
 
 fn errors(body: &Body<f64>, recs: &ContactRecords, tol: Tol) -> Vec<ValidationError> {
@@ -114,7 +109,7 @@ fn undeclared(errors: &[ValidationError]) -> Vec<CensusContact> {
     errors
         .iter()
         .filter_map(|e| match e {
-            ValidationError::UndeclaredContact { contact, .. } => Some(*contact),
+            ValidationError::UnrecordedContact { contact, .. } => Some(*contact),
             _ => None,
         })
         .collect()
@@ -149,7 +144,7 @@ fn r2_an_unrelated_declared_pair_backs_no_ef_bound() {
             .filter(|e| {
                 matches!(
                     e,
-                    ValidationError::UndeclaredContact {
+                    ValidationError::UnrecordedContact {
                         contact: CensusContact::EdgeFaceOverlap { face, .. },
                         ..
                     } if *face == post_top
@@ -166,7 +161,7 @@ fn r2_an_unrelated_declared_pair_backs_no_ef_bound() {
     );
     let unrelated = errors(
         &body,
-        &records(&[(side_ha, shelf_side), (side_ab, shelf_side)]),
+        &records(&body, &[(side_ha, shelf_side), (side_ab, shelf_side)]),
         Tol::witness(),
     );
     assert_eq!(
@@ -223,7 +218,7 @@ fn r2_the_touching_boundary_residue_is_not_the_new_arms_doing() {
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
     let found = errors(
         &body,
-        &records(&[(post.top_face, shelf_bottom)]),
+        &records(&body, &[(post.top_face, shelf_bottom)]),
         Tol::witness(),
     );
     assert!(
@@ -252,7 +247,11 @@ fn r2_the_touching_boundary_residue_is_not_the_new_arms_doing() {
 #[test]
 fn r2_the_new_rows_hold_at_the_default_band() {
     let (body, post_top, shelf_bottom, _, _, _) = overhang_seat_full();
-    let declared_seat = errors(&body, &records(&[(post_top, shelf_bottom)]), Tol::witness());
+    let declared_seat = errors(
+        &body,
+        &records(&body, &[(post_top, shelf_bottom)]),
+        Tol::witness(),
+    );
     assert!(
         undeclared(&declared_seat).is_empty(),
         "declared seat at the default band: {declared_seat:?}"

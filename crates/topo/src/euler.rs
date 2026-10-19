@@ -805,6 +805,12 @@ fn require_chord_adjacent<T: Real>(
     require_description_adjacent(None, &spec.description, [Slot::Kept(old), after])
 }
 
+/// The lever of an edge at rest whose faces' join reads in band or mixed
+/// along it ([`EulerOpError::RestJoinUndecided`],
+/// [`EulerOpError::RestJoinMixed`]).
+pub(crate) const REST_JOIN_LEVER: &str =
+    "move the geometry so the faces meet clearly smoothly or clearly at a corner along the edge";
+
 /// A failed Euler-operator precondition. Closed enum (D3 style); the
 /// body is untouched whenever one of these is returned (the operators
 /// are atomic).
@@ -862,9 +868,9 @@ pub enum EulerOpError {
         /// The typed re-certification failure.
         error: CertifyError,
     },
-    /// The spec is an `Intersection` of a plane and a described NURBS
-    /// wall (M7-8), whose certificate only the plane × NURBS lane
-    /// derives, and this scalar's policy holds no lane
+    /// The spec's certificate needs the NURBS lane (the classes are
+    /// listed on [`CertifyError::NurbsLaneNotSupplied`]), and this
+    /// scalar's policy holds no lane
     /// ([`crate::AtRestPolicy::nurbs_lane`] answers `None`: a dual,
     /// DL1). Every Euler door takes its lane from that policy, so a lane
     /// missing there is the scalar's. The body is untouched.
@@ -1232,13 +1238,85 @@ pub enum EulerOpError {
         /// The in-band/poisoned margin diagnostics.
         diag: geom_core::Indeterminate,
     },
+    /// [`Body::split_edge`] of a smooth edge — a tangency, or a pair its
+    /// faces under-determine (`OnPair`): whether a child stays smooth
+    /// along its own span is in band, at a station of the must-carry
+    /// rule over the child
+    /// ([`geom_brep::MustCarryEscalation::FirstOrder`]).
+    ///
+    /// Unreached for a tangency: the dihedral escalates on its arm only
+    /// over a child whose extent lies inside the band, and the
+    /// interiority gate refuses such a child first; along a ruling, the
+    /// tangent edge the kernel's doors mint, both normals are constant,
+    /// so a child station reads the dihedral the parent's certificate
+    /// read. A pair's certificate is incidence alone, so over a pair's
+    /// child this is the rule's own answer.
+    SplitSmoothEscalated {
+        /// The edge being split.
+        edge: EdgeKey,
+        /// The deciding station's diagnostic.
+        diag: geom_core::Indeterminate,
+    },
+    /// [`Body::split_edge`] of a smooth edge (a tangency or a pair):
+    /// whether the two faces curve apart along a child or share their
+    /// curvature there is in band (`"tangent_second_order"`,
+    /// [`geom_brep::MustCarryEscalation::SecondOrder`]). The rule meters
+    /// the sagitta over the child's own extent, so a short child can be
+    /// in band where its parent was jet-determinate: the child is
+    /// certifiable as neither the tangency nor the pair (D4 ¶3).
+    SplitSmoothBendEscalated {
+        /// The edge being split.
+        edge: EdgeKey,
+        /// The sagitta's diagnostic.
+        diag: geom_core::Indeterminate,
+    },
+    /// [`Body::split_edge`] of a smooth edge (a tangency or a pair): a
+    /// station of the must-carry rule over a child reads the two faces
+    /// at a corner ([`geom_brep::MustCarryRefusal::Refuted`]), against
+    /// the smooth join the parent's description states.
+    ///
+    /// Unreached for a tangency, for the reason
+    /// [`Self::SplitSmoothEscalated`] is: a child's arm is no longer
+    /// than its parent's, so a station the certified parent holds smooth
+    /// cannot read definitely transverse. Over a pair's child, whose
+    /// parent certified incidence alone, it is the rule's own answer.
+    SplitSmoothRefuted {
+        /// The edge being split.
+        edge: EdgeKey,
+        /// The two neighbouring stations that disagree, where a child
+        /// reads smooth at one ([`geom_brep::MustCarryRefusal::Mixed`]);
+        /// `None` where every station reads a corner.
+        mixed: Option<geom_brep::MixedStations>,
+    },
+    /// [`Body::describe_at_rest`] of an edge between two distinct
+    /// surfaces: a station of the must-carry rule over it is in band
+    /// ([`geom_brep::reask_pair`]), certifiable as neither the pair nor
+    /// what its surfaces would determine.
+    RestJoinUndecided {
+        /// The edge being described.
+        edge: EdgeKey,
+        /// The deciding station's diagnostic.
+        diag: geom_core::Indeterminate,
+    },
+    /// [`Body::describe_at_rest`] of an edge between two distinct
+    /// surfaces: the must-carry rule over it reads a corner at one
+    /// station and smooth at its neighbour (D2's mixed edge).
+    RestJoinMixed {
+        /// The edge being described.
+        edge: EdgeKey,
+        /// The two neighbouring stations that disagree.
+        stations: geom_brep::MixedStations,
+    },
     /// [`Body::split_edge`] could not carry a parent half-edge's stored
     /// **pcurve row** across the split: the parent's chart image,
     /// restricted to a child's sub-interval, failed the certification
     /// the whole image passed. Raised before any mutation, so the body
-    /// is untouched — a covered chart lane that refuses here is a
-    /// defect, never a licence to leave the face half-minted
-    /// (`crate::pcurves::split_cache`).
+    /// is untouched, never a licence to leave the face half-minted
+    /// (`crate::pcurves::split_cache`). At the band the parent's row
+    /// was certified at, a covered chart lane that refuses here is a
+    /// defect. At a tighter band it need not be: a fitted-grade row's
+    /// check 4 reads the whole carrier, so it can refuse a child
+    /// typed.
     PcurveSplit {
         /// The edge being split.
         edge: EdgeKey,
@@ -1250,11 +1328,13 @@ pub enum EulerOpError {
     /// [`Body::split_edge`]: the one joint decision
     /// (`crate::pcurves::decide_joint`) decided no element for the joint
     /// between the two children of a half-edge's row. The gap there is
-    /// exactly zero, so what refused is the split point's lever: a mark
-    /// at it escalated (`diag` is `Some`), or the lever is so short that
-    /// the zero gap reads on a mark (`None`), as on a narrow cone near
-    /// its apex. The split writes no element nothing decided. Raised
-    /// before any mutation, so the body is untouched.
+    /// zero, and a zero gap meets the image's own orbit point at any
+    /// lever (the near-pole read, `crate::pcurves::lever_periods`), so a
+    /// short lever alone no longer refuses: what refuses is a reading
+    /// the band cannot decide (`diag` is `Some`), or a decided miss
+    /// (`None`) of a channel the near-pole read does not serve. The
+    /// split writes no element nothing decided. Raised before any
+    /// mutation, so the body is untouched.
     SplitJointUndecided {
         /// The edge being split.
         edge: EdgeKey,
@@ -1268,10 +1348,10 @@ pub enum EulerOpError {
     /// killed half whole by is not decided at the door's band, so the
     /// joint the kill bridges across it has no element to write. Either
     /// whether the half's ends meet escalated, or they meet and the
-    /// joint decision there missed: a mark at the vertex escalated, or
-    /// its lever is so short that the gap reads on a mark, or the
-    /// periods lie past the branch reach. Raised in the plan phase, so
-    /// the body is untouched.
+    /// joint decision there missed: a mark or a near-pole offset at the
+    /// vertex escalated, or the gap reads on a mark and is decided off
+    /// every orbit point the near-pole read tries at the vertex's lever.
+    /// Raised in the plan phase, so the body is untouched.
     KillTurnUndecided {
         /// The killed half-edge whose turn was not decided.
         half_edge: HalfEdgeKey,
@@ -1371,10 +1451,9 @@ impl EulerOpError {
                 error.render(at)
             ),
             Self::NurbsLaneUnsupported { edge, scalar } => format!(
-                "{} lies between a plane and a spline face, and its certificate is derived \
-                 through the plane x NURBS lane, which only a scalar with certification \
-                 rights holds; the {scalar} scalar does not. Recourse: run the operation at \
-                 a certifying scalar",
+                "{}'s certificate needs the NURBS lane, which only a scalar with \
+                 certification rights holds; the {scalar} scalar does not. Recourse: run the \
+                 operation at a certifying scalar",
                 edge.map_or_else(|| "the new edge".to_owned(), |e| format!("edge {e:?}"))
             ),
             Self::RebasedNullEdge { edge } => format!(
@@ -1541,6 +1620,41 @@ impl EulerOpError {
                     )),
                 )
                 .to_string(),
+            Self::SplitSmoothEscalated { diag, .. } => diag
+                .undecided(
+                    "whether a piece of a split smooth edge stays smooth along its span",
+                    diag.ending(crate::split::SMOOTH_PIECE_LEVER),
+                )
+                .to_string(),
+            Self::SplitSmoothBendEscalated { diag, .. } => diag
+                .undecided(
+                    "whether the faces of a piece of a split smooth edge curve apart along it \
+                     or share their curvature there",
+                    diag.ending(crate::split::SMOOTH_PIECE_LEVER),
+                )
+                .to_string(),
+            Self::SplitSmoothRefuted {
+                mixed: Some(stations),
+                ..
+            } => format!(
+                "along a piece of a split smooth edge, {stations}. Recourse: {}",
+                crate::split::SMOOTH_PIECE_LEVER
+            ),
+            Self::SplitSmoothRefuted { mixed: None, .. } => format!(
+                "a piece of a split smooth edge reads a corner at every station along it, against \
+                 the smooth join the edge states, so what that piece is cannot be said. \
+                 Recourse: {}",
+                crate::split::SMOOTH_PIECE_LEVER
+            ),
+            Self::RestJoinUndecided { diag, .. } => diag
+                .undecided(
+                    "whether the faces along an edge at rest meet smoothly or at a corner",
+                    diag.ending(REST_JOIN_LEVER),
+                )
+                .to_string(),
+            Self::RestJoinMixed { stations, .. } => {
+                format!("along an edge at rest, {stations}. Recourse: {REST_JOIN_LEVER}")
+            }
             Self::PcurveSplit {
                 edge,
                 half_edge,
@@ -1569,7 +1683,7 @@ impl EulerOpError {
                  ends, or move the geometry",
                 diag.as_ref().map_or_else(
                     || "its ends meet, but at a lever too short to tell one azimuth period from \
-                        the next, or past the branch reach"
+                        the next"
                         .to_owned(),
                     |d| d.payload().to_string()
                 )
@@ -1824,6 +1938,47 @@ pub(crate) fn every_euler_op_error_once()
                 terminal_sliver: false,
             },
         },
+        EulerOpError::SplitSmoothEscalated {
+            edge: ek,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("dihedral_arm"),
+                terminal_sliver: false,
+            },
+        },
+        EulerOpError::SplitSmoothBendEscalated {
+            edge: ek,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("tangent_second_order"),
+                terminal_sliver: false,
+            },
+        },
+        EulerOpError::SplitSmoothRefuted {
+            edge: ek,
+            mixed: Some(geom_brep::MixedStations {
+                transverse: 3,
+                smooth: 4,
+            }),
+        },
+        EulerOpError::RestJoinUndecided {
+            edge: ek,
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("tangent_second_order"),
+                terminal_sliver: false,
+            },
+        },
+        EulerOpError::RestJoinMixed {
+            edge: ek,
+            stations: geom_brep::MixedStations {
+                transverse: 3,
+                smooth: 4,
+            },
+        },
         EulerOpError::SplitJointUndecided {
             edge: ek,
             half_edge: he,
@@ -1846,10 +2001,10 @@ pub(crate) fn every_euler_op_error_once()
         EulerOpError::PcurveSplit {
             edge: ek,
             half_edge: he,
-            error: geom_brep::PcurveCertifyError::UnsupportedCarrier {
+            error: geom_brep::PcurveCertifyError::CarrierOffChart {
                 chart: geom::SurfaceKind::Torus,
-                carrier: geom::CurveKind::Nurbs,
-                class: geom_brep::UncoveredClass::NoFittedClass,
+                carrier: geom::CurveKind::Spiric,
+                why: "the spiric lies on neither its own torus nor that torus's mirror",
             },
         },
         EulerOpError::PcurveMint {
@@ -2574,8 +2729,16 @@ impl<T: Decide> Body<T> {
         // gives them.
         let p_old =
             self.resolve_vertex_point(plan.v, link(EntityId::HalfEdge(plan.he1.key()), "start"));
-        let certified =
-            self.certify_edge_spec(None, curve.spec(false, p_old, point), p_old, point, tol)?;
+        let faces =
+            [plan.he1_loop, plan.he2_loop].map(|l| proven(&self.loops, l, EntityId::Loop).face);
+        let certified = self.certify_edge_spec(
+            None,
+            curve.spec(false, p_old, point),
+            p_old,
+            point,
+            faces,
+            tol,
+        )?;
         self.certify_rebased_run(&plan.run, point, tol)?;
         // ---- The pcurve rows the new halves need (still no mutation). ----
         let rows = self.plan_site_rows(
@@ -2816,9 +2979,16 @@ impl<T: Decide> Body<T> {
         // ---- Preconditions. ----
         let (v, _) = self.mev_lone_plan(loop_key)?;
         let p_old = self.resolve_vertex_point(v, link(EntityId::Loop(loop_key), "boundary"));
+        let face = proven(&self.loops, loop_key, EntityId::Loop).face;
         // ---- Geometry gate (still no mutation). ----
-        let certified =
-            self.certify_edge_spec(None, curve.spec(false, p_old, point), p_old, point, tol)?;
+        let certified = self.certify_edge_spec(
+            None,
+            curve.spec(false, p_old, point),
+            p_old,
+            point,
+            [face; 2],
+            tol,
+        )?;
         // ---- The pcurve rows the new halves need (still no mutation):
         // the empty loop becomes `he_plus → he_minus`, first `he_plus`.
         let rows = self.plan_site_rows(
@@ -3039,7 +3209,7 @@ impl<T: Decide> Body<T> {
         let after = Slot::of_spec(&surface, inherit_surface);
         let spec = curve.spec(u1 == u2, p1, p2);
         require_chord_adjacent(&spec, (inherit_surface, after))?;
-        let certified = self.certify_edge_spec(None, spec, p1, p2, tol)?;
+        let certified = self.certify_edge_spec(None, spec, p1, p2, [face_key; 2], tol)?;
         self.vouch_move(
             RechartDoor::Mef,
             face_key,
@@ -3210,7 +3380,7 @@ impl<T: Decide> Body<T> {
         let after = Slot::of_spec(&surface, inherit_surface);
         let spec = curve.spec(true, anchor, anchor);
         require_chord_adjacent(&spec, (inherit_surface, after))?;
-        let certified = self.certify_edge_spec(None, spec, anchor, anchor, tol)?;
+        let certified = self.certify_edge_spec(None, spec, anchor, anchor, [face_key; 2], tol)?;
         let carried = resolved.on_parent_chart;
         self.vouch_move(
             RechartDoor::Mef,
@@ -3754,8 +3924,16 @@ impl<T: Decide> Body<T> {
     /// off the scalar's policy ([`crate::AtRestPolicy::nurbs_lane`]).
     /// `edge` is the existing edge the spec certifies (a re-description,
     /// a split child, a merged member), `None` where the door mints a new
-    /// edge. Pure (no mutation) — ops call it inside their precondition
-    /// phase.
+    /// edge; `faces` are the two faces the edge bounds as this door
+    /// leaves them, read as the body stands before it (the face a minted
+    /// strut or chord lies in, twice), which lever its wedge
+    /// ([`crate::wedge_reach`]). Those are not always the faces of the
+    /// operation's result: a boolean splits an operand's edge against
+    /// that operand's untrimmed faces, and later discards one piece of a
+    /// face a chord divides. What guarantees the result is the at-rest
+    /// gate, which re-reads every edge at the faces it bounds there
+    /// (tier 3's re-certification and check 4). Pure (no mutation) —
+    /// ops call it inside their precondition phase.
     ///
     /// # Errors
     ///
@@ -3768,6 +3946,7 @@ impl<T: Decide> Body<T> {
         spec: EdgeCurveSpec<T>,
         p_start: Point3<T>,
         p_end: Point3<T>,
+        faces: [FaceKey; 2],
         tol: Tol,
     ) -> Result<EdgeCurve<T>, EulerOpError>
     where
@@ -3776,17 +3955,59 @@ impl<T: Decide> Body<T> {
         let band = Band::linear(tol).map_err(|e| EulerOpError::Certification {
             error: CertifyError::Band(e),
         })?;
-        crate::policy_lane::certify(
+        let reach = crate::wedge_reach(
+            self,
+            faces,
+            &spec.carrier,
+            (spec.param_start, spec.param_end),
+        );
+        let stated = match spec.description {
+            geom_brep::EdgeDescriptionSpec::OnPair { pair, .. } => {
+                edge.and_then(|edge| self.stated_pair_image(edge, pair))
+            }
+            _ => None,
+        };
+        crate::policy_lane::certify_stated(
             spec,
             p_start,
             p_end,
             |k| self.surfaces.get(k).cloned(),
+            reach,
             band,
+            stated.as_ref(),
         )
         .map_err(|refusal| match refusal {
             ByPolicy::NoLane { scalar } => EulerOpError::NurbsLaneUnsupported { edge, scalar },
             ByPolicy::Refused(error) => EulerOpError::Certification { error },
         })
+    }
+
+    /// The image `edge` already carries on the spline side of its
+    /// `OnPair` description's `pair`: the pcurve the mint stored on the half of
+    /// `edge` bounding a face of that surface, which certification then
+    /// meters as it stands rather than derive another — at the op and
+    /// at rest alike (tier 3's re-certification). `None` where nothing
+    /// is stored.
+    pub(crate) fn stated_pair_image(
+        &self,
+        edge: EdgeKey,
+        pair: geom_brep::SurfacePair,
+    ) -> Option<geom_brep::StatedImage<T>> {
+        let edge_data = self.edges.get(edge)?;
+        [edge_data.he_plus, edge_data.he_minus]
+            .into_iter()
+            .find_map(|he| {
+                let surface = self.faces.get(self.face_of_half_edge(he)?)?.surface;
+                let on_pair = pair.keys().contains(&surface);
+                let spline = self.surfaces.get(surface)?.spline_chart().is_some();
+                (on_pair && spline).then_some((he, surface))
+            })
+            .and_then(|(he, surface)| {
+                Some(geom_brep::StatedImage {
+                    surface,
+                    pcurve: self.pcurve(he)?.pcurve().clone(),
+                })
+            })
     }
 
     /// `edge`'s two endpoint points, `he_plus` forward order (the
@@ -3991,8 +4212,15 @@ impl<T: Decide> Body<T> {
             };
             let (p_start, p_end) = self.rebased_endpoints(edge_key, run, p_new);
             let surfaces = |k| self.surfaces.get(k).cloned();
-            let recertify =
-                |start, end| crate::policy_lane::recertify(curve, start, end, surfaces, band);
+            let reach = crate::wedge_reach(
+                self,
+                crate::edge_faces(self, edge_key),
+                curve.carrier(),
+                curve.params(),
+            );
+            let recertify = |start, end| {
+                crate::policy_lane::recertify(curve, start, end, surfaces, reach, band)
+            };
             let error = match recertify(p_start, p_end) {
                 Ok(_) => continue,
                 Err(ByPolicy::NoLane { scalar }) => {
@@ -5851,8 +6079,9 @@ mod tests {
                     finding: crate::PcurveMintError::Certify {
                         half_edge: spline_half,
                         error: geom_brep::PcurveCertifyError::IsoUnsupported {
-                            what: "the carrier's start point lies on neither chart boundary — \
-                                   not a boundary iso of this face's chart",
+                            what: "no boundary row of this chart, in either u direction, \
+                                   holds the circle at the interior probe — not an arc rim \
+                                   spanning the chart's u domain",
                         },
                     },
                 },
@@ -7143,7 +7372,6 @@ mod tests {
             "Recourse: move the geometry so the crossing lands clearly away from the edge's ends";
         let tol = geom_core::Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let k = band.escalate() / band.zero();
         let raise = |t: f64| {
             let cube = crate::test_support_fixtures::declined_cube::<f64>(tol);
             let mut body = cube.body;
@@ -7175,7 +7403,11 @@ mod tests {
                     ..
                 },
                 EulerOpError::SplitParamEscalated { diag, .. },
-            ) => [Some(value(*z) / k), None, Some(value(diag.margin) / k)],
+            ) => [
+                band.offer_deciding(value(*z)),
+                None,
+                band.offer_deciding(value(diag.margin)),
+            ],
             other => panic!("a zero-band, an outside and an in-band split: {other:?}"),
         };
         for (err, want) in [zero, outside, undecided].iter().zip(want) {
@@ -7184,7 +7416,11 @@ mod tests {
                 text.contains(LEVER) && !text.contains("declare"),
                 "the one lever, and no declaration: {text}"
             );
-            assert_eq!(offered(&text), want, "the tolerance its arm gives: {text}");
+            assert_eq!(
+                offered(&text),
+                want,
+                "the tolerance its arm gives, above EPS_MIN: {text}"
+            );
         }
     }
 

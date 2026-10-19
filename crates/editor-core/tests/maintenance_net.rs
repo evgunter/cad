@@ -9,11 +9,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::docm7_union_declare::block;
-use crate::fixture::{ang, flush_pairs, fname, insert, union_over, wall};
+use crate::blocks::block;
+use crate::fixture::{ang, fname, insert, wall};
 use editor_core::{
     Applied, Attr, AttrKind, DocEdit, EditError, Maintenance, Node, ProfileDoc, ProfileProgram,
-    RecipeNodeId, Recorded, Recording, RefusingReach, Rgba8, StableName, apply,
+    RecipeNodeId, Recorded, Recording, Rgba8, StableName, apply,
 };
 use geom_core::Tol;
 
@@ -21,7 +21,7 @@ fn applied(
     doc: &editor_core::ProfileDoc,
     edit: DocEdit<ProfileProgram>,
 ) -> Applied<ProfileProgram> {
-    apply(doc, &edit, Tol::witness(), &RefusingReach).expect("the edit lands")
+    apply(doc, &edit, Tol::witness()).expect("the edit lands")
 }
 
 /// The net of `edits` recorded in order from `doc`, and the document
@@ -30,7 +30,7 @@ fn net_of(
     doc: &ProfileDoc,
     edits: Vec<DocEdit<ProfileProgram>>,
 ) -> (Vec<Maintenance>, Vec<Vec<Maintenance>>, ProfileDoc) {
-    let mut action = Recording::start(doc, Tol::witness(), &RefusingReach);
+    let mut action = Recording::start(doc, Tol::witness());
     let mut each = Vec::new();
     for edit in edits {
         each.push(crate::fixture::without_anonymous(
@@ -135,6 +135,7 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
     let doc = applied(
         &doc,
         DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc, &painted),
             name: painted.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
@@ -144,6 +145,7 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
     assert_eq!(
         alone,
         vec![Maintenance::StrandedAppearance {
+            body: doc.spoken_var(crate::fixture::painted_in(&doc, &painted)),
             name: doc.spoken_name(&painted),
             took: editor_core::Took::Node
         }]
@@ -153,6 +155,7 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
         vec![
             DocEdit::DeleteNode { id: victim },
             DocEdit::ClearAppearance {
+                body: crate::fixture::painted_in(&doc, &painted),
                 name: painted,
                 kind: AttrKind::Color,
             },
@@ -161,56 +164,11 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
     assert_eq!(cleared, Vec::new());
 }
 
-/// **A strand on a declared pair survives only while the declaring
-/// node still holds the pair.** With `b` dropped from the union's
-/// members, deleting it strands the names the union's declared pairs
-/// carry; a `SetDeclare` clearing the list in the same action leaves
-/// nothing stranded.
-#[test]
-fn a_declared_strand_a_later_set_declare_clears_is_not_reported() {
-    let doc = ProfileDoc::empty_derived("net-declare-cleared", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let pairs = editor_core::declare_continuation(flush_pairs(&doc, (a, a), (b, b)));
-    let (doc, union) = union_over(doc, &[a, b, c], pairs);
-    let doc = applied(
-        &doc,
-        DocEdit::SetMembers {
-            node: union,
-            members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
-        },
-    )
-    .doc;
-
-    let (alone, _, _) = net_of(&doc, vec![DocEdit::DeleteNode { id: b }]);
-    assert_eq!(
-        alone.len(),
-        4,
-        "the premise: one strand per declared name minted in `b`: {alone:?}"
-    );
-    let (cleared, _, _) = net_of(
-        &doc,
-        vec![
-            DocEdit::DeleteNode { id: b },
-            DocEdit::SetDeclare {
-                node: union,
-                pairs: Vec::new(),
-            },
-        ],
-    );
-    assert_eq!(
-        cleared,
-        Vec::new(),
-        "the union holds no stranded pair at the end"
-    );
-}
-
 /// **What a recorded action answers beside its net**: the edits in the
 /// order they applied, what each minted — the typed insert's id among
 /// them — and the document the last one produced, which is the one
 /// `apply` threaded edit by edit produces. A strand an early delete
-/// made and a later `SetDeclare` of the same action cleared is netted
+/// made and a later `Rebind` of the same action repaired is netted
 /// out; an action that records nothing answers its start.
 #[test]
 fn a_recording_answers_its_edits_ids_and_document_in_order() {
@@ -218,32 +176,25 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let pairs = editor_core::declare_continuation(flush_pairs(&doc, (a, a), (b, b)));
-    let (doc, union) = union_over(doc, &[a, b, c], pairs);
-    let doc = applied(
-        &doc,
-        DocEdit::SetMembers {
-            node: union,
-            members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
-        },
-    )
-    .doc;
+    let named = fname(b, wall(&doc, b, 0));
+    let (doc, _) = frame_on(doc, a, named.clone());
     let other = Node::Union {
         members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
-        declare: Vec::new(),
     };
 
-    let mut action = Recording::start(&doc, Tol::witness(), &RefusingReach);
+    let mut action = Recording::start(&doc, Tol::witness());
     assert!(action.is_empty(), "a started action has recorded nothing");
     let deleted = action.apply(DocEdit::DeleteNode { id: b });
     assert_eq!(deleted, Ok(None), "a delete mints nothing");
     assert!(!action.is_empty(), "the delete is recorded");
     let inserted = action.insert(other.clone()).expect("the union lands");
-    let cleared = action.apply(DocEdit::SetDeclare {
-        node: union,
-        pairs: Vec::new(),
-    });
-    assert_eq!(cleared, Ok(None), "a set-declare mints nothing");
+    let repair = DocEdit::Rebind {
+        body: doc.output(a, 0),
+        from: named,
+        to: fname(a, wall(&doc, a, 0)),
+    };
+    let repaired = action.apply(repair.clone());
+    assert_eq!(repaired, Ok(None), "a rebind mints nothing");
     assert_eq!(action.minted(), &[None, Some(inserted), None]);
     let recorded = action.finish().expect("every edit landed");
 
@@ -252,13 +203,9 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
         node: Box::new(other),
         fresh: Vec::new(),
     };
-    let clear = DocEdit::SetDeclare {
-        node: union,
-        pairs: Vec::new(),
-    };
     let first = applied(&doc, delete.clone());
     let second = applied(&first.doc, insert.clone());
-    let third = applied(&second.doc, clear.clone());
+    let third = applied(&second.doc, repair.clone());
     assert_eq!(
         second.record.minted,
         Some(inserted),
@@ -268,7 +215,7 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
         recorded,
         Recorded {
             doc: third.doc,
-            edits: vec![delete, insert, clear],
+            edits: vec![delete, insert, repair],
             // The delete's retired anonymous variables stand: nothing
             // later takes them back.
             maintenance: first
@@ -279,18 +226,18 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
                 .collect(),
             minted: vec![None, Some(inserted), None],
         },
-        "the edits as applied, the strands the cleared declaration held netted out"
+        "the edits as applied, the strand the rebind repaired netted out"
     );
     assert!(
         first
             .maintenance
             .iter()
-            .any(|row| matches!(row, Maintenance::Strand { .. })),
-        "the premise: the delete alone strands the declared names: {:?}",
+            .any(|row| matches!(row, Maintenance::StrandedSelection { .. })),
+        "the premise: the delete alone strands the frame's name: {:?}",
         crate::fixture::without_anonymous(&first.maintenance)
     );
 
-    let idle = Recording::start(&doc, Tol::witness(), &RefusingReach)
+    let idle = Recording::start(&doc, Tol::witness())
         .finish()
         .expect("nothing was refused");
     assert!(idle.doc.bit_eq(&doc), "no edit, the start");
@@ -322,10 +269,9 @@ fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
     let delete_b = DocEdit::DeleteNode { id: b };
     let union = Node::Union {
         members: editor_core::Bodies::Spelled(vec![b.into(), c.into()]),
-        declare: Vec::new(),
     };
 
-    let mut action = Recording::start(&doc, Tol::witness(), &RefusingReach);
+    let mut action = Recording::start(&doc, Tol::witness());
     action
         .apply(DocEdit::DeleteNode { id: a })
         .expect("the first delete lands");
@@ -338,7 +284,7 @@ fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
         },
     ] {
         assert!(
-            apply(&after_first, &edit, Tol::witness(), &RefusingReach).is_ok(),
+            apply(&after_first, &edit, Tol::witness()).is_ok(),
             "the premise: {edit:?} lands on its own where the refusal left the action"
         );
     }

@@ -34,6 +34,7 @@
 //! suite (`sweep/tests/m6_loft_body.rs`), where the derivation above
 //! is asserted against the certified enclosure.
 
+use super::PlacePart;
 use editor_core::{DocEdit, Formula, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId};
 use sweep::test_support::{PRISM_SQUARE, PRISM_TRAPEZOID};
 
@@ -66,7 +67,7 @@ pub fn document() -> CorpusDoc {
         v_degree: Formula::count(2),
     });
 
-    r.place(loft);
+    r.place_part(loft);
 
     CorpusDoc {
         name: "loft_prism",

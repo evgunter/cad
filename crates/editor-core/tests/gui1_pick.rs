@@ -15,7 +15,7 @@ use bvh::test_support::ray;
 use editor_core::NodeStanding;
 use editor_core::{
     CancelToken, EntityKey, EvalOptions, Evaluation, HitTestError, MeshPick, MeshPickError, Node,
-    PickTarget, ProfileDoc, RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
+    PickTarget, ProfileDoc, RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face,
 };
 use fixture::{insert, len, on_frame};
 use geom_core::Tol;
@@ -74,7 +74,8 @@ fn resolved_patch<'a>(
     mesh: &'a Mesh,
     name: &editor_core::StableName,
 ) -> &'a FacePatch {
-    let Resolution::Resolved(r) = resolve(RunCtx { doc, eval: ev }, name) else {
+    let Resolution::Resolved(r) = crate::fixture::resolve_at_mint(RunCtx { doc, eval: ev }, name)
+    else {
         panic!("picked name resolves");
     };
     let EntityKey::Face(fk) = r.entity.key else {
@@ -250,7 +251,6 @@ fn unusable_nodes_surface_typed_errors() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![bad.into(), good.into()]),
-            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -384,7 +384,7 @@ fn boundary_names_are_total_distinct_and_the_polylines_own() {
         assert!(seen.insert(name.clone()), "one name per edge");
         assert!(
             matches!(
-                resolve(
+                crate::fixture::resolve_at_mint(
                     RunCtx {
                         doc: &doc,
                         eval: &ev

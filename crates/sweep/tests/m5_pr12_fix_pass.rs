@@ -8,16 +8,14 @@
 use core::f64::consts::PI;
 use sweep::ExtrudeSide;
 
-use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Vec3};
 use geom_core::{Band, ErrorTextReading, Tol};
+use geom_core::{Bounds, Interval, Point2, Real, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::Body;
 use topo::query;
-use topo::{Body, BooleanDeclarations};
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let lp = bulge_loop(
@@ -203,10 +201,11 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 /// a right angle; so the rounded body lies strictly between the clip's
 /// volume and that less `r²·Σℓ`.
 ///
-/// **And the pin on the octant's pcurve rows.** The oblique corners'
-/// contact circles are GENERAL circles of their sphere's chart — neither
-/// polar nor meridian — so they have no closed-form image, and store
-/// their projected image. Every half-edge of every corner face carries
+/// **And the pin on the octant's pcurve rows.** An oblique corner's
+/// pole is one of its feet, so two of its contact circles are meridians
+/// and the third, opposite the pole, is a GENERAL circle of its sphere's
+/// chart — neither polar nor meridian — with no closed-form image, and
+/// stores its projected image. Every half-edge of every corner face carries
 /// a certified row, some of them `Projected`, each one re-derived and
 /// certified at `Interval` with every densely sampled displacement's
 /// certified lower bound under its envelope and that under the band,
@@ -217,37 +216,7 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 /// it, each for its own reason).
 #[test]
 fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
-    let c1 = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
-    let c2 = prism(&[(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)], 3.0);
-    let c2 = topo::transform_rigid(
-        &c2,
-        &Affine3::translation(Vec3::new(-1.55, -1.55, -2.45)),
-        Tol::witness(),
-    )
-    .unwrap();
-    let c2 = topo::transform_rigid(
-        &c2,
-        &Affine3::rotation_about_axis(
-            Point3::new(1.0, 1.0, 1.0),
-            Vec3::new(1.0, -1.0, 0.0).normalize(),
-            0.4,
-        ),
-        Tol::witness(),
-    )
-    .unwrap();
-    let clipped = boolean_op_with(
-        BooleanOp::Intersect,
-        &finished("the unit cube", c1, Tol::witness()),
-        &finished("the tilted cube", c2, Tol::witness()),
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        Tol::witness(),
-    )
-    .expect("the oblique clip")
-    .body()
-    .expect("a body")
-    .body
-    .clone();
+    let clipped = crate::common::oblique::f4();
     let edges = query::all_edges(&clipped);
     let r = 0.08;
     let f = fillet_edges(
@@ -262,7 +231,7 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
     assert_eq!(
         topo::validate_geometric(&f.body, Tol::witness()),
         Ok(()),
-        "tier 3 meters the spherical triangles, and check 6 exempts them"
+        "tier 3 meters the spherical triangles, and check 6 reads their sides"
     );
     let total_length: f64 = edges
         .iter()

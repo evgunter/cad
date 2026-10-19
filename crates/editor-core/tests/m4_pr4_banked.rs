@@ -25,7 +25,7 @@ use std::collections::BTreeMap;
 use editor_core::{
     CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
     Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
-    diff_verdicts, evaluate, resolve_with_prior,
+    diff_verdicts, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -118,7 +118,6 @@ fn band_cut() -> BandCut {
         Node::Subtract {
             from: a.into(),
             tool: transform.into(),
-            declare: Vec::new(),
         },
     );
     BandCut {
@@ -131,9 +130,8 @@ fn band_cut() -> BandCut {
 type Rows = BTreeMap<StableName, Entry>;
 
 fn rows(ev: &Evaluation<f64>, node: RecipeNodeId) -> Rows {
-    ev.value(node)
+    ev.table_at(node)
         .unwrap()
-        .name_table
         .iter()
         .map(|(n, e)| (n.clone(), e.clone()))
         .collect()
@@ -220,12 +218,10 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     // position keeps the same coplanarity, so ONE declared list serves
     // both). The B side is read at the TRANSFORM, the boolean's operand;
     // a transform carries `b0`'s names verbatim (N1).
-    let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (doc, u) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), transform.into()]),
-            declare: decl,
         },
     );
     let (doc2, _) = step(
@@ -290,7 +286,7 @@ fn fused_vertex_scenario(
     for name in dropped {
         // No N3-style retirement row: nothing in the new table lists
         // the loser as a Merged constituent.
-        let res = resolve_with_prior(
+        let res = crate::fixture::resolve_with_prior_at_mint(
             RunCtx {
                 doc: doc2,
                 eval: &ev2,

@@ -2,7 +2,8 @@
 id: union-pairwise-refusal-names-its-pair-in-digest-id-order
 kind: issue
 title: a union's pairwise contact judgement names the refusing pair in id order, so which pair is named moves between ε rows
-status: open
+status: closed
+closed: 2026-10-11
 opened: 2026-10-02
 ---
 
@@ -37,3 +38,7 @@ The naming order is WIRE's to choose:
 If the order moves, the operand-A choice can move with it or stay on
 ids. It is the verdict's contract and need not change. Either way, the
 `docm7` pin is restated to match.
+
+## Closed (2026-10-11, stage 4 F)
+
+Re-measured at F's head: `judge_pairwise_contact` visits member pairs in the author's list order (#4323: the list is the author's stated order), the listed-first member as operand A, so the pair a refusal names follows the document, not the ids. The `docm7` pin it cited is deleted with the declaration channel.

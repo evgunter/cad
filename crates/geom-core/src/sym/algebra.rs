@@ -18,10 +18,7 @@
 //! square for squares of strictly older atoms, and the DAG is finite; a
 //! step cap and the size budget stand behind that argument.
 //!
-//! Neither rule reads a value. Rule C (`sqrt(X) = R` by a certified
-//! sign of `R`, clause 3) is the one rule that does, and it lives in
-//! its own module (`super::signed`) with the one door the
-//! value comes through.
+//! Neither rule reads a value.
 //!
 //! # Two places the rewrite runs
 //!
@@ -207,12 +204,17 @@ fn poly_subst_square(poly: &Poly, id: u128, repl: &Form, budget: SymBudget) -> O
         let product = term.mul(&factor, budget)?;
         site!("the running sum");
         acc = acc.add(&product)?;
+        // The budget holds the SUM too, not only each product: every
+        // product is one term times a factor the budget already passed,
+        // so without this the running sum reached fifteen times the
+        // budget on a guided profile at `Sym` (62832 terms at 4096) and
+        // the next of `REDUCE_STEPS` substitutions started from there.
+        // Past the budget the reduction freezes, as `reduce` says.
+        if acc.terms().len() > budget.max_terms {
+            return None;
+        }
     }
-    let out = Form::quotient(acc, dens.into_iter().nth(h as usize)?);
-    Some(Form {
-        gated: repl.gated,
-        ..out
-    })
+    Some(Form::quotient(acc, dens.into_iter().nth(h as usize)?))
 }
 
 /// Applies one square reduction: substitute in numerator and
@@ -221,11 +223,7 @@ fn apply(f: &Form, sq: &Square, budget: SymBudget) -> Option<Form> {
     let num = poly_subst_square(&f.num, sq.id, &sq.x, budget)?;
     let den = poly_subst_square(&f.den, sq.id, &sq.x, budget)?;
     site!("the quotient's product");
-    let out = num.mul(&den.recip()?, budget)?;
-    Some(Form {
-        gated: out.gated || f.gated,
-        ..out
-    })
+    num.mul(&den.recip()?, budget)
 }
 
 /// The most substitutions `reduce` takes before it FREEZES. Each step
@@ -336,5 +334,32 @@ mod tests {
             .unwrap();
         let out = reduce(&f, SymRules::all(), budget(), &atoms).unwrap();
         assert!(out.is_zero(), "sqrt(x)² − x reduces to zero");
+    }
+
+    /// **The size budget holds the substituted sum, not only each
+    /// product.** `Σ xᵢ·id²` over five `xᵢ`, with `id² → y₁ + y₂`: each
+    /// term's product is two terms, inside a budget of eight, but their
+    /// sum is ten, so the substitution freezes (`None`) rather than
+    /// answer a form past the budget it was given. At a budget of ten
+    /// it answers the ten-term sum.
+    #[test]
+    fn a_substitution_whose_sum_outgrows_the_budget_freezes() {
+        let one = || Rat::new(1, 1, 0).unwrap();
+        let id: u128 = 100;
+        let mut poly = Poly::zero();
+        for i in 0..5u128 {
+            poly = poly.add(&Poly::term(vec![(i, 1), (id, 2)], one())).unwrap();
+        }
+        let repl = Form::poly(Poly::indet(10).add(&Poly::indet(11)).unwrap());
+        let at = |max_terms| SymBudget {
+            max_terms,
+            max_degree: 128,
+        };
+        assert!(
+            poly_subst_square(&poly, id, &repl, at(8)).is_none(),
+            "a ten-term sum past a budget of eight freezes"
+        );
+        let out = poly_subst_square(&poly, id, &repl, at(10)).expect("inside the budget");
+        assert_eq!(out.num.terms().len(), 10);
     }
 }

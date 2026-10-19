@@ -202,7 +202,7 @@ fn an_x_bar_sunk_into_either_cap_answers_its_closed_form() {
 
 /// The rigid motion taking the cube `[0, l]³`'s corner at the origin to
 /// `p`, its main diagonal to `diag`, spun `spin` about it.
-fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> AtRestBody<f64> {
+pub(crate) fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let u1 = Vec3::new(1.0, 1.0, 1.0).normalize();
     let u2 = Vec3::new(1.0, -1.0, 0.0).normalize();
@@ -218,8 +218,12 @@ fn cube_at(p: Point3<f64>, diag: Vec3<f64>, spin: f64, l: f64) -> AtRestBody<f64
     };
     let m = Mat3::from_cols(col(0), col(1), col(2));
     let cube = brick((0.0, l), (0.0, l), (0.0, l), tol);
-    let cube = topo::transform_rigid(&cube, &Affine3::from_parts(m, p - Point3::origin()), tol)
-        .expect("the cube moves");
+    let cube = topo::transform_rigid(
+        &cube,
+        &geom_core::test_support::rigid(&Affine3::from_parts(m, p - Point3::origin()), tol),
+        tol,
+    )
+    .expect("the cube moves");
     finished("the cube", cube, tol)
 }
 
@@ -292,7 +296,7 @@ fn a_cube_touching_a_drum_at_a_corner_answers_its_closed_form() {
             assert_eq!(
                 (
                     void.body.shells().count(),
-                    void.contacts.a_on_b.len() + void.contacts.b_on_a.len()
+                    void.contacts.vertex_face().count()
                 ),
                 (2, 1),
                 "l {l} spin {spin}: drum ∖ inner is the drum and a void, its corner on the wall"
@@ -315,15 +319,26 @@ fn a_cube_touching_a_drum_at_a_corner_answers_its_closed_form() {
 
 /// What tier 3′ reads of `record` alone, injected into an otherwise
 /// empty record set of `body`: `Ok`, or the errors naming its vertex or
-/// face.
+/// face. The pair must be a record ([`topo::Contact::new`]); an incident
+/// one is [`incident`]'s to answer.
+/// Whether `vertex` lies on `face`'s boundary, which no record can
+/// name ([`topo::ContactPairError::Incident`]).
+fn incident(body: &topo::Body<f64>, vertex: topo::VertexKey, face: topo::FaceKey) -> bool {
+    matches!(
+        topo::Contact::new(body, topo::Cell::Vertex(vertex), topo::Cell::Face(face)),
+        Err(topo::ContactPairError::Incident(_))
+    )
+}
+
 fn vf_reading(
     body: &topo::Body<f64>,
     record: topo::VfContact,
 ) -> Result<(), Vec<topo::ValidationError>> {
-    let contacts = topo::ContactRecords {
-        b_on_a: vec![topo::Cited::new(record, topo::Cites::decided(0))],
-        ..topo::ContactRecords::default()
-    };
+    let pair = (
+        topo::Cell::Vertex(record.vertex),
+        topo::Cell::Face(record.face),
+    );
+    let contacts = topo::test_support::records(body, [pair]);
     let errors: Vec<_> = topo::validate_pseudomanifold(body, &contacts, Tol::witness())
         .err()
         .unwrap_or_default()
@@ -394,6 +409,7 @@ fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
         assert_eq!(walls.len(), 2, "δ {delta}: the drum's two wall faces");
         let reads: Vec<_> = walls
             .iter()
+            .filter(|&&face| !incident(body, corner, face))
             .map(|&face| {
                 vf_reading(
                     body,
@@ -429,8 +445,10 @@ fn a_vertex_on_a_curved_face_is_confirmed_by_its_trim() {
                 .map(|(v, _)| v)
                 .find(|&v| body.faces_of_vertex(v).is_some_and(|fs| fs.contains(&face)))
                 .expect("a vertex on the wall face's boundary");
-            let r = vf_reading(body, topo::VfContact { vertex: rim, face });
-            assert!(stale(&r), "a boundary vertex is stale: {r:?}");
+            assert!(
+                incident(body, rim, face),
+                "a boundary vertex is incident to its face: no record names the pair"
+            );
         }
     }
     let elbow = sweep::test_support::swept_elbow(tol);

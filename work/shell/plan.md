@@ -104,6 +104,9 @@ The wall seam went to a designer pair (fork-log row 106). Ev ruled on PR 4515: o
 18. **The general simultaneous door** — `shell-moves-every-chart-of-a-solid-through-one-simultaneous-door` (P2, H). Every chart of a solid moves at once; edges are sections of moved surfaces, and corners are their roots. Dual review. It runs beside 17 (both touch `replace_face.rs`; each merges main often).
 19. **The NURBS × NURBS arm** — `a-wall-seam-between-two-fits-has-no-section` (P2, H), as ruled. After 18.
 20. **The saddle fit's reach** — `a-saddle-walls-offset-fit-stalls-short-of-the-default-eps` (P3, measure first).
+21. **The plane × NURBS door takes `branch_at`** — `the-plane-nurbs-door-selects-its-branch-by-nearest-sample` (P2, M), the ruling's second half (PR 4515: "in the arm's unit or the next"). A `Section`-shaped handle over the plane × NURBS lane; `plane_nurbs_ssi` becomes `all()`, and `plane_wall_section` calls `branch_at(mid)`. M tier: rule-1 byte 32 (mod 3 = 2), sequential. It runs beside 20 (different files).
+
+Unit 19 merged (PR 4597, 2026-10-11). Its follow-ups are filed: the boundary pass's Side/Corner regions and its cost (SSIEDGE), `all()`'s small-loop budget and the ℝ⁴ walk's duplication (SSIEDGE), the M8-4 mint with a non-plane pair and the loft top rim's certificate (ISO).
 
 Curved wall clearance (geom-brep README, Open) is the gate before a shelled loft is sound at rest. It is priced after 19.
 

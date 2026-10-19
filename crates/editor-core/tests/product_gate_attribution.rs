@@ -21,12 +21,12 @@
 use crate::fixture;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanValue, CancelToken, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Node,
-    NodeResult, ProductError, ProfileDoc, RecipeNodeId, SourceFinding, ValuePayload, evaluate,
+    BooleanValue, CancelToken, DocumentId, EvalOptions, Evaluation, Frame, Node, NodeResult,
+    ProductError, ProfileDoc, RecipeNodeId, SourceFinding, ValuePayload, evaluate,
     product_recorded,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{insert, len, on_frame, square, step};
+use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
 use std::sync::Arc;
 use test_utils::source::{ItemBody, blanked, code_only, item_body, required_matches};
@@ -46,7 +46,10 @@ const PRODUCT: &str = include_str!("../src/product.rs");
 fn the_gather_gates_the_aggregate_once_and_sources_only_on_refusal() {
     let code = blanked(code_only, "editor-core/src/product.rs", PRODUCT);
     let what = "editor-core/src/product.rs (code view)";
-    let gates = required_matches(&code, what, "T::gate_at_rest");
+    let gates: Vec<usize> = required_matches(&code, what, "T::gate_at_rest")
+        .into_iter()
+        .filter(|at| !code[*at..].starts_with("T::gate_at_rest_declared"))
+        .collect();
     assert_eq!(gates.len(), 2, "{what}: the gate is called in two places");
     let on_aggregate = required_matches(&code, what, "match T::gate_at_rest_kept(aggregate");
     assert_eq!(on_aggregate.len(), 1, "{what}: one aggregate gate");
@@ -76,6 +79,29 @@ fn the_gather_gates_the_aggregate_once_and_sources_only_on_refusal() {
     assert!(
         calls.len() == 1 && refusal.contains(&calls[0]),
         "{what}: `attribute_at_rest` is called once, from the aggregate's refusal arm"
+    );
+}
+
+const ASSEMBLY: &str = include_str!("../src/assembly.rs");
+
+/// **The at-rest census runs in the gather, and only there.** The
+/// gather hands the tier-3′ census to the recording door once
+/// (`topo::record_at_rest`, whose next pass confirms what it records)
+/// and keeps its findings on the product (`Product::census`); the
+/// assembly gate reads them and calls no census of its own. Red if the
+/// gate runs the census again, or the gather calls it from a second
+/// site: an extra pass over one product changes no verdict, so no
+/// behavioural row can see it.
+#[test]
+fn the_census_runs_in_the_gather_and_never_at_the_gate() {
+    let census = "T::gate_at_rest_declared(";
+    let product = blanked(code_only, "editor-core/src/product.rs", PRODUCT);
+    let calls = required_matches(&product, "editor-core/src/product.rs (code view)", census);
+    assert_eq!(calls.len(), 1, "the gather calls the census from one site");
+    let assembly = blanked(code_only, "editor-core/src/assembly.rs", ASSEMBLY);
+    assert!(
+        !assembly.contains("gate_at_rest_declared"),
+        "editor-core/src/assembly.rs: the gate reads the gather's census and runs none"
     );
 }
 
@@ -116,6 +142,12 @@ fn slot(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> &mut Arc<Body<f64>> {
     };
     match &mut value.payload {
         ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
+        // An instance's copies: the part product as the one body the
+        // gather grafts.
+        ValuePayload::Copies(copies) => match Arc::make_mut(copies).bodies.as_mut_slice() {
+            [body] => body,
+            other => panic!("node {node:?} holds {} bodies, not one", other.len()),
+        },
         other => panic!("node {node:?} is not a body: {other:?}"),
     }
 }
@@ -132,7 +164,7 @@ fn flip_one_face(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> usize {
 /// slot.
 fn turn_inside_out(ev: &mut Evaluation<f64>, node: RecipeNodeId) {
     let body = slot(ev, node);
-    let reversed = body.revert();
+    let reversed = body.revert().unwrap();
     *body = Arc::new(reversed);
 }
 
@@ -196,27 +228,19 @@ fn a_lone_multi_solid_source_is_named() {
     let mut store = PartStore::default();
     let p = store.insert(part("per-part-3-p"), Tol::witness());
     let mut sub = ProfileDoc::empty(DocumentId::derive("per-part-3-b"), Tol::witness());
+    let o = with_resolver(store.clone());
     for dx in [0.0, 3.0] {
-        let (next, id) = insert(sub, Node::instantiate_part(p));
-        let (next, _) = step(
-            next,
-            DocEdit::SetOffset {
-                instance: id,
-                offset: Some(editor_core::Placement::literal(&Frame::translation([
-                    dx, 0.0, 0.0,
-                ]))),
-                fresh: Vec::new(),
-            },
-        );
-        sub = fixture::place(next, id).0;
+        let (next, id) = insert(sub, fixture::mated_instance(p));
+        sub = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
     }
     let b = store.insert(sub, Tol::witness());
-    let (doc, instance) = insert(
+    let o = with_resolver(store);
+    let (doc, source) = fixture::insert_pinned(
         ProfileDoc::empty(DocumentId::derive("per-part-3-a"), Tol::witness()),
         Node::instantiate_part(b),
+        &o,
     );
-    let (doc, source) = fixture::place(doc, instance);
-    let mut ev = fixture::run(&doc, &with_resolver(store));
+    let mut ev = fixture::run(&doc, &o);
     assert_eq!(
         flip_one_face(&mut ev, source),
         2,

@@ -119,10 +119,23 @@ impl core::fmt::Display for ChartCorner {
     }
 }
 
-/// Where a branch meets the wall's knot rectangle: a side and the
-/// parameter along it (`v` on a `u` side, `u` on a `v` side).
+/// Which operand's knot rectangle a [`BoundaryPoint`] lies on: the
+/// plane × NURBS lane's wall is the second operand.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoundaryChart {
+    /// The first operand's.
+    First,
+    /// The second operand's.
+    Second,
+}
+
+/// Where a branch meets a NURBS operand's knot rectangle: the operand,
+/// a side and the parameter along it (`v` on a `u` side, `u` on a `v`
+/// side).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BoundaryPoint {
+    /// Whose rectangle.
+    pub chart: BoundaryChart,
     /// The side.
     pub side: ChartSide,
     /// The parameter along the side.
@@ -288,6 +301,8 @@ fn inward(end: ChartEnd) -> f64 {
 pub(crate) struct Pass<'a> {
     /// The wall.
     pub wall: &'a NurbsSurface<f64>,
+    /// Its chart enclosures over its own cells, read for the whole pass.
+    pub boxes: &'a NurbsBoxes<'a, f64>,
     /// Its chart speeds.
     pub speeds: ChartSpeeds,
     /// The plane.
@@ -344,7 +359,10 @@ enum CornerClass {
 impl Pass<'_> {
     /// The wall's `(u, v)` domain.
     fn domain(&self) -> ((f64, f64), (f64, f64)) {
-        (self.wall.knots_u().domain(), self.wall.knots_v().domain())
+        (
+            self.wall.knots_u_f64_interim().domain(),
+            self.wall.knots_v_f64_interim().domain(),
+        )
     }
 
     /// The side's curve ([`side_row`]).
@@ -363,7 +381,7 @@ impl Pass<'_> {
 
     /// The plane distance's partials over a chart rectangle.
     fn partials(&self, r: UvRect) -> (Interval, Interval) {
-        let boxes = NurbsBoxes::new(self.wall);
+        let boxes = self.boxes;
         let n = [
             self.plane.normal.x,
             self.plane.normal.y,
@@ -384,8 +402,8 @@ impl Pass<'_> {
     /// net's corner control point, so this encloses it exactly.
     fn corner_distance(&self, c: ChartCorner) -> Interval {
         let (nu, nv) = (
-            self.wall.knots_u().control_count(),
-            self.wall.knots_v().control_count(),
+            self.wall.knots_u_f64_interim().control_count(),
+            self.wall.knots_v_f64_interim().control_count(),
         );
         let iu = match c.u {
             ChartEnd::Low => 0,
@@ -508,7 +526,7 @@ impl Pass<'_> {
                 }
             }
             match side_cover(
-                &NurbsBoxes::new(self.wall),
+                self.boxes,
                 self.plane.normal_interval(),
                 (side, domain),
                 strip,
@@ -597,7 +615,7 @@ impl Pass<'_> {
         }
         let ((u0, u1), (v0, v1)) = self.domain();
         let mag = magnitude(phi);
-        let boxes = NurbsBoxes::new(self.wall);
+        let boxes = self.boxes;
         for &pad in &rungs[first..] {
             let cell = self.corner_cell(corner, pad);
             let (pu, pv) = self.partials(cell);
@@ -665,7 +683,11 @@ impl Pass<'_> {
             return Err(refuse());
         }
         Ok(Crossing {
-            at: BoundaryPoint { side, t },
+            at: BoundaryPoint {
+                chart: BoundaryChart::Second,
+                side,
+                t,
+            },
             state,
         })
     }
@@ -847,7 +869,7 @@ impl Pass<'_> {
                 let in_start = starts.contains(&corner);
                 // Inside a region's cell the root is the region's; in a
                 // cell the plane is certified clear of, it is none.
-                if regions.iter().chain(&clear).any(|c| holds(*c, point)) {
+                if regions.iter().chain(&clear).any(|c| c.holds(point)) {
                     continue;
                 }
                 if !in_start {
@@ -866,7 +888,7 @@ impl Pass<'_> {
                 // A region's cell holds its zero set only within the
                 // cover, so a root in the cell is the region's, wherever
                 // its settling put it.
-                if regions.iter().any(|r| holds(*r, point)) {
+                if regions.iter().any(|r| r.holds(point)) {
                     continue;
                 }
                 // One crossing per corner a branch starts at: its two
@@ -892,15 +914,52 @@ impl Pass<'_> {
 /// The curve along `side` of `wall`'s domain: a row of a clamped wall's
 /// net, verbatim. Every `KnotVector` is clamped by construction, so no
 /// extraction beyond the copy is needed.
-pub(crate) fn side_row<T: CertifiedBounds>(
-    wall: &geom::NurbsSurface<T>,
+pub(crate) fn side_row(
+    wall: &geom::NurbsSurface<f64>,
     side: ChartSide,
-) -> Result<geom::NurbsCurve3<T>, geom_core::spline::SplineError> {
+) -> Result<geom::NurbsCurve3<f64>, geom_core::spline::SplineError> {
     let high = side.end == ChartEnd::High;
     match side.fixed {
         ChartAxis::U => boundary_iso_u(wall, high),
         ChartAxis::V => boundary_iso_v(wall, high),
     }
+}
+
+/// [`side_row`]'s row as its parts, for a reader that takes the net and
+/// the structure rather than a curve: the knot vector along the side,
+/// the row's control points, and its weights' value channel.
+pub(crate) fn side_row_parts<T: CertifiedBounds>(
+    wall: &geom::NurbsSurface<T>,
+    side: ChartSide,
+) -> (
+    geom_core::spline::KnotVector,
+    Vec<geom_core::Point3<T>>,
+    Vec<f64>,
+) {
+    let (nu, nv) = wall.control_counts();
+    let high = side.end == ChartEnd::High;
+    let (knots, indices): (_, Vec<usize>) = match side.fixed {
+        ChartAxis::U => {
+            let base = if high { (nu - 1) * nv } else { 0 };
+            (
+                wall.knots_v_f64_interim().clone(),
+                (base..base + nv).collect(),
+            )
+        }
+        ChartAxis::V => {
+            let offset = if high { nv - 1 } else { 0 };
+            (
+                wall.knots_u_f64_interim().clone(),
+                (0..nu).map(|iu| iu * nv + offset).collect(),
+            )
+        }
+    };
+    let control = indices.iter().map(|&i| wall.control()[i]).collect();
+    let channel = indices
+        .iter()
+        .map(|&i| wall.weights_f64_interim()[i])
+        .collect();
+    (knots, control, channel)
 }
 
 /// **Whether a side is clear of the plane** (the exact empty answer, Ev's
@@ -1211,11 +1270,6 @@ fn strip_reach<T: CertifiedBounds>(
         }
     }
     best
-}
-
-/// Whether a chart point lies in a rectangle.
-fn holds(r: UvRect, (u, v): (f64, f64)) -> bool {
-    u >= r.u.0 && u <= r.u.1 && v >= r.v.0 && v <= r.v.1
 }
 
 /// The graze refusal at `side` where the slope along it is not

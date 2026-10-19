@@ -4,14 +4,15 @@
 //!
 //! Every payload in this crate — [`crate::curves::NurbsCurve2`],
 //! [`crate::curves::NurbsCurve3`], [`crate::surfaces::NurbsSurface`]
-//! — is a flat `Vec` of control points, a matching flat `Vec<f64>` of
-//! weights, and one or two knot vectors. The rank lives in the knot
+//! — is a flat `Vec` of control points, a matching flat `Vec<T>` of
+//! weights with their `f64` value channel beside them, and one or two
+//! knot vectors held in `T`. The rank lives in the knot
 //! vectors; everything below is rank-blind and dimension-blind, so it
 //! is written once and used by all three.
 
 use core::ops::{Mul, Sub};
 
-use geom_core::spline::SplineError;
+use geom_core::spline::{Knots, SpanLocate, SplineError, Weights};
 use geom_core::{CertifiedBounds, Interval, Point2, Point3, Real, Vec2, Vec3};
 
 /// A control point as the rank-blind net helpers see it: coordinates
@@ -105,24 +106,13 @@ pub(crate) fn check_counts(
 /// # Errors
 ///
 /// [`SplineError`] naming the exact violation.
-// `!(w > 0)` is deliberate (NaN-catching — NaN refuses; `w <= 0`
-// would pass NaN). Same note as geom-core::spline::algebra.
-#[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub(crate) fn validate_counts(
     expected: usize,
     control: usize,
     weights: &[f64],
 ) -> Result<(), SplineError> {
     check_counts(expected, control, weights.len())?;
-    for (index, w) in weights.iter().enumerate() {
-        if !(*w > 0.0) {
-            return Err(SplineError::NonPositiveWeight { index, weight: *w });
-        }
-        if !w.is_finite() {
-            return Err(SplineError::NonFiniteWeight { index, weight: *w });
-        }
-    }
-    Ok(())
+    geom_core::spline::check_weight_values(weights)
 }
 
 /// The all-poison point (every coordinate the scalar's poison) — the
@@ -177,10 +167,10 @@ pub(crate) fn any_poison<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
 /// — `[x, y]` for a plane net, `[x, y, z]` for a space net, each in
 /// the net's own flat index order.
 ///
-/// **The bracket seam.** Knots, weights and degree are `f64`
-/// structure, so the only scalar-typed data in a payload is the
-/// control net — and a control point enters certification arithmetic through its
-/// own bracket, never through an evaluation. At `f64` the bracket is
+/// **The bracket seam.** A control point enters certification
+/// arithmetic through its own bracket, never through an evaluation.
+/// (The weights and knots a payload holds in `T` enter the certificate
+/// on their value channel, the `f64` structure it is stated over.) At `f64` the bracket is
 /// the value (`lo` = `hi`), so this is bitwise what an `f64`-only form
 /// produces; at the interval scalar each coefficient carries its
 /// enclosure into the hull, which is what makes a composite bound over
@@ -205,42 +195,98 @@ pub(crate) fn certified_coords<T: CertifiedBounds, P: ControlPoint<T>>(
     lanes
 }
 
+/// The weights' value channel: each weight's one `f64`
+/// ([`SpanLocate::point_value`]), what every structure decision on the
+/// weights reads (C6's interim: the knot algebra's plans, the
+/// certificates). A poison weight reads as NaN, so the positivity check
+/// beside this refuses it as it refuses a NaN `f64` weight
+/// ([`SplineError::NonPositiveWeight`]).
+///
+/// A weight wider than a point is held weights' business ([`Weights`]):
+/// its sign is certified for every member there first, so a weight
+/// some members take non-positive refuses as that
+/// ([`SplineError::WeightSignUndecided`], with its margin), and only a
+/// wide weight that is certified fine reaches the carrier's own refusal.
+///
+/// The order of refusals differs by regime. With every weight a point,
+/// the door's count check runs first and the positivity check after it
+/// (`validate_counts`). With a weight wider than a point, every weight
+/// is certified here first, so a non-positive point weight elsewhere
+/// refuses before a count mismatch would.
+///
+/// # Errors
+///
+/// [`Weights::new`]'s, where some weight is wider than a point; then
+/// [`SplineError::CarrierWeightNotAPoint`] for the first such weight.
+pub(crate) fn weight_channel<T: SpanLocate>(weights: &[T]) -> Result<Vec<f64>, SplineError> {
+    let channel: Option<Vec<f64>> = weights
+        .iter()
+        .map(|w| {
+            w.point_value()
+                .or_else(|| w.is_poison().then_some(f64::NAN))
+        })
+        .collect();
+    if let Some(channel) = channel {
+        return Ok(channel);
+    }
+    let held = Weights::new(weights.to_vec())?;
+    // Certified, so no weight is poison: the wide one is the one that
+    // has no point.
+    let index = held.first_wide().unwrap_or(0);
+    Err(SplineError::CarrierWeightNotAPoint { index })
+}
+
+/// A carrier's knots have their `f64` vector: its evaluation, span
+/// reads and knot algebra read them through it
+/// ([`Knots::structure_f64_interim`]). The test is the vector itself
+/// ([`Knots::is_point`]), the very thing those readers take.
+///
+/// # Errors
+///
+/// [`SplineError::CarrierKnotNotAPoint`] at the first run whose value
+/// is an enclosure wider than a point.
+pub(crate) fn carrier_knots<T: SpanLocate>(knots: &Knots<T>) -> Result<(), SplineError> {
+    if knots.is_point() {
+        return Ok(());
+    }
+    // Knots hold their vector exactly when every run's value is a point
+    // (`Knots::new`), so a run that is not one exists.
+    let index = knots.first_wide_run().unwrap_or(0);
+    Err(SplineError::CarrierKnotNotAPoint { index })
+}
+
 /// One knot-removal pass's projected perturbation bound: `orig` and
 /// `re` share their knot structure and net shape by construction
 /// (reinsertion restores the original knot vectors, hence the original
-/// control count). The two scalar-valued reductions (`c_max`, `bwp`)
-/// are ascending-index `Real::max` folds — lattice value ops, so no
-/// `T` comparison enters generic code. The other two (`bw`, `w_min`)
-/// reduce `f64` **structure** — weights are `f64` by the data model —
-/// and are written as ordinary comparisons, which is the C6 lane's
-/// posture, not a decision.
+/// control count). Every reduction is an ascending-index `Real::max` /
+/// `Real::min` fold over values held in `T` — lattice value ops, so no
+/// `T` comparison enters generic code, and the weights' perturbation
+/// is a function of the weights the curve holds.
 ///
 /// The derivation is on the caller's `remove_knot`; the rank does not
 /// enter it, which is why one body serves the curve and the surface.
 pub(crate) fn removal_pass_bound<T: Real, P: ControlPoint<T>>(
-    orig: (&[P], &[f64]),
-    re: (&[P], &[f64]),
+    orig: (&[P], &[T]),
+    re: (&[P], &[T]),
 ) -> T {
     let (orig_control, orig_weights) = orig;
     let (re_control, re_weights) = re;
     let origin = P::splat(T::zero());
     let mut c_max = T::zero();
     let mut bwp = T::zero();
-    let mut bw = 0.0f64;
-    let mut w_min = f64::INFINITY;
+    let mut bw = T::zero();
+    // Seeded by the first weight, not by `+∞`, which is no value at
+    // `Interval` (`from_f64` poisons it) and would refuse every bound.
+    let mut w_min: Option<T> = None;
     for (i, pt) in orig_control.iter().enumerate() {
         c_max = c_max.max(P::norm(*pt - origin));
         // Indexing justified: shared net shape (fn docs).
         let (rp, rw) = (re_control[i], re_weights[i]);
-        let dw = (orig_weights[i] - rw).abs();
-        if dw > bw {
-            bw = dw;
-        }
-        if rw < w_min {
-            w_min = rw;
-        }
-        let d = (*pt - origin) * T::from_f64(orig_weights[i]) - (rp - origin) * T::from_f64(rw);
+        bw = bw.max((orig_weights[i] - rw).abs());
+        w_min = Some(w_min.map_or(rw, |m| m.min(rw)));
+        let d = (*pt - origin) * orig_weights[i] - (rp - origin) * rw;
         bwp = bwp.max(P::norm(d));
     }
-    (c_max * T::from_f64(bw) + bwp) * T::from_f64(1.0 / w_min)
+    // An empty net perturbs nothing.
+    w_min.map_or_else(T::zero, |w_min| (c_max * bw + bwp) * (T::one() / w_min))
 }

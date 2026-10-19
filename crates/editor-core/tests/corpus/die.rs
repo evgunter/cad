@@ -3,8 +3,8 @@
 //! authoring so the corpus and the PR 2/5/6 acceptance rows can never
 //! drift apart.
 //!
-//! Vocabulary: Profile, Extrude, Transform, Boolean (Subtract,
-//! declared), `DeclareVar`, `InsertNode`.
+//! Vocabulary: Profile, Extrude, Transform, Boolean (Subtract),
+//! `DeclareVar`, `InsertNode`.
 //!
 //! Exact oracles (dyadic throughout — cube `[0,2]³`, 21 pips of
 //! 0.25 × 0.25 × 0.125):
@@ -18,6 +18,7 @@
 //! so its cone is exactly {master extrude, its Transform, the final
 //! Subtract} — the minimal-cone probe).
 
+use super::PlacePart;
 use editor_core::{DocEdit, SlotId};
 
 use super::{CorpusDoc, MassPin};
@@ -30,7 +31,7 @@ pub fn document() -> CorpusDoc {
         doc: d.doc,
         edits: d.edits,
     };
-    r.place(d.final_node);
+    r.place_part(d.final_node);
     CorpusDoc {
         name: "die",
         about: "M3 exact-oracle die: 21 declared pip subtracts (63 nodes), placed",

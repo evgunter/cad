@@ -101,7 +101,7 @@ use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::eval::{
     CancelToken, ContentKey, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult,
-    ProfileLift, evaluate,
+    evaluate,
 };
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
@@ -304,7 +304,7 @@ pub struct SymbolicDials {
     ///
     /// It can only ADD: a retry is asked only where every rung of the
     /// first attempt declined, so no dial value here moves a decision
-    /// out of `symbolic_zero`, `sign_gated` or `registered`.
+    /// the first attempt answered.
     pub retry: geom_core::SymRetry,
 }
 
@@ -329,11 +329,15 @@ pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
 /// | --- | --- | --- | --- | --- | --- | --- |
 /// | two-hole plate (`1e2·ε`) | 0.09 s | 0.35 s | 0.35 s | 0.38 s¹ | 0.38 s¹ | nothing |
 /// | R1's annulus (`1e1·ε`) | 0.06 s | 0.37 s | 0.38 s | 0.40 s¹ | 0.39 s¹ | nothing |
-/// | R2's filleted bracket (`1e1·ε`) | 0.28 s | 2.86 s | 3.88 s | 3.53 s | 3.25 s | 6 decisions, all `registered` (rule A's attempt) |
-/// | R2's link (`1e1·ε`) | 0.23 s | 17.28 s | 19.71 s | 18.94 s | 17.93 s | 12 decisions, all `symbolic_zero` (rule G's attempt) |
+/// | R2's filleted bracket (`1e1·ε`) | 0.28 s | 2.86 s | 3.88 s | 3.53 s | 3.25 s | 6 decisions (rule A's attempt) |
+/// | R2's link (`1e1·ε`) | 0.23 s | 17.28 s | 19.71 s | 18.94 s | 17.93 s | 12 decisions (rule G's attempt) |
 /// | R2's rounded pad (`1e2·ε`) | 0.75 s | 131.3 s | 147.7 s | 144.0 s¹ | 139.2 s¹ | nothing |
 ///
 /// ¹ One take, not three.
+///
+/// The table is SYM-9's measurement, taken while the receipt still
+/// split its zeros by kind (the six were `registered`, the twelve
+/// `symbolic_zero`); every one of them is in `symbolic` now.
 ///
 /// **The trade, on the balance.** The line is 1.6 s. The bracket, the
 /// link and the pad are over it at ONE attempt per rung — the shipped
@@ -344,25 +348,24 @@ pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
 /// above certifies whole with it and without it); with the decision read
 /// shut (`SymRules::without_the_reads`) the same columns move by less
 /// than the takes' spread, so the read is not what it costs. What it
-/// buys is the link's twelve theorems, ten of them exactly the ten
+/// buys is the link's twelve decisions, ten of them exactly the ten
 /// rule G costs the `carrier_on_surface_1`/`_2` pair at one attempt per
 /// rung
 /// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`)
 /// — so the rule-G attempt pays back what the default rule G takes.
 ///
-/// **The rule-A attempt is the WEAKER half and is named as such.** On
-/// the only document it acts on it buys six REGISTRATIONS and no theorem
-/// — decisions moved from `numeric` to a constructor's axiom — for about
-/// 0.4 s of the bracket's 1.0 s (rule-A mask alone 3.25 s against 2.86).
-/// It ships with the rule-G attempt on the same balance, disclosed here
-/// rather than dropped.
+/// **The rule-A attempt ships for its reach.** On the only document it
+/// acts on it moves six decisions out of `numeric` for about 0.4 s of
+/// the bracket's 1.0 s (rule-A mask alone 3.25 s against 2.86), and it
+/// ships with the rule-G attempt on the same balance: decisions taken
+/// from the numeric channel at the cost named here.
 ///
 /// **The masks' order is a tie**: the other order recovers the same
 /// decisions on every measured document (the nominal replay, dev:
 /// bracket 1.47× against 1.44×, link 1.22× against 1.21×; the leaf:
 /// 3.88 against 3.76 s and 19.71 against 19.51 s, inside the takes'
-/// spread), so rule G's attempt — the one that buys theorems — goes
-/// first.
+/// spread), so the order is carried by neither reach nor cost and
+/// rule G's attempt goes first as SYM-9 shipped it.
 ///
 /// **One mask would not do**: rule A and rule G shut in ONE attempt
 /// keeps the bracket's six and recovers NONE of the link's twelve at
@@ -856,7 +859,7 @@ impl ParamBoxVerdict {
     }
 
     /// **The E12 receipt**: how this drive's predicate decisions were
-    /// answered, summed over every leaf — `symbolic_zero` against
+    /// answered, summed over every leaf — `symbolic` against
     /// `numeric`, with `frozen` beside them.
     ///
     /// **`frozen` is the odd one out**: the decision columns are sums
@@ -952,24 +955,11 @@ impl ParamBoxVerdict {
         if self.decisions != SymCounts::default() {
             let _ = write!(
                 s,
-                "decisions symbolic_zero={} numeric={} frozen={}",
-                self.decisions.symbolic_zero, self.decisions.numeric, self.decisions.frozen
+                "decisions symbolic={} numeric={} frozen={}",
+                self.decisions.symbolic, self.decisions.numeric, self.decisions.frozen
             );
-            // The clause-3 count by the same rule as the line itself:
-            // present only when there is one, so a drive with that rule
-            // off serializes the pre-algebra line byte for byte.
-            if self.decisions.sign_gated != 0 {
-                let _ = write!(s, " sign_gated={}", self.decisions.sign_gated);
-            }
-            // And the registered-identity count (M10-9) by the same
-            // rule again, so a drive over straight geometry — where no
-            // constructor registers anything — serializes M10-8's line
-            // byte for byte.
-            if self.decisions.registered != 0 {
-                let _ = write!(s, " registered={}", self.decisions.registered);
-            }
-            // The door's two REFUSAL columns, by the same
-            // present-only-when-nonzero rule: a registration the witness
+            // The door's two REFUSAL columns, present only when non-zero:
+            // a registration the witness
             // separated, and a registered zero the enclosure
             // contradicted. Zero on every document that behaves, so a
             // clean drive serializes what it serialized before.
@@ -995,9 +985,9 @@ impl ParamBoxVerdict {
             // existed. At the nominal it closes something on two of the
             // five documents SYM-9 measured (R2's link and bracket).
             //
-            // It is not a fourth discharge column: those three are
-            // where a retry's answer lands, and this says how many of
-            // them the second attempt is holding up.
+            // It is not a second discharge column: a retry's answer
+            // lands in `symbolic`, and this says how many of those the
+            // second attempt is holding up.
             if self.decisions.retried != 0 {
                 let _ = write!(s, " retried={}", self.decisions.retried);
             }
@@ -1060,33 +1050,15 @@ impl ParamBoxVerdict {
             let share = if total == 0 {
                 0.0
             } else {
-                100.0 * (d.symbolic_zero as f64) / (total as f64)
+                100.0 * (d.symbolic as f64) / (total as f64)
             };
             let _ = write!(
                 s,
-                "  {} of {total} decisions were symbolic identities ({share:.1}%)",
-                d.symbolic_zero
+                "  {} of {total} decisions were proven zero by the symbolic tier ({share:.1}%)",
+                d.symbolic
             );
-            // The clause-3 count only where there is one (rule C off, or
-            // nothing folded, prints the pre-algebra line).
-            if d.sign_gated != 0 {
-                let _ = write!(s, ", {} more by a certified sign", d.sign_gated);
-            }
-            // The registered identities (M10-9), by the same rule and
-            // named for what they are: not identities the tier PROVED
-            // but identities a constructor STATED and the leaf's
-            // witness checked.
-            if d.registered != 0 {
-                let _ = write!(
-                    s,
-                    ", {} more by a constructor's registered identity",
-                    d.registered
-                );
-            }
-            // How many of the discharges named above a retry carried —
-            // a clause of its own and not a parenthesis on the last
-            // column, because a retry's zero lands in whichever column
-            // its rung writes (`geom_core::SymCounts::retried`).
+            // How many of those a retry carried
+            // (`geom_core::SymCounts::retried`).
             if d.retried != 0 {
                 let _ = write!(
                     s,
@@ -1309,6 +1281,22 @@ impl core::fmt::Display for DriveRefusal {
 
 impl core::error::Error for DriveRefusal {}
 
+/// **The WITNESS build's options**: the document at its nominals, over
+/// the analysed box collapsed to the nominal (`ParamBox::at_nominal`),
+/// so its profile lift is the leaves' (guided) and the two verdict
+/// vectors are comparable — guided elaboration at f64 IS plain
+/// elaboration at f64, bit for bit (the lift's own differential pin),
+/// so this changes the build it produces in no way and makes the two
+/// passes the same code. [`drive`] evaluates its witness at f64 under
+/// exactly these.
+#[must_use]
+pub fn witness_options(analyzed: &AnalyzedBox) -> EvalOptions {
+    EvalOptions {
+        param_box: Some(Arc::new(ParamBox::of(analyzed).at_nominal())),
+        ..lane_opts()
+    }
+}
+
 /// **Drives the document over the analyzed box** (E6).
 ///
 /// Read-only: `doc` is shared, the result is a value, and nothing on
@@ -1340,13 +1328,13 @@ pub fn drive(
         });
     }
 
-    // The WITNESS build: the document at its nominals, at f64, with the
-    // profile lift on. The lift is on rather than off because the leaf
-    // replay runs guided and the two vectors must be comparable —
-    // guided elaboration at f64 IS plain elaboration at f64, bit for
-    // bit (the lift's own differential pin), so this changes the build
-    // it produces in no way and makes the two passes the same code.
-    let witness: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &lane_opts(), tol);
+    let witness: Evaluation<f64> = evaluate(
+        doc,
+        None,
+        &CancelToken::new(),
+        &witness_options(analyzed),
+        tol,
+    );
     if let Some(standing) = witness
         .order
         .iter()
@@ -1557,18 +1545,19 @@ fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
     })
 }
 
-/// The evaluation options every pass of a drive uses: the profile lift
-/// ON (so profile geometry is a function of the leaf's parameters and
-/// every structure decision is re-verified at the lane), sequential
+/// The evaluation options every pass of a drive uses: sequential
 /// (leaf-level parallelism is the driver's, and nesting a rayon scope
 /// per leaf inside one buys nothing), and no memo.
 ///
 /// **Crate-visible because the clearance engine replays INSIDE a leaf**
 /// ([`crate::clearance`]) and must replay it the way this driver
 /// certified it. Two copies of these options are two lanes: a clearance
-/// query whose lift setting drifted from the driver's would be
-/// certifying a body other than the one the leaf's verdict vector is
-/// about.
+/// query whose options drifted from the driver's would be certifying a
+/// body other than the one the leaf's verdict vector is about. The
+/// profile lift is not among them: a leaf's box makes it guided
+/// ([`EvalOptions::profile_lift`]), so profile geometry is a function of
+/// the leaf's parameters, and every structure decision is re-verified
+/// at the lane.
 ///
 /// The SCALAR is the other half of "the way this driver certified it",
 /// and it does not ride here: it rides on the verdict
@@ -1586,10 +1575,7 @@ pub(crate) fn lane_opts() -> EvalOptions {
     // stale-result discrimination token for a caller holding several
     // in-flight evaluations, which a drive is not: each leaf's result
     // is consumed before the next is asked for.
-    EvalOptions {
-        profile_lift: ProfileLift::Guided,
-        ..EvalOptions::default()
-    }
+    EvalOptions::default()
 }
 
 /// A frontier entry: a box and how many times each axis has been split
@@ -1801,7 +1787,10 @@ fn classify_replay<T: geom_core::Decide>(
             continue;
         };
         match &err.kind {
-            NodeErrorKind::Escalated { source, .. } => return indeterminate(source),
+            NodeErrorKind::Escalated { source, .. }
+            | NodeErrorKind::MeasureEscalated { source, .. }
+            | NodeErrorKind::PlacementAxisEscalated { source, .. }
+            | NodeErrorKind::PoseDirectionEscalated { source, .. } => return indeterminate(source),
             NodeErrorKind::ProfileLaneReplay {
                 structure: Some(refusal),
                 ..
@@ -2051,7 +2040,7 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     };
     // The replay runs at the SAME TIER the drive did (E12): with the
     // tier on the recording scalar is `Sym<Probe>`, so a margin that is
-    // an identity lands in the funnel as `SampleOutcome::SymbolicZero`
+    // an identity lands in the funnel as `SampleOutcome::Symbolic`
     // and the hosted K row reports the symbolic/numeric split of the
     // driver's own population. Running it at bare `Probe` would report a
     // population the driver did not produce.
@@ -2338,7 +2327,15 @@ mod tests {
             param_end: t1,
         };
         let bracket = Bracket::open();
-        let refused = EdgeCurve::certify(spec, p0, p1, |k| arena.get(k).cloned(), band()).is_err();
+        let refused = EdgeCurve::certify(
+            spec,
+            p0,
+            p1,
+            |k| arena.get(k).cloned(),
+            geom_core::Real::from_f64(1.0),
+            band(),
+        )
+        .is_err();
         assert!(refused, "the configuration is not a tangency");
         bracket.finish().escalations
     }

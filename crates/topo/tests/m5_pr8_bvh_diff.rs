@@ -144,10 +144,22 @@ fn results_bit_equal_realized_vs_idealized() {
     ];
     for (name, a, b) in scenarios() {
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-            let decls = common::flush_declarations(&a, &b, Tol::witness());
-            let real = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Realized, Tol::witness());
-            let ideal =
-                boolean_op_with(op, &a, &b, &decls, SweepStrategy::Idealized, Tol::witness());
+            let real = boolean_op_with(
+                op,
+                &a,
+                &b,
+                &topo::BooleanInputs::default(),
+                SweepStrategy::Realized,
+                Tol::witness(),
+            );
+            let ideal = boolean_op_with(
+                op,
+                &a,
+                &b,
+                &topo::BooleanInputs::default(),
+                SweepStrategy::Idealized,
+                Tol::witness(),
+            );
             let refusal_row = expected_refusals.contains(&(name, op));
             match (&real, &ideal) {
                 (Ok(r), Ok(i)) => {
@@ -319,7 +331,6 @@ fn pad_zero_regression_is_caught() {
     let (r_ab, r_ba) = sweep_traces_with_pad(
         &a,
         &b,
-        &topo::BooleanDeclarations::none(),
         SweepStrategy::Realized,
         None,
         Some(0.0),
@@ -399,10 +410,22 @@ fn grazing_infinite_plane_divergence_is_exactly_as_documented() {
         // disjoint, and every containment witness reads `Out`
         // (`every_grazing_witness_reads_out_against_the_far_brick`).
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-            let decls = topo::BooleanDeclarations::none();
-            let real = boolean_op_with(op, &a, &b, &decls, SweepStrategy::Realized, Tol::witness());
-            let ideal =
-                boolean_op_with(op, &a, &b, &decls, SweepStrategy::Idealized, Tol::witness());
+            let real = boolean_op_with(
+                op,
+                &a,
+                &b,
+                &topo::BooleanInputs::default(),
+                SweepStrategy::Realized,
+                Tol::witness(),
+            );
+            let ideal = boolean_op_with(
+                op,
+                &a,
+                &b,
+                &topo::BooleanInputs::default(),
+                SweepStrategy::Idealized,
+                Tol::witness(),
+            );
             if k > 1.0 && k < tol.k {
                 let re = real.unwrap_or_else(|e| panic!("k = {k} / {op:?}: realized: {e:?}"));
                 let volume = re.body().map(|bb| {

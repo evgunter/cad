@@ -492,7 +492,12 @@ fn slab(z0: f64, tilt: f64) -> Body<f64> {
         Tol::witness(),
     );
     let turn = geom_core::Affine3::rotation_about_axis(p(0.0, 0.0, z0), Vec3::unit_y(), tilt);
-    crate::transform::transform_rigid(&b, &turn, Tol::witness()).unwrap()
+    crate::transform::transform_rigid(
+        &b,
+        &geom_core::test_support::rigid(&turn, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// The verdict of every pair of `a`'s `face` against `b`'s faces, with
@@ -749,11 +754,7 @@ fn a_witness_off_a_plane_carrier_has_no_verdict() {
         })
         .map(|(k, _)| k)
         .expect("the brick's top");
-    let surface = b
-        .get_surface(b.get_face(top).unwrap().surface)
-        .unwrap()
-        .clone();
-    let at = |q| ops::place_witness(&b, top, &surface, q, band());
+    let at = |q| ops::place_witness(&b, top, q, band());
     assert_eq!(at(p(0.2, 0.3, 0.5)), IN);
     assert_eq!(at(p(0.2, 0.3, 0.51)), None);
 }

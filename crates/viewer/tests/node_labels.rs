@@ -10,7 +10,7 @@ use crate::common;
 use pncad::document::ExtrudeSide;
 use viewer::session::BooleanSpec;
 
-use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use test_utils::refusal::tag;
 use viewer::session::{Creation, DocSession, ProfilePlane, SessionOp};
@@ -311,8 +311,8 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         SessionOp::AddRevolve {
             profile,
             // An axis written in the profile's own frame.
-            axis_origin: common::len2([0.03, 0.0]),
-            axis_direction: common::scl2([0.0, 1.0]),
+            axis_through: common::len2([0.03, 0.0]),
+            axis_heading: pncad::document::Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(core::f64::consts::PI),
         },
         "turned",
@@ -331,7 +331,6 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         &mut session,
         SessionOp::AddBoolean {
             spec: BooleanSpec::Intersect(vec![block.into(), moved.into()]),
-            declare: Vec::new(),
         },
         "overlap",
     );
@@ -413,15 +412,17 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         SessionOp::AddInstance { id: bench.post.id },
         "third post",
     );
-    run(
-        &mut session,
-        asm::seat_op(
+    // A mate is a constraint in a placement's bundle and makes no node,
+    // so it is no creation and takes no label.
+    assert!(
+        Creation::of(asm::seat_op(
             &bench,
             bench.post_b,
             ContactClass::Tangent,
-            asm::middle_seat_alignment(),
-        ),
-        "seat",
+            asm::middle_seat_values(),
+        ))
+        .is_err(),
+        "a mate creates no node"
     );
 
     let dir = common::tempdir("node-labels-every-creation-roster");
@@ -580,39 +581,25 @@ fn a_kept_refusal_speaks_its_node_and_a_rename_retires_it() {
 /// **An edit the kernel door refuses speaks its node on the line as the
 /// document the batch leaves holds it** (`EditError::respoken`): the
 /// door spoke the node at the refusal, and a rename later in the same
-/// batch is the label the line says. The refusal is a declaration
-/// naming the block's face at the block's read on a union whose only
-/// member is the boss — a read that is no operand of it, which the edit
-/// door refuses. Red if the line says the label from before the
+/// batch is the label the line says. The refusal is an expression
+/// typed into a slot the block (an extrude) does not have, which the
+/// edit door refuses. Red if the line says the label from before the
 /// rename.
 #[test]
 fn an_edit_door_refusal_says_a_rename_later_in_its_batch() {
     let tol = Tol::witness();
-    let (doc, block, boss) =
+    let (doc, block, _) =
         viewer::test_support::boss_on_block("viewer-node-labels-edit-refusal", tol);
     let doc = relabelled(&doc, block, "plate", tol);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    // The detector's real pair between the two operands, block side
-    // first.
-    let findings = pncad::select::find_flush_candidates(
-        session.evaluation().expect("the scene lands"),
-        session.committed_doc(),
-        block,
-        boss,
-        tol,
-    )
-    .expect("the detector answers block x boss");
-    assert!(
-        !findings.is_empty(),
-        "the premise: the boss rests on the block"
-    );
     let line = batch_line(
         &mut session,
         &[
-            SessionOp::AddBoolean {
-                spec: BooleanSpec::Union(vec![boss.into()]),
-                declare: findings,
+            SessionOp::SetSlotExpression {
+                node: block,
+                slot: SlotId::RotationAngle,
+                text: "1 rad".to_owned(),
             },
             SessionOp::SetLabel {
                 node: block,
@@ -826,7 +813,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
     let copy = |body| tag(common::copy_of(landed, body).0.digest());
     assert!(
         row.sentence.contains(&format!(
-            "PlaceInWorld {} output 0: not certifiably disjoint from PlaceInWorld {} output 0",
+            "Place {} output 0: not certifiably disjoint from Place {} output 0",
             copy(big),
             copy(small)
         )),

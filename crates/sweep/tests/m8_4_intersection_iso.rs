@@ -196,15 +196,15 @@ fn intrinsic_seam_at(
 /// number and no mint happens at all. `None` IS that cell — pinned as a
 /// refusal whose own number explains it, never widened away.
 ///
-/// **The boundary moved from 1e-9 to 1e-13 when `insert_once_ring` took
-/// the convex insertion form** (the sup was ~6.22e-12 m, 114x wider):
-/// the sup is a between-samples bound assembled over a Bézier
-/// decomposition, and the lerp form multiplied each coefficient's own
-/// dust up once per insertion. The seam therefore attaches first-class
-/// at ε_in = 1e-12 now, where it refused before. The refusal cell is
-/// still reachable and still measured — at ε_in = 1e-14 — but no eps row
-/// the gate or the nightly runs reaches it any more, which is filed
-/// rather than absorbed.
+/// **Why the boundary sits at 1e-13**: the sup is a between-samples
+/// bound assembled over a Bézier decomposition whose every row is
+/// restricted from its own span window (`CoeffWindow::restrict`), so a
+/// coefficient's width is added once per step and never multiplied per
+/// insertion (a step that multiplies it reads ~6.22e-12 m here, and the
+/// boundary at 1e-9). The seam therefore attaches first-class at
+/// ε_in = 1e-12. The refusal cell is still reachable and still measured
+/// — at ε_in = 1e-14 — but no eps row the gate or the nightly runs
+/// reaches it, which is filed rather than absorbed.
 fn seam_at_eps(swap: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey)> {
     let eps = Tol::witness().get().eps;
     match intrinsic_seam(swap) {
@@ -266,7 +266,7 @@ fn posture(
     match out {
         Ok(p @ Pcurve::IsoLine { p0, pl }) => {
             assert_eq!(pl.x, 0.0, "{row}: a seam image holds u constant: {pl:?}");
-            let (du0, du1) = chart.knots_u().domain();
+            let (du0, du1) = chart.knots_u_f64_interim().domain();
             assert!(
                 p0.x == du0 || p0.x == du1,
                 "{row}: on the chart's OWN boundary column, u = {} of [{du0}, {du1}]",
@@ -323,7 +323,7 @@ fn a_boundary_column_intersection_mints_its_iso_image() {
     // The moving channel is the chart's own `v`, traversed with the
     // carrier: an affine map of the carrier's interval onto the v
     // domain, not an assumed identity.
-    let (dv0, dv1) = chart.knots_v().domain();
+    let (dv0, dv1) = chart.knots_v_f64_interim().domain();
     assert!(
         (pl.y - (dv1 - dv0)).abs() < 1e-12,
         "the seam traverses the chart's whole v domain: {pl:?} on [{dv0}, {dv1}]"
@@ -382,7 +382,11 @@ fn the_operand_order_is_not_a_fact_about_the_locus() {
 /// chart's opinion of where its boundary is does.
 fn widened_u_chart(n: &NurbsSurface<f64>) -> Surface<f64> {
     let (nu, nv) = n.control_counts();
-    assert_eq!((nu, n.knots_u().degree()), (2, 1), "the loft wall's u span");
+    assert_eq!(
+        (nu, n.knots_u_f64_interim().degree()),
+        (2, 1),
+        "the loft wall's u span"
+    );
     let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1).unwrap();
     let (mut control, mut weights) = (Vec::new(), Vec::new());
     for i in 0..4 {
@@ -398,7 +402,7 @@ fn widened_u_chart(n: &NurbsSurface<f64>) -> Surface<f64> {
         }
     }
     Surface::Nurbs(Arc::new(
-        NurbsSurface::new(ku, n.knots_v().clone(), control, weights).unwrap(),
+        NurbsSurface::new(ku, n.knots_v_f64_interim().clone(), control, weights).unwrap(),
     ))
 }
 
@@ -495,12 +499,12 @@ fn an_interior_column_intersection_mints_a_general_image() {
     let key = rechart(&mut body, bowed, widened);
     let chart = chart_of(&body, key);
     assert_eq!(
-        chart.knots_u().domain(),
+        chart.knots_u_f64_interim().domain(),
         (0.0, 3.0),
         "the widened chart's own domain"
     );
     // The description must name the chart the face NOW carries, or the
-    // mint finds no mate and the join below would be untested.
+    // edge's own certificate reads a pair the face no longer holds.
     redescribe_against(&mut body, he, plane_key, key)
         .expect("the seam re-attaches against the widened chart");
     // ---- The derivation: U2's General arm, on the interior column. ----
@@ -520,7 +524,7 @@ fn an_interior_column_intersection_mints_a_general_image() {
             "a column holds u constant at the chart's own interior knot: {p:?}"
         );
     }
-    let (dv0, dv1) = chart.knots_v().domain();
+    let (dv0, dv1) = chart.knots_v_f64_interim().domain();
     let (a, b) = image.domain();
     for (t, want) in [(a, dv0), (b, dv1)] {
         assert!(
@@ -529,25 +533,18 @@ fn an_interior_column_intersection_mints_a_general_image() {
             image.eval(t)
         );
     }
-    // ---- The certificate, at the door the mint pass uses, with the
-    // mate the mint itself would find. ----
+    // ---- The certificate, at the door the mint pass uses. ----
     let (carrier, t0, t1) = seam_carrier(&body, he);
-    let mate = mate_the_mint_would_find(&body, he, key).expect(
-        "mate_surface's precondition holds: the face's own surface is one of the \
-         described pair, so the mint reaches certify_general with an operand pair \
-         rather than FittedMateMissing",
-    );
     let cache = geom_brep::PcurveCache::certify_general(
         std::sync::Arc::clone(image),
         t0,
         t1,
         &carrier,
         &Surface::Nurbs(Arc::new(chart.clone())),
-        Some(&mate),
         band(),
         <f64 as topo::AtRestPolicy>::fitted_lane(),
     )
-    .expect("the interior column's image certifies against its operand pair");
+    .expect("the interior column's image certifies against its chart");
     let cert = cache.certificate();
     assert!(
         matches!(cache.pcurve(), Pcurve::General(_)),
@@ -559,9 +556,10 @@ fn an_interior_column_intersection_mints_a_general_image() {
         "its between-samples bound is inside ε: {:e} vs {eps:e}",
         cert.envelope
     );
-    assert!(
-        cert.ssi().is_some(),
-        "and it is the FULL C2 certificate, not the closed-form lane's: {cert:?}"
+    assert_eq!(
+        cert.statement,
+        geom_brep::EnvelopeStatement::MapResidualComposite,
+        "and it is the fitted grade's hull bound, not the closed-form lane's: {cert:?}"
     );
     // ---- The whole body, through the pass. ----
     topo::mint_pcurves(&mut body, Tol::witness())
@@ -672,32 +670,6 @@ fn an_interior_column_intersection_mints_a_general_image() {
     println!("M8-4 tessellate on the trimmed chart: {note}");
 }
 
-/// **The mate the MINT would find**, by `topo::pcurves::mate_surface`'s
-/// own rule rather than by hand: read the edge's `Intersection`
-/// description, and take whichever operand is NOT the face's CURRENT
-/// surface key. `None` when that precondition fails — which is exactly
-/// what `mint_face` sees, and what it turns into `FittedMateMissing`.
-///
-/// Hand-picking the plane here would have made the row assert a
-/// certificate the mint cannot reproduce: the join between derivation
-/// and certification is the thing under test, so it is read the way the
-/// mint reads it.
-fn mate_the_mint_would_find(
-    body: &Body<f64>,
-    he: topo::HalfEdgeKey,
-    own: topo::SurfaceKey,
-) -> Option<Surface<f64>> {
-    let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
-    let topo::CurveGeom::Certified(c) = body.get_curve_geom(edge.curve)? else {
-        return None;
-    };
-    let geom_brep::EdgeDescription::Intersection { pair, .. } = *c.description() else {
-        return None;
-    };
-    let other = pair.other(own)?;
-    body.get_surface(other).cloned()
-}
-
 /// The seam's certified carrier and its parameter interval.
 fn seam_carrier(body: &Body<f64>, he: topo::HalfEdgeKey) -> (Curve3<f64>, f64, f64) {
     let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
@@ -730,12 +702,10 @@ fn seam_plane(body: &Body<f64>, he: topo::HalfEdgeKey) -> (topo::SurfaceKey, Sur
 /// the face NOW carries.
 ///
 /// `rechart` mints a NEW surface key (there is no in-place variant of
-/// `FaceSurface`), and the description still names the OLD one — so
-/// `mate_surface`'s precondition, "the face's own surface is one of the
-/// pair", fails and the mint hands `certify_general` no mate at all.
-/// That is a fixture artefact of restating a chart after describing an
-/// edge, not a kernel fact, and this repairs it so the row measures the
-/// join instead of asserting it.
+/// `FaceSurface`), and the description still names the OLD one, so the
+/// edge's certificate would read a pair the face no longer carries. That
+/// is a fixture artefact of restating a chart after describing an edge,
+/// not a kernel fact, and this repairs it.
 fn redescribe_against(
     body: &mut Body<f64>,
     he: topo::HalfEdgeKey,
@@ -775,8 +745,8 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
     let n = chart_of(&body, bowed);
     let imported = Surface::Nurbs(Arc::new(
         NurbsSurface::new(
-            rescaled(n.knots_u(), 0.0, wide),
-            rescaled(n.knots_v(), 0.0, 2.5),
+            rescaled(n.knots_u_f64_interim(), 0.0, wide),
+            rescaled(n.knots_v_f64_interim(), 0.0, 2.5),
             n.control().to_vec(),
             n.weights().to_vec(),
         )
@@ -818,7 +788,11 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
 /// carries is gone.
 fn widened_u_chart_deg2(n: &NurbsSurface<f64>) -> Surface<f64> {
     let (nu, nv) = n.control_counts();
-    assert_eq!((nu, n.knots_u().degree()), (2, 1), "the loft wall's u span");
+    assert_eq!(
+        (nu, n.knots_u_f64_interim().degree()),
+        (2, 1),
+        "the loft wall's u span"
+    );
     assert!(
         n.weights().iter().all(|w| *w == 1.0),
         "linear precision places the columns of a POLYNOMIAL net; a rational \
@@ -834,7 +808,7 @@ fn widened_u_chart_deg2(n: &NurbsSurface<f64>) -> Surface<f64> {
         }
     }
     Surface::Nurbs(Arc::new(
-        NurbsSurface::new(ku, n.knots_v().clone(), control, weights).unwrap(),
+        NurbsSurface::new(ku, n.knots_v_f64_interim().clone(), control, weights).unwrap(),
     ))
 }
 
@@ -867,7 +841,7 @@ fn degree_two_body() -> (Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey) {
 /// for `Approx × Nurbs`, which the oracle prism's own bowed wall earns
 /// identically with no `General` in the body at all — or, where the fit
 /// cannot reach the
-/// run's ε, at `Fit { BudgetExhausted }`. Both are SHELL's
+/// run's ε, at `Fit { WallReached }`. Both are SHELL's
 /// `no-approx-faced-body-is-both-movable-and-valid` class. The row
 /// prints them; asserting a variant here would pin another program's
 /// frontier.
@@ -1102,7 +1076,11 @@ fn a_degree_two_widening_tessellates_against_the_oracle() {
 /// while `fl(0.1 + 0.3 − 0.25)` is not `0.15`.
 fn off_dyadic_u_chart(n: &NurbsSurface<f64>) -> NurbsSurface<f64> {
     let (nu, nv) = n.control_counts();
-    assert_eq!((nu, n.knots_u().degree()), (2, 1), "the loft wall's u span");
+    assert_eq!(
+        (nu, n.knots_u_f64_interim().degree()),
+        (2, 1),
+        "the loft wall's u span"
+    );
     assert!(
         n.weights().iter().all(|w| *w == 1.0),
         "a polynomial wall, so the new row lies on the old rows' segments"
@@ -1114,7 +1092,7 @@ fn off_dyadic_u_chart(n: &NurbsSurface<f64>) -> NurbsSurface<f64> {
     control.extend_from_slice(first);
     let (w_first, w_last) = (&n.weights()[..nv], &n.weights()[nv..]);
     let weights = [w_last, w_last, w_first].concat();
-    NurbsSurface::new(ku, n.knots_v().clone(), control, weights).unwrap()
+    NurbsSurface::new(ku, n.knots_v_f64_interim().clone(), control, weights).unwrap()
 }
 
 /// The point a vertex sits at.
@@ -1166,7 +1144,7 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
     let chart = off_dyadic_u_chart(&chart_of(&body, bowed));
     let wall = rechart(&mut body, bowed, Surface::Nurbs(Arc::new(chart.clone())));
     let row = geom_brep::boundary_iso_v(&chart, true).unwrap();
-    let (u_lo, u_hi) = chart.knots_u().domain();
+    let (u_lo, u_hi) = chart.knots_u_f64_interim().domain();
     let (start, end) = (row.eval(u_lo), row.eval(u_hi));
     assert!(
         start.z == 2.0 && end.z == 2.0,
@@ -1182,7 +1160,7 @@ fn a_cap_rim_run_back_along_an_off_dyadic_row_certifies_as_the_row() {
     // The row run back by the kernel's own door, and the row on its
     // exact reflection about `[0.1, 0.3]`.
     let exact = KnotVector::clamped(vec![0.1, 0.1, 0.15, 0.3, 0.3], 1).unwrap();
-    assert!(chart.knots_u().is_reflection_of(&exact));
+    assert!(chart.knots_u_f64_interim().is_reflection_of(&exact));
     let mirrored = geom::NurbsCurve3::new(
         exact,
         row.control().iter().rev().copied().collect(),
@@ -1240,12 +1218,22 @@ fn composite_sup(
     use geom_core::spline::compose::CurveCertData;
     use geom_core::spline::compose::tensor::{SurfaceCertData, surface_curve_residual};
     let (t0, t1) = carrier.domain();
-    let interior: Vec<f64> = carrier.knots().interior_knots().map(|(k, _)| k).collect();
+    let interior: Vec<f64> = carrier
+        .knots_f64_interim()
+        .interior_knots()
+        .map(|(k, _)| k)
+        .collect();
     let extra = geom_core::spline::algebra::range_grid_points(t0, t1, spans, &interior);
     let sc = wall.certified_coords();
-    let sd = SurfaceCertData::new(wall.knots_u(), wall.knots_v(), wall.weights(), &sc).unwrap();
+    let sd = SurfaceCertData::new(
+        wall.knots_u_f64_interim(),
+        wall.knots_v_f64_interim(),
+        wall.weights(),
+        &sc,
+    )
+    .unwrap();
     let cc = carrier.certified_coords();
-    let cd = CurveCertData::new(carrier.knots(), carrier.weights(), &cc).unwrap();
+    let cd = CurveCertData::new(carrier.knots_f64_interim(), carrier.weights(), &cc).unwrap();
     let (kv, coords) = image;
     let lifted: Vec<Vec<Interval>> = coords
         .iter()
@@ -1288,7 +1276,7 @@ fn an_exact_image_certifies_no_worse_than_its_interpolant() {
     };
     let column = geom_brep::boundary_iso_u(&wall, true).unwrap();
     assert!(
-        column.knots().knots() == carrier.knots().knots()
+        column.knots_f64_interim().knots() == carrier.knots_f64_interim().knots()
             && column.weights() == carrier.weights()
             && column
                 .control()
@@ -1298,8 +1286,8 @@ fn an_exact_image_certifies_no_worse_than_its_interpolant() {
         "the fixture's premise: the carrier is the wall's u = 1 column, bit for bit"
     );
     let (t0, t1) = carrier.domain();
-    let (_, u1) = wall.knots_u().domain();
-    let (v0, v1) = wall.knots_v().domain();
+    let (_, u1) = wall.knots_u_f64_interim().domain();
+    let (v0, v1) = wall.knots_v_f64_interim().domain();
     let line = KnotVector::clamped(vec![t0, t0, t1, t1], 1).unwrap();
     let exact = |spans| {
         composite_sup(
@@ -1377,8 +1365,13 @@ fn a_rim_run_back_on_a_decimal_symmetric_rows_own_knots_is_general() {
     let mut control = last.to_vec();
     control.extend((0..nv).map(|j| last[j] + (first[j] - last[j]) * 0.5));
     control.extend_from_slice(first);
-    let chart =
-        NurbsSurface::new(ku.clone(), n.knots_v().clone(), control, vec![1.0; 3 * nv]).unwrap();
+    let chart = NurbsSurface::new(
+        ku.clone(),
+        n.knots_v_f64_interim().clone(),
+        control,
+        vec![1.0; 3 * nv],
+    )
+    .unwrap();
     let wall = rechart(&mut body, bowed, Surface::Nurbs(Arc::new(chart.clone())));
     let row = geom_brep::boundary_iso_v(&chart, true).unwrap();
     let (edge, he, cap) = top_rim(&body, wall);
@@ -1409,16 +1402,14 @@ fn a_rim_run_back_on_a_decimal_symmetric_rows_own_knots_is_general() {
         Ok(Pcurve::General(image)) => image,
         other => panic!("the rim falls through to the General image: {other:?}"),
     };
-    let mate = body.get_surface(cap).cloned().unwrap();
     geom_brep::PcurveCache::certify_general(
         image,
         t0,
         t1,
         &carrier,
         &Surface::Nurbs(Arc::new(chart)),
-        Some(&mate),
         band(),
         <f64 as topo::AtRestPolicy>::fitted_lane(),
     )
-    .unwrap_or_else(|e| panic!("the General image certifies against the cap plane: {e}"));
+    .unwrap_or_else(|e| panic!("the General image certifies against its chart: {e}"));
 }

@@ -3,8 +3,8 @@
 //! `product` is the gather of the document's world: every copy a
 //! placement defines, in the placements' document order, as one body.
 //! It answers "what IS this document", which for an assembly is the
-//! only useful question — an assembly's nodes are instances and mates,
-//! and no single node's value is the assembly.
+//! only useful question — an assembly's nodes are placements, and no
+//! single node's value is the assembly.
 //!
 //! `assemble` is the gather PLUS the check: it mints every solved
 //! mate's declaration into the product's contact-record set and runs
@@ -46,7 +46,7 @@ use pncad::document as d;
 use pncad::tolerance::Tol;
 
 use super::doc::{Doc, NodeId, Var, name_text};
-use super::mate::MateSide;
+use super::mate::{MateRef, MateSide};
 use super::value::{Body, Evaluation};
 
 /// **What a row's `__str__` speaks its nodes from**: the evaluated
@@ -98,6 +98,12 @@ pub(crate) fn product_err(py: Python<'_>, err: &d::ProductError, doc: &d::Profil
     )
 }
 
+/// A mate's address as a repr spells it: the placement's full id and
+/// the constraint's.
+fn mate_text(mate: d::MateRef) -> String {
+    format!("{}/{}", mate.placement.full(), mate.id)
+}
+
 /// The gather refusal's payload, flattened: the node it is about, the
 /// node it was reached through, and an empty world's unplaced bodies.
 fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny>, Py<PyAny>) {
@@ -125,7 +131,8 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
         E::StrandedPlacement { placement } => (id(placement), none(), none()),
         // The bodies to place, in document order, each its output
         // variable — the handle `Doc.place` takes.
-        E::EmptyProduct { unplaced } => (
+        // The loose copies are every one in the message.
+        E::EmptyProduct { unplaced, loose: _ } => (
             none(),
             none(),
             unplaced
@@ -134,13 +141,6 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
                 .collect::<Vec<_>>()
                 .into_pyobject(py)
                 .map_or_else(|_| py.None(), |list| list.unbind()),
-        ),
-        // The unplaced groups are every one in the message, each
-        // with its cause.
-        E::Unplaced { groups } => (
-            groups.first().map_or_else(none, |(group, _)| id(group)),
-            none(),
-            none(),
         ),
         // The document-mismatch arm names two DOCUMENTS, which these
         // attributes cannot carry; the message states both.
@@ -154,8 +154,8 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
 /// defines, in the placements' document order, gathered into one body.
 ///
 /// This is what a document IS, and for an assembly it is the only
-/// useful reading: an assembly's nodes are instances and mates, and no
-/// single node's value is the assembly. What is gathered is what the
+/// useful reading: an assembly's nodes are placements, and no single
+/// node's value is the assembly. What is gathered is what the
 /// document places — read through `Doc.placements`, written through
 /// `Doc.place` — and nothing places as a side effect of another edit.
 ///
@@ -302,10 +302,10 @@ pub(crate) struct MintedDeclaration(d::MintedDeclaration);
 
 #[pymethods]
 impl MintedDeclaration {
-    /// The mate this declaration came from.
+    /// The mate this declaration came from, by its address.
     #[getter]
-    fn mate(&self) -> NodeId {
-        NodeId(self.0.mate)
+    fn mate(&self) -> MateRef {
+        MateRef(self.0.mate)
     }
 
     /// The `a` reference, as opaque name text.
@@ -321,14 +321,14 @@ impl MintedDeclaration {
     }
 
     /// The declared contact class (trailing underscore: `class` is a
-    /// Python keyword — the `FlushFinding.class_` precedent).
+    /// Python keyword — the `or_` precedent).
     #[getter]
-    fn class_(&self, py: Python<'_>) -> PyResult<super::flush::ContactClass> {
-        super::flush::contact_class(py, self.0.class)
+    fn class_(&self, py: Python<'_>) -> PyResult<super::contact::ContactClass> {
+        super::contact::contact_class(py, self.0.class)
     }
 
     fn __repr__(&self) -> String {
-        format!("MintedDeclaration(mate={})", self.0.mate.full())
+        format!("MintedDeclaration(mate={})", mate_text(self.0.mate))
     }
 }
 
@@ -340,9 +340,9 @@ impl MintedDeclaration {
 /// `relation` is `"refuted"` (the kernel says the faces do not meet as
 /// declared — a finding against the document), `"declined"` (the
 /// census has no certifier lane for a face the declaration names, so
-/// nothing was decided either way), or `"unattributed"` (no
-/// declaration answers for the finding — an UNDECLARED contact, which
-/// is by definition the hard error).
+/// nothing was decided either way). A finding no declaration answers
+/// for has no attribution at all (`AtRestFinding.attribution` is
+/// `None`).
 ///
 /// A declaration a document BELOW this one authored answers under
 /// `"carried_refuted"` and `"carried_declined"`: the same two
@@ -381,23 +381,22 @@ fn route_fields(py: Python<'_>, route: &d::Route) -> (Py<PyAny>, Py<PyAny>) {
 #[pymethods]
 impl Attribution {
     /// The stable tag: `refuted`, `declined`, `carried_refuted`,
-    /// `carried_declined`, `unattributed`.
+    /// `carried_declined`.
     #[getter]
     fn relation(&self) -> &'static str {
         attribution_tag(&self.0)
     }
 
-    /// The declaration named, `None` for `unattributed`. Under a
-    /// `carried_*` relation its `mate` is a node of `of`, not of the
-    /// document that was gathered.
+    /// The declaration named. Under a `carried_*` relation its `mate`
+    /// is a constraint of `of`, not of the document that was gathered.
     #[getter]
-    fn declaration(&self) -> Option<MintedDeclaration> {
-        self.0.declaration().cloned().map(MintedDeclaration)
+    fn declaration(&self) -> MintedDeclaration {
+        MintedDeclaration(self.0.declaration().clone())
     }
 
     /// The document whose mate authored the declaration, as opaque
     /// id text. `None` where the declaration is the gathered
-    /// document's own, and `None` for `unattributed`.
+    /// document's own.
     #[getter]
     fn of(&self, py: Python<'_>) -> Option<Py<PyAny>> {
         self.0.route().map(|r| route_fields(py, r).0)
@@ -427,10 +426,14 @@ pub(crate) struct AtRestFinding(d::AtRestFinding, SpokenFrom);
 
 #[pymethods]
 impl AtRestFinding {
-    /// Which declaration the finding names, and in what relation.
+    /// Which declaration the finding names, and in what relation;
+    /// `None` where it names none.
     #[getter]
-    fn attribution(&self) -> Attribution {
-        Attribution(self.0.attribution.clone(), self.1.clone())
+    fn attribution(&self) -> Option<Attribution> {
+        self.0
+            .attribution
+            .clone()
+            .map(|a| Attribution(a, self.1.clone()))
     }
 
     /// The finding composed the way the library renders one: the
@@ -442,7 +445,10 @@ impl AtRestFinding {
     }
 
     fn __repr__(&self) -> String {
-        format!("AtRestFinding({:?})", attribution_tag(&self.0.attribution))
+        format!(
+            "AtRestFinding({:?})",
+            self.0.attribution.as_ref().map(attribution_tag)
+        )
     }
 }
 
@@ -472,10 +478,11 @@ impl MintRefusal {
         mint_refusal_tag(&self.0)
     }
 
-    /// The mate that did not mint. Every arm carries one.
+    /// The mate that did not mint, by its address. Every arm carries
+    /// one.
     #[getter]
-    fn mate(&self) -> NodeId {
-        NodeId(self.0.mate())
+    fn mate(&self) -> MateRef {
+        MateRef(self.0.mate())
     }
 
     /// Which side of the mate the refused reference is on, for a
@@ -515,10 +522,10 @@ impl MintRefusal {
 
     /// The class that carries no kernel record at rest.
     #[getter]
-    fn class_(&self, py: Python<'_>) -> PyResult<Option<super::flush::ContactClass>> {
+    fn class_(&self, py: Python<'_>) -> PyResult<Option<super::contact::ContactClass>> {
         match &self.0 {
             d::MintRefusal::NoAtRestRecord { class, .. } => {
-                super::flush::contact_class(py, *class).map(Some)
+                super::contact::contact_class(py, *class).map(Some)
             }
             d::MintRefusal::Reference { .. } | d::MintRefusal::Unevaluated { .. } => Ok(None),
         }
@@ -534,7 +541,7 @@ impl MintRefusal {
         format!(
             "MintRefusal({:?}, mate={})",
             self.variant(),
-            self.0.mate().full()
+            mate_text(self.0.mate())
         )
     }
 }
@@ -542,7 +549,7 @@ impl MintRefusal {
 /// One mate a document BELOW this one could not mint, with the route
 /// this document reached it by.
 ///
-/// The mate is a node of `of`, not of the document that was gathered
+/// The mate is a constraint of `of`, not of the document that was gathered
 /// — the same rule every foreign-mate row follows — so `of` is the
 /// file to open and `via` the instances in between, nearest first.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
@@ -589,7 +596,7 @@ impl CarriedRefusal {
     fn __repr__(&self) -> String {
         format!(
             "CarriedRefusal(mate={}, of={})",
-            self.0.refusal.mate().full(),
+            mate_text(self.0.refusal.mate()),
             self.0.route.of
         )
     }
@@ -762,8 +769,8 @@ impl InterferenceFinding {
 /// One declaration a document BELOW this one authored, certified here
 /// with everything else the gate was given.
 ///
-/// The same rule as the foreign-mate arms above: the mate is a node of
-/// `of`, so `of` and `via` travel with it.
+/// The same rule as the foreign-mate arms above: the mate is a
+/// constraint of `of`, so `of` and `via` travel with it.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct CarriedDeclaration(d::CarriedDeclaration);
@@ -791,7 +798,7 @@ impl CarriedDeclaration {
     fn __repr__(&self) -> String {
         format!(
             "CarriedDeclaration(mate={}, of={})",
-            self.0.declaration.mate.full(),
+            mate_text(self.0.declaration.mate),
             self.0.route.of
         )
     }
@@ -857,10 +864,10 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
     let from = SpokenFrom::Doc(Arc::clone(&doc));
     let mut node = none();
     let (refusals, findings) = match err {
-        // The group is the subject; the space's own gather refusal is
-        // in the message.
-        E::Space { group, .. } => {
-            node = Py::new(py, NodeId(*group))
+        // The loose copy is the subject; the space's own gather
+        // refusal is in the message.
+        E::Space { root, .. } => {
+            node = Py::new(py, NodeId(*root))
                 .map(|v| v.into_any())
                 .unwrap_or_else(|_| py.None());
             (none(), none())
@@ -1024,7 +1031,7 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         // `Assembly` at all means tier 3′ ALREADY passed over exactly
         // this pair, so `Assembly.body.validate_pseudomanifold()` is
         // the same verdict re-taken, un-attributed.
-        body: Body::declared(Arc::new(assembly.body), Arc::new(assembly.contacts)),
+        body: Body::recorded(Arc::new(assembly.body), Arc::new(assembly.contacts)),
         names,
         minted: assembly.minted.into_iter().map(MintedDeclaration).collect(),
         carried: assembly

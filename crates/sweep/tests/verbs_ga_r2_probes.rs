@@ -38,10 +38,13 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
 fn turned() -> Body<f64> {
     topo::transform_rigid(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &Affine3::rotation_about_axis(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            PI / 2.0,
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                PI / 2.0,
+            ),
+            Tol::witness(),
         ),
         Tol::witness(),
     )
@@ -134,10 +137,13 @@ fn r2_the_steinmetz_fold_numbers_rederive_exactly() {
 fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
     let spun = topo::transform_rigid(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &Affine3::rotation_about_axis(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            PI / 4.0,
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                PI / 4.0,
+            ),
+            Tol::witness(),
         ),
         Tol::witness(),
     )
@@ -198,7 +204,6 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
 #[test]
 fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
     let tol = Tol::witness();
-    let none = topo::BooleanDeclarations::none();
     let x = (1.0f64 - 0.09).sqrt();
     let p = finished("the pipe", cyl(0.0, 0.0, 1.0, -2.0, 2.0), tol);
     let b = finished(
@@ -210,16 +215,16 @@ fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
     let whole = Some((pipe, (4, 6, 4, 1), [0, 0]));
     let common = Some((boxed, (6, 12, 8, 1), [0, 0]));
     for (op, r, want) in [
-        ("p ∪ b", topo::union_with(&p, &b, &none, tol), whole),
-        ("b ∪ p", topo::union_with(&b, &p, &none, tol), whole),
+        ("p ∪ b", topo::union(&p, &b, tol), whole),
+        ("b ∪ p", topo::union(&b, &p, tol), whole),
         (
             "p ∖ b",
-            topo::subtract_with(&p, &b, &none, tol),
+            topo::subtract(&p, &b, tol),
             Some((pipe - boxed, (10, 18, 12, 2), [0, 8])),
         ),
-        ("b ∖ p", topo::subtract_with(&b, &p, &none, tol), None),
-        ("p ∩ b", topo::intersect_with(&p, &b, &none, tol), common),
-        ("b ∩ p", topo::intersect_with(&b, &p, &none, tol), common),
+        ("b ∖ p", topo::subtract(&b, &p, tol), None),
+        ("p ∩ b", topo::intersect(&p, &b, tol), common),
+        ("b ∩ p", topo::intersect(&b, &p, tol), common),
     ] {
         let bb = match (r, want) {
             (Ok(topo::BooleanResult::Empty), None) => continue,
@@ -248,13 +253,13 @@ fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
         );
         let c = &bb.contacts;
         assert_eq!(
-            [c.vv.len(), c.a_on_b.len() + c.b_on_a.len()],
+            [c.vertex_vertex().count(), c.vertex_face().count()],
             contacts,
             "{op}: [v-v, v-f] records"
         );
         assert!(
-            c.curves.is_empty() && c.patches.is_empty(),
-            "{op}: no curve or patch records"
+            c.edge_face().next().is_none() && c.face_face().next().is_none(),
+            "{op}: no edge-face or face-face records"
         );
     }
 }

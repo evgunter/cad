@@ -67,8 +67,8 @@ const KEY_SLOT: f64 = 0.8;
 /// The plate's thickness.
 const DEPTH: f64 = 0.5;
 /// Radius of the 3-D fillet on the keyhole's two convex creases: the
-/// eye tip's radius.
-const R_CREASE: f64 = R_EYE;
+/// outline's own blend radius.
+const R_CREASE: f64 = R_BLEND;
 /// Half the eye slot's tip separation: the two R = 1 slot carriers sit
 /// at (∓1/2, 0), so they cross at (0, ±√(1 − 1/4)) — the vesica of the
 /// S8 branch-selection fixture, at half its size.
@@ -508,12 +508,12 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
     let creases = keyhole_creases(plate);
     assert_eq!(creases.len(), 2, "the keyhole's two disc/slot creases");
 
-    // Larger radii carve too, the outline's own blend radius among
-    // them: the ball rolls outside the disc's wall, which bends away
-    // from it, and the sliver each cap loses ends at the slot wall's
-    // foot `x = cx`, short of the slot's end, so the cap meter reads
-    // the slot end's edge clear of it.
-    for r in [0.31, 0.49, R_BLEND] {
+    // The ball rolls outside the disc's wall, which bends away from
+    // it, and the sliver each cap loses ends at the slot wall's foot
+    // `x = cx`, short of the slot's end, so the cap meter reads the
+    // slot end's edge clear of it — at `R_CREASE` and at the smaller
+    // radii down to the eye tip's.
+    for r in [R_EYE, 0.31, 0.49] {
         let out = fillet_edges(&operand, &creases, r, tol)
             .unwrap_or_else(|e| panic!("the creases carve at r = {r}, got {e:?}"));
         validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("r = {r}: tier 3, got {e:?}"));
@@ -544,13 +544,13 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
     );
     format!(
         "The keyhole is rounded on the SOLID: after the extrude, `fillet_edges` at \
-         r = {R_CREASE} on its two convex disc/slot creases. Selected as `Line` edges \
-         between a `Cylinder` and a `Plane`, scoped to the keyhole loop's struts — the \
+         r = {R_CREASE}, the outline's own blend radius, on its two convex disc/slot \
+         creases. Selected as `Line` edges between a `Cylinder` and a `Plane`, scoped to the keyhole loop's struts — the \
          description alone also matches the outline's six tangent seams, and the door \
          refuses those (`TangentialEdge`): the selector has no convexity atom. Each crease \
          removes A = {cut:.6e} m² of section, so ΔV = −2·A·{DEPTH} = {want:.6e} m³, \
-         measured {dv:.6e}. Larger radii carve at their closed forms too, up to the \
-         outline's own blend radius ({R_BLEND})."
+         measured {dv:.6e}. Smaller radii carve at their closed forms too, down to the \
+         eye tip's ({R_EYE})."
     )
 }
 

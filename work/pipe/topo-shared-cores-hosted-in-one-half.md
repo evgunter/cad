@@ -2,14 +2,13 @@
 id: topo-shared-cores-hosted-in-one-half
 kind: issue
 title: topo — two shared cores still hosted inside one half, finish and plane_crossing_lane
-status: parked
+status: open
 opened: 2026-08-20
 github: 695
 refs: [690, S5, S173]
 priority: P1
 cost: H
 design: true
-blocked_on: [declared-pairs-retire]
 ---
 
 ## From GitHub issue 695
@@ -94,3 +93,7 @@ pipeline this row describes will look different once the declared
 rungs are gone. So the row waits on both. Once they land, it is
 re-read against the tree, and the two designers weigh the layering
 question before any lane moves a file (plan, Order).
+
+## Released by stage 4 F (2026-10-11)
+
+Stage 4 F (`declared-pairs-retire`) retired every boolean declaration: no author can declare a pair, the glue is what the margins decide, and the declare offer, the flush detector and the carried declarations are gone. What this row waited on has fired; re-read it against that tree.

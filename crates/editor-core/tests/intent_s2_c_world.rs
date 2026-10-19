@@ -1,6 +1,6 @@
 //! INTENT stage 2 PR C: the product is the world
 //! (`docs/INTENT-STAGE2-SPEC.md` §4, §9 rows 6–12). The product is
-//! every copy a `PlaceInWorld` defines, in the placements' document
+//! every copy a placement pinned to the world defines, in the placements' document
 //! order, and nothing else places.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use crate::corpus;
 use crate::fixture::resolver::PartStore;
 use crate::fixture::value_channel::body_digest;
-use crate::fixture::{insert, len, on_frame, place, square};
+use crate::fixture::{insert, insert_pinned, len, on_frame, place, square};
 use editor_core::{
     AssertionRelation, CapEnd, ChecksConfig, DocEdit, DocumentId, EntityKind, ExtrudeSide,
     InlineError, Maintenance, MeasurePrimitive, Node, NodeResult, ProductError, ProfileDoc,
@@ -45,7 +45,7 @@ const PRE_C: [(&str, &str); 34] = [
     ("nested_islands_106_depth1", "32fed3f5e12387ee/52"),
     ("nested_islands_106_depth2", "3a7999e85a64a33b/76"),
     ("declared_tangency", "ea1ce7f968a62d47/88"),
-    ("kitchen_sink", "e6fec2fe2d687b79/196"),
+    ("kitchen_sink", "86db5c9ee0cedea5/196"),
     ("cut_cylinder", "cb8ccadf87044e7f/28"),
     ("measured_web", "f556ab19f06e9f9e/28"),
     ("boss_union", "a07c97077aedd76c/46"),
@@ -60,7 +60,7 @@ const PRE_C: [(&str, &str); 34] = [
     ("die_composed", "182b02846757307e/88"),
     ("die_composed_tour", "ca0b8371cb38e973/328"),
     ("plate_param", "fd7b71fa51270532/88"),
-    ("kiss_carry", "fabe53fd5101f503/88"),
+    ("kiss_carry", "9efdca7b404d4e52/85"),
     ("tube_ring", "c342379c65eab6d1/10"),
     ("tube_arc", "19b8e0af8227889b/16"),
     ("hollow_tube_elbow", "9ae3e25a75d4fecd/28"),
@@ -168,6 +168,26 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId) {
             side: ExtrudeSide::Along,
         },
     )
+}
+
+/// **One copy of `body` in the world at `pose`**: a placement of it,
+/// pinned there over its own geometry.
+fn place_at(
+    doc: ProfileDoc,
+    body: RecipeNodeId,
+    pose: &editor_core::Frame,
+) -> (ProfileDoc, RecipeNodeId) {
+    let read = crate::fixture::body_read(&doc, body.into());
+    let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
+    (
+        crate::fixture::pin(doc, placement, pose, &editor_core::EvalOptions::default()),
+        placement,
+    )
+}
+
+/// The pose two units up `+z`.
+fn raised() -> editor_core::Frame {
+    editor_core::Frame::translation([0.0, 0.0, 2.0])
 }
 
 fn ev(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
@@ -283,7 +303,6 @@ fn inserting_a_boolean_over_two_placed_blocks_places_nothing() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-            declare: Vec::new(),
         },
     );
     assert_eq!(doc.placements(), placements, "the insert placed nothing");
@@ -308,19 +327,16 @@ fn an_empty_world_names_the_unplaced_and_a_stranded_placement_refuses() {
     let (doc, b) = block(doc, 3.0);
     let bodies = vec![doc.output(a, 0).unwrap(), doc.output(b, 0).unwrap()];
     match product(&doc, &ev(&doc), Tol::witness()) {
-        Err(ProductError::EmptyProduct { unplaced }) => {
+        Err(ProductError::EmptyProduct { unplaced, loose }) => {
             assert_eq!(unplaced, bodies, "every unplaced body, in document order");
+            assert!(loose.is_empty(), "and no loose copy: {loose:?}");
         }
         other => panic!("an empty world refuses EmptyProduct: {other:?}"),
     }
 
     let (doc, placement) = place(doc, a);
     let applied = doc
-        .apply(
-            &DocEdit::DeleteNode { id: a },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
+        .apply(&DocEdit::DeleteNode { id: a }, Tol::witness())
         .expect("deleting a placed body is accepted");
     assert!(
         applied.maintenance.iter().any(|m| matches!(
@@ -368,8 +384,8 @@ fn two_identity_placements_of_one_body_are_two_copies() {
     }
 }
 
-/// The block, its placement and a transform of it nothing places, in
-/// one document: what the split rows cut.
+/// The block, its placement, and a union of it with a second block
+/// that nothing places, in one document: what the split rows cut.
 fn split_scene(label: &str) -> (ProfileDoc, [RecipeNodeId; 5]) {
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
     let (doc, profile) = on_frame(
@@ -389,18 +405,22 @@ fn split_scene(label: &str) -> (ProfileDoc, [RecipeNodeId; 5]) {
         },
     );
     let (doc, p) = place(doc, b);
+    let (doc, other) = block(doc, 3.0);
     let (doc, reader) = insert(
         doc,
-        crate::fixture::xform(b, [5.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![b.into(), other.into()]),
+        },
     );
     (doc, [frame, profile, b, p, reader])
 }
 
 /// **(C, test 12) Split and inline under the world.** A cut that places
-/// its body re-points a remainder reader of it to the instance's body;
-/// a cut that does not place its body refuses the reader as a severed
-/// edge; and inline of an instance a boolean reads succeeds, the
-/// boolean reading the inlined body.
+/// its body re-points a remainder boolean reading it to the instance's
+/// copy of it, by its key; a cut that does not place its body refuses
+/// the reader as a severed edge; and inline of an instance pinned at
+/// the identity that a boolean reads succeeds, the boolean reading the
+/// inlined body.
 #[test]
 fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
     let (doc, [frame, profile, b, p, reader]) = split_scene("intent-c-split");
@@ -412,13 +432,21 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
         None,
     )
     .expect("a cut that places its body splits");
-    let Some(Node::Transform { input, .. }) = out.remainder.node(reader) else {
+    let Some(Node::Union {
+        members: editor_core::Bodies::Spelled(members),
+    }) = out.remainder.node(reader)
+    else {
         panic!("the reader stays in the remainder")
     };
     assert_eq!(
-        out.remainder.operation_of(*input),
+        out.remainder.operation_of(members[0].read),
         Some(out.instance),
-        "the remainder's reader reads the instance's body"
+        "the remainder's reader reads the instance's copies"
+    );
+    assert!(
+        members[0].key.is_some(),
+        "one copy of them, by its key: {:?}",
+        members[0]
     );
     assert_eq!(
         out.part.placements(),
@@ -450,22 +478,28 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
         "{refused:?}"
     );
 
-    // Inline of an instance a boolean reads.
-    let part = {
+    // Inline of an instance whose one copy a boolean reads.
+    let (part, key) = {
         let doc = ProfileDoc::empty(DocumentId::derive("intent-c-inline-part"), Tol::witness());
         let (doc, body) = block(doc, 0.0);
-        place(doc, body).0
+        let read = doc.output(body, 0).expect("the block defines its body");
+        let (doc, placement) = place(doc, body);
+        let key = editor_core::CopyKey::part(placement, editor_core::CopyKey::Read(read));
+        (doc, key)
     };
     let mut store = PartStore::default();
     let part_ref = store.insert(part, Tol::witness());
+    let opts = crate::fixture::resolver::with_resolver(store.clone());
     let host = ProfileDoc::empty(DocumentId::derive("intent-c-inline"), Tol::witness());
-    let (host, instance) = insert(host, Node::instantiate_part(part_ref));
+    let (host, instance) = insert_pinned(host, Node::instantiate_part(part_ref), &opts);
     let (host, other) = block(host, 0.75);
     let (host, fused) = insert(
         host,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![instance.into(), other.into()]),
-            declare: Vec::new(),
+            members: editor_core::Bodies::Spelled(vec![
+                editor_core::BodyRead::keyed(editor_core::Operand::Node(instance), key),
+                other.into(),
+            ]),
         },
     );
     let (host, _) = place(host, fused);
@@ -492,99 +526,64 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
     );
 }
 
-/// **Construction never reads the world** (D10). A block placed, and a
-/// boolean that would read the placement's copy: the edit door refuses
-/// it at insert and at `SetParam`, naming the placement, and a file
-/// that holds such a read refuses at load. Only the gather and export
-/// read a placement's pose.
+/// **A construction may read a world copy.** A block placed at a
+/// pose, and a boolean reading the placement's copy: the edit door
+/// admits it at insert and at `SetParam`, the boolean builds the copy
+/// where the placement puts it, and the document round-trips through a
+/// file bit for bit.
 ///
-/// Red if a `Body` slot admits the copy: the boolean then evaluates,
-/// and its geometry moves with the pose.
+/// Red if a `Body` slot refuses the copy, or reads the unplaced block
+/// (the boolean's body is then the one over the block itself).
 #[test]
-fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
+fn a_construction_reads_a_world_copy_at_the_door_and_at_load() {
     let doc = ProfileDoc::empty_derived("intent-c-copy-read", Tol::witness());
     let (doc, a) = block(doc, 0.0);
     let (doc, b) = block(doc, 0.75);
-    let (doc, placement) = place(doc, a);
+    let (doc, placement) = place_at(doc, a, &raised());
     let copy = doc
         .output(placement, 0)
         .expect("the placement defines its copy");
     let boolean = |a: editor_core::Operand| Node::Union {
         members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
-        declare: Vec::new(),
     };
-    let refused_naming_placement =
-        |result: Result<_, editor_core::EditError>, at: &str| match result {
-            Err(editor_core::EditError::ReadsWorldCopy {
-                placement: named, ..
-            }) => assert_eq!(
-                named.id(),
-                placement,
-                "{at}: the refusal names the placement"
-            ),
-            Err(other) => panic!("{at}: refused otherwise: {other}"),
-            Ok(_) => panic!("{at}: a slot read the world copy"),
-        };
-    refused_naming_placement(
-        doc.apply(
-            &DocEdit::InsertNode {
-                node: Box::new(boolean(copy.into())),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        ),
-        "insert",
+    let (read_copy, by_insert) = insert(doc.clone(), boolean(copy.into()));
+    let (read_block, by_block) = insert(doc.clone(), boolean(a.into()));
+    assert_ne!(
+        crate::fixture::built_bits(&ev(&read_copy), by_insert),
+        crate::fixture::built_bits(&ev(&read_block), by_block),
+        "the boolean reads the copy where it is placed, not the block"
     );
 
     let (doc, fused) = insert(doc, boolean(a.into()));
-    refused_naming_placement(
-        doc.apply(
-            &DocEdit::SetParam {
-                node: fused,
-                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Member(0)),
-                value: editor_core::SlotValue::Read(copy.into()),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        ),
-        "SetParam",
+    let (doc, _) = crate::fixture::step(
+        doc,
+        DocEdit::SetParam {
+            node: fused,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Member(0)),
+            value: editor_core::SlotValue::Read(copy.into()),
+            fresh: Vec::new(),
+        },
+    );
+    assert_eq!(
+        crate::fixture::built_bits(&ev(&doc), fused),
+        crate::fixture::built_bits(&ev(&read_copy), by_insert),
+        "the slot edit reads the copy as the insert does"
     );
 
-    // The same read written into a file: the union's first member
-    // swapped for the copy, on the wire.
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
-    let body_a = doc.output(a, 0).expect("the block's body");
-    let key = serde_json::to_value(fused).expect("an id serializes");
-    let key = key.as_str().expect("a node id is a string");
-    let forged = crate::wire::doctored(&text, |body| {
-        let member = &mut body["snapshot"]["nodes"][key]["Union"]["members"]["Spelled"][0];
-        assert_eq!(
-            *member,
-            serde_json::to_value(body_a).expect("an id serializes"),
-            "the union's first member is the block's body"
-        );
-        *member = serde_json::to_value(copy).expect("an id serializes");
-    });
-    match editor_core::persist::load(&forged, Tol::witness()) {
-        Err(error) => {
-            let said = error.to_string();
-            assert!(
-                said.contains("reads the world copy"),
-                "the load names the read: {said}"
-            );
-        }
-        Ok(_) => panic!("a file whose boolean reads a world copy loads"),
-    }
+    let loaded = editor_core::persist::load(&text, Tol::witness())
+        .unwrap_or_else(|e| panic!("a boolean reading a world copy loads: {e}"))
+        .doc;
+    assert!(loaded.bit_eq(&doc), "and round-trips bit for bit");
 }
 
 /// **A posed placement moves its copy, rigidly, records and all.**
 /// `kiss_carry`'s union carries one vertex-vertex contact record at the
 /// kiss `(1, 1, 1)`. Placed at a pose (a quarter turn about +z, then a
 /// translation), the gathered body is the body a `Transform` of the
-/// union by the same step places at the identity, bit for bit, and not
-/// the unposed one; and the copy's record resolves in the gathered
+/// union by the same step places at the identity, vertex for vertex to
+/// the rounding of the pin's one re-composition, and not the unposed
+/// one; and the copy's record resolves in the gathered
 /// body to two vertices standing at the kiss, moved by the pose.
 ///
 /// Red if the copy ignores its pose (the digest equals the unposed
@@ -593,7 +592,7 @@ fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
 /// gathered body does not hold).
 #[test]
 fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
-    use crate::fixture::{ang, scl, xform};
+    use crate::fixture::xform;
     let corpus::CorpusDoc { doc, result, .. } = corpus::documents()
         .into_iter()
         .find(|d| d.name == "kiss_carry")
@@ -607,30 +606,49 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
         [0.0, 0.0, 1.0],
         std::f64::consts::FRAC_PI_2,
     );
-    let pose: editor_core::Placement<editor_core::Formula> = editor_core::Step::Rigid {
-        translation: t.map(len),
-        axis: axis.map(scl),
-        angle: ang(angle),
-    }
-    .into();
+    let pose = editor_core::Frame::rotate_then_translate(axis, angle, t, crate::fixture::band())
+        .expect("a quarter turn about +z");
 
     let digest = |doc: &ProfileDoc| {
         body_digest(&product(doc, &ev(doc), Tol::witness()).expect("the world gathers"))
     };
     let (unposed, _) = place(doc.clone(), union);
-    let (posed, _) = crate::fixture::step(doc.clone(), DocEdit::place(union, Some(pose)));
+    let (posed, _) = place_at(doc.clone(), union, &pose);
     let (moved, by) = insert(doc, xform(union, t, axis, angle));
     let (moved, _) = place(moved, by);
+    // The pin writes the pose as spins and slides read back from the
+    // frame's numbers (`pin_at`), so the posed copy stands where the
+    // transform's does to the rounding of that one re-composition:
+    // every vertex within 4 ulps of the transform's (measured 4.4e-16
+    // at most, 14 coordinates moved in their last bits).
+    let points = |doc: &ProfileDoc| {
+        let body = product(doc, &ev(doc), Tol::witness()).expect("the world gathers");
+        let mut points: Vec<_> = body
+            .vertex_points()
+            .map(|(k, p)| (k, [p.x, p.y, p.z]))
+            .collect();
+        points.sort_by_key(|(k, _)| *k);
+        points
+    };
+    let (at_pose, transformed) = (points(&posed), points(&moved));
     assert_eq!(
-        digest(&posed),
-        digest(&moved),
-        "the posed copy is the transform's body at the identity"
+        at_pose.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
+        transformed.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
+        "the posed copy has the transform's vertices"
     );
+    for ((key, p), (_, q)) in at_pose.iter().zip(&transformed) {
+        for (a, b) in p.iter().zip(q) {
+            assert!(
+                (a - b).abs() <= 4.0 * f64::EPSILON * a.abs().max(b.abs()).max(1.0),
+                "the posed copy is the transform's body at the identity: {key:?} {p:?} {q:?}"
+            );
+        }
+    }
     assert_ne!(digest(&posed), digest(&unposed), "and the pose moved it");
 
     let run = ev(&posed);
     let gathered = editor_core::product_recorded(&posed, &run, Tol::witness()).expect("gathers");
-    let [ref kiss] = gathered.contacts.vv[..] else {
+    let [kiss] = gathered.contacts.vertex_vertex().collect::<Vec<_>>()[..] else {
         panic!(
             "the copy carries the union's one v-v record: {:?}",
             gathered.contacts
@@ -646,7 +664,7 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     };
     // A quarter turn about +z takes (1, 1, 1) to (−1, 1, 1).
     let want = [-1.0 + t[0], 1.0 + t[1], 1.0 + t[2]];
-    for got in [at(kiss.a), at(kiss.b)] {
+    for got in [at(kiss.0), at(kiss.1)] {
         assert!(
             got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-9),
             "the kiss moved with the pose: {got:?} vs {want:?}"
@@ -654,54 +672,74 @@ fn a_posed_placement_moves_its_copy_and_its_records_rigidly() {
     }
 }
 
-/// **Inline leaves no heir for a posed part placement.** The part
-/// places its one block at a pose of its own, and a host boolean reads
-/// the instance: what stood where the instance's body did is the
-/// placement's world copy, which no slot reads, so inline refuses
-/// naming the part's placement rather than re-pointing the boolean at
-/// the copy.
+/// **Inline carries a reader of a posed part placement's copy to that
+/// copy.** The part places its one block at a pose of its own, and a
+/// host boolean reads the instance's copy of it by its key: what stood
+/// there is the placement's copy, moved, so inline of the instance,
+/// pinned at the identity, re-points the boolean at the spliced
+/// placement's copy, and the boolean's body is the one it had.
 ///
-/// Red if inline re-points the reader at the copy (the replay's
-/// `SetParam` refuses `ReadsWorldCopy` as a forwarded edit instead) or
-/// at the unposed block (the boolean's geometry moves).
+/// Red if inline re-points the reader at the unposed block (the
+/// boolean's geometry moves).
 #[test]
-fn inline_refuses_a_reader_of_an_instance_whose_part_places_at_a_pose() {
-    let pose: editor_core::Placement<editor_core::Formula> = editor_core::Step::Rigid {
-        translation: [0.0, 0.0, 2.0].map(len),
-        axis: [0.0, 0.0, 1.0].map(crate::fixture::scl),
-        angle: crate::fixture::ang(0.0),
-    }
-    .into();
-    let (part, placement) = {
+fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
+    let (part, placement, read) = {
         let doc = ProfileDoc::empty(DocumentId::derive("intent-c-posed-part"), Tol::witness());
         let (doc, body) = block(doc, 0.0);
-        crate::fixture::step(doc, DocEdit::place(body, Some(pose)))
+        let read = doc.output(body, 0).expect("the block defines its body");
+        let (doc, placement) = place_at(doc, body, &raised());
+        (doc, placement, read)
     };
-    let placement = placement.expect("the placement's node");
     let mut store = PartStore::default();
     let part_ref = store.insert(part, Tol::witness());
+    let opts = crate::fixture::resolver::with_resolver(store.clone());
     let host = ProfileDoc::empty(DocumentId::derive("intent-c-posed-inline"), Tol::witness());
-    let (host, instance) = insert(host, Node::instantiate_part(part_ref));
+    let (host, instance) = insert_pinned(host, Node::instantiate_part(part_ref), &opts);
     let (host, other) = block(host, 0.75);
     let (host, fused) = insert(
         host,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![instance.into(), other.into()]),
-            declare: Vec::new(),
+            members: editor_core::Bodies::Spelled(vec![
+                editor_core::BodyRead::keyed(
+                    editor_core::Operand::Node(instance),
+                    editor_core::CopyKey::part(placement, editor_core::CopyKey::Read(read)),
+                ),
+                other.into(),
+            ]),
         },
     );
     let (host, _) = place(host, fused);
+    let before = crate::fixture::run(&host, &opts);
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
-    match editor_core::inline(&host, instance, &resolver, Tol::witness()) {
-        Err(InlineError::InstanceReadUncarried {
-            reader,
-            why: editor_core::Uncarried::Posed { placement: named },
-        }) => {
-            assert_eq!(reader.id(), fused, "the refusal names the reader");
-            assert_eq!(named.id(), placement, "and the part's posed placement");
-        }
-        other => panic!("inline refuses the posed heir: {other:?}"),
-    }
+    let inlined = editor_core::inline(&host, instance, &resolver, Tol::witness())
+        .unwrap_or_else(|e| panic!("inline carries the posed copy's reader: {e}"));
+    let Some(Node::Union {
+        members: editor_core::Bodies::Spelled(members),
+    }) = inlined.doc.node(fused)
+    else {
+        panic!("the union stays")
+    };
+    assert_eq!(
+        inlined.doc.operation_of(members[0].read),
+        Some(inlined.node_map[&placement]),
+        "the boolean reads the spliced placement's copy"
+    );
+    let body = |run: &editor_core::Evaluation<f64>| {
+        let Some(NodeResult::Ok(value)) = run.result(fused) else {
+            panic!("the boolean evaluates: {:?}", run.result(fused))
+        };
+        let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) =
+            &value.payload
+        else {
+            panic!("the boolean is a body")
+        };
+        body_digest(body)
+    };
+    assert_eq!(
+        body(&ev(&inlined.doc)),
+        body(&before),
+        "the boolean's body is the one it had"
+    );
 }
 
 /// **An empty world names a pattern among the unplaced.** A block and a
@@ -734,7 +772,7 @@ fn an_empty_world_names_a_pattern_and_how_to_place_one_of_its_bodies() {
     );
     let refused = product(&doc, &ev(&doc), Tol::witness()).expect_err("nothing is placed");
     assert!(
-        matches!(&refused, ProductError::EmptyProduct { unplaced } if *unplaced == want),
+        matches!(&refused, ProductError::EmptyProduct { unplaced, loose } if *unplaced == want && loose.is_empty()),
         "{refused:?}"
     );
     let said = refused.to_string();
@@ -742,13 +780,14 @@ fn an_empty_world_names_a_pattern_and_how_to_place_one_of_its_bodies() {
 }
 
 /// A split scene whose cut is `{frame, profile, b, placement}`: `b`
-/// placed (at `pose` when given), and a kept `Transform` of `b`, itself
-/// placed, reading `b` across the seam. With `second`, the cut also
-/// holds a second block `c` placed at the identity. Answers the
-/// document, the cut and the reader.
+/// placed at `pose`, and a kept union of `b` with a kept
+/// block, itself placed, reading `b` across the seam. With `second`,
+/// the cut also holds a second placement of `b` at the identity.
+/// Answers the document, the cut, the reader and `b`'s first
+/// placement.
 fn cut_with_a_reader(
     label: &str,
-    pose: Option<editor_core::Placement<editor_core::Formula>>,
+    pose: &editor_core::Frame,
     second: bool,
 ) -> (
     ProfileDoc,
@@ -759,21 +798,21 @@ fn cut_with_a_reader(
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
     let before = doc.ids().len();
     let (doc, b) = block(doc, 0.0);
-    let (doc, p) = crate::fixture::step(doc, DocEdit::place(b, pose));
-    let p = p.expect("the placement's node");
+    let (doc, p) = place_at(doc, b, pose);
     let mut cut: BTreeSet<RecipeNodeId> = doc.ids()[before..].iter().copied().collect();
     let doc = if second {
-        let mark = doc.ids().len();
-        let (doc, c) = block(doc, 3.0);
-        let (doc, _) = place(doc, c);
-        cut.extend(doc.ids()[mark..].iter().copied());
+        let (doc, again) = place(doc, b);
+        cut.insert(again);
         doc
     } else {
         doc
     };
+    let (doc, other) = block(doc, 10.0);
     let (doc, reader) = insert(
         doc,
-        crate::fixture::xform(b, [10.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![b.into(), other.into()]),
+        },
     );
     let (doc, _) = place(doc, reader);
     (doc, cut, reader, p)
@@ -781,23 +820,16 @@ fn cut_with_a_reader(
 
 /// **Split shares inline's re-point rule** ([`editor_core::Uncarried`]).
 /// A kept reader of a body the cut places is re-pointed to the
-/// instance's body only when the cut's world is one placement at the
-/// identity; the instance's body is the part's whole world, so a cut
-/// placing its body at a pose, or placing two bodies, refuses naming
-/// the reader rather than moving or widening what it reads.
+/// instance's copy of it only when one cut placement copies the body,
+/// at the identity: a cut placing the body at a pose, or placing it
+/// twice, refuses naming the reader rather than moving what it reads or
+/// picking one of two copies.
 ///
 /// Red if split re-points the reader anyway: the reader's geometry then
-/// moves with the pose, or takes in the second block (the review
-/// probes' digests).
+/// moves with the pose, or reads one copy of two.
 #[test]
 fn split_refuses_a_remainder_reader_whose_cut_world_is_posed_or_several() {
-    let pose: editor_core::Placement<editor_core::Formula> = editor_core::Step::Rigid {
-        translation: [0.0, 0.0, 2.0].map(len),
-        axis: [0.0, 0.0, 1.0].map(crate::fixture::scl),
-        angle: crate::fixture::ang(0.0),
-    }
-    .into();
-    let (doc, cut, reader, p) = cut_with_a_reader("intent-c-split-posed", Some(pose), false);
+    let (doc, cut, reader, p) = cut_with_a_reader("intent-c-split-posed", &raised(), false);
     match editor_core::split(
         &doc,
         &cut,
@@ -815,7 +847,8 @@ fn split_refuses_a_remainder_reader_whose_cut_world_is_posed_or_several() {
         other => panic!("a posed cut world refuses its remainder reader: {other:?}"),
     }
 
-    let (doc, cut, reader, _) = cut_with_a_reader("intent-c-split-two", None, true);
+    let (doc, cut, reader, _) =
+        cut_with_a_reader("intent-c-split-two", &editor_core::Frame::IDENTITY, true);
     match editor_core::split(
         &doc,
         &cut,
@@ -827,37 +860,63 @@ fn split_refuses_a_remainder_reader_whose_cut_world_is_posed_or_several() {
             reader: named,
             why: editor_core::Uncarried::Bodies { count: 2 },
         }) => assert_eq!(named.id(), reader, "the refusal names the reader"),
-        other => panic!("a cut placing two bodies refuses its remainder reader: {other:?}"),
+        other => panic!("a cut placing its body twice refuses its remainder reader: {other:?}"),
     }
 }
 
-/// **Inline keeps every copy the host places.** The host places one
-/// instance twice at the identity, over a part that places its block
-/// once: the inlined host still places two copies, and its product is
-/// the one it had. A part that places two bodies cannot stand twice
-/// where one instance body did, so the second host placement refuses as
-/// a reader the part's world does not carry.
+/// **Inline keeps every copy the host places.** The host holds one
+/// instance pinned to the world at the identity and a second placement
+/// copying the instance's one copy by its key, over a part that places
+/// its block once: the inlined host still places two copies, and its
+/// product is the one it had. A second placement of the instance's
+/// copies whole is a copy of the part's whole world, and over a part
+/// that places two bodies no one body stands where it did, so it
+/// refuses as a reader the part's world does not carry.
 ///
-/// Red if inline deletes every identity host placement and splices the
-/// part's world once (one copy, the product moves), or drops the second
-/// placement silently.
+/// Red if inline splices the part's world once and drops the second
+/// copy (one copy, the product moves), or drops the second placement
+/// silently.
 #[test]
 fn inline_keeps_both_copies_of_an_instance_placed_twice() {
-    let host_of = |part: ProfileDoc, label: &str| {
-        let mut store = PartStore::default();
-        let part_ref = store.insert(part, Tol::witness());
-        let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-        let (host, instance) = insert(host, Node::instantiate_part(part_ref));
-        let (host, first) = place(host, instance);
-        let (host, second) = place(host, instance);
-        (host, instance, [first, second], store)
-    };
-    let part = {
+    let host_of =
+        |part: ProfileDoc,
+         label: &str,
+         second: &dyn Fn(RecipeNodeId) -> editor_core::BodyRead<editor_core::Formula>| {
+            let mut store = PartStore::default();
+            let part_ref = store.insert(part, Tol::witness());
+            let opts = crate::fixture::resolver::with_resolver(store.clone());
+            let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+            let (host, instance) = insert(host, Node::instantiate_part(part_ref));
+            // One pin at the identity, read off the instance's own copy
+            // while it is loose, holds both placements of it.
+            let copy = editor_core::Operand::Var(
+                host.output(instance, 0)
+                    .expect("an instance defines its copies"),
+            );
+            let at_rest = editor_core::pin_at(
+                &host,
+                &copy,
+                &editor_core::Frame::IDENTITY,
+                &opts,
+                Tol::witness(),
+            )
+            .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
+            let (host, second) = insert(host, Node::place(vec![second(instance)]));
+            let (host, _) = crate::fixture::constrain_at(host, instance, at_rest.clone());
+            let (host, _) = crate::fixture::constrain_at(host, second, at_rest);
+            (host, instance, [instance, second], store)
+        };
+    let (part, key) = {
         let doc = ProfileDoc::empty(DocumentId::derive("intent-c-twice-part"), Tol::witness());
         let (doc, body) = block(doc, 0.0);
-        place(doc, body).0
+        let read = doc.output(body, 0).expect("the block defines its body");
+        let (doc, placement) = place(doc, body);
+        let key = editor_core::CopyKey::part(placement, editor_core::CopyKey::Read(read));
+        (doc, key)
     };
-    let (host, instance, _, store) = host_of(part, "intent-c-twice");
+    let (host, instance, _, store) = host_of(part, "intent-c-twice", &|instance| {
+        editor_core::BodyRead::keyed(editor_core::Operand::Node(instance), key.clone())
+    });
     let opts = crate::fixture::resolver::with_resolver(store.clone());
     let before = product(&host, &crate::fixture::run(&host, &opts), Tol::witness())
         .expect("the host gathers");
@@ -884,7 +943,8 @@ fn inline_keeps_both_copies_of_an_instance_placed_twice() {
         let (doc, _) = place(doc, a);
         place(doc, b).0
     };
-    let (host, instance, [_, second], store) = host_of(two, "intent-c-twice-two");
+    let (host, instance, [_, second], store) =
+        host_of(two, "intent-c-twice-two", &|instance| instance.into());
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
     match editor_core::inline(&host, instance, &resolver, Tol::witness()) {
         Err(InlineError::InstanceReadUncarried {
@@ -895,33 +955,21 @@ fn inline_keeps_both_copies_of_an_instance_placed_twice() {
     }
 }
 
-/// **A measure observes a copy; a construction never reads one.** A
-/// distance between two copies' end caps reads the copies' placed
-/// geometry (D10: a measure defines an observed variable, and
-/// construction never reads the world), so it is admitted at the edit
-/// door, measures the pose, and round-trips through a file. A shell
-/// whose open face is a selection of the same copy still refuses
-/// naming the placement: a construction seat reads the body.
+/// **A measure observes a copy.** A distance between two copies' end
+/// caps reads the copies' placed geometry (a measure defines an
+/// observed variable), so it is admitted at the edit door, measures the
+/// pose, and round-trips through a file.
 ///
 /// Red if the measure seat refuses (the quieting `Gap` of an
-/// interference could never be written), if it reads the unplaced body
-/// (`0.0` rather than `2.0`), or if the construction seat admits the
-/// copy.
+/// interference could never be written), or if it reads the unplaced
+/// body (`0.0` rather than `2.0`).
 #[test]
-fn a_measure_observes_a_world_copy_and_a_construction_does_not() {
-    use crate::fixture::{ang, scl};
+fn a_measure_observes_a_world_copy() {
     let doc = ProfileDoc::empty_derived("intent-c-measure-copy", Tol::witness());
     let (doc, a) = block(doc, 0.0);
     let (doc, b) = block(doc, 0.0);
     let (doc, p) = place(doc, a);
-    let raised: editor_core::Placement<editor_core::Formula> = editor_core::Step::Rigid {
-        translation: [0.0, 0.0, 2.0].map(len),
-        axis: [0.0, 0.0, 1.0].map(scl),
-        angle: ang(0.0),
-    }
-    .into();
-    let (doc, q) = crate::fixture::step(doc, DocEdit::place(b, Some(raised)));
-    let q = q.expect("the placement inserts");
+    let (doc, q) = place_at(doc, b, &raised());
     let (doc, measure) = crate::fixture::measure_node(
         &doc,
         MeasurePrimitive::Distance { a: 0, b: 1 },
@@ -942,25 +990,4 @@ fn a_measure_observes_a_world_copy_and_a_construction_does_not() {
         .unwrap_or_else(|e| panic!("a measure of two copies loads: {e}"))
         .doc;
     assert_eq!(distance(&loaded), Some(2.0), "and reads them after a load");
-
-    match doc.apply(
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Shell {
-                thickness: len(0.1),
-                open: editor_core::Operand::select(
-                    editor_core::Operand::Node(p),
-                    vec![cap(a, CapEnd::End).in_copy(p)],
-                ),
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(editor_core::EditError::ReadsWorldCopy { placement, .. }) => {
-            assert_eq!(placement.id(), p, "the refusal names the placement");
-        }
-        Err(other) => panic!("refused otherwise: {other}"),
-        Ok(_) => panic!("a construction read a world copy"),
-    }
 }

@@ -25,12 +25,7 @@ fn kink_curve() -> NurbsCurve3<f64> {
 }
 
 fn lift(c: &NurbsCurve3<f64>) -> NurbsCurve3<Interval> {
-    let ctrl = c
-        .control()
-        .iter()
-        .map(|p| p.map(Interval::from_f64))
-        .collect();
-    NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap()
+    c.map_scalar(Interval::from_f64)
 }
 
 fn contains(e: Interval, v: f64) -> bool {
@@ -140,13 +135,7 @@ fn f1_full_multiplicity_insertion_straddle_containment() {
 #[test]
 fn f2_dual_interval_straddle_encloses_both_tangents() {
     let c = kink_curve();
-    let ctrl = c
-        .control()
-        .iter()
-        .map(|p| p.map(|c| Dual::constant(Interval::from_f64(c))))
-        .collect();
-    let cdi: NurbsCurve3<Dual<Interval>> =
-        NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap();
+    let cdi: NurbsCurve3<Dual<Interval>> = c.map_scalar(|c| Dual::constant(Interval::from_f64(c)));
     let t = Dual::variable(Interval::from_bounds(0.5 - 1e-9, 0.5 + 1e-9));
     let p = cdi.eval(t);
     // One-sided tangents from the f64 lane.
@@ -194,7 +183,7 @@ fn f4_removal_bound_holds_on_a_lossy_removal() {
     let c = NurbsCurve3::new(kv, control, weights).unwrap();
     let mut ctrl = c.control().to_vec();
     ctrl[2] = ctrl[2] + geom_core::Vec3::new(0.02, -0.015, 0.01);
-    let c = NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap();
+    let c = NurbsCurve3::new(c.knots_f64_interim().clone(), ctrl, c.weights().to_vec()).unwrap();
     let (hat_f, bf) = c.remove_knot(0.4, 1).unwrap();
     assert!(
         bf > 0.0,

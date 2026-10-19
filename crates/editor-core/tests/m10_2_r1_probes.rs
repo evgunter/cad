@@ -39,7 +39,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
+    apply(doc, edit, Tol::witness())
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
@@ -52,7 +52,6 @@ fn insert(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, Rec
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .unwrap_or_else(|e| panic!("insert refused: {e}"));
     (applied.doc, applied.record.minted.expect("insert mints"))
@@ -415,7 +414,12 @@ fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNod
     );
     insert(
         &doc,
-        fixture::revolve_about(p, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+        fixture::revolve_about(
+            p,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
     )
 }
 
@@ -831,7 +835,6 @@ fn r1_ops_refuse_measurement_operands_typed() {
         Node::Subtract {
             from: slab.into(),
             tool: a.into(),
-            declare: Vec::new(),
         },
     );
     assert!(
@@ -1077,7 +1080,6 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect_err("an undeclared parameter refuses");
     assert!(

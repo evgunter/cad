@@ -55,13 +55,10 @@ impl EntityKey {
         }
     }
 
-    /// **The face this key denotes, or `None`** — the projection a
-    /// face-wanting road reads through (`eval::wire`'s entity door: a
-    /// shell's open designation, a derived frame's face). `None` is
-    /// "not a face", never "no such face": the key is an already
-    /// resolved entity, so the arms it does not match are the other
-    /// three kinds and nothing else, and [`EntityKey::kind`] is what
-    /// says which.
+    /// **The face this key denotes, or `None`**: "not a face", never "no
+    /// such face" — the key is an already resolved entity, so the arms
+    /// it does not match are the other three kinds, and
+    /// [`EntityKey::kind`] is what says which.
     pub(crate) fn face(self) -> Option<FaceKey> {
         match self {
             Self::Face(k) => Some(k),
@@ -69,8 +66,8 @@ impl EntityKey {
         }
     }
 
-    /// **The edge this key denotes, or `None`** — [`EntityKey::face`]'s
-    /// twin, for the roads that select edges (a blend's selection).
+    /// **The edge this key denotes, or `None`** ([`EntityKey::face`]'s
+    /// twin).
     pub(crate) fn edge(self) -> Option<EdgeKey> {
         match self {
             Self::Edge(k) => Some(k),
@@ -78,19 +75,8 @@ impl EntityKey {
         }
     }
 
-    /// **The vertex this key denotes, or `None`** — the third
-    /// projection, and NOT [`EntityKey::face`]'s twin in the way the
-    /// other two are twins.
-    ///
-    /// `face` and `edge` are handed to `eval::wire`'s entity door as
-    /// `read` function pointers, so the door mints the `Found` word
-    /// from the key they decline. This one is read directly, by
-    /// `resolve_declarations`'s same-operand projection, where the
-    /// kind was already decided from the NAME and a `None` here means
-    /// the table broke its own rule rather than that a caller named
-    /// the wrong kind. If a road ever wants a vertex through that
-    /// door, this is the projection to hand it — which would make the
-    /// three genuinely alike.
+    /// **The vertex this key denotes, or `None`** ([`EntityKey::face`]'s
+    /// twin).
     pub(crate) fn vertex(self) -> Option<VertexKey> {
         match self {
             Self::Vertex(k) => Some(k),
@@ -113,7 +99,7 @@ pub enum Entry {
 
 impl Entry {
     /// The entities this entry names: one, or the tie's candidates.
-    fn entities(&self) -> &[EntityRef] {
+    pub(crate) fn entities(&self) -> &[EntityRef] {
         match self {
             Self::Unique(e) => core::slice::from_ref(e),
             Self::Tied(es) => es,
@@ -297,6 +283,56 @@ pub struct DuplicateName {
     pub name: Box<StableName>,
 }
 
+/// A row whose entity is not of its name's kind: the invariant every
+/// selection's per-name kind rests on (`Select::fault`), found broken
+/// at the door that seats it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KindMismatch {
+    /// The name the row was to be seated under.
+    pub name: Box<StableName>,
+    /// The kind of the entity offered for it, which is not
+    /// `name.kind`. The kind and not the key: an [`EntityKey`] never
+    /// leaves the evaluation that minted it.
+    pub found: EntityKind,
+}
+
+/// Why a seating door refused a row. Both are emission bugs, never
+/// valid states.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SeatingRefusal {
+    /// The name or the entity is already seated, or a candidate list
+    /// does not name one entity per (name, candidate) pair.
+    Duplicate(DuplicateName),
+    /// The entity's kind is not the name's.
+    KindMismatch(KindMismatch),
+}
+
+impl From<DuplicateName> for SeatingRefusal {
+    fn from(e: DuplicateName) -> Self {
+        Self::Duplicate(e)
+    }
+}
+
+impl SeatingRefusal {
+    fn duplicate(name: &StableName) -> Self {
+        Self::Duplicate(DuplicateName {
+            name: Box::new(name.clone()),
+        })
+    }
+
+    /// [`Self::KindMismatch`] when `ent` is not of `name`'s kind.
+    fn check_kind(name: &StableName, ent: &EntityRef) -> Result<(), Self> {
+        if name.kind == ent.key.kind() {
+            Ok(())
+        } else {
+            Err(Self::KindMismatch(KindMismatch {
+                name: Box::new(name.clone()),
+                found: ent.key.kind(),
+            }))
+        }
+    }
+}
+
 impl NameTable {
     /// An empty table (nodes without output bodies).
     pub fn new() -> Self {
@@ -478,26 +514,18 @@ impl NameTable {
         &mut self,
         name: NameRef,
         ent: EntityRef,
-    ) -> Result<(), DuplicateName> {
+    ) -> Result<(), SeatingRefusal> {
         use std::collections::btree_map::Entry as Slot;
         self.said = Said::default();
         self.lines = Lines::default();
+        SeatingRefusal::check_kind(&name, &ent)?;
         // Each direction is searched ONCE: the vacant slot the
         // collision check lands on is the slot the row is written into.
-        if name.kind != ent.key.kind() {
-            return Err(DuplicateName {
-                name: Box::new((*name).clone()),
-            });
-        }
         let Slot::Vacant(rev) = self.reverse.entry(ent) else {
-            return Err(DuplicateName {
-                name: Box::new((*name).clone()),
-            });
+            return Err(SeatingRefusal::duplicate(&name));
         };
         match self.forward.entry(name) {
-            Slot::Occupied(held) => Err(DuplicateName {
-                name: Box::new((**held.key()).clone()),
-            }),
+            Slot::Occupied(held) => Err(SeatingRefusal::duplicate(held.key())),
             Slot::Vacant(slot) => {
                 rev.insert(slot.key().clone());
                 slot.insert(Row {
@@ -519,13 +547,14 @@ impl NameTable {
         &mut self,
         name: NameRef,
         mut ents: Vec<EntityRef>,
-    ) -> Result<(), DuplicateName> {
+    ) -> Result<(), SeatingRefusal> {
+        for e in &ents {
+            SeatingRefusal::check_kind(&name, e)?;
+        }
         ents.sort_unstable();
         ents.dedup();
         if ents.len() < 2 {
-            return Err(DuplicateName {
-                name: Box::new((*name).clone()),
-            });
+            return Err(SeatingRefusal::duplicate(&name));
         }
         // Each candidate is a distinct live entity, so a tie of more
         // than `u32::MAX` of them needs that many entities in memory at
@@ -547,7 +576,7 @@ impl NameTable {
     ///
     /// # Errors
     ///
-    /// [`DuplicateName`] under [`NameTable::insert`]'s collisions, and
+    /// [`SeatingRefusal`] under [`NameTable::insert`]'s collisions, and
     /// for a list that repeats a candidate or an entity, is empty, or
     /// holds a strict name's [`Candidate::Only`] beside anything: a
     /// (name, candidate) pair names one entity.
@@ -555,10 +584,11 @@ impl NameTable {
         &mut self,
         name: NameRef,
         mut pairs: Vec<(Candidate, EntityRef)>,
-    ) -> Result<(), DuplicateName> {
-        let dup = |name: &NameRef| DuplicateName {
-            name: Box::new((**name).clone()),
-        };
+    ) -> Result<(), SeatingRefusal> {
+        for (_, e) in &pairs {
+            SeatingRefusal::check_kind(&name, e)?;
+        }
+        let dup = |name: &NameRef| SeatingRefusal::duplicate(name);
         pairs.sort_unstable_by_key(|&(_, e)| e);
         let mut ks = Vec::with_capacity(pairs.len());
         let mut ents = Vec::with_capacity(pairs.len());
@@ -595,26 +625,23 @@ impl NameTable {
         name: NameRef,
         ents: Vec<EntityRef>,
         ks: Box<[u32]>,
-    ) -> Result<(), DuplicateName> {
+    ) -> Result<(), SeatingRefusal> {
         use std::collections::btree_map::Entry as Slot;
         self.said = Said::default();
         self.lines = Lines::default();
         debug_assert_eq!(ents.len(), ks.len(), "one candidate per entity");
         for e in &ents {
-            if name.kind != e.key.kind() || self.reverse.contains_key(e) {
-                return Err(DuplicateName {
-                    name: Box::new((*name).clone()),
-                });
-            }
+            SeatingRefusal::check_kind(&name, e)?;
+        }
+        if ents.iter().any(|e| self.reverse.contains_key(e)) {
+            return Err(SeatingRefusal::duplicate(&name));
         }
         // The forward direction is searched once, as `insert_ref`'s is.
         // The reverse direction cannot be: a tie writes SEVERAL rows,
         // and the vacant slots for them cannot be held open at the same
         // time — so those keep the check-then-write pair.
         match self.forward.entry(name) {
-            Slot::Occupied(held) => Err(DuplicateName {
-                name: Box::new((**held.key()).clone()),
-            }),
+            Slot::Occupied(held) => Err(SeatingRefusal::duplicate(held.key())),
             Slot::Vacant(slot) => {
                 for e in &ents {
                     self.reverse.insert(*e, slot.key().clone());
@@ -637,11 +664,10 @@ impl NameTable {
     ///
     /// # Errors
     ///
-    /// [`DuplicateName`] if the name is already present (aliasing), or
-    /// (same type, same loudness) if the ENTITY is already named or
-    /// the kinds disagree — all three are emission bugs, never valid
-    /// states.
-    pub fn insert(&mut self, name: StableName, ent: EntityRef) -> Result<(), DuplicateName> {
+    /// [`SeatingRefusal::Duplicate`] if the name is already present
+    /// (aliasing) or the ENTITY is already named, and
+    /// [`SeatingRefusal::KindMismatch`] if the kinds disagree.
+    pub fn insert(&mut self, name: StableName, ent: EntityRef) -> Result<(), SeatingRefusal> {
         self.insert_ref(NameRef::new(name), ent)
     }
 
@@ -650,13 +676,14 @@ impl NameTable {
     ///
     /// # Errors
     ///
-    /// [`DuplicateName`] under the same collisions as
-    /// [`NameTable::insert`], or if fewer than 2 candidates remain.
+    /// [`SeatingRefusal`] under the same collisions as
+    /// [`NameTable::insert`], or [`SeatingRefusal::Duplicate`] if fewer
+    /// than 2 candidates remain.
     pub fn insert_tied(
         &mut self,
         name: StableName,
         ents: Vec<EntityRef>,
-    ) -> Result<(), DuplicateName> {
+    ) -> Result<(), SeatingRefusal> {
         self.insert_tied_ref(NameRef::new(name), ents)
     }
 
@@ -716,22 +743,28 @@ impl NameTable {
     ///
     /// # Errors
     ///
-    /// [`DuplicateName`], the insert doors' own. Not reachable by
+    /// [`SeatingRefusal`], the insert doors' own. Not reachable by
     /// construction — the source rows are distinct names over
     /// distinct entities within one body, and re-keying one body's
     /// rows keeps both distinct — but carried as the typed result
     /// rather than unwrapped: this crate has no panic paths.
-    pub fn project(&self, body: u32) -> Result<NameTable, DuplicateName> {
-        let rekey = |e: &EntityRef| EntityRef {
-            body: 0,
-            key: e.key,
-        };
+    pub fn project(&self, body: u32) -> Result<NameTable, SeatingRefusal> {
+        self.reindex(|b| (b == body).then_some(0))
+    }
+
+    /// The rows over the output bodies `onto` keeps, each re-indexed to
+    /// the body it answers: [`Self::project`] over several bodies at
+    /// once, so one copy that is a family keeps its members' rows.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::project`]'s.
+    pub fn reindex(&self, onto: impl Fn(u32) -> Option<u32>) -> Result<NameTable, SeatingRefusal> {
         let mut out = NameTable::new();
         for (name, row) in &self.forward {
             let kept: Vec<(Candidate, EntityRef)> = row
                 .pairs()
-                .filter(|(_, e)| e.body == body)
-                .map(|(c, e)| (c, rekey(&e)))
+                .filter_map(|(c, e)| onto(e.body).map(|body| (c, EntityRef { body, key: e.key })))
                 .collect();
             if !kept.is_empty() {
                 super::defer::narrow_into(&mut out, name.clone(), kept)?;
@@ -962,7 +995,7 @@ mod carrying_door {
     //! for every other writer — a split's flush, `project`.
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::{Candidate, EntityKey, EntityRef, Entry, NameTable};
+    use super::{Candidate, EntityKey, EntityRef, Entry, KindMismatch, NameTable, SeatingRefusal};
     use crate::names::role::{EntityKind, NameRef, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
     use Candidate::{Of, Only};
@@ -1022,6 +1055,79 @@ mod carrying_door {
         for (what, pairs) in refused {
             assert!(write(pairs).is_none(), "{what} must refuse");
         }
+    }
+
+    /// Every seating door refuses an entity of another kind than its
+    /// name's as that, not as a duplicate, and seats nothing.
+    #[test]
+    fn a_kind_mismatched_seating_refuses_as_a_kind_mismatch() {
+        let edge = |i| EntityRef {
+            body: 0,
+            key: EntityKey::Edge(topo::EdgeKey::from(slotmap::KeyData::from_ffi(i))),
+        };
+        let mismatch = SeatingRefusal::KindMismatch(KindMismatch {
+            name: Box::new((*name()).clone()),
+            found: EntityKind::Edge,
+        });
+        type Door = fn(&mut NameTable, EntityRef, EntityRef) -> Result<(), SeatingRefusal>;
+        let doors: [(&str, Door); 4] = [
+            ("insert", |t, e, _| t.insert((*name()).clone(), e)),
+            ("insert_tied", |t, e, f| {
+                t.insert_tied((*name()).clone(), vec![e, f])
+            }),
+            ("a carried strict row", |t, e, _| {
+                t.insert_candidates_ref(name(), vec![(Only, e)])
+            }),
+            ("a carried candidate", |t, e, _| {
+                t.insert_candidates_ref(name(), vec![(Of(0), e)])
+            }),
+        ];
+        for (door, seat) in doors {
+            let mut t = NameTable::new();
+            assert_eq!(
+                seat(&mut t, edge(1), edge(2)),
+                Err(mismatch.clone()),
+                "{door}: an edge under a face name"
+            );
+            assert!(t.iter().next().is_none(), "{door}: nothing is seated");
+            // The tied door's second candidate alone mismatched.
+            if door == "insert_tied" {
+                assert_eq!(
+                    seat(&mut t, face(1), edge(2)),
+                    Err(mismatch.clone()),
+                    "{door}: an edge beside a face"
+                );
+            }
+            // Doubly defective: the name is already held and its first
+            // candidate already seated, and the kind disagrees. The kind
+            // is checked first, whichever door and entity order.
+            let mut held = NameTable::new();
+            held.insert((*name()).clone(), face(1)).unwrap();
+            assert_eq!(
+                seat(&mut held, edge(1), edge(2)),
+                Err(mismatch.clone()),
+                "{door}: a held name under an edge"
+            );
+            if door == "insert_tied" {
+                assert_eq!(
+                    seat(&mut held, face(1), edge(2)),
+                    Err(mismatch.clone()),
+                    "{door}: a seated face beside an edge"
+                );
+            }
+        }
+        // A malformed list and a mismatch: still the mismatch.
+        let mut t = NameTable::new();
+        assert_eq!(
+            t.insert_candidates_ref(name(), vec![(Only, face(1)), (Only, edge(2))]),
+            Err(mismatch.clone()),
+            "two strict rows, one an edge"
+        );
+        assert_eq!(
+            t.insert_tied((*name()).clone(), vec![edge(1)]),
+            Err(mismatch),
+            "a one-candidate tie of an edge"
+        );
     }
 
     #[test]

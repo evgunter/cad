@@ -2,11 +2,12 @@
 id: the-census-parallel-test-reads-two-edges-through-one-point-end-to-end-as-a-near-parallel-pair
 kind: issue
 title: The census's parallel test levers the two edges' line angle at the shorter length, so two edges continuing each other through one point, or lying 3e-8 apart, escalate pm_census_ee_parallel
-status: open
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: M
 refs: [4335]
+closed: 2026-10-17
 ---
 
 ## What
@@ -51,3 +52,22 @@ asks of the collinear lane. A pair that meets only at a shared point, in
 opposite directions, then reads its two far ends as definitely apart.
 `census-edge-overlap-decides-parallel-and-line-gap-one-at-a-time` is the
 same lane's two-margin question.
+
+## Closed
+
+2026-10-17, RESTREAD's crossing lane. An in-band parallel screen is
+settled by the pair's overlap reading (`census::settle_in_band`, through
+`census::ee_meeting` and `census::parallel_overlap`): where
+`collinear_overlap` definitely refuses an overlap, neither of the
+screen's verdicts finds a meeting. Its parallel verdict reads that same
+overlap, and a crossing inside both spans lies over a positive length of
+both, on the run the overlap reading holds clear. Otherwise the screen's
+escalation is pushed as before. `collinear_overlap` reads the span first
+and the gap where the two run side by side (`census::overlap_gap`), so
+two edges end to end read an empty overlap and two segments apart read a
+definite gap. Measured on main `43cac0bf`: 368 `pm_census_ee_parallel`
+escalations at ε = 1e-9; none on the branch, at 1e-12 or 1e-6 either.
+Pinned by `census::edge_pairs_as_segments`
+`two_edges_end_to_end_through_one_point_are_apart` and
+`near_parallel_segments_three_bands_apart_are_apart`, with
+`near_parallel_segments_crossing_keep_their_escalation` as the control.

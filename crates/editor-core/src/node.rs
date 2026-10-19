@@ -7,13 +7,13 @@ use core::num::NonZeroUsize;
 use std::collections::BTreeMap;
 
 use crate::expr::{Dimension, Slot};
-use crate::operand::Bodies;
+use crate::mate::BundleRows as _;
+use crate::operand::{Bodies, ShapeRows as _};
 use crate::var::VarId;
 // The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
 // PR-1). Imported, never redefined: the boolean's own refusals must
 // carry the same words this node authors, and `crate::names::flush`
 // owns the single upward re-export.
-use topo::BooleanCoincidence;
 
 /// The [`Node`] variants whose payload REFERENCES no [`StableName`], as
 /// a PATTERN.
@@ -51,15 +51,17 @@ macro_rules! name_free_node {
             | $crate::node::Node::Chamfer { .. }
             | $crate::node::Node::Shell { .. }
             | $crate::node::Node::Split { .. }
+            | $crate::node::Node::Subtract { .. }
+            | $crate::node::Node::Union { .. }
+            | $crate::node::Node::Intersect { .. }
             | $crate::node::Node::Transform { .. }
-            | $crate::node::Node::PlaceInWorld { .. }
+            | $crate::node::Node::Place { .. }
+            | $crate::node::Node::World
             | $crate::node::Node::Pattern { .. }
             | $crate::node::Node::Part { .. }
             | $crate::node::Node::PlacedUnion { .. }
             | $crate::node::Node::Measure { .. }
             | $crate::node::Node::Assertion { .. }
-            | $crate::node::Node::Gauge { .. }
-            | $crate::node::Node::Mate { .. }
     };
 }
 
@@ -84,7 +86,33 @@ pub struct RecipeNodeId(pub MintId);
 )]
 pub struct StepId(pub MintId);
 
+/// **A constraint's identity** (D10, FORK-S3M): minted from the
+/// document's mint chain ([`crate::Mint`]) by the edit that adds it to
+/// a placement ([`crate::DocEdit::AddConstraint`]), never reused and
+/// never positional. A constraint is addressed by its placement and
+/// this id.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub struct ConstraintId(pub MintId);
+
+/// A constraint id is spoken by its ordinal, `#<ordinal>`: the mint
+/// never draws one twice, and a sentence always names the placement it
+/// is of, so the digest would add length and no information. Where the
+/// document is at hand, a constraint is spoken by its position in its
+/// bundle instead ([`crate::spoken::Speaker::mate`]).
+impl core::fmt::Display for ConstraintId {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "#{}", self.0.ordinal())
+    }
+}
+
 impl RecipeNodeId {
+    /// **The world's id** (D10): every document holds its world here,
+    /// from its creation. Ordinal zero, which the mint never draws, so
+    /// no inserted node can carry it.
+    pub const WORLD: Self = Self::new(0, 0);
+
     /// The node id with mint ordinal `ordinal` and digest head
     /// `digest` ([`MintId::new`]).
     #[must_use]
@@ -372,6 +400,9 @@ pub enum SlotId {
     ShellThickness,
     /// A revolve's sweep angle (Angle).
     RevolveAngle,
+    /// A revolve's axis heading: the angle of its axis line from the
+    /// profile's x axis, about the profile's normal (Angle).
+    AxisHeading,
     /// A derived frame's SPIN — the authored rotation of sketch +x
     /// about the face's outward normal, from the carrier's own
     /// u-reference (Angle). The one continuous slot a
@@ -430,17 +461,32 @@ pub enum SlotId {
         /// Which of the rigid step's components.
         arg: RigidArg,
     },
-    /// A component of a rigid step of a mate side's frame offset
-    /// ([`crate::MateFrame`]): `arg` of step `step` of side `side`'s
-    /// offset. A mate holds two placements, so its addresses carry
-    /// the side, and step 0 is addressed by its index like any other.
-    MateFrameStep {
-        /// Which side's frame.
-        side: crate::mate::MateSide,
-        /// The step's index in the offset's chain.
+    /// A slide's length in a mate's world read ([`crate::WorldRead`]):
+    /// the `step`th scalar of constraint `constraint`'s read, in
+    /// pre-order.
+    WorldSlide {
+        /// Which constraint of the placement.
+        constraint: ConstraintId,
+        /// The scalar's place in the read.
         step: usize,
-        /// Which of the rigid step's components.
-        arg: RigidArg,
+    },
+    /// A spin's angle in a mate's world read ([`crate::WorldRead`]),
+    /// addressed as [`SlotId::WorldSlide`] is.
+    WorldSpin {
+        /// Which constraint of the placement.
+        constraint: ConstraintId,
+        /// The scalar's place in the read.
+        step: usize,
+    },
+    /// A slide value's length ([`crate::mate::Value`]).
+    ValueSlide {
+        /// Which constraint of the placement: the value.
+        constraint: ConstraintId,
+    },
+    /// A spin value's angle ([`crate::mate::Value`]).
+    ValueSpin {
+        /// Which constraint of the placement: the value.
+        constraint: ConstraintId,
     },
     /// A linear pattern's instance spacing (Length).
     Spacing,
@@ -531,13 +577,6 @@ fn rigid_label(step: usize, noun: &str) -> String {
     }
 }
 
-/// **The prose of a mate side's offset component**, `noun`, at chain
-/// index `step` of side `side`'s offset — counted from one, as
-/// [`rigid_label`] counts.
-fn mate_step_label(side: crate::mate::MateSide, step: usize, noun: &str) -> String {
-    format!("side {} frame step {} {noun}", side.name(), step + 1)
-}
-
 /// A slot family whose members are the three COMPONENTS of one
 /// 3-vector — the vector-valued half of [`SlotId`], named once here so
 /// that a consumer wanting to treat `Origin(X)`, `Origin(Y)` and
@@ -589,22 +628,6 @@ pub enum VectorSlot {
         /// The step's index in the chain.
         step: usize,
     },
-    /// A rigid step's translation in a mate side's frame offset
-    /// ([`SlotId::MateFrameStep`]).
-    MateFrameTranslation {
-        /// Which side's frame.
-        side: crate::mate::MateSide,
-        /// The step's index in the offset's chain.
-        step: usize,
-    },
-    /// A rigid step's rotation axis in a mate side's frame offset
-    /// ([`SlotId::MateFrameStep`]).
-    MateFrameRotationAxis {
-        /// Which side's frame.
-        side: crate::mate::MateSide,
-        /// The step's index in the offset's chain.
-        step: usize,
-    },
 }
 
 impl VectorSlot {
@@ -619,16 +642,6 @@ impl VectorSlot {
             Self::V => SlotId::V(axis),
             Self::Translation { step } => SlotId::rigid(step, RigidArg::Translation(axis)),
             Self::RotationAxis { step } => SlotId::rigid(step, RigidArg::RotationAxis(axis)),
-            Self::MateFrameTranslation { side, step } => SlotId::MateFrameStep {
-                side,
-                step,
-                arg: RigidArg::Translation(axis),
-            },
-            Self::MateFrameRotationAxis { side, step } => SlotId::MateFrameStep {
-                side,
-                step,
-                arg: RigidArg::RotationAxis(axis),
-            },
         }
     }
 
@@ -647,10 +660,6 @@ impl VectorSlot {
             Self::V => "y axis".to_owned(),
             Self::Translation { step } => rigid_label(step, "translation"),
             Self::RotationAxis { step } => rigid_label(step, "rotation axis"),
-            Self::MateFrameTranslation { side, step } => mate_step_label(side, step, "translation"),
-            Self::MateFrameRotationAxis { side, step } => {
-                mate_step_label(side, step, "rotation axis")
-            }
         }
     }
 
@@ -705,6 +714,7 @@ impl SlotId {
             | Self::V(_)
             | Self::RotationAxis(_) => Dimension::Scalar,
             Self::RevolveAngle
+            | Self::AxisHeading
             | Self::Spin
             | Self::RotationAngle
             | Self::Step
@@ -714,9 +724,13 @@ impl SlotId {
                 Dimension::Count
             }
             // A later step's component has its step-0 twin's dimension.
-            Self::PlacementStep { arg, .. } | Self::MateFrameStep { arg, .. } => {
+            Self::PlacementStep { arg, .. } => {
                 return SlotId::rigid(0, arg).dimension();
             }
+            Self::WorldSlide { .. } => Dimension::Length,
+            Self::WorldSpin { .. } => Dimension::Angle,
+            Self::ValueSlide { .. } => Dimension::Length,
+            Self::ValueSpin { .. } => Dimension::Angle,
             // Profile-program roles carry V2's per-role table; none is
             // Count, so `is_structural` stays false for every StepArg:
             // program structure is the STEP LIST, which no slot
@@ -751,7 +765,8 @@ impl SlotId {
         self,
         expr: &crate::expr::ExprTree<L>,
     ) -> Option<SlotDimensionFault> {
-        (self.dimension() != Some(expr.dim())).then(|| SlotDimensionFault {
+        // A lone `0` stands at every slot's dimension (VR6).
+        (self.dimension() != Some(expr.dim()) && !expr.is_zero()).then(|| SlotDimensionFault {
             slot: self,
             expected: self.kind(),
             found: expr.dim(),
@@ -784,6 +799,7 @@ impl SlotId {
             Self::ChamferDistance => "chamfer distance".to_owned(),
             Self::ShellThickness => "shell thickness".to_owned(),
             Self::RevolveAngle => "revolve angle".to_owned(),
+            Self::AxisHeading => "axis heading".to_owned(),
             Self::Spin => "spin".to_owned(),
             Self::TubeMajorRadius => "tube major radius".to_owned(),
             Self::TubeMinorRadius => "tube minor radius".to_owned(),
@@ -808,10 +824,10 @@ impl SlotId {
                 Some((step, RigidArg::RotationAngle)) => rigid_label(step, "rotation angle"),
                 _ => String::from("component"),
             },
-            Self::MateFrameStep { side, step, arg } => match arg {
-                RigidArg::RotationAngle => mate_step_label(side, step, "rotation angle"),
-                RigidArg::Translation(_) | RigidArg::RotationAxis(_) => String::from("component"),
-            },
+            Self::WorldSlide { step, .. } => format!("world read slide {}", step + 1),
+            Self::WorldSpin { step, .. } => format!("world read spin {}", step + 1),
+            Self::ValueSlide { .. } => String::from("slide value"),
+            Self::ValueSpin { .. } => String::from("spin value"),
             // Every component variant answered above.
             Self::Origin(_)
             | Self::Normal(_)
@@ -850,20 +866,12 @@ impl SlotId {
                     (_, RigidArg::RotationAngle) => None,
                 }
             }
-            Self::MateFrameStep { side, step, arg } => match arg {
-                RigidArg::Translation(axis) => {
-                    Some((VectorSlot::MateFrameTranslation { side, step }, axis))
-                }
-                RigidArg::RotationAxis(axis) => {
-                    Some((VectorSlot::MateFrameRotationAxis { side, step }, axis))
-                }
-                RigidArg::RotationAngle => None,
-            },
             Self::Distance
             | Self::Radius
             | Self::ChamferDistance
             | Self::ShellThickness
             | Self::RevolveAngle
+            | Self::AxisHeading
             | Self::Spin
             | Self::TubeMajorRadius
             | Self::TubeMinorRadius
@@ -879,7 +887,11 @@ impl SlotId {
             | Self::Stations
             | Self::Operand(_)
             | Self::Index { .. }
-            | Self::Profile { .. } => None,
+            | Self::Profile { .. }
+            | Self::WorldSlide { .. }
+            | Self::WorldSpin { .. }
+            | Self::ValueSlide { .. }
+            | Self::ValueSpin { .. } => None,
         }
     }
 
@@ -900,10 +912,16 @@ impl SlotId {
         SlotId::PlacementStep { step, arg }
     }
 
-    /// Whether this slot addresses a step of a mate side's frame
-    /// offset — an address only a mate carries.
-    pub fn is_mate_frame_step(self) -> bool {
-        matches!(self, Self::MateFrameStep { .. })
+    /// Whether this slot addresses a scalar of a mate's world read —
+    /// an address only a mate carries.
+    pub fn is_world_read_step(self) -> bool {
+        matches!(self, Self::WorldSlide { .. } | Self::WorldSpin { .. })
+    }
+
+    /// Whether this slot addresses a value's number — an address only a
+    /// value carries.
+    pub fn is_value(self) -> bool {
+        matches!(self, Self::ValueSlide { .. } | Self::ValueSpin { .. })
     }
 
     /// The chain position and component a rigid step's slot addresses
@@ -1268,8 +1286,9 @@ pub enum PatternKind<S: Slot = crate::VarId> {
     },
     /// Instances stepped around a datum axis.
     Circular {
-        /// The axis revolved about ([`crate::OperandSlot::Axis`]).
-        axis: S::Read,
+        /// The axis revolved about ([`crate::OperandSlot::Axis`]): an
+        /// `Axis` read, or a frame's axis read through its role.
+        axis: crate::pose::RoleRead<S::Read>,
         /// Angular step between instances ([`SlotId::Step`]), signed
         /// by the right-hand rule about the axis, nonzero and within a
         /// turn.
@@ -1349,13 +1368,12 @@ macro_rules! expr_table {
             | Node::Union { .. }
             | Node::Intersect { .. }
             | Node::Transform { .. }
-            | Node::PlaceInWorld { .. }
+            | Node::Place { .. }
+            | Node::World
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
             | Node::InstantiatePart { .. }
-            | Node::Gauge { .. }
-            | Node::Mate { .. }
             | Node::Measure { .. }) => $other,
         }
     }};
@@ -1383,8 +1401,7 @@ use expr_table;
 /// name resolves against `at`'s own evaluated name table, through the
 /// N5 ladder every other authored name takes. `name` is a bare
 /// [`StableName`] because a measure reads a LENGTH between entities of
-/// any kind: a face, an edge, a vertex, a whole body. A declared pair's
-/// sides ([`DeclaredPair`]) are the other reader, and keep the shape.
+/// any kind: a face, an edge, a vertex, a whole body.
 ///
 /// A mate's side is authored in its own type, [`SitedFace`], which
 /// fixes the name's kind to a face and lowers the same way.
@@ -1395,17 +1412,15 @@ use expr_table;
 /// **`Rebind` never moves a reference's `at`.** `at` is a DAG edge
 /// the author chose, and an edit that rewrote it would be re-pointing
 /// a dependency behind the author's back; only the NAME is repaired
-/// (a measure's through its selection, `DocEdit::Rebind` with the
-/// selection's body; a declared pair's through
-/// `Node::rebind_payload_names`).
+/// (through its selection, `DocEdit::Rebind` with the selection's
+/// body).
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub struct SitedRef<At = RecipeNodeId> {
     /// Where the carrier is read: a measure's node, whose evaluated
-    /// value is the PLACED geometry when that node placed it, or a
-    /// declared pair's member read ([`DeclaredPair`]).
+    /// value is the PLACED geometry when that node placed it.
     pub at: At,
     /// The entity's stable name, resolved against `at`'s table.
     pub name: StableName,
@@ -1429,25 +1444,26 @@ impl SitedRef {
     }
 }
 
-/// **A mate side as an author writes it: a FACE name, and the node it
-/// is read at.**
+/// **A face as an author writes it for a mate: a FACE name, and the
+/// node it is read at.**
 ///
-/// [`SitedRef`]'s shape with the name's kind fixed by the type, because
-/// a mate declares a FACE-PAIR contact. It lowers
-/// (`impl From<SitedFace> for Operand`) to the read a mate stores: a
-/// one-name selection of `at`'s output, which the door mints as a
-/// `Face` variable, so the selection's body read is an ordinary DAG
-/// edge and the name resolves against `at`'s own evaluated table
-/// through the N5 ladder every other authored name takes.
+/// [`SitedRef`]'s shape with the name's kind fixed by the type. It
+/// lowers (`impl From<SitedFace> for Operand`) to a one-name selection
+/// of `at`'s output, which the door mints as a `Face` variable, so the
+/// selection's body read is an ordinary DAG edge and the name resolves
+/// against `at`'s own evaluated table through the N5 ladder every
+/// other authored name takes. A mate reads it inside a pose — the
+/// plane of the face ([`crate::pose::PoseDef::Plane`]).
 ///
 /// Where a face name comes from is [`FaceName`]'s own doc: the three
 /// boundaries that turn DATA into one, and the single in-crate door
 /// that re-derives one without re-asking the kind.
 ///
 /// ```
+/// use editor_core::pose::PoseDef;
 /// use editor_core::{
-///     Alignment, AxisSense, ContactClass, EntityKind, FaceName, MateFrame, MatePrimitive,
-///     Node, RecipeNodeId, SitedFace, StableName,
+///     ContactClass, EntityKind, FaceName, Formula, Mate, Operand, RecipeNodeId, SitedFace,
+///     StableName, Target,
 /// };
 /// let face = FaceName::new(StableName {
 ///     kind: EntityKind::Face,
@@ -1455,18 +1471,18 @@ impl SitedRef {
 ///     path: Vec::new(),
 /// })
 /// .expect("a face name is a face");
-/// let frame = MateFrame::from_face();
-/// let _: editor_core::AuthoredNode = Node::Mate {
-///     a: SitedFace::at_mint(face.clone()).into(),
-///     b: SitedFace::at_mint(face).into(),
+/// let plane = |face: FaceName| {
+///     Operand::Pose(Box::new(PoseDef::Plane {
+///         face: SitedFace::at_mint(face).into(),
+///     }))
+/// };
+/// let flipped = Operand::Pose(Box::new(PoseDef::Flip {
+///     pose: plane(face.clone()).into(),
+/// }));
+/// let _: Mate<Formula> = Mate {
+///     on: plane(face),
+///     to: Target::Pose(flipped),
 ///     class: ContactClass::Rest,
-///     alignment: Alignment {
-///         a: frame.clone(),
-///         b: frame,
-///         primitive: MatePrimitive::FrameCoincidence,
-///         sense: AxisSense::Aligned,
-///         clocking: None,
-///     },
 /// };
 /// ```
 ///
@@ -1701,7 +1717,7 @@ pub enum PlacementRuleFault {
     },
     /// An IMPROPER placement frame — determinant ≤ 0, i.e. a mirror
     /// (A6). Admitting one is gated on the equivariance audit R4 owns,
-    /// exactly as for a group placement.
+    /// exactly as for every other literal placement frame.
     ImproperFrame {
         /// Its index in the placement list.
         index: usize,
@@ -1832,15 +1848,16 @@ pub enum Node<P, S: Slot = crate::VarId> {
     ///
     /// # The axis is written in the profile's own plane
     ///
-    /// The axis of revolution is two coordinate pairs in the profile's
-    /// 2-D axes, and its lift to 3-D is the node's `axis` output. A
-    /// revolve's axis has to lie in the profile's plane, and a 3-D axis
-    /// would make that a coincidence the evaluator checks, a tolerance
-    /// decision on a direction residual that classifies a tilt in-plane
-    /// at one model scale and not another (the audit's F15 row). Four
-    /// numbers in the plane cannot leave it: the error is
-    /// unrepresentable rather than checked, and every axis a revolve
-    /// could legally take is expressible here.
+    /// The axis of revolution is a line in the profile's 2-D axes,
+    /// through a point at two lengths and along a heading, and its lift
+    /// to 3-D is the node's `axis` output. A revolve's axis has to lie in
+    /// the profile's plane, and a 3-D axis would make that a coincidence
+    /// the evaluator checks, a tolerance decision on a direction
+    /// residual that classifies a tilt in-plane at one model scale and
+    /// not another (the audit's F15 row). Two lengths and an angle in
+    /// the plane cannot leave it, and a heading cannot be a zero
+    /// direction: both errors are unrepresentable rather than checked,
+    /// and every axis a revolve could legally take is expressible here.
     Revolve {
         /// The profile node revolved.
         profile: S::Read,
@@ -1848,12 +1865,11 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// Length, [`SlotId::Origin`]`(X | Y)`. There is no `Z` slot:
         /// the third coordinate of a point in a plane is not a number
         /// somebody may type.
-        axis_origin: [S; 2],
-        /// The axis direction in the profile's 2-D coordinates —
-        /// Scalar, [`SlotId::Direction`]`(X | Y)`. The kernel's
-        /// `RevolveAxis` takes any definitely nonzero vector and
-        /// refuses a sliver at its own door.
-        axis_direction: [S; 2],
+        axis_through: [S; 2],
+        /// The axis's heading from the profile's x axis, about its
+        /// normal — Angle, [`SlotId::AxisHeading`]: `0` is along x and
+        /// `turn/4` along y.
+        axis_heading: S,
         /// Sweep angle ([`SlotId::RevolveAngle`]).
         angle: S,
     },
@@ -2073,8 +2089,9 @@ pub enum Node<P, S: Slot = crate::VarId> {
     Split {
         /// The body split.
         target: crate::BodyRead<S>,
-        /// The splitting tool.
-        tool: S::Read,
+        /// The splitting tool: a `Plane` read, or a frame's coordinate
+        /// plane read through its role.
+        tool: crate::pose::RoleRead<S::Read>,
     },
     /// **The union** (`crates/editor-core/REFERENCES.md` DM4): one
     /// argument of kind `Bodies` ([`Bodies`]), ONE body out, the fold of
@@ -2088,49 +2105,19 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// the rest. A union of one body builds that body with no boolean
     /// run, and of none the typed empty body.
     ///
-    /// # Contact, and the `declare` field
+    /// # Contact
     ///
     /// Contact is judged pairwise, before the fold: every two members
-    /// whose boxes meet, or between which a pair is declared, are
-    /// evaluated as the two-member union of just those two, with the
-    /// pairs declared between them, so two members that touch with the
-    /// contact undeclared glue or refuse exactly as a pair boolean's
-    /// operands do. That holds in every member order, and for a contact
-    /// a third member covers too. The fold then builds the body and
-    /// judges no contact of its own. Declarations are the pair
-    /// boolean's: declared pairs on this node
-    /// ([`DeclaredPair`], set on a live node by
-    /// [`crate::DocEdit::SetDeclare`]) name SITED entities
-    /// ([`SitedRef`]): an entity's name in a member's own table, with
-    /// that member's read beside it, so a declaration names nothing of
-    /// this node's own and survives every edit that leaves its members.
-    ///
-    /// It records no fold position: the step each pair is fed at is
-    /// derived from where its two sites sit in the list, so reordering
-    /// re-derives the routing. A pair whose site left the list refuses
-    /// at the next evaluation as a vanished name (N5), since
-    /// `SetMembers` leaves `declare` as it was. Two sites in one member,
-    /// or at a read spelled twice, are that member's carried contact,
-    /// fed at the step it joins at.
-    ///
-    /// A declared pair resolves at its step through the MERGES the fold
-    /// has performed: a member's face inside a `Merged` row by then
-    /// resolves to that row (N3: the set is flat, so the row is the same
-    /// whatever order the merges happened in). A pair one of whose
-    /// faces another member contained whole before the pair's step is
-    /// satisfied. A face that survives only in pieces has no unique
-    /// successor, and a pair naming it at a later step refuses
-    /// `Vanished` with [`crate::Diagnosis::ConsumedByFold`]; once every
-    /// piece is contained whole the pair is satisfied, so the refusal
-    /// is not monotone in what later members cover.
+    /// whose boxes meet are evaluated as the two-member union of just
+    /// those two, so two members that touch glue or refuse exactly as a
+    /// pair boolean's operands do, in every member order, and for a
+    /// contact a third member covers too. The fold reads each carrier
+    /// pair's verdict from that judgement, through its faces' member
+    /// lineage, and decides none of its own.
     Union {
         /// The members, in fold order (D9: the order is the list's, and
         /// the list is data).
         members: Bodies<crate::BodyRead<S>>,
-        /// The declared contact pairs. [`crate::DocEdit::SetMembers`]
-        /// leaves it as it was.
-        #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
-        declare: Vec<DeclaredPair>,
     },
     /// **The intersect** (DM4): the material in every member, over the
     /// kernel's intersection verb, judged and folded as [`Node::Union`]
@@ -2138,9 +2125,6 @@ pub enum Node<P, S: Slot = crate::VarId> {
     Intersect {
         /// The members, in fold order.
         members: Bodies<crate::BodyRead<S>>,
-        /// The declared contact pairs, as [`Node::Union`]'s.
-        #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
-        declare: Vec<DeclaredPair>,
     },
     /// **The subtract** (DM4): `from` cut by `tool`, the one pair node,
     /// since difference neither commutes nor associates. Several tools
@@ -2150,11 +2134,6 @@ pub enum Node<P, S: Slot = crate::VarId> {
         from: crate::BodyRead<S>,
         /// The body cut away.
         tool: crate::BodyRead<S>,
-        /// The declared contact pairs ([`DeclaredPair`]); empty is
-        /// undeclared. Set on a live node by
-        /// [`crate::DocEdit::SetDeclare`].
-        #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
-        declare: Vec<DeclaredPair>,
     },
     /// **A rigid placement of an upstream value** (F4: Transform):
     /// ONE map, its placement's motion, applied to every body the
@@ -2171,21 +2150,32 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// ([`crate::Placement`]; slots per step, [`SlotId::rigid`]).
         placement: crate::placement::Placement<S>,
     },
-    /// **A world placement** (D10, A10): one copy of a body in the
-    /// world. The product is every copy a placement defines, in the
-    /// placements' document order, and nothing else places.
+    /// **A placement** (D10, FORK-S3M): one copy of each of `shapes`
+    /// under the one rigid motion its constraints pin. It reads its
+    /// shapes as a union reads its operands, and defines one `Body`
+    /// output per shape, its copy, whose names are the shape's, each
+    /// qualified by the copy ([`crate::names::RoleSeg::Placed`]). Two
+    /// placements of one body are two copies.
     ///
-    /// It reads one `Body` and defines its copy, the body at `pose`, as
-    /// one `Body` output. Two placements of one body are two copies.
-    /// The copy's names are the body's, each qualified by the copy
-    /// ([`crate::names::RoleSeg::Placed`]).
-    PlaceInWorld {
-        /// The body placed.
-        body: crate::BodyRead<S>,
-        /// Where the copy sits: a rigid chain, as [`Node::Transform`]
-        /// holds; the identity when empty.
-        pose: crate::placement::Placement<S>,
+    /// Its constraints are addressed by their minted ids, never by
+    /// position, and are added and removed by their own edits
+    /// ([`crate::DocEdit::AddConstraint`]). Which copy a constraint
+    /// pins is which placement holds it, so a constraint has no role.
+    /// A copy whose bundle reaches the world through other copies is a
+    /// product copy; one whose bundle pins less than its body needs is
+    /// a loose copy, a space of its own (D10, Spaces).
+    Place {
+        /// The shapes copied, in the order written.
+        shapes: Vec<crate::BodyRead<S>>,
+        /// The bundle, in the order the edits added it.
+        constraints: Vec<crate::mate::Constraint<S>>,
     },
+    /// **The world** (D10): one undeletable node every document holds
+    /// from its creation, at [`RecipeNodeId::WORLD`]. It defines no
+    /// variable, so only a placement's mates read it
+    /// ([`crate::mate::Target::World`]), and export writes its
+    /// coordinates. It is not on the wire: every document has it.
+    World,
     /// **A pattern of an upstream value** with a STRUCTURAL
     /// Count-typed index expression (spec D3/A8; N1 `Instance(i)`
     /// will index it): the input is the MASTER, placed WHOLE at every
@@ -2269,13 +2259,9 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// seam rather than arriving from an upstream node, so it reads
     /// no operand and the DAG has nothing to schedule ahead of it.
     ///
-    /// **Where it sits** (A11 (2)): it names its [`Node::Gauge`] —
-    /// the world when `gauge` is `None` — and may carry an `offset` in
-    /// it. Its world pose is the gauge's frame composed with the offset
-    /// of its group's root, composed with its solved pose relative to
-    /// that root ([`crate::mate::SolvedPoses`]). An instance with no
-    /// offset sits where its mates place it, or, when nothing places
-    /// its group, in the group's own space.
+    /// **An instance is a placement** (D10): its copies sit where its
+    /// constraints pin them, and an instance whose bundle pins less
+    /// than its part needs is a loose copy, a space of its own.
     InstantiatePart {
         /// Which document, at which version (A4: the id answers "which
         /// part", the pin "which version of it"). Cargo.lock semantics
@@ -2291,84 +2277,14 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// the node's content key.
         #[serde(default, skip_serializing_if = "InterfaceRecord::is_empty")]
         interface: InterfaceRecord,
-        /// The gauge the instance sits on, `None` for the world. A
-        /// READING edge, like a mate's: it is not an input, so a gauge
-        /// is never consumed by what sits on it, and deleting it is
-        /// never refused. A reference to a deleted gauge is kept, so
-        /// the group it unplaces can name its cause. Required on the
-        /// wire, `null` for the world, so a file written before gauges
-        /// refuses typed rather than loading as unplaced.
-        #[serde(deserialize_with = "crate::persist::wire::present")]
-        gauge: Option<RecipeNodeId>,
-        /// The instance's offset in its gauge, `None` when it carries
-        /// none. On its group's root it places the group; on any other
-        /// member it is a statement the solve checks
-        /// ([`crate::mate::MateFault::OffsetDisagrees`]). Its rigid
-        /// steps are slots ([`SlotId::rigid`]). Required on the wire,
-        /// `null` for none, as `gauge` is.
-        #[serde(deserialize_with = "crate::persist::wire::present")]
-        offset: Option<crate::placement::Placement<S>>,
-    },
-    /// **A gauge** (A11 (2)): a frame that instances and other gauges
-    /// sit on. It denotes no body, so as a product root it contributes
-    /// nothing (A10). Its frame is its parent's frame composed with its
-    /// `placement`, the world's when `parent` is `None`; `parent` is a
-    /// READING edge, as an instance's `gauge` is. Its placement's rigid
-    /// steps are slots ([`SlotId::rigid`]), so a document parameter can
-    /// drive where everything on it sits.
-    Gauge {
-        /// The gauge this one sits on, `None` for the world.
-        parent: Option<RecipeNodeId>,
-        /// Where it sits on its parent.
-        placement: crate::placement::Placement<S>,
-    },
-    /// A **mate** between two instances (ASSEMBLY-DESIGN A3; ASM-R2a
-    /// D-1): one node carrying BOTH the placement constraint and the
-    /// contact declaration, so there is no second vocabulary to keep
-    /// synced.
-    ///
-    /// **Each side reads one `Face`** ([`crate::OperandSlot::Side`]):
-    /// a selection of the body the side is read in, stating that body
-    /// once, so a mate depends on what it reads exactly as every other
-    /// reader does (D10). The member a side lands on is the walk from
-    /// the selection's body down to its name's minting instance
-    /// ([`crate::mate::member_of`]): a transform mints no name (N1), so
-    /// a face read at a transform and one read at the instance carry
-    /// the same name, and the body read is what tells them apart. Two
-    /// mates from one instance through two different transforms are
-    /// two MEMBERS, and so are two mates onto two copies of one
-    /// pattern, at any depth of nesting; one placement spelled at two
-    /// bodies (a transform and a union above it naming that member, a
-    /// `Part` and the pattern it selects from) is one member.
-    ///
-    /// Deleting a side's body leaves the mate unresolved, reported at
-    /// the delete and refused at evaluation; a name that stops
-    /// resolving is the selection's typed refusal, repaired by
-    /// `Rebind`.
-    ///
-    /// **A mate's VALUE is the solve's answer for it** — its role when
-    /// the solve placed it, a typed refusal when the solve faulted it
-    /// — so that answer is one of the node's inputs and its content
-    /// key feeds it beside this payload (`eval`'s `SolveAnswer` is the
-    /// one home for why).
-    Mate {
-        /// The `a` side: one `Face` read, a face of one instance's
-        /// product in the body the mate is authored against.
-        a: S::Read,
-        /// The `b` side: a face of the other's.
-        b: S::Read,
-        /// The declared contact class — the KERNEL vocabulary (M9-1),
-        /// re-exported rather than re-minted, so a mate's declaration
-        /// is already the currency the boolean wrapper's records
-        /// speak. How far each class gets is
-        /// [`crate::mate::class_admission`], not a set restated here;
-        /// separately, a spelling this build has no name for refuses
-        /// typed at the wire door.
-        #[serde(with = "crate::persist::kernel_wire::contact_class")]
-        class: crate::mate::ContactClass,
-        /// Which frames coincide, with which axis senses, at which
-        /// clocking (A3's alignment datum).
-        alignment: crate::mate::Alignment<S>,
+        /// The bundle that pins the instance's copies (D10: an
+        /// instance of a part is a placement), addressed by minted id,
+        /// as a [`Node::Place`]'s is. Its copy side reads a face of the
+        /// instance's own output: the copied shape in the part's own
+        /// coordinates, which the solve reads off the part, never off
+        /// the copy (`mate::solve`'s `copy_side`).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        constraints: Vec<crate::mate::Constraint<S>>,
     },
     /// **A measurement** (ERROR-DESIGN E3): an operation holding one
     /// closed-form [`crate::MeasurePrimitive`] over two sited
@@ -2599,12 +2515,12 @@ macro_rules! node_rows {
             // may set.
             Node::Revolve {
                 profile: _,
-                axis_origin,
-                axis_direction,
+                axis_through,
+                axis_heading,
                 angle,
             } => {
-                axis_rows!(S::Origin, axis_origin, $out);
-                axis_rows!(S::Direction, axis_direction, $out);
+                axis_rows!(S::Origin, axis_through, $out);
+                $out.push((S::AxisHeading, axis_heading));
                 $out.push((S::RevolveAngle, angle));
             }
             Node::Tube {
@@ -2639,28 +2555,27 @@ macro_rules! node_rows {
             Node::Transform {
                 input: _,
                 placement,
-            }
-            | Node::Gauge {
-                parent: _,
-                placement,
             } => $out.extend(placement.$rows()),
-            Node::PlaceInWorld { body, pose } => {
-                $out.extend(pose.$rows());
-                index_rows!(O::Body, body, $rows, $out);
+            // A placement's slots are its shapes' indices, then each
+            // constraint's: a world read's scalars and a value's number,
+            // addressed by the constraint.
+            Node::Place {
+                shapes,
+                constraints,
+            } => {
+                for (seat, shape) in shapes.$rows() {
+                    index_rows!(seat, shape, $rows, $out);
+                }
+                $out.extend(constraints.$rows());
             }
-            // The offset's rigid steps are the instance's slots; the
-            // reference itself takes no arguments (AQ4 — the referenced
-            // document evaluates at its OWN parameters).
+            // The reference itself takes no arguments (AQ4 — the
+            // referenced document evaluates at its OWN parameters).
             Node::InstantiatePart {
                 doc_ref: _,
                 interface: _,
-                gauge: _,
-                offset,
-            } => {
-                if let Some(offset) = offset {
-                    $out.extend(offset.$rows())
-                }
-            }
+                constraints,
+            } => $out.extend(constraints.$rows()),
+            Node::World => {}
             // A pattern's count is a field, so it is always there; a
             // placed union's is an `Option`, and a rule missing the
             // count it needs carries no count SLOT either — the
@@ -2682,51 +2597,13 @@ macro_rules! node_rows {
                 select: PartSelect::Instance(index),
             } => $out.push((S::Instance, index)),
             Node::Split { target, tool: _ } => index_rows!(O::Target, target, $rows, $out),
-            Node::Subtract {
-                from,
-                tool,
-                declare: _,
-            } => {
+            Node::Subtract { from, tool } => {
                 index_rows!(O::From, from, $rows, $out);
                 index_rows!(O::Cut, tool, $rows, $out);
             }
-            Node::Union {
-                members,
-                declare: _,
-            }
-            | Node::Intersect {
-                members,
-                declare: _,
-            } => {
+            Node::Union { members } | Node::Intersect { members } => {
                 for (seat, member) in members.$rows() {
                     index_rows!(seat, member, $rows, $out);
-                }
-            }
-            // A mate's slots are its two frame offsets' rigid steps,
-            // each addressed by its side; the rest of the alignment
-            // datum is authored numbers, not slots.
-            Node::Mate {
-                a: _,
-                b: _,
-                class: _,
-                alignment,
-            } => {
-                let crate::mate::Alignment {
-                    a,
-                    b,
-                    primitive: _,
-                    sense: _,
-                    clocking: _,
-                } = alignment;
-                for (side, crate::mate::MateFrame { base: _, offset }) in
-                    [(crate::mate::MateSide::A, a), (crate::mate::MateSide::B, b)]
-                {
-                    for (slot, e) in offset.$rows() {
-                        let Some((step, arg)) = slot.rigid_arg() else {
-                            unreachable!("a placement's rows are rigid-step slots")
-                        };
-                        $out.push((S::MateFrameStep { side, step, arg }, e));
-                    }
                 }
             }
             // Neither carries a SLOT. A slot's address fixes its
@@ -2743,164 +2620,6 @@ macro_rules! node_rows {
             } => {}
         }
     }};
-}
-
-/// **One declared contact pair** (F5, CONTACT-DESIGN C4): two sited
-/// entities and the COINCIDENCE asserted between them — a contact of a
-/// class, or a continuation. A [`Node::Subtract`]'s, a
-/// [`Node::Union`]'s and a [`Node::Intersect`]'s `declare` payload is a list of these, and
-/// [`crate::DocEdit::SetDeclare`] replaces that list whole.
-///
-/// The class rides every pair rather than a node-level default: a
-/// declaration is "these two faces are in contact, of THIS kind" (or
-/// "these two faces are one surface carried on"), and one list may
-/// carry pairs of different kinds. A class-less pair is
-/// unrepresentable — defaulting would let a `Tangent` intent be
-/// verified against the conformal table.
-///
-/// **The names are references, not DAG edges** (spec D3 carve-out):
-/// [`crate::Doc::upstream`] does not include them. The edit door checks that
-/// every named node exists (a never-existed id is a typo), but a later
-/// edit MAY strand a name: that is NAMING-DESIGN N5's
-/// dangling-reference semantics — resolution fails loudly and
-/// [`crate::DocEdit::Rebind`] is the repair.
-///
-/// **A declared entity is SITED** (DM4): each side is a [`SitedRef`] —
-/// the entity's name, and the read it stands in, which is one of the
-/// node's own operands (a member's read, for a union; a seat's, for a
-/// subtract). The site is also the SIDE — a name carried by both
-/// operands says which one it means — so nothing about a declaration
-/// depends on the node's own name space.
-///
-/// **A declaration names only what exists before the node**: every
-/// door that writes a pair — the insert door,
-/// [`crate::DocEdit::SetDeclare`], [`crate::DocEdit::Rebind`] and the
-/// load door — refuses a name minted by the node itself or by a node
-/// after it in document order, and a site that is not one of the
-/// node's reads ([`declared_side_fault`]). Document order only
-/// grows at its end, so a name minted before the node stays so. A
-/// union's or an intersect's site alone can stop being an operand afterwards, when a
-/// [`crate::DocEdit::SetMembers`] drops the member it is read at: that
-/// is N5's stranded case, refused by the evaluation as a vanished name
-/// ([`crate::eval::NodeErrorKind::DeclareResolve`]).
-///
-/// **A union's own fold rows are therefore UNREPRESENTABLE here, not
-/// refused** — a `Seam`, a `Merged`, a `Fragment` or the output body of
-/// the union is minted by the union's evaluation and has no read it
-/// stands in. A pair of bare [`StableName`]s, which is the only spelling
-/// that could have named one, does not typecheck:
-///
-/// ```compile_fail,E0308
-/// let _: Vec<editor_core::DeclaredPair> =
-///     editor_core::declare_rest(vec![(named(), named())]);
-///
-/// fn named() -> editor_core::StableName {
-///     editor_core::StableName {
-///         kind: editor_core::EntityKind::Face,
-///         node: editor_core::RecipeNodeId::new(0, 0),
-///         path: Vec::new(),
-///     }
-/// }
-/// ```
-///
-/// **What that row proves, and what it does not.** Stable rustdoc
-/// checks only that the block FAILS to build; the `,E0308` beside it is
-/// not enforced, so a typo or a missing import would pass it just as
-/// well. The twin below is the same body with the ONE difference this
-/// claim is about — each side wrapped in a [`SitedRef`] — and it RUNS,
-/// so a defect anywhere but the side's type reddens here instead of
-/// satisfying the block above for the wrong reason.
-///
-/// ```
-/// let _: Vec<editor_core::DeclaredPair> =
-///     editor_core::declare_rest(vec![(sited(), sited())]);
-///
-/// fn sited() -> editor_core::SitedRef<editor_core::VarId> {
-///     editor_core::SitedRef::new(editor_core::VarId::new(1, 0), named())
-/// }
-///
-/// fn named() -> editor_core::StableName {
-///     editor_core::StableName {
-///         kind: editor_core::EntityKind::Face,
-///         node: editor_core::RecipeNodeId::new(0, 0),
-///         path: Vec::new(),
-///     }
-/// }
-/// ```
-///
-/// The persisted form is the other door the class could have come in
-/// through, and it refuses there instead of loading: the `Unreadable`
-/// detail is serde's own missing-field message
-/// (`a_declared_pair_side_that_is_a_bare_name_does_not_load`).
-pub type DeclaredPair = ((SitedRef<VarId>, SitedRef<VarId>), BooleanCoincidence);
-
-/// Why a node cannot carry a side of one of its declared pairs — the
-/// rule [`declared_side_fault`] states.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DeclaredSideFault {
-    /// The side stands in a read the carrier does not hold, so the
-    /// carrier has no table to read its name in.
-    SiteNotAnOperand,
-    /// The side's name is minted by a node the carrier does not read,
-    /// directly or through what it reads — an entity the carrier's
-    /// operands cannot hold.
-    NameNotUpstream,
-}
-
-/// **The first of `sides` its carrier cannot carry**, and why: the one
-/// rule the insert door, `SetDeclare`, `Rebind` and the load door ask of
-/// a declared pair's sides ([`DeclaredPair`], [`declared_sides`]).
-///
-/// `operands` are the nodes whose outputs the carrier reads, or `None`
-/// where the sites are not this caller's to judge — the load door's,
-/// since a later re-point may have stranded a site. `upstream` says
-/// whether a minter could be upstream of the carrier
-/// ([`DeclaredSideFault::NameNotUpstream`] states when not). A
-/// name whose minter is not live is a strand (DM7) and is not this
-/// rule's to judge: the doors that write a name refuse a dead minter
-/// before they ask this.
-pub(crate) fn declared_side_fault<'p>(
-    sides: impl IntoIterator<Item = &'p SitedRef<VarId>>,
-    operands: Option<&[VarId]>,
-    upstream: impl Fn(RecipeNodeId) -> bool,
-) -> Option<(&'p SitedRef<VarId>, DeclaredSideFault)> {
-    sides.into_iter().find_map(|side| {
-        if operands.is_some_and(|operands| !operands.contains(&side.at)) {
-            return Some((side, DeclaredSideFault::SiteNotAnOperand));
-        }
-        (!upstream(side.name.node)).then_some((side, DeclaredSideFault::NameNotUpstream))
-    })
-}
-
-/// The sides of `pairs`, in order: each pair's first side, then its
-/// second.
-pub(crate) fn declared_sides<'p>(
-    pairs: impl IntoIterator<Item = &'p DeclaredPair>,
-) -> impl Iterator<Item = &'p SitedRef<VarId>> {
-    pairs.into_iter().flat_map(|((one, two), _)| [one, two])
-}
-
-/// Declared pairs that each assert the CONFORMAL class.
-///
-/// This NAMES `Rest` at the call site; it does not default it: a reader
-/// of the call sees which of C4's classes is being claimed, and a pair
-/// that means something else cannot arrive here by omission. A
-/// mixed-class list is built directly.
-pub fn declare_rest(pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)>) -> Vec<DeclaredPair> {
-    pairs
-        .into_iter()
-        .map(|p| (p, BooleanCoincidence::REST))
-        .collect()
-}
-
-/// Declared pairs that each assert a CONTINUATION — one carrier,
-/// aligned senses: two stacked parts' outer walls. Named at the call
-/// site for the reason [`declare_rest`] gives.
-pub fn declare_continuation(pairs: Vec<(SitedRef<VarId>, SitedRef<VarId>)>) -> Vec<DeclaredPair> {
-    pairs
-        .into_iter()
-        .map(|p| (p, BooleanCoincidence::Continuation))
-        .collect()
 }
 
 impl<P: crate::program::SlotPayload<S>, S: Slot> Node<P, S> {
@@ -2995,7 +2714,7 @@ impl<S> crate::placement::Placement<S> {
 
 impl<P> Node<P> {
     /// **The operands this node reads**, each at its address, in field
-    /// order — the reads [`crate::Doc::reads`] lists first and
+    /// order — the reads `crate::Doc::reads` lists first and
     /// [`crate::Doc::upstream`] expands to the operations that define
     /// them, the one dependency relation the schedule, the content key,
     /// acyclicity and the cascade read.
@@ -3016,15 +2735,22 @@ impl<P> Node<P> {
         };
         match self {
             Node::Datum(Datum::FaceFrame { face, spin: _ }) => vec![(O::Face, *face)],
-            Node::Mate {
-                a,
-                b,
-                class: _,
-                alignment: _,
-            } => vec![
-                (O::Side(crate::mate::MateSide::A), *a),
-                (O::Side(crate::mate::MateSide::B), *b),
-            ],
+            // Each constraint's pose reads, in bundle order, `on` before
+            // a pose `to`; a world read reads no variable.
+            Node::InstantiatePart {
+                doc_ref: _,
+                interface: _,
+                constraints,
+            } => side_rows(constraints),
+            Node::Place {
+                shapes,
+                constraints,
+            } => {
+                let mut v: Vec<(O, VarId)> =
+                    shapes.rows().into_iter().map(|(o, r)| (o, r.read)).collect();
+                v.extend(side_rows(constraints));
+                v
+            }
             Node::Datum(
                 Datum::Plane {
                     origin: _,
@@ -3041,17 +2767,7 @@ impl<P> Node<P> {
                     v: _,
                 },
             )
-            // A gauge reference is a placement chain, not an operand.
-            | Node::InstantiatePart {
-                doc_ref: _,
-                interface: _,
-                gauge: _,
-                offset: _,
-            }
-            | Node::Gauge {
-                parent: _,
-                placement: _,
-            }
+            | Node::World
             // An assertion's value is a payload expression
             // ([`payload_exprs`]), not an operand.
             | Node::Assertion {
@@ -3067,8 +2783,8 @@ impl<P> Node<P> {
             } => vec![(O::Profile, *profile)],
             Node::Revolve {
                 profile,
-                axis_origin: _,
-                axis_direction: _,
+                axis_through: _,
+                axis_heading: _,
                 angle: _,
             } => vec![(O::Profile, *profile)],
             Node::Tube {
@@ -3108,26 +2824,22 @@ impl<P> Node<P> {
                 let [a, b] = primitive.refs();
                 vec![(O::Measured(verb, 0), *a), (O::Measured(verb, 1), *b)]
             }
-            Node::Split { target, tool } => vec![(O::Target, target.read), (O::Tool, *tool)],
+            Node::Split { target, tool } => vec![(O::Target, target.read), (O::Tool, tool.read)],
             Node::Subtract {
                 from,
                 tool,
-                declare: _,
             } => vec![(O::From, from.read), (O::Cut, tool.read)],
             // In LIST ORDER: the order is the fold's (D9).
             Node::Union {
                 members,
-                declare: _,
             }
             | Node::Intersect {
                 members,
-                declare: _,
             } => members.rows().into_iter().map(|(o, r)| (o, r.read)).collect(),
             Node::Transform {
                 input,
                 placement: _,
             } => vec![(O::Input, *input)],
-            Node::PlaceInWorld { body, pose: _ } => vec![(O::Body, body.read)],
             Node::Part { of, select: _ } => vec![(O::Of, *of)],
             Node::Pattern {
                 input,
@@ -3141,7 +2853,7 @@ impl<P> Node<P> {
             } => {
                 let mut v = vec![(O::Input, *input)];
                 if let PatternKind::Circular { axis, step: _ } = kind {
-                    v.push((O::Axis, *axis));
+                    v.push((O::Axis, axis.read));
                 }
                 v
             }
@@ -3166,15 +2878,23 @@ impl<P> Node<P> {
         // the writable twin cannot fall behind the reading one.
         match self {
             Node::Datum(Datum::FaceFrame { face, spin: _ }) => vec![(O::Face, face)],
-            Node::Mate {
-                a,
-                b,
-                class: _,
-                alignment: _,
-            } => vec![
-                (O::Side(crate::mate::MateSide::A), a),
-                (O::Side(crate::mate::MateSide::B), b),
-            ],
+            Node::InstantiatePart {
+                doc_ref: _,
+                interface: _,
+                constraints,
+            } => side_rows_mut(constraints),
+            Node::Place {
+                shapes,
+                constraints,
+            } => {
+                let mut v: Vec<(O, &mut VarId)> = shapes
+                    .rows_mut()
+                    .into_iter()
+                    .map(|(o, r)| (o, &mut r.read))
+                    .collect();
+                v.extend(side_rows_mut(constraints));
+                v
+            }
             Node::Datum(
                 Datum::Plane {
                     origin: _,
@@ -3191,16 +2911,7 @@ impl<P> Node<P> {
                     v: _,
                 },
             )
-            | Node::InstantiatePart {
-                doc_ref: _,
-                interface: _,
-                gauge: _,
-                offset: _,
-            }
-            | Node::Gauge {
-                parent: _,
-                placement: _,
-            }
+            | Node::World
             | Node::Assertion {
                 value: _,
                 bound: _,
@@ -3218,8 +2929,8 @@ impl<P> Node<P> {
             } => vec![(O::Profile, profile)],
             Node::Revolve {
                 profile,
-                axis_origin: _,
-                axis_direction: _,
+                axis_through: _,
+                axis_heading: _,
                 angle: _,
             } => vec![(O::Profile, profile)],
             Node::Tube {
@@ -3259,20 +2970,13 @@ impl<P> Node<P> {
                 let [a, b] = primitive.refs_mut();
                 vec![(O::Measured(verb, 0), a), (O::Measured(verb, 1), b)]
             }
-            Node::Split { target, tool } => vec![(O::Target, &mut target.read), (O::Tool, tool)],
-            Node::Subtract {
-                from,
-                tool,
-                declare: _,
-            } => vec![(O::From, &mut from.read), (O::Cut, &mut tool.read)],
-            Node::Union {
-                members,
-                declare: _,
+            Node::Split { target, tool } => {
+                vec![(O::Target, &mut target.read), (O::Tool, &mut tool.read)]
             }
-            | Node::Intersect {
-                members,
-                declare: _,
-            } => members
+            Node::Subtract { from, tool } => {
+                vec![(O::From, &mut from.read), (O::Cut, &mut tool.read)]
+            }
+            Node::Union { members } | Node::Intersect { members } => members
                 .rows_mut()
                 .into_iter()
                 .map(|(o, r)| (o, &mut r.read))
@@ -3281,7 +2985,6 @@ impl<P> Node<P> {
                 input,
                 placement: _,
             } => vec![(O::Input, input)],
-            Node::PlaceInWorld { body, pose: _ } => vec![(O::Body, &mut body.read)],
             Node::Part { of, select: _ } => vec![(O::Of, of)],
             Node::Pattern {
                 input,
@@ -3295,7 +2998,7 @@ impl<P> Node<P> {
             } => {
                 let mut v = vec![(O::Input, input)];
                 if let PatternKind::Circular { axis, step: _ } = kind {
-                    v.push((O::Axis, axis));
+                    v.push((O::Axis, &mut axis.read));
                 }
                 v
             }
@@ -3322,17 +3025,6 @@ impl<P> Node<P> {
         AssertionBoundFault::against(dim(value)?, dim(bound)?)
     }
 
-    /// Whether this node is a mate whose alignment datum carries a
-    /// coordinate no predicate can decide on (ASM-R2a D-1).
-    ///
-    /// [`crate::mate::Alignment::is_finite`] is the rule; this is the
-    /// one place a NODE is asked it, so the edit door and the load
-    /// door's walk share the destructuring as well as the test.
-    /// `false` for every node that is not a [`Node::Mate`].
-    pub(crate) fn has_non_finite_alignment(&self) -> bool {
-        matches!(self, Node::Mate { alignment, .. } if !alignment.is_finite())
-    }
-
     /// **What is wrong with this node's indexed reads**, if anything:
     /// an index at a family argument, or a read carrying other than its
     /// family's rank of indices.
@@ -3351,7 +3043,7 @@ impl<P> Node<P> {
         // every family a node defines today), and a family argument none.
         if let Node::Union { members, .. } | Node::Intersect { members, .. } = self
             && let crate::Bodies::Family(read) = members
-            && read.is_indexed()
+            && read.is_member()
         {
             return Some(InputFault::IndexedFamily);
         }
@@ -3365,8 +3057,8 @@ impl<P> Node<P> {
 
     /// Rewrites every payload reference EXACTLY equal to `from` into
     /// `to`, returning how many it rewrote — `Rebind`'s reach into the
-    /// names a node still carries (declared pairs, an instance's
-    /// crossings); a selection's names are the document's
+    /// names a node still carries (an instance's crossings); a
+    /// selection's names are the document's
     /// ([`crate::Doc::rewrite_selection_names`]).
     ///
     /// [`Node::rewrite_payload_names`] under the one-pair map; that
@@ -3399,18 +3091,6 @@ impl<P> Node<P> {
         &mut self,
         map: &mut dyn FnMut(&StableName) -> Option<StableName>,
     ) -> usize {
-        fn rewrite(
-            name: &mut StableName,
-            map: &mut dyn FnMut(&StableName) -> Option<StableName>,
-        ) -> usize {
-            match map(name) {
-                Some(next) => {
-                    *name = next;
-                    1
-                }
-                None => 0,
-            }
-        }
         /// A FACE-typed payload name rewritten through `map`, or
         /// `None` where the map leaves it — the re-derivation an
         /// instance's crossing `outer`s use.
@@ -3435,18 +3115,6 @@ impl<P> Node<P> {
         }
         let mut hits = 0usize;
         match self {
-            // The NAME rewrites; the SITE stays. A site is the node
-            // the author chose to read the entity at — an operand of
-            // the consumer — and moving it would re-author which
-            // member the declaration is about, which is not a repair
-            // for a name whose minting node went away.
-            Node::Subtract { declare, .. }
-            | Node::Union { declare, .. }
-            | Node::Intersect { declare, .. } => {
-                for r in declare.iter_mut().flat_map(|((a, b), _)| [a, b]) {
-                    hits += rewrite(&mut r.name, map);
-                }
-            }
             // An instance's crossing `outer`s — the reading twin's
             // list, rewritten. No re-canonicalization: a record is
             // ordered by the split's collection order and each
@@ -3470,24 +3138,11 @@ impl<P> Node<P> {
         hits
     }
 
-    /// **The gauge reference this node reads**, where it has one: an
-    /// instance's gauge, or a gauge's parent. `None` is the world —
-    /// and for every other node kind, which sits on nothing.
-    pub fn gauge_ref(&self) -> Option<RecipeNodeId> {
-        match self {
-            Node::InstantiatePart { gauge, .. } => *gauge,
-            Node::Gauge { parent, .. } => *parent,
-            _ => None,
-        }
-    }
-
     /// **The placement this node holds**, where it holds one: a
-    /// transform's, a gauge's, or an instance's offset when it carries
-    /// one.
+    /// transform's.
     pub fn held_placement(&self) -> Option<&crate::placement::Placement> {
         match self {
-            Node::Transform { placement, .. } | Node::Gauge { placement, .. } => Some(placement),
-            Node::InstantiatePart { offset, .. } => offset.as_ref(),
+            Node::Transform { placement, .. } => Some(placement),
             _ => None,
         }
     }
@@ -3496,30 +3151,15 @@ impl<P> Node<P> {
     /// admission rule refuses at `tol`, with where it sits
     /// ([`crate::Placement::frame_fault`]) — the one question the edit
     /// door and the load door ask of a node's literal steps: a
-    /// transform's, a gauge's, an instance's offset, and each of a
-    /// mate's two frame offsets, side `a` first. `None` for every node
-    /// without a placement.
+    /// transform's. A mate holds no frame (FORK-S3M). `None` for every
+    /// node without one.
     pub fn placement_frame_fault(
         &self,
         tol: geom_core::Tol,
     ) -> Option<(crate::placement::FrameSite, crate::placement::FrameFault)> {
         let step = |(index, fault)| (crate::placement::FrameSite::Step { index }, fault);
         match self {
-            Node::Transform { placement, .. }
-            | Node::PlaceInWorld {
-                pose: placement, ..
-            }
-            | Node::Gauge { placement, .. } => placement.frame_fault(tol).map(step),
-            Node::InstantiatePart { offset, .. } => offset.as_ref()?.frame_fault(tol).map(step),
-            Node::Mate { alignment, .. } => [
-                (crate::mate::MateSide::A, &alignment.a),
-                (crate::mate::MateSide::B, &alignment.b),
-            ]
-            .into_iter()
-            .find_map(|(side, frame)| {
-                let (index, fault) = frame.offset.frame_fault(tol)?;
-                Some((crate::placement::FrameSite::MateStep { side, index }, fault))
-            }),
+            Node::Transform { placement, .. } => placement.frame_fault(tol).map(step),
             // EXHAUSTIVE, as `placement_rule_fault` is: a node kind that
             // comes to hold a placement is classified here or the
             // compile breaks, rather than slipping past both doors.
@@ -3541,6 +3181,9 @@ impl<P> Node<P> {
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
+            | Node::Place { .. }
+            | Node::InstantiatePart { .. }
+            | Node::World
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
         }
@@ -3672,7 +3315,7 @@ impl<S: Slot> PatternKind<S> {
                 spacing: f(spacing)?,
             },
             PatternKind::Circular { axis, step } => PatternKind::Circular {
-                axis: read(crate::OperandSlot::Axis, axis)?,
+                axis: axis.try_map(|axis| read(crate::OperandSlot::Axis, axis))?,
                 step: f(step)?,
             },
             PatternKind::Explicit(frames) => PatternKind::Explicit(frames.clone()),
@@ -3715,7 +3358,9 @@ pub enum PortKind {
     /// This kind.
     Of(crate::VarKind),
     /// A [`Node::Transform`]'s value, which has the shape of the
-    /// variable it reads: `Bodies` over a `Bodies`, `Body` otherwise.
+    /// variable it reads: `Bodies` over a `Bodies`, `Body` otherwise;
+    /// and a [`Node::Place`]'s, which has its one shape's shape, and is
+    /// `Bodies` over several (their copies, keyed by read).
     ///
     /// Read off the operand once, at the insert that mints the output;
     /// from then on the output's stored kind is the fact (VR3: a kind
@@ -3741,8 +3386,11 @@ impl<P, S: Slot> Node<P, S> {
     /// port ([`crate::Doc::output`]).
     ///
     /// A [`Node::Transform`]'s one port has its operand's shape:
-    /// `Bodies` over a `Bodies`, `Body` otherwise ([`PortKind::Placed`]). An instance defines one
-    /// `body` until world placements give it one per placement.
+    /// `Bodies` over a `Bodies`, `Body` otherwise ([`PortKind::Placed`]),
+    /// and so has a [`Node::Place`]'s over one shape; over several it is
+    /// their copies keyed by read. An instance defines one `copies`, the
+    /// part's world copies keyed by their identity in the part
+    /// ([`crate::CopyKey`]). No port count depends on a list.
     ///
     /// Exhaustive over the variants, so one added does not compile
     /// until it states what it defines.
@@ -3770,7 +3418,13 @@ impl<P, S: Slot> Node<P, S> {
                 name: "body",
                 kind: PortKind::Placed,
             }],
-            Self::PlaceInWorld { .. } => vec![OutputPort::of("copy", VarKind::Body)],
+            // One port of its reads' shape, however many it copies.
+            Self::Place { .. } => vec![OutputPort {
+                name: "copies",
+                kind: PortKind::Placed,
+            }],
+            // The part's world copies, keyed by their identity there.
+            Self::InstantiatePart { .. } => vec![OutputPort::of("copies", VarKind::Bodies)],
             Self::Measure { primitive } => {
                 vec![OutputPort::of("value", VarKind::from(primitive.dim()))]
             }
@@ -3786,9 +3440,8 @@ impl<P, S: Slot> Node<P, S> {
             | Self::Union { .. }
             | Self::Intersect { .. }
             | Self::Part { .. }
-            | Self::PlacedUnion { .. }
-            | Self::InstantiatePart { .. } => vec![BODY],
-            Self::Gauge { .. } | Self::Mate { .. } | Self::Assertion { .. } => Vec::new(),
+            | Self::PlacedUnion { .. } => vec![BODY],
+            Self::World | Self::Assertion { .. } => Vec::new(),
         }
     }
 }
@@ -3840,13 +3493,13 @@ impl<P, S: Slot> Node<P, S> {
             },
             Node::Revolve {
                 profile,
-                axis_origin,
-                axis_direction,
+                axis_through,
+                axis_heading,
                 angle,
             } => Node::Revolve {
                 profile: read(O::Profile, profile)?,
-                axis_origin: map_array(axis_origin, f)?,
-                axis_direction: map_array(axis_direction, f)?,
+                axis_through: map_array(axis_through, f)?,
+                axis_heading: f(axis_heading)?,
                 angle: f(angle)?,
             },
             Node::Tube {
@@ -3905,33 +3558,36 @@ impl<P, S: Slot> Node<P, S> {
             },
             Node::Split { target, tool } => Node::Split {
                 target: target.try_map(O::Target, f, read)?,
-                tool: read(O::Tool, tool)?,
+                tool: tool.try_map(|tool| read(O::Tool, tool))?,
             },
-            Node::Subtract {
-                from,
-                tool,
-                declare,
-            } => Node::Subtract {
+            Node::Subtract { from, tool } => Node::Subtract {
                 from: from.try_map(O::From, f, read)?,
                 tool: tool.try_map(O::Cut, f, read)?,
-                declare: declare.clone(),
             },
-            Node::Union { members, declare } => Node::Union {
+            Node::Union { members } => Node::Union {
                 members: members.try_map(|o, r| r.try_map(o, f, read))?,
-                declare: declare.clone(),
             },
-            Node::Intersect { members, declare } => Node::Intersect {
+            Node::Intersect { members } => Node::Intersect {
                 members: members.try_map(|o, r| r.try_map(o, f, read))?,
-                declare: declare.clone(),
             },
             Node::Transform { input, placement } => Node::Transform {
                 input: read(O::Input, input)?,
                 placement: placement.try_map_slots(f)?,
             },
-            Node::PlaceInWorld { body, pose } => Node::PlaceInWorld {
-                body: body.try_map(O::Body, f, read)?,
-                pose: pose.try_map_slots(f)?,
+            Node::Place {
+                shapes,
+                constraints,
+            } => Node::Place {
+                shapes: shapes
+                    .iter()
+                    .enumerate()
+                    .map(|(i, shape)| {
+                        shape.try_map(O::Shape(u32::try_from(i).unwrap_or(u32::MAX)), f, read)
+                    })
+                    .collect::<Result<_, _>>()?,
+                constraints: map_constraints(constraints, f, read)?,
             },
+            Node::World => Node::World,
             Node::Pattern { input, count, kind } => Node::Pattern {
                 input: read(O::Input, input)?,
                 count: f(count)?,
@@ -3949,28 +3605,11 @@ impl<P, S: Slot> Node<P, S> {
             Node::InstantiatePart {
                 doc_ref,
                 interface,
-                gauge,
-                offset,
+                constraints,
             } => Node::InstantiatePart {
                 doc_ref: *doc_ref,
                 interface: interface.clone(),
-                gauge: *gauge,
-                offset: offset.as_ref().map(|o| o.try_map_slots(f)).transpose()?,
-            },
-            Node::Gauge { parent, placement } => Node::Gauge {
-                parent: *parent,
-                placement: placement.try_map_slots(f)?,
-            },
-            Node::Mate {
-                a,
-                b,
-                class,
-                alignment,
-            } => Node::Mate {
-                a: read(O::Side(crate::mate::MateSide::A), a)?,
-                b: read(O::Side(crate::mate::MateSide::B), b)?,
-                class: *class,
-                alignment: alignment.try_map_slots(f)?,
+                constraints: map_constraints(constraints, f, read)?,
             },
             Node::Measure { primitive } => {
                 let verb = primitive.kind();
@@ -4006,7 +3645,7 @@ impl<P, S: Slot> Node<P, S> {
             Node::Split { target, .. } => vec![(O::Target, target)],
             Node::Subtract { from, tool, .. } => vec![(O::From, from), (O::Cut, tool)],
             Node::Union { members, .. } | Node::Intersect { members, .. } => members.rows(),
-            Node::PlaceInWorld { body, .. } => vec![(O::Body, body)],
+            Node::Place { shapes, .. } => shapes.rows(),
             Node::Datum(
                 Datum::Plane { .. }
                 | Datum::Axis { .. }
@@ -4029,8 +3668,7 @@ impl<P, S: Slot> Node<P, S> {
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
             | Node::InstantiatePart { .. }
-            | Node::Gauge { .. }
-            | Node::Mate { .. }
+            | Node::World
             | Node::Measure { .. }
             | Node::Assertion { .. } => Vec::new(),
         }
@@ -4042,14 +3680,102 @@ impl<P, S: Slot> Node<P, S> {
         find_row(self.body_reads(), seat)
     }
 
+    /// [`Self::body_read`], exclusive.
+    pub fn body_read_mut(&mut self, seat: crate::OperandSlot) -> Option<&mut crate::BodyRead<S>> {
+        use crate::OperandSlot as O;
+        match (self, seat) {
+            (Node::Split { target, .. }, O::Target) => Some(target),
+            (Node::Subtract { from, .. }, O::From) => Some(from),
+            (Node::Subtract { tool, .. }, O::Cut) => Some(tool),
+            (Node::Union { members, .. } | Node::Intersect { members, .. }, _) => members
+                .rows_mut()
+                .into_iter()
+                .find_map(|(at, read)| (at == seat).then_some(read)),
+            (Node::Place { shapes, .. }, _) => shapes
+                .rows_mut()
+                .into_iter()
+                .find_map(|(at, read)| (at == seat).then_some(read)),
+            _ => None,
+        }
+    }
+
     /// **The kinds the variable read at operand `seat` may have**: the
     /// seat's own ([`crate::OperandSlot::kind`]), except at a body seat
     /// whose read is indexed, where the variable read is the family
     /// ([`crate::BodyRead::kind`]). Every door that writes or loads a
     /// read asks this.
     pub fn seat_kind(&self, seat: crate::OperandSlot) -> crate::SlotKind {
+        if let Some(role) = self.seat_role(seat) {
+            return crate::SlotKind::Is(role.of());
+        }
         self.body_read(seat)
             .map_or_else(|| seat.kind(), |read| read.kind(seat))
+    }
+
+    /// **The first seat whose read's role yields a kind the seat does
+    /// not admit** (a frame's x axis at a split's tool), with the kind it
+    /// yields: what both doors refuse as the seat's kind fault.
+    #[must_use]
+    pub fn seat_role_fault(&self) -> Option<(crate::OperandSlot, crate::VarKind)> {
+        self.role_seats().into_iter().find_map(|(seat, role)| {
+            let role = role?;
+            crate::pose::role_kind(role.of(), role, seat.kind())
+                .is_none()
+                .then_some((seat, role.kind()))
+        })
+    }
+
+    /// **The role the read at `seat` reads through** (D10), `None` for
+    /// a plain read or a seat that reads no pose: a split's tool or a
+    /// ring's axis read off a frame.
+    #[must_use]
+    pub fn seat_role(&self, seat: crate::OperandSlot) -> Option<crate::pose::PoseRole> {
+        self.role_seats()
+            .into_iter()
+            .find_map(|(at, role)| (at == seat).then_some(role).flatten())
+    }
+
+    /// **Every seat whose read carries a role**, with the role it reads
+    /// through: the one list both [`Self::seat_role`] and
+    /// [`Self::seat_role_fault`] read.
+    fn role_seats(&self) -> Vec<(crate::OperandSlot, Option<crate::pose::PoseRole>)> {
+        use crate::OperandSlot as O;
+        match self {
+            Node::Split { tool, .. } => vec![(O::Tool, tool.role)],
+            Node::Pattern {
+                kind: PatternKind::Circular { axis, .. },
+                ..
+            }
+            | Node::PlacedUnion {
+                kind: PatternKind::Circular { axis, .. },
+                ..
+            } => vec![(O::Axis, axis.role)],
+            _ => Vec::new(),
+        }
+    }
+
+    /// The role of the read at `seat`, writable: what a re-point of
+    /// that read clears, since the read it writes is replaced whole.
+    pub(crate) fn seat_role_mut(
+        &mut self,
+        seat: crate::OperandSlot,
+    ) -> Option<&mut Option<crate::pose::PoseRole>> {
+        use crate::OperandSlot as O;
+        match (self, seat) {
+            (Node::Split { tool, .. }, O::Tool) => Some(&mut tool.role),
+            (
+                Node::Pattern {
+                    kind: PatternKind::Circular { axis, .. },
+                    ..
+                }
+                | Node::PlacedUnion {
+                    kind: PatternKind::Circular { axis, .. },
+                    ..
+                },
+                O::Axis,
+            ) => Some(&mut axis.role),
+            _ => None,
+        }
     }
 }
 
@@ -4181,7 +3907,7 @@ impl<P, S: Slot> Node<P, S> {
         let frames = self.placement_rule()?.1.placements()?;
         // The list IS the count, so an EMPTY list is the explicit
         // rule's `count < 1` — refused for the same reason
-        // `NonPositiveCount` refuses a stepped rule's zero, rather
+        // `CountOutOfRange` refuses a stepped rule's zero, rather
         // than quietly denoting an empty body (LIB-PLACEDUNION review
         // MAJOR-1).
         if frames.is_empty() {
@@ -4260,18 +3986,17 @@ impl<P, S: Slot> Node<P, S> {
             | Node::Union { .. }
             | Node::Intersect { .. }
             | Node::Transform { .. }
-            | Node::PlaceInWorld { .. }
+            | Node::Place { .. }
+            | Node::World
             | Node::Part { .. }
             | Node::InstantiatePart { .. }
-            | Node::Gauge { .. }
-            | Node::Mate { .. }
             | Node::Measure { .. }
             | Node::Assertion { .. } => None,
         }
     }
 
-    /// The [`StableName`]s this payload REFERENCES — declared pairs and
-    /// an instance's interface crossings' `outer`s; a
+    /// The [`StableName`]s this payload REFERENCES — an instance's
+    /// interface crossings' `outer`s; a
     /// name read through a slot is a selection's
     /// ([`crate::VarDef::Select`]), not a payload's. Document data, never DAG
     /// edges ([`crate::Doc::upstream`] excludes them): the edit door checks at
@@ -4303,22 +4028,13 @@ impl<P, S: Slot> Node<P, S> {
     /// document" and points here.
     pub fn payload_names(&self) -> Vec<&StableName> {
         match self {
-            // A declared pair's two NAMES. The sites beside them
-            // are node ids, not names, and are listed by
-            // [`Node::payload_read_sites`].
-            Node::Subtract { declare, .. }
-            | Node::Union { declare, .. }
-            | Node::Intersect { declare, .. } => declare
-                .iter()
-                .flat_map(|((a, b), _)| [&a.name, &b.name])
-                .collect(),
             // An instance's interface record: each crossing's `outer`,
             // in record order.
             //
             // An `outer` is a REMAINDER name — it denotes a face in
             // THIS document, on a node this document can delete and
             // under a name this document can rebind — so it is a
-            // payload name like a declared side, and the same FOUR
+            // payload name, and the same FOUR
             // doors reach it: the insert door's liveness check,
             // `DocEdit::Rebind`, DM7's strand report, and `split`'s
             // `PartNameReachesRemainder` precondition, which refuses
@@ -4349,7 +4065,7 @@ impl<P, S: Slot> Node<P, S> {
     }
 
     /// **The nodes a payload's references are READ AT that are not
-    /// also DAG inputs** — a declared pair's two sites.
+    /// also DAG inputs** — none of today's payloads has one.
     ///
     /// The insert door checks these are live exactly as it checks a
     /// payload name's head, and for the same reason: a never-existed
@@ -4357,10 +4073,6 @@ impl<P, S: Slot> Node<P, S> {
     /// dangling case, refused at evaluation rather than at the edit.
     pub fn payload_read_sites(&self) -> Vec<RecipeNodeId> {
         match self {
-            // A declared pair's sites are reads, which the doors hold to
-            // the node's own operands; a site a later edit strands is the
-            // EVALUATION's refusal.
-            Node::Subtract { .. } | Node::Union { .. } | Node::Intersect { .. } => Vec::new(),
             // EXHAUSTIVE, with no wildcard, so a new [`Node`] variant
             // is classified here or does not compile. The name-free
             // variants reference nothing that could have a read site
@@ -4379,19 +4091,6 @@ impl<P, S: Slot> Node<P, S> {
         self.payload_names().iter().map(|name| name.node).collect()
     }
 
-    /// The node's declared pairs ([`DeclaredPair`]): a Boolean's or a
-    /// Union's own payload, and empty for every other kind, which
-    /// declares nothing.
-    #[must_use]
-    pub fn declared_pairs(&self) -> &[DeclaredPair] {
-        match self {
-            Node::Subtract { declare, .. }
-            | Node::Union { declare, .. }
-            | Node::Intersect { declare, .. } => declare,
-            _ => &[],
-        }
-    }
-
     /// **Where name `reference` of the selection this node reads at
     /// `slot` sits, as a person reads it**: the node's own noun and the
     /// place — `("fillet", "edge 2")`, `("frame", "face")` — for a
@@ -4404,108 +4103,50 @@ impl<P, S: Slot> Node<P, S> {
         reference: usize,
     ) -> Option<(&'static str, String)> {
         use crate::OperandSlot as O;
-        match (self, slot) {
-            (Node::Fillet { .. }, O::Selection) => Some(("fillet", format!("edge {reference}"))),
-            (Node::Chamfer { .. }, O::Selection) => Some(("chamfer", format!("edge {reference}"))),
-            (Node::Shell { .. }, O::Open) => Some(("shell", format!("open face {reference}"))),
-            (Node::Datum(Datum::FaceFrame { .. }), O::Face) => Some(("frame", "face".to_owned())),
-            (Node::Measure { .. }, O::Measured(_, i)) => {
-                Some(("measure", format!("reference {i}")))
-            }
-            (Node::Mate { .. }, O::Side(side)) => Some(("mate", format!("side {}", side.name()))),
-            _ => None,
-        }
-    }
-
-    /// **Which of this payload's references a refusal is about, as a
-    /// person reads it** — [`Self::selection_slot`]'s twin for a name a
-    /// node still carries in its payload, a declared pair's: the node's
-    /// noun and the side. `reference` is the name's place among
-    /// [`Node::payload_names`]. `None` where the slot there does not hold
-    /// `name` — as authored, or as node `id`'s union reads it in member
-    /// space.
-    pub(crate) fn reference_slot(
-        &self,
-        id: RecipeNodeId,
-        reference: usize,
-        name: &StableName,
-    ) -> Option<(&'static str, String)> {
-        match self {
-            Node::Subtract { declare, .. }
-            | Node::Union { declare, .. }
-            | Node::Intersect { declare, .. } => {
-                let ((a, b), _) = declare.get(reference / 2)?;
-                let (held, side) = if reference.is_multiple_of(2) {
-                    (a, "first")
-                } else {
-                    (b, "second")
-                };
-                let holds = held.name == *name
-                    || crate::names::member_name(id, held.at, &held.name) == *name;
-                let noun = match self {
-                    Node::Subtract { .. } => "subtract",
-                    Node::Intersect { .. } => "intersect",
-                    _ => "union",
-                };
-                holds.then(|| {
-                    (
-                        noun,
-                        format!(
-                            "declared pair {}'s {side} {}",
-                            reference / 2,
-                            held.name.kind.noun()
-                        ),
-                    )
-                })
-            }
-            _ => None,
-        }
+        let owner = match (self, slot) {
+            (Node::Fillet { .. }, O::Selection) => "fillet",
+            (Node::Chamfer { .. }, O::Selection) => "chamfer",
+            (Node::Shell { .. }, O::Open) => "shell",
+            (Node::Datum(Datum::FaceFrame { .. }), O::Face) => "frame",
+            (Node::Measure { .. }, O::Measured(..)) => "measure",
+            (Node::Place { .. } | Node::InstantiatePart { .. }, O::Side { .. }) => "constraint",
+            _ => return None,
+        };
+        Some((owner, slot.selection_entry(reference)?))
     }
 
     /// Builds a [`Node::InstantiatePart`] with the EMPTY interface
-    /// record, on the world at the empty offset — the authoring
-    /// constructor, so every insert door yields an instance placed at
-    /// the world origin. A non-empty record is mintable only by the
-    /// refactoring that observed declarations crossing a cut, which
-    /// reaches it through [`Node::instantiate_part_with`]: an authored
-    /// instance crosses nothing.
+    /// record and no constraint: a loose copy until its mates pin it. A
+    /// mate reads poses off geometry and there is no part frame to read
+    /// (FORK-S3M), so no constructor can pin an instance where its
+    /// part's world is; the façade's "place part" writes the mates.
     pub fn instantiate_part(doc_ref: crate::ident::DocRef) -> Self {
-        Self::instantiate_part_with(
-            doc_ref,
-            InterfaceRecord::default(),
-            None,
-            Some(crate::placement::Placement::IDENTITY),
-        )
+        Self::instantiate_part_with(doc_ref, InterfaceRecord::default())
     }
 
     /// Builds a [`Node::InstantiatePart`] carrying a SEAM record
-    /// (ASM-R2b D-4), on `gauge` at `offset`: the split's door, since
-    /// only a split knows what crossed its cut. Authoring an instance
-    /// by hand goes through [`Node::instantiate_part`] — an authored
-    /// instance crosses nothing.
+    /// (ASM-R2b D-4), its bundle empty: the split's door, since only a
+    /// split knows what crossed its cut, and the door of an instance
+    /// its own constraints will place ([`crate::DocEdit::AddConstraint`]),
+    /// a loose copy until they pin it.
     pub fn instantiate_part_with(
         doc_ref: crate::ident::DocRef,
         interface: InterfaceRecord,
-        gauge: Option<RecipeNodeId>,
-        offset: Option<crate::placement::Placement<S>>,
     ) -> Self {
         Node::InstantiatePart {
             doc_ref,
             interface,
-            gauge,
-            offset,
+            constraints: Vec::new(),
         }
     }
 
-    /// Builds a [`Node::Gauge`] on `parent` (the world when `None`) at
-    /// `placement`.
-    pub fn gauge(
-        parent: Option<RecipeNodeId>,
-        placement: impl Into<crate::placement::Placement<S>>,
-    ) -> Self {
-        Node::Gauge {
-            parent,
-            placement: placement.into(),
+    /// Builds a [`Node::Place`] copying `shapes`, its bundle empty: its
+    /// constraints are added by their own edits
+    /// ([`crate::DocEdit::AddConstraint`]).
+    pub fn place(shapes: Vec<crate::BodyRead<S>>) -> Self {
+        Node::Place {
+            shapes,
+            constraints: Vec::new(),
         }
     }
 
@@ -4535,18 +4176,6 @@ impl<P, S: Slot> Node<P, S> {
         Node::Transform {
             input: input.into(),
             placement: placement.into(),
-        }
-    }
-
-    /// Builds a [`Node::PlaceInWorld`] of `body` at `pose`: one copy of
-    /// the body in the world.
-    pub fn place_in_world(
-        body: impl Into<crate::BodyRead<S>>,
-        pose: impl Into<crate::placement::Placement<S>>,
-    ) -> Self {
-        Node::PlaceInWorld {
-            body: body.into(),
-            pose: pose.into(),
         }
     }
 
@@ -4586,7 +4215,6 @@ impl<P> Node<P, crate::Formula> {
             Node::Shell { open, .. } => vec![open],
             Node::Datum(Datum::FaceFrame { face, .. }) => vec![face],
             Node::Measure { primitive } => primitive.refs().to_vec(),
-            Node::Mate { a, b, .. } => vec![a, b],
             // Exhaustive, so a selection seat added to a node is stated
             // here or does not compile: an operand that is a whole body
             // authors no selection.
@@ -4608,12 +4236,12 @@ impl<P> Node<P, crate::Formula> {
             | Node::Union { .. }
             | Node::Intersect { .. }
             | Node::Transform { .. }
-            | Node::PlaceInWorld { .. }
+            | Node::World
             | Node::Pattern { .. }
             | Node::Part { .. }
             | Node::PlacedUnion { .. }
+            | Node::Place { .. }
             | Node::InstantiatePart { .. }
-            | Node::Gauge { .. }
             | Node::Assertion { .. } => Vec::new(),
         };
         seats
@@ -4711,28 +4339,20 @@ where
             _ => return false,
         }
         // A literal FRAME is float payload no slot addresses, and the
-        // `PartialEq` above compares its coordinates by value: every
-        // placement's literal steps — a transform's, a gauge's, an
-        // instance's offset — an explicit rule's listed frames, and a
-        // mate's alignment datum compare here, by bits.
+        // `PartialEq` above compares its coordinates by value: a
+        // transform's literal steps, an explicit rule's listed frames,
+        // and each constraint's own scalars compare here, by bits.
         match (self, other) {
-            (Node::Transform { placement: a, .. }, Node::Transform { placement: b, .. })
-            | (Node::PlaceInWorld { pose: a, .. }, Node::PlaceInWorld { pose: b, .. })
-            | (Node::Gauge { placement: a, .. }, Node::Gauge { placement: b, .. })
-            | (
-                Node::InstantiatePart {
-                    offset: Some(a), ..
-                },
-                Node::InstantiatePart {
-                    offset: Some(b), ..
-                },
-            ) => {
+            (Node::Transform { placement: a, .. }, Node::Transform { placement: b, .. }) => {
                 if !a.bit_eq(b) {
                     return false;
                 }
             }
-            (Node::Mate { alignment: a, .. }, Node::Mate { alignment: b, .. }) => {
-                if !a.bit_eq(b) {
+            (
+                Node::Place { constraints: a, .. } | Node::InstantiatePart { constraints: a, .. },
+                Node::Place { constraints: b, .. } | Node::InstantiatePart { constraints: b, .. },
+            ) => {
+                if a.len() != b.len() || !a.iter().zip(b).all(|(x, y)| x.bit_eq(y)) {
                     return false;
                 }
             }
@@ -4756,4 +4376,79 @@ where
                 _ => false,
             })
     }
+}
+
+/// **A bundle's pose reads**, each at its seat
+/// ([`crate::OperandSlot::Side`]), in bundle order, `on` before a pose
+/// `to` (a world read reads no variable).
+fn side_rows<S: Slot>(
+    constraints: &[crate::mate::Constraint<S>],
+) -> Vec<(crate::OperandSlot, S::Read)>
+where
+    S::Read: Clone,
+{
+    let mut out = Vec::new();
+    for c in constraints {
+        let seat = |side| crate::OperandSlot::Side {
+            constraint: c.id,
+            side,
+        };
+        let Some(mate) = c.mate() else {
+            continue;
+        };
+        out.push((seat(crate::mate::MateSide::On), mate.on.clone()));
+        if let Some(to) = mate.to.pose() {
+            out.push((seat(crate::mate::MateSide::To), to.clone()));
+        }
+    }
+    out
+}
+
+/// [`side_rows`], writable, in the same order.
+fn side_rows_mut<S: Slot>(
+    constraints: &mut [crate::mate::Constraint<S>],
+) -> Vec<(crate::OperandSlot, &mut S::Read)> {
+    let mut out = Vec::new();
+    for c in constraints {
+        let id = c.id;
+        let seat = |side| crate::OperandSlot::Side {
+            constraint: id,
+            side,
+        };
+        let Some(crate::mate::Mate { on, to, .. }) = c.mate_mut() else {
+            continue;
+        };
+        out.push((seat(crate::mate::MateSide::On), on));
+        if let Some(to) = to.pose_mut() {
+            out.push((seat(crate::mate::MateSide::To), to));
+        }
+    }
+    out
+}
+
+/// **A bundle in another slot form**: each constraint's face reads by
+/// `read`, at its seat, and its offsets' steps by `f`, its id kept.
+fn map_constraints<S: Slot, S2: Slot, E>(
+    constraints: &[crate::mate::Constraint<S>],
+    f: &mut impl FnMut(&S) -> Result<S2, E>,
+    read: &mut impl FnMut(crate::OperandSlot, &S::Read) -> Result<S2::Read, E>,
+) -> Result<Vec<crate::mate::Constraint<S2>>, E> {
+    constraints
+        .iter()
+        .map(|c| {
+            let id = c.id;
+            c.try_map(
+                |side, r| {
+                    read(
+                        crate::OperandSlot::Side {
+                            constraint: id,
+                            side,
+                        },
+                        r,
+                    )
+                },
+                f,
+            )
+        })
+        .collect()
 }

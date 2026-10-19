@@ -4,7 +4,7 @@
 //! arms: the exact planar sweeps (unchanged), the conformal face-pair
 //! arm (shared-carrier opposed-sense curved pairs through the
 //! chart-region predicate), face-granularity backing from
-//! curve/patch records, the patch-record certifier, and the
+//! face–face records, the patch-record certifier, and the
 //! closed-form tangent-locus helper (the M9-1 PR-2 DEV-1 ruling).
 //! Three-outcome ε honesty on every new row; nothing blesses from
 //! discovery (F1).
@@ -27,9 +27,7 @@ use geom::Surface;
 use geom_brep::{TangentLocus, TangentLocusError, tangent_locus};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-use topo::{
-    Body, CensusContact, ContactRecords, ValidationError, VvContact, validate_pseudomanifold,
-};
+use topo::{Body, CensusContact, ContactRecords, ValidationError, validate_pseudomanifold};
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
@@ -51,12 +49,12 @@ fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 }
 
 // ---------------------------------------------------------------------
-// #382 half-2: inter-instance overlap surfaces as undeclared contact
+// #382 half-2: inter-instance overlap surfaces as unrecorded contact
 // through the SAME census arms — never an ad-hoc graft check.
 // ---------------------------------------------------------------------
 
 #[test]
-fn overlapping_instances_refuse_as_undeclared_contact_naming_the_pair() {
+fn overlapping_instances_refuse_as_unrecorded_contact_naming_the_pair() {
     // Two tier-3-valid unit cubes overlapping by a half-cube: each
     // passes its own gate, the graft passes tier 3 (the #382 finding
     // — no local check compares the solids), and the 3′ census now
@@ -76,7 +74,7 @@ fn overlapping_instances_refuse_as_undeclared_contact_naming_the_pair() {
     assert!(
         errors.iter().any(|e| matches!(
             e,
-            ValidationError::UndeclaredContact {
+            ValidationError::UnrecordedContact {
                 contact: CensusContact::EdgeFacePierce { .. },
                 ..
             }
@@ -109,9 +107,8 @@ fn stacked() -> (Body<f64>, ContactRecords) {
     let a = cube_at(0.0, 0.0, 0.0);
     let b = cube_at(0.0, 0.0, 1.0);
     let body = assembly(&a, &b);
-    // Declare the interface at its census granularity: the four
-    // coincident corner pairs (the planar C2 tables' currency —
-    // exactly what an ASM mate's declaration resolves to).
+    // The interface's records: the four coincident corner pairs and
+    // the four rim-edge pairs between them.
     let mut records = ContactRecords::default();
     let mut at = |x: f64, y: f64| {
         let mut hits = Vec::new();
@@ -123,16 +120,53 @@ fn stacked() -> (Body<f64>, ContactRecords) {
         let [va, vb] = hits[..] else {
             panic!("exactly two corners at ({x}, {y}, 1)");
         };
-        records.vv.push(topo::Cited::new(
-            VvContact { a: va, b: vb },
+        records.extend([topo::Cited::new(
+            topo::Contact::new(&body, topo::Cell::Vertex(va), topo::Cell::Vertex(vb)).unwrap(),
             topo::Cites::decided(0),
-        ));
+        )]);
     };
     at(0.0, 0.0);
     at(1.0, 0.0);
     at(1.0, 1.0);
     at(0.0, 1.0);
+    records.extend(rim_records(&body));
     (body, records)
+}
+
+/// The edge-edge records of two unit cubes stacked at z = 1, each in
+/// `body`'s arena: along each side of the interface the two cubes' rim
+/// edges lie on one another, a pair whose interiors meet (D1), which
+/// the corner records at its two ends confirm.
+pub(crate) fn rim_records(body: &Body<f64>) -> Vec<topo::Cited<topo::Contact>> {
+    let at = |v: topo::VertexKey| {
+        let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        (p.x, p.y, p.z)
+    };
+    let on = |c: (f64, f64), (x, y, z): (f64, f64, f64)| {
+        (x - c.0).abs() < 1e-12 && (y - c.1).abs() < 1e-12 && (z - 1.0).abs() < 1e-12
+    };
+    let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+    (0..4)
+        .map(|i| {
+            let (p, q) = (corners[i], corners[(i + 1) % 4]);
+            let rims: Vec<topo::EdgeKey> = body
+                .edges()
+                .filter(|(_, e)| {
+                    let [s, t] =
+                        [e.he_plus, e.he_minus].map(|h| at(body.get_half_edge(h).unwrap().start));
+                    (on(p, s) && on(q, t)) || (on(q, s) && on(p, t))
+                })
+                .map(|(k, _)| k)
+                .collect();
+            let [a, b] = rims[..] else {
+                panic!("exactly two rim edges from {p:?} to {q:?}: {rims:?}");
+            };
+            topo::Cited::new(
+                topo::Contact::new(body, topo::Cell::Edge(a), topo::Cell::Edge(b)).unwrap(),
+                topo::Cites::decided(0),
+            )
+        })
+        .collect()
 }
 
 #[test]
@@ -153,7 +187,7 @@ fn the_same_touching_pair_undeclared_is_the_f1_hard_error() {
     assert!(
         errors
             .iter()
-            .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
         "the undeclared touch is the hard error: {errors:?}"
     );
 }
@@ -324,15 +358,11 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     let [fa, fb] = ifaces[..] else {
         panic!("exactly two z=1 faces, got {ifaces:?}");
     };
-    let patch = |a, b| ContactRecords {
-        patches: vec![topo::Cited::new(
-            topo::PatchContact {
-                face_a: a,
-                face_b: b,
-            },
+    let patch = |a, b| {
+        topo::ContactRecords::from_iter(vec![topo::Cited::new(
+            topo::Contact::new(&body, topo::Cell::Face(a), topo::Cell::Face(b)).unwrap(),
             topo::Cites::decided(0),
-        )],
-        ..ContactRecords::default()
+        )])
     };
     // The TRUE record on this fixture: the interface pair, certified
     // through the declared pair's shared world carrier (#1063).
@@ -446,10 +476,10 @@ fn r1_delta_probe_bridged_nested_pair_stays_loud() {
     let va = body.vertices().next().unwrap().0;
     let vb = body.vertices().last().unwrap().0;
     let mut records = ContactRecords::default();
-    records.vv.push(topo::Cited::new(
-        VvContact { a: va, b: vb },
+    records.extend([topo::Cited::new(
+        topo::Contact::new(&body, topo::Cell::Vertex(va), topo::Cell::Vertex(vb)).unwrap(),
         topo::Cites::decided(0),
-    ));
+    )]);
     let errs = validate_pseudomanifold(&body, &records, Tol::witness())
         .expect_err("the bridge must not silence the nested pair");
     assert!(

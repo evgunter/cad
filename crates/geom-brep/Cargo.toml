@@ -47,6 +47,8 @@ num-bigint = { workspace = true }
 # instrument (`geom_core::sym::revalue`) for the rows that pin a computed
 # value entering as an unknown rather than a constant.
 geom-core = { path = "../geom-core", features = ["test-support", "sym-revalue-testing"] }
+# `geom::test_support::held_arc`, the NURBS weights-in-`T` pin's arc.
+geom = { path = "../geom", features = ["test-support"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

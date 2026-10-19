@@ -5,10 +5,10 @@
 //! volume — the kernel rows are `topo`'s suite of the same name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
-use crate::fixture::{flush_segs, fname, insert, out};
-use editor_core::{Node, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, VarId};
+use crate::fixture::insert;
+use editor_core::{Node, ProfileDoc, RecipeNodeId, RoleSeg};
 use geom_core::Tol;
 
 /// `c`'s x-range: over `b` alone, inside `a ∩ b`, and across `a`'s
@@ -51,8 +51,7 @@ fn the_union_node_folds_a_flush_partner_onto_the_edge_contact() {
         for order in ORDERS {
             let (doc, ids) = blocks(span);
             let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-            let pairs = flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1]));
-            let (doc, union) = declared_union(doc, &members, pairs);
+            let (doc, union) = crate::fixture::union_over(doc, &members);
             let ev = run(&doc);
             let label = order.map(|i| NAMES[i]);
             assert!(
@@ -84,8 +83,7 @@ fn the_union_node_publishes_one_table_in_every_member_order() {
         for order in ORDERS {
             let (doc, ids) = blocks(span);
             let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-            let pairs = flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1]));
-            let (doc, union) = declared_union(doc, &members, pairs);
+            let (doc, union) = crate::fixture::union_over(doc, &members);
             let ev = run(&doc);
             let label = order.map(|i| NAMES[i]);
             assert!(failure(&ev, union).is_none(), "{label:?}");
@@ -111,63 +109,23 @@ fn the_union_node_publishes_one_table_in_every_member_order() {
 }
 
 /// **Two chained pair unions build in every order.** The flush pair
-/// is declared at whichever union joins `a` and `b`: between the two
-/// blocks when they are its operands, and between the inner union's
-/// copy of the one and the other block when they are not. Red as the
-/// row above, at the outer union.
+/// glues at whichever union joins `a` and `b`. Red as the row above, at
+/// the outer union.
 #[test]
 fn chained_pair_unions_fold_a_flush_partner_onto_the_edge_contact() {
     for span in C_SPANS {
         for [p, q, r] in ORDERS {
             let (doc, ids) = blocks(span);
-            // `i`'s flush faces, read directly or (`at`) through the
-            // inner union, which names a member's face `From` that
-            // member's read; against `j`'s, read directly.
-            let flush = |doc: &ProfileDoc, (at, i): (Option<RecipeNodeId>, usize), j: usize| {
-                let wrap = |seg: RoleSeg| match at {
-                    Some(inner) => fname(
-                        inner,
-                        RoleSeg::From {
-                            read: out(doc, ids[i]),
-                            of: fname(ids[i], seg).into(),
-                        },
-                    ),
-                    None => fname(ids[i], seg),
-                };
-                flush_segs(doc, ids[i])
-                    .into_iter()
-                    .zip(flush_segs(doc, ids[j]))
-                    .map(|(s, t)| {
-                        (
-                            SitedRef::new(out(doc, at.unwrap_or(ids[i])), wrap(s)),
-                            SitedRef::new(out(doc, ids[j]), fname(ids[j], t)),
-                        )
-                    })
-                    .collect::<Vec<_>>()
+            let pair = |doc: ProfileDoc, x: RecipeNodeId, y: RecipeNodeId| {
+                insert(
+                    doc,
+                    Node::Union {
+                        members: editor_core::Bodies::Spelled(vec![x.into(), y.into()]),
+                    },
+                )
             };
-            let pair =
-                |doc: ProfileDoc,
-                 x: RecipeNodeId,
-                 y: RecipeNodeId,
-                 pairs: Option<Vec<(SitedRef<VarId>, SitedRef<VarId>)>>| {
-                    insert(
-                        doc,
-                        Node::Union {
-                            members: editor_core::Bodies::Spelled(vec![x.into(), y.into()]),
-                            declare: pairs
-                                .map(editor_core::declare_continuation)
-                                .unwrap_or_default(),
-                        },
-                    )
-                };
-            let is_ab = |i: usize, j: usize| i != j && i < 2 && j < 2;
-            let inner_pairs = is_ab(p, q).then(|| flush(&doc, (None, p), q));
-            let (doc, inner) = pair(doc, ids[p], ids[q], inner_pairs);
-            // The inner union's copy of `r`'s flush partner, if it holds
-            // one: its faces are named through the read it entered by.
-            let partner = [p, q].into_iter().find(|&m| is_ab(m, r));
-            let outer_pairs = partner.map(|m| flush(&doc, (Some(inner), m), r));
-            let (doc, outer) = pair(doc, inner, ids[r], outer_pairs);
+            let (doc, inner) = pair(doc, ids[p], ids[q]);
+            let (doc, outer) = pair(doc, inner, ids[r]);
             let ev = run(&doc);
             let label = [p, q, r].map(|i| NAMES[i]);
             for (node, which) in [(inner, "inner"), (outer, "outer")] {

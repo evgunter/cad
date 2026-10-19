@@ -31,8 +31,8 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     Bodies, CancelToken, ChecksConfig, Datum, Dimension, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Formula, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
-    RefusingReach, Severity, apply, enforce_checks, evaluate, run_checks,
+    Evaluation, Formula, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Severity,
+    apply, enforce_checks, evaluate, run_checks,
 };
 use pncad::geom_core::Tol;
 use pncad::topo::BooleanOp;
@@ -46,7 +46,6 @@ fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the insert applies");
     *doc = applied.doc;
@@ -107,24 +106,20 @@ fn boolean_doc(
         match op {
             BooleanOp::Union => Node::Union {
                 members: Bodies::Spelled(vec![a.into(), b.into()]),
-                declare: Vec::new(),
             },
             BooleanOp::Intersect => Node::Intersect {
                 members: Bodies::Spelled(vec![a.into(), b.into()]),
-                declare: Vec::new(),
             },
             BooleanOp::Subtract => Node::Subtract {
                 from: a.into(),
                 tool: b.into(),
-                declare: Vec::new(),
             },
         },
         tol,
     );
-    let placed = apply(&doc, &DocEdit::place(boolean, None), tol, &RefusingReach)
-        .expect("the boolean places");
+    let placed = crate::world::place_in_world(&doc, boolean, tol);
     doc = placed.doc;
-    let placement = placed.record.minted.expect("a placement mints an id");
+    let placement = placed.placement;
     let ev = evaluate::<f64>(
         &doc,
         None,

@@ -237,7 +237,7 @@ pub(crate) enum OpGroup {
     Fillet,
     Pattern,
     InstantiatePart,
-    PlaceInWorld,
+    Place,
     Shell,
 }
 
@@ -252,7 +252,7 @@ impl OpGroup {
             Self::Fillet => s::OpGroup::Fillet,
             Self::Pattern => s::OpGroup::Pattern,
             Self::InstantiatePart => s::OpGroup::InstantiatePart,
-            Self::PlaceInWorld => s::OpGroup::PlaceInWorld,
+            Self::Place => s::OpGroup::Place,
             Self::Shell => s::OpGroup::Shell,
         }
     }
@@ -301,28 +301,6 @@ impl MeridianEnd {
     }
 }
 
-/// A split output half.
-#[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[allow(
-    missing_docs,
-    reason = "each variant mirrors the documented `editor_core::SplitHalf` variant of the same name"
-)]
-pub(crate) enum SplitHalf {
-    Above,
-    Below,
-}
-
-impl SplitHalf {
-    /// The kernel half this mirrors.
-    pub(crate) fn to_kernel(self) -> s::SplitHalf {
-        match self {
-            Self::Above => s::SplitHalf::Above,
-            Self::Below => s::SplitHalf::Below,
-        }
-    }
-}
-
 /// Which support of a rim blend.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -335,7 +313,7 @@ pub(crate) enum RimSupport {
     Mate,
 }
 
-/// The end/side argument `SegPat.side` accepts: any one of the four
+/// The end/side argument `SegPat.side` accepts: any one of the three
 /// closed side vocabularies, exactly as Rust's `side(impl Into<Side>)`
 /// accepts them. The union is the BOUNDARY's typed extraction, not a
 /// Python-side `isinstance` ladder — the same overloading Rust spells
@@ -346,8 +324,6 @@ pub(crate) enum SideArg {
     Cap(CapEnd),
     /// `MeridianEnd`.
     Meridian(MeridianEnd),
-    /// `SplitHalf`.
-    Split(SplitHalf),
     /// `RimSupport`.
     Rim(RimSupport),
 }
@@ -358,7 +334,6 @@ impl SideArg {
             Self::Cap(CapEnd::End) => s::Side::Cap(s::CapEnd::End),
             Self::Cap(CapEnd::Start) => s::Side::Cap(s::CapEnd::Start),
             Self::Meridian(end) => s::Side::Meridian(end.to_kernel()),
-            Self::Split(half) => s::Side::Split(half.to_kernel()),
             Self::Rim(RimSupport::Host) => s::Side::Rim(s::RimSupport::Host),
             Self::Rim(RimSupport::Mate) => s::Side::Rim(s::RimSupport::Mate),
         }
@@ -544,8 +519,8 @@ impl SegPat {
     }
 
     /// Constrains the end/side tag (`.side(CapEnd.End)`). Accepts any
-    /// of the four side vocabularies: `CapEnd`, `MeridianEnd`,
-    /// `SplitHalf`, `RimSupport`.
+    /// of the three side vocabularies: `CapEnd`, `MeridianEnd`,
+    /// `RimSupport`.
     fn side(&self, side: SideArg) -> Self {
         Self(self.0.clone().side(side.to_kernel()))
     }
@@ -732,16 +707,13 @@ impl GeomPred {
 /// catching a `SelectRefusal` gets `None`, never an `AttributeError`,
 /// whichever door refused. A door whose arm carries a payload
 /// overwrites its own entries through [`fill`], by NAME; the
-/// contact-class crossing in `crate::py::flush` carries none and takes
+/// contact-class crossing in `crate::py::contact` carries none and takes
 /// the list as it stands.
 pub(crate) fn refusal_fields(py: Python<'_>, reason: &str) -> Vec<(&'static str, Py<PyAny>)> {
     let none = || py.None().into_any();
     vec![
         ("reason", PyString::new(py, reason).unbind().into_any()),
         ("name", none()),
-        ("other", none()),
-        ("at", none()),
-        ("other_at", none()),
         ("predicate", none()),
         ("matched", none()),
         ("candidates", none()),
@@ -873,46 +845,9 @@ pub(crate) fn select_refusal(
                 standing.spoken(doc)
             )
         }
-        R::NodeHasNoValue(standing) => {
-            format!(
-                "a node the flush query reads has no value: {}",
-                standing.spoken(doc)
-            )
-        }
-        // The node is spoken in the message, as `node_has_no_value`'s
-        // standing is.
-        R::NodeHasNoOutput { .. } => err.spoken(doc, evaluation),
         R::NotALength { dim } => {
             fill(&mut fields, "dim", text(dimension_tag(*dim)));
             "the comparand of a distance must be a length".to_string()
-        }
-        R::PairInBand {
-            pair,
-            at,
-            predicate,
-            ..
-        } => {
-            let a = match crate::py::doc::name_text(py, &pair.0) {
-                Ok(t) => t,
-                Err(failed) => return failed,
-            };
-            let b = match crate::py::doc::name_text(py, &pair.1) {
-                Ok(t) => t,
-                Err(failed) => return failed,
-            };
-            // Two copies of one body hold names alike: the node holding
-            // each face tells them apart.
-            for (attribute, node) in [("at", at.0), ("other_at", at.1)] {
-                let node = match NodeId(node).into_pyobject(py) {
-                    Ok(bound) => bound.unbind().into_any(),
-                    Err(failed) => return failed,
-                };
-                fill(&mut fields, attribute, node);
-            }
-            fill(&mut fields, "name", text(&a));
-            fill(&mut fields, "other", text(&b));
-            fill(&mut fields, "predicate", text(predicate));
-            err.spoken(doc, evaluation)
         }
         R::BadValue(inner) => format!("the stated value did not evaluate: {inner}"),
         R::Band(error) => format!(
@@ -929,6 +864,18 @@ pub(crate) fn select_refusal(
         other => other.spoken(doc, evaluation),
     };
     typed_err(py, ErrorClass::Select, message, &fields)
+}
+
+/// **A resolve the Rust door refuses, raised typed** — the select
+/// door's class and fields, the tag [`resolve_refusal_tag`]'s, the
+/// message the kernel's sentence as the document speaks it.
+pub(crate) fn resolve_refusal(
+    py: Python<'_>,
+    err: &pncad::select::ResolveRefusal,
+    doc: &pncad::document::ProfileDoc,
+) -> PyErr {
+    let fields = refusal_fields(py, crate::tags::resolve_refusal_tag(err));
+    typed_err(py, ErrorClass::Select, err.spoken(doc), &fields)
 }
 
 /// **Kernel-growth tripwires**: one function per mirrored enum,
@@ -949,9 +896,7 @@ pub(crate) fn select_refusal(
     reason = "compile-time exhaustiveness tripwires; the match is the check, no caller needed"
 )]
 mod growth_tripwire {
-    use super::{
-        CapEnd, Cmp, CurveKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg, SplitHalf, s,
-    };
+    use super::{CapEnd, Cmp, CurveKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg, s};
 
     // `EntityKind`'s and `SurfaceKind`'s tripwires are
     // `super::entity_kind` and `super::surface_kind`, which are the
@@ -1021,7 +966,7 @@ mod growth_tripwire {
             s::OpGroup::Fillet => OpGroup::Fillet,
             s::OpGroup::Pattern => OpGroup::Pattern,
             s::OpGroup::InstantiatePart => OpGroup::InstantiatePart,
-            s::OpGroup::PlaceInWorld => OpGroup::PlaceInWorld,
+            s::OpGroup::Place => OpGroup::Place,
             s::OpGroup::Shell => OpGroup::Shell,
         }
     }
@@ -1034,8 +979,6 @@ mod growth_tripwire {
             s::Side::Meridian(s::MeridianEnd::End) => SideArg::Meridian(MeridianEnd::End),
             s::Side::Meridian(s::MeridianEnd::Seam) => SideArg::Meridian(MeridianEnd::Seam),
             s::Side::Meridian(s::MeridianEnd::Pi) => SideArg::Meridian(MeridianEnd::Pi),
-            s::Side::Split(s::SplitHalf::Above) => SideArg::Split(SplitHalf::Above),
-            s::Side::Split(s::SplitHalf::Below) => SideArg::Split(SplitHalf::Below),
             s::Side::Rim(s::RimSupport::Host) => SideArg::Rim(RimSupport::Host),
             s::Side::Rim(s::RimSupport::Mate) => SideArg::Rim(RimSupport::Mate),
         }
@@ -1158,7 +1101,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<OpGroup>()?;
     m.add_class::<CapEnd>()?;
     m.add_class::<MeridianEnd>()?;
-    m.add_class::<SplitHalf>()?;
     m.add_class::<RimSupport>()?;
     m.add_class::<CurveKind>()?;
     m.add_class::<SurfaceKind>()?;

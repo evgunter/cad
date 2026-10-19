@@ -88,7 +88,7 @@ use std::collections::HashMap;
 use geom::{
     Curve3, CurveData, DatumValue, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface, SurfaceData,
 };
-use geom_brep::{FocalImage, FramedCarrier, Pcurve, ProjectedChart, SpiricImage};
+use geom_brep::{FocalImage, FramedCarrier, Pcurve, ProjectedChart, SpiricImage, WallTorus};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use topo::{Body, FaceKey};
@@ -1002,7 +1002,7 @@ impl KeyWriter {
     }
 
     fn nurbs3(&mut self, c: &NurbsCurve3<f64>) {
-        self.knots(c.knots());
+        self.knots(c.knots_f64_interim());
         self.len(c.control().len());
         for &p in c.control() {
             self.p3(p);
@@ -1011,7 +1011,7 @@ impl KeyWriter {
     }
 
     fn nurbs2(&mut self, c: &NurbsCurve2<f64>) {
-        self.knots(c.knots());
+        self.knots(c.knots_f64_interim());
         self.len(c.control().len());
         for &p in c.control() {
             self.p2(p);
@@ -1020,8 +1020,8 @@ impl KeyWriter {
     }
 
     fn nurbs_surface(&mut self, s: &NurbsSurface<f64>) {
-        self.knots(s.knots_u());
-        self.knots(s.knots_v());
+        self.knots(s.knots_u_f64_interim());
+        self.knots(s.knots_v_f64_interim());
         self.len(s.control().len());
         for &p in s.control() {
             self.p3(p);
@@ -1146,11 +1146,20 @@ impl KeyWriter {
                         self.v2(*pm);
                         self.v2(*pa);
                     }
-                    SpiricImage::Wall { u0, v0, sense } => {
+                    SpiricImage::Wall {
+                        u0,
+                        v0,
+                        sense,
+                        torus,
+                    } => {
                         self.u8(1);
                         self.f64(*u0);
                         self.f64(*v0);
                         self.f64(*sense);
+                        self.u8(match torus {
+                            WallTorus::Own => 0,
+                            WallTorus::Mirror => 1,
+                        });
                     }
                 }
             }
@@ -1310,8 +1319,8 @@ mod tests {
                 Curve3::Ellipse {
                     center: frame.0,
                     axis: frame.1,
-                    major: 2.0,
-                    minor: 1.0,
+                    semi_u: 2.0,
+                    semi_v: 1.0,
                     u_ref: frame.2,
                 },
             ),

@@ -40,7 +40,8 @@ use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::max_bound;
 use geom_core::k_stats::decide;
-use geom_core::spline::{RingRefinement, sub_segment};
+use geom_core::spline::weight_scale::unit_scale_exact;
+use geom_core::spline::{RingRefinement, restrict_segment};
 use geom_core::{Band, Decide, Indeterminate, Interval, Margin, Point3, Sign, SupSpeed, Vec3};
 
 use super::SsiError;
@@ -82,7 +83,7 @@ pub struct SectionRoot {
     pub bracket: (f64, f64),
     /// A certified lower bound on `|dφ/ds|` over the bracket where `φ`
     /// vanishes: the sine of the angle between the curve and the plane.
-    /// `0` where the bound straddles.
+    /// `0` where the bound straddles, `NaN` where it is refused.
     pub slope: f64,
     /// The sign of `dφ/dt` over the bracket, where it is one-signed.
     pub rising: Option<bool>,
@@ -155,7 +156,7 @@ impl Pieces {
             .iter()
             .map(|c| [c.x, c.y, c.z].map(Interval::point))
             .collect();
-        Self::enclosed(curve.knots(), &control, curve.weights(), (o, n))
+        Self::enclosed(curve.knots_f64_interim(), &control, curve.weights(), (o, n))
     }
 
     /// [`Pieces::of`] from a curve's parts, its control points enclosed:
@@ -168,23 +169,11 @@ impl Pieces {
         (o, n): ([Interval; 3], [Interval; 3]),
     ) -> Option<Self> {
         let p = kv.degree();
-        // The weights scaled by a power of two near their largest, which
-        // is exact and moves neither the curve, `φ = h/W` nor `h`'s sign,
-        // so a net of tiny weights does not underflow `h`.
-        let top = weights.iter().copied().fold(0.0, f64::max);
-        #[allow(clippy::cast_possible_truncation)]
-        let k = if top > 0.0 && top.is_finite() {
-            -(top.log2().floor() as i32)
-        } else {
-            0
-        };
-        // Two halves, so a subnormal's exponent does not overflow the
-        // power it is scaled by.
-        let (k1, k2) = (k / 2, k - k / 2);
-        let weights: Vec<f64> = weights
-            .iter()
-            .map(|w| w * 2.0f64.powi(k1) * 2.0f64.powi(k2))
-            .collect();
+        // The weights at unit scale where that is exact, which moves
+        // neither the curve, `φ = h/W` nor `h`'s sign, so a net of tiny
+        // weights does not underflow `h`.
+        let weights: Vec<f64> =
+            unit_scale_exact(weights).map_or_else(|| weights.to_vec(), |(_, scaled)| scaled);
         let h: Vec<Interval> = control
             .iter()
             .zip(&weights)
@@ -253,7 +242,9 @@ impl Pieces {
     fn over(&self, a: f64, b: f64) -> Vec<(Vec<Interval>, Vec<Interval>)> {
         self.cuts(a, b)
             .into_iter()
-            .map(|((k, hc, wc), cut)| (sub_segment(hc, *k, cut), sub_segment(wc, *k, cut)))
+            .map(|((k, hc, wc), cut)| {
+                (restrict_segment(hc, *k, cut), restrict_segment(wc, *k, cut))
+            })
             .collect()
     }
 
@@ -267,7 +258,7 @@ impl Pieces {
                 #[allow(clippy::cast_precision_loss)]
                 let pf = Interval::point((hc.len() - 1) as f64);
                 let dh: Vec<Interval> = hc.windows(2).map(|c| pf * (c[1] - c[0]) / span).collect();
-                sub_segment(&dh, (*k0, *k1), cut)
+                restrict_segment(&dh, (*k0, *k1), cut)
             })
             .collect()
     }
@@ -297,7 +288,7 @@ pub(crate) struct SignBudget;
 /// **The sign of `φ` over pieces, read on a refined hull.** `φ` shares
 /// its sign with `h` (the weights are positive), so each piece's `h`
 /// coefficients are read. A piece whose hull straddles zero is halved
-/// ([`sub_segment`]), spending one of `budget`, and its halves are read.
+/// ([`restrict_segment`]), spending one of `budget`, and its halves are read.
 /// Each half is cut from the row it halves.
 ///
 /// - `Some`: every piece reads one-signed, all of one sign.
@@ -343,8 +334,8 @@ fn refined_sign(
             }
             *budget -= 1;
             let (left, right) = (
-                sub_segment(&c, (0.0, 1.0), (0.0, 0.5)),
-                sub_segment(&c, (0.0, 1.0), (0.5, 1.0)),
+                restrict_segment(&c, (0.0, 1.0), (0.0, 0.5)),
+                restrict_segment(&c, (0.0, 1.0), (0.5, 1.0)),
             );
             if Certification::width(Interval::hull(hull(&left), hull(&right))) >= before {
                 return Ok(None);
@@ -595,12 +586,17 @@ fn roots(
         let rising = sign(dh);
         // At a root `h = 0`, so `dφ/dt = h′/W` there and
         // `|dφ/ds| ≥ inf|h′| / (sup W · sup‖C′‖)`.
+        // A refused slope hull measured nothing: `NaN`, which
+        // [`decide_crossing`] refuses where the slope is decided, rather
+        // than a zero slope it would read as a graze.
         let slope = if rising.is_some() {
             let num = super::enclose::zero_free_lower_bound(dh);
             let den = magnitude(Interval::point(w_hi) * Interval::point(speed.get()));
             geom_core::interval::div_down(num, den)
-        } else {
+        } else if dh.is_certified() {
             0.0
+        } else {
+            f64::NAN
         };
         let found = SectionRoot {
             bracket: (a, b),
@@ -638,8 +634,18 @@ fn roots(
 ///
 /// # Errors
 ///
-/// [`SsiError::BoundaryGraze`] with no side named.
+/// [`SsiError::BoundaryGraze`] with no side named;
+/// [`SsiError::UnsupportedCertificate`] for a refused slope, which
+/// measured nothing.
 pub(crate) fn decide_crossing(root: SectionRoot, arm: f64, band: Band) -> Result<(), SsiError> {
+    // No root of a validated curve reaches this: its slope hull is
+    // refused only from non-finite controls, and an overflow rounds to
+    // a half-unbounded certified hull. The guard's row asks it directly.
+    if root.slope.is_nan() {
+        return Err(SsiError::UnsupportedCertificate {
+            what: "a boundary curve's slope at a root has no certified bound",
+        });
+    }
     let margin = Margin::levered(root.slope, arm);
     let Some(verdict) = band_verdict("ssi_boundary_crossing", margin, band) else {
         return Ok(());
@@ -711,11 +717,35 @@ const SECTION_SETTLE_ITERS: usize = 128;
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
     use geom::NurbsCurve3;
+    use geom_core::Bounds as _;
     use geom_core::interval::certification::Certification as _;
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Interval, Point3, SupSpeed, Vec3};
 
     use super::{BoundarySection, SIDE_SIGN_HALVINGS, SignBudget, SsiError, refined_sign};
+
+    /// **A refused slope is no graze.** A root whose slope hull was
+    /// refused (`NaN`) refuses typed where the slope is decided; a zero
+    /// slope, which was measured, is still a graze.
+    #[test]
+    fn a_refused_slope_refuses_where_the_crossing_is_decided() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let root = |slope| super::SectionRoot {
+            bracket: (0.25, 0.5),
+            slope,
+            rising: None,
+        };
+        let refused = super::decide_crossing(root(f64::NAN), 1.0, band);
+        assert!(
+            matches!(refused, Err(SsiError::UnsupportedCertificate { .. })),
+            "{refused:?}"
+        );
+        let zero = super::decide_crossing(root(0.0), 1.0, band);
+        assert!(
+            matches!(zero, Err(SsiError::BoundaryGraze { .. })),
+            "{zero:?}"
+        );
+    }
 
     /// One Bézier piece of `h`.
     fn piece(c: &[f64]) -> Vec<Interval> {
@@ -905,5 +935,28 @@ mod tests {
             "{:?}",
             read(m as usize - 1)
         );
+    }
+
+    /// **A weight spread that a rescale would lose bits of is read as
+    /// described.** Carrying `4` to one scales the smallest subnormal
+    /// beside it to zero, which would make `W` vanish at the curve's
+    /// end; the net's own weights reach the pieces instead.
+    #[test]
+    fn a_lossy_weight_spread_is_not_rescaled() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control =
+            [[0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [2.0, 0.0, 0.0]].map(|c| c.map(Interval::point));
+        let tiny = f64::from_bits(1);
+        let origin = [0.0, -1.0, 0.0].map(Interval::point);
+        let normal = [0.0, 1.0, 0.0].map(Interval::point);
+        let pieces =
+            super::Pieces::enclosed(&kv, &control, &[tiny, 4.0, tiny], (origin, normal)).unwrap();
+        let w = &pieces.pieces[0].2;
+        for end in [w[0], w[2]] {
+            assert!(
+                end.lo() == tiny && end.hi() == tiny,
+                "an end weight reads {end:?}, not the described {tiny:e}"
+            );
+        }
     }
 }

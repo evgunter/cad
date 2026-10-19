@@ -390,7 +390,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         for &([x, y, z], inside_out) in boxes {
             let b = brick(x, y, z, tol);
-            let b = if inside_out { b.revert() } else { b };
+            let b = if inside_out { b.revert().unwrap() } else { b };
             crate::graft_disjoint_all_keyed(&mut body, &b).unwrap();
         }
         body.merge_all_solids().unwrap();
@@ -533,8 +533,8 @@ mod tests {
         assert_eq!(
             head,
             "whether a shell of the body bounds material or a cavity could not be decided, so \
-             the piece it belongs to is unknown: the sign of a shell's volume is too close to \
-             call: margin is invalid (NaN or a refused enclosure)"
+             the piece it belongs to is unknown: the sign of a shell's volume is undecided: \
+             margin is invalid (NaN or a refused enclosure)"
         );
         assert!(
             tail.ends_with(

@@ -13,12 +13,17 @@
 //! through its trace door and every pair it decided against is dumped
 //! as a `PAIR` JSON line: the two entities, their exact `f64`
 //! coordinates, and the census's own reading of each predicate on the
-//! pair. A refusal prints its findings, and a sliver shell the gate
-//! refuses as in band its certified `V/A`. `scripts/near_tangent_census_classify.py`
+//! pair. A refusal prints its findings, and a shell check 10 refuses as
+//! in band its certified `V/A`. `scripts/near_tangent_census_classify.py`
 //! re-reads every `PAIR` at 60 digits and classifies it.
 //!
-//! `NT_D` (comma list) sets the tilts, `NT_ONLY` one prism, `NT_POSE`
-//! a substring of the pose tag, and `NT_DUMP=1` turns on the dump.
+//! `NT_D` (comma list) sets the tilts, `NT_EDGE=1` replaces them with
+//! `±ε` in steps of one rounding (the far vertex of a unit edge at the
+//! zero band's edge), `NT_A` (comma list) the sixteenths, off the integer
+//! grid too, `NT_ONLY` one prism, `NT_POSE` a substring of the pose tag,
+//! `NT_DUMP=1` turns on the dump, and `NT_FULL=1` prints each refusal
+//! whole: a refusal of the describe pass's certification reads
+//! `EdgeUndescribed` or `EdgeOnFaces` there.
 //!
 //! `cargo run -p sweep --release --example near_tangent_census_probe`
 
@@ -35,8 +40,8 @@ use differential::{
 use geom_core::{Band, Point3, Tol};
 use topo::entity::{EntityId, LoopBoundary};
 use topo::{
-    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanDeclarations, BooleanError,
-    BooleanResult, CensusStrategy, RegionLane, ValidationError, mass_properties,
+    AtRestBody, Body, BooleanBody, BooleanDecision, BooleanError, BooleanResult, CensusStrategy,
+    RegionLane, ValidationError, mass_properties,
 };
 
 type V3 = [f64; 3];
@@ -218,12 +223,7 @@ fn dump(tag: &str, body: &BooleanBody<f64>) -> Vec<String> {
     out
 }
 
-type Op = fn(
-    &AtRestBody<f64>,
-    &AtRestBody<f64>,
-    &BooleanDeclarations,
-    Tol,
-) -> Result<BooleanResult<f64>, BooleanError>;
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
 
 fn run_all(
     tag: &str,
@@ -234,16 +234,15 @@ fn run_all(
     common: f64,
     lumps: &[String],
 ) {
-    let decls = BooleanDeclarations::default();
     let dumping = std::env::var("NT_DUMP").is_ok();
     for (order, x, y, vx) in [("pc", prism, cube, va), ("cp", cube, prism, vb)] {
         let ops: [(&str, Op, f64); 3] = [
-            ("U", topo::union_with, va + vb - common),
-            ("I", topo::intersect_with, common),
-            ("S", topo::subtract_with, vx - common),
+            ("U", topo::union, va + vb - common),
+            ("I", topo::intersect, common),
+            ("S", topo::subtract, vx - common),
         ];
         for (op, f, want) in ops {
-            let r = f(x, y, &decls, tol());
+            let r = f(x, y, tol());
             let line = format!("{tag} {order} {op}");
             let mut after = Vec::new();
             match &r {
@@ -268,7 +267,8 @@ fn run_all(
                         after.extend(lumps.iter().cloned());
                     }
                 }
-                // The finished-body gate's in-band typing: a sliver shell.
+                // The finished-body gate's in-band typing: check 10's
+                // in-band shell.
                 Err(BooleanError::Escalated {
                     decision: BooleanDecision::ShellRole { others, .. },
                     diag,
@@ -283,6 +283,9 @@ fn run_all(
                 }
                 Err(_) => {}
             }
+            if let (Err(e), true) = (&r, std::env::var("NT_FULL").is_ok()) {
+                after.push(format!("  FULL {line} | {e:?}"));
+            }
             println!("{line}: {}", outcome(r, want, tol()));
             for a in after {
                 println!("{a}");
@@ -292,12 +295,28 @@ fn run_all(
 }
 
 fn main() {
-    let ds: Vec<f64> = std::env::var("NT_D").map_or_else(
-        |_| {
-            vec![
-                1e-5, -1e-5, 1e-6, -1e-6, 1e-7, -1e-7, 1e-8, -1e-8, 1e-9, -1e-9,
-            ]
-        },
+    let ds: Vec<f64> = if std::env::var("NT_EDGE").is_ok() {
+        // `±ε` in steps of one rounding at the model's extent, so a unit
+        // edge's far vertex is read within a few roundings of `|r| = ε`.
+        let eps = tol().eps();
+        [1.0, -1.0]
+            .into_iter()
+            .flat_map(|s| {
+                (-6..=6).map(move |k| s * eps * (1.0 + f64::from(k) * f64::EPSILON / eps))
+            })
+            .collect()
+    } else {
+        std::env::var("NT_D").map_or_else(
+            |_| {
+                vec![
+                    1e-5, -1e-5, 1e-6, -1e-6, 1e-7, -1e-7, 1e-8, -1e-8, 1e-9, -1e-9,
+                ]
+            },
+            |s| s.split(',').map(|x| x.parse().unwrap()).collect(),
+        )
+    };
+    let sixteenths: Vec<f64> = std::env::var("NT_A").map_or_else(
+        |_| (0..16).map(f64::from).collect(),
         |s| s.split(',').map(|x| x.parse().unwrap()).collect(),
     );
     let only = std::env::var("NT_ONLY").ok();
@@ -308,7 +327,7 @@ fn main() {
         }
         let body = pr.body(tol());
         let va = mass_properties(&body, tol()).unwrap().volume;
-        for (j, a) in (0..3).flat_map(|j| (0..16).map(move |a| (j, a))) {
+        for (j, &a) in (0..3).flat_map(|j| sixteenths.iter().map(move |a| (j, a))) {
             for &d in &ds {
                 let tag = format!("{} nt e{j} a{a} d{d:e}", pr.name);
                 if pose.as_deref().is_some_and(|p| !tag.contains(p)) {

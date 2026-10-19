@@ -304,8 +304,16 @@ mod interval_probes {
                     "{name}: lift widened a control coordinate"
                 );
             }
-            assert_eq!(ci.weights(), c.weights(), "{name}: weights moved");
-            assert_eq!(ci.knots().knots(), c.knots().knots(), "{name}: knots moved");
+            assert_eq!(
+                ci.weights_f64_interim(),
+                c.weights_f64_interim(),
+                "{name}: weights moved"
+            );
+            assert_eq!(
+                ci.knots_f64_interim().knots(),
+                c.knots_f64_interim().knots(),
+                "{name}: knots moved"
+            );
             for t in params() {
                 let q = c.eval(t);
                 let p = ci.eval(Interval::from_f64(t));

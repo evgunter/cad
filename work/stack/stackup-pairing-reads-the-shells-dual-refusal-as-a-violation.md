@@ -23,9 +23,10 @@ when one of its nodes refuses on the DL3 seam.
   `docs/DUAL-DESIGN.md` DL3 names this refusal as the designed one.
 - `stackup::driver` evaluates the document at `Dual64` and pairs each
   pass with the `f64` anchor through `stackup::pair_pass`. That function
-  turns exactly two `(Ok, Failed)` kinds into the per-entry valve
-  (`SeedPinnedSection`, `ProfileLaneReplay` →
-  `SensitivityOutcome::Unliftable`). Every other `(Ok, Failed)` pair,
+  turns exactly one `(Ok, Failed)` kind into the per-entry valve
+  (`ProfileLaneReplay` → `SensitivityOutcome::Unliftable`;
+  `SeedPinnedSection`, the other until PR 4741, left with the
+  f64-pinned loft section). Every other `(Ok, Failed)` pair,
   `ShellLaneUnsupported` among them, goes to `same_arm` and returns
   `PairingViolation::ResultArm`.
 - So `stackup::sensitivities` over any document that contains a shell

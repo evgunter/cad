@@ -1,0 +1,5 @@
+# INLANE — log
+
+- 2026-10-11: opened by INTENT's split (Ev approved the division in chat). Rows moved by git mv with ids and bodies unchanged.
+- 2026-10-11: the INTENT orchestrator holds this track (Ev: "you can keep the lane scalar one if you like"). The skin unit merged (PR 4726). The document half, `a-loft-is-the-nominal-surface-in-every-generic-lane`, is dispatched to the same lane.
+- 2026-10-12 — Seam note from NURBS. PR 4834 (`nurbs/held-constant-weights`) gates the NURBS speed meter's net-only integral arm on a new `SpanLocate` query: every weight must be the same plain literal constant, with no tangent and no symbol. That is one site of INLANE's `held-value-equalities-decided-on-the-value-channel`, fixed conservatively. The PR cites the issue and adds two more sites to it as evidence: `geom-brep/src/props/loop_area.rs` `nurbs_vector_area` and `geom-brep/src/nurbs_iso.rs` `interior_iso_u`. When INLANE's T-margin primitive lands, the meter's gate should move to it, or the primitive should subsume the query. (NURBS orchestrator)

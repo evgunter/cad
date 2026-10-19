@@ -9,10 +9,10 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BifurcationKind, BooleanCoincidence, BranchCertification, BranchMarginEvidence, CancelToken,
-    CapEnd, Diagnosis, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node,
-    ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx, SitedRef, StableName, VarId, WitnessAge,
-    WitnessBifurcation, WitnessDatum, evaluate, resolve,
+    Attr, BifurcationKind, BranchCertification, BranchMarginEvidence, CancelToken, CapEnd,
+    Diagnosis, DocEdit, EditError, EntityKind, EvalOptions, Evaluation, Implicated, Node,
+    ProfileDoc, RecipeNodeId, Resolution, Rgba8, RoleSeg, RunCtx, StableName, WitnessAge,
+    WitnessBifurcation, WitnessDatum, evaluate,
 };
 use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
@@ -58,33 +58,18 @@ fn cap(node: RecipeNodeId) -> StableName {
     }
 }
 
-/// The same cap, read through `read` — the read of the node that mints
-/// it, what a declaration sited at that node's output says.
-fn sited(read: VarId, node: RecipeNodeId) -> SitedRef<VarId> {
-    SitedRef::new(read, cap(node))
-}
-
-/// Disjoint blocks A, B, C, D, plus a union `decl` of A, C and D whose
-/// declared pair names A's cap read at A and B's cap read at D.
-///
-/// Every side is sited at a member and names a cap the union read when
-/// the pair was written — the rule every door that writes a pair asks
-/// (D10: a declaration names what its node reads). The union was
-/// inserted over A, B and D and its members then set to A, C and D: a
-/// re-point that reports B's cap out of reach and never refuses it. So
-/// B is no member, and deleting it is allowed: a declared name is a
-/// reference, not a read. Whether D's table carries B's cap is the
-/// evaluation's question (`Vanished`), not these doors'.
+/// Disjoint blocks A, B, C, with a colour attached to A's cap and to
+/// B's: two reference sites no selection holds, which a body-less
+/// `Rebind` repairs.
 struct Three {
     doc: ProfileDoc,
     a: RecipeNodeId,
     b: RecipeNodeId,
     c: RecipeNodeId,
-    decl: RecipeNodeId,
-    /// `a`'s read.
-    ra: VarId,
-    /// `d`'s read.
-    rd: VarId,
+}
+
+fn red() -> Attr {
+    Attr::Color(Rgba8::opaque(200, 30, 30))
 }
 
 fn three() -> Three {
@@ -92,45 +77,30 @@ fn three() -> Three {
     let (doc, _, a) = block(doc, (0.0, 1.0), (0.0, 1.0));
     let (doc, _, b) = block(doc, (2.0, 3.0), (0.0, 1.0));
     let (doc, _, c) = block(doc, (4.0, 5.0), (0.0, 1.0));
-    let (doc, _, d) = block(doc, (6.0, 7.0), (0.0, 1.0));
-    let (ra, rd) = (fixture::out(&doc, a), fixture::out(&doc, d));
-    let (doc, decl) = insert(
-        doc,
-        Node::Union {
-            members: editor_core::Bodies::Spelled(vec![a.into(), b.into(), d.into()]),
-            declare: editor_core::declare_rest(vec![(sited(ra, a), SitedRef::new(rd, cap(b)))]),
+    // Each cap painted in its own block's read (NAMES N1).
+    let (doc, _) = step(
+        doc.clone(),
+        DocEdit::SetAppearance {
+            body: crate::fixture::out(&doc, a),
+            name: cap(a),
+            attr: red(),
         },
     );
     let (doc, _) = step(
-        doc,
-        DocEdit::SetMembers {
-            node: decl,
-            members: editor_core::Bodies::Spelled(vec![a.into(), c.into(), d.into()]),
+        doc.clone(),
+        DocEdit::SetAppearance {
+            body: crate::fixture::out(&doc, b),
+            name: cap(b),
+            attr: red(),
         },
     );
-    Three {
-        doc,
-        a,
-        b,
-        c,
-        decl,
-        ra,
-        rd,
-    }
-}
-
-/// The declared-pair list of the union `decl`.
-fn declared(doc: &ProfileDoc, decl: RecipeNodeId) -> &[editor_core::DeclaredPair] {
-    let Some(Node::Union { declare, .. }) = doc.node(decl) else {
-        panic!("the declaring union is live");
-    };
-    declare
+    Three { doc, a, b, c }
 }
 
 // ---- Rebind: semantics ----
 
 #[test]
-fn rebind_rewrites_declare_sites_one_shot() {
+fn rebind_moves_a_reference_one_shot() {
     let t = three();
     let applied = t
         .doc
@@ -141,19 +111,15 @@ fn rebind_rewrites_declare_sites_one_shot() {
                 to: cap(t.c),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
-    assert!(applied.record.structural, "declared pairs changed");
-    assert_eq!(
-        declared(&applied.doc, t.decl),
-        [(
-            (sited(t.ra, t.a), SitedRef::new(t.rd, cap(t.c))),
-            BooleanCoincidence::REST
-        )]
-    );
+    // The key keeps its read and takes the new name (a Rebind repairs
+    // the name, never the site).
+    let b_read = crate::fixture::out(&t.doc, t.b);
+    assert!(applied.doc.appearance_of(b_read, &cap(t.b)).is_none());
+    assert!(applied.doc.appearance_of(b_read, &cap(t.c)).is_some());
     // One-shot: no alias table — a SECOND rebind of the same source
-    // now finds no references (the site says cap(c) already).
+    // now finds no references.
     assert_eq!(
         applied
             .doc
@@ -163,8 +129,7 @@ fn rebind_rewrites_declare_sites_one_shot() {
                     from: cap(t.b),
                     to: cap(t.a),
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .unwrap_err(),
         EditError::RebindNoReferences {
@@ -172,45 +137,46 @@ fn rebind_rewrites_declare_sites_one_shot() {
         }
     );
     // Purity: the input document is untouched.
-    assert_eq!(
-        declared(&t.doc, t.decl),
-        [(
-            (sited(t.ra, t.a), SitedRef::new(t.rd, cap(t.b))),
-            BooleanCoincidence::REST
-        )]
-    );
+    assert!(t.doc.appearance_of(b_read, &cap(t.b)).is_some());
+    assert!(t.doc.appearance_of(b_read, &cap(t.c)).is_none());
 }
 
 #[test]
-fn rebind_repairs_a_stranded_name_after_node_gone() {
+fn a_key_whose_read_went_is_repaired_by_re_attachment() {
     let t = three();
-    // Delete B (allowed: B is no member of the union) — cap(b)
-    // strands as NodeGone; Rebind is THE repair.
-    let (doc, _) = step(t.doc, DocEdit::DeleteNode { id: t.b });
+    let b_read = crate::fixture::out(&t.doc, t.b);
+    // Delete B: cap(b) strands, and its read goes with the node.
+    let (doc, _) = step(t.doc.clone(), DocEdit::DeleteNode { id: t.b });
     let ev = run(&doc, None);
     assert!(matches!(
-        resolve(RunCtx { doc: &doc, eval: &ev }, &cap(t.b)),
+        crate::fixture::resolve_at_mint(RunCtx { doc: &doc, eval: &ev }, &cap(t.b)),
         Resolution::Failed(f) if matches!(f.error, editor_core::ResolveError::NodeGone { .. })
     ));
-    // The source's node is dead-but-once-lived: the rebind APPLIES.
+    // A Rebind keeps a key's read, and that read is gone: the repair is
+    // the re-attachment, Set in C's read and Clear in B's (ruling d).
+    let c_read = crate::fixture::out(&doc, t.c);
     let (doc, _) = step(
         doc,
-        DocEdit::Rebind {
-            body: None,
-            from: cap(t.b),
-            to: cap(t.c),
+        DocEdit::SetAppearance {
+            body: c_read,
+            name: cap(t.c),
+            attr: red(),
         },
     );
-    let ev = run(&doc, None);
-    assert_eq!(
-        declared(&doc, t.decl),
-        [(
-            (sited(t.ra, t.a), SitedRef::new(t.rd, cap(t.c))),
-            BooleanCoincidence::REST
-        )]
+    let (doc, _) = step(
+        doc,
+        DocEdit::ClearAppearance {
+            body: b_read,
+            name: cap(t.b),
+            kind: editor_core::AttrKind::Color,
+        },
     );
+    assert!(doc.appearance_of(b_read, &cap(t.b)).is_none());
+    assert!(doc.appearance_of(c_read, &cap(t.c)).is_some());
+    let ev = run(&doc, None);
+    assert!(ev.appearance.is_lossless(), "{:?}", ev.appearance.losses);
     assert!(matches!(
-        resolve(
+        crate::fixture::resolve_at_mint(
             RunCtx {
                 doc: &doc,
                 eval: &ev
@@ -219,68 +185,6 @@ fn rebind_repairs_a_stranded_name_after_node_gone() {
         ),
         Resolution::Resolved(_)
     ));
-}
-
-// ---- SetDeclare: the whole-list replace and its refusal doors ----
-
-#[test]
-fn set_declare_replaces_the_whole_list_and_refuses_typed() {
-    let t = three();
-    let pair = |x, y| {
-        editor_core::declare_rest(vec![(
-            sited(fixture::out(&t.doc, x), x),
-            SitedRef::new(t.rd, cap(y)),
-        )])
-    };
-    let set = |doc: &ProfileDoc, node, pairs| {
-        doc.apply(
-            &DocEdit::SetDeclare { node, pairs },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-    };
-    let applied = set(&t.doc, t.decl, pair(t.a, t.c)).expect("a live union takes a new list");
-    assert_eq!(applied.record.minted, None, "SetDeclare mints nothing");
-    assert!(applied.record.structural, "SetDeclare is structural");
-    assert!(
-        applied.maintenance.is_empty(),
-        "SetDeclare maintains nothing"
-    );
-    assert_eq!(
-        declared(&applied.doc, t.decl),
-        [(
-            (sited(t.ra, t.a), SitedRef::new(t.rd, cap(t.c))),
-            BooleanCoincidence::REST
-        )],
-        "the list is REPLACED, not appended to"
-    );
-    let cleared = set(&applied.doc, t.decl, Vec::new()).expect("an empty list clears");
-    assert!(
-        declared(&cleared.doc, t.decl).is_empty(),
-        "an empty list clears"
-    );
-    assert_eq!(
-        set(&t.doc, t.a, pair(t.a, t.b)).unwrap_err(),
-        EditError::SetDeclareOnNonDeclaring {
-            node: t.doc.spoken(t.a)
-        },
-        "an extrude declares no contacts"
-    );
-    let (doc_del, _) = step(t.doc.clone(), DocEdit::DeleteNode { id: t.c });
-    assert_eq!(
-        set(&doc_del, t.c, Vec::new()).unwrap_err(),
-        EditError::UnknownNode {
-            id: editor_core::SpokenNode::absent(t.c)
-        },
-        "a dead id is unknown"
-    );
-    assert_eq!(
-        set(&doc_del, t.decl, pair(t.a, t.c)).unwrap_err(),
-        EditError::DeclareNamesMissingNode {
-            name: doc_del.spoken_name(&cap(t.c))
-        },
-        "a pair naming a dead node is refused as an insert's would be"
-    );
 }
 
 // ---- Rebind: every refusal door ----
@@ -297,8 +201,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.b),
                     to: cap(t.b),
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .unwrap_err(),
         EditError::RebindIdentity {
@@ -319,8 +222,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.b),
                     to: body_c,
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .unwrap_err(),
         EditError::RebindKindMismatch {
@@ -338,8 +240,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.b),
                     to: cap(t.c),
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .unwrap_err(),
         EditError::RebindTargetMissingNode {
@@ -356,32 +257,11 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: foreign.clone(),
                     to: cap(t.c),
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .unwrap_err(),
         EditError::RebindUnknownName {
             name: t.doc.spoken_name(&foreign)
-        }
-    );
-    // A target minted AFTER the declaring union: the rewritten pair
-    // would name what none of its members can hold, so the rebind
-    // refuses with the union's own rule, and no document results.
-    let (late, _, e) = block(t.doc.clone(), (8.0, 9.0), (0.0, 1.0));
-    assert_eq!(
-        late.apply(
-            &DocEdit::Rebind {
-                body: None,
-                from: cap(t.b),
-                to: cap(e),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach
-        )
-        .unwrap_err(),
-        EditError::DeclaredNameNotUpstream {
-            node: late.spoken(t.decl),
-            name: late.spoken_name(&cap(e)),
         }
     );
     // Zero document sites.
@@ -390,16 +270,15 @@ fn rebind_refusal_doors_are_typed_and_specific() {
             .apply(
                 &DocEdit::Rebind {
                     body: None,
-                    from: cap(t.a), // A's cap is the LEFT of the pair; it IS referenced
+                    from: cap(t.a), // A's cap carries a colour; it IS referenced
                     to: cap(t.c),
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .map(|_| ())
             .err(),
         None,
-        "left-hand pair names are references too"
+        "an appearance key is a reference"
     );
     assert_eq!(
         t.doc
@@ -409,8 +288,7 @@ fn rebind_refusal_doors_are_typed_and_specific() {
                     from: cap(t.c), // referenced nowhere
                     to: cap(t.a),
                 },
-                Tol::witness(),
-                &editor_core::RefusingReach
+                Tol::witness()
             )
             .unwrap_err(),
         EditError::RebindNoReferences {
@@ -440,7 +318,6 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 witness: w.clone(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!applied.record.structural);
@@ -453,8 +330,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 node: extrude,
                 witness: w.clone(),
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::WitnessOnNonSketch {
@@ -467,8 +343,7 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 node: RecipeNodeId::new(0, 9999),
                 witness: w.clone(),
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::UnknownNode {
@@ -484,7 +359,6 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 witness: w.clone(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(applied.doc.bit_eq(&redo.doc));
@@ -496,7 +370,6 @@ fn rewitness_stores_on_sketch_nodes_only_and_replays() {
                 witness: datum(1, b"assignment-v2"),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!applied.doc.bit_eq(&other.doc));
@@ -528,7 +401,6 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
                 certification: cert.clone(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(!applied.record.structural);
@@ -541,8 +413,7 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
                 entries: vec![],
                 certification: cert.clone(),
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::EmptyWitnessBulk
@@ -553,8 +424,7 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
                 entries: vec![(p1, datum(1, b"w1")), (p1, datum(1, b"w1b"))],
                 certification: cert.clone(),
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::DuplicateWitnessEntry {
@@ -567,8 +437,7 @@ fn rewitness_bulk_validates_shape_and_carries_certification_as_data() {
                 entries: vec![(e1, datum(1, b"w"))],
                 certification: cert,
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::WitnessOnNonSketch {
@@ -602,10 +471,7 @@ fn witness_change_moves_the_content_key_and_reproduces_bits() {
     // does not read the witness, so tables and verdicts reproduce
     // exactly.
     for id in [profile, extrude] {
-        assert_eq!(
-            ev1.value(id).unwrap().name_table,
-            ev2.value(id).unwrap().name_table
-        );
+        assert_eq!(ev1.table_at(id).unwrap(), ev2.table_at(id).unwrap());
         assert_eq!(
             ev1.value(id).unwrap().verdicts,
             ev2.value(id).unwrap().verdicts
@@ -666,7 +532,6 @@ fn set_extrude_side_flips_an_extrude_and_refuses_another_kind() {
                 side: ExtrudeSide::Against,
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .unwrap();
     assert!(applied.record.structural);
@@ -678,8 +543,7 @@ fn set_extrude_side_flips_an_extrude_and_refuses_another_kind() {
                 node: profile,
                 side: ExtrudeSide::Against,
             },
-            Tol::witness(),
-            &editor_core::RefusingReach
+            Tol::witness()
         )
         .unwrap_err(),
         EditError::SetExtrudeSideOnNonExtrude {

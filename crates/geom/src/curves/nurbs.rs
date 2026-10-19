@@ -4,10 +4,16 @@
 //!
 //! # Data model (binding conventions)
 //!
-//! Knots, weights, and degree are **f64 structure** (C6); control
-//! points are the only generically-typed data. Construction is
-//! validated and typed-error: **clamped-v1** knot vectors
-//! ([`geom_core::spline::KnotVector`] carries the exact invariants),
+//! Control points, weights and knots are **held in the scalar** `T`
+//! (C6): the knots as [`geom_core::spline::Knots`], a breakpoint per
+//! run, and the weights as `Vec<T>`. The **structure** (degree, counts,
+//! multiplicities, which span a parameter lies in, and every decision
+//! the knot algebra takes) is decided in `f64` on the values' value
+//! channel: the [`geom_core::spline::KnotVector`] the held knots carry,
+//! and the weights' channel read off them at construction. Construction
+//! is validated and typed-error: **clamped-v1** knot vectors (the
+//! [`KnotVector`] carries the exact invariants), weights that are each
+//! one point,
 //! **strictly positive weights** (the convex-hull property every C9
 //! hull bound stands on), and count coherence. Unlike the analytic
 //! variants' public conventional fields, these invariants are
@@ -51,9 +57,9 @@
 //!   **polynomial extension** (documented garbage-out — detecting it
 //!   would need the comparison [`Real`] deliberately lacks). These
 //!   doors live on [`CurveWindow2`]/[`CurveWindow3`], which **borrow
-//!   the curve**: the basis comes from the window's own [`Span`] and
-//!   the control points and weights from the curve that span was drawn
-//!   from, one borrow, so the window base is an addition that cannot
+//!   the curve**: the basis comes from the window's own span of the
+//!   held knots ([`KnotSpan`]) and the control points and weights from
+//!   the curve that span was drawn from, one borrow, so the window base is an addition that cannot
 //!   underflow, the reads are in range by construction, and there is no
 //!   pairing to check and no refusal to answer. The two mints are
 //!   [`NurbsCurve3::span`] and [`NurbsCurve3::span_at`], both `&self`.
@@ -147,87 +153,59 @@
 //! # Fixed association (D9)
 //!
 //! Homogeneous combination is a **single ascending-index pass**: for
-//! each basis index `j` (ascending), `cw = N_j · from_f64(w_j)`, then
+//! each basis index `j` (ascending), `cw = N_j · w_j`, then
 //! each homogeneous accumulator adds its term in the written order
 //! (`acc = acc + cw · coord`), followed by **one division per
 //! coordinate** by the accumulated weight. Rational derivative
 //! corrections are evaluated exactly as parenthesized at each method.
 //! Knot-algebra point combinations are `lerp(x, y, λ) = x + (y − x)·λ`
-//! with `λ` lifted once per combination.
+//! with `λ` and the new weight formed at `T` from the held knots and
+//! weights, once per combination
+//! ([`geom_core::spline::CurvePlan::apply_rational`]).
 
 use core::num::NonZeroUsize;
 use geom_core::spline::ProjectiveScalar;
 use geom_core::spline::{
-    self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError, knot_difference,
+    self, KnotAlgebraError, KnotSpan, KnotVector, Knots, Span, SpanLocate, SplineError, Weights,
+    derivative_net,
 };
 use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
+use std::sync::OnceLock;
 
 use crate::net;
 
-/// The rational speed meter's **fixed refinement schedule** (D9: a
-/// structure choice, never a decision): before the per-span scan of
-/// `speed_lower_bound`'s rational arm, every nonempty span is split
-/// into this many equal pieces by knot insertion. Knot insertion is
-/// evaluation-invariant, so the curve is unchanged; only the hulls the
-/// bound is assembled from shrink. The constant is a measured
-/// trade-off, not a tuning knob — see the `rational_speed_lower_bound`
-/// docs and the adversarial rows in `tests/curves/m5_pr7_speed_meter.rs`.
-/// It is this meter's alone: `geom_brep::patch_bound`'s rational
-/// certificate schedule has the same value but prices a different
-/// bound, and neither follows the other.
-const RATIONAL_METER_SPLITS: usize = 16;
+/// The speed meter's piece schedule (D9: structure, never a decision):
+/// both of `speed_lower_bound`'s piece readings and `speed_upper_bound`
+/// read each nonempty span as this many equal pieces, at every degree,
+/// halved from the quotient formed once over the span
+/// ([`geom_core::spline::derivative::speed_pieces`]).
+/// `tests/curves/swaying_corner_meter.rs` pins what it buys on a
+/// swaying corner, where each doubling of the count roughly doubles
+/// the reach (on other nets a finer schedule can read lower: each
+/// piece takes its own direction, so refinement is not monotone), and
+/// `tests/curves/piece_coverage_meter.rs` that every piece is read.
+const SPEED_PIECE_SPLITS: usize = 32;
 
-/// The integral speed meter's piece schedule (D9: structure, never a
-/// decision): the third assembly of `speed_lower_bound`'s integral arm
-/// reads each nonempty span as this many equal pieces. See
-/// `piece_assembly`'s docs; `tests/curves/swaying_corner_meter.rs` pins
-/// what it buys (the reach on a swaying corner roughly doubles with
-/// each doubling of the count) and `tests/curves/piece_coverage_meter.rs`
-/// that every piece is read.
-const INTEGRAL_METER_SPLITS: usize = 16;
-
-/// The highest derivative degree whose [`piece_weights`], and the sums
-/// of their columns, are exact `f64`s. With [`INTEGRAL_METER_SPLITS`]
-/// `= 2⁴`, every value de Casteljau's recurrence forms at the dyadic
-/// breaks `k/16` over `q` levels is an integer over `16^q` no larger
-/// than `1`, and a column of `q + 1` of them sums to at most `q + 1`;
-/// both are exact while `(q + 1)·16^q ≤ 2⁵³`.
-const PIECE_EXACT_MAX_DEGREE: usize = 12;
-
-/// The piece-restriction weights of a degree-`q` Bernstein row on
-/// `[0, 1]`, for the [`INTEGRAL_METER_SPLITS`] equal pieces: piece `i`'s
-/// coefficient `k` is `Σⱼ w[i][k][j]·cⱼ`, the row's blossom at
-/// `((i/S)^{q−k}, ((i+1)/S)^k)`, laid out flat as
-/// `[piece][k][j]`. Each `w[i][k]` is a convex combination (de
-/// Casteljau's steps at ratios in `[0, 1]`), every entry exact
-/// ([`PIECE_EXACT_MAX_DEGREE`]); `None` above that degree.
-fn piece_weights(q: usize) -> Option<Vec<f64>> {
-    if q > PIECE_EXACT_MAX_DEGREE {
-        return None;
+/// A spline's memoised meter: `compute` afresh inside a symbolic
+/// session, `cell`'s value outside one (filled on first read). A
+/// session's table holds the nodes it saw built, and a node minted
+/// anywhere else freezes in it to an unknown of its own
+/// (`geom_core::sym`, "No session, no tier"), so a memo served across
+/// that boundary would change what the session decides; inside one
+/// nothing the meter mints is kept.
+pub(crate) fn session_memo<V: Copy>(cell: &OnceLock<V>, compute: impl FnOnce() -> V) -> V {
+    if geom_core::sym::session_installed() {
+        return compute();
     }
-    let n = q + 1;
-    let mut out = Vec::with_capacity(INTEGRAL_METER_SPLITS * n.pow(2));
-    let mut d = vec![0.0; n];
-    #[allow(clippy::cast_precision_loss)]
-    for piece in 0..INTEGRAL_METER_SPLITS {
-        let a = piece as f64 / INTEGRAL_METER_SPLITS as f64;
-        let b = (piece + 1) as f64 / INTEGRAL_METER_SPLITS as f64;
-        for k in 0..n {
-            for j in 0..n {
-                d.iter_mut()
-                    .enumerate()
-                    .for_each(|(i, x)| *x = if i == j { 1.0 } else { 0.0 });
-                for r in 1..=q {
-                    let t = if r <= q - k { a } else { b };
-                    for i in 0..=(q - r) {
-                        d[i] = d[i] * (1.0 - t) + d[i + 1] * t;
-                    }
-                }
-                out.push(d[0]);
-            }
-        }
-    }
-    Some(out)
+    *cell.get_or_init(compute)
+}
+
+/// A curve and a plan chain to apply to its net
+/// (`apply_plans`, at either half of [`spline::ProjectiveSplit`]).
+struct PlanChain<'a, C, T> {
+    curve: &'a C,
+    plans: &'a [spline::CurvePlan],
+    fresh: &'a dyn Fn(f64) -> T,
 }
 
 macro_rules! nurbs_curve {
@@ -258,13 +236,13 @@ macro_rules! nurbs_curve {
         #[derive(Clone, Copy)]
         pub struct $Window<'a, T: Real> {
             curve: &'a $Curve<T>,
-            span: Span<'a>,
+            span: KnotSpan<'a, T>,
         }
 
         /// Equality is address equality on the curve, plus the span
         /// (itself address-equal on its vector): a window is a proof
         /// about *that* control net, and a curve is not [`Eq`] — its
-        /// knots and weights are `f64`.
+        /// data is held in a scalar that has no equality.
         ///
         /// **This walk and the `Debug` beside it destructure `Self`
         /// exhaustively**, so a field added to the declaration is an
@@ -274,7 +252,7 @@ macro_rules! nurbs_curve {
             fn eq(&self, other: &Self) -> bool {
                 let Self { curve, span } = self;
                 let Self { curve: other_curve, span: other_span } = other;
-                core::ptr::eq(*curve, *other_curve) && span == other_span
+                core::ptr::eq(*curve, *other_curve) && span.span() == other_span.span()
             }
         }
 
@@ -289,7 +267,7 @@ macro_rules! nurbs_curve {
                 let Self { curve, span } = self;
                 f.debug_struct(stringify!($Window))
                     .field("curve", &core::ptr::from_ref(*curve))
-                    .field("span", span)
+                    .field("span", &span.span())
                     .finish()
             }
         }
@@ -303,27 +281,33 @@ macro_rules! nurbs_curve {
 
             /// The knot span this window selects.
             pub fn span(self) -> Span<'a> {
+                self.span.span()
+            }
+
+            /// The span paired with the curve's held knot values: what
+            /// the basis reads.
+            pub fn knot_span(self) -> KnotSpan<'a, T> {
                 self.span
             }
 
             /// The span index (`Span::index`).
             pub fn index(self) -> usize {
-                self.span.index()
+                self.span().index()
             }
 
             /// The degree (`Span::degree`).
             pub fn degree(self) -> usize {
-                self.span.degree()
+                self.span().degree()
             }
 
             /// The first control point of the window (`Span::first_control`).
             pub fn first_control(self) -> usize {
-                self.span.first_control()
+                self.span().first_control()
             }
 
             /// The inclusive control-point window, `Span::window`.
             pub fn window(self) -> core::ops::RangeInclusive<usize> {
-                self.span.window()
+                self.span().window()
             }
         }
 
@@ -331,11 +315,37 @@ macro_rules! nurbs_curve {
         /// contract, fixed association orders). Immutable after
         /// construction; every knot-algebra operation returns a new
         /// curve (D9-clean value semantics).
-        #[derive(Clone, Debug)]
+        #[derive(Clone)]
         pub struct $Curve<T: Real> {
-            knots: KnotVector,
+            knots: Knots<T>,
             control: Vec<$Point<T>>,
-            weights: Vec<f64>,
+            /// The weights, held in `T` with their value channel
+            /// ([`Weights`]): a built carrier's are points
+            /// (`net::weight_channel`), so the channel is always there.
+            weights: Weights<T>,
+            /// [`Self::speed_lower_bound`], filled on first read outside
+            /// a symbolic session. It is a function of the four fields
+            /// above, which nothing mutates after construction, so it
+            /// cannot go stale; every door that changes them builds a
+            /// new curve with an empty memo, and a clone carries the
+            /// memo of the same value.
+            speed: OnceLock<geom_core::InfSpeed<T>>,
+            /// [`Self::speed_upper_bound`], filled on first read, on the
+            /// same terms as `speed`.
+            speed_sup: OnceLock<geom_core::SupSpeed<T>>,
+        }
+
+        /// The curve's value, without the speed memo: whether it has
+        /// been read yet is not part of what the curve is.
+        impl<T: Real> core::fmt::Debug for $Curve<T> {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                let Self { knots, control, weights, speed: _, speed_sup: _ } = self;
+                f.debug_struct(stringify!($Curve))
+                    .field("knots", knots)
+                    .field("control", control)
+                    .field("weights", weights)
+                    .finish()
+            }
         }
 
         impl<T: Real> $Window<'_, T> {
@@ -351,19 +361,19 @@ macro_rules! nurbs_curve {
             /// `t` outside the span's interval still yields the span's
             /// polynomial extension (documented garbage-out).
             pub fn eval_in_span(self, t: T) -> $Point<T> {
-                let basis = spline::basis::basis_funs(self.span, t);
+                let basis = spline::basis::basis_funs_in(self.span, t);
                 // The window's base is subtracted once inside `Span`,
                 // so what remains here is an addition. Indexing (not
                 // `zip`) deliberately: `basis` is `degree + 1` long and
                 // the window is `degree + 1` wide — one `degree`, the
                 // span's — and if that ever ceased to hold this must
                 // PANIC rather than silently drop control points.
-                let base = self.span.first_control();
+                let base = self.first_control();
                 $(let mut $c = T::zero();)+
                 let mut w_acc = T::zero();
                 for (j, nj) in basis.iter().enumerate() {
                     let i = base + j;
-                    let cw = *nj * T::from_f64(self.curve.weights[i]);
+                    let cw = *nj * self.curve.weights.values()[i];
                     let pt = self.curve.control[i];
                     $($c = $c + cw * pt.$c;)+
                     w_acc = w_acc + cw;
@@ -382,7 +392,7 @@ macro_rules! nurbs_curve {
             /// runs an order-1 basis and never computes the order-2
             /// row it would discard.
             fn homogeneous<const N: usize>(self, t: T) -> ([[T; N]; $dim], [T; N]) {
-                let ders = spline::basis::ders_basis_funs(self.span, t, N - 1);
+                let ders = spline::basis::ders_basis_funs_in(self.span, t, N - 1);
                 // Indexed off the window base, exactly as
                 // [`Self::eval_in_span`]. A `zip` against a window slice
                 // would be the wrong shape here: `ders`' row length and
@@ -390,13 +400,13 @@ macro_rules! nurbs_curve {
                 // `degree`, and a `zip` would answer a disagreement by
                 // silently dropping control points where indexing
                 // panics.
-                let base = self.span.first_control();
+                let base = self.first_control();
                 $(let mut $c = [T::zero(); N];)+
                 let mut w_hom = [T::zero(); N];
                 for (k, row) in ders.iter().enumerate() {
                     for (j, nkj) in row.iter().enumerate() {
                         let i = base + j;
-                        let cw = *nkj * T::from_f64(self.curve.weights[i]);
+                        let cw = *nkj * self.curve.weights.values()[i];
                         let pt = self.curve.control[i];
                         $($c[k] = $c[k] + cw * pt.$c;)+
                         w_hom[k] = w_hom[k] + cw;
@@ -461,26 +471,85 @@ macro_rules! nurbs_curve {
 
         }
 
-        impl<T: Real> $Curve<T> {
+        impl<T: SpanLocate> $Curve<T> {
             /// Validated construction (module docs for the invariants).
+            /// The knots are held in `T` ([`Knots`]; at `f64` a
+            /// [`KnotVector`] converts), and so are the weights; the
+            /// weights' value channel is read off them here, and every
+            /// structure decision on them reads it.
             ///
             /// # Errors
             ///
-            /// [`SplineError`] naming the exact violation: count
-            /// mismatches or a non-positive/non-finite weight. (Knot
-            /// vector violations are refused earlier, by
-            /// [`KnotVector::clamped`].)
+            /// [`SplineError`] naming the exact violation: a weight that
+            /// is no single point ([`SplineError::CarrierWeightNotAPoint`],
+            /// or [`SplineError::WeightSignUndecided`] where its sign is
+            /// undecided), a breakpoint that is no single point
+            /// ([`SplineError::CarrierKnotNotAPoint`]), count
+            /// mismatches, or a non-positive/non-finite weight.
+            /// (Knot vector violations are refused earlier, by
+            /// [`KnotVector::clamped`] or [`Knots::new`].)
             pub fn new(
-                knots: KnotVector,
+                knots: impl Into<Knots<T>>,
                 control: Vec<$Point<T>>,
-                weights: Vec<f64>,
+                weights: Vec<T>,
             ) -> Result<Self, SplineError> {
-                net::validate_counts(knots.control_count(), control.len(), &weights)?;
-                Ok(Self { knots, control, weights })
+                let knots = knots.into();
+                net::carrier_knots(&knots)?;
+                let weight_channel = net::weight_channel(&weights)?;
+                net::validate_counts(knots.structure().control_count(), control.len(), &weight_channel)?;
+                let weights = Weights::from_point_parts(weights, weight_channel);
+                Ok(Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new() })
             }
 
-            /// The validated clamped knot vector.
-            pub fn knots(&self) -> &KnotVector {
+            /// The same curve on another parameter domain: the knots
+            /// re-expressed on `[lo, hi]` in `T` by [`Knots::on_domain`]
+            /// (ends exact, interior affine over the held values), the
+            /// control net and the weights carried over verbatim.
+            /// Construction goes through [`Self::from_validated_parts`],
+            /// which states why no re-validation is run.
+            ///
+            /// A reparameterization, not a change of locus: the result
+            /// at `lo + (hi − lo)·s` is this curve at `a + (b − a)·s`,
+            /// to the rounding of the knot map. The domain's own
+            /// validity is the knot door's question, and its `Result`
+            /// is that door's and nothing else.
+            ///
+            /// # Errors
+            ///
+            /// [`Knots::on_domain`]'s: the domain is not a finite
+            /// increasing interval, rounding put two breakpoints on one
+            /// value, or (at an enclosure scalar) a re-expressed
+            /// interior breakpoint is wider than a point
+            /// ([`SplineError::CarrierKnotNotAPoint`]): the map is formed in
+            /// the scalar, and an inexact one rounds outward.
+            pub fn on_domain(&self, lo: f64, hi: f64) -> Result<Self, SplineError> {
+                let knots = self.knots.on_domain(lo, hi)?;
+                net::carrier_knots(&knots)?;
+                Ok(Self::from_validated_parts(
+                    knots,
+                    self.control.clone(),
+                    self.weights.clone(),
+                ))
+            }
+        }
+
+        impl<T: Real> $Curve<T> {
+            /// **C6's interim**: the `f64` knot vector, where every held
+            /// knot is a point ([`Knots::structure_f64_interim`], which
+            /// refuses loud, by the reader's location, on a carrier with
+            /// a knot wider than a point). A reader inside this macro is
+            /// named by the macro's invocation, the location `rustc`
+            /// gives every line it expands. Unreachable from a built
+            /// carrier, whose knots are points (`net::carrier_knots`).
+            /// Counted by `scripts/gates/knots-f64-interim.sh`; it goes
+            /// in C6's S5.
+            #[track_caller]
+            pub fn knots_f64_interim(&self) -> &KnotVector {
+                self.knots.structure_f64_interim()
+            }
+
+            /// The knots held in `T`, with their structure.
+            pub fn knot_values(&self) -> &Knots<T> {
                 &self.knots
             }
 
@@ -489,9 +558,23 @@ macro_rules! nurbs_curve {
                 &self.control
             }
 
-            /// The weights (strictly positive, f64 structure).
-            pub fn weights(&self) -> &[f64] {
-                &self.weights
+            /// The weights, held in `T` (strictly positive on their
+            /// value channel).
+            pub fn weights(&self) -> &[T] {
+                self.weights.values()
+            }
+
+            /// **C6's interim**: the weights' value channel, the `f64`
+            /// every structure decision on them reads (the knot
+            /// algebra's plans, the certificates, the rational test).
+            /// Arithmetic reads [`Self::weights`]. A carrier's door
+            /// admits only point weights
+            /// ([`SplineError::CarrierWeightNotAPoint`]), so a built
+            /// carrier always has it. Counted by
+            /// `scripts/gates/knots-f64-interim.sh`; it goes in C6's S5.
+            #[track_caller]
+            pub fn weights_f64_interim(&self) -> &[f64] {
+                self.weights.weights_f64_interim()
             }
 
             /// The degree `p` (carried by the knot vector).
@@ -500,9 +583,9 @@ macro_rules! nurbs_curve {
             }
 
             /// The parameter domain (first knot at multiplicity
-            /// `p + 1` to last).
+            /// `p + 1` to last), on the value channel.
             pub fn domain(&self) -> (f64, f64) {
-                self.knots.domain()
+                self.knots_f64_interim().domain()
             }
 
             /// Construction from parts whose invariants are ALREADY
@@ -515,71 +598,51 @@ macro_rules! nurbs_curve {
             /// `crate::scalar_lift`'s module docs: what a structural
             /// map is, why no shape of it changes a count or a weight
             /// value, and which part of it the `debug_assert` below
-            /// cannot check. `knots` and `weights` here are a
-            /// validated curve's own and `control` is that curve's net
-            /// under such a map.
+            /// cannot check. `knots` and `weights`
+            /// here are a validated curve's own (or its knots on
+            /// another domain, or all three under a lift that keeps
+            /// every point) and `control` is that curve's net under
+            /// such a map — or, from [`Self::apply_plans`], a
+            /// knot-algebra plan's own knots and weights, whose every
+            /// written weight the plan admitted (same module docs).
             fn from_validated_parts(
-                knots: KnotVector,
+                knots: Knots<T>,
                 control: Vec<$Point<T>>,
-                weights: Vec<f64>,
+                weights: Weights<T>,
             ) -> Self {
                 debug_assert!(
-                    control.len() == knots.control_count() && weights.len() == control.len(),
+                    control.len() == knots.structure().control_count()
+                        && weights.len() == control.len(),
                     "from_validated_parts: a structural map changed a count \
                      (control {}, knots want {}, weights {})",
                     control.len(),
-                    knots.control_count(),
+                    knots.structure().control_count(),
                     weights.len()
                 );
-                Self { knots, control, weights }
+                Self { knots, control, weights, speed: OnceLock::new(), speed_sup: OnceLock::new() }
             }
 
             /// The same curve read at another scalar: `f` applied to
-            /// every control coordinate, the knots and weights carried
-            /// over verbatim — they are `f64` structure at every scalar
-            /// (module docs). Construction goes through
-            /// [`Self::from_validated_parts`], which states why no
-            /// re-validation is run.
+            /// every control coordinate, every weight and once per knot
+            /// breakpoint ([`Knots::lift`]), the knot structure and the
+            /// weights' value channel carried over. Construction goes
+            /// through [`Self::from_validated_parts`], which states why
+            /// no re-validation is run.
             ///
-            /// A structural map, not an evaluation: exact whenever
-            /// `f` is (`Real::from_f64`, `Dual::constant`), and then
-            /// the lifted curve evaluates to the source. What the
-            /// placeholder and a poisoned net lift to is argued once,
-            /// in `crate::scalar_lift`'s module docs.
+            /// A structural map, not an evaluation: `f` is a lift that
+            /// keeps every value's point (`Real::from_f64`,
+            /// `Dual::constant`, an interval's point), and then the
+            /// lifted curve evaluates to the source and its structure is
+            /// still its values' value channel. What the placeholder and
+            /// a poisoned net lift to is argued once, in
+            /// `crate::scalar_lift`'s module docs.
             #[must_use]
             pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> $Curve<U> {
                 $Curve::from_validated_parts(
-                    self.knots.clone(),
+                    self.knots.lift(&f),
                     self.control.iter().map(|p| p.map(&f)).collect(),
-                    self.weights.clone(),
+                    self.weights.lift(&f),
                 )
-            }
-
-            /// The same curve on another parameter domain: the knots
-            /// re-expressed on `[lo, hi]` by [`KnotVector::on_domain`]
-            /// (ends exact, interior affine), the control net and the
-            /// weights carried over verbatim. Construction goes through
-            /// [`Self::from_validated_parts`], which states why no
-            /// re-validation is run.
-            ///
-            /// A reparameterization, not a change of locus: the result
-            /// at `lo + (hi − lo)·s` is this curve at `a + (b − a)·s`,
-            /// to the rounding of the knot map. The domain's own
-            /// validity is the knot door's question, and its `Result`
-            /// is that door's and nothing else.
-            ///
-            /// # Errors
-            ///
-            /// [`KnotVector::on_domain`]'s: the domain is not a finite
-            /// increasing interval, or a rounding collapse tripped a
-            /// clamp clause.
-            pub fn on_domain(&self, lo: f64, hi: f64) -> Result<Self, SplineError> {
-                let knots = self.knots.on_domain(lo, hi)?;
-                Ok(Self::from_validated_parts(
-                    knots,
-                    self.control.clone(),
-                    self.weights.clone(),
-                ))
             }
 
             /// The same curve with every control point carried
@@ -632,7 +695,7 @@ macro_rules! nurbs_curve {
             /// [`KnotVector::span_at`] locates it (out-of-domain clamps
             /// to an end span).
             pub fn span_at(&self, t: f64) -> Option<$Window<'_, T>> {
-                Some(self.window_of(self.knots.span_at(t)?))
+                self.span(self.knots_f64_interim().span_at(t)?.index())
             }
 
             /// The one primitive constructor, behind [`Self::span`] and
@@ -640,34 +703,127 @@ macro_rules! nurbs_curve {
             /// full evaluators. It is private because it is the single
             /// place where a span and a curve are put together, and
             /// every caller draws the span from `self.knots`.
-            fn window_of<'a>(&'a self, span: Span<'a>) -> $Window<'a, T> {
+            fn window_of<'a>(&'a self, span: KnotSpan<'a, T>) -> $Window<'a, T> {
                 $Window { curve: self, span }
             }
 
         }
 
-        /// The knot algebra: at the evaluation scalars only
-        /// ([`ProjectiveScalar`]'s docs say why not at `Interval`).
-        impl<T: ProjectiveScalar> $Curve<T> {
-            /// Applies a chain of structure plans to this curve's
-            /// control polygon (points via `lerp(x, y, from_f64(λ))`,
-            /// the fixed association; knots/weights from the final
-            /// plan). Empty chain ⇒ clone.
-            fn apply_plans(&self, plans: &[spline::CurvePlan]) -> Self {
-                let mut control = self.control.clone();
+        /// [`$Curve::apply_plans`]'s two halves: the projective
+        /// applier at an evaluation scalar, the homogeneous one at an
+        /// enclosure scalar (C6 S4).
+        impl<T: SpanLocate> spline::ProjectiveSplit<T> for PlanChain<'_, $Curve<T>, T> {
+            type Out = Result<$Curve<T>, KnotAlgebraError>;
+
+            /// Each step's coefficient, weight and `λ` formed at `T`
+            /// from the held knots and weights
+            /// ([`spline::CurvePlan::apply_rational`]), points via
+            /// `lerp(x, y, λ)`, the fixed association. The weights'
+            /// value channel is the final plan's, which the plans
+            /// computed on the channel with the same operations, and
+            /// whose every written weight the plan admitted
+            /// (`geom_core::spline::algebra`'s written-weight check:
+            /// strictly positive and finite, or the plan refused).
+            fn projective(self) -> Self::Out
+            where
+                T: ProjectiveScalar,
+            {
+                let PlanChain { curve, plans, fresh } = self;
+                let Some(last) = plans.last() else {
+                    return Ok(curve.clone());
+                };
+                let mut knots = curve.knots.clone();
+                let (mut control, mut weights) = (curve.control.clone(), curve.weights.values().to_vec());
                 for plan in plans {
-                    control = plan.apply_points(&control, net::poison_point::<T, $Point<T>>(), |x, y, l: T| {
-                        x.lerp(y, l)
+                    (control, weights) = plan.apply_rational(
+                        knots.values(),
+                        &control,
+                        &weights,
+                        (net::poison_point::<T, $Point<T>>(), fresh),
+                        |x, y, l: T| x.lerp(y, l),
+                    );
+                    knots = knots.restructure(plan.knots().clone(), fresh);
+                }
+                Ok($Curve::from_validated_parts(knots, control, Weights::from_point_parts(weights, last.weights().to_vec())))
+            }
+
+            /// The net as `(w·P, w)` through
+            /// [`spline::CurvePlan::apply_homogeneous`], each step's
+            /// coefficient formed at `T` from the held knots, then
+            /// de-homogenized once. No weight quotient `λ` is formed. The
+            /// result enters through the carrier's door: written weights
+            /// certified positive for every member
+            /// ([`SplineError::WeightSignUndecided`] where some are not),
+            /// and refused as [`SplineError::CarrierWeightNotAPoint`]
+            /// where one is wider than a point (C6's interim until S5). A
+            /// polynomial net keeps its unit weights exactly, so it is
+            /// admitted.
+            fn enclosure(self) -> Self::Out {
+                let PlanChain { curve, plans, fresh } = self;
+                if plans.is_empty() {
+                    return Ok(curve.clone());
+                }
+                let origin = $Point::<T>::origin();
+                let poison = (
+                    net::poison_point::<T, $Point<T>>() - origin,
+                    spline::poison_from(T::one()),
+                );
+                let mut knots = curve.knots.clone();
+                let mut hom: Vec<($Vector<T>, T)> = curve
+                    .control
+                    .iter()
+                    .zip(curve.weights.values())
+                    .map(|(p, w)| ((*p - origin) * *w, *w))
+                    .collect();
+                for plan in plans {
+                    hom = plan.apply_homogeneous(knots.values(), &hom, (poison, fresh), |x, y, t: T| {
+                        $Vector::new($(T::homogeneous_step(x.$c, y.$c, t)),+)
                     });
+                    knots = knots.restructure(plan.knots().clone(), fresh);
                 }
-                match plans.last() {
-                    Some(last) => Self {
-                        knots: last.knots().clone(),
-                        control,
-                        weights: last.weights().to_vec(),
-                    },
-                    None => self.clone(),
+                let (control, weights): (Vec<$Point<T>>, Vec<T>) =
+                    hom.into_iter().map(|(v, w)| (origin + v / w, w)).unzip();
+                // A removal's ratio read from knots within rounding of each
+                // other can reach 0 or 1, and its unblend divides by it: an
+                // unbounded enclosure, which the door's poison test does not
+                // see. Refused here, typed; a poison value is the door's.
+                let unbounded = |v: &T| !v.is_poison() && !v.is_bounded();
+                if let Some(index) = control.iter().zip(&weights).position(|(p, w)| {
+                    unbounded(w) $(|| unbounded(&p.$c))+
+                }) {
+                    return Err(KnotAlgebraError::UnboundedAtEnclosure { index });
                 }
+                $Curve::new(knots, control, weights).map_err(KnotAlgebraError::Structure)
+            }
+        }
+
+        /// The knot algebra, at every scalar: projective at an
+        /// evaluation scalar, homogeneous at an enclosure scalar
+        /// ([`PlanChain`]'s two halves; C6 S4).
+        impl<T: SpanLocate> $Curve<T> {
+            /// A value a knot operation brings in at the caller's `f64`
+            /// parameter, entered as the constant it is.
+            fn inserted(v: f64) -> T {
+                T::from_f64(v)
+            }
+
+            /// Applies a chain of structure plans to this curve's net
+            /// held in `T` ([`PlanChain`]: the projective applier at an
+            /// evaluation scalar, the homogeneous one at an enclosure
+            /// scalar), the held knots carried plan to plan
+            /// ([`Knots::restructure`]). A value a plan brings in is
+            /// `fresh(v)`: the caller's `f64` parameter entered as the
+            /// constant it is ([`Self::inserted`]), or, for a removal's
+            /// reinsertion, the held value the removal took out. Empty
+            /// chain ⇒ clone.
+            ///
+            /// # Errors
+            ///
+            /// At an enclosure scalar, the carrier's door's refusals of
+            /// the result ([`KnotAlgebraError::Structure`]); none at an
+            /// evaluation scalar.
+            fn apply_plans(&self, plans: &[spline::CurvePlan], fresh: &dyn Fn(f64) -> T) -> Result<Self, KnotAlgebraError> {
+                T::split_projective(PlanChain { curve: self, plans, fresh })
             }
 
             /// Knot insertion (§5.2), single value `times`-fold — the
@@ -676,11 +832,14 @@ macro_rules! nurbs_curve {
             /// # Errors
             ///
             /// [`KnotAlgebraError`]: out-of-domain `u`, interior
-            /// multiplicity budget (`degree`) exceeded, or structure
-            /// mismatch.
+            /// multiplicity budget (`degree`) exceeded, structure
+            /// mismatch, or [`KnotAlgebraError::WeightCollapse`] when an
+            /// inserted weight rounds out of the positive regime (both
+            /// blend terms underflowing, on subnormal weights).
             pub fn insert_knot(&self, u: f64, times: usize) -> Result<Self, KnotAlgebraError> {
-                let plans = spline::algebra::insert_knot_plan(&self.knots, &self.weights, u, times)?;
-                Ok(self.apply_plans(&plans))
+                let (kv, w) = spline::point_inputs(&self.knots, &self.weights)?;
+                let plans = spline::algebra::insert_knot_plan(kv, w, u, times)?;
+                self.apply_plans(&plans, &Self::inserted)
             }
 
             /// Splits the curve at interior parameter `u` into two
@@ -698,14 +857,17 @@ macro_rules! nurbs_curve {
             /// [`KnotAlgebraError`]: `u` outside the open knot domain
             /// (boundary splits are refused — a clamped end already
             /// has full multiplicity and an empty child is not a
-            /// curve), or the insertion path's structure refusals.
+            /// curve), or the insertion path's refusals, its
+            /// [`KnotAlgebraError::WeightCollapse`] included
+            /// ([`Self::insert_knot`]).
             pub fn split_at(&self, u: f64) -> Result<(Self, Self), KnotAlgebraError> {
-                let p = self.knots.degree();
-                let (d0, d1) = self.knots.domain();
+                let kv = spline::point_knots(&self.knots)?;
+                let p = kv.degree();
+                let (d0, d1) = kv.domain();
                 if !u.is_finite() || !(u > d0 && u < d1) {
                     return Err(KnotAlgebraError::ParameterOutsideDomain { u });
                 }
-                let have = self.knots.multiplicity_of(u).map_or(0, |(m, _)| m);
+                let have = kv.multiplicity_of(u).map_or(0, |(m, _)| m);
                 let full = if have < p {
                     self.insert_knot(u, p - have)?
                 } else {
@@ -714,7 +876,7 @@ macro_rules! nurbs_curve {
                 // First occurrence of `u` in the saturated vector
                 // (multiplicity is exactly `p` there). Present by
                 // construction; `ok_or` keeps the path total.
-                let knots = full.knots.knots();
+                let knots = spline::point_knots(&full.knots)?.knots();
                 let f = knots
                     .iter()
                     .position(|k| *k == u)
@@ -722,22 +884,27 @@ macro_rules! nurbs_curve {
                 // Child 1: every knot below `u` plus `p + 1` copies of
                 // `u`; control points 0..f (C(u) is control index
                 // f − 1 of the saturated curve, shared by both).
+                // Each child's knots are breakpoints of the saturated
+                // curve, so each keeps its held value (`u` included:
+                // present at multiplicity `p`); nothing is entered fresh.
                 let mut k1: Vec<f64> = knots[..f + p].to_vec();
                 k1.push(u);
+                let k1 = KnotVector::clamped(k1, p).map_err(KnotAlgebraError::Structure)?;
                 let c1 = Self::new(
-                    KnotVector::clamped(k1, p).map_err(KnotAlgebraError::Structure)?,
+                    full.knots.restructure(k1, Self::inserted),
                     full.control[..f].to_vec(),
-                    full.weights[..f].to_vec(),
+                    full.weights.values()[..f].to_vec(),
                 )
                 .map_err(KnotAlgebraError::Structure)?;
                 // Child 2: one extra copy of `u`, then every knot from
                 // index f on; control points f − 1 onward.
                 let mut k2: Vec<f64> = vec![u];
                 k2.extend_from_slice(&knots[f..]);
+                let k2 = KnotVector::clamped(k2, p).map_err(KnotAlgebraError::Structure)?;
                 let c2 = Self::new(
-                    KnotVector::clamped(k2, p).map_err(KnotAlgebraError::Structure)?,
+                    full.knots.restructure(k2, Self::inserted),
                     full.control[f - 1..].to_vec(),
-                    full.weights[f - 1..].to_vec(),
+                    full.weights.values()[f - 1..].to_vec(),
                 )
                 .map_err(KnotAlgebraError::Structure)?;
                 Ok((c1, c2))
@@ -749,10 +916,11 @@ macro_rules! nurbs_curve {
             /// # Errors
             ///
             /// As [`Self::insert_knot`], against the cumulative
-            /// structure.
+            /// structure, [`KnotAlgebraError::WeightCollapse`] included.
             pub fn refine_knots(&self, add: &[f64]) -> Result<Self, KnotAlgebraError> {
-                let plans = spline::algebra::refine_plan(&self.knots, &self.weights, add)?;
-                Ok(self.apply_plans(&plans))
+                let (kv, w) = spline::point_inputs(&self.knots, &self.weights)?;
+                let plans = spline::algebra::refine_plan(kv, w, add)?;
+                self.apply_plans(&plans, &Self::inserted)
             }
 
             /// Knot merging (§5.3): every curve refined onto the UNION
@@ -779,7 +947,10 @@ macro_rules! nurbs_curve {
                 T: 'a,
             {
                 let curves: Vec<&Self> = curves.into_iter().collect();
-                let vectors: Vec<&KnotVector> = curves.iter().map(|c| c.knots()).collect();
+                let vectors: Vec<&KnotVector> = curves
+                    .iter()
+                    .map(|c| spline::point_knots(&c.knots))
+                    .collect::<Result<_, _>>()?;
                 curves
                     .iter()
                     .zip(spline::algebra::union_refinements(&vectors))
@@ -807,18 +978,32 @@ macro_rules! nurbs_curve {
             /// # Errors
             ///
             /// [`KnotAlgebraError`]: `u` not an interior knot (exact
-            /// f64 identity), removing past its multiplicity, or a
-            /// weight collapsing out of the positive regime.
+            /// f64 identity), removing past its multiplicity, or
+            /// [`KnotAlgebraError::WeightCollapse`]: a weight the
+            /// removal chain writes, or one its reinsertion writes,
+            /// out of the positive regime.
             pub fn remove_knot(&self, u: f64, times: usize) -> Result<(Self, T), KnotAlgebraError> {
-                let steps = spline::algebra::remove_knot_plan(&self.knots, &self.weights, u, times)?;
+                let (kv, w) = spline::point_inputs(&self.knots, &self.weights)?;
+                let steps = spline::algebra::remove_knot_plan(kv, w, u, times)?;
                 let mut cur = self.clone();
                 let mut bound = T::zero();
                 for step in &steps {
-                    let removed = cur.apply_plans(core::slice::from_ref(&step.plan));
-                    let reinserted = removed.apply_plans(core::slice::from_ref(&step.reinsert));
+                    let removed = cur.apply_plans(core::slice::from_ref(&step.plan), &Self::inserted)?;
+                    // The reinsertion puts back the knot the removal took
+                    // out: its held value, so the bound reads the curve's
+                    // own knot rather than a constant copy of it.
+                    // The reinsertion brings in `u` alone.
+                    let held_u = cur
+                        .knots
+                        .value_at(u)
+                        .map_err(KnotAlgebraError::Structure)?
+                        .unwrap_or_else(|| Self::inserted(u));
+                    let held = |v: f64| if v.to_bits() == u.to_bits() { held_u } else { Self::inserted(v) };
+                    let reinserted =
+                        removed.apply_plans(core::slice::from_ref(&step.reinsert), &held)?;
                     bound = bound + net::removal_pass_bound(
-                        (&cur.control, &cur.weights),
-                        (&reinserted.control, &reinserted.weights),
+                        (&cur.control, cur.weights.values()),
+                        (&reinserted.control, reinserted.weights.values()),
                     );
                     cur = removed;
                 }
@@ -870,9 +1055,9 @@ macro_rules! nurbs_curve {
             ///    so the min over spans of per-span bounds still
             ///    bounds the whole domain (the M8-2 review's
             ///    soundness argument, unchanged);
-            /// 3. the **piece** assembly ([`Self::piece_assembly`]):
+            /// 3. the **piece** assembly ([`Self::piece_floor`]):
             ///    each nonempty span cut into
-            ///    [`INTEGRAL_METER_SPLITS`] pieces, each piece
+            ///    [`SPEED_PIECE_SPLITS`] pieces, each piece
             ///    projecting the derivative's own Bernstein
             ///    coefficients there on their sum's direction. A curve
             ///    that sways across its control chords — a wavy
@@ -908,8 +1093,12 @@ macro_rules! nurbs_curve {
             /// honestly, so the margin collapses and the caller's
             /// trilean escalates rather than guessing.
             ///
-            /// **Rational carriers** take the second arm,
-            /// [`Self::rational_speed_lower_bound`] — the derivative of
+            /// **Rational carriers** — weights not all one plain constant — take the
+            /// second arm, [`Self::rational_speed_lower_bound`]. Equal
+            /// weights cancel out of every evaluation, so such a curve
+            /// is the polynomial one on the same net and this arm's
+            /// argument holds for it unchanged — it is the same curve,
+            /// which says nothing about which arm bounds it best. The derivative of
             /// a rational spline is *not* a convex combination of any
             /// control net, so the argument above does not apply
             /// directly and a quotient-rule assembly stands in. The
@@ -945,8 +1134,16 @@ macro_rules! nurbs_curve {
             /// bounds on `‖C′‖`; neither is a claim about the curve's
             /// shape beyond its speed.
             ///
-            /// The arm is chosen on **f64 structure** (`w_j == 1.0`
-            /// exactly), never on an evaluation scalar.
+            /// The arm is chosen on the weights' **plain constants**
+            /// ([`SpanLocate::plain_constant`]: every `w_j` the same plain
+            /// constant, exactly), never on an evaluation scalar and
+            /// never on the value channel alone, which would read a
+            /// `Dual` or `Sym` weight that moves with a parameter or a
+            /// symbol as the constant its value is. That is the
+            /// conservative member of the class
+            /// `work/inlane/held-value-equalities-decided-on-the-value-channel.md`
+            /// names; a `T`-valued equality that `Sym` discharges would
+            /// add reach, never soundness.
             ///
             /// # Rounding posture
             ///
@@ -957,11 +1154,9 @@ macro_rules! nurbs_curve {
             /// the plain-f64 reading is a bound up to a few relative
             /// ulps of the derivative's scale (the stall rows in
             /// `tests/curves/piece_coverage_meter.rs` hold it to
-            /// `1e-12` of that scale). This is the kernel-wide posture
-            /// shared with the rational arm; the `Interval`
-            /// instantiation is the certified lane, and the bracket
-            /// row in `tests/curves/m5_pr7_speed_meter.rs` pins
-            /// containment.
+            /// `1e-12` of that scale). The `Interval` instantiation is
+            /// the certified lane, and the bracket row in
+            /// `tests/curves/m5_pr7_speed_meter.rs` pins containment.
             ///
             /// # Poison (total, D4 ¶2)
             ///
@@ -1001,40 +1196,95 @@ macro_rules! nurbs_curve {
             /// discriminates assembly structure, never geometry: the
             /// geometric decision (is the bound positive?) stays with
             /// the caller's trilean.
+            ///
+            /// **Memoised outside a symbolic session only.** A session's
+            /// table holds the nodes it saw built, and a memo served
+            /// across that boundary would change what it decides; inside
+            /// one the meter is computed afresh and nothing it mints is
+            /// kept.
             pub fn speed_lower_bound(&self) -> geom_core::InfSpeed<T> {
+                session_memo(&self.speed, || self.speed_lower_bound_uncached())
+            }
+
+            /// A certified **upper** bound on `‖C′(t)‖` over the whole
+            /// domain, in m/param: the max over the meter's pieces
+            /// ([`Self::speed_lower_bound`]'s, on the same arm) of
+            /// [`geom_core::spline::QuotientPiece::sup_norm`], the
+            /// largest coefficient ratio's norm (the
+            /// `geom_core::spline::derivative` module docs hold the
+            /// derivation). At equal weights it is the max norm of the
+            /// derivative's Bernstein coefficients on the pieces. At
+            /// `Interval` it is certified; at `f64` it is the same
+            /// expression in round-to-nearest. Poison where the
+            /// statement refuses (a rational degree above 28).
+            ///
+            /// Memoised on the same terms as [`Self::speed_lower_bound`].
+            pub fn speed_upper_bound(&self) -> geom_core::SupSpeed<T> {
+                session_memo(&self.speed_sup, || {
+                    geom_core::SupSpeed::new(
+                        self.speed_pieces(self.is_rational())
+                            .and_then(|ps| {
+                                ps.iter().map(spline::QuotientPiece::sup_norm).reduce(Real::max)
+                            })
+                            .unwrap_or_else(|| T::from_f64(f64::NAN)),
+                    )
+                })
+            }
+
+            /// A certified **upper** bound on `‖C″(t)‖` over the whole
+            /// domain, in m/param²: the max over the second-order
+            /// pieces ([`spline::accel_pieces`], `C″ = M/W³` on
+            /// [`SPEED_PIECE_SPLITS`] exact pieces per nonempty span) of
+            /// [`spline::QuotientPiece::sup_norm`] (the
+            /// `geom_core::spline::derivative` module docs, "The second
+            /// order"). At `Interval` it is certified; at `f64` it is the
+            /// same expression in round-to-nearest. Poison where the
+            /// statement refuses (a degree above 18, where `3p` passes
+            /// the ceiling); at `Interval`, uncertified where a degree of
+            /// 17 or more meets a weight spread near `1e6` (the module
+            /// docs' practical ceiling).
+            pub fn accel_upper_bound(&self) -> T {
+                let points: Vec<[T; $dim]> = self.control.iter().map(|p| [$(p.$c),+]).collect();
+                spline::accel_pieces(&self.knots, &points, self.weights.values(), SPEED_PIECE_SPLITS)
+                    .and_then(|ps| ps.iter().map(spline::QuotientPiece::sup_norm).reduce(Real::max))
+                    .unwrap_or_else(|| T::from_f64(f64::NAN))
+            }
+
+            /// Whether the weights are not all one plain constant: the
+            /// arm choice of [`Self::speed_lower_bound`] (its docs).
+            fn is_rational(&self) -> bool {
+                let constants: Option<Vec<f64>> =
+                    self.weights.values().iter().map(|w| w.plain_constant()).collect();
+                !constants.is_some_and(|c| c.windows(2).all(|w| w[0] == w[1]))
+            }
+
+            /// [`Self::speed_lower_bound`]'s computation: once per curve
+            /// outside a symbolic session, at every read inside one.
+            fn speed_lower_bound_uncached(&self) -> geom_core::InfSpeed<T> {
                 let poison = T::from_f64(f64::NAN);
-                // Rational ⇒ the convexity argument does not hold
-                // directly; the quotient-rule arm takes over.
-                if self.weights.iter().any(|w| *w != 1.0) {
+                // Weights not all one plain constant ⇒ rational: the
+                // convexity argument does not hold directly, and the
+                // quotient-rule arm takes over. Equal plain constants
+                // cancel out of every evaluation, leaving the polynomial
+                // curve on the same net, which this arm's argument
+                // covers; a weight that carries a derivative or a symbol
+                // is no plain constant, whatever its value.
+                if self.is_rational() {
                     return geom_core::InfSpeed::new(self.rational_speed_lower_bound());
                 }
                 let p = self.knots.degree();
                 if p == 0 || self.control.len() < 2 {
                     return geom_core::InfSpeed::new(poison);
                 }
-                let knots = self.knots.knots();
-                // Derivative coefficients, once for the curve:
-                // `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(uᵢ₊ₚ₊₁ − uᵢ₊₁)`. The knot
-                // difference is checked POSITIVE on f64 structure —
-                // the totality clause above — so every coefficient
-                // below is finite arithmetic on finite structure.
-                let mut coeffs = Vec::with_capacity(self.control.len() - 1);
-                for i in 0..(self.control.len() - 1) {
-                    let (Some(a), Some(b)) = (self.control.get(i), self.control.get(i + 1)) else {
-                        return geom_core::InfSpeed::new(poison);
-                    };
-                    let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
-                        return geom_core::InfSpeed::new(poison);
-                    };
-                    let du = hi - lo;
-                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-                    if !(du > 0.0) {
-                        return geom_core::InfSpeed::new(poison);
-                    }
-                    #[allow(clippy::cast_precision_loss)]
-                    let scale = T::from_f64(p as f64) / knot_difference::<T>(lo, hi);
-                    coeffs.push((*b - *a) * scale);
-                }
+                let knots = self.knots_f64_interim().knots();
+                let held = self.knots.values();
+                // Derivative coefficients, once for the curve, with
+                // every knot difference checked POSITIVE on f64
+                // structure (the totality clause above), so each is
+                // finite arithmetic on finite structure.
+                let Some(coeffs) = derivative_net(&self.control, knots, held, p, 0) else {
+                    return geom_core::InfSpeed::new(poison);
+                };
                 // ---- Assembly 1: the global chord (the retired
                 // original arm, verbatim — same direction, same fold
                 // order, bit-identical where it was defined). ----
@@ -1066,9 +1316,9 @@ macro_rules! nurbs_curve {
                 // (`i ∈ span−p .. span`), folded over spans. ----
                 let perspan = {
                     let mut acc: Option<T> = None;
-                    for index in self.knots.first_span()..=self.knots.last_span() {
+                    for index in self.knots_f64_interim().first_span()..=self.knots_f64_interim().last_span() {
                         // Emptiness check and span validation are one step.
-                        let Some(span) = self.knots.span(index) else {
+                        let Some(span) = self.knots_f64_interim().span(index) else {
                             continue;
                         };
                         // The window's base, subtracted once inside
@@ -1111,7 +1361,7 @@ macro_rules! nurbs_curve {
                     }
                     acc.unwrap_or(poison)
                 };
-                let pieces = if p == 1 { poison } else { self.piece_assembly(&coeffs) };
+                let pieces = if p == 1 { poison } else { self.piece_floor(false) };
                 // ---- The join (doc: "The join"). ----
                 let joined = [global, perspan, pieces]
                     .into_iter()
@@ -1120,449 +1370,106 @@ macro_rules! nurbs_curve {
                 geom_core::InfSpeed::new(joined.unwrap_or(poison))
             }
 
-            /// Assembly 3 of [`Self::speed_lower_bound`]'s integral arm:
-            /// every nonempty span cut into [`INTEGRAL_METER_SPLITS`]
-            /// equal pieces, and on each piece the BERNSTEIN
-            /// coefficients `βₖ` of `C′` there. On the piece `C′` is a
-            /// convex combination of the `βₖ`, so for the unit
-            /// direction `d` of their sum (the piece's chord)
-            /// `‖C′‖ ≥ d·C′ ≥ minₖ d·βₖ`; the min over pieces and spans
-            /// bounds the whole domain.
-            ///
-            /// Piece `[a, b]`'s coefficient `k` is the derivative
-            /// piece's blossom at `(a^{q−k}, b^k)`, `q = p − 1`. It is
-            /// read in two steps, neither depending on which piece:
-            /// the span's own Bernstein row is the blossom at
-            /// `(u_s^{q−k}, u_{s+1}^k)` of the active `Qᵢ`
-            /// ([`Self::derivative_blossom`], `q` steps), and each
-            /// piece's row is one convex combination of that row whose
-            /// weights ([`piece_weights`]) are exact `f64` structure.
-            /// So every `βₖ` is `q + 1` steps from the stored net at
-            /// any piece index, and at the interval scalar it encloses
-            /// the exact coefficient of the exact piece; no refined net
-            /// is rounded to `f64` on the way.
-            ///
-            /// The assembly abstains (poison) where its weights cannot
-            /// be exact, a derivative degree above
-            /// [`PIECE_EXACT_MAX_DEGREE`], and where a piece's
-            /// coefficients sum to zero (`d` is `0/0`). It is not run
-            /// at degree 1, where each piece reads the span's one
-            /// coefficient and the per-span assembly already answers
-            /// exactly that.
-            fn piece_assembly(&self, coeffs: &[$Vector<T>]) -> T {
-                let poison = T::from_f64(f64::NAN);
-                let p = self.knots.degree();
-                let q = p - 1;
-                let Some(weights) = piece_weights(q) else {
-                    return poison;
-                };
-                let knots = self.knots.knots();
-                let mut acc: Option<T> = None;
-                let mut row = Vec::with_capacity(p);
-                let mut dots = Vec::with_capacity(p);
-                for index in self.knots.first_span()..=self.knots.last_span() {
-                    let Some(span) = self.knots.span(index) else {
-                        continue;
-                    };
-                    let (lo_i, span) = (span.first_control(), span.index());
-                    let (Some(active), Some(&u0), Some(&u1)) =
-                        (coeffs.get(lo_i..span), knots.get(span), knots.get(span + 1))
-                    else {
-                        return poison;
-                    };
-                    let (u0, u1) = (T::from_f64(u0), T::from_f64(u1));
-                    row.clear();
-                    for k in 0..=q {
-                        let Some(b) = Self::derivative_blossom(active, knots, lo_i, |r| {
-                            if r <= q - k { u0 } else { u1 }
-                        }) else {
-                            return poison;
-                        };
-                        row.push(b);
-                    }
-                    for piece in weights.chunks_exact(p.pow(2)) {
-                        // The piece's chord `Σₖ βₖ = Σⱼ (Σₖ wₖⱼ)·rowⱼ`,
-                        // then every `d·βₖ = Σⱼ wₖⱼ·(d·rowⱼ)`: the same
-                        // reals as restricting the row first, with the
-                        // weights applied to scalars.
-                        let mut sum: Option<$Vector<T>> = None;
-                        for (j, rj) in row.iter().enumerate() {
-                            let wj: f64 = piece.iter().skip(j).step_by(p).sum();
-                            if wj == 0.0 {
-                                continue;
-                            }
-                            let term = *rj * T::from_f64(wj);
-                            sum = Some(match sum {
-                                None => term,
-                                Some(s) => s + term,
-                            });
-                        }
-                        let Some(sum) = sum else {
-                            return poison;
-                        };
-                        let d = sum / sum.norm();
-                        dots.clear();
-                        dots.extend(row.iter().map(|rj| d.dot(*rj)));
-                        for w in piece.chunks_exact(p) {
-                            let mut v: Option<T> = None;
-                            for (wj, dj) in w.iter().zip(&dots) {
-                                if *wj == 0.0 {
-                                    continue;
-                                }
-                                let term = *dj * T::from_f64(*wj);
-                                v = Some(match v {
-                                    None => term,
-                                    Some(x) => x + term,
-                                });
-                            }
-                            let Some(v) = v else {
-                                return poison;
-                            };
-                            acc = Some(match acc {
-                                None => v,
-                                Some(m) => m.min(v),
-                            });
-                        }
-                    }
-                }
-                acc.unwrap_or(poison)
+            /// The derivative's quotient pieces
+            /// ([`geom_core::spline::speed_pieces`]) on
+            /// [`SPEED_PIECE_SPLITS`] pieces per nonempty span: `C′`
+            /// over one where `rational` is false (the weights all one
+            /// plain constant), `N/W²` where it is true. `None` where
+            /// the statement refuses: a degree above its ceiling
+            /// ([`geom_core::spline::QUOTIENT_MAX_DEGREE`], `2p ≤ 56`
+            /// on the rational reading), an index past the net.
+            fn speed_pieces(&self, rational: bool) -> Option<Vec<spline::QuotientPiece<T, $dim>>> {
+                let points: Vec<[T; $dim]> = self.control.iter().map(|p| [$(p.$c),+]).collect();
+                spline::speed_pieces(
+                    &self.knots,
+                    &points,
+                    rational.then_some(self.weights.values()),
+                    SPEED_PIECE_SPLITS,
+                )
             }
 
-            /// The blossom of the derivative piece on one span at the
-            /// arguments `arg(1), …, arg(q)`: de Boor's recurrence on
-            /// the span's active derivative coefficients `active`
-            /// (`Q_{lo_i} … Q_{lo_i+q}`), argument `arg(r)` at level
-            /// `r`, every step a two-point combination at the ratio
-            /// `(arg − τ_j)/(τ_{j+q+1−r} − τ_j)` formed at `T`, with
-            /// `τ_j = u_{j+1}` the derivative's knots. The same
-            /// recurrence `geom_core`'s `CoeffWindow::blossom` runs on
-            /// a scalar certification row; this one runs on a vector
-            /// row at any scalar. `None` on a knot index past the
-            /// vector.
-            fn derivative_blossom(
-                active: &[$Vector<T>],
-                knots: &[f64],
-                lo_i: usize,
-                arg: impl Fn(usize) -> T,
-            ) -> Option<$Vector<T>> {
-                let q = active.len().checked_sub(1)?;
-                let mut d = active.to_vec();
-                for r in 1..=q {
-                    let t = arg(r);
-                    for jj in (r..=q).rev() {
-                        let j = lo_i + jj;
-                        let (lo, hi) = (*knots.get(j + 1)?, *knots.get(j + 2 + q - r)?);
-                        let ratio = (t - T::from_f64(lo)) / knot_difference::<T>(lo, hi);
-                        d[jj] = d[jj - 1] + (d[jj] - d[jj - 1]) * ratio;
-                    }
-                }
-                d.last().copied()
+            /// The piece reading of [`Self::speed_lower_bound`], one
+            /// call on both arms: the min over the pieces of
+            /// [`spline::QuotientPiece::inf_norm`], each piece's
+            /// coefficient ratios projected on their numerator's sum.
+            /// On a piece the quantity is a convex combination of its
+            /// ratios (`geom_core::spline::derivative`'s module docs),
+            /// so for the unit direction `d` of their sum
+            /// `‖C′‖ ≥ minₖ d·aₖ/bₖ`, and the min over pieces and spans
+            /// bounds the whole domain. At equal weights `bₖ = 1` and
+            /// the ratios are the derivative's own Bernstein
+            /// coefficients on the piece: a curve that sways across its
+            /// control chords — a wavy loft's corner — has `Qᵢ`
+            /// pointing back along every chord, while on a short piece
+            /// the coefficients crowd around `C′` itself, so this
+            /// reading answers wherever the speed stays clear of zero at
+            /// the piece scale. Poison where a piece's numerator sums
+            /// to zero or the statement refuses.
+            fn piece_floor(&self, rational: bool) -> T {
+                self.speed_pieces(rational)
+                    .and_then(|ps| ps.iter().map(spline::QuotientPiece::inf_norm).reduce(Real::min))
+                    .unwrap_or_else(|| T::from_f64(f64::NAN))
             }
 
             /// The **rational arm** of [`Self::speed_lower_bound`]: a
             /// certified lower bound on `‖C′(t)‖` over the whole domain
-            /// for a carrier with non-unit weights, in m/param.
+            /// for a carrier whose weights are not all one plain constant,
+            /// in m/param. It is [`Self::piece_floor`] on `N/W²` (the
+            /// derivation lives there), behind the licence it needs.
             ///
-            /// # The bound (the invariant this function computes)
+            /// # Licence
             ///
-            /// Write `C = A/w` with `A = Σ N_j w_j P_j` and
-            /// `w = Σ N_j w_j`. For any fixed point `c`, the translate
-            /// `Ã = A − c·w` is the B-spline with coefficients
-            /// `a_j = w_j·(P_j − c)`, `C − c = Ã/w`, and the quotient
-            /// rule gives the identity everything here rests on:
-            ///
-            /// ```text
-            /// C′ = (Ã′ − (C − c)·w′) / w
-            /// ```
-            ///
-            /// Fix a **unit** direction `d`. Then `‖C′‖ ≥ d·C′` and
-            ///
-            /// ```text
-            /// d·C′  ≥  ( min_i (d·Q_i)  −  sup|C − c|·sup|w′| ) / w
-            /// ```
-            ///
-            /// where `Q_i = p·(a_{i+1} − a_i)/(u_{i+p+1} − u_{i+1})` are
-            /// `Ã′`'s coefficients (the knot-difference formula of
-            /// `geom_core::spline::SplineCoeffs::derivative_coeffs`, applied to
-            /// the HOMOGENEOUS coefficients — hull.rs deliberately has
-            /// no rational derivative path, because this assembly
-            /// belongs with the consumer that owns the homogeneous
-            /// form). Each ingredient is a hull over the coefficients
-            /// active on the span, licensed by the same convexity fact
-            /// as the integral arm plus **strictly positive weights**
-            /// (checked here, poison otherwise — without it neither the
-            /// rational basis nor `w`'s own hull is a convex
-            /// combination):
-            ///
-            /// - `min_i (d·Q_i)` over the active `Q`, since `Ã′` is a
-            ///   degree-`p−1` B-spline in the `Q_i`;
-            /// - `sup|C − c| ≤ max_j ‖P_j − c‖` — `C − c` is a convex
-            ///   combination of the `P_j − c` (positive weights) and
-            ///   the norm is convex;
-            /// - `sup|w′| ≤ max_i |q_i|` over the weight spline's own
-            ///   derivative coefficients `q_i = (w_{i+1} − w_i)·p/(u_{i+p+1} − u_{i+1})`,
-            ///   formed in [`rational_span_bound`](Self::rational_span_bound)
-            ///   from the refined weights with the knot difference taken in
-            ///   `T` (`knot_difference`), so at `Interval` it is an
-            ///   enclosure rather than an `f64` rounding.
-            ///
-            /// **The denominator is `w_max`, not `w_min`.** `w` itself
-            /// is a convex combination of the active weights, so
-            /// `w ∈ [w_min, w_max]`. For a *non-negative* numerator the
-            /// conservative division is by the LARGEST denominator; for
-            /// a negative one it is by the smallest. (The opposite
-            /// choice — dividing by the min-weight floor — is the
-            /// direction for an UPPER bound on the derivative, and
-            /// would be unsound here. Its deliberate instance is the
-            /// `derivative_sup` whole-patch sup in `step-import`'s
-            /// `recognize` module, whose rational track divides by
-            /// `w_min` for exactly that reason: the two bounds face
-            /// opposite ways, so neither derivation may be copied into
-            /// the other's site.) Which case applies is a
-            /// question about a `Real`, which this code may not ask, so
-            /// it takes the **lattice min of both divisions**: that is
-            /// `L/w_max` exactly when `L ≥ 0` and `L/w_min` exactly
-            /// when `L < 0`, with no comparison and no branch.
-            ///
-            /// # Schedule (D9: structure, never a decision)
-            ///
-            /// The above is evaluated **per nonempty span** — active
-            /// coefficients only, with the span's own control centroid
-            /// as `c` and the span's own control chord
-            /// `P_span − P_{span−p}` as `d` — and the whole-domain
-            /// answer is the ascending `Real::min` fold over spans.
-            /// This is a fixed constant schedule read off the knot
-            /// vector (f64 structure), and it is what keeps the
-            /// `sup|C − c|` term span-sized rather than curve-sized: a
-            /// per-span direction is legitimate because
-            /// `‖C′(t)‖ ≥ d_s·C′(t)` holds for *every* unit `d_s`, so
-            /// the min over spans of per-span bounds still bounds the
-            /// whole domain. The integral arm adopted the same
-            /// per-span scan in M8-14 (#222), joined with its
-            /// original global chord — see [`Self::speed_lower_bound`].
-            ///
-            /// A per-span direction bounds SPEED and nothing else — see
-            /// [`Self::speed_lower_bound`]'s "what the bound does and
-            /// does not certify". Successive spans may point anywhere,
-            /// so this arm meters a carrier that reverses, as it should:
-            /// only a genuine stationary point drives the answer
-            /// non-positive.
+            /// **Strictly positive weights**, checked here on `f64`
+            /// structure (never on an evaluation scalar): without them
+            /// neither the rational basis nor `w`'s own hull is a convex
+            /// combination.
             ///
             /// # Poison (total, D4 ¶2)
             ///
             /// A zero degree, fewer than two control points, any
-            /// non-positive or non-finite weight, a non-positive knot
-            /// difference, a span whose control chord collapses, or a
-            /// knot vector with no nonempty span — every one yields
-            /// NaN. A bound is never fabricated.
+            /// non-positive or non-finite weight, and every abstention
+            /// of the piece reading yield NaN: a knot vector with no
+            /// nonempty span, a piece whose numerator coefficients sum
+            /// to zero, and **a degree above 28**, where `2p` passes the
+            /// statement's ceiling
+            /// ([`geom_core::spline::QUOTIENT_MAX_DEGREE`]). A rational
+            /// carrier above that degree is refused, never metered by a
+            /// looser reading. A bound is never fabricated.
             ///
             /// # Rounding posture
             ///
-            /// At `f64` the assembly runs in nearest rounding, like
-            /// every other `Real`-generic bound in the kernel: the
-            /// weight-derivative hulls come through certification arithmetic (correctly
-            /// rounded), but the chord normalisation and the hull folds
-            /// do not, so the `f64` reading is a bound only up to about
-            /// a relative ulp. **The `Interval` instantiation is the
-            /// certified lane** — it encloses the same expression, and
-            /// `tests/curves/m5_pr7_speed_meter.rs`'s bracket row pins that
-            /// the interval answer contains the `f64` one. This is the
-            /// kernel-wide posture, not a property of this bound.
+            /// At `f64` the reading runs in nearest rounding, like
+            /// every other `Real`-generic bound in the kernel, and the
+            /// `f64` reading is **not** a bound: its error grows with
+            /// the weight ratio. **The `Interval` instantiation is the certified
+            /// lane**: every coefficient it reads encloses the exact
+            /// one, and `tests/curves/m5_pr7_speed_meter.rs`'s bracket
+            /// row pins that the interval answer contains the `f64`
+            /// one.
             ///
             /// # Conservatism
             ///
             /// The answer is a bound, not an estimate, and the gap can
-            /// be wide. It measures at 0.86–0.97 of the true minimum on
-            /// ordinary and adversarial carriers, but a curve that
-            /// turns hard, or a high degree with alternating extreme
-            /// weights, can refuse outright while its true speed is
-            /// comfortably positive. Refusal is always sound and only
-            /// ever a usability cost; the frontier rows in
-            /// `tests/curves/m5_pr7_speed_meter.rs` pin where it currently
-            /// falls, so [`RATIONAL_METER_SPLITS`] cannot be changed
-            /// without the trade-off becoming visible.
+            /// be wide. A curve that turns hard can refuse outright
+            /// while its true speed is comfortably positive. Refusal is
+            /// always sound and only ever a usability cost; the
+            /// frontier row in `tests/curves/m5_pr7_speed_meter.rs`
+            /// pins where it currently falls, and
+            /// `tests/curves/swaying_corner_meter.rs` the reach on a
+            /// swaying corner, so the schedule cannot be changed without
+            /// the trade-off becoming visible.
             fn rational_speed_lower_bound(&self) -> T {
                 let poison = T::from_f64(f64::NAN);
                 let p = self.knots.degree();
                 if p == 0 || self.control.len() < 2 {
                     return poison;
                 }
-                // The convex-combination licence, re-checked here on
-                // f64 STRUCTURE (never on an evaluation scalar):
-                // `!(w > 0.0)` catches NaN too.
-                #[allow(clippy::neg_cmp_op_on_partial_ord)]
-                if self.weights.iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+                if !self.weights.weights_f64_interim().iter().all(|w| spline::weight_in_regime(*w)) {
                     return poison;
                 }
-                // The refinement schedule (D9 structure, a fixed
-                // constant): every nonempty span is split into
-                // `RATIONAL_METER_SPLITS` equal pieces before the scan.
-                // Knot insertion is evaluation-invariant, so this
-                // changes no geometry — it only shrinks every hull the
-                // bound is assembled from, which is what buys a
-                // POSITIVE answer on steep weight ratios where the
-                // one-span assembly is dominated by `sup‖C − c‖·sup|w′|`.
-                // The curve is refined as its homogeneous channels
-                // `(w·P, w)` with the insertion ratios taken in `T`, so
-                // at `Interval` the refined net and its weights are
-                // enclosures of the described curve's.
-                let Ok(refinement) =
-                    spline::RingRefinement::equal_split(&self.knots, RATIONAL_METER_SPLITS)
-                else {
-                    return poison;
-                };
-                // Re-checked on the REFINED weights: knot insertion keeps
-                // positivity in ℝ, and the scan's divisions may not
-                // assume floating point did. One refinement per scalar
-                // (`SpanLocate::refine_weights`): the weights the scan
-                // divides by are the ones checked, at `f64` bit for bit
-                // and at `Interval` as enclosures certainly above zero.
-                let Some(w) = T::refine_weights(&refinement, &self.weights) else {
-                    return poison;
-                };
-                // Each channel refined per scalar: at `Interval` through
-                // the certification ring's step, elsewhere with both
-                // Boehm ratios formed in `T`
-                // (`SpanLocate::refine_homogeneous`).
-                $(let $c: Vec<T> = self
-                    .control
-                    .iter()
-                    .zip(&self.weights)
-                    .map(|(pt, w)| pt.$c * T::from_f64(*w))
-                    .collect();
-                let $c = T::refine_homogeneous(&refinement, &$c);)+
-                let knots = refinement.knots();
-                let hom: Vec<$Point<T>> = (0..w.len()).map(|j| $Point::new($($c[j]),+)).collect();
-                Self::rational_span_scan(knots, &hom, &w)
+                self.piece_floor(true)
             }
 
-            /// The per-span scan of [`Self::rational_speed_lower_bound`],
-            /// run on the refined homogeneous net `hom` (`w·P`) and
-            /// weights `w`: the ascending `Real::min` fold of each
-            /// nonempty span's own bound.
-            fn rational_span_scan(knots: &KnotVector, hom: &[$Point<T>], w: &[T]) -> T {
-                let poison = T::from_f64(f64::NAN);
-                if knots.degree() == 0 || hom.len() != knots.control_count() || w.len() != hom.len() {
-                    return poison;
-                }
-                let origin = $Point::new($({ let _ = stringify!($c); T::zero() }),+);
-                let mut acc: Option<T> = None;
-                // Fixed ascending span order (D9).
-                for index in knots.first_span()..=knots.last_span() {
-                    // Emptiness check and span validation are one step.
-                    let Some(span) = knots.span(index) else {
-                        continue;
-                    };
-                    let b = Self::rational_span_bound(span, hom, w, origin);
-                    acc = Some(match acc {
-                        None => b,
-                        // NaN-propagating lattice fold — poison in,
-                        // poison out, no comparison.
-                        Some(m) => m.min(b),
-                    });
-                }
-                acc.unwrap_or(poison)
-            }
-
-            /// One span's arm of [`Self::rational_speed_lower_bound`]'s
-            /// assembly (the derivation lives there), over the
-            /// homogeneous net `hom` (`w·P`) and weights `w` the span's
-            /// vector indexes. Every hull is an ascending `Real::min` /
-            /// `Real::max` fold, so poison propagates and nothing
-            /// compares a scalar.
-            fn rational_span_bound(span: Span<'_>, hom: &[$Point<T>], w: &[T], origin: $Point<T>) -> T {
-                let poison = T::from_f64(f64::NAN);
-                let p = span.degree();
-                let knots = span.knots().knots();
-                let (first, last) = (span.first_control(), span.index());
-                let (Some(hom_active), Some(w_active)) = (hom.get(first..=last), w.get(first..=last))
-                else {
-                    return poison;
-                };
-                let active: Vec<$Point<T>> = hom_active
-                    .iter()
-                    .zip(w_active)
-                    .map(|(a, wj)| origin + (*a - origin) / *wj)
-                    .collect();
-                #[allow(clippy::cast_precision_loss)]
-                let count = T::from_f64(active.len() as f64);
-                // The span's own control centroid — the translation
-                // that keeps `sup‖C − c‖` span-sized.
-                let mut sum = origin - origin;
-                for pt in &active {
-                    sum = sum + (*pt - origin);
-                }
-                let c = origin + sum / count;
-                // The span's control chord, as unit direction.
-                let (Some(a), Some(b)) = (active.first(), active.last()) else {
-                    return poison;
-                };
-                let chord = *b - *a;
-                let d = chord / chord.norm();
-                // The SIGNED hull of `d·(C − c)` on the span — the
-                // rational value hull (positive weights make the
-                // rational basis a nonnegative partition of unity) read
-                // through `d` — and `w`'s hull.
-                fn fold<T: Real>(acc: Option<(T, T)>, v: T) -> Option<(T, T)> {
-                    Some(match acc {
-                        None => (v, v),
-                        Some((lo, hi)) => (lo.min(v), hi.max(v)),
-                    })
-                }
-                let mut s_hull = None;
-                for pt in &active {
-                    s_hull = fold(s_hull, d.dot(*pt - c));
-                }
-                let mut w_hull = None;
-                for wj in w_active {
-                    w_hull = fold(w_hull, *wj);
-                }
-                // The numerator's two terms over the active derivative
-                // indices `[first, last)`, and `w′`'s SIGNED hull.
-                let mut num: Option<T> = None;
-                let mut wp_hull = None;
-                for i in first..last {
-                    let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
-                        return poison;
-                    };
-                    let du = hi - lo;
-                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-                    if !(du > 0.0) {
-                        return poison;
-                    }
-                    let (Some(ai), Some(aj), Some(&wi), Some(&wj)) =
-                        (hom.get(i), hom.get(i + 1), w.get(i), w.get(i + 1))
-                    else {
-                        return poison;
-                    };
-                    #[allow(clippy::cast_precision_loss)]
-                    let scale = T::from_f64(p as f64) / knot_difference::<T>(lo, hi);
-                    // Homogeneous, centroid-translated: w_j·(P_j − c).
-                    let ci = (*ai - origin) - (c - origin) * wi;
-                    let cj = (*aj - origin) - (c - origin) * wj;
-                    let v = d.dot((cj - ci) * scale);
-                    num = Some(match num {
-                        None => v,
-                        Some(m) => m.min(v),
-                    });
-                    wp_hull = fold(wp_hull, (wj - wi) * scale);
-                }
-                let (Some(num), Some((s_lo, s_hi)), Some((w_min, w_max)), Some((lo, hi))) =
-                    (num, s_hull, w_hull, wp_hull)
-                else {
-                    return poison;
-                };
-                // `sup (d·(C − c))·w′` over the two signed hulls: the
-                // ascending `Real::max` fold of the four corner
-                // products (a magnitude product `sup|·|·sup|·|` would
-                // be sound but needlessly loose — it throws away the
-                // sign correlation that steep weight ramps live in).
-                let corner = (s_lo * lo).max(s_lo * hi).max(s_hi * lo).max(s_hi * hi);
-                let l = num - corner;
-                // `min(L/w_max, L/w_min)` — the correct division in
-                // both numerator signs, without asking the sign.
-                (l / w_max).min(l / w_min)
-            }
         }
 
         impl<T: Real> $Curve<T> {
@@ -1576,18 +1483,18 @@ macro_rules! nurbs_curve {
             /// a fabricated bound. Crate-internal: the fitting stack's
             /// deviation measurements (M5 PR 4) ride it.
             pub(crate) fn same_structure_deviation_bound(&self, other: &Self) -> T {
-                if self.knots != other.knots || self.control.len() != other.control.len() {
+                if self.knots_f64_interim() != other.knots_f64_interim() || self.control.len() != other.control.len() {
                     return T::from_f64(f64::NAN);
                 }
                 net::removal_pass_bound(
-                    (&self.control, &self.weights),
-                    (&other.control, &other.weights),
+                    (&self.control, self.weights.values()),
+                    (&other.control, other.weights.values()),
                 )
             }
 
         }
 
-        impl<T: ProjectiveScalar> $Curve<T> {
+        impl<T: SpanLocate> $Curve<T> {
             /// Degree elevation (§5.5) by `raise` (≥ 1), via the Bézier
             /// route (`geom_core::spline::algebra::elevate_plan`):
             /// decompose, elevate each segment binomially, recompose
@@ -1595,14 +1502,17 @@ macro_rules! nurbs_curve {
             ///
             /// # Errors
             ///
-            /// [`KnotAlgebraError`] (structure refusals; a floating-
-            /// point weight collapse in recomposition surfaces
-            /// honestly).
+            /// [`KnotAlgebraError`]: structure refusals, or
+            /// [`KnotAlgebraError::WeightCollapse`] when floating point
+            /// writes a weight out of the positive regime in any stage
+            /// (the Bézier decomposition's insertions, the elevation's
+            /// blends, the recomposition's removals); surfaced honestly.
             pub fn elevate_degree(&self, raise: usize) -> Result<Self, KnotAlgebraError> {
                 let mut cur = self.clone();
                 for _ in 0..raise {
-                    let plans = spline::algebra::elevate_plan(&cur.knots, &cur.weights)?;
-                    cur = cur.apply_plans(&plans);
+                    let (kv, w) = spline::point_inputs(&cur.knots, &cur.weights)?;
+                    let plans = spline::algebra::elevate_plan(kv, w)?;
+                    cur = cur.apply_plans(&plans, &Self::inserted)?;
                 }
                 Ok(cur)
             }
@@ -1639,14 +1549,14 @@ macro_rules! nurbs_curve {
                 hull: impl Fn(R, R) -> R,
                 poison: impl FnOnce() -> R,
             ) -> R {
-                let Some(spans) = t.locate_spans(&self.knots) else {
+                let Some((first, last)) = self.knots.locate(t) else {
                     return poison();
                 };
-                // `spans.first` arrives already validated — the locator
-                // is where span validity originates, so there is
-                // nothing to re-check and no `expect` here.
-                let mut acc = door(self.window_of(spans.first), t);
-                for s in (spans.first.index() + 1)..=spans.last.index() {
+                // `first` arrives already validated — the locator is
+                // where span validity originates, so there is nothing to
+                // re-check and no `expect` here.
+                let mut acc = door(self.window_of(first), t);
+                for s in (first.span().index() + 1)..=last.span().index() {
                     let Some(span) = self.knots.span(s) else { continue };
                     acc = hull(acc, door(self.window_of(span), t));
                 }
@@ -1803,7 +1713,7 @@ fn rational_corrections<T: Real, const N: usize>(a: [T; N], w: [T; N]) -> [T; N]
         let mut acc = a[k];
         for i in (1..=k).rev() {
             let term = c[k - i] * w[i];
-            let binom = binomial(k, i);
+            let binom = spline::pieces::binomial(k, i);
             acc = acc
                 - if binom == 1.0 {
                     term
@@ -1816,18 +1726,11 @@ fn rational_corrections<T: Real, const N: usize>(a: [T; N], w: [T; N]) -> [T; N]
     c
 }
 
-/// `C(k, i)` as exact `f64` structure (the multiplicative form, exact
-/// while every intermediate product is below 2⁵³ — every order a curve
-/// evaluator asks for is far inside that).
-fn binomial(k: usize, i: usize) -> f64 {
-    (0..i).fold(1.0, |acc, j| acc * (k - j) as f64 / (j + 1) as f64)
-}
-
 impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
     /// The control coordinates lifted to enclosure points — the data-in
     /// shape of `geom_core::spline::compose`: channel `d`, point `i`,
     /// as `[x, y, z]` channels of certification enclosures. Pair with
-    /// [`Self::knots`] and [`Self::weights`] to build a `CurveCertData`
+    /// [`Self::knots_f64_interim`] and [`Self::weights`] to build a `CurveCertData`
     /// for composite bounds. The bracket seam this reads the net
     /// through is the shared one (`net::certified_coords`).
     pub fn certified_coords(&self) -> Vec<Vec<Interval>> {
@@ -1856,9 +1759,14 @@ impl<T: Real> NurbsCurve3<T> {
         Self {
             // Structurally valid by construction: clamped degree-1
             // vector, two positive weights, two control points.
-            knots: KnotVector::unit_segment(NonZeroUsize::MIN),
+            knots: Knots::lift(
+                &Knots::from(KnotVector::unit_segment(NonZeroUsize::MIN)),
+                T::from_f64,
+            ),
             control: vec![p, p],
-            weights: vec![1.0, 1.0],
+            weights: Weights::from_point_parts(vec![T::one(), T::one()], vec![1.0, 1.0]),
+            speed: OnceLock::new(),
+            speed_sup: OnceLock::new(),
         }
     }
 
@@ -1870,5 +1778,280 @@ impl<T: Real> NurbsCurve3<T> {
     /// the surface and curve halves answer it identically.
     pub fn is_placeholder(&self) -> bool {
         net::is_placeholder(&self.control)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::NurbsCurve3;
+    use geom_core::spline::{KnotVector, Knots};
+    use geom_core::{Dual, Point3, Real, Sym};
+    use test_utils::fuzz;
+
+    /// A cubic whose net sways `±2` across its axis, at `f64`.
+    fn swaying() -> NurbsCurve3<f64> {
+        let control = [-2.0, 2.0, -2.0, 2.0, -2.0]
+            .into_iter()
+            .zip(0..)
+            .map(|(x, z)| Point3::new(x, 0.0, f64::from(z)))
+            .collect();
+        let knots =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0, 2.0], 3).unwrap();
+        NurbsCurve3::new(knots, control, vec![1.0; 5]).unwrap()
+    }
+
+    /// **A carrier's weights are points, and their sign is certified
+    /// first (C6 S2).** Held weights take a wide one, but a curve or
+    /// surface reads its weights through their `f64` vector, so its door
+    /// refuses one wholly above zero as `CarrierWeightNotAPoint`. A wide
+    /// weight that reaches zero for some members refuses as that,
+    /// `WeightSignUndecided`, with its enclosure as the margin. Point
+    /// weights build. Red where the door admits a wide weight, or
+    /// reports a straddling one as merely wide.
+    #[test]
+    fn a_carrier_door_refuses_a_weight_wider_than_a_point_after_its_sign() {
+        use crate::surfaces::NurbsSurface;
+        use geom_core::Interval;
+        use geom_core::spline::SplineError;
+        let pt = Interval::from_f64;
+        let knots = |n: usize| {
+            let mut k = vec![0.0, 0.0];
+            k.extend((1..n - 1).map(|i| f64::from(u32::try_from(i).unwrap())));
+            k.extend([f64::from(u32::try_from(n - 1).unwrap()); 2]);
+            Knots::lift(
+                &Knots::from(KnotVector::clamped(k, 1).unwrap()),
+                Interval::from_f64,
+            )
+        };
+        let net = |n: usize| -> Vec<Point3<Interval>> {
+            (0..n)
+                .map(|i| Point3::new(pt(f64::from(u32::try_from(i).unwrap())), pt(0.0), pt(0.0)))
+                .collect()
+        };
+        let curve =
+            |w: Interval| NurbsCurve3::new(knots(3), net(3), vec![pt(1.0), w, pt(1.0)]).map(|_| ());
+        let surface = |w: Interval| {
+            let mut ws = vec![pt(1.0); 9];
+            ws[4] = w;
+            NurbsSurface::new(knots(3), knots(3), net(9), ws).map(|_| ())
+        };
+        for (door, at, got) in [
+            ("curve", 1, curve(Interval::from_bounds(0.5, 2.0))),
+            ("surface", 4, surface(Interval::from_bounds(0.5, 2.0))),
+        ] {
+            match got {
+                Err(SplineError::CarrierWeightNotAPoint { index }) => {
+                    assert_eq!(index, at, "{door}")
+                }
+                other => panic!("{door}: a wide weight: {other:?}"),
+            }
+        }
+        for (door, at, got) in [
+            ("curve", 1, curve(Interval::from_bounds(-0.5, 2.0))),
+            ("surface", 4, surface(Interval::from_bounds(-0.5, 2.0))),
+        ] {
+            match got {
+                Err(SplineError::WeightSignUndecided { index, .. }) => {
+                    assert_eq!(index, at, "{door}")
+                }
+                other => panic!("{door}: a straddling weight: {other:?}"),
+            }
+        }
+        assert!(curve(pt(2.0)).is_ok(), "a point weight builds");
+        assert!(surface(pt(2.0)).is_ok(), "a point weight builds");
+    }
+
+    /// **A carrier's breakpoints are points (C6 S1).** The held knots
+    /// take a breakpoint wider than a point, but a curve or surface
+    /// reads its knots through their `f64` vector, so each door that
+    /// makes a carrier's knots refuses one typed, at its run: the
+    /// curve's `new`, its `on_domain` (a breakpoint a third of the way
+    /// along maps through `1/3`, which rounds outward at `Interval`;
+    /// one halfway maps exactly), and the surface's `new` in
+    /// either direction. The point carriers beside each build.
+    #[test]
+    fn a_carrier_door_refuses_a_breakpoint_wider_than_a_point() {
+        use crate::surfaces::NurbsSurface;
+        use core::num::NonZeroUsize;
+        use geom_core::Interval;
+        use geom_core::spline::SplineError;
+        let m = |k: usize| NonZeroUsize::new(k).unwrap();
+        let pt = Interval::from_f64;
+        let knots = |mid: Interval| {
+            Knots::new(vec![(pt(0.0), m(2)), (mid, m(1)), (pt(3.0), m(2))], 1).unwrap()
+        };
+        let wide = knots(Interval::from_bounds(0.9, 1.1));
+        let point = knots(pt(1.0));
+        let net = |n: usize| -> Vec<Point3<Interval>> {
+            (0..n)
+                .map(|i| Point3::new(pt(f64::from(u32::try_from(i).unwrap())), pt(0.0), pt(0.0)))
+                .collect()
+        };
+        let refuses_at_1 = |r: Result<(), SplineError>, door: &str| match r {
+            Err(SplineError::CarrierKnotNotAPoint { index: 1 }) => {}
+            other => panic!("{door}: expected run 1's carrier refusal, got {other:?}"),
+        };
+        refuses_at_1(
+            NurbsCurve3::new(wide.clone(), net(3), vec![pt(1.0); 3]).map(|_| ()),
+            "curve new",
+        );
+        let curve = |k: Knots<Interval>| NurbsCurve3::new(k, net(3), vec![pt(1.0); 3]).unwrap();
+        assert!(
+            curve(knots(pt(1.5))).on_domain(0.0, 1.0).is_ok(),
+            "an exact re-expression (a half) builds"
+        );
+        refuses_at_1(
+            curve(point.clone()).on_domain(0.0, 1.0).map(|_| ()),
+            "curve on_domain",
+        );
+        let surface = |u: &Knots<Interval>, v: &Knots<Interval>| {
+            NurbsSurface::new(u.clone(), v.clone(), net(9), vec![pt(1.0); 9]).map(|_| ())
+        };
+        refuses_at_1(surface(&wide, &point), "surface new, u");
+        refuses_at_1(surface(&point, &wide), "surface new, v");
+        assert!(surface(&point, &point).is_ok(), "a point surface builds");
+    }
+
+    /// `c` read at the scalar `U`, every value lifted by `lift` except
+    /// the weights, which are `weights(j)`.
+    fn at<U: geom_core::spline::SpanLocate>(
+        c: &NurbsCurve3<f64>,
+        lift: impl Fn(f64) -> U,
+        weights: impl Fn(usize) -> U,
+    ) -> NurbsCurve3<U> {
+        NurbsCurve3::new(
+            Knots::lift(c.knot_values(), &lift),
+            c.control().iter().map(|p| p.map(&lift)).collect(),
+            (0..c.control().len()).map(weights).collect(),
+        )
+        .unwrap()
+    }
+
+    /// **A weight that moves with the parameter makes the curve
+    /// rational**, though every weight's value is `1`: at `Dual` the
+    /// meter is the rational arm's (its value channel bit for bit the
+    /// `f64` rational arm on the same values), and its derivative
+    /// channel reads the weight's tangent rather than the constant net.
+    #[test]
+    fn a_dual_weight_with_a_tangent_takes_the_rational_arm() {
+        let c = swaying();
+        let cd = at(&c, Dual::constant, |j| {
+            Dual::new(1.0, if j == 1 { 0.5 } else { 0.0 })
+        });
+        let m = cd.speed_lower_bound().get();
+        let rational = c.rational_speed_lower_bound();
+        let integral = c.speed_lower_bound().get();
+        assert!(
+            rational.to_bits() != integral.to_bits(),
+            "the fixture must tell the arms apart: {rational} / {integral}"
+        );
+        assert!(
+            m.value.to_bits() == rational.to_bits(),
+            "Dual meter {} against the rational arm {rational} (integral {integral})",
+            m.value
+        );
+        assert!(
+            m.deriv != 0.0,
+            "the weight's tangent never reached the meter"
+        );
+        let constant = at(&c, Dual::constant, |_| Dual::constant(1.0));
+        assert!(
+            constant.speed_lower_bound().get().value.to_bits() == integral.to_bits(),
+            "constant Dual weights keep the integral arm"
+        );
+    }
+
+    /// **A weight that is not a literal makes the curve rational** at
+    /// `Sym`, though its value is `1`: a computed weight may carry a
+    /// symbol, so the meter is the rational arm's; literal weights keep
+    /// the integral arm. Both bit for bit the `f64` arm on the same
+    /// values.
+    #[test]
+    fn a_computed_sym_weight_takes_the_rational_arm() {
+        let c = swaying();
+        let lit = <Sym<f64> as Real>::from_f64;
+        let computed = at(&c, lit, |j| {
+            if j == 1 {
+                lit(0.5) + lit(0.5)
+            } else {
+                lit(1.0)
+            }
+        });
+        let literal = at(&c, lit, |_| lit(1.0));
+        let rational = c.rational_speed_lower_bound();
+        let integral = c.speed_lower_bound().get();
+        let (mc, ml) = (
+            computed.speed_lower_bound().get().value,
+            literal.speed_lower_bound().get().value,
+        );
+        assert!(
+            mc.to_bits() == rational.to_bits() && ml.to_bits() == integral.to_bits(),
+            "computed weight {mc} (rational {rational}), literal weights {ml} (integral {integral})"
+        );
+    }
+
+    /// **On a polynomial net the rational piece reading is the integral
+    /// one degree-elevated** (counterexample search). With `w ≡ 1` the
+    /// rational quotient's piece coefficients are the derivative's
+    /// raised from degree `p − 1` to `2p` over ones: the same mean, so the same
+    /// direction, and every raised coefficient a convex combination of
+    /// the originals, so the rational reading is never the lower. On
+    /// random integral nets, degree 2–6, it is at least the integral
+    /// arm's piece reading, to `1e-9` relative.
+    #[test]
+    fn the_rational_piece_reading_is_the_elevated_integral_one() {
+        let mut rng = fuzz::start("nurbs::arms_piece_readings");
+        let cases = fuzz::scaled(60);
+        for case in 0..cases {
+            let p = 2 + case % 5;
+            let n = p + 1 + rng.below(8);
+            let control: Vec<Point3<f64>> = (0..n)
+                .map(|_| {
+                    Point3::new(
+                        rng.range(-2.0, 2.0),
+                        rng.range(-2.0, 2.0),
+                        rng.range(-2.0, 2.0),
+                    )
+                })
+                .collect();
+            let mut knots = vec![0.0; p + 1];
+            let mut u = 0.0;
+            for _ in 0..n - p - 1 {
+                u += rng.range(0.2, 1.2);
+                knots.push(u);
+            }
+            u += rng.range(0.2, 1.2);
+            knots.extend(std::iter::repeat_n(u, p + 1));
+            let kv = KnotVector::clamped(knots, p).unwrap();
+            let c = NurbsCurve3::<f64>::new(kv, control, vec![1.0; n]).unwrap();
+            let (pieces, rational) = (c.piece_floor(false), c.piece_floor(true));
+            assert!(
+                rational >= pieces - 1e-9 * pieces.abs(),
+                "case {case} (deg {p}, {n} pts): integral pieces {pieces}, rational pieces {rational} — {}",
+                fuzz::replay()
+            );
+        }
+    }
+
+    /// A read inside a symbolic session leaves the memo empty: what the
+    /// session minted is not kept for a later read, in or out of a
+    /// session. A read outside one fills it.
+    #[test]
+    fn a_session_never_fills_the_speed_memo() {
+        use geom_core::SymBudget;
+        use geom_core::sym::with_session;
+        let c = swaying().map_scalar(Sym::<f64>::from_f64);
+        let budget = SymBudget {
+            max_terms: 64,
+            max_degree: 8,
+        };
+        let _ = with_session(budget, || c.speed_lower_bound());
+        assert!(c.speed.get().is_none(), "a session's read filled the memo");
+        let _ = c.speed_lower_bound();
+        assert!(
+            c.speed.get().is_some(),
+            "a read outside a session left the memo empty"
+        );
     }
 }

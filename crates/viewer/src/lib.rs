@@ -47,7 +47,7 @@
 //! A view is drawn at a **display tolerance** ([`DisplayTolerance`]):
 //! how far the triangles may sag from the exact surfaces. The kernel
 //! tolerance ε — what the model *is* — is never touched by anything
-//! in this crate (the ratified micro-decision in GUI-DESIGN, and
+//! in this crate (G4's ratified micro-decision in GUI-DESIGN, and
 //! `mesh`'s own δ-is-not-ε contract).
 
 pub mod blend;
@@ -143,24 +143,24 @@ pub use camera::{Camera, CameraError, CameraOp, CameraOpError, cursor_projection
 pub use datums::{DatumDraw, DatumKind};
 pub use docio::DocIoError;
 pub use evalseam::{
-    EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, InlineEvaluator,
-    InlineIndexer,
+    DoorDone, DoorRequest, DoorService, EvalDone, EvalRequest, EvalService, IndexDone,
+    IndexRequest, IndexService, InlineEvaluator, InlineIndexer, InlineProver,
 };
 // The two seam lanes are meant to be interchangeable, so they are named
 // the same way. `ThreadEvaluator` carries the `cfg` its module does.
 pub use display::{
     AdmissionFault, DisplayFault, DisplayState, DisplayView, PruneReport, Withdrawn,
-    free_move_check, mates_naming,
+    free_move_check, space_check,
 };
 #[cfg(not(target_family = "wasm"))]
-pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, Worker};
+pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, Worker};
 pub use generation::Generation;
 pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 pub use marks::{EdgeOverlay, Highlight, edge_id_segments, edge_overlay, edge_segments, highlight};
 pub use matetool::{
-    MateAdmission, MateChoice, MateProposal, MateTool, MateToolError, MateToolEvent, MateToolState,
-    admitted_classes,
+    MATE_KINDS, MateAdmission, MateChoice, MateFreedom, MateProposal, MateTool, MateToolError,
+    MateToolEvent, MateToolState, admitted_classes,
 };
 pub use narrowing::Narrow;
 pub use parts::{PartChooser, PartEntry};
@@ -176,8 +176,8 @@ pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePar
 pub use seats::{Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{
     BoundsReading, DatumSpec, DocSession, EdgeSelection, FaceFrameFault, FaceSelection, Hovered,
-    Landing, NodeKindWanted, OpOutcome, PatternRuleSpec, ProfileShape, Refusal, Selection,
-    SessionOp, Standing,
+    Landing, NodeKindWanted, OpOutcome, PatternRuleSpec, PlaceReport, ProfileShape, Refusal,
+    Selection, SessionOp, Standing,
 };
 pub use theme::{Mark, MixFraction, Polarity, Safety, Theme};
 pub use tools::{ToolKind, ToolNotice, Tools};

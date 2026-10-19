@@ -1,5 +1,6 @@
-//! **A sphere face slit to its pole: the interval lane's azimuth window
-//! encloses the `f64` replay's, and containment answers the same.**
+//! **A sphere face slit to its pole: the interval lane's azimuth walk
+//! never excludes the `f64` replay's branch, and containment answers the
+//! same.**
 //!
 //! The dome is a unit hemisphere revolved about `y`: a flat base and two
 //! π-band sphere faces meeting along two meridians at the pole. Merging
@@ -7,17 +8,22 @@
 //! runs the surviving meridian up into the pole and straight back down
 //! it — a slit, the pole a valence-1 strut tip (tier 2 names it; tier 1
 //! holds). Killed from its minus half, the surviving face's walk crosses
-//! the slit mid-walk, where the azimuth walk's strictly-next pole branch
-//! sits exactly on its jump: at `f64` it lands a whole period on, and at
-//! `Interval` the enclosure straddles it and spans both branches.
+//! the slit mid-walk: it enters the pole along the meridian and leaves
+//! along the same one, so the face wraps the pole and the strictly-next
+//! branch is the previous one a whole turn on, a literal at every scalar.
 //!
-//! The window row holds the interval window against the `f64`
-//! window on every slit: a pick that kept one branch of the straddle
-//! would hand back a window excluding the replay's. The containment row
+//! The window row holds the interval walk against the `f64` window on
+//! every slit: the interval window encloses the replay's, each end a
+//! point-width enclosure, where the walk closes before the slit and where
+//! it crosses it mid-walk alike. A pick that read the slit's coincident
+//! azimuths as numbers would straddle the jump there, spanning both
+//! branches, and escalate at the joint after it. The containment row
 //! asks points of the dome at both scalars; the slit face's rims wrap
 //! the axis, so the door reads its latitude window and not the azimuth
-//! one, and a pick that refused the straddle instead would turn every
-//! verdict into a partial-sphere refusal.
+//! one, and a pick that refused the slit instead would turn every
+//! verdict into a partial-sphere refusal. A point outside the dome whose
+//! rays meet nothing is answered off a ray aimed at its base: the slit's
+//! cusp leaves the at-infinity volume uncertified.
 //!
 //! A third row hands the slit to the Boolean, which serves finished
 //! bodies only: a slit operand — the dome against a brick, and a slit
@@ -36,9 +42,9 @@ use geom_core::{Band, Bounds, Decide, Dual64, Interval, Point2, Point3, Real, To
 use sweep::Revolution;
 use sweep::test_support::{finished, revolved_about_y_at};
 use topo::{
-    AtRestPolicy, Body, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
-    SolidContainment, SplitError, SplitReduceError, SweepStrategy, ValidationError,
-    face_azimuth_window_traces, point_in_solid, validate, validate_closed,
+    AtRestPolicy, Body, BooleanError, BooleanOp, BooleanResult, SolidContainment, SplitError,
+    SplitJoinError, SplitReduceError, SweepStrategy, ValidationError, face_azimuth_window_traces,
+    point_in_solid, validate, validate_closed,
 };
 
 fn f<T: Real>(x: f64) -> T {
@@ -118,6 +124,10 @@ fn verdicts<T: Decide + topo::AtRestPolicy + Bounds>(lane: &str) {
     for (i, slit) in slits::<T>().iter().enumerate() {
         for ((x, y, z), want) in TABLE {
             let got = point_in_solid(slit, Point3::new(f(x), f(y), f(z)), band, Tol::witness());
+            // A point outside is read off a ray aimed at the base: the
+            // slit's strut tip is a cusp of the sphere face's loop, which
+            // the sphere arm of the volume refuses
+            // (`props_sphere_loop_cusp`), so the volume reads no side.
             assert!(
                 matches!(got, Ok(v) if v == want),
                 "[{lane}] slit {i}: point ({x}, {y}, {z}) against the slit dome: \
@@ -137,8 +147,9 @@ fn a_slit_dome_answers_containment_at_interval() {
     verdicts::<Interval>("Interval");
 }
 
-/// The slit face's azimuth window: the one sphere face the slit leaves.
-fn window<T: Decide + Bounds>(slit: &Body<T>) -> (T, T) {
+/// The slit face's azimuth window walk: the one sphere face the slit
+/// leaves.
+fn window<T: Decide>(slit: &Body<T>) -> Result<Option<(T, T)>, SplitJoinError> {
     let band = Band::linear(Tol::witness()).expect("the witness band");
     let mut spheres = slit.faces().filter(|(_, face)| {
         matches!(
@@ -149,12 +160,10 @@ fn window<T: Decide + Bounds>(slit: &Body<T>) -> (T, T) {
     let (face, _) = spheres.next().expect("the slit sphere face");
     assert!(spheres.next().is_none(), "one sphere face after the kill");
     face_azimuth_window_traces(slit, face, band)
-        .expect("the slit face's walk")
-        .expect("the slit face's loop is a cycle")
 }
 
 #[test]
-fn the_interval_window_of_a_slit_dome_encloses_the_f64_window() {
+fn the_interval_walk_encloses_the_f64_window_on_every_slit() {
     let replay = slits::<f64>();
     let certified = slits::<Interval>();
     assert_eq!(
@@ -163,18 +172,83 @@ fn the_interval_window_of_a_slit_dome_encloses_the_f64_window() {
         "one slit per kill in each lane"
     );
     for (i, (r, c)) in replay.iter().zip(&certified).enumerate() {
-        let (r_lo, r_hi) = window(r);
-        let (c_lo, c_hi) = window(c);
+        let (r_lo, r_hi) = window(r)
+            .expect("the f64 walk")
+            .expect("the slit face's loop is a cycle");
+        let (c_lo, c_hi) = window(c)
+            .unwrap_or_else(|e| panic!("slit {i}: the interval walk: {e:?}"))
+            .expect("the slit face's loop is a cycle");
         for (end, want, got) in [("lo", r_lo, c_lo), ("hi", r_hi, c_hi)] {
             assert!(
-                got.lo() <= want && want <= got.hi(),
-                "slit {i}: the interval window's {end} [{:e}, {:e}] does not enclose \
-                 the f64 window's {want} (f64 window ({r_lo}, {r_hi}))",
+                got.lo() <= want && want <= got.hi() && got.hi() - got.lo() < 1e-9,
+                "slit {i}: the interval window's {end} [{:e}, {:e}] is not a tight \
+                 enclosure of the f64 window's {want} (f64 window ({r_lo}, {r_hi}))",
                 got.lo(),
                 got.hi()
             );
         }
     }
+}
+
+/// `slit` with a null strut at its pole: a zero-length scaffold edge
+/// spliced into the slit face's loop between the meridian's climb and
+/// its descent, so the walk skips two halves there.
+fn strutted<T: Decide + topo::AtRestPolicy + Bounds>(slit: &Body<T>) -> Body<T> {
+    let pole = slit
+        .vertex_points()
+        .find(|(_, p)| (p.y.lo() - 1.0).abs() < 1e-9 && p.x.hi().abs() < 1e-9)
+        .map(|(v, _)| v)
+        .expect("the slit's pole");
+    let (down, _) = slit
+        .half_edges()
+        .find(|(_, he)| he.start == pole)
+        .expect("the meridian leaves the pole");
+    let mut body = slit.clone();
+    body.mev_null(
+        topo::MevSite::Fan {
+            he1: down,
+            he2: down,
+        },
+        topo::NewVertexSide::Above,
+    )
+    .expect("a null strut at the pole");
+    body
+}
+
+/// **The slit face covers one turn, read through the walk's own
+/// wiring**: every slit's window is exactly a turn wide, at `f64` and at
+/// `Interval`, with and without a null strut between the meridian's two
+/// passes through the pole. The face wraps the pole once, so where the
+/// walk crosses the slit mid-walk its entry is the previous branch one
+/// turn on in the face's own sense: a branch the other way, or a pick
+/// that missed the same edge across the skipped strut, opens the window
+/// to three turns or refuses it.
+fn one_turn<T: Decide + topo::AtRestPolicy + Bounds>(lane: &str) {
+    for (i, slit) in slits::<T>().iter().enumerate() {
+        for (what, body) in [("bare", slit.clone()), ("strutted", strutted(slit))] {
+            let (lo, hi) = window(&body)
+                .unwrap_or_else(|e| panic!("[{lane}] slit {i} ({what}): {e:?}"))
+                .expect("the slit face's loop is a cycle");
+            let width = hi - lo;
+            let tau = core::f64::consts::TAU;
+            assert!(
+                (width.lo() - tau).abs() < 1e-9 && (width.hi() - tau).abs() < 1e-9,
+                "[{lane}] slit {i} ({what}): the window is one turn wide: [{:e}, {:e}]",
+                width.lo(),
+                width.hi()
+            );
+        }
+    }
+}
+
+#[test]
+fn every_slit_window_is_one_turn_at_f64() {
+    one_turn::<f64>("f64");
+}
+
+#[test]
+fn every_slit_window_is_one_turn_at_interval() {
+    one_turn::<Interval>("Interval");
 }
 
 /// The unit ball about `(0.5, 1, 0.5)`'s `y` axis at radius 0.3, whose
@@ -196,7 +270,7 @@ fn subtract<T: Decide + topo::AtRestPolicy + Bounds>(
         BooleanOp::Subtract,
         &finished("operand A", a.clone(), Tol::witness()),
         &finished("operand B", b.clone(), Tol::witness()),
-        &BooleanDeclarations::none(),
+        &topo::BooleanInputs::default(),
         SweepStrategy::Realized,
         Tol::witness(),
     )

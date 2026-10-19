@@ -29,7 +29,8 @@ use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
 use geom_brep::offset_fit::{
-    OffsetFitError, approx_offset_surface_at, certify_offset_at, offset_point, recertify_approx_at,
+    OffsetFitError, OffsetFitWall, approx_offset_surface_at, certify_offset_at, offset_point,
+    recertify_approx_at,
 };
 use geom_core::{Affine3, Point3, Vec3};
 
@@ -119,8 +120,14 @@ fn an_unreachable_tolerance_refuses_typed() {
     let e = approx_offset_surface_at(Arc::new(bowed()), 0.3, 1e-18, band())
         .expect_err("1e-18 m on a bowed patch is not reachable");
     assert!(
-        matches!(e, OffsetFitError::BudgetExhausted { .. }),
-        "expected the budget refusal, got {e}"
+        matches!(
+            e,
+            OffsetFitError::WallReached {
+                wall: OffsetFitWall::SampleCap { .. },
+                ..
+            }
+        ),
+        "expected the sample cap's refusal, got {e}"
     );
 }
 
@@ -290,8 +297,8 @@ fn a_planted_degraded_fit_goes_red_at_re_derivation() {
     let mid = control.len() / 2;
     control[mid] = control[mid] + Vec3::new(0.0, 0.0, 1e-3);
     let coarsened = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         control,
         fit.weights().to_vec(),
     )
@@ -486,7 +493,8 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
 
 /// `Approx` is its own [`geom::SurfaceKind`] — not the kind its fit
 /// is — and the routing table routes each of its pairs as the fit's
-/// kind does: plane×Approx is the plane×NURBS arm, every other pair
+/// kind does: plane×Approx is the plane×NURBS arm, Approx beside a
+/// spline or a fit the NURBS×NURBS arm, and beside a curved analytic
 /// the unimplemented NURBS arm its fit would take.
 #[test]
 fn approx_is_its_own_kind_and_routes_as_its_fit() {
@@ -516,8 +524,11 @@ fn approx_is_its_own_kind_and_routes_as_its_fit() {
             );
             assert_eq!(
                 route(a, b).implemented,
-                other == SurfaceKind::Plane,
-                "{a:?} x {b:?}: only the plane pair is implemented"
+                matches!(
+                    other,
+                    SurfaceKind::Plane | SurfaceKind::Nurbs | SurfaceKind::Approx
+                ),
+                "{a:?} x {b:?}: the plane and spline pairs are implemented"
             );
         }
     }
@@ -594,6 +605,7 @@ fn a_plane_section_of_a_curved_fit_certifies_as_the_fits() {
             a,
             b,
             move |k| arena.get(k).cloned(),
+            1.0,
             band(),
             Some(geom_brep::NurbsLane::certified()),
         )

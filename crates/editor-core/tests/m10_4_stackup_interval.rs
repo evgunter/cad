@@ -151,7 +151,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    editor_core::apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
+    editor_core::apply(doc, edit, Tol::witness())
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
@@ -490,32 +490,26 @@ fn the_two_hole_plate_stackup() {
         .expect("hole_r has a row")
         .sensitivity = SensitivityOutcome::Unliftable {
         node: distance,
-        refusal: LiftRefusal::PinnedSection {
-            section: assertion,
-            param: var(&doc, "hole_r"),
-        },
+        refusal: LiftRefusal::GuidedReplay { loop_: 0, step: 1 },
     };
     let golden = unliftable.serialize();
     assert!(
         golden.contains(&format!(
-            "sensitivity=unliftable at node {}: variable {} feeds the section of node {}, \
-             which stays f64",
+            "sensitivity=unliftable at node {}: the guided elaboration could not re-confirm \
+             loop 0 step 1 at this pass's scalar",
             distance.full(),
-            hole_r.full(),
-            assertion.full()
         )),
         "{golden}"
     );
     assert!(!golden.contains("Measure "), "{golden}");
     assert!(!golden.contains("hole_r"), "{golden}");
-    // The human form SPEAKS the variable: by its name, where the
-    // content-keyed goldening form above holds its identity (so a
-    // rename moves no report key).
+    // The human form SPEAKS the node: by its spoken name, where the
+    // content-keyed goldening form above holds its identity.
     let human = unliftable.render(&doc, &analyzed);
     assert!(
         human.contains(&format!(
-            "hole_r feeds the section of {}, which stays f64",
-            doc.spoken(assertion)
+            "unliftable at {}: the guided elaboration could not re-confirm loop 0 step 1",
+            doc.spoken(distance)
         )),
         "{human}"
     );
@@ -1417,8 +1411,9 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
 /// **The lift-pinning e2e: a bore/pin fit.** The pin's radius `r` is a
 /// profile dimension (a circle program's radius) and the C5 gap
 /// `R − r − d` reads it only through the lifted cylinder carrier: the
-/// stackup reports ∂gap/∂r = −1 exactly, chamber-certified, where the
-/// pinned lift gives the silent zero. (The two-hole plate's −2 is the
+/// stackup reports ∂gap/∂r = −1 exactly, chamber-certified, and a bare
+/// seeded evaluation carries the same tangent: a seed makes the lift
+/// guided, so the pinned lift's silent zero cannot be asked for. (The two-hole plate's −2 is the
 /// measure EXPRESSION's own `− 2·hole_r` and would come out under
 /// either lift; this row is the one where the lift is load-bearing.)
 #[test]
@@ -1464,8 +1459,10 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let doc = r.doc;
 
-    // The silent zero the driver never uses, shown beside the fix.
-    let pinned = evaluate::<geom_core::Dual64>(
+    // A seed makes the lift guided (`EvalOptions::profile_lift`): the
+    // pinned lift's silent zero is no evaluation anyone can ask for, and
+    // the seeded gap carries the carrier's tangent.
+    let seeded = evaluate::<geom_core::Dual64>(
         &doc,
         None,
         &CancelToken::new(),
@@ -1475,13 +1472,16 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
         },
         Tol::witness(),
     );
-    let Some(NodeResult::Ok(v)) = pinned.result(measure) else {
+    let Some(NodeResult::Ok(v)) = seeded.result(measure) else {
         panic!("the gap measures")
     };
     let ValuePayload::Measure { value, .. } = &v.payload else {
         panic!("a measure")
     };
-    assert_eq!(value.deriv, 0.0, "the pinned lift's silent zero");
+    assert_eq!(
+        value.deriv, -1.0,
+        "the seed reaches the gap through the carrier"
+    );
 
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
@@ -1536,13 +1536,14 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     );
 }
 
-/// **MAJ-2's valve.** A loft's section stays `f64` in every lane
-/// (C6/D9), so a seed on the section's width has no channel to ride:
-/// the driver reports `Unliftable { PinnedSection }` naming the section
-/// and the parameter — never a finite zero — and the report forfeits
-/// that row's advisory columns to it while `worst_case` still gates.
+/// **A loft section carries its seed.** A loft reads its sections'
+/// profile values in the lane scalar, so a seed on a section's width
+/// rides through the skin to the walls: the distance from the loft's
+/// origin corner to its `x = w` corner moves one for one with `w`. And
+/// the drive over `w`'s box certifies in one leaf, the walls skinned
+/// over the box.
 #[test]
-fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
+fn a_loft_section_seed_rides_the_section_to_the_measure() {
     let half = eps() / 16.0;
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
@@ -1603,59 +1604,30 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     let entries =
         sensitivities(&doc, measure_value, None, None, false, None, Tol::witness()).expect("ok");
     match entry(&doc, &entries, "w") {
-        SensitivityOutcome::Unliftable { node, refusal } => {
-            assert_eq!(*node, loft, "the loft is where the seed stops");
-            assert_eq!(
-                *refusal,
-                editor_core::LiftRefusal::PinnedSection {
-                    section: p0,
-                    param: var(&doc, "w"),
-                }
+        SensitivityOutcome::Derivative { value, .. } => {
+            assert!(
+                (value - 1.0).abs() <= 1e-9,
+                "the corner distance moves one for one with the width: {value}"
             );
         }
-        other => panic!("a section seed must be the typed valve: {other:?}"),
+        other => panic!("a section seed must reach the measure: {other:?}"),
     }
 
+    // The drive is where the box meets the section: at `Interval` the
+    // section is wider than a point, and the loft skins it at the lane
+    // scalar, so the box certifies in one leaf.
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
-    if verdict.certified().is_empty() {
-        // EVIDENCE-ONLY: the loft's interval certification is not
-        // this row's subject; the valve above is.
-        println!("loft drive certified nothing: {:?}", verdict.receipt());
-        return;
-    }
-    let report = stackup(
-        &doc,
-        measure_value,
-        &analyzed,
-        &verdict,
-        None,
-        false,
-        None,
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("{e}"));
-    let row = &report.per_param[0];
-    assert!(matches!(
-        row.sensitivity,
-        SensitivityOutcome::Unliftable { .. }
-    ));
     assert_eq!(
-        row.contribution,
-        Err(Unavailable::Unliftable {
-            var: spoken(&doc, "w")
-        })
+        verdict.receipt(),
+        editor_core::drive::Receipt {
+            certified: 1,
+            refused: 0,
+            splits: 0
+        },
+        "a boxed section certifies at Interval: {:?}",
+        verdict.refused().first().map(|l| &l.reason)
     );
-    assert!(row.chamber_span.is_none());
-    assert_eq!(
-        report.rss,
-        Rss::UnavailableBecause {
-            blockers: vec![Unavailable::Unliftable {
-                var: spoken(&doc, "w")
-            }]
-        }
-    );
-    assert!(report.worst_case.lo <= 2.0 && 2.0 <= report.worst_case.hi);
 }
 
 /// **DATUM — an untoleranced parameter is no axis, and blocks nothing.**

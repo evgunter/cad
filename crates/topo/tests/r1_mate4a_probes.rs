@@ -32,7 +32,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, ContactRecords, FaceKey, PatchContact, ValidationError};
+use topo::{Body, ContactRecords, FaceKey, ValidationError};
 
 /// Cap mostly under the shelf (`y <= 0.30`), one spike overhanging
 /// through the shelf's `y = 0.30` boundary edge between the two
@@ -77,16 +77,15 @@ fn a_spike_overhang_certifies_outright() {
     let (body, post_top, shelf_bottom) = spike_overhang_seat();
     let found = errors(
         &body,
-        &ContactRecords {
-            patches: vec![topo::Cited::new(
-                PatchContact {
-                    face_a: post_top,
-                    face_b: shelf_bottom,
-                },
-                topo::Cites::decided(0),
-            )],
-            ..ContactRecords::default()
-        },
+        &topo::ContactRecords::from_iter(vec![topo::Cited::new(
+            topo::Contact::new(
+                &body,
+                topo::Cell::Face(post_top),
+                topo::Cell::Face(shelf_bottom),
+            )
+            .unwrap(),
+            topo::Cites::decided(0),
+        )]),
     );
     assert!(
         found.is_empty(),

@@ -56,3 +56,11 @@ agent-written and ratified with PR 3990.
 
 The build proceeds on the recommendation meanwhile. The kernel door
 is unit `the-census-records-what-it-decides`, then J.
+
+**Ev's answers (PR 4666, 2026-10-19).** The cell-reading quieting wording: "1. this sounds good". A census per space, after Ev asked how this interacts with PR 5312's spaces: "the second seems solidly better, yes". The exact rule is in D10 `[assertions]` (fork-log row 164, pair `a-space-decides-its-own-contacts`).
+
+**Units that follow** (filed as their own items):
+- `each-space-runs-its-census-between-arrivals`: the graft returns a space's aggregate with its arrivals; `record_at_rest` takes that one value (its `groups` closure retires); a census per space with two or more arrivals, memoised with the space's inputs; findings reported once as the deciding space's; spaces outside the product checked too.
+- `a-placement-carries-its-sources-at-rest-result`: generalises `a-part-drops-its-census-findings-at-the-seam` from the instance seam to every placement.
+
+**Sequencing.** Inside an arrival the census confirms and matches; a touch matching nothing is that arrival's door's defect, reported typed. On main today that arm is reachable by input, not only by a kernel bug (`boolean-door-runs-the-census-over-its-result`, `transform-and-pattern-drop-a-values-contact-records`), so it stays a reported finding, never a panic. `an-escalated-census-finding-names-no-pair` is a prerequisite of matching an escalated carried finding.

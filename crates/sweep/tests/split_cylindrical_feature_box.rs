@@ -24,7 +24,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::Curve3;
 use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{SketchPlane, circle_split};
 use sweep::test_support::{brick, extruded, finished, sketch_at, sketch_from_axes};
@@ -170,10 +169,7 @@ fn ellipse_axes(half: &Body<f64>) -> Vec<(f64, f64)> {
                 .certified()
                 .map(|c| c.carrier().clone())
         })
-        .filter_map(|c| match c {
-            Curve3::Ellipse { major, minor, .. } => Some((major, minor)),
-            _ => None,
-        })
+        .filter_map(|c| c.major_frame().map(|f| (f.major, f.minor)))
         .collect()
 }
 

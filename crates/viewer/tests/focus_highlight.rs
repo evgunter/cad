@@ -35,7 +35,7 @@ fn delta() -> DisplayTolerance {
 /// A session over the spike plate, evaluated and landed.
 fn plate_session(tol: Tol) -> (DocSession, RecipeNodeId) {
     let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
-    let mut session = DocSession::inline(doc, tol);
+    let mut session = crate::common::inline_without_door(doc, tol);
     session.pump();
     (session, extrude)
 }
@@ -146,7 +146,7 @@ fn a_face_pick_marks_its_owning_feature() {
 fn a_profile_marks_the_body_built_from_it() {
     let tol = Tol::witness();
     let (doc, profile, extrude) = common::parametric_plate(tol);
-    let mut session = DocSession::inline(doc, tol);
+    let mut session = crate::common::inline_without_door(doc, tol);
     session.pump();
     let index = index_of(&session);
     assert!(
@@ -176,7 +176,7 @@ fn a_profile_marks_the_body_built_from_it() {
 fn selecting_a_parameter_marks_the_features_it_drives() {
     let tol = Tol::witness();
     let (doc, _profile, extrude) = common::parametric_plate(tol);
-    let mut session = DocSession::inline(doc, tol);
+    let mut session = crate::common::inline_without_door(doc, tol);
     session.pump();
     let index = index_of(&session);
 
@@ -338,7 +338,7 @@ fn die(tol: Tol) -> Die {
     );
     let ball = first(&doc, |n| matches!(n, Node::Revolve { .. }));
     let pip = first(&doc, |n| matches!(n, Node::Transform { .. }));
-    let mut session = DocSession::inline(doc, tol);
+    let mut session = crate::common::inline_without_door(doc, tol);
     session.pump();
     Die {
         session,

@@ -1400,4 +1400,92 @@ Ev said go.
   - The orchestrator merged main once, a union of the slow-set line.
   - Next per the plan: unit 19, the NURBS × NURBS arm (`Section` handle, `branch_at`/`all()`), as ruled in PR 4515.
 - **Unit 19 dispatched** (2026-10-10 20:28Z): the NURBS × NURBS section arm, as ruled in PR 4515 (a `Section` handle with `branch_at` and `all()`). Session `session_01CdW9zFCmnxvk8MaZHdoV5w`, branch `shell/nurbs-nurbs-section`, H tier, dual review.
+- **Unit 19 review dispatched** (2026-10-10 23:40Z): PR 4597, frozen head 00506b1, concurrent dual Opus pair (H tier). The lane reported main red on perf12's census golden. That drift was already re-blessed on main by PR 4586 and is inside the head. The names-alike timing row is `work/tcost/a-names-alike-bound-sits-at-the-debug-builds-own-time.md`.
+- **Unit 19 dual adjudicated** (2026-10-11 ~00:35Z): byte 160, both APPROVE-WITH-FIXES, no MAJOR (tally +0; the pair found no MAJOR).
+  - Bilateral: the re-baselined rows pin less, and the README O4 sentence names a refusal the PR doesn't measure.
+  - R2 executed: README:390's claim that "the tube check catches a seed that settled elsewhere" is false. `branch_at` tests the settled point, so a seed 2 m off returned the far branch. Ev's Decided text carries the same claim. Ruled MINOR: the decision stands, and its safety argument is corrected to the seed's proximity plus `VertexDisagreement`.
+  - CI caught five gate failures first; the lane fixed them in 558bbc2.
+  - Fix pass sent. Note: the orchestrator's "freeze" request contradicted protocol rule 3 ("pushing is never delayed"); the lane's three post-freeze commits go into the fix-pass delta.
+- **Unit 19** (2026-10-11 04:25Z):
+  - main's `split_through_an_apex` red is CLEAVE P0 (PR 4609); one standing-down comment posted on PR 4597.
+  - At 04:22Z the lane reported "ready for dual review" at d9a4152, apparently without the fix-pass message, so I resent it. The fix pass is not yet on the branch.
+- **Unit 19** (2026-10-11 06:55Z):
+  - The fix pass was verified at d1bdc76/ab22696. 415f603 ported `edge_nurbs` to main's cell-grid operands.
+  - The lane merged main cleanly at 6f97023; 595 rows green at three ε.
+  - DR-166 pushed as the last commit (7590997), so the merge waits on CI.
+  - Main-owned reds, each commented once on the PR: `split_through_an_apex` (CLEAVE P0, since fixed) and the serial-golden digest (NURBS P0, open).
 - 2026-10-11 — Seam note from ENCL (PR 4538, merged): C2 limb 2 (`ssi_hull_sup`, `ssi_hull_sup_chart`) now subdivides its Bernstein composite before refusing. It stops when the whole-carrier bound clears ε, when a break value is past the band, after two rounds that set no new lowest bound, or when the budget runs out (`SSI_HULL_WORK` 4096 spans recomputed, `SSI_HULL_CUTS` 1024). It reads the limb on the lowest round's hull. Two new refusals: on the plane × NURBS arm, `SsiLimb::HullValueChart` → `CertCheck::PlaneNurbsHullValue` (Bound ending: the carrier against its pcurve's surface point bounds the miss from above), and on the analytic arm, `SsiLimb::HullValue` → `CertCheck::AnalyticBreakResidual` (Fit). Refusals that used to read as a loose hull bound can now read as a measured miss, or certify. (ENCL orchestrator) For shell: `sweep/tests/shell_general_door.rs` `a_curved_spline_cap_moves_with_its_sides_where_its_certificates_hold` now accepts either limb-2 refusal at ε<1e-7. At 1e-9 the rim refuses on its break value (`HullValueChart`, ~4.4e-7 m).
+- **Unit 19 merged** (2026-10-11 ~08:15Z): PR 4597 (a2a2934). Its row is `docs/dual-review-log/rows/PR-4597.md`; main numbers it at merge (the log split into row files mid-merge).
+  - The PR merged with hosted `test` red only on main's NURBS P0 serial-golden digest (`work/nurbs/main-slow-set-reds-on-two-rows-since-4553.md`), byte-identical on main, commented once.
+  - The orchestrator merged main twice at the end (a nextest slow-set union; the log split).
+- **Units 20 and 21 dispatched** (2026-10-11):
+  - Unit 20, the saddle fit's reach: measure first.
+  - Unit 21, the plane × NURBS door takes `branch_at`: M tier, byte 32, sequential. Session `session_01B4AEY8mN4g5xVdPeSiayBW`, branch `shell/plane-nurbs-branch-at`.
+  - Unit 20 is session `session_019xfAWegsKDr6qfC43zBBpU`, branch `shell/saddle-fit-reach`.
+- **Unit 20 measured** (2026-10-11 08:43Z, draft PR 4672): the saddle wall's fit bound falls at the bicubic h⁴ rate with no floor (4.12e-9 → 3.85e-10 at 49×26 → 4.3e-12 at 171×88). Two constants stop it: the round budget, and the per-direction sample cap of 48.
+  - Ruled: the round budget no longer stops an Improved loop, and the cap becomes a total-sample cap (nu·nv ≤ 2304). The default ε then certifies, and 1e-12 refuses `SampleCapReached` typed.
+  - Provenance: the cap and its README phrase are agent text (ce235c86f1 VERBS-OFF-B; 1d242b4917 / 887f5e39d3), so the change is not Ev's.
+  - M tier: the review draw comes when the lane is green.
+- **Unit 21 reviewed** (2026-10-11 ~11:50Z): PR 4677 @267928e, sequential (byte 32), one Opus review: APPROVE-WITH-FIXES, no MAJOR, so no second review.
+  - The differential and the moved rows were confirmed independently.
+  - Ruled: `SeedInRegion` departs from Ev's letter ("a region is the answer"), and a Side region at the old middle is a valid row edge. The fix pass implements the letter (Side → the row via `level_row`'s carrier, Corner → refuse), plus the de-duplication and docs.
+  - Fix pass sent.
+- **Unit 20 review dispatched**: PR 4672 @5ffb365, sequential (byte 109), one Opus review.
+- **Unit 20 reviewed** (2026-10-11 ~13:00Z): PR 4672 @5ffb365, sequential (byte 109), one Opus review: APPROVE-WITH-FIXES, no MAJOR.
+  - Termination and soundness held, and three mutations turned the rows red.
+  - The orchestrator's ruling repeated the lane's "same worst-case work" claim, which is false in total (rounds repeat up to the cap). Corrected in the fix pass.
+  - Also in the fix pass: the seed checked against the cap, a BoundNotFinite fixture row, the per-ε split pinned in encl, a slow-set row, doc rot in two open items, and filing the two-stop-rules duplication.
+- **Unit 21 merged** (2026-10-11 ~13:35Z): PR 4677 (6562aa3). The fix pass at 06c62ff was verified against the 8 points.
+  - `branch_at` answers a Region per Ev's letter: a Side region gives the wall's boundary row (`wall_row`, shared with `level_row`), and a Corner region refuses by name.
+  - The row file is `docs/dual-review-log/rows/PR-4677.md` (sequential, protocol `24b76fff0e`).
+  - Hosted `test` was red only on main's owned reds (GERM's support plates, NURBS's digest).
+- **Unit 20 merged** (2026-10-11 ~16:35Z): PR 4672 (61ee8bf). The fix pass at a4223c7 was verified.
+  - After two merges of main, the 1e-9 rim band was re-pinned at 1.5994e-6 ±5%, because main's rim derivation moved the value.
+  - Row file `docs/dual-review-log/rows/PR-4672.md` (sequential).
+  - Hosted `test` was red only on NURBS's digest.
+  - The lane noted the sweep 1e-12 set took 781 s locally, against 169 s earlier, cause unknown (main's changes or box load). Watch the nightly.
+- **Every unit in the plan has landed** (1–21). What's left on the slate is 16 P3 items, plus CLEAR's parked curved-clearance pair (SHELL-3/4). Closing versus continuing is put to Ev.
+- 2026-10-11 — Seam note from ENCL (PR 4687, merged at `aaf011d01b`): `offset_meters::CellNormal::sup` is gone; readers take `PatchCell::m_sup`, a certified coefficient-norm bound on ‖S_u×S_v‖ (with the rational quotient terms) that is rigid-invariant to rounding. The rational chart speeds are coefficient-vector norms too. At rest the bounds are up to ~1.8% looser than the box in a frame that suits it. A NaN `m_sup` now refuses where the box/Gram fallback used to answer. (ENCL orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4745, merged at `512ef4b6c7`): `shell.rs` and `replace_face.rs` escalations now end `ending(..)` rather than `under(..)`: the same levers, minus the ' — {reading}; ' clause. `ReplaceFaceError::Escalated`'s doc says why it offers the geometry lever alone. (ENCL orchestrator)
+- 2026-10-12 — Seam note from ENCL (PR 4800, merged at `428057bb7c`): `OffsetFitError::SampleCapReached` is now `WallReached { wall: OffsetFitWall::{SampleCap{cap} | Work{budget, spent}} }`, with "split the face" as the recourse for both. A new cumulative `OFFSET_FIT_WORK` = 16 384 samples is measured against the corpus's largest run (8851) and guarded by `a_bound_found_then_lost_carries_the_bound_it_lost`. `RefinementStalled` fires on two idle rounds against the lowest bound; a both-directions fallback marking is not an idle round, so one sequence that refused on main now certifies (pinned). No corpus row flipped. (ENCL orchestrator)
+- 2026-10-12 — Seam note from NURBS: PR 4866 (`nurbs/one-derivative-scale`) gives the span derivative-net scale `p/(u_{i+p+1} − u_{i+1})` one home, `geom_core::spline::derivative::span_derivative_scale`, beside a moved `derivative_net`. It routes the inline copies in `topo/src/shell.rs` `spline_speed`, `geom-brep/src/pcurve_cache.rs` (the surface net and `curve_rate_bound`) and `geom-brep/src/ssi/enclose.rs` (`pair_scales`, `bezier_scales`) through it. The claim is bit-identical, with no golden moved, and it is under single FULL review. (NURBS orchestrator)
+- 2026-10-12 — Seam note from SYM: SYM-17 Phase 2 (Ev's answer on PR 4902; `docs/SYM-17-SPEC.md` §Phase 2) replaces `OrthoFrame` with `RigidMotion<T>`, a proper rigid motion carried by construction. `topo::transform_rigid` will take it and ask nothing about rigidity; `check_rigid` becomes its one decided door, for raw maps. The type acts on `UnitVec3`, and pose inverses become transposes. Branch `sym/17-rotation-readout`. Touches linalg, `transform.rs`, `eval/wire`, placement, the mate solve's representatives and inverses (not `member_of` or `check_offsets`, which stage 3 retires), and the revolve, sweep and pattern rigid maps.
+
+- **2026-10-12 — seam note from NURBS: PR 4892 merged (one rational speed bound, `geom_core::spline::rational_speed_sup`, `NurbsCurve*::speed_upper_bound`).**
+  - `topo/src/shell.rs` `spline_speed` now reads the pair-term bound in place of the homogeneous recipe.
+  - Its balls only shrink: per term, pair-term ≤ recipe A. `speed_fuzz` stays green.
+  - A new reader of a rational curve's sup‖C′‖ should call `speed_upper_bound()`. — (NURBS orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4954 merged** (`092b30227f`). Every first-order rational derivative bound now reads one Bernstein quotient bound on exact dyadic Bézier pieces (`geom_core::spline::derivative::QuotientPiece`, with the pieces in `geom_core::spline::pieces`).
+  - **Retired:**
+    - `rational_speed_sup`, `rational_stretch_sup`, `rational_stretch_floor` and `rational_area_floor`;
+    - `RationalPairTerm`, `pair_sup`, `Cell` and `over_cells`;
+    - enclose's `pair_norm_sup`, `Centred`, `Affine` and `screen_bound`;
+    - `pcurve_cache`'s `net_direction` and `floor_along`.
+  - **API change:** `NurbsSurface::stretch_floor(along_u)` and `area_floor()` are norm floors and lost their `d` argument.
+  - **Tighter readings:** `speed_upper_bound`, `stretch_sup`, `chart_stretch_inf` and enclose's `deriv_box` / `speed_sup` / `transverse_readings`. So iso slacks shrink and floors rise.
+  - **Degree ceilings:** curves meter to degree 28, surface sups and per-axis floors to 28 per axis, and the area floor to 18. Above those the bound refuses.
+  - **Filed:** `work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md` and `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
+  - **Next:** NURBS unit 2 moves `patch_bound` `rational_cells` (first and second order), mesh chords and `offset_meters` onto the same form. — (NURBS orchestrator)
+- 2026-10-13 — **Seam (ENCL):** PR 4976 merged. Every geom-brep Zero-arm payload (`CertifyError`, `TorusConvention::refused`, `MeterError` NormalFloor/CurvatureHeadroom) now reads "is not shown … (margin {:e} m)". Whether a reading shows no size is left to the ending (`MarginDiag::shows`). Filed `wall-wrapper-curvature-headroom-keeps-its-own-zero-wording` here. The closed row `replace-face-zero-span-reanchor-reads-as-a-kernel-defect` has its as-filed quote restored. (ENCL orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4984 merged** (`2639b944`), unit 2 of the quotient ruling.
+  - **Second order on the quotient form.** `C″`, `S_uu`, `S_uv` and `S_vv` now read the one Bernstein quotient bound over `W³`. Entry points: `geom_core::spline::{accel_pieces, cell_second_quotients, polynomial_area_pieces}` and `NurbsCurve3::accel_upper_bound`.
+  - **Moved onto it:**
+    - `geom-brep` `patch_bound` `rational_cells` (first- and second-order boxes, `m_sup`). The refinement and `coordinate_hull` are gone.
+    - `mesh` chords' rational `sup|C″|`.
+    - `offset_meters` `cell_normal` / `patch_regularity`, which now reads the area floor `PatchCell::m_inf`.
+  - **Integral arm:** the area floor reads `A_u×A_v` at `2p−1` and certifies to degree 28. Past that it uses a conservative floor of 0.0.
+  - **Refusals:**
+    - a rational degree above 18 gives `PatchBoundError::DegreeAboveCeiling`, a typed recourse;
+    - chords past the ceiling give `UnsupportedCurve`;
+    - `QuotientRefused` is new (kernel defect);
+    - `RefinedWeightLostPositivity` is gone;
+    - `RefinementFailed` now means the integral insertion chain only.
+  - **Mesh consequence:** a rational face above degree 18 now refuses `UnsupportedNurbsFace` in nurbs_cert, and offset refuses through `MeterError`.
+  - **Goldens re-baselined, with causes in the PR body:** `m_sup`, chord counts, offset goldens, the budget and endpoint censuses, and meter ceilings.
+  - **Perf:** the per-face bound is about 2× base on small rows and up to 11× on wide rational faces. Filed at `work/nurbs/second-order-quotient-pieces-cost-the-face-bound-eleven-times-main.md`. — (NURBS orchestrator)
+
+- 2026-10-15 — **No live row is at or above this track's own band (P1).** The 8 rows left are 3 at P2, 1 at P3, 1 at P4, 3 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
+  Band the 3 unbanded rows first: if one of them turns out to be at or above P1, this note does not apply.
+  (tracker sweep)

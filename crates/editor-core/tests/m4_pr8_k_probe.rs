@@ -356,12 +356,19 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
                          wrapped f64's bits, so the two lanes' memo keys are the same word",
                         d.name
                     );
+                    let (tf, tp) = (
+                        crate::fixture::tables(&ev_f, id),
+                        crate::fixture::tables(&ev_p, id),
+                    );
+                    let count = |ts: &[&editor_core::NameTable]| -> usize {
+                        ts.iter().map(|t| t.iter().count()).sum()
+                    };
                     assert!(
-                        vf.name_table == vp.name_table,
-                        "{}: node {id:?}: name table ({} entries at f64, {} at Probe)",
+                        tf == tp,
+                        "{}: node {id:?}: name tables ({} entries at f64, {} at Probe)",
                         d.name,
-                        vf.name_table.iter().count(),
-                        vp.name_table.iter().count()
+                        count(&tf),
+                        count(&tp)
                     );
                     assert_eq!(
                         vf.verdicts, vp.verdicts,
@@ -438,20 +445,18 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
                         );
                         assert!(
                             cf == cp,
-                            "{}: node {id:?}: surviving declared contacts ({} vv / {} a-on-b \
-                             / {} b-on-a / {} curve / {} patch at f64)",
+                            "{}: node {id:?}: surviving declared contacts ({} vv / {} v-on-f \
+                             / {} e-f / {} f-f at f64)",
                             d.name,
-                            cf.vv.len(),
-                            cf.a_on_b.len(),
-                            cf.b_on_a.len(),
-                            cf.curves.len(),
-                            cf.patches.len()
+                            cf.vertex_vertex().count(),
+                            cf.vertex_face().count(),
+                            cf.edge_face().count(),
+                            cf.face_face().count()
                         );
-                        if !(cf.vv.is_empty()
-                            && cf.a_on_b.is_empty()
-                            && cf.b_on_a.is_empty()
-                            && cf.curves.is_empty()
-                            && cf.patches.is_empty())
+                        if cf.vertex_vertex().next().is_some()
+                            || cf.vertex_face().next().is_some()
+                            || cf.edge_face().next().is_some()
+                            || cf.face_face().next().is_some()
                         {
                             contacts += 1;
                         }

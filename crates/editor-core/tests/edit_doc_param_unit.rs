@@ -106,7 +106,6 @@ fn fixture() -> ProfileDoc {
                 def: editor_core::VarDecl::Free(value),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the fixture parameters are valid")
         .doc;
@@ -161,7 +160,6 @@ fn rebuilding_a_parameter_to_re_spell_its_unit_drops_the_distribution() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the whole-definition door accepts it")
     .doc;
@@ -196,7 +194,6 @@ fn the_unit_door_carries_the_declaration_forward() {
             unit: mm(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a unit edit on a declared Length parameter applies")
     .doc;
@@ -275,7 +272,6 @@ fn the_unit_door_refuses_typed() {
                 unit,
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("refused")
     };
@@ -330,7 +326,6 @@ fn the_unit_door_refuses_typed() {
             value: FreeValue::Continuous(1.0),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect_err("the value door refuses the same undeclared name")
     .to_string();
@@ -367,7 +362,6 @@ fn the_mismatch_sentence_says_which_dimension_is_which() {
             unit: deg(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect_err("refused")
     .to_string();
@@ -412,7 +406,6 @@ fn bit_eq_is_blind_to_the_notation_edit() {
             unit: mm(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("applies")
     .doc;
@@ -578,8 +571,7 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
         };
         // Door 1: `apply`.
         assert_eq!(
-            apply(&doc, &direct, Tol::witness(), &editor_core::RefusingReach)
-                .expect_err("apply refuses"),
+            apply(&doc, &direct, Tol::witness()).expect_err("apply refuses"),
             want,
             "apply's refusal"
         );
@@ -626,7 +618,6 @@ fn diff_is_blind_to_the_notation_edit() {
             unit: mm(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("applies")
     .doc;
@@ -680,7 +671,6 @@ fn annotating_through_define_var_reverts_the_notation() {
             unit: mm(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the notation edit applies")
     .doc;
@@ -700,7 +690,6 @@ fn annotating_through_define_var_reverts_the_notation() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the whole-definition door applies")
     .doc;
@@ -765,7 +754,6 @@ fn the_create_or_replace_door_refuses_a_mismatched_pairing() {
                 fresh: Vec::new()
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect_err("a length written in degrees is refused at the edit door"),
         EditError::VarUnitMismatch {

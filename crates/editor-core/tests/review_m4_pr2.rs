@@ -11,9 +11,8 @@ use std::fmt::Write as _;
 
 use editor_core::{
     BooleanValue, CancelToken, DocEdit, EvalOptions, EvalOutcome, Evaluation, Formula, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SitedRef, SlotId, ValuePayload, evaluate,
+    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, ValuePayload, evaluate,
 };
-use editor_core::{CapEnd, RoleSeg};
 use fixture::{ang, die, insert, len, on_frame, revolve_about, scl, square, step};
 use geom_core::Tol;
 use topo::{Body, mass_properties};
@@ -102,24 +101,12 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         },
     );
     let (x, y) = if swap { (b, a) } else { (a, b) };
-    // The flush start caps are declared; sides resolve per operand,
-    // so one pair serves both operand orders.
-    let decl = editor_core::declare_continuation(vec![(
-        SitedRef::new(
-            fixture::out(&doc, a),
-            fixture::fname(a, RoleSeg::Cap(CapEnd::Start)),
-        ),
-        SitedRef::new(
-            fixture::out(&doc, b),
-            fixture::fname(b, RoleSeg::Cap(CapEnd::Start)),
-        ),
-    )]);
+    // The start caps are flush.
     let (doc, s) = insert(
         doc,
         Node::Subtract {
             from: x.into(),
             tool: y.into(),
-            declare: decl,
         },
     );
     (doc, s)
@@ -240,7 +227,6 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![fa.into(), fb.into()]),
-            declare: Vec::new(),
         },
     );
     // One more hop: a transform downstream of the poisoned join.
@@ -393,7 +379,6 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
-            declare: Vec::new(),
         },
     );
     // Circular pattern of base about a datum axis (data only).
@@ -425,7 +410,12 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     );
     let (doc, rev) = insert(
         doc,
-        revolve_about(rp, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::PI)),
+        revolve_about(
+            rp,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::PI),
+        ),
     );
     // Split the union by a datum plane.
     let (doc, pl) = insert(
@@ -456,7 +446,6 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         Node::Subtract {
             from: u.into(),
             tool: bad.into(),
-            declare: Vec::new(),
         },
     );
     (
@@ -568,7 +557,10 @@ fn revolve_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
         [0.0, 1.0, 0.0],
         vec![square(1.5, 0.0, 0.25)],
     );
-    let (doc, rev) = insert(doc, revolve_about(rp, (0.0, 0.0), (0.0, 1.0), ang(angle)));
+    let (doc, rev) = insert(
+        doc,
+        revolve_about(rp, (0.0, 0.0), crate::fixture::along_y(), ang(angle)),
+    );
     (doc, rev)
 }
 
@@ -716,25 +708,12 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
                 )
             },
         );
-        // The pip's outer cap lies ON the cube's top —
-        // declared (the rotational variant maps the SAME names). The
-        // B side is read at the TRANSFORM, the subtract's operand.
-        let decl = editor_core::declare_continuation(vec![(
-            SitedRef::new(
-                fixture::out(&doc, cube),
-                fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
-            ),
-            SitedRef::new(
-                fixture::out(&doc, tr),
-                fixture::fname(pip, RoleSeg::Cap(CapEnd::Start)),
-            ),
-        )]);
+        // The pip's outer cap lies ON the cube's top.
         let (doc, sub) = insert(
             doc,
             Node::Subtract {
                 from: cube.into(),
                 tool: tr.into(),
-                declare: decl,
             },
         );
         (doc, sub)
@@ -777,7 +756,6 @@ fn wire_doors_refuse_typed() {
         &doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![u.into(), pat.into()]),
-            declare: Vec::new(),
         },
     );
     assert!(
@@ -809,7 +787,7 @@ fn wire_doors_refuse_typed() {
         ),
         "{refusal:?}"
     );
-    // Pattern count 0: NonPositiveCount.
+    // Pattern count 0: CountOutOfRange.
     let (d, bad_pat) = insert(
         doc.clone(),
         Node::Pattern {
@@ -825,7 +803,14 @@ fn wire_doors_refuse_typed() {
     match ev.nodes.get(&bad_pat) {
         Some(NodeResult::Failed(e)) => {
             assert!(
-                matches!(e.kind, NodeErrorKind::NonPositiveCount { count: 0 }),
+                matches!(
+                    e.kind,
+                    NodeErrorKind::CountOutOfRange {
+                        slot: editor_core::SlotId::Count,
+                        count: 0,
+                        ..
+                    }
+                ),
                 "got {:?}",
                 e.kind
             );

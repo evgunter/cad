@@ -1697,22 +1697,22 @@ mod tests {
             panic!("a described NURBS lifted to another variant");
         };
         assert_eq!(
-            lifted.knots_u(),
-            source.knots_u(),
+            lifted.knots_u_f64_interim(),
+            source.knots_u_f64_interim(),
             "u-knots must be carried verbatim"
         );
         assert_eq!(
-            lifted.knots_v(),
-            source.knots_v(),
+            lifted.knots_v_f64_interim(),
+            source.knots_v_f64_interim(),
             "v-knots must be carried verbatim"
         );
         assert_eq!(
-            lifted.weights(),
-            source.weights(),
-            "weights must be carried verbatim"
+            lifted.weights_f64_interim(),
+            source.weights_f64_interim(),
+            "the weights\' value channel must be carried verbatim"
         );
-        for u in knot_and_span_params(source.knots_u()) {
-            for v in knot_and_span_params(source.knots_v()) {
+        for u in knot_and_span_params(source.knots_u_f64_interim()) {
+            for v in knot_and_span_params(source.knots_v_f64_interim()) {
                 let p = sd.eval(Dual::variable(u), Dual::constant(v));
                 let q = s.eval(u, v);
                 let du = s.deriv_u(u, v);
@@ -1950,22 +1950,22 @@ mod tests {
                 panic!("a described NURBS lifted to another variant");
             };
             assert_eq!(
-                lifted.knots_u(),
-                source.knots_u(),
+                lifted.knots_u_f64_interim(),
+                source.knots_u_f64_interim(),
                 "u-knots must be carried verbatim"
             );
             assert_eq!(
-                lifted.knots_v(),
-                source.knots_v(),
+                lifted.knots_v_f64_interim(),
+                source.knots_v_f64_interim(),
                 "v-knots must be carried verbatim"
             );
             assert_eq!(
-                lifted.weights(),
-                source.weights(),
-                "weights must be carried verbatim"
+                lifted.weights_f64_interim(),
+                source.weights_f64_interim(),
+                "the weights\' value channel must be carried verbatim"
             );
-            for u in super::knot_and_span_params(source.knots_u()) {
-                for v in super::knot_and_span_params(source.knots_v()) {
+            for u in super::knot_and_span_params(source.knots_u_f64_interim()) {
+                for v in super::knot_and_span_params(source.knots_v_f64_interim()) {
                     let p = si.eval(Interval::from_f64(u), Interval::from_f64(v));
                     let q = s.eval(u, v);
                     for (name, enclosure, source) in
@@ -2017,7 +2017,7 @@ mod tests {
             .to_string();
         assert!(!spindle.contains("tighten"), "{spindle}");
         assert!(
-            spindle.contains("no smaller tolerance moves onto a side"),
+            spindle.contains("a reading with no size on the side this decision accepts"),
             "{spindle}"
         );
         let ring = require_ring_torus(1.0 + 5e-10, 1.0, band)

@@ -96,8 +96,8 @@ use std::collections::BTreeSet;
 
 use common::{len, len3, scl3};
 use pncad::document::{
-    Alignment, AxisSense, Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar, MateFrame,
-    MatePrimitive, Node, ProfileProgram, RecipeNodeId, SlotId, VarId, VarName,
+    Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar, Node, ProfileProgram, RecipeNodeId,
+    SlotId, VarId, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MM, StableName};
@@ -115,7 +115,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 53;
+const OP_COUNT: usize = 54;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -145,27 +145,14 @@ fn face(node: RecipeNodeId) -> StableName {
     }
 }
 
-/// A seat for the mate door — well-formed and never evaluated here.
-fn alignment() -> Alignment<Formula> {
-    Alignment {
-        a: MateFrame::authored(
-            [0.0; 3],
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            geom_core::Tol::witness(),
-        )
-        .expect("a definite frame"),
-        b: MateFrame::authored(
-            [0.0; 3],
-            [0.0, 0.0, -1.0],
-            [1.0, 0.0, 0.0],
-            geom_core::Tol::witness(),
-        )
-        .expect("a definite frame"),
-        primitive: MatePrimitive::FrameCoincidence,
-        sense: AxisSense::Opposed,
-        clocking: None,
-    }
+/// A mate for the mate door — well-formed and never evaluated here: a
+/// rest of `node`'s face on itself.
+fn seat(node: RecipeNodeId) -> pncad::document::Mate<Formula> {
+    crate::fixture::rest(
+        common::head(face(node)),
+        common::head(face(node)),
+        ContactClass::Rest,
+    )
 }
 
 /// One sample of every `SessionOp` variant, in `expected`'s order.
@@ -258,10 +245,9 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::CommitFreeMove { instance: node },
         SessionOp::CancelFreeMove,
         SessionOp::AddMate {
-            a: common::head(face(node)),
-            b: common::head(face(node)),
-            class: ContactClass::Rest,
-            alignment: alignment(),
+            placement: node,
+            mate: Box::new(seat(node)),
+            values: Vec::new(),
         },
         SessionOp::NewDocument {
             name: "view1b-fresh".to_owned(),
@@ -279,13 +265,12 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddRevolve {
             profile: node,
-            axis_origin: common::len2([0.0, 0.0]),
-            axis_direction: common::scl2([0.0, 1.0]),
+            axis_through: common::len2([0.0, 0.0]),
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: common::ang(1.0),
         },
         SessionOp::AddBoolean {
             spec: BooleanSpec::Union(vec![node.into(), node.into()]),
-            declare: Vec::new(),
         },
         SessionOp::AddSplit {
             target: node.into(),
@@ -369,6 +354,12 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::DeclineOffer {
             node,
             slot: SlotId::Distance,
+        },
+        SessionOp::RemoveConstraint {
+            mate: pncad::document::MateRef::new(
+                node,
+                pncad::document::ConstraintId(pncad::document::MintId::new(0, 1)),
+            ),
         },
     ]
 }
@@ -466,6 +457,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // document nor the history.
         SessionOp::SetSlotVariable { .. } => (51, false),
         SessionOp::DeclineOffer { .. } => (52, true),
+        // A bundle edit: a document edit, fenced with every other one.
+        SessionOp::RemoveConstraint { .. } => (53, false),
     }
 }
 
@@ -654,9 +647,9 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
 /// the two drags can be open at once. What makes that sound is one
 /// identity: a value gesture's edits leave the recipe's NODE GRAPH
 /// alone, and every display predicate is a function of that graph — so
-/// the scratch document the view resolves against, the committed one
-/// `free_move_check` admits against and the shown one the panel draws
-/// the control from all give the same answer, and the prune a
+/// the scratch document the view resolves against and the committed
+/// one `free_move_check` admits against — for the op and for the panel
+/// that draws the control — give the same answer, and the prune a
 /// gesture's commit runs cannot discard what it is holding.
 ///
 /// **The gesture here drags a node's slots, both kinds.** A pattern
@@ -690,6 +683,9 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     let bench = common::asm::bench("view7-two-gestures", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let post = bench.post_a;
+    // Its world pin off, post_a is a loose space of its own, which the
+    // probe moves; pinned at the identity, it is drawn where it stood.
+    common::asm::unpin(&mut session, post);
 
     fn perform(session: &mut DocSession, op: SessionOp) -> viewer::session::OpOutcome {
         let outcome = session.perform(op.clone());
@@ -713,12 +709,15 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     );
     assert_eq!(
         viewer::display::drawn_targets(session.doc(), post),
-        Ok(std::iter::once(bench.post_a_copy).collect()),
+        Ok(std::iter::once(bench.post_a).collect()),
         "the probe on the instance is drawn on the instance's own copy"
     );
 
     // Both node-writing gesture doors, one after the other.
     for slot in [SlotId::Spacing, SlotId::Count] {
+        // The spaces the probe's admission reads are a landing's, so
+        // the last edit lands before the drags open.
+        session.pump();
         let drag_to = match slot {
             SlotId::Count => 3.0,
             _ => 0.04,
@@ -757,15 +756,41 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         // actually consults — the shown one (the panel's admission
         // test and the view's resolution) and the committed one (the
         // op's admission test).
+        // The spaces are read off the landed evaluation, which answers
+        // the committed document while the scratch is on screen: a
+        // value gesture leaves the graph the spaces follow alone.
+        let spaces = session.space_evaluation();
+        assert!(
+            spaces.is_some(),
+            "{slot:?}: mid-drag, the landing still answers the shown document's spaces"
+        );
         assert_eq!(
-            viewer::display::free_move_check(session.doc(), post),
-            viewer::display::free_move_check(session.committed_doc(), post),
+            viewer::display::free_move_check(session.doc(), spaces, post),
+            viewer::display::free_move_check(session.committed_doc(), spaces, post),
             "{slot:?}: the shown and committed documents admit the same probes"
         );
         assert_eq!(
             viewer::display::drawn_targets(session.doc(), post),
             viewer::display::drawn_targets(session.committed_doc(), post),
             "{slot:?}: the two documents draw the probe on the same copies"
+        );
+
+        // And once the SCRATCH lands, its landing answers the committed
+        // document's spaces too, so the probe still opens mid-drag.
+        session.pump();
+        assert_ne!(
+            session.landed_pair().map(|(doc, _)| doc),
+            Some(session.committed_doc()),
+            "{slot:?}: the landing is the scratch's"
+        );
+        assert!(
+            viewer::display::free_move_check(
+                session.committed_doc(),
+                session.space_evaluation(),
+                post
+            )
+            .is_ok(),
+            "{slot:?}: a scratch landing answers the spaces of both documents"
         );
 
         // A whole free-move gesture, mid-value-gesture, through
@@ -780,10 +805,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             },
         );
         assert_eq!(
-            session
-                .display_view()
-                .moved_placements
-                .get(&bench.post_a_copy),
+            session.display_view().moved_placements.get(&bench.post_a),
             Some(&probe),
             "{slot:?}: the previewed probe reaches its drawn copy under a scratch document"
         );
@@ -823,7 +845,9 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         assert_eq!(session.display().free_move_of(post), Some(&probe));
 
         // And the same over an IN-FLIGHT free-move, which the prune
-        // kills outright rather than reporting.
+        // kills outright rather than reporting. The committed value
+        // lands first: admission reads a landing's spaces.
+        session.pump();
         perform(&mut session, SessionOp::BeginFreeMove { instance: post });
         perform(
             &mut session,
@@ -874,6 +898,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         SessionOp::Select(_)
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -1224,10 +1249,10 @@ fn strand_the_distance_drag(session: &mut DocSession, extrude: RecipeNodeId) {
     let face = index
         .face_at(
             session.evaluation().expect("the inline seam landed"),
-            &common::asm::down_at(0.0, 0.0),
+            &common::asm::down_at(0.02, 0.02),
         )
         .expect("the pick is not refused")
-        .expect("the plate is under a ray straight down at the origin");
+        .expect("the plate is under a ray straight down at its middle");
     session.perform(SessionOp::Select(Selection::Face(face)));
     assert!(session.standing().live(), "the picked face resolves");
     assert_eq!(
@@ -1373,6 +1398,8 @@ fn the_free_move_door_is_live_exactly_while_the_probe_is() {
     let bench = common::asm::bench("view-cancel-door-free-move", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let post = bench.post_a;
+    // Its world pin off, post_a is a loose space the probe moves.
+    common::asm::unpin(&mut session, post);
 
     let door = |session: &DocSession| {
         session
@@ -1483,6 +1510,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         SessionOp::Select(_)
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
+        | SessionOp::RemoveConstraint { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -1558,7 +1586,8 @@ fn the_free_move_table_refuses_exactly_the_replacement_doors() {
 /// A free-move drag can end in exactly three ways and the third is the
 /// defect this row closes: the user ends it (`CommitFreeMove`,
 /// `CancelFreeMove`); the document stops admitting the instance under
-/// it, and the prune says so (`killed_gesture`); or it vanishes with
+/// it, and the prune says so (`killed_gesture`, on the edit's outcome or
+/// on the report its landing leaves); or it vanishes with
 /// nothing said. `Open` and `NewDocument` were the third, through
 /// `clear_for_new_document`, and a report could not have been the fix
 /// — a `Withdrawn` names an instance of the OUTGOING document and the
@@ -1590,6 +1619,8 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
     let instance = bench.post_a;
     for op in every_op(instance, &dir.join("saved.pncad")) {
         let mut session = common::asm::open_bench(&bench, tol);
+        // Its world pin off, post_a is a loose space the probe moves.
+        common::asm::unpin(&mut session, instance);
         assert!(
             session
                 .perform(SessionOp::BeginFreeMove { instance })
@@ -1628,7 +1659,10 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
         }
 
         // The invariant, over the whole roster: the drag is still in
-        // flight, or something said where it went.
+        // flight, or something said where it went — the edit, or its
+        // landing, which is where a space is known.
+        session.pump();
+        let landed = session.take_landed_withdrawals();
         let ends_the_drag = matches!(
             op,
             SessionOp::CommitFreeMove { .. } | SessionOp::CancelFreeMove
@@ -1636,8 +1670,9 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
         assert!(
             session.display().probing().is_some()
                 || ends_the_drag
-                || outcome.withdrawn.killed_gesture.is_some(),
-            "{op:?} ended the drag under the pointer and said nothing: {outcome:?}"
+                || outcome.withdrawn.killed_gesture.is_some()
+                || landed.iter().any(|report| report.killed_gesture.is_some()),
+            "{op:?} ended the drag under the pointer and said nothing: {outcome:?} {landed:?}"
         );
     }
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
@@ -1918,6 +1953,10 @@ fn a_probe_on_another_instance_cannot_steer_the_open_one() {
     let bench = common::asm::bench("view-free-move-identity", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let (open, other) = (bench.post_a, bench.post_b);
+    // Both pins off: each post a loose space of its own, which the
+    // probe moves.
+    common::asm::unpin(&mut session, open);
+    common::asm::unpin(&mut session, other);
 
     assert!(
         session
@@ -2018,6 +2057,10 @@ fn the_open_probes_own_instance_driven_again_lands_its_frame() {
     let bench = common::asm::bench("view-probe-driven-again", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let (probed, other) = (bench.post_a, bench.post_b);
+    // Both pins off: each post a loose space of its own, which the
+    // probe moves.
+    common::asm::unpin(&mut session, probed);
+    common::asm::unpin(&mut session, other);
 
     assert!(
         session
@@ -2344,6 +2387,10 @@ fn the_free_move_probe_answers_the_three_shared_rules() {
     let bench = common::asm::bench("view-g1-shared-rules", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let (open, other) = (bench.post_a, bench.post_b);
+    // Both pins off: each post a loose space of its own, which the
+    // probe moves.
+    common::asm::unpin(&mut session, open);
+    common::asm::unpin(&mut session, other);
     let instance_of = |subject: Subject| match subject {
         Subject::Open => open,
         Subject::Other => other,

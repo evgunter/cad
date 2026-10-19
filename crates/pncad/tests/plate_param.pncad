@@ -3,7 +3,7 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
   "snapshot": {
     "id": "5ef5ef0364b6939c4ca61f34b393f7b3",
     "mint": {
-      "chain": "f80d33bbe824c08036c842f6419fb06143f00a7da2d44171e35fd79dcf8d1ea2",
+      "chain": "48e4cdad144cc26983c847aaf179766a5707c423cbbacee00d00100fb2a3384c",
       "log": [
         {
           "var": "1:e2382e0f27e19466"
@@ -201,34 +201,37 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           "var": "65:70ec8f3caf767345"
         },
         {
-          "node": "66:635f15fc6093420d"
+          "node": "66:f1c3fefadedbb4bc"
         },
         {
-          "var": "67:83d417af4c82c485"
+          "var": "67:453158be06d6d800"
         },
         {
-          "node": "68:8bcf2fdc58dee6c0"
+          "node": "68:189e75f3e21a3291"
         },
         {
-          "var": "69:4c85c303fae316bf"
+          "var": "69:931afbbc1834e563"
         },
         {
-          "var": "70:4a13fb9cdaaf5ccc"
+          "constraint": "70:7f8b38cc127a8cc8"
         },
         {
-          "var": "71:616c07795d9beed6"
+          "var": "71:9c258eaf4c0ddca6"
         },
         {
-          "node": "72:1dc65489d79c554c"
+          "var": "72:c409f61bb48e784e"
         },
         {
-          "var": "73:44eb07496caa56a5"
+          "node": "73:d7fb7ec2ef4a7c78"
         },
         {
-          "var": "74:c41213b7924d2658"
+          "var": "74:2159464ff6ff32d2"
         },
         {
-          "node": "75:f80d33bbe824c080"
+          "var": "75:dac20cb5e9dba98c"
+        },
+        {
+          "node": "76:48e4cdad144cc269"
         }
       ]
     },
@@ -419,39 +422,45 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           "side": "along"
         }
       },
-      "66:635f15fc6093420d": {
+      "66:f1c3fefadedbb4bc": {
         "Union": {
           "members": {
             "Spelled": [
               "36:622f0e2e9d68ff0f",
               "65:70ec8f3caf767345"
             ]
-          },
-          "declare": []
-        }
-      },
-      "68:8bcf2fdc58dee6c0": {
-        "PlaceInWorld": {
-          "body": "67:83d417af4c82c485",
-          "pose": {
-            "steps": []
           }
         }
       },
-      "72:1dc65489d79c554c": {
+      "68:189e75f3e21a3291": {
+        "Place": {
+          "shapes": [
+            "67:453158be06d6d800"
+          ],
+          "constraints": [
+            {
+              "id": "70:7f8b38cc127a8cc8",
+              "kind": {
+                "world_pin": "identity"
+              }
+            }
+          ]
+        }
+      },
+      "73:d7fb7ec2ef4a7c78": {
         "Measure": {
           "primitive": {
             "Distance": {
-              "a": "70:4a13fb9cdaaf5ccc",
-              "b": "71:616c07795d9beed6"
+              "a": "71:9c258eaf4c0ddca6",
+              "b": "72:c409f61bb48e784e"
             }
           }
         }
       },
-      "75:f80d33bbe824c080": {
+      "76:48e4cdad144cc269": {
         "Assertion": {
-          "value": "73:44eb07496caa56a5",
-          "bound": "74:c41213b7924d2658",
+          "value": "74:2159464ff6ff32d2",
+          "bound": "75:dac20cb5e9dba98c",
           "relation": "AtLeast"
         }
       }
@@ -1003,25 +1012,25 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           }
         }
       },
-      "67:83d417af4c82c485": {
+      "67:453158be06d6d800": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "66:635f15fc6093420d",
+            "node": "66:f1c3fefadedbb4bc",
             "port": 0
           }
         }
       },
-      "69:4c85c303fae316bf": {
+      "69:931afbbc1834e563": {
         "kind": "Body",
         "def": {
           "Output": {
-            "node": "68:8bcf2fdc58dee6c0",
+            "node": "68:189e75f3e21a3291",
             "port": 0
           }
         }
       },
-      "70:4a13fb9cdaaf5ccc": {
+      "71:9c258eaf4c0ddca6": {
         "kind": "Face",
         "def": {
           "Select": {
@@ -1047,7 +1056,7 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           }
         }
       },
-      "71:616c07795d9beed6": {
+      "72:c409f61bb48e784e": {
         "kind": "Face",
         "def": {
           "Select": {
@@ -1073,16 +1082,16 @@ id: 5ef5ef0364b6939c4ca61f34b393f7b3
           }
         }
       },
-      "73:44eb07496caa56a5": {
+      "74:2159464ff6ff32d2": {
         "kind": "Length",
         "def": {
           "Output": {
-            "node": "72:1dc65489d79c554c",
+            "node": "73:d7fb7ec2ef4a7c78",
             "port": 0
           }
         }
       },
-      "74:c41213b7924d2658": {
+      "75:dac20cb5e9dba98c": {
         "kind": "Length",
         "def": {
           "Free": {

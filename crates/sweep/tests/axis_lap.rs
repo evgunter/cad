@@ -220,11 +220,7 @@ fn full_length_flats_build_at_the_analytic_volume() {
 ///
 /// The arm mints both chords, and the result builds at its analytic
 /// volume: over each point of the disc segment `y ≥ 0.2` the two caps
-/// are 3 apart along `z`. The containment door's orientation probe
-/// measures the body in closed form, which an obliquely trimmed wall
-/// has none of, so a probe ray meeting nothing cannot side its point
-/// (`work/restread/at-infinity-probe-measures-in-closed-form-only`); that
-/// ray is set aside, and one meeting the boundary answers.
+/// are 3 apart along `z`.
 #[test]
 fn an_oblique_cap_flats_through_its_ellipse_arc() {
     let theta = 20f64.to_radians();
@@ -391,7 +387,7 @@ fn a_split_whose_section_is_nearly_a_circle_offers_the_splits_levers() {
         text.starts_with(
             "whether the curve is a circle or an ellipse is undecided for the section through \
              a curved face: "
-        ) && text.ends_with(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE)),
+        ) && text.ends_with(&format!("Recourse: {}", geom_core::COINCIDENCE_RECOURSE)),
         "{text}"
     );
     assert!(

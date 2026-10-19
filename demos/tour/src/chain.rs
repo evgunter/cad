@@ -106,7 +106,7 @@ use pncad::document::ExtrudeSide;
 use pncad::document::{
     AssertionRelation, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId,
     EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
+    ProfileProgram, RecipeNodeId, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -308,7 +308,6 @@ fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
             fresh: Vec::new(),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the insert applies");
     *doc = applied.doc;
@@ -327,7 +326,6 @@ fn declare(doc: &mut ProfileDoc, name: VarName, value: f64, distribution: Distri
             )),
         },
         tol,
-        &RefusingReach,
     )
     .expect("the parameter applies");
     *doc = applied.doc;
@@ -485,9 +483,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     // The mechanism is the world: every placed bar and pin, one copy
     // each, base first.
     for &body in bars.iter().chain(&pins) {
-        doc = apply(&doc, &DocEdit::place(body, None), tol, &RefusingReach)
-            .expect("a placed link places")
-            .doc;
+        doc = crate::world::place_in_world(&doc, body, tol).doc;
     }
 
     // The target: the mating pin at the chain's nominal tip, fixed.

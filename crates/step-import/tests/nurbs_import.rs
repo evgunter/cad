@@ -131,7 +131,7 @@ fn reverse_data_section(text: &str) -> String {
 #[derive(Debug)]
 enum Posture {
     /// Bounds returned.
-    Certified(topo::MassProperties<f64>),
+    Certified(topo::MassProperties<f64>, Vec<topo::test_support::FaceTerm>),
     /// The schedule cannot reach `1024·ε` — typed, with its width (the
     /// last round's own, or the bound the loop refused on after round 0).
     Budget,
@@ -141,8 +141,11 @@ enum Posture {
 
 fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Posture {
     let target = 1024.0 * geom_core::Tol::witness().get().eps;
-    match topo::mass_properties(body, Tol::witness()) {
-        Ok(props) => Posture::Certified(props),
+    // The same walk as `topo::mass_properties`, with each face's own term
+    // handed back beside the sum (the round trip compares them face by
+    // face).
+    match topo::test_support::mass_properties_with_face_terms(body, Tol::witness()) {
+        Ok((props, terms)) => Posture::Certified(props, terms),
         Err(err) => {
             let topo::MassPropsError::Face { source, .. } = &err else {
                 panic!("{who}: expected a per-face volume refusal, got: {err:?}");
@@ -248,12 +251,16 @@ fn arc_loft_natively_computes_its_rational_volume() {
     // re-measure it: (1) this native quadrature; (2) the at-rest gate
     // INSIDE `import_step` below — the tier-3′ door, which computes
     // the imported body's enclosure to decide its +V invariant and
-    // hands it back as `StepImport::Solid`'s `enclosure`, so the
-    // bit-identity assertion below reads THAT object and no second
-    // quadrature runs on the imported body; (3) the gate inside the
-    // reversed-DATA re-import. Three, not four and not one. The
-    // fourth — a `mass_properties` on the reordered body — was removed
-    // on 2026-08-22 in favour of a body-identity comparison; see that
+    // hands it back as `StepImport::Solid`'s `enclosure`, which the
+    // assertions below read; (3) the gate inside the
+    // reversed-DATA re-import; (4) the imported body's own measurement,
+    // through `topo::test_support::mass_properties_with_face_terms`
+    // (`mass_properties`' walk with each face's term handed back), which
+    // the per-face bit-identity claim below needs: the gate hands back
+    // the sum, not the terms. Four, bought for that claim; (1) runs
+    // through the same door, so it costs nothing extra. A
+    // `mass_properties` on the reordered body was removed on
+    // 2026-08-22 in favour of a body-identity comparison; see that
     // arm.
     //
     // Tier 3 consumes exactly this number through its +V invariant, and
@@ -263,11 +270,11 @@ fn arc_loft_natively_computes_its_rational_volume() {
     // the same quadrature at the same ε.
     let posture = rational_props_posture(&native, "native");
     let native_props = match &posture {
-        Posture::Certified(props) => Some(props),
+        Posture::Certified(props, terms) => Some((props, terms)),
         Posture::Budget | Posture::Escalated => None,
     };
     let certified = native_props.is_some();
-    if let Some(want) = native_props {
+    if let Some((want, _)) = native_props {
         assert!(
             want.volume > 12.0 && want.volume < 13.0,
             "native arc-loft volume: {}",
@@ -361,19 +368,73 @@ fn arc_loft_natively_computes_its_rational_volume() {
             // aggregate gate having certified it, and the field IS what
             // that check decided on.
             let got = enclosure;
-            let want = native_props.expect("the native side certified");
-            // **BIT identity, not overlap** (R1 MINOR-2). Overlap is
-            // what soundness needs — two certified enclosures of one
-            // solid must intersect — but it is not what actually
+            let (want, want_terms) = native_props.expect("the native side certified");
+            // **BIT identity where it holds, ulp identity where it
+            // cannot** (R1 MINOR-2, re-stated for
+            // `work/exch/arc-loft-round-trip-volume-differs-by-face-order.md`).
+            // Overlap is what soundness needs, but it is not what actually
             // happens, and asserting the weaker fact would let a real
-            // divergence hide inside a pad. The reader reconstructs the
-            // same chart and the same trim, so the same quadrature runs
-            // on the same bits: pin THAT, and let a single ulp of drift
-            // be a finding.
+            // divergence hide inside a pad. What the reader reproduces is
+            // every FACE: the same chart and trim, so each face's
+            // quadrature runs on the same bits and returns the same flux.
+            // What it does not reproduce is the face ARENA order: its
+            // Euler-operator assembly allocates faces in its own order,
+            // and the body fold sums the face terms in plain `f64` in
+            // arena order (`topo::props`' `fold_runs`, D9 addendum idiom
+            // 2's sequential fold), and an `f64` sum rounds differently in
+            // another order. Whether the fold should be order-independent
+            // is FLUX's design row
+            // `work/flux/the-whole-body-property-fold-depends-on-face-order.md`.
+            // So:
+            //
+            // * the import's gate enclosure IS the imported body's own
+            //   measurement, bit for bit (same body, same order);
+            let (imported, imported_terms) =
+                topo::test_support::mass_properties_with_face_terms(&body, Tol::witness())
+                    .expect("the imported body measures where its gate certified");
             assert_eq!(
-                got.volume.to_bits(),
-                want.volume.to_bits(),
-                "the round trip must reproduce the volume BIT-identically: \
+                (got.volume.to_bits(), got.volume_pad.to_bits()),
+                (imported.volume.to_bits(), imported.volume_pad.to_bits()),
+                "the gate's enclosure must BE the imported body's measurement: \
+                 gate {} ± {}, measured {} ± {}",
+                got.volume,
+                got.volume_pad,
+                imported.volume,
+                imported.volume_pad,
+            );
+            // * every face's flux term and half-width, native against
+            //   imported, bit for bit: the same multiset of terms, each
+            //   face matched by its bits rather than its key (the keys
+            //   are the two arenas' own);
+            let bits = |terms: &[topo::test_support::FaceTerm]| {
+                let mut bits: Vec<(u64, u64)> = terms
+                    .iter()
+                    .map(|&(_, flux, pad)| (flux.to_bits(), pad.to_bits()))
+                    .collect();
+                bits.sort_unstable();
+                bits
+            };
+            assert_eq!(
+                bits(want_terms),
+                bits(&imported_terms),
+                "the round trip must reproduce every face's flux bit for bit: \
+                 native {want_terms:?}, imported {imported_terms:?}"
+            );
+            // * native against imported bodies, the same terms summed in
+            //   two orders: two orders of one sum may round apart by at
+            //   most one ulp per addition, so the volumes must agree to
+            //   within `faces − 1` ulps of each other, and the pad (a sum
+            //   of non-negative pads in the same fold, outward) must still
+            //   agree bit for bit at this body's values. Measured: 0 ulps
+            //   before NURBS #4553 moved the rational wall's flux bits,
+            //   1 at ε = 1e-6 and 2 at 1e-9 after it, and 1 and 0 since
+            //   the skin computes in `T` (PR 4726) moved them again.
+            let faces = native.faces().count() as u64;
+            let ulps = got.volume.to_bits().abs_diff(want.volume.to_bits());
+            assert!(
+                got.volume > 0.0 && want.volume > 0.0 && ulps < faces,
+                "the round trip must reproduce the volume to within the fold's \
+                 face-order rounding ({ulps} ulps against {faces} faces): \
                  imported {} ± {}, native {} ± {}",
                 got.volume,
                 got.volume_pad,
@@ -498,36 +559,29 @@ fn loft_prism_walls_get_distinct_surface_keys() {
     );
 }
 
-/// **The description state, re-pinned at M7-6** (stage-1 promotion),
-/// **re-expressed at PCURVE P-1b over the collapsed taxonomy**.
-///
-/// The three NUMBERS below are unchanged and so is every fact they
-/// state; what changed is that two of the class names they used to
-/// count no longer exist. U2 collapsed `IsoCurve` and `MappedCurve`
-/// into the one conventional form, so counting them would now read
-/// `(8, 0, 4)` — the same body, described the same way, with the
-/// row's whole discriminating power thrown away. **This row therefore
-/// counts the distinction that survived rather than the names that
-/// did not**: which CHART each image is drawn in.
+/// **The description state, by the distinction that matters**: which
+/// CHART each image is drawn in, and which PAIR each `Intersection` is
+/// certified against. Counting description classes alone would read
+/// `(4, 8)` and could not tell the three populations apart.
 ///
 /// - The four wall–wall seams are images in a **spline wall's** own
 ///   chart — each seam has at least one stays-NURBS wall beside it and
 ///   its carrier bitwise-matches that wall's boundary column (the
 ///   native at-rest preference, undisturbed by the neighbour's
 ///   promotion).
-/// - The four rims on the stays-NURBS walls are images in the **cap
-///   PLANE**, which is the analytic side of their own
-///   NURBS-plus-plane pair. Before the collapse these were the
-///   conventional `MappedCurve` rung (the Nurbs-adjacency exemption);
-///   they say the same thing about the same locus, in the chart the
-///   rim actually lies in.
+/// - The four rims on the stays-NURBS walls are cap-plane × spline-wall
+///   `Intersection`s: the plane × NURBS certificate takes their line
+///   carriers, and the ladder offers that rung first. They were images
+///   in the cap PLANE while that certificate took a spline carrier
+///   only, and the conventional rung took them.
 /// - The four rims on the PROMOTED walls are honest cap-plane ×
 ///   wall-plane `Intersection`s — a strictly stronger description
 ///   (certified against both surfaces) that promotion unlocked; the
 ///   ruling accepts the divergence and this row still enumerates it.
 ///
-/// So the split is 4 / 4 / 4 exactly as before, and a regression that
-/// merged the two chart populations would still be caught.
+/// So the split is 4 / 4 / 4 by the chart each seam is drawn in or
+/// the PAIR each rim is certified against, and a regression that
+/// merged two of the populations would still be caught.
 ///
 /// **The principle, because the alternative was available and worse.**
 /// Re-baselining this row to `(8, 0, 4)` would have kept its SHAPE and
@@ -541,7 +595,8 @@ fn loft_prism_descriptions_land_in_the_native_classes() {
     let (body, _) = import_body("loft_prism");
     let mut on_wall_chart = 0;
     let mut on_cap_plane = 0;
-    let mut intersection = 0;
+    let mut on_spline_wall = 0;
+    let mut on_promoted_wall = 0;
     for (_, edge) in body.edges() {
         match body.get_curve_geom(edge.curve) {
             Some(topo::CurveGeom::Certified(curve)) => match curve.description() {
@@ -550,17 +605,33 @@ fn loft_prism_descriptions_land_in_the_native_classes() {
                     Some(topo::Surface::Plane { .. }) => on_cap_plane += 1,
                     other => panic!("a chart image on neither wall nor cap: {other:?}"),
                 },
-                geom_brep::EdgeDescription::Intersection { .. } => intersection += 1,
+                geom_brep::EdgeDescription::Intersection { pair, .. } => {
+                    if pair
+                        .keys()
+                        .iter()
+                        .any(|k| matches!(body.get_surface(*k), Some(topo::Surface::Nurbs(_))))
+                    {
+                        on_spline_wall += 1;
+                    } else {
+                        on_promoted_wall += 1;
+                    }
+                }
                 other => panic!("unexpected description class on a loft edge: {other:?}"),
             },
             other => panic!("every imported edge is certified, got: {other:?}"),
         }
     }
     assert_eq!(
-        (on_wall_chart, on_cap_plane, intersection),
-        (4, 4, 4),
+        (
+            on_wall_chart,
+            on_cap_plane,
+            on_spline_wall,
+            on_promoted_wall
+        ),
+        (4, 0, 4, 4),
         "4 wall–wall seams as images in a spline wall's chart, 4 stays-NURBS-wall cap \
-         rims as images in the cap PLANE, 4 promoted-wall cap rims as Intersection"
+         rims as plane × spline Intersections, 4 promoted-wall cap rims as plane × plane \
+         Intersections"
     );
 }
 
@@ -600,7 +671,7 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
     let (wall, _) = body
         .surfaces()
         .find(|(_, s)| match s {
-            geom::Surface::Nurbs(n) => n.knots_u().domain() == (0.0, 3.0),
+            geom::Surface::Nurbs(n) => n.knots_u_f64_interim().domain() == (0.0, 3.0),
             _ => false,
         })
         .expect("the reparameterized wall survives the import");

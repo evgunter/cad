@@ -195,9 +195,10 @@ RUN_FLOOR=(
   plain:editor-core:m4_pr8_k_probe:1
   plain:editor-core:m5_pr5_corpus_probe:1
   plain:editor-core:parallel_node_map_probe:1
+  plain:editor-core:parts_entered_before_the_map:3
   plain:geom-brep:m8_f67_r1_probes:8
   plain:geom-brep:rim_dim_review_probes:2
-  plain:geom-brep:rim_dim_scale_twins:7
+  plain:geom-brep:rim_dim_scale_twins:6
   plain:geom-brep:span_meter_dim_twins:5
   plain:geom-core:certified_door:6
   plain:geom-core:k_stats_doors:2

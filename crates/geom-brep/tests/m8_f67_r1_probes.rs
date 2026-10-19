@@ -10,17 +10,21 @@
 //! - The pcurve gate's own reparametrization invariance, sampled at
 //!   `Probe` through the iso lane.
 //!
-//! **CI EXECUTES THIS SUITE.** It is rostered in
-//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
-//! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
-//! by `--check-executed`, so every assertion below is a gate and a red here
-//! fails the merge. By hand:
+//! **The nightly executes this suite; the PR gate only builds it.** It is
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! under the DEFAULT selection by `scripts/k_probe_sweep.sh` in the
+//! nightly's dev-probe row, whose tally is floored by `--check-executed`,
+//! so a red here reds the nightly. The PR gate compiles it (`clippy
+//! --all-features`) and runs none of it, so a PR can merge green over a red
+//! here. By hand:
 //! `cargo test -p geom-brep --features probe --test all -- m8_f67_r1_probes::`.
 
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::FRAC_1_SQRT_2;
+use geom_core::Real;
+use geom_core::spline::Knots;
 use std::sync::Arc;
 
 use crate::shared::fixture;
@@ -29,8 +33,8 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
-    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FittedLane, Pcurve, PcurveCache,
-    PcurveCertifyError, PcurveCheck, SurfacePair,
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FittedLane, NurbsLane, Pcurve,
+    PcurveCache, PcurveCertifyError, PcurveCheck, SurfacePair,
 };
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
@@ -59,7 +63,7 @@ fn chord_sum(c: &Curve3<f64>, d0: f64, d1: f64, n: usize) -> f64 {
 fn quarter_circle(s: f64) -> Curve3<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, s, s, s], 2).expect("knots");
     let n = NurbsCurve3::new(
-        k,
+        Knots::from(k).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(2.0, 0.0, 0.0),
             Point3::new(2.0, 2.0, 0.0),
@@ -76,14 +80,14 @@ fn wiggle(s: f64) -> Curve3<f64> {
     let k =
         KnotVector::clamped(vec![0.0, 0.0, 0.0, s, 2.0 * s, 2.0 * s, 2.0 * s], 2).expect("knots");
     let n = NurbsCurve3::new(
-        k,
+        Knots::from(k).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(0.0, 0.0, 0.0),
             Point3::new(1.0, 1.0, 0.0),
             Point3::new(2.0, -0.5, 0.5),
             Point3::new(3.0, 0.5, 0.0),
         ],
-        vec![1.0; 4],
+        vec![Real::one(); 4],
     )
     .expect("the net builds");
     Curve3::Nurbs(Arc::new(n))
@@ -166,16 +170,21 @@ fn axis_planes_f64() -> (Surface<f64>, Surface<f64>) {
 fn degenerate_net() -> Curve3<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("knots");
     let p = Point3::new(0.0, 0.0, 1.0);
-    let n = NurbsCurve3::new(k, vec![p, p], vec![1.0, 1.0]).expect("the degenerate net builds");
+    let n = NurbsCurve3::new(
+        Knots::from(k).lift(geom_core::Real::from_f64),
+        vec![p, p],
+        vec![Real::one(); 2],
+    )
+    .expect("the degenerate net builds");
     Curve3::Nurbs(Arc::new(n))
 }
 
 fn axis_segment_f64(length: f64) -> Curve3<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("knots");
     let n = NurbsCurve3::new(
-        k,
+        Knots::from(k).lift(geom_core::Real::from_f64),
         vec![Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, length)],
-        vec![1.0, 1.0],
+        vec![Real::one(); 2],
     )
     .expect("the carrier builds");
     Curve3::Nurbs(Arc::new(n))
@@ -197,7 +206,15 @@ fn certify_axis(carrier: Curve3<f64>, t0: f64, t1: f64) -> Result<EdgeCurve<f64>
         param_start: t0,
         param_end: t1,
     };
-    EdgeCurve::certify(spec, start, end, |k| arena.get(k).cloned(), band())
+    EdgeCurve::certify_via(
+        spec,
+        start,
+        end,
+        |k| arena.get(k).cloned(),
+        1.0,
+        band(),
+        Some(NurbsLane::certified()),
+    )
 }
 
 /// CLAIM 2, certify gate: a poison meter escalates `Invalid` naming
@@ -283,8 +300,8 @@ fn iso_lane_backwards_span_stays_interval_not_forward() {
 }
 
 /// CLAIM 2, fitted lane: the poison meter refuses at the meter through
-/// `PcurveCache::certify_fitted` (check 1 is passed with a mate so
-/// check 2's gate is the deciding site).
+/// `PcurveCache::certify_fitted` (check 1 passes on the spline chart,
+/// so check 2's gate is the deciding site).
 #[test]
 fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
     let ik = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("image knots");
@@ -292,11 +309,10 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
         NurbsCurve2::new(
             ik,
             vec![Point2::new(0.0, 0.0), Point2::new(0.0, 1.0)],
-            vec![1.0, 1.0],
+            vec![Real::one(); 2],
         )
         .expect("the image builds"),
     );
-    let (px, _) = axis_planes_f64();
     let wall = quarter_cylinder_wall();
     let got = PcurveCache::certify_fitted(
         image,
@@ -304,7 +320,6 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
         1.0,
         &degenerate_net(),
         &wall,
-        Some(&px),
         band(),
         FittedLane::certified(),
     );
@@ -326,12 +341,12 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
 fn probe_segment(length: f64, domain: f64) -> Curve3<Probe> {
     let k = KnotVector::clamped(vec![0.0, 0.0, domain, domain], 1).expect("knots");
     let n = NurbsCurve3::new(
-        k,
+        Knots::from(k).lift(geom_core::Real::from_f64),
         vec![
             Point3::new(Probe(0.0), Probe(0.0), Probe(0.0)),
             Point3::new(Probe(0.0), Probe(0.0), Probe(length)),
         ],
-        vec![1.0, 1.0],
+        vec![Real::one(); 2],
     )
     .expect("the carrier builds");
     Curve3::Nurbs(Arc::new(n))
@@ -358,7 +373,13 @@ fn iso_lane_gate_and_span_margins_are_reparametrization_invariant() {
         .collect();
         let w = FRAC_1_SQRT_2;
         Surface::Nurbs(Arc::new(
-            NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).expect("wall"),
+            NurbsSurface::new(
+                Knots::from(ku).lift(geom_core::Real::from_f64),
+                Knots::from(kv).lift(geom_core::Real::from_f64),
+                control,
+                [1.0, 1.0, w, w, 1.0, 1.0].map(Probe).to_vec(),
+            )
+            .expect("wall"),
         ))
     };
     let margins = |domain: f64| {

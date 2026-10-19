@@ -290,8 +290,7 @@ pub enum TessellateError {
     /// must encode the SAME material side (`props_rim_side`), which a
     /// door handed no face can still ask because it compares the rims
     /// with each other rather than with a sense bit. The `source` is
-    /// props' own refusal, carrying the `what` the flux lane would
-    /// report for the same face.
+    /// props' own refusal, carrying the deciding predicate's `what`.
     ///
     /// **This is the SHAPE question**, asked on the face's rim structure
     /// BEFORE the boundary walk runs. The swept-rectangle lane cites the

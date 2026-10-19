@@ -27,6 +27,7 @@
 //!   INTO the program is refused at the door, while `DefineVar` — by
 //!   design — is not.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{
     Dimension, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileProgram, ProgramStep,
@@ -131,10 +132,9 @@ pub fn document() -> CorpusDoc {
 
     let union = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![plate.into(), tab.into()]),
-        declare: Vec::new(),
     });
 
-    r.place(union);
+    r.place_part(union);
 
     CorpusDoc {
         name: "plate_param",

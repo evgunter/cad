@@ -33,7 +33,6 @@ from pncad import (
     VarName,
     PartSelect,
     PatternKind,
-    PlaneRelation,
     evaluate,
     m,
     rad,
@@ -171,42 +170,40 @@ class TestTheHalfIsItsPort(unittest.TestCase):
         nothing was moved, re-stamped or lost on the way through, so
         unioning the two back together is the box again.
 
-        The two halves REST on each other across the section, which is
-        a declared contact — detected through `find_flush_candidates`
-        and declared on the union, the same protocol any touching union
-        goes through. That the detector finds the pair AT ALL across
-        the two halves is itself the pass-through claim: the faces it
-        matches are the split's, carried verbatim.
-
-        The inventory says the same thing a second way. Five findings:
-        ONE `SameOpposite` — the section, where the halves face each
-        other — and four `SameOriented`, the box's four walls, each cut
-        into two coplanar pieces facing the same way out. Only the
-        first is a rest contact to declare.
+        The two halves REST on each other across the section, and the
+        box's four walls are each cut into two coplanar pieces facing
+        the same way out. The union glues all five pairs, as it glues
+        any touching members: that it decides them AT ALL across the
+        two halves is itself the pass-through claim — the faces it matches
+        are the split's, carried verbatim.
         """
         doc, _, above, below = self.build()
-        ev = evaluate(doc)
-        findings = ev.find_flush_candidates(above, below)
-        self.assertEqual(len(findings), 5)
-        section = [f for f in findings if f.relation == PlaneRelation.SameOpposite]
-        self.assertEqual(len(section), 1, "the one section face pair")
-        whole = doc.insert(Node.union([above, below], declare=section))
+        whole = doc.insert(Node.union([above, below]))
         mass = mass_of(evaluate(doc), whole)
         self.assertEqual(mass.volume, 2.0 * 2.0 * 1.0)
         self.assertEqual(mass.surface_area, 2 * 2.0 * 2.0 + 4 * 2.0 * 1.0)
 
     def test_the_names_pass_through(self):
-        """A read of a half hands on the split's rows for that half and
-        otherwise verbatim — so every face name a reader answers with
-        is a face name of the split, unchanged as text, and the two
-        halves' name sets are disjoint."""
+        """A read of a half hands on that half's table verbatim — so
+        every face name a reader answers with is a face name of the
+        split's half, unchanged as text. A split's names spell no half:
+        each half is its own table, so the section face and each wall's
+        fragment are ONE name the two halves' tables each hold."""
         doc, split, above, below = self.build()
         ev = evaluate(doc)
-        whole = set(ev.all_faces(split))
+        upper_half = set(ev.all_faces(doc.output(split, 0)))
+        lower_half = set(ev.all_faces(doc.output(split, 1)))
         upper, lower = set(ev.all_faces(above)), set(ev.all_faces(below))
-        self.assertTrue(upper <= whole)
-        self.assertTrue(lower <= whole)
-        self.assertEqual(upper & lower, set())
+        self.assertEqual(upper, upper_half)
+        self.assertEqual(lower, lower_half)
+        # What the halves share is what the split's names no longer
+        # tell apart by half: the section face and the four walls'
+        # fragments, each one name that each half's table holds. The
+        # cap each half keeps whole is its own.
+        shared = upper & lower
+        self.assertEqual(len(shared), 5)
+        self.assertEqual(sum('"SectionFace"' in n for n in shared), 1)
+        self.assertEqual(sum('"SplitFragment"' in n for n in shared), 4)
         # A cut box is a 6-faced slab per side: four walls, the
         # original face, and the section.
         self.assertEqual(len(upper), 6)
@@ -414,7 +411,7 @@ class TestThePatternDoor(unittest.TestCase):
     def test_a_count_below_one_refuses(self):
         doc = Doc()
         family = pattern_of(doc, box(doc), count=0)
-        self.assertEqual(refusal(self, doc, family), "non_positive_count")
+        self.assertEqual(refusal(self, doc, family), "count_out_of_range")
 
     def test_an_explicit_rule_refuses_at_insert(self):
         """The explicit rule carries its OWN placements, so pairing it
