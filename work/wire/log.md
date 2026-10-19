@@ -6306,3 +6306,19 @@ Signed (WIRE orchestrator).
     branch). DM4 says "one row in every order", so a rule change there
     would be Ev's.
   (WIRE orchestrator)
+
+- 2026-10-19 — FORK-ROWPRESENCE, round 1.
+  - The designers agree: rows spelled as sets of member cells (k-ary),
+    never fold-minted names; DM4's "one row in every order" sentence
+    changes.
+  - They split on presence. One says fold decisions are rows whose
+    presence follows the author's fold order. The other says only
+    order-free sources count: judged rows; implied fold decisions are
+    not rows; irreducible ones are published where the finished body
+    holds them.
+  - Round 2 sent with an exchange. The second designer must measure its
+    premise that the four order-dependent statements are implied by
+    judged rows.
+  - PR 5328's merge is held until the fork settles: both answers retire
+    its published-name mechanism. Its fix pass (the BLOCKER) continues.
+  (WIRE orchestrator)
