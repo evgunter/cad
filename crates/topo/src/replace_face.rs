@@ -3188,12 +3188,7 @@ fn derive_edge<T: Decide>(
 fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
     use geom_brep::Pcurve;
     Some(match *pcurve {
-        Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
-            p0: geom_core::Point2::new(p0.x, p0.y + shift),
-            pa,
-            pb,
-            pl,
-        },
+        Pcurve::Harmonic { .. } => pcurve.translate(T::zero(), shift),
         Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
             p0: geom_core::Point2::new(p0.x, p0.y + shift),
             pl,
@@ -4613,13 +4608,13 @@ mod shift_chart_v_rows {
             sense: 1.0,
         });
         assert!(shift_chart_v(&section, 0.3).is_none());
-        let harmonic = Pcurve::Harmonic {
-            p0: Point2::new(0.0, 1.0),
-            pa: Vec2::new(0.5, 0.0),
-            pb: Vec2::new(0.0, 0.5),
-            pl: Vec2::new(0.0, 0.0),
-        };
-        let Some(Pcurve::Harmonic { p0, .. }) = shift_chart_v(&harmonic, 0.25) else {
+        let harmonic = Pcurve::free_harmonic(
+            Point2::new(0.0, 1.0),
+            Vec2::new(0.5, 0.0),
+            Vec2::new(0.0, 0.5),
+            Vec2::new(0.0, 0.0),
+        );
+        let Some(Some((p0, ..))) = shift_chart_v(&harmonic, 0.25).map(|p| p.harmonic_form()) else {
             panic!("a harmonic image shifts");
         };
         assert_eq!(p0.y, 1.25);

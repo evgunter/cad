@@ -700,7 +700,7 @@ impl core::fmt::Display for CertifyError {
             ),
             Self::WindingExceeded => write!(
                 f,
-                "a periodic (circle/ellipse) carrier's parameter interval \
+                "a periodic carrier's parameter interval \
                  spans more than one full period — |t₁ − t₀| ≤ τ is required to close the \
                  sample-schedule winding alias (8kτ family)"
             ),
