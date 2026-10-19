@@ -18,6 +18,8 @@
 //! ([`CurvePlan::is_reference`]) and the `f64` appliers refuse it. A
 //! weight it writes is certified by the carrier's door.
 
+use std::borrow::Cow;
+
 use super::algebra::{self, CurvePlan, KnotAlgebraError, RemovalStep};
 use super::knot_values::Knots;
 use super::knots::{KnotVector, SplineError};
@@ -26,16 +28,17 @@ use super::weights::Weights;
 
 /// The held knots and weights as the plan constructors read them: their
 /// own `f64` vectors where every one is a point, else the stand-in
-/// (module docs), and whether they are the inputs' own. Returned, not
-/// held: no field keeps the copy past the call.
-fn inputs<T: SpanLocate>(
-    knots: &Knots<T>,
-    weights: &Weights<T>,
-) -> Result<(KnotVector, Vec<f64>, bool), KnotAlgebraError> {
+/// (module docs), and whether they are the inputs' own: borrowed where
+/// they are the inputs' own, so the point path copies nothing.
+#[allow(clippy::type_complexity)]
+fn inputs<'a, T: SpanLocate>(
+    knots: &'a Knots<T>,
+    weights: &'a Weights<T>,
+) -> Result<(Cow<'a, KnotVector>, Cow<'a, [f64]>, bool), KnotAlgebraError> {
     if knots.is_point() && weights.is_point() {
         return Ok((
-            knots.structure_f64_interim().clone(),
-            weights.weights_f64_interim().to_vec(),
+            Cow::Borrowed(knots.structure_f64_interim()),
+            Cow::Borrowed(weights.weights_f64_interim()),
             true,
         ));
     }
@@ -46,7 +49,11 @@ fn inputs<T: SpanLocate>(
             .ok_or(KnotAlgebraError::Structure(SplineError::KnotIsPoison {
                 index,
             }))?;
-    Ok((proxy, vec![1.0; weights.len()], false))
+    Ok((
+        Cow::Owned(proxy),
+        Cow::Owned(vec![1.0; weights.len()]),
+        false,
+    ))
 }
 
 /// That `u` is a breakpoint, or lies apart from every breakpoint, for
