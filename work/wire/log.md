@@ -6261,3 +6261,15 @@ Signed (WIRE orchestrator).
     "minted twice", and the hand-kept payload lists.
   Class note: a word budget met by cutting content, not framing, loses
   the fact the reader acts on. (WIRE orchestrator)
+
+- 2026-10-19 — Ev approved PR 5306 ("sure, sounds good"). N2/N3 merged
+  (2b49303ad9). The fork-log row was renumbered 162 → 163 because an
+  INTENT row landed first; it is filled with byte 153 (odd): A = Fable,
+  B = Opus. Dispatched `wire/split-maximal-halves`:
+  - the kernel merge at the split's finish, which crosses CLEAVE's
+    `splitting/finish.rs` (no CLEAVE branch touches `splitting/` today);
+  - the in-plane edge rule;
+  - one descent `Keeps` builder.
+  It closes or verifies the two-builders, `-y` revolved, section-root
+  and CLEAVE split-half rows. FULL single review; not dual, since one
+  call at the finish reverses it. (WIRE orchestrator)
