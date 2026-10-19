@@ -104,5 +104,37 @@ class TestAPartsOverlapIsThePartsFinding(unittest.TestCase):
         self.assertIsNone(finding.a.kind, "a variable of the part, not of this document")
 
 
+    def test_a_parts_own_refusal_is_raised_as_carried(self):
+        """A part whose two copies stand 3 nm apart, in the sliver band,
+        refuses its own gate; a document instantiating it raises
+        `AssemblyError` under `carried_at_rest`, each row the part's
+        finding with its route."""
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
+        store = Workspace(str(directory))
+        part = Doc("pncad-carried-at-rest-part")
+        part.place(block(part, (0.0, 0.0), 1.0, 0.0, 1.0))
+        part.place(block(part, (1.0 + 3e-9, 0.2), 0.6, 0.25, 0.5))
+        with self.assertRaises(pncad.AssemblyError) as own:
+            assemble(part, evaluate(part))
+        self.assertEqual(own.exception.variant, "at_rest")
+        store.create(part)
+        outer = Doc("pncad-carried-at-rest")
+        instance = outer.insert(
+            Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)), [])
+        )
+        outer.pin(instance, resolver=store)
+        with self.assertRaises(pncad.AssemblyError) as carried:
+            assemble(outer, evaluate(outer, resolver=store))
+        err = carried.exception
+        self.assertEqual(err.variant, "carried_at_rest")
+        self.assertEqual(len(err.findings), len(own.exception.findings))
+        for row in err.findings:
+            self.assertEqual(row.of, part.id)
+            self.assertEqual(row.through, instance)
+            self.assertEqual(row.pin, pncad.content_pin(part))
+            self.assertIn("is not at rest by its own census", str(row))
+
+
 if __name__ == "__main__":
     unittest.main()

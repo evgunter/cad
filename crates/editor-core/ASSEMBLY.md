@@ -594,9 +594,14 @@ pairs is the part's, and is not a finding of this document's
 per part row, by the first route in gather order, so a part placed
 twice, or in the world and in a loose space, reports its overlap once.
 A carried overlap is reported on `Assembly::carried_interference` and
-never refuses (D10). A census escalation names no pair of solids, so the
-outer census's re-finding of one inside the copy matches nothing
-(`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
+never refuses (D10). A carried refusal refuses the outer gate as the
+part's (`AssemblyError::CarriedAtRest`), after `CarriedMintRefusal` and
+before this document's own refusals: a placement carries its source's
+census findings, which stay the source's, and a finding is reported
+once, as the deciding space's (D10, `[placement.placement]`). A finding that names no pair of solids (a census
+escalation, a pair it had no lane for, a stale record of a vertex or an
+edge) matches nothing when the outer census finds it again inside the
+copy (`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
 What does not cross: the census of a part's loose spaces, and the rows
 of a part read one member at a time rather than whole
 (`work/intent/a-parts-loose-spaces-and-member-reads-drop-its-census-rows.md`).

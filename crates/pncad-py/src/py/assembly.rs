@@ -614,6 +614,7 @@ impl CarriedRefusal {
 pub(crate) struct CarriedInterference {
     finding: InterferenceFinding,
     route: d::Route,
+    pin: d::ContentPin,
 }
 
 #[pymethods]
@@ -628,6 +629,12 @@ impl CarriedInterference {
     #[getter]
     fn through(&self) -> NodeId {
         NodeId(self.route.through)
+    }
+
+    /// Which version of `of` found it.
+    #[getter]
+    fn pin(&self) -> super::store::ContentPin {
+        super::store::ContentPin(self.pin)
     }
 
     /// The document whose copies overlap, as opaque id text.
@@ -675,6 +682,12 @@ impl CarriedAtRestFinding {
     #[getter]
     fn through(&self) -> NodeId {
         NodeId(self.0.route.through)
+    }
+
+    /// Which version of `of` found it.
+    #[getter]
+    fn pin(&self) -> super::store::ContentPin {
+        super::store::ContentPin(self.0.pin)
     }
 
     /// The document whose census found it, as opaque id text.
@@ -1166,6 +1179,7 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
             Ok(CarriedInterference {
                 finding: InterferenceFinding::carried(py, &row.finding)?,
                 route: row.route.clone(),
+                pin: row.pin,
             })
         })
         .collect::<PyResult<Vec<_>>>()?;

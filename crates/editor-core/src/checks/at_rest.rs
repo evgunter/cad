@@ -405,9 +405,11 @@ pub(crate) fn partition<T: LocalizeLane>(
 /// the pair an interference verdict decided
 /// ([`topo::census_interference_solids`]), the two entities an
 /// undecidable verdict names, or the two cells of an unrecorded touch.
-/// `None` for a finding that names no pair of solids: an escalation
-/// names no entity at all
-/// (`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
+/// `None` for a finding that names no pair of solids: an escalation,
+/// which names no entity at all
+/// (`work/contacthold/an-escalated-census-finding-names-no-pair.md`), a
+/// pair the census had no lane for, a stale record of a vertex or an
+/// edge, a touch with a cell of an input or a tool.
 pub(crate) fn finding_solids<T: Decide>(
     body: &Body<T>,
     error: &ValidationError,
@@ -440,6 +442,11 @@ pub(crate) fn finding_solids<T: Decide>(
 /// product re-finding it inside the copy says nothing new. A verdict
 /// inside one copy that answers to no carried pair is left, the copy's
 /// door's own unrecorded contact.
+// TRANSITIONAL: the final rule is that inside an arrival the census
+// reads nothing (D10, `[placement.placement]`), so this match of the
+// census's re-findings against a part's carried pairs is a check the
+// rule retires, with the in-copy census itself
+// (`work/intent/the-in-arrival-census-check-retires.md`).
 pub(crate) fn less_carried<T: Decide>(
     product: &Product<T>,
     errors: Vec<ValidationError>,

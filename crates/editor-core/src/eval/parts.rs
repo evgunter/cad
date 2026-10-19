@@ -140,11 +140,12 @@ pub(crate) struct PartValue<T: Decide> {
     /// its own rows first and then those it carried up: the overlaps
     /// between its copies, reported and never refused, as its gate
     /// reports them.
-    pub interference: Arc<Vec<PartRow<crate::checks::at_rest::InterferenceFinding>>>,
+    pub interference:
+        Arc<Vec<PartRow<crate::assembly::Pinned<crate::checks::at_rest::InterferenceFinding>>>>,
     /// The census findings its gate refuses that name none of its
     /// declarations, its own first: inner at-rest health is the
     /// outermost gate's business, as inner mint health is.
-    pub at_rest: Arc<Vec<PartRow<crate::assembly::AtRestFinding>>>,
+    pub at_rest: Arc<Vec<PartRow<crate::assembly::Pinned<crate::assembly::AtRestFinding>>>>,
     /// The pairs of solids both lists are about, keyed in [`Self::body`],
     /// smaller first: what the census over an instantiating product finds
     /// again inside this part's copy, and must not report a second time.
@@ -809,25 +810,52 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             interference: Arc::new(
                 seam.interference
                     .into_iter()
-                    .map(|own| PartRow::unspoken(doc_ref.id, own))
-                    .chain(
-                        product
-                            .carried_interference
-                            .into_iter()
-                            .map(|row| PartRow::below(doc, row.route, row.finding, Arc::default())),
-                    )
+                    .map(|finding| {
+                        PartRow::unspoken(
+                            doc_ref.id,
+                            crate::assembly::Pinned {
+                                pin: doc_ref.pin,
+                                finding,
+                            },
+                        )
+                    })
+                    .chain(product.carried_interference.into_iter().map(|row| {
+                        PartRow::below(
+                            doc,
+                            row.route,
+                            crate::assembly::Pinned {
+                                pin: row.pin,
+                                finding: row.finding,
+                            },
+                            Arc::default(),
+                        )
+                    }))
                     .collect(),
             ),
             at_rest: Arc::new(
                 seam.refused
                     .into_iter()
-                    .map(|own| PartRow::own(doc, doc_ref.id, own))
-                    .chain(
-                        product
-                            .carried_at_rest
-                            .into_iter()
-                            .map(|row| PartRow::below(doc, row.route, row.finding, row.held)),
-                    )
+                    .map(|finding| {
+                        PartRow::own(
+                            doc,
+                            doc_ref.id,
+                            crate::assembly::Pinned {
+                                pin: doc_ref.pin,
+                                finding,
+                            },
+                        )
+                    })
+                    .chain(product.carried_at_rest.into_iter().map(|row| {
+                        PartRow::below(
+                            doc,
+                            row.route,
+                            crate::assembly::Pinned {
+                                pin: row.pin,
+                                finding: row.finding,
+                            },
+                            row.held,
+                        )
+                    }))
                     .collect(),
             ),
             census_pairs: Arc::new(seam.pairs),

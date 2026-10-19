@@ -711,8 +711,9 @@ class AssemblyError(PncadError):
     this one refused over a finding none of its declarations answers
     for, and the refusal crosses whole, its attributed findings with it.
     Each is the part's, reported once, and `findings` is then a
-    `CarriedAtRestFinding` per finding with the route it arrived by. It is raised after `carried_mint_refusal` and before this
-    document's own arms."""
+    `CarriedAtRestFinding` per finding with the route it arrived by. It
+    is raised after `carried_mint_refusal` and before this document's
+    own arms."""
 
     variant: str
     refusals: Optional[list[MintRefusal] | list[CarriedRefusal]]
@@ -6391,6 +6392,9 @@ class CarriedInterference:
     @property
     def through(self) -> NodeId: ...
     @property
+    def pin(self) -> ContentPin:
+        """Which version of `of` found it: two pins are two findings."""
+    @property
     def of(self) -> str: ...
     @property
     def via(self) -> list[NodeId]: ...
@@ -6408,6 +6412,9 @@ class CarriedAtRestFinding:
 
     @property
     def through(self) -> NodeId: ...
+    @property
+    def pin(self) -> ContentPin:
+        """Which version of `of` found it: two pins are two findings."""
     @property
     def of(self) -> str: ...
     @property

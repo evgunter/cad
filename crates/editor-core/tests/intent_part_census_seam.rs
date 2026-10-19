@@ -320,9 +320,10 @@ fn an_escalation_two_documents_down_is_reported_once_as_the_parts() {
 fn a_part_in_the_world_and_a_loose_space_reports_its_overlap_once() {
     let part = overlapping("seam-space-part");
     let (doc, ids, opts) = instantiating("seam-space", &part, 1);
-    let mut store = PartStore::new();
-    let part_ref = store.insert(part, Tol::witness());
-    let (doc, _) = insert(doc, crate::fixture::mated_instance(part_ref));
+    let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(ids[0]) else {
+        panic!("an instance")
+    };
+    let (doc, _) = insert(doc.clone(), crate::fixture::mated_instance(*doc_ref));
     let outer = gate(&doc, &opts).unwrap_or_else(|e| panic!("the outer gate refused: {e}"));
     assert!(outer.interference.is_empty(), "{:?}", outer.interference);
     let [carried] = outer.carried_interference.as_slice() else {
@@ -332,4 +333,101 @@ fn a_part_in_the_world_and_a_loose_space_reports_its_overlap_once() {
         carried.route.through, ids[0],
         "the world instance's route, first"
     );
+}
+
+/// **A part placed twice reports its own refusal once.** Both copies
+/// carry the in-band part's escalations up, and they are one part row's
+/// findings, reported by the first instance's route.
+///
+/// *Breaks if* each instance reports the part's refusal again (the
+/// at-rest arm of the once-per-part-row rule).
+#[test]
+fn a_refusing_part_placed_twice_reports_its_refusal_once() {
+    let part = in_band("seam-band-twice-part");
+    let Err(AssemblyError::AtRest { findings: own }) = gate(&part, &EvalOptions::default()) else {
+        panic!("the part's own gate refuses its escalations")
+    };
+    let (doc, ids, opts) = instantiating("seam-band-twice", &part, 2);
+    let err = gate(&doc, &opts).expect_err("the part is not at rest");
+    let AssemblyError::CarriedAtRest { findings } = &err else {
+        panic!("the part's refusal, carried: {err}")
+    };
+    assert_eq!(findings.len(), own.len(), "once per part row: {err}");
+    assert!(
+        findings.iter().all(|f| f.route.through == ids[0]),
+        "by the first instance's route"
+    );
+}
+
+/// A resolver holding several versions of one document, each by its
+/// pin.
+#[derive(Debug, Default)]
+struct Versions(std::collections::BTreeMap<editor_core::DocRef, ProfileDoc>);
+
+impl Versions {
+    fn insert(&mut self, doc: ProfileDoc) -> editor_core::DocRef {
+        let doc_ref = editor_core::DocRef {
+            id: doc.id(),
+            pin: editor_core::content_pin(&doc, Tol::witness()).expect("the pin computes"),
+        };
+        self.0.insert(doc_ref, doc);
+        doc_ref
+    }
+}
+
+impl editor_core::PartResolver for Versions {
+    fn resolve(
+        &self,
+        doc_ref: &editor_core::DocRef,
+        _tol: Tol,
+    ) -> Result<ProfileDoc, editor_core::ResolveFailure> {
+        self.0
+            .get(doc_ref)
+            .cloned()
+            .ok_or_else(|| editor_core::ResolveFailure {
+                fault: editor_core::ResolveFault::Unresolved,
+                message: "no such version".to_string(),
+            })
+    }
+}
+
+/// **Two pins of one document are two part rows.** One version of the
+/// in-band part holds one in-band pair; a later version of the same
+/// document adds a second pair beside it. A document instantiating both
+/// reports each version's findings, whichever it places first: equal
+/// findings of two versions are not one row.
+///
+/// *Breaks if* the once-per-part-row rule reads the document and not
+/// its pin (the later version's findings equal to the earlier's are
+/// dropped, and which depends on the order).
+#[test]
+fn two_pins_of_one_document_are_two_part_rows() {
+    let v1 = in_band("seam-two-pins-part");
+    let (v2, a) = block(v1.clone(), (10.0, 0.0, 0.0), 0.5, 1.0);
+    let (v2, b) = block(v2, (10.8 + 3e-9, 0.0, 0.25), 0.3, 0.5);
+    let (v2, _) = place(v2, a);
+    let v2 = place(v2, b).0;
+    let count = |doc: &ProfileDoc| match gate(doc, &EvalOptions::default()) {
+        Err(AssemblyError::AtRest { findings }) => findings.len(),
+        other => panic!("each version refuses in band: {other:?}"),
+    };
+    let (n1, n2) = (count(&v1), count(&v2));
+    assert!(n2 > n1, "the premise: the later version finds more");
+    for order in [[&v1, &v2], [&v2, &v1]] {
+        let mut store = Versions::default();
+        let refs = order.map(|doc| store.insert(doc.clone()));
+        let opts = EvalOptions {
+            resolver: Some(std::sync::Arc::new(store)),
+            ..EvalOptions::default()
+        };
+        let doc = ProfileDoc::empty_derived("seam-two-pins", Tol::witness());
+        let (doc, _) = insert_pinned(doc, Node::instantiate_part(refs[0]), &opts);
+        let (doc, id) = insert(doc, Node::instantiate_part(refs[1]));
+        let doc = pin(doc, id, &Frame::translation([30.0, 0.0, 0.0]), &opts);
+        let err = gate(&doc, &opts).expect_err("neither version is at rest");
+        let AssemblyError::CarriedAtRest { findings } = &err else {
+            panic!("the versions' refusals, carried: {err}")
+        };
+        assert_eq!(findings.len(), n1 + n2, "every finding of both versions");
+    }
 }

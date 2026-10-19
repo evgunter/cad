@@ -70,8 +70,8 @@ orchestrator approved.
   every evaluation scalar. `Sym` and every `Dual` take the default,
   `Unlocalized::Lane`. `e4_dual_door`'s literal records the term.
 
-**The gap this leaves.** A census escalation (`CensusEscalated`) names
-no pair, so the outer census's re-finding of one inside the copy matches
+**The gap this leaves.** A census escalation (`CensusEscalated`), like
+any finding that names no pair of solids, names no pair, so the outer census's re-finding of one inside the copy matches
 nothing. It is never reported: while a part carries a refusal, the
 instantiating gate refuses before its own at-rest stage, and a document
 whose gate refuses there crosses no census finding of its own to the
@@ -83,6 +83,10 @@ every escalation name its pair.
 **Not covered.** A part's loose spaces, and a part read one member at a
 time. Filed as
 `work/intent/a-parts-loose-spaces-and-member-reads-drop-its-census-rows.md`.
+The reviews' untaken style findings (one carried-row type, the two
+homes of `finding_solids`, a carried overlap with no sentence, the
+seam's cancel point) are
+`work/intent/carried-census-rows-left-unshared.md`.
 
 Rows: `crates/editor-core/tests/intent_part_census_seam.rs`, plus the
 Python row in `crates/pncad-py/tests/test_interference.py`.

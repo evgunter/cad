@@ -867,18 +867,23 @@ where
             .interference
             .iter()
             .map(|row| {
-                let (route, finding, _) = row.through(id);
-                crate::assembly::CarriedInterference { route, finding }
+                let (route, pinned, _) = row.through(id);
+                crate::assembly::CarriedInterference {
+                    route,
+                    pin: pinned.pin,
+                    finding: pinned.finding,
+                }
             })
             .collect(),
         at_rest: part
             .at_rest
             .iter()
             .map(|row| {
-                let (route, finding, held) = row.through(id);
+                let (route, pinned, held) = row.through(id);
                 crate::assembly::CarriedAtRestFinding {
                     route,
-                    finding,
+                    pin: pinned.pin,
+                    finding: pinned.finding,
                     held,
                 }
             })

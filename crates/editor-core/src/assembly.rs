@@ -68,10 +68,12 @@
 //!
 //! Each says why at its own definition. The kernel's finding passes
 //! straight through either way — stated, never swallowed, never
-//! re-labelled — but for a verdict about a pair of solids a part's own
-//! census reported, which the part's carried row reports in its place
-//! (`checks::at_rest::less_carried`); and the declaration still does its job: it is what
-//! suppresses the F1 `UnrecordedContact` refusal.
+//! re-labelled — and the declaration still does its job: it is what
+//! suppresses the F1 `UnrecordedContact` refusal. A part's own census
+//! findings are the part's: the census over a document instantiating it
+//! finds them again inside the part's copy, and the part's carried rows
+//! report them in that re-finding's place, once
+//! (`checks::at_rest::less_carried`).
 
 use std::sync::Arc;
 
@@ -388,6 +390,9 @@ pub struct CarriedDeclarations {
 pub struct CarriedInterference {
     /// How it reached this document.
     pub route: Route,
+    /// The pin of `route.of` the finding is of: two pins of one document
+    /// are two part rows, and two findings.
+    pub pin: crate::ident::ContentPin,
     /// The part's own finding, in `route.of`'s ids.
     pub finding: crate::checks::at_rest::InterferenceFinding,
 }
@@ -404,6 +409,9 @@ pub struct CarriedInterference {
 pub struct CarriedAtRestFinding {
     /// How it reached this document.
     pub route: Route,
+    /// The pin of `route.of` the finding is of: two pins of one document
+    /// are two part rows, and two findings.
+    pub pin: crate::ident::ContentPin,
     /// The part's own finding, keyed in its own product.
     pub finding: AtRestFinding,
     /// The finding's nodes, as `route.of` holds them.
@@ -1191,8 +1199,8 @@ pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLan
 
 /// **A part's carried findings, each once per part row** (A5, *A part's
 /// own census findings*): `rows` appended to `held`, but for a row an
-/// earlier list already holds, the same finding of the same document
-/// arriving by another route (a part placed twice, or in the world and
+/// earlier list already holds, the same finding of the same pinned
+/// document arriving by another route (a part placed twice, or in the world and
 /// in a loose space). Only an earlier list's row is the same row: one
 /// list is its part's, and two equal findings in it (escalations, which
 /// name no entity) are two findings.
@@ -1217,13 +1225,33 @@ pub(crate) trait CarriedRow {
 
 impl CarriedRow for CarriedInterference {
     fn same_row(&self, other: &Self) -> bool {
-        self.route.of == other.route.of && self.finding == other.finding
+        (self.route.of, self.pin, &self.finding) == (other.route.of, other.pin, &other.finding)
     }
 }
 
 impl CarriedRow for CarriedAtRestFinding {
     fn same_row(&self, other: &Self) -> bool {
-        self.route.of == other.route.of && self.finding == other.finding
+        (self.route.of, self.pin, &self.finding) == (other.route.of, other.pin, &other.finding)
+    }
+}
+
+/// **A carried census finding with the pin of the document it is of**,
+/// the body of a part's census row ([`crate::eval`]'s `PartValue`): which
+/// version of `of` found it, which a [`Route`] does not say.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Pinned<F> {
+    pub(crate) pin: crate::ident::ContentPin,
+    pub(crate) finding: F,
+}
+
+// Said as the finding is: the pin names no node.
+impl<F: crate::spoken::Say> crate::spoken::Say for Pinned<F> {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        self.finding.say(f, by)
     }
 }
 
@@ -1467,6 +1495,13 @@ pub(crate) struct SeamVerdict {
 /// it, and nothing of it when the gate refuses before that stage
 /// ([`ahead_of_at_rest`]). The mint's own refusals cross the seam on
 /// their own rows.
+///
+/// One departure from the part's own gate, deliberate: the stage's
+/// overlaps cross even when its refusal does not (every finding of it
+/// attributed). The part's gate reports no overlap beside a refusal, but
+/// the refusal's findings re-verify at the instantiating gate, and an
+/// overlap that did not cross would be found again there inside the
+/// part's copy and refused as that document's own.
 pub(crate) fn seam_verdict<T: crate::checks::at_rest::LocalizeLane>(
     product: &Product<T>,
     tol: Tol,
