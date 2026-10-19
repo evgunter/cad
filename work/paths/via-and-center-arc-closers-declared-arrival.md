@@ -8,7 +8,6 @@ github: 1579
 refs: [1573, 433]
 priority: P1
 cost: M
-needs_ev: true
 ---
 
 ## From GitHub issue 1579
