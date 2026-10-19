@@ -6531,3 +6531,20 @@ Signed (WIRE orchestrator).
   - `Meet` also publishes topo's held `UnspelledDecision`s and CLEAVE's
     15 cited misstatements truthfully.
   (WIRE orchestrator)
+
+- 2026-10-19 — Unit 2, PR 5378 (`wire/union-decision-log`), opened
+  green at 998ee55c3f.
+  - `Relation::Meet`; k-ary rows with `origin`; the citing filter
+    dropped; `member_cells` spelling.
+  - Deviation: `Meet` proves by `MarginIdentity`, with no k-carrier rung.
+  - The lane filed a residue: a Meet on a boolean-minted vertex omits the
+    cell that minted it.
+  - DUAL review dispatched under protocol `24b76fff0e`. Class H, so the
+    CONCURRENT arm: R1 and R2 on frozen head 998ee55c3f, with identical
+    briefs (`brief-review-5378.md` in the session scratchpad). No
+    method relaxations.
+  - The lane also reports main's slow-set entry
+    `census::…review_5006_delta::d1_tabs_a_few_bands_wide` listed three
+    times. That reds the slow-set name check for any topo-touching PR;
+    the PR dedups it.
+  (WIRE orchestrator)
