@@ -2,9 +2,10 @@
 id: kernels-own-span-panic-has-one-row-in-five-sites-and-no-type
 kind: issue
 title: kernels_own's span panic is pinned at one of its five sites, and a re-mint site that forgets it is silently typed
-status: dispatched
+status: review
 opened: 2026-10-19
 branch: encl/kernels-own-type
+pr: 5401
 ---
 
 
