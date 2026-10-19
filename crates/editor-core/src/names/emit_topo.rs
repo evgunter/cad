@@ -271,22 +271,21 @@ pub(crate) fn name_split<T: Decide>(
         )?;
     }
 
-    // ---- Section faces: per-side completion-order index. ----
+    // ---- Section faces: per-side completion-order index, a section a
+    // merge absorbed numbered too, so no section is renumbered (N3). ----
+    let mut section_names: BTreeMap<FaceKey, StableName> = BTreeMap::new();
     let mut per_side_ix = [0u32; 2];
     for &(f, side) in &naming.sections {
-        let half = match side {
-            PlaneSide::Above => SplitHalf::Above,
-            PlaneSide::Below => SplitHalf::Below,
-            PlaneSide::On => {
-                return Err(NamingError::Emission {
-                    what: "section face classified On",
-                });
-            }
-        };
-        // The face is live in exactly the side that kept it.
+        let half = half_of(side, "section face classified On")?;
+        let absorbed = naming
+            .merge_groups
+            .iter()
+            .any(|(gs, g)| *gs == side && g.absorbed.contains(&f));
+        // The face is live in exactly the side that kept it, or was
+        // absorbed by that side's merge.
         let Some(s) = sides
             .iter()
-            .find(|s| s.half == half && s.body.get_face(f).is_some())
+            .find(|s| s.half == half && (absorbed || s.body.get_face(f).is_some()))
         else {
             return Err(NamingError::Emission {
                 what: "section face live in no matching side body",
@@ -294,20 +293,48 @@ pub(crate) fn name_split<T: Decide>(
         };
         let section = per_side_ix[s.slot()];
         per_side_ix[s.slot()] += 1;
-        halves[s.slot()].t.insert(
+        section_names.insert(
+            f,
             name1(EntityKind::Face, node, RoleSeg::SectionFace { section }),
-            ent(0, EntityKey::Face(f)),
-        )?;
+        );
     }
-
+    // Keys are unique across the two halves (restrictions of one
+    // arena), and each side's joins keep their order, so one chase
+    // over both sides' rows is each side's.
+    let joins: Vec<topo::EdgeJoin> = naming.edge_joins.iter().map(|&(_, j)| j).collect();
+    let covers = topo::join_covers(&joins);
+    let keeps = KeepsReading {
+        sides: &sides,
+        target_node,
+        target_table,
+        lineage: &naming.joined_lineage,
+        covers: &covers,
+    };
+    let merged = name_split_merges(
+        node,
+        &mut halves,
+        &sides,
+        naming,
+        &section_names,
+        &keeps,
+        target_body,
+    )?;
+    for &(f, _) in &naming.sections {
+        let live = sides.iter().find(|s| s.body.get_face(f).is_some());
+        if let Some(s) = live.filter(|_| !merged.held.contains_key(&f)) {
+            halves[s.slot()]
+                .t
+                .insert(section_names[&f].clone(), ent(0, EntityKey::Face(f)))?;
+        }
+    }
     name_split_faces(
         node,
         &mut halves,
         &sides,
         frag_rows,
         &section_keys,
-        target_node,
-        target_table,
+        &merged,
+        &keeps,
         target_body,
     )?;
     for h in &mut halves {
@@ -317,11 +344,11 @@ pub(crate) fn name_split<T: Decide>(
         node,
         &mut halves,
         &sides,
-        frag_rows,
-        &section_keys,
         naming,
-        target_node,
-        target_table,
+        &merged,
+        &joins,
+        &covers,
+        &keeps,
         target_body,
         b,
     )?;
@@ -334,6 +361,201 @@ pub(crate) fn name_split<T: Decide>(
     }
     let [above, below] = halves;
     Ok([above, below].map(|h| Emitted::new(h.t, h.rec)))
+}
+
+/// The half a split's record names by its side.
+fn half_of(side: PlaneSide, what: &'static str) -> Result<SplitHalf, NamingError> {
+    match side {
+        PlaneSide::Above => Ok(SplitHalf::Above),
+        PlaneSide::Below => Ok(SplitHalf::Below),
+        PlaneSide::On => Err(NamingError::Emission { what }),
+    }
+}
+
+/// The parent of faces a split's merge linked ([`SplitNaming::merge_groups`]):
+/// its `Merged` name, whether it descends from a tie, and the operand
+/// faces among its constituents.
+struct MergedFace {
+    name: NameRef,
+    tied: bool,
+    operand_faces: BTreeSet<FaceKey>,
+}
+
+/// What [`name_split_merges`] named: each face a merge kept, by its
+/// parent (`kept`), and every face of a merged parent, kept or a piece
+/// that never merged (`held`).
+#[derive(Default)]
+struct SplitMerges {
+    kept: BTreeMap<FaceKey, MergedFace>,
+    held: BTreeMap<FaceKey, (NameRef, bool)>,
+}
+
+impl SplitMerges {
+    /// The parent `face` is cited by, as a seam cites the face beside it
+    /// (N3): a merged parent's `Merged` set, else the operand face it
+    /// descends from; and whether that descends from a tie.
+    fn parent_of(
+        &self,
+        face: FaceKey,
+        naming: &SplitNaming,
+        target_node: RecipeNodeId,
+        target_table: &NameTable,
+    ) -> Result<(NameRef, bool), NamingError> {
+        if let Some(held) = self.held.get(&face) {
+            return Ok(held.clone());
+        }
+        let root = naming.face_fragments.root(face);
+        let up = upstream_name(target_table, target_node, ent(0, EntityKey::Face(root)))?;
+        Ok((up.name, up.tied))
+    }
+}
+
+/// Names the faces of each split half's merged parents as a boolean
+/// names its merged faces (N3). In each half, the faces one merge group
+/// holds are linked, transitively through the operand faces they
+/// descend from; a linked set is one parent, `Merged` of its
+/// constituents' names, flat and in name order: each section face by
+/// its `SectionFace { k }` (`section_names`), each operand face by its
+/// own name. Every face of that half descending from the parent, a
+/// merge's kept face or a piece of one of its operand faces, is a face
+/// of it: one is the parent's bare name, several are qualified by
+/// `Keeps` over the boundary edges of the parent's operand faces (N2).
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] where a merged name would nest, or a
+/// merge's kept face is live in no half its record names.
+fn name_split_merges<T: Decide>(
+    node: RecipeNodeId,
+    halves: &mut [HalfNames; 2],
+    sides: &[Side<'_, T>],
+    naming: &SplitNaming,
+    section_names: &BTreeMap<FaceKey, StableName>,
+    keeps: &KeepsReading<'_, '_, T>,
+    target_body: &Body<T>,
+) -> Result<SplitMerges, NamingError> {
+    let (target_node, target_table) = (keeps.target_node, keeps.target_table);
+    // A linked set: its operand faces, its section faces, its kept faces.
+    type Linked = (BTreeSet<FaceKey>, BTreeSet<FaceKey>, Vec<FaceKey>);
+    let bug = |what| NamingError::Emission { what };
+    let frag_rows = &naming.face_fragments;
+    let mut out = SplitMerges::default();
+    for s in sides {
+        let mut linked: Vec<Linked> = Vec::new();
+        for (side, g) in &naming.merge_groups {
+            if half_of(*side, "a split merge's record names no half")? != s.half {
+                continue;
+            }
+            if s.body.get_face(g.kept).is_none() {
+                return Err(bug("a split merge's kept face is live in no matching half"));
+            }
+            let mut set: Linked = (BTreeSet::new(), BTreeSet::new(), vec![g.kept]);
+            for &c in core::iter::once(&g.kept).chain(&g.absorbed) {
+                if section_names.contains_key(&c) {
+                    set.1.insert(c);
+                } else {
+                    set.0.insert(frag_rows.root(c));
+                }
+            }
+            let (meets, rest): (Vec<Linked>, Vec<Linked>) =
+                linked.into_iter().partition(|l| !l.0.is_disjoint(&set.0));
+            for (ops, secs, kept) in meets {
+                set.0.extend(ops);
+                set.1.extend(secs);
+                set.2.extend(kept);
+            }
+            linked = rest;
+            linked.push(set);
+        }
+        for (ops, secs, kept) in linked {
+            let mut constituents: Vec<StableName> =
+                secs.iter().map(|f| section_names[f].clone()).collect();
+            let mut tied = false;
+            let mut op_names = Vec::with_capacity(ops.len());
+            for &op in &ops {
+                let up = upstream_name(target_table, target_node, ent(0, EntityKey::Face(op)))?;
+                tied |= up.tied;
+                match merged::constituents_through_wrappers(&up.name) {
+                    Some(cs) => constituents.extend(cs),
+                    None => constituents.push((*up.name).clone()),
+                }
+                op_names.push(up.name);
+            }
+            if constituents
+                .iter()
+                .any(|c| merged::constituents_through_wrappers(c).is_some())
+            {
+                return Err(bug(NESTED_MERGED));
+            }
+            let name =
+                canonical::minted(name1(EntityKind::Face, node, RoleSeg::Merged(constituents)));
+            let held_by = |f: FaceKey| {
+                kept.contains(&f)
+                    || (!section_names.contains_key(&f)
+                        && !naming.merge_groups.iter().any(|(_, g)| g.kept == f)
+                        && ops.contains(&frag_rows.root(f)))
+            };
+            let members: Vec<FaceKey> = s
+                .body
+                .faces()
+                .map(|(f, _)| f)
+                .filter(|&f| held_by(f))
+                .collect();
+            let h = &mut halves[s.slot()];
+            let ents: Vec<_> = members
+                .iter()
+                .map(|&f| ent(0, EntityKey::Face(f)))
+                .collect();
+            h.rec.record(&name, ents.clone(), Parent::Elsewhere);
+            for op_name in &op_names {
+                h.rec.record(
+                    &split_base(node, op_name.clone()),
+                    ents.clone(),
+                    Parent::Elsewhere,
+                );
+            }
+            if let [f] = members.as_slice() {
+                put(
+                    &mut h.t,
+                    &mut h.tie,
+                    tied,
+                    name.clone(),
+                    ent(0, EntityKey::Face(*f)),
+                )?;
+            } else {
+                let boundary = operand_boundary(target_body, ops.iter().copied())?;
+                let mut pieces = Vec::with_capacity(members.len());
+                for &f in &members {
+                    let edges = face_half_edges(s.body, f)?
+                        .into_iter()
+                        .map(|he| {
+                            s.body
+                                .get_half_edge(he)
+                                .map(|h| h.edge)
+                                .ok_or_else(|| bug("a split piece's half-edge is dangling"))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    pieces.push((keeps.of(edges, &boundary)?, ent(0, EntityKey::Face(f))));
+                }
+                mint_qualified(&mut h.t, &mut h.tie, tied, &name, pieces)?;
+            }
+            let name = NameRef::new(name);
+            for &f in &members {
+                out.held.insert(f, (name.clone(), tied));
+            }
+            for f in kept {
+                out.kept.insert(
+                    f,
+                    MergedFace {
+                        name: name.clone(),
+                        tied,
+                        operand_faces: ops.clone(),
+                    },
+                );
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// Chord edges: every boundary edge of `body`'s live section faces,
@@ -369,6 +591,71 @@ pub(super) fn chord_faces<T: geom_core::Real>(
     Ok(chord_faces)
 }
 
+/// The refusal for an edge between two faces the cut drew: each split
+/// half ends with maximal faces, so none survives.
+const BETWEEN_SECTIONS: &str = "an edge between two section faces";
+
+/// A split half's section chords: each edge of `body` bounding a face
+/// the cut drew (`SplitNaming::holds_section`), with the operand face
+/// across it. An edge along an operand edge lying in the plane is that
+/// edge, or a piece of it, and not a chord, where both its faces
+/// descend from that edge's two faces (N2); a face the merge kept
+/// descends from the operand faces among its constituents.
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] for an edge between two faces the cut
+/// drew: each half ends with maximal faces, so none survives.
+fn split_chords<T: Decide>(
+    body: &Body<T>,
+    naming: &SplitNaming,
+    merged: &SplitMerges,
+    root_of: &BTreeMap<EdgeKey, EdgeKey>,
+    target_table: &NameTable,
+    target_body: &Body<T>,
+) -> Result<BTreeMap<EdgeKey, FaceKey>, NamingError> {
+    let holders: Vec<(FaceKey, PlaneSide)> = body
+        .faces()
+        .map(|(f, _)| f)
+        .filter(|&f| naming.holds_section(f))
+        .map(|f| (f, PlaneSide::On))
+        .collect();
+    let keys: BTreeSet<FaceKey> = holders.iter().map(|&(f, _)| f).collect();
+    let descends = |g: FaceKey, from: FaceKey| match merged.kept.get(&g) {
+        Some(m) => m.operand_faces.contains(&from),
+        None => !keys.contains(&g) && naming.face_fragments.root(g) == from,
+    };
+    let mut out = BTreeMap::new();
+    for (e, other) in chord_faces(body, &holders, &keys)? {
+        if keys.contains(&other) {
+            return Err(NamingError::Emission {
+                what: BETWEEN_SECTIONS,
+            });
+        }
+        let root = root_of[&e];
+        if target_table
+            .name_of(&ent(0, EntityKey::Edge(root)))
+            .is_some()
+        {
+            let (g0, g1) = topo::readback::edge_sides(body, e)
+                .map_err(|_| NamingError::Emission {
+                    what: "a section chord's faces do not read",
+                })?
+                .faces();
+            let (fa, fb) = topo::readback::edge_sides(target_body, root)
+                .map_err(|_| NamingError::Emission {
+                    what: "an operand edge's faces do not read",
+                })?
+                .faces();
+            if (descends(g0, fa) && descends(g1, fb)) || (descends(g0, fb) && descends(g1, fa)) {
+                continue;
+            }
+        }
+        out.insert(e, other);
+    }
+    Ok(out)
+}
+
 /// How a split names an edge its closing join made, read off the join
 /// records (`SplitNaming::edge_joins`) by the input cells the edge's
 /// cover lies along (`topo::join_covers`, each covered edge chased to
@@ -382,6 +669,17 @@ enum Joined {
     /// The cover lies along several whole operand edges: the `Merged`
     /// set of their names.
     Set { name: StableName, tied: bool },
+    /// The cover lies along several operand edges, part of one or more
+    /// of them: a piece of their `Merged` set, qualified by its ends
+    /// where the half holds several.
+    SetPiece {
+        name: StableName,
+        tied: bool,
+        roots: Vec<EdgeKey>,
+    },
+    /// The cover lies along section chords and whole operand edges,
+    /// across a merged face: named from its two faces, as a seam is.
+    Seam { name: StableName, tied: bool },
 }
 
 /// The joined edges of both sides whose covers lie along whole operand
@@ -394,15 +692,14 @@ enum Joined {
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where a cover has no input-cell reading:
-/// a section chord joined to a piece of an operand edge, or pieces of
-/// several operand edges not one of which it holds whole. No `ci` row
-/// reaches either (`a-finished-body-holds-no-joinable-vertex` (a closed FUSE row; `docs/doc-ledger/fuse-leaves-the-tracker.md`),
-/// PR B); each is the ruling's stop case, refused rather than named.
+/// [`NamingError::Emission`] where a cover has no input-cell reading: a
+/// section chord joined to a piece of an operand edge.
+#[allow(clippy::too_many_arguments)]
 fn split_joined_readings<T: Decide>(
     node: RecipeNodeId,
     sides: &[Side<'_, T>],
     naming: &SplitNaming,
+    merged: &SplitMerges,
     root_of: &BTreeMap<EdgeKey, EdgeKey>,
     (joins, covers): (&[topo::EdgeJoin], &BTreeMap<EdgeKey, Vec<EdgeKey>>),
     target_node: RecipeNodeId,
@@ -445,38 +742,102 @@ fn split_joined_readings<T: Decide>(
         if roots.is_empty() {
             continue; // chords alone: the chord pass names it
         }
-        if chords > 0 {
-            return Err(bug(
-                "a split joined a section chord to an operand edge's piece, which no input \
-                 cell reads",
-            ));
-        }
         // Whole: no other live edge of either side descends from the root.
         let whole = |r: EdgeKey| root_of.iter().all(|(&e, &er)| er != r || e == kept);
+        if chords > 0 {
+            let seam =
+                split_join_seam(node, sides, naming, merged, kept, target_node, target_table)?;
+            match seam {
+                Some((name, tied)) if roots.iter().all(|&r| whole(r)) => {
+                    out.insert(kept, Joined::Seam { name, tied });
+                    continue;
+                }
+                _ => {
+                    return Err(bug(
+                        "a split joined a section chord to an operand edge's piece, which no \
+                         input cell reads",
+                    ));
+                }
+            }
+        }
         match roots.into_iter().collect::<Vec<_>>().as_slice() {
             [r] if whole(*r) => {
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(*r)))?;
                 out.insert(kept, Joined::Whole(up));
             }
             [_] => {} // a piece: the fragment pass names it
-            several if several.iter().all(|&r| whole(r)) => {
+            several => {
                 let mut names = Vec::with_capacity(several.len());
                 for &r in several {
                     let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(r)))?;
                     names.push(((*up.name).clone(), up.tied));
                 }
                 let (name, tied) = super::join_names::joined_name(node, names);
-                out.insert(kept, Joined::Set { name, tied });
-            }
-            _ => {
-                return Err(bug(
-                    "a split joined pieces of several operand edges, holding none of them \
-                     whole, which no input cell reads",
-                ));
+                // Along part of an operand edge whose other parts live
+                // on: a piece of the set, told from its siblings by its
+                // ends, as a union's flush rim is.
+                let joined = if several.iter().all(|&r| whole(r)) {
+                    Joined::Set { name, tied }
+                } else {
+                    Joined::SetPiece {
+                        name,
+                        tied,
+                        roots: several.to_vec(),
+                    }
+                };
+                out.insert(kept, joined);
             }
         }
     }
     Ok(out)
+}
+
+/// The seam name of `kept`, a split's joined edge, where one of its two
+/// faces is a face the merge kept: `Seam` of its two faces' parents in
+/// name order (N3: a seam cites the merged face's `Merged` set and the
+/// other face's operand face), and whether either descends from a tie.
+/// `None` where neither face is a merged one.
+fn split_join_seam<T: Decide>(
+    node: RecipeNodeId,
+    sides: &[Side<'_, T>],
+    naming: &SplitNaming,
+    merged: &SplitMerges,
+    kept: EdgeKey,
+    target_node: RecipeNodeId,
+    target_table: &NameTable,
+) -> Result<Option<(StableName, bool)>, NamingError> {
+    let Some(body) = sides
+        .iter()
+        .map(|s| s.body)
+        .find(|b| b.get_edge(kept).is_some())
+    else {
+        return Err(NamingError::Emission {
+            what: "a split join's kept edge is in neither half",
+        });
+    };
+    let (f0, f1) = topo::readback::edge_sides(body, kept)
+        .map_err(|_| NamingError::Emission {
+            what: "a split joined edge's faces do not read",
+        })?
+        .faces();
+    let (m, other) = match (merged.kept.get(&f0), merged.kept.get(&f1)) {
+        (Some(m), None) => (m, f1),
+        (None, Some(m)) => (m, f0),
+        _ => return Ok(None),
+    };
+    if naming.holds_section(other) {
+        return Err(NamingError::Emission {
+            what: BETWEEN_SECTIONS,
+        });
+    }
+    let (parent, tied) = merged.parent_of(other, naming, target_node, target_table)?;
+    let (a, b) = if *parent <= *m.name {
+        (parent, m.name.clone())
+    } else {
+        (m.name.clone(), parent)
+    };
+    let name = canonical::minted(name1(EntityKind::Edge, node, RoleSeg::Seam { a, b }));
+    Ok(Some((name, tied || m.tied)))
 }
 
 /// Split edges + vertices: pass-through, `SectionEdge` (chords),
@@ -489,14 +850,15 @@ fn name_split_edges_vertices<T: Decide>(
     node: RecipeNodeId,
     halves: &mut [HalfNames; 2],
     sides: &[Side<'_, T>],
-    frag_rows: &topo::FaceDivisions,
-    section_keys: &BTreeSet<FaceKey>,
     naming: &SplitNaming,
-    target_node: RecipeNodeId,
-    target_table: &NameTable,
+    merged: &SplitMerges,
+    joins: &[topo::EdgeJoin],
+    covers: &BTreeMap<EdgeKey, Vec<EdgeKey>>,
+    keeps: &KeepsReading<'_, '_, T>,
     target_body: &Body<T>,
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
+    let (target_node, target_table) = (keeps.target_node, keeps.target_table);
     let bug = |what| NamingError::Emission { what };
     let copy_to_original: BTreeMap<VertexKey, VertexKey> =
         naming.vertex_pairs.iter().copied().collect();
@@ -527,26 +889,21 @@ fn name_split_edges_vertices<T: Decide>(
         })
         .map(|e| root_of[&e])
         .collect();
-    // Keys are unique across the two halves (restrictions of one
-    // arena), and each side's joins keep their order, so one chase
-    // over both sides' rows is each side's.
-    let joins: Vec<topo::EdgeJoin> = naming.edge_joins.iter().map(|&(_, j)| j).collect();
-    let covers = topo::join_covers(&joins);
     let joined = split_joined_readings(
         node,
         sides,
         naming,
+        merged,
         &root_of,
-        (&joins, &covers),
+        (joins, covers),
         target_node,
         target_table,
     )?;
-    let lineage = &naming.joined_lineage;
     for s in sides {
         let slot = s.slot();
         let body = s.body;
         let HalfNames { t, tie, .. } = &mut halves[slot];
-        let chord_faces = chord_faces(body, &naming.sections, section_keys)?;
+        let chord_faces = split_chords(body, naming, merged, &root_of, target_table, target_body)?;
         // Chord edges named by the operand face their section boundary
         // runs across. A section line that re-enters ONE operand face
         // (an inner loop, or any non-convex face) cuts several chords
@@ -563,23 +920,21 @@ fn name_split_edges_vertices<T: Decide>(
                 // decide the reading whatever `chord_faces` holds.
                 continue;
             }
-            let root = frag_rows.root(other);
-            if section_keys.contains(&root) {
-                return Err(bug("section chord adjacent to a section face"));
-            }
-            let parent = upstream_name(target_table, target_node, ent(0, EntityKey::Face(root)))?;
+            let (parent, tied) = merged.parent_of(other, naming, target_node, target_table)?;
             let name = name1(
                 EntityKind::Edge,
                 node,
-                RoleSeg::SectionEdge { face: parent.name },
+                RoleSeg::SectionEdge { face: parent },
             );
             let group = edge_groups.entry((slot, name)).or_default();
-            group.0 |= parent.tied;
+            group.0 |= tied;
             group.1.push(e);
         }
         // The side's pieces of each operand edge, for the crossings'
         // senses.
-        let mut pieces_of: BTreeMap<EdgeKey, Vec<EdgeKey>> = BTreeMap::new();
+        // The side's pieces of each operand edge, each with whether it
+        // runs the operand edge's way, for the crossings' senses.
+        let mut pieces_of: BTreeMap<EdgeKey, Vec<(EdgeKey, bool)>> = BTreeMap::new();
         // Remaining edges: pass-through or crossing-cut fragments.
         for (e, _) in body.edges() {
             match joined.get(&e) {
@@ -593,13 +948,39 @@ fn name_split_edges_vertices<T: Decide>(
                     put(t, tie, *tied, name.clone(), ent(0, EntityKey::Edge(e)))?;
                     continue;
                 }
+                // Several seams of one pair of faces in the half are
+                // told apart by their ends, as a boolean's seam pieces
+                // are.
+                Some(Joined::Seam { name, tied }) => {
+                    let group = edge_groups.entry((slot, name.clone())).or_default();
+                    group.0 |= *tied;
+                    group.1.push(e);
+                    continue;
+                }
+                Some(Joined::SetPiece { name, tied, roots }) => {
+                    // It holds the crossings at its ends of the operand
+                    // edges it lies along, whichever way each runs.
+                    let joined = EdgeCarrier::of_edge(body, e)?;
+                    for &r in roots {
+                        let same = EdgeCarrier::of_edge(target_body, r)?
+                            .runs_with(&joined, ON_MEMBER_EDGE, bnd)?
+                            .ok_or_else(|| {
+                                bug("a split set piece lies off an operand edge it covers")
+                            })?;
+                        pieces_of.entry(r).or_default().push((e, same));
+                    }
+                    let group = edge_groups.entry((slot, name.clone())).or_default();
+                    group.0 |= *tied;
+                    group.1.push(e);
+                    continue;
+                }
                 None => {}
             }
             if chord_faces.contains_key(&e) {
                 continue;
             }
             let root = root_of[&e];
-            pieces_of.entry(root).or_default().push(e);
+            pieces_of.entry(root).or_default().push((e, true));
             if target_table.name_of(&ent(0, EntityKey::Edge(e))).is_some()
                 && !divided_edges.contains(&root)
             {
@@ -712,59 +1093,18 @@ fn name_split_edges_vertices<T: Decide>(
                 continue;
             }
             // Several copies in this half: each by the corner's own
-            // edges it is an end of a piece of here (N2's `Keeps`). A
-            // piece descends from its edge, or, where the edge lies in
-            // the tool plane, is a section chord along it from this
-            // copy to a copy of the edge's other end. A closed edge's
-            // other end is the corner itself, so its chord runs from
-            // this copy round to a copy of the corner (an in-plane
-            // circle swept by a revolved apex).
-            let mut own: Vec<(EdgeKey, VertexKey)> = Vec::new();
-            for o in target_body
+            // edges it is an end of a piece of here (N2's `Keeps`).
+            let own: BTreeSet<EdgeKey> = target_body
                 .edges_of_vertex(corner)
                 .ok_or_else(|| bug("an operand corner's orbit does not read"))?
-            {
-                let (a, b) = edge_ends(target_body, o)?;
-                own.push((o, if a == corner { b } else { a }));
-            }
+                .into_iter()
+                .collect();
             let mut pieces = Vec::with_capacity(copies.len());
             for v in copies {
-                let mut kept: BTreeSet<EdgeKey> = BTreeSet::new();
-                for e in body
+                let at = body
                     .edges_of_vertex(v)
-                    .ok_or_else(|| bug("a corner copy's orbit does not read"))?
-                {
-                    for c in covers.get(&e).cloned().unwrap_or_else(|| vec![e]) {
-                        let root = chase_split_lineage(sides, target_table, lineage, c)?;
-                        if own.iter().any(|&(o, _)| o == root) {
-                            kept.insert(root);
-                        }
-                    }
-                    if !chord_faces.contains_key(&e) {
-                        continue;
-                    }
-                    let (a, b) = edge_ends(body, e)?;
-                    let far = pair_original(&copy_to_original, if a == v { b } else { a })?;
-                    // The far-end match settles every case but two own
-                    // edges joining the corner to one vertex (a straight
-                    // edge and an arc between the same two points); the
-                    // chord lies along at most one of them, which
-                    // `chord_within` reads.
-                    for &(o, o_far) in &own {
-                        if o_far == far && chord_within(body, e, target_body, o, bnd)? {
-                            kept.insert(o);
-                        }
-                    }
-                }
-                let mut lines = BTreeSet::new();
-                for o in kept {
-                    let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(o)))?;
-                    lines.insert((*edge_line(&up.name)).clone());
-                }
-                pieces.push((
-                    Qualifier::Keeps(lines.into_iter().collect()),
-                    ent(0, EntityKey::Vertex(v)),
-                ));
+                    .ok_or_else(|| bug("a corner copy's orbit does not read"))?;
+                pieces.push((keeps.of(at, &own)?, ent(0, EntityKey::Vertex(v))));
             }
             mint_qualified(t, tie, of.tied, &base, pieces)?;
         }
@@ -812,7 +1152,9 @@ fn name_split_edges_vertices<T: Decide>(
         // A lone section chord is the whole of the section line across
         // its face; an operand edge's fragment is always a piece of it.
         let lone = match base.path.first() {
-            Some(RoleSeg::SectionEdge { .. }) => Lone::Whole,
+            Some(RoleSeg::SectionEdge { .. } | RoleSeg::Merged(_) | RoleSeg::Seam { .. }) => {
+                Lone::Whole
+            }
             _ => Lone::Piece,
         };
         name_edge_pieces(
@@ -857,8 +1199,10 @@ fn pair_original(
 /// **The sense of a Split's crossing at `v`** (N2) against the half
 /// whose body `body` holds it, along the crossed edge as it is stored:
 /// `Enters` where the one piece of the edge the half holds at `v`
-/// starts there, `Leaves` where it ends there. `pieces` are the half's
-/// pieces of the crossed edge.
+/// starts there along the edge, `Leaves` where it ends there. `pieces`
+/// are the half's pieces of the crossed edge, each with whether it runs
+/// the edge's way (a joined edge over several operand edges keeps one
+/// of their directions).
 ///
 /// # Errors
 ///
@@ -868,11 +1212,12 @@ fn pair_original(
 fn split_sense<T: geom_core::Real>(
     body: &Body<T>,
     v: VertexKey,
-    pieces: &[EdgeKey],
+    pieces: &[(EdgeKey, bool)],
 ) -> Result<Sense, NamingError> {
     let mut senses = Vec::with_capacity(1);
-    for &e in pieces {
+    for &(e, same) in pieces {
         let (start, end) = edge_ends(body, e)?;
+        let (start, end) = if same { (start, end) } else { (end, start) };
         if start == v {
             senses.push(Sense::Enters);
         }
@@ -4620,6 +4965,64 @@ fn insert_ranked_or_tied<K: Copy>(
     Ok(())
 }
 
+/// The boundary edges of operand faces `faces`: the parent edges a
+/// split piece's `Keeps` cites from (N2).
+fn operand_boundary<T: Decide>(
+    target_body: &Body<T>,
+    faces: impl IntoIterator<Item = FaceKey>,
+) -> Result<BTreeSet<EdgeKey>, NamingError> {
+    let mut boundary = BTreeSet::new();
+    for f in faces {
+        for he in face_half_edges(target_body, f)? {
+            let h = target_body.get_half_edge(he).ok_or(NamingError::Emission {
+                what: "a split parent's half-edge is dangling",
+            })?;
+            boundary.insert(h.edge);
+        }
+    }
+    Ok(boundary)
+}
+
+/// N2's `Keeps`, one reading for a split's face pieces and corner
+/// copies: the parent's edges an entity holds a stretch of, by descent
+/// alone. An edge of the half holds a stretch of the operand edge it
+/// descends from, through the split's `SplitEdge` records and, for an
+/// edge a join made, through each edge its cover lies along
+/// (`SplitNaming::joined_lineage`).
+struct KeepsReading<'r, 's, T: Decide> {
+    sides: &'r [Side<'s, T>],
+    target_node: RecipeNodeId,
+    target_table: &'r NameTable,
+    lineage: &'r BTreeMap<EdgeKey, EdgeKey>,
+    covers: &'r BTreeMap<EdgeKey, Vec<EdgeKey>>,
+}
+
+impl<T: Decide> KeepsReading<'_, '_, T> {
+    /// `Keeps` over the lines of the `parents` the half's `edges`
+    /// descend from, in name order.
+    fn of(
+        &self,
+        edges: impl IntoIterator<Item = EdgeKey>,
+        parents: &BTreeSet<EdgeKey>,
+    ) -> Result<Qualifier, NamingError> {
+        let mut lines = BTreeSet::new();
+        for e in edges {
+            for c in self.covers.get(&e).cloned().unwrap_or_else(|| vec![e]) {
+                let root = chase_split_lineage(self.sides, self.target_table, self.lineage, c)?;
+                if parents.contains(&root) {
+                    let up = upstream_name(
+                        self.target_table,
+                        self.target_node,
+                        ent(0, EntityKey::Edge(root)),
+                    )?;
+                    lines.insert((*edge_line(&up.name)).clone());
+                }
+            }
+        }
+        Ok(Qualifier::Keeps(lines.into_iter().collect()))
+    }
+}
+
 /// Split faces: pass-through for uncut operand faces; `SplitFragment`
 /// (side-discriminated, same-side multiplicity by `Keeps`) for cut
 /// ones.
@@ -4630,10 +5033,11 @@ fn name_split_faces<T: Decide>(
     sides: &[Side<'_, T>],
     frag_rows: &topo::FaceDivisions,
     section_keys: &BTreeSet<FaceKey>,
-    target_node: RecipeNodeId,
-    target_table: &NameTable,
+    merged: &SplitMerges,
+    keeps: &KeepsReading<'_, '_, T>,
     target_body: &Body<T>,
 ) -> Result<(), NamingError> {
+    let (target_node, target_table) = (keeps.target_node, keeps.target_table);
     // Every root that was ever divided: fragments cover it.
     let divided: BTreeSet<FaceKey> = frag_rows
         .rows()
@@ -4644,7 +5048,7 @@ fn name_split_faces<T: Decide>(
     let mut groups: BTreeMap<(FaceKey, usize), Vec<FaceKey>> = BTreeMap::new();
     for s in sides {
         for (f, _) in s.body.faces() {
-            if section_keys.contains(&f) {
+            if section_keys.contains(&f) || merged.held.contains_key(&f) {
                 continue;
             }
             let root = frag_rows.root(f);
@@ -4697,44 +5101,21 @@ fn name_split_faces<T: Decide>(
             continue;
         }
         // Same-side multiplicity: each piece by the parent's boundary
-        // edges it holds a stretch of (N2's `Keeps`), cited by their
-        // lines. A piece's edge is one of them when it descends from
-        // one: whole, or as a piece the plane cut.
-        let boundary: BTreeSet<EdgeKey> = face_half_edges(target_body, root)?
-            .into_iter()
-            .map(|he| {
-                target_body
-                    .get_half_edge(he)
-                    .map(|h| h.edge)
-                    .ok_or(NamingError::Emission {
-                        what: "a split parent's half-edge is dangling",
-                    })
-            })
-            .collect::<Result<_, _>>()?;
+        // edges it holds a stretch of (N2's `Keeps`).
+        let boundary = operand_boundary(target_body, [root])?;
         let mut pieces = Vec::with_capacity(members.len());
         for &f in &members {
-            let mut kept: BTreeSet<StableName> = BTreeSet::new();
-            for he in face_half_edges(body, f)? {
-                let e = body
-                    .get_half_edge(he)
-                    .ok_or(NamingError::Emission {
-                        what: "a split piece's half-edge is dangling",
-                    })?
-                    .edge;
-                let root_edge = chase_split_edge_to_table(sides, target_table, e)?;
-                if boundary.contains(&root_edge) {
-                    let up = upstream_name(
-                        target_table,
-                        target_node,
-                        ent(0, EntityKey::Edge(root_edge)),
-                    )?;
-                    kept.insert((*edge_line(&up.name)).clone());
-                }
-            }
-            pieces.push((
-                Qualifier::Keeps(kept.into_iter().collect()),
-                ent(0, EntityKey::Face(f)),
-            ));
+            let edges = face_half_edges(body, f)?
+                .into_iter()
+                .map(|he| {
+                    body.get_half_edge(he)
+                        .map(|h| h.edge)
+                        .ok_or(NamingError::Emission {
+                            what: "a split piece's half-edge is dangling",
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            pieces.push((keeps.of(edges, &boundary)?, ent(0, EntityKey::Face(f))));
         }
         mint_qualified(&mut h.t, &mut h.tie, from_tie, &base_name, pieces)?;
     }
@@ -4848,6 +5229,27 @@ mod tests {
             .expect("mev on an empty loop grows it by one edge")
             .edge;
         (body, edge)
+    }
+
+    /// **A crossing's sense reads the crossed edge's direction, not the
+    /// piece's.** One edge from `p` to `q`: as a piece running the
+    /// crossed edge's way it enters at `p` and leaves at `q`; as a
+    /// joined edge running against it, the senses swap.
+    #[test]
+    fn a_split_sense_follows_the_crossed_edge_through_a_reversed_piece() {
+        let (body, e) = segment([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        let (p, q) = super::edge_ends(&body, e).unwrap();
+        let sense = |v, same| super::split_sense(&body, v, &[(e, same)]).unwrap();
+        assert_eq!(
+            [sense(p, true), sense(q, true)],
+            [Sense::Enters, Sense::Leaves],
+            "a piece the edge's way"
+        );
+        assert_eq!(
+            [sense(p, false), sense(q, false)],
+            [Sense::Leaves, Sense::Enters],
+            "a piece against it"
+        );
     }
 
     /// `chord_on_rim` for a chord `p`–`q` against the rim (0,0,0)–(1,0,0).

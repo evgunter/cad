@@ -33,7 +33,7 @@ suite and sweep's `ci` profile): of 6,385 null-edge kills in sweep
 (`kef` 4,142 and `kemr` 1,914 in `chord_join::ChordJoiner::cut_core`,
 `kev` 328 in `boolean::rest::undo_struts`, one test `kev`), one
 releases a minted loop with gaps:
-`bool1_fix_pass::conic_section_boundary_restates_on_its_own_carrier`,
+`bool1_fix_pass::conic_section_boundary_restates_on_its_own_carrier` (since PR 5334 `a_split_at_an_annulus_plane_merges_it_keeping_its_rims_carrier_bits`),
 where the section polygon lies on the annulus face itself, so the
 cut's `kemr` leaves that face missing two chord rows on loops no null
 edge holds. It is transient there: the split's `mfkrh`
