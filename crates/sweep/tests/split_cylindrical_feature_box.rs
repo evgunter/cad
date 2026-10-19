@@ -138,7 +138,7 @@ fn halves(what: &str, body: &Body<f64>) -> [Body<f64>; 2] {
         tol(),
     )
     .unwrap_or_else(|e| panic!("{what}: the cutaway plane splits it: {e:?}"));
-    let mut sum = 0.0;
+    let (mut sum, mut pad) = (0.0, 0.0);
     let out = [("above", cut.above), ("below", cut.below)].map(|(side, part)| {
         let SplitPart::Body(half) = part else {
             panic!("{what} {side}: the plane crosses the box, so both sides hold material");
@@ -149,13 +149,21 @@ fn halves(what: &str, body: &Body<f64>) -> [Body<f64>; 2] {
             Ok(()),
             "{what} {side}: tier 3"
         );
-        sum += topo::mass_properties(&half, tol())
-            .expect("a half's volume")
-            .volume;
+        let m = topo::mass_properties(&half, tol()).expect("a half's volume");
+        sum += m.volume;
+        pad += m.volume_pad;
         half
     });
+    eprintln!("{what}: the halves' volume pads sum to {pad:e}");
+    // Measured (PR 5334): 1.0e-10 at ε = 1e-12, 1.9e-7 at 1e-9, 5.0e-6
+    // at 1e-6; the curved faces are integrated by quadrature.
+    let ceiling = (400.0 * tol().eps()).min(1e-5);
     assert!(
-        (sum - v).abs() < 1e-9,
+        pad <= ceiling,
+        "{what}: the quadrature's pads sum to {pad:e}, past {ceiling:e}"
+    );
+    assert!(
+        (sum - v).abs() < 1e-9 + pad,
         "{what}: the halves partition the volume ({sum} against {v})"
     );
     out

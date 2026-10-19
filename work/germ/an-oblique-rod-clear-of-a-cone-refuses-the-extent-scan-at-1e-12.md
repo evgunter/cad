@@ -55,3 +55,7 @@ Re-run by name at `CAD_TOLERANCE_EPS=1e-6` on main `8dc4a60767` by the FUSE curv
 ## 2026-10-15 — moved from TINT to GERM (CIW orchestrator, at Ev's direction)
 
 TINT has no orchestrator and will not get one soon, so a row left there is not fixed. Nightly 61's `full suite` (run 38687151370) is still red on it. It goes to GERM, which owns the cone operand lanes and wrote the row. The refusal does not look like a test artifact. The rod is unit-scale, so the size-range argument that closed TANG's far-origin row does not apply. The row certifies at 1e-9 and refuses at both 1e-6 and 1e-12, which points at the extent scan's near-tangency reading (`topo/src/boolean/boxes.rs`, `FallbackExtentUnsupported`). GERM decides the kernel-vs-row question the body asks.
+
+## 2026-10-19 — red since the row landed
+
+CONTACTHOLD's nightly-red lane ran it at `7e9d9c8cfe`, the merge of PR 4522 (`germ/cone-pairs-general-pose`), which added it. The row fails there at 1e-6 and at 1e-12 with the refusal above. It is absent at the merge's first parent, so it has been red at those ε since it landed. Still red in the 2026-10-19 nightly (run 39205007024).

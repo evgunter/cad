@@ -16,7 +16,11 @@
 //! search ([`rivals`]) puts the carriers' two crossings close together,
 //! so an end beside one stands within ε of both carriers while the
 //! segments meet at the other. Draws whose coordinates are too large
-//! for the oracle's `f64` to resolve ε are counted and skipped.
+//! for the oracle's `f64` to resolve ε are counted and skipped. A third
+//! ([`joint`]) judges two adjacent arcs at a joint on circles within ε
+//! of internal tangency the way validation does, shared-vertex discount
+//! included, against the arcs' crossings: none far from the joint may
+//! read clear.
 //!
 //! In a file of its own so the per-file test gate can skip it without
 //! skipping `seg`'s deterministic pair rows.
@@ -25,6 +29,7 @@
 
 test_utils::gated_to![
     "crates/profile/src/seg.rs",
+    "crates/profile/src/validate.rs",
     "crates/geom-core/src/k_stats.rs",
     "crates/geom-core/src/tolerance.rs",
 ];
@@ -170,30 +175,11 @@ fn oracle(s1: Shape, s2: Shape) -> f64 {
                     }
                 }
             }
-            // The crossings, from the smaller circle's centre, in
-            // factored form: the radical line's offset `x` from that
-            // centre and the half-chord `y` each lose to cancellation
-            // as a difference of squares when the radii differ by
-            // orders of magnitude.
-            let (small, rs, rl, towards) = if r1 <= r2 {
-                (c1, r1, r2, u)
-            } else {
-                (c2, r2, r1, (-u.0, -u.1))
-            };
-            let (lens, inner) = (rs + rl - d, d + rs - rl);
-            if lens > 0.0 && inner > 0.0 {
-                let x = rs - lens * (rl + d - rs) / (2.0 * d);
-                let y = (lens * inner * (d + rl - rs) * (d + rs + rl)).sqrt() / (2.0 * d);
-                for s in [-1.0, 1.0] {
-                    let p = (
-                        small.0 + x * towards.0 - s * y * towards.1,
-                        small.1 + x * towards.1 + s * y * towards.0,
-                    );
-                    if on_arc(a1, w1, (p.1 - c1.1).atan2(p.0 - c1.0))
-                        && on_arc(a2, w2, (p.1 - c2.1).atan2(p.0 - c2.0))
-                    {
-                        best = 0.0;
-                    }
+            for p in crossings((c1, r1), (c2, r2)) {
+                if on_arc(a1, w1, (p.1 - c1.1).atan2(p.0 - c1.0))
+                    && on_arc(a2, w2, (p.1 - c2.1).atan2(p.0 - c2.0))
+                {
+                    best = 0.0;
                 }
             }
         }
@@ -213,6 +199,35 @@ fn oracle(s1: Shape, s2: Shape) -> f64 {
         }
     }
     best
+}
+
+/// Two circles' crossings, from the smaller circle's centre, in
+/// factored form: the radical line's offset `x` from that centre and
+/// the half-chord `y` each lose to cancellation as a difference of
+/// squares when the radii differ by orders of magnitude.
+fn crossings((c1, r1): (P, f64), (c2, r2): (P, f64)) -> Vec<P> {
+    let d = dist(c1, c2);
+    let u = (sub(c2, c1).0 / d, sub(c2, c1).1 / d);
+    let (small, rs, rl, towards) = if r1 <= r2 {
+        (c1, r1, r2, u)
+    } else {
+        (c2, r2, r1, (-u.0, -u.1))
+    };
+    let (lens, inner) = (rs + rl - d, d + rs - rl);
+    if !(lens > 0.0 && inner > 0.0) {
+        return Vec::new();
+    }
+    let x = rs - lens * (rl + d - rs) / (2.0 * d);
+    let y = (lens * inner * (d + rl - rs) * (d + rs + rl)).sqrt() / (2.0 * d);
+    [-1.0, 1.0]
+        .into_iter()
+        .map(|s| {
+            (
+                small.0 + x * towards.0 - s * y * towards.1,
+                small.1 + x * towards.1 + s * y * towards.0,
+            )
+        })
+        .collect()
 }
 
 /// What the pair pass read.
@@ -320,9 +335,9 @@ fn sweep_of(rng: &mut fuzz::Rng, small: f64) -> f64 {
 
 /// A circle, and a line or a second circle tangent to it to within ε,
 /// or cutting it by 1.5 to 6 Kε (externally, internally, or nearly
-/// concentric inside it), each segment reaching up to four times the
-/// near stretch either side of the closest point, or sweeping up to
-/// 10⁻³ short of a full turn.
+/// concentric inside it, the centres from Kε to 10⁻²·r apart), each
+/// segment reaching up to four times the near stretch either side of
+/// the closest point, or sweeping up to 10⁻³ short of a full turn.
 fn near(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
     let c = (rng.range(-2.0, 2.0), rng.range(-2.0, 2.0));
     let r = 10f64.powf(rng.range(-1.0, 0.5));
@@ -334,7 +349,22 @@ fn near(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
         -k * eps * rng.range(1.5, 6.0)
     };
     let tangency = at(c, r, toward);
-    let reach = (2.0 * r * (eps - gap)).sqrt().max(k * eps);
+    let family = rng.below(4);
+    // A nearly concentric second circle, its centre as little as Kε
+    // off: the carriers stay within ε for an angle of about
+    // √(2(ε − gap)/off) either side of the tangency, up to a radian.
+    let off = (family == 3).then(|| {
+        if rng.unit() < 0.5 {
+            r * 10f64.powf(rng.range(-7.0, -2.0))
+        } else {
+            (-gap).max(0.0) + k * eps * 10f64.powf(rng.range(0.0, 3.0))
+        }
+    });
+    let reach = match off {
+        Some(off) => r * (2.0 * (eps - gap) / off).sqrt().min(1.0),
+        None => (2.0 * r * (eps - gap)).sqrt(),
+    }
+    .max(k * eps);
     // An arc on the first circle around the tangency point.
     let arc_near = |rng: &mut fuzz::Rng, c: P, r: f64, toward: f64| Shape::Arc {
         c,
@@ -343,7 +373,7 @@ fn near(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
         sweep: sweep_of(rng, reach / r),
     };
     let s1 = arc_near(rng, c, r, toward);
-    let s2 = match rng.below(4) {
+    let s2 = match family {
         0 => {
             // A line tangent to the circle at `tangency`, `gap` outside.
             let n = (toward.cos(), toward.sin());
@@ -369,9 +399,9 @@ fn near(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
                     let r2 = r2.min(0.9 * r);
                     (r2, r - r2 + gap)
                 }
-                // Inside it, its centre as little as 10⁻⁷·r off.
+                // Inside it, nearly concentric.
                 _ => {
-                    let off = r * 10f64.powf(rng.range(-7.0, -2.0));
+                    let off = off.expect("the concentric family draws an offset");
                     (r - off, off + gap)
                 }
             };
@@ -649,4 +679,179 @@ fn rivals(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
         }
     };
     if rng.unit() < 0.5 { (s1, s2) } else { (s2, s1) }
+}
+
+/// What validation's pair judgement read of a joint's two arcs.
+enum Judged {
+    /// No contact but the shared vertex's.
+    Clear,
+    /// A contact it refused, or an escalation.
+    Refused,
+    /// A segment the build refused, which no draw counts.
+    Unbuilt,
+}
+
+/// Judges the arcs `s1` into the joint `v` and `s2` out of it as one
+/// loop's adjacent pair (`validate::judge_pair`, the shared-vertex
+/// discount included), the loop closed by a line.
+fn judge_joint<T: Decide>(s1: Shape, s2: Shape, v: P, band: Band) -> Judged {
+    use crate::{ProfileLoop, RawLoop};
+    let pt = |p: P| Point2::new(T::from_f64(p.0), T::from_f64(p.1));
+    let arc = |s: Shape| match s {
+        Shape::Arc { c, r, sweep, .. } => Segment::Arc(Arc2 {
+            centre: pt(c),
+            radius: T::from_f64(r),
+            sweep: T::from_f64(sweep),
+        }),
+        Shape::Line { .. } => Segment::Line,
+    };
+    let lp = ProfileLoop::new([
+        (pt(s1.ends()[0]), arc(s1)),
+        (pt(v), arc(s2)),
+        (pt(s2.ends()[1]), Segment::Line),
+    ]);
+    let Ok(segs) = crate::validate::build_loop_segs(&lp, 0, Consistency::Decide, band) else {
+        return Judged::Unbuilt;
+    };
+    match crate::validate::judge_pair(&[lp], &[segs], (0, 0), (0, 1), band) {
+        Ok(()) => Judged::Clear,
+        Err(_) => Judged::Refused,
+    }
+}
+
+/// A joint on circles within the band of internal tangency: the second
+/// circle's centre from Kε to a third of the radius off the first's,
+/// its internal clearance within 1.2ε, and the joint on the first
+/// circle at the tangency direction, at an edge of the band along it,
+/// or anywhere along the stretch where the circles stay within ε.
+/// The first arc arrives at the joint and the second leaves it either
+/// way, at a cusp or a smooth joint, each reaching a few times that
+/// stretch or up to 10⁻³ short of a full turn. Returns the two arcs and
+/// the joint.
+fn joint(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape, P) {
+    let sign = |rng: &mut fuzz::Rng| if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+    let c = (rng.range(-2.0, 2.0), rng.range(-2.0, 2.0));
+    let r = 10f64.powf(rng.range(-1.0, 0.5));
+    let toward = rng.range(0.0, TAU);
+    let d = if rng.unit() < 0.5 {
+        r * 10f64.powf(rng.range(-7.0, -0.5))
+    } else {
+        k * eps * 10f64.powf(rng.range(0.0, 3.0))
+    };
+    let g = if rng.unit() < 0.5 {
+        eps * rng.range(-1.2, 1.2)
+    } else {
+        eps * [0.0, 0.5, 0.999, 1.0][rng.below(4)] * sign(rng)
+    };
+    let (c2, r2) = ((c.0 + d * toward.cos(), c.1 + d * toward.sin()), r - d + g);
+    // The circles stand |g − d(1 − cos θ)| apart at θ off the tangency
+    // direction, within ε out to this angle.
+    let stretch = (2.0 * (eps + g).max(0.0) / d).sqrt().min(PI);
+    let off = match rng.below(4) {
+        0 => 0.0,
+        1 => edge(rng, eps, k) / r,
+        2 => sign(rng) * stretch * rng.unit(),
+        _ => sign(rng) * stretch * (1.0 + rng.range(-1e-3, 1e-3)),
+    };
+    let v = at(c, r, toward + off);
+    let sweep = |rng: &mut fuzz::Rng| sweep_of(rng, stretch.max(k * eps / r));
+    let w1 = sweep(rng);
+    let s1 = Shape::Arc {
+        c,
+        r,
+        start: toward + off - w1,
+        sweep: w1,
+    };
+    let s2 = Shape::Arc {
+        c: c2,
+        r: r2,
+        start: (v.1 - c2.1).atan2(v.0 - c2.0),
+        sweep: sweep(rng),
+    };
+    (s1, s2, v)
+}
+
+/// **A joint's arcs read clear only where they cross, if at all,
+/// within a tangency's reach of the joint**: a counterexample search
+/// over [`joint`] at `f64` and at `Interval`. Carriers within ε of
+/// internal tangency read as a tangency only where their chord's
+/// sagitta is within ε, whose ends stand within √(2r·ε) of its foot,
+/// and a cusp there is a tangent cusp. A sagitta within the band reads
+/// clear only where the crossings and the tangency agree, which a cusp
+/// holding a crossing does not. So a crossing of the two arcs that
+/// stands farther from the joint than the joint does from the tangency
+/// direction, plus 1.5·√(2r·ε) (that half-chord, with room for the two
+/// circles' sagittas differing by g), is one the shared-vertex discount
+/// must not absorb. One nearer the tangency is a tangent cusp's, which
+/// `a-cusp-on-nested-near-concentric-carriers-validates-along-a-long-eps-stretch`
+/// holds.
+#[test]
+fn a_joint_reads_clear_only_where_its_arcs_cross_near_it() {
+    let t = Tol::witness().get();
+    let band = Band::linear(Tol::witness()).expect("the run's band");
+    let mut rng =
+        fuzz::start("seg_reach_fuzz::a_joint_reads_clear_only_where_its_arcs_cross_near_it");
+    let mut wrong = Vec::new();
+    let (mut crossing, mut refused, mut unbuilt) = (0, 0, 0);
+    for (scalar, n) in [
+        ("f64", fuzz::scaled(20_000)),
+        ("Interval", fuzz::scaled(5_000)),
+    ] {
+        for _ in 0..n {
+            let (s1, s2, v) = joint(&mut rng, t.eps, t.k);
+            let (
+                Shape::Arc {
+                    c: c1,
+                    r: r1,
+                    start: a1,
+                    sweep: w1,
+                },
+                Shape::Arc {
+                    c: c2,
+                    r: r2,
+                    start: a2,
+                    sweep: w2,
+                },
+            ) = (s1, s2)
+            else {
+                unreachable!("a joint draws two arcs")
+            };
+            let tangency = at(c1, r1, (c2.1 - c1.1).atan2(c2.0 - c1.0));
+            let reach = dist(v, tangency) + 1.5 * (2.0 * r1.max(r2) * t.eps).sqrt();
+            let far = crossings((c1, r1), (c2, r2)).into_iter().find(|&p| {
+                on_arc(a1, w1, (p.1 - c1.1).atan2(p.0 - c1.0))
+                    && on_arc(a2, w2, (p.1 - c2.1).atan2(p.0 - c2.0))
+                    && dist(p, v) > reach
+            });
+            let judged = if scalar == "f64" {
+                judge_joint::<f64>(s1, s2, v, band)
+            } else {
+                judge_joint::<Interval>(s1, s2, v, band)
+            };
+            match judged {
+                Judged::Unbuilt => unbuilt += 1,
+                Judged::Refused => refused += 1,
+                Judged::Clear => {}
+            }
+            if let (Some(p), Judged::Clear) = (far, &judged) {
+                wrong.push(format!(
+                    "{scalar}: {s1:?} × {s2:?} at {v:?}: clear, crossing at {p:?}, {:e} from the joint",
+                    dist(p, v)
+                ));
+            }
+            if far.is_some() && !matches!(judged, Judged::Unbuilt) {
+                crossing += 1;
+            }
+        }
+    }
+    println!(
+        "{crossing} joints crossing away from the joint; {refused} refused; {unbuilt} unbuilt"
+    );
+    assert!(
+        wrong.is_empty(),
+        "{} joints crossing away from the joint read clear, e.g.\n{}\n{}",
+        wrong.len(),
+        wrong[..wrong.len().min(5)].join("\n"),
+        fuzz::replay()
+    );
 }

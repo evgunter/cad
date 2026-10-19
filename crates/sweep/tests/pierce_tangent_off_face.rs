@@ -281,7 +281,7 @@ fn a_touch_just_inside_the_lens_face_refuses() {
 fn a_touch_outside_the_lens_face_within_reach_of_its_rim_along_it_builds() {
     let theta = rim_angle() + 0.3 * reach(R1);
     let band = Band::linear(Tol::witness()).unwrap();
-    let pad = band.escalate() + 2.0 * band.zero();
+    let pad = topo::test_support::sweep_pad(band);
     assert!(
         RIM - theta.cos() >= 60.0 * pad,
         "the edge's gap below the cap, {}, against the pad {pad}",

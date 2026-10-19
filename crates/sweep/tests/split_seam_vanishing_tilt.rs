@@ -49,7 +49,13 @@ fn cylinder(phi: f64) -> AtRestBody<f64> {
 /// - check 1, a frame whose rounding the arm lifts past ε
 ///   (`UnrepresentableCurveDatum` on the ellipse's `u_ref`), which still
 ///   ends as a defect
-///   (`work/restfront/tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis.md`).
+///   (`work/restfront/tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis.md`);
+/// - check 9's pinch corner: the side ends with maximal faces, so its
+///   two half-walls merge across the seam and the wall's loop passes
+///   `v` twice, between the rim and the ellipse leaving it at a turn of
+///   about `ψ`; read in the band it is undecided, and past it at
+///   ε = 1e-12 the rounding reads it crossed, both ending as a defect
+///   (`work/wire/a-split-merging-a-two-piece-wall-reads-its-seam-vertex-as-a-pinch-corner.md`).
 fn carrier_resolution(e: &ValidationError) -> bool {
     use geom_brep::props::{PropsCheck, PropsError};
     use topo::MassPropsError;
@@ -79,7 +85,9 @@ fn carrier_resolution(e: &ValidationError) -> bool {
             kind: geom::CurveKind::Ellipse,
             datum: geom::CurveDatum::URef,
             ..
-        } => true,
+        }
+        | ValidationError::PinchCornerEscalated { .. }
+        | ValidationError::PinchCornerCrossed { .. } => true,
         _ => false,
     };
     ending && !msg.contains("tighten") && !msg.contains("move the")
@@ -165,7 +173,9 @@ fn a_split_through_a_seam_vertex_returns_no_side_tier_three_refuses() {
     }
     assert!(answered >= 20, "the ψ = 10⁻³ poses answer: {answered}");
     // Measured: 26 at ε = 1e-9, 28 at 1e-12, none at 1e-6, where
-    // the semi-axis's rounding stays inside ε.
+    // the semi-axis's rounding stays inside ε (re-measured with each
+    // split half ending with maximal faces: the same counts, the same
+    // poses).
     if tol().eps() <= 1e-9 {
         assert!(
             refused_at_rest > 0,

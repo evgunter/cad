@@ -48,9 +48,10 @@ use crate::blend::battery::{EndSection, cap_incidence};
 use crate::blend::naming::BlendNaming;
 use crate::blend::reach::{EDGE_SAMPLES, sure};
 use crate::blend::surgery::{
-    ContactCarrier, Piece, SourceFaces, SplitFragments, chord_site, disagrees, face_of_half,
-    halves_of, op, piece_along, piece_distance, point_of, retire_fragment, split_fragment,
-    split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out, unresolved,
+    ContactCarrier, Piece, SourceFaces, SplitFragments, arc_window, chord_site, disagrees,
+    face_of_half, halves_of, op, piece_along, piece_distance, point_of, retire_fragment,
+    split_fragment, split_param_in_span, stored_piece, unbuilt_geometry, unbuilt_run_out,
+    unresolved,
 };
 use crate::blend::{BlendDecision, BlendError, BlendSite, classify};
 
@@ -881,8 +882,7 @@ impl<T: Decide + Bounds> CapSliver<T> {
                          the other",
                     )
                 };
-                let ta = arc.param_near(foot_a, T::zero()).ok_or_else(backward)?;
-                let tb = arc.param_near(foot_b, ta).ok_or_else(backward)?;
+                let (ta, tb) = arc_window(arc, foot_a, foot_b).ok_or_else(backward)?;
                 if (tb - ta).lo() <= 0.0 {
                     return Err(backward());
                 }
