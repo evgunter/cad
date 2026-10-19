@@ -2,11 +2,12 @@
 id: props-torus-lift-and-gauss-bonnet-fan-pick-a-branch-by-floor
 kind: issue
 title: the props torus lift and the Gauss–Bonnet fan pick a whole-period branch by floor
-status: review
+status: closed
+pr: 5375
+closed: 2026-10-19
 opened: 2026-10-13
 priority: P3
 cost: E
-branch: flux/e-bundle-lane-honesty
 refs: [periodic-branch-floor-remains-at-the-raw-picks, periodic-branch-floor-remains-at-three-sites]
 ---
 

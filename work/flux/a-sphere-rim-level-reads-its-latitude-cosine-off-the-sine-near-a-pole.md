@@ -2,11 +2,12 @@
 id: a-sphere-rim-level-reads-its-latitude-cosine-off-the-sine-near-a-pole
 kind: issue
 title: The sphere's linear boundary completes a latitude level's cosine as sqrt(1 - s^2), which carries about sqrt(2u) near a pole, so a rim point there sits about r*sqrt(2u) off
-status: review
+status: closed
+pr: 5375
+closed: 2026-10-19
 opened: 2026-10-13
 priority: P3
 cost: E
-branch: flux/e-bundle-lane-honesty
 ---
 
 Found by the class sweep of `pcert/cone-section-interval-beta` (PR

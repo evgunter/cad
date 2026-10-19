@@ -2,11 +2,12 @@
 id: cylinder-axis-inside-reads-the-surface-radius-not-the-rims
 kind: issue
 title: The cylinder decides props_chart_axis_inside at its surface radius, escalating a legal face whose rims the axis class admits
-status: review
+status: closed
+pr: 5375
+closed: 2026-10-19
 opened: 2026-10-19
 priority: P3
 cost: E
-branch: flux/e-bundle-lane-honesty
 ---
 
 Found by the FLUX cone-closure unit (`flux/cone-closure-and-per-term-whole`,

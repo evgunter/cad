@@ -2,11 +2,12 @@
 id: the-whole-body-pad-sum-rounds-to-nearest-and-the-enclosure-doc-scales-the-wrong-term
 kind: issue
 title: fold_runs sums flux_pad/area_pad round-to-nearest (not outward), and MassProperties::enclosure's error argument scales with |volume| where the fold's error scales with the sum of |face terms|
-status: review
+status: closed
+pr: 5375
+closed: 2026-10-19
 opened: 2026-10-12
 priority: P3
 cost: E
-branch: flux/e-bundle-lane-honesty
 refs: [4830, the-whole-body-property-fold-depends-on-face-order]
 ---
 
