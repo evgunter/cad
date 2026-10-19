@@ -1560,3 +1560,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - CI's only red was the CPAIR needle at 1e-12, which is red on main and recorded in `curve-pair-polish-meters-refuse-shallow-meetings`. Merged per the standing ruling; the attribution is commented on the PR.
   - **#5414** (build A, binomials fold, PR 1 of `binomial-bernstein-product-and-blossom-have-two-homes-each`, head 3a412f92) has a FULL reviewer, session_01SkTY8ainEoh2LQ17kMnQMk.
 - 2026-10-19 22:20Z — **#5404 merged** (f45f2ac4, the #5391 review follow-ups; CI fully green). `cell_pieces`' copy of the halving schedule goes to build A as a follow-up after #5399. #5399 still merges cleanly with main.
+- 2026-10-19 22:50Z — **#5399 merged** (e2ee445a; each cell halves each shared weight power once).
+  - **FULL review MERGEABLE:** 0 MAJOR / 2 MINOR / 1 NIT. Bit-identity holds, with 4 mutants red. 3460/3460 at all three ε, `limb_three` byte-identical, callgrind −11.1% reproduced.
+  - **MINORs routed:**
+    - M1 (the cut side's `shared_pieces` switch was unscheduled) is filed as `cut-side-quotients-halve-the-shared-weight-power-per-axis`, which also carries M2 (`WEIGHT_HALVINGS` counts calls, not halvings);
+    - the NIT (the bit row skips `cell_quotients`' arms) and the `halving_counts` switch in `cell_pieces` go to build A's follow-up.
+  - Reviewer archived.
