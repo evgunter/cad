@@ -68,7 +68,9 @@
 //! at an enclosure scalar an arc whose weight `cos(Δ/2)` is wider than a
 //! point refuses at the carrier's door
 //! (`SplineError::CarrierWeightNotAPoint`, until C6's S4/S5), as does an
-//! interior averaged knot wider than a point. An arc's sweep structure
+//! interior averaged knot wider than a point (`CarrierKnotNotAPoint`:
+//! the fit encloses over it, C6 S5c, and the wall's carrier refuses it
+//! until S5z). An arc's sweep structure
 //! (non-zero, its sub-arc count, a turn) is certified for every value
 //! it stands for ([`SkinError::ArcSweepUndecided`]). The knot algebra
 //! that makes sections compatible runs homogeneous at an enclosure
@@ -855,7 +857,10 @@ fn chord_length_parameters<T: SpanLocate>(
 /// [`SkinError::TooFewSections`], [`SkinError::BadDegree`],
 /// [`SkinError::SectionShapeMismatch`] for sections that did not come
 /// out of [`make_compatible`], [`SkinError::NoParameterStep`],
-/// [`SkinError::Fit`] for a degenerate collocation system, and
+/// [`SkinError::Fit`] for a degenerate collocation system (at an
+/// enclosure scalar, also one whose elimination over the sections'
+/// enclosures leaves a pivot undecided, though every member's system is
+/// regular), and
 /// [`SkinError::Structure`] — notably a non-positive interpolated
 /// weight, refused at the door because the convex-hull invariant every
 /// C9 bound stands on requires `w > 0`.

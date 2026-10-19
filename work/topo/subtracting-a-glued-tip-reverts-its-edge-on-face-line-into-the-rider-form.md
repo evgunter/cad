@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-14
 priority: P2
 cost: M
-blocked_on: [4795]
 refs: [revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet, census-passes-a-face-inside-an-edges-material-wedge]
 ---
 
@@ -47,3 +46,6 @@ covers an edge lying in a face, the ∖ doors refuse typed where the
 reverted part keeps an edge-on-face record (and a face–face line
 touch). Blocked on 4795: under today's text the rider form is not yet
 a defect.
+
+
+**Unblocked (CLEAVE, 2026-10-19).** `[ev]` PR 4795 merged (`0a702a9bc1`). Ev ratified the D1 sentence in `crates/topo/README.md` tier 3: where more than two sheets meet on a line, the material decides the edges, and the complement re-pairs. Radial edges were declined.

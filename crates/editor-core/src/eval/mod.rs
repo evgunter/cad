@@ -3031,6 +3031,7 @@ pub trait EvalScalar:
     + crate::analysis::SeedScalar
     + crate::measure::MinClearanceLane
     + crate::mate::SolveScalar
+    + crate::checks::at_rest::LocalizeLane
 {
 }
 
@@ -3045,6 +3046,7 @@ impl<T> EvalScalar for T where
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
         + crate::mate::SolveScalar
+        + crate::checks::at_rest::LocalizeLane
 {
 }
 

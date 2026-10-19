@@ -38,7 +38,7 @@ use std::collections::BTreeMap;
 
 use geom::SurfaceKind;
 use geom::{NetState, Surface};
-use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
+use geom_brep::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass, Unsized};
 use geom_core::{Band, BandError, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
@@ -1134,7 +1134,7 @@ const DECLARED_ORIENTATION: SizedDecision = SizedDecision {
             span a length",
     size: "span of the two faces",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -1147,7 +1147,7 @@ const LOOP_WINDING: SizedDecision = SizedDecision {
     lever: "reshape the merged faces so each loop of the result clearly encloses an area",
     size: "area a loop encloses over its length",
     passes: SizedPass::NonZero,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
