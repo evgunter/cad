@@ -10,3 +10,4 @@
 | FORK-SPANCHORD | a-chord-spanning-two-merged-constituents-has-no-name | 197 | odd: Fable is A, Opus is B |
 | FORK-INPLANE | a-split-names-an-operand-edge-in-its-plane-as-a-section-chord | 153 | odd: Fable is A, Opus is B |
 | FORK-ROWPRESENCE | three-member-coincidence-rows-may-not-be-order-free-once-a-fourth-member-covers-them | 128 | even: Opus is A, Fable is B |
+| FORK-DEFECT | a-kernel-defect-is-a-panic-or-a-typed-refusal-and-nothing-says-which | 135 | odd: Fable is A, Opus is B |
