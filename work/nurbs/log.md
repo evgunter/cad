@@ -1534,3 +1534,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Margins: r1's four loosen by 2–3e-13, m5's 4 of 241 tighten by up to 5.6e-12. Rungs are identical.
   - It waited out the copysign census main red, which GERM fixed in 22b62668 (Oct 15).
   - **Build C's next unit:** `cheapen-the-restriction-cut-steps-2-to-4`, axis-lazy first, every step bit-identical and timed. The adaptive block split is held until those are measured.
+- 2026-10-19 19:10Z — **#5391 merged** (dfdb5349): axis-lazy restriction. One-axis readers restrict only `N_d` and `W²`.
+  - Bit-identical end to end: the `limb_three` probe matches line for line on 285 decisions (shelling 12, r1 6, m5 258, section 9). The reviewer measured shelling −14% and r1 −35% against main, build C −16% and −36%.
+  - **Steps 2–3 of the follow-up are closed as measured-not-worth-it:** about 2–3% each, and `stretch_within` reads distinct windows. The remaining lever on the cut's arithmetic is #5163's `mul_nonneg` in the thin step, after #5163 lands.
+  - **MINOR, to the next unit:** no geom-core row pins `N` and `W²` cut over the same region (mutant M3 survives every test). It rides build C's next PR with an independent oracle row.
+  - **Build C's next unit:** a per-door piece schedule. `beyond_reach` (skip-only) reads one piece. `clears` reads one piece only if `Within` is independently certified; that is pending C's argument. It measured zero moves across 45,715 reads.
+  - **#5163** (`mul_nonneg`) is MERGEABLE but held behind four main reds at 1e-12, owned by FLUX and CPAIR.
