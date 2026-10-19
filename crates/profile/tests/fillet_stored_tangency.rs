@@ -304,28 +304,20 @@ fn a_fillet_the_stored_form_carries_builds_and_validates() {
 /// every corner the door builds whose legs stand 1.5Kε apart or more
 /// validates, across five radii and seven decades of turn.
 ///
-/// Where the door builds such a corner depends on ε: at 1e-6 the
-/// offset-lever gate admits turns whose fillet chord is a few Kε, and
-/// at finer ε it refuses them first, so the run prints how many
-/// corners it read within 10Kε.
+/// Where the door builds such a corner depends on ε, so the run prints
+/// how many corners it read within 10Kε.
 #[test]
 fn a_shallow_arc_x_arc_corner_validates_wherever_its_legs_stand_apart() {
     let kk = tol().k() * tol().eps();
-    // The item's witness: at 1e-6 the door builds it with its legs
-    // 1.11Kε apart, and the finer rows refuse it at the door.
-    match arc_arc(5e-5, R) {
-        Ok(lp) => {
-            assert!(
-                tol().eps() >= 1e-6,
-                "theta = 5e-5: the door refuses it below eps = 1e-6"
-            );
-            validates(lp, tol()).unwrap_or_else(|e| panic!("theta = 5e-5: validates, got {e}"));
-        }
-        Err(e) => assert!(
-            tol().eps() < 1e-6,
-            "theta = 5e-5: the door builds it at eps = 1e-6, got {e}"
-        ),
-    }
+    // The item's witness refuses at the door on every row: the finer
+    // rows at the offset-lever gate, and 1e-6 at the stored form, whose
+    // 1.1e-5 m fillet is stored as its chord, which turns from each leg
+    // by half the corner's turn, a corner at the legs' arm.
+    let witness = arc_arc(5e-5, R);
+    assert!(
+        witness.is_err(),
+        "theta = 5e-5: the door refuses it, got {witness:?}"
+    );
     let (mut read, mut near) = (0, 0);
     for radius in [0.02, 0.05, 0.2, 0.5, 1.0] {
         for i in 0..=70 {
@@ -465,7 +457,7 @@ fn corpus() -> Vec<(String, ConstructedLoop<f64>)> {
     // outside them says so rather than guessing.
     let expected = match format!("{:e}", tol().eps()).as_str() {
         "1e-9" => Some(24),
-        "1e-6" => Some(32),
+        "1e-6" => Some(24),
         "1e-12" => Some(16),
         _ => None,
     };
@@ -705,10 +697,12 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 /// two circle forms joined the corpus (`shared coverage corpus 14`,
 /// `15`), and no vertex, arc field or verdict moved.
 const GOLDEN_DEFAULT: u64 = 0xe1b3_65a1_364f_8e39;
-/// The same at `CAD_TOLERANCE_EPS=1e-6`, where `arc x arc c=0.3
-/// r=0.05` validates: its legs stand ≈ 1.5Kε apart across the carriers'
-/// shallow crossing, which their ends settle.
-const GOLDEN_1E6: u64 = 0xe3d1_677d_641b_b92e;
+/// The same at `CAD_TOLERANCE_EPS=1e-6`. Re-derived when the joints
+/// began to read their turn: the eight `arc x arc` corners at
+/// `c = 0.1` (r = 0.2, 0.5), `0.3` and `1` left the corpus, their
+/// fillet stored as a chord that turns from each leg by half the
+/// corner's turn, which the door now refuses; no other row moved.
+const GOLDEN_1E6: u64 = 0xc092_9140_5699_3b16;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
 const GOLDEN_1E12: u64 = 0x91bf_eae3_1d8f_d451;
 

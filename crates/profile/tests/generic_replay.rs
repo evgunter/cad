@@ -222,10 +222,12 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
 /// arriving at the door instead of after it: the same refusal, earlier,
 /// and the loop it withholds is one nothing downstream could have used.
 ///
-/// No corpus row is in that state at any ε row: a fillet arc stores
-/// the carrier its construction built — its centre and the authored
-/// radius — so its clearance against each carrier it is tangent to is
-/// read on those values, not on a carrier re-derived from its chord.
+/// Two corpus rows are in that state, at 1e-12 only: the read decides
+/// each declared joint by its turn levered by the joint's arm, which is
+/// first order in the stored vertex and carrier, and at `Interval`
+/// their construction's enclosures put that turn's enclosure across ε
+/// (`[0, 1.9e-12]` and `[0, 2.4e-12]`) where `f64` reads it Zero. They
+/// are pinned per ε row below.
 ///
 /// The census therefore keeps its teeth where its subject is: the
 /// escalations that are NOT the door relaying a stored-form
@@ -253,10 +255,14 @@ fn no_corpus_row_escalates_at_interval() {
             .predicate
             .filter(|name| EXEMPTED_STORED_FORM.contains(name))
     }
-    // The relayed set is PINNED, not merely printed, and it is empty:
-    // a relay joining it is a new fact about the door and reds this
+    // The relayed set is PINNED per ε row, not merely printed: a relay
+    // joining or leaving it is a new fact about the door and reds this
     // row, so there is no standing pass for six predicate names.
-    let pinned: &[(usize, &str)] = &[];
+    let pinned: &[(usize, &str)] = if format!("{:e}", tol().eps()) == "1e-12" {
+        &[(1, "path_junction_turn"), (13, "path_junction_turn")]
+    } else {
+        &[]
+    };
     let mut escalated: Vec<(usize, Vec<Verb>, String)> = Vec::new();
     let mut relayed: Vec<(usize, String)> = Vec::new();
     for (i, closed) in coverage_corpus().into_iter().enumerate() {

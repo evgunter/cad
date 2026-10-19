@@ -1207,11 +1207,12 @@ pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
 /// run's ε row, pinned per row so a fillet answer cannot slide into
 /// that bucket unnoticed. A row CI does not gate has no pin.
 pub fn past_the_corner_pin() -> Option<usize> {
-    let eps = tol().eps();
-    [(1e-6, 34), (1e-9, 4), (1e-12, 0)]
-        .into_iter()
-        .find(|&(row, _)| row == eps)
-        .map(|(_, n)| n)
+    match format!("{:e}", tol().eps()).as_str() {
+        "1e-6" => Some(34),
+        "1e-9" => Some(4),
+        "1e-12" => Some(0),
+        _ => None,
+    }
 }
 
 /// **The line×arc authoring**: a ray from `(sx·R/2, 0)` east onto the
