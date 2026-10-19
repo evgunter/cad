@@ -2,7 +2,8 @@
 id: tangent-arc-near-a-full-turn-loses-its-end-vertex
 kind: issue
 title: paths: a tangent arc whose target is nearly behind the tip computes its quarter-tangent through a cancelling denominator; the stored arc misses its own end vertex, silently at f64
-status: open
+status: dispatched
+branch: paths/tangent-arc-near-full-turn
 opened: 2026-10-19
 priority: P1
 cost: M
