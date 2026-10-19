@@ -471,6 +471,11 @@ pub(crate) struct ProfilePre {
     /// The discrete decisions this f64 pass made — the witness the
     /// lift's second pass consumes and re-verifies at its own scalar.
     pub structure: profile::ProfileStructure,
+    /// What the second pass logs at `f64` over the nominal, in order:
+    /// the replay's and validation's decisions less those guidance pins
+    /// ([`profile::PINNED_UNDER_GUIDANCE`]). The `f64` lane that skips
+    /// the pass logs this in its place ([`super::ProfileLane`]).
+    pub decided: geom_core::k_stats::Recorded,
 }
 
 /// An arc's stored fields as bits — centre, radius, sweep — for the

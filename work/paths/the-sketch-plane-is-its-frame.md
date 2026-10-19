@@ -78,10 +78,10 @@ decision record):
   `f64` lane over the nominal takes the first pass's validated form
   (`editor_core::ProfileLane`, sealed, per scalar; held bit for bit
   against the second pass run at `f64` by
-  `m10_p_lift::the_f64_lane_is_the_second_pass_bit_for_bit`). The E6
-  drive's `f64` witness runs the second pass anyway
-  (`eval::evaluate_witness`), because its verdict log is compared with
-  each leaf's. INLANE's `the-pinned-profile-lift-launders-at-sym` is
+  `m10_p_lift::the_f64_lane_is_the_second_pass_bit_for_bit`), and
+  logs the first pass's decisions again in the second pass's place
+  (`k_stats::relog`), so its verdict log is the one a second pass
+  leaves and compares with any lane's. INLANE's `the-pinned-profile-lift-launders-at-sym` is
   narrowed to the loft's enclosure arm, `lift_onto`'s last production
   consumer.
 - `RigidMotion::turned_between` (one decision, `1 + a·b > 0`, ledger

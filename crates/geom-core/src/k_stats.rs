@@ -1308,6 +1308,25 @@ pub fn splice_superseded(recording: Detached) {
     splice_channels(recording, false);
 }
 
+/// **Appends a recording's verdicts and escalations to this thread's
+/// open frame**, for a pass the caller does not run because it knows
+/// what that pass decides: the frame then holds what running it would
+/// have recorded.
+///
+/// The caller owes that knowledge at its own site, held by a row that
+/// runs the pass and compares the two logs. No margin is measured, so
+/// no sample reaches the sink.
+pub fn relog(recorded: &Recorded) {
+    FRAMES.with(|f| {
+        if let Some(top) = f.borrow_mut().last_mut() {
+            top.recorded.verdicts.extend_from_slice(&recorded.verdicts);
+            top.recorded
+                .escalations
+                .extend_from_slice(&recorded.escalations);
+        }
+    });
+}
+
 /// The one body behind [`splice`] and [`splice_superseded`]: they differ
 /// only in whether the escalation channel travels.
 fn splice_channels(recording: Detached, escalations: bool) {

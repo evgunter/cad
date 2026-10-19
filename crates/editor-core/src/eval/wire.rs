@@ -170,8 +170,8 @@ pub(crate) struct LaneEnv<'a, T> {
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
     pub nominal: &'a crate::expr::VarEnv<f64>,
-    /// Whether an `f64` lane runs the second pass anyway, so its log
-    /// compares with a lane scalar's ([`super::PassTwo`]).
+    /// Whether an `f64` lane over the nominal takes the first pass's
+    /// form ([`super::PassTwo`]).
     pub pass_two: super::PassTwo,
 }
 
@@ -188,7 +188,8 @@ impl<T: super::ProfileLane> LaneEnv<'_, T> {
             super::PassTwo::SkippedAtF64 => {
                 T::pass_one(&pre.validated_f64, self.params, self.nominal)
             }
-            super::PassTwo::Always => None,
+            #[cfg(any(test, feature = "test-support"))]
+            super::PassTwo::Run => None,
         }
     }
 }
@@ -1423,8 +1424,9 @@ fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
 /// decisions are logged as the node's own. At `f64` the validated
 /// form IS the op's value, on the lane's plane (`wire_profile`,
 /// [`super::ProfileLane`]), so the node decides each structure question
-/// once. VQ6: replay and validation run
-/// under the same tolerance the evaluation pins.
+/// once, and logs in the second pass's place what that pass decides
+/// ([`ProfilePre::decided`]). VQ6: replay and
+/// validation run under the same tolerance the evaluation pins.
 pub(crate) fn prepare_profile(
     placement: Option<profile::SketchPlane<f64>>,
     resolved: &[Vec<profile::Step<f64>>],
@@ -1435,20 +1437,36 @@ pub(crate) fn prepare_profile(
     // derived frame's profile (DM1c). No decision below reads it: what
     // places the profile is the lane's frame (`frame_plane_lane`).
     let plane = placement.unwrap_or_else(profile::SketchPlane::xy);
-    let mut loops = Vec::with_capacity(resolved.len());
-    let mut replay_records = Vec::with_capacity(resolved.len());
-    for (li, steps) in loop_coordinates(resolved.len())?.zip(resolved) {
-        let (lp, record) = profile::replay_recording(steps, tol)
-            .map_err(|error| NodeErrorKind::ProfileReplay { loop_: li, error })?;
-        loops.push(lp);
-        replay_records.push(record);
-    }
-    // The loops are the replay's own construction, so validation
-    // decides no arc's consistency checks (D1).
-    let replayed = profile::ConstructedProfile::new(plane, loops);
-    let (validated_f64, canonical) = replayed
-        .validate_recording(tol)
-        .map_err(NodeErrorKind::Profile)?;
+    let (elaborated, recording) = geom_core::k_stats::detached(|| {
+        let mut loops = Vec::with_capacity(resolved.len());
+        let mut replay_records = Vec::with_capacity(resolved.len());
+        for (li, steps) in loop_coordinates(resolved.len())?.zip(resolved) {
+            let (lp, record) = profile::replay_recording(steps, tol)
+                .map_err(|error| NodeErrorKind::ProfileReplay { loop_: li, error })?;
+            loops.push(lp);
+            replay_records.push(record);
+        }
+        // The loops are the replay's own construction, so validation
+        // decides no arc's consistency checks (D1).
+        let replayed = profile::ConstructedProfile::new(plane, loops);
+        let (validated_f64, canonical) = replayed
+            .validate_recording(tol)
+            .map_err(NodeErrorKind::Profile)?;
+        Ok((replayed, replay_records, validated_f64, canonical))
+    });
+    let pinned = |name: &str| profile::PINNED_UNDER_GUIDANCE.contains(&name);
+    let decided = geom_core::k_stats::Recorded {
+        verdicts: (recording.recorded().verdicts.iter())
+            .filter(|v| !pinned(v.predicate))
+            .copied()
+            .collect(),
+        escalations: (recording.recorded().escalations.iter())
+            .filter(|e| !pinned(e.predicate()))
+            .copied()
+            .collect(),
+    };
+    geom_core::k_stats::splice(recording);
+    let (replayed, replay_records, validated_f64, canonical) = elaborated?;
     let naming = anchor::derive_naming(&validated_f64, replayed.loops()).ok_or({
         // A canonical loop matched no program loop: an internal break.
         // The loop coordinate is not recoverable; 0 names the walk.
@@ -1466,6 +1484,7 @@ pub(crate) fn prepare_profile(
             replay: replay_records,
             canonical,
         },
+        decided,
     })
 }
 
@@ -1543,9 +1562,12 @@ fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
     let plane = frame_plane_lane(doc, results, frame, lane.params, tol)?;
     let validated = match lane.pass_one(pre) {
         // The `f64` lane IS the first pass, so its validated form is the
-        // value, on the plane minted at the lane: no second pass, and
-        // the node's log is the first pass's.
-        Some(pass_one) => pass_one.clone().on_plane(plane),
+        // value, on the plane minted at the lane, and the node logs what
+        // the second pass it skips decides.
+        Some(pass_one) => {
+            geom_core::k_stats::relog(&pre.decided);
+            pass_one.clone().on_plane(plane)
+        }
         None => lane_profile::<T>(program, plane, lane, pre, tol)?,
     };
     Ok(ValuePayload::Profile(Arc::new(ProfileValue {

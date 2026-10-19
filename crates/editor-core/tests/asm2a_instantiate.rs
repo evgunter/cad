@@ -410,12 +410,12 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // two instances passes when both lose the same decisions. 463 is
     // the placing op's own log on this part (the literal offset admitted
     // at the decided rigidity door, once, then placement and validation
-    // of the placed body); 728 is the part's, on its own
-    // nodes — its profile's pre-pass on the Profile node's log,
-    // decided once (the pinned lift reuses the pre-pass's validated
-    // form).
+    // of the placed body); 792 is the part's, on its own
+    // nodes — its profile's pre-pass on the Profile node's log, then
+    // what the second pass the `f64` lane skips decides, logged in its
+    // place (`editor_core::ProfileLane`).
     assert_eq!(first.len(), 463, "the instantiate op's own decisions");
-    assert_eq!(direct_total, 728, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 792, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----

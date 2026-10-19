@@ -95,8 +95,8 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 const PRE_PASS: usize = 69;
 /// The one-solid part's log sizes by node at `f64`: frame, profile,
 /// extrude. At `f64` the Profile node's op takes the pre-pass's
-/// validated form (`editor_core::ProfileLane`) and decides nothing, so
-/// its log is the pre-pass's.
+/// validated form (`editor_core::ProfileLane`) and logs what the second
+/// pass it skips decides, so its log is a lane scalar's.
 ///
 /// The FRAME's four are its axes decided twice, at the two scalars its
 /// two readers need: the lane read its value carries, and the `f64`
@@ -109,12 +109,11 @@ const PRE_PASS: usize = 69;
 /// because this document has a profile and so cannot separate it from
 /// a mint that looked ahead for one.
 const FRAME_LOG: usize = 4;
-const PROFILE_LOG: usize = PRE_PASS;
 const EXTRUDE_LOG: usize = 655;
-/// The one-solid part's second pass at a lane scalar: the op's own
-/// guided replay and validation, after the pre-pass in the Profile
-/// node's log.
+/// The one-solid part's second pass: the op's own guided replay and
+/// validation, after the pre-pass in the Profile node's log.
 const LANE_OP: usize = 64;
+const PROFILE_LOG: usize = PRE_PASS + LANE_OP;
 
 /// Two instances, both placed, so both ops do the same work.
 fn placed(doc: ProfileDoc, ids: &[RecipeNodeId]) -> ProfileDoc {
@@ -273,8 +272,8 @@ fn a_cancelled_run_leaves_the_next_runs_logs_and_the_frame_stack_intact() {
 /// brackets.** Evaluated inside an outer bracket, the part leaves that
 /// frame empty: the profile's f64 precompute — the plane's axes, the
 /// program's replay, the validation — decides on the Profile node's
-/// behalf and its log holds those decisions; at `f64` the op adds
-/// none, so the Profile node's count is the precompute's.
+/// behalf and its log holds those decisions, then the second pass's,
+/// which the `f64` op logs in the pass's place.
 #[test]
 fn every_decision_the_part_makes_lands_on_one_of_its_nodes_brackets() {
     let part_doc = part("kstats-outside-part", 0.0, 1.0);
@@ -354,20 +353,26 @@ fn profile_log<T: EvalScalar>() -> Vec<Verdict> {
         .to_vec()
 }
 
-/// **At `f64` the Profile node's log is the precompute's**, checked for
-/// its shape. One frame, in the order made: the program's replay
-/// first — the plane is READ off the frame node's value and decides
-/// nothing here — then the f64 validation, and nothing after it,
-/// because the `f64` lane takes the precompute's validated form instead
-/// of validating again. The histogram moves legitimately only when
-/// `profile::validate`'s probes change (a predicate added, a probe
-/// count per segment pair changed) or the fixture does.
+/// **At `f64` the Profile node's log opens with the precompute's**,
+/// checked for its shape. One frame, in the order made: the program's
+/// replay first — the plane is READ off the frame node's value and
+/// decides nothing here — then the f64 validation, then what the second
+/// pass decides, logged in its place: the `f64` lane takes the
+/// precompute's validated form instead of validating again. The
+/// histogram moves legitimately only when `profile::validate`'s probes
+/// change (a predicate added, a probe count per segment pair changed)
+/// or the fixture does.
 #[test]
-fn the_profile_nodes_log_at_f64_is_the_pre_pass() {
-    let log = profile_log::<f64>();
-    assert_eq!(log.len(), PRE_PASS, "the pre-pass's decisions and no other");
+fn the_profile_nodes_log_at_f64_opens_with_the_pre_pass() {
+    let full = profile_log::<f64>();
+    assert_eq!(
+        full.len(),
+        PROFILE_LOG,
+        "the pre-pass, then the second pass's"
+    );
+    let log = &full[..PRE_PASS];
     let mut histogram: BTreeMap<&str, usize> = BTreeMap::new();
-    for v in &log {
+    for v in log {
         *histogram.entry(v.predicate).or_default() += 1;
     }
     assert!(
@@ -389,10 +394,11 @@ fn the_profile_nodes_log_at_f64_is_the_pre_pass() {
 
 /// **At a lane scalar the op's own decisions follow the
 /// precompute's.** The precompute is an `f64` computation whatever the
-/// lane scalar, so the log opens with the `f64` log, verdict for
-/// verdict; the op then resolves the program at the lane scalar and
-/// validates what IT elaborated — a genuine second decision sequence,
-/// not the precompute's again.
+/// lane scalar, so the log opens with the `f64` precompute's, verdict
+/// for verdict; the op then resolves the program at the lane scalar and
+/// validates what IT elaborated — a guided second decision sequence,
+/// not the precompute's again — and at the nominal it decides what the
+/// `f64` log holds in its place, verdict for verdict.
 fn the_lane_log_opens_with_the_pre_pass<T: EvalScalar>() {
     let at_f64 = profile_log::<f64>();
     let at_lane = profile_log::<T>();
@@ -405,8 +411,14 @@ fn the_lane_log_opens_with_the_pre_pass<T: EvalScalar>() {
     let (pre, op) = at_lane.split_at(PRE_PASS);
     assert_eq!(
         pre,
-        &at_f64[..],
+        &at_f64[..PRE_PASS],
         "{}: the precompute decides at f64 under every lane",
+        T::NAME
+    );
+    assert_eq!(
+        op,
+        &at_f64[PRE_PASS..],
+        "{}: the second pass decides what the f64 log holds in its place",
         T::NAME
     );
     assert_eq!(
@@ -482,7 +494,7 @@ fn a_memo_hit_drops_its_frame_at_f64() {
 
 #[test]
 fn a_memo_hit_drops_its_frame_at_interval() {
-    a_memo_hit_drops_its_frame::<geom_core::Interval>(PRE_PASS + LANE_OP);
+    a_memo_hit_drops_its_frame::<geom_core::Interval>(PROFILE_LOG);
 }
 
 /// **A hit whose precompute disagrees with the reused log refuses

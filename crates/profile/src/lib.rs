@@ -208,8 +208,9 @@ pub use validate::{
 };
 pub use validate::{
     ArcCheck, BlendArc, ConstructedProfile, ContactKind, DecidedJoint, EscalationSite, FilletLeg,
-    FilletLegCarrier, JointCarriers, LoopRole, NoCornerReason, ProfileError, SegmentKind,
-    SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment, decision_subject, is_full_turn,
+    FilletLegCarrier, JointCarriers, LoopRole, NoCornerReason, PINNED_UNDER_GUIDANCE, ProfileError,
+    SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment, decision_subject,
+    is_full_turn,
 };
 
 /// One segment of a loop in its canonical form: a carrier plus a signed

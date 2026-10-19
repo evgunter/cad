@@ -2421,6 +2421,15 @@ impl<T: Decide> ConstructedProfile<T> {
     }
 }
 
+/// **The predicates a guided validation does not run**: the
+/// containment representative's lexicographic order and each loop's
+/// orientation, which guidance takes from the record rather than asking
+/// a lane scalar (`lex_min_index`, `loop_orientation`). Each is decided
+/// at that site and nowhere else, so where the guided pass decides what
+/// the recording one did, its log is the recording's less these.
+pub const PINNED_UNDER_GUIDANCE: [&str; 3] =
+    ["canonical_order_x", "canonical_order_y", "loop_orientation"];
+
 /// How a validation treats its own discrete decisions: selecting
 /// freely and writing them down, or consuming a prior pass's and
 /// re-verifying what can be re-verified.

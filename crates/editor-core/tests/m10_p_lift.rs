@@ -8,9 +8,10 @@
 //! rows are what changed and what did not.
 //!
 //! - **The `f64` lane is the first pass.** It takes the first pass's
-//!   validated form and runs no second one (`editor_core::ProfileLane`);
-//!   here the claim that justifies it: the second pass, run at `f64`,
-//!   is that form bit for bit, over the whole corpus.
+//!   validated form, runs no second one and logs the first's decisions
+//!   in its place (`editor_core::ProfileLane`); here the claim that
+//!   justifies it: the second pass, run at `f64`, is that form and that
+//!   log bit for bit, over the whole corpus.
 //! - **The seam is open.** Resolving the same program at `Dual` and
 //!   elaborating it GUIDED carries a seed on the hole radius through to
 //!   the vertices it moves — a derivative where there was a zero.
@@ -69,44 +70,49 @@ fn form(vp: &ValidatedProfile<f64>) -> (Vec<u64>, String) {
     (bits, facts)
 }
 
-/// **The `f64` lane's profile is the second pass, bit for bit.** At
-/// `f64` over the nominal the evaluator serves the first pass's
-/// validated form on the lane's plane and runs no second pass
-/// (`editor_core::ProfileLane`). Here the second pass is run at `f64`
-/// beside it, through the evaluator's own code
-/// (`editor_core::eval::second_pass_at_f64`), for every profile node of
-/// every corpus document, and the two agree on every stored scalar's
-/// bits and every decided fact. A node the second pass would refuse
-/// is a refusal here.
+/// **The `f64` lane's profile is the second pass, bit for bit, and so
+/// is its log.** At `f64` over the nominal the evaluator serves the
+/// first pass's validated form on the lane's plane, runs no second
+/// pass, and logs the first pass's decisions again in its place
+/// (`editor_core::ProfileLane`). Here the same evaluation runs the
+/// second pass through the evaluator's own path
+/// (`editor_core::eval::evaluate_running_pass_two`), for every corpus
+/// document, and the two agree on every node's outcome and verdict and
+/// escalation logs, and on every profile's stored scalars' bits and
+/// decided facts.
 #[test]
 fn the_f64_lane_is_the_second_pass_bit_for_bit() {
     let tol = Tol::witness();
+    let opts = EvalOptions::default();
     let mut profiles = 0usize;
     for doc in corpus::documents() {
-        let ev = evaluate::<f64>(
-            &doc.doc,
-            None,
-            &CancelToken::new(),
-            &EvalOptions::default(),
-            tol,
-        );
-        for (&id, result) in &ev.nodes {
-            let NodeResult::Ok(v) = result else {
+        let skipped = evaluate::<f64>(&doc.doc, None, &CancelToken::new(), &opts, tol);
+        let ran = editor_core::eval::evaluate_running_pass_two::<f64>(&doc.doc, &opts, tol);
+        for (&id, result) in &skipped.nodes {
+            let second = ran.nodes.get(&id);
+            let (NodeResult::Ok(v), Some(NodeResult::Ok(w))) = (result, second) else {
+                assert_eq!(
+                    format!("{result:?}"),
+                    format!("{second:?}"),
+                    "{}: node {id:?}: the outcome differs with the second pass run",
+                    doc.name
+                );
                 continue;
             };
-            let ValuePayload::Profile(served) = &v.payload else {
+            assert_eq!(
+                (&v.verdicts, &v.escalations),
+                (&w.verdicts, &w.escalations),
+                "{}: node {id:?}: the log differs with the second pass run",
+                doc.name
+            );
+            let (ValuePayload::Profile(served), ValuePayload::Profile(run)) =
+                (&v.payload, &w.payload)
+            else {
                 continue;
             };
-            let second = editor_core::eval::second_pass_at_f64(&doc.doc, &ev, id, tol)
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "{}: profile {id:?}: the second pass at f64 refuses: {e}",
-                        doc.name
-                    )
-                });
             assert_eq!(
                 form(&served.validated),
-                form(&second),
+                form(&run.validated),
                 "{}: profile {id:?}: the served form is not the second pass's",
                 doc.name
             );
@@ -114,6 +120,89 @@ fn the_f64_lane_is_the_second_pass_bit_for_bit() {
         }
     }
     assert!(profiles > 20, "the corpus carries profiles: {profiles}");
+}
+
+/// **An `f64` profile log and an `Interval` one diff by their decisions
+/// alone** (`editor_core::diff_verdicts`, whose verdict logs are
+/// scalar-free): at the nominal, every corpus profile node that
+/// evaluates at both scalars logs the same predicates the same number
+/// of times with the same signs, though its `f64` lane skips the second
+/// pass that `Interval` runs.
+#[test]
+fn an_f64_profile_log_and_an_interval_one_diff_to_no_flip() {
+    let tol = Tol::witness();
+    let opts = EvalOptions::default();
+    let mut compared = 0usize;
+    let mut parted = Vec::new();
+    for doc in corpus::documents() {
+        let at_f64 = evaluate::<f64>(&doc.doc, None, &CancelToken::new(), &opts, tol);
+        let at_interval =
+            evaluate::<geom_core::Interval>(&doc.doc, None, &CancelToken::new(), &opts, tol);
+        let flips = editor_core::diff_verdicts(&at_f64, &at_interval);
+        for (&id, result) in &at_f64.nodes {
+            let profile = matches!(result, NodeResult::Ok(v) if matches!(v.payload, ValuePayload::Profile(_)));
+            if !profile || !matches!(at_interval.nodes.get(&id), Some(NodeResult::Ok(_))) {
+                continue;
+            }
+            compared += 1;
+            if let Some(delta) = flips.nodes.get(&id) {
+                parted.push(format!(
+                    "{} {id:?}: flips {:?} diverged {:?}",
+                    doc.name, delta.flips, delta.diverged
+                ));
+            }
+        }
+    }
+    assert!(
+        parted.is_empty(),
+        "{} of {compared} profile nodes diff between f64 and Interval at the nominal:\n{}",
+        parted.len(),
+        parted.join("\n")
+    );
+    assert!(
+        compared > 20,
+        "the corpus's profiles evaluate at both: {compared}"
+    );
+}
+
+/// **Under a degenerate offset box the `f64` lane runs the second
+/// pass.** A box at `f64` whose axis is `Varying { c, c }` binds
+/// `nominal + c`, which the first pass never read, so the lane is not
+/// the first pass there (`editor_core::ProfileLane`): the plate's
+/// profile under a box offsetting the hole radius is the second pass's
+/// over that environment, bit for bit, and not the nominal's.
+#[test]
+fn under_a_degenerate_offset_box_the_f64_lane_runs_the_second_pass() {
+    use editor_core::analysis::{BoxAxis, ParamBox};
+    let tol = Tol::witness();
+    let doc = plate();
+    let id = profile_node_of(&doc);
+    let hole_r = (doc.doc)
+        .var_named(corpus::plate_param::HOLE_R)
+        .expect("the plate declares the hole radius");
+    let boxed = EvalOptions {
+        param_box: Some(std::sync::Arc::new(ParamBox::from_axes(
+            [(hole_r, BoxAxis::Varying { lo: 0.05, hi: 0.05 })].into(),
+        ))),
+        ..EvalOptions::default()
+    };
+    let form_of = |ev: &editor_core::Evaluation<f64>| match ev.value(id).map(|v| &v.payload) {
+        Some(ValuePayload::Profile(p)) => form(&p.validated),
+        other => panic!("the plate's profile evaluates: {other:?}"),
+    };
+    let nominal = form_of(&evaluate(
+        &doc.doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    ));
+    let served = form_of(&evaluate(&doc.doc, None, &CancelToken::new(), &boxed, tol));
+    let ran = form_of(&editor_core::eval::evaluate_running_pass_two(
+        &doc.doc, &boxed, tol,
+    ));
+    assert_ne!(served.0, nominal.0, "the offset moves the profile");
+    assert_eq!(served, ran, "the boxed profile is the second pass's");
 }
 
 /// **The seam the unit exists to open.** A `Dual` seed on the hole

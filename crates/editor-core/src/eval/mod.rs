@@ -3171,8 +3171,12 @@ pub struct EvalOptions {
 /// At `f64`, over an environment that binds the nominal bit for bit,
 /// the second pass is the first, bit for bit (the PP6 fence), so that
 /// lane takes the first pass's validated form instead of running it
-/// again. A box at `f64` whose degenerate axis binds `nominal + c` is
-/// not the first pass's environment, so the second pass runs there. Which
+/// again. In its place the node logs what that pass decides there: the
+/// first pass's decisions less those guidance pins
+/// ([`profile::PINNED_UNDER_GUIDANCE`]), so its log is the one running
+/// the pass would have left, and an `f64` log compares with any lane's. A box at `f64` whose
+/// degenerate axis binds `nominal + c` is not the first pass's
+/// environment, so the second pass runs there. Which
 /// scalar is `f64` is a fact about the TYPE, decided by the impl and
 /// never by a number; it carries no value across scalars (`Self` is
 /// `f64` where it answers). Sealed: no scalar outside this crate can
@@ -3182,10 +3186,12 @@ pub trait ProfileLane: profile_lane::Sealed {
     /// is the first pass: `f64`, with `params` binding every variable
     /// to `nominal`'s bits. `None` on every other scalar.
     fn pass_one<'p>(
-        validated: &'p profile::ValidatedProfile<f64>,
-        params: &crate::expr::VarEnv<Self>,
-        nominal: &crate::expr::VarEnv<f64>,
-    ) -> Option<&'p profile::ValidatedProfile<Self>>;
+        _validated: &'p profile::ValidatedProfile<f64>,
+        _params: &crate::expr::VarEnv<Self>,
+        _nominal: &crate::expr::VarEnv<f64>,
+    ) -> Option<&'p profile::ValidatedProfile<Self>> {
+        None
+    }
 }
 
 mod profile_lane {
@@ -3233,99 +3239,36 @@ impl ProfileLane for f64 {
 /// `f64` wearing a counter, and a lane of its own: its second pass
 /// runs, so the profile's decisions are recorded at it.
 #[cfg(feature = "probe")]
-impl ProfileLane for geom_core::Probe {
-    fn pass_one<'p>(
-        _: &'p profile::ValidatedProfile<f64>,
-        _: &crate::expr::VarEnv<Self>,
-        _: &crate::expr::VarEnv<f64>,
-    ) -> Option<&'p profile::ValidatedProfile<Self>> {
-        None
-    }
-}
+impl ProfileLane for geom_core::Probe {}
 
-impl ProfileLane for geom_core::Interval {
-    fn pass_one<'p>(
-        _: &'p profile::ValidatedProfile<f64>,
-        _: &crate::expr::VarEnv<Self>,
-        _: &crate::expr::VarEnv<f64>,
-    ) -> Option<&'p profile::ValidatedProfile<Self>> {
-        None
-    }
-}
+impl ProfileLane for geom_core::Interval {}
 
-impl<T: geom_core::Real> ProfileLane for geom_core::Sym<T>
-where
-    geom_core::Sym<T>: geom_core::Real,
-{
-    fn pass_one<'p>(
-        _: &'p profile::ValidatedProfile<f64>,
-        _: &crate::expr::VarEnv<Self>,
-        _: &crate::expr::VarEnv<f64>,
-    ) -> Option<&'p profile::ValidatedProfile<Self>> {
-        None
-    }
-}
+impl<T: geom_core::Real> ProfileLane for geom_core::Sym<T> where geom_core::Sym<T>: geom_core::Real {}
 
-impl<T: geom_core::Real> ProfileLane for geom_core::Dual<T>
-where
-    geom_core::Dual<T>: geom_core::Real,
-{
-    fn pass_one<'p>(
-        _: &'p profile::ValidatedProfile<f64>,
-        _: &crate::expr::VarEnv<Self>,
-        _: &crate::expr::VarEnv<f64>,
-    ) -> Option<&'p profile::ValidatedProfile<Self>> {
-        None
-    }
-}
+impl<T: geom_core::Real> ProfileLane for geom_core::Dual<T> where geom_core::Dual<T>: geom_core::Real
+{}
 
-/// **[`evaluate_witness`] for a row outside this crate**: the
-/// evaluation the E6 drive takes as its `f64` witness, whose profile
-/// nodes' logs hold both passes, so a row can read the vector the drive
-/// compares its leaves against.
+/// **[`evaluate`] with the profile's second pass run at `f64` too** —
+/// the pass an `f64` lane over the nominal skips ([`ProfileLane`]),
+/// run by the evaluator's own path so a row can hold the skipping
+/// evaluation's profile values and verdict logs against it. A part the
+/// document instantiates is evaluated with the skip.
 #[cfg(any(test, feature = "test-support"))]
-pub fn evaluate_as_drive_witness<T: EvalScalar>(
+pub fn evaluate_running_pass_two<T: EvalScalar>(
     doc: &Doc<ProfileProgram>,
     opts: &EvalOptions,
     tol: Tol,
 ) -> Evaluation<T> {
-    evaluate_witness(doc, &CancelToken::new(), opts, tol)
-}
-
-/// **The profile's second pass, run at `f64`** — the pass the `f64`
-/// lane does not run ([`ProfileLane`]), run here so a row can hold the
-/// `f64` evaluation's profile value against it, bit for bit. Pass 1 is
-/// rebuilt from `doc` and the frame `ev` landed, as the evaluation
-/// builds it, and the second pass is the evaluation's own, over the
-/// nominal environment and on the plane minted at the lane.
-///
-/// # Errors
-///
-/// The [`NodeErrorKind`] either pass refuses with, and
-/// [`NodeErrorKind::MissingInput`] when `id` names no profile node.
-#[cfg(any(test, feature = "test-support"))]
-pub fn second_pass_at_f64(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    ev: &Evaluation<f64>,
-    id: RecipeNodeId,
-    tol: Tol,
-) -> Result<profile::ValidatedProfile<f64>, NodeErrorKind> {
-    let Some(crate::node::Node::Profile(program)) = doc.node(id) else {
-        return Err(NodeErrorKind::MissingInput { input: id });
-    };
-    let nominal = doc.var_env::<f64>();
-    let resolved = program
-        .resolve(&nominal)
-        .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
-    let placement = wire::profile_plane_f64(doc, &ev.nodes, id, program.frame)?;
-    let pre = wire::prepare_profile(placement, &resolved, &program.ids, tol)?;
-    let plane = wire::frame_plane_lane(doc, &ev.nodes, program.frame, &nominal, tol)?;
-    let lane = wire::LaneEnv {
-        params: &nominal,
-        nominal: &nominal,
-        pass_two: PassTwo::Always,
-    };
-    wire::lane_profile::<f64>(program, plane, lane, &pre, tol)
+    evaluate_at_descent(
+        doc,
+        None,
+        &CancelToken::new(),
+        opts,
+        &[],
+        parts::Reached::none(),
+        PassTwo::Run,
+        tol,
+    )
 }
 
 /// The interval lane's solve: a refusal quotes an enclosure's midpoint,
@@ -3568,7 +3511,6 @@ impl<'a, T: EvalScalar> PartReach<'a, T> {
                 &[],
                 parts::Reached::none(),
                 boolean_sweep,
-                PassTwo::SkippedAtF64,
                 tol,
             ),
             tol,
@@ -3661,46 +3603,17 @@ where
     )
 }
 
-/// **Whether the `f64` lane runs the profile's second pass.** The
-/// lane's VALUE is the first pass's either way ([`ProfileLane`]); what
-/// differs is the node's verdict LOG, which the skip leaves as the first
-/// pass's alone. An evaluation whose log is compared against a lane
-/// scalar's — the E6 drive's `f64` witness, against each leaf, whose log
-/// holds both passes — runs it ([`evaluate_witness`]); every other
-/// evaluation skips it. Crate-private: no caller of [`evaluate`]
-/// chooses.
+/// **Whether an `f64` lane over the nominal takes the first pass's
+/// form** ([`ProfileLane`]). Every evaluation does; the second pass is
+/// run there only for a row that holds the skip against it
+/// ([`evaluate_running_pass_two`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PassTwo {
     /// The `f64` lane over the nominal takes the first pass's form.
     SkippedAtF64,
-    /// Every lane runs the second pass, so its log holds both.
-    Always,
-}
-
-/// **An evaluation whose verdict log compares with a lane scalar's**:
-/// [`evaluate`] with the profile's second pass run at `f64` too
-/// ([`PassTwo::Always`]), so each profile node's log holds both passes,
-/// as a leaf's at `Interval` or `Sym` does. The value is the same bits
-/// either way (the PP6 fence).
-pub(crate) fn evaluate_witness<T>(
-    doc: &Doc<ProfileProgram>,
-    cancel: &CancelToken,
-    opts: &EvalOptions,
-    tol: Tol,
-) -> Evaluation<T>
-where
-    T: EvalScalar,
-{
-    evaluate_at_descent(
-        doc,
-        None,
-        cancel,
-        opts,
-        &[],
-        parts::Reached::none(),
-        PassTwo::Always,
-        tol,
-    )
+    /// Every lane runs the second pass.
+    #[cfg(any(test, feature = "test-support"))]
+    Run,
 }
 
 /// An instantiated document's own evaluation (ASM-2A D-3), one level
@@ -3717,13 +3630,21 @@ pub(crate) fn evaluate_nested<T>(
     opts: &EvalOptions,
     chain: &[crate::ident::DocRef],
     reached: parts::Reached<T>,
-    pass_two: PassTwo,
     tol: Tol,
 ) -> Evaluation<T>
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, None, cancel, opts, chain, reached, pass_two, tol)
+    evaluate_at_descent(
+        doc,
+        None,
+        cancel,
+        opts,
+        chain,
+        reached,
+        PassTwo::SkippedAtF64,
+        tol,
+    )
 }
 
 /// Whether `doc` was recorded at the process's ε — the D4 door below.
@@ -3804,7 +3725,6 @@ where
         chain,
         reached,
         opts.boolean_sweep,
-        pass_two,
         tol,
     )
     .with_symbols(opts.symbols);

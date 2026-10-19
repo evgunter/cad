@@ -1312,14 +1312,11 @@ pub fn drive(
         });
     }
 
-    // The WITNESS build: the document at its nominals, at f64, with the
-    // profile's second pass run (`evaluate_witness`) rather than
-    // skipped. A leaf's log holds both passes and the two vectors must
-    // be comparable; the second pass at f64 IS the first, bit for bit
-    // (the lift's own differential pin), so this changes the build it
-    // produces in no way and makes the two passes the same code.
+    // The WITNESS build: the document at its nominals, at f64. Its
+    // profile nodes log both passes, as a leaf's do (`ProfileLane`), so
+    // the two vectors compare.
     let witness: Evaluation<f64> =
-        crate::eval::evaluate_witness(doc, &CancelToken::new(), &lane_opts(), tol);
+        crate::eval::evaluate(doc, None, &CancelToken::new(), &lane_opts(), tol);
     if let Some(standing) = witness
         .order
         .iter()

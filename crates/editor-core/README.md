@@ -222,13 +222,19 @@ nominal memo entry. Keys never persist.
 
 **PP6 — Scope and the bit-identity fence.** Every evaluation elaborates profile
 geometry through both passes; there is no option that embeds the f64
-elaboration instead (Ev on #5068, 2026-10-14). At `f64`, over an environment
-that binds the nominal bit for bit, pass 2 reproduces pass 1 bitwise
-(`tests/m10_p_fence.rs`, `crates/profile/tests/scalar_channels.rs`), so that
-lane takes pass 1's validated form and runs no pass 2: a sealed per-scalar fact
-(`ProfileLane`), held against pass 2 run at `f64` over the corpus
-(`tests/m10_p_lift.rs`). A box at `f64` whose degenerate axis binds
-`nominal + c` (the Monte Carlo lane) runs pass 2.
+elaboration instead, and the `f64` lane skips the second pass internally
+(Ev on #5068, 2026-10-14: "A, ideally with some internal skip on the second
+pass if f64"). At `f64`, over an environment that binds the nominal bit for
+bit, pass 2 reproduces pass 1 bitwise (`tests/m10_p_fence.rs`,
+`crates/profile/tests/scalar_channels.rs`), so that lane takes pass 1's
+validated form and runs no pass 2: a sealed per-scalar fact (`ProfileLane`).
+In pass 2's place the node logs what pass 2 decides there: pass 1's
+decisions less those guidance pins (`profile::PINNED_UNDER_GUIDANCE`), so an
+`f64` verdict log is the one pass 2 leaves and compares with any lane's
+(`diff_verdicts`, the E6 drive's witness). Both the value and the log are held
+against pass 2 run at `f64` over the corpus (`tests/m10_p_lift.rs`). A box at
+`f64` whose degenerate axis binds `nominal + c` (the Monte Carlo lane) runs
+pass 2.
 
 - **Sections.** A loft reads each section operand's Profile value at the
   lane scalar, as an extrude reads its profile: the loops and plane the
