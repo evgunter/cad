@@ -135,11 +135,19 @@ Pinned at f64 and Interval, ε = 1e-9, 1e-6 and 1e-12:
 - `seg_reach_fuzz::a_joint_reads_clear_only_where_its_arcs_cross_near_it`:
   adjacent arcs at a joint on carriers within ε of internal tangency,
   judged by `validate::judge_pair` with its discount, against an oracle
-  of the arcs' crossings: none more than `1.5·√(2r·ε)` from the joint
-  may read clear. At its first allowance, `3·√(2r·Kε)`, it found
-  1614, 769 and 920 at the review head (ε = 1e-9, 1e-6, 1e-12) and 165
-  on `main`; at this one it also finds a chord depth read a fifth as
-  deep.
+  of the arcs' crossings: none farther from the joint than the joint
+  stands from the tangency direction, plus `1.5·√(2r·ε)`, may read
+  clear. At its first allowance, `3·√(2r·Kε)`, it found 1614, 769 and
+  920 at the review head (ε = 1e-9, 1e-6, 1e-12) and 165 on `main`; at
+  this one it also finds a chord depth read a fifth as deep.
+- `rejections::a_cusp_whose_crossing_one_arc_reads_in_band_escalates`:
+  the tighter search found a cusp whose second arc runs round almost a
+  full turn, so its span reads the crossing in band. The secant
+  reading settled that from the joint, which is on both carriers
+  anywhere between the crossings, and the discount took the touch it
+  left: the cusp validated. A secant reading on carriers within ε of
+  each other now settles only from an end apart from the other
+  segment's ends, and the cusp escalates.
 - `rejections::a_compound_joint_escalates_only_where_its_readings_disagree`:
   compound joints on carriers 0.5 to 0.01 apart. Smooth joints
   validate at sagittas within the band and either side of it (they
