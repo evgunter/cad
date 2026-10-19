@@ -5,7 +5,7 @@ title: The loft's enclosure arm re-enters its sections' f64 canonical form as co
 status: open
 opened: 2026-10-19
 priority: P2
-cost: S
+cost: E
 ---
 
 

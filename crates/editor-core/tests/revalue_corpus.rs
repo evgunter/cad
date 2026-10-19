@@ -77,7 +77,8 @@ enum Move {
     /// laundered quantity that depends only on ratios of the variables
     /// (an angle, a unit normal's component, a fraction of a domain)
     /// does not move under it: a row pinned in step has no coverage of
-    /// those, and its apart move's parting is an open item.
+    /// those past its apart move's parting, an open item, and before it
+    /// an apart row holds the document ([`holds_until_parting`]).
     InStep,
 }
 
@@ -398,6 +399,99 @@ fn holds(
         "{name}: a margin re-values away from the p1 build after a decision the builds answered \
          with different signs, under {unnamed:?}, which the row does not name — a laundering, or \
          two margins decided under one name; read which with REVALUE_DETAIL=1 ({found:?})"
+    );
+}
+
+/// **A gating row under [`Move::Apart`] for a document whose apart move
+/// parts**, read over the decisions before the parting: the coverage a
+/// row pinned [`Move::InStep`] lacks (a laundered quantity that depends
+/// only on ratios of the variables, a plane's normal or an angle, does
+/// not move under a dilation), up to where the builds part. The parting
+/// is held exactly: it falls at `parting`, the work item `item` owes it,
+/// and no decision before it flips. Past it the row says nothing, which
+/// the document's in-step row covers.
+fn holds_until_parting(
+    name: &str,
+    floor: usize,
+    owed: &[(&str, &str)],
+    parting: &str,
+    item: &str,
+) {
+    let cd = corpus::documents()
+        .into_iter()
+        .find(|cd| cd.name == name)
+        .unwrap_or_else(|| panic!("{name} is not a corpus document"));
+    let found = compare_moved(&cd.doc, Move::Apart, true).expect("a prefix comparison answers");
+    for item in owed.iter().map(|(_, i)| *i).chain([item]) {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(item);
+        assert!(path.is_file(), "{name}: the owed item {item} is no file");
+    }
+    assert_eq!(
+        found.drifted, 0,
+        "{name}: a DAG re-valued at p0 is not the p0 build's own bits ({found:?})"
+    );
+    assert_eq!(
+        found.escalated, 0,
+        "{name}: a decision the f64 channel escalated ({found:?})"
+    );
+    assert!(
+        found.moved >= floor,
+        "{name}: {} margins moved and re-valued before the parting, under the floor of {floor} \
+         ({found:?})",
+        found.moved
+    );
+    let at = found.parted.map(|(_, _, at)| at);
+    assert_eq!(
+        at,
+        Some(parting),
+        "{name}: the apart move parts elsewhere than its owed parting ({found:?})"
+    );
+    let early: Vec<&str> = (found.flips.iter())
+        .filter(|(k, p, _, _)| (*k, *p) != (found.compared, parting))
+        .map(|(_, p, _, _)| *p)
+        .collect();
+    assert!(
+        early.is_empty(),
+        "{name}: a decision before the parting flipped: {early:?} ({found:?})"
+    );
+    let want: BTreeSet<&str> = owed.iter().map(|(p, _)| *p).collect();
+    let got: BTreeSet<&str> = found.laundered.iter().copied().collect();
+    assert_eq!(
+        got, want,
+        "{name}: the predicates re-valued away from the p1 build before the parting ({found:?})"
+    );
+}
+
+/// `plate_param` under the apart move, to the ray-schedule gate's exact
+/// zero it parts at.
+#[test]
+fn revalue_plate_param_apart_to_its_parting() {
+    holds_until_parting(
+        "plate_param",
+        2539,
+        &[],
+        "point_in_loop_arm",
+        "work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md",
+    );
+}
+
+/// `boss_union` under the apart move, to where it parts. Its two
+/// `bool_pair_gap` margins read as laundered are an order swap the
+/// instrument pairs by index (the owed item), and the builds part after
+/// it.
+#[test]
+fn revalue_boss_union_apart_to_its_parting() {
+    holds_until_parting(
+        "boss_union",
+        1619,
+        &[(
+            "bool_pair_gap",
+            "work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md",
+        )],
+        "pcurve_chart_radial_moving",
+        "work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md",
     );
 }
 
