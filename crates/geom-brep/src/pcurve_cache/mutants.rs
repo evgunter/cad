@@ -17,7 +17,7 @@
 use geom::Surface;
 use geom_core::{Real, Vec3};
 
-use super::{Winding, harmonic_sup, harmonic_sup_scalar, norm_gap};
+use super::{angle_rate, harmonic_sup, harmonic_sup_scalar, norm_gap};
 use crate::pcurve_cache::FidelityLegs;
 
 const NAME: Option<&str> = option_env!("PCERT_RADIAL_PAIR_MUTANT");
@@ -109,7 +109,7 @@ pub(super) fn sphere_meridian<T: Real>(
     (a, b): (Vec3<T>, Vec3<T>),
     (a_r, b_r): (Vec3<T>, Vec3<T>),
     (aa, bb): (T, T),
-    sigma: Winding,
+    sigma: i32,
     jb: Vec3<T>,
 ) -> Option<T> {
     let gap = || norm_gap(radius, radius.powi(2), a);
@@ -118,7 +118,7 @@ pub(super) fn sphere_meridian<T: Real>(
             gap()
                 + a_r.norm() * T::from_f64(3.0)
                 + bb.abs()
-                + (aa * sigma.value() + b_r.norm()).abs()
+                + (aa * angle_rate::<T>(sigma) + b_r.norm()).abs()
         })
     } else {
         on("sphere-meridian").then(|| gap() + (jb - b).norm())

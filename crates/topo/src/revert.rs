@@ -717,8 +717,8 @@ mod tests {
     fn revert_mirrors_a_plane_chart_image_and_its_certificate_survives() {
         use crate::{FaceSurface, MevSite};
         use geom::{Curve3, Surface};
+        use geom_brep::EdgeCurveSpec;
         use geom_brep::certify::{CertCheck, CertifyError};
-        use geom_brep::{EdgeCurveSpec, Pcurve};
         use geom_core::{Band, Point3, Vec3};
 
         let tol = Tol::witness();
@@ -770,7 +770,7 @@ mod tests {
         let image_of =
             |c: &geom_brep::EdgeCurve<f64>| c.description().chart().unwrap().pcurve.clone();
         let source = curve_of(&body);
-        let Pcurve::Harmonic { p0, pa, pb, pl } = image_of(&source) else {
+        let Some((p0, pa, pb, pl)) = image_of(&source).harmonic_form() else {
             panic!("a circle in a plane chart is a harmonic image")
         };
         assert!(
@@ -780,13 +780,7 @@ mod tests {
 
         let reverted = body.revert().unwrap();
         let mirrored = curve_of(&reverted);
-        let Pcurve::Harmonic {
-            p0: q0,
-            pa: qa,
-            pb: qb,
-            pl: ql,
-        } = image_of(&mirrored)
-        else {
+        let Some((q0, qa, qb, ql)) = image_of(&mirrored).harmonic_form() else {
             panic!("the mirrored image keeps its kind")
         };
         for (before, after) in [(p0.x, q0.x), (pa.x, qa.x), (pb.x, qb.x), (pl.x, ql.x)] {

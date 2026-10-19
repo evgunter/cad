@@ -4,6 +4,8 @@ kind: issue
 title: blend::arms::corner_ball solves its three-plane Cramer system from offsets to the world origin, so the corner ball's centre sits about u·|d|/det off its planes
 status: open
 opened: 2026-10-19
+priority: P2
+cost: E
 ---
 
 

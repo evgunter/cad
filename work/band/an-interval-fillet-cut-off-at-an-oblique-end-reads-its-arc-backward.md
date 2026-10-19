@@ -4,6 +4,8 @@ kind: issue
 title: blend: a fillet cut-off at the sheared box's oblique end face refuses BodyNotIntact at Interval (its arc reads backward), where f64 builds
 status: open
 opened: 2026-10-13
+priority: P2
+cost: M
 ---
 
 

@@ -1480,12 +1480,13 @@ pub fn cyl_arc_at(v: f64, u0: f64, u1: f64) -> EdgeCurveSpec<f64> {
 
 /// The minted [`cyl_wall_sheet`] over `[4.2, 5.4] x [0, 1]` of the
 /// canonical unit [`CylFrame`] carrying a chain hung off its bottom
-/// rim: a strut up the ruling `u = 4.6` to `s`, then two arcs of the
-/// circle `v = 0.5` ([`cyl_arc_at`]), `s → q` from `4.6` to `4.8` and
-/// `q → t` on to `5.0`. An arc's image runs with its carrier's
-/// parameter, and the second arc's carrier is parametrised a period
-/// down (`4.8 − τ` to `5.0 − τ`), so its image sits a period below the
-/// first's and both joints at `q` carry a whole period, one each way.
+/// rim: a strut up the ruling `u = 5.1` to `s`, then two arcs of the
+/// circle `v = 0.5` ([`cyl_arc_at`]), `s → q` from `5.1` to `5.25` and
+/// `q → t` on to `5.35`. Each arc's image is placed over its own span in
+/// the chart's principal window (`geom_brep::ANGLE_WINDOW_START`), whose
+/// cut `τ − 1 ≈ 5.283` the chain crosses: the first arc's midpoint is
+/// below it, the second's above, so the second is placed a period down
+/// and both joints at `q` carry a whole period, one each way.
 /// Returns the body, the wall, `[s → q, q → s]` and `[q → t, t → q]`.
 pub fn arc_chain_over_the_jump(
     tol: Tol,
@@ -1519,14 +1520,13 @@ pub fn arc_chain_over_the_jump(
         assert_eq!(hit.len(), 1, "one half-edge of the wall leaves {v:?}");
         hit[0]
     };
-    let m = body.split_edge(rim, 4.6, tol).unwrap().vertex;
+    let m = body.split_edge(rim, 5.1, tol).unwrap().vertex;
     let he = leaving(&body, m);
     let up = body
-        .mev_line(MevSite::Fan { he1: he, he2: he }, frame.at(4.6, 0.5), tol)
+        .mev_line(MevSite::Fan { he1: he, he2: he }, frame.at(5.1, 0.5), tol)
         .unwrap();
     let mut chain: Vec<MevCreated> = Vec::new();
-    let tau = core::f64::consts::TAU;
-    for (u0, u1) in [(4.6, 4.8), (4.8 - tau, 5.0 - tau)] {
+    for (u0, u1) in [(5.1, 5.25), (5.25, 5.35)] {
         let from = chain.last().map_or(up.vertex, |last| last.vertex);
         let he = leaving(&body, from);
         let made = body

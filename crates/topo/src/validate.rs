@@ -3343,11 +3343,18 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                     "a boundary curve's parameter range cannot carry its image on the face",
                     Some(REPARAMETERIZE),
                 ),
+                C::PlacementTurnsExceeded => (
+                    "a boundary curve's parameter range sits too many turns out for its image \
+                     to be stored",
+                    Some(REPARAMETERIZE),
+                ),
                 C::CarrierEnclosure(_) => (CARRIER_ENCLOSURE, Some(NOT_YET_ENDING)),
                 C::CarrierGrazesChart { grazer, .. } => (WRONG, Some(grazer.recourse())),
                 C::ChartRow { .. }
                 | C::CarrierOffChart { .. }
                 | C::ImageMismatch { .. }
+                | C::ChannelKindMismatch { .. }
+                | C::WindingMismatch { .. }
                 | C::FittedCertificate { .. } => (WRONG, Some(DEFECT)),
                 C::ResidualExceeded { .. } | C::FittedLimb { .. } => {
                     let why = if error.refuses_on_a_bound() {
@@ -11988,9 +11995,8 @@ mod tests {
                         band,
                     }),
                 },
-                "a torus face's tube radius is not shown smaller than its ring radius \
-                 (margin 0e0 m). Recourse: make the tube radius clearly smaller than \
-                 the ring radius"
+                "a torus face's tube radius is not shown smaller than its ring's (margin 0 m). \
+                 Recourse: make the tube radius clearly smaller than the ring radius"
                     .to_owned(),
             ),
             (
@@ -12001,8 +12007,9 @@ mod tests {
                         margin: MarginDiag::value(-1e-3),
                     },
                 },
-                "a torus face's tube radius is larger than its ring radius (a spindle torus). \
-                 Recourse: make the tube radius clearly smaller than the ring radius"
+                "a torus face's tube radius is larger than its ring's (margin -0.001 m), so the \
+                 surface is a spindle. Recourse: make the tube radius clearly smaller than the \
+                 ring radius"
                     .to_owned(),
             ),
             (
