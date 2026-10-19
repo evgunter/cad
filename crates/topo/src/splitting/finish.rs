@@ -43,13 +43,17 @@
 //! such a shell is a kernel defect, refused loudly
 //! ([`SplitFinishError::DegenerateSide`]).
 //!
-//! # Coplanar artifacts (documented, F7)
+//! # Maximal faces (F7)
 //!
 //! Faces of the operand lying IN the split plane survive as walls of
-//! one side (rule (a)), and cut faces are left as same-surface-key
-//! pairs; `merge_coplanar_faces` is **deliberately not auto-run** on
-//! the results — merging is never silent (the M2 ratification); the
-//! caller opts in.
+//! one side (rule (a)), beside that side's section faces, and two
+//! section faces of one side can meet along an operand edge lying in
+//! the plane (a pinch's tip line). Each side therefore ends with
+//! [`Body::merge_coplanar_faces`] ([`end_maximal`]), which ends with
+//! the join, so a side has maximal faces and maximal edges
+//! (`docs/DESIGN.md`) and is an operand any boolean accepts. The merge
+//! is not silent: its groups and its joins are recorded in
+//! [`SplitNaming::merge_groups`] and [`SplitNaming::edge_joins`].
 //!
 //! A face-coplanar cut also lands OPERAND edges on the section
 //! boundary with their transverse partner faces reassigned to the
@@ -168,7 +172,7 @@ impl<T: Decide> SplitResult<T> {
 
 impl<T: Real> SplitResult<T> {
     /// **What the split made of each operand cell** (D1), in the scratch
-    /// keys both sides were carved from, read through each side's joins:
+    /// keys both sides were carved from, read through each side's merges and joins:
     /// a vertex the cut copied is kept under its key and its copies
     /// (`SplitNaming::vertex_pairs`); an edge the cut split
     /// (`SplitNaming::edge_pieces`) or a face it divided
@@ -184,7 +188,7 @@ impl<T: Real> SplitResult<T> {
             .into_iter()
             .flatten()
             .collect();
-        let section = |f: FaceKey| self.naming.sections.iter().any(|&(s, _)| s == f);
+        let section = |f: FaceKey| self.naming.holds_section(f);
         let joins: Vec<crate::boolean::EdgeJoin> =
             self.naming.edge_joins.iter().map(|&(_, j)| j).collect();
         // Each copied vertex, and each root of the edge and face rows, is
@@ -194,7 +198,15 @@ impl<T: Real> SplitResult<T> {
                 .with(cell, fate)
                 .unwrap_or_else(|e| unreachable!("the split states each cell once: {e:?}"))
         };
-        let mut lineage = crate::Lineage::new().through_joins(&joins).one_cut();
+        let merged = self
+            .naming
+            .merge_groups
+            .iter()
+            .flat_map(|(_, g)| g.substitutions());
+        let mut lineage = crate::Lineage::new()
+            .through_merges(merged)
+            .through_joins(&joins)
+            .one_cut();
         let mut copies: Vec<(crate::entity::VertexKey, Vec<Cell>)> = Vec::new();
         for &(copy, original) in &self.naming.vertex_pairs {
             match copies.iter_mut().find(|(o, _)| *o == original) {
@@ -327,6 +339,13 @@ pub struct SplitNaming {
     /// ([`crate::provenance::Provenance::SplitEdge`] says why a copy is
     /// as acyclic as the records).
     pub joined_lineage: std::collections::BTreeMap<crate::entity::EdgeKey, crate::entity::EdgeKey>,
+    /// The coplanar merges each side ended with
+    /// ([`Body::merge_coplanar_faces`], [`end_maximal`]), in group
+    /// order, with the side whose body they were made on: each group's
+    /// `absorbed` faces and `killed_edges` are dead there and its
+    /// `kept` face holds them. A section face a group absorbed keeps
+    /// its row in [`Self::sections`].
+    pub merge_groups: Vec<(PlaneSide, crate::merge_faces::MergedGroup)>,
 }
 
 impl SplitNaming {
@@ -345,6 +364,49 @@ impl SplitNaming {
         );
         self.edge_joins.extend(joins.into_iter().map(|j| (side, j)));
     }
+
+    /// Whether `face` is a section face, or the face a merge kept for a
+    /// group that holds one: the faces whose boundary the cut drew.
+    #[must_use]
+    pub fn holds_section(&self, face: FaceKey) -> bool {
+        let section = |f: FaceKey| self.sections.iter().any(|&(s, _)| s == f);
+        section(face)
+            || self
+                .merge_groups
+                .iter()
+                .any(|(_, g)| g.kept == face && g.absorbed.iter().copied().any(section))
+    }
+}
+
+/// Ends `side`'s `body` with maximal faces and maximal edges (module
+/// docs, *Maximal faces*): [`Body::merge_coplanar_faces`], which ends
+/// with the join, its groups and joins recorded in `naming`.
+///
+/// # Errors
+///
+/// [`SplitFinishError::EdgeJoin`] where the merge's join refuses, and
+/// [`SplitFinishError::Merge`] for every other refusal of the merge.
+pub(super) fn end_maximal<T: crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    side: PlaneSide,
+    naming: &mut SplitNaming,
+    tol: Tol,
+) -> Result<(), SplitFinishError> {
+    // Taken before the kills, which drop it (`SplitNaming::joined_lineage`).
+    let split_from = crate::boolean::edge_join::split_records(body);
+    let merged = body
+        .merge_coplanar_faces(tol)
+        .map_err(|error| match error {
+            crate::MergeCoplanarError::Join { refusal } => {
+                SplitFinishError::EdgeJoin { side, refusal }
+            }
+            error => SplitFinishError::Merge { side, error },
+        })?;
+    naming
+        .merge_groups
+        .extend(merged.groups.into_iter().map(|g| (side, g)));
+    naming.record_joins(side, &split_from, merged.joins);
+    Ok(())
 }
 
 impl Default for SplitNaming {
@@ -361,6 +423,7 @@ impl Default for SplitNaming {
             vertex_pairs: Default::default(),
             edge_joins: Default::default(),
             joined_lineage: Default::default(),
+            merge_groups: Default::default(),
         }
     }
 }
@@ -527,6 +590,14 @@ pub enum SplitFinishError {
         /// Why the join refused, typed and keyless.
         refusal: crate::boolean::JoinRefusal,
     },
+    /// The coplanar merge a side ends with ([`end_maximal`]) refused on
+    /// that side's body.
+    Merge {
+        /// The side whose merge refused.
+        side: PlaneSide,
+        /// Why the merge refused.
+        error: crate::MergeCoplanarError,
+    },
 }
 
 impl SplitFinishError {
@@ -683,6 +754,11 @@ impl core::fmt::Display for SplitFinishError {
                     side.word()
                 )
             }
+            Self::Merge { side, error } => write!(
+                f,
+                "the piece on the {} side of the plane: {error}",
+                side.word()
+            ),
             Self::ResultNotAtRest { side, errors } => crate::validate::write_result_not_at_rest(
                 f,
                 format_args!("the piece on the {} side of the plane", side.word()),
@@ -776,6 +852,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             .collect::<Result<_, _>>()?,
         edge_joins: Vec::new(),
         joined_lineage: Default::default(),
+        merge_groups: Vec::new(),
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
