@@ -741,3 +741,5 @@ Signed: (CARVE orchestrator)
   - The `.fillet(r).at(p)` start cell was missing.
   - The "constructing closers take no token" sentences contradicted the `Via` arrival.
   It recommended `arc_onto(target)` followed by one director, the `Via` arrival's shape, and Ev took it. The doc is rewritten to that spelling. The `B`'s waist is now `(0.25, 1)`, checked numerically: a sharp turn of about 124°, no crossings. `ArcLegOnOpenFillet` is added for a fillet arrival's bare anchor. `radius-arrival-has-no-start-anchored-close` is restated, and `via-arrival-start-rustdoc-hides-which-direction-its-director-binds` has its premise corrected.
+
+- 2026-10-19 — chord director (#5370): dispatched at "orchestrator's read"; the unit grew to five chord sites, symbolic-tier moves and re-baselines, so its tier is raised to a single FULL review.
