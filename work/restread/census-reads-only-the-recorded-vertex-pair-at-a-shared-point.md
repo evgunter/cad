@@ -39,15 +39,28 @@ until then it stands on its own.
 
 ## Closed
 
-2026-10-19, with the carrier row (branch `restread/link-touch-reading`). A
-recorded pair now reads its point's unit, both solids' whole links, so a
-rest recorded at one cone is read with every cone of the solid on the key;
-`blocks` also reads every key two solids share whether or not a finding or
-record names it (taken on its word, as records are, when the pair is
-declared-only). Witness `census::tests::a_rest_recorded_at_one_cone_of_a_pinch_reads_the_other`:
-one solid with two cubes' cones at the origin on one key, a parallelepiped's
-corner on that key recorded against the first cone and reaching into the
-second's octant. Main reads that touch Rest (measured, verdict level); the
-head reads Crossing, and the same corner turned into the empty octants
-rests. The "solids meeting only at an unrecorded shared-key pair" question:
-such a pair is now probed and its shared point read.
+2026-10-19, with the carrier row (branch `restread/link-touch-reading`,
+after its review's fix pass).
+- A recorded pair now reads its point's unit: both solids' whole links
+  there, every vertex of each on the point's keys. A face held at two
+  vertices on the point (a pinch, one vertex per cone) gives a sector per
+  pass, each ending where the loop next returns to the point.
+- `blocks` reads every key two solids share whether or not a finding or
+  record names it, strictly: an undecided reading at a shared key
+  refuses, and only a declared-only pair's own records are still taken
+  on their word (CONTACTHOLD's D10 ground, not extended).
+- Witnesses:
+  - `census::tests::a_rest_recorded_at_one_cone_of_a_pinch_reads_the_other`:
+    one solid with two cones at the origin on one key, a parallelepiped's
+    corner on that key recorded against the first cone and reaching into
+    the second's octant. Main reads that touch Rest (measured at the
+    verdict level); the branch reads Crossing, and the same corner in
+    the empty octants rests. The body is read at the touch: built as two
+    shells of one solid, tier 3 refuses it first, so the end-to-end
+    reading of the shape is the boolean pinches of
+    `join_pierce_runs_sweep::four_pairs_battery`.
+  - `census::tests::a_shared_key_only_pair_reads_strictly`: two solids
+    meeting only at an unrecorded shared key, read in band, refuse.
+  - `census::link_fuzz::a_pinch_link_agrees_with_the_prisms_own_inequalities`
+    and the falsifier's bowtie family: two-cone links against the exact
+    oracle.
