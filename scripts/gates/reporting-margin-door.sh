@@ -142,7 +142,7 @@ SIZED_RE='(sized_recourse|sized_recourse_in_file|miss_recourse_in_file)([^A-Za-z
 # `path count why` — production files outside the definition home that
 # spell the stored-contradiction choice or ask the sign-certain ending.
 DEFINITE_ALLOWLIST=(
-  'crates/geom-brep/src/recourse.rs 6 the sized-decision table: SizedDecision::words picks the stored-contradiction and damaged-file choices once for every route, the sign-certain arm asks the refused class ending through those words, and SizedDecision::certainly_refused (its definition, and its call by recourse for the unminted side at a build) reads the class once through MarginDiag::shows_no_size'
+  'crates/geom-brep/src/recourse.rs 5 the sized-decision table: SizedDecision::words picks the stored-contradiction and damaged-file choices once for every route, the sign-certain arm asks the refused class ending through those words, and SizedDecision::certainly_refused (its definition, for the doors that refuse a span as their input) reads the class once through MarginDiag::shows_no_size'
   'crates/geom-brep/src/certify.rs 1 every public certification and re-certification door asks whether a span check refusal is certainly on its refused side, to refuse it as the door input (StatedSpan::of) rather than end it'
 )
 DEFINITE_RE='(RefusedReading::(ContradictsStoredData|DamagedFile)|sign_certain_recourse|shows_no_size|certainly_refused)([^A-Za-z0-9_]|$)'
