@@ -6579,3 +6579,5 @@ Signed (WIRE orchestrator).
   - Open residues filed on CLEAVE: the Meet that omits the minting cell;
     the ring-tie pierce vertex; twins; the in-place Zeros.
   (WIRE orchestrator)
+
+- 2026-10-19 (WIRE orchestrator) Triage: should-pair-seams-take-name-ordered-sides (P3 M, design), a-chord-between-two-merged-faces-within-no-rim-refuses (P3 M), a-split-merging-a-two-piece-wall-reads-its-seam-vertex-as-a-pinch-corner (P3 M). a-literal-placement-frame-crosses-scalars-by-closure… is D10 ground (placement): moved to work/wirehold, parked on transform-retires-into-a-placement.

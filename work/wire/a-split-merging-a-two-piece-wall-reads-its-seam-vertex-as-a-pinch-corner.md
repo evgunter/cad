@@ -4,6 +4,8 @@ kind: issue
 title: A split that merges a two-piece wall's halves across the seam leaves its loop through the seam vertex twice, and a near-tangent cut there refuses at rest as a pinch corner, ending as a kernel defect
 status: open
 opened: 2026-10-19
+priority: P3
+cost: M
 ---
 
 

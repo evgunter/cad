@@ -2,8 +2,11 @@
 id: a-literal-placement-frame-crosses-scalars-by-closure-and-is-decided-again-at-the-lane
 kind: issue
 title: A literal placement frame crosses to the lane scalar through Affine3::map and is decided rigid again there; the frame witness has an exact embed door now
-status: open
+status: parked
 opened: 2026-10-14
+blocked_on: [transform-retires-into-a-placement]
+priority: P3
+cost: M
 ---
 
 
