@@ -3773,7 +3773,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
             geom_brep::SectionError::WrongLane { .. }
             | geom_brep::SectionError::BeyondOperandExtent { .. }
             | geom_brep::SectionError::CoincidentSurfaces
-            | geom_brep::SectionError::DegenerateTorus
+            | geom_brep::SectionError::DegenerateTorus(_)
             | geom_brep::SectionError::Spiric(_),
         ) => Err(BooleanError::JoinDesync {
             what: "two cylinder walls read apart refused as no cylinder pair can",
