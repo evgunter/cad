@@ -1433,7 +1433,7 @@ impl fmt::Display for ProfileError {
                 // carries the levers, and a name without a row names its
                 // hole there.
                 //
-                // The three names below ALSO carry a sentence at
+                // The four names below ALSO carry a sentence at
                 // `PathError::Escalated`'s stored-form arm, and the two
                 // deliberately differ: here the segment pair is one the
                 // CALLER authored, so the construct lever is theirs to
