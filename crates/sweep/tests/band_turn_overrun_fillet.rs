@@ -50,7 +50,7 @@ use core::f64::consts::PI;
 use geom::Curve3;
 use geom_core::{Bounds, Interval, Point3};
 use sweep::blend::build::{Blended, fillet_edges};
-use sweep::blend::{BlendDecision, BlendError, Breach};
+use sweep::blend::{BlendDecision, BlendError};
 use sweep::test_support::{assert_naming_totality, at_rest, realized};
 use topo::boolean::BooleanOp;
 use topo::{Body, ContactRecords, EdgeKey, mass_properties, validate_geometric};
@@ -671,13 +671,15 @@ fn the_witnesses_build_at_every_pose() {
 type IntervalCase = (String, Body<f64>, Body<Interval>, [EdgeKey; 2]);
 
 /// **At the certified scalar**: the leaning prism at `±0.5` and `±1`
-/// (the bracket's corners) at `Interval` build, tier-3 valid and naming
-/// total, the volume enclosure bracketing the oracle. The skewed box is
-/// [`the_skewed_boxs_fillet_refuses_at_interval_as_its_plain_cut_off_does`].
+/// (the bracket's corners) and the skewed box at `Interval` build,
+/// tier-3 valid and naming total, the volume enclosure bracketing the
+/// oracle.
 #[test]
 fn the_overrun_carves_at_the_certified_scalar() {
     use crate::common::interval::iv;
-    let cases: Vec<IntervalCase> = [0.5, -0.5, 1.0, -1.0]
+    let s = 0.3;
+    let v = [s, s, 1.0];
+    let mut cases: Vec<IntervalCase> = [0.5, -0.5, 1.0, -1.0]
         .into_iter()
         .map(|lean| {
             let (ibody, iedges) = leaning_turn_at::<Interval>(lean);
@@ -689,6 +691,12 @@ fn the_overrun_carves_at_the_certified_scalar() {
             )
         })
         .collect();
+    let ibox = parallelepiped_at::<Interval>(s);
+    let iedges = [
+        edge_between(&ibox, v, [2.0 + s, s, 1.0]),
+        edge_between(&ibox, v, [0.0, 0.0, 0.0]),
+    ];
+    cases.push(("skewed box".into(), parallelepiped(s), ibox, iedges));
     for (what, body, ibody, iedges) in cases {
         let fedges = iedges.map(|e| {
             let [a, b] = ends_iv(&ibody, e);
@@ -720,44 +728,6 @@ fn the_overrun_carves_at_the_certified_scalar() {
             removed.hi() - removed.lo() + 2.0 * pad < 2.0 * pad_ceiling(),
             "{what}: the enclosure is a claim: {removed:?} ± {pad}"
         );
-    }
-}
-
-/// **The skewed box at `Interval` refuses**, as the plain cut-off of its
-/// top edge does there, where `f64` builds both
-/// (`work/band/an-interval-fillet-cut-off-at-an-oblique-end-reads-its-arc-backward.md`):
-/// the fillet's cut-off arc at an oblique end reads backward. The fix
-/// flips both, and the overrun's `Interval` row then takes the box.
-#[test]
-fn the_skewed_boxs_fillet_refuses_at_interval_as_its_plain_cut_off_does() {
-    use crate::common::interval::iv;
-    let s = 0.3;
-    let v = [s, s, 1.0];
-    let ibox = parallelepiped_at::<Interval>(s);
-    let iedges = [
-        edge_between(&ibox, v, [2.0 + s, s, 1.0]),
-        edge_between(&ibox, v, [0.0, 0.0, 0.0]),
-    ];
-    let ibody = sweep::test_support::finished("operand", ibox, tol());
-    for (what, edges) in [
-        ("the top edge alone", &iedges[..1]),
-        ("the turn", &iedges[..]),
-    ] {
-        match fillet_edges(&ibody, edges, iv(D), tol()) {
-            Err(e) => {
-                assert!(
-                    matches!(&e.error, BlendError::BodyNotIntact { breach: Breach::Disagrees, detail, .. }
-                        if detail.contains("does not run forward from one foot")),
-                    "{what}: the cut-off's arc reads backward, got {:?}",
-                    e.error
-                );
-                assert!(
-                    !e.to_string().contains("did not resolve"),
-                    "{what}: every key here resolved, and the refusal says so: {e}"
-                );
-            }
-            Ok(_) => panic!("{what}: built at Interval; the filed item is fixed, flip this row"),
-        }
     }
 }
 
