@@ -4540,6 +4540,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "assembly_error_tag",
         values: &[
             "at_rest",
+            "carried_at_rest",
             "carried_mint_refusal",
             "own_space",
             "uncertified",

@@ -12,12 +12,12 @@ use geom_core::{Point3, Vec3};
 // ---------------------------------------------------------------
 
 fn harmonic(pa: (f64, f64), pb: (f64, f64)) -> Pcurve<f64> {
-    Pcurve::Harmonic {
-        p0: Point2::new(0.0, 0.0),
-        pa: Vec2::new(pa.0, pa.1),
-        pb: Vec2::new(pb.0, pb.1),
-        pl: Vec2::new(1.0, 0.0),
-    }
+    Pcurve::free_harmonic(
+        Point2::new(0.0, 0.0),
+        Vec2::new(pa.0, pa.1),
+        Vec2::new(pb.0, pb.1),
+        Vec2::new(1.0, 0.0),
+    )
 }
 
 #[test]
@@ -51,20 +51,20 @@ fn probe_line_like_but_not_structurally_zero_refuses() {
     // read would accept it; the variant/structure gate refuses. This
     // is the conservative direction, and it is what "no scalar
     // zero-test on T" costs.
-    let p = Pcurve::Harmonic {
-        p0: Point2::new(0.0, 0.0),
-        pa: Vec2::new(1.0, 0.0),
-        pb: Vec2::new(0.0, 0.0),
-        pl: Vec2::new(0.0, 0.0),
-    };
+    let p = Pcurve::free_harmonic(
+        Point2::new(0.0, 0.0),
+        Vec2::new(1.0, 0.0),
+        Vec2::new(0.0, 0.0),
+        Vec2::new(0.0, 0.0),
+    );
     assert!(pcurve_entry(&p, 0.0, 1.0, true).is_err());
     // A genuinely curved image (u sinusoid, v linear) also refuses.
-    let q = Pcurve::Harmonic {
-        p0: Point2::new(0.0, 0.0),
-        pa: Vec2::new(1.0, 0.0),
-        pb: Vec2::new(0.0, 0.0),
-        pl: Vec2::new(0.0, 1.0),
-    };
+    let q = Pcurve::free_harmonic(
+        Point2::new(0.0, 0.0),
+        Vec2::new(1.0, 0.0),
+        Vec2::new(0.0, 0.0),
+        Vec2::new(0.0, 1.0),
+    );
     assert!(pcurve_entry(&q, 0.0, 1.0, true).is_err());
 }
 

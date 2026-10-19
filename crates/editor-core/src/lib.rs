@@ -107,9 +107,9 @@ pub use appearance::{
     AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedDeclaration,
-    CarriedDeclarations, CarriedRefusal, MintRefusal, MintedDeclaration, RefusedRef, Relation,
-    Route, assemble, assemble_gathered,
+    Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedAtRestFinding,
+    CarriedDeclaration, CarriedDeclarations, CarriedInterference, CarriedRefusal, MintRefusal,
+    MintedDeclaration, RefusedRef, Relation, Route, assemble, assemble_gathered,
 };
 pub use checks::at_rest::{CopyRef, FaceSite, InterferenceFinding, Overlap, Unlocalized};
 pub use checks::{
