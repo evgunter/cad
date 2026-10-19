@@ -173,7 +173,7 @@ fn depart<T: Decide>(
     tol: Tol,
 ) -> Result<Dir<T>, PathError<T>> {
     if let Some(inc) = &pos.incoming {
-        super::junction_check(inc, departure, false, tol)?;
+        core.pend_junction(inc, departure, tol)?;
     }
     Ok(*core.start_ang.get_or_insert(departure))
 }

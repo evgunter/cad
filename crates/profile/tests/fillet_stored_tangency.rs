@@ -1,21 +1,22 @@
-//! **A fillet arc the profile cannot store is refused at the door, not
-//! at validation.**
+//! **A fillet arc's stored form carries its tangency, or the door
+//! refuses it — never validation.**
 //!
 //! A profile stores an arc as its chord and a carrier, and a reader
 //! classifies that pair back into a carrier through the same predicates
 //! validation runs. A fillet whose sagitta `r(1 − cos(θ/2)) ≈ r·θ²/8`
 //! sits at or below the run's ε is stored as a segment read as a
-//! straight one: the carrier the door computed exactly is simply not in
-//! what the profile holds, and the tangency the fillet declares against
-//! it is contradicted.
-//!
-//! So the path door reads its own output the way validation will and
-//! refuses `FilletArcCannotCarryTangency` — carrying the predicate and
-//! the margin that classification stopped at — or escalates through the
-//! validator's own predicate name when the margin is in band.
+//! straight one, its chord. The chord turns from each leg by half the
+//! corner's turn over its own length, and a joint's turn is levered by
+//! the shorter leg's arm, the chord's: about four times the sagitta, so
+//! inside ε the declared tangency holds on the chord and the loop
+//! validates. What cannot be stored at all — an arc shorter than ε,
+//! whose two vertices coincide — the door refuses
+//! (`FilletArcFlattenedInStorage`, carrying the predicate and the margin
+//! that classification stopped at), and an in-band reading escalates
+//! through the validator's own predicate name.
 //!
 //! **The rows ride the run's ε.** The stored arc's sagitta goes as θ²,
-//! so the window where a fillet builds but cannot be stored sits at
+//! so the window where a fillet is stored as its chord sits at
 //! `θ ∝ √ε` and moves with the row CI draws. Every turn below is
 //! written as a multiple of `√ε`, and the multiples are the ones that
 //! land inside the window at 1e-6, 1e-9 and 1e-12 alike.
@@ -26,8 +27,8 @@ use crate::common;
 use common::tol;
 use geom_core::{Point2, Tol};
 use profile::{
-    ArcSweep, Center, ConstructedLoop, ConstructedProfile, Open, PathError, ProfileError,
-    SketchPlane, Start,
+    ArcSweep, Center, ConstructedLoop, ConstructedProfile, EscalationSite, Open, PathError,
+    ProfileError, SketchPlane, Start,
 };
 
 /// The fillet radius every corner here is rounded with.
@@ -161,10 +162,8 @@ fn is_stored_form_refusal(err: &PathError<f64>) -> bool {
                     | "segment_straightness"
                     | "arc_diameter_clearance"
                     | "chord_side"
-                    | "carrier_line_circle"
                     | "carrier_circles_identity"
-                    | "carrier_circles_external"
-                    | "carrier_circles_internal"
+                    | "path_junction_turn"
             )
         ),
         _ => false,
@@ -198,43 +197,53 @@ fn validates(lp: ConstructedLoop<f64>, tol: Tol) -> Result<(), ProfileError> {
 // The rows
 // ------------------------------------------------------------------
 
-/// **The witness refuses at the door, typed, at every ε row.** The
-/// refusal names the predicate that read the stored form and the margin
-/// it classified, and both describe the fillet the author asked for:
-/// the arc is `radius · |turn|` long and the joint's own margin is what
-/// the classification stopped at.
+/// **A fillet flattened in storage carries its tangency on its chord,
+/// at every ε row.** Inside the window the stored segment is the chord,
+/// whose joints turn by four sagittas at its own arm; the door builds
+/// the bend with both joints constructed, and validation verifies them.
 #[test]
-fn the_door_refuses_a_fillet_its_stored_form_cannot_carry() {
+fn a_fillet_flattened_in_storage_carries_its_tangency_on_its_chord() {
     for c in INSIDE {
         let theta = c * scale();
-        let err = line_line(theta, R)
-            .err()
-            .unwrap_or_else(|| panic!("c = {c}, theta = {theta:e}: the door must refuse"));
-        let (predicate, margin, turn, radius, arc_length) =
-            flattened_refusal(&err, &format!("c = {c}, theta = {theta:e}"));
-        // The stored fillet is read as a straight segment and the
-        // outgoing leg is straight too, so the classification that
-        // refuses the declaration is the line/line carrier-identity
-        // question the validator asks: `chord_side` on the far
-        // endpoint.
+        let lp = line_line(theta, R).unwrap_or_else(|e| {
+            panic!("c = {c}, theta = {theta:e}: the door builds the bend, got {e}")
+        });
         assert_eq!(
-            predicate, "chord_side",
-            "c = {c}: the refusal names the classification that read the stored form, got {err}"
+            lp.constructed_joints(),
+            &[1, 2],
+            "c = {c}: both fillet joints constructed"
         );
-        assert!(
-            margin.abs() >= tol().eps() * tol().k(),
-            "c = {c}: a definite margin is what makes the declaration contradicted, got {margin:e}"
-        );
-        assert_eq!(radius, R, "c = {c}: the radius the author asked for");
-        assert!(
-            (turn.abs() - theta).abs() <= 1e-3 * theta,
-            "c = {c}: the turn read back from the stored bulge is the corner's, got {turn:e}"
-        );
-        assert!(
-            (arc_length - radius * turn.abs()).abs() <= f64::EPSILON * arc_length,
-            "c = {c}: the arc length is radius * |turn|, got {arc_length:e}"
-        );
+        validates(lp, tol())
+            .unwrap_or_else(|e| panic!("c = {c}, theta = {theta:e}: and it validates, got {e}"));
     }
+}
+
+/// **What the stored form cannot hold, the door refuses, typed.** A
+/// fillet arc shorter than ε stores no segment — its two vertices
+/// coincide (`vertex_separation`) — and the door refuses
+/// `FilletArcFlattenedInStorage` naming that classification and its
+/// margin; the arc is `radius · |turn|` long.
+#[test]
+fn the_door_refuses_a_fillet_its_stored_form_cannot_hold() {
+    let theta = 1e-3;
+    let radius = 0.5 * tol().eps() / theta;
+    let err = line_line(theta, radius).expect_err("an arc shorter than ε refuses");
+    let (predicate, margin, turn, got_radius, arc_length) =
+        flattened_refusal(&err, &format!("theta = {theta:e}"));
+    assert_eq!(predicate, "vertex_separation", "{err}");
+    assert!(
+        margin.abs() < tol().eps(),
+        "the stored vertices coincide, got {margin:e}"
+    );
+    assert_eq!(got_radius, radius, "the radius the author asked for");
+    assert!(
+        (turn.abs() - theta).abs() <= 1e-3 * theta,
+        "the turn read back from the stored bulge is the corner's, got {turn:e}"
+    );
+    assert!(
+        (arc_length - got_radius * turn.abs()).abs() <= f64::EPSILON * arc_length,
+        "the arc length is radius * |turn|, got {arc_length:e}"
+    );
 }
 
 /// **Every corner kind, the same contract.** At a turn inside the
@@ -305,7 +314,9 @@ fn a_fillet_the_stored_form_carries_builds_and_validates() {
 /// reads that crossing in band once the chord is a few Kε, but the
 /// legs' ends lie on each other's carriers and settle the pair. So
 /// every corner the door builds whose legs stand 1.5Kε apart or more
-/// validates, across five radii and seven decades of turn.
+/// validates, across five radii and seven decades of turn — or, where
+/// its fillet is stored as a chord, escalates at the chord's pair with
+/// its leg, the carriers' clearance in band.
 ///
 /// Where the door builds such a corner depends on ε: at 1e-6 the
 /// offset-lever gate admits turns whose fillet chord is a few Kε, and
@@ -329,7 +340,7 @@ fn a_shallow_arc_x_arc_corner_validates_wherever_its_legs_stand_apart() {
             "theta = 5e-5: the door builds it at eps = 1e-6, got {e}"
         ),
     }
-    let (mut read, mut near) = (0, 0);
+    let (mut read, mut near, mut pair_escalated) = (0, 0, 0);
     for radius in [0.02, 0.05, 0.2, 0.5, 1.0] {
         for i in 0..=70 {
             let theta = 10f64.powf(-8.0 + 0.1 * f64::from(i));
@@ -342,48 +353,56 @@ fn a_shallow_arc_x_arc_corner_validates_wherever_its_legs_stand_apart() {
             }
             read += 1;
             near += usize::from(apart < 10.0 * kk);
-            validates(lp, tol()).unwrap_or_else(|e| {
-                panic!(
+            match validates(lp, tol()) {
+                Ok(()) => {}
+                // The fillet stored as its chord meets its leg's circle
+                // within ε at their joint, and the pair pass reads the
+                // two carriers' clearance in band: the near-tangency the
+                // door's joint read relayed while it read the carriers
+                // (`work/paths/an-adjacent-line-arc-pair-tangent-at-its-joint-escalates-its-carriers-clearance.md`).
+                Err(ProfileError::Escalated {
+                    site: EscalationSite::SegmentPair(..),
+                    source,
+                }) if source.predicate == Some("carrier_line_circle") => pair_escalated += 1,
+                Err(e) => panic!(
                     "r = {radius}, theta = {theta:e}: legs {:.2}Kε apart validate, got {e}",
                     apart / kk
-                )
-            });
+                ),
+            }
         }
     }
     assert!(read > 0, "the door builds some arc x arc corner");
     println!(
-        "eps = {:e}: {read} corners validated, {near} of them with legs within 10Kε",
+        "eps = {:e}: {read} corners read, {near} of them with legs within 10Kε, \
+         {pair_escalated} escalated at the fillet's pair",
         tol().eps()
     );
 }
 
 /// **The refusal's recourse is followable.** The sentence names two
 /// levers — turn the corner further, or round it with a larger radius —
-/// and both are real: the stored arc's sagitta is `r(1 − cos(θ/2))`, so
-/// either one raises it past the band. The row follows each and asserts
-/// the result builds AND validates.
+/// and both are real: the stored arc's length is `r·θ`, so either one
+/// lifts it past the band. The row follows each and asserts the result
+/// builds AND validates.
 #[test]
 fn the_recourse_the_refusal_names_builds_and_validates() {
-    let theta = scale();
-    let refused = line_line(theta, R).expect_err("the window turn refuses");
+    let theta = 1e-3;
+    let radius = 0.5 * tol().eps() / theta;
+    let refused = line_line(theta, radius).expect_err("an arc shorter than ε refuses");
     let shown = refused.to_string();
     assert!(
         shown.contains("turn the corner further") && shown.contains("LARGER radius"),
         "the refusal names both levers, got {shown}"
     );
 
-    // Lever 1: the larger turn, at the same radius.
-    let wider = CLEAR * scale();
-    let lp = line_line(wider, R).expect("the larger turn builds");
+    // Lever 1: the larger turn, at the same radius — an arc twice the
+    // band's top long, stored as its chord.
+    let wider = 2.0 * tol().eps() * tol().k() / radius;
+    let lp = line_line(wider, radius).expect("the larger turn builds");
     validates(lp, tol()).expect("and validates");
 
-    // Lever 2: the larger radius, at the same turn. The sagitta scales
-    // with r, so the radius the recourse needs is the one that lifts
-    // r(1 - cos(theta/2)) clear of the band.
-    let needed = tol().eps() * tol().k() / (1.0 - (theta * 0.5).cos());
-    let bigger = needed * 4.0;
-    // The leg the fillet is cut into has to hold the setback, which for
-    // a turn this shallow is r*tan(theta/2) — vanishing beside r.
+    // Lever 2: the larger radius, at the same turn.
+    let bigger = 8.0 * tol().eps() * tol().k() / theta;
     let lp = line_line(theta, bigger)
         .unwrap_or_else(|e| panic!("the larger radius {bigger:e} m builds, got {e}"));
     validates(lp, tol())
@@ -467,9 +486,9 @@ fn corpus() -> Vec<(String, ConstructedLoop<f64>)> {
     // three counts because the window they read moves with ε; a row
     // outside them says so rather than guessing.
     let expected = match format!("{:e}", tol().eps()).as_str() {
-        "1e-9" => Some(24),
-        "1e-6" => Some(32),
-        "1e-12" => Some(16),
+        "1e-9" => Some(36),
+        "1e-6" => Some(45),
+        "1e-12" => Some(28),
         _ => None,
     };
     if let Some(expected) = expected {
@@ -714,14 +733,20 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 /// every ε row, and nothing else moved. Then `arc_onto`'s token-supplied
 /// `D` cap joined as `shared coverage corpus 15` (validating, joint 0
 /// constructed), renumbering the circle forms to `16` and `17`; no other
-/// row moved, at any ε row.
-const GOLDEN_DEFAULT: u64 = 0x071b_1490_d356_068e;
+/// row moved, at any ε row. Then a joint came to be read by its turn at
+/// the shorter leg's arm, so a fillet flattened to its chord carries its
+/// tangency: the twelve `line x line` corners at `c = 0.1 … 2` (eleven at
+/// 1e-6, where `c = 0.1, r = 0.05` still refuses) joined the corpus,
+/// validating with joints `[1, 2]` constructed, and at 1e-6 `arc x arc
+/// c=2` at r = 0.05 and 0.2 joined it refused by the pair pass; no other
+/// row moved.
+const GOLDEN_DEFAULT: u64 = 0x43a9_1ebe_c4d5_d404;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`, where `arc x arc c=0.3
 /// r=0.05` validates: its legs stand ≈ 1.5Kε apart across the carriers'
 /// shallow crossing, which their ends settle.
-const GOLDEN_1E6: u64 = 0x56d0_f437_54f4_6d7d;
+const GOLDEN_1E6: u64 = 0xb9e8_b31b_34e9_4d0a;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0x8155_1084_037a_dc86;
+const GOLDEN_1E12: u64 = 0xc6d0_a757_d28d_fd72;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the

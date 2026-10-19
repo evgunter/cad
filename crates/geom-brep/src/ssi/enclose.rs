@@ -76,8 +76,8 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
-    AxisCut, CellAxis, CellBlock, CellFirstQuotients, KnotVector, Knots, ParamRange, QuotientPiece,
-    RingRefinement, Span, TensorNet, basis::basis_funs_in, cell_first_quotients,
+    AxisCut, CellAxis, CellBlock, CellFirstQuotients, IntervalPieces, KnotVector, Knots,
+    ParamRange, RingRefinement, Span, TensorNet, basis::basis_funs_in, cell_first_quotients,
 };
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
@@ -885,7 +885,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 }
                 let (whole, spans) = self.cell(su, sv)?;
                 let r = read(whole);
-                let r = match cut.and_then(|read| whole.cut(spans, range.clamped, read)) {
+                let r = match cut.and_then(|axes| whole.cut(spans, range.clamped, axes)) {
                     Some(net) => meet(r, read(&net)),
                     None => r,
                 };
@@ -1180,9 +1180,9 @@ struct CellNet {
     /// `S_u` on each of the block's [`BLOCK_PIECE_SPLITS`]² pieces,
     /// `None` where the statement refused (every reading of it then
     /// refuses) or, on a cut net, where its reader did not ask for it.
-    u: Option<Vec<QuotientPiece<Interval, 3>>>,
+    u: Option<IntervalPieces>,
     /// `S_v` likewise, piece for piece in `u`'s order.
-    v: Option<Vec<QuotientPiece<Interval, 3>>>,
+    v: Option<IntervalPieces>,
 }
 
 impl CellNet {
@@ -1271,14 +1271,14 @@ impl CellNet {
     /// no whole-cell quotients: the whole cell is the caller's answer
     /// either way, and a sound one.
     ///
-    /// Only the axes `read` asks for are restricted (`(S_u, S_v)`): a
+    /// Only the `axes` its reader reads are restricted (`(S_u, S_v)`): a
     /// reader of one axis's quotient restricts its numerator and `W²`
     /// alone, bit for bit the pieces restricting both would give it.
     fn cut(
         &self,
         (span_u, span_v): (Span<'_>, Span<'_>),
         w: UvWindow,
-        read: (bool, bool),
+        axes: (bool, bool),
     ) -> Option<Self> {
         let (cut_u, cut_v) = (inside(span_u, w.u), inside(span_v, w.v));
         if cut_u.is_none() && cut_v.is_none() {
@@ -1286,7 +1286,7 @@ impl CellNet {
         }
         let (u, v) = self.raised.as_ref()?.cut_pieces(
             (cut_u, cut_v),
-            read,
+            axes,
             (BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS),
         );
         Some(Self { raised: None, u, v })

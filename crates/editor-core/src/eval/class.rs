@@ -693,7 +693,7 @@ mod tests {
                     anchored: 5,
                 },
             },
-            C::ProfileRecordMissing => K::ProfileRecordMissing { loop_: Some(1) },
+            C::ProfileRecordMissing => K::ProfileRecordMissing { loop_: 1 },
             C::Extrude => K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
             C::Revolve => K::Revolve(sweep::RevolveError::DegenerateAxis),
             C::Tube => K::Tube(Box::new(sweep::TubeError::DegenerateWindow)),
