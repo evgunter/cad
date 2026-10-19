@@ -452,14 +452,22 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
     }
 }
 
-/// **The family the reader's ray decisions are recorded under**
-/// ([`geom_core::k_stats::in_family`]): every verdict an aimed ray
-/// decides, its own crossings and the in-face and region walks it reads
-/// them through. The reader's answer cannot turn on any one of them
-/// (`[verdicts]`: an instrument represents no tie-break the band forbids
-/// it), so a flip among them is never why a result moved, and N5 passes
-/// over them (`editor_core::resolve`). The volume the reader falls back
-/// on is recorded under its own names.
+/// **The family the ray caster's decisions are recorded under**
+/// ([`geom_core::k_stats::in_family`]): every verdict [`cast_aims`]
+/// decides — the aimed rays' crossings, their pair's gap
+/// (`side_at_infinity_order`) and the in-face and region walks it reads
+/// them through. The volume the reader falls back on lies outside it,
+/// under its own names: it is the document's measurement, not the rays'.
+///
+/// **What a flip among them can and cannot do.** The side a ray reads
+/// is the same for every ray from outside the body, so where one ray
+/// reads and another reads differently is a tie-break the band forbids
+/// the instrument to represent (`[verdicts]`). One verdict is no
+/// tie-break: `side_at_infinity_order` is a pair's gap, geometry, and its
+/// flip moves a ray between reading and refusing on that pair. Either
+/// way a flip in this family changes whether the side is read, never
+/// which side: it surfaces as a refusal, never as a piece that moved,
+/// so N5's flip lane passes over the family (`editor_core::resolve`).
 pub const FAMILY: &str = "side_at_infinity_";
 
 /// What the aimed rays read ([`cast_aims`]).

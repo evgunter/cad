@@ -1460,14 +1460,17 @@ fn in_id_order<V>(mut found: Vec<(RecipeNodeId, V)>) -> Vec<(RecipeNodeId, V)> {
 }
 
 /// **The flip lane's pick** ([`Prior::lanes`]): the first of `found` in
-/// node order ([`in_id_order`]) that the side reader did not decide. The
-/// reader's decisions are an instrument's internals, recorded under its
-/// family ([`topo::SIDE_READER_FAMILY`]): the side it reads cannot turn
-/// on any one of them (`[verdicts]`: no represented tie-break), so a flip
-/// among them is never why a piece moved, and with no other flip found
-/// the cause is the next lane's (a structural parameter, a recipe edit)
-/// or another rung's (a group resized). The mirror of the `name_frag_*`
-/// rung, which puts a family first.
+/// node order ([`in_id_order`]) that the side reader's ray caster did not
+/// decide. Its decisions are recorded under one family
+/// ([`topo::SIDE_READER_FAMILY`]; the volume it falls back on is not in
+/// it). A flip among them changes whether a body's side is read — a
+/// ray's pair gap is geometry, and its flip moves the ray between reading
+/// and refusing — never which side, since every ray from outside reads
+/// the same one (`[verdicts]`): it surfaces as a refusal, never as a
+/// piece that moved. So with no other flip found the cause is the next
+/// lane's (a structural parameter, a recipe edit) or another rung's (a
+/// group resized). The mirror of the `name_frag_*` rung, which puts a
+/// family first.
 fn first_cause(found: Vec<(RecipeNodeId, VerdictFlip)>) -> Option<(RecipeNodeId, VerdictFlip)> {
     in_id_order(found)
         .into_iter()
@@ -1497,8 +1500,9 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
     ///    discriminator flip is definitionally the flip that
     ///    re-qualified the fragment.
     /// 2. The lane table ([`Prior::lanes`]) over the path, whose flip
-    ///    lane passes over the side reader's family ([`first_cause`]):
-    ///    an instrument's internal decisions, never the cause.
+    ///    lane passes over the ray caster's family ([`first_cause`]): a
+    ///    flip there changes whether a side is read, never which, so it
+    ///    surfaces as a refusal and never moves a piece.
     ///
     /// This is a consumer-side attribution choice — the diff engine
     /// itself stays cause-agnostic and unspecialized.

@@ -260,10 +260,11 @@ thread_local! {
 /// **Runs `work` with every verdict it records named under `family`**:
 /// a predicate decided inside it reaches the verdict channel as
 /// `family` followed by its own name (a name already in the family is
-/// left as it is). For an instrument whose answer turns on none of its
-/// own decisions taken one at a time, so that a reader of the verdict
-/// log can tell them apart from the decisions of the operation that ran
-/// it (`editor_core::resolve`'s N5 passes over them). Only the verdict
+/// left as it is). For an instrument a flip among whose decisions can
+/// change whether it reads, never what it reads (`topo`'s ray caster), so
+/// that a reader of the verdict log can tell them apart from the
+/// decisions of the operation that ran it (`editor_core::resolve`'s N5
+/// passes over them). Only the verdict
 /// channel is renamed: an escalation keeps the name its refusal is
 /// typed by, and a K sample the name its population is counted under.
 /// The symbolic recorder tags the decisions taken inside it with the

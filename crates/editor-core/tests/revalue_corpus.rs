@@ -208,10 +208,11 @@ fn compare_prefix(doc: &ProfileDoc) -> Found {
     if a.compared >= b.compared { a } else { b }
 }
 
-/// `decisions` split into the document's own and the side reader's
-/// (`topo::SIDE_READER_FAMILY`, the family `k_stats::in_family` tags):
-/// the reader's answer turns on none of its own decisions (`[verdicts]`),
-/// so where it aims cannot part or flip a document's row.
+/// `decisions` split into the document's own and the side reader's ray
+/// caster's (`topo::SIDE_READER_FAMILY`, the family `k_stats::in_family`
+/// tags; the reader's volume fallback is the document's): a flip among
+/// the caster's changes whether a side is read, never which
+/// (`[verdicts]`), so where it aims cannot part or flip a document's row.
 fn streams(decisions: &[Decision]) -> (Vec<Decision>, Vec<Decision>) {
     decisions
         .iter()
@@ -221,10 +222,14 @@ fn streams(decisions: &[Decision]) -> (Vec<Decision>, Vec<Decision>) {
 
 /// The two builds' decisions compared: the document's own aligned
 /// ([`in_step`]) and read ([`tally`]); `None` where they part, unless
-/// `prefix`. The side reader's are paired among themselves, up to their
+/// `prefix`. The ray caster's are paired among themselves, up to their
 /// own first difference, and re-valued as the document's are: a
 /// laundering among them counts in `laundered`, while one of their flips,
-/// and what follows it, parts and flips nothing.
+/// and what follows it, parts and flips nothing. Past that difference a
+/// build may have aimed a ray the other did not, and nothing on the
+/// record says which ray a decision belongs to, so no later pair is known
+/// to be one decision
+/// (`work/flush/revalue-pairs-the-ray-casters-decisions-only-to-their-first-difference.md`).
 fn compare_decisions(
     p0: &[Decision],
     p1: &[Decision],
