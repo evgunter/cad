@@ -24,10 +24,13 @@
 //! meet iff their intersection's extreme rays (the feasible cross
 //! products of two of the six planes) span it and their mean lies
 //! strictly inside all six, by a margin read as the least normalized
-//! constraint value there. **What is wrong**: a rest where some pair
-//! overlaps by more than `1e-6` (a depth of a micrometre per metre, far
-//! past the band), and a crossing where no pair overlaps at all. A
-//! refusal is never wrong here; each kind is counted and logged.
+//! constraint value there; whether they meet at all is read exactly,
+//! the same construction over the normals as exact integers
+//! ([`overlaps_exactly`]), so an overlap a hair wide counts. **What is
+//! wrong**: a rest where some pair overlaps by more than `1e-6` (a depth
+//! of a micrometre per metre, far past the band), and a crossing where
+//! no pair overlaps at all. A refusal is never wrong here; each kind is
+//! counted and logged.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -184,6 +187,37 @@ impl Prism {
     }
 }
 
+/// Whether two convex cones' interiors meet, exactly: their normals
+/// (each an `f64` triple) read as exact integers, the intersection's
+/// extreme rays the feasible cross products of two of the six, and the
+/// interior met iff their sum lies strictly inside all six — no
+/// threshold, so an overlap a hair wide counts.
+fn overlaps_exactly(p: &[V; 3], q: &[V; 3]) -> bool {
+    use super::segment_fuzz::{big, big_cross, big_dot};
+    use num_bigint::BigInt;
+    let zero = BigInt::from(0);
+    let h: Vec<[BigInt; 3]> = p.iter().chain(q).map(|v| v.map(big)).collect();
+    let mut sum = [zero.clone(), zero.clone(), zero.clone()];
+    let mut any = false;
+    for i in 0..6 {
+        for j in i + 1..6 {
+            let c = big_cross(&h[i], &h[j]);
+            if c.iter().all(|x| *x == zero) {
+                continue;
+            }
+            for r in [c.clone(), c.clone().map(|x| -x)] {
+                if h.iter().all(|g| big_dot(g, &r) >= zero) {
+                    any = true;
+                    for k in 0..3 {
+                        sum[k] += &r[k];
+                    }
+                }
+            }
+        }
+    }
+    any && h.iter().all(|g| big_dot(g, &sum) > zero)
+}
+
 /// The deepest overlap of any convex piece of one cone with any of the
 /// other's ([`overlap`]).
 fn depth(xs: &[&Prism], y: &Prism) -> f64 {
@@ -191,6 +225,14 @@ fn depth(xs: &[&Prism], y: &Prism) -> f64 {
         .flat_map(|x| x.pieces())
         .flat_map(|p| y.pieces().into_iter().map(move |q| overlap(&p, &q)))
         .fold(0.0, f64::max)
+}
+
+/// Whether any convex piece of one cone meets any of the other's,
+/// exactly ([`overlaps_exactly`]).
+fn meet(xs: &[&Prism], y: &Prism) -> bool {
+    xs.iter()
+        .flat_map(|x| x.pieces())
+        .any(|p| y.pieces().iter().any(|q| overlaps_exactly(&p, q)))
 }
 
 fn dot(a: V, b: V) -> f64 {
@@ -381,7 +423,7 @@ fn the_link_test_agrees_with_the_prisms_own_inequalities() {
             _ => {
                 // A few band widths off a snapped pose, at the profile's
                 // metre scale.
-                let mut nudge = |p: Prism, r: &mut Rng| {
+                let nudge = |p: Prism, r: &mut Rng| {
                     let angle = band.zero() * 10f64.powf(r.range(-0.5, 1.5));
                     p.nudged(r, angle)
                 };
@@ -394,7 +436,7 @@ fn the_link_test_agrees_with_the_prisms_own_inequalities() {
         crate::instance::graft_disjoint(&mut body, &build(&b)).unwrap();
         let verdict = verdict_at_origin(&mut body, band);
         let depth = depth(&[&a], &b);
-        let (clear, any) = (depth > 1e-6, depth > 0.0);
+        let (clear, any) = (depth > 1e-6, meet(&[&a], &b));
         let kind = match &verdict {
             TouchVerdict::Rest(_) => "rest",
             TouchVerdict::Crossing => "crossing",
@@ -445,7 +487,7 @@ fn a_pinch_link_agrees_with_the_prisms_own_inequalities() {
         let snapped = trial % 2 == 1;
         let (a1, a2) = loop {
             let (x, y) = (Prism::draw(&mut r, snapped), Prism::draw(&mut r, snapped));
-            if depth(&[&x], &y) == 0.0 {
+            if !meet(&[&x], &y) {
                 break (x, y);
             }
         };
@@ -460,7 +502,7 @@ fn a_pinch_link_agrees_with_the_prisms_own_inequalities() {
         }
         let verdict = verdict_at_origin(&mut body, band);
         let d = depth(&[&a1, &a2], &b);
-        let (clear, any) = (d > 1e-6, d > 0.0);
+        let (clear, any) = (d > 1e-6, meet(&[&a1, &a2], &b));
         let kind = match &verdict {
             TouchVerdict::Rest(_) => "rest",
             TouchVerdict::Crossing => "crossing",
@@ -489,7 +531,7 @@ fn a_pinch_link_agrees_with_the_prisms_own_inequalities() {
     );
 }
 
-fn verdict_at<T: Decide + Bounds + crate::props::AtRestPolicy>(
+fn verdict_at<T: Decide + crate::props::AtRestPolicy>(
     a: &Prism,
     b: &Prism,
     band: Band,
@@ -514,11 +556,22 @@ fn verdict_at<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut body = build(a);
     crate::instance::graft_disjoint(&mut body, &build(b)).unwrap();
     let geo = snapshot(&body);
-    let zero = |t: T| t.lo() == 0.0 && t.hi() == 0.0;
+    // At the origin: decided on each axis's plane through it.
+    let (zero, one) = (T::from_f64(0.0), T::from_f64(1.0));
+    let o = Point3::new(zero, zero, zero);
+    let axes = [
+        Vec3::new(one, zero, zero),
+        Vec3::new(zero, one, zero),
+        Vec3::new(zero, zero, one),
+    ];
     let at_origin: Vec<VertexKey> = geo
         .verts
         .iter()
-        .filter(|(_, q)| zero(q.x) && zero(q.y) && zero(q.z))
+        .filter(|&&(_, q)| {
+            axes.iter().all(|&e| {
+                metric::sign(TOUCH_PLANE, Distance::of(q, o, e), band) == Some(Sign::Zero)
+            })
+        })
         .map(|&(v, _)| v)
         .collect();
     assert_eq!(at_origin.len(), 2);
@@ -558,11 +611,7 @@ fn the_link_test_at_interval_agrees_with_the_oracle() {
         let (a, b) = (Prism::draw(&mut r, snapped), Prism::draw(&mut r, snapped));
         let iv = verdict_at::<Interval>(&a, &b, band);
         let fl = verdict_at::<f64>(&a, &b, band);
-        let depth = a
-            .pieces()
-            .iter()
-            .flat_map(|p| b.pieces().into_iter().map(move |q| overlap(p, &q)))
-            .fold(0.0, f64::max);
+        let depth = depth(&[&a], &b);
         let class = |v: &TouchVerdict| match v {
             TouchVerdict::Rest(_) => "rest".to_owned(),
             TouchVerdict::Crossing => "crossing".to_owned(),
@@ -571,7 +620,7 @@ fn the_link_test_at_interval_agrees_with_the_oracle() {
         let (ci, cf) = (class(&iv), class(&fl));
         *tally.entry(format!("iv {ci} / f64 {cf}")).or_default() += 1;
         let decided = |c: &str| c == "rest" || c == "crossing";
-        let wrong_iv = (ci == "rest" && depth > 1e-6) || (ci == "crossing" && depth == 0.0);
+        let wrong_iv = (ci == "rest" && depth > 1e-6) || (ci == "crossing" && !meet(&[&a], &b));
         if wrong_iv || (decided(&ci) && decided(&cf) && ci != cf) {
             bad.push(format!(
                 "trial {trial}: iv {ci}, f64 {cf}, depth {depth:e}; a {:?} h {} rot {:?}; b {:?} h {} rot {:?}",

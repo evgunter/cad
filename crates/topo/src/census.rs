@@ -12553,6 +12553,44 @@ mod tests {
         );
     }
 
+    /// **The cuts a piece needs: a pinwheel.** Two pyramids with their
+    /// apex at the origin, over parallelograms in the plane `z = 1` — `A`
+    /// over `(0, 0), (3, 0), (1, 1), (−2, 1)` and `B` over `(1, 0), (1,
+    /// 3), (0, 1), (0, −2)` — overlap in the cone over the unit square,
+    /// and no face of one crosses a face of the other: at each corner of
+    /// the square one pyramid's edge lies in a face of the other, which
+    /// runs on past it. Every face's middle lies off the square, so read
+    /// whole every face reads apart. Cut at the other's edges lying on
+    /// it, each face's piece along a side of the square reads inside the
+    /// other: a crossing. Red where a sector is not cut at the rays lying
+    /// on it — in band, not a rest: a face read whole meets the other's
+    /// edge lying on it at a point on that edge's ray, which rule (1)
+    /// reads neither inside nor outside the face, and notes. So the cut
+    /// buys the crossings, and no rest stands on it.
+    #[test]
+    fn a_pinwheel_of_two_pyramids_crosses_through_its_cuts() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let pyramid = |base: [(f64, f64); 4]| {
+            let mut verts = vec![Point3::new(0.0, 0.0, 0.0)];
+            verts.extend(base.map(|(x, y)| Point3::new(x, y, 1.0)));
+            let faces: Vec<(Vec3<f64>, Vec<Vec<usize>>)> = (0..4)
+                .map(|k| {
+                    let (a, b) = (1 + k, 1 + (k + 1) % 4);
+                    // The material is inside the cone: each side's
+                    // outward normal is `−(a × b)`, its loop `(0, b, a)`.
+                    let m = -(verts[a] - verts[0]).cross(verts[b] - verts[0]).normalize();
+                    (m, vec![vec![0, b, a]])
+                })
+                .collect();
+            synthetic(verts[0], At::Vertex(0), verts.clone(), &faces, &[], band)
+                .expect("a pyramid's link")
+        };
+        let a = pyramid([(0.0, 0.0), (3.0, 0.0), (1.0, 1.0), (-2.0, 1.0)]);
+        let b = pyramid([(1.0, 0.0), (1.0, 3.0), (0.0, 1.0), (0.0, -2.0)]);
+        assert_eq!(rest::judge(&a, &b, band), TouchVerdict::Crossing);
+        assert_eq!(rest::judge(&b, &a, band), TouchVerdict::Crossing);
+    }
+
     /// **A slit is named, not read as a wall.** Two faces lying on each
     /// other in the plane `x = 0` over the edge along `y`: one rectangle
     /// above the edge, once with its outward normal `−x` and once with
