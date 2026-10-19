@@ -2,10 +2,12 @@
 id: closed-form-loop-whole-charges-near-axis-rounding-at-the-largest-radius
 kind: issue
 title: At the interval lane a torus loop with a parallel near the axis escalates props_chart_loop_whole, its near-axis rounding charged at the loop's largest radius
-status: open
+status: review
 opened: 2026-10-13
 priority: P3
 cost: M
+pr: 5333
+branch: flux/cone-closure-and-per-term-whole
 ---
 
 
