@@ -2,8 +2,9 @@
 id: the-slow-ssi-rows-stay-over-twice-their-pre-4954-time
 kind: issue
 title: The slow SSI rows stay 2.5-2.7x their pre-4954 time after the quotient unit, against a 2x target
-status: open
+status: closed
 opened: 2026-10-14
+closed: 2026-10-19
 ---
 
 
@@ -44,3 +45,28 @@ repeat.
 - **What the slow rows spend now** is not yet profiled after step 3.
   The next step is a gdb or callgrind split of shelling and r1 on
   #5123's head.
+
+## Closed: both rows under 2× (2026-10-19)
+
+Each wall's chart is minted once per offset (`nurbs/mint-walls-once`:
+`topo::offset_derive::WallCharts`, `Section::of_charted`,
+`PlaneSection::of_charted`). The shelling row's mints fall from 17 to 5
+for its 4 walls: one per wall in the planning frame, and one more where
+the written edge is certified (`Body::set_face_surfaces_describing` →
+`edge_nurbs::plane_nurbs_limbs`), a separate phase after the planning
+frame drops its slots.
+
+Pre-4954 (`092b3022^1`), main `6d53b3d2` and the branch, fresh targets,
+opt-level 1, `--test-threads 1`, three interleaved rounds on one box:
+
+| row | pre-4954 | main `6d53b3d2` | mint-once |
+|---|---|---|---|
+| shelling | 28.5 / 27.7 / 27.7 s | 59.6 / 59.4 / 58.8 s (2.14×) | 51.4 / 51.7 / 51.6 s (**1.86×**) |
+| r1 | 9.7 / 9.5 / 9.8 s | 14.3 / 14.5 / 14.2 s (1.47×) | 14.5 / 14.4 / 14.5 s (**1.49×**) |
+| face bound | 0.064–0.074 s | 0.32–0.36 s | 0.33–0.38 s |
+
+Every `limb_three` decision on shelling, r1, `m5_pr7_ssi::` and
+`nurbs_nurbs_section::` reads as main's, bit for bit. The levers left
+for whoever wants more: `Interval::mul_nonneg` in the thin step once
+#5163 lands, #5163 in the offset fit, and `clears` at r1
+(`an-adaptive-block-piece-split-reads-one-piece-where-the-hull-decides`).
