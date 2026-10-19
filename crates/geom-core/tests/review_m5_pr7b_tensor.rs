@@ -482,7 +482,7 @@ fn the_budget_boundary_54_completes_and_57_is_refused() {
         (clamp(du), clamp(dv), vec![1.0; nu * nv], vec![x, y, z])
     };
     let (p, c) = (gnarl_pcurve(), gnarl_carrier());
-    // 3·(9+8+1) = 54: exactly at the cap — must complete finite + sound.
+    // 3·(9+8+1) = 54: under the cap (56) — must complete finite + sound.
     let s54 = patch(9, 8);
     let sup = sup_of(&s54, &p, &c, &[]);
     let max = scan_max(&s54, &p, &c, 100_000);
