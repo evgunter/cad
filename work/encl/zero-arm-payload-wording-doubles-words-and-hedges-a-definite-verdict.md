@@ -2,12 +2,13 @@
 id: zero-arm-payload-wording-doubles-words-and-hedges-a-definite-verdict
 kind: issue
 title: geom-brep: the Zero-arm payload idiom repeats a word within a sentence, hedges a definite Negative verdict, and prints '0e0 m'
-status: review
+status: closed
 pr: 5157
 opened: 2026-10-13
 priority: P4
 cost: E
 branch: encl/zero-arm-wording
+closed: 2026-10-19
 ---
 
 (Filed by the ENCL orchestrator from PR 4976's delta review, style findings S1–S5.)
