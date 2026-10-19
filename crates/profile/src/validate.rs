@@ -203,8 +203,9 @@ pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the ori
 /// declare the tangency, or spell the continuation, or move the
 /// geometry.
 pub(crate) const JUNCTION_TANGENT_LEVER: &str = "for tangency onto a new carrier use .tangent() \
-     (or the tangent-arc or seam-fillet close at the seam); for a straight continuation spell it \
-     line(len) off the directed point; otherwise move the geometry";
+     (.tangent().tangent_arc_to(p) for an arc; the tangent-arc or seam-fillet close at the \
+     seam); for a straight continuation spell it line(len) off the directed point; otherwise \
+     move the geometry";
 
 use crate::path::num;
 use crate::seg::{

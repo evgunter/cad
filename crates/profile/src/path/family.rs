@@ -137,8 +137,8 @@ use super::program::{ArcData, ClosedLoop, Step, Target};
 use super::verbs::{self, ArcLen, Center, DirectedPoint, PendingArc, Radius, Sweep, Via};
 use super::{
     ArcData as SegArc, Core, Dir, FirstSeg, Flavor, HasAng, HasPos, Incoming, NoAng, NoPos, Open,
-    PAIRED, PartialPath, PathError, PendingMeta, Plain, Start, Tip, WithIncoming,
-    carriers_are_identical, in_state, junction_check, leg_end_tip, linear_band,
+    PAIRED, PartialPath, PathError, PendingMeta, Plain, SeamArrival, Start, Tip, WithIncoming,
+    carriers_are_identical, in_state, leg_end_tip, linear_band, seam_joint,
 };
 
 // ------------------------------------------------------------------
@@ -336,6 +336,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     centre: Point2<T>,
     winding: crate::sugar::ArcSweep,
     arrival_radius: bool,
+    seam: SeamArrival,
     tol: Tol,
 ) -> Result<ClosedLoop<T>, PathError<T>> {
     let start_pos = core.start_pos.ok_or(PathError::UnderdeterminedLeg {
@@ -388,7 +389,9 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         core.claim(meta.bound_at, crate::structure::PieceRole::RunOut);
         core.close_leaving(Some(arc), FirstSeg::Arc)?;
         let chord = (start_pos - head).norm_squared().sqrt();
-        junction_check(
+        seam_joint(
+            core,
+            seam,
             &Incoming {
                 ang: end_ang,
                 arm: radius.min(chord),
@@ -398,8 +401,6 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
                 }),
             },
             start_ang,
-            core.first_leg_arm()?,
-            true,
             tol,
         )?;
     } else {
@@ -414,15 +415,15 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         let leaving = core.record_fillet_arc(trims.arc.radius, meta.bound_at)?;
         core.close_leaving(Some(trims.fillet().decided()), FirstSeg::Arc)?;
         debug_assert_eq!(leaving, core.verts.len() - 1, "{PAIRED}");
-        junction_check(
+        seam_joint(
+            core,
+            seam,
             &Incoming {
                 ang: end_ang,
                 arm: trims.arc.radius,
                 carrier: Some(trims.arc),
             },
             start_ang,
-            core.first_leg_arm()?,
-            true,
             tol,
         )?;
     }
@@ -492,6 +493,7 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Start> {
             spec.c,
             spec.winding,
             arrival_radius,
+            SeamArrival::Undeclared,
             tol,
         )
     }
@@ -503,6 +505,35 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Start> {
             c: self.c,
             winding: self.winding,
             target: Target::Start,
+        }
+    }
+}
+
+/// `Center { c, winding, p: Start.arrives_tangent() }`: the closing
+/// arrival with its seam joint DECLARED. The centre fixes the end
+/// tangent, so the target CHECKS it.
+impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, super::ArrivesTangent> {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn apply(mut core: Core<T>, spec: Self, tol: Tol) -> Self::Out {
+        let arrival_radius = ArrivalSpec::to_wire(&spec).carries_radius();
+        resolve_arc_close(
+            &mut core,
+            arc_fillet::resolve::<T>,
+            spec.c,
+            spec.winding,
+            arrival_radius,
+            SeamArrival::Checked,
+            tol,
+        )
+    }
+    fn fail(err: PathError<T>) -> Self::Out {
+        Err(err)
+    }
+    fn to_wire(&self) -> ArcData<T> {
+        ArcData::Center {
+            c: self.c,
+            winding: self.winding,
+            target: Target::StartArriving,
         }
     }
 }
@@ -576,6 +607,37 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, Start> {
     }
 }
 
+/// `Via { q, p: Start.arrives_tangent() }`: the via close whose end
+/// direction the token SUPPLIES — `Start`'s own, so the carrier is the
+/// circle through `q` tangent to it at the entry, and the close
+/// completes at the verb with no director; the seam's joint is tangent
+/// by construction.
+impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, super::ArrivesTangent> {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn apply(core: Core<T>, spec: Self, tol: Tol) -> Self::Out {
+        let dir = core.start_ang.ok_or(PathError::UnderdeterminedLeg {
+            site: "close before the entry direction is bound",
+        })?;
+        via_close(
+            core,
+            spec.q,
+            dir,
+            arc_fillet::resolve::<T>,
+            SeamArrival::Supplied,
+            tol,
+        )
+    }
+    fn fail(err: PathError<T>) -> Self::Out {
+        Err(err)
+    }
+    fn to_wire(&self) -> ArcData<T> {
+        ArcData::Via {
+            q: self.q,
+            target: Target::StartArriving,
+        }
+    }
+}
+
 // ------------------------------------------------------------------
 // Arrival builders (the binder halves the spec left free).
 // ------------------------------------------------------------------
@@ -590,7 +652,9 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Via<T, Start> {
 // make an author reach the recording a second way exactly where the
 // count is hardest.
 
-/// A `Radius` arrival awaiting both binders (either order).
+/// A `Radius` arrival awaiting both binders (either order). Its
+/// director is the arc's END tangent at the anchor — the landed point's
+/// incoming direction — and the departure there stays free.
 #[derive(Clone, Debug)]
 pub struct RadiusArrival<T: Real> {
     core: Core<T>,
@@ -612,7 +676,8 @@ impl<T: Real> RadiusArrival<T> {
     }
 }
 
-/// A `Radius` arrival with its anchor bound, director pending.
+/// A `Radius` arrival with its anchor bound, director pending: the
+/// director is the arc's end tangent, and the departure stays free.
 #[derive(Clone, Debug)]
 pub struct RadiusArrivalAt<T: Real> {
     core: Core<T>,
@@ -635,7 +700,8 @@ impl<T: Real> RadiusArrivalAt<T> {
     }
 }
 
-/// A `Radius` arrival with its director bound, anchor pending.
+/// A `Radius` arrival with its director — the arc's end tangent —
+/// bound, anchor pending.
 #[derive(Clone, Debug)]
 pub struct RadiusArrivalDir<T: Real> {
     core: Core<T>,
@@ -769,7 +835,9 @@ impl<T: geom_core::Decide> RadiusArrivalDir<T> {
     }
 }
 
-/// A `Via` arrival: anchor authored in the spec, director pending.
+/// A `Via` arrival: anchor authored in the spec, director pending. The
+/// director is the arc's end tangent at the anchor, and the departure
+/// there stays free.
 #[derive(Clone, Debug)]
 pub struct ViaArrival<T: Real> {
     core: Core<T>,
@@ -844,7 +912,11 @@ fn via_complete<T: geom_core::Decide>(
     resolve_arc_arrival(core, resolver, p, centre, winding, None, tol)
 }
 
-/// A `Via` CLOSE: anchor at the entry, director pending.
+/// A `Via` CLOSE: anchor at the entry, director pending. The director
+/// is the arc's end tangent at `Start`, and the seam is classified
+/// against `Start`'s own direction; the tangent close is
+/// `Via { q, p: Start.arrives_tangent() }`, which takes that direction
+/// from the token and closes at the verb.
 #[derive(Clone, Debug)]
 pub struct ViaArrivalStart<T: Real> {
     core: Core<T>,
@@ -881,6 +953,7 @@ impl<T: geom_core::Decide> ViaArrivalStart<T> {
             self.q,
             Dir::from_angle(theta),
             self.resolver,
+            SeamArrival::Undeclared,
             tol,
         )
     }
@@ -896,7 +969,14 @@ impl<T: geom_core::Decide> ViaArrivalStart<T> {
     ) -> Result<ClosedLoop<T>, PathError<T>> {
         self.core.record(step);
         let dir = verbs::director(dx, dy, tol)?;
-        via_close(self.core, self.q, dir, self.resolver, tol)
+        via_close(
+            self.core,
+            self.q,
+            dir,
+            self.resolver,
+            SeamArrival::Undeclared,
+            tol,
+        )
     }
 }
 
@@ -905,6 +985,7 @@ fn via_close<T: geom_core::Decide>(
     q: Point2<T>,
     dir: Dir<T>,
     resolver: verbs::ArcResolver<T>,
+    seam: SeamArrival,
     tol: Tol,
 ) -> Result<ClosedLoop<T>, PathError<T>> {
     let start_pos = core.start_pos.ok_or(PathError::UnderdeterminedLeg {
@@ -912,7 +993,7 @@ fn via_close<T: geom_core::Decide>(
     })?;
     let band = linear_band(tol)?;
     let (centre, winding) = verbs::via_carrier(DirectedPoint { at: start_pos, dir }, q, band)?;
-    resolve_arc_close(&mut core, resolver, centre, winding, false, tol)
+    resolve_arc_close(&mut core, resolver, centre, winding, false, seam, tol)
 }
 
 // ------------------------------------------------------------------
@@ -1638,8 +1719,8 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
 /// instead ([`TangentIncoming`]).
 /// SEALED, on the same rule as the lattice markers: the admissible
 /// (state, mode) pairs ARE the matrix, so a foreign impl would mint a
-/// row the doctrine does not have. The six mode types below are the
-/// whole implementor set.
+/// row the doctrine does not have. The impls below are the whole
+/// implementor set.
 pub trait PointLeg<T: geom_core::Decide, F: Flavor>: super::sealed::Sealed {
     /// The state the leg leaves the chain in.
     type Out;
@@ -1671,18 +1752,13 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, Start> 
             b: spec.b,
         }));
         let leg = path.arc_bulge(path.start_target()?, spec.b)?;
-        path.arc_to_start(leg, false, tol)
+        path.arc_to_start(leg, SeamArrival::Undeclared, tol)
     }
 }
 
 /// The SHARP arc seam with its arrival DECLARED. The bulge fixes the
 /// arc's end tangent, so nothing is overdetermined: the spec constructs
 /// and the target checks, exactly as on `tangent_arc_to`.
-///
-/// `Bulge` alone, and that is a scope statement rather than a rule —
-/// `Via` and `Center` fix an end tangent too and the same token would
-/// serve them. Their arms stay lattice violations until a unit takes
-/// them (issue 1579; PATHS-DESIGN §6 records it).
 impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::ArrivesTangent> {
     type Out = Result<ClosedLoop<T>, PathError<T>>;
     fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
@@ -1691,7 +1767,7 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for verbs::Bulge<T, super::
             b: spec.b,
         }));
         let leg = path.arc_bulge(path.start_target()?, spec.b)?;
-        path.arc_to_start(leg, true, tol)
+        path.arc_to_start(leg, SeamArrival::Checked, tol)
     }
 }
 
@@ -1715,7 +1791,21 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, Start> {
             target: Target::Start,
         }));
         let leg = path.arc_via(spec.q, path.start_target()?, tol)?;
-        path.arc_to_start(leg, false, tol)
+        path.arc_to_start(leg, SeamArrival::Undeclared, tol)
+    }
+}
+
+/// The `Via` arc seam with its arrival DECLARED: the through-point
+/// fixes the end tangent, and the target checks it.
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Via<T, super::ArrivesTangent> {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Via {
+            q: spec.q,
+            target: Target::StartArriving,
+        }));
+        let leg = path.arc_via(spec.q, path.start_target()?, tol)?;
+        path.arc_to_start(leg, SeamArrival::Checked, tol)
     }
 }
 
@@ -1741,7 +1831,22 @@ impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, Start> {
             target: Target::Start,
         }));
         let leg = path.arc_center(spec.c, path.start_target()?, spec.winding, tol)?;
-        path.arc_to_start(leg, false, tol)
+        path.arc_to_start(leg, SeamArrival::Undeclared, tol)
+    }
+}
+
+/// The `Center` arc seam with its arrival DECLARED: the centre fixes
+/// the end tangent, and the target checks it.
+impl<T: geom_core::Decide, F: Flavor> PointLeg<T, F> for Center<T, super::ArrivesTangent> {
+    type Out = Result<ClosedLoop<T>, PathError<T>>;
+    fn leg_from(mut path: PartialPath<T, HasPos<F>, NoAng>, spec: Self, tol: Tol) -> Self::Out {
+        path.core.record(Step::ArcTo(ArcData::Center {
+            c: spec.c,
+            winding: spec.winding,
+            target: Target::StartArriving,
+        }));
+        let leg = path.arc_center(spec.c, path.start_target()?, spec.winding, tol)?;
+        path.arc_to_start(leg, SeamArrival::Checked, tol)
     }
 }
 

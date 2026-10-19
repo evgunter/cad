@@ -2,10 +2,11 @@
 id: a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face
 kind: unit
 title: A ray that passes within the band of an edge meets it, half a crossing for each face the edge bounds, and reads the role off its signed count (D10, Ev on PR 5119)
-status: open
+status: dispatched
 opened: 2026-10-15
 priority: P2
 cost: H
+branch: flush/edge-meeting-ray
 ---
 
 

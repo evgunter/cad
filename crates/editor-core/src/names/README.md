@@ -131,8 +131,9 @@ this rule, and so do profile pieces:
   per verb. The piece door (`ProfileProgram::piece`) checks the list, and the
   authoring surfaces' role accessors are generated from it:
   - every verb that draws one segment has one role, `Leg`: `line`,
-    `line_to`, `continue_to`, `arc_to`, `tangent_arc_to`, `to` (the far
-    end), and the close to `Start`, whose leg is the seam;
+    `line_to`, `continue_to`, `arc_to`, `tangent_arc_to`, `arc_onto`
+    (whose leg the director after it lands, but which it names), `to`
+    (the far end), and the close to `Start`, whose leg is the seam;
   - a verb that only binds a point, a direction or a junction (`at`,
     `angle`, `toward`, `tangent`, `cusp`, `turn`) draws nothing and has no
     role;
