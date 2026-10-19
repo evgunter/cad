@@ -1546,3 +1546,8 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
 - 2026-10-19 21:00Z — **Correction to the 19:35Z friction entry:** the messages to build C were not lost. Default-priority messages wait until the lane's turn ends, and C's turns run for hours of timing, so they arrived only at its next turn boundary. Rulings now go with `next` priority, which joins the running turn.
   - **The coarse schedule is dropped.** With `clears` excluded on soundness (`Within`'s definition includes "no piece clears": `boundary.rs:1021`, `one_arc.rs:625/721`), the skip-only `beyond_reach` read alone gives shelling −3% and leaves r1 unchanged. `an-adaptive-block-piece-split-…` is closed as measured. `clears` (38k r1 reads) is the remaining r1 lever, with no sound one-piece path.
   - **Slow rows on main d989dab1:** shelling 74.0 s (2.1× pre-4954), r1 17.8 s (1.4×), against a 2× target. Build C re-times and closes the item, or names the remaining levers.
+- 2026-10-19 21:45Z — **Slow rows re-timed** (main 36bdaf3b against pre-4954 `092b3022^1`, fresh targets): shelling 2.13×, r1 1.49×, so the item stays open. Shelling's gdb profile:
+  - whole-cell formation 23%, other `enclose` 18%, `rect_box` 15%, cut restriction 12%, `transverse_readings` 9%, offset fit 9%, cut halving 8%;
+  - **the new lever:** `offset_derive` mints `ChartedNurbs` 17 times for 4 walls, through `Section::of` and `PlaneSection::of`.
+  - Build C takes it (FULL; seam note on topo's log): a section door takes the caller's minted chart, bit-identical. After it come `mul_nonneg` in the thin step, then #5163.
+  - #5404 (the #5391 review follow-ups) is STANDARD MERGEABLE; CI attribution pending. #5399 is green at 3 ε on the head, verdict pending.
