@@ -894,6 +894,29 @@ transition_table! {
                 ViaArrivalStart(p0) => Ok(Applied::Closed(p0.angle(theta, tol)?)),
             }
         }
+        row {
+            /// Names the arc's end tangent as an angle; the arc lands at its
+            /// target.
+            on [T: Decide] super::ArcOnto<T>;
+            fn angle [(self, theta: T, tol: Tol)
+                -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.angle_kernel(Step::Angle(theta), theta, tol)
+            }
+            arms {
+                ArcOnto(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta, tol)?))),
+            }
+        }
+        row {
+            /// Names the closing arc's end tangent as an angle; the seam is
+            /// classified.
+            on [T: Decide] super::ArcOntoStart<T>;
+            fn angle [(self, theta: T, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>>] {
+                self.angle_kernel(Step::Angle(theta), theta, tol)
+            }
+            arms {
+                ArcOntoStart(p0) => Ok(Applied::Closed(p0.angle(theta, tol)?)),
+            }
+        }
     }
 
     #[doc = " `.toward(dx, dy)` — bind it as exact components (ratio-only)."]
@@ -1001,6 +1024,29 @@ transition_table! {
             }
             arms {
                 ViaArrivalStart(p0) => Ok(Applied::Closed(p0.toward(dx, dy, tol)?)),
+            }
+        }
+        row {
+            /// Names the arc's end tangent as exact components; the arc lands
+            /// at its target.
+            on [T: Decide] super::ArcOnto<T>;
+            fn toward [(self, dx: T, dy: T, tol: Tol)
+                -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
+            }
+            arms {
+                ArcOnto(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy, tol)?))),
+            }
+        }
+        row {
+            /// Names the closing arc's end tangent as exact components; the
+            /// seam is classified.
+            on [T: Decide] super::ArcOntoStart<T>;
+            fn toward [(self, dx: T, dy: T, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>>] {
+                self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
+            }
+            arms {
+                ArcOntoStart(p0) => Ok(Applied::Closed(p0.toward(dx, dy, tol)?)),
             }
         }
     }
@@ -1310,6 +1356,37 @@ transition_table! {
             arms {
                 DirectedPlain(p0) => do_tangent_arc_to(p0, target, tol),
                 DirectedIncoming(p0) => do_tangent_arc_to(p0, target, tol),
+            }
+        }
+    }
+
+    #[doc = " `arc_onto(target)` — the arc to the target whose END tangent is"]
+    #[doc = " the one director that follows (`tangent_arc_to`'s mirror)."]
+    verb ArcOnto(Target<T>) = "arc_onto" bind (target) rows {
+        row {
+            /// **The arc known by how it ARRIVES** (PATHS-DESIGN §2a item 6):
+            /// `arc_onto(p)` and `arc_onto(Start)` hold the target and await
+            /// ONE director (`.angle(θ)` / `.toward(dx, dy)`), which names the
+            /// arc's end tangent; `arc_onto(Start.arrives_tangent())` takes
+            /// `Start`'s own direction and closes at the verb, the seam's
+            /// joint constructed.
+            ///
+            /// The departure is DERIVED — the arrival reflected across the
+            /// chord — and on a leg end it is junction-checked like any arc
+            /// leg's start tangent: a tangent departure refuses
+            /// [`PathError::JunctionTangent`], whose spelling is
+            /// `.tangent().tangent_arc_to(p)`. The degeneracies are
+            /// `tangent_arc_to`'s: an arrival along the chord ahead is a
+            /// straight segment, behind it or at the tip
+            /// [`PathError::DegenerateArcChord`]. On a fillet arrival's
+            /// bare anchor it refuses [`PathError::ArcLegOnOpenFillet`].
+            on [T: Decide, F: Flavor] PartialPath<T, HasPos<F>, NoAng>;
+            fn arc_onto [<Tgt: super::OntoTarget<T, F>>(self, target: Tgt, tol: Tol) -> Tgt::Out] {
+                <Tgt as super::OntoTarget<T, F>>::onto_from(self, target, tol)
+            }
+            arms {
+                PlainPoint(p0) => do_arc_onto(p0, target, tol),
+                DirectedPoint(p0) => do_arc_onto(p0, target, tol),
             }
         }
     }
@@ -1969,6 +2046,7 @@ impl<T: Real> Step<T> {
             Step::ContinueTo(t) => Step::ContinueTo(t.map_scalar(&f)),
             Step::ArcTo(spec) => Step::ArcTo(spec.map_scalar(&f)),
             Step::TangentArcTo(t) => Step::TangentArcTo(t.map_scalar(&f)),
+            Step::ArcOnto(t) => Step::ArcOnto(t.map_scalar(&f)),
             Step::Fillet { radius } => Step::Fillet { radius: f(radius) },
             Step::FilletArc { radius, spec } => Step::FilletArc {
                 radius: f(radius),
@@ -2126,6 +2204,11 @@ pub enum TipState {
     ViaArrival,
     /// **§2c**: a `Via` CLOSE awaiting its director.
     ViaArrivalStart,
+    /// `arc_onto(p)` awaiting the director that names its end tangent.
+    ArcOnto,
+    /// `arc_onto(Start)` awaiting the director that names its end
+    /// tangent.
+    ArcOntoStart,
     /// The loop is closed; no verb may follow.
     Closed,
 }
@@ -2255,6 +2338,8 @@ enum DynTip<T: Real> {
     RadiusArrivalDir(super::family::RadiusArrivalDir<T>),
     ViaArrival(super::family::ViaArrival<T>),
     ViaArrivalStart(super::family::ViaArrivalStart<T>),
+    ArcOnto(super::ArcOnto<T>),
+    ArcOntoStart(super::ArcOntoStart<T>),
 }
 
 impl<T: Real> DynTip<T> {
@@ -2272,6 +2357,8 @@ impl<T: Real> DynTip<T> {
             DynTip::RadiusArrivalDir(_) => TipState::RadiusArrivalDir,
             DynTip::ViaArrival(_) => TipState::ViaArrival,
             DynTip::ViaArrivalStart(_) => TipState::ViaArrivalStart,
+            DynTip::ArcOnto(_) => TipState::ArcOnto,
+            DynTip::ArcOntoStart(_) => TipState::ArcOntoStart,
         }
     }
 }
@@ -2333,6 +2420,18 @@ fn do_tangent_arc_to<T: Decide, F: Flavor>(
         Target::StartArriving => Ok(Applied::Closed(
             p.tangent_arc_to(Start.arrives_tangent(), tol)?,
         )),
+    }
+}
+
+fn do_arc_onto<T: Decide, F: Flavor>(
+    p: PartialPath<T, HasPos<F>, NoAng>,
+    t: Target<T>,
+    tol: Tol,
+) -> Applying<T> {
+    match t {
+        Target::Point(q) => Ok(Applied::Tip(DynTip::ArcOnto(p.arc_onto(q, tol)?))),
+        Target::Start => Ok(Applied::Tip(DynTip::ArcOntoStart(p.arc_onto(Start, tol)?))),
+        Target::StartArriving => Ok(Applied::Closed(p.arc_onto(Start.arrives_tangent(), tol)?)),
     }
 }
 
@@ -2444,13 +2543,12 @@ macro_rules! spec_dispatch {
     };
 }
 
-// A declared seam ARRIVAL (`StartArriving`) is admitted on `Bulge` legs
-// alone. The seam's arrival declaration rides the closing verbs' TARGET
-// (PATHS-DESIGN §6's revised PQ4); the endpoint-full arc modes fix their
-// own end direction from authored data, so declaring the arrival would
-// author one fact twice — except on `Bulge`, where the declaration is a
-// CHECK against the tangent the bulge already fixes. `Via` and `Center`
-// could take the same check and do not yet (issue 1579).
+// A declared seam ARRIVAL (`StartArriving`) rides the closing verbs'
+// TARGET (PATHS-DESIGN §6's revised PQ4), so every endpoint-full leg
+// takes it: their data fix the end direction, and the token CHECKS it.
+// Of the arrivals, `Center` fixes its end direction and is checked;
+// `Via` leaves it to the director, which the token SUPPLIES, so that
+// close completes at the verb.
 
 spec_dispatch! {
     /// The sharp arc leg from a Point tip: the endpoint-full modes.
@@ -2479,6 +2577,13 @@ spec_dispatch! {
             p.arc_to(Via { q, p: t }, tol)?,
         ))),
         Via { q } @ Start => Ok(Applied::Closed(p.arc_to(Via { q, p: Start }, tol)?)),
+        Via { q } @ StartArriving => Ok(Applied::Closed(p.arc_to(
+            Via {
+                q,
+                p: Start.arrives_tangent(),
+            },
+            tol,
+        )?)),
         Center { c, winding } @ Point(t) => Ok(Applied::Tip(DynTip::DirectedPoint(
             p.arc_to(Center { c, winding, p: t }, tol)?,
         ))),
@@ -2490,8 +2595,16 @@ spec_dispatch! {
             },
             tol,
         )?)),
+        Center { c, winding } @ StartArriving => Ok(Applied::Closed(p.arc_to(
+            Center {
+                c,
+                winding,
+                p: Start.arrives_tangent(),
+            },
+            tol,
+        )?)),
     }
-    refuse { Via @ StartArriving, Center @ StartArriving, Radius, Sweep, ArcLen }
+    refuse { Radius, Sweep, ArcLen }
 }
 
 spec_dispatch! {
@@ -2542,6 +2655,17 @@ spec_dispatch! {
             },
             tol,
         )?)),
+        Center { c, winding } @ StartArriving => Ok(Applied::Closed(
+            super::family::ArrivalSpec::apply(
+                open.core,
+                super::Center {
+                    c,
+                    winding,
+                    p: Start.arrives_tangent(),
+                },
+                tol,
+            )?,
+        )),
         Radius { r, side } => Ok(Applied::Tip(DynTip::RadiusArrival(
             super::family::ArrivalSpec::apply(open.core, super::Radius { r, side }, tol)?,
         ))),
@@ -2551,8 +2675,16 @@ spec_dispatch! {
         Via { q } @ Start => Ok(Applied::Tip(DynTip::ViaArrivalStart(
             super::family::ArrivalSpec::apply(open.core, super::Via { q, p: Start }, tol)?,
         ))),
+        Via { q } @ StartArriving => Ok(Applied::Closed(super::family::ArrivalSpec::apply(
+            open.core,
+            super::Via {
+                q,
+                p: Start.arrives_tangent(),
+            },
+            tol,
+        )?)),
     }
-    refuse { Center @ StartArriving, Via @ StartArriving, Bulge, Sweep, ArcLen }
+    refuse { Bulge, Sweep, ArcLen }
 }
 
 spec_dispatch! {

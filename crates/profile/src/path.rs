@@ -385,6 +385,7 @@ use crate::{BuiltArc, ProfileLoop, Segment};
 /// stays `Bounds`-free.
 pub(crate) mod arc_fillet;
 mod family;
+mod onto;
 pub mod program;
 pub(crate) mod verbs;
 
@@ -398,6 +399,7 @@ pub use family::{
 /// The complete-loop program forms are declared as table rows (they
 /// are `Entry → Closed` transitions), so they are defined in
 /// [`program`]; this module is their public home.
+pub use onto::{ArcOnto, ArcOntoStart, OntoTarget};
 #[doc(inline)]
 pub use program::{circle, circle_split};
 pub use verbs::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
@@ -2940,6 +2942,84 @@ fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> Option<BuiltA
     })
 }
 
+/// The tangent arc from `at` leaving along `dep` to `p`, with the
+/// degeneracies only the declared departure can name: `p` on the
+/// departure line is a straight segment ahead of `at` and no arc behind
+/// it ([`PathError::DegenerateArcChord`], as is `p` at `at`).
+/// `tangent_arc_to` runs it from its tip; `arc_onto` runs it from its
+/// target, backwards ([`onto_arc_geom`]).
+fn tangent_arc_geom<T: Decide>(
+    at: Point2<T>,
+    dep: Dir<T>,
+    p: Point2<T>,
+    tol: Tol,
+) -> Result<TangentArcGeom<T>, PathError<T>> {
+    let d = p - at;
+    let u = dep.unit;
+    let along = u.dot(d);
+    let across = u.perp_dot(d);
+    // A target ON the departure line is not a carrier question —
+    // the 2026-09-02 ruling took those away — but it is still a
+    // GEOMETRY one, and only forward of the tip is it answerable:
+    // the arc's quarter-tangent `across / (|d| + along)` is 0 ahead
+    // of the tip (the straight segment the declaration asks for)
+    // and unbounded behind it, where no arc spans the chord. Gated
+    // here so the infinity cannot reach a segment.
+    let band = linear_band(tol)?;
+    if let Ok(Sign::Zero) = decide("path_collinear_target", Margin::of(across), band) {
+        match decide("path_leg_length", Margin::of(along), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => {
+                return Err(PathError::DegenerateArcChord {
+                    chord: d.norm_squared().sqrt(),
+                });
+            }
+            Err(source) => return Err(PathError::Escalated { source }),
+        }
+    }
+    let arc = tangent_arc(at, u, p);
+    let chord = d.norm_squared().sqrt();
+    let end_ang = reflected_across(u, d);
+    Ok(TangentArcGeom {
+        arc,
+        end_ang,
+        carrier: carrier_of(arc),
+        chord,
+    })
+}
+
+/// **`arc_onto`'s geometry: the tangent arc, run backwards.** The arc
+/// from `at` to `p` arriving along `arrival` is the tangent arc leaving
+/// `p` along the REVERSED arrival and ending at `at`, traversed the
+/// other way: the same carrier, the sweep negated, and the departure
+/// the reverse of that arc's end tangent. So `tangent_arc_to`'s kernel
+/// and refusals serve both verbs unchanged, the authored arrival is the
+/// one direction that enters the carrier: the geometry's `end_ang` is
+/// `arrival` itself, and the second value is the DERIVED DEPARTURE at
+/// `at` (the chord reflection of `arrival`).
+fn onto_arc_geom<T: Decide>(
+    at: Point2<T>,
+    arrival: Dir<T>,
+    p: Point2<T>,
+    tol: Tol,
+) -> Result<(TangentArcGeom<T>, Dir<T>), PathError<T>> {
+    let back = tangent_arc_geom(p, arrival.reversed(), at, tol)?;
+    let arc = back.arc.map(|built| BuiltArc {
+        arc: Arc2 {
+            sweep: -built.arc.sweep,
+            ..built.arc
+        },
+        ..built
+    });
+    let geom = TangentArcGeom {
+        arc,
+        end_ang: arrival,
+        carrier: back.carrier,
+        chord: back.chord,
+    };
+    Ok((geom, back.end_ang.reversed()))
+}
+
 /// **A tangent arc's end direction**: the arc leaves along the unit `u`
 /// and arrives along `u` reflected across its chord `d` (the
 /// tangent-chord angle is the same at both ends), spelled on the ray
@@ -3019,6 +3099,44 @@ fn junction_check<T: Decide>(
         }
         Ok(_) => Ok(()),
         Err(source) => Err(PathError::Escalated { source }),
+    }
+}
+
+/// What a closing leg's TARGET says about the seam's joint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SeamArrival {
+    /// [`Start`]: the seam is classified as every junction is, and a
+    /// zero turn refuses [`PathError::SeamTangent`].
+    Undeclared,
+    /// [`Start::arrives_tangent`] on a leg whose data fix its end
+    /// direction: the arriving direction is CHECKED
+    /// ([`seam_arrival_check`]) and the joint constructed.
+    Checked,
+    /// [`Start::arrives_tangent`] on a leg whose end direction the
+    /// token SUPPLIED (`arc_onto`, the `Via` arrival): the joint is
+    /// tangent by construction, and nothing is checked.
+    Supplied,
+}
+
+/// Classifies the seam's joint as the target said ([`SeamArrival`]).
+fn seam_joint<T: Decide>(
+    core: &mut Core<T>,
+    how: SeamArrival,
+    arriving: &Incoming<T>,
+    start_ang: Dir<T>,
+    tol: Tol,
+) -> Result<(), PathError<T>> {
+    match how {
+        SeamArrival::Undeclared => junction_check(arriving, start_ang, true, tol),
+        SeamArrival::Checked => {
+            seam_arrival_check(arriving.ang, arriving.arm, start_ang, tol)?;
+            core.construct_seam();
+            Ok(())
+        }
+        SeamArrival::Supplied => {
+            core.construct_seam();
+            Ok(())
+        }
     }
 }
 
@@ -4636,38 +4754,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
     /// apart rather than shared.
     fn tangent_arc_geom(&self, p: Point2<T>, tol: Tol) -> Result<TangentArcGeom<T>, PathError<T>> {
         let (at, ang) = self.dep()?;
-        let d = p - at;
-        let u = ang.unit;
-        let along = u.dot(d);
-        let across = u.perp_dot(d);
-        // A target ON the departure line is not a carrier question —
-        // the 2026-09-02 ruling took those away — but it is still a
-        // GEOMETRY one, and only forward of the tip is it answerable:
-        // the arc's quarter-tangent `across / (|d| + along)` is 0 ahead
-        // of the tip (the straight segment the declaration asks for)
-        // and unbounded behind it, where no arc spans the chord. Gated
-        // here so the infinity cannot reach a segment.
-        let band = linear_band(tol)?;
-        if let Ok(Sign::Zero) = decide("path_collinear_target", Margin::of(across), band) {
-            match decide("path_leg_length", Margin::of(along), band) {
-                Ok(Sign::Positive) => {}
-                Ok(_) => {
-                    return Err(PathError::DegenerateArcChord {
-                        chord: d.norm_squared().sqrt(),
-                    });
-                }
-                Err(source) => return Err(PathError::Escalated { source }),
-            }
-        }
-        let arc = tangent_arc(at, u, p);
-        let chord = d.norm_squared().sqrt();
-        let end_ang = reflected_across(u, d);
-        Ok(TangentArcGeom {
-            arc,
-            end_ang,
-            carrier: carrier_of(arc),
-            chord,
-        })
+        tangent_arc_geom(at, ang, p, tol)
     }
 
     fn tangent_arc_to_point(
