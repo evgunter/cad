@@ -16,7 +16,7 @@
 //!
 //! A [`Deck`] `(u, v, twin)` is `T_u^u · T_v^v · σ^twin`, where `T_u`
 //! moves the first chart channel one period, `T_v` the second (an angle
-//! on the sphere and the torus only), and `σ` is the sphere chart's
+//! on the sphere and the torus, the knot domain on a net closed in `v`), and `σ` is the sphere chart's
 //! involution `(u, v) ↦ (u + π, π − v)`, under which the sphere's map
 //! is invariant. The relations are the chart's own:
 //!
@@ -27,7 +27,7 @@
 //! So every element has the one normal form `(u, v, twin)`, and
 //! [`Deck::compose`] and [`Deck::inverse`] are exact integer
 //! arithmetic. On a chart with no involution `twin` is always `false`,
-//! and on a chart whose second channel is not an angle `v` is always 0.
+//! and on a chart not closed in its second channel `v` is always 0.
 //!
 //! # The reset marker
 //!
@@ -69,8 +69,9 @@ use geom_core::{Decide, Real};
 pub struct Deck {
     /// Whole periods of the first chart channel.
     pub u: i32,
-    /// Whole periods of the second chart channel, where it is an angle
-    /// (sphere, torus); 0 elsewhere.
+    /// Whole periods of the second chart channel, where the chart is
+    /// closed in it: `τ` on a sphere or torus, the knot domain's length
+    /// on a spline net closed in `v`; 0 elsewhere.
     pub v: i32,
     /// The sphere chart's involution `(u, v) ↦ (u + π, π − v)`, applied
     /// first; `false` on every other chart.
@@ -130,13 +131,16 @@ impl Deck {
 
     /// `image` moved by this element on `surface`'s chart: the twin
     /// first, then the second-channel periods, then the first-channel
-    /// periods. A spline chart's first-channel period is its knot
-    /// domain's length (an element with `u ≠ 0` is decided only on a
-    /// chart closed in `u`); every analytic chart's is `τ`.
+    /// periods, each in the period the chart owns for that channel. A
+    /// spline chart's periods are its knot domains' lengths (an element
+    /// with `u ≠ 0` or `v ≠ 0` is decided only on a net closed in that
+    /// channel); an analytic chart's first is `τ`, and its second `τ`
+    /// where `v` is an angle (sphere, torus).
     ///
     /// `None` where the element does not apply to the image: a twin off
     /// a sphere chart, or on an image the twin has no form for
-    /// ([`crate::pcurves::sphere_twin`]). No door decides such an
+    /// ([`crate::pcurves::sphere_twin`]); second-channel periods on a
+    /// chart whose `v` is a length (plane, cylinder, cone). No door decides such an
     /// element; one planted by hand is a gap in the lift, never a
     /// silently unmoved curve.
     #[must_use]
@@ -147,7 +151,7 @@ impl Deck {
             image.clone()
         };
         if self.v != 0 {
-            out = crate::pcurves::shift_polar_branch(&out, self.v, Period::new(T::tau()));
+            out = crate::pcurves::shift_v_branch(&out, self.v, v_period(surface)?);
         }
         if self.u != 0 {
             out = out.shift_branch(self.u, u_period(surface));
@@ -167,6 +171,23 @@ fn u_period<T: Real>(surface: &Surface<T>) -> Period<T> {
             Period::new(u1 - u0)
         }
         None => Period::new(T::tau()),
+    }
+}
+
+/// The second channel's period as an element applies it: the knot
+/// domain's length on a spline chart, `τ` on a sphere or torus, whose `v`
+/// is an angle, and none on a plane, cylinder or cone, whose `v` is a
+/// length. Read without a band, as [`u_period`] is: only a net a band
+/// decided closed in `v` carries an element with `v` periods
+/// ([`crate::pcurves`]'s `chart_v_period`).
+fn v_period<T: Real>(surface: &Surface<T>) -> Option<Period<T>> {
+    match surface {
+        Surface::Sphere { .. } | Surface::Torus { .. } => Some(Period::new(T::tau())),
+        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => None,
+        Surface::Nurbs(_) | Surface::Approx(_) => surface.spline_chart().map(|payload| {
+            let (v0, v1) = payload.knot_values_v().domain();
+            Period::new(v1 - v0)
+        }),
     }
 }
 
@@ -476,5 +497,68 @@ mod tests {
             );
         }
         assert!(winding(0, 1, false, true), "a reset with v = 1 closes");
+    }
+
+    /// **An element's `v` periods are the chart's own.** On a net closed
+    /// in `v` over a knot domain of length 3 (neither 1 nor `τ`),
+    /// `Deck { v: 1 }` moves an image by 3 along `v` and none along `u`;
+    /// `Deck { v: −2 }` by −6. On a torus it moves by `τ`. On a cylinder,
+    /// whose `v` is a length, the element does not apply.
+    #[test]
+    fn an_elements_v_periods_are_the_charts_own() {
+        use geom::Surface;
+        use geom_brep::Pcurve;
+        use geom_core::{Point2, Point3, Vec2, Vec3};
+        let net = {
+            let ku = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 3.0, 3.0], 1).unwrap();
+            let control = [0.0, 1.0]
+                .into_iter()
+                .flat_map(|z| [Point3::new(0.0, 0.0, z), Point3::new(1.0, 0.0, z)])
+                .collect();
+            Surface::Nurbs(std::sync::Arc::new(
+                geom::NurbsSurface::new(ku, kv, control, vec![1.0; 4]).unwrap(),
+            ))
+        };
+        let image = Pcurve::IsoLine {
+            p0: Point2::new(0.25, 0.5),
+            pl: Vec2::new(0.0, 1.0),
+        };
+        let moved = |deck: Deck, s: &Surface<f64>| {
+            deck.apply(&image, s).map(|p| {
+                let (a, b) = (image.eval(0.0), p.eval(0.0));
+                (b.x - a.x, b.y - a.y)
+            })
+        };
+        let up = Deck {
+            u: 0,
+            v: 1,
+            twin: false,
+        };
+        assert_eq!(moved(up, &net), Some((0.0, 3.0)), "one knot length");
+        assert_eq!(
+            moved(Deck { v: -2, ..up }, &net),
+            Some((0.0, -6.0)),
+            "two knot lengths back"
+        );
+        let torus = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        assert_eq!(
+            moved(up, &torus),
+            Some((0.0, core::f64::consts::TAU)),
+            "a torus's second angle"
+        );
+        let cylinder = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        assert_eq!(moved(up, &cylinder), None, "a cylinder's v is a length");
     }
 }

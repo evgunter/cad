@@ -30,3 +30,14 @@ Whether "|k| ≤ 1 on each channel" is a C4 invariant of a placed row
 that tier 3 checks, or only a fact about today's producers. Unit B
 carries the bound itself as a row; this item is whether tier 3 then
 enforces it on what a body stores.
+
+## A net's channels (PCERT unit C)
+
+Unit C gives a spline net closed in `v` a `v` period, the knot domain's
+length, so the walk decides `Deck.v` there as it decides `Deck.u` on a
+net closed in `u`. A net's images are not placed in a principal window:
+an image on a net keeps the net's knot domain. So on a net the
+"one period" bound is not given by placement. It holds only because
+every image on a net lies within the knot domain, so two neighbouring
+images' ends are within one domain length. A tier-3 check would rest
+on that, not on C4's placement.

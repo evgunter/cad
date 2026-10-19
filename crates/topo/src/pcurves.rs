@@ -1748,20 +1748,80 @@ fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<Period<
         return Some(Period::new(T::tau()));
     };
     let (u0, u1) = payload.knot_values_u().domain();
+    net_closes(payload, NetChannel::U, band).then(|| Period::new(u1 - u0))
+}
+
+/// The chart's SECOND channel period — the `v` companion of
+/// [`chart_u_period`] (C4: every closed channel has its own period, which
+/// the chart owns). `τ` where `v` is an angle (sphere, torus:
+/// [`polar_arm`]); the knot domain's length on a spline net decided
+/// closed in `v` ([`net_closes`], `pcurve_chart_v_closed`); `None` on a
+/// plane, cylinder or cone, whose `v` is a length, and on an open net.
+fn chart_v_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<Period<T>> {
+    if polar_arm(surface).is_some() {
+        return Some(Period::new(T::tau()));
+    }
+    let payload = surface.spline_chart()?;
+    let (v0, v1) = payload.knot_values_v().domain();
+    net_closes(payload, NetChannel::V, band).then(|| Period::new(v1 - v0))
+}
+
+/// A spline net's channel, for the closure question [`net_closes`] asks.
+#[derive(Clone, Copy)]
+enum NetChannel {
+    U,
+    V,
+}
+
+/// **Whether a spline net closes in `channel`**: every control point of
+/// its first boundary row (column) is decided at zero distance from the
+/// matching one of its last, at `band` (`pcurve_chart_u_closed`,
+/// `pcurve_chart_v_closed`). One rule for both channels, so the two
+/// periods cannot drift apart.
+///
+/// Any other answer is "open", an in-band one included; that fold, and
+/// a test that compares neither weights nor reads an unclamped knot
+/// vector's boundary, are
+/// `work/pcert/chart-u-period-folds-an-in-band-net-closure-into-no-period.md`'s,
+/// for both channels.
+fn net_closes<T: Decide>(payload: &geom::NurbsSurface<T>, channel: NetChannel, band: Band) -> bool {
     let (nu, nv) = payload.control_counts();
-    if nu < 2 || nv == 0 {
-        return None;
-    }
     let control = payload.control();
-    for iv in 0..nv {
-        let a = control.get(iv)?;
-        let b = control.get((nu - 1) * nv + iv)?;
-        match decide("pcurve_chart_u_closed", Margin::of(a.distance(*b)), band) {
-            Ok(Sign::Zero) => {}
-            _ => return None,
-        }
+    let (name, pairs): (_, Vec<(usize, usize)>) = match channel {
+        NetChannel::U if nu >= 2 && nv > 0 => (
+            "pcurve_chart_u_closed",
+            (0..nv).map(|iv| (iv, (nu - 1) * nv + iv)).collect(),
+        ),
+        NetChannel::V if nv >= 2 && nu > 0 => (
+            "pcurve_chart_v_closed",
+            (0..nu).map(|iu| (iu * nv, iu * nv + nv - 1)).collect(),
+        ),
+        NetChannel::U | NetChannel::V => return false,
+    };
+    pairs.into_iter().all(|(i, j)| {
+        let (Some(a), Some(b)) = (control.get(i), control.get(j)) else {
+            return false;
+        };
+        matches!(
+            decide(name, Margin::of(a.distance(*b)), band),
+            Ok(Sign::Zero)
+        )
+    })
+}
+
+/// **The periods the chart owns**, one per channel ([`chart_u_period`],
+/// [`chart_v_period`]), decided once where a walk reads its joints.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ChartPeriods<T> {
+    pub(crate) u: Option<Period<T>>,
+    pub(crate) v: Option<Period<T>>,
+}
+
+fn chart_periods<T: Decide>(surface: &Surface<T>, band: Band) -> ChartPeriods<T> {
+    ChartPeriods {
+        u: chart_u_period(surface, band),
+        v: chart_v_period(surface, band),
     }
-    Some(Period::new(u1 - u0))
 }
 
 /// The meridional (second-channel) lever arm where that channel is
@@ -1819,17 +1879,13 @@ fn v_meter<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
     }
 }
 
-/// A whole-period shift of the MERIDIONAL channel — the `v` twin of
-/// [`geom_brep::Pcurve::shift_branch`], for the charts whose second
-/// parameter is an angle (sphere, torus): `image` translated `k`
-/// periods along the second channel. A translation's linear part is the
+/// A whole-period shift of the SECOND channel — the `v` twin of
+/// [`geom_brep::Pcurve::shift_branch`], for the charts closed in `v`
+/// (sphere, torus, a net closed in `v`: [`chart_v_period`]): `image`
+/// translated `k` periods along the second channel. A translation's linear part is the
 /// identity, so every image form takes it exactly
 /// ([`Pcurve::map_affine`]); the walk and the lift read the one map.
-pub(crate) fn shift_polar_branch<T: Real>(
-    pcurve: &Pcurve<T>,
-    k: i32,
-    period: Period<T>,
-) -> Pcurve<T> {
+pub(crate) fn shift_v_branch<T: Real>(pcurve: &Pcurve<T>, k: i32, period: Period<T>) -> Pcurve<T> {
     pcurve.translate(T::zero(), period.times(k))
 }
 
@@ -2421,7 +2477,7 @@ pub(crate) fn split_cache<T: AtRestPolicy>(
                  (`DescribedChart::minting`)"
             )
         };
-        let period = chart_u_period(&surface, band);
+        let period = chart_periods(&surface, band);
         let pin = |image: &Pcurve<T>, at: T, onto: geom_core::Point2<T>| {
             decide_joint(chart, image, at, onto, carrier.eval(at), period, band).map_err(|miss| {
                 SplitRowError {
@@ -3873,10 +3929,11 @@ fn walk_cycle<'a, T: Decide, E>(
     band: Band,
     closes: bool,
 ) -> Result<Vec<Pinned<'a, T>>, WalkFail<E>> {
-    // The chart's own u period (`chart_u_period`): `τ` on an analytic
-    // azimuth chart, the knot-domain length on a NURBS chart closed in
-    // u, and NO shift at all on a chart that does not wrap.
-    let u_period = chart_u_period(chart.surface(), band);
+    // The chart's own periods (`chart_periods`): in `u`, `τ` on an
+    // analytic azimuth chart, the knot-domain length on a NURBS chart
+    // closed in u, and NO shift at all on a chart that does not wrap;
+    // in `v`, likewise for the second channel.
+    let periods = chart_periods(chart.surface(), band);
     // The exit of the previous item's image, in chart coordinates, and
     // the first item's entry parameter, for the closure joint.
     let mut prev_exit: Option<geom_core::Point2<T>> = None;
@@ -3895,7 +3952,7 @@ fn walk_cycle<'a, T: Decide, E>(
             (None, _) => None,
             (Some(_), Some(element)) => Some(element),
             (Some(prev), None) => Some(
-                decide_joint(chart, &base, entry_t, prev, vertex, u_period, band)
+                decide_joint(chart, &base, entry_t, prev, vertex, periods, band)
                     .map_err(|miss| WalkFail::Miss { index, miss })?,
             ),
         };
@@ -3908,7 +3965,7 @@ fn walk_cycle<'a, T: Decide, E>(
         // last image's exit, decided exactly as every other joint.
         let closure = match kept(0) {
             Some(element) => element,
-            None => decide_joint(chart, &out[0].0, entry_t, prev, vertex, u_period, band)
+            None => decide_joint(chart, &out[0].0, entry_t, prev, vertex, periods, band)
                 .map_err(|miss| WalkFail::Miss { index: 0, miss })?,
         };
         out[0].3 = Some(closure);
@@ -4172,11 +4229,11 @@ fn decide_joint<T: Decide>(
     entry_t: T,
     prev: geom_core::Point2<T>,
     vertex: geom_core::Point3<T>,
-    u_period: Option<Period<T>>,
+    periods: ChartPeriods<T>,
     band: Band,
 ) -> Result<JointElement, PinMiss> {
     let surface = chart.surface();
-    let tau = T::tau();
+    let u_period = periods.u;
     let spline = surface.spline_chart().is_some();
     let arm = joint_arm(chart, vertex);
     let twin = sphere_twin(surface, image);
@@ -4201,29 +4258,43 @@ fn decide_joint<T: Decide>(
         Some(t) if is_twin => t,
         _ => image.clone(),
     };
-    // The second channel's periods, on the chosen sheet; a shift of the
-    // first channel moves no second-channel value.
-    let kv = match polar_arm(surface) {
-        Some(polar) => {
+    // The second channel's periods, on the chosen sheet, in the period
+    // the chart owns for it (C4): `τ` levered by the polar radius where
+    // `v` is an angle, the knot length metred by the net's `sup |S_v|`
+    // ([`v_meter`]) on a net closed in `v`. A shift of the first channel
+    // moves no second-channel value.
+    let kv = match periods.v {
+        Some(period) => {
             let gap = prev.y - sheet.eval(entry_t).y;
-            Period::new(tau)
-                .decide(
+            match polar_arm(surface) {
+                Some(polar) => period.decide(
                     "pcurve_loop_branch",
                     gap,
                     |g| Margin::levered(g, polar),
                     band,
-                )
-                .map_err(|stop| PinMiss::from(stop.miss))?
+                ),
+                None => period.decide(
+                    "pcurve_loop_branch",
+                    gap,
+                    |g| Margin::metered_sup(g, v_meter(chart)),
+                    band,
+                ),
+            }
+            .map_err(|stop| PinMiss::from(stop.miss))?
         }
         None => 0,
     };
-    // A spline chart has no angular second channel (`polar_arm` is
-    // `None`), so its lift is the sheet moved by the azimuth periods.
+    // A spline chart has no angular channel, so its lift is the sheet
+    // moved by the periods of each channel it closes in, and the
+    // joint's chart-space gap is read on that lift.
     if spline {
-        let lifted = match u_period {
-            Some(p) => sheet.shift_branch(ku, p),
-            None => sheet.clone(),
-        };
+        let mut lifted = sheet.clone();
+        if let Some(p) = u_period {
+            lifted = lifted.shift_branch(ku, p);
+        }
+        if let Some(p) = periods.v {
+            lifted = shift_v_branch(&lifted, kv, p);
+        }
         spline_gap_closes(chart, lifted.eval(entry_t), prev, band)?;
     }
     let deck = Deck {
@@ -4292,7 +4363,7 @@ pub(crate) fn turn_element<T: Decide>(
         exit_t,
         image.eval(entry_t),
         entry_vertex(body, half_edge),
-        chart_u_period(&surface, band),
+        chart_periods(&surface, band),
         band,
     ) {
         Ok(element) => Ok(Some(element)),
@@ -5107,7 +5178,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
         // included, and the winding off conjugation invariants
         // ([`Winding::closes`]), so no verdict hangs on which half-edge
         // is `first`.
-        let u_period = chart_u_period(surface, band);
+        let periods = chart_periods(surface, band);
         let image_of = |he: HalfEdgeKey| -> Option<(Pcurve<T>, T, T)> {
             let plus = is_plus(body, he);
             let (image, t0, t1) = match body.pcurve(he) {
@@ -5136,7 +5207,7 @@ pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<Pcur
                 };
                 let prev = before.eval(*exit_t);
                 let vertex = entry_vertex(body, he);
-                let decided = decide_joint(chart, image, *entry_t, prev, vertex, u_period, band);
+                let decided = decide_joint(chart, image, *entry_t, prev, vertex, periods, band);
                 // A stored element is read only between two stored
                 // images: across a gap the chain is carried as the walk
                 // would carry it, by the element decided there.
@@ -6085,7 +6156,10 @@ mod stretch_meter {
                 0.0,
                 at,
                 vertex,
-                Some(geom_brep::Period::new(1.0)),
+                super::ChartPeriods {
+                    u: Some(geom_brep::Period::new(1.0)),
+                    v: super::chart_v_period(&s, band()),
+                },
                 band(),
             );
             let want = if reset {
@@ -6131,7 +6205,10 @@ mod stretch_meter {
                 0.0,
                 prev,
                 vertex,
-                Some(geom_brep::Period::new(tau)),
+                super::ChartPeriods {
+                    u: Some(geom_brep::Period::new(tau)),
+                    v: super::chart_v_period(surface, band()),
+                },
                 band(),
             )
         };
@@ -6303,7 +6380,10 @@ mod stretch_meter {
                 0.0,
                 prev,
                 vertex,
-                Some(geom_brep::Period::new(tau)),
+                super::ChartPeriods {
+                    u: Some(geom_brep::Period::new(tau)),
+                    v: super::chart_v_period(&cone, band()),
+                },
                 band(),
             ) {
                 Ok(JointElement::Shift(deck)) if deck.v == 0 && !deck.twin => {
@@ -6707,7 +6787,7 @@ mod derive_without_a_door {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::float_cmp, clippy::panic)]
 mod polar_shift_tests {
-    use super::shift_polar_branch;
+    use super::shift_v_branch;
     use geom_brep::{Pcurve, SpiricImage, WallTorus};
     use geom_core::{Point2, Vec2};
 
@@ -6744,7 +6824,7 @@ mod polar_shift_tests {
                     sense,
                     torus,
                 },
-        } = shift_polar_branch(&wall, 3, geom_brep::Period::new(period))
+        } = shift_v_branch(&wall, 3, geom_brep::Period::new(period))
         else {
             panic!("the wall arm keeps its variant and its image kind");
         };
@@ -6769,7 +6849,7 @@ mod polar_shift_tests {
         let Pcurve::Spiric {
             image: SpiricImage::Cap { p0, pm, pa },
             ..
-        } = shift_polar_branch(&cap, 3, geom_brep::Period::new(period))
+        } = shift_v_branch(&cap, 3, geom_brep::Period::new(period))
         else {
             panic!("the cap arm keeps its variant and its image kind");
         };
@@ -6790,7 +6870,7 @@ mod polar_shift_tests {
             Vec2::new(0.125, -0.375),
         );
         let Some((p0, pa, pb, pl)) =
-            shift_polar_branch(&harmonic, 3, geom_brep::Period::new(period)).harmonic_form()
+            shift_v_branch(&harmonic, 3, geom_brep::Period::new(period)).harmonic_form()
         else {
             panic!("the harmonic arm keeps its variant");
         };
@@ -7346,6 +7426,261 @@ pub(crate) mod pole_slit_tests {
                 );
             }
         }
+    }
+
+    /// **A patch across the seam of a net closed in `v`**: the prism of
+    /// [`prism_patch_across_the_seam`] with its channels exchanged. One
+    /// degree-1 net, `u` the height (knots `0, 1`), `v` around the prism
+    /// with knots at `0.3` and `0.7`, its first and last rows the same
+    /// locus, so the chart closes in `v` with period `1`. The patch
+    /// covers the two facets either side of the seam, `u ∈ [0, 1]`,
+    /// `v ∈ [0.7, 1] ∪ [0, 0.3]`: a bottom split at the seam vertex,
+    /// iso-line sides at `v = 0.3` and `0.7`, a top split the same way.
+    pub(crate) fn prism_patch_across_the_v_seam()
+    -> Result<(Body<f64>, FaceKey), super::PcurveMintError> {
+        let tol = Tol::witness();
+        let (c0, c1, c2) = (
+            (1.0, 0.0),
+            (-0.5, 0.75_f64.sqrt()),
+            (-0.5, -(0.75_f64.sqrt())),
+        );
+        let at = |c: (f64, f64), z: f64| Point3::new(c.0, c.1, z);
+        let around = || {
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.3, 0.7, 1.0, 1.0], 1).unwrap()
+        };
+        let ku = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [0.0, 1.0]
+            .into_iter()
+            .flat_map(|z| [c0, c1, c2, c0].map(|c| at(c, z)))
+            .collect();
+        let net = geom::NurbsSurface::new(ku, around(), control, vec![1.0; 8]).unwrap();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(at(c2, 0.0), true).unwrap();
+        let wall = body
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: Surface::Nurbs(std::sync::Arc::new(net)),
+                    sense: true,
+                },
+            )
+            .unwrap();
+        // A cap edge: the net's own column at height `u`, its carrier the
+        // column on the net's basis and the chart's `v` as its parameter,
+        // over `[v0, v1]`; its image the column `u`, stated, since the
+        // seam's two sides `v = 1` and `v = 0` are one point to a
+        // projection.
+        let cap = |u: f64, (v0, v1): (f64, f64)| EdgeCurveSpec {
+            description: EdgeDescriptionSpec::chart_image(
+                wall,
+                geom_brep::Pcurve::IsoLine {
+                    p0: geom_core::Point2::new(u, 0.0),
+                    pl: geom_core::Vec2::new(0.0, 1.0),
+                },
+            ),
+            carrier: Curve3::Nurbs(std::sync::Arc::new(
+                geom::NurbsCurve3::new(
+                    around(),
+                    vec![at(c0, u), at(c1, u), at(c2, u), at(c0, u)],
+                    vec![1.0; 4],
+                )
+                .unwrap(),
+            )),
+            param_start: v0,
+            param_end: v1,
+        };
+        // A side: the straight row at `v`, from height `u0` to `u1`.
+        let side = |c: (f64, f64), v: f64, (u0, u1): (f64, f64)| {
+            let (p, q) = (at(c, u0), at(c, u1));
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::chart_image(
+                    wall,
+                    geom_brep::Pcurve::IsoLine {
+                        p0: geom_core::Point2::new(u0, v),
+                        pl: geom_core::Vec2::new(u1 - u0, 0.0),
+                    },
+                ),
+                carrier: Curve3::Line {
+                    origin: p,
+                    dir: q - p,
+                },
+                param_start: 0.0,
+                param_end: 1.0,
+            }
+        };
+        let fan = |he| MevSite::Fan { he1: he, he2: he };
+        // The bottom, rising in `v` across the seam vertex.
+        let b1 = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                at(c0, 0.0),
+                cap(0.0, (0.7, 1.0)),
+                tol,
+            )
+            .unwrap();
+        let b2 = body
+            .mev(fan(b1.he_minus), at(c1, 0.0), cap(0.0, (0.0, 0.3)), tol)
+            .unwrap();
+        // Up the side at `v = 0.7` from the start, and the top the same
+        // way as the bottom.
+        let up = body
+            .mev(fan(b1.he_plus), at(c2, 1.0), side(c2, 0.7, (0.0, 1.0)), tol)
+            .unwrap();
+        let t1 = body
+            .mev(fan(up.he_minus), at(c0, 1.0), cap(1.0, (0.7, 1.0)), tol)
+            .unwrap();
+        let t2 = body
+            .mev(fan(t1.he_minus), at(c1, 1.0), cap(1.0, (0.0, 0.3)), tol)
+            .unwrap();
+        body.mef(
+            MefSite::Chords {
+                he1: t2.he_minus,
+                he2: b2.he_minus,
+            },
+            side(c1, 0.3, (1.0, 0.0)),
+            FaceSurface::Inherit,
+            tol,
+        )
+        .unwrap();
+        crate::mint_pcurves(&mut body, tol)?;
+        Ok((body, seed.face))
+    }
+
+    /// **A net closed in `v` lifts its seam crossing by a `v` period**
+    /// (C4: every closed channel has its own period, the knot domain's
+    /// length on a net decided closed in that direction). On the prism
+    /// patch across the `v` seam, each face's walk decides a joint
+    /// element of a whole `v` period, `Deck.v = ±1`, and no `u` period;
+    /// `chart_boundary` lifts the rows by it, so both faces bound, the
+    /// patch's polygon spanning `v ∈ [−0.3, 0.3]` across the seam; and
+    /// the body validates. Without the `v` period the seam joint's gap is
+    /// a whole knot length of `v`, and the mint refuses it as a
+    /// discontinuity.
+    #[test]
+    fn a_net_closed_in_v_lifts_its_seam_crossing_by_a_v_period() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, patch) = prism_patch_across_the_v_seam()
+            .unwrap_or_else(|e| panic!("the prism closed in v mints: {e:?}"));
+        for (f, face) in body.faces() {
+            let s = body.get_surface(face.surface).unwrap().clone();
+            assert!(
+                super::chart_u_period(&s, band).is_none(),
+                "{f:?}: the net is open in u"
+            );
+            assert_eq!(
+                super::chart_v_period(&s, band).map(geom_brep::Period::length),
+                Some(1.0),
+                "{f:?}: the net closes in v over its knot domain"
+            );
+            let elements: Vec<_> = {
+                let LoopBoundary::Cycle { first } = body.get_loop(face.outer).unwrap().boundary
+                else {
+                    panic!("the outer loop is a cycle")
+                };
+                body.loop_walk(first)
+                    .closed("loop", first)
+                    .into_iter()
+                    .map(|he| body.joint(he))
+                    .collect()
+            };
+            assert!(
+                elements.iter().any(|e| matches!(
+                    e,
+                    Some(crate::joint::JointElement::Shift(d)) if d.v.abs() == 1 && d.u == 0
+                )),
+                "{f:?}: the walk crosses the v seam by one period: {elements:?}"
+            );
+            let bound = super::chart_boundary(&body, f, &s, band)
+                .unwrap_or_else(|e| panic!("{f:?} bounds: {e:?}"));
+            if f == patch {
+                let vs: Vec<f64> = bound.loops[0].edges.iter().map(|e| e.a().y).collect();
+                let (lo, hi) = vs
+                    .iter()
+                    .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), &v| {
+                        (l.min(v), h.max(v))
+                    });
+                assert!(
+                    (lo + 0.3).abs() < 1e-12 && (hi - 0.3).abs() < 1e-12,
+                    "the patch spans the v seam: {vs:?}"
+                );
+            }
+        }
+        let refusals = super::validate_pcurves(&body, band);
+        assert!(refusals.is_empty(), "the body validates: {refusals:?}");
+    }
+
+    /// **The `v` period is the closed net's alone.** A joint whose two
+    /// chart ends are the two sides of a net's `v` seam, `v = 1` onto
+    /// `v = 0` at one point: on the net closed in `v` the walk decides
+    /// `Deck.v = 1` there; on the same net with its last row moved off the
+    /// first (open in `v`), `chart_v_period` answers none, no `v` element
+    /// is decided, and the whole knot length of `v` is the gap, a
+    /// discontinuity.
+    #[test]
+    fn only_a_net_closed_in_v_decides_a_v_element() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (c0, c1, c2) = (
+            (1.0, 0.0),
+            (-0.5, 0.75_f64.sqrt()),
+            (-0.5, -(0.75_f64.sqrt())),
+        );
+        let at = |c: (f64, f64), z: f64| Point3::new(c.0, c.1, z);
+        let net = |last: (f64, f64)| {
+            let ku = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.3, 0.7, 1.0, 1.0], 1)
+                .unwrap();
+            let control = [0.0, 1.0]
+                .into_iter()
+                .flat_map(|z| [c0, c1, c2, last].map(|c| at(c, z)))
+                .collect();
+            Surface::Nurbs(std::sync::Arc::new(
+                geom::NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap(),
+            ))
+        };
+        // The row at `u = 0.5` entering at `v = 0`, its predecessor's exit
+        // at `v = 1`: one point on the closed net.
+        let image = geom_brep::Pcurve::IsoLine {
+            p0: geom_core::Point2::new(0.5, 0.0),
+            pl: geom_core::Vec2::new(0.0, 0.3),
+        };
+        let joint = |s: &Surface<f64>| {
+            super::decide_joint(
+                super::DescribedChart::of(s).unwrap(),
+                &image,
+                0.0,
+                geom_core::Point2::new(0.5, 1.0),
+                at(c0, 0.5),
+                super::chart_periods(s, band),
+                band,
+            )
+        };
+        let read = |out: &Result<crate::joint::JointElement, super::PinMiss>| match out {
+            Ok(element) => format!("{element:?}"),
+            Err(super::PinMiss::Discontinuity) => "Discontinuity".to_owned(),
+            Err(super::PinMiss::Escalated(cause)) => format!("Escalated({cause:?})"),
+        };
+        let closed = net(c0);
+        assert!(
+            matches!(
+                joint(&closed),
+                Ok(crate::joint::JointElement::Shift(crate::joint::Deck {
+                    u: 0,
+                    v: 1,
+                    twin: false
+                }))
+            ),
+            "closed in v: {}",
+            read(&joint(&closed))
+        );
+        let open = net((0.9, 0.1));
+        assert!(super::chart_v_period(&open, band).is_none(), "open in v");
+        assert!(
+            matches!(joint(&open), Err(super::PinMiss::Discontinuity)),
+            "open in v: {}",
+            read(&joint(&open))
+        );
     }
 
     /// **A meridian on the window's cut reads the same either side of
@@ -8319,7 +8654,10 @@ mod lift_rows {
             f(0.0),
             Point2::new(f(prev.0), f(prev.1)),
             vertex,
-            Some(geom_brep::Period::new(T::tau())),
+            super::ChartPeriods {
+                u: Some(geom_brep::Period::new(T::tau())),
+                v: super::chart_v_period(surface, band(k)),
+            },
             band(k),
         )
     }
@@ -8819,7 +9157,7 @@ mod villarceau_joint_tests {
                             let image = geom_brep::chart_pcurve(&carrier, &surface, band)
                                 .unwrap()
                                 .shift_branch(k, Period::new(TAU));
-                            let image = shift_polar_branch(&image, -k, Period::new(TAU));
+                            let image = shift_v_branch(&image, -k, Period::new(TAU));
                             let (t0, t1) = (0.3, 0.3 + TAU);
                             let row = geom_brep::PcurveCache::certify(
                                 image, t0, t1, &carrier, &surface, band,
@@ -8834,7 +9172,10 @@ mod villarceau_joint_tests {
                                 t0,
                                 row.pcurve().eval(t1),
                                 carrier.eval(t0),
-                                Some(geom_brep::Period::new(TAU)),
+                                super::ChartPeriods {
+                                    u: Some(geom_brep::Period::new(TAU)),
+                                    v: super::chart_v_period(chart.surface(), band),
+                                },
                                 band,
                             );
                             let periods = (focal.sense, focal.vl);
