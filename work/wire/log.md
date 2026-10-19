@@ -6370,3 +6370,20 @@ Signed (WIRE orchestrator).
     If Ev declines 5329, 5328 merges as is; if Ev approves, the 5329
     build carries over 5328's cover test and guard site check.
   (WIRE orchestrator)
+
+- 2026-10-19 — Ruling for `wire/split-maximal-halves`. A split's merge
+  group with no section face (a cylinder's two half-walls on one
+  carrier, merged across the profile seam once the cut opens the turn)
+  is `Merged` of the parent operand faces, with `Keeps` for several
+  pieces of one parent, as the boolean names the same shape
+  (`a_slot_across_a_sunk_boss…`). This is a faithful elaboration of N3:
+  a merged face is `Merged` of its constituents, and the boolean already
+  does it. Rejected:
+  - merge only section groups: DESIGN's maximal faces;
+  - name pre-merge pieces: no finished body holds them.
+  The lane adds one N3 sentence and re-baselines the two edge-lineage
+  pins whose pieces now merge. The `Joined::Seam` spelling is flagged
+  for review. The lane crossed CLEAVE (`finish.rs`, `mod.rs`) and TOPO
+  (`euler_ring.rs`, `merge_faces.rs`); the TOPO crossing was forced by
+  the revolved half's `RechartStrandsDescriptions{RingMove}`.
+  (WIRE orchestrator)
