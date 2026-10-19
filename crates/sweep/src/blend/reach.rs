@@ -10,7 +10,8 @@
 //! which would need the band trimmed by the face; or wholly inside such
 //! a region, every cell of the face's box that may hold a point of its
 //! surface inside it, or inside the prism a straight band removes or
-//! fills, read through the cycles its caps read inside and the edges its
+//! fills, read through the cycles read inside its caps' slivers or its
+//! supports' strips and the edges its
 //! exact core holds ([`prism_inside`]); inside a straight band's material
 //! the face goes with it ([`Consumed`]; elsewhere that carve is not
 //! built, and the request refuses [`BlendError::WhollyInside`]). A
@@ -367,6 +368,14 @@ fn sheet_box<T: Real>(o: Point3<T>, a: Vec3<T>, cell: &Cell<T>) -> Rect<T> {
 }
 
 impl<T: Real> Bound<T> {
+    /// Whether the region `g ≤ 0` is convex.
+    fn convex(&self) -> bool {
+        matches!(
+            self,
+            Self::Affine { .. } | Self::Tube { inside: true, .. } | Self::InsideBall { .. }
+        )
+    }
+
     /// `g(x)`.
     fn at(&self, x: Point3<T>) -> T {
         match self {
@@ -761,6 +770,26 @@ struct Reach<T: Real> {
     /// A straight link's edge and unit spine direction, which its
     /// prism reading takes ([`prism_inside`]).
     spine: Option<(EdgeKey, Vec3<T>)>,
+    /// Per plane support of a straight link with an exact core, the
+    /// core less that support's side, in which a cup on the support's
+    /// strip is read ([`prism_inside`]).
+    strips: Vec<StripCore<T>>,
+}
+
+/// The core of a straight link less one plane support's side.
+struct StripCore<T: Real> {
+    support: FaceKey,
+    /// The support's unit normal `ν`.
+    normal: Vec3<T>,
+    bounds: Vec<Bound<T>>,
+    /// Whether every one of `bounds` is convex.
+    convex: bool,
+    /// Where the one bound of `bounds` that is not convex is the outside
+    /// of a tube along the spine (a fillet's ball), the closed half-space
+    /// through its axis, normal to `ν`, on the support's foot's side:
+    /// within it each line along `ν` meets each set of the core's points
+    /// deeper than any `δ` in a segment.
+    along: Option<Bound<T>>,
 }
 
 /// The outward normal of `face` at `p`, or the body's refusal.
@@ -869,7 +898,9 @@ fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -
 /// support between the screen's samples. A ruled link's planar support
 /// has no strip meter, so a vertex there between the samples refuses
 /// here. A feature across the edge's line, which the band never
-/// reaches, is clear.
+/// reaches, is clear. A ring the request takes (`taken`: a cup's mouth
+/// read inside a strip, [`TakenRing`]) leaves the face before its strip
+/// is carved, and is not read.
 ///
 /// Returns whether `region` alone is vacant: no vertex of `face` but
 /// the request's possibly inside it. That is a reading of the face's
@@ -879,7 +910,7 @@ fn half_space<T: Decide + Bounds>(o: Point3<T>, n: Vec3<T>, inside: Point3<T>) -
 #[must_use = "the vacancy decides whether a straight strip keeps both sides"]
 fn screened<T: Decide + Bounds>(
     body: &Body<T>,
-    ends: &[VertexKey],
+    (ends, taken): (&[VertexKey], &[LoopKey]),
     face: FaceKey,
     region: &[Bound<T>],
     across: Option<&Bound<T>>,
@@ -890,7 +921,8 @@ fn screened<T: Decide + Bounds>(
         .get_face(face)
         .ok_or_else(|| unresolved(EntityId::Face(face), "a support the band replaces"))?;
     let mut vacant = true;
-    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+    let kept = f.rings.iter().copied().filter(|r| !taken.contains(r));
+    for lp in core::iter::once(f.outer).chain(kept) {
         let vertices: Vec<VertexKey> = match body.get_loop(lp).map(|l| l.boundary) {
             Some(topo::LoopBoundary::Cycle { first }) => body
                 .loop_cycle(first)
@@ -979,7 +1011,7 @@ fn straight_reach<T: Decide + Bounds>(
     link: &Link<T>,
     st: &Station<T>,
     corners: &[(VertexKey, Vec<Point3<T>>)],
-    request: &[VertexKey],
+    (request, taken): (&[VertexKey], &[LoopKey]),
     chain: usize,
     band: Band,
 ) -> Result<Reach<T>, BlendError> {
@@ -1118,6 +1150,37 @@ fn straight_reach<T: Decide + Bounds>(
     let w_hi = ends[0].3.max(ends[1].3);
     let core_window = window(ends[0].0.min(ends[1].0), ends[0].1.max(ends[1].1));
     core.extend(core_window.iter().map(|(_, b)| b.clone()));
+    // The core opens with the cross-section's bounds, in `cross`'s order.
+    let mut strips = Vec::new();
+    let pairs = [(link.face_a, st.fa), (link.face_b, st.fb)];
+    for (f, foot) in pairs.into_iter().filter(|_| exact) {
+        let Some(i) = cross.iter().position(|(role, _)| *role == Role::Side(f)) else {
+            continue;
+        };
+        let Surface::Plane { normal, .. } = surface_of(body, f)? else {
+            continue;
+        };
+        let normal = normal.normalize();
+        let mut bounds = core.clone();
+        bounds.remove(i);
+        let mut bent = bounds.iter().filter(|b| !b.convex());
+        let along = match (bent.next(), bent.next()) {
+            (
+                Some(Bound::Tube {
+                    o, inside: false, ..
+                }),
+                None,
+            ) => Some(half_space(*o, normal, foot)),
+            _ => None,
+        };
+        strips.push(StripCore {
+            support: f,
+            normal,
+            convex: bounds.iter().all(Bound::convex),
+            bounds,
+            along,
+        });
+    }
     let mut bounds = cross;
     bounds.extend(caps);
     bounds.extend(window(w_lo, w_hi));
@@ -1152,7 +1215,7 @@ fn straight_reach<T: Decide + Bounds>(
         let n = (off - tau * off.dot(tau)).normalize();
         let across = half_space(st.p - n * slab, n, foot);
         let gap = |p: Point3<T>| tube.at(p) + chord;
-        if !screened(body, request, f, &b, Some(&across), gap, band)? {
+        if !screened(body, (request, taken), f, &b, Some(&across), gap, band)? {
             b.push(across);
         }
         replaces.push((f, b));
@@ -1185,6 +1248,7 @@ fn straight_reach<T: Decide + Bounds>(
         skip,
         width: reach,
         spine: Some((link.edge, tau)),
+        strips,
     })
 }
 
@@ -1286,7 +1350,7 @@ fn circular_reach<T: Decide + Bounds>(
         // refuses a vertex in it, and its vacancy changes nothing here.
         let _vacant = screened(
             body,
-            request,
+            (request, &[]),
             f,
             core::slice::from_ref(&ring),
             None,
@@ -1318,6 +1382,7 @@ fn circular_reach<T: Decide + Bounds>(
         skip: Vec::new(),
         width: reach,
         spine: None,
+        strips: Vec::new(),
     })
 }
 
@@ -1491,6 +1556,7 @@ fn corner_reach<T: Decide + Bounds>(
             },
             width: far,
             spine: None,
+            strips: Vec::new(),
         },
         anchors,
     )))
@@ -2015,14 +2081,19 @@ fn boundary_reading<T: Decide>(
 
 /// What a face is read against for the prism a straight band removes or
 /// fills ([`prism_inside`]): the spine's unit direction, the cycles its
-/// caps' meter read inside the sliver, whether the section is convex,
-/// and the depth of a curve over a parameter range inside the band's
-/// exact core ([`curve_in_core`]).
+/// caps' meter read inside the sliver or those its strip meter read
+/// inside one support's strip, whether the section is convex (with that
+/// support's side dropped, for the strip's), the depth of a curve over a
+/// parameter range inside the band's exact core ([`curve_in_core`]),
+/// and, for the strip's, the depth of a curve inside the core less its
+/// side and, where the face lies in [`StripCore::along`], that support's
+/// unit normal.
 struct Prism<'a, T: Real> {
     tau: Vec3<T>,
-    rings: &'a [CapRing<T>],
+    rings: &'a [TakenRing<T>],
     convex: bool,
     in_core: &'a CurveDepth<'a, T>,
+    strip: Option<(&'a CurveDepth<'a, T>, Option<Vec3<T>>)>,
 }
 
 /// The depth of a curve over a parameter range inside a core.
@@ -2133,8 +2204,9 @@ fn curve_in_core<T: Bounds>(
 /// certified at depth `δ` when it lies between the cap planes and its
 /// projection along `τ` lies at least `δ` inside `S⊥`. Each edge of the
 /// face's boundary is certified one of three ways:
-/// - an edge of one of the `rings`, at its depth in a cap of normal `n`
-///   times `|n·τ|`;
+/// - an edge of one of the `rings`: on a cap of normal `n`, at its depth
+///   in the cap times `|n·τ|`; on a support's strip, read in the core
+///   less that support's side ([`Prism`]'s `strip`);
 /// - an edge read inside the band's exact core ([`edge_in_core`]);
 /// - a line `u → w` along `d` between two certified vertices, each of
 ///   whose points lies between the cap planes and within
@@ -2154,6 +2226,12 @@ fn curve_in_core<T: Bounds>(
 /// - as it is, where `S⊥` is `convex`: depth inside a convex set is
 ///   concave, and each point of a line or a face is a convex combination
 ///   of boundary points.
+///
+/// **On a support's strip** `S⊥` is `S⁺`, the section of the core less
+/// that support's side; every edge not on a ring is read in the whole
+/// core. Where the support's normal `ν` is given, a line's or a ruling's
+/// slack along `d` is the lesser of `|d × τ|` and `2·|d × ν|` per unit
+/// of its length.
 fn prism_inside<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -2163,32 +2241,69 @@ fn prism_inside<T: Decide>(
     by_boundary: bool,
 ) -> Result<Option<T>, BlendError> {
     let Prism {
-        tau, rings, convex, ..
+        tau,
+        rings,
+        convex,
+        strip,
+        ..
     } = *prism;
     if rings.is_empty() || flo.iter().chain(&fhi).any(|x| !x.is_finite()) {
         return Ok(None);
     }
-    // The ruling's `|a × τ|`, or `None` for a plane read by its boundary.
+    let nu = strip.and_then(|(_, nu)| nu);
+    // How far a line or ruling strays per unit of its length, from its
+    // misalignment with `τ` and with `ν`.
+    let charge = |off_tau: T, off_nu: &dyn Fn(Vec3<T>) -> T| {
+        nu.map_or(off_tau, |nu| off_tau.min(T::from_f64(2.0) * off_nu(nu)))
+    };
+    let stray = |a: Vec3<T>| {
+        let a = a.normalize();
+        charge(a.cross(tau).norm(), &|nu| a.cross(nu).norm())
+    };
+    // The ruling's stray, or `None` for a plane read by its boundary: a
+    // plane is ruled along its direction nearest `τ`, or nearest `ν`.
     let ruled = match surface {
-        Surface::Cylinder { axis, .. } => Some(axis.normalize().cross(tau).norm()),
-        Surface::Plane { normal, .. } => (!by_boundary).then(|| normal.normalize().dot(tau).abs()),
+        Surface::Cylinder { axis, .. } => Some(stray(*axis)),
+        Surface::Plane { normal, .. } => (!by_boundary).then(|| {
+            let n = normal.normalize();
+            charge(n.dot(tau).abs(), &|nu| n.dot(nu).abs())
+        }),
         _ => return Ok(None),
     };
     let mut edges = BTreeMap::new();
     let mut vertices = BTreeMap::new();
     let mut least: Option<T> = None;
     for r in rings {
-        let Surface::Plane { normal, .. } = surface_of(body, r.cap)? else {
-            return Ok(None);
-        };
-        let deep = (T::zero() - r.depth) * normal.normalize().dot(tau).abs();
-        least = Some(least.map_or(deep, |l| l.min(deep)));
         let Some(walk) = loop_walk(body, r.ring) else {
             return Ok(None);
         };
-        for (_, start, edge) in walk {
-            certify(&mut edges, edge, deep);
-            certify(&mut vertices, start, deep);
+        match (r.on, strip) {
+            (RingOn::Cap { .. }, None) => {
+                let Surface::Plane { normal, .. } = surface_of(body, r.face)? else {
+                    return Ok(None);
+                };
+                let deep = (T::zero() - r.depth) * normal.normalize().dot(tau).abs();
+                least = Some(least.map_or(deep, |l| l.min(deep)));
+                for (_, start, edge) in walk {
+                    certify(&mut edges, edge, deep);
+                    certify(&mut vertices, start, deep);
+                }
+            }
+            (RingOn::Strip, Some((beside, _))) => {
+                for (he, u, edge) in walk {
+                    let w = body
+                        .half_edge_end(he)
+                        .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a ring edge's end"))?;
+                    let carrier = carrier_of(body, edge)?;
+                    let Some(deep) = edge_in_core(body, &carrier, [u, w], beside, &mut vertices)?
+                    else {
+                        return Ok(None);
+                    };
+                    least = Some(least.map_or(deep, |l| l.min(deep)));
+                    certify(&mut edges, edge, deep);
+                }
+            }
+            _ => return Ok(None),
         }
     }
     let Some(mut least) = least else {
@@ -2216,7 +2331,8 @@ fn prism_inside<T: Decide>(
                 lines.push((carrier, u, w, dir));
                 continue;
             }
-            let Some(deep) = edge_in_core(body, &carrier, [u, w], prism, &mut vertices)? else {
+            let Some(deep) = edge_in_core(body, &carrier, [u, w], prism.in_core, &mut vertices)?
+            else {
                 return Ok(None);
             };
             least = least.min(deep);
@@ -2230,7 +2346,9 @@ fn prism_inside<T: Decide>(
     for (carrier, u, w, dir) in lines {
         if certified(&vertices, u, w).is_some() {
             pending.push((u, w, dir));
-        } else if let Some(deep) = edge_in_core(body, &carrier, [u, w], prism, &mut vertices)? {
+        } else if let Some(deep) =
+            edge_in_core(body, &carrier, [u, w], prism.in_core, &mut vertices)?
+        {
             least = least.min(deep);
         } else {
             pending.push((u, w, dir));
@@ -2243,7 +2361,7 @@ fn prism_inside<T: Decide>(
         };
         least = least.min(du).min(dw);
         let run = (point_of(body, w)? - point_of(body, u)?).norm();
-        slack = slack.max(run * dir.normalize().cross(tau).norm());
+        slack = slack.max(run * stray(dir));
     }
     if convex {
         return Ok(Some(least));
@@ -2259,19 +2377,19 @@ fn prism_inside<T: Decide>(
     Ok(Some(least - slack - diagonal * tilt))
 }
 
-/// **An edge read inside a straight band's exact core**: its depth
-/// ([`Prism`]'s `in_core`), its ends `u` and `w` certified at that depth less
-/// each one's distance from the carrier's nearer end — every point of the
-/// curve lies at that depth, and depth is 1-Lipschitz — and `None` when
-/// the curve is not certified.
+/// **An edge read inside a straight band's exact core**, or the core
+/// less a support's side: its depth (`in_core`), its ends `u` and `w`
+/// certified at that depth less each one's distance from the carrier's
+/// nearer end — every point of the curve lies at that depth, and depth
+/// is 1-Lipschitz — and `None` when the curve is not certified.
 fn edge_in_core<T: Decide>(
     body: &Body<T>,
     (c, t0, t1): &(Curve3<T>, T, T),
     ends: [VertexKey; 2],
-    prism: &Prism<'_, T>,
+    in_core: &CurveDepth<'_, T>,
     vertices: &mut BTreeMap<VertexKey, T>,
 ) -> Result<Option<T>, BlendError> {
-    let Some(deep) = (prism.in_core)(c, (*t0, *t1)) else {
+    let Some(deep) = in_core(c, (*t0, *t1)) else {
         return Ok(None);
     };
     let (a, b) = (c.eval(*t0), c.eval(*t1));
@@ -2292,40 +2410,50 @@ fn edge_in_core<T: Decide>(
 /// of every one; a tie on the margin's upper end names the least entity
 /// ([`entity_order`]), so the refusal is the same in every read order.
 ///
-/// An inside reading the carve consumes is one on a straight band's
-/// cap ([`CapRing`]), a face of the prism over such rings
+/// An inside reading the carve consumes is a cycle on a straight band's
+/// cap or support strip ([`TakenRing`]), a face of the prism over such rings
 /// ([`prism_inside`]) or a face inside a straight band's exact core:
 /// only when every inside reading is one does the request build
 /// ([`Consumed`]); otherwise it refuses `WhollyInside`.
 pub(crate) struct Unclear<T> {
     bound: Option<(T, BlendError)>,
     inside: Option<(T, BlendError)>,
-    rings: Vec<CapRing<T>>,
+    rings: Vec<TakenRing<T>>,
     faces: Vec<(FaceKey, EdgeKey)>,
     unconsumed: bool,
 }
 
-/// **A cycle of a straight band's cap read wholly inside its sliver**:
-/// the crease whose band removes or buries it, the cap, the cycle, and
-/// its depth (negative; its size a lower bound on the cycle's distance
-/// from the sliver's boundary in the cap's plane), and whether the
-/// sliver was read as its exact triangle, so convex.
+/// **A cycle a straight band takes, read wholly inside the face it lies
+/// on's part of the band's region**: the crease whose band removes or
+/// buries it, that face, the cycle, its depth (negative; its size a
+/// lower bound on the cycle's distance from that part's boundary in the
+/// face's plane), and where it lies ([`RingOn`]).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct CapRing<T> {
+pub(crate) struct TakenRing<T> {
     pub(crate) crease: EdgeKey,
-    pub(crate) cap: FaceKey,
+    pub(crate) face: FaceKey,
     pub(crate) ring: LoopKey,
     pub(crate) depth: T,
-    pub(crate) convex: bool,
+    pub(crate) on: RingOn,
 }
 
-/// **What a request whose verdict is inside consumes**: the cap cycles
-/// and the faces read wholly inside the material a straight band
-/// removes or fills, each with the crease of every band it was read
+/// Where a [`TakenRing`] lies.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RingOn {
+    /// On a cap, inside its sliver, which was read as its exact triangle
+    /// (`convex`) or not.
+    Cap { convex: bool },
+    /// On a support, inside the strip the band takes off it.
+    Strip,
+}
+
+/// **What a request whose verdict is inside consumes**: the cycles
+/// taken ([`TakenRing`]) and the faces read wholly inside the material
+/// a straight band removes or fills, each with the crease of every band it was read
 /// inside, and the refusal they would owe were the carve not to take
 /// them ([`BlendError::WhollyInside`], the shallowest).
 pub(crate) struct Consumed<T> {
-    pub(crate) rings: Vec<CapRing<T>>,
+    pub(crate) rings: Vec<TakenRing<T>>,
     /// Each face and a crease whose band's material it was read in.
     pub(crate) read: Vec<(FaceKey, EdgeKey)>,
     pub(crate) refusal: BlendError,
@@ -2416,9 +2544,10 @@ impl<T: Bounds> Unclear<T> {
         self.deepen(margin, refusal);
     }
 
-    /// A cap cycle certified wholly inside a straight band's sliver,
-    /// which the carve consumes with the feature it bounds.
-    pub(crate) fn cap_ring(&mut self, ring: CapRing<T>, refusal: BlendError) {
+    /// A cycle certified wholly inside a straight band's cap sliver or
+    /// support strip, which the carve consumes with the feature it
+    /// bounds.
+    pub(crate) fn taken_ring(&mut self, ring: TakenRing<T>, refusal: BlendError) {
         self.rings.push(ring);
         self.deepen(ring.depth, refusal);
     }
@@ -2433,8 +2562,8 @@ impl<T: Bounds> Unclear<T> {
         self.deepen(depth, refusal);
     }
 
-    /// The cycles read inside a straight band's caps so far.
-    fn cap_rings(&self) -> &[CapRing<T>] {
+    /// The cycles taken so far.
+    fn taken(&self) -> &[TakenRing<T>] {
         &self.rings
     }
 
@@ -2530,6 +2659,12 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             corners.push((v, anchors));
         }
     }
+    let taken: Vec<LoopKey> = unclear
+        .taken()
+        .iter()
+        .filter(|r| r.on == RingOn::Strip)
+        .map(|r| r.ring)
+        .collect();
     let supports: Vec<Vec<FaceKey>> = chains
         .iter()
         .map(|c| c.links().flat_map(|l| [l.face_a, l.face_b]).collect())
@@ -2539,7 +2674,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         let mut r = if link.arm.is_coaxial_torus() {
             circular_reach(body, link, &st, &ends_all, *ci, band)?
         } else {
-            straight_reach(body, link, &st, &corners, &ends_all, *ci, band)?
+            straight_reach(body, link, &st, &corners, (&ends_all, &taken), *ci, band)?
         };
         r.skip.extend(&supports[*ci]);
         r.skip.sort_unstable();
@@ -2682,37 +2817,86 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                 continue;
             }
             // Inside the prism a straight band removes or fills, read through
-            // the cycles its caps' meter read inside the sliver.
+            // the cycles its caps' meter read inside the sliver, or through
+            // those the strip meter read inside one support's strip.
             if let Some((edge, tau)) = reach.spine.filter(|_| !supports_a_band) {
-                let mine: Vec<CapRing<T>> = unclear
-                    .cap_rings()
-                    .iter()
-                    .filter(|r| r.crease == edge)
-                    .copied()
-                    .collect();
+                let mine = |on: &dyn Fn(RingOn) -> bool| -> Vec<TakenRing<T>> {
+                    unclear
+                        .taken()
+                        .iter()
+                        .filter(|r| r.crease == edge && on(r.on))
+                        .copied()
+                        .collect()
+                };
+                let caps = mine(&|on| matches!(on, RingOn::Cap { .. }));
                 // The prism's slice in a cap's plane is an affine image
                 // of `S⊥` (projection along `τ`), so `S⊥` is convex
                 // exactly when that slice is; a ring read through the
                 // exact triangle certifies it for its cap.
-                let convex = mine.iter().all(|r| r.convex);
+                let convex = caps.iter().all(|r| r.on == RingOn::Cap { convex: true });
                 // A carrier with a speed bound (a line, a circle, an
                 // ellipse) is read piecewise; any other is not certified.
-                let in_core = |c: &Curve3<T>, span| {
+                let depth_in = |core: &[Bound<T>], c: &Curve3<T>, span| {
                     let speed = geom::carrier_speed::speed_hi(c)?;
-                    curve_in_core(speed, &|t| c.eval(t), span, &reach.core, band)
+                    curve_in_core(speed, &|t| c.eval(t), span, core, band)
                 };
-                let prism = Prism {
-                    tau,
-                    rings: &mine,
-                    convex,
-                    in_core: &in_core,
-                };
+                let in_core = |c: &Curve3<T>, span| depth_in(&reach.core, c, span);
                 let by_boundary = match &surface {
                     Surface::Plane { normal, .. } => sure(normal.normalize().dot(tau).abs(), band),
                     _ => false,
                 };
-                let reading = prism_inside(body, face, &surface, fbox, &prism, by_boundary)?;
-                if let Some(excess) = reading.filter(|x| sure(*x, band)) {
+                let mut readings = vec![prism_inside(
+                    body,
+                    face,
+                    &surface,
+                    fbox,
+                    &Prism {
+                        tau,
+                        rings: &caps,
+                        convex,
+                        in_core: &in_core,
+                        strip: None,
+                    },
+                    by_boundary,
+                )?];
+                for strip in &reach.strips {
+                    let rings = mine(&|on| on == RingOn::Strip);
+                    let rings: Vec<TakenRing<T>> = rings
+                        .into_iter()
+                        .filter(|r| r.face == strip.support)
+                        .collect();
+                    let in_beside = |c: &Curve3<T>, span| depth_in(&strip.bounds, c, span);
+                    let corner = |v: [f64; 3]| {
+                        let [x, y, z] = v.map(T::from_computed);
+                        Point3::new(x, y, z)
+                    };
+                    let (lo, hi) = (corner(fbox.0), corner(fbox.1));
+                    let nu = strip
+                        .along
+                        .as_ref()
+                        .filter(|h| sure(T::zero() - corner_max(lo, hi, |x| h.at(x)), band))
+                        .map(|_| strip.normal);
+                    readings.push(prism_inside(
+                        body,
+                        face,
+                        &surface,
+                        fbox,
+                        &Prism {
+                            tau,
+                            rings: &rings,
+                            convex: strip.convex,
+                            in_core: &in_core,
+                            strip: Some((&in_beside, nu)),
+                        },
+                        by_boundary,
+                    )?);
+                }
+                let deepest = readings
+                    .into_iter()
+                    .flatten()
+                    .filter(|x| sure(*x, band))
+                    .reduce(|m, x| if x.hi() > m.hi() { x } else { m });
+                if let Some(excess) = deepest {
                     let deep = T::zero() - excess;
                     let sign = classify_bound(deep)?;
                     unclear.prism_face(

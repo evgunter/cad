@@ -10,7 +10,6 @@ tag: (KNOT orchestrator)
 ab_band: 12300-12399
 paths: [crates/geom-core/src/spline/*, crates/geom/src/curves/fit.rs, crates/geom/src/curves/nurbs.rs, crates/geom/src/surfaces/nurbs.rs]
 keep_out: [opened 2026-10-10 by FLUX's priority-seam cut (FLUX measured 125.5 budget points against 30 - work/README.md Track size) - the rows moved by git mv with ids and bodies unchanged and FLUX kept the curved closed-form arms. Shared ground is expected (Ev in chat 2026-09-20) - crates/geom-brep/src/props/* is shared with FLUX FLUXTAIL and QUAD, crates/geom-core/src/* with FLUX's siblings KNOT SCALAR and with FRAME NURBS SYM ENCL - run scripts/work.py territory on your branch and announce the seam in the PR]
-priority: P2
 ---
 
 **The doors a spline passes through on its way into a flux arm or an

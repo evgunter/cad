@@ -93,7 +93,9 @@ AREAS = ("kernel", "api", "gui", "infra")
 # The priority bands (work/README.md, "Priority"). P0 is most urgent. A band
 # says WHAT to do, never WHEN: dispatch order is priority together with cost
 # and with whether design work is open, which is the orchestrator's judgement
-# and is deliberately not a field.
+# and is deliberately not a field. Rows carry a band and programs do not: a
+# program's place on the board is computed from its rows (`_board_key`), so it
+# cannot outlive the work that put it there.
 PRIORITIES = ("P0", "P1", "P2", "P3", "P4")
 
 # The cost class is EFFORT only (Ev, in chat, 2026-09-27): E the fix is written
@@ -135,7 +137,7 @@ SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
     "branch": ("str", ("unit", "issue", "ruling")),
     "needs_ev": ("flag", ("unit", "issue", "ruling", "program")),
     "track": ("str", ("unit", "issue", "ruling")),
-    "priority": ("enum:priority", KINDS),
+    "priority": ("enum:priority", ("unit", "issue", "ruling")),
     "cost": ("enum:cost", ("unit", "issue", "ruling")),
     "design": ("flag", ("unit", "issue", "ruling")),
     "github": ("int", ("unit", "issue", "ruling")),
@@ -425,6 +427,24 @@ def _prio_key(it: Item) -> int:
     return PRIORITIES.index(str(v)) if str(v) in PRIORITIES else len(PRIORITIES)
 
 
+def _band_counts(rows: list[Item], statuses: tuple[str, ...]) -> tuple[int, ...]:
+    return tuple(sum(1 for r in rows if r.status in statuses and str(r.get("priority")) == b) for b in PRIORITIES)
+
+
+def _board_key(rows: list[Item]) -> tuple[int, ...]:
+    """Where a program sits on the board: by its DISPATCHABLE rows' bands,
+    compared band by band from P0 down, so one P0 outranks any number of P1s
+    and among equal tops the deeper slate ranks first. Rows in flight, parked
+    or deferred only break ties: nobody can pick them up next."""
+    live = tuple(s for s in ITEM_STATUS if s != "closed")
+    return tuple(-n for n in _band_counts(rows, DISPATCHABLE) + _band_counts(rows, live))
+
+
+def _top_band(rows: list[Item]) -> str:
+    counts = _band_counts(rows, DISPATCHABLE)
+    return next((b for b, n in zip(PRIORITIES, counts, strict=True) if n), "—")
+
+
 def _say_fired(vs: list[object], resolves: dict[int, Item]) -> str:
     """Fired blockers, named. An id prints as itself; a number prints as the
     number AND the item it resolved to, so the reader can check the inference
@@ -703,11 +723,12 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
         raise Bail("cannot render an invalid tree; run `work.py lint`:\n  " + "\n  ".join(errors))
     today = today or dt.date.today()
     touched = _last_touched(root)
-    programs = sorted((it for it in items if it.kind == "program"), key=lambda p: (str(p.get("area")), p.id))
     by_program: dict[str | None, list[Item]] = defaultdict(list)
     for it in items:
         if it.kind != "program":
             by_program[it.program].append(it)
+    programs = sorted((it for it in items if it.kind == "program"),
+                      key=lambda p: (_board_key(by_program.get(p.id, [])), str(p.get("area")), p.id))
     live = [it for it in items if it.kind != "program" and it.status != "closed"]
     if only_program:
         programs = [p for p in programs if p.id == only_program]
@@ -739,10 +760,10 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
     out.append("## Programs")
     out.append("")
     bands = " | ".join(PRIORITIES)
-    out.append(f"| area | program | pri | {bands} | load | status | open | spec | dispatched | review | parked | deferred | closed | on Ev |")
+    out.append(f"| area | program | top | {bands} | load | status | open | spec | dispatched | review | parked | deferred | closed | on Ev |")
     out.append("|---|---|---|" + "---|" * len(PRIORITIES) + "---|---|---|---|---|---|---|---|---|---|")
     totals = {b: 0 for b in PRIORITIES}
-    for p in sorted(programs, key=lambda q: (_prio_key(q), str(q.get("area") or ""), q.id)):
+    for p in programs:
         rows = by_program.get(p.id, [])
         c = {s: sum(1 for r in rows if r.status == s) for s in ITEM_STATUS}
         ev = sum(1 for r in rows if r.status != "closed" and r.get("needs_ev") is not None)
@@ -754,7 +775,7 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
         for b in PRIORITIES:
             totals[b] += band[b]
         cells = " | ".join(str(band[b] or "") for b in PRIORITIES)
-        out.append(f"| {p.get('area') or '—'} | `{p.id}` | {p.get('priority') or '—'} | {cells} | "
+        out.append(f"| {p.get('area') or '—'} | `{p.id}` | {_top_band(rows)} | {cells} | "
                    f"{_fmt_load(rows, p)} | {p.status} | {c['open']} | {c['spec']} | "
                    f"{c['dispatched']} | {c['review']} | {c['parked']} | {c['deferred']} | {c['closed']} | "
                    f"{ev or ''} |")
@@ -768,8 +789,9 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
                "(no orchestrator, and a row to pick up), `active` (an "
                "orchestrator holds it), `blocked` (no orchestrator, and "
                "nothing dispatchable). `load` is the DISPATCHABLE weight against the "
-               "track's budget (Track size); bold is over. `pri` is the band "
-               "of the track's spine, never a ceiling on its rows.")
+               "track's budget (Track size); bold is over. `top` is the "
+               "highest band among the DISPATCHABLE rows, and the table is "
+               "ordered by those rows' band counts, P0 first (Priority).")
     out.append("")
 
     # per-program slates
@@ -1168,6 +1190,8 @@ def selftest() -> int:
              "opened: 2026-09-01", f"opened: {LEGACY_D_UNTIL}\ncost: D"),
             ("design is a bare true", "work/mesh/MESH-2.md",
              "status: open", "status: open\ndesign: yes"),
+            ("a program carries no band", "work/topo/program.md",
+             "status: ready", "status: ready\npriority: P0"),
         ]
         expectations = ["unknown key", "either `true` or absent", "no item", "must equal the file name", "must be one of",
                         "needs a `closed:` date", "non-empty `blocked_on`",
@@ -1175,7 +1199,8 @@ def selftest() -> int:
                         "indented line", "only kind issue lives under",
                         "nothing else gates this row", "so prune the fired entry",
                         "cite the ratification in the body",
-                        "`cost: D` is legacy", "either `true` or absent"]
+                        "`cost: D` is legacy", "either `true` or absent",
+                        "not a field of kind program"]
         for (name, rel, old, new), needle in zip(cases, expectations, strict=True):
             p = os.path.join(root, rel)
             with open(p, encoding="utf-8") as f:
@@ -1196,6 +1221,25 @@ def selftest() -> int:
         expect("M with design on a new row is clean", lint(root))
         if "| M +design |" not in render(root, only_program="mesh", today=far):
             failures.append("render: a design row does not say so in its cost column")
+        _write(root, "work/mesh/MESH-2.md", o2)
+
+        # THE BOARD'S ORDER comes from the rows. With no banded row anywhere it
+        # falls back to area then id; a dispatchable P1 on topo puts it first,
+        # and a parked P0 on mesh does not take the lead back from it.
+        def board_order() -> list[str]:
+            table = render(root, today=far).split("## Programs")[1].split("all programs")[0]
+            return [ln.split("`")[1] for ln in table.splitlines() if ln.startswith("| ") and "`" in ln]
+        if board_order() != ["mesh", "topo"]:
+            failures.append(f"board order with one live slate: {board_order()}")
+        _write(root, "work/topo/T-2.md",
+               "---\nid: T-2\nkind: issue\ntitle: tail\nstatus: open\nopened: 2026-09-02\npriority: P1\n---\n")
+        _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: parked\nblocked_on: [MESH-1]\npriority: P0"))
+        expect("board-order fixture", lint(root))
+        if board_order() != ["topo", "mesh"]:
+            failures.append(f"board order: a dispatchable P1 should lead a parked P0, got {board_order()}")
+        if "| kernel | `topo` | P1 |" not in render(root, today=far):
+            failures.append("render: `top` is not the best dispatchable band")
+        os.remove(os.path.join(root, "work/topo/T-2.md"))
         _write(root, "work/mesh/MESH-2.md", o2)
 
         # THE PROGRAM'S OWN STATUS. `active` is unfalsifiable from the tree,

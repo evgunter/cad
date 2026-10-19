@@ -40,7 +40,7 @@ use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face_loops, planar_face,
 };
 use geom_brep::recourse::{Classified, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
-use geom_core::interval::Interval;
+use geom_core::interval::{self, Interval};
 use geom_core::k_stats::Detached;
 use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, Tol};
 use slotmap::Key;
@@ -96,19 +96,34 @@ impl<T: Real> MassProperties<T> {
     /// toward admitting, which is the direction that matters and the
     /// direction that did not exist before that exit did.
     ///
-    /// **The band absorbs it, with the numbers.** The reconstruction
-    /// error is at most a few ulps of the midpoint's magnitude, so at
-    /// most `|volume|·2⁻⁵²`. The passing exit requires
-    /// `volume_lo / surface_area ≥ K·ε` (the band's escalation
-    /// threshold), and `volume ≤ volume_lo + 2·volume_pad`, so the
-    /// error can only reach that threshold on a body whose bracket
-    /// half-width, metered on the same lever, is at least `K·ε·2⁵¹` —
-    /// of order `10⁷` metres of mean boundary displacement at
-    /// `ε = 10⁻⁹`. A face that wide refuses at
-    /// `props_quad_face_extent` or carries a poisoned enclosure long
-    /// before it reaches here. (The same shape of argument, with the
-    /// same conclusion, is written out at `geom-brep`'s
-    /// `last_round_width_lo`.)
+    /// **What the ends are off by, and what reads them.** Three
+    /// roundings stand between them and the sum they stand for:
+    ///
+    /// - the fold's (`fold_runs`): `volume` is the faces' flux terms
+    ///   summed at the walk's scalar, round to nearest, so off by up to
+    ///   `≈ (n − 1)·u·Σ_f |flux_f| / 3` over `n` faces. That scales with
+    ///   the terms, not with `|volume|`: a body at distance `D` from the
+    ///   origin has `Σ_f |flux_f| ≈ D·A`, so its fold error is
+    ///   `≈ n·u·D·A/3` however small its volume. Against check 7's
+    ///   threshold `volume_lo / surface_area ≥ K·ε` it reaches the band
+    ///   at `D ≈ 3·K·ε / (n·u)`: `≈ 10⁷ m` for ten faces at `ε = 10⁻⁹`,
+    ///   `K = 10`, and proportionally nearer for more;
+    /// - the pads': each face's half-width is its enclosure's rounded to
+    ///   nearest (`quad_lane::mid_pad`), and their sum, and its third,
+    ///   are rounded up, so the pad stands for no less than the faces'
+    ///   half-widths summed;
+    /// - this reconstruction's: a few ulps of `|volume|`.
+    ///
+    /// The pads cover the quadrature, not the fold, so these ends are
+    /// no certificate against the fold's rounding. **No certified sign
+    /// reads them**: check 7's certified read (`certify_role`) decides
+    /// off the walk's faces re-derived in interval arithmetic about a
+    /// corner of the body (`rederive`), whose terms are the body's own
+    /// size wherever it sits, whenever the walk holds a lane; these ends
+    /// decide only a walk holding none
+    /// (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`),
+    /// and give a refusal its words. (The same shape of argument is
+    /// written out at `geom-brep`'s `last_round_width_lo`.)
     ///
     /// The UPPER end's arithmetic is untouched and deliberately so:
     /// it is the end the +V refusal has always read, its rounding is
@@ -2253,6 +2268,45 @@ mod face_walk_composition_tests {
 /// ended WITHOUT a refusal, so a real certificate's outstanding
 /// refusals and its open faces never collide in one walk this way.
 #[cfg(test)]
+mod fold_pad_rows {
+    #![allow(clippy::float_cmp)]
+
+    use super::*;
+
+    fn run_with(pad: f64) -> FaceRun<f64> {
+        FaceRun {
+            face: FaceKey::null(),
+            contribution: FaceFlux {
+                flux: 0.0,
+                area: 0.0,
+                flux_pad: pad,
+                area_pad: pad,
+                enclosure: None,
+            },
+            open_at: None,
+            converged_at: None,
+            refusal: None,
+        }
+    }
+
+    /// **The whole's pads are no less than the faces'**: `1` and a
+    /// quarter of its ulp sum to `1` rounded to nearest, which would
+    /// report a half-width below the faces' summed; summed rounding up
+    /// it is `1`'s successor, and the volume pad is that sum's third
+    /// rounded up. A body of closed-form faces has pads of exactly `0`.
+    #[test]
+    fn the_folded_pads_round_up_and_zero_stays_exact() {
+        let quarter = f64::EPSILON / 4.0;
+        let (props, _) = fold_runs(&[run_with(1.0), run_with(quarter)]);
+        assert_eq!(props.area_pad, 1.0f64.next_up());
+        assert_eq!(props.volume_pad, interval::div_up(1.0f64.next_up(), 3.0));
+        assert!(3.0 * props.volume_pad >= props.area_pad);
+        let (props, _) = fold_runs(&[run_with(0.0), run_with(0.0)]);
+        assert_eq!((props.area_pad, props.volume_pad), (0.0, 0.0));
+    }
+}
+
+#[cfg(test)]
 mod continuation_refusal_order_tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
@@ -2483,14 +2537,16 @@ fn fold_runs<T: Decide>(runs: &[FaceRun<T>]) -> (MassProperties<T>, Option<(Face
         }
         flux = flux + run.contribution.flux;
         area = area + run.contribution.area;
-        flux_pad += run.contribution.flux_pad;
-        area_pad += run.contribution.area_pad;
+        // The pads are half-widths, summed and divided rounding up so
+        // the whole's is no less than the faces' (`0.0` stays exact).
+        flux_pad = interval::add_up(flux_pad, run.contribution.flux_pad);
+        area_pad = interval::add_up(area_pad, run.contribution.area_pad);
     }
     (
         MassProperties {
             volume: flux / T::from_f64(3.0),
             surface_area: area,
-            volume_pad: flux_pad / 3.0,
+            volume_pad: interval::div_up(flux_pad, 3.0),
             area_pad,
         },
         refused,

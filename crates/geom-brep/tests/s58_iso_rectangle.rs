@@ -35,7 +35,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::point::{p3, v3};
-use crate::shared::tol::band;
+use crate::shared::tol::{band, eps};
 use crate::shared::topo::edge;
 use geom::Curve3;
 use geom::Surface;
@@ -819,4 +819,73 @@ fn the_material_side_gate_reads_a_torus_l_domain_at_every_rotation() {
         sides.iter().all(|x| *x == sides[0]),
         "one face, one side: {sides:?}"
     );
+}
+
+/// **A sphere window with a rim near a pole is an iso rectangle**, at
+/// `f64` and at the interval scalar: the window `[0, 1] × [v₀, v₁]` on
+/// the unit sphere, its lower rim of radius 0.5 and its upper rim `kε`
+/// from the axis (`k ∈ {10.5, 11, 15, 30, 100}`), its meridians running
+/// between them. The rim sits at the face's extreme level, and the
+/// shape door compares their latitude pairs; the extreme's cosine is
+/// the one carried beside its level, not `√(1 − s²)` completed off the
+/// sine, which near a pole is off by `≈ u/cos v` (up to all of `kε` at
+/// ε = 1e-12) and refused or escalated these windows as
+/// `props_rim_level`. The flux lane measures them either way.
+#[test]
+fn a_sphere_window_with_a_rim_near_a_pole_is_an_iso_rectangle() {
+    fn window<T: geom_core::Decide>(rc: f64) -> Vec<LoopEdge<T>> {
+        let rim = |r: f64, u0: f64, u1: f64| {
+            edge::<T>(
+                Curve3::Circle {
+                    center: p3(0.0, 0.0, (1.0 - r * r).sqrt()),
+                    axis: v3(0.0, 0.0, 1.0),
+                    radius: T::from_f64(r),
+                    u_ref: v3(1.0, 0.0, 0.0),
+                },
+                u0,
+                u1,
+                0,
+                0,
+            )
+        };
+        let meridian = |u: f64, a: f64, b: f64| {
+            edge::<T>(
+                Curve3::Circle {
+                    center: p3(0.0, 0.0, 0.0),
+                    axis: v3(u.sin(), -u.cos(), 0.0),
+                    radius: T::from_f64(1.0),
+                    u_ref: v3(u.cos(), u.sin(), 0.0),
+                },
+                a,
+                b,
+                0,
+                0,
+            )
+        };
+        // Latitudes off their cosines, which `acos` reads well near 0.
+        let (v0, v1) = (0.5_f64.acos(), rc.acos());
+        vec![
+            rim(0.5, 0.0, 1.0),
+            meridian(1.0, v0, v1),
+            rim(rc, 1.0, 0.0),
+            meridian(0.0, v1, v0),
+        ]
+    }
+    fn rows<T: geom_core::Decide>(scalar: &str) {
+        let sphere = Surface::Sphere {
+            center: p3(0.0, 0.0, 0.0),
+            radius: T::from_f64(1.0),
+            axis: v3(0.0, 0.0, 1.0),
+            u_ref: v3(1.0, 0.0, 0.0),
+        };
+        for k in [10.5, 11.0, 15.0, 30.0, 100.0] {
+            assert_eq!(
+                require_iso_rectangle(&sphere, &window::<T>(k * eps()), band()),
+                Ok(()),
+                "a rim {k}ε from the axis at {scalar}"
+            );
+        }
+    }
+    rows::<f64>("f64");
+    rows::<geom_core::Interval>("the interval scalar");
 }

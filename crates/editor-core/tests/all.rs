@@ -191,6 +191,8 @@ mod edit_ruled_carve;
 mod edit_set_program;
 #[path = "edit_step_segments.rs"]
 mod edit_step_segments;
+#[path = "edit_strip_mouth_cups.rs"]
+mod edit_strip_mouth_cups;
 #[path = "emit_ball_cut_by_brick.rs"]
 mod emit_ball_cut_by_brick;
 #[path = "emit_boolean_vertex_keys.rs"]
@@ -631,6 +633,8 @@ mod trim_3_windows_interval;
 mod u8a_parse;
 #[path = "union_flush_onto_edge_contact.rs"]
 mod union_flush_onto_edge_contact;
+#[path = "union_fold_face_face_touch.rs"]
+mod union_fold_face_face_touch;
 #[path = "union_pinch_member_order.rs"]
 mod union_pinch_member_order;
 #[path = "unreadable_by_this_build.rs"]
