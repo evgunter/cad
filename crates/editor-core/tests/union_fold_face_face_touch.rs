@@ -15,7 +15,7 @@
 //! - a slab crossing plate and rod obliquely, before or after the rod;
 //! - a neighbour flush with the plate along x, 296 long, whose face
 //!   merges with the plate's before the rod is folded, the rod leaning
-//!   1e-10 rad toward the face: tangent within the band at the pass's
+//!   a tenth of ε rad toward the face: tangent within the band at the pass's
 //!   extent, not at the merged face's, which the step must not re-read.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -228,8 +228,10 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
             side: ExtrudeSide::Along,
         },
     );
-    // The closed form is not simple; the orders that answer agree on it.
+    // The closed form is not simple; the orders that answer agree on it,
+    // within what the run's ε resolves.
     let volume = 17.319_065_538_33;
+    let within = 1e-7_f64.max(100.0 * Tol::witness().eps());
     for (what, members) in [
         ("plate, rod, slab", [plate, rod, slab]),
         ("rod, slab, plate", [rod, slab, plate]),
@@ -243,12 +245,12 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
         let v = topo::mass_properties(crate::corpus::body_of(&ev, u), Tol::witness())
             .unwrap()
             .volume;
-        assert!((v - volume).abs() < 1e-8, "{what}: volume {v}");
+        assert!((v - volume).abs() < within, "{what}: volume {v}");
         touches(&doc, what, &members, (plate, rod), 1, v);
     }
 }
 
-/// A rod leaning 1e-10 rad toward the plate's face, tangent within the
+/// A rod leaning a tenth of ε rad toward the plate's face, tangent within the
 /// band over the pair's own extent, and a neighbour (2..300) × (−2..2)
 /// × (0..1) whose y = 2 face merges with the plate's before the rod is
 /// folded. Read again over the merged face's extent the carriers decide
@@ -257,7 +259,7 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
 #[test]
 fn a_merged_face_far_longer_than_the_pair_holds_the_pass_s_line() {
     let (doc, plate) = plate();
-    let (doc, rod) = leaning_rod(doc, 1e-10);
+    let (doc, rod) = leaning_rod(doc, 0.1 * Tol::witness().eps());
     let (doc, long) = block(doc, (2.0, 300.0), (-2.0, 2.0), 0.0, 1.0);
     for (what, members) in [
         ("plate, long, rod", [plate, long, rod]),
