@@ -80,3 +80,43 @@ Fixed in #5403 (`paths/tangent-arc-near-full-turn`).
   silently), `a-hairpin-line-fillets-half-tangent-cancels` (P2,
   derived) and `a-near-full-arcs-span-reads-a-chord-scale-apex-at-interval`
   (P3).
+
+## Fix pass (single FULL review: APPROVE-WITH-FIXES)
+
+The review falsified two claims above. The select did NOT keep arcs up
+to a half turn form-identical: the plain walk turns a `Select` into an
+opaque atom. It also kept a second spelling of Δθ beside
+`bulge_from_via`'s `atan2`. The fix pass replaces the form:
+
+- **One home** (`sugar.rs`). It reads an arc's sweep as an angle:
+  - `split_sweep(across, along) = 2·atan2(across, along)`: the tangent
+    arc, read by `tangent_arc_to` and by `arc_onto`, which runs it in
+    reverse;
+  - `split_turn`: a line×line fillet sweeps its corner's turn, read off
+    the legs, not off the short chord `t2 − t1`;
+  - `sweep_about`: the angle between the radii, wound as
+    `sgn·(π + atan2(−sgn·(va × vb), −va·vb))`. This covers `Center`
+    arcs, fillet side runs and arc-carrier fillets, and closes the P1
+    `a-center-arc-near-a-full-turn-loses-its-end-vertex`.
+  - `Via` lowers its carrier from tan(θ/4), and `tan(sweep/4)` is at
+    its pole near a full turn: measured at R = 1.36e4, its Interval
+    landing was 4.8e-10 wide. So `Via` and `bulge_from_via` read
+    `split_quarter_tan`, the select between the two half-angle
+    quotients, from the same split.
+- **Oracle.** 3390 cases: tangent arcs, and `C` rows for arcs about a
+  centre. The worst f64 sweep error is 3.4 units of 2⁻⁵². Interval
+  always encloses, at most 1.1e-14 wide. On the reviewer's generator
+  (78 678 rows) there are no violations. The only full-width enclosure
+  is at the cut, where `across`'s enclosure straddles zero, and the
+  departure-line gate refuses those inputs first.
+- **Symbolic tier.** The link certifies further: 3.029e2·ε → 3.437e2·ε,
+  because a half turn's literal-zero `along` folds through rule D's
+  half-π fold. The bracket's refusal moves 7.624e2·ε → 7.768e2·ε, and
+  the pad's ceiling holds. The pad's fillet sweeps are `atan2` atoms,
+  so 56 of its decisions move from symbolic to numeric.
+- **`behind: bool` dropped** (PATHS-DESIGN's ruling: two types over a
+  tag). `DegenerateArcChord`'s message names both of its cases, for
+  either verb, with a recourse. The separate-variant question is filed
+  as `degenerate-arc-chord-names-two-cases-under-one-kind`.
+- **Filed**: `a-stored-arcs-end-is-never-checked-against-its-authored-vertex`
+  (P1, the class).
