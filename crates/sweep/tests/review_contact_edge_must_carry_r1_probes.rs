@@ -463,7 +463,7 @@ fn pair_edges(body: &Body<f64>) -> usize {
 /// boolean's). The radius is `8.7e-5` on the 4 m block at the default
 /// ε, the WHOLE fixture scaled with `ε` across the rows. The arc's
 /// in-band and under-determined verdicts these poses reached have no
-/// row now (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
+/// row now (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn r1_a_slim_wedges_corner_arcs_are_the_intrinsic_tangency() {
     let b = band();
