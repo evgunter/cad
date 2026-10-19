@@ -587,8 +587,9 @@ fn sym_9_what_each_retry_recovers() {
 /// line/line corner decides once more and a line/arc joint's clearance
 /// becomes a turn the tier proves. The plate 939/686 → 939/690, the
 /// bracket 1307/1042 → 1311/1043, the link 763/691 → 767/687, with the
-/// ladder and without it alike; the pad's leaf 1215/1324 → 1227/1312
-/// with the ladder, its four recovered decisions held.
+/// ladder and without it alike; the pad's leaf 1211/1328 → 1223/1316
+/// bare and 1215/1324 → 1227/1312 with the ladder, its four recovered
+/// decisions held.
 ///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
@@ -730,7 +731,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1211, 1328, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1223, 1316, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"
