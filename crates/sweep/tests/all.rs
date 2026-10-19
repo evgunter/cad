@@ -314,6 +314,8 @@ mod trim_3_chart_bound_bodies;
 mod tube_rim_touch_rows;
 #[path = "two_tubes_in_the_zero_band.rs"]
 mod two_tubes_in_the_zero_band;
+#[path = "review_5389_probes.rs"]
+mod review_5389_probes;
 #[path = "unjoined_operand_at_a_dual.rs"]
 mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]
