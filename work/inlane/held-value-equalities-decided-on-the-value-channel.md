@@ -28,7 +28,7 @@ at the witness and carry nothing for the variables:
   decide that the carrier is the chart's own column ("one spline space")
   by channel equality of two carriers' knots and weights.
 - `pcurve_cache/projected.rs`: the projected image's shared-net test
-  (`net.knots() != c.knots() || net.weight_channel() != c.weight_channel()`).
+  (`net.knots() != c.knots() || net.weight_channel() != c.weight_channel()`, now spelled with the `_f64_interim` accessors).
 - `topo/src/offset_derive.rs`: `holds_row` (`w0 != w1` along the
   boundary row and the one next in) and `translates_along`
   (`w[at(i, j)] != w[at(i, 0)]`) decide that a net's weights are

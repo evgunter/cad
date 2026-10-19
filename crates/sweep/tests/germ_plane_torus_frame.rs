@@ -196,9 +196,9 @@ pub(crate) enum TorusDoor {
     /// F2: the germ-pair dispatch, past a frame that served every germ
     /// and a matcher that consumed every one.
     Dispatch,
-    /// Past the join: the result's shells' sort or its volume, which
-    /// read no torus face an oval bounds (`germ_plane_torus_spiric`'s
-    /// stops, each filed on its owner).
+    /// Past the join: the result's volume, which reads no torus face
+    /// holding a ring of ovals (`germ_plane_torus_spiric`'s stop, filed
+    /// on its owner).
     Stopped,
     /// Past every door: the op returned a result.
     Built,

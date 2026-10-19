@@ -1277,12 +1277,13 @@ frame = doc.sketch_frame(
     plane=SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
 )
 # The axis of revolution is written IN that frame, in its own two
-# coordinates — an origin and a direction the revolve itself holds:
-# the frame's v is world +z, so the pole axis is its +y through
-# (0, 0). An axis written in the frame cannot leave the plane it turns.
+# coordinates — a point and a heading the revolve itself holds: the
+# frame's v is world +z, so the pole axis is its +y through (0, 0), a
+# quarter turn from its x. An axis written in the frame cannot leave
+# the plane it turns.
 axis = (
     (Formula.length_in(0, m), Formula.length_in(0, m)),
-    (Formula.literal(0.0), Formula.literal(1.0)),
+    Formula.turn_over(4),
 )
 ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), *axis, Formula.angle_in(2 * math.pi, rad)))
 # A revolve defines two outputs, its body and its axis, so a read of
@@ -1646,7 +1647,7 @@ ring = doc.insert(
     Node.revolve(
         profile,
         (Formula.length_in(0, m), Formula.length_in(0, m)),
-        (Formula.literal(0.0), Formula.literal(1.0)),
+        Formula.turn_over(4),
         Formula.angle_in(2 * math.pi, rad),
     )
 )
@@ -1710,7 +1711,7 @@ let hole = LoopProgram::Circle {
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1768,7 +1769,7 @@ use pncad::prelude::*;
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
 # let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
-#     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("applies");
+#     let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
 # let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
@@ -1785,7 +1786,7 @@ let thicker = apply(&doc, &DocEdit::SetParam {
     slot: SlotId::Distance,
     value: len(1.0).into(),
     fresh: Vec::new(),
-}, tol, &pncad::document::RefusingReach)?.doc;
+}, tol)?.doc;
 
 // Pass the PRIOR evaluation: the frame and the profile are
 // untouched, so their values are reused by content key and only the
@@ -1869,10 +1870,10 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 doc = apply(&doc, &DocEdit::DeclareVar {
     name: VarName::from_static("hole_r"),
     def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
-}, tol, &pncad::document::RefusingReach)?.doc;
+}, tol)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol, &pncad::document::RefusingReach).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() }, tol).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1948,7 +1949,7 @@ let bigger = apply(&doc, &DocEdit::DefineVar {
     var: VarName::from_static("hole_r").into(),
     def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.4)),
     fresh: Vec::new(),
-}, tol, &pncad::document::RefusingReach)?.doc;
+}, tol)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
 assert_eq!(ev2.reused, 4);     // both frames and the tab's whole
@@ -1962,7 +1963,7 @@ let held = bigger.var_named("hole_r").expect("declared");
 let renamed = apply(&bigger, &DocEdit::RenameVar {
     var: VarName::from_static("hole_r").into(),
     name: Some(VarName::from_static("hole_radius")),
-}, tol, &pncad::document::RefusingReach)?.doc;
+}, tol)?.doc;
 assert_eq!(renamed.var_named("hole_radius"), Some(held));
 let ev3 = evaluate::<f64>(&renamed, Some(&ev2), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev3.recomputed, 0);
@@ -2030,7 +2031,7 @@ let tol = Tol::witness();
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
 
 let declare = |doc: &Doc<ProfileProgram>, name: &'static str, value: FreeVar| {
-    apply(doc, &DocEdit::DeclareVar { name: VarName::from_static(name), def: VarDecl::Free(value) }, tol, &pncad::document::RefusingReach)
+    apply(doc, &DocEdit::DeclareVar { name: VarName::from_static(name), def: VarDecl::Free(value) }, tol)
         .expect("the declaration applies").doc
 };
 
@@ -2078,7 +2079,7 @@ let bore_r = id("bore_r");
 doc = apply(&doc, &DocEdit::SetVarValue {
     var: bore_r.into(),
     value: FreeValue::Continuous(0.0045),
-}, tol, &pncad::document::RefusingReach)?.doc;
+}, tol)?.doc;
 assert!(doc.free(bore_r).expect("declared").distribution().is_some());
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```

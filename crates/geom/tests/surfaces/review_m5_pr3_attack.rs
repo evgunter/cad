@@ -79,7 +79,7 @@ fn f3_surface_jet_matches_central_differences() {
         for _ in 0..fuzz::scaled(1) {
             let u = rng.range(0.05, 0.95);
             let v = rng.range(0.05, 0.95);
-            if near_knot(u, s.knots_u()) || near_knot(v, s.knots_v()) {
+            if near_knot(u, s.knots_u_f64_interim()) || near_knot(v, s.knots_v_f64_interim()) {
                 continue;
             }
             let jet = s.ders(u, v);
@@ -156,8 +156,8 @@ fn f5_surface_knot_algebra_invariant_both_directions() {
             ("elevate_v".into(), s.elevate_degree_v(1).unwrap()),
         ];
         // degree assertions for elevation
-        assert_eq!(variants[4].1.knots_u().degree(), pu + 1);
-        assert_eq!(variants[5].1.knots_v().degree(), pv + 1);
+        assert_eq!(variants[4].1.knots_u_f64_interim().degree(), pu + 1);
+        assert_eq!(variants[5].1.knots_v_f64_interim().degree(), pv + 1);
         for (name, w) in &variants {
             let grid = fuzz::scaled(3);
             for i in 0..=grid {
@@ -208,8 +208,8 @@ fn f4_surface_removal_bound_honest_u_and_v() {
                 *p = *p + Vec3::new(d, -d, 0.5 * d);
             }
             let s = NurbsSurface::new(
-                ins.knots_u().clone(),
-                ins.knots_v().clone(),
+                ins.knots_u_f64_interim().clone(),
+                ins.knots_v_f64_interim().clone(),
                 ctrl,
                 ins.weights().to_vec(),
             )

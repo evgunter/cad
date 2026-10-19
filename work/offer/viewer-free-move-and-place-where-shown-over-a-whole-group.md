@@ -15,7 +15,7 @@ Filed by the PLACE orchestrator as P3 of `docs/doc-ledger/edit-placement-spec.md
 
 - G3's free-move probe is widened to a whole group.
 - A group that becomes unplaced (its gauge deleted, its offset cleared, its placing mate deleted) is drawn where it was last shown. The probe is seeded from the prior draw and discarded when the group's key changes, undo included.
-- "Place where shown" is one edit whose frame comes from the gesture: a `SetOffset` on the group's root, or a gauge placement, written as literals.
+- "Place where shown" authors a mate and values the user types, and never reads the display frame (`docs/INTENT-STAGE3-SPEC.md` §3, Viewer; DI5 in `crates/editor-core/IDENTITY.md`). The mate reads poses off geometry. Keeping a position means stating it, and no gesture writes the display frame into the document.
 - The kernel side exists: `SetOffset`, `SetGauge`, `Promote`, `Fold`, and `Evaluation::unplaced_groups` in document order.
 
 Related: `work/offer/viewer-free-move-decides-rigidity-by-its-own-predicate.md`, the free-move rigidity predicate. It should read `topo::check_rigid`, the one predicate the kernel's doors use.

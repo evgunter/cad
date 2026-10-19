@@ -2,12 +2,12 @@
 id: a-mate-frame-axis-is-decided-against-a-length-band
 kind: issue
 title: A mate side's composed axis is re-minted against the run's length band, so at a coarse epsilon every non-identity frame offset refuses whatever the part's scale
-status: parked
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: M
 design: true
-blocked_on: [intent-stage3-is-built]
+closed: 2026-10-17
 ---
 
 
@@ -55,3 +55,7 @@ Either way, the original `snapshot_mate` fixture (1e4 vectors at
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage3-is-built`, not on the whole program: compose_offset re-mints base∘offset; stage 3 makes frames and directions variable kinds with their own witness, the "witness that survives composition" this row asks for. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## Closed
+
+Stage 3 C retires the mate frame: the only chart predicate is the decided sign of `1 + c` in `reference_about`, a chord levered over the copy's arm (`mate_chart_reference_antipode`).

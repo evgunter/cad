@@ -64,3 +64,17 @@ previous exit (`bool_torus_chart_closure`). It decides
 `bool_torus_chart_box` through `solid_contain::chart_polygon_box`,
 which it shares with the cone trim. The walk itself is still a second
 copy of `chord_join::face_azimuth_window`'s.
+
+## The torus copy retired (RESTREAD, 2026-10-18)
+
+`solid_contain::torus_chart_windows` is gone, with `torus_face_windows`,
+`torus_chart_joint`, `torus_chart_meets` and
+`point_on_torus_in_face`: a torus face outside a closed group is read
+from its boundary edges by `boolean::torus_region`, which reads no
+chart window (`restread/torus-region`). `bool_torus_chart_closure`,
+`bool_torus_chart_box` and `bool_torus_chart_affine` left with it;
+`chart_polygon_box` stays as the cone trim's (`bool_cone_chart_box`).
+What this item asks for is now one walk, not two:
+`chord_join::face_azimuth_window` / `face_azimuth_images` is the only
+copy left, and its hosting in `chord_join.rs` (the 2026-10-03 evidence
+above) is what remains.

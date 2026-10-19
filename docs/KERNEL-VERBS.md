@@ -16,9 +16,10 @@ complete; curved per wired germ classes plane×cyl / plane×sphere /
 plane×cone (the ellipse and the circle) —
 the C5 SECTION table has two more closed-form classes — sphere×sphere
 since VERBS-SPHSPH and the DECLARED-coaxial cylinder×sphere since
-VERBS-CYLSPH — but no join arm consumes either, and the second sits
-additionally behind the axis-shaped declaration channel
-(`docs/AXIS-DECLARATION-DESIGN.md`), which is unbuilt),
+VERBS-CYLSPH — but no join arm consumes either; the axis-shaped
+declaration channel the second was to sit behind is retired (DESIGN
+`[coincidence]`: coaxiality is one `Axis` read twice, or a margin
+decided Zero)),
 split, constant-radius edge fillets (**nine analytic support-pair
 arms**: plane–plane, plane–sphere and the coaxial-revolution seven —
 sphere–cone, cone–plane(⊥), cone–cone, cylinder–cone,
@@ -564,3 +565,66 @@ the table.
 - **There is no contact detection.** A boolean glues every carrier
   pair its margins decide one (plane, sphere, cylinder, torus) and
   records it (D10), so no consumer needs a detector or a declaration.
+
+## The standing frontier
+
+The kernel's standing frontier entries, moved here from `docs/DESIGN.md`
+(its D1 at commit `95c77e152a`, cited elsewhere as "frontier (c)" through
+"frontier (f)"; (a) composition surgery and (b) the SSI generic-`T` lift
+are discharged). Each refuses typed with a message naming its blocker
+(DESIGN [failure.taxonomy], row 2); the tracker schedules them.
+
+- **(c) the oblique analytic-chart classes** — a carrier with no
+  closed-form image on an analytic chart (a spline carrier, a sphere's
+  general circle) stores its projected image (C4), so the
+  oblique-trihedron octant faces store their rows; a torus's
+  Villarceau circle and a cone's tilted section mint their exact image
+  (`Pcurve::FocalSection`), and a circle within the band of a cone or
+  torus that is none of its circles refuses as a defect
+  (`CarrierGrazesChart`); a spiric on its torus's mirror through the
+  cutting plane mints the wall image with its azimuth sign opposed
+  (`SpiricImage::Wall`, tagged `WallTorus::Mirror`). Every class an
+  analytic chart can hold has a route, so C4's exemption excuses no
+  class; a face is left uncached only at a scalar with no fitted door.
+- **(d) cyl×sphere germ chords** — a fitted carrier's chart image
+  exists as `Pcurve::Projected` and certifies at rest, and a chord takes
+  its arc from the germs it joins, reading no window; what is missing
+  is the C5 table's cyl×sphere arm for the chord's carrier
+  (`chord_join::section_case` has no curved×curved arm) and a frame for
+  the germs' rotational-sense test (`boolean::join::pair_section_frame`).
+  Every cone pair but plane × cone, and every torus pair, refuses at the
+  join alongside it.
+- **(e) the NURBS extent test** — `NurbsExtentUnsupported`, above.
+- **(f) the canal-surface general blend** — an approximating surface
+  for fillet chains whose rolling-ball spine is neither a line nor a
+  circle (`BlendError::SpineUnsupported`). Parked, not scheduled: no
+  acceptance shape consumes it, and building reviewed machinery with
+  no caller is the dead-code pattern. It re-opens with its first
+  consumer (variable-radius fillets).
+
+Unlettered standing entries: reflex-corner tilted crossings; the torus `Rest`
+lane (#968) and full-period walls in the cylindrical `Rest` lane
+(#1415, #1416); the coincident-plane classes beyond the
+structural/anchored repertoire, where the anchor-exhaustion arm is
+load-bearing rather than unreachable. Two latent-and-loud limitations
+are recorded so they are not rediscovered as bugs: a meridian-tangent
+circle is in-lane but uncertifiable (no constructor mints one), and
+genuinely-oblique trihedral corners build through tiers 1–2 and report
+`VolumeUncomputable` — a gap in the props inventory (no sphere-face
+quadrature lane), not in the body.
+
+- **Curved booleans: which arms are wired** (the per-arm list DESIGN `[topology.conventions]` points to). A face kind with
+  no arm refuses typed `CurvedBooleanUnsupported` /
+  `CurvedPairUnsupported` naming the pair, never falling through to a
+  containment verdict a curved boundary can defeat. The wired germ join
+  arms are a plane against a plane, cylinder, sphere or cone, and two
+  spheres or two parallel cylinders along their radical plane
+  (`boolean::join`'s dispatch); a plane cuts a cone in a parabola or a
+  hyperbola only outside the conic inventory, and that pair refuses
+  naming the conic. Cone and torus operands answer where their face
+  pairs are certified with no event on them; every other curved pair
+  with an event on it refuses typed at its section frame or at the
+  join. The curved
+  extent test refuses typed `NurbsExtentUnsupported` on NURBS faces — a
+  certified extent needs a foot point plus a bound on the patch's
+  reach past it, a derivation not yet written (C12.1).

@@ -145,3 +145,4 @@ open items rather than new rows:
 over the tour's 61 gated stops, and the setup term's 8–99% share) and
 `parallel-map-costs-a-fixed-price-on-a-cheap-body` (the census's
 measured regression, the ruling it forced, and the shell grain).
+- 2026-10-18 — Seam note from FUSE, which closes (`docs/doc-ledger/fuse-leaves-the-tracker.md`): `a-two-void-shell-runs-six-percent-slower-at-four-threads-after-pr-4108` moved here by `git mv`, ids kept and bodies unchanged but for re-pointed `work/fuse/` citations. (FUSE close lane)

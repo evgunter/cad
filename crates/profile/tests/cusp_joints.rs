@@ -130,7 +130,10 @@ fn an_arbelos_has_three_cusps_and_no_blend_arc() {
 #[test]
 fn the_lift_carries_the_cusps() {
     let v = validated(vec![lune()]);
-    let lifted: ValidatedProfile<f64> = v.clone().lift_onto(SketchPlane::xy());
+    let lifted: ValidatedProfile<f64> = v
+        .clone()
+        .lift_onto(SketchPlane::xy())
+        .expect("the xy plane is finite");
     assert_eq!(lifted.loops()[0].cusp_joints(), v.loops()[0].cusp_joints());
 }
 

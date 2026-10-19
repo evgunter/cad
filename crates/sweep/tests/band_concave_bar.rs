@@ -46,7 +46,7 @@ use crate::band_planar_cut_off::{D, Verb, edge, midpoint_tol, pad_ceiling, tol, 
 /// The bar's offset from both supports, and its radius, in units of the
 /// fixture's scale: it lies `0.0245` inside the fillet's arc and
 /// `≈ 0.054` inside the chamfer's chord.
-const BAR: (f64, f64) = (0.012, 0.006);
+pub(crate) const BAR: (f64, f64) = (0.012, 0.006);
 
 fn mid<T: Bounds>(x: T) -> f64 {
     0.5 * (x.lo() + x.hi())
@@ -54,7 +54,11 @@ fn mid<T: Bounds>(x: T) -> f64 {
 
 /// The union or difference of two fixtures at any scalar, through the
 /// public door.
-fn boolean<T: Decide + Bounds + AtRestPolicy>(union: bool, a: Body<T>, b: Body<T>) -> Body<T> {
+pub(crate) fn boolean<T: Decide + Bounds + AtRestPolicy>(
+    union: bool,
+    a: Body<T>,
+    b: Body<T>,
+) -> Body<T> {
     let (a, b) = (
         finished("operand A", a, tol()),
         finished("operand B", b, tol()),
@@ -73,7 +77,7 @@ fn boolean<T: Decide + Bounds + AtRestPolicy>(union: bool, a: Body<T>, b: Body<T
 }
 
 /// The planar fixture's die at scale `k` and lean `s`, without a bar.
-fn die<T: Decide + Bounds + AtRestPolicy>(k: f64, s: f64) -> Body<T> {
+pub(crate) fn die<T: Decide + Bounds + AtRestPolicy>(k: f64, s: f64) -> Body<T> {
     let f = |x: f64| T::from_f64(x * k);
     let block = brick((-k, 2.0 * k), (0.0, k), (0.0, k), tol());
     let pocket = prism_on(
@@ -100,7 +104,7 @@ fn die<T: Decide + Bounds + AtRestPolicy>(k: f64, s: f64) -> Body<T> {
 
 /// A bar's section.
 #[derive(Clone, Copy)]
-enum Section {
+pub(crate) enum Section {
     /// Round, of this radius: two semicircles, its two seams at the ends
     /// of its diameter along the sketch's `u`.
     Round(f64),
@@ -111,7 +115,7 @@ enum Section {
 /// A bar of `section` whose axis crosses `x = x0` at `p` and `x = x1` at
 /// `q` (both `(y, z)`), run on `over` past each along the axis's `x`, its
 /// section's `u` axis the direction `u` turned square to the axis.
-fn bar<T: Decide + AtRestPolicy>(
+pub(crate) fn bar<T: Decide + AtRestPolicy>(
     (x0, p): (f64, (f64, f64)),
     (x1, q): (f64, (f64, f64)),
     over: f64,
@@ -172,7 +176,7 @@ fn straight<T: Decide + Bounds + AtRestPolicy>(
 }
 
 /// The planar fixture's floor edge.
-fn floor<T: Real + Bounds>(body: &Body<T>, k: f64) -> EdgeKey {
+pub(crate) fn floor<T: Real + Bounds>(body: &Body<T>, k: f64) -> EdgeKey {
     edge(
         body,
         [0.25 * k, 0.25 * k, 0.5 * k],
@@ -204,7 +208,7 @@ fn bar_walls<T: Real + Bounds>(body: &Body<T>, section: Section, k: f64) -> Vec<
 }
 
 /// `verb` at size `r` on `edges`, at any scalar.
-fn blend<T: Decide + Bounds + AtRestPolicy>(
+pub(crate) fn blend<T: Decide + Bounds + AtRestPolicy>(
     verb: Verb,
     body: &Body<T>,
     edges: &[EdgeKey],
@@ -218,7 +222,7 @@ fn blend<T: Decide + Bounds + AtRestPolicy>(
     .map_err(|e| e.error)
 }
 
-fn rings<T: Real>(body: &Body<T>) -> usize {
+pub(crate) fn rings<T: Real>(body: &Body<T>) -> usize {
     body.faces().map(|(_, f)| f.rings.len()).sum()
 }
 
@@ -531,7 +535,7 @@ fn refusal(verb: Verb, body: &Body<f64>) -> BlendError {
 /// The pocket-local centre of a bar of radius `a` on the bisector,
 /// `dist` from the fillet's arc towards the old vertex (negative: past
 /// the arc, into the ball).
-fn past_the_arc(dist: f64, a: f64) -> (f64, f64) {
+pub(crate) fn past_the_arc(dist: f64, a: f64) -> (f64, f64) {
     let rho = (D + dist + a) / 2f64.sqrt();
     (D - rho, D - rho)
 }
@@ -540,7 +544,7 @@ fn past_the_arc(dist: f64, a: f64) -> (f64, f64) {
 /// its normal through the chord's midpoint, towards the old vertex: the
 /// convex suite's point, mirrored through its corner `(1, 1)` onto the
 /// pocket's `(0, 0)`.
-fn past_the_chord(dist: f64) -> (f64, f64) {
+pub(crate) fn past_the_chord(dist: f64) -> (f64, f64) {
     let (u, v) = band_planar_consume::past_the_chord(dist);
     (1.0 - u, 1.0 - v)
 }
@@ -747,41 +751,6 @@ fn a_tilted_bar_inside_the_chamfers_fill_is_absorbed() {
     }
 }
 
-/// **A pin standing from one end wall into the fill refuses** under
-/// both verbs, as a bound at its wall: it is bounded by one cycle and its
-/// own end, not a through-feature between the two walls, which is all
-/// the carve takes.
-#[test]
-fn a_pin_from_one_end_wall_into_the_fill_refuses_as_a_bound() {
-    let (d, a) = BAR;
-    let c = (0.25 + d, 0.5 + d);
-    let body = boolean(
-        true,
-        die::<f64>(1.0, 0.0),
-        bar(
-            (0.25, c),
-            (0.5, c),
-            0.15,
-            Section::Round(a),
-            Vec3::new(0.0, 1.0, 0.0),
-        ),
-    );
-    for verb in VERBS {
-        let got = refusal(verb, &body);
-        assert!(
-            matches!(
-                got,
-                BlendError::FaceClearance {
-                    bounded: true,
-                    chain: Convexity::Concave,
-                    ..
-                }
-            ),
-            "{verb:?}: the pin refuses as a bound, got {got:?}"
-        );
-    }
-}
-
 /// What a conservative refusal is pinned at.
 #[derive(Clone, Copy, Debug)]
 enum Pinned {
@@ -796,8 +765,6 @@ enum Pinned {
 /// - a sealed tube, a bar with a void inside it wholly inside `F`
 ///   (`S ∪ F` fills the void): `WhollyInside`, at the void's shell, which
 ///   has no cap cycle;
-/// - a bump on the bar wholly inside `F` (`S ∪ F` absorbs both): a
-///   bound, the bar's wall carrying a ring;
 /// - an island, a free box wholly inside `F` (absorbed): `WhollyInside`;
 /// - a blind hole drilled through one end wall, or one through each,
 ///   its mouth inside the sliver (`S ∪ F` seals it into a void): a
@@ -827,16 +794,6 @@ fn shapes_the_carve_does_not_build_refuse_conservatively() {
             boolean(false, barred(), rod((0.3, 0.7), (d, d), 0.003)),
             None,
             Pinned::WhollyInside,
-        ),
-        (
-            "a bump on the bar",
-            boolean(
-                true,
-                barred(),
-                pocket_box((0.45, 0.55), (0.009, 0.015), (0.012, 0.024)),
-            ),
-            None,
-            Pinned::Bound(Convexity::Concave),
         ),
         (
             "an island",
@@ -898,6 +855,50 @@ fn shapes_the_carve_does_not_build_refuse_conservatively() {
     }
 }
 
+/// **A bump on a bar, both wholly inside the fill, is absorbed with it**
+/// under both verbs: the box `[0.45, 0.55] × [0.009, 0.015] ×
+/// [0.012, 0.024]` (pocket-local `u`, `v`) stands on the bar's wall, which
+/// carries its footprint as a ring; the carve bridges the ring to the
+/// wall's outer cycle and takes the bar and the bump as one annulus. Over
+/// the bump's `0.1` the bar's disk holds `c·√(a² − c²) + a²·asin(c/a)` of
+/// the box's section (`c = 0.003` its half-width, the box's far side
+/// above the disk), so
+/// `ΔV = +(A − π·a²)/2 − 0.1·(2c·0.012 − c·√(a² − c²) − a²·asin(c/a))`.
+#[test]
+fn a_bump_on_a_bar_inside_the_fill_is_absorbed_with_it() {
+    let (d, a) = BAR;
+    let c: f64 = 0.003;
+    let body = boolean(
+        true,
+        straight::<f64>(1.0, 0.0, (d, d), Section::Round(a)),
+        pocket_box((0.45, 0.55), (0.009, 0.015), (0.012, 0.024)),
+    );
+    validate_geometric(&body, tol()).expect("the bumped bar is tier-3 valid");
+    let held = c * (a * a - c * c).sqrt() + a * a * (c / a).asin();
+    for verb in VERBS {
+        let out = blend(verb, &body, &[floor(&body, 1.0)], D)
+            .unwrap_or_else(|e| panic!("{verb:?}: the bump goes with the bar, got {e}"));
+        validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{verb:?}: tier 3, {e:?}"));
+        validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
+            .unwrap_or_else(|e| panic!("{verb:?}: tier 3′, {e:?}"));
+        assert_naming_totality(&body, &out, &[floor(&body, 1.0)], "a bump on a bar");
+        assert_eq!(
+            rings(&out.body) + 3,
+            rings(&body),
+            "{verb:?}: the bar's two cycles and the footprint leave"
+        );
+        let c1 = topo::readback::euler_counts(&out.body);
+        assert_eq!((c1.s, c1.genus()), (1, Ok(0)), "{verb:?}: the handle goes");
+        let want = (section(verb, D) - PI * a * a) * 0.5 - 0.1 * (2.0 * c * 0.012 - held);
+        let ((v0, _), (v1, _)) = (volume_enclosure(&body), volume_enclosure(&out.body));
+        assert!(
+            (v1 - v0 - want).abs() < midpoint_tol(),
+            "{verb:?}: ΔV {} vs the closed form {want}",
+            v1 - v0
+        );
+    }
+}
+
 /// **A bar sunk into the side wall refuses** under both verbs, at the
 /// battery's screen of the support it joins: its walls cross that
 /// support's strip, so it is not attached by its two cycles alone.
@@ -917,7 +918,7 @@ fn a_bar_sunk_into_a_support_refuses() {
 /// rod's D in `(y, z)` along `x` from `¼` to `¾`, open at the block's top,
 /// with a round bar of radius `a` at `(y, z) = c` along `x` through its
 /// end walls; and its concave crease, the chord's lower end.
-fn d_pocket(c: Option<(f64, f64)>, a: f64) -> (Body<f64>, EdgeKey) {
+pub(crate) fn d_pocket(c: Option<(f64, f64)>, a: f64) -> (Body<f64>, EdgeKey) {
     let ch = rod_chord_at(ROD_FLAT);
     let d = prism_on(
         sketch_from_axes(

@@ -79,7 +79,12 @@ fn offset_charts_together_moves_the_charts_in_either_winding() {
     let rows = [
         ("the counterclockwise drum", drum(true), true, grown),
         ("the clockwise drum", drum(false), true, grown),
-        ("the reverted drum", drum(true).revert(), false, -grown),
+        (
+            "the reverted drum",
+            drum(true).revert().unwrap(),
+            false,
+            -grown,
+        ),
     ];
     for (what, mut body, right_way, want) in rows {
         caps_face_alike(what, &body);

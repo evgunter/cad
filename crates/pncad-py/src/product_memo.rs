@@ -217,13 +217,13 @@ pub fn body_and_names(
     })
 }
 
-/// A product copied field for field, its own spaces gathered again.
+/// A product copied field for field, its loose spaces gathered again.
 ///
 /// Spelled out rather than derived: [`d::Product`] is the kernel's
 /// type and a `Clone` on it is the kernel's decision, while a struct
 /// literal here fails to compile the day the gather grows a field —
 /// which is the loud version of the same guarantee. The spaces are
-/// the kernel's own gather of them ([`d::own_spaces`]) rather than a
+/// the kernel's own gather of them ([`d::loose_spaces`]) rather than a
 /// copy: a refused space holds a gather refusal, which is not `Clone`.
 fn clone_product(
     product: &d::Product<f64>,
@@ -247,6 +247,6 @@ fn clone_product(
         unminted: product.unminted.clone(),
         carried: product.carried.clone(),
         carried_unminted: product.carried_unminted.clone(),
-        spaces: d::own_spaces(doc, evaluation, tol),
+        spaces: d::loose_spaces(doc, evaluation, tol),
     }
 }

@@ -365,6 +365,19 @@ pub struct Band {
 }
 
 impl Band {
+    /// **The least band**: its zero and its escalation the two least
+    /// positive `f64`s, so a margin reads its sign alone (any nonzero
+    /// value past them), as an exact comparison would, while an enclosure
+    /// that straddles zero still escalates. The one home of the band a
+    /// heuristic's choice or an exact order is decided on.
+    #[must_use]
+    pub const fn least() -> Self {
+        Self {
+            zero: f64::from_bits(1),
+            escalate: f64::from_bits(2),
+        }
+    }
+
     /// Validates and constructs a band with the given thresholds.
     ///
     /// # Errors

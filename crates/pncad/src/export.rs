@@ -25,8 +25,8 @@
 //! typed refusal naming its kind, not a silent first-element pick.
 
 use editor_core::{
-    BooleanValue, CarriedUnplaced, Evaluation, NodeStanding, ProductError, ProfileDoc,
-    RecipeNodeId, Said, Say, Speaker, Unplaced, ValuePayload,
+    BooleanValue, Evaluation, NodeStanding, ProductError, ProfileDoc, RecipeNodeId, Said, Say,
+    Speaker, ValuePayload,
 };
 use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};
@@ -58,26 +58,17 @@ pub enum ExportError {
     /// The body was denoted but the STEP writer refused it.
     Step(StepExportError),
     /// The whole-document door's gather refused: an empty world
-    /// (naming the unplaced bodies), a stranded placement, a failed
-    /// placement, or a kernel refusal while gathering.
+    /// (naming the unplaced bodies and the loose copies), a stranded
+    /// placement, a failed placement, or a kernel refusal while
+    /// gathering.
     Product(ProductError),
-    /// **Unplaced parts** (A11 (2)): STEP writes one world, and these
-    /// live in an unplaced group's own space — each with its group,
-    /// by its root, and why nothing places it.
-    Unplaced {
-        /// Every unplaced part the export would have to write, in
-        /// document order: the node, its group's root, and the cause.
-        parts: Vec<(RecipeNodeId, RecipeNodeId, Unplaced)>,
-    },
-    /// **Unplaced groups in a part below** (A9, A11 (2)): a part
-    /// crosses the document seam as its world product, which leaves its
-    /// unplaced groups out, so writing it would write the part without
-    /// them. Each group with the route it arrived by and its cause.
-    UnplacedBelow {
-        /// Every such group, once each: by the node it arrived through,
-        /// in `Evaluation::order`, and within one node as the document
-        /// below holds them (`Evaluation::all_unplaced_below`).
-        groups: Vec<CarriedUnplaced>,
+    /// **Loose copies** (D10, Spaces): STEP writes one world, and these
+    /// copies live in loose spaces of their own, which their bundles do
+    /// not pin to it — each by the loose copy whose space it is.
+    Loose {
+        /// Every loose space the export would have to write, by its
+        /// loose copy, in document order.
+        copies: Vec<RecipeNodeId>,
     },
 }
 
@@ -101,45 +92,21 @@ impl Say for ExportError {
             }
             ExportError::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
             ExportError::Product(e) => write!(f, "export: {}", Said(e, by)),
-            ExportError::Unplaced { parts } => {
+            ExportError::Loose { copies } => {
                 write!(
                     f,
-                    "export: STEP writes one world, and these parts are unplaced:"
+                    "export: STEP writes one world, and these copies are loose, in spaces their \
+                     bundles do not pin to it:"
                 )?;
-                for (node, group, cause) in parts {
-                    write!(
-                        f,
-                        " {} (its group, rooted at {}, is unplaced because {});",
-                        by.node(*node),
-                        by.node(*group),
-                        Said(cause, by)
-                    )?;
+                for copy in copies {
+                    write!(f, " {};", by.node(*copy))?;
                 }
                 write!(
                     f,
                     " {}",
-                    editor_core::Recourse(editor_core::UNPLACED_RECOURSE)
-                )
-            }
-            // A group below is spelled in its part's ids, so its row
-            // says them as the part holds them, but for its route's
-            // first instance, which is this document's.
-            ExportError::UnplacedBelow { groups } => {
-                write!(
-                    f,
-                    "export: STEP writes one world, and a part below holds unplaced groups its \
-                     world leaves out:"
-                )?;
-                for group in groups {
-                    write!(f, " {};", Said(group, by))?;
-                }
-                write!(
-                    f,
-                    " {}",
-                    editor_core::Recourse(format_args!(
-                        "open that document and {}",
-                        editor_core::UNPLACED_RECOURSE
-                    ))
+                    editor_core::Recourse(
+                        "add the constraints that pin each to a copy in the world, or to the world"
+                    )
                 )
             }
         }
@@ -147,8 +114,7 @@ impl Say for ExportError {
 }
 
 /// The sentence where no document is at hand: this document's nodes
-/// by their tags, and each group below as its own `Display` says it
-/// ([`CarriedUnplaced`]).
+/// by their tags.
 impl core::fmt::Display for ExportError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.say(f, Speaker::TAG)
@@ -159,8 +125,7 @@ impl ExportError {
     /// **The refusal as the frame holding the evaluated document says
     /// it**: each of its nodes as `doc` holds it now. The door reads an
     /// evaluation alone, so the refusal holds this document's ids,
-    /// never their labels; a group below is said as its part holds it
-    /// ([`CarriedUnplaced::held`]).
+    /// never their labels.
     #[must_use]
     pub fn spoken(&self, doc: &ProfileDoc) -> String {
         editor_core::spoken_by(self, doc)
@@ -172,31 +137,23 @@ impl core::error::Error for ExportError {}
 /// Serializes the single body `node` denotes in `evaluation` as a STEP
 /// (AP214 Part 21) exchange file and returns it as a string.
 ///
-/// Accepts a `Body` value or a non-empty `Boolean`; every other shape
-/// of result is a typed [`ExportError`], never a guess.
+/// Accepts a `Body` value, a non-empty `Boolean`, or an instance's
+/// copies read as its part product's one body; every other shape of
+/// result is a typed [`ExportError`], never a guess.
 ///
 /// # Errors
 ///
 /// Every arm of [`ExportError`]: the evaluation-side refusals above,
-/// [`ExportError::Unplaced`] for a node that lives in an unplaced
-/// group's own space, [`ExportError::UnplacedBelow`] for one holding a
-/// part that leaves an unplaced group out, or [`ExportError::Step`]
-/// carrying the writer's own refusal.
+/// [`ExportError::Loose`] for a node that lives in a loose copy's
+/// space, or [`ExportError::Step`] carrying the writer's own refusal.
 pub fn step_for_node(
     evaluation: &Evaluation<f64>,
     node: RecipeNodeId,
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, ExportError> {
-    if let Some(&(group, cause)) = evaluation.unplaced.get(&node) {
-        return Err(ExportError::Unplaced {
-            parts: vec![(node, group, cause)],
-        });
-    }
-    if let Some(groups) = evaluation.unplaced_below.get(&node) {
-        return Err(ExportError::UnplacedBelow {
-            groups: groups.clone(),
-        });
+    if let Some(root) = evaluation.space(node).loose() {
+        return Err(ExportError::Loose { copies: vec![root] });
     }
     let value = evaluation.usable(node).map_err(ExportError::Standing)?;
     let body = match &value.payload {
@@ -205,6 +162,8 @@ pub fn step_for_node(
         ValuePayload::Boolean(BooleanValue::Empty) => {
             return Err(ExportError::EmptyBoolean { node });
         }
+        // An instance's copies, read as the one body its part product is.
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => {
             return Err(ExportError::NotABody {
                 node,
@@ -229,10 +188,8 @@ pub fn step_for_node(
 ///
 /// # Errors
 ///
-/// [`ExportError::Unplaced`] naming every unplaced part, which the
-/// product leaves out and STEP's one world cannot hold;
-/// [`ExportError::UnplacedBelow`] naming every unplaced group a part
-/// below holds, with its route;
+/// [`ExportError::Loose`] naming every loose copy, which the product
+/// leaves out and STEP's one world cannot hold;
 /// [`ExportError::Product`] carrying the gather's own typed refusal
 /// (an empty world naming the unplaced bodies, a placement whose body
 /// is gone, a failed placement, a kernel graft or validity refusal), or
@@ -243,21 +200,17 @@ pub fn export_document_step(
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, ExportError> {
-    let parts: Vec<(RecipeNodeId, RecipeNodeId, Unplaced)> = evaluation
-        .unplaced_in_order()
-        .filter(|&(node, _, _)| {
-            matches!(
-                doc.node(node),
-                Some(editor_core::Node::InstantiatePart { .. })
-            )
-        })
-        .collect();
-    if !parts.is_empty() {
-        return Err(ExportError::Unplaced { parts });
-    }
-    let groups = evaluation.all_unplaced_below();
-    if !groups.is_empty() {
-        return Err(ExportError::UnplacedBelow { groups });
+    // A world beside loose copies is refused rather than written
+    // without them; a world of loose copies alone is the gather's
+    // `EmptyProduct`, which names them.
+    let copies = evaluation.loose_roots();
+    if !copies.is_empty()
+        && doc
+            .placements()
+            .iter()
+            .any(|&p| evaluation.space(p).loose().is_none())
+    {
+        return Err(ExportError::Loose { copies });
     }
     let body = editor_core::product(doc, evaluation, tol).map_err(ExportError::Product)?;
     step_string(&body, options, tol).map_err(ExportError::Step)

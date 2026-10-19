@@ -215,8 +215,8 @@ fn a_plane_near_tangent_to_a_tight_wall_refuses_at_its_curvature_radius() {
         .map(|p| Point3::new(rho * p.x, rho * p.y, p.z))
         .collect();
     let wall = NurbsSurface::new(
-        unit.knots_u().clone(),
-        unit.knots_v().clone(),
+        unit.knots_u_f64_interim().clone(),
+        unit.knots_v_f64_interim().clone(),
         control,
         unit.weights().to_vec(),
     )
@@ -355,6 +355,7 @@ fn the_door_certifies_the_true_carrier_and_records_the_lane_sup() {
         ends.0,
         ends.1,
         arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     )
@@ -387,6 +388,7 @@ fn the_door_refuses_a_displaced_carrier_with_limb_1s_measured_miss() {
         ends.0,
         ends.1,
         arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     ) {
@@ -437,6 +439,7 @@ fn the_door_refuses_a_tangential_plane_in_the_certify_vocabulary() {
         ends.0,
         ends.1,
         arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     ) {
@@ -463,7 +466,7 @@ fn the_laneless_door_refuses_a_described_nurbs_operand_naming_the_lane() {
     let carrier = segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0));
     let ends = (carrier.eval(0.0), carrier.eval(1.0));
     let (arena, spec) = door_spec(transverse_plane(), quarter_cylinder_wall(), carrier);
-    match EdgeCurve::certify(spec, ends.0, ends.1, arena, band()) {
+    match EdgeCurve::certify(spec, ends.0, ends.1, arena, 1.0, band()) {
         Err(CertifyError::NurbsLaneNotSupplied) => {}
         other => panic!("the laneless door refuses naming the missing lane: {other:?}"),
     }
@@ -486,6 +489,7 @@ fn the_at_rest_re_derivation_of_this_class_needs_the_injected_lane() {
         ends.0,
         ends.1,
         &arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     )
@@ -495,6 +499,7 @@ fn the_at_rest_re_derivation_of_this_class_needs_the_injected_lane() {
         ends.0,
         ends.1,
         &arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     );
@@ -503,7 +508,7 @@ fn the_at_rest_re_derivation_of_this_class_needs_the_injected_lane() {
         "the lane-injected at-rest pass re-derives the certificate: {with_lane:?}"
     );
 
-    match edge.recertify_via(ends.0, ends.1, &arena, band(), None) {
+    match edge.recertify_via(ends.0, ends.1, &arena, 1.0, band(), None) {
         Err(CertifyError::NurbsLaneNotSupplied) => {}
         other => panic!(
             "without the lane this class has no re-derivation at all, and the refusal names \
@@ -534,6 +539,7 @@ fn without_the_lane_a_non_lane_defect_on_this_class_is_not_reported() {
         ends.0,
         ends.1,
         &arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     )
@@ -547,6 +553,7 @@ fn without_the_lane_a_non_lane_defect_on_this_class_is_not_reported() {
         drifted,
         ends.1,
         &arena,
+        1.0,
         band(),
         Some(geom_brep::NurbsLane::certified()),
     );
@@ -560,7 +567,7 @@ fn without_the_lane_a_non_lane_defect_on_this_class_is_not_reported() {
         "and it is NOT the lane's absence: {with_lane:?}"
     );
 
-    let without = edge.recertify_via(drifted, ends.1, &arena, band(), None);
+    let without = edge.recertify_via(drifted, ends.1, &arena, 1.0, band(), None);
     println!("M7-8 lane-free skip: without_lane -> {without:?}");
     assert!(
         matches!(without, Err(CertifyError::NurbsLaneNotSupplied)),

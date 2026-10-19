@@ -183,139 +183,25 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             .unwrap_or_else(|_| py.None())
     };
     let none = || py.None();
-    let (node, consumer, input, root, instance, param, name, doc_id) = match err {
-        E::EmptyCut => (
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        E::UnknownCutNode { id: n } => (
-            id(n),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        E::PartIdCollides { id: which } => (
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            text(&which.hex()),
-        ),
+    let (node, consumer, input, param, name, doc_id) = match err {
+        E::EmptyCut | E::CutsTheWorld => (none(), none(), none(), none(), none(), none()),
+        E::UnknownCutNode { id: n } | E::NoMaterial { node: n } => {
+            (id(n), none(), none(), none(), none(), none())
+        }
+        E::PartIdCollides { id: which } => {
+            (none(), none(), none(), none(), none(), text(&which.hex()))
+        }
         E::SeveredEdge {
             consumer: c,
             input: i,
             ..
-        } => (none(), id(c), id(i), none(), none(), none(), none(), none()),
+        } => (none(), id(c), id(i), none(), none(), none()),
         // As inline's `instance_read_uncarried`: the reader is the
         // consumer, and why no one body carries the read is in the
         // message.
-        E::RemainderReadUncarried { reader, why: _ } => (
-            none(),
-            id(reader),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        E::TornGroup {
-            root: g,
-            instance: i,
-            ..
-        } => (none(), none(), none(), id(g), id(i), none(), none(), none()),
-        // A gauge refusal names the node whose gauge reference is at
-        // issue in `node` — the kept node on a cut gauge, or the cut
-        // node on a dead chain — and that gauge in `gauge` (below).
-        E::SeveredGauge { kept: n, .. } | E::DeadGaugeReference { node: n, .. } => (
-            id(n),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        E::NoMaterial { node: n } | E::UnplaceableRoot { root: n, .. } => (
-            id(n),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        // Two anchors: the earlier votes' gauge rides `node` and this
-        // node's `input`, each `None` for the world; the node that
-        // disagrees rides `instance`.
-        E::TwoAnchors {
-            node,
-            first,
-            second,
-        } => (
-            first.as_deref().map_or_else(none, id),
-            none(),
-            second.as_deref().map_or_else(none, id),
-            none(),
-            id(node),
-            none(),
-            none(),
-            none(),
-        ),
-        E::UnplacedAlone { group } => (
-            none(),
-            none(),
-            none(),
-            id(group),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        // The mate is the subject; which side crosses is in the message,
-        // and the root a promote would land at the empty chain, where
-        // that is the recourse, rides `root`.
-        E::MateFrameCrosses {
-            mate,
-            promote: Some(r),
-            ..
-        } => (
-            id(mate),
-            none(),
-            none(),
-            id(r),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        E::WouldStartPlacing { mate }
-        | E::PlacingMateLeft { mate }
-        | E::MateFrameCrosses { mate, .. } => (
-            id(mate),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
+        E::RemainderReadUncarried { reader, why: _ } => {
+            (none(), id(reader), none(), none(), none(), none())
+        }
         E::UncutVarReference {
             var,
             cut_node,
@@ -325,15 +211,11 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             id(cut_node),
             none(),
             id(kept_node),
-            none(),
-            none(),
             text(&var.to_string()),
             none(),
             none(),
         ),
         E::DefinitionStraddlesCut { var, .. } => (
-            none(),
-            none(),
             none(),
             none(),
             none(),
@@ -345,51 +227,21 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             id(n),
             none(),
             none(),
-            none(),
-            none(),
             text(&var.to_string()),
             none(),
             none(),
         ),
-        E::PartNameReachesRemainder { node: n, name, .. } => (
-            id(n),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            named(name),
-            none(),
-        ),
+        E::PartNameReachesRemainder { node: n, name, .. } => {
+            (id(n), none(), none(), none(), named(name), none())
+        }
         E::NameStraddlesCut { name, .. }
         | E::BodyNameCrossesCut { name }
         | E::NameOutsidePartWorld { name }
-        | E::NameOnDroppedStep { name, .. } => (
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            named(name),
-            none(),
-        ),
-        E::Pin { .. } | E::PartEdit { .. } | E::RemainderEdit { .. } => (
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-    };
-    let gauge = match err {
-        E::SeveredGauge { gauge: g, .. }
-        | E::DeadGaugeReference { gauge: g, .. }
-        | E::UnplaceableRoot { anchor: g, .. } => id(g),
-        _ => none(),
+        | E::NameOnDroppedStep { name, .. }
+        | E::RankedRunReordered { name } => (none(), none(), none(), none(), named(name), none()),
+        E::Pin { .. } | E::PartEdit { .. } | E::RemainderEdit { .. } => {
+            (none(), none(), none(), none(), none(), none())
+        }
     };
     // A definition tied across the cut: the variable it reads that
     // moves, and the one that stays (or that the document no longer
@@ -412,12 +264,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             ("node", node),
             ("consumer", consumer),
             ("input", input),
-            ("root", root),
-            ("instance", instance),
             ("param", param),
             ("name", name),
             ("id", doc_id),
-            ("gauge", gauge),
             ("moving", moving),
             ("staying", staying),
         ],
@@ -477,8 +326,6 @@ impl SplitOutcome {
     ///
     /// Its `last_maintenance` is what building the part from empty
     /// reported, net of what a later edit in the same split took back.
-    /// An offset a cut mate's insert cleared as it joined two groups
-    /// is re-stated by a later edit, so it is not reported.
     #[getter]
     fn part(&self) -> Doc {
         Doc {
@@ -543,9 +390,11 @@ impl SplitOutcome {
 /// never defaulted, and a fresh one is what lets both documents live
 /// in one store.
 ///
-/// The cut must be **ancestor- and consumer-closed** and a union of
-/// WHOLE placement groups. Everything else refuses typed, naming the
-/// offending edge, group, parameter or name.
+/// The cut must be **ancestor- and consumer-closed**, and no
+/// constraint's frame may cross it. Everything else refuses typed,
+/// naming the offending edge, constraint, parameter or name. The
+/// remainder holds ONE instance of the part, pinned to the world at
+/// the identity, so the cut material stands where it stood.
 ///
 /// Pure: `doc` is untouched, nothing is written, and the two documents
 /// come back as values with the edits that produce them.
@@ -563,9 +412,8 @@ pub(crate) fn split(
     let tol = Tol::witness();
     let part_id = document_id(part_id)?;
     let set: BTreeSet<d::RecipeNodeId> = cut.iter().map(|n| n.0).collect();
-    // The cut's edits can move a group's root (an instance leaves
-    // the remainder for the part), so the split levers through the
-    // same seam `evaluate(doc, resolver=)` crosses — plus the part it
+    // The cut's edits can need a solved frame of another part, so the
+    // split levers through the same seam `evaluate(doc, resolver=)` crosses — plus the part it
     // is minting, which it holds itself; absent, an edit that needs a
     // solved frame of another part refuses typed.
     let store = resolver.map(super::store::Workspace::resolver);
@@ -609,32 +457,27 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             .unwrap_or_else(|_| py.None())
     };
     let none = || py.None();
-    let (node, by, name, param, key, root, host_eps, part_eps) = match err {
-        E::UnknownNode { id: n } => (
-            id(n),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        E::NotAnInstance { node: n } => (
-            id(n),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        // A host placement of the instance at a pose of its own.
-        E::PlacementPoseCrosses { placement: n } => (
-            id(n),
-            none(),
-            none(),
+    let (node, by, name, param, key, host_eps, part_eps) = match err {
+        // The instance (or the node a construction reads it at) is the
+        // subject: why it cannot be spliced is the variant, and why its
+        // bundle does not carry it is in the message.
+        E::UnknownNode { id: n }
+        | E::NotAnInstance { node: n }
+        | E::UnplaceablePart {
+            instance: n,
+            why: _,
+        }
+        | E::ConstructionReadsCopy { node: n } => {
+            (id(n), none(), none(), none(), none(), none(), none())
+        }
+        // The part placement is the subject; the construction it is
+        // pinned against rides `by`.
+        E::CopyPinnedToConstruction {
+            placement,
+            construction,
+        } => (
+            id(placement),
+            id(construction),
             none(),
             none(),
             none(),
@@ -643,23 +486,15 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         ),
         // The host node reading the instance rides `by`; why no one
         // body takes its read is in the message.
-        E::InstanceReadUncarried { reader, why: _ } => (
-            none(),
-            id(reader),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
+        E::InstanceReadUncarried { reader, why: _ } => {
+            (none(), id(reader), none(), none(), none(), none(), none())
+        }
         E::Unresolved { failure } => (
             none(),
             none(),
             none(),
             none(),
             text(&failure.message),
-            none(),
             none(),
             none(),
         ),
@@ -672,26 +507,17 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
             none(),
-            none(),
             number(*h),
             number(*p),
         ),
-        E::PartCarriesMetadata { key: k } => (
-            none(),
-            none(),
-            none(),
-            none(),
-            text(k),
-            none(),
-            none(),
-            none(),
-        ),
+        E::PartCarriesMetadata { key: k } => {
+            (none(), none(), none(), none(), text(k), none(), none())
+        }
         E::VarNameConflict { name: p } | E::InstanceOutputUncarried { name: p, why: _ } => (
             none(),
             none(),
             none(),
             text(p.as_str()),
-            none(),
             none(),
             none(),
             none(),
@@ -704,62 +530,25 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
             none(),
-            none(),
         ),
-        E::UnplaceableFrame { root: r } => (
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            id(r),
-            none(),
-            none(),
-        ),
-        // The instance is the subject: why it cannot be spliced is the
-        // variant, and an unplaced one's cause is in the message. A
-        // mate-placed instance's host root and part root ride their own
-        // slots (below), and a moved member rides `node`.
-        E::MatePlaced { instance, .. }
-        | E::Unplaced { instance, .. }
-        | E::MovedMemberOffset { member: instance } => (
+        // The instance whose pin did not solve, or reads a variable;
+        // the variable rides `param`.
+        E::InstanceUnsolved { instance } => {
+            (id(instance), none(), none(), none(), none(), none(), none())
+        }
+        E::PinReadsVariable { instance, var } => (
             id(instance),
             none(),
             none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        // A node of the referenced document, in its own id space: it
-        // rides `root`, the part-side slot, as the plain-geometry root
-        // does.
-        E::PartDeadGauge { node: n } => (
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            id(n),
-            none(),
-            none(),
-        ),
-        E::MateFrameCrosses { mate, .. } => (
-            id(mate),
-            none(),
-            none(),
-            none(),
-            none(),
+            text(&var.to_string()),
             none(),
             none(),
             none(),
         ),
-        // The earlier mate is the subject; the one that reads another
-        // inner instance rides `by`.
-        E::MatePairSplits { first, second } => (
-            id(first),
-            id(second),
+        // The part placement is the subject, and the value rides `mate`
+        // (below).
+        E::ValueOnAMovedWorld { placement, .. } | E::WorldPinOnAMovedWorld { placement } => (
+            id(placement),
             none(),
             none(),
             none(),
@@ -771,41 +560,23 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         | E::ForeignInstanceName { name }
         | E::StrandedPartName { name, .. }
         | E::StrandedPartRead { name, .. }
-        | E::NameOnDroppedStep { name, .. } => (
-            none(),
-            none(),
-            named(name),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
-        E::Edit { .. } => (
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
+        | E::NameOnDroppedStep { name, .. }
+        | E::RankedRunReordered { name } => {
+            (none(), none(), named(name), none(), none(), none(), none())
+        }
+        E::Edit { .. } => (none(), none(), none(), none(), none(), none(), none()),
     };
-    let (host_root, part_root, part_gauges) = match err {
-        E::MatePlaced {
-            host_root,
-            part_root,
-            part_gauges,
-            ..
-        } => (
-            id(host_root),
-            part_root.as_deref().map_or_else(none, id),
-            pyo3::types::PyList::new(py, part_gauges.iter().map(id))
-                .map(|l| l.unbind().into_any())
-                .unwrap_or_else(|_| py.None()),
-        ),
-        _ => (none(), none(), none()),
+    let mate = match err {
+        E::ValueOnAMovedWorld {
+            placement,
+            value: constraint,
+        } => Py::new(
+            py,
+            super::mate::MateRef(d::MateRef::new(placement.id(), *constraint)),
+        )
+        .map(|v| v.into_any())
+        .unwrap_or_else(|_| py.None()),
+        _ => none(),
     };
     typed_err(
         py,
@@ -821,12 +592,9 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             ("name", name),
             ("param", param),
             ("key", key),
-            ("root", root),
             ("host_epsilon", host_eps),
             ("part_epsilon", part_eps),
-            ("host_root", host_root),
-            ("part_root", part_root),
-            ("part_gauges", part_gauges),
+            ("mate", mate),
         ],
     )
 }
