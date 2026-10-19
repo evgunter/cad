@@ -42,7 +42,7 @@ Waits on `intent-stage4-is-built`, not on the whole program: naming a declared c
 
 E answers the D10 re-ask's premise: a coincident covered pair is now glued whether or not it is declared, because the glue door declares every Zero-decided pair itself (`crates/topo/src/boolean/glue.rs:40`). The covered pairs a declaration produced and the ones the verdict produces are therefore one set (`crates/topo/src/boolean/mod.rs:1770`, `covered`). The naming question is unchanged. The pair boolean's emission still reads only `naming.merge_groups` (`crates/editor-core/src/names/emit_topo.rs:903`, `:989`) and never `covered`, so the faces of such a pair are still named by operand order. The question is now "how does a pair boolean name a Zero-glued covered pair", and it is Ev's call as before.
 
-## The designer pair: the premise is stale (fork-log row 173, 2026-10-19; numbered 172 until main took that number)
+## The designer pair: the premise is stale (fork-log row 174, 2026-10-19; numbered 172, then 173, until main took those numbers)
 
 Both designers measured main and found no operand-order dependence in
 any published name:
