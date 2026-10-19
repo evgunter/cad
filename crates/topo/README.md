@@ -281,10 +281,21 @@ is reached only through structure or a declaration.
 sphere inside the edge is read again on the edge's fragments once both
 sweep directions have run: where the other operand has a vertex at the
 touch, whether it builds does not depend on which operand is A, and with
-no vertex there it refuses in both orders. A covered arc, and a covered
-line against a torus or a cone, keep the refusal where the touch is inside the
-edge: their residual is not convex, so a fragment's ends need not see
-every touch.
+no vertex there it refuses in both orders. A covered conic with no end
+on a sphere, cylinder or torus carrier, its interior unread, is
+deferred the same way (`Placement::declared`), and the settle stage
+reads its fragments. A fragment with an end recorded on the carrier is
+then read at its ends only. That is sound where the cover admits at most one touch per conic,
+as a circle meets the ruling of a cylinder × cylinder tangency once,
+and it is not sound where it admits two: a plane tangent to a cylinder
+holds a circle that meets the ruling twice, and the touch inside the
+fragment goes unrecorded
+(`covered-endpoint-arms-read-a-non-convex-touch-at-the-ends-only`). A
+covered line against a torus or a cone, and a covered conic against a
+cone, keep the refusal where the touch is inside the edge. Two tubes
+tangent along one's seam build in either order without the edge–face
+record of the seam's span in the other wall
+(`a-line-edge-in-a-curved-faces-interior-is-recorded-at-its-ends-only`).
 
 *Edges lying on the carrier.* An edge decided to lie identically on the
 other operand's carrier is an ON event under the reduction's trilean

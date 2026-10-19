@@ -250,7 +250,7 @@ use geom::Surface;
 use geom_brep::recourse::{ReadAt, Reading};
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 
-use crate::policy_lane::ByPolicy;
+use crate::policy_lane::{ByPolicy, KernelSite, Origin};
 use geom_core::{Band, Decide, Point3, Real, Tol};
 use slotmap::SecondaryMap;
 
@@ -2736,6 +2736,7 @@ impl<T: Decide> Body<T> {
         let faces =
             [plan.he1_loop, plan.he2_loop].map(|l| proven(&self.loops, l, EntityId::Loop).face);
         let certified = self.certify_edge_spec(
+            Origin::Callers,
             None,
             curve.spec(false, p_old, point),
             p_old,
@@ -2986,6 +2987,7 @@ impl<T: Decide> Body<T> {
         let face = proven(&self.loops, loop_key, EntityId::Loop).face;
         // ---- Geometry gate (still no mutation). ----
         let certified = self.certify_edge_spec(
+            Origin::Callers,
             None,
             curve.spec(false, p_old, point),
             p_old,
@@ -3213,7 +3215,8 @@ impl<T: Decide> Body<T> {
         let after = Slot::of_spec(&surface, inherit_surface);
         let spec = curve.spec(u1 == u2, p1, p2);
         require_chord_adjacent(&spec, (inherit_surface, after))?;
-        let certified = self.certify_edge_spec(None, spec, p1, p2, [face_key; 2], tol)?;
+        let certified =
+            self.certify_edge_spec(Origin::Callers, None, spec, p1, p2, [face_key; 2], tol)?;
         self.vouch_move(
             RechartDoor::Mef,
             face_key,
@@ -3384,7 +3387,15 @@ impl<T: Decide> Body<T> {
         let after = Slot::of_spec(&surface, inherit_surface);
         let spec = curve.spec(true, anchor, anchor);
         require_chord_adjacent(&spec, (inherit_surface, after))?;
-        let certified = self.certify_edge_spec(None, spec, anchor, anchor, [face_key; 2], tol)?;
+        let certified = self.certify_edge_spec(
+            Origin::Callers,
+            None,
+            spec,
+            anchor,
+            anchor,
+            [face_key; 2],
+            tol,
+        )?;
         let carried = resolved.on_parent_chart;
         self.vouch_move(
             RechartDoor::Mef,
@@ -3925,7 +3936,8 @@ impl<T: Decide> Body<T> {
     /// The attachment gate (D4 ¶2 at operation time): certifies an
     /// [`EdgeCurveSpec`] against its endpoint points, with surface keys
     /// resolved from this body's arena and the plane × NURBS lane read
-    /// off the scalar's policy ([`crate::AtRestPolicy::nurbs_lane`]).
+    /// off the scalar's policy ([`crate::AtRestPolicy::nurbs_lane`]), as
+    /// `origin`'s data ([`Origin`]).
     /// `edge` is the existing edge the spec certifies (a re-description,
     /// a split child, a merged member), `None` where the door mints a new
     /// edge; `faces` are the two faces the edge bounds as this door
@@ -3944,8 +3956,10 @@ impl<T: Decide> Body<T> {
     /// [`EulerOpError::NurbsLaneUnsupported`] naming `edge` where the
     /// spec is of the plane × NURBS class and the scalar holds no lane;
     /// [`EulerOpError::Certification`] on every other refusal.
+    #[allow(clippy::too_many_arguments)] // the certification's, plus whose data it is
     pub(crate) fn certify_edge_spec(
         &self,
+        origin: Origin,
         edge: Option<EdgeKey>,
         spec: EdgeCurveSpec<T>,
         p_start: Point3<T>,
@@ -3972,6 +3986,7 @@ impl<T: Decide> Body<T> {
             _ => None,
         };
         crate::policy_lane::certify_stated(
+            origin,
             spec,
             p_start,
             p_end,
@@ -4223,7 +4238,8 @@ impl<T: Decide> Body<T> {
                 curve.params(),
             );
             let recertify = |start, end| {
-                crate::policy_lane::recertify(curve, start, end, surfaces, reach, band)
+                let origin = Origin::Kernels(KernelSite::ReBasedRun);
+                crate::policy_lane::recertify(origin, curve, start, end, surfaces, reach, band)
             };
             let error = match recertify(p_start, p_end) {
                 Ok(_) => continue,
@@ -4233,9 +4249,7 @@ impl<T: Decide> Body<T> {
                         scalar,
                     });
                 }
-                Err(ByPolicy::Refused(error)) => {
-                    crate::policy_lane::kernels_own(error, "a re-based run's edge")
-                }
+                Err(ByPolicy::Refused(error)) => error,
             };
             if is_endpoint_residual(error) {
                 // The carrier misses an endpoint AFTER the move. Ask

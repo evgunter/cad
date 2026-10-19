@@ -1075,11 +1075,14 @@ fn a_puck_and_its_rounding_ring_build_as_a_seam() {
     }
 }
 
-/// **A rod in a bore refuses at the crossing layer at all but one
-/// turn.** A rod of radius 0.5 seated in the bore of radius 1 of a
+/// **A rod in a bore refuses at the crossing layer at all but two
+/// turns.** A rod of radius 0.5 seated in the bore of radius 1 of a
 /// revolved tube, touching along a ruling, at thirty turns of the
-/// touching ruling: pinned per outcome, and the union that builds is
-/// the tube and the rod, tier 3 clean. Its covered ends
+/// touching ruling: pinned per outcome, and each union that builds is
+/// the tube and the rod, tier 3 clean. The two that build are the turns
+/// where a seam lies on the touching ruling (the tube's and the rod's at
+/// turn 0, the rod's at turn 15): the seam splits the other's rim circle
+/// where it touches, and nothing splits it at the other turns. Its covered ends
 /// lie on the certified side, so this row holds with or without the
 /// cover's side gate; the gate is carried by the unit row
 /// `a_cover_admits_an_off_point_only_on_its_certified_side`, which is
@@ -1137,8 +1140,8 @@ fn a_rod_in_a_bore_refuses_at_the_crossing_layer() {
     assert_eq!(
         kinds,
         [
-            ("CurvedPierceUnsupported".to_owned(), 29),
-            ("built".to_owned(), 1)
+            ("CurvedPierceUnsupported".to_owned(), 28),
+            ("built".to_owned(), 2)
         ]
         .into_iter()
         .collect(),

@@ -1877,6 +1877,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(
+            crate::policy_lane::Origin::Callers,
             None,
             curve.spec(u == w, p_u, p_w),
             p_u,
@@ -1976,6 +1977,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(
+            crate::policy_lane::Origin::Callers,
             None,
             curve.spec(u == w, p_u, p_w),
             p_u,
@@ -2065,6 +2067,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(
+            crate::policy_lane::Origin::Callers,
             None,
             curve.spec(u == w, p_u, p_w),
             p_u,
@@ -2163,6 +2166,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(
+            crate::policy_lane::Origin::Callers,
             None,
             curve.spec(u == w, p_u, p_w),
             p_u,
