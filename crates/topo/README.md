@@ -688,11 +688,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      cells the op minted between them, the division exhaustive or with
      its remainder removed; or removed. One carry, for the boolean and
      every surgery verb alike, lands a record whose two cells the op kept
-     or substituted on their images by lineage, unread, their geometry
-     unchanged and the record read where it was minted; it puts each
-     pair drawn from a divided cell's images to the census's record
-     confirm, and the record lands on every such pair whose interiors
-     meet, each landing citing it. Two
+     or substituted on their images by lineage, unread, each image on
+     its cell's carrier and holding its old interior and the record read
+     where it was minted; it puts each pair drawn from a divided cell's
+     images, or from an image that does not hold its cell's geometry (a
+     cell an offset or blend moved under its key), to the census's
+     record confirm, and the record lands on every such pair whose
+     interiors meet, each landing citing it. Two
      cells an op minted on a record's two cells and that meet at a point
      meet where the record puts them when one cut made both, as the
      split's one plane does, and the landing cites the record alone; an
@@ -700,8 +702,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      such meeting at its door ([coincidence]), and the landing cites the decision
      beside the record; any other op refuses one. A record
      that lands on no pair, every pair read definitely, is consumed
-     where one of its cells was removed or divided with its remainder
-     removed, and is stale otherwise; a cell the lineage does not cover
+     where one of its cells was removed, divided with its remainder
+     removed, or moved, and is stale otherwise; a cell the lineage does not cover
      refuses. A cell that replaces another without holding its interior
      (a blend face for the edge it rounds) takes no record from it.
    - **Certification strength equals its skeleton**: a curve touch is

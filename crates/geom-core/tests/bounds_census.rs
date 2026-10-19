@@ -483,6 +483,21 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/surgery.rs",
+        subject: "strip_reading",
+        why: Selection(
+            "a support ring's three-way reading against the strip a plane–plane band \
+             takes off its support, as `CapSliver::read_cycle` reads an end-face cycle \
+             against its sliver: `piece_along`'s closed-form extents and the witnesses' \
+             projections are read through `sure` to SELECT inside, crossing or neither. \
+             An inside ring joins the request's verdict, whose faces the reach must still \
+             read inside, and the screen's stand-down on a decided ring only leaves that \
+             ring to the ring pass, which meters it whole; any reading not certain is \
+             neither, metered as before, so it inherits `ring_clearance`'s DL5(b) \
+             disposition and the reach's",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
         subject: "piece_distance",
         why: Selection(
             "an edge's near and far distance from a point over its own window: a \

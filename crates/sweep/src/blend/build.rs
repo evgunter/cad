@@ -155,13 +155,16 @@ impl<T: Decide> Blended<T> {
     /// [`super::naming::BlendNaming::slits`]) and the vertices that split
     /// it, the carved span removed; a support face is divided into itself
     /// and the trimlines and feet the blend minted in it, the strip it
-    /// carved away removed. A body with no birth records names no
-    /// carve, and every cell is kept.
+    /// carved away removed. Every other cell whose geometry the blend
+    /// changed under its key is read, not kept: the lineage carries the
+    /// source's geometry ([`topo::Lineage::from_source`]). A body with
+    /// no birth records names no carve and carries no source, so every
+    /// record is read, and one on a cell the result lost refuses.
     #[must_use]
     pub fn lineage(&self) -> topo::Lineage {
         use topo::{Cell, Division, Fate, Remainder};
         let Some(n) = self.naming.as_ref() else {
-            return topo::Lineage::new();
+            return topo::Lineage::new().from_source(topo::SourceGeometry::default());
         };
         let mut lineage = topo::Lineage::new().through_joins(&n.edge_joins);
         let removed = n
@@ -247,7 +250,7 @@ impl<T: Decide> Blended<T> {
                 }),
             );
         }
-        lineage
+        lineage.from_source(n.source.clone())
     }
 }
 
