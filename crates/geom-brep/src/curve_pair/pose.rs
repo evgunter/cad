@@ -1303,6 +1303,7 @@ fn coplanar_ellipses<T: Decide>(
         f_per_metre: T::zero(),
         f_per_metre_hi: ceiling,
         residual_reach: Some(reach),
+        jet: None,
     };
     let residual = |theta: T| {
         let d = ka.point(theta) - kb.center;
