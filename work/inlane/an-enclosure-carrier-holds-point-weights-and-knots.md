@@ -177,3 +177,86 @@ Option A, framed as a correction rather than a permission (fork-log row
 - **The door does not refuse an unbounded pole** (the orchestrator's ruling, 2026-10-18, closing PR 5319). The entire interval is a legal enclosure, as pinned by `geom`'s `n2r1_probes::interval::probe_empty_versus_nai_versus_entire` and the n2r2 probes. An uncertified one is carried by its decoration, which S4's corner hull keeps. The knot algebra's enclosure branch keeps its own typed refusal of an output it wrote by dividing by a straddling ratio (`KnotAlgebraError::UnboundedAtEnclosure`).
 - **`Dual` and `Sym` over `Interval` take the plain blend step.** Only `Interval` itself overrides `SpanLocate::homogeneous_step` with the corner hull, so a chain of blends still widens per step at those two scalars.
 - **The surface's knot operations stay projective-only.** They have no caller at an enclosure scalar. Their column builds take the u knots through `point_knots`.
+
+## Handoff (INLANE, 2026-10-19)
+
+The INLANE lane stopped here at the orchestrator's call, with S5c merged and S5d not started. This section is the state a resuming lane picks up.
+
+### Merged
+
+| Slice | PR | What it did |
+|---|---|---|
+| S1, knots | 5277 | `KnotStructure` combinatorial; `Knots` holds wide breakpoints certified for every member; the interim accessors and their gate |
+| S2, weights | 5287 | `Weights<T>` certified strictly positive; `weights_f64_interim`; the holders ratchet; `CarrierWeightNotAPoint` |
+| S3, arcs | 5290 | the η sub-arc rule; arc sweep decisions certified (`ArcSweepUndecided`) |
+| S4, the homogeneous knot algebra | 5309 | the ring applier total; `apply_homogeneous`; a carrier's knot operations at every scalar; `make_compatible` at `Interval` |
+| S5 staging and the door ruling | 5321 | the S5 end state and staging (this item's Build section) |
+| S5b, the plans over held values | 5322 | `spline::plan_inputs`: a parameter's place certified for every member (`ParameterUndecided`); a wide input's plan decided against a stand-in private to the spline module and marked |
+| S5c, the fit's collocation | 5332 | the fit admits a wide averaged knot; enclosure rows hulled over the overlapped spans, each piece narrowed by `SpanLocate::clip_to` and clamped to `[0, 1]` |
+
+S5a closed unmerged as PR 5319, by the door ruling below.
+
+### Next
+
+**S5d onwards: migrate the readers crate by crate.** Each crate is its own PR. In each, the interim accessors' readers move to the held values or the structure, or propagate a typed refusal (D4). The slices introduce the typed-refusing accessors (e.g. `knots_f64() -> Result<&KnotVector, CarrierKnotNotAPoint>`) and, beside the dying gate, a ratchet on `.unwrap()`, `.expect(` and panicking `?` uses of them.
+
+Readers today (`scripts/gates/knots-f64-interim.counts`, 726 in all):
+
+| crate | readers | holders |
+|---|---|---|
+| geom-brep | 222 | 15 |
+| geom | 212 | 2 |
+| sweep | 139 | — |
+| step-import | 45 | — |
+| mesh | 37 | — |
+| topo | 36 | — |
+| geom-core | 18 | 27 |
+| step-export | 9 | — |
+| editor-core | 6 | — |
+| demos/tour | 2 | — |
+
+Holders total 44. The typed accessors' unwrap/expect ratchet does not exist yet: S5d creates it, starting at its first crate's count, and S5z drives it to 0.
+
+**S5z: the door lifts.**
+- The carrier constructors (`NurbsCurve*::new`, `NurbsSurface::new`) admit wide knots and weights.
+- The interim accessors and `knots-f64-interim.sh` go.
+- Its PR cites C6's text and the `git log -S` provenance; text C6 does not already have goes back to the orchestrator.
+- `the-f64-appliers-poison-where-the-projective-arm-refuses-typed` (P2) is owed by S5z.
+
+**S6: the two fold-ins.**
+- `held-value-equalities-decided-on-the-value-channel`
+- `an-edges-parameter-ends-enter-a-carrier-piece-as-constants`
+
+**The instrument unit:** `under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move`.
+
+### Rulings in force
+
+- **S5's end state (the orchestrator, 2026-10-18).** The door lifts at S5z. Each panicking interim accessor becomes typed-refusing. A reader with a meaning at a wide carrier moves to the held values or the structure; a reader that means something only at points propagates the typed refusal and never swallows it. The unwrap/expect ratchet is driven to 0 by S5z.
+- **No door check for an unbounded pole (PR 5319 closed).** An entire (`Dac`, unbounded) pole is a legal enclosure. An uncertified value carries D4's refusal by its decoration, so the door does not refuse it.
+- **The S5b stand-in.** A plan over wide held inputs is decided against `Knots::plan_proxy` (each wide run at its bracket's midpoint, unit weights), which is private to the spline module. The plan is marked as no reference, and the `f64` appliers and the projective arm refuse it.
+- **Every not-taken review finding gets its own work item** (the orchestrator, S5b and S5c).
+
+### Open items this lane filed
+
+P2:
+- `the-f64-appliers-poison-where-the-projective-arm-refuses-typed`: the S5z type split, or a typed fallback.
+- `the-fits-enclosure-solve-reaches-only-narrow-parameters`: correlation-keeping rows and a preconditioned or Krawczyk solve.
+- `an-undecided-collocation-pivot-refuses-as-degenerate`: past the reach, a loft refuses `LsqDegenerate { pivot: NaN }` where it named the knot.
+
+P3:
+- `a-plan-step-carries-its-coefficient-twice`
+- `a-stand-in-plan-refusal-is-unreachable`
+- `breakpoint-at-refuses-as-a-removal-does`
+- `a-wide-end-parameter-refuses-as-a-count-mismatch`
+- `the-fit-rows-check-an-f64-chain-inside-an-enclosure-with-slack`
+- `the-three-span-row-is-blind-to-an-unsound-end-clip`
+- `a-miss-in-clip-to-answers-its-input-rather-than-poison`
+- `sym-interval-takes-clip-to-as-the-identity`
+
+### Practice the lane ran on
+
+- Tier-H slices go to a concurrent pair on a frozen head. A unilateral MAJOR goes to a blinded coder, and one fix pass covers the union of both reports. Delta-reads happen when the orchestrator asks for them, and new logic in a fix pass has always drawn one.
+- The row is the PR's last commit.
+- Read the notification queue before merging, then merge on green.
+- Reviewers share `CARGO_TARGET_DIR=/home/user/inlane-target`. A run can execute another worktree's binary, so a reviewer must confirm its probes are in the binary it ran.
+- Disk is tight: keep the target dir clean and check `df` before dispatching.
