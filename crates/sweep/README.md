@@ -76,8 +76,14 @@ reading reads inside or crossing, and only on its pairs with the edge
 whose strip holds it, so the verdict decides it. The reach reads the
 cup's faces in the band's exact core less that support's side, their
 other edges in the whole core, so the cup lies on the material's side
-of the support, as its mouth does; that section is convex along the
-support's normal, which a cup square to the support is ruled along.
+of the support, as its mouth does. A wall ruled along the support's
+normal pays nothing for its run along it where that section is convex
+(the chamfer's) or the face lies on the support's side of the fillet
+ball's centre, within which each line along the normal meets each of
+the section's deeper sets in one segment; elsewhere it pays its run
+across the spine, so a cup reaching past the ball's centre at an acute
+dihedral refuses as a bound
+(`band_dihedral_cups::an_acute_strip_cup_whose_wall_crosses_the_kept_disk_refuses_as_a_bound`).
 Every other inside case refuses as one the rule defines and the surgery
 does not build, at the meter that reads it: a void or an island with
 no cap cycle `BlendError::WhollyInside`; a cup on the ruled band, whose
@@ -87,11 +93,11 @@ or a hole whose mouth a concave fill covers, a bound where its wall
 meets the end face's plane, as is a cup on a strip of the band's
 opposite sign (a boss under a convex band, a dimple under a fill:
 `band_strip_mouth_cups::a_cup_of_the_bands_opposite_sign_on_its_strip_refuses_as_a_bound`);
-and a ring on a support that the strip meter does not read inside (one
-beside a band ending at a mitre, a turn or a corner, or a notch across
-an end wall), a boundary feature of the support, at the clearance
-screen (`FaceClearanceUncertified`), nearer the edge than the band sets
-back.
+and a ring on a support that the strip meter reads neither inside nor
+crossing (one touching the trimline), one beside a band ending at a
+mitre, a turn or a corner, or a notch across an end wall, a boundary
+feature of the support, at the clearance screen
+(`FaceClearanceUncertified`), nearer the edge than the band sets back.
 
 A face crossing the reach refuses as an unbuilt case too: building it
 needs the band face cut against the faces that cross it, which the

@@ -47,8 +47,8 @@ use super::arms::{
 use super::build::fan_at;
 use super::open::end_face::CycleReading;
 use super::surgery::{
-    CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, loop_walk, scaffolding, stored_piece,
-    strip_frame, strip_reading, strip_witnesses, unbuilt_geometry, unresolved, unwalked,
+    CORNER_SUPPORT_NOT_PLANAR, certified_curve, disagrees, scaffolding, strip_frame, strip_reading,
+    strip_ring, unbuilt_geometry, unresolved, unwalked,
 };
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
@@ -3114,14 +3114,16 @@ fn consumption_sweep<T: Decide + Bounds>(
 
 /// **The rings of a support `face` that the strip meter decides**, each
 /// edge paired with the requested edge whose strip it is read against:
-/// a ring read wholly inside, or crossing, the strip a plane–plane band
-/// takes off `face` ([`strip_reading`]), where that band is a whole open
-/// chain of one link and no other requested edge meets either end, so
-/// predicate 6 cuts it off at both ends or refuses. The screen stands
-/// down on those pairs alone: the strip meter reads a ring inside as a
-/// cup's mouth the band may take, and refuses one crossing, measured
-/// (`surgery::ring_clearance_pass`, arm (a)); a ring it reads neither way,
-/// or one beside a band of another shape, is screened as before.
+/// a ring carrying no requested edge, read through the pieces arm (a)
+/// reads it through ([`strip_ring`]) wholly inside, or crossing, the
+/// strip a plane–plane band takes off `face` ([`strip_reading`]), where
+/// that band is a whole open chain of one link and no other requested
+/// edge meets either end, so predicate 6 cuts it off at both ends or
+/// refuses. The screen stands down on those pairs alone: the strip
+/// meter reads a ring inside as a cup's mouth the band may take, and
+/// refuses one crossing, measured (`surgery::ring_clearance_pass`, arm
+/// (a)); a ring it reads neither way, or one beside a band of another
+/// shape, is screened as before.
 fn strip_decided<T: Decide + Bounds>(
     body: &Body<T>,
     chains: &[Chain<T>],
@@ -3155,14 +3157,11 @@ fn strip_decided<T: Decide + Bounds>(
         }
         let frame = strip_frame(body, l, face)?;
         for &lp in rings {
-            let walk = loop_walk(body, lp)
-                .ok_or_else(|| unwalked(EntityId::Loop(lp), "a support face's ring"))?;
-            let edges: Vec<EdgeKey> = walk.into_iter().map(|(_, _, e)| e).collect();
-            let pieces = edges
-                .iter()
-                .map(|&e| stored_piece(body, e))
-                .collect::<Result<Vec<_>, _>>()?;
-            let witnesses = strip_witnesses(&pieces);
+            let (edges, pieces, witnesses) = strip_ring(body, lp)?;
+            // Arm (a) reads a ring carrying no requested edge alone.
+            if edges.iter().any(|e| requested.contains(e)) {
+                continue;
+            }
             if let Some(CycleReading::Inside(_) | CycleReading::Crossing(_)) =
                 strip_reading(&pieces, &witnesses, frame, band)
             {

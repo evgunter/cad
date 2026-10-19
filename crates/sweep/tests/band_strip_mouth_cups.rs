@@ -431,7 +431,9 @@ fn cups_on_both_supports_beside_a_cap_cup_and_beside_a_convex_band_go() {
 /// **A mouth a hair across the trimline crosses, and one a hair inside
 /// goes where the band takes it**, on both sides: `1e-4` past the
 /// trimline, and centred on it, the ring refuses `RingClearance`
-/// measured under both verbs. `1e-4` inside it a cup `2·10⁻⁵` deep
+/// measured under both verbs. Touching it from inside, the strip reads
+/// the ring neither way, so the screen meters it
+/// (`FaceClearanceUncertified`). `1e-4` inside it a cup `2·10⁻⁵` deep
 /// goes under the chamfer, whose chord stands `1e-4` off the support
 /// there, at `ΔV = ∓(A·L − π·a²·h)`; under the fillet, whose arc is
 /// tangent to the support at the trimline and stands `5·10⁻⁸` off it
@@ -450,6 +452,14 @@ fn a_cups_mouth_a_hair_across_the_trimline_crosses_and_one_inside_goes() {
                     "{what} ({verb:?}): the mouth crosses the trimline, measured, got {err:?}"
                 );
             }
+            let what = format!("{side:?} touching the trimline");
+            let (body, e, _, _) = side.cup((D - a, x), a, 1e-5, verb);
+            let err = refusal(verb, &body, &[e], &what);
+            assert!(
+                matches!(err, BlendError::FaceClearanceUncertified { .. }),
+                "{what} ({verb:?}): the strip reads the touching mouth neither way, so the \
+                 screen meters it, got {err:?}"
+            );
             let what = format!("{side:?} inside the trimline");
             let (body, e, cups, dv) = side.cup((D - a - 1e-4, x), a, 2e-5, verb);
             match verb {
@@ -567,22 +577,20 @@ fn a_cup_of_the_bands_opposite_sign_on_its_strip_refuses_as_a_bound() {
     }
 }
 
-/// **A square dimple leaning off its support's normal goes, and a round
-/// one refuses at the ring meter**, under both verbs. The square
-/// dimple's axis leans `0.05` rad along the edge and across it: its
-/// seams run along the axis, between a mouth vertex and a floor vertex,
-/// and stray from the line along the support's normal by `0.05` per
-/// unit of length, which the section less the support's side, convex
-/// along that normal, charges twice; along the spine they would stray
-/// by nearly their length. A square bar holds `4b²` per unit of its axis
-/// whatever its ends' planes, so `ΔV = −(A − 4b²·h)`, `h` its axis from
-/// the support to the floor. A round dimple leaning so has an ellipse for
-/// its mouth, which the ring meter does not read
-/// (`UnsupportedGeometry`); past `ε = 1e-9` its fixture's Boolean does
-/// not resolve the leaning cylinder against the top, and that half
-/// skips loudly.
+/// **A square dimple and a round one leaning off their support's normal
+/// go**, under both verbs. Each axis leans `0.05` rad along the edge and
+/// across it: the square dimple's seams run along the axis, between a
+/// mouth vertex and a floor vertex, and stray from the line along the
+/// support's normal by `0.05` per unit of length, which the reading
+/// charges twice; along the spine they would stray by nearly their
+/// length. The round dimple's mouth is an ellipse, read across the edge
+/// in closed form. A bar holds its section per unit of its axis whatever
+/// its ends' planes, so `ΔV = −(A − 4b²·h)` and `−(A − π·a²·h)`, `h` its
+/// axis from the support to the floor. Past `ε = 1e-9` the round
+/// fixture's Boolean does not resolve the leaning cylinder against the
+/// top, and that half skips loudly.
 #[test]
-fn a_square_dimple_leaning_off_its_supports_normal_goes_and_a_round_one_refuses() {
+fn a_square_and_a_round_dimple_leaning_off_their_supports_normal_go() {
     let (u, x, a, h) = CUP;
     let b = 0.004;
     let (o, _) = mouth(true, On::Floor, 1.0, (u, x));
@@ -616,12 +624,23 @@ fn a_square_dimple_leaning_off_its_supports_normal_goes_and_a_round_one_refuses(
             continue;
         }
         let body = boolean(false, block(), post(o - dir * 0.2, dir, 0.2 + h, a));
+        let cups = post_faces(&body, (o, dir), a, (-a, h));
+        assert_eq!(
+            cups.len(),
+            3,
+            "a round dimple leaning {what}: two half-walls and a floor"
+        );
         for verb in VERBS {
+            let dv = -(section(verb, D) - PI * a * a * h);
             let what = format!("a round dimple leaning {what}");
-            let err = refusal(verb, &body, &[top(&body, 1.0)], &what);
-            assert!(
-                matches!(err, BlendError::UnsupportedGeometry { .. }),
-                "{what} ({verb:?}): its elliptic mouth is not metered, got {err:?}"
+            assert_taken(
+                verb,
+                &body,
+                &[top(&body, 1.0)],
+                D,
+                (&cups, 1, 0),
+                (dv, 1.0),
+                &what,
             );
         }
     }

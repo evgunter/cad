@@ -218,9 +218,19 @@ reports; it replaces row 139's case-by-case recommendation.
   a taken ring's vertices. The reach reads the cup in the band's exact
   core less the support's side: the mouth's edges there, every other
   edge in the whole core (so the cup lies on the material's side of
-  the support, as its mouth does), and a line's or a ruling's slack the
+  the support, as its mouth does). A line's or a ruling's slack is the
   lesser of `|d × τ|` and twice `|d × ν|`, `ν` the support's normal,
-  since the section less that side is convex along `ν`. The item's
+  where the section less that side is convex (the chamfer's) or the
+  face lies on the support's side of the fillet ball's centre: there
+  each line along `ν` meets each of the section's deeper sets in one
+  segment. Elsewhere it is `|d × τ|`. The section is not convex along
+  `ν` at an acute dihedral: the arc runs past its extreme point along
+  `ν`, so a line along it can leave through the arc and re-enter in
+  the cusp by the other support, and a cup reaching past the ball's
+  centre there refuses as a bound
+  (`band_dihedral_cups`, both reviewers' probes). The screen and arm
+  (a) read a ring through one piece set (`surgery::strip_ring`), the
+  screen only rings carrying no requested edge, as arm (a) does. The item's
   suggested depth (the ring's in-plane distance from the trimline and
   the edge) is not the projection's: the fillet's arc is tangent to the
   support at the trimline, so the mouth's depth is read in the core,
@@ -231,6 +241,9 @@ reports; it replaces row 139's case-by-case recommendation.
   trimline under the fillet, whose arc leaves no room there (its floor
   crosses, measured); a mouth across an end wall, a notch in the
   support's outer cycle (`FaceClearanceUncertified` at the screen); a
+  mouth touching the trimline from inside (the strip reads it neither
+  way: `FaceClearanceUncertified` at the screen); a cup reaching past
+  the fillet ball's centre at an acute dihedral (a bound); a
   cup of the band's opposite sign on its strip (a boss under a convex
   band, a dimple under a fill: a bound; the dimple's mouth the fill
   covers is step 4's seal); a ring beside a band that is not one link

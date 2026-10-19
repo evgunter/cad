@@ -368,6 +368,14 @@ fn sheet_box<T: Real>(o: Point3<T>, a: Vec3<T>, cell: &Cell<T>) -> Rect<T> {
 }
 
 impl<T: Real> Bound<T> {
+    /// Whether the region `g ≤ 0` is convex.
+    fn convex(&self) -> bool {
+        matches!(
+            self,
+            Self::Affine { .. } | Self::Tube { inside: true, .. } | Self::InsideBall { .. }
+        )
+    }
+
     /// `g(x)`.
     fn at(&self, x: Point3<T>) -> T {
         match self {
@@ -762,13 +770,26 @@ struct Reach<T: Real> {
     /// A straight link's edge and unit spine direction, which its
     /// prism reading takes ([`prism_inside`]).
     spine: Option<(EdgeKey, Vec3<T>)>,
-    /// Per plane support of a straight link with an exact core: its unit
-    /// normal and the core less that support's side, in which a cup on
-    /// the support's strip is read ([`prism_inside`]).
-    strips: Vec<(FaceKey, Vec3<T>, Vec<Bound<T>>)>,
-    /// Whether the cross-section is a chamfer's, so convex with either
-    /// support's side dropped as well.
-    chamfer: bool,
+    /// Per plane support of a straight link with an exact core, the
+    /// core less that support's side, in which a cup on the support's
+    /// strip is read ([`prism_inside`]).
+    strips: Vec<StripCore<T>>,
+}
+
+/// The core of a straight link less one plane support's side.
+struct StripCore<T: Real> {
+    support: FaceKey,
+    /// The support's unit normal `ν`.
+    normal: Vec3<T>,
+    bounds: Vec<Bound<T>>,
+    /// Whether every one of `bounds` is convex.
+    convex: bool,
+    /// Where the one bound of `bounds` that is not convex is the outside
+    /// of a tube along the spine (a fillet's ball), the closed half-space
+    /// through its axis, normal to `ν`, on the support's foot's side:
+    /// within it each line along `ν` meets each set of the core's points
+    /// deeper than any `δ` in a segment.
+    along: Option<Bound<T>>,
 }
 
 /// The outward normal of `face` at `p`, or the body's refusal.
@@ -1131,16 +1152,34 @@ fn straight_reach<T: Decide + Bounds>(
     core.extend(core_window.iter().map(|(_, b)| b.clone()));
     // The core opens with the cross-section's bounds, in `cross`'s order.
     let mut strips = Vec::new();
-    for f in [link.face_a, link.face_b].into_iter().filter(|_| exact) {
+    let pairs = [(link.face_a, st.fa), (link.face_b, st.fb)];
+    for (f, foot) in pairs.into_iter().filter(|_| exact) {
         let Some(i) = cross.iter().position(|(role, _)| *role == Role::Side(f)) else {
             continue;
         };
         let Surface::Plane { normal, .. } = surface_of(body, f)? else {
             continue;
         };
-        let mut beside = core.clone();
-        beside.remove(i);
-        strips.push((f, normal.normalize(), beside));
+        let normal = normal.normalize();
+        let mut bounds = core.clone();
+        bounds.remove(i);
+        let mut bent = bounds.iter().filter(|b| !b.convex());
+        let along = match (bent.next(), bent.next()) {
+            (
+                Some(Bound::Tube {
+                    o, inside: false, ..
+                }),
+                None,
+            ) => Some(half_space(*o, normal, foot)),
+            _ => None,
+        };
+        strips.push(StripCore {
+            support: f,
+            normal,
+            convex: bounds.iter().all(Bound::convex),
+            bounds,
+            along,
+        });
     }
     let mut bounds = cross;
     bounds.extend(caps);
@@ -1210,7 +1249,6 @@ fn straight_reach<T: Decide + Bounds>(
         width: reach,
         spine: Some((link.edge, tau)),
         strips,
-        chamfer: st.c.is_none(),
     })
 }
 
@@ -1345,7 +1383,6 @@ fn circular_reach<T: Decide + Bounds>(
         width: reach,
         spine: None,
         strips: Vec::new(),
-        chamfer: false,
     })
 }
 
@@ -1520,7 +1557,6 @@ fn corner_reach<T: Decide + Bounds>(
             width: far,
             spine: None,
             strips: Vec::new(),
-            chamfer: false,
         },
         anchors,
     )))
@@ -2049,14 +2085,15 @@ fn boundary_reading<T: Decide>(
 /// inside one support's strip, whether the section is convex (with that
 /// support's side dropped, for the strip's), the depth of a curve over a
 /// parameter range inside the band's exact core ([`curve_in_core`]),
-/// and, for the strip's, that support's unit normal and the depth of a
-/// curve inside the core less its side.
+/// and, for the strip's, the depth of a curve inside the core less its
+/// side and, where the face lies in [`StripCore::along`], that support's
+/// unit normal.
 struct Prism<'a, T: Real> {
     tau: Vec3<T>,
     rings: &'a [TakenRing<T>],
     convex: bool,
     in_core: &'a CurveDepth<'a, T>,
-    strip: Option<(Vec3<T>, &'a CurveDepth<'a, T>)>,
+    strip: Option<(&'a CurveDepth<'a, T>, Option<Vec3<T>>)>,
 }
 
 /// The depth of a curve over a parameter range inside a core.
@@ -2190,20 +2227,11 @@ fn curve_in_core<T: Bounds>(
 ///   concave, and each point of a line or a face is a convex combination
 ///   of boundary points.
 ///
-/// **On a support's strip** `S⊥` is read with that support's side
-/// dropped: `S⁺`, the section of the core less the side, and every edge
-/// not on a ring is read in the whole core, so lies on the material's
-/// side of the support, as the ring does, lying on it; the face, in the
-/// hull of its boundary (a plane) or on lines between boundary points
-/// (a cylinder), lies there too, and so in `S⁺`'s prism on the side's
-/// half-space: the core. `S⁺` is simply connected, and convex along the
-/// support's normal `ν`: every line along `ν` meets it in a segment, as
-/// it meets each of `S⊥`'s supports and arcs at one point. So is each
-/// set of its points deeper than `δ`, so a segment along `ν` between two
-/// points at depth `δ` lies at depth `δ`, and one along `d` within
-/// `|d × ν|` of that per unit length lies at the least of its ends'
-/// depths less twice that: a line's or a ruling's slack is the lesser
-/// of the two readings.
+/// **On a support's strip** `S⊥` is `S⁺`, the section of the core less
+/// that support's side; every edge not on a ring is read in the whole
+/// core. Where the support's normal `ν` is given, a line's or a ruling's
+/// slack along `d` is the lesser of `|d × τ|` and `2·|d × ν|` per unit
+/// of its length.
 fn prism_inside<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -2222,22 +2250,23 @@ fn prism_inside<T: Decide>(
     if rings.is_empty() || flo.iter().chain(&fhi).any(|x| !x.is_finite()) {
         return Ok(None);
     }
-    // How far a line or ruling along `a` strays per unit of its length:
-    // from its end's projection, and twice from the line along `ν`.
+    let nu = strip.and_then(|(_, nu)| nu);
+    // How far a line or ruling strays per unit of its length, from its
+    // misalignment with `τ` and with `ν`.
+    let charge = |off_tau: T, off_nu: &dyn Fn(Vec3<T>) -> T| {
+        nu.map_or(off_tau, |nu| off_tau.min(T::from_f64(2.0) * off_nu(nu)))
+    };
     let stray = |a: Vec3<T>| {
         let a = a.normalize();
-        let off = a.cross(tau).norm();
-        strip.map_or(off, |(nu, _)| {
-            off.min(T::from_f64(2.0) * a.cross(nu).norm())
-        })
+        charge(a.cross(tau).norm(), &|nu| a.cross(nu).norm())
     };
-    // The ruling's stray, or `None` for a plane read by its boundary.
+    // The ruling's stray, or `None` for a plane read by its boundary: a
+    // plane is ruled along its direction nearest `τ`, or nearest `ν`.
     let ruled = match surface {
         Surface::Cylinder { axis, .. } => Some(stray(*axis)),
         Surface::Plane { normal, .. } => (!by_boundary).then(|| {
             let n = normal.normalize();
-            let off = n.dot(tau).abs();
-            strip.map_or(off, |(nu, _)| off.min(T::from_f64(2.0) * n.dot(nu).abs()))
+            charge(n.dot(tau).abs(), &|nu| n.dot(nu).abs())
         }),
         _ => return Ok(None),
     };
@@ -2260,7 +2289,7 @@ fn prism_inside<T: Decide>(
                     certify(&mut vertices, start, deep);
                 }
             }
-            (RingOn::Strip, Some((_, beside))) => {
+            (RingOn::Strip, Some((beside, _))) => {
                 for (he, u, edge) in walk {
                     let w = body
                         .half_edge_end(he)
@@ -2419,8 +2448,8 @@ pub(crate) enum RingOn {
 }
 
 /// **What a request whose verdict is inside consumes**: the cycles
-/// taken ([`TakenRing`]) and the faces read wholly inside the material a straight band
-/// removes or fills, each with the crease of every band it was read
+/// taken ([`TakenRing`]) and the faces read wholly inside the material
+/// a straight band removes or fills, each with the crease of every band it was read
 /// inside, and the refusal they would owe were the carve not to take
 /// them ([`BlendError::WhollyInside`], the shallowest).
 pub(crate) struct Consumed<T> {
@@ -2830,11 +2859,23 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                     },
                     by_boundary,
                 )?];
-                for (support, normal, beside) in &reach.strips {
+                for strip in &reach.strips {
                     let rings = mine(&|on| on == RingOn::Strip);
-                    let rings: Vec<TakenRing<T>> =
-                        rings.into_iter().filter(|r| r.face == *support).collect();
-                    let in_beside = |c: &Curve3<T>, span| depth_in(beside, c, span);
+                    let rings: Vec<TakenRing<T>> = rings
+                        .into_iter()
+                        .filter(|r| r.face == strip.support)
+                        .collect();
+                    let in_beside = |c: &Curve3<T>, span| depth_in(&strip.bounds, c, span);
+                    let corner = |v: [f64; 3]| {
+                        let [x, y, z] = v.map(T::from_computed);
+                        Point3::new(x, y, z)
+                    };
+                    let (lo, hi) = (corner(fbox.0), corner(fbox.1));
+                    let nu = strip
+                        .along
+                        .as_ref()
+                        .filter(|h| sure(T::zero() - corner_max(lo, hi, |x| h.at(x)), band))
+                        .map(|_| strip.normal);
                     readings.push(prism_inside(
                         body,
                         face,
@@ -2843,9 +2884,9 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
                         &Prism {
                             tau,
                             rings: &rings,
-                            convex: reach.chamfer,
+                            convex: strip.convex,
                             in_core: &in_core,
-                            strip: Some((*normal, &in_beside)),
+                            strip: Some((&in_beside, nu)),
                         },
                         by_boundary,
                     )?);

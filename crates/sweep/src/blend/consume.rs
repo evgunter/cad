@@ -16,10 +16,10 @@
 //! one. Its faces, edges and vertices go; its cycles leave their faces,
 //! and the slivers and strips they lay in go with the band, cut away or
 //! buried: a support gives up its ring here, before the band's carve
-//! takes its strip, so the carve finds no ring there. The walk reads no material
-//! side: the region the feature encloses lies inside the prism, so the
-//! band's cut-off builds the same body whether that region is first
-//! filled (a bore) or removed (a bar).
+//! takes its strip, so the carve finds no ring there. The walk reads no
+//! material side: the region the feature encloses lies inside the
+//! prism, so the band's cut-off builds the same body whether that
+//! region is first filled (a bore) or removed (a bar).
 //!
 //! The walk, per feature, on the clone before the band is carved
 //! ([`consume`]): each ring of a feature's face is bridged to its outer

@@ -2470,6 +2470,28 @@ pub(super) fn strip_reading<T: Bounds>(
     })
 }
 
+/// **A support's ring as the strip is read through it**
+/// ([`strip_reading`]), by the clearance screen and by arm (a) of
+/// [`ring_clearance_pass`] alike: its edges, their stored pieces and the
+/// witnesses along them ([`strip_witnesses`]).
+pub(super) fn strip_ring<T: Decide>(
+    body: &Body<T>,
+    ring: LoopKey,
+) -> Result<StripRing<'_, T>, BlendError> {
+    let walk = loop_walk(body, ring)
+        .ok_or_else(|| unwalked(EntityId::Loop(ring), "a support face's ring"))?;
+    let edges: Vec<EdgeKey> = walk.into_iter().map(|(_, _, e)| e).collect();
+    let pieces = edges
+        .iter()
+        .map(|&e| stored_piece(body, e))
+        .collect::<Result<Vec<_>, _>>()?;
+    let witnesses = strip_witnesses(&pieces);
+    Ok((edges, pieces, witnesses))
+}
+
+/// A ring's edges, pieces and witnesses ([`strip_ring`]).
+pub(super) type StripRing<'b, T> = (Vec<EdgeKey>, Vec<Piece<'b, T>>, Vec<Point3<T>>);
+
 /// [`EDGE_SAMPLES`](super::reach::EDGE_SAMPLES) places along each piece,
 /// ends included: the witnesses a three-way reading decides, exactly
 /// where each is read.
@@ -2851,7 +2873,8 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     // still meters it, since arm (d) meters planar strips alone.
     //
     // Under a plane–plane band cut off at both ends, a ring is first
-    // read against the strip itself ([`strip_reading`]): one wholly
+    // read against the strip itself, through the pieces the screen reads
+    // it through ([`strip_ring`], [`strip_reading`]): one wholly
     // inside it is a cup's mouth the band may take, and joins the
     // request's three-way verdict as a cap's cycle does (`Unclear`); any
     // other is metered as below, so one crossing the trimline refuses.
@@ -2891,13 +2914,16 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 .ok_or_else(|| unresolved(EntityId::Face(face), "a link's support face"))?;
             let metered = |r: &&LoopKey| !l.arm.is_plane_plane() || !carried.contains(r);
             for &ring in fd.rings.iter().filter(metered) {
-                let pieces = ring_pieces(body, ring, face, opens, rims)?;
-                let read: Vec<Piece<'_, T>> =
-                    pieces.iter().map(|(_, c, w)| (c.as_ref(), *w)).collect();
-                if takes
-                    && let Some(CycleReading::Inside(deep)) =
-                        strip_reading(&read, &strip_witnesses(&read), frame, band)
-                {
+                let inside = if takes {
+                    let (_, read, witnesses) = strip_ring(body, ring)?;
+                    match strip_reading(&read, &witnesses, frame, band) {
+                        Some(CycleReading::Inside(deep)) => Some(deep),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
+                if let Some(deep) = inside {
                     let decision = BlendDecision::RingClearance;
                     let sign = classify(BlendSite::Chain, decision, Margin::of(deep), band)?;
                     unclear.taken_ring(
@@ -2916,6 +2942,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                     );
                     continue;
                 }
+                let pieces = ring_pieces(body, ring, face, opens, rims)?;
                 let margins = pieces
                     .into_iter()
                     .map(|(edge, carrier, window)| {

@@ -1147,11 +1147,20 @@ wholly inside the region, go at `ΔV = ∓(A·L − π·a²·h)`, where the band
 is one link cut off at both ends. The ring pass reads a support's ring
 against the strip across the edge; the clearance screen stands down on
 a ring that reading decides; the reach reads the cup in the band's core
-less that support's side, its other edges in the whole core, with the
-section's convexity along the support's normal paying a ruling square
-to the support. `consume` needed nothing new. The followability row's
-blind hole from the support face now builds. Filed
+less that support's side, its other edges in the whole core. A ruling
+square to the support pays nothing where the section is convex (the
+chamfer's) or the face lies on the support's side of the fillet ball's
+centre; a cup reaching past that centre pays its run across the spine,
+since at an acute dihedral a line along the support's normal can leave
+the section through the arc and come back in the cusp by the other
+support (both reviewers' probes, now rows in `band_dihedral_cups`, with
+the cap half's at 30°, 60°, 120° and 135°, which main builds right).
+The screen and arm (a) read a ring through one piece set
+(`surgery::strip_ring`), so a leaning round dimple's elliptic mouth now
+goes too. `consume` needed nothing new. The followability row's blind
+hole from the support face now builds. Filed
 `a-cup-on-a-strip-beside-a-band-not-cut-off-at-both-ends-is-not-carved`.
+
 ## 2026-10-19 — the blend arms place their centres at their inputs' scale (`band/arms-centre-placement`)
 
 `sheet_center`'s round × round arm reads `geom_core::Circles` for the
@@ -1163,6 +1172,7 @@ for the centre's offset from its first vertex. Rows in
 and `blend-corner-ball-cramer-anchors-at-the-world-origin`. Filed
 `plane-sphere-blend-spine-radius-by-differences-of-squares` here and
 `work/shell/topo-planar-offset-cramer-anchors-at-the-world-origin.md`.
+
 ## 2026-10-19 — the slate re-banded for the hand-back
 
 Ev (in chat): finish what matters, then hand the tail back rather than
