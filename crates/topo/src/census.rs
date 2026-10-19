@@ -44,9 +44,10 @@
 //!   opposite sides of the shared carrier).
 //! - **Refused as UNDECIDABLE** (the conservative loudness backstop,
 //!   [`sweep_cross_solid_backstop`]): cross-solid face pairs with a
-//!   curved side within reach — curved × curved (the conformal
-//!   cradle, boss-in-hole) and curved × planar (the embedded ball
-//!   cap, F5). Cone, torus and NURBS sides are reach-tested like any
+//!   curved side within reach and no gap in depth between them
+//!   (`depth_gap`) — curved × curved (the conformal cradle, a boss
+//!   touching its hole) and curved × planar (the embedded ball cap,
+//!   F5). Cone, torus and NURBS sides are reach-tested like any
 //!   other — every surface kind has a sound cheap reach bound
 //!   ([`face_reach`]); what refuses without a distance test is a
 //!   DESCRIPTION with no claim in it (a placeholder patch), not a
@@ -4257,7 +4258,7 @@ pub(crate) fn face_reach_in<T: Decide>(
                 point_hull(patch.control().iter().map(|p| frame.point(*p)))
             }
         },
-        crate::boolean::boxes::FaceBoxRule::SphereWindow => {
+        crate::boolean::boxes::FaceBoxRule::SphereWindow { .. } => {
             Some(crate::boolean::boxes::sphere_reach(body, f, band, frame))
         }
         crate::boolean::boxes::FaceBoxRule::TorusWindow {
@@ -4989,6 +4990,13 @@ const TOUCH_FOLD: &str = "census_touch_fold";
 const TOUCH_SPAN: &str = "census_touch_span";
 
 mod curved;
+mod depth_gap;
+#[cfg(test)]
+mod depth_gap_fuzz;
+mod point;
+#[cfg(test)]
+mod segment_fuzz;
+
 /// **The one door every verdict sign of the touch analysis comes
 /// through.** A [`Distance`] has a private field and one constructor,
 /// from a point and a plane, so a lever, a product or any other
@@ -4999,13 +5007,6 @@ mod curved;
 /// passes a normalized direction or a face's outward normal, and a
 /// normal scaled by a length would be a lever spelled as a plane; the
 /// source row states that blind spot.
-mod depth_gap;
-#[cfg(test)]
-mod depth_gap_fuzz;
-mod point;
-#[cfg(test)]
-mod segment_fuzz;
-
 mod metric {
     use super::{Band, Decide, Margin, Point3, Real, Sign, Vec3, decide};
 
@@ -6413,18 +6414,24 @@ fn backstop_apart<T: Decide>(
 ///    refuses typed: a saddle corner neither of its tests separates, a
 ///    sign in band, an
 ///    escalation, and anything a curved face takes part in — arm 1
-///    refuses a cross-solid pair with a curved side within reach BEFORE
-///    this arm runs, which is a PRECONDITION of the clear for curved
-///    instances, since vertices are a thin sample of a curved body.
+///    refuses every cross-solid pair with a curved side it cannot
+///    prove apart BEFORE this arm runs, and what it clears (a box gap,
+///    a turned direction, a gap in depth) is a proof that the two
+///    faces share no point. That is the PRECONDITION of the clear for
+///    curved instances: with every curved pair proved disjoint or
+///    refused, a clear's boundaries meet only where the exact sweeps
+///    and the touch analysis read them, so each shell lies wholly in
+///    or wholly out of the other's material, and one probed vertex of
+///    it decides which.
 ///
 ///    **Over-width in the containing reach box costs a probe per
 ///    vertex** where it costs anything: a pair whose margins are not
 ///    definitely negative is sent to the material test instead of being
 ///    cleared for free. On planar-only pairs the reach box is the
 ///    vertex hull, so the case is not reached; a reach box a curved
-///    face inflates belongs to a pair arm 1 refuses first
-///    (`bool4r1_probes::probe_d`). Each box rule claims exactly its
-///    construction (`boxes`' ceiling rows pin that).
+///    face inflates reaches it once arm 1 has proved that face's pairs
+///    apart (`bool4r1_probes::probe_d`). Each box rule claims exactly
+///    its construction (`boxes`' ceiling rows pin that).
 ///
 /// Arm 1 clears a pair ONLY on a definitely-positive separation margin
 /// (`census_backstop_gap` — metre coordinate differences — then the
@@ -7231,8 +7238,17 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             // not read is gated as outer. (3) The census is COMPLETE for
             // planar boundaries — every point where they meet stands as
             // a finding or a record — which is why `blocks` refuses on
-            // an escalation or an unexamined entity, and why a curved
-            // meeting is arm 1's to refuse first. A pair with nothing on
+            // an escalation or an unexamined entity. A curved pair is
+            // arm 1's: it refuses every one it cannot prove disjoint,
+            // and its clears (box, direction and depth gaps) are such
+            // proofs, so no curved meeting goes unseen. (4) Every shell
+            // has a vertex the probe reads: tier 1 refuses a shell with
+            // no face (`ShellWithoutFaces`), every face has an outer
+            // loop, and tier 2 refuses a lone-vertex loop at rest
+            // (`ScaffoldingEmptyLoop`), so each face's outer loop is a
+            // cycle of half-edges whose vertices `face_points` and the
+            // probe both see — no seamless sphere or torus shell is
+            // vertex-less. A pair with nothing on
             // record clears at the gate even beside an escalation, which
             // stands as the body's refusal.
             //

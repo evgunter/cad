@@ -687,7 +687,7 @@ fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
 }
 
 /// **(B) A clearance fit the census cannot decide still refuses.** A
-/// pin one box pad (`escalate + 2·zero`) inside the same bore: wide
+/// pin one box pad (`topo::test_support::sweep_pad`) inside the same bore: wide
 /// enough that every vertex and edge reads definitely clear of the
 /// other part, so the census decides no contact and no overlap, and
 /// narrower than the two pads the depth gap takes, so it cannot part
@@ -698,7 +698,7 @@ fn a_pin_bottoming_through_a_blind_bore_stays_loud() {
 #[test]
 fn a_clearance_fit_the_census_cannot_decide_stays_refused() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
-    let (doc, ..) = bore_and_pin(0.5 - (band.escalate() + 2.0 * band.zero()));
+    let (doc, ..) = bore_and_pin(0.5 - topo::test_support::sweep_pad(band));
     let run = corpus::eval::<f64>(&doc);
     match assemble(&doc, &run, Tol::witness()) {
         Err(editor_core::AssemblyError::AtRest { findings }) => assert!(
