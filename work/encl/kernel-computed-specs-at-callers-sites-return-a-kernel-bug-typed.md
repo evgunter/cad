@@ -3,6 +3,7 @@ id: kernel-computed-specs-at-callers-sites-return-a-kernel-bug-typed
 kind: issue
 title: A spec the kernel computed reaches a Callers certification site, so its span refusal returns typed instead of panicking
 status: review
+pr: 5413
 opened: 2026-10-19
 branch: encl/kernel-specs-origin
 ---
