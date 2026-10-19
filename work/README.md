@@ -162,8 +162,7 @@ walk and sweep wait on its slowest blocker, which can be indefinite.
 
 ## Priority
 
-Every item carries a band; a program does not (Ev, in chat,
-2026-10-19). The bands (Ev, in chat, 2026-09-20):
+Every item carries a band. The bands (Ev, in chat, 2026-09-20):
 
 - **P0 — very high.** A normal verb broken on normal geometry; a live
   wrong answer; something the GUI cannot author at all; a GUI defect
@@ -216,16 +215,6 @@ program carries no band of its own, so its place cannot outlive the
 work that put it there: when its last P0 closes it drops down the
 board, and filing a P0 on a quiet track raises it with no further
 step. To move a program, re-band its rows.
-
-**A sitting ends when its track's P0 and P1 rows are done.** Once the
-track has no dispatchable row at P0 or P1, the orchestrator does not
-go on to work the tail: it hands the track back (`ready`, or `blocked`
-if nothing is dispatchable), and the track's computed place says how
-urgent the remainder is. The exception is tail work the sitting is
-best placed to do — easy rows (`cost: E`) where the context the
-orchestrator has built up is what makes them cheap, such as a
-follow-up to a change it just landed. Do those before handing back;
-a row a successor could pick up just as cheaply is the successor's.
 
 ## Track size
 

@@ -45,9 +45,7 @@ Issues are files, not GitHub issues. Run
 `python3 scripts/work.py new <semantic-name> --kind issue --title "..."`
 (add `--program <p>` when the owner is obvious), write the finding in
 the body with its `file:line` citations, and commit it on your branch;
-`python3 scripts/work.py lint` must pass. Its `priority` band is
-absolute across the tracker, never relative to the program it lands
-in (`work/README.md`, Priority).
+`python3 scripts/work.py lint` must pass.
 
 ## Asking Ev
 
