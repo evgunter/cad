@@ -6459,3 +6459,17 @@ Signed (WIRE orchestrator).
   - Unit 2 must drop `wire_combine`'s #4323 citing filter: the pencil
     union still publishes only judged rows.
   (WIRE orchestrator)
+
+- 2026-10-19 — PR 5352 FULL review adjudicated: not mergeable as is.
+  The filter and its renumbering hold.
+  - MAJOR: two clone-to-input cell maps (`ChartCuts::input_cell`'s
+    meridian arm, and `ops::input_cell` for minted vertices) widen a
+    cell but keep the relation. So the PR publishes false rows: a cap
+    face OnCarrier a brick face, twice, and the pencil's seam OnCarrier
+    rim, where the truth is a crossing at a point.
+  - Fix pass: publish only rows whose input spelling is true. Hold
+    widened decisions as typed "decided, not yet spelled" entries, for
+    unit 2's k-ary meeting-dimension spelling to publish. Put both maps
+    in one function.
+  Class note: a cell map that changes a cell's dimension must own the
+  relation, or it turns a crossing into a coincidence. (WIRE orchestrator)
