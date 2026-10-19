@@ -6290,3 +6290,19 @@ Signed (WIRE orchestrator).
   review is dispatched. Its first claim is that the junction row
   appears in only 2 of 24 orders, a possible DM4 order-dependence the
   lane disclosed but did not check. (WIRE orchestrator)
+
+- 2026-10-19 — PR 5328 FULL review adjudicated: not mergeable as is.
+  - The blocker, sent back to the lane: `fold_vertex_forward` refuses
+    `Settle(Dead)` where `Links::judged` treats the vertex as consumed,
+    so a fifth member covering the junction makes two orders refuse
+    that built before. The fix pass also covers forwarding only cited
+    rows, a site check in the guard, the cone-aware settle,
+    `name_of` for the published name, and one helper with
+    `in_member_space`.
+  - The review's M1/M2 are pre-existing: row PRESENCE depends on member
+    order in `crossing_one_wedge` and `flush_onto_an_edge`, on main too.
+    That measures the three-member design row for unions. FORK-ROWPRESENCE
+    goes to a designer pair (problem only; blinding draw on the analysis
+    branch). DM4 says "one row in every order", so a rule change there
+    would be Ev's.
+  (WIRE orchestrator)
