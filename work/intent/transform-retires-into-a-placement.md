@@ -105,6 +105,10 @@ Closes the placement half of `a-boxed-rotation-refuses-not-rigid-at-every-placer
 
 So running the map at the nominal does not by itself make the lanes' decision lists agree: the plate's placements still flip. The next lane should find which decision differs between the nominal and a leaf once both run the map (`holds_rest`/`with_rest` are skipped on that path, and the transform's re-certification predicates may still decide differently). Then re-apply the narrowing with that fixed, re-run the plate study, chaintol and `certified`, and re-bless the f64 guards that move.
 
+**Window of 2026-10-19 (about 3% of usage left)**
+- **The tour die corpus:** `cargo run --release -- die-corpus ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` in `demos/tour` gives a file byte-identical to D's committed one (1,589,134 bytes) on D's head. Nightly 65's "not byte-regenerable since #5267" was raised against main's copy, which D replaces. Nothing that reads it needed re-pinning.
+- **msolve7 a4:** restated as `a4_every_checked_in_document_loads_and_its_bundles_reach_the_attribute`, since under D every placement is a bundle and the corpus now reaches the attribute. It asserts that every document loads and that the corpus carries bundles. 3/3 pass.
+
 **Known reds at the full-suite run on `ea25544a9a`:** 68 editor-core failures, listed with their owners above. pncad's 2 are re-bless. The viewer `--test all` suite needs a re-run (the 17 gallery_ring goldens are re-bless). The viewer's 2 lib reds are the GPU tests (no adapter). `every_suite_file_is_aggregated` fails only because of the local `zz_*` probe roots.
 
 **Uncommitted:** nothing. The local `zz_*` probe roots and their `Cargo.toml` entries were removed at handoff, so `every_suite_file_is_aggregated` passes again.

@@ -514,15 +514,16 @@ fn a4_a_stray_key_on_a_constraint_refuses_at_the_load_door() {
 }
 
 /// **Every checked-in document still loads under the attribute** —
-/// the stop clause's measurement, made rather than assumed. None of
-/// the four carries a mate between copies, so the corpus does not
-/// exercise the attribute at all: what it proves is that nothing
-/// checked in is refused, not that the attribute is reached.
+/// the stop clause's measurement, made rather than assumed. Since
+/// INTENT stage 3 D every placement is a bundle of mates and values (a
+/// construction stands in the world by a mate, and `die_tool.pncad`
+/// places one copy against another), so the corpus exercises the
+/// attribute: what it proves is that the bundles checked in load.
 ///
-/// *Breaks if* a tracked document stops loading, or starts carrying a
-/// mate this row would then have to reach.
+/// *Breaks if* a tracked document stops loading, or the corpus stops
+/// carrying a bundle for the attribute to reach.
 #[test]
-fn a4_every_checked_in_document_loads_and_none_carries_a_mate() {
+fn a4_every_checked_in_document_loads_and_its_bundles_reach_the_attribute() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let listed = std::process::Command::new("git")
         .args(["ls-files", "-z", "--", "*.pncad"])
@@ -537,6 +538,7 @@ fn a4_every_checked_in_document_loads_and_none_carries_a_mate() {
         .map(str::to_owned)
         .collect();
     assert_eq!(walked.len(), 4, "the corpus this row walks: {walked:?}");
+    let mut bundles = 0;
     for path in &walked {
         let text = std::fs::read_to_string(root.join(path)).expect("readable");
         let loaded = match load(&text, Tol::witness()) {
@@ -547,11 +549,12 @@ fn a4_every_checked_in_document_loads_and_none_carries_a_mate() {
             Err(PersistError::ToleranceConflict { .. }) => continue,
             Err(e) => panic!("{path}: loads under the attribute: {e}"),
         };
-        // A world pin is a constraint too, and targets the world: a
-        // mate between copies targets a pose of a space.
-        let mated = fixture::constrained(&loaded.doc);
-        assert!(mated.is_empty(), "{path}: the corpus carries no mate");
+        bundles += fixture::constrained(&loaded.doc).len();
     }
+    assert!(
+        bundles > 0,
+        "the corpus carries bundles the attribute reaches"
+    );
 }
 
 /// **The same bundle without the key loads**, bit for bit: the
