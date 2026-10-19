@@ -1232,3 +1232,13 @@ Signed (CLEAVE orchestrator).
   - Also: fold the duplicate tess row into the 10-02 row, share the nesting tail, stale docs, the mutant survivor, and file the two-slit-detector consolidation.
   - Confirmed: the tree walk is sound, volumes 15.7/16, no new refusals.
   - Fix pass sent.
+- 2026-10-19 — PR 5357 full review: APPROVE-WITH-FIXES, no MAJOR.
+  - No over-refusal: 535/535 Overlap refusals were confirmed independently, and the π seam rows are real overlaps. The cusp flip is valid; the staircase X was wrong on main; 5106's pins are green.
+  - Fixes:
+    - pin `read_again`'s 146 untracked refusals;
+    - restore `LineEdges` for the collinearity screen;
+    - read each line once (k² re-reads);
+    - read sheets over the shared span;
+    - stronger tests; leftovers.
+  - Ruling on typing: a definite overlap is a construction gap under D4 [loud-failure], not D10's `ResultInvalid`; cite both, change no ratified text.
+  - Fix pass sent.
