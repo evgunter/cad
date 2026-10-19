@@ -2,7 +2,8 @@
 id: check-10-reads-a-cavitys-role-from-its-volume-sign
 kind: issue
 title: Check 10 reads a cavity's role from its V/A, so a definite thin cavity (brick minus slab) refuses ShellRole though its faces are a definite pair
-status: review
+status: closed
+closed: 2026-10-19
 opened: 2026-10-11
 priority: P2
 cost: M
@@ -152,3 +153,25 @@ are aimed at in this PR).
   no ray read whose volume is in band (`SolidSide`).
 - Filed the needle class (P1, needs Ev) and the volume backstop's `+V`
   posture (P3); re-aimed the fin row at the at-rest crown.
+
+## Resolution
+
+Closed by PR 5119 (2026-10-19): one reader of a shell's role and a
+solid's side, `side_at_infinity` in `crates/topo/src/side_reader.rs`.
+- **The reader:** aimed rays, the first that decides answering. Where
+  no ray reads, the volume's sign is read from its certified enclosure
+  alone, through `props::role_walk`, the one home. Check 7, check 10,
+  `props::shell_role`, the pieces sort and the census all read through
+  it. The sliver hand-offs are retired.
+- **Ev's needle ruling** (fork-log row 176): the volume's sign is never
+  held against the band.
+- **Thin cavities:** the brick-minus-slab cavity, and needle cavities
+  down to the join's own limit, read `Void`.
+- **Residues:**
+  - `the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite`
+    (closed with this PR);
+  - `a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face`
+    (next unit);
+  - `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal`;
+  - `revalue-pairs-the-ray-casters-decisions-only-to-their-first-difference`;
+  - `a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read`.

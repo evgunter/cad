@@ -482,3 +482,9 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - **Tier: dual review**, letter H: an architectural change on the boolean's hot path, crossing into CLEAVE's `boolean/*`.
   - **Filed:** CONTACTHOLD `edge-in-face-spans-are-re-derived-in-the-carry-…` (B's off-question finding). A note on EMIT's held-edge row.
 — (FLUSH orchestrator)
+- 2026-10-19 — **PR 5119 closes `check-10-reads-a-cavitys-role-from-its-volume-sign` and `the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite`** (the volume half of Ev's needle ruling, fork-log row 176 after main's renumbering).
+  - A second delta review (both, concurrent) found no MAJOR. Fix pass 3: the lane-free doors read the volume's sign from `[V ± rounding_bound]`; the planar arm is exact for line-bounded plane shells and widened by `|a−c|·|A⊥|` elsewhere; R2 checked those two items again on the frozen head.
+  - R2's third check: APPROVE. Its one NOTE is that the lane-free bound is pessimistic.
+  - **Filed:** `a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read` (P2, M), `revalue-pairs-the-ray-casters-decisions-only-to-their-first-difference` (P3) and `the-lane-free-rounding-bound-charges-a-thin-face-its-spread-squared` (P3, M).
+  - **The slate is over budget:** 39 points against 32, several old rows unpriced at 2.5. It splits along its priority seam in a later sitting.
+— (FLUSH orchestrator)

@@ -2,7 +2,8 @@
 id: the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite
 kind: issue
 title: The side reader refuses a body thin in two directions whose pairs are all definite (check 7 as a thinness gate on needles)
-status: open
+status: closed
+closed: 2026-10-19
 opened: 2026-10-14
 priority: P1
 cost: M
@@ -105,3 +106,23 @@ Sequencing: the volume half (V/A off `read_role`, the enclosure's sign
 alone, the planar re-derivation as plane distance × face area) lands in
 PR 5119. The tie-reading ray and the volume backstop's V/A (Ev: "filing
 removing V/A on flush works") are the next FLUSH unit.
+
+## Resolution
+
+Closed by PR 5119 (2026-10-19) with the volume half of Ev's ruling.
+- **The volume's sign:** read from its certified enclosure alone, with
+  V/A gone from every role and orientation read:
+  - the planar arm is exact for line-bounded plane shells;
+  - other plane terms are widened by their own tilt bound;
+  - the lane-free path is read against the walk's own rounding bound.
+- **Measured** (both delta reviews, executed):
+  - the bar `brick (0,1)×(0,w)×(0,w)`, w 10.5–30ε, every pose, at ε
+    1e-9 and 1e-6: plain validates, inside-out is `NegativeVolume`;
+  - every `brick ∩ brick` needle at 2–5Kε that builds reads;
+  - the 1e-12 torus validates at rest;
+  - the sweep needles validate at rest again;
+  - width/|V| on turned needles went from 0.15 to 4.5e-16.
+- **What remains:**
+  - the edge-meeting ray, `a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face`;
+  - needle cavities at 10.5–15ε refusing at the join's section loop
+    before any read, `a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read`.
