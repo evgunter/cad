@@ -135,23 +135,6 @@ pub trait SolveScalar: Decide {
     fn holds_rest(_map: &Affine3<Self>) -> bool {
         true
     }
-
-    /// ZZN probe.
-    fn zz_lohi(self) -> (f64, f64) {
-        (self.quoted(), self.quoted())
-    }
-}
-
-/// ZZN probe.
-pub(crate) fn zz_v<T: SolveScalar>(label: &str, vs: &[geom_core::linalg::Vec3<T>]) {
-    if std::env::var_os("ZZN").is_none() { return; }
-    let mut out = String::new();
-    for c in vs { out.push_str(" |"); for e in [c.x, c.y, c.z] { let (lo, hi) = e.zz_lohi(); out.push_str(&format!(" {:.6}±{:.2e}", 0.5*lo+0.5*hi, 0.5*(hi-lo))); } }
-    eprintln!("ZZN {label}:{out}");
-}
-pub(crate) fn zz_s<T: SolveScalar>(label: &str, e: T) {
-    if std::env::var_os("ZZN").is_none() { return; }
-    let (lo, hi) = e.zz_lohi(); eprintln!("ZZN {label}: [{lo:e}, {hi:e}]");
 }
 
 impl SolveScalar for f64 {

@@ -2200,3 +2200,93 @@ fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
         other => panic!("expected RankedRunReordered, got {other:?}"),
     }
 }
+
+/// **Inline at a pose carries a copy seated on a construction with
+/// the construction**: a copy mated against a raw extrude is in that
+/// extrude's space, not the part's world, so the union of the two is
+/// what the part places, and a move of the part's world moves the
+/// union's copy and leaves the seat as written.
+///
+/// *Breaks if* inline refuses a reader of a copy, or a copy mated
+/// against a construction, that lives in a construction's space, which
+/// the instance's motion does not move.
+#[test]
+fn inline_at_a_pose_carries_a_copy_seated_on_a_construction() {
+    use editor_core::{CapEnd, EntityKind};
+    let part = ProfileDoc::empty(
+        DocumentId::derive("asm4-seated-on-construction"),
+        Tol::witness(),
+    );
+    let extrude = |doc: ProfileDoc, half: f64| {
+        let (doc, profile) = on_frame(
+            doc,
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(0.0, 0.0, half)],
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(1.0),
+            },
+        )
+    };
+    let (part, anchor) = extrude(part, 0.5);
+    let (part, body) = extrude(part, 0.25);
+    let (part, seat) = insert(
+        part,
+        Node::place(vec![editor_core::BodyRead::from(
+            editor_core::Operand::Node(body),
+        )]),
+    );
+    let cap = |node, end| StableName {
+        kind: EntityKind::Face,
+        node,
+        path: vec![RoleSeg::Cap(end)],
+    };
+    // The copy's bottom seated on the anchor's top, two along x.
+    let (part, _) = crate::p2_split::seat_at(
+        part,
+        seat,
+        fixture::head_at(body, cap(body, CapEnd::Start)),
+        fixture::head_at(anchor, cap(anchor, CapEnd::End)),
+        [2.0, 0.0],
+    );
+    let (part, union) = fixture::union_over(part, &[anchor, seat]);
+    let (part, world) = fixture::place(part, union);
+    let seat_bundle = fixture::bundle(&part, seat);
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part, Tol::witness());
+    let o = with_resolver(store.clone());
+    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
+    let host = ProfileDoc::empty(
+        DocumentId::derive("asm4-seated-on-construction-host"),
+        Tol::witness(),
+    );
+    let (host, instance) = pinned_at(host, doc_ref, [0.0, 0.0, 5.0], &o);
+    let inlined = inline(&host, instance, &resolver, Tol::witness())
+        .unwrap_or_else(|e| panic!("a copy in a construction's space inlines at a pose: {e}"));
+    assert_eq!(
+        fixture::bundle(&inlined.doc, inlined.node_map[&seat]).len(),
+        seat_bundle.len(),
+        "the seat is spliced as written, not re-pinned"
+    );
+    let landed = fixture::solve(&inlined.doc, &EvalOptions::default(), Tol::witness())
+        .placement(&inlined.doc, inlined.node_map[&world])
+        .expect("the union's spliced placement solves");
+    let want = editor_core::Frame::translation([0.0, 0.0, 5.0]);
+    let off = landed
+        .columns
+        .iter()
+        .flatten()
+        .zip(want.columns.iter().flatten())
+        .chain(landed.translation.iter().zip(&want.translation))
+        .map(|(x, y)| (x - y).abs())
+        .fold(0.0_f64, f64::max);
+    assert!(
+        off <= 1e-15,
+        "the union's copy takes the instance's pose, {off:e} off: {landed:?}"
+    );
+}

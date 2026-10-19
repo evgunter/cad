@@ -916,10 +916,21 @@ fn run_at<T: editor_core::EvalScalar>(
 /// chain's two seats moved, at the rounding level (by at most 1.55e-15 m,
 /// and 1.99e-15 over every settle with a slide), and every rotation,
 /// fault and space was unchanged.
+///
+/// And for INTENT stage 3 D (Transform retires into a placement, all
+/// three rows): C's world pin retired, so every copy the fixtures place
+/// where it stands is stood by `mate::stand`'s plane mate on a face no
+/// variable reaches, with constant zeros, and solves that mate where
+/// the pin read nothing; a profile carries no frame and an extrude no
+/// side, so the ids the digest feeds moved too. Measured separately:
+/// the box lanes' tight-map fixes (`mate::solve::tightened`,
+/// `Chart::turned`, Sym's at-rest snap) move no bit of this digest at
+/// any of the three ε, read on the tree that introduced them with each
+/// fix switched off and on, and after their switches were removed.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x5a2f_5c16_6195_4bfe),
-    (1e-6, 0xd704_eca9_f5eb_46f0),
-    (1e-12, 0x3e01_809a_0ff3_11eb),
+    (1e-9, 0x9fa4_a153_bf58_a0b5),
+    (1e-6, 0x1270_53ae_46cb_0d3f),
+    (1e-12, 0x099e_19b5_dcf1_6bda),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and

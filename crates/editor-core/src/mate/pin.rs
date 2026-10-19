@@ -539,9 +539,15 @@ pub fn place_at_in(
         )),
         role: PoseRole::Xy,
     };
-    let Ok(chart) =
-        super::value::Chart::of(&on, &to, None, false, &geom_core::RigidMotion::identity(), arm, band)
-    else {
+    let Ok(chart) = super::value::Chart::of(
+        &on,
+        &to,
+        None,
+        false,
+        &geom_core::RigidMotion::identity(),
+        arm,
+        band,
+    ) else {
         return pinned();
     };
     let chart = chart.unwrap_or_else(|| unreachable!("a plane mate has a chart"));
@@ -1062,7 +1068,11 @@ fn target_own_plane(
             .iter()
             .filter_map(|shape| doc.operation_of(shape.read))
             .find(|&shape| shape == of.node)
-            .or_else(|| shapes.first().and_then(|shape| doc.operation_of(shape.read))),
+            .or_else(|| {
+                shapes
+                    .first()
+                    .and_then(|shape| doc.operation_of(shape.read))
+            }),
         _ => None,
     };
     let fixed = |name: &crate::StableName| match name.copy_of() {
@@ -1088,7 +1098,10 @@ fn target_own_plane(
             None => (at.origin - Point3::origin(), n),
             Some(m) => {
                 let back = m.linear.transpose();
-                (back * ((at.origin - Point3::origin()) - m.translation), back * n)
+                (
+                    back * ((at.origin - Point3::origin()) - m.translation),
+                    back * n,
+                )
             }
         };
         [origin.z, n.x, n.y]

@@ -35,40 +35,45 @@ const FILES: [&str; 5] = [
 /// from B's branch record with main's blend change (`d5a518b1b2`).
 /// `kitchen_sink`'s row moved when a revolve's turned vertex came to
 /// turn its offset from the axis: 8 of its points, by at most 2 ulps
-/// (`m10_p_fence`'s header has the dump).
+/// (`m10_p_fence`'s header has the dump). Thirteen rows moved when a
+/// construction came to compute in its own coordinates and its
+/// placement to map it there: a body built off a datum moves by one
+/// composition's rounding, its word count kept, and `face_sketch`'s
+/// boss is placed against the box and unioned with it, so the box joins
+/// its product (28 words to 52).
 const PRE_C: [(&str, &str); 34] = [
-    ("die", "fa9ad86b30e8d844/532"),
-    ("corner_table", "1b26e7ae1ba4a066/100"),
+    ("die", "9b90c91fc8ab87a8/532"),
+    ("corner_table", "d6592911c796f3c2/100"),
     ("heat_sink", "986dd0b900fe3d32/268"),
     ("crossing_slots", "23d227ff22f6c626/100"),
     ("nested_islands_105", "07eda6db4f12636d/100"),
     ("nested_islands_106_depth1", "32fed3f5e12387ee/52"),
     ("nested_islands_106_depth2", "3a7999e85a64a33b/76"),
-    ("declared_tangency", "ea1ce7f968a62d47/88"),
-    ("kitchen_sink", "86db5c9ee0cedea5/196"),
+    ("declared_tangency", "56806263257aa12b/88"),
+    ("kitchen_sink", "e1a0bd3f815d79c0/196"),
     ("cut_cylinder", "cb8ccadf87044e7f/28"),
     ("measured_web", "f556ab19f06e9f9e/28"),
     ("boss_union", "a07c97077aedd76c/46"),
     ("die_fillet", "934f10b8156f9396/76"),
     ("die_chamfer", "934f10b8156f9396/76"),
-    ("die_pips", "2859880c273d7b35/37"),
+    ("die_pips", "64057d3b07e85fb7/37"),
     ("heat_sink_fins", "8a57c326dc5f71aa/124"),
-    ("die_tool", "1ecb739a2d22c24d/82"),
-    ("face_sketch", "c7144cb82dbe5c86/28"),
+    ("die_tool", "0dd163ae3f5c059a/82"),
+    ("face_sketch", "7809b39224c44527/52"),
     ("part_select", "e54d217adfa64523/52"),
     ("loft_prism", "36c0de6a313e3a66/28"),
-    ("die_composed", "182b02846757307e/88"),
-    ("die_composed_tour", "ca0b8371cb38e973/328"),
+    ("die_composed", "587f5ca67a34b858/88"),
+    ("die_composed_tour", "6c98bf4c5c636a73/328"),
     ("plate_param", "fd7b71fa51270532/88"),
     ("kiss_carry", "9efdca7b404d4e52/85"),
     ("tube_ring", "c342379c65eab6d1/10"),
-    ("tube_arc", "19b8e0af8227889b/16"),
-    ("hollow_tube_elbow", "9ae3e25a75d4fecd/28"),
+    ("tube_arc", "157736947a98199b/16"),
+    ("hollow_tube_elbow", "85f46f07a3392ced/28"),
     ("hollow_tube_ring", "1db62df6ebe2507d/16"),
     ("reshaped_rod", "128f9facfb4a7626/52"),
     (FILES[0], "8853ddff30bcec28/154"),
-    (FILES[1], "1ecb739a2d22c24d/82"),
-    (FILES[2], "ca0b8371cb38e973/328"),
+    (FILES[1], "0dd163ae3f5c059a/82"),
+    (FILES[2], "6c98bf4c5c636a73/328"),
     (FILES[3], "07c4e18f181e9b69/16"),
     (FILES[4], "fd7b71fa51270532/88"),
 ];
@@ -102,10 +107,9 @@ fn documents() -> Vec<(String, ProfileDoc)> {
                 false => format!("{l}\n"),
             })
             .collect();
-        let doc = match editor_core::persist::load(&text, Tol::witness()) {
-            Ok(l) => l.doc,
-            Err(e) => { eprintln!("TRIAGE {file} fails: {e}"); continue }
-        };
+        let doc = editor_core::persist::load(&text, Tol::witness())
+            .unwrap_or_else(|e| panic!("{file} loads: {e}"))
+            .doc;
         out.push((file.to_string(), doc));
     }
     out

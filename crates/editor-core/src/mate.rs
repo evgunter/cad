@@ -869,7 +869,6 @@ pub fn reference_about<T: SolveScalar>(
     };
     // The chord from `−z`: |d + z| = √(2(1 + c)), levered over `arm`.
     let chord = ((one + one) * one_plus_c).sqrt();
-    crate::mate::solve::zz_s("ref chord", chord);
     let sign = geom_core::k_stats::decide(
         "mate_chart_reference_antipode",
         geom_core::predicate::Margin::levered(chord, T::from_computed(arm)),

@@ -58,7 +58,14 @@ use topo::BooleanOp;
 /// name says two joins where a pair boolean's `a` operand said none.
 /// It says its claimed name by tag, which says each read a carry came
 /// through.
-const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 80)];
+///
+/// Raised 80 → 92 by INTENT stage 3 D (Transform retires into a
+/// placement): every construction is the root of its own space, so a
+/// later operand of a union is placed against the first before it is
+/// joined, and the name says that read too ("joined at Union … from
+/// Place …"), and its claimed name says one more read by tag. Filed as
+/// `name-words-budget-grew-under-placed-copy-wrapping`.
+const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 92)];
 
 /// **The rows whose own prose states its recourse in words the standard
 /// does not read as one** ("aim away from the shared edge" is marked;
@@ -133,9 +140,23 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// merged floor say its `Merged` parent, over both floors, where they
 /// said one of them. The longer sentences are the right names, not a
 /// regression. The percentiles, the maxima and the scoped row held.
+///
+/// Every number but the p50s and the scoped maximum moved with INTENT
+/// stage 3 D (Transform retires into a placement), and the full row
+/// grew: p99 122 → 128, max 196 → 366, total 411230 → 444393; the
+/// scoped row's p99 fell 43 → 41 and its total rose 55615 → 59553.
+/// Every construction is the root of its own space, so each operand
+/// after a combine's first is placed against the first's root, and its
+/// names come in wrapped `Placed { of }`, said "joined at Union … from
+/// Place …". The longest full name, in `nested_islands_106_depth2`, is
+/// a piece of a lateral edge between two crossings, whose ends say the
+/// edge again: each extra placement read is said three times over in
+/// it. Filed as `name-words-budget-grew-under-placed-copy-wrapping`;
+/// retiring `RoleSeg::Placed` and `InPart` in D′ is expected to bring
+/// them back, and D′ re-tightens this pin.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 55_615]),
-    ("full", [19, 122, 196, 411_230]),
+    ("scoped faces", [16, 41, 57, 59_553]),
+    ("full", [19, 128, 366, 444_393]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -234,7 +255,12 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// A seam citing the parent face (N3) moved it with [`NAME_WORDS`], in
 /// `crossing_slots` alone.
-const SAID_DIGEST: u64 = 0x04fa_b47e_1ab9_fbed;
+///
+/// INTENT stage 3 D (Transform retires into a placement) moved it in
+/// every document, with [`NAME_WORDS`]: the documents were re-spelled
+/// without `Datum` or `Transform`, so every tag moved, and every
+/// operand placed against a first operand's root says that placement.
+const SAID_DIGEST: u64 = 0xe85f_4b74_8286_8e39;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

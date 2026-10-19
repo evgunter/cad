@@ -252,8 +252,16 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("heat_sink", 0x1977adda3af1ea89, 0xa0f9f4647024018e),
     ("crossing_slots", 0xa509a00ec2edc86f, 0x87eaee507eb8bad9),
     ("nested_islands_105", 0x6c1987abab93a799, 0xa857c9a8c3ecf1af),
-    ("nested_islands_106_depth1", 0x2e52dc2c55161a19, 0x9c262132facf1f50),
-    ("nested_islands_106_depth2", 0x671438aa82666f7f, 0x33f241571951b831),
+    (
+        "nested_islands_106_depth1",
+        0x2e52dc2c55161a19,
+        0x9c262132facf1f50,
+    ),
+    (
+        "nested_islands_106_depth2",
+        0x671438aa82666f7f,
+        0x33f241571951b831,
+    ),
     ("declared_tangency", 0xd6f945f97903816a, 0xcb48511f21f65ba6),
     ("kitchen_sink", 0x34938d7def086d3e, 0x594b09778a847434),
     ("cut_cylinder", 0x35e8560f38a2616b, 0xa64a3a972e79d22a),

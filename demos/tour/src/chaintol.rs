@@ -750,6 +750,25 @@ mod tests {
     }
 
     #[test]
+    fn zz_chain_drive() {
+        let tol = Tol::witness();
+        let n: usize = std::env::var("ZZ_N").map(|v| v.parse().unwrap()).unwrap_or(1);
+        let built = chain(n, JOINT_SIGMA, POSITION_BOUND, tol);
+        let analyzed = analyzed_box(&built.doc, &AnalysisPolicy::default());
+        let ml: usize = std::env::var("ZZ_ML").map(|v| v.parse().unwrap()).unwrap_or(1);
+        let cfg = DriveConfig { max_leaves: ml, ..DriveConfig::default() };
+        let v = drive(&built.doc, &analyzed, &cfg, tol).expect("builds");
+        println!("ZZCHAIN receipt {:?}", v.receipt());
+        for l in v.refused().iter().take(6) { let t = format!("{:?}", l.reason); println!("ZZCHAIN reason {}", &t[..t.len().min(3000)]); }
+        let opts = whole_box(&built.doc);
+        let (budget, rules) = drive_dials();
+        pncad::geom_core::sym::with_session_rules(budget, rules, || {
+            let ev: Evaluation<Sym<Interval>> = evaluate(&built.doc, None, &CancelToken::new(), &opts, Tol::witness());
+            for id in &ev.order { if let Some(NodeResult::Ok(v)) = ev.result(*id) { if !v.escalations.is_empty() { let t = format!("{:?}", v.escalations); println!("ZZCHAIN esc {id} {}", &t[..t.len().min(1500)]); } } }
+        });
+    }
+
+    #[test]
     fn zz_rows() {
         let tol = Tol::witness();
         let links: Vec<usize> = std::env::var("ZZ_LINKS").map(|v| v.split(',').map(|x| x.parse().unwrap()).collect()).unwrap_or_else(|_| vec![1, 2]);

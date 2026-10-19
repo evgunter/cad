@@ -105,7 +105,6 @@ impl<T: SolveScalar> Chart<T> {
                 }
             })
         };
-        super::solve::zz_v("chart d,on,target", &[d.get(), copy_d.get(), target.linear.c0, target.linear.c1, target.linear.c2]);
         // The mated direction in the target body's own coordinates: on a
         // frame lane, read there where the target is read off a copy its
         // placement moved, which taking it back through the body's frame
@@ -118,7 +117,6 @@ impl<T: SolveScalar> Chart<T> {
             Some(n) => n,
             None => unit(target.linear.transpose() * d.get())?,
         };
-        super::solve::zz_v("chart own_d", &[own_d.get()]);
         // The swung `x` is the target's turn of a unit vector and `y` the
         // cross of two orthonormal ones, so each is unit over the reals
         // at every point a box spans: a frame lane keeps the image as it
@@ -130,7 +128,11 @@ impl<T: SolveScalar> Chart<T> {
         let x = if T::spins_by_frames() { swung } else { x.get() };
         let across = d.get().cross(x);
         let y = unit(across)?;
-        let y = if T::spins_by_frames() { across } else { y.get() };
+        let y = if T::spins_by_frames() {
+            across
+        } else {
+            y.get()
+        };
         Ok(Some(Self {
             d,
             x,

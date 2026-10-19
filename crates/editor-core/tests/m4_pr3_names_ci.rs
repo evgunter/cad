@@ -120,7 +120,12 @@ const DIE_TABLE_DIGEST: u64 = 0xf50bd202c91a22dc;
 /// subtracts name each carried entity `From { read, of }`, keyed by the
 /// seat's read, and their node ids re-minted with the node kind. The same
 /// fence held.
-const DIE_NAMES_DIGEST: u64 = 0x3f10_73cd_9fef_9d08;
+///
+/// **Re-pinned for INTENT stage 3 D** with `DIE_TABLE_DIGEST`: every id
+/// moved with the frame nodes, and a pip operand is placed against the
+/// die's root before it is joined, so the names it carries are wrapped
+/// `Placed { of }`.
+const DIE_NAMES_DIGEST: u64 = 0x2f79_041d_6dcc_702a;
 
 #[test]
 fn die_name_tables_are_golden() {

@@ -679,12 +679,7 @@ where
                     .flatten()
                     .filter(|_| T::spins_by_frames())
                     .and_then(|at| {
-                        pose::own_direction(
-                            doc,
-                            to_results,
-                            crate::pose::RoleRead::plain(*var),
-                            at,
-                        )
+                        pose::own_direction(doc, to_results, crate::pose::RoleRead::plain(*var), at)
                     });
                 (to, space, (body, own))
             }
@@ -694,7 +689,11 @@ where
                     .map_err(|f| fault(MateFault::WorldRead { mate, fault: f }))?;
                 let to = pose::eval_world(world, params, b)
                     .map_err(|kind| unevaluated(MateSide::To, kind))?;
-                (to, Space::World, (Ok(geom_core::RigidMotion::identity()), None))
+                (
+                    to,
+                    Space::World,
+                    (Ok(geom_core::RigidMotion::identity()), None),
+                )
             }
         };
         match target_space {
@@ -776,12 +775,13 @@ where
             };
             // A map the solve composed as motions is placed as the motion
             // it is; any other is admitted from its entries.
-            let motion = |map, composed: Option<(crate::mate::value::Composed<T>, bool)>| {
-                match composed.and_then(|(c, rest)| c.motion(rest, b)) {
+            let motion =
+                |map, composed: Option<(crate::mate::value::Composed<T>, bool)>| match composed
+                    .and_then(|(c, rest)| c.motion(rest, b))
+                {
                     Some(motion) => Ok(Some(motion)),
                     None => crate::mate::solve::admitted(crate::mate::solve::marked(map), b),
-                }
-            };
+                };
             Ok((
                 match placed {
                     Some((map, composed)) => motion(map, composed)?,

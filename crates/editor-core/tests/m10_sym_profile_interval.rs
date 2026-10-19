@@ -302,22 +302,30 @@ fn eps_row(eps: f64) -> usize {
 /// forms it used to build first are now built under `Plain/Assertion`
 /// (2690 → 2697). Its digests move at every row; the `Early/*` lines
 /// and the largest form hold.
+///
+/// INTENT stage 3 D (Transform retires into a placement) re-spells the
+/// slab's fixture (`bounded_chamber`) without a datum frame: its
+/// profiles are 2-D and its bodies reach the world through `Place`s. Four
+/// `Assertion` calls fewer per walk (514 → 510), `Plain/Decision` 9415 →
+/// 9296 forms, `Plain/Assertion` 2697 → 2658 and `Early/Assertion`
+/// 4121 → 4082, and those lines' digests at every row; `Early/Decision`,
+/// the frozen counts and the largest form hold.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 928 forms 9415 frozen 0 digest 9fd9683c510b6d13533481894aff86fe\n\
-     Plain/Assertion calls 514 forms 2697 frozen 0 digest 987caa300000f10b707150f4903f8be1\n\
+     Plain/Decision calls 928 forms 9296 frozen 0 digest ead00add6303cfe3afd957687009fe05\n\
+     Plain/Assertion calls 510 forms 2658 frozen 0 digest e1541a78f8f4abed6c8e5c15e2793fda\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4121 frozen 0 digest 05a8fa1aaad6a11bf8548406e96878e4",
+     Early/Assertion calls 510 forms 4082 frozen 0 digest 8eb3b5fa7ca7c1958514ad75419e8c16",
     "\
-     Plain/Decision calls 928 forms 9415 frozen 0 digest 7572a0635345c9fe906c50fadd763ce0\n\
-     Plain/Assertion calls 514 forms 2697 frozen 0 digest 9a2a9a3f8ddf5ff8d89e4b9066866446\n\
+     Plain/Decision calls 928 forms 9296 frozen 0 digest 1a6dff2ec7b13ecf560079e0c5824eac\n\
+     Plain/Assertion calls 510 forms 2658 frozen 0 digest e6a1294b12d7dd57c397fba5d8af2e27\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4121 frozen 0 digest dcc9543706fd55fd98e91ebcd58ab72a",
+     Early/Assertion calls 510 forms 4082 frozen 0 digest 47eb3beb5067b0bf39ad27d2c2613d3e",
     "\
-     Plain/Decision calls 928 forms 9415 frozen 0 digest 4c421c5d18739546779e9a8966c18e71\n\
-     Plain/Assertion calls 514 forms 2697 frozen 0 digest f4ccbb5ade82a6f3191ad5729591c479\n\
+     Plain/Decision calls 928 forms 9296 frozen 0 digest 9ad165a22879dc45aa224a57639a4dc5\n\
+     Plain/Assertion calls 510 forms 2658 frozen 0 digest 0a8c9ba38803a2632e9965fb46605063\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4121 frozen 0 digest e8e45d5267b25b64b653e18901a234c1",
+     Early/Assertion calls 510 forms 4082 frozen 0 digest 6504fc191bce5aafe5800460d9f2af59",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -619,12 +627,24 @@ const PLATE_MAX_TERMS: usize = 28;
 /// 5753 → 5790 forms, which it now builds where the check's walk built
 /// them first, and both digests; the frozen counts, the `Early/*` and
 /// `Door/*` lines and the largest form hold.
+///
+/// INTENT stage 3 D (Transform retires into a placement) re-spells the
+/// plate without datum frames, each construction placed into the world
+/// by a `Place`, and the box lanes' solved map stays tight (a spin set
+/// from the two charts' frames, a direction exactly on an axis read as
+/// that axis, Sym snapping at rest where its lane does). Together:
+/// `Plain/Decision` 1003 → 1009 calls, 16013 → 16400 forms and 324 → 24
+/// frozen; `Plain/Assertion` 654 → 662 calls, 5790 → 5800 forms and 405
+/// → 137 frozen; `Early/Decision` 352 → 254 calls and 8955 → 8496
+/// forms; `Early/Assertion` 654 → 662 calls and 6972 → 7204 forms;
+/// `Door/Decision` 396 → 406 calls and 7987 → 8218 forms; every digest.
+/// The largest form holds.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1003 forms 16013 frozen 324 digest 5a00e900e5b75a93d7c4a204eab0bb17\n\
-     Plain/Assertion calls 654 forms 5790 frozen 405 digest eae9779dd552c4c2607469dbee61dbef\n\
-     Early/Decision calls 352 forms 8955 frozen 0 digest b7df112980f31400f624889d1eabd515\n\
-     Early/Assertion calls 654 forms 6972 frozen 0 digest f0e4564a343b8e6322ec666c5a03e5ab\n\
-     Door/Decision calls 396 forms 7987 frozen 0 digest f849cdbc1af49b153010b84116530ce4";
+     Plain/Decision calls 1009 forms 16400 frozen 24 digest 72a5e69bdb2b1df308056b0ee6a8f4e4\n\
+     Plain/Assertion calls 662 forms 5800 frozen 137 digest f2eab1e1caad7616d2fa41746bd34354\n\
+     Early/Decision calls 254 forms 8496 frozen 0 digest 39ee9ebb36e932a011f27f5160eb2c1b\n\
+     Early/Assertion calls 662 forms 7204 frozen 0 digest 4259609da1ae127fdb26abac55290553\n\
+     Door/Decision calls 406 forms 8218 frozen 0 digest 73b23be2f205c87a6fecb6ade02de2fe";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

@@ -1455,11 +1455,15 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 
 /// **What the door proves on the tour's composed dies**: the blend
 /// joints whose `fillet3_chain_g1` margin is the zero polynomial. One of
-/// `die_composed`'s two and 21 of `die_composed_tour`'s 42 prove as
-/// theorems, and the rest stay unproven.
+/// `die_composed`'s two and 14 of `die_composed_tour`'s 42 prove as
+/// theorems, and the rest stay unproven. The tour's pips are copies
+/// placed against the die's faces; a copy placed by a frame turned off
+/// the die's own axes reaches its rim through that turn's sine and
+/// cosine, and its joints stay unproven
+/// (`work/intent/a-turn-by-the-nearest-quarter-turn-rounds.md`).
 #[test]
 fn the_door_proves_half_the_composed_dies_joints() {
-    for (name, proved, rows) in [("die_composed", 1, 2), ("die_composed_tour", 21, 42)] {
+    for (name, proved, rows) in [("die_composed", 1, 2), ("die_composed_tour", 14, 42)] {
         let cd = crate::corpus::documents()
             .into_iter()
             .find(|cd| cd.name == name)

@@ -626,6 +626,26 @@
 //! pin, so the placement's id and every id drawn after it moved. The
 //! id-free row held without a re-bless: no outcome and no point moved
 //! at `f64`.
+//!
+//! **EVERY NUMBER MOVED, THE ID-FREE ONE TOO, FOR INTENT STAGE 3 D
+//! (Transform retires into a placement), and for a structural reason.**
+//! Every corpus document was re-spelled: no profile reads a
+//! `Datum::Frame` node, so each document's `datum` outcomes left the
+//! stream; every `Transform` is a `Place`, and a construction that stood
+//! on a moved frame is built in its own coordinates and placed where the
+//! frame stood, so `Place` outcomes and their copies' points joined it
+//! (`edit_placement_corpus_bits` holds 118 placements where it held 51);
+//! and `face_sketch`'s boss is unioned with its box, a node and a body
+//! of its own. The id-free digest moves with the node count, as it did
+//! at DOCM-3 and INTENT stage 2 C. What the documents deliver is held
+//! by `m4_pr8_corpus::exact_mass_pins_hold`, whose pins held but
+//! `face_sketch`'s, restated as the box and the boss together. The f64
+//! number was measured once more apart from D's re-spelling: the box
+//! lanes' tight-map fixes (`mate::solve::tightened`, `Chart::turned`,
+//! Sym's at-rest snap) move none of the `f64` or id-free bits, read on
+//! the tree that introduced them with each fix switched off and on.
+//! The line-by-line `cert3r1_dump` differential against main was not
+//! taken for this change.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -921,7 +941,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x2e03_527c_cebb_fff7, 0x6672_c1c3_d4af_bf7b),
+        (0x59b9_9bd6_d90b_d9d8, 0xa9d3_19da_ec78_b184),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -947,7 +967,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xbf0f_56b7_f284_574a, 0xec82_7d10_2242_66be),
+        (0x5a5a_03a2_9442_482a, 0x520c_5631_b0f4_c806),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -971,7 +991,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x2e03_527c_cebb_fff7, 0x6672_c1c3_d4af_bf7b),
+        (0x59b9_9bd6_d90b_d9d8, 0xa9d3_19da_ec78_b184),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -1049,7 +1069,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x11fd_f174_84df_1e57, 0x5313_d5ea_f44e_df93),
+        (0x02bb_6f18_02df_d691, 0xba54_1f54_ab45_e0ed),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

@@ -634,7 +634,11 @@ pub(crate) fn own_direction<T: Decide>(
             if let Some(edge) = names::EntityKey::edge(key) {
                 return Some(topo::readback::edge_pose(&body, edge).ok()?.axis);
             }
-            Some(topo::readback::face_pose(&body, names::EntityKey::face(key)?).ok()?.axis)
+            Some(
+                topo::readback::face_pose(&body, names::EntityKey::face(key)?)
+                    .ok()?
+                    .axis,
+            )
         }
         PoseDef::Slide { pose, .. } => own_direction(doc, results, *pose, copy),
         PoseDef::Flip { pose } => own_direction(doc, results, *pose, copy).map(|v| -v),

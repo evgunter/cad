@@ -3322,11 +3322,6 @@ impl crate::mate::SolveScalar for geom_core::Interval {
         true
     }
 
-    fn zz_lohi(self) -> (f64, f64) {
-        use geom_core::Bounds;
-        (self.lo(), self.hi())
-    }
-
     fn exactly_zero(self) -> bool {
         use geom_core::Bounds;
         self.lo() == 0.0 && self.hi() == 0.0
@@ -3485,10 +3480,6 @@ where
 
     fn exactly_zero(self) -> bool {
         self.value.exactly_zero()
-    }
-
-    fn zz_lohi(self) -> (f64, f64) {
-        self.value.zz_lohi()
     }
 
     fn spins_by_frames() -> bool {

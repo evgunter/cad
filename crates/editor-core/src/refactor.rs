@@ -3983,6 +3983,11 @@ pub fn inline(
         .into_iter()
         .filter(|&p| part_poses.space(p) == Some(crate::mate::Space::World))
         .collect();
+    // A placement whose mates read a construction's pose is in that
+    // construction's space, which a move of the part's world leaves
+    // where it is.
+    let in_loose_space =
+        |p: RecipeNodeId| matches!(part_poses.space(p), Some(crate::mate::Space::Loose { .. }));
     let reads_world = |p: RecipeNodeId| {
         part.node(p)
             .and_then(crate::mate::solve::bundle_of)
@@ -4101,8 +4106,9 @@ pub fn inline(
             }
         }
         // The part's world moves and its constructions, each the root of
-        // its own space, do not: an operation reading a copy would read
-        // it moved against them.
+        // its own space, do not: an operation reading a world copy would
+        // read it moved against them. A copy in a construction's space
+        // is not moved, so reading it is not refused.
         for id in part.ids() {
             let Some(node) = part.node(id) else { continue };
             if matches!(
@@ -4119,7 +4125,7 @@ pub fn inline(
                 matches!(
                     part.node(input),
                     Some(Node::Place { .. } | Node::InstantiatePart { .. })
-                )
+                ) && !in_loose_space(input)
             }) {
                 return Err(InlineError::ConstructionReadsCopy {
                     node: part.spoken(id),
@@ -4137,6 +4143,9 @@ pub fn inline(
     };
     if world_moves {
         for placement in part.placements() {
+            if in_loose_space(placement) {
+                continue;
+            }
             let Some(bundle) = part.node(placement).and_then(crate::mate::solve::bundle_of) else {
                 continue;
             };
