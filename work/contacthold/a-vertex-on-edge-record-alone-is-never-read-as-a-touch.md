@@ -29,3 +29,8 @@ records too, which `recorded` reads today on their word.
 
 Owed: read a confirmed v-on-e record as a site, and tie only confirmed
 records into a link.
+
+Placed on CONTACTHOLD (RESTREAD orchestrator's fix pass on PR 5331): the
+question is how a record is read when nothing else names its point, which is
+the D10 hold's ground (`declared-only-meetings-clear-at-the-census-gate-unread`),
+not the census's touch reading.

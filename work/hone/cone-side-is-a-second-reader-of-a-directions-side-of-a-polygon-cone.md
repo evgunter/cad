@@ -38,7 +38,7 @@ onto the census reader did not fit the unit that made it.
 ## Evidence that one can serve both
 
 `crates/topo/src/boolean/sectors/cone_fuzz.rs` now reads the census
-reader (`census::link_side`, test-only) beside `cone_side` and
+reader (`census::bare_cone_reads`, test-only) beside `cone_side` and
 `wedge_classes` on every cone and probe of its families (stars, thin
 fins and slivers, turned stars, graze, bound, long-probe darts), under
 the same exact oracle and the same rule that a class decided in band is
