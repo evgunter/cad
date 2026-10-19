@@ -108,6 +108,11 @@ fn a0_alone() -> SymRules {
 /// when the final non-finite check stopped deciding `value · 0` and
 /// started asking boundedness (`expr-non-finite-asks-value-times-zero`):
 /// those 26 were its theorems on the slab. Numeric and frozen do not move.
+///
+/// Numeric rose by four in both tiers (265 -> 269, 257 -> 261) when the
+/// profile's joint pass began reading each joint's turn
+/// (`path_junction_turn`) after carrier identity: the slab's four
+/// line/line joints each decide one more, numerically.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -137,13 +142,13 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=456 numeric=265 frozen=0",
+        "decisions symbolic=456 numeric=269 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=464 numeric=257 frozen=0",
-        "eight of the 265 numeric refusals are comparisons of two rational CONSTANTS, which \
+        "decisions symbolic=464 numeric=261 frozen=0",
+        "eight of the 269 numeric refusals are comparisons of two rational CONSTANTS, which \
          A0 decides exactly"
     );
     assert_eq!(
