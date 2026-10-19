@@ -1279,3 +1279,8 @@ Signed (CLEAVE orchestrator).
   - Tangent, Curved and DividedEndTouched now refuse before parting; new `SlitTipUnread` for a 0° tip between two line edges.
   - My call: accept that 150 void-ray cells now refuse `SlitTipUnread` (typed, no lever). They built on main only from a rider-form operand. Filed P2 `a-boolean-reading-a-slit-tip-refuses-its-zero-corner`.
   - Full review dispatched.
+- 2026-10-19 — PR 5357 narrow re-review: MERGE.
+  - Verdicts agree 100% after the reader restructure, with per-test counts identical.
+  - The worst time was load; the levers are truthful.
+  - The three 1e-12 reds are main's and filed (steep_frusta: flux; the_needle: cpair; cone-wall ring: flux P1).
+  - The PR conflicts with main: the lane is merging, then I land it. 5380 merges after it.
