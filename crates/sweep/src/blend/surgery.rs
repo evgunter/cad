@@ -1036,7 +1036,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                 },
             // Written below, after these rows are checked.
             edge_joins: _,
-            reshaped: _,
+            source: _,
         } = &rec;
         let edge_sources = blends
             .iter()
@@ -1112,7 +1112,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     rec.dead.vertices.sort_unstable();
     rec.dead.vertices.dedup();
     rec.dead.faces.sort_unstable();
-    rec.reshaped = topo::reshaped_cells(source, &body, &rec.edge_joins);
+    rec.source = topo::SourceGeometry::of(source);
     Ok(Blended {
         body,
         shells,

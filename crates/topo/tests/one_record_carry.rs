@@ -625,23 +625,21 @@ fn face_on(body: &topo::Body<f64>, axis: usize, at: f64) -> topo::FaceKey {
         .expect("the face")
 }
 
-/// **A real touch lands unread on cells an op keeps, and is re-read on
-/// cells it reshapes.** The corner-on-slab rest, through offsets of the
-/// slab's side face x = 4:
+/// **A record on a cell an offset trims is re-read.** The
+/// corner-on-slab rest, through an offset of the slab's side face
+/// x = 4:
 ///
-/// - by −0.5, which reshapes the slab's top (its region shrinks to
+/// - by −0.5, which trims the slab's top on its carrier (its region shrinks to
 ///   x ≤ 3.5, the corner at x = 2 still inside it): the rest goes to the
 ///   census's confirm, reads met, and lands;
 /// - the same offset, the record restated on the slab's bottom
 ///   (bookkeeping, no touch): the confirm reads it apart, and it is
 ///   consumed, never landed unread.
 ///
-/// And through the offset of the tilted cube's own far face, which
-/// moves neither the corner nor the slab's top: the rest lands unread.
-/// Red on the carry that reads a reshaped cell as kept: the bottom
-/// record then landed.
+/// Red on the carry that reads a trimmed cell as kept: the bottom record
+/// then landed.
 #[test]
-fn a_reshaped_cell_is_re_read_and_a_kept_one_lands_unread() {
+fn a_record_on_a_cell_an_offset_trims_is_re_read() {
     let base = corner_on_slab();
     let [corner, top] = base.contacts.rows()[0].cells();
     let bottom = Cell::Face(face_on(&base.body, 2, 0.0));
@@ -649,17 +647,6 @@ fn a_reshaped_cell_is_re_read_and_a_kept_one_lands_unread() {
     let mut moved = topo::Body::clone(&base.body);
     let outcome =
         topo::replace_face_offset(&mut moved, side, -0.5, tol()).expect("the side moves in");
-    let lineage = outcome.lineage();
-    assert!(
-        matches!(lineage.fate(top), topo::Fate::Divided(_)),
-        "the top is reshaped: {:?}",
-        lineage.fate(top)
-    );
-    assert!(
-        matches!(lineage.fate(corner), topo::Fate::Kept { .. }),
-        "the corner is kept: {:?}",
-        lineage.fate(corner)
-    );
     let rest = outcome
         .carry_contacts(
             &base.contacts,
@@ -697,8 +684,8 @@ fn a_reshaped_cell_is_re_read_and_a_kept_one_lands_unread() {
 /// halves back into one face, absorbing one of them into the other. In
 /// whichever of the two cuts (x = 1, x = 3) the corner's half is the
 /// absorbed one, its fate is `Substituted` and the rest lands on the
-/// kept face. Red where a substituted cell's record is re-read or
-/// dropped.
+/// kept face. Red where a substituted cell's record is dropped, or
+/// left on the absorbed face.
 #[test]
 fn a_real_touch_on_a_substituted_face_lands_on_its_substitute() {
     let mut substituted = 0;

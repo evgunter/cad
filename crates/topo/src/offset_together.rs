@@ -176,9 +176,9 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<crate::replace_face::OffsetOutcome, ReplaceFaceError<T>> {
-    let before = body.clone();
+    let source = crate::SourceGeometry::of(body);
     let joins = offset_planes_together_staged(body, moves, band, tol, true)?;
-    Ok(crate::replace_face::OffsetOutcome::of(&before, body, joins))
+    Ok(crate::replace_face::OffsetOutcome::of(source, joins))
 }
 
 /// [`offset_planes_together`], ending with the join where `join` is set. Unset, the

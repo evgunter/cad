@@ -2883,10 +2883,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("ops.rs", "sphere_extent_scan", "SphereQuestion::Nested", 1),
-    ("ops.rs", "carried", "BooleanDecision::VertexOnVertex", 1),
     (
         "ops.rs",
-        "record_classes",
+        "vertices_meet",
         "BooleanDecision::VertexOnVertex",
         1,
     ),

@@ -1,13 +1,15 @@
-//! **A cap a fillet band carves is reshaped.** A fillet of radius 0.1
-//! on a unit cube's edge along x at y = z = 0 ends on the faces x = 0
-//! and x = 1 and carves a corner off each. The blend keeps each cap's
-//! key; its lineage states it reshaped, so a record on it goes to the
-//! census's confirm rather than landing unread. Red on the lineage that
-//! called a carved cap kept.
+//! **A cap a fillet band carves is read, not kept.** A fillet of radius
+//! 0.1 on a unit cube's edge along x at y = z = 0 ends on the faces
+//! x = 0 and x = 1 and carves a corner off each. The blend keeps each
+//! cap's key, but its boundary is other edges now, so a record on it
+//! goes to the census's confirm rather than landing unread. A
+//! bookkeeping record (the far corner (0, 1, 1) against the cap x = 1,
+//! no touch) is read apart and consumed. Red on the lineage that called
+//! a carved cap kept: the record then landed.
 //!
 //! A body touching a cap inside the carved corner, the record that
-//! would then land false, is refused before any carry: a tilted cube
-//! balanced on its corner at (1, 0.01, 0.01) makes the battery refuse
+//! would land false, is refused before any carry: a tilted cube balanced
+//! on its corner at (1, 0.01, 0.01) makes the battery refuse
 //! `FaceClearance` on that cube's face.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -21,20 +23,21 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn caps(body: &Body<f64>) -> Vec<FaceKey> {
+fn cap(body: &Body<f64>) -> FaceKey {
     body.faces()
-        .filter(|(_, f)| {
+        .find(|(_, f)| {
             matches!(
                 body.get_surface(f.surface),
-                Some(Surface::Plane { normal, .. }) if normal.x.abs() == 1.0
+                Some(Surface::Plane { origin, normal, .. })
+                    if normal.x.abs() == 1.0 && origin.x == 1.0
             )
         })
         .map(|(k, _)| k)
-        .collect()
+        .unwrap()
 }
 
 #[test]
-fn the_caps_a_band_carves_are_reshaped() {
+fn a_record_on_a_cap_a_band_carves_is_read() {
     let cube = finished(
         "cube",
         brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()),
@@ -47,15 +50,25 @@ fn the_caps_a_band_carves_are_reshaped() {
     let [edge] = found[..] else {
         panic!("{found:?}")
     };
+    let far = cube
+        .vertex_points()
+        .find(|(_, p)| near(*p, Point3::new(0.0, 1.0, 1.0)))
+        .map(|(k, _)| k)
+        .unwrap();
+    let record: topo::ContactRecords = [topo::Cited::new(
+        topo::Contact::new(&cube, Cell::Vertex(far), Cell::Face(cap(&cube))).unwrap(),
+        topo::Cites::decided(0),
+    )]
+    .into_iter()
+    .collect();
     let out = fillet_edges(&cube, &[edge], 0.1, tol()).expect("the fillet builds");
-    let lineage = out.lineage();
-    let caps = caps(&cube);
-    assert_eq!(caps.len(), 2, "the faces x = 0 and x = 1");
-    for f in caps {
-        assert!(
-            matches!(lineage.fate(Cell::Face(f)), topo::Fate::Divided(_)),
-            "the carved cap {f:?} is reshaped: {:?}",
-            lineage.fate(Cell::Face(f))
-        );
-    }
+    assert_eq!(
+        out.carry_contacts(
+            &record,
+            geom_core::Band::linear(tol()).unwrap(),
+            Some(topo::RegionLane::certified())
+        ),
+        Ok(topo::ContactRecords::default()),
+        "the record on the carved cap is read apart and consumed"
+    );
 }

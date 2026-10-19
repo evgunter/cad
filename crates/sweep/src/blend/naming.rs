@@ -255,8 +255,10 @@ pub struct BlendNaming {
     /// (`topo::join_covers`).
     pub edge_joins: Vec<topo::EdgeJoin>,
 
-    /// The source cells the blend kept the key of and changed the
-    /// geometry of ([`topo::reshaped_cells`]): a cap a band's end carves,
-    /// a face whose boundary the join or a trim redrew.
-    pub reshaped: Vec<topo::Cell>,
+    /// The source's geometry before the blend wrote
+    /// ([`topo::SourceGeometry`]): a record lands unread only on images
+    /// that hold it, so a cap a band's end carves, or a face whose
+    /// boundary the join or a trim redrew, is read. Empty on a naming no
+    /// blend made, and every record is then read.
+    pub source: topo::SourceGeometry,
 }

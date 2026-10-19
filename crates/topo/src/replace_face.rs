@@ -1396,9 +1396,9 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     d: T,
     tol: Tol,
 ) -> Result<OffsetOutcome, ReplaceFaceError<T>> {
-    let before = body.clone();
+    let source = crate::SourceGeometry::of(body);
     let joins = replace_faces_offset_staged(body, faces, d, tol, true)?;
-    Ok(OffsetOutcome::of(&before, body, joins))
+    Ok(OffsetOutcome::of(source, joins))
 }
 
 /// **Each boundary edge's planned verdict** for moving one non-cone
@@ -1637,22 +1637,18 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
 pub struct OffsetOutcome {
     /// The joins, in the order made.
     pub joins: Vec<crate::boolean::EdgeJoin>,
-    /// The cells the door kept the key of and moved
-    /// ([`crate::reshaped_cells`]): the moved faces, their edges and
-    /// vertices, and every cell a moved vertex or edge bounds.
-    pub reshaped: Vec<crate::boolean::Cell>,
+    /// The moved body's geometry before the door wrote
+    /// ([`crate::SourceGeometry`]): a record lands unread only on images
+    /// that hold it. Empty on an outcome no door made, and every record
+    /// is then read.
+    source: crate::SourceGeometry,
 }
 
 impl OffsetOutcome {
-    /// The outcome of a door that made `after` from `before`, ending with
+    /// The outcome of a door that wrote over `source`, ending with
     /// `joins`.
-    pub(crate) fn of<T: geom_core::Real>(
-        before: &Body<T>,
-        after: &Body<T>,
-        joins: Vec<crate::boolean::EdgeJoin>,
-    ) -> Self {
-        let reshaped = crate::reshaped_cells(before, after, &joins);
-        Self { joins, reshaped }
+    pub(crate) fn of(source: crate::SourceGeometry, joins: Vec<crate::boolean::EdgeJoin>) -> Self {
+        Self { joins, source }
     }
 
     /// `records`, the moved body's before the door, carried onto
@@ -1673,13 +1669,14 @@ impl OffsetOutcome {
     }
 
     /// **What the door made of each cell** (D1): it keeps every key and
-    /// kills only what its joins name, so each cell is itself, reshaped
-    /// where the door moved it ([`crate::Lineage::reshaping`]), or the
-    /// edge a join made of it.
+    /// kills only what its joins name, so each cell is itself or the
+    /// edge a join made of it. It writes new geometry under kept keys,
+    /// so the lineage carries the body's geometry from before it wrote
+    /// ([`crate::Lineage::from_source`]).
     #[must_use]
     pub fn lineage(&self) -> crate::Lineage {
         crate::Lineage::new()
-            .reshaping(&self.reshaped)
+            .from_source(self.source.clone())
             .through_joins(&self.joins)
     }
 }

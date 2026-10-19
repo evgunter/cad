@@ -101,18 +101,21 @@ pub enum LineageError {
 
 /// **One op's lineage** (D1): the [`Fate`] of each input cell it
 /// touched, read through the joins it ended with. A cell no row names
-/// is kept under its key, geometry and all: the carry lands a record on
-/// kept cells unread, so an op that keeps a cell's key and changes its
-/// geometry states it reshaped ([`Self::reshaping`], over
-/// [`reshaped_cells`]). Where the result does not hold a cell no row
-/// names, the lineage does not cover it and the carry refuses
-/// ([`crate::CarryRefusal::Unmapped`]).
+/// is kept under its key. The carry lands a record on kept and
+/// substituted cells unread, relying on each image being on its input
+/// cell's carrier and holding its old interior; an op that writes new
+/// geometry under kept keys hands its input's geometry over
+/// ([`Self::from_source`]), and the carry then reads every image that
+/// does not hold its cell's geometry. Where the result does not hold a
+/// cell no row names, the lineage does not cover it and the carry
+/// refuses ([`crate::CarryRefusal::Unmapped`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Lineage {
     rows: BTreeMap<Cell, Fate>,
     joins: Vec<EdgeJoin>,
     meeting: MintedBacking,
     glues: bool,
+    source: Option<SourceGeometry>,
 }
 
 impl Default for Lineage {
@@ -122,6 +125,7 @@ impl Default for Lineage {
             joins: Vec::new(),
             meeting: MintedBacking::Refused,
             glues: false,
+            source: None,
         }
     }
 }
@@ -196,25 +200,19 @@ impl Lineage {
         Ok(self)
     }
 
-    /// The lineage with each of `cells` whose fate no row states read as
-    /// **reshaped**: the op kept its key and changed its carrier, extent
-    /// or region ([`reshaped_cells`]), so it is divided into its own
-    /// image, the rest removed. A record on it goes to the census's
-    /// confirm and lands where the reshaped cell still meets the other,
-    /// and is consumed where it no longer does: its touch went with the
-    /// geometry the op moved.
+    /// The lineage of an op that wrote new geometry under kept keys,
+    /// `source` its input's geometry taken before it wrote: a record
+    /// lands unread only where each of its cells' images holds that
+    /// cell's geometry ([`SourceGeometry::holds_as`]), and is read by the
+    /// census's confirm otherwise.
     #[must_use]
-    pub fn reshaping(mut self, cells: &[Cell]) -> Self {
-        for &cell in cells {
-            self.rows.entry(cell).or_insert_with(|| {
-                Fate::Divided(Division {
-                    pieces: vec![cell],
-                    minted: Vec::new(),
-                    remainder: Remainder::Removed,
-                })
-            });
-        }
+    pub fn from_source(mut self, source: SourceGeometry) -> Self {
+        self.source = Some(source);
         self
+    }
+
+    pub(crate) fn source(&self) -> Option<&SourceGeometry> {
+        self.source.as_ref()
     }
 
     /// The lineage read through `joins`, the joins the op ended with:
@@ -325,93 +323,127 @@ impl Fate {
     }
 }
 
-/// **The cells an op reshaped**: each cell of `before` that `after`
-/// holds under its key with its geometry changed, read through `joins`,
-/// the joins the op ended with. An op writes new geometry under a new
-/// key, so a changed key is a changed carrier or point:
-///
-/// - a vertex whose point key changed;
-/// - an edge whose curve key changed, or either of whose ends is
-///   another point now;
-/// - a face whose surface key or sense changed, whose boundary is
-///   other edges now (read through the joins), or one of whose boundary
-///   vertices or edges is another point or curve now.
-///
-/// A cell the op kept under its key and none of these is geometrically
-/// itself, so a record on it lands by lineage unread; every other cell
-/// an op keeps the key of is stated reshaped ([`Lineage::reshaping`]).
-#[must_use]
-pub fn reshaped_cells<T: geom_core::Real>(
-    before: &crate::Body<T>,
-    after: &crate::Body<T>,
-    joins: &[EdgeJoin],
-) -> Vec<Cell> {
-    use crate::entity::EdgeKey;
-    use crate::geometry::PointKey;
-    let point = |body: &crate::Body<T>, v| body.get_vertex(v).map(|d| d.point);
-    let ends = |body: &crate::Body<T>, e: EdgeKey| -> Option<[Option<PointKey>; 2]> {
-        let edge = body.get_edge(e)?;
-        Some(
-            [edge.he_plus, edge.he_minus]
-                .map(|h| body.get_half_edge(h).and_then(|h| point(body, h.start))),
-        )
-    };
-    let boundary = |body: &crate::Body<T>| {
-        let mut out: BTreeMap<FaceKey, BTreeSet<EdgeKey>> = BTreeMap::new();
-        for (_, h) in body.half_edges() {
-            if let Some(f) = body.get_loop(h.parent_loop).map(|l| l.face) {
-                out.entry(f).or_default().insert(h.edge);
+/// One cell's geometry, as keys: what the carry compares an image
+/// against its input cell to land a record unread.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Shape {
+    Vertex(crate::geometry::PointKey),
+    Edge(
+        crate::geometry::CurveKey,
+        [Option<crate::geometry::PointKey>; 2],
+    ),
+    Face {
+        surface: crate::geometry::SurfaceKey,
+        sense: bool,
+        points: BTreeSet<crate::geometry::PointKey>,
+        curves: BTreeSet<crate::geometry::CurveKey>,
+    },
+}
+
+impl Shape {
+    /// `cell`'s shape in `body`: a vertex's point; an edge's carrier and
+    /// its ends' points; a face's carrier, sense, and the points and
+    /// carriers of its boundary. None where `body` does not hold it.
+    fn of<T: geom_core::Real>(body: &crate::Body<T>, cell: Cell) -> Option<Self> {
+        let point = |v| body.get_vertex(v).map(|d| d.point);
+        let start = |h| body.get_half_edge(h).and_then(|h| point(h.start));
+        match cell {
+            Cell::Vertex(v) => point(v).map(Self::Vertex),
+            Cell::Edge(e) => {
+                let edge = body.get_edge(e)?;
+                let mut ends = [start(edge.he_plus), start(edge.he_minus)];
+                ends.sort();
+                Some(Self::Edge(edge.curve, ends))
+            }
+            Cell::Face(f) => {
+                let face = body.get_face(f)?;
+                let (mut points, mut curves) = (BTreeSet::new(), BTreeSet::new());
+                // Read off each half-edge's loop, walking no loop: the
+                // snapshot is taken before a door's own checks run.
+                for (_, h) in body.half_edges() {
+                    if body.get_loop(h.parent_loop).is_some_and(|l| l.face == f) {
+                        points.extend(point(h.start));
+                        curves.extend(body.get_edge(h.edge).map(|e| e.curve));
+                    }
+                }
+                Some(Self::Face {
+                    surface: face.surface,
+                    sense: face.sense,
+                    points,
+                    curves,
+                })
             }
         }
-        out
-    };
-    let mut out = Vec::new();
-    for (v, d) in before.vertices() {
-        if point(after, v).is_some_and(|p| p != d.point) {
-            out.push(Cell::Vertex(v));
-        }
     }
-    for (e, d) in before.edges() {
-        let Some(now) = after.get_edge(e) else {
-            continue;
-        };
-        if now.curve != d.curve || ends(after, e) != ends(before, e) {
-            out.push(Cell::Edge(e));
+}
+
+/// **An op's input cells' geometry, as keys**, taken before the op
+/// writes: every vertex's point, every edge's carrier and ends, every
+/// face's carrier, sense and boundary. An op that keeps a cell's key
+/// while writing new geometry hands it to its lineage
+/// ([`Lineage::from_source`]), and the carry then lands a record unread
+/// only on images whose geometry is the input cell's
+/// ([`Self::holds_as`]). The kernel writes new geometry under a new key,
+/// so a key held is geometry held.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SourceGeometry {
+    cells: BTreeMap<Cell, Shape>,
+}
+
+impl SourceGeometry {
+    /// Every cell of `body`, as its geometry's keys.
+    #[must_use]
+    pub fn of<T: geom_core::Real>(body: &crate::Body<T>) -> Self {
+        type Bounds = (
+            BTreeSet<crate::geometry::PointKey>,
+            BTreeSet<crate::geometry::CurveKey>,
+        );
+        let mut bounds: BTreeMap<FaceKey, Bounds> = BTreeMap::new();
+        for (_, h) in body.half_edges() {
+            let Some(f) = body.get_loop(h.parent_loop).map(|l| l.face) else {
+                continue;
+            };
+            let (points, curves) = bounds.entry(f).or_default();
+            points.extend(body.get_vertex(h.start).map(|d| d.point));
+            curves.extend(body.get_edge(h.edge).map(|e| e.curve));
         }
-    }
-    let (was, is) = (boundary(before), boundary(after));
-    for (f, d) in before.faces() {
-        let Some(now) = after.get_face(f) else {
-            continue;
-        };
-        let edges = was.get(&f).cloned().unwrap_or_default();
-        let joined: BTreeSet<EdgeKey> = edges
-            .iter()
-            .map(
-                |&e| match crate::boolean::joined_cell(joins, Cell::Edge(e)) {
-                    Cell::Edge(k) => k,
-                    _ => e,
-                },
-            )
+        let mut cells: BTreeMap<Cell, Shape> = body
+            .vertices()
+            .map(|(v, _)| Cell::Vertex(v))
+            .chain(body.edges().map(|(e, _)| Cell::Edge(e)))
+            .filter_map(|c| Shape::of(body, c).map(|s| (c, s)))
             .collect();
-        let held = |e: &EdgeKey| after.get_edge(*e).is_some();
-        let reshaped = now.surface != d.surface
-            || now.sense != d.sense
-            || is.get(&f).cloned().unwrap_or_default() != joined
-            || edges.iter().filter(|e| held(e)).any(|e| {
-                after.get_edge(*e).map(|n| n.curve) != before.get_edge(*e).map(|o| o.curve)
-            })
-            || edges
-                .iter()
-                .filter_map(|&e| before.get_edge(e))
-                .flat_map(|o| [o.he_plus, o.he_minus])
-                .filter_map(|h| before.get_half_edge(h).map(|h| h.start))
-                .any(|v| point(after, v).is_some_and(|p| Some(p) != point(before, v)));
-        if reshaped {
-            out.push(Cell::Face(f));
+        for (f, face) in body.faces() {
+            let (points, curves) = bounds.remove(&f).unwrap_or_default();
+            cells.insert(
+                Cell::Face(f),
+                Shape::Face {
+                    surface: face.surface,
+                    sense: face.sense,
+                    points,
+                    curves,
+                },
+            );
         }
+        Self { cells }
     }
-    out
+
+    /// Whether `image`, a cell of `result`, holds input cell `cell`'s
+    /// geometry unchanged: the same kind of cell, on the same carrier,
+    /// with the same bounding points and carriers. An image of another
+    /// kind (a vertex a join took into an edge), on another carrier, or
+    /// trimmed or grown, does not, and neither does a cell this source
+    /// never held.
+    pub(crate) fn holds_as<T: geom_core::Real>(
+        &self,
+        cell: Cell,
+        image: Cell,
+        result: &crate::Body<T>,
+    ) -> bool {
+        self.cells
+            .get(&cell)
+            .is_some_and(|s| Shape::of(result, image).as_ref() == Some(s))
+    }
 }
 
 /// **A cell's descent**: the cell and every cell the division rows

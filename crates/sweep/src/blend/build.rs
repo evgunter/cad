@@ -156,19 +156,15 @@ impl<T: Decide> Blended<T> {
     /// it, the carved span removed; a support face is divided into itself
     /// and the trimlines and feet the blend minted in it, the strip it
     /// carved away removed. Every other cell whose geometry the blend
-    /// changed under its key is reshaped ([`topo::Lineage::reshaping`]).
-    ///
-    /// # Panics
-    ///
-    /// Where the body has no birth records: the surgery is their only
-    /// producer and always writes them ([`Self::naming`]), so a body
-    /// without them names no cell's fate, and every cell read as kept
-    /// would land records unread on cells the blend may have reshaped.
+    /// changed under its key is read, not kept: the lineage carries the
+    /// source's geometry ([`topo::Lineage::from_source`]). A body with
+    /// no birth records names no carve and carries no source, so every
+    /// record is read, and one on a cell the result lost refuses.
     #[must_use]
     pub fn lineage(&self) -> topo::Lineage {
         use topo::{Cell, Division, Fate, Remainder};
         let Some(n) = self.naming.as_ref() else {
-            unreachable!("a blended body carries the surgery's birth records (kernel bug)")
+            return topo::Lineage::new().from_source(topo::SourceGeometry::default());
         };
         let mut lineage = topo::Lineage::new().through_joins(&n.edge_joins);
         let removed = n
@@ -254,7 +250,7 @@ impl<T: Decide> Blended<T> {
                 }),
             );
         }
-        lineage.reshaping(&n.reshaped)
+        lineage.from_source(n.source.clone())
     }
 }
 

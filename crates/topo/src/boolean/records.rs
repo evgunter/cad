@@ -80,10 +80,13 @@ pub enum CarryRefusal {
         /// The pair of images.
         cells: [Cell; 2],
     },
-    /// Input record `record`, one of whose cells the op divided, lands
-    /// on no pair of its cells' images, every pair read definitely, and
-    /// the op removed neither cell nor any part of one: a touch the op's
-    /// lineage says is still there, and the result says is not.
+    /// Input record `record`'s two cells do not meet where the op put
+    /// them, and the op removed and moved neither: a touch the op's
+    /// lineage says is still there, and the result says is not. The
+    /// carry raises it for a record on a divided cell that lands on no
+    /// pair of its images, every pair read definitely; the boolean's
+    /// output stage for a carried vertex pair whose two points it reads
+    /// apart.
     Stale {
         /// The record's index in the input's list.
         record: u32,
@@ -149,8 +152,8 @@ impl core::fmt::Display for CarryRefusal {
             ),
             Self::Stale { record } => write!(
                 f,
-                "record {record} lands on no pair of its divided cells' images, and the op \
-                 removed neither cell"
+                "record {record}'s cells do not meet where the op put them, and the op \
+                 removed and moved neither"
             ),
             Self::MintedMeeting { record, cells } => write!(
                 f,
@@ -697,15 +700,19 @@ impl<T: geom_core::Decide> Confirms<'_, T> {
 /// **The one carry's placement** (D1): each of `rows`, a record's two
 /// input cells, put on the pairs drawn from its cells' images under
 /// `lineage` that a side holds. Where the lineage kept or substituted
-/// both cells, every such pair that is not structure is a landing,
-/// unread: their geometry is unchanged, and the record was read where
-/// it was minted. Where it divided one, the pairs are the ones whose
+/// both cells, and every image holds its cell's geometry where the op
+/// handed its input's over ([`crate::Lineage::from_source`]), every such
+/// pair that is not structure is a landing, unread: each image is on
+/// its cell's carrier and holds its old interior, and the record was
+/// read where it was minted. Otherwise the pairs are the ones whose
 /// interiors meet, read by the census's own record confirm at `band`
 /// through `region`. The sides hold disjoint keys. A conventional
 /// vertex reads as its closed edge.
 ///
 /// A row that lands nowhere, every pair read definitely, is consumed
-/// where the lineage removed one of its cells or part of one, where its
+/// where the lineage removed one of its cells or part of one, where an
+/// image does not hold its cell's geometry (the touch went with what
+/// the op moved), where its
 /// two vertices became one vertex (D1's strict record-drop rule), or,
 /// for an op that glues cells ([`crate::Lineage::glued`]), where every
 /// pair of its images is structure.
@@ -746,11 +753,25 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
                 .collect()
         });
         let images = cells.map(|c| lineage.images(c));
-        // Cells the op kept or substituted hold their geometry, and the
-        // record was read where it was minted: it lands by lineage.
-        let unread = fates
-            .iter()
-            .all(|f| matches!(f, crate::Fate::Kept { .. } | crate::Fate::Substituted(_)));
+        // An image that does not hold its input cell's geometry, where the
+        // op handed its input's geometry over: the op moved what the
+        // record's touch lay on.
+        let moved = lineage.source().is_some_and(|source| {
+            (0..2).any(|i| {
+                images[i].iter().any(|&c| {
+                    sides
+                        .iter()
+                        .find(|b| holds(b, c))
+                        .is_some_and(|b| !source.holds_as(cells[i], c, b))
+                })
+            })
+        });
+        // Cells the op kept or substituted, unmoved, hold the touch, and
+        // the record was read where it was minted: it lands by lineage.
+        let unread = !moved
+            && fates
+                .iter()
+                .all(|f| matches!(f, crate::Fate::Kept { .. } | crate::Fate::Substituted(_)));
         let mut landed = false;
         let mut read = false;
         let mut structure: Option<ContactPairError> = None;
@@ -816,7 +837,8 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
         }
         let removed = fates.iter().any(crate::Fate::removes);
         if read {
-            if removed {
+            // A touch on geometry the op moved went with it.
+            if removed || moved {
                 continue;
             }
             return Err(CarryRefusal::Stale { record });

@@ -3904,20 +3904,9 @@ fn carried<T: Decide + AtRestPolicy>(
                          that is no vertex pair",
                     ));
                 };
-                let gap = match (vertex_point(body, ru), vertex_point(body, rw)) {
-                    (Some(p), Some(q)) => Margin::norm3(p - q),
-                    _ => return Err(desync("a minted vertex has no point")),
-                };
-                let (apart, margin) = geom_core::k_stats::decide_magnitude_reported(
-                    "bool_carried_minted_meeting",
-                    gap,
-                    band,
-                )
-                .map_err(|diag| BooleanError::Escalated {
-                    decision: BooleanDecision::VertexOnVertex,
-                    diag,
-                })?;
-                if apart != geom_core::k_stats::Magnitude::Zero {
+                let (meet, margin) =
+                    vertices_meet(body, [ru, rw], "bool_carried_minted_meeting", band)?;
+                if !meet {
                     return Err(desync(
                         "the census confirms two minted vertices meeting that the door reads apart",
                     ));
@@ -4315,43 +4304,24 @@ fn record_classes<T: Decide>(
             continue;
         };
         let (ka, kb) = (key(a)?, key(b)?);
-        if ka != kb {
-            let gap = match (vertex_point(body, a), vertex_point(body, b)) {
-                (Some(p), Some(q)) => Margin::norm3(p - q),
-                _ => {
-                    return Err(BooleanError::JoinDesync {
-                        what: "a vertex-vertex record's vertex has no point",
-                    });
-                }
-            };
-            let (apart, _) = geom_core::k_stats::decide_magnitude_reported(
-                "bool_shared_record_points",
-                gap,
-                band,
-            )
-            .map_err(|diag| BooleanError::Escalated {
-                decision: BooleanDecision::VertexOnVertex,
-                diag,
-            })?;
-            if apart != geom_core::k_stats::Magnitude::Zero {
-                let carried = row.cites.iter().find_map(|b| match b {
-                    Backing::Carried { input, record } => Some((input, record)),
-                    Backing::Decided(_) => None,
-                });
-                return Err(match carried {
-                    Some((input, record)) => BooleanError::CarryRefused {
-                        row: super::RefusedRow::Carried(if input == 0 {
-                            Operand::A
-                        } else {
-                            Operand::B
-                        }),
-                        refusal: super::CarryRefusal::Stale { record },
-                    },
-                    None => BooleanError::JoinDesync {
-                        what: "a decided vertex-vertex record names two points apart",
-                    },
-                });
-            }
+        if ka != kb && !vertices_meet(body, [a, b], "bool_shared_record_points", band)?.0 {
+            let carried = row.cites.iter().find_map(|b| match b {
+                Backing::Carried { input, record } => Some((input, record)),
+                Backing::Decided(_) => None,
+            });
+            return Err(match carried {
+                Some((input, record)) => BooleanError::CarryRefused {
+                    row: super::RefusedRow::Carried(if input == 0 {
+                        Operand::A
+                    } else {
+                        Operand::B
+                    }),
+                    refusal: super::CarryRefusal::Stale { record },
+                },
+                None => BooleanError::JoinDesync {
+                    what: "a decided vertex-vertex record names two points apart",
+                },
+            });
         }
         roots.union(ka, kb);
     }
@@ -5257,6 +5227,36 @@ fn vertex_star<T: Real>(body: &Body<T>, w: VertexKey) -> Option<Vec<Cell>> {
 }
 
 /// A vertex's point.
+/// Whether vertices `a` and `b` of `body` are one point: their gap
+/// decided Zero at `band` by `predicate`, with the margin read.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where a vertex has no point, and
+/// [`BooleanError::Escalated`] (`VertexOnVertex`) where the gap is in
+/// band.
+fn vertices_meet<T: Decide>(
+    body: &Body<T>,
+    [a, b]: [VertexKey; 2],
+    predicate: &'static str,
+    band: Band,
+) -> Result<(bool, geom_core::MarginDiag), BooleanError> {
+    let gap = match (vertex_point(body, a), vertex_point(body, b)) {
+        (Some(p), Some(q)) => Margin::norm3(p - q),
+        _ => {
+            return Err(BooleanError::JoinDesync {
+                what: "a vertex the carry or the output stage reads has no point",
+            });
+        }
+    };
+    let (magnitude, margin) = geom_core::k_stats::decide_magnitude_reported(predicate, gap, band)
+        .map_err(|diag| BooleanError::Escalated {
+        decision: BooleanDecision::VertexOnVertex,
+        diag,
+    })?;
+    Ok((magnitude == geom_core::k_stats::Magnitude::Zero, margin))
+}
+
 fn vertex_point<T: Real>(body: &Body<T>, v: VertexKey) -> Option<Point3<T>> {
     body.get_vertex(v)
         .and_then(|d| body.get_point(d.point))
