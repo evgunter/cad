@@ -868,27 +868,44 @@ impl<T: Real> Seg<T> {
     }
 }
 
+/// Which way a [`junction_turn`] reading keeps its sign.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum TurnSense {
+    /// `sin φ`: the path door authors a direction, so which way it
+    /// turns is part of what it decided (a range sweep reads a sign
+    /// change as a branch change).
+    Signed,
+    /// `|sin φ|`: validation judges a loop canonicalization may reverse,
+    /// so a joint read along either traversal must decide, and record,
+    /// the same margin.
+    Unsigned,
+}
+
 /// **`path_junction_turn`** — whether a junction turns: the cross
-/// product `|sin φ|` of the arriving and departing unit headings,
-/// levered by `arm` (the displacement the turn makes at that reach).
-/// Zero = the directions agree (a continuation or a reversal, which
-/// [`junction_reverses`] tells apart); definite = a corner; in band
-/// escalates. The one home of that question: the path door asks it of
-/// every junction it builds, at the arriving leg's arm, the one leg it
-/// has; [`joint_tangency`] asks it of every joint validation judges
-/// and every stored fillet joint the door verifies. It is unsigned, so
-/// a joint read along either traversal decides, and records, the same
-/// margin. Returned with the signed levered turn, which a refusal
-/// quotes.
+/// product `sin φ` of the arriving and departing unit headings (its
+/// magnitude under [`TurnSense::Unsigned`]), levered by `arm`, the
+/// displacement the turn makes at that reach. Zero = the directions
+/// agree (a continuation or a reversal, which [`junction_reverses`]
+/// tells apart); definite = a corner; in band escalates. The one home
+/// of that question: the path door asks it of every junction it
+/// builds, at the arriving leg's arm, the one leg it has;
+/// [`joint_tangency`] asks it of every joint validation judges and
+/// every stored fillet joint the door verifies. Returned with the
+/// signed levered turn, which a refusal quotes.
 pub(crate) fn junction_turn<T: Decide>(
     arriving: Vec2<T>,
     departing: Vec2<T>,
     arm: T,
+    sense: TurnSense,
     band: Band,
 ) -> Result<(Decided, T), Indeterminate> {
     let turn = arriving.perp_dot(departing);
+    let read = match sense {
+        TurnSense::Signed => turn,
+        TurnSense::Unsigned => turn.abs(),
+    };
     Ok((
-        decide_reported("path_junction_turn", Margin::levered(turn.abs(), arm), band)?,
+        decide_reported("path_junction_turn", Margin::levered(read, arm), band)?,
         turn * arm,
     ))
 }
@@ -960,6 +977,7 @@ pub(crate) fn joint_tangency<T: Decide>(
         prev.heading_at(prev.b),
         next.heading_at(next.a),
         prev.arm().max(next.arm()),
+        TurnSense::Unsigned,
         band,
     )?;
     Ok(JointReading {

@@ -982,7 +982,8 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_junction_side",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
     },
-    // the sine of a junction's turn, levered by the arriving arm; decided only by the path door
+    // the sine of a junction's turn: the path door's at the arriving arm, validation's joint
+    // pass's (`seg::joint_tangency`) at the longer leg's
     DecisionEnding {
         name: "path_junction_turn",
         kind: EndingKind::Lever(JUNCTION_TANGENT_LEVER),
