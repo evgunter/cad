@@ -248,8 +248,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    **material wedge-angle predicate**: at every edge the material wedge
    ∈ (0, 2π), bounded away from the ends by θ = ε/r; wedge = π is the
    legal smooth-seam case; and the ends carry a **second-order arm**:
-   wedge = 0 (a cusp) and wedge = 2π (a knife slit, the cusp's `revert`
-   image — legal together or not at all) are legal iff the tangency is
+   wedge = 0 (a cusp) and wedge = 2π (a knife slit, an isolated cusp's
+   `revert` image — legal together or not at all) are legal iff the tangency is
    **jet-determinate**: quadratic transverse separation with κ_rel
    bounded away from zero — `TangentIntersection`'s own margin, so the
    cusp edge's honest description IS `TangentIntersection` wherever the
@@ -448,10 +448,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    **Representability boundary**: pseudomanifold touching via
    *distinct* entities (two vertices at one point, two edges on one
    segment) is representable in the half-edge structure and is a typed
-   *success* carrying its 3′ records. Genuine non-manifoldness — a
-   single edge with >2 faces, a shared-entity wedge fan — is
-   unrepresentable and stays a typed error at the site that would have
-   needed it. "Non-manifold" means non-representable.
+   *success* carrying its 3′ records. A single edge with >2 faces, or a
+   wedge fan sharing one entity, assembles faces into something that is
+   not a solid; the half-edge structure does not represent it.
 
 **Structural conventions.**
 
@@ -1950,10 +1949,8 @@ Cross-milestone commitments; each binds at the layer named.
   subdivision certifies exhaustiveness**; the outcome is "every branch
   found" or a typed failure, never silence. Certification is an
   at-rest/tier obligation; preview may march uncertified.
-- **Non-manifold boolean results are typed errors** — "non-manifold"
-  meaning **non-representable** (D1's representability boundary).
-  Touching via distinct entities is a typed success validating at tier
-  3′. Silent splitting into separate manifold bodies is rejected as
+- **Touching via distinct entities is a typed success** validating at
+  tier 3′ (D1's representability boundary). Silent splitting into separate manifold bodies is rejected as
   inexplicit; any future split behavior is an explicit ratified
   operation the user invokes, never a fallback.
 - **The expression sublanguage is total and finite by charter.** No
