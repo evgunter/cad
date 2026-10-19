@@ -2,10 +2,11 @@
 id: a-cusp-on-nested-near-concentric-carriers-validates-along-a-long-eps-stretch
 kind: issue
 title: a tangent cusp on nested near-concentric carriers validates while its two arcs run within ε of each other for a quarter radian
-status: open
+status: dispatched
 opened: 2026-10-15
 priority: P0
 cost: M
+branch: paths/joint-reads-its-turn
 ---
 
 
