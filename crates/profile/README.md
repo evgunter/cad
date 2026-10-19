@@ -321,14 +321,14 @@ form, and both are refused at the door rather than left for validation:
   or below ε is read back as a straight segment, so the carrier is not
   there (`PathError::FilletArcFlattenedInStorage`; the levers are a
   larger turn or a larger radius).
-- **The joint falls below scene resolution.** A carrier clearance is a
-  difference of lengths at the scene's own magnitude, so it resolves
-  only to about that magnitude times 2⁻⁵². Past the radius, or the
-  distance from the origin, where that floor is coarser than ε, the
-  joint cannot be classified, nor the stored carrier read against its
-  own vertex (`PathError::FilletCarrierBelowSceneResolution`; the levers
-  run the other way — a smaller radius, or the geometry nearer the
-  origin).
+- **The joint falls below scene resolution.** A joint's turn is read
+  off headings taken from coordinates at the scene's own magnitude, so
+  levered by the joint's arm it resolves only to about that magnitude
+  times 2⁻⁵². Past the radius, or the distance from the origin, where
+  that floor is coarser than ε, the joint cannot be classified, nor the
+  stored carrier read against its own vertex
+  (`PathError::FilletCarrierBelowSceneResolution`; the levers run the
+  other way — a smaller radius, or the geometry nearer the origin).
 
 Both read back through `seg::build_seg` and `seg::joint_tangency`, the
 verify layer's own classifications, so the door's answer is the verify

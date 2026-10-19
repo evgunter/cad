@@ -1102,13 +1102,14 @@ pub enum PathError<T: Real> {
     },
     /// **The fillet's stored arc IS an arc, and the scene cannot
     /// resolve its carrier.** The sagitta is metres; what fails is the
-    /// classification. A carrier clearance is a DIFFERENCE of lengths at
-    /// the scene's own magnitude — `r − |h|`, `d − |r₁ − r₂|` — and such
-    /// a difference cancels first-order, resolving only to about
-    /// `scale · 2^-52`. Past the radius (or the distance from the
-    /// origin) where that floor is coarser than ε, the joint cannot be
-    /// classified whatever the turn is, and the levers run the other way
-    /// from its sibling's: see
+    /// classification. A joint's turn is read off headings taken from
+    /// DIFFERENCES of coordinates at the scene's own magnitude — a
+    /// vertex less its arc's centre, a chord's two ends — and such a
+    /// difference cancels first-order, so the levered turn resolves
+    /// only to about `scale · 2^-52`. Past the radius (or the distance
+    /// from the origin) where that floor is coarser than ε, the joint
+    /// cannot be classified whatever the turn is, and the levers run
+    /// the other way from its sibling's: see
     /// [`FilletArcFlattenedInStorage`](Self::FilletArcFlattenedInStorage)
     /// for why the two are separate variants.
     FilletCarrierBelowSceneResolution {
@@ -1117,10 +1118,10 @@ pub enum PathError<T: Real> {
         turn: T,
         /// The requested fillet radius, meters (diagnostic).
         radius: T,
-        /// The magnitude the refusing clearance was a difference at,
-        /// meters — the carrier radii, the centre separation, the
-        /// offset from a carrier line, or the arc's own vertices where
-        /// its carrier disagrees with them.
+        /// The magnitude the refusing reading was a difference at,
+        /// meters — the joint's two legs' vertices, carrier radii and
+        /// centres, or the arc's own vertices where its carrier
+        /// disagrees with them.
         scale: T,
         /// About the finest that difference could have been read:
         /// `scale · 2^-52`, meters.
@@ -3357,8 +3358,8 @@ impl<T: Decide> Core<T> {
     /// the stored fillet segment came back an ARC. If it did not, the
     /// carrier is absent and the loss is flattening
     /// ([`PathError::FilletArcFlattenedInStorage`]); if it did, the
-    /// carrier is there and the clearance is what could not be read, so
-    /// the loss is the scene's resolution
+    /// carrier is there and the joint's turn is what could not be read,
+    /// so the loss is the scene's resolution
     /// ([`PathError::FilletCarrierBelowSceneResolution`]). Their levers
     /// run in opposite directions, which is why they are two variants.
     ///
