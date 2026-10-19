@@ -3,7 +3,8 @@ name: CI
 # The per-PR gate is sized for latency: the free plan runs 20 jobs at once
 # across every open PR, so a run's job-minutes are the queue everyone waits
 # in. What runs here is the default-eps suite minus the slow set
-# (.config/nextest.toml's `ci` profile), lint, and the rows whose subject the
+# (.config/nextest.toml's `ci` profile), the seeded crates' slow tests minus
+# .config/nightly-only.txt, lint, and the rows whose subject the
 # diff touched directly. Everything else — every eps row over the whole suite,
 # the slow set, k-lint, the render lanes, rustdoc, wasm32 — runs in
 # nightly.yml. The selection and its evidence: work/ciw/latency-cut.md. A
@@ -243,9 +244,10 @@ jobs:
         run: python3 scripts/work.py lint
       - name: dual-review log self-test
         run: python3 scripts/dual-review-log.py --selftest
-      - name: slow-set name check self-test
+      - name: slow-set name check self-test, and the nightly-only list is in the slow set
         run: |
           python3 scripts/slow_set.py --selftest
+          python3 scripts/slow_set.py --check
           python3 scripts/check-slow-set-names.py --selftest
       - name: fast-set time check self-test
         run: python3 scripts/check-fast-set-times.py --selftest
@@ -399,9 +401,11 @@ jobs:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
           # The `ci` profile skips the slow set; a crate's own slow tests run
-          # when the diff seeds that crate, on every tier. A workspace-level
-          # file seeds no crate and adds none; the nightly runs the whole set.
-          slow="$(python3 scripts/slow_set.py --expr)"
+          # when the diff seeds that crate, on every tier, except the ones
+          # .config/nightly-only.txt lists, which no PR runs. A
+          # workspace-level file seeds no crate and adds none; the nightly
+          # runs the whole set.
+          slow="$(python3 scripts/slow_set.py --per-pr-expr)"
           pkgs="$(echo "$SEEDS" | tr ',' '\n' | sed 's/.*/package(&)/' | paste -sd'|')"
           echo "slow set over: $pkgs"
           rc=0
@@ -601,8 +605,10 @@ jobs:
         run: |
           (cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
           (cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings)
+      # The `ci` profile (demos/tour/.config/nextest.toml) leaves out the
+      # tour rows that run only nightly.
       - name: demos tour suite
-        run: cd demos/tour && cargo nextest run --release --no-fail-fast
+        run: cd demos/tour && cargo nextest run --release --profile ci --no-fail-fast
 
   tools:
     name: tools (k-lint, tess-lint, tess-meter)

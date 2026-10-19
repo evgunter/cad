@@ -1509,6 +1509,10 @@ AUX_PREFIXES: tuple[str, ...] = (
     "docs/k-report-data/",
     "docs/tess-budget-data/",
     "docs/perf-data/",
+    # Read only by the seeded slow-set step, which it narrows; the lint job
+    # checks it against the slow set on every tier, and the nightly runs
+    # every test it names.
+    ".config/nightly-only.txt",
 )
 
 

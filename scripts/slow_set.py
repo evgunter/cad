@@ -16,6 +16,13 @@ one.
     slow_set.py --expr     print the slow set as one nextest filterset
                            (the filter without its `not`), read from
                            .config/nextest.toml
+    slow_set.py --per-pr-expr
+                           the same, less .config/nightly-only.txt: what
+                           ci.yml's seeded slow-set step runs
+    slow_set.py --check    every nightly-only line is a slow-set entry, once
+
+`.config/nightly-only.txt` is the part of the slow set no PR runs; its header
+says what earns a place there. This is its one reader too.
 """
 
 from __future__ import annotations
@@ -25,6 +32,7 @@ import sys
 import tomllib
 
 CONFIG = ".config/nextest.toml"
+NIGHTLY_ONLY = ".config/nightly-only.txt"
 _BINARY_RE = re.compile(r"[A-Za-z0-9_-]+(?:::[A-Za-z0-9_-]+)?")
 _NAME_RE = re.compile(r"[A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)*")
 
@@ -117,6 +125,34 @@ def expr(pairs: list[tuple[str, str]]) -> str:
     return "(" + " | ".join(terms) + ")"
 
 
+def nightly_only(text: str) -> list[tuple[str, str]]:
+    """The `(binary id, exact test name)` lines of a nightly-only list, in
+    file order. `#` starts a comment line; blank lines are skipped."""
+    pairs: list[tuple[str, str]] = []
+    for n, line in enumerate(text.splitlines(), 1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        parts = line.split(" ")
+        if len(parts) != 2 or not _BINARY_RE.fullmatch(parts[0]) or not _NAME_RE.fullmatch(parts[1]):
+            raise SlowSetError(f"line {n}: not `<binary id> <test name>`: {line!r}")
+        pairs.append((parts[0], parts[1]))
+    return pairs
+
+
+def check(slow: list[tuple[str, str]], nightly: list[tuple[str, str]]) -> list[str]:
+    """What is wrong with a nightly-only list against the slow set: an entry
+    the slow set does not hold (the default-eps step would still run it), or
+    one listed twice."""
+    held = set(slow)
+    errors = [f"{b} {n}: not in the slow set" for b, n in nightly if (b, n) not in held]
+    seen: set[tuple[str, str]] = set()
+    for pair in nightly:
+        if pair in seen:
+            errors.append(f"{pair[0]} {pair[1]}: listed twice")
+        seen.add(pair)
+    return errors
+
+
 def selftest() -> None:
     text = "not (\n  (binary_id(a::all) & (test(=m::x) | test(=m::y))) |\n  (binary_id(b) & test(=n::z))\n)\n"
     want = [("a::all", "m::x"), ("a::all", "m::y"), ("b", "n::z")]
@@ -135,6 +171,17 @@ def selftest() -> None:
         except SlowSetError:
             continue
         raise SystemExit(f"slow_set selftest FAILED: {why} was read")
+    listed = nightly_only("# header\n\na::all m::y\nb n::z\n")
+    assert listed == [("a::all", "m::y"), ("b", "n::z")], listed
+    assert check(want, listed) == [], check(want, listed)
+    assert check(want, [("a::all", "m::q")]) == ["a::all m::q: not in the slow set"]
+    assert check(want, listed + listed[:1]) == ["a::all m::y: listed twice"]
+    for bad in ("a::all  m::y", "a::all m::y extra", "a::all"):
+        try:
+            nightly_only(bad)
+        except SlowSetError:
+            continue
+        raise SystemExit(f"slow_set selftest FAILED: nightly-only line {bad!r} was read")
     print("slow_set: selftest ok")
 
 
@@ -142,13 +189,33 @@ def main(argv: list[str]) -> int:
     if argv == ["--selftest"]:
         selftest()
         return 0
-    if argv != ["--expr"]:
-        sys.exit("usage: slow_set.py --expr | --selftest")
+    if argv not in (["--expr"], ["--per-pr-expr"], ["--check"]):
+        sys.exit("usage: slow_set.py --expr | --per-pr-expr | --check | --selftest")
     try:
         with open(CONFIG, encoding="utf-8") as fh:
-            print(expr(entries(ci_filter(fh.read()))))
+            slow = entries(ci_filter(fh.read()))
     except (OSError, SlowSetError) as exc:
         sys.exit(f"slow_set: {CONFIG}: {exc}")
+    if argv == ["--expr"]:
+        print(expr(slow))
+        return 0
+    try:
+        with open(NIGHTLY_ONLY, encoding="utf-8") as fh:
+            nightly = nightly_only(fh.read())
+    except (OSError, SlowSetError) as exc:
+        sys.exit(f"slow_set: {NIGHTLY_ONLY}: {exc}")
+    if argv == ["--check"]:
+        errors = check(slow, nightly)
+        for e in errors:
+            print(f"::error file={NIGHTLY_ONLY}::{e}")
+        if errors:
+            return 1
+        print(f"slow_set: {len(nightly)} of the slow set's {len(slow)} entries are nightly-only")
+        return 0
+    skip = set(nightly)
+    per_pr = [pair for pair in slow if pair not in skip]
+    # An empty filterset is not one nextest reads; `none()` runs nothing.
+    print(expr(per_pr) if per_pr else "none()")
     return 0
 
 
