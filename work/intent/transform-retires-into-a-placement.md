@@ -108,6 +108,7 @@ So running the map at the nominal does not by itself make the lanes' decision li
 **Window of 2026-10-19 (about 3% of usage left)**
 - **The tour die corpus:** `cargo run --release -- die-corpus ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` in `demos/tour` gives a file byte-identical to D's committed one (1,589,134 bytes) on D's head. Nightly 65's "not byte-regenerable since #5267" was raised against main's copy, which D replaces. Nothing that reads it needed re-pinning.
 - **msolve7 a4:** restated as `a4_every_checked_in_document_loads_and_its_bundles_reach_the_attribute`, since under D every placement is a bundle and the corpus now reaches the attribute. It asserts that every document loads and that the corpus carries bundles. 3/3 pass.
+- **revalue `declared_tangency`:** re-taken. The owed `pcurve_chart_azimuth_frame` flips went from 2 to 4 (the placed tangent copy's charts on the same exact zero), and `pcurve_loop_branch` joins `after`. Noted on the owed inlane item. `revalue_corpus` is 12/12.
 
 **Known reds at the full-suite run on `ea25544a9a`:** 68 editor-core failures, listed with their owners above. pncad's 2 are re-bless. The viewer `--test all` suite needs a re-run (the 17 gallery_ring goldens are re-bless). The viewer's 2 lib reds are the GPU tests (no adapter). `every_suite_file_is_aggregated` fails only because of the local `zz_*` probe roots.
 

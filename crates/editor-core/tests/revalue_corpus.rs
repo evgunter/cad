@@ -437,16 +437,22 @@ rows! {
     revalue_heat_sink_fins: "heat_sink_fins", Apart, 1353, [];
     revalue_loft_prism: "loft_prism", Apart, 259, [];
     revalue_measured_web: "measured_web", Apart, 716, [];
-    // Apart: two chart frames on an azimuth exactly zero at the nominal
-    // flip, owed below. After the first, the chart's map residuals (a few
-    // ulps) are computed in the other frame at `p1`; at ε 1e-6 they
-    // re-value to other bits, at 1e-9 and 1e-12 to the same.
+    // Apart: four chart frames on an azimuth exactly zero at the nominal
+    // flip, owed below (two before INTENT stage 3 D; the tangent body is
+    // now a placed copy whose own charts land on the same exact zero).
+    // After the first, the chart's map residuals (a few ulps) are
+    // computed in the other frame at `p1`; at ε 1e-6 they re-value to
+    // other bits, at 1e-9 and 1e-12 to the same.
     revalue_declared_tangency: "declared_tangency", Apart, 1217, [],
         flips [
             ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP),
+            ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP),
+            ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP),
             ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP)
         ],
-        after ["pcurve_map_residual"];
+        // The placed copy's loop branch is read in the flipped chart's
+        // frame too, so it re-values after the flip as the residuals do.
+        after ["pcurve_map_residual", "pcurve_loop_branch"];
 }
 
 /// The census over the whole corpus, one document per run with

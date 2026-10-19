@@ -20,3 +20,5 @@ Split out of `under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exa
 **Pinned.** The row owes both flips here through its `flips` entry, and a row that names no flips owes none. So the row goes red when they go, and when any other decision flips.
 
 **Downstream of the flip (the ε-legs fix, `inlane/revalue-move-scales-with-eps`).** After the first flip, the chart's `pcurve_map_residual` margins are a few ulps, computed in the other frame at `p1`. At ε 1e-6 they re-value to other bits than `p1`'s, and at 1e-9 and 1e-12 to the same. The row therefore names `pcurve_map_residual` as a predicate that may re-value away after this flip (`holds`' `after` is a bound). A fix that closes the flips closes that with them.
+
+- 2026-10-19 (INTENT stage 3 D): four flips now, where there were two. The tangent body is a placed copy, and its own charts land on the same exact zero; `pcurve_loop_branch` re-values after the flip as the residuals do (`revalue_corpus::revalue_declared_tangency`).
