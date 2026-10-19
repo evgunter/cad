@@ -45,8 +45,7 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeVar, Node, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, UnitSym, VarName,
-    evaluate,
+    FreeVar, Node, NodeResult, ProfileDoc, RecipeNodeId, RoleSeg, UnitSym, VarName, evaluate,
 };
 use geom_core::{Interval, SymRules, Tol};
 

@@ -145,7 +145,9 @@ pub fn document() -> CorpusDoc {
             .cloned()
             .expect("the middle copy carries its instance's start cap")
     };
-    let lifted = r.insert(Node::place(vec![editor_core::BodyRead::plain(editor_core::Operand::from(middle))]));
+    let lifted = r.insert(Node::place(vec![editor_core::BodyRead::plain(
+        editor_core::Operand::from(middle),
+    )]));
     r.constrain(
         lifted,
         editor_core::Mate {
@@ -163,8 +165,14 @@ pub fn document() -> CorpusDoc {
             class: editor_core::ContactClass::Rest,
         },
         vec![
-            (editor_core::Coord::Slide(editor_core::SlideAxis::X), len(0.0)),
-            (editor_core::Coord::Slide(editor_core::SlideAxis::Y), len(0.0)),
+            (
+                editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                len(0.0),
+            ),
+            (
+                editor_core::Coord::Slide(editor_core::SlideAxis::Y),
+                len(0.0),
+            ),
             (editor_core::Coord::Spin, crate::fixture::ang(0.0)),
         ],
     );

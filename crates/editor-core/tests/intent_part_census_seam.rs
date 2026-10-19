@@ -16,8 +16,8 @@
 use crate::fixture::resolver::{PartStore, with_resolver};
 use crate::fixture::{in_world, insert, insert_pinned, len, on_frame, pin, square};
 use editor_core::{
-    Assembly, AssemblyError, CancelToken, EvalOptions, Evaluation, Frame, Node,
-    ProfileDoc, RecipeNodeId, assemble, evaluate,
+    Assembly, AssemblyError, CancelToken, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
+    RecipeNodeId, assemble, evaluate,
 };
 use geom_core::Tol;
 

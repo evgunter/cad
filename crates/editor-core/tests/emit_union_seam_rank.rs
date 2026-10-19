@@ -30,8 +30,8 @@ use crate::emit_union_rim_piece_ranks::signature;
 use crate::fixture::{insert, len, slid, table, union_over};
 
 use editor_core::{
-    EntityKey, Entry, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram,
-    Qualifier, RecipeNodeId, RoleSeg, StableName,
+    EntityKey, Entry, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram, Qualifier,
+    RecipeNodeId, RoleSeg, StableName,
 };
 use geom_core::{Point3, Tol};
 
