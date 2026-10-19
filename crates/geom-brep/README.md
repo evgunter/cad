@@ -474,10 +474,11 @@ Villarceau `t0`) it is a generic angle no corpus direction is on, and
 placement's marks name the copy either way. A sphere's latitude is read
 the same way in its own window, `(1 − π, 1 + π]`, whose cut is generic
 for the latitude read too: a far-half meridian reads its polar angle
-anywhere on `(π/2, 3π/2)`, so the cut cannot be `atan2`'s at `π`. Every whole-period question uses the channel's own
-period, which the chart owns: by renaming where no reader tells the
-copies apart, through the marks where one does. No whole-period
-integer is read off a value.
+anywhere on `(π/2, 3π/2)`, so the cut cannot be `atan2`'s at `π`.
+Every whole-period question uses the channel's own period, which the
+chart owns: by renaming where no reader tells the copies apart,
+through the marks where one does. No whole-period integer is read off
+a value.
 A loop's lift is derived by summing elements from its `first`, so no
 stored byte depends on which half-edge is `first`. A seam edge has both
 half-edges on one surface with one image and two joint elements, so no

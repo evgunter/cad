@@ -7465,10 +7465,10 @@ pub(crate) mod pole_slit_tests {
     /// meridians' carriers started on the near half of their great circles
     /// and on the far half (the frame negated, the span moved by `π`: PR
     /// 5225's delta review, `d3`, where the far start stored the twin), is
-    /// minted,
-    /// validates, stores every latitude in `[−π/2, π/2]` (the sphere's
-    /// latitude window, `geom_brep`'s `Window::Latitude`), and overlaps
-    /// itself with positive area. Placed in the angular window instead, a
+    /// minted, validates, stores every latitude in `[−π/2, π/2]` (the
+    /// chart's own latitudes, inside the latitude window `geom_brep`'s
+    /// `Window::Latitude` places them in), and overlaps itself with
+    /// positive area. Placed in the angular window instead, a
     /// meridian below latitude −1 was stored a turn up, which the chart
     /// region's sphere arm refuses (PR 5225's first review, P2).
     #[test]

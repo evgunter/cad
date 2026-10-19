@@ -8,7 +8,7 @@ use core::f64::consts::{FRAC_PI_2, PI, TAU};
 use geom::{Curve3, Surface};
 use geom_core::{Band, Point3, Tol, Vec3};
 
-use super::{ANGLE_WINDOW_START, PcurveCache, chart_pcurve_over};
+use super::{ANGLE_WINDOW_START, PcurveCache, Window, chart_pcurve_over};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -203,10 +203,12 @@ fn in_window(u: f64) -> bool {
     ANGLE_WINDOW_START < u && u <= ANGLE_WINDOW_START + TAU
 }
 
-/// A sphere's latitude window `(−π, π]`, and within it the chart's own
-/// latitudes `[−π/2, π/2]` an edge's midpoint on the sphere reads.
+/// A sphere's latitude window (`Window::Latitude`, from its start), and
+/// within it the chart's own latitudes `[−π/2, π/2]` an edge's midpoint
+/// on the sphere reads.
 fn in_latitude(v: f64) -> bool {
-    -PI < v && v <= PI && v.abs() <= FRAC_PI_2 + 1e-12
+    let start: f64 = Window::Latitude.start();
+    start < v && v <= start + TAU && v.abs() <= FRAC_PI_2 + 1e-12
 }
 
 /// **A carrier restated whole periods off derives one placed image.**
@@ -788,12 +790,52 @@ fn a_far_half_polar_angle_at_an_equator_start_reads_narrow() {
     }
 }
 
+/// An `Interval` image's chart points at five samples of its span, each
+/// enclosure read at its midpoint, with its certified envelope's upper
+/// end: what two starts of one edge's carrier must agree on (C4).
+fn interval_samples(
+    image: &super::Pcurve<geom_core::Interval>,
+    (t0, t1): (f64, f64),
+    envelope: geom_core::Interval,
+) -> (Vec<(f64, f64)>, f64) {
+    use geom_core::{Bounds, Interval, Real};
+
+    let mid = |x: Interval| 0.5 * (x.lo() + x.hi());
+    let points = [0.0, 0.25, 0.5, 0.75, 1.0]
+        .iter()
+        .map(|s| {
+            let p = image.eval(Interval::from_f64(t0 + s * (t1 - t0)));
+            (mid(p.x), mid(p.y))
+        })
+        .collect();
+    (points, envelope.hi())
+}
+
+/// Two starts' samples ([`interval_samples`]) name one image: every
+/// point agrees (not a turn apart) and the envelopes match.
+fn assert_one_image(label: &str, a: &(Vec<(f64, f64)>, f64), b: &(Vec<(f64, f64)>, f64)) {
+    for (p, q) in a.0.iter().zip(&b.0) {
+        assert!(
+            (p.0 - q.0).abs() < 1e-9 && (p.1 - q.1).abs() < 1e-9,
+            "{label}: one image from either start: {p:?} against {q:?}"
+        );
+    }
+    assert!(
+        (a.1 - b.1).abs() < 1e-9,
+        "{label}: one envelope from either start: {:e} against {:e}",
+        a.1,
+        b.1
+    );
+}
+
 /// **A far-half meridian certifies at `Interval` from any start.** A
 /// great circle of a sphere with a generic axis, its carrier started on
 /// the equator, its edge on the far half (midpoint at `t = 3`): it
 /// certifies at `Interval`, as the same edge does on the carrier started
-/// a quarter turn on, and as the near half does (C4: where a carrier's
-/// parameter starts moves neither the image nor its certificate).
+/// a quarter turn on, and as the near half does; and the two starts of
+/// the far half's edge derive one image, point for point at matching
+/// parameters, with one envelope (C4: where a carrier's parameter starts
+/// moves neither the image nor its certificate).
 #[test]
 fn a_far_half_meridian_certifies_at_interval_from_any_start() {
     use geom_core::{Interval, Real};
@@ -809,6 +851,7 @@ fn a_far_half_meridian_certifies_at_interval_from_any_start() {
     let start_eq = circle(o, Vec3::new(-1.0, 0.0, 0.0), 1.0, Vec3::new(0.0, 0.8, -0.6));
     let start_q = circle(o, Vec3::new(-1.0, 0.0, 0.0), 1.0, axis * -1.0);
     let f = Interval::from_f64;
+    let mut far = Vec::new();
     for (name, c, (t0, t1)) in [
         ("equator start, far half", &start_eq, (2.5, 3.5)),
         ("equator start, near half", &start_eq, (-0.5, 0.5)),
@@ -821,9 +864,17 @@ fn a_far_half_meridian_certifies_at_interval_from_any_start() {
         let (ci, si) = (c.map_scalar(f), sphere.map_scalar(f));
         let image = chart_pcurve_over(&ci, f(t0), f(t1), &si, band())
             .unwrap_or_else(|e| panic!("{name}: derives at Interval: {e}"));
-        PcurveCache::certify(image, f(t0), f(t1), &ci, &si, band())
+        let cache = PcurveCache::certify(image.clone(), f(t0), f(t1), &ci, &si, band())
             .unwrap_or_else(|e| panic!("{name}: certifies at Interval: {e:?}"));
+        if name != "equator start, near half" {
+            far.push(interval_samples(
+                &image,
+                (t0, t1),
+                cache.certificate().envelope,
+            ));
+        }
     }
+    assert_one_image("the far half's edge", &far[0], &far[1]);
 }
 
 /// **A latitude read on the latitude window's cut reads its closed end,
@@ -857,8 +908,10 @@ fn a_latitude_on_its_windows_cut_reads_the_closed_end() {
 /// from either start.** A sphere parallel, a torus parallel and meridian,
 /// and a cone rim, on charts whose axis is `(0, 0.6, 0.8)`, each derived
 /// and certified at `Interval` over one edge from two carrier starts a
-/// quarter turn apart (C4: where the parameter starts moves neither the
-/// image nor its certificate; PR 5225's round-5 delta, S3).
+/// quarter turn apart, the two starts deriving one image, point for
+/// point at matching parameters, with one envelope (C4: where the
+/// parameter starts moves neither the image nor its certificate; PR
+/// 5225's round-5 delta, S3).
 #[test]
 fn placement_on_a_generic_axis_certifies_at_interval_from_either_start() {
     use geom_core::{Interval, Real};
@@ -926,15 +979,20 @@ fn placement_on_a_generic_axis_certifies_at_interval_from_either_start() {
     for (name, surface, (first, second)) in cases {
         // The second start is the first turned a quarter on, so the same
         // edge sits a quarter turn earlier in its parameter.
-        for (start, c, (t0, t1)) in [
+        let samples: Vec<_> = [
             ("first start", &first, (0.3, 1.9)),
             ("quarter start", &second, (0.3 - FRAC_PI_2, 1.9 - FRAC_PI_2)),
-        ] {
+        ]
+        .into_iter()
+        .map(|(start, c, (t0, t1))| {
             let (ci, si) = (c.map_scalar(f), surface.map_scalar(f));
             let image = chart_pcurve_over(&ci, f(t0), f(t1), &si, band())
                 .unwrap_or_else(|e| panic!("{name}, {start}: derives at Interval: {e}"));
-            PcurveCache::certify(image, f(t0), f(t1), &ci, &si, band())
+            let cache = PcurveCache::certify(image.clone(), f(t0), f(t1), &ci, &si, band())
                 .unwrap_or_else(|e| panic!("{name}, {start}: certifies at Interval: {e:?}"));
-        }
+            interval_samples(&image, (t0, t1), cache.certificate().envelope)
+        })
+        .collect();
+        assert_one_image(name, &samples[0], &samples[1]);
     }
 }

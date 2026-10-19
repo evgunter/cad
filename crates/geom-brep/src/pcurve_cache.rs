@@ -4843,9 +4843,9 @@ pub struct WalkStop {
 /// ([`ANGLE_WINDOW_START`], whose doc has the census that chose it),
 /// about the centre `π − 1`; a sphere's latitude in `(1 − π, 1 + π]`
 /// ([`LATITUDE_WINDOW_START`]), about `1`, which holds every latitude
-/// the chart's points have, so each of those is named as itself. A row's angle at its
-/// span's midpoint is taken into its window by deciding the turns off it
-/// through these marks ([`Placement::turns`]). A net's channels keep
+/// the chart's points have, so each of those is named as itself. A
+/// row's angle at its span's midpoint is taken into its window by
+/// deciding the turns off it through these marks ([`Placement::turns`]). A net's channels keep
 /// their knot domain.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Period<T> {
@@ -4923,30 +4923,34 @@ pub const ANGLE_WINDOW_START: f64 = -1.0;
 /// `(1 − π, 1 + π]`, centred on latitude `1`.
 ///
 /// Every point of the chart has a latitude in `[−π/2, π/2]`, inside the
-/// window. A meridian's polar channel at its span's midpoint can pass a
-/// pole, though (a pole-crossing arc, or a whole great circle placed over
-/// its own turn), so a placed midpoint ranges further; and the *read*
-/// does too: a meridian placed on its far half reads its polar angle as
-/// `π − δ`, anywhere on `(π/2, 3π/2)`. So the read's one jump has to sit
-/// at a generic angle, not on a landmark: at an equator start a far-half
-/// read is `π`, and `atan2`'s own cut there put an `Interval` read a whole
-/// turn wide. The window's cut, at `1 + π ≡ 1 − π`, is reached by a
-/// far-half read only at the generic latitude `δ = −1`, the footing the
-/// angle window's offset arms are on. Southern latitudes read on the
-/// direct side, bit-identical to `atan2`; those in `(1, π/2]` read
-/// through the turned formula (`stable_azimuth`).
+/// window. The *read* ranges further: a meridian placed on its far half
+/// reads its polar angle as `π − δ`, anywhere on `(π/2, 3π/2)`. So the
+/// read's one jump has to sit at a generic angle, not on a landmark: at
+/// an equator start a far-half read is `π`, and `atan2`'s own cut there
+/// put an `Interval` read a whole turn wide. The window's cut, at
+/// `1 + π ≡ 1 − π`, is reached by a far-half read only at the generic
+/// latitude `δ = −1`, the footing the angle window's offset arms are on.
+/// Every latitude below `1` reads on the direct side, bit-identical to
+/// `atan2`; those in `(1, π/2]` read through the turned formula
+/// (`stable_azimuth`), so their bits are not `atan2`'s. No pinned row
+/// reads one, but unpinned rows do (the delta-6 review counted 257 reads
+/// strictly inside, in 13 rows, and 122 k exactly at `π/2`, from pole
+/// starts, which are bit-equal at `f64` and a different enclosure at
+/// `Interval`), and all of them pass.
 ///
 /// Measured over the workspace suite's sphere placements (1.51 M reads,
 /// 2380 distinct midpoints): no read lies within `1e-6` of this window's
-/// cut, against 431 (27 distinct) within `1e-6` of `atan2`'s at `π`. Of
-/// the placed midpoints, 10.1% lie outside `[−π/2, π/2]` (the pole
-/// crossings and whole turns above); this window moves 10.1% of them and
-/// `(−π, π]` 10.1%, and neither puts a midpoint on its cut
-/// (`(−π/2, 3π/2]` would put 302 k there, `(0, τ]` 551 k). Against
-/// `(−π, π]`, 504 midpoints (9 distinct, all of rows that run a meridian
-/// past a full turn) take another turn. The table is a measurement and
-/// is not guarded, re-taken as [`ANGLE_WINDOW_START`]'s is, logging each
-/// latitude placement's read and midpoint.
+/// cut, against 431 (27 distinct) within `1e-6` of `atan2`'s at `π`.
+/// This window moves 10.1% of the placements (the angle at the midpoint
+/// before placement lies outside it, `k ≠ 0`), as `(−π, π]` does, and
+/// neither puts a midpoint on its cut (`(−π/2, 3π/2]` would put 302 k
+/// there, `(0, τ]` 551 k). After placement nearly every midpoint lies in
+/// `[−π/2, π/2]`: the delta-6 review counted 3 of 170 k outside, all in
+/// the pole band, on the fast set. Against `(−π, π]`, 504 workspace
+/// midpoints (9 distinct, all of rows that run a meridian past a full
+/// turn) take another turn; on the fast set none do. The table is a
+/// measurement and is not guarded, re-taken as [`ANGLE_WINDOW_START`]'s
+/// is, logging each latitude placement's read and midpoint.
 pub const LATITUDE_WINDOW_START: f64 = 1.0 - core::f64::consts::PI;
 
 /// **An angle read off the geometry**: the two frame components of a
@@ -7699,7 +7703,9 @@ fn seam_envelope<T: Decide>(
 }
 
 /// **Where a derivation places its angular phases** (C4): over the
-/// edge's span, in the principal window ([`ANGLE_WINDOW_START`]). It
+/// edge's span, in its channel's principal window ([`Window`]: from
+/// [`ANGLE_WINDOW_START`] for an angle, [`LATITUDE_WINDOW_START`] for a
+/// sphere's latitude). It
 /// carries the span's midpoint; a phase is the angle its channel reads
 /// at the image's own origin, placed so that the channel lies in the
 /// window at that midpoint ([`Placement::phase`]). Where the carrier's
@@ -7761,10 +7767,10 @@ struct Levers<T> {
 /// `[−π/2, π/2]` is (`chart_region` refuses an image past it as unbounded
 /// in its sphere arm). Its window, `(LATITUDE_WINDOW_START,
 /// LATITUDE_WINDOW_START + τ]`, holds every valid latitude, so each is
-/// named as itself, and its cut sits at a generic angle past the north
-/// pole and short of the south: the meridian's placed polar angle, the
-/// parallel's `asin` and the projected image's latitude, which is never
-/// moved, are one convention.
+/// named as itself, and its cut sits at a generic angle past both
+/// poles (`1 + π` beyond the north, `1 − π` beyond the south): the
+/// meridian's placed polar angle, the parallel's `asin` and the
+/// projected image's latitude, which is never moved, are one convention.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Window {
     /// An angle of a periodic chart.
@@ -7772,6 +7778,15 @@ pub(crate) enum Window {
     /// A sphere's latitude.
     Latitude,
 }
+
+/// Every window's start lies in `(−π, 0]`, which `stable_azimuth`'s two
+/// formulas need to cover `(start, start + τ]`; a start moved outside it
+/// fails the build.
+const _: () = {
+    use core::f64::consts::PI;
+    assert!(-PI < ANGLE_WINDOW_START && ANGLE_WINDOW_START <= 0.0);
+    assert!(-PI < LATITUDE_WINDOW_START && LATITUDE_WINDOW_START <= 0.0);
+};
 
 impl Window {
     /// The window's open end, its cut: the one place its start is spelled.
@@ -7855,7 +7870,8 @@ impl<T: Decide> Placement<T> {
     /// The phase of the `along` channel whose direction at the image's
     /// origin is `dir` and which moves by `offset(t)` from there by
     /// parameter `t`: `dir`'s angle read in the channel's window
-    /// (`Azimuth::principal_in`), less the whole turns that put `phase + offset(mid)` in its window
+    /// (`Azimuth::principal_in`), less the whole turns that put
+    /// `phase + offset(mid)` in its window
     /// ([`Placement::turns`]); none leaves the principal angle as it was
     /// read.
     pub(crate) fn phase(
