@@ -12,8 +12,9 @@
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::spline::KnotVector;
-use geom_core::{Affine3, Interval, Point2, Point3, RANGE_RECOURSE, Real, Tol, Vec3};
+use geom_core::{Affine3, Interval, Point2, Point3, RANGE_RECOURSE, Tol, Vec3};
 use profile::RawLoop;
+use profile::SketchPlane;
 use sweep::test_support::{loft_prism_sections, stacked_at};
 use sweep::{
     LoftError, ProfileLoop, SkinError, loft_body, loft_geometry, loft_parameters, sweep_body,
@@ -27,7 +28,7 @@ fn squares(n: usize) -> Vec<sweep::Section> {
 /// Four squares whose middle slab steps by exactly `step`: its base
 /// sits at z = 0, so the fold's margin for slab 1 is `step` bit for
 /// bit, while the slab's NORMALISED chord step is `step / 2`.
-fn middle_step(step: f64) -> Vec<Affine3<f64>> {
+fn middle_step(step: f64) -> Vec<SketchPlane<f64>> {
     stacked_at(&[-1.0, 0.0, step, 1.0])
 }
 
@@ -167,26 +168,27 @@ fn a_sweep_whose_two_stations_coincide_refuses_at_the_fold() {
         vec![1.0; 6],
     )
     .unwrap();
-    let place = path_start_frame(path.eval(0.0), path.deriv(0.0), tol).unwrap();
+    let place =
+        SketchPlane::from_frame(path_start_frame(path.eval(0.0), path.deriv(0.0), tol).unwrap());
     let profile = vec![ProfileLoop::polygon(
         [(-0.1, -0.1), (0.1, -0.1), (0.1, 0.1), (-0.1, 0.1)]
             .iter()
             .map(|&(x, y)| Point2::new(x, y)),
     )];
-    let stations = sweep::sweep_places(place, &path, 2).unwrap();
+    let stations = sweep::sweep_places(place, &path, 2, tol).unwrap();
     assert_eq!(
-        stations[0].components().map(f64::to_bits),
-        stations[1].components().map(f64::to_bits),
+        stations[0].placement().components().map(f64::to_bits),
+        stations[1].placement().components().map(f64::to_bits),
         "the two stations are the same frame, bit for bit"
     );
     match sweep_body::<f64>(&profile, place, &path, 2, 1, tol) {
         Err(LoftError::DegenerateStacking { slab: 0 }) => {}
         other => panic!("f64: expected DegenerateStacking at slab 0, got {other:?}"),
     }
-    // The start frame is computed, so it enters the lane as computed.
     let lane_profile =
         &sweep::test_support::lift_sections::<Interval>(core::slice::from_ref(&profile))[0];
-    let lane_place = place.map(Interval::from_computed);
+    let lane_place =
+        sweep::test_support::lift_places::<Interval>(&[place], geom_core::Tol::witness())[0];
     match sweep_body::<Interval>(lane_profile, lane_place, &path, 2, 1, tol) {
         Err(LoftError::DegenerateStacking { slab: 0 }) => {}
         other => panic!("Interval: expected DegenerateStacking at slab 0, got {other:?}"),
@@ -217,11 +219,12 @@ fn a_hinge_pinned_only_up_to_rounding_passes_the_exact_ascent_check() {
         pp.transform_point(Point3::new(1.0, -1.0, 0.0)),
     );
     let n = pp.linear.c2;
-    let places = vec![
+    let places = [
         pp,
         Affine3::rotation_about_axis(a, b - a, 0.3) * pp,
         Affine3::translation(Vec3::new(2.0 * n.x, 2.0 * n.y, 2.0 * n.z)) * pp,
-    ];
+    ]
+    .map(|m| SketchPlane::from_frame(geom_core::test_support::rigid(&m, tol)));
     let params = loft_parameters(&sections, &places, 2, tol).expect("the sections parameterize");
     let g =
         loft_geometry(&sections, &places, 2, &params, tol).expect("the exact ascent check passes");
@@ -247,13 +250,14 @@ fn a_hinge_pinned_only_up_to_rounding_passes_the_exact_ascent_check() {
     // The hinge's corners are pinned between sections 0 and 1, so their
     // seams double back and the attach gate refuses the body — as it
     // refuses the exact hinge.
-    let exact = vec![
+    let exact = [
         Affine3::identity(),
         Affine3::rotation_about_axis(Point3::new(0.0, -1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.3),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
-    ];
+    ]
+    .map(|m| SketchPlane::from_frame(geom_core::test_support::rigid(&m, tol)));
     for (what, places) in [("rounding hinge", &places), ("exact hinge", &exact)] {
-        match loft_body::<f64>(&sections, places, 2, tol) {
+        match loft_body::<f64>(&sections, places.as_slice(), 2, tol) {
             Err(LoftError::Euler(_)) => {}
             other => panic!("{what}: expected the attach gate's refusal, got {other:?}"),
         }

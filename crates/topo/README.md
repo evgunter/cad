@@ -117,6 +117,12 @@ side clears only
   directions that turn with the pair: the axis between the two faces'
   anchors, and either face's normal where it is planar
   (`boolean::separating::apart`), or
+- on a definitely-positive gap in depth (the distance from an axis
+  line, a centre or a circle that either face's carrier or a conic on
+  its boundary proposes) between one face's least depth and the
+  other's greatest, each bounded through rings and segments that cover
+  the face or its convex hull (`census::depth_gap`): the nested walls,
+  bores and plugs no direction separates, or
 - where the pair meets, by the touch analysis, which reads every curved
   face of a touch's star through that box (its corners' signed distances
   from the candidate plane): a box on its side certifies the Rest, and
@@ -159,10 +165,14 @@ pair is from the two cells' carriers:
   closure; an unbacked bound is `UnrecordedContact`.
 - A **point touch** is a pair of any two cells whose interiors meet at
   isolated points without crossing (a circle on a plane, a sphere on a
-  plane, two circles kissing). The census finds each point on the
-  closed-form lane of the two carriers, refusing typed where none
-  exists, and certifies there coincidence within ε, the point strictly
-  inside both cells, and κ_rel definitely positive; in band escalates.
+  plane, two circles kissing). For a cell on a face, or two spheres,
+  the census finds each point on the closed-form lane of the two
+  carriers, refusing typed where none exists, and certifies there
+  coincidence within ε, the point strictly inside both cells, and
+  κ_rel definitely positive; in band escalates. Two edges kissing,
+  one of them curved, are found by the curved-edge lane's bisection
+  search over both spans, which certifies a point on both edges'
+  interiors.
   Whether the solids cross at the point is the touch analysis's
   reading of the faces around it.
 - A **patch** is a face–face pair on one carrier, backed by a
@@ -678,11 +688,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      cells the op minted between them, the division exhaustive or with
      its remainder removed; or removed. One carry, for the boolean and
      every surgery verb alike, lands a record whose two cells the op kept
-     or substituted on their images by lineage, unread, their geometry
-     unchanged and the record read where it was minted; it puts each
-     pair drawn from a divided cell's images to the census's record
-     confirm, and the record lands on every such pair whose interiors
-     meet, each landing citing it. Two
+     or substituted on their images by lineage, unread, each image on
+     its cell's carrier and holding its old interior and the record read
+     where it was minted; it puts each pair drawn from a divided cell's
+     images, or from an image that does not hold its cell's geometry (a
+     cell an offset or blend moved under its key), to the census's
+     record confirm, and the record lands on every such pair whose
+     interiors meet, each landing citing it. Two
      cells an op minted on a record's two cells and that meet at a point
      meet where the record puts them when one cut made both, as the
      split's one plane does, and the landing cites the record alone; an
@@ -690,8 +702,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      such meeting at its door ([coincidence]), and the landing cites the decision
      beside the record; any other op refuses one. A record
      that lands on no pair, every pair read definitely, is consumed
-     where one of its cells was removed or divided with its remainder
-     removed, and is stale otherwise; a cell the lineage does not cover
+     where one of its cells was removed, divided with its remainder
+     removed, or moved, and is stale otherwise; a cell the lineage does not cover
      refuses. A cell that replaces another without holding its interior
      (a blend face for the edge it rounds) takes no record from it.
    - **Certification strength equals its skeleton**: a curve touch is

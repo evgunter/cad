@@ -32,11 +32,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::FRAC_PI_2;
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 
 use geom::NurbsCurve3;
 use geom::curves::fit::interpolate_columns;
-use geom_core::{Affine3, Point2, Point3};
+use geom_core::{Point2, Point3};
 use sweep::skin::{LoftGeometry, Section, loft_geometry, loft_parameters, sweep_geometry};
 use sweep::test_support::{
     ELBOW_H, ELBOW_R, ELBOW_STATIONS, ELBOW_V_DEGREE, PRISM_Z, elbow_path, elbow_section,
@@ -60,7 +61,7 @@ fn square(h: f64) -> Section {
 
 /// A loft's walls at the loft's own parameters (v-degree 2), as
 /// `loft_body` builds them.
-fn lofted_geometry(sections: &[Section], places: &[Affine3<f64>]) -> LoftGeometry {
+fn lofted_geometry(sections: &[Section], places: &[SketchPlane<f64>]) -> LoftGeometry {
     let params = loft_parameters(sections, places, 2, Tol::witness()).expect("parameters");
     loft_geometry(sections, places, 2, &params, Tol::witness()).expect("geometry")
 }
@@ -259,7 +260,7 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
 
     let geometry = sweep_geometry(
         &profile,
-        Affine3::identity(),
+        SketchPlane::xy(),
         &path,
         stations,
         v_degree,
@@ -270,7 +271,7 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
 
     let swept = sweep_body::<f64>(
         &profile,
-        Affine3::identity(),
+        SketchPlane::xy(),
         &path,
         stations,
         v_degree,
@@ -311,7 +312,7 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
 fn the_swept_bodys_seam_carriers_meter_positively() {
     let swept = sweep_body::<f64>(
         &elbow_section(),
-        Affine3::identity(),
+        SketchPlane::xy(),
         &elbow_path(),
         ELBOW_STATIONS,
         ELBOW_V_DEGREE,
@@ -382,7 +383,7 @@ fn circle_section(r: f64) -> Section {
 fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
     let swept = sweep_body::<f64>(
         &circle_section(ELBOW_H),
-        Affine3::identity(),
+        SketchPlane::xy(),
         &elbow_path(),
         ELBOW_STATIONS,
         ELBOW_V_DEGREE,
@@ -462,7 +463,7 @@ const PROBE_DELTA: f64 = 0.06;
 fn a_rational_section_on_a_curved_path_faces_out_along_the_turn() {
     let swept = sweep_body::<f64>(
         &circle_section(ELBOW_H),
-        Affine3::identity(),
+        SketchPlane::xy(),
         &elbow_path(),
         ELBOW_STATIONS,
         ELBOW_V_DEGREE,

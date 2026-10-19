@@ -2,10 +2,11 @@
 id: a-revolved-pinch-split-refuses-with-its-normal-flipped
 kind: issue
 title: A revolved pinch split names with normal +y and refuses Emission 'section chord adjacent to a section face' with normal -y
-status: open
+status: closed
 opened: 2026-10-18
 priority: P3
 cost: M
+closed: 2026-10-19
 ---
 
 
@@ -32,3 +33,7 @@ copy, which bounds a section face on both sides in the half that holds the
 pinch.
 
 Signed (wire-keeps lane).
+
+## Resolution (2026-10-19)
+
+Closed by PR 5334: a split finishes each half with maximal faces (recording a curved skip), names in-plane edges and merged groups per N2/N3 as Ev approved on PR 5306, and reads `Keeps` by descent in one builder. Pinned in `split_pinch_keeps.rs`, `m3_pr3_split.rs` and `a_lower_half_on_the_plane_takes_a_box_hole`.

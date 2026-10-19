@@ -209,9 +209,9 @@ pub fn framed_bar(o: Point3<f64>, d: geom_core::Vec3<f64>, t0: f64, t1: f64, w: 
         Point2::new(-h, h),
     ]);
     let start = o + d * t0;
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(u, v, d),
-        start - Point3::origin(),
+    let plane = profile::SketchPlane::from_frame(geom_core::test_support::rigid(
+        &Affine3::from_parts(Mat3::from_cols(u, v, d), start - Point3::origin()),
+        geom_core::Tol::witness(),
     ));
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())

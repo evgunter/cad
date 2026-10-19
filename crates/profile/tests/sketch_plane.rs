@@ -14,10 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use core::cell::Cell;
-use core::convert::Infallible;
-
-use geom_core::{Affine3, Mat3, Point2, Point3, RigidMotion, Vec3};
+use geom_core::{Affine3, Dual64, Interval, Mat3, Point2, Point3, Real, RigidMotion, Vec3};
 use profile::SketchPlane;
 
 use crate::common::frame_of;
@@ -33,9 +30,9 @@ fn vc(v: Vec3<f64>) -> (f64, f64, f64) {
 }
 
 /// The plane's normal: the third column of the placement's linear
-/// part, i.e. u × v (see the `SketchPlane` docs).
+/// part, the frame's third axis (see the `SketchPlane` docs).
 fn normal(plane: &SketchPlane<f64>) -> (f64, f64, f64) {
-    vc(plane.placement.linear.c2)
+    vc(plane.placement().linear.c2)
 }
 
 #[test]
@@ -115,25 +112,23 @@ fn the_three_planes_round_trip_the_sketch_basis_cyclically() {
 
 #[test]
 fn the_frame_accessors_read_back_exactly_what_from_frame_wrote() {
-    // The accessors are PROJECTIONS of the stored placement, not a
+    // The accessors are the stored frame's own origin and axes, not a
     // recomputation, so the round trip is bitwise — including the
-    // signed zero, which is why `origin` transcribes the translation
-    // rather than adding it to the coordinate origin.
+    // signed zero.
     let o = Point3::new(-0.0, 2.0, 3.5);
     let frame = RigidMotion::axes_yz(o);
     let plane = SketchPlane::from_frame(frame);
 
     assert_eq!(plane.origin().x.to_bits(), (-0.0f64).to_bits());
     assert_eq!(pt(plane.origin()), (-0.0, 2.0, 3.5));
-    assert_eq!(vc(plane.u()), (0.0, 1.0, 0.0));
-    assert_eq!(vc(plane.v()), (0.0, 0.0, 1.0));
-    assert_eq!(vc(plane.normal()), normal(&plane));
+    assert_eq!(vc(plane.u().get()), (0.0, 1.0, 0.0));
+    assert_eq!(vc(plane.v().get()), (0.0, 0.0, 1.0));
+    assert_eq!(vc(plane.normal().get()), normal(&plane));
 
-    // The accessors are the frame's own three axes and its origin,
-    // read off the placement they were written into.
-    assert_eq!(vc(plane.u()), vc(frame.u().get()));
-    assert_eq!(vc(plane.v()), vc(frame.v().get()));
-    assert_eq!(vc(plane.normal()), vc(frame.w().get()));
+    // The accessors are the frame's own three axes and its origin.
+    assert_eq!(vc(plane.u().get()), vc(frame.u().get()));
+    assert_eq!(vc(plane.v().get()), vc(frame.v().get()));
+    assert_eq!(vc(plane.normal().get()), vc(frame.w().get()));
     assert!(plane.bit_eq(&SketchPlane::from_frame(frame)));
 }
 
@@ -213,119 +208,81 @@ const FRAMES: [(Point3<f64>, Vec3<f64>, Vec3<f64>); 5] = [
 ];
 
 #[test]
-fn from_frame_is_the_witness_conversion_bit_for_bit() {
-    // One home: `SketchPlane::from_frame` IS `RigidMotion::to_affine` —
-    // a delegation, so the twelve stored components agree by BITS, and
-    // the columns are the frame's own three axes. The conversion's own
+fn the_placement_is_the_witness_conversion_bit_for_bit() {
+    // One home: `SketchPlane::placement` IS `RigidMotion::to_affine` —
+    // a derivation, so the twelve components agree by BITS, and the
+    // columns are the frame's own three axes. The conversion's own
     // identity with the hand spelling, over the wide corpus, is pinned
     // beside the type in `geom-core`.
     for (o, u, v) in FRAMES {
         let frame = frame_of(o, u, v);
         let plane = SketchPlane::from_frame(frame);
-        assert_eq!(bits(plane.placement), bits(frame.to_affine()));
-        assert!(plane.bit_eq(&SketchPlane::new(frame.to_affine())));
+        assert_eq!(bits(plane.placement()), bits(frame.to_affine()));
         let hand = Affine3::from_parts(
             Mat3::from_cols(frame.u().get(), frame.v().get(), frame.w().get()),
             o - Point3::origin(),
         );
-        assert_eq!(bits(plane.placement), bits(hand));
+        assert_eq!(bits(plane.placement()), bits(hand));
     }
 }
 
 #[test]
-fn map_lifts_the_stored_frame_componentwise_without_recomputing_it() {
-    // `map` is `Affine3::map` on the placement: twelve components
-    // through `f`, no arithmetic. Under the identity every bit survives
-    // (the signed zeros too); under negation every component is the
-    // negated bit — and the normal is the SOURCE frame's `u × v`
-    // negated, not the cross product of the negated axes (which would
-    // be `u × v` again). That difference is what the two lift spellings
-    // in the doc are about.
-    for (o, u, v) in FRAMES {
-        let frame = frame_of(o, u, v);
-        let plane = SketchPlane::from_frame(frame);
-        assert!(plane.map(|x| x).bit_eq(&plane));
-        let neg = plane.map(|x: f64| -x);
-        let want = bits(plane.placement)
-            .map(f64::from_bits)
-            .map(|x| (-x).to_bits());
-        assert_eq!(bits(neg.placement), want);
-        // The lifted normal is the SOURCE frame's `u × v` negated; the
-        // cross product of the two negated axes is that same product
-        // unnegated, which is the difference the two lift spellings in
-        // the doc are about.
-        let n = frame.w().get();
-        let crossed_after = (-frame.u().get()).cross(-frame.v().get());
-        assert_eq!(vc(neg.normal()), (-n.x, -n.y, -n.z));
-        assert_eq!(vc(crossed_after), (n.x, n.y, n.z));
-    }
-}
-
-#[test]
-fn try_map_is_the_fallible_direction_of_map_over_the_same_twelve_components() {
-    // `try_map` is `Affine3::try_map` on the placement exactly as `map`
-    // is `Affine3::map`: under an `f` that cannot refuse, the twelve
-    // stored components come back where `map` puts them, bit for bit,
-    // the signed-zero frame included. Nothing is recomputed — the
-    // stored normal is carried as a value, which is what the doc's two
-    // lift spellings are about and is unchanged in this direction.
+fn point_value_reads_a_plane_minted_at_a_lane_scalar_back_bit_for_bit() {
+    // A plane exists at a lane scalar only by being minted there. Minted
+    // at the decided door from the `f64` plane's twelve entries as point
+    // values, it holds those entries verbatim, so `point_value` returns
+    // every bit at `Interval` and through `Dual64`'s value channel, the
+    // signed-zero frame included.
+    let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
     for (o, u, v) in FRAMES {
         let plane = SketchPlane::from_frame(frame_of(o, u, v));
-        let walk = plane
-            .try_map(|x: f64| Ok::<f64, Infallible>(x))
-            .unwrap_or_else(|never| match never {});
-        assert_eq!(bits(walk.placement), bits(plane.map(|x| x).placement));
-        assert_eq!(bits(walk.placement), bits(plane.placement));
+        let at_interval = SketchPlane::from_frame(
+            RigidMotion::check_rigid(&plane.placement().map(Interval::from_f64), band)
+                .expect("a rigid f64 frame is rigid as point intervals"),
+        );
+        let back = at_interval.point_value().expect("a point plane reads back");
+        assert!(back.bit_eq(&plane), "Interval round trip at {o:?}");
+        let at_dual = SketchPlane::from_frame(
+            RigidMotion::check_rigid(&plane.placement().map(Dual64::from_f64), band)
+                .expect("a rigid f64 frame is rigid at Dual64"),
+        );
+        let back = at_dual
+            .point_value()
+            .expect("a dual plane's value channel reads back");
+        assert!(back.bit_eq(&plane), "Dual64 round trip at {o:?}");
     }
 }
 
 #[test]
-fn try_map_returns_the_first_refusal_in_its_place_and_builds_no_plane() {
-    // A refusal is the whole answer: no `SketchPlane` is constructed
-    // around a partly-walked placement. The walk is twelve components
-    // long and short-circuits, so refusing from the k-th on yields the
-    // k-th refusal after exactly `k + 1` calls — a plane door that
-    // collected all twelve and picked would report eleven and twelve.
-    //
-    // The refusal carries the component's own VALUE, over a placement
-    // whose twelve components are all distinct, so the loop
-    // discriminates PLACEMENT and not only order: a transposed column
-    // changes which value comes out at which k. (The canonical planes
-    // could not do this — their components are zeros and ones, so a
-    // transposition leaves the refused value unchanged.)
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(
-            Vec3::new(1.0, 2.0, 3.0),
-            Vec3::new(4.0, 5.5, -6.0),
-            Vec3::new(-7.25, 0.5, 8.0),
+fn point_value_refuses_a_plane_wider_than_a_point() {
+    // A frame minted at `Interval` from a WIDE first axis has no single
+    // `f64` frame to read: `point_value` answers `None` rather than a
+    // midpoint, which would invent a frame the enclosure does not name.
+    let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
+    let wide = RigidMotion::gram_schmidt(
+        Point3::new(
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.0),
         ),
-        Vec3::new(10.0, 11.0, 12.0),
-    ));
-    let want = bits(plane.placement);
-    for (k, expected) in want.iter().enumerate() {
-        let calls = Cell::new(0usize);
-        let got = plane.try_map(|x: f64| {
-            let i = calls.get();
-            calls.set(i + 1);
-            if i < k { Ok(x) } else { Err(x.to_bits()) }
-        });
-        assert_eq!(
-            got.err(),
-            Some(*expected),
-            "the first refusal carries component {k}'s own value"
-        );
-        assert_eq!(
-            calls.get(),
-            k + 1,
-            "nothing after component {k} is consulted"
-        );
-    }
-    // And with no refusal anywhere, all twelve are visited once.
-    let calls = Cell::new(0usize);
-    let all = plane.try_map(|x: f64| {
-        calls.set(calls.get() + 1);
-        Ok::<f64, ()>(x)
-    });
-    assert_eq!(bits(all.unwrap().placement), want);
-    assert_eq!(calls.get(), 12);
+        Vec3::new(
+            Interval::from_bounds(0.9, 1.1),
+            Interval::from_f64(0.0),
+            Interval::from_f64(0.0),
+        ),
+        Vec3::new(
+            Interval::from_f64(0.0),
+            Interval::from_f64(1.0),
+            Interval::from_f64(0.0),
+        ),
+        "sketch_plane_test_axis",
+        band,
+    )
+    .expect("a wide pair that spans a plane");
+    assert!(SketchPlane::from_frame(wide).point_value().is_none());
+    let point = SketchPlane::<Interval>::xy();
+    assert!(
+        point.point_value().is_some(),
+        "the control: a point plane reads"
+    );
 }

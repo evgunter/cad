@@ -156,47 +156,36 @@ fn a_rotated_frame_loft_certifies_under_a_box_elsewhere() {
     assert_certified_in_one_leaf("rotated", drive_loft(|| rect(len(1.0)), [0.6, 0.8, 0.0]));
 }
 
-/// What each row's loft does, one evaluation at `Interval` at the
-/// nominal: under the guided lift (an analysis's, here over an empty
-/// box) the arc section and the rotated plane are a few ulps wide. The arc's weight is no point and refuses
-/// by name; the rotated plane lofts in `T`. Under the pinned lift both
-/// are the `f64` form lifted, and loft: an `Interval` evaluation with
-/// no box is the build.
+/// What each row's loft does, one evaluation at `Interval` with no
+/// box: the profile is elaborated at the lane, so the arc section and
+/// the rotated plane are a few ulps wide. The arc's weight is no point
+/// and refuses by name; the rotated plane lofts in `T`.
 #[test]
-fn with_no_box_the_guided_lift_refuses_an_arc_section_and_lofts_a_rotated_plane() {
-    use editor_core::{NodeErrorKind, ProfileLift};
+fn with_no_box_an_arc_section_refuses_and_a_rotated_plane_lofts() {
+    use editor_core::NodeErrorKind;
     use geom_core::Interval;
     use sweep::SkinError;
-    let run = |doc: &editor_core::ProfileDoc, lift| {
+    let run = |doc: &editor_core::ProfileDoc| {
         editor_core::evaluate::<Interval>(
             doc,
             None,
             &editor_core::CancelToken::new(),
-            &crate::corpus::options_under(doc, lift).expect("the loft has a continuous variable"),
+            &editor_core::EvalOptions::default(),
             Tol::witness(),
         )
     };
     let (arc, arc_loft) = loft_doc(circle, [1.0, 0.0, 0.0]);
     let (rotated, rotated_loft) = loft_doc(|| rect(len(1.0)), [0.6, 0.8, 0.0]);
-    for (doc, loft) in [(&arc, arc_loft), (&rotated, rotated_loft)] {
-        let pinned = run(doc, ProfileLift::Pinned);
-        assert!(
-            pinned.node_error(loft).is_none(),
-            "{:?}",
-            pinned.node_error(loft)
-        );
-    }
-    let guided = run(&arc, ProfileLift::Guided);
-    match guided.node_error(arc_loft).map(|e| &e.kind) {
+    match run(&arc).node_error(arc_loft).map(|e| &e.kind) {
         Some(NodeErrorKind::Skin(SkinError::Structure(
             geom_core::spline::SplineError::CarrierWeightNotAPoint { .. },
         ))) => {}
         other => panic!("the arc's weight is no point at Interval, got {other:?}"),
     }
-    let guided = run(&rotated, ProfileLift::Guided);
+    let rotated_run = run(&rotated);
     assert!(
-        guided.node_error(rotated_loft).is_none(),
+        rotated_run.node_error(rotated_loft).is_none(),
         "the rotated plane lofts in T: {:?}",
-        guided.node_error(rotated_loft)
+        rotated_run.node_error(rotated_loft)
     );
 }

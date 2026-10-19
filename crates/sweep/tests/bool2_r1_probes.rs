@@ -25,7 +25,7 @@ use crate::revolve_common;
 use sweep::ExtrudeSide;
 
 use crate::common::approx::band;
-use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use revolve_common::*;
@@ -361,7 +361,7 @@ fn probe_e2e_revolve_union_tessellate() {
         Point2::new(6.0, 1.0),
         Point2::new(5.0, 1.0),
     ]);
-    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, -1.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, -1.0));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();

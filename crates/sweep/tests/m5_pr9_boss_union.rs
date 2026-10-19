@@ -9,8 +9,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands::{slab as plate, three_arc_cylinder};
+use geom_core::Point2;
+use geom_core::Point3;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::test_support::finished;
@@ -343,7 +344,7 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
         (Point2::new(3.0, 3.0), 0.0),
         (Point2::new(-3.0, 3.0), 0.0),
     ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.3));
     let plate = extrude(
         &Profile::new(plane, vec![lp])
             .validate(Tol::witness())
@@ -436,7 +437,7 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
     // Place the ball by translating the SKETCH plane: center lands at
     // (0.65, 0, 1.3) — beyond even the cap's padded box on x (box hi
     // ~ 0.293), tangent to the cap plane z = 1 at (0.65, 0, 1).
-    let ball_plane = SketchPlane::new(Affine3::translation(Vec3::new(0.65, 0.0, 1.3)));
+    let ball_plane = SketchPlane::xy_at(Point3::new(0.65, 0.0, 1.3));
     let ball = sweep::revolve(
         &Profile::new(ball_plane, vec![ball_lp])
             .validate(Tol::witness())
