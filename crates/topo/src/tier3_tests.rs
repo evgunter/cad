@@ -1454,6 +1454,114 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
     );
 }
 
+/// The pillow with its split chord's curve swapped for an arc of the
+/// unit circle over `[0, τ + past]`, described in the split face's chart
+/// and minted at a band coarse enough to read its headroom to a full
+/// turn as zero (a state no door produces).
+fn pillow_with_an_arc_past_a_turn(tol: Tol, past: f64) -> (crate::Body<f64>, crate::MefCreated) {
+    let (mut body, split) = coplanar_pillow(tol);
+    let chart = body.get_face(split.face).unwrap().surface;
+    let circle = geom::Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let t1 = core::f64::consts::TAU + past;
+    let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1)
+        .unwrap()
+        .at_rest_in_chart(chart, false);
+    let (start, end) = (spec.carrier.eval(0.0), spec.carrier.eval(t1));
+    let coarse = geom_core::Band::new(2.0 * past, 20.0 * past).unwrap();
+    let planted = geom_brep::EdgeCurve::certify(
+        spec,
+        start,
+        end,
+        |k| body.get_surface(k).cloned(),
+        1.0,
+        coarse,
+    )
+    .expect("a headroom the coarse band reads as zero passes");
+    let curve_key = body.get_edge(split.edge).unwrap().curve;
+    *body.curves.get_mut(curve_key).unwrap() = crate::null::CurveGeom::Certified(planted);
+    (body, split)
+}
+
+/// `re_mint` panics as a kernel bug naming `site`.
+fn panics_as_a_kernel_bug_at(site: &str, re_mint: impl FnOnce()) {
+    let message = test_utils::panic_capture::caught(std::panic::AssertUnwindSafe(re_mint))
+        .unwrap_or_else(|| panic!("{site}: the re-mint returned rather than panicking"));
+    assert!(
+        message.contains(&format!("{site}: ")) && message.contains("a kernel bug"),
+        "{site}: {message}"
+    );
+}
+
+/// **A split child of a stored arc past a full turn is the kernel's own
+/// re-mint** (`[failure]`): split short of the arc's far end, the child
+/// before the split still spans past a turn at the run's band, and its
+/// certification panics at the split's call site.
+#[test]
+fn a_split_child_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let past = 20.0 * tol.k() * tol.eps();
+    let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, past);
+    let t = core::f64::consts::TAU + past / 2.0;
+    panics_as_a_kernel_bug_at("a split child", || {
+        let _ = body.split_edge(split.edge, t, tol);
+    });
+}
+
+/// **A graft's re-certification of a stored arc past a full turn is the
+/// kernel's own** (`[failure]`): it panics at the graft's call site.
+#[test]
+fn a_grafted_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (src, _) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let mut dst = src.clone();
+    let solid = dst.solids().next().unwrap().0;
+    panics_as_a_kernel_bug_at("a graft", || {
+        let _ = crate::boolean::combine::graft_solid(&mut dst, solid, &src, tol);
+    });
+}
+
+/// **A described move's re-certification of a stored arc past a full
+/// turn is the kernel's own** (`[failure]`): the description is the
+/// caller's, the carrier and interval the body's, and it panics at the
+/// move's call site.
+#[test]
+fn a_redescribed_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let chart = body.get_face(split.face).unwrap().surface;
+    panics_as_a_kernel_bug_at("a re-description", || {
+        let _ = body.vouch_described_move(
+            crate::euler::RechartDoor::SetFaceSurface,
+            split.face,
+            (chart, chart),
+            &[split.edge],
+            |_, _, _| false,
+            false,
+            &[(split.edge, geom_brep::EdgeDescriptionSpec::chart(chart))],
+            tol,
+        );
+    });
+}
+
+/// **A re-based run's re-certification of a stored arc past a full turn
+/// is the kernel's own** (`[failure]`): it panics at the run's call
+/// site, whether or not the vertex moves.
+#[test]
+fn a_re_based_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let v = body.get_half_edge(split.he_plus).unwrap().start;
+    let here = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    panics_as_a_kernel_bug_at("a re-based run's edge", || {
+        let _ = body.certify_rebased_run(&[split.he_plus], here, tol);
+    });
+}
+
 #[test]
 fn offset_plane_at_rest_fails_planar_residuals() {
     let tol = Tol::witness();
