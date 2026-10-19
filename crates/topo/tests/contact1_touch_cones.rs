@@ -217,18 +217,14 @@ fn a_block_flush_with_the_arm_top_clears_on_its_shared_edge() {
 /// inner-corner vertex, which is a SADDLE (a reflex vertical edge, two
 /// convex floor edges, a floor sector of 270°). No plane through the
 /// corner separates the two cones and the bracket's complement there is
-/// not convex, so neither sufficient test certifies the rest: the
-/// analysis refuses typed as unanalysed (filed as
-/// `work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`).
-/// Unmoved from the base, where the vertex pair had no analysis at all.
+/// not convex; the two links, read whole, are apart, and the pair
+/// clears.
 #[test]
-fn a_block_on_the_floor_of_the_inner_corner_refuses_unanalysed() {
+fn a_block_on_the_floor_of_the_inner_corner_clears() {
     let body = bracket_with(&block((1.0, 2.0), (1.0, 2.0), (0.0, 0.5)));
     let errors = refused(&body, &ContactRecords::default());
-    assert!(
-        the_refusal(&errors).contains("neither convex nor concave"),
-        "{errors:?}"
-    );
+    assert!(touch_kinds(&errors).contains(&"VertexVertex"), "{errors:?}");
+    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
 }
 
 /// The tilted block whose corner meets the bracket's corner `(3, 1,
