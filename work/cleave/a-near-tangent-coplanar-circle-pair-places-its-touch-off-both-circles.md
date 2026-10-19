@@ -90,3 +90,28 @@ foot in place; it only moved the one-circle decision onto
   door rather than reading `Clear`.
 
 The row's second ask, a sweep of the other closed-form arms for a generic formula at data a `Zero` reading called degenerate, is not done here. It lives on `work/issues/decided-tangent-point-is-the-radical-foot.md`, with the two arms still of that shape (`splitting::conic_plane_candidates` and `rim_wedge::crossings`).
+
+## The PR 5190 review's M-1 family through `curve_pair::meet` (2026-10-19)
+
+PR 5190 (closed unmerged, superseded by the reader) was reviewed with a
+near-tangent family that found silent misses in its own `conic_meets_plane`
+at ε = 1e-12. The same family, run through `geom_brep::curve_pair::meet` on
+main (f6dbcfe1f7):
+
+- **The poses (601):** two sections of the unit sphere about
+  `(3.7, −2.1, 0.4)`; their planes share a line `g` short of tangency to
+  the first, with `g ∈ ±20·z`; turned `θ` apart about it, 30 log steps of
+  `θ` from `1e-11` to `1e-3` by 20 gaps; plus the review's witness
+  (`θ = 1e-6`, crossings 16.6 µm apart).
+- **The method:** whole-circle spans, both orders. A double-double
+  oracle on the stored records (`reach² − lift²`, each product exact)
+  says where each conic crosses the other's plane, and a pose counts
+  where both do.
+- **Silent misses** (a definite no-meeting where the records cross):
+  none at any ε.
+
+| ε | readings that cross | meeting found | shared run | refused typed (`Escalated`) |
+|---|---|---|---|---|
+| 1e-12 | 636 | 606 | 0 | 30 |
+| 1e-9 | 590 | 394 | 126 | 70 |
+| 1e-6 | 610 | 160 | 370 | 80 |

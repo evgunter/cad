@@ -410,10 +410,6 @@ macro_rules! rows {
     )*};
 }
 
-/// The item that owes `declared_tangency`'s two exact-zero azimuth-frame
-/// flips.
-const DECLARED_TANGENCY_FLIP: &str = "work/inlane/under-the-guided-lift-declared-tangencys-pcurve-chart-azimuth-frame-flips-from-an-exact-zero.md";
-
 rows! {
     // In step: moved apart, the ray-schedule gate's margin is exactly 0
     // at the nominal (`point_in_loop_arm`, an axis-aligned face normal on
@@ -423,7 +419,7 @@ rows! {
     revalue_plate_param: "plate_param", InStep, 3938, [];
     // In step: moved apart, its `bool_pair_gap` margins are decided in
     // another order and the builds part after decision 3996, the first
-    // difference at #3997 (`pcurve_chart_azimuth_frame`)
+    // difference at #3997 (then `pcurve_chart_azimuth_frame`)
     // (`work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md`,
     // which NOTHING here pins).
     revalue_boss_union: "boss_union", InStep, 3236, [];
@@ -436,16 +432,7 @@ rows! {
     revalue_heat_sink_fins: "heat_sink_fins", Apart, 1353, [];
     revalue_loft_prism: "loft_prism", Apart, 259, [];
     revalue_measured_web: "measured_web", Apart, 716, [];
-    // Apart: two chart frames on an azimuth exactly zero at the nominal
-    // flip, owed below. After the first, the chart's map residuals (a few
-    // ulps) are computed in the other frame at `p1`; at ε 1e-6 they
-    // re-value to other bits, at 1e-9 and 1e-12 to the same.
-    revalue_declared_tangency: "declared_tangency", Apart, 1217, [],
-        flips [
-            ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP),
-            ("pcurve_chart_azimuth_frame", DECLARED_TANGENCY_FLIP)
-        ],
-        after ["pcurve_map_residual"];
+    revalue_declared_tangency: "declared_tangency", Apart, 1217, [];
 }
 
 /// The census over the whole corpus, one document per run with

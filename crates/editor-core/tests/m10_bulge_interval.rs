@@ -16,7 +16,9 @@
 //! (`CAD_M10_10_DOC=r1_segment_boss|r2_d_tab_literal|r2_d_tab_parameter`,
 //! and the dyadic controls `r2_d_tab_literal_dyadic|r2_d_tab_parameter_dyadic`);
 //! `m10_bulge_renders.txt` beside this file is the record of those
-//! renders at this tree: per document the whole split, then every
+//! renders at the tree that shipped rule G. It is stale: it has not been
+//! re-rendered since PCERT B1 renamed the frame row to
+//! `pcurve_chart_cut_side`. Per document the whole split, then every
 //! decision the tier was asked and left numeric on an arc-family
 //! predicate with its freeze causes and its attributed cause — every
 //! form attributed to the sign of `b` or of the apothem UNCUT, so the
@@ -98,6 +100,18 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///   walk's branch a literal `k` (`geom_brep::Period::decide`), the
 ///   stored azimuth is `α + k·τ`; the envelope is a theorem on eight
 ///   of its twelve rows.
+///
+/// **PCERT's placement unit (C4: a row is its image placed over the
+/// edge's span in the chart's principal window) moved two rows**, on
+/// every spelling:
+///
+/// - `pcurve_chart_azimuth_frame` 12/0/0/26 -> 0/0/0/26: a cylinder's
+///   meridian azimuth is read only on a meridian, so a rim circle
+///   centred on the axis no longer reads the frame of its zero radial
+///   offset (the 12 the tier proved zero).
+/// - `pcurve_chart_placement` is new, 0/0/0/52: each of the 26 placed
+///   azimuths reads its two half-period marks about the window's
+///   centre ([`geom_brep::Period::decide`]), each decided numerically.
 /// - `pcurve_fidelity_branch` is new, 0/0/0/24: fidelity's branch, two
 ///   sign decisions per row at the half-period marks, definite, read
 ///   off the value.
@@ -105,6 +119,11 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 ///   decisions, definite.
 /// - `pcurve_loop_continuity` 9/0/0/9 -> 9/0/4/5: with no `floor`
 ///   node between them, four joints' two ends go through the door.
+///
+/// **The frame decided across the window's cut** renames one row and
+/// moves no count: `pcurve_chart_azimuth_frame` 0/0/0/26 ->
+/// `pcurve_chart_cut_side` 0/0/0/26, the side of the principal window's
+/// cut line each of the 26 azimuths lies on.
 ///
 /// **The circles store their authored carrier.** Each hole's rim is the
 /// authored centre and `|r|`, so the rim at a vertex folds onto the
@@ -179,8 +198,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("path_junction_turn", [0, 4]),
     ("pcurve_azimuth_period", [0, 12]),
     ("pcurve_chart_azimuth_affine", [24, 0]),
-    ("pcurve_chart_azimuth_frame", [12, 26]),
+    ("pcurve_chart_cut_side", [0, 26]),
     ("pcurve_chart_orientation", [0, 12]),
+    ("pcurve_chart_placement", [0, 52]),
     ("pcurve_chart_radial_moving", [14, 12]),
     ("pcurve_chart_winding", [12, 18]),
     ("pcurve_envelope", [8, 4]),
@@ -307,8 +327,9 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("path_junction_turn", [0, 2]),
             ("pcurve_azimuth_period", [0, 12]),
             ("pcurve_chart_azimuth_affine", [24, 0]),
-            ("pcurve_chart_azimuth_frame", [12, 26]),
+            ("pcurve_chart_cut_side", [0, 26]),
             ("pcurve_chart_orientation", [0, 12]),
+            ("pcurve_chart_placement", [0, 52]),
             ("pcurve_chart_radial_moving", [14, 12]),
             ("pcurve_chart_winding", [12, 18]),
             ("pcurve_envelope", [12, 0]),

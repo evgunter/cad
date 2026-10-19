@@ -77,7 +77,14 @@ const KERNEL_KEYED: &[&str] = &[
     "Blend/Certify",
     "Naming/SplitLineage",
     "Naming/SeamVertexParentage",
+    "Naming/SeamVertexPartners",
     "Naming/SharedRim",
+    "Naming/MergedChord",
+    "Naming/MergedChordOffRim",
+    "Naming/ConventionalVertex",
+    "Naming/ClosedCarrierUnread",
+    "Naming/CarrierUnplaced",
+    "Naming/PartnerUnread",
     "FaceFrameReadback/Dangling",
     "Shell/Partition",
     "Shell/Insert",
@@ -201,12 +208,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "DegenerateDirection",
     "EmptyHalf",
     "EmptyOperand",
-    "FaceFrameNotPlanar",
-    "FaceFrameReadback/Dangling",
-    "FaceFrameReadback/NoCanonicalFrame",
-    "FaceFrameReadback/NoCarrier",
-    "FrameDirection/Degenerate",
-    "InstanceOutOfRange",
     "MeasureClearanceRefused",
     "MeasureNotParallel",
     "MeasureRefUnreadable/Readback",
@@ -219,11 +220,20 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MissingInput",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
+    // work/wirehold/placement-rule-refusals-state-no-recourse.md
+    "FaceFrameNotPlanar",
+    "FaceFrameReadback/Dangling",
+    "FaceFrameReadback/NoCanonicalFrame",
+    "FaceFrameReadback/NoCarrier",
+    "FrameDirection/Degenerate",
+    "InstanceOutOfRange",
+    "PlacementsUncertified",
     "PlacementRule/CountSpelling",
     "PlacementRule/ImproperFrame",
     "PlacementRule/NoPlacements",
     "PlacementRule/NonFiniteFrame",
-    "PlacementsUncertified",
+    "PlacementRule/NonRigidFrame",
+    // work/wire/wire-refusals-short-of-the-shape-guard.md
     "ShellLaneUnsupported",
     "ToleranceConflict",
     "UnschedulableCycle",
@@ -676,6 +686,39 @@ fn every_node_refusal_renders_within_the_budget() {
                 );
             }
         }
+    }
+}
+
+/// **Every `NamingError` arm has a row.** The roster is
+/// `display_contract`'s `NAMING_ERROR` census, whose `match` rustc holds
+/// exhaustive, and each `Naming/` row is named by its own payload's
+/// variant, so an arm added to the enum or a row taken out reds here.
+#[test]
+fn every_naming_arm_has_a_row() {
+    let rendered: Vec<String> = editor_payloads()
+        .into_iter()
+        .filter_map(|(name, kind)| {
+            let NodeErrorKind::Naming(e) = kind else {
+                return None;
+            };
+            let arm = test_utils::f6::variant_identifier(&e);
+            assert_eq!(
+                name,
+                format!("Naming/{arm}"),
+                "a naming row is named by its arm"
+            );
+            Some(arm)
+        })
+        .collect();
+    let rendered: Vec<&str> = rendered.iter().map(String::as_str).collect();
+    if let Some(report) = test_utils::census::set_difference(
+        crate::display_contract::NAMING_ERROR.identifiers(),
+        &rendered,
+        "NamingError's arms and the feature tree's naming rows disagree",
+        "rendered by a row and not an arm of the census",
+        "an arm with no feature-tree row: give it one in `editor_payloads`",
+    ) {
+        panic!("{report}");
     }
 }
 
@@ -3575,6 +3618,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 determinant: -1.0,
             },
         ),
+        (
+            "NonRigidFrame",
+            PlacementRuleFault::NonRigidFrame {
+                index: 2,
+                check: "transform_rigid_col0_unit",
+            },
+        ),
     ];
     let naming = [
         (
@@ -3588,6 +3638,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             NamingError::KindMismatch {
                 name: Box::new(name()),
                 found: EntityKind::Vertex,
+            },
+        ),
+        (
+            "ShortTie",
+            NamingError::ShortTie {
+                name: Box::new(name()),
+                candidates: 1,
             },
         ),
         (
@@ -3628,6 +3685,75 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 face: topo::FaceKey::default(),
                 other: topo::FaceKey::default(),
                 found: RimShare::Several,
+            },
+        ),
+        (
+            "Settle",
+            NamingError::Settle(topo::SettleError::Dead {
+                vertex: topo::VertexKey::default(),
+                reached: topo::Cell::Vertex(topo::VertexKey::default()),
+            }),
+        ),
+        (
+            "SeamVertexPartners",
+            NamingError::SeamVertexPartners {
+                vertex: topo::VertexKey::default(),
+                candidates: vec![stable(EntityKind::Vertex, 3), stable(EntityKind::Vertex, 4)],
+            },
+        ),
+        (
+            "MergedChord",
+            NamingError::MergedChord {
+                edge: topo::EdgeKey::default(),
+            },
+        ),
+        (
+            "MergedChordOffRim",
+            NamingError::MergedChordOffRim {
+                edge: topo::EdgeKey::default(),
+                node: RecipeNodeId::new(0, tagged(3)),
+                rim: topo::EdgeKey::default(),
+            },
+        ),
+        (
+            "ConventionalVertex",
+            NamingError::ConventionalVertex {
+                vertex: topo::VertexKey::default(),
+                body: 0,
+            },
+        ),
+        (
+            "ClosedCarrierUnread",
+            NamingError::ClosedCarrierUnread {
+                edge: topo::EdgeKey::default(),
+                carrier: geom::CurveKind::Nurbs,
+            },
+        ),
+        (
+            "CarrierUnplaced",
+            NamingError::CarrierUnplaced {
+                edge: topo::EdgeKey::default(),
+                carrier: geom::CurveKind::Nurbs,
+            },
+        ),
+        (
+            "PartnerUnread",
+            NamingError::PartnerUnread {
+                vertex: topo::VertexKey::default(),
+                partner: topo::VertexKey::default(),
+                unread: topo::UnreadPartner {
+                    operand: topo::Operand::B,
+                    vertex: topo::VertexKey::default(),
+                    partner: topo::VertexKey::default(),
+                    neighbourhood: topo::UnreadNeighbourhood::OneFace,
+                },
+            },
+        ),
+        (
+            "MemberEdgeTied",
+            NamingError::MemberEdgeTied {
+                member: editor_core::VarId::new(0, tagged(7)),
+                edge: Box::new(stable(EntityKind::Edge, 3)),
             },
         ),
         ("Band", NamingError::Band(band_error())),
@@ -3693,6 +3819,14 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                         at: name(),
                         width: 2,
                     },
+                },
+            ),
+            (
+                "ReadGone",
+                ResolveError::ReadGone {
+                    name: name(),
+                    read: editor_core::VarId::new(0, tagged(7)),
+                    edit: editor_core::ReadEdit::Deleted,
                 },
             ),
             (
