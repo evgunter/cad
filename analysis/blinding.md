@@ -25,3 +25,5 @@ Deviations: none at dispatch.
 - B: line side (`.at` continues, `.to(p)` ends); sharp seam `.toward(d).to(Start)` (far-end Start for every fillet verb); name `arc_onto()`.
 ## Round 5 (each shown the other's round 4)
 - Crossed again: A took B's round-4 cells and name; B took A's. Round 6 asks the question beneath: is the arc the arrival side itself (arc arrival) or a fillet-position arc onto a line side (line arrival).
+## Round 6 (asked the question beneath: arc arrival or line side)
+- Both: the arc IS the arrival (arc-arrival builder), `arrive()`; `.at(p)`+director lands a directed point, departure free; `.to(Start)` tangent closer; `.at(Start)`+director sharp seam. Deciding arguments: with no `r` the anchor is forced to be the tangent point, so line grammar would need a new rule (A) and re-spell one loop twice (B). Converged; no split. #5374 rewritten to it.
