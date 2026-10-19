@@ -14691,6 +14691,210 @@ mod two_carrier_records {
                 held.get()
             );
         }
+
+        /// Delta-review probes for PR 5006's boundary cuts: each row
+        /// compares `line_through_both_faces` (one face read twice, so
+        /// the answer is that face's own) and the census against an
+        /// oracle that scans 20001 points of the line.
+        mod review_5006_delta {
+            use super::*;
+
+            fn esc() -> f64 {
+                Band::linear(Tol::witness()).unwrap().escalate()
+            }
+
+            /// `(read, oracle)`: the shared reading over `overlap` of
+            /// the line through `(0, y, z)` along +x, `face` read twice;
+            /// whether any scanned point is decided `In`.
+            fn read_line(
+                body: &Body<f64>,
+                face: FaceKey,
+                y: f64,
+                z: f64,
+                overlap: (f64, f64),
+            ) -> (Result<bool, usize>, bool) {
+                let b = Band::linear(Tol::witness()).unwrap();
+                let origin = geom_core::Point3::new(0.0, y, z);
+                let dir = geom_core::Vec3::unit_x();
+                let carrier = geom::Curve3::Line { origin, dir };
+                let read = crate::boolean::line_through_both_faces(
+                    [(body, face), (body, face)],
+                    &carrier,
+                    overlap,
+                    b,
+                    |_, _, out: &mut Vec<()>| out.push(()),
+                )
+                .map_err(|h| h.len());
+                let n = 20000;
+                let oracle = (0..=n).any(|i| {
+                    let t = overlap.0 + (overlap.1 - overlap.0) * f64::from(i) / f64::from(n);
+                    matches!(
+                        crate::boolean::face_placement(
+                            body,
+                            face,
+                            origin + dir * t,
+                            b,
+                            "probe_oracle"
+                        ),
+                        Ok(crate::boolean::CurvedPlacement::Trim(Some(
+                            FaceContainment::In
+                        )))
+                    )
+                });
+                (read, oracle)
+            }
+
+            fn top_of(outline: &[(f64, f64)]) -> (Body<f64>, FaceKey) {
+                let r = rig(outline, (-1.0, 5.0), (-0.5, 0.5));
+                (r.body, r.top)
+            }
+
+            fn verdict(tag: &str, read: Result<bool, usize>, oracle: bool) -> String {
+                let bad =
+                    matches!(read, Ok(false)) && oracle || matches!(read, Ok(true)) && !oracle;
+                let s = format!(
+                    "{tag} eps {:e}: read {read:?} oracle {oracle}{}",
+                    Tol::witness().eps(),
+                    if bad { "  <-- DISAGREE" } else { "" }
+                );
+                eprintln!("{s}");
+                s
+            }
+
+            #[test]
+            fn d1_tabs_a_few_bands_wide() {
+                let mut rows = Vec::new();
+                for k in [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 10.0, 100.0] {
+                    let w = k * esc();
+                    let Ok((body, top)) = std::panic::catch_unwind(|| top_of(&tab(1.1, 1.1 + w)))
+                    else {
+                        eprintln!("d1 tab {k}esc: fixture refused");
+                        continue;
+                    };
+                    let (read, oracle) = read_line(&body, top, 0.0, 1.0, (0.0, 4.0));
+                    rows.push(verdict(&format!("d1 tab {k}esc"), read, oracle));
+                    // the census, both orders
+                    let r = rig(&tab(1.1, 1.1 + w), (-1.0, 5.0), (-0.5, 0.5));
+                    for swap in [false, true] {
+                        let (x, y) = if swap {
+                            (r.top, r.wall)
+                        } else {
+                            (r.wall, r.top)
+                        };
+                        let errors = census_and_certify(
+                            &r.body,
+                            &one(&r.body, Cell::Face(x), Cell::Face(y)),
+                            Band::linear(Tol::witness()).unwrap(),
+                            Tol::witness(),
+                            None,
+                        );
+                        let st = stale(&errors);
+                        let nm = names(&errors, r.wall, r.top);
+                        let s = format!(
+                            "d1c tab {k}esc swap {swap}: stale {st} named {nm} oracle {oracle}{}",
+                            if st && oracle { "  <-- DISAGREE" } else { "" }
+                        );
+                        eprintln!("{s}");
+                        rows.push(s);
+                    }
+                }
+                assert!(!rows.iter().any(|r| r.contains("DISAGREE")), "{rows:#?}");
+            }
+
+            /// A roof: the face is below both lines y = s(x-1) and
+            /// y = -s(x-3), apex (2, s) a vertex; and a single shallow
+            /// edge y = s(x-2) whose face holds the line for x > 2, no
+            /// vertex in (2, 4).
+            #[test]
+            fn d2_shallow_edges() {
+                let mut rows = Vec::new();
+                for s in [1e-2, 1e-4, 1e-6, 1e-7, 3e-8, 1e-8, 3e-9] {
+                    let roof = [(0.0, -1.0), (4.0, -1.0), (4.0, -s), (2.0, s), (0.0, -s)];
+                    let Ok((body, top)) = std::panic::catch_unwind(|| top_of(&roof)) else {
+                        eprintln!("d2 s {s:e}: fixture refused");
+                        continue;
+                    };
+                    let (read, oracle) = read_line(&body, top, 0.0, 1.0, (0.0, 4.0));
+                    rows.push(verdict(&format!("d2 roof s {s:e}"), read, oracle));
+                    let ramp = [(0.0, -1.0), (4.0, -1.0), (4.0, 2.0 * s), (0.0, -2.0 * s)];
+                    let Ok((body, top)) = std::panic::catch_unwind(|| top_of(&ramp)) else {
+                        continue;
+                    };
+                    let (read, oracle) = read_line(&body, top, 0.0, 1.0, (0.0, 4.0));
+                    rows.push(verdict(&format!("d2 ramp s {s:e}"), read, oracle));
+                    // a long ramp, its crossing far from the origin
+                    let far = [(0.0, -1.0), (40.0, -1.0), (40.0, 2.0 * s), (0.0, -38.0 * s)];
+                    let Ok((body, top)) = std::panic::catch_unwind(|| top_of(&far)) else {
+                        continue;
+                    };
+                    let (read, oracle) = read_line(&body, top, 0.0, 1.0, (0.0, 40.0));
+                    rows.push(verdict(&format!("d2 far ramp s {s:e}"), read, oracle));
+                }
+                assert!(!rows.iter().any(|r| r.contains("DISAGREE")), "{rows:#?}");
+            }
+
+            /// The half-disc cap (z = 0) and a cylinder sheet (axis y
+            /// through (0, 0, 1)) resting on it along x = 0: the line runs
+            /// through the cap over y in (0, 1), but both cap vertices
+            /// project to y = 0 along it.
+            #[test]
+            fn d4_an_arc_bulging_past_its_vertices() {
+                let tol = Tol::witness();
+                let (mut body, cap, _) = crate::test_support_fixtures::half_disc_cap(0.0, tol);
+                let frame = CylFrame {
+                    origin: geom_core::Point3::new(0.0, 0.0, 1.0),
+                    axis: geom_core::Vec3::unit_y(),
+                    radius: 1.0,
+                    u_ref: -geom_core::Vec3::unit_z(),
+                };
+                let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (-2.0, 2.0), tol);
+                body.get_face_mut(wall).unwrap().sense = true;
+                let b = Band::linear(tol).unwrap();
+                let line = crate::boolean::tangent_pair_at_rest(&body, wall, cap, b);
+                let desc = match &line {
+                    Ok(crate::boolean::RestTangent::Line { overlap, .. }) => {
+                        format!("Line overlap {overlap:?}")
+                    }
+                    Ok(crate::boolean::RestTangent::Apart) => "Apart".to_owned(),
+                    Err(e) => format!("Err {e:?}"),
+                };
+                let errors = census_and_certify(
+                    &body,
+                    &one(&body, Cell::Face(wall), Cell::Face(cap)),
+                    b,
+                    tol,
+                    None,
+                );
+                let s = format!(
+                    "d4 eps {:e}: rest {desc}; stale {}; {errors:?}",
+                    tol.eps(),
+                    stale(&errors)
+                );
+                eprintln!("{s}");
+                assert!(!stale(&errors), "{s}");
+            }
+
+            /// The unit half-disc cap (arc through +y, chord y = 0) and
+            /// the line y = 1 - d: tangent to the arc at d = 0, a chord
+            /// of depth d otherwise; and y = 0, along the chord.
+            #[test]
+            fn d3_conic_trims() {
+                let mut rows = Vec::new();
+                let (body, cap, _) =
+                    crate::test_support_fixtures::half_disc_cap(0.0, Tol::witness());
+                for k in [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 10.0, 1e3] {
+                    let d = k * esc();
+                    let (read, oracle) = read_line(&body, cap, 1.0 - d, 0.0, (-2.0, 2.0));
+                    rows.push(verdict(&format!("d3 depth {k}esc"), read, oracle));
+                }
+                for y in [0.0, 0.5, -1e-3] {
+                    let (read, oracle) = read_line(&body, cap, y, 0.0, (-2.0, 2.0));
+                    rows.push(verdict(&format!("d3 y {y}"), read, oracle));
+                }
+                // the line through the plane at an angle: not in the plane
+                assert!(!rows.iter().any(|r| r.contains("DISAGREE")), "{rows:#?}");
+            }
+        }
     }
 }
 
