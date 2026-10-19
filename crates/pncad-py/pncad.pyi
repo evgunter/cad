@@ -707,11 +707,11 @@ class AssemblyError(PncadError):
     arrived by, because its `mate` is a constraint of `of` and not of the
     document that was gathered.
 
-    `carried_at_rest` is a part's own at-rest census refusal: findings
-    a document BELOW this one refuses that name none of its
-    declarations. Each is the part's, reported once, and `findings` is
-    then a `CarriedAtRestFinding` per finding with the route it arrived
-    by. It is raised after `carried_mint_refusal` and before this
+    `carried_at_rest` is a part's own at-rest refusal: a document BELOW
+    this one refused over a finding none of its declarations answers
+    for, and the refusal crosses whole, its attributed findings with it.
+    Each is the part's, reported once, and `findings` is then a
+    `CarriedAtRestFinding` per finding with the route it arrived by. It is raised after `carried_mint_refusal` and before this
     document's own arms."""
 
     variant: str
@@ -6396,9 +6396,11 @@ class CarriedInterference:
     def via(self) -> list[NodeId]: ...
 
 class CarriedAtRestFinding:
-    """One at-rest census finding a document BELOW this one refused,
-    naming none of its declarations: a row of `AssemblyError.findings`
-    under `carried_at_rest`, with the route it arrived by."""
+    """One finding of an at-rest refusal a document BELOW this one
+    raised over something none of its declarations answers for: a row
+    of `AssemblyError.findings` under `carried_at_rest`, with the route
+    it arrived by. Its `finding.attribution`, where it has one, names
+    the part's own declaration."""
 
     @property
     def finding(self) -> AtRestFinding:

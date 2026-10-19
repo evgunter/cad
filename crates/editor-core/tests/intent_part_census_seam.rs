@@ -256,3 +256,80 @@ fn a_parts_own_census_refusal_refuses_the_outer_gate_as_the_parts() {
         "the sentence sends the author to the part: {line}"
     );
 }
+
+/// **An escalation two documents down is reported once, as the
+/// part's.** A sub-assembly instantiates the in-band part, and a top
+/// document instantiates the sub-assembly. The sub-assembly's census
+/// finds the part's escalations again inside its copy, and an
+/// escalation names no pair, so nothing matches them; but its gate
+/// refuses over the part's carried refusal before its own at-rest
+/// stage, so it crosses none of its own census, and the top reports the
+/// part's findings once, by the route through the sub-assembly.
+///
+/// *Breaks if* the sub-assembly's seam verdict reads its census though
+/// its gate never reaches it (the top then also reports the re-found
+/// escalations, as the sub-assembly's own).
+#[test]
+fn an_escalation_two_documents_down_is_reported_once_as_the_parts() {
+    let part = in_band("seam-deep-band-part");
+    let Err(AssemblyError::AtRest { findings: own }) = gate(&part, &EvalOptions::default()) else {
+        panic!("the part's own gate refuses its escalations")
+    };
+    let mut store = PartStore::new();
+    let part_ref = store.insert(part.clone(), Tol::witness());
+    let opts = with_resolver(store);
+    let mid = ProfileDoc::empty_derived("seam-deep-band-mid", Tol::witness());
+    let (mid, inner) = insert_pinned(mid, Node::instantiate_part(part_ref), &opts);
+    let mut store = PartStore::new();
+    store.insert(part.clone(), Tol::witness());
+    let mid_ref = store.insert(mid, Tol::witness());
+    let opts = with_resolver(store);
+    let top = ProfileDoc::empty_derived("seam-deep-band-top", Tol::witness());
+    let (top, outer) = insert_pinned(top, Node::instantiate_part(mid_ref), &opts);
+    let err = gate(&top, &opts).expect_err("the part is not at rest, so neither is the top");
+    let AssemblyError::CarriedAtRest { findings } = &err else {
+        panic!("the part's refusal, carried: {err}")
+    };
+    assert_eq!(
+        findings.iter().map(|f| &f.finding).collect::<Vec<_>>(),
+        own.iter().collect::<Vec<_>>(),
+        "the part's findings, once each, and nothing of the sub-assembly's"
+    );
+    assert!(
+        findings.iter().all(|f| (
+            f.route.through,
+            f.route.of,
+            f.route
+                .via
+                .iter()
+                .map(editor_core::SpokenNode::id)
+                .collect::<Vec<_>>()
+        ) == (outer, part.id(), vec![inner])),
+        "each by the route through the sub-assembly"
+    );
+}
+
+/// **A part in the world and in a loose space reports its overlap
+/// once.** One instance is pinned to the world and another is loose, a
+/// space of its own; the gate checks both, each finds the part's
+/// overlap inside its copy, and it is one finding of one part row.
+///
+/// *Breaks if* the world's and a space's carried rows are not read as
+/// one list.
+#[test]
+fn a_part_in_the_world_and_a_loose_space_reports_its_overlap_once() {
+    let part = overlapping("seam-space-part");
+    let (doc, ids, opts) = instantiating("seam-space", &part, 1);
+    let mut store = PartStore::new();
+    let part_ref = store.insert(part, Tol::witness());
+    let (doc, _) = insert(doc, crate::fixture::mated_instance(part_ref));
+    let outer = gate(&doc, &opts).unwrap_or_else(|e| panic!("the outer gate refused: {e}"));
+    assert!(outer.interference.is_empty(), "{:?}", outer.interference);
+    let [carried] = outer.carried_interference.as_slice() else {
+        panic!("once per part row: {:?}", outer.carried_interference)
+    };
+    assert_eq!(
+        carried.route.through, ids[0],
+        "the world instance's route, first"
+    );
+}

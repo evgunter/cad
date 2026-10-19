@@ -72,11 +72,17 @@ orchestrator approved.
 
 **The gap this leaves.** A census escalation (`CensusEscalated`) names
 no pair, so the outer census's re-finding of one inside the copy matches
-nothing. It is refused as the outer document's own. The part's own
-refusal (`CarriedAtRest`) is raised first, so the outer verdict is never
-reached while the part refuses. That holds until
+nothing. It is never reported: while a part carries a refusal, the
+instantiating gate refuses before its own at-rest stage, and a document
+whose gate refuses there crosses no census finding of its own to the
+document above it. That holds at any depth (the review's MAJOR, fixed in
+the fix pass). It holds until
 `work/contacthold/an-escalated-census-finding-names-no-pair.md` makes
 every escalation name its pair.
+
+**Not covered.** A part's loose spaces, and a part read one member at a
+time. Filed as
+`work/intent/a-parts-loose-spaces-and-member-reads-drop-its-census-rows.md`.
 
 Rows: `crates/editor-core/tests/intent_part_census_seam.rs`, plus the
 Python row in `crates/pncad-py/tests/test_interference.py`.

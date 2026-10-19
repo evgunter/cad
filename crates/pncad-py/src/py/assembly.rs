@@ -651,9 +651,11 @@ impl CarriedInterference {
     }
 }
 
-/// One at-rest census finding a document BELOW this one refused, naming
-/// none of its declarations, with the route this document reached it
-/// by: a row of `AssemblyError.findings` on the `carried_at_rest` arm.
+/// One finding of an at-rest refusal a document BELOW this one raised
+/// over something none of its declarations answers for, with the route
+/// this document reached it by: a row of `AssemblyError.findings` on the
+/// `carried_at_rest` arm. Its attribution, where it has one, names the
+/// part's own declaration.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct CarriedAtRestFinding(d::CarriedAtRestFinding, SpokenFrom);
