@@ -1459,3 +1459,11 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **PR 5172:** main's `f6237757e6` made the pose's one-curve reading the Procrustes margin independently. The lane's merge (`7ec297d8c6`) dropped `Conic::locus_gap`, so the PR now pins main's fix and moves the rounding-charge finding to cpair. r5172a and r5172b reviewed the pre-merge head, so a delta look on the merge comes before merging.
   - **PR 5173:** one fix commit since its review head (`4276c978d9`, the crossing-cylinder join site), so a delta look is needed.
   - **PR 5156 CI red** on `0496b04d6f`, but not this PR's (no code in the diff): the BAND needle and the FLUX cone-wall ring, both filed main reds, plus one unnamed. Commented on the PR. The implementation is pending.
+- 2026-10-19 19:00 — **PR 5172 pair adjudicated** (A = r5172a, B = r5172b; scratchpad/dr5172/adjudication.md). Both find the bound sound: no wrong Zero in the charged pose arm (worst deficits 1.1u and 1.74u against a 16u charge).
+  - **MAJOR (A, executed):** the charge is unpinned, and the PR's mutant table falsely says it can't be pinned. Eight `u_ref`-ulp pairs read Coincident with the charge removed (H up to 1.0105ε). → Tallied 1, major true.
+  - **Bilateral MINOR:** topo `carrier_cross` reads the locus gap uncharged, a live hole on main (both have a witness with H ≈ 1.07ε).
+  - **Unilateral MINORs:** ellipse × circle may be uncharged (A; B disagrees); the "min instead of max" claim is false (B).
+  - **NITs:** the 8u doc figure; the NaN case.
+  - **Complication:** main's `f6237757e6` overtook the PR's `locus_gap` after the review. The fix pass re-reads every finding against the current code.
+  - **Fix pass dispatched** (session_01PMC2m5t1cHemtvfixdgR7y, same branch), with both reviewers' witness bits inline. It covers a charged shared form for topo and pose, rows red → green, the table corrected, and ellipse × circle settled by execution. A delta review follows.
+  - r5382b reported: sound, 0/2/3 (+2 style). Waiting on r5382a. Its side note says 5164's `steep_frusta…shallow_tilt` row is red at 1e-12 on main now; I'm checking current main locally.
