@@ -323,3 +323,4 @@ The rest moved by `git mv`, ids and bodies unchanged:
   - **Rows:** `periodic_chart_closure::a_steep_wide_frustum_wall_off_the_origin_measures_at_every_eps` (red on main; each half of the fix alone leaves it red). The duplicate WIRE row folded into the #5038 row.
   - **Filed:** `cylinder-and-torus-edge-misses-are-read-back-about-the-axis` (P3), the same reading on the other closed forms.
   - **Lesson:** a FLUX unit that touches a decide runs the sweep slow set at all three ε before its PR, not only at default ε.
+- 2026-10-19 22:00Z — **Seam note from NURBS (mint-once, build C):** branch `nurbs/mint-walls-once` will add an associated scope type to the `SectionLane` trait at `crates/geom-brep/src/props.rs:4405`, plus a line in each of its 5 impls. Nothing else in `props.rs` changes. It doesn't touch `flux/spiric-budget-world-position`'s hunks, and C merges main before opening the PR. If the trait moves on your side first, expect a mechanical merge.
