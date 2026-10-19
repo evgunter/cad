@@ -689,12 +689,19 @@ const PLATE_MAX_TERMS: usize = 28;
 /// and #5377's fix pass): `Plain/Assertion` and `Early/Assertion` +7
 /// calls (686 → 693) and +30 forms, with their digests; the
 /// `*/Decision` lines, the freezes and the largest form hold.
+///
+/// An arc's diameter clearance spelled `2r·cos²(|Δθ|/4)/(1 + sin(|Δθ|/4))`
+/// (`profile::seg`, cancellation-free near a full turn) where it was
+/// `2r·(1 − sin(|Δθ|/4))`: forms `Plain/Assertion` 7073 → 7077,
+/// `Early/Assertion` 8235 → 8239 and `Door/Decision` 9525 → 9531, and
+/// their digests; every call, frozen count, the other two lines and the
+/// largest form hold.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 939 forms 15836 frozen 324 digest ac360a3480da30b765ada11e3a3550c7\n\
-     Plain/Assertion calls 693 forms 7073 frozen 405 digest ac98c9fa756d2ff62148806efb245556\n\
+     Plain/Assertion calls 693 forms 7077 frozen 405 digest c617a6b2b2d7bdc6ee4b07ca4af6227b\n\
      Early/Decision calls 352 forms 8892 frozen 0 digest 61a2facb711fb0a70f13d4cfa3ece435\n\
-     Early/Assertion calls 693 forms 8235 frozen 0 digest c6b94455a9fdd240760bec7120a63c11\n\
-     Door/Decision calls 428 forms 9525 frozen 0 digest c92c1df17252cd30da849fc47ba1a121";
+     Early/Assertion calls 693 forms 8239 frozen 0 digest e9745705d732b2cd16f82f49d6e977da\n\
+     Door/Decision calls 428 forms 9531 frozen 0 digest c96c57c5ee4e878c71b2a5bcf6386b4c";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

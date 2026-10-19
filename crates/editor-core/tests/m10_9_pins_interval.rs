@@ -134,6 +134,19 @@ pub(crate) struct Study {
 /// symbolic, (1373, 1166) → (1389, 1150) shut: sixteen decisions move
 /// from `numeric` to `symbolic`, the total unchanged. No registrant
 /// moved and no verdict moved.
+///
+/// Every arc's sweep read as an angle (`profile`'s `sugar::split_sweep`,
+/// `split_turn`, `sweep_about`: `atan2` of a chord split, of a corner's
+/// legs, or of two radii) rather than `4·atan` of a quarter-tangent:
+/// a half turn's `along` is a literal zero, which rule D's half-π fold
+/// proves, while a fillet's or a centre arc's sweep is an `atan2` atom
+/// rule D does not fold. `symbolic` link 767 → 779 and bracket
+/// 1311 → 1323; the pad 1389 → 1333, its 56 fillet-sweep decisions read
+/// numerically. With the door shut the link (722, 736) → (714, 744),
+/// still refusing at `pcurve_envelope`, the bracket holds (1252, 1106),
+/// and the pad (1389, 1150) → (1309, 1230). Ceilings: the link
+/// 3.029e2 → 3.437e2·ε, the bracket's refusal 7.624e2 → 7.768e2·ε, the
+/// pad's unmoved at 3.152e3·ε. No registrant moved and no verdict moved.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -163,14 +176,14 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
         },
         Study {
             name: "r2_link",
-            // The tangent arc stores Δθ = 4·atan(across / (|d| + along)),
-            // and the quarter-tangent of a half-turn whose chord is the
-            // parameter `half_w` reads `2w / |2w|`, a sign the tier does
-            // not hold. The rim identity the arc registers sits inside a
-            // frozen compound, the mapped-source residual is read
-            // numerically, and it leaves the band first at 3.030e2·ε.
-            certifies_at: 3.029e2,
-            refuses_at: Some(3.030e2),
+            // The tangent arc stores Δθ = 2·atan2(across, along), and a
+            // half-turn's `along` is the literal zero, so rule D's half-π
+            // fold reads its sweep as ±π exactly. The rim identity the
+            // arc registers still sits inside a frozen compound, the
+            // mapped-source residual is read numerically, and it leaves
+            // the band first at 3.438e2·ε.
+            certifies_at: 3.437e2,
+            refuses_at: Some(3.438e2),
             refused_by: None,
             // Door shut, the extrude's rim (half-edge 24v1) refuses at
             // check 4. The refusal decides the terms in order up to the
@@ -178,15 +191,15 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // circle's radius and orientation read as one pair), so it
             // decides 3 of the envelope's 9 terms on each of its two
             // reads.
-            without_the_registry: Some(((722, 736), Some("pcurve_envelope"))),
-            symbolic: [767, 767, 767],
+            without_the_registry: Some(((714, 744), Some("pcurve_envelope"))),
+            symbolic: [779, 779, 779],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
             name: "r2_filleted_bracket",
             certifies_at: 3.870e2,
             // Bounded by `arc_span`, in the profile's validation.
-            refuses_at: Some(7.624e2),
+            refuses_at: Some(7.768e2),
             refused_by: None,
             // The fillet's tangency is the registration
             // `centre ≡ t1 + σ·r·n̂₁`, not an identity of the offset
@@ -199,7 +212,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1311, 1311, 1311],
+            symbolic: [1323, 1323, 1323],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -212,16 +225,15 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refuses_at: Some(3.152e3),
             refused_by: None,
             // Rule F's differential on this document is
-            // `m10_9_the_pad_at_both_rule_f_dials`'s. Door shut, the
-            // pad reads the shipped receipt: with its legs' directors
-            // exact components, the tier proves what the door used to
-            // discharge (64 decisions, `(1147, 1392)` shut against
-            // `(1211, 1328)` shipped, when they were angles).
-            without_the_registry: Some(((1389, 1150), None)),
+            // `m10_9_the_pad_at_both_rule_f_dials`'s. Door shut, the pad
+            // reads 24 fewer theorems than shipped: its fillets' sweeps
+            // are `atan2` atoms, so the door discharges what rule D
+            // proved when they were `4·atan` of a quarter-tangent.
+            without_the_registry: Some(((1309, 1230), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1389, 1389, 1389],
+            symbolic: [1333, 1333, 1333],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -664,7 +676,11 @@ fn m10_9_what_the_registry_buys() {
 /// leg's arm, and read again at the door once the leaving leg is
 /// stored: sixteen decisions move from `numeric` to `symbolic`, the
 /// total unchanged, and one more form freezes, (1373, 1166, 4298) →
-/// (1389, 1150, 4299).
+/// (1389, 1150, 4299). Every arc's sweep read as an `atan2` angle
+/// rather than `4·atan` of a quarter-tangent: the fillets' sweeps are
+/// atoms rule D does not fold, so 56 decisions move from `symbolic` to
+/// `numeric`, (1389, 1150, 4299) → (1333, 1206, 4299), at both dials
+/// alike.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -698,7 +714,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1389, 1150, 4299), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1333, 1206, 4299), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

@@ -150,12 +150,22 @@ use crate::m10_9_pins_interval::measured_studies;
 /// bracket `[1312, 1046, 2112]` → `[1316, 1051, 2112]`. This is the
 /// finding the row asks for, and its cause is that fix; no dispute
 /// fired.
+///
+/// Every arc's sweep read as an `atan2` angle (`profile`'s
+/// `sugar::split_sweep`, `split_turn`, `sweep_about`) rather than
+/// `4·atan` of a quarter-tangent. The link and the bracket move their
+/// ceilings up (3.029e2 → 3.437e2·ε, 7.624e2 → 7.768e2·ε), so they are
+/// read at new scales: link `[295, 271, 558]` → `[293, 273, 557]`,
+/// bracket `[1316, 1051, 2112]` → `[1328, 1039, 2112]`. The pad's
+/// ceiling holds, and its fillets' sweeps are `atan2` atoms rule D does
+/// not fold: `[1413, 1162, 4310]` → `[1357, 1218, 4310]`, 56 decisions
+/// from `symbolic` to `numeric`. No dispute fired.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
     ("two_hole_plate", [939, 693, 729]),
     ("r1_annulus", [475, 431, 940]),
-    ("r2_link", [295, 271, 558]),
-    ("r2_filleted_bracket", [1316, 1051, 2112]),
-    ("r2_rounded_pad", [1413, 1162, 4310]),
+    ("r2_link", [293, 273, 557]),
+    ("r2_filleted_bracket", [1328, 1039, 2112]),
+    ("r2_rounded_pad", [1357, 1218, 4310]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal
