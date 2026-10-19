@@ -227,7 +227,11 @@ fn sheared<T: Decide + Bounds + topo::AtRestPolicy>(
     } else {
         boolean_op_with(
             BooleanOp::Subtract,
-            &finished("the block", brick::<T>((-1.0, 4.0), (-1.0, 3.0), (-1.0, 2.0), tol), tol),
+            &finished(
+                "the block",
+                brick::<T>((-1.0, 4.0), (-1.0, 3.0), (-1.0, 2.0), tol),
+                tol,
+            ),
             &finished("the sheared box", leaning, tol),
             &BooleanInputs::default(),
             SweepStrategy::Realized,
