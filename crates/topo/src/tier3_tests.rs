@@ -3792,7 +3792,10 @@ fn a_lane_free_read_never_takes_the_rounded_sums_sign() {
     }
     let band = geom_core::Band::linear(tol).expect("the witness band");
     let upright = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
-    for (what, body) in [("upright", upright.clone()), ("inside out", upright.revert().unwrap())] {
+    for (what, body) in [
+        ("upright", upright.clone()),
+        ("inside out", upright.revert().unwrap()),
+    ] {
         let (shell, _) = body.shells.iter().next().expect("one shell");
         assert_eq!(
             crate::props::shell_volume_role(&body, shell, band, tol, None),

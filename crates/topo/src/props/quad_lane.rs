@@ -388,9 +388,28 @@ fn planar_face_about(
         va = va + loop_vector_area(edges, anchor)?;
     }
     Ok(FaceContribution {
-        flux: plane_flux(anchor - centre, va, normal),
+        flux: plane_flux(anchor - centre, va, normal) + tilt_slack(anchor - centre, va, normal),
         area: va.norm(),
     })
+}
+
+/// **What [`plane_flux`] drops of the loops' own flux**: the loops'
+/// flux about the centre is `lever · A⃗` exactly, `lever` the anchor's
+/// offset from it, and [`plane_flux`] keeps its part along the plane's
+/// normal, `(lever·n̂)(A⃗·n̂)`. The rest is `lever · A⃗⊥`, `A⃗⊥` the vector
+/// area's part across the normal — the loops' tilt off the stored plane,
+/// their points' stand-off from it. Its size is at most `|lever|·|A⃗⊥|`,
+/// returned as the symmetric interval `[−b, b]`, so the face's term
+/// encloses the loops' own flux and the shell's sum their volume.
+fn tilt_slack(
+    lever: geom_core::Vec3<Interval>,
+    va: geom_core::Vec3<Interval>,
+    normal: geom_core::Vec3<Interval>,
+) -> Interval {
+    use geom_core::Bounds;
+    let across = va - normal * (va.dot(normal) / normal.dot(normal));
+    let b = (lever.norm() * across.norm()).hi();
+    Interval::from_bounds(-b, b)
 }
 
 /// **A plane's flux from a point `lever` off it**: the distance along
@@ -432,9 +451,47 @@ pub(super) fn polygon_face_about(
         }
     }
     Ok(FaceContribution {
-        flux: plane_flux(anchor - centre, va, normal),
+        flux: plane_flux(anchor - centre, va, normal) + tilt_slack(anchor - centre, va, normal),
         area: va.norm(),
     })
+}
+
+/// **The exact volume of a shell of vertex polygons**, `(1/6) Σ det(r₀,
+/// rᵢ, rᵢ₊₁)` over every ring fanned from its own first point: the
+/// volume of the closed polyhedron the rings' points span, whatever the
+/// planes they were stored on, as an interval a few ulps wide around the
+/// exact value (`geom_core::exact::triple_product`, summed without
+/// rounding). `None` where a point is not a point interval, or the sum
+/// overflows: the stored geometry then has no exact `f64` coordinates
+/// to sum.
+pub(super) fn exact_polygon_volume(polygons: &[Vec<Vec<Point3<Interval>>>]) -> Option<Interval> {
+    use geom_core::Bounds;
+    let coords = |p: Point3<Interval>| {
+        let c = [p.x, p.y, p.z];
+        c.iter()
+            .all(|x| x.lo().to_bits() == x.hi().to_bits())
+            .then(|| [c[0].lo(), c[1].lo(), c[2].lo()])
+    };
+    let mut sum = geom_core::exact::Expansion::default();
+    for rings in polygons {
+        for ring in rings {
+            let points: Vec<[f64; 3]> = ring.iter().map(|&p| coords(p)).collect::<Option<_>>()?;
+            let Some((&r0, rest)) = points.split_first() else {
+                continue;
+            };
+            for pair in rest.windows(2) {
+                sum.add_expansion(&geom_core::exact::triple_product(r0, pair[0], pair[1]));
+            }
+        }
+    }
+    if !sum.is_finite() {
+        return None;
+    }
+    let six_volume = sum
+        .components()
+        .iter()
+        .fold(Interval::zero(), |acc, &c| acc + Interval::point(c));
+    Some(six_volume / Interval::point(6.0))
 }
 
 /// The certified flux/area enclosures of one curved-cut face

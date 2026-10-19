@@ -522,4 +522,3 @@ fn a_needles_orientation_through_the_structural_doors() {
         }
     }
 }
-

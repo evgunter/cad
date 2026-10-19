@@ -1070,7 +1070,9 @@ impl SignLimit {
 /// which measures those faces again about the vertex.
 pub(crate) fn certify_role<T: Decide>(
     reading: SignReading<T>,
-    interval: impl Fn(bool) -> Option<Result<(SignReading<Interval>, Option<SignLimit>), MassPropsError>>,
+    interval: impl Fn(
+        bool,
+    ) -> Option<Result<(SignReading<Interval>, Option<SignLimit>), MassPropsError>>,
     rounding: impl FnOnce() -> Result<T, MassPropsError>,
     names: RoleNames,
     certified: RoleNames,
@@ -1156,12 +1158,12 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
                     if let Some(a) = anchor {
                         spread = spread.max(one_norm(p.x - a.x, p.y - a.y, p.z - a.z));
                     }
-                    box_lo = Some(box_lo.map_or(p, |b| {
-                        Point3::new(b.x.min(p.x), b.y.min(p.y), b.z.min(p.z))
-                    }));
-                    box_hi = Some(box_hi.map_or(p, |b| {
-                        Point3::new(b.x.max(p.x), b.y.max(p.y), b.z.max(p.z))
-                    }));
+                    box_lo = Some(
+                        box_lo.map_or(p, |b| Point3::new(b.x.min(p.x), b.y.min(p.y), b.z.min(p.z))),
+                    );
+                    box_hi = Some(
+                        box_hi.map_or(p, |b| Point3::new(b.x.max(p.x), b.y.max(p.y), b.z.max(p.z))),
+                    );
                 }
             }
         }
@@ -1191,32 +1193,38 @@ fn rederived<T: Decide>(
         .map(|r| (SignReading::exact(r.volume, r.area), r.limit()))
 }
 
-/// **A walk's runs re-derived in interval arithmetic**, about the least
-/// corner `c` of the body's loop points ([`corner_of`]): `(volume,
-/// surface area)` and whether every face was recentred ([`Rederived`]).
+/// **A walk's runs re-derived in interval arithmetic**, about a vertex
+/// `c` of the body ([`corner_of`]): `(volume, surface area)`, whether
+/// every face was taken about `c`, and whether a face was read off its
+/// quadrature ([`Rederived`]).
 ///
-/// The value enclosed is the divergence sum about `c` over the stored
-/// geometry: each closed-form face's flux about `c` from its surface and
-/// loops lifted exactly and moved by `−c` (a plane as its distance from
-/// `c` along its stored normal times its loops' signed area, fanned from
-/// one of their points: `quad_lane::planar_face_about`), and each
-/// quadrature face measured again about `c`, at the round the walk
-/// reached (`quad_lane::cut_face_rounds`: a cylinder's position term
-/// taken as `(origin − c)·A⃗`, a patch's control net carried by `−c`).
-/// A walk every face of which is a plane bounded by lines is read instead
-/// off its vertex polygons on their planes ([`shell_polygons`]). Elsewhere
-/// a loop closes only to the rounding
-/// of its carriers' ends, and a fan reads that gap at the face's length
-/// times its lever
-/// (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
-/// Taken about a
-/// point of the body, no face's width is scaled by the body's distance
-/// from the world origin. A quadrature face whose lane refuses about `c`
-/// keeps the enclosure it was measured with less `c · A⃗`, at the
-/// world-origin width, and says so; a walk with no faces, such a face
-/// whose vector area has no closed form, or a closed-form face that
-/// refuses about `c` (its inventory read again there in band), is taken
-/// about the world origin, unrecentred.
+/// **What the volume encloses**:
+/// - **a shell of planes bounded by lines** ([`shell_polygons`]): the
+///   exact volume of the polyhedron its vertex points span, summed with
+///   no rounding ([`quad_lane::exact_polygon_volume`]), as an interval a
+///   few ulps wide; where a point is not exact, each face's plane distance
+///   times its polygon's area, widened by the polygon's tilt off its plane
+///   ([`quad_lane::polygon_face_about`]), which encloses the same value;
+/// - **otherwise** the divergence sum about `c` of the faces as stored:
+///   each closed-form face's flux about `c` from its surface and loops
+///   lifted exactly and moved by `−c` (a plane as its distance from `c`
+///   along its stored normal times its loops' signed area, widened by the
+///   loops' tilt off the plane, so the term encloses the loops' own flux:
+///   `quad_lane::planar_face_about`), and each quadrature face measured
+///   again about `c`, at the round the walk reached
+///   (`quad_lane::cut_face_rounds`: a cylinder's position term taken as
+///   `(origin − c)·A⃗`, a patch's control net carried by `−c`). A loop
+///   closes only to the rounding of its carriers' ends, and a fan reads
+///   that gap at the face's length times its lever
+///   (`work/tally/a-fan-over-carrier-ends-reads-an-ulp-gap-at-the-faces-length-times-its-lever`).
+///
+/// Taken about a point of the body, no face's width is scaled by the
+/// body's distance from the world origin. A quadrature face whose lane
+/// refuses about `c` keeps the enclosure it was measured with less
+/// `c · A⃗`, at the world-origin width, and says so; a walk with no
+/// faces, such a face whose vector area has no closed form, or a
+/// closed-form face that refuses about `c` (its inventory read again
+/// there in band), is taken about the world origin, unrecentred.
 ///
 /// # Errors
 ///
@@ -1365,17 +1373,15 @@ type PlanePolygon = (Rings, geom_core::Vec3<Interval>);
 /// vertices on one side and as its carrier's ends on the other would
 /// open a gap between the two readings.
 ///
-/// The polygons' polyhedron stands off the stored solid by its
-/// vertices' distance from their faces' planes: with `δ_f` the largest
-/// over face `f`'s vertices and `|T_{f,i}|` the unsigned areas of its
-/// fan triangles, `|V_polygons − V_stored| ≤ Σ_f δ_f · Σ_i |T_{f,i}|`,
-/// plus the slivers between each edge's chord and its carrier, of order
-/// `δ²` per unit length. `Σ_i |T_{f,i}|` is the face's area where the
-/// face is convex, and more where it is not or holds a ring. The flux
-/// each face is read at is its plane's distance times its polygon's
-/// area ([`quad_lane::polygon_face_about`]), which differs from the
-/// polyhedron's by the in-plane parts of those offsets, cancelling over
-/// the closed shell to the same order.
+/// The volume read off these polygons is the polyhedron's their points
+/// span ([`rederive_polygons`]). A face's plane distance times its
+/// polygon's area is not that polyhedron's flux: it drops the in-plane
+/// part of the anchor's lever against the polygon's tilt off the plane,
+/// which only the closed shell cancels, so a turned needle's terms once
+/// missed its exact volume by 1.4% at three hundred thousand widths
+/// (review R2 of PR 5119's second delta, measured in exact rationals);
+/// a face's own term is widened by that tilt where it is read at all
+/// ([`quad_lane::polygon_face_about`]).
 fn shell_polygons<T: Decide>(
     body: &Body<T>,
     lane: QuadLane<T>,
@@ -1398,9 +1404,13 @@ fn shell_polygons<T: Decide>(
     Ok(Some(polygons))
 }
 
-/// [`rederive`] over [`shell_polygons`]: each face's flux about `centre`,
-/// its plane's distance times its polygon's signed area
-/// ([`quad_lane::polygon_face_about`]), recentred.
+/// [`rederive`] over [`shell_polygons`]: the exact volume of the
+/// polyhedron the faces' vertex points span
+/// ([`quad_lane::exact_polygon_volume`]) wherever every point is exact;
+/// otherwise each face's flux about `centre`, its plane's distance times
+/// its polygon's signed area widened by the polygon's tilt off the plane
+/// ([`quad_lane::polygon_face_about`]). The area is the faces' own,
+/// either way.
 fn rederive_polygons<T: Decide>(
     polygons: &[PlanePolygon],
     centre: Point3<Interval>,
@@ -1417,8 +1427,10 @@ fn rederive_polygons<T: Decide>(
         flux = flux + c.flux;
         area = area + c.area;
     }
+    let rings: Vec<Rings> = polygons.iter().map(|(rings, _)| rings.clone()).collect();
     Ok(Rederived {
-        volume: flux / Interval::from_f64(3.0),
+        volume: quad_lane::exact_polygon_volume(&rings)
+            .unwrap_or_else(|| flux / Interval::from_f64(3.0)),
         area,
         recentred: true,
         quadrature: false,
@@ -3279,9 +3291,10 @@ impl ShellClassifyError {
             Self::Corner { volume, .. } => volume.arm(),
             Self::ZeroVolume { verdict, .. } => Some(RefusedArm::Zero(*verdict)),
             Self::Straddles { .. } => Some(RefusedArm::SignCertain(None)),
-            Self::Props { .. } | Self::Band { .. } | Self::Ray { .. } | Self::SignUnresolved { .. } => {
-                None
-            }
+            Self::Props { .. }
+            | Self::Band { .. }
+            | Self::Ray { .. }
+            | Self::SignUnresolved { .. } => None,
         }
     }
 
@@ -4897,7 +4910,13 @@ pub(crate) mod role_unread_rows {
             )))
         };
         assert!(matches!(
-            certify_role(SignReading::exact(0.0, 1.0), interval, || Ok(0.0), names, names),
+            certify_role(
+                SignReading::exact(0.0, 1.0),
+                interval,
+                || Ok(0.0),
+                names,
+                names
+            ),
             Certified::Role(super::ShellRole::Outer)
         ));
     }
@@ -5528,5 +5547,200 @@ mod from_computed_rows {
                 laundered: 0,
             }
         );
+    }
+}
+
+#[cfg(test)]
+mod exact_enclosure_rows {
+    #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+    //! The re-derivation's volume encloses the exact volume of the body's
+    //! vertex polyhedron (review R2's oracle on PR 5119's second delta,
+    //! `review-probes/pr5119-r2-delta2/enc_oracle.py`): every point of a
+    //! line-bounded plane shell an `f64`, the polyhedron's volume a
+    //! rational, summed here with no rounding at all over big integers and
+    //! compared with the interval's ends exactly.
+
+    use super::*;
+    use geom_core::{Bounds, Tol};
+    use num_bigint::BigInt;
+
+    /// `x` as `(m, e)` with `x = m·2ᵉ` exactly.
+    fn split(x: f64) -> (BigInt, i32) {
+        if x == 0.0 {
+            return (BigInt::from(0), 0);
+        }
+        let bits = x.to_bits();
+        let sign = if bits >> 63 == 1 { -1i64 } else { 1 };
+        let exp = ((bits >> 52) & 0x7ff) as i32;
+        let frac = bits & ((1u64 << 52) - 1);
+        let (m, e) = if exp == 0 {
+            (frac, -1074)
+        } else {
+            (frac | (1u64 << 52), exp - 1075)
+        };
+        (BigInt::from(sign) * BigInt::from(m), e)
+    }
+
+    /// An exact dyadic rational `m·2ᵉ`.
+    #[derive(Clone, Debug)]
+    struct Dyadic(BigInt, i32);
+
+    impl Dyadic {
+        fn of(x: f64) -> Self {
+            let (m, e) = split(x);
+            Self(m, e)
+        }
+        fn mul(&self, o: &Self) -> Self {
+            Self(&self.0 * &o.0, self.1 + o.1)
+        }
+        fn add(&self, o: &Self) -> Self {
+            let e = self.1.min(o.1);
+            let a = &self.0 << (self.1 - e) as usize;
+            let b = &o.0 << (o.1 - e) as usize;
+            Self(a + b, e)
+        }
+        fn neg(&self) -> Self {
+            Self(-&self.0, self.1)
+        }
+        /// `self ≤ o`, exactly.
+        fn le(&self, o: &Self) -> bool {
+            let d = o.add(&self.neg());
+            d.0 >= BigInt::from(0)
+        }
+    }
+
+    /// Six times the exact volume of the polyhedron the rings span.
+    fn six_volume(polygons: &[Vec<Vec<[f64; 3]>>]) -> Dyadic {
+        let mut sum = Dyadic::of(0.0);
+        for rings in polygons {
+            for ring in rings {
+                let r0 = ring[0];
+                for pair in ring[1..].windows(2) {
+                    let (q, r) = (pair[0], pair[1]);
+                    for (i, j, k) in [(0, 1, 2), (1, 2, 0), (2, 0, 1)] {
+                        let p = Dyadic::of(r0[i]);
+                        let plus = Dyadic::of(q[j]).mul(&Dyadic::of(r[k])).mul(&p);
+                        let minus = Dyadic::of(q[k]).mul(&Dyadic::of(r[j])).mul(&p);
+                        sum = sum.add(&plus).add(&minus.neg());
+                    }
+                }
+            }
+        }
+        sum
+    }
+
+    fn rot(axis: [f64; 3], ang: f64) -> [[f64; 3]; 3] {
+        let n = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]).sqrt();
+        let (x, y, z) = (axis[0] / n, axis[1] / n, axis[2] / n);
+        let (s, c) = ang.sin_cos();
+        let k = 1.0 - c;
+        [
+            [c + x * x * k, x * y * k - z * s, x * z * k + y * s],
+            [y * x * k + z * s, c + y * y * k, y * z * k - x * s],
+            [z * x * k - y * s, z * y * k + x * s, c + z * z * k],
+        ]
+    }
+
+    /// A needle `1 × w × w` turned by `r` and centred at `c`.
+    fn needle(w: f64, r: [[f64; 3]; 3], c: [f64; 3], tol: Tol) -> Body<f64> {
+        crate::test_support_fixtures::mapped_cube::<f64>(
+            move |x, y, z| {
+                let p = [x, (y - 0.5) * w, (z - 0.5) * w];
+                Point3::new(
+                    c[0] + r[0][0] * p[0] + r[0][1] * p[1] + r[0][2] * p[2],
+                    c[1] + r[1][0] * p[0] + r[1][1] * p[1] + r[1][2] * p[2],
+                    c[2] + r[2][0] * p[0] + r[2][1] * p[1] + r[2][2] * p[2],
+                )
+            },
+            tol,
+        )
+    }
+
+    /// **The enclosure holds the vertex polyhedron's exact volume, and
+    /// decides its sign**, on turned needles `10.5ε` and `30ε` across in
+    /// four poses, at the origin, at `(37, −21, 13)` and at
+    /// `(1234.5, −987.25, 3333)`, either way out.
+    #[test]
+    fn the_enclosure_holds_the_vertex_polyhedrons_exact_volume() {
+        let tol = Tol::witness();
+        let Ok(band) = Band::linear(tol) else {
+            return;
+        };
+        let lane = QuadLane::<f64>::certified();
+        let e = tol.eps();
+        let poses: [([f64; 3], f64); 4] = [
+            ([0.0, 0.0, 1.0], 0.0),
+            ([1.0, 2.0, 3.0], 1.1),
+            ([0.3, -0.7, 0.2], 2.4),
+            ([1.0, 1.0, 1.0], 0.955_316_618_124_509_3),
+        ];
+        let centres = [
+            [0.0, 0.0, 0.0],
+            [37.0, -21.0, 13.0],
+            [1234.5, -987.25, 3333.0],
+        ];
+        let mut read = 0;
+        for m in [10.5, 30.0] {
+            for (axis, ang) in poses {
+                for c in centres {
+                    let Ok(built) =
+                        std::panic::catch_unwind(|| needle(m * e, rot(axis, ang), c, tol))
+                    else {
+                        continue;
+                    };
+                    for inverted in [false, true] {
+                        let body = if inverted {
+                            built.revert().expect("the needle reverts")
+                        } else {
+                            built.clone()
+                        };
+                        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+                        let hook = reporting_hook(Some(lane));
+                        let runs = decide_faces_serially(&faces, |&f| {
+                            face_flux(&body, f, band, &hook, tol, RoundWindow::SCHEDULE)
+                        })
+                        .unwrap();
+                        let got = rederive(&body, band, tol, lane, &runs, true).unwrap();
+                        let polygons: Vec<Vec<Vec<[f64; 3]>>> = runs
+                            .iter()
+                            .map(|run| {
+                                let (face, surface) = resolve_face(&body, run.face);
+                                vertex_rings(
+                                    &body,
+                                    surface,
+                                    &flat_loops(&body, face).unwrap(),
+                                    lane,
+                                )
+                                .unwrap()
+                                .expect("line-bounded")
+                                .iter()
+                                .map(|ring| {
+                                    ring.iter()
+                                        .map(|p| [p.x.lo(), p.y.lo(), p.z.lo()])
+                                        .collect()
+                                })
+                                .collect()
+                            })
+                            .collect();
+                        let exact = six_volume(&polygons);
+                        let what =
+                            format!("needle {m}ε, axis {axis:?}, at {c:?}, inverted {inverted}");
+                        let (lo, hi) = (got.volume.lo(), got.volume.hi());
+                        let six = Dyadic::of(6.0);
+                        assert!(
+                            Dyadic::of(lo).mul(&six).le(&exact)
+                                && exact.le(&Dyadic::of(hi).mul(&six)),
+                            "{what}: [{lo:e}, {hi:e}] holds the exact volume"
+                        );
+                        assert!(
+                            if inverted { hi < 0.0 } else { lo > 0.0 },
+                            "{what}: [{lo:e}, {hi:e}] decides the sign"
+                        );
+                        read += 1;
+                    }
+                }
+            }
+        }
+        assert!(read > 0, "a needle built");
     }
 }

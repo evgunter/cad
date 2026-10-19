@@ -10754,7 +10754,11 @@ mod tests {
             ),
             "zero"
         );
-        for limit in [SignLimit::WorldOrigin, SignLimit::Quadrature, SignLimit::Scalar] {
+        for limit in [
+            SignLimit::WorldOrigin,
+            SignLimit::Quadrature,
+            SignLimit::Scalar,
+        ] {
             assert!(
                 matches!(
                     at_target(Certified::Unresolved(unread(0.0), limit)),
