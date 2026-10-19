@@ -347,6 +347,13 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// narrow, and a scalar that cannot narrow soundly gives up only
     /// tightness. At `Interval` it is the intersection, decorated as
     /// `self` is; where `self` is poison or misses `[lo, hi]`, `self`.
+    ///
+    /// An evaluation-lane narrowing, not the certification lane's clamp,
+    /// which refuses an uncertified value and an empty intersection and
+    /// takes its endpoints (and its choice between zeros of opposite
+    /// sign) from the backend's intersection. Here an uncertified value
+    /// stays as uncertified as it came, and a miss, which no caller with
+    /// a member on `[lo, hi]` can meet, gives up only tightness.
     fn clip_to(self, _lo: f64, _hi: f64) -> Self {
         self
     }
