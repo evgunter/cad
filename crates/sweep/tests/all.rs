@@ -118,6 +118,8 @@ mod a_tangent_arc_at_other_boolean_vertices;
 mod a_tangent_joint_on_near_concentric_carriers;
 #[path = "a_thin_cap_keeps_its_digits.rs"]
 mod a_thin_cap_keeps_its_digits;
+#[path = "a_torus_off_its_ring_reads_as_at_rest.rs"]
+mod a_torus_off_its_ring_reads_as_at_rest;
 #[path = "a_tube_ending_on_a_ball.rs"]
 mod a_tube_ending_on_a_ball;
 #[path = "a_vertex_on_a_grazing_plane.rs"]

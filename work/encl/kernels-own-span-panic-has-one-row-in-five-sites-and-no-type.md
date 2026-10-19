@@ -2,8 +2,9 @@
 id: kernels-own-span-panic-has-one-row-in-five-sites-and-no-type
 kind: issue
 title: kernels_own's span panic is pinned at one of its five sites, and a re-mint site that forgets it is silently typed
-status: open
+status: dispatched
 opened: 2026-10-19
+branch: encl/kernels-own-type
 ---
 
 
@@ -39,3 +40,7 @@ above). Blind spot: a kernel re-mint that calls
 `EdgeCurve::recertify*` or `certify*` without the wrapper matches no
 spelling of it; `rg 'recertify(_via)?(_stated)?\(|::certify(_via)?(_stated)?\(' crates/topo/src`
 outside tests is the census for B.
+
+## Evidence, 2026-10-19 (PR 5393 review)
+
+After PR 5393, `kernels_own` holds the only kernel-bug panic for an `Unminted` reading, so this row now carries all of D2's must-panic half for span checks. Also, topo arms that match `CertifyError::IntervalNotForward`/`WindingExceeded` look dead, since no door returns those variants: `replace_face.rs` ~2083 and `validate.rs` ~2859, 2913, 2999. Census them with the five sites. (ENCL orchestrator)

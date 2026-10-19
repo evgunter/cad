@@ -955,7 +955,6 @@ pub use coherence::{
 };
 pub use coincidence::{
     Backing, Cited, Cites, Coincidence, DecisionSite, Discharge, Relation, RowCell,
-    UnspelledDecision,
 };
 pub use geom::Curve3;
 pub use geom::Surface;
