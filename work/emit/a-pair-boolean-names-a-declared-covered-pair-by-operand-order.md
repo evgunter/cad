@@ -80,3 +80,20 @@ different member by order. B's three-member probe named alike in four
 orders, with `b` inside; one more probe on a partial-overlap
 three-member union would settle it.
 
+## Pinned (2026-10-19)
+
+The designer pair's measurements hold on the branch and are pinned in
+`crates/editor-core/tests/emit_boolean_vertex_keys.rs`:
+- `a_covered_pair_is_named_alike_in_both_orders`: union and intersect
+  in both orders over four flush fixtures (the row's example, a
+  partial overlap flush on four faces, two equal blocks, tops flush on
+  a partial overlap). Every face, edge and vertex names the same
+  geometry in both orders, and each covered plane is exactly one
+  `Merged` face of `a`'s face and `b`'s. The row's example takes
+  different kernel paths by order (`OperandA` / `Seamed`).
+- `a_subtract_names_a_touched_face_for_from_alone`: `a` = x 0..2 with
+  `b` abutting its whole x = 2 wall, part of it, or resting on its
+  top. In `a − b` the touched face is `a`'s face, carried bare; in
+  `b − a` it is `b`'s.
+
+The row stays open on Ev's answer.
