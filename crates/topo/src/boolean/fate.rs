@@ -264,9 +264,9 @@ fn corner_holds<T: Decide>(
     let holds = match turn {
         Sign::Positive => s1 == Sign::Positive && s2 == Sign::Positive,
         Sign::Negative => s1 == Sign::Positive || s2 == Sign::Positive,
-        Sign::Zero if sign(out.dot(back), arm, band)? == Sign::Positive => {
-            !(s1 == Sign::Zero && s2 == Sign::Zero)
-        }
+        // A dangling edge's tip: the corner is the whole turn but the
+        // edge itself, which `along` read above.
+        Sign::Zero if sign(out.dot(back), arm, band)? == Sign::Positive => true,
         Sign::Zero => s1 == Sign::Positive,
     };
     Ok(Some(holds))
@@ -519,16 +519,19 @@ fn loop_of<T: geom_core::Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<LoopKe
         })
 }
 
-/// The kept edge's `curve` as a chord's scaffold spec, run in its own
-/// sense (`along`) or back.
+/// The kept edge's `curve` as a chord's spec, run in its own sense
+/// (`along`) or back: a line or a circle as the scaffold the join mints
+/// its chords on, any other carrier as an image in `chart`, the dropped
+/// face's surface, which the kept one coincides with.
 fn along_spec<T: Decide>(
     curve: &geom_brep::EdgeCurve<T>,
+    chart: crate::geometry::SurfaceKey,
     along: bool,
 ) -> Result<geom_brep::EdgeCurveSpec<T>, BooleanError> {
     let refuse = || BooleanError::ClassificationInvariant {
-        what: "a fate cut along a kept edge that is neither a line nor a circle",
+        what: "a fate cut along a kept edge on a spline carrier",
     };
-    let own = curve.restated_spec();
+    let own = curve.restated_in_chart(chart);
     let (carrier, t0, t1) = if along {
         (own.carrier, own.param_start, own.param_end)
     } else {
@@ -541,7 +544,12 @@ fn along_spec<T: Decide>(
     match carrier {
         geom::Curve3::Line { .. } => geom_brep::EdgeCurveSpec::segment_of_line(carrier, t0, t1),
         geom::Curve3::Circle { .. } => geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1),
-        _ => None,
+        _ => Some(geom_brep::EdgeCurveSpec {
+            description: own.description,
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        }),
     }
     .ok_or_else(refuse)
 }
@@ -592,7 +600,11 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
     };
     let pw = point(body, w)?;
     // The kept edge's curve, run from `v`, one of the chord's ends.
-    let run = |v: VertexKey| along_spec(curve, forward == (v == u));
+    let chart = body
+        .get_face(face)
+        .map(|f| f.surface)
+        .ok_or_else(|| desync("a fate cut's face no longer resolves"))?;
+    let run = |v: VertexKey| along_spec(curve, chart, forward == (v == u));
     let outer = body
         .get_face(face)
         .map(|f| f.outer)
