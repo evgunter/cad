@@ -109,13 +109,17 @@ impl<T: SolveScalar> Chart<T> {
         // frame lane, read there where the target is read off a copy its
         // placement moved, which taking it back through the body's frame
         // would widen by the frame's width twice; else taken back.
+        // The taken-back direction is decided unit on every lane, so a
+        // frame lane decides what the value lane does while keeping its
+        // own direction.
+        let back = unit(target.linear.transpose() * d.get())?;
         let own_dir = own
             .filter(|_| T::spins_by_frames())
             .and_then(|n| super::solve::on_an_axis(*n));
         let own_d = match own_dir {
             Some(n) if flipped => -n,
             Some(n) => n,
-            None => unit(target.linear.transpose() * d.get())?,
+            None => back,
         };
         // The swung `x` is the target's turn of a unit vector and `y` the
         // cross of two orthonormal ones, so each is unit over the reals

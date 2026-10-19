@@ -70,8 +70,8 @@ enum Move {
     /// variables of equal value stay equal, so a coincidence the
     /// document holds by value (a kiss, a flush seat) holds at `p1` too.
     /// The fallback for a document whose branches [`Move::Apart`]
-    /// moves, and the pinned move of three gating rows (`cut_cylinder`,
-    /// `plate_param`, `boss_union`), each saying why. On a document of
+    /// moves, and the pinned move of two gating rows (`plate_param`,
+    /// `boss_union`), each saying why. On a document of
     /// lengths it is a dilation — of every length, the profile's
     /// included, under the guided lift the replay session takes — so a
     /// laundered quantity that depends only on ratios of the variables
@@ -429,10 +429,10 @@ rows! {
     // (`work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md`,
     // which NOTHING here pins).
     revalue_boss_union: "boss_union", InStep, 3236, [];
-    // In step: moved apart, its split parts at `split_join_frame_axis`
-    // (an axis the cleave's join frame decides against a datum's), so
-    // only the in-step move compares the whole document.
-    revalue_cut_cylinder: "cut_cylinder", InStep, 1051, [];
+    // Apart: the cutter's placement reads a variable, so both builds run
+    // its map and decide its transform and unit norms alike (were `p0`
+    // to snap it at rest, the builds would part at `datum_unit_norm`).
+    revalue_cut_cylinder: "cut_cylinder", Apart, 1302, [];
     revalue_die_chamfer: "die_chamfer", Apart, 1690, [];
     revalue_heat_sink_fins: "heat_sink_fins", Apart, 1353, [];
     revalue_loft_prism: "loft_prism", Apart, 259, [];

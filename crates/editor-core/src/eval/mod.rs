@@ -3411,6 +3411,12 @@ where
         T::spins_by_frames()
     }
 
+    /// As the value channel's: a coordinate exactly zero over the lane's
+    /// whole box is constant there, so its tangent is zero too.
+    fn exactly_zero(self) -> bool {
+        self.value.exactly_zero()
+    }
+
     fn is_stored_identity(_map: &geom_core::Affine3<Self>) -> bool {
         false
     }
@@ -3455,9 +3461,44 @@ where
         Some(out)
     }
 
-    fn with_rest(_map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
-        None
+    fn holds_rest(map: &geom_core::Affine3<Self>) -> bool {
+        T::holds_rest(&dual_values(map))
     }
+
+    /// The value channel's hull with the identity, each tangent `map`'s.
+    fn with_rest(map: &geom_core::Affine3<Self>) -> Option<geom_core::Affine3<Self>> {
+        use geom_core::linalg::Vec3;
+        let rest = T::with_rest(&dual_values(map))?;
+        let column = |v: Vec3<T>, d: Vec3<Self>| {
+            let e = |value: T, at: Self| Self {
+                value,
+                deriv: at.deriv,
+            };
+            Vec3::new(e(v.x, d.x), e(v.y, d.y), e(v.z, d.z))
+        };
+        let mut out = *map;
+        out.linear.c0 = column(rest.linear.c0, map.linear.c0);
+        out.linear.c1 = column(rest.linear.c1, map.linear.c1);
+        out.linear.c2 = column(rest.linear.c2, map.linear.c2);
+        out.translation = column(rest.translation, map.translation);
+        Some(out)
+    }
+}
+
+/// A dual map's value channel.
+fn dual_values<T: geom_core::Real>(
+    map: &geom_core::Affine3<geom_core::Dual<T>>,
+) -> geom_core::Affine3<T>
+where
+    geom_core::Dual<T>: geom_core::Real,
+{
+    use geom_core::linalg::Vec3;
+    let v = |c: Vec3<geom_core::Dual<T>>| Vec3::new(c.x.value, c.y.value, c.z.value);
+    let q = map.linear;
+    geom_core::Affine3::from_parts(
+        geom_core::linalg::Mat3::from_cols(v(q.c0), v(q.c1), v(q.c2)),
+        v(map.translation),
+    )
 }
 
 /// The symbolic tier's solve: its lane scalar's quote, and the tier's
