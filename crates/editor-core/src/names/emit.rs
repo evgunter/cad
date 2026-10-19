@@ -373,7 +373,7 @@ pub enum NamingError {
 /// Each speaks it followed by what it caught —
 /// [`NamingError::Duplicate`] the name minted twice,
 /// [`NamingError::KindMismatch`] the name seated on another kind,
-/// [`NamingError::ShortTie`] the tie seated short,
+/// [`NamingError::ShortTie`] the tie offered short,
 /// [`NamingError::Unnamed`] the entity left uncovered,
 /// [`NamingError::MissingUpstream`] the upstream table that missed,
 /// [`NamingError::Emission`] a fact, [`NamingError::SplitLineage`] the
@@ -387,11 +387,8 @@ const EMISSION_FRAMING: &str =
 /// the two say opposite things about whose fault the failure is, and an
 /// author who reads the wrong one goes and files a kernel bug against a
 /// recipe that is fine.
-const UNRULED_FRAMING: &str = concat!(
-    "the emitter has no naming rule for a construction this recipe reached",
-    " — the recipe is well formed and the result body is sound, so what is",
-    " missing is a rule, not a repair"
-);
+const UNRULED_FRAMING: &str =
+    "no naming rule covers this construction; the recipe and its result are sound";
 
 /// What a shared-rim derivation found instead of the one edge it asked
 /// for — the fact a free-text sentence would have hidden.
@@ -457,8 +454,8 @@ impl crate::spoken::Say for NamingError {
             ),
             Self::ShortTie { name, candidates } => write!(
                 f,
-                "{EMISSION_FRAMING}: {} was seated as a tie of {} — a tie names two or \
-                 more entities",
+                "{EMISSION_FRAMING}: {} was offered as a tie of {} and refused — a tie names \
+                 two or more entities",
                 by.name(name),
                 match candidates {
                     0 => "no candidates",
@@ -507,8 +504,9 @@ impl crate::spoken::Say for NamingError {
             ),
             Self::SeamVertexPartners { vertex, candidates } => write!(
                 f,
-                "{UNRULED_FRAMING}: seam vertex {vertex:?} meets {} differently named \
-                 vertices of the other operand ({}), and no rule picks one",
+                "{UNRULED_FRAMING}: seam vertex {vertex:?} coincides, in the boolean's contact \
+                 records, with {} differently named vertices of the other operand ({}), and \
+                 no rule chooses which one names it",
                 candidates.len(),
                 candidates
                     .iter()
@@ -540,37 +538,43 @@ impl crate::spoken::Say for NamingError {
                 unread,
             } => write!(
                 f,
-                "{UNRULED_FRAMING}: operand {}'s vertex {vertex:?} meets vertex {partner:?} {}, \
-                 which the boolean read nothing of, so it classed none of the vertex's edges \
-                 (work/tang/a-lone-unread-partner-has-no-class-rule)",
+                "{UNRULED_FRAMING}: operand {}'s vertex {vertex:?} meets the other operand's \
+                 vertex {partner:?}, which lies {} and which the boolean read nothing of, so it \
+                 classed none of the vertex's edges and the crossing has no senses to name it \
+                 by (work/tang/a-lone-unread-partner-has-no-class-rule)",
                 match unread.operand {
                     topo::Operand::A => "A",
                     topo::Operand::B => "B",
                 },
                 match unread.neighbourhood {
                     topo::UnreadNeighbourhood::OneFace => "inside one smooth face",
-                    topo::UnreadNeighbourhood::NoBisector => "on an edge no bisector reads",
-                    topo::UnreadNeighbourhood::ConeUnread => "at a cone no reference decides",
+                    topo::UnreadNeighbourhood::NoBisector => {
+                        "on an edge whose two faces hold no bisector"
+                    }
+                    topo::UnreadNeighbourhood::ConeUnread => {
+                        "at a polygon cone, some edge of which no reference decides"
+                    }
                 }
             ),
             Self::ConventionalVertex { vertex, body } => write!(
                 f,
                 "{UNRULED_FRAMING}: vertex {vertex:?} of output body {body} is a closed \
-                 edge's conventional vertex, and the name it takes from its edge is not built \
-                 yet \
+                 edge's conventional vertex, which has no identity of its own, and the name it \
+                 takes from its edge is not built yet \
                  (work/emit/a-conventional-vertex-mints-no-edge-derived-name)"
             ),
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two faces of one \
                  operand, one merged, and within neither the rim {rim:?} of operand {}'s body \
-                 nor any other rim",
+                 it lies along nor any other rim between them",
                 by.node(*node)
             ),
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
                 "{UNRULED_FRAMING}: member {}'s edge ({}) is read where one edge is needed, \
-                 and a tie stands there, over several edges or two crossings",
+                 to rank crossings along it, place a vertex on it or read its faces, but the \
+                 member ties that name to several edges, or ties two of its crossings",
                 by.read(*member),
                 by.name(edge)
             ),
@@ -1983,7 +1987,7 @@ mod display_tests {
                 vec![
                     "member read 000000000025",
                     "of node 000000000025)",
-                    "a tie stands",
+                    "ties that name to several edges",
                 ],
             ),
             (
@@ -2154,9 +2158,7 @@ mod display_tests {
         );
         assert_eq!(
             UNRULED_FRAMING,
-            "the emitter has no naming rule for a construction this recipe reached — the \
-             recipe is well formed and the result body is sound, so what is missing is a \
-             rule, not a repair"
+            "no naming rule covers this construction; the recipe and its result are sound"
         );
     }
 

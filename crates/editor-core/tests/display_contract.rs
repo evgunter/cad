@@ -2645,7 +2645,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 },
             },
             vec![
-                "on an edge no bisector reads",
+                "on an edge whose two faces hold no bisector",
                 "classed none of the vertex's edges",
                 "a-lone-unread-partner-has-no-class-rule",
             ],
@@ -2684,7 +2684,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 // By tag a member read is said by its whole id.
                 "member read 000000000025's edge",
                 "is read where one edge is needed",
-                "a tie stands there",
+                "the member ties that name to several edges",
             ],
         ),
         (

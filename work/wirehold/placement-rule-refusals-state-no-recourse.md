@@ -1,7 +1,7 @@
 ---
 id: placement-rule-refusals-state-no-recourse
 kind: issue
-title: The placement-rule refusals the feature tree draws state no recourse
+title: The placement, instance and face-frame refusals the feature tree draws state no recourse
 status: parked
 opened: 2026-10-19
 priority: P3
@@ -23,11 +23,19 @@ were parked there as held ground (D10) when
 `wire/wire-refusals-short-of-the-shape-guard` closed, with no row of
 their own; this is that row.
 
+It also holds the other entries parked there as held ground
+(`wire-refusals-short-of-the-shape-guard`'s 2026-10-17 triage: they
+"stand on stage 3 ground"): `PlacementsUncertified`,
+`InstanceOutOfRange`, `FaceFrameNotPlanar`, `FaceFrameReadback/Dangling`,
+`FaceFrameReadback/NoCanonicalFrame`, `FaceFrameReadback/NoCarrier` and
+`FrameDirection/Degenerate`. Each renders with no `Recourse:` and none
+of the shared endings.
+
 ## Repair shape
 
-Each arm ends in one labelled `Recourse:` (a finite, proper, rigid
-frame for the placement it names) or in the kernel-defect ending, and
-its five entries leave `FILED_NO_RECOURSE`, where
+Each arm ends in one labelled `Recourse:` (for a placement rule, a
+finite, proper, rigid frame for the placement it names) or in the
+kernel-defect ending, and its entry leaves `FILED_NO_RECOURSE`, where
 `every_admission_admits_a_row_it_is_needed_for` reds on each one left
 behind.
 
@@ -35,5 +43,6 @@ behind.
 
 Placement ground, so it waits on the D10 stage 3 unit
 `intent/transform-retires-into-a-placement`, which rebuilds the
-placement-rule door these faults come from: re-read the five arms then,
-since the rebuild may already give each a recourse.
+placement-rule door, the instance placements and the authored frames
+these refusals come from: re-read each arm then, since the rebuild may
+already give it a recourse or retire it.
