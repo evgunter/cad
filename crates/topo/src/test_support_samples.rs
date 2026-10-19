@@ -491,11 +491,11 @@ fn certify_errors() -> Vec<CertifyError> {
         // full turn.
         CertifyError::StatedInterval {
             refused: geom_brep::StatedSpan::NotForward,
-            margin: Some(MarginDiag::value(0.0)),
+            verdict: Some(zero_verdict(0.0)),
         },
         CertifyError::StatedInterval {
             refused: geom_brep::StatedSpan::PastFullTurn,
-            margin: None,
+            verdict: None,
         },
         CertifyError::ResidualExceeded {
             check: CertCheck::SurfaceResidual { surface: key },

@@ -83,7 +83,7 @@ fn fixed_winding_aliased_arc_interval_refused() {
         EdgeCurve::certify(aliased, p0, p1, |_| None, 1.0, band()).unwrap_err(),
         CertifyError::StatedInterval {
             refused: StatedSpan::PastFullTurn,
-            margin: None,
+            verdict: None,
         }
     );
     // The correct interval still certifies.
@@ -121,7 +121,7 @@ fn fixed_winding_aliased_full_period_refused() {
         EdgeCurve::certify(spec, p, p, |_| None, 1.0, band()).unwrap_err(),
         CertifyError::StatedInterval {
             refused: StatedSpan::PastFullTurn,
-            margin: None,
+            verdict: None,
         }
     );
 }
@@ -318,7 +318,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
         EdgeCurve::certify(mk(-PI), p0, p1, &lookup, 1.0, band()).unwrap_err(),
         CertifyError::StatedInterval {
             refused: StatedSpan::NotForward,
-            margin: Some(_),
+            verdict: Some(Refused::Negative { .. }),
         }
     ));
     // An extra 1.5 windings: t runs 0 -> 3·pi — over one period,
@@ -327,7 +327,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
         EdgeCurve::certify(mk(3.0 * PI), p0, p1, &lookup, 1.0, band()).unwrap_err(),
         CertifyError::StatedInterval {
             refused: StatedSpan::PastFullTurn,
-            margin: None,
+            verdict: None,
         }
     );
     // The honest upper arc (witness at its mid-parameter point (0,1,0))
@@ -712,7 +712,7 @@ fn fixed_reversed_interval_refused() {
         EdgeCurve::certify(spec, p1, p0, |_| None, 1.0, band()).unwrap_err(),
         CertifyError::StatedInterval {
             refused: StatedSpan::NotForward,
-            margin: Some(_),
+            verdict: Some(Refused::Negative { .. }),
         }
     ));
 }
@@ -748,7 +748,10 @@ fn fixed_zero_length_edge_refused() {
         EdgeCurve::certify(spec, p, p, |_| None, 1.0, band()).unwrap_err(),
         CertifyError::StatedInterval {
             refused: StatedSpan::NotForward,
-            margin: Some(geom_core::MarginDiag::value(0.0)),
+            verdict: Some(Refused::Zero(geom_brep::recourse::Classified {
+                margin: geom_core::MarginDiag::value(0.0),
+                band: band(),
+            })),
         }
     );
 }
@@ -959,7 +962,7 @@ mod interval_lane {
             err,
             CertifyError::StatedInterval {
                 refused: StatedSpan::PastFullTurn,
-                margin: None,
+                verdict: None,
             },
             "the fixed lane must refuse the alias by detection, not by a blanket Trv refusal"
         );

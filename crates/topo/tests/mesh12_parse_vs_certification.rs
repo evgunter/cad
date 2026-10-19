@@ -7,7 +7,7 @@
 //! (`StatedInterval` / `NotIsoRectangle` or `SphereLoop`) land on the
 //! same rungs, save that a headroom wholly negative in band, which the
 //! parse escalates, the door refuses as its caller's interval past a
-//! full turn (`StatedInterval` carrying the in-band reading); so
+//! full turn (`StatedInterval` carrying the in-band verdict); so
 //! a span a certified door hands the parse is never refused there and
 //! a span it refuses never gets an answer.
 //!
@@ -93,9 +93,9 @@ fn mev_disp(t0: f64, t1: f64) -> Disp {
             error:
                 CertifyError::StatedInterval {
                     refused: geom_brep::StatedSpan::PastFullTurn,
-                    margin,
+                    verdict,
                 },
-        }) => match margin {
+        }) => match verdict {
             Some(_) => Disp::RefuseInBand,
             None => Disp::Refuse,
         },

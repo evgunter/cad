@@ -2034,7 +2034,9 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
                 edge: topo::EdgeKey::default(),
                 source: geom_brep::CertifyError::StatedInterval {
                     refused: geom_brep::StatedSpan::NotForward,
-                    margin: Some(geom_core::MarginDiag::value(-1.0)),
+                    verdict: Some(geom_brep::recourse::Refused::Negative {
+                        margin: geom_core::MarginDiag::value(-1.0),
+                    }),
                 },
             },
         ),

@@ -474,8 +474,10 @@ pub enum CertifyError {
     StatedInterval {
         /// What the span checks refused.
         refused: StatedSpan,
-        /// What the refusing check read, where it read a number.
-        margin: Option<MarginDiag>,
+        /// The refusing check's verdict, where it read a number: a
+        /// band-decided reading as its Zero, a reversed one as its
+        /// Negative.
+        verdict: Option<Refused>,
     },
     /// A residual definitely exceeded the escalation threshold: the
     /// cache does not represent the description (D4 ¶2's `residual ≤ ε`
@@ -748,16 +750,21 @@ impl core::fmt::Display for CertifyError {
                  carrier"
             ),
             Self::StatedInterval {
-                refused: StatedSpan::NotForward,
-                margin,
-            } => {
+                verdict: Some(Refused::Negative { margin }),
+                ..
+            } => write!(
+                f,
+                "the parameter interval this edge is given runs backwards by {} m",
+                margin.readable_below_zero()
+            ),
+            Self::StatedInterval { verdict, .. } => {
                 write!(
                     f,
                     "the parameter interval this edge is given does not run forward over any \
                      length"
                 )?;
-                match margin {
-                    Some(margin) => write!(f, " (length {} m)", margin.readable()),
+                match verdict {
+                    Some(verdict) => write!(f, " (length {} m)", verdict.margin().readable()),
                     None => Ok(()),
                 }
             }
@@ -1035,12 +1042,15 @@ impl StatedSpan {
         if !decision.certainly_refused(arm) {
             return error;
         }
-        let margin = match &error {
-            CertifyError::IntervalNotForward { verdict } => Some(verdict.margin()),
-            CertifyError::Escalated { cause, .. } => Some(cause.margin),
+        let verdict = match &error {
+            CertifyError::IntervalNotForward { verdict } => Some(*verdict),
+            CertifyError::Escalated { cause, .. } => Some(Refused::Zero(Classified {
+                margin: cause.margin,
+                band: cause.band,
+            })),
             _ => None,
         };
-        CertifyError::StatedInterval { refused, margin }
+        CertifyError::StatedInterval { refused, verdict }
     }
 }
 
@@ -6130,13 +6140,16 @@ mod tests {
                 band,
             }),
         };
-        let stated = |m| CertifyError::StatedInterval {
+        let stated = |verdict| CertifyError::StatedInterval {
             refused: StatedSpan::NotForward,
-            margin: Some(MarginDiag::value(m)),
+            verdict: Some(verdict),
         };
         let rows = [
             (
-                stated(0.0),
+                stated(Refused::Zero(Classified {
+                    margin: MarginDiag::value(0.0),
+                    band,
+                })),
                 Reading::Build,
                 "the parameter interval this edge is given does not run forward over any length \
                  (length 0 m). Recourse: move the geometry so this edge runs forward over a clear \
@@ -6149,11 +6162,12 @@ mod tests {
                  is no way through: this is a kernel defect or a damaged file; report it",
             ),
             (
-                stated(-1e-3),
+                stated(Refused::Negative {
+                    margin: MarginDiag::value(-1e-3),
+                }),
                 Reading::Build,
-                "the parameter interval this edge is given does not run forward over any length \
-                 (length -0.001 m). Recourse: move the geometry so this edge runs forward over a \
-                 clear length",
+                "the parameter interval this edge is given runs backwards by 0.001 m. Recourse: \
+                 move the geometry so this edge runs forward over a clear length",
             ),
             (
                 in_band(-5e-10),
