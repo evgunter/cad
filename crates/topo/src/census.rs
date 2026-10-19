@@ -5768,16 +5768,20 @@ fn ray_meets<T: Real>(p: Point3<T>, m: Vec3<T>, r: Point3<T>, (a, b): Segment<T>
 
 impl<T: Decide> Sector<T> {
     /// One planar, line-bounded face of the snapshot as its sectors at
-    /// `p`, held there as `hold` says: one, or one per corner where the
-    /// face's loops pass through `p`'s vertex more than once (the face
-    /// touching itself there). A face held inside an edge or inside it
-    /// more than once is not read.
+    /// the touch point, held there as `holds` say: inside it or inside
+    /// one edge of it (one sector, about `p`), or at its corners — every
+    /// place its loops pass through a vertex on the point, each its own
+    /// sector about that vertex, whether the loops pass one vertex twice
+    /// or two vertices on one point (a pinch, one vertex per cone). A
+    /// face held inside an edge or inside it more than once, or both at
+    /// a corner and inside an edge, touches itself there in a way no
+    /// sector reads, and is not read.
     fn of(
         body: &Body<T>,
         geo: &Geo<T>,
         f: FaceKey,
         p: Point3<T>,
-        hold: Hold,
+        holds: &[Hold],
         band: Band,
     ) -> Result<Vec<Self>, TouchVerdict> {
         let fg = planar_face(geo, f).ok_or(TouchVerdict::Unreadable)?;
@@ -5801,30 +5805,36 @@ impl<T: Decide> Sector<T> {
                     .collect::<Result<Vec<_>, _>>()
             })
             .collect::<Result<Vec<_>, _>>()?;
-        // Every chord from `p` a number (`p` itself aside).
+        let corner = |v: VertexKey| holds.contains(&Hold::Corner(v));
+        // Every chord from `p` a number (the point's own corners aside).
         for (&v, &q) in fg.loops.iter().flatten().zip(rings.iter().flatten()) {
-            if hold != Hold::Corner(v) {
+            if !corner(v) {
                 chord(p, q)?;
             }
         }
-        let mut hits = Vec::new();
+        // Where the loops hold the point: each a loop position, with the
+        // point it is read about.
+        let mut corners = Vec::new();
+        let mut edges = Vec::new();
         for (r, ring) in fg.loops.iter().enumerate() {
             let n = ring.len();
             for k in 0..n {
-                match hold {
-                    Hold::Corner(v) if ring[k] == v => hits.push((r, k)),
-                    Hold::Edge(a, b)
-                        if (ring[k] == a && ring[(k + 1) % n] == b)
-                            || (ring[k] == b && ring[(k + 1) % n] == a) =>
+                if corner(ring[k]) {
+                    corners.push(((r, k), rings[r][k]));
+                }
+                for &h in holds {
+                    if let Hold::Edge(a, b) = h
+                        && ((ring[k] == a && ring[(k + 1) % n] == b)
+                            || (ring[k] == b && ring[(k + 1) % n] == a))
                     {
-                        hits.push((r, k));
+                        edges.push((r, k));
                     }
-                    _ => {}
                 }
             }
         }
-        let sector = |place: PieceAt, also: &[(usize, usize)]| {
-            let piece = face_piece(p, outward, &rings, place, also, band)?;
+        let inside = holds.contains(&Hold::Inside);
+        let sector = |at: Point3<T>, place: PieceAt, also: &[(usize, usize)]| {
+            let piece = face_piece(at, outward, &rings, place, also, band)?;
             Ok(Self {
                 surface: surface.clone(),
                 sense: face.sense,
@@ -5833,17 +5843,23 @@ impl<T: Decide> Sector<T> {
                 closed: matches!(place, PieceAt::Inside),
             })
         };
-        match (hold, &hits[..]) {
-            (Hold::Inside, []) => Ok(vec![sector(PieceAt::Inside, &[])?]),
-            (Hold::Edge(..), &[(r, k)]) => Ok(vec![sector(PieceAt::Edge(r, k), &[])?]),
-            (Hold::Corner(_), [_, ..]) => hits
+        let named_corners = holds
+            .iter()
+            .filter(|h| matches!(h, Hold::Corner(_)))
+            .count();
+        match (&corners[..], &edges[..], inside) {
+            // A corner tie that is a face tie too names the touch at the
+            // corner: the face's interior holds no point of its boundary.
+            ([_, ..], [], _) => corners
                 .iter()
-                .map(|&(r, k)| {
-                    let also: Vec<_> = hits.iter().copied().filter(|&h| h != (r, k)).collect();
-                    sector(PieceAt::Corner(r, k), &also)
+                .map(|&(at, q)| {
+                    let also: Vec<_> = corners.iter().map(|c| c.0).filter(|&c| c != at).collect();
+                    sector(q, PieceAt::Corner(at.0, at.1), &also)
                 })
                 .collect(),
-            (Hold::Corner(_) | Hold::Edge(..), []) => Err(TouchVerdict::Corrupt),
+            ([], &[(r, k)], _) => Ok(vec![sector(p, PieceAt::Edge(r, k), &[])?]),
+            ([], [], true) if named_corners == 0 => Ok(vec![sector(p, PieceAt::Inside, &[])?]),
+            ([], [], _) => Err(TouchVerdict::Corrupt),
             _ => Err(TouchVerdict::Unanalysed),
         }
     }
@@ -5951,9 +5967,8 @@ impl<T: Decide> Link<T> {
     /// structurally: every face of the solid holding one of its vertices
     /// on those keys, at that corner; each edge of the solid a tie names
     /// at the point, its two faces inside it; each face of the solid a
-    /// tie names at the point, inside it. A face held at a corner is not
-    /// held again by a tie, nor one held inside an edge by a face tie;
-    /// a face held twice more is not read.
+    /// tie names at the point, inside it. How a face held more than one
+    /// way is read is [`Sector::of`]'s.
     #[allow(clippy::too_many_arguments)] // the snapshot, the ties, whose link, and where
     fn at_point(
         body: &Body<T>,
@@ -6011,21 +6026,7 @@ impl<T: Decide> Link<T> {
                     hs.push(h);
                 }
             }
-            let rank = |h: &Hold| match h {
-                Hold::Corner(_) => 0,
-                Hold::Edge(..) => 1,
-                Hold::Inside => 2,
-            };
-            let best = hs.iter().map(rank).min().unwrap_or(2);
-            hs.retain(|h| rank(h) == best);
-            let &[hold] = &hs[..] else {
-                return Err(TouchVerdict::Unanalysed);
-            };
-            let at = match hold {
-                Hold::Corner(v) => geo.vmap.get(&v).copied().ok_or(TouchVerdict::Corrupt)?,
-                Hold::Edge(..) | Hold::Inside => p,
-            };
-            sectors.extend(Sector::of(body, geo, f, at, hold, band)?);
+            sectors.extend(Sector::of(body, geo, f, p, &hs, band)?);
         }
         Self::of(p, sectors)
     }
@@ -6054,7 +6055,7 @@ impl<T: Decide> Link<T> {
                 geo,
                 f,
                 p,
-                Hold::Edge(edge.v0, edge.v1),
+                &[Hold::Edge(edge.v0, edge.v1)],
                 band,
             )?);
         }
@@ -6069,7 +6070,7 @@ impl<T: Decide> Link<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchVerdict> {
-        Self::of(p, Sector::of(body, geo, f, p, Hold::Inside, band)?)
+        Self::of(p, Sector::of(body, geo, f, p, &[Hold::Inside], band)?)
     }
 
     /// `q`'s side of sector `s`'s plane through `p`.
@@ -7277,28 +7278,23 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             }
         }
         // Declared touches leave no finding and are confirmed for their
-        // coincidence only, never for their side: the same analysis
-        // runs over the records that name this pair.
+        // coincidence only, never for their side: the same analysis runs
+        // over the records that name this pair, and over every point the
+        // two share a key at, named or not. A shared key is structure
+        // the body holds, not a declaration: its reading is never taken
+        // on its word, so an undecided one refuses.
         let records = recorded(sa, sb);
-        for record in &records {
-            if let Recorded::Site(site) = *record {
-                match touch(site) {
-                    Some(Undecided::MixedTouch) => return Some(Undecided::MixedTouch),
-                    what if !records_on_their_word => {
-                        undecided_touch = undecided_touch.or(what);
-                    }
-                    _ => {}
-                }
-            }
-        }
-        // The points the two share a key at read the same way: a key
-        // tying them is structure an op decided, as a record is.
-        for site in shared(sa, sb) {
+        let sites = records
+            .iter()
+            .filter_map(|r| match *r {
+                Recorded::Site(site) => Some((site, !records_on_their_word)),
+                Recorded::FacePair => None,
+            })
+            .chain(shared(sa, sb).into_iter().map(|site| (site, true)));
+        for (site, strict) in sites {
             match touch(site) {
                 Some(Undecided::MixedTouch) => return Some(Undecided::MixedTouch),
-                what if !records_on_their_word => {
-                    undecided_touch = undecided_touch.or(what);
-                }
+                what if strict => undecided_touch = undecided_touch.or(what),
                 _ => {}
             }
         }
