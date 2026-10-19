@@ -464,8 +464,9 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<crate::replace_face::OffsetOutcome, ReplaceFaceError<T>> {
-    offset_charts_together_staged(body, moves, band, tol, true)
-        .map(|joins| crate::replace_face::OffsetOutcome { joins })
+    let source = crate::SourceGeometry::of(body);
+    let joins = offset_charts_together_staged(body, moves, band, tol, true)?;
+    Ok(crate::replace_face::OffsetOutcome::of(source, joins))
 }
 
 /// [`offset_charts_together`], ending with the join where `join` is set. Unset, the
@@ -732,6 +733,37 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
                     true,
                     mid,
                     |mc| reauthor(mc, &carrier, (p_start, p_end), edge, band),
+                    |declared| {
+                        crate::offset_restate::re_ask_on_pair(
+                            edge,
+                            [(ca.old_key, &ca.new), (cb.old_key, &cb.new)],
+                            &carrier,
+                            (t0, t1),
+                            crate::wedge_reach(
+                                body,
+                                crate::edge_faces(body, edge),
+                                &carrier,
+                                (t0, t1),
+                            ),
+                            declared,
+                            band,
+                        )
+                    },
+                    || {
+                        crate::offset_restate::re_ask_chart(
+                            edge,
+                            [(ca.old_key, &ca.new), (cb.old_key, &cb.new)],
+                            &carrier,
+                            (t0, t1),
+                            crate::wedge_reach(
+                                body,
+                                crate::edge_faces(body, edge),
+                                &carrier,
+                                (t0, t1),
+                            ),
+                            band,
+                        )
+                    },
                 )?,
                 carrier,
                 param_start: t0,
@@ -2500,7 +2532,7 @@ fn forward_window<T: Decide>(
 }
 
 /// A periodic carrier's speed bounds `(floor, ceiling)` in metres per
-/// radian, [`geom_brep::carrier_speed::speed_range`]'s on the kinds the axial
+/// radian, [`geom::carrier_speed::speed_range`]'s on the kinds the axial
 /// offset moves an arc of: a circle's radius both ways, a spiric's minor
 /// radius to its whole-period bound. A decision whose Zero admits — two
 /// reads are one point — levers at the ceiling; one whose Positive
@@ -2510,7 +2542,7 @@ fn forward_window<T: Decide>(
 fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(T, T)> {
     match carrier {
         Curve3::Circle { .. } | Curve3::Spiric { .. } => {
-            let (floor, ceiling) = geom_brep::carrier_speed::speed_range(carrier);
+            let (floor, ceiling) = geom::carrier_speed::speed_range(carrier);
             Some((floor.get(), ceiling.get()))
         }
         Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
@@ -2524,7 +2556,7 @@ fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(T, T)> {
 /// re-authored sweep in [`reauthor`].
 ///
 /// The number of turns is decided as structure
-/// ([`geom_brep::whole_period_count`]): sign decisions at the half-turn
+/// ([`geom_brep::Period::decide`]): sign decisions at the half-turn
 /// marks of `read − old`, levered at `lever`, so it is a literal at every
 /// scalar, and [`forward_window`]'s `offset_axial_edge_turn` reads
 /// `kept − read` as the constant it is. A mark decided either way admits
@@ -2540,8 +2572,8 @@ fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(T, T)> {
 /// # Errors
 ///
 /// - [`ReplaceFaceError::Escalated`] where a mark is in band.
-/// - [`ReplaceFaceError::TogetherAxialEdge`] where a mark decides Zero
-///   or the gap is past the branch reach. A mark decides Zero where
+/// - [`ReplaceFaceError::TogetherAxialEdge`] where a mark decides Zero.
+///   A mark decides Zero where
 ///   `read` sits half a turn from `old`, and everywhere on a carrier
 ///   whose slowest speed is under the band per half turn: there no turn
 ///   is told from the next.
@@ -2552,26 +2584,26 @@ fn keep_turn<T: Decide>(
     edge: EdgeKey,
     band: Band,
 ) -> Result<T, ReplaceFaceError<T>> {
-    let (gap, tau) = (read - old, T::tau());
-    match geom_brep::whole_period_count(
-        "offset_axial_keep_turn",
-        gap,
-        tau,
-        |g| Margin::levered(g, lever),
-        band,
-    ) {
-        Ok(k) => Ok(old + (gap - tau * T::from_f64(f64::from(k)))),
+    let (gap, period) = (read - old, geom_brep::Period::new(T::tau()));
+    match period
+        .decide(
+            "offset_axial_keep_turn",
+            gap,
+            |g| Margin::levered(g, lever),
+            band,
+        )
+        .map_err(|stop| stop.miss)
+    {
+        Ok(k) => Ok(old + (gap - period.times(k))),
         Err(geom_brep::BranchMiss::Undecided(source)) => {
             Err(ReplaceFaceError::Escalated { source })
         }
-        Err(geom_brep::BranchMiss::OnMark | geom_brep::BranchMiss::OutOfReach) => {
-            Err(ReplaceFaceError::TogetherAxialEdge {
-                edge,
-                what: "a moved edge's re-read sweep cannot be told a turn of its carrier from the \
+        Err(geom_brep::BranchMiss::OnMark) => Err(ReplaceFaceError::TogetherAxialEdge {
+            edge,
+            what: "a moved edge's re-read sweep cannot be told a turn of its carrier from the \
                        old one: it sits half a turn out, or the carrier is too slow for half a \
                        turn to clear the band",
-            })
-        }
+        }),
     }
 }
 
@@ -3448,7 +3480,7 @@ mod keep_turn_rows {
     #[test]
     fn a_kept_turn_is_a_literal_over_a_box() {
         let band = Band::linear(Tol::witness()).unwrap();
-        for k in [-1.0, 0.0, 1.0, 2.0] {
+        for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |read, old| {
                     let kept =
@@ -3474,7 +3506,7 @@ mod keep_turn_rows {
     fn a_moved_window_keeps_the_old_turn_as_a_theorem_over_a_box() {
         use geom_core::{Interval, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
-        for k in [-1.0, 0.0, 1.0, 2.0] {
+        for k in [-7.0, -1.0, 0.0, 1.0, 2.0, 5.0] {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |read, old| {
                     let f = Sym::<Interval>::from_f64;

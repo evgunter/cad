@@ -20,6 +20,12 @@
 //! A DAG that reaches an opaque value (`Real::from_computed`, an unnamed
 //! axis) re-values to nothing and is counted, not compared: no identity
 //! is proved over it either.
+//!
+//! Every build runs in the coincidence door's own replay session
+//! ([`editor_core::coincide::with_replay_session`]: deferring, at the
+//! door's budget), so the instrument reads exactly what
+//! the door replays
+//! (`the_instrument_and_the_door_replay_in_one_session`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 test_utils::gated_to![
@@ -40,31 +46,39 @@ use std::sync::Arc;
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::{CancelToken, EvalOptions, Evaluation, FreeVar, ProfileDoc, VarId, evaluate};
 use geom_core::sym::revalue::{Decision, record, revalue};
-use geom_core::sym::with_session_rules;
-use geom_core::{ParamSymbol, Sym, SymBudget, SymRules, Tol};
+use geom_core::{ParamSymbol, Sym, Tol};
 
 use crate::corpus;
 
 /// The relative move a variable takes at `p1`: small enough that the
-/// two builds take the same decisions (asserted).
-const MOVE: f64 = 1.0e-7;
+/// two builds take the same decisions (asserted). It is `100·ε`, `1e-7`
+/// at the default ε, so it stands where it does against the predicates'
+/// zero bands at every ε the CI runs: those bands scale with ε, and a
+/// move fixed in meters would sit inside a wide band at a coarse ε (an
+/// exact zero moved by it no longer flips) and outside a narrow one at a
+/// fine ε, so what a row pins would hold at one ε only.
+fn step() -> f64 {
+    1.0e-7 * (Tol::witness().eps() / geom_core::tolerance::DEFAULT_EPS)
+}
 
 /// How the variables move from `p0` to `p1`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Move {
-    /// Each by its own multiple of [`MOVE`], so no two move in step.
+    /// Each by its own multiple of [`step`], so no two move in step.
     Apart,
-    /// All by the same relative [`MOVE`], a zero one not at all: two
+    /// All by the same relative [`step`], a zero one not at all: two
     /// variables of equal value stay equal, so a coincidence the
     /// document holds by value (a kiss, a flush seat) holds at `p1` too.
-    /// The census's fallback for a document whose branches
-    /// [`Move::Apart`] moves, never a gating row's: on a document of
-    /// lengths it is a dilation — of every length but the profile's,
-    /// which the pinned lift holds at the nominal
-    /// (`work/intent/the-pinned-profile-lift-launders-at-sym.md`) — so a
-    /// laundered quantity that depends
-    /// only on ratios of the variables (an angle, a unit normal's
-    /// component, a fraction of a domain) does not move under it.
+    /// The fallback for a document whose branches [`Move::Apart`]
+    /// moves, and the pinned move of three gating rows (`cut_cylinder`,
+    /// `plate_param`, `boss_union`), each saying why. On a document of
+    /// lengths it is a dilation — of every length, the profile's
+    /// included — so a
+    /// laundered quantity that depends only on ratios of the variables
+    /// (an angle, a unit normal's component, a fraction of a domain)
+    /// does not move under it: a row pinned in step has no coverage of
+    /// those past its apart move's parting, an open item, and before it
+    /// an apart row holds the document ([`holds_until_parting`]).
     InStep,
 }
 
@@ -82,11 +96,18 @@ struct Found {
     drifted: usize,
     /// Decisions whose DAG reached an opaque value.
     opaque: usize,
+    /// Decisions the `p0` build's numeric channel left indeterminate
+    /// over a real margin: where a session that discharges as it
+    /// decides could prove `Zero` ([`session`]).
+    escalated: usize,
     /// Predicates whose re-valued margin is not the `p1` build's.
     laundered: BTreeSet<&'static str>,
     /// The same, after a decision the builds answered with different
     /// signs: possibly two margins under one name ([`tally`]).
     after_flip: BTreeSet<&'static str>,
+    /// Every decision the builds answered with different signs: its
+    /// index (from 1), predicate, and margin at `p0` and at `p1`.
+    flips: Vec<(usize, &'static str, f64, f64)>,
     /// How the variables moved.
     mode: Option<Move>,
     /// Every predicate the `p0` build decided, with its count.
@@ -110,10 +131,11 @@ fn offsets(vars: &[(VarId, f64)], mode: Move) -> BTreeMap<VarId, f64> {
     vars.iter()
         .enumerate()
         .map(|(i, &(id, value))| {
+            let step = step();
             let d = match mode {
-                Move::Apart if value == 0.0 => MOVE,
-                Move::Apart => MOVE * value.abs() * (1.0 + 0.37 * i as f64),
-                Move::InStep => MOVE * value,
+                Move::Apart if value == 0.0 => step,
+                Move::Apart => step * value.abs() * (1.0 + 0.37 * i as f64),
+                Move::InStep => step * value,
             };
             (id, d)
         })
@@ -131,25 +153,22 @@ fn options(offsets: &BTreeMap<VarId, f64>) -> EvalOptions {
     }
 }
 
-/// A session at the shipped budget, or, under `REVALUE_TIER=off`, at a
-/// zero-term budget: the identity tier switched off, which re-valuation
-/// does not read (it walks the DAG, which a session records at any
-/// budget). The census takes it for the documents whose discharge walks
-/// at `Sym<f64>`, with every variable a symbol, outrun a run.
+/// A unit row's session: the door's replay session
+/// ([`editor_core::coincide::with_replay_session`]), opened for its
+/// tier and recorder alone. A unit row evaluates no document, so the
+/// options the session hands over are not read.
 fn session<R>(f: impl FnOnce() -> R) -> R {
-    let off = std::env::var("REVALUE_TIER").is_ok_and(|v| v == "off");
-    let budget = if off {
-        SymBudget {
-            max_terms: 0,
-            max_degree: 0,
-        }
-    } else {
-        SymBudget {
-            max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
-            max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
-        }
-    };
-    with_session_rules(budget, SymRules::shipped(), f).0
+    editor_core::coincide::with_replay_session(EvalOptions::default(), |_| f()).0
+}
+
+/// `doc`'s decisions under the box `at`, in the door's replay session
+/// ([`editor_core::coincide::with_replay_session`]): the
+/// instrument reads exactly what the door replays.
+fn replayed<R>(
+    at: &BTreeMap<VarId, f64>,
+    f: impl FnOnce(&EvalOptions) -> R,
+) -> (R, geom_core::SymCounts) {
+    editor_core::coincide::with_replay_session(options(at), f)
 }
 
 fn build(doc: &ProfileDoc, opts: &EvalOptions) -> Vec<Decision> {
@@ -210,6 +229,12 @@ fn tally(
     let mut flipped = None;
     for (k, (a, b)) in p0.iter().zip(p1).take(common).enumerate() {
         found.compared += 1;
+        // A NaN margin is a domain violation, which no session
+        // discharges (`chart_bound_outer_span` decides one:
+        // `work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`).
+        if a.sign.is_none() && !a.value.is_some_and(f64::is_nan) {
+            found.escalated += 1;
+        }
         *found.seen.entry(a.predicate).or_default() += 1;
         let (v0, v1) = (a.value.expect("Sym<f64>"), b.value.expect("Sym<f64>"));
         let same = |x: f64, y: f64| x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan());
@@ -241,8 +266,11 @@ fn tally(
                 }
             }
         }
-        if flipped.is_none() && a.sign != b.sign {
-            flipped = Some((k + 1, a.predicate));
+        if a.sign != b.sign {
+            found.flips.push((k + 1, a.predicate, v0, v1));
+            if flipped.is_none() {
+                flipped = Some((k + 1, a.predicate));
+            }
         }
     }
 }
@@ -259,9 +287,9 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
             .collect()
     };
     let (env, env0) = (env_at(&at_p1), env_at(&at_p0));
-    let p1 = session(|| build(doc, &options(&at_p1)));
-    session(|| {
-        let p0 = build(doc, &options(&at_p0));
+    let p1 = replayed(&at_p1, |opts| build(doc, opts)).0;
+    replayed(&at_p0, |opts| {
+        let p0 = build(doc, opts);
         let common = in_step(&p0, &p1);
         let parts = common < p0.len().max(p1.len());
         if parts && !prefix {
@@ -285,13 +313,34 @@ fn compare_moved(doc: &ProfileDoc, mode: Move, prefix: bool) -> Option<Found> {
         );
         Some(found)
     })
+    .0
 }
 
 /// One gating row: the document's decisions re-value to the `p1`
 /// build's except at the predicates `owed` names, each with the work
 /// item that owes its fix — a laundering found and not yet fixed is a
 /// pinned red, never a skip. A fix moves the pin.
-fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)]) {
+///
+/// `flips` is the same for a decision the builds answer with different
+/// signs: the flipping decisions' predicates IN ORDER, each with its
+/// item. They are held exactly, given or not: the row reds when an owed
+/// flip goes and when any other decision flips, under any name, so a row
+/// that names none owes none.
+///
+/// `after` names the predicates that may re-value away from the `p1`
+/// build after an owed flip. It is an upper bound: a named after-flip
+/// predicate may be absent, because its re-valued bits depend on the step
+/// (past a flip `p1` builds on the other branch, and a rounding-level
+/// margin there matches `p1`'s bits or not as [`step`], and so ε, moves);
+/// an unnamed one fails.
+fn holds(
+    name: &str,
+    mode: Move,
+    floor: usize,
+    owed: &[(&str, &str)],
+    flips: &[(&str, &str)],
+    after: &[&str],
+) {
     let cd = corpus::documents()
         .into_iter()
         .find(|cd| cd.name == name)
@@ -309,6 +358,11 @@ fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)]) {
          laundered quantity that depends only on ratios of the variables does not move, so a \
          row's move is pinned and a change of it is read ({found:?})"
     );
+    assert_eq!(
+        found.escalated, 0,
+        "{name}: a decision the f64 channel escalated, where a session that discharges as it \
+         decides could prove Zero and take another branch than this deferring one ({found:?})"
+    );
     assert!(
         found.moved >= floor,
         "{name}: {} margins moved and re-valued, under the row's floor of {floor} — the row \
@@ -322,11 +376,116 @@ fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)]) {
         "{name}: the predicates whose margin re-values away from the p1 build (laundered: a \
          computed value re-entered as a constant) — {found:?}"
     );
+    for (_, item) in flips {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(item);
+        assert!(
+            path.is_file(),
+            "{name}: the owed flip's item {item} is no file"
+        );
+    }
+    let got: Vec<&str> = found.flips.iter().map(|(_, p, _, _)| *p).collect();
+    let want: Vec<&str> = flips.iter().map(|(p, _)| *p).collect();
+    assert_eq!(
+        got, want,
+        "{name}: the decisions the builds answered with different signs are not the owed \
+         ones, in order ({flips:?}) — a row owes none unless it names them — {found:?}"
+    );
+    let want_after: BTreeSet<&str> = after.iter().copied().collect();
+    let unnamed: BTreeSet<&str> = found.after_flip.difference(&want_after).copied().collect();
     assert!(
-        found.after_flip.is_empty(),
+        unnamed.is_empty(),
         "{name}: a margin re-values away from the p1 build after a decision the builds answered \
-         with different signs — a laundering, or two margins decided under one name; read which \
-         with REVALUE_DETAIL=1 ({found:?})"
+         with different signs, under {unnamed:?}, which the row does not name — a laundering, or \
+         two margins decided under one name; read which with REVALUE_DETAIL=1 ({found:?})"
+    );
+}
+
+/// **A gating row under [`Move::Apart`] for a document whose apart move
+/// parts**, read over the decisions before the parting: the coverage a
+/// row pinned [`Move::InStep`] lacks (a laundered quantity that depends
+/// only on ratios of the variables, a plane's normal or an angle, does
+/// not move under a dilation), up to where the builds part. The parting
+/// is held exactly: it falls at `parting`, the work item `item` owes it,
+/// and no decision before it flips. Past it the row says nothing, which
+/// the document's in-step row covers.
+fn holds_until_parting(name: &str, floor: usize, owed: &[(&str, &str)], parting: &str, item: &str) {
+    let cd = corpus::documents()
+        .into_iter()
+        .find(|cd| cd.name == name)
+        .unwrap_or_else(|| panic!("{name} is not a corpus document"));
+    let found = compare_moved(&cd.doc, Move::Apart, true).expect("a prefix comparison answers");
+    for item in owed.iter().map(|(_, i)| *i).chain([item]) {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(item);
+        assert!(path.is_file(), "{name}: the owed item {item} is no file");
+    }
+    assert_eq!(
+        found.drifted, 0,
+        "{name}: a DAG re-valued at p0 is not the p0 build's own bits ({found:?})"
+    );
+    assert_eq!(
+        found.escalated, 0,
+        "{name}: a decision the f64 channel escalated ({found:?})"
+    );
+    assert!(
+        found.moved >= floor,
+        "{name}: {} margins moved and re-valued before the parting, under the floor of {floor} \
+         ({found:?})",
+        found.moved
+    );
+    let at = found.parted.map(|(_, _, at)| at);
+    assert_eq!(
+        at,
+        Some(parting),
+        "{name}: the apart move parts elsewhere than its owed parting ({found:?})"
+    );
+    let early: Vec<&str> = (found.flips.iter())
+        .filter(|(k, p, _, _)| (*k, *p) != (found.compared, parting))
+        .map(|(_, p, _, _)| *p)
+        .collect();
+    assert!(
+        early.is_empty(),
+        "{name}: a decision before the parting flipped: {early:?} ({found:?})"
+    );
+    let want: BTreeSet<&str> = owed.iter().map(|(p, _)| *p).collect();
+    let got: BTreeSet<&str> = found.laundered.iter().copied().collect();
+    assert_eq!(
+        got, want,
+        "{name}: the predicates re-valued away from the p1 build before the parting ({found:?})"
+    );
+}
+
+/// `plate_param` under the apart move, to the ray-schedule gate's exact
+/// zero it parts at.
+#[test]
+fn revalue_plate_param_apart_to_its_parting() {
+    holds_until_parting(
+        "plate_param",
+        2539,
+        &[],
+        "point_in_loop_arm",
+        "work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md",
+    );
+}
+
+/// `boss_union` under the apart move, to where it parts. Its two
+/// `bool_pair_gap` margins read as laundered are an order swap the
+/// instrument pairs by index (the owed item), and the builds part after
+/// it.
+#[test]
+fn revalue_boss_union_apart_to_its_parting() {
+    holds_until_parting(
+        "boss_union",
+        1619,
+        &[(
+            "bool_pair_gap",
+            "work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md",
+        )],
+        "pcurve_chart_radial_moving",
+        "work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md",
     );
 }
 
@@ -338,27 +497,45 @@ fn holds(name: &str, mode: Move, floor: usize, owed: &[(&str, &str)]) {
 // and re-valued when it was pinned, so a change that makes a row opaque or
 // static, or sends it to the weaker move, goes red.
 macro_rules! rows {
-    ($($row:ident: $doc:literal, $mode:ident, $floor:literal, [$($owed:expr),*];)*) => {$(
+    ($($row:ident: $doc:literal, $mode:ident, $floor:literal, [$($owed:expr),*]
+        $(, flips [$($flip:expr),*], after [$($after:expr),*])?;)*) => {$(
         #[test]
         fn $row() {
-            holds($doc, Move::$mode, $floor, &[$($owed),*]);
+            holds(
+                $doc,
+                Move::$mode,
+                $floor,
+                &[$($owed),*],
+                &[$($($flip),*)?],
+                &[$($($after),*)?],
+            );
         }
     )*};
 }
 
 rows! {
-    revalue_plate_param: "plate_param", Apart, 650, [];
-    revalue_boss_union: "boss_union", Apart, 560, [];
+    // In step: moved apart, the ray-schedule gate's margin is exactly 0
+    // at the nominal (`point_in_loop_arm`, an axis-aligned face normal on
+    // a schedule member, decision 6035), so the builds
+    // part after it, from decision 6036 of 15539
+    // (`work/inlane/under-the-guided-lift-plate-params-apart-move-parts-at-a-point-exactly-on-its-loop.md`).
+    revalue_plate_param: "plate_param", InStep, 3938, [];
+    // In step: moved apart, its `bool_pair_gap` margins are decided in
+    // another order and the builds part after decision 3996, the first
+    // difference at #3997 (then `pcurve_chart_azimuth_frame`)
+    // (`work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md`,
+    // which NOTHING here pins).
+    revalue_boss_union: "boss_union", InStep, 3236, [];
     // In step: moved apart, its split parts at `split_join_frame_axis`
     // (an axis the cleave's join frame decides against a datum's), so
     // only the in-step move compares the whole document.
-    revalue_cut_cylinder: "cut_cylinder", InStep, 220, [];
-    revalue_die_chamfer: "die_chamfer", Apart, 740, [];
-    revalue_face_sketch: "face_sketch", Apart, 250, [];
-    revalue_heat_sink_fins: "heat_sink_fins", Apart, 190, [];
-    revalue_loft_prism: "loft_prism", Apart, 3, [];
-    revalue_measured_web: "measured_web", Apart, 45, [];
-    revalue_declared_tangency: "declared_tangency", Apart, 160, [];
+    revalue_cut_cylinder: "cut_cylinder", InStep, 1051, [];
+    revalue_die_chamfer: "die_chamfer", Apart, 1690, [];
+    revalue_face_sketch: "face_sketch", Apart, 582, [];
+    revalue_heat_sink_fins: "heat_sink_fins", Apart, 1353, [];
+    revalue_loft_prism: "loft_prism", Apart, 259, [];
+    revalue_measured_web: "measured_web", Apart, 716, [];
+    revalue_declared_tangency: "declared_tangency", Apart, 1217, [];
 }
 
 /// The census over the whole corpus, one document per run with
@@ -393,15 +570,17 @@ fn revalue_census() {
             moved,
             drifted,
             opaque,
+            escalated,
             laundered,
             after_flip,
+            flips,
             mode,
             seen,
             parted,
         } = &found;
         eprintln!(
-            "{} ({:.1?}) {mode:?}: compared {compared}, moved {moved}, drifted {drifted}, opaque {opaque}, \
-             laundered {laundered:?}, after_flip {after_flip:?}, parted {parted:?}",
+            "{} ({:.1?}) {mode:?}: compared {compared}, moved {moved}, drifted {drifted}, opaque {opaque}, escalated {escalated}, \
+             laundered {laundered:?}, after_flip {after_flip:?}, flips {flips:?}, parted {parted:?}",
             cd.name,
             t.elapsed()
         );
@@ -615,5 +794,50 @@ fn revalue_mirrors_every_op_as_sym_builds_it() {
     assert!(
         drifted.is_empty(),
         "ops whose re-valued margin is not Sym<f64>'s at p1: {drifted:?}"
+    );
+}
+
+/// **The instrument and the door replay in one session.** `plate_param`'s
+/// decisions at the nominal, built through the instrument's own door
+/// ([`replayed`], the session every row opens) and as the coincidence
+/// door replays it ([`editor_core::coincide::with_replay_session`] with
+/// every variable a symbol), are one list, predicate and sign, with one
+/// set of session counts. The instrument's session is the door's in
+/// what it is: DEFERRING — no margin's form is built unless a reader
+/// asks, so nothing is discharged eagerly. An eager session or another
+/// budget's freezes in [`replayed`] parts the two readings.
+#[test]
+fn the_instrument_and_the_door_replay_in_one_session() {
+    let cd = corpus::documents()
+        .into_iter()
+        .find(|d| d.name == "plate_param")
+        .expect("plate_param is a corpus document");
+    let doc = &cd.doc;
+    let at_p0: BTreeMap<VarId, f64> = continuous_vars(doc)
+        .iter()
+        .map(|(id, _)| (*id, 0.0))
+        .collect();
+    let key = |d: &[Decision]| -> Vec<_> { d.iter().map(|x| (x.predicate, x.sign)).collect() };
+    let (instrument, instrument_counts) = replayed(&at_p0, |opts| key(&build(doc, opts)));
+    let (door, door_counts) = editor_core::coincide::with_replay_session(
+        EvalOptions {
+            symbols: true,
+            ..EvalOptions::default()
+        },
+        |opts| key(&build(doc, opts)),
+    );
+    assert!(!instrument.is_empty(), "the replay decides");
+    assert_eq!(
+        (
+            instrument_counts.symbolic,
+            instrument_counts.checks_expanded
+        ),
+        (0, 0),
+        "a deferring session discharges nothing eagerly: {instrument_counts:?}"
+    );
+    assert_eq!(
+        (instrument, instrument_counts),
+        (door, door_counts),
+        "one session, one reading"
     );
 }

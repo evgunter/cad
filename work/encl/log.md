@@ -1570,3 +1570,47 @@ coincidence is now a margined verdict (no declarations), checked by the
     - restfront `an-at-rest-certify-lead-calls-a-gates-definite-rejection-undecided`;
     - guard `loop-boundary-discards-selftest-fails-on-a-clean-tree`, which is red on main and not ours.
   (ENCL orchestrator)
+- 2026-10-14 — **Design fork on the proven zero** (`a-proven-zero-is-definite-yet-ends-as-no-size-at-rest`). One designer pair ran three rounds: they disagreed, crossed, then converged. The converged answer is a three-valued kind per sized decision (lever / stored contradiction / unminted), read by both the no-size and the refused class. It clarifies D4 ¶1 (iv), so it went to Ev as `[ev]` PR 5134 (fork-log row 142). Code waits for Ev's answer.
+  - The blinding byte and every report are on `analysis/design-fork/proven-zero`.
+  - The designer A dispatch was lost to a container restart and re-dispatched with the same brief.
+  - Found on the way: PR 5101's body was wrong that `NotTransverse` at rest "was already the defect ending". A Transversality or TangentSecondOrder zero verdict at rest still ends in the lever alone.
+  (ENCL orchestrator)
+- 2026-10-14 — **Ev on `[ev]` PR 5134:** "aren't stored contradictions kernel bugs (and hence should panic)?" Then: "adoption should re-certify everything … wouldn't want to make a decision on that without weighing the current state."
+  - A read-only survey answered: adoption certifies every edge at ε twice (the ladder and `gate3`), but keeps the file's carriers, vertices and surfaces verbatim. Bodies past the import door (adopted or kernel-built, same ε) reach these contradictions only through a kernel bug. The import door itself is input, and it reads "as at rest".
+  - Posted to the PR, with options (a) Ev rules or (b) another designer round. Waiting on Ev.
+  - Filed exch `step-import-reads-a-negative-surface-radius-unchecked-before-edge-certification` and topotail `flipped-face-sense-for-tests-is-not-feature-gated`.
+  (ENCL orchestrator)
+- 2026-10-14 — At Ev's request, the import-validation question is split out of `[ev]` PR 5134 as exch `can-an-import-reach-a-state-only-a-kernel-bug-otherwise-reaches`. PR 5134 waits on it. (ENCL orchestrator)
+- 2026-10-14 — **Merged PR 5138:** `CertCheck::ParamSpan`'s lever now reads "move the geometry so this edge runs forward over a clear length", true of a zero span and a reversed one. Pcurve spans share it.
+  - Review: no MAJOR.
+  - The orchestrator's review pass restored a closed row's quote and the proven-zero row's quote, and corrected the filed dihedral row's mechanism (the arm is the stored radius clamped by the extent). It also noted that the dihedral row depends on `[ev]` PR 5134.
+  - If 5134 lands, ParamSpan's build pins move again.
+  (ENCL orchestrator)
+- 2026-10-19 — **Merged `[ev]` PR 5134.** Ev re-asked "aren't stored contradictions kernel bugs?". Answered yes past the import door (`[import]`/`[tolerance.boundary]`: no state is reachable only through import), and revised (iv) to say so; Ev approved ("looks good!").
+  - Under the revised `[tolerance.recourse]` (iv), each decision says what its refused side is:
+    - **lever:** the lever everywhere;
+    - **stored contradiction:** the lever at a build, typed and naming the file at the import door, and a panic past it;
+    - **unminted:** a panic at a build and past import, the file's at the door.
+  - Fork-log row 170, with A/B 252: Opus = A.
+  - Implementation is the open row `a-proven-zero-is-definite-yet-ends-as-no-size-at-rest`. Its panic arms wait on EXCH closing the import gaps; a seam note is on the EXCH row.
+  - The rows that waited on 5134 are unblocked as far as the design goes.
+  (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5157** (`zero-arm-payload-wording-doubles-words-and-hedges-a-definite-verdict`, closed): zero-arm payloads no longer double words or hedge a definite verdict, and margins print through `MarginDiag::readable` ("0 m", not "0e0 m").
+  - A lane merged main in. Under TANG's U-lever nouns ("faces wide enough"), the step-import `TANGENT_SECOND_ORDER_ZERO` pin was retired on main. Local: 8375/8375. `gate ok` passed on 745a2bfbaf.
+  - **Filed:**
+    - encl `the-dihedral-arm-noun-is-spelled-twice-and-its-docs-still-say-edge-length`
+    - encl `zero-and-negative-payloads-of-one-decision-use-different-nouns`
+    - scalar `readable-below-zero-restates-the-bracket-layout`
+  - **Evidence added to:**
+    - restfront `validate-window-leads-say-no-length-on-a-zero-arm`
+    - scalar `user-facing-number-format-is-not-one-across-payloads-endings-and-escalations`
+  - **Seam:** the payload text changed in geom-brep `certify.rs` (select's territory). The exch, tcost and offset tests that pin those payloads were re-baselined in the PR.
+  (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5349.** It implements Ev's (iv) ruling (PR 5134). `RefusedSide { Lever, StoredContradiction, Unminted }` replaces `StoredDefinite`, and both the no-size class and the past-band class read it. A proved zero now ends as its exact and in-band siblings do. The import door past ε_in gives `DAMAGED_FILE_ENDING`.
+  - **Review.** One MAJOR: a plane×NURBS tube straddle was encoded as `Zero(0.0)` and ended as a defect at rest. Fixed by a `CertCheck::TransversalityTube` decision on the `Lever` side, like `TangentTube`; a test covers every door. The orchestrator gave both transversality decisions one lever constant.
+  - **Closed:** the unit row, and `dihedral-arm-lever-says-curves-tightly-of-a-radius-below-zero`.
+  - **Open, not landed:**
+    - `param-span-unminted-side-is-reached-at-a-build-by-public-euler-doors`. Public Euler doors reach a non-forward span. Adjudicated as option 1 (the doors refuse it typed, then the build panic lands); not an Ev question. It is the next unit.
+    - `at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything`, parked on EXCH's import row.
+  - **Filed:** `import-door-residual-and-unsized-endings-past-eps-in-name-kernel-or-file`, `a-defect-endings-culprit-has-two-choosers`.
+  (ENCL orchestrator)

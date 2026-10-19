@@ -34,8 +34,8 @@ use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    LoopProgram, Node, NodeErrorClass, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, ValuePayload, apply, evaluate, split,
+    Frame, LoopProgram, Node, NodeErrorClass, Operand, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecipeNodeId, Value, ValuePayload, apply, evaluate, place_at, split,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -103,11 +103,46 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
             fresh: Vec::new(),
         },
         tol,
-        &pncad::document::RefusingReach,
     )
     .expect("the edit applies");
     *doc = applied.doc;
     applied.record.minted.expect("insert mints an id")
+}
+
+/// One copy of `body` placed in the world where it stands — the
+/// "place part" gesture: a loose `Node::place`, then `place_at`'s mate
+/// and the values naming it, each added to the placement's bundle.
+fn place_in_world(doc: &mut Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) {
+    let placement = insert(doc, Node::place(vec![body.into()]), tol);
+    let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
+        panic!("a placement was inserted")
+    };
+    let placed = place_at(
+        doc,
+        &Operand::Var(shapes[0].read),
+        &Frame::IDENTITY,
+        &EvalOptions::default(),
+        tol,
+    )
+    .unwrap_or_else(|refusal| panic!("the copy places over its geometry: {refusal}"));
+    let mut step = |edit: DocEdit<ProfileProgram>| {
+        let applied = apply(doc, &edit, tol)
+            .unwrap_or_else(|err| panic!("the placement's edit applies: {err}"));
+        *doc = applied.doc;
+        applied.record.minted_constraints
+    };
+    let mate = step(DocEdit::AddConstraint {
+        placement,
+        mate: Box::new(placed.mate),
+        fresh: Vec::new(),
+    })[0];
+    for (coord, by) in placed.values {
+        step(DocEdit::AddValue {
+            placement,
+            value: Box::new(Value { mate, coord, by }),
+            fresh: Vec::new(),
+        });
+    }
 }
 
 /// A fresh document carrying the sharp ANNULAR lid, and that node's id.
@@ -144,8 +179,8 @@ fn sharp_lid_in(
         &mut doc,
         Node::Revolve {
             profile: profile.into(),
-            axis_origin: [len(0.0), len(0.0)],
-            axis_direction: [scl(0.0), scl(1.0)],
+            axis_through: [len(0.0), len(0.0)],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
         tol,
@@ -306,7 +341,7 @@ fn two_slits_on_one_meridian_carry_the_band_that_made_each() {
         "{:?}",
         ev.node_error(rolled)
     );
-    let table = &ev.value(rolled).expect("the roll evaluated").name_table;
+    let table = ev.table_at(rolled).expect("the roll evaluated");
     // The flange cone's seam meridian: the sharp lid's meridian
     // segment 1, on the revolve's seam.
     let seam = seam_of(&doc, lid, 1, tol);
@@ -450,7 +485,6 @@ fn the_rolled_names_are_one_set_at_two_radii() {
                 fresh: Vec::new(),
             },
             tol,
-            &pncad::document::RefusingReach,
         )
         .expect("the radius edit applies")
         .doc;
@@ -461,9 +495,8 @@ fn the_rolled_names_are_one_set_at_two_radii() {
             ev.node_error(rolled)
         );
         let mut out: Vec<StableName> = ev
-            .value(rolled)
+            .table_at(rolled)
             .expect("the roll evaluated")
-            .name_table
             .iter()
             .map(|(n, _)| n.clone())
             .collect();
@@ -500,7 +533,7 @@ fn named_geometry(
         ends.sort_unstable();
         out.insert(n, ends.concat());
     }
-    for (n, _) in ev.value(node).unwrap().name_table.iter() {
+    for (n, _) in ev.table_at(node).unwrap().iter() {
         if n.kind == EntityKind::Vertex {
             let p = pncad::select::vertex_position(ev, node, n).expect("vertex reads");
             out.insert(n.clone(), vec![p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]);
@@ -641,16 +674,14 @@ fn the_interval_lane_mints_the_f64_names() {
         tol,
     );
     let nf: Vec<StableName> = ef
-        .value(rolled)
+        .table_at(rolled)
         .unwrap()
-        .name_table
         .iter()
         .map(|(n, _)| n.clone())
         .collect();
     let ni: Vec<StableName> = ei
-        .value(rolled)
+        .table_at(rolled)
         .unwrap_or_else(|| panic!("the interval lane rolls: {:?}", ei.node_error(rolled)))
-        .name_table
         .iter()
         .map(|(n, _)| n.clone())
         .collect();
@@ -703,15 +734,10 @@ fn a_split_carries_a_held_slits_band() {
         Node::fillet(rolled, len(ROLL / 8.0), vec![slit.clone()]),
         tol,
     );
-    // The lid is the document's product; a cut carries what it places.
-    doc = apply(
-        &doc,
-        &DocEdit::place(holder, None),
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the held lid places")
-    .doc;
+    // The rolled lid is the document's product; a cut carries what it
+    // places. The holder only holds the selection: its blend refuses
+    // (the slit is tangential), so it has no geometry to place by.
+    place_in_world(&mut doc, rolled, tol);
 
     let cut: std::collections::BTreeSet<RecipeNodeId> =
         doc.ids().iter().copied().filter(|&n| n != lead).collect();

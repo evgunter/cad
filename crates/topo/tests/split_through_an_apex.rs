@@ -148,21 +148,22 @@ fn an_edge_at_the_apex_in_the_plane_splits_sound_exact_and_near() {
 /// `MEET`, so every germ there is one of a pair either side of an
 /// in-plane valley edge, and the pairs alone fix the corners. Five
 /// corners, two valleys: the floor of a V-groove bent at the vertex,
-/// with its walls rising either side. The volume above the top is the
-/// closed form [`crown_above`].
+/// with its walls rising either side. Below, the sections either side
+/// of each valley edge merge into one face, so no vertex is left at
+/// `MEET`. The volume above the top is the closed form [`crown_above`].
 #[test]
 fn a_crown_whose_valleys_lie_in_the_plane_splits_sound() {
     let rings: [(&str, &[f64], [usize; 2]); 3] = [
-        ("three valleys", &[0.3, 0.0, 0.3, 0.0, 0.3, 0.0], [3, 1]),
+        ("three valleys", &[0.3, 0.0, 0.3, 0.0, 0.3, 0.0], [3, 0]),
         (
             "a V-groove floor bent at the vertex",
             &[0.3, 0.0, 0.25, 0.0, 0.2],
-            [2, 1],
+            [2, 0],
         ),
         (
             "three valleys, uneven",
             &[0.3, 0.0, 0.25, 0.0, 0.2, 0.0],
-            [3, 1],
+            [3, 0],
         ),
     ];
     for (name, heights, pieces) in rings {
@@ -472,7 +473,9 @@ fn random_bases_with_corners_in_the_band_split_sound() {
 /// the two lobes above it apart round the apex**, at every pose either
 /// way up, against the closed form: a base the review's fuzz drew
 /// (seed `0x9E3779B97F4A7C15`, its 123rd). The floor is read On, so the
-/// edge from the apex to it lies in the plane.
+/// edge from the apex to it lies in the plane. Each piece passes tier
+/// 3′ with no contact records: the two edges continuing each other
+/// through the floor, kinked by `0.9 ε`, overlap nowhere.
 #[test]
 fn a_notch_floor_in_the_band_splits_sound() {
     let base = base_of(&[
@@ -483,6 +486,23 @@ fn a_notch_floor_in_the_band_splits_sound() {
         (-0.0422, 0.9, true),
     ]);
     pyramid_splits_sound("a notch floor 0.9 ε above", &base, Some([2, 1]));
+    for pose in poses() {
+        let u = apex_pyramid(&base, &pose, t());
+        for up in [true, false] {
+            let r = split(&u, &plane_at(&pose, up), t()).unwrap();
+            for (part, side) in [(&r.above, "above"), (&r.below, "below")] {
+                let SplitPart::Body(b) = part else {
+                    panic!("{}: side {side} empty", pose.label);
+                };
+                assert_eq!(
+                    topo::validate_pseudomanifold(b, &topo::ContactRecords::default(), t()),
+                    Ok(()),
+                    "{}, up {up}, side {side}: tier 3′",
+                    pose.label
+                );
+            }
+        }
+    }
 }
 
 /// A W-shaped base whose valley dips `1000 ε` below the top between
@@ -529,6 +549,76 @@ fn germs_within_the_band_or_on_one_line_refuse_typed() {
                     ..
                 })) => {}
                 other => panic!("{what}, 0.3 ε: {:?}", other.map(|_| "a body")),
+            }
+        }
+    }
+}
+
+/// **A split leaves no edge between a section and a base face it lies
+/// flush with.** Random base 2 of
+/// [`random_bases_with_corners_in_the_band_split_sound`] cuts a section
+/// lying on a base face's plane within the tolerance, which the merge's
+/// plane ladder decides one carrier (Zero); each half ends with maximal
+/// faces, so the merge takes the pair into one face, at least one group
+/// per half, and no conventional edge (`OnPair`, or an image in one
+/// plane's chart) is left between two distinct planes.
+#[test]
+fn a_split_merges_a_section_flush_with_a_base_face() {
+    let corners = [
+        (0.0069, -0.1705, false),
+        (0.1677, 0.0167, false),
+        (0.2073, 0.0697, false),
+        (-0.0899, 0.2899, false),
+        (0.0107, 0.0, true),
+        (-0.1137, 0.1222, false),
+        (-0.3990, 0.6, true),
+        (-0.2155, 0.6, true),
+        (-0.2004, -0.2192, false),
+        (-0.1011, -0.0868, false),
+        (-0.1799, -0.2115, false),
+    ];
+    let base = base_of(&corners);
+    for pose in poses() {
+        let u = apex_pyramid(&base, &pose, t());
+        for up in [true, false] {
+            let r = split(&u, &plane_at(&pose, up), t()).expect("random base 2 splits");
+            for (side, part) in [
+                (topo::splitting::PlaneSide::Above, &r.above),
+                (topo::splitting::PlaneSide::Below, &r.below),
+            ] {
+                let SplitPart::Body(b) = part else { continue };
+                assert!(
+                    r.naming.merge_groups.iter().any(|(s, _)| *s == side),
+                    "{}, up {up}: the {side:?} half merges the flush pair",
+                    pose.label
+                );
+                let plane = |f: topo::FaceKey| {
+                    matches!(
+                        b.get_surface(b.get_face(f).unwrap().surface),
+                        Some(geom::Surface::Plane { .. })
+                    )
+                };
+                for (edge, e) in b.edges() {
+                    let Some(c) = b
+                        .get_curve_geom(e.curve)
+                        .and_then(topo::CurveGeom::certified)
+                    else {
+                        continue;
+                    };
+                    let sides = topo::readback::edge_sides(b, edge).unwrap();
+                    let (sa, sb) = sides.surfaces();
+                    let conventional = matches!(
+                        c.description(),
+                        geom_brep::EdgeDescription::OnPair { .. }
+                            | geom_brep::EdgeDescription::Chart(_)
+                    );
+                    let (fa, fb) = sides.faces();
+                    assert!(
+                        !conventional || sa == sb || !(plane(fa) && plane(fb)),
+                        "{}, up {up}: {edge:?} is a conventional edge between two planes",
+                        pose.label
+                    );
+                }
             }
         }
     }

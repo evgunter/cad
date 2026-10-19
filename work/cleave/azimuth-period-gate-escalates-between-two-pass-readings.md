@@ -43,3 +43,16 @@ joints and closure state the integer branch and winding. The per-row
 azimuth extent is PCERT's ground
 (`work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin.md`),
 so check that unit before acting here.
+
+## PCERT B2a (PR 5244, 2026-10-17): the closed-form lanes' gates are gone
+
+The harmonic lane's gate went with the stored windings, and B2a's fix
+pass drops the cone-section (focal) and spiric-wall lanes' too: each of
+their carriers (a circle, an ellipse, a spiric) has its interval held to
+one period by the edge certificate's `interval_span_winding`
+(`CertifyError::WindingExceeded`), and each image's angles advance
+monotonically one turn per carrier period, so the gate restated the
+edge's own bound. The one site left is the projected lane
+(`pcurve_cache/projected.rs`), over the swept box of a spline net or a
+sphere's general circle: the box clearance this item names for the
+fitted/general lane, now the item's whole subject.

@@ -451,15 +451,6 @@ pub enum RevolveError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// The sketch axis, carried into space by the sketch placement, has
-    /// no decided direction there: the placement collapsed it, or its
-    /// length is not a finite number. A different decision from the
-    /// sketch axis's own ([`RevolveError::DegenerateAxis`] and its
-    /// siblings), which the sketch pair passed.
-    PlacedAxis {
-        /// The direction door's refusal, unaltered.
-        error: geom_core::UnitVec3Error,
-    },
     /// The turn about the placed axis was not minted as a rigid
     /// motion: its angle or axis point is not a finite number.
     Turn(geom_core::RigidMotionError),
@@ -565,8 +556,8 @@ pub enum RevolveError {
     /// ([`topo::insert_void`]). The evidence and destination arms are
     /// unreachable from this construction (every hole shell is
     /// certified from the profile's own validation before the call, into
-    /// the solid the build minted); the revert arm surfaces a torn
-    /// cavity typed.
+    /// the solid the build minted); the revert arm refuses a cavity two
+    /// of whose edges lie on one line ([`topo::RevertError`]).
     VoidInsertion {
         /// Canonical index of the hole loop whose insertion refused.
         loop_index: usize,
@@ -628,6 +619,10 @@ pub enum RevolveError {
     SmoothJoinRefuted {
         /// The edge whose station refuted the smooth premise.
         edge: EdgeKey,
+        /// The two neighbouring stations that disagree, where one reads
+        /// smooth ([`geom_brep::MustCarryRefusal::Mixed`]); `None` where
+        /// every station reads a corner.
+        mixed: Option<geom_brep::MixedStations>,
     },
     /// A station INSIDE a run of walls (two segments one carrier
     /// holds) sits pinned on the axis (defense-in-depth, the `CapPlane`
@@ -769,10 +764,6 @@ impl fmt::Display for RevolveError {
                     source.lever_ending(geom_core::COINCIDENCE_RECOURSE),
                 )
             ),
-            Self::PlacedAxis { error } => write!(
-                f,
-                "the revolve axis, carried into space by the sketch placement: {error}"
-            ),
             Self::Turn(e) => write!(f, "the revolve's turn: {e}"),
             Self::DegenerateAngle => write!(
                 f,
@@ -910,11 +901,20 @@ impl fmt::Display for RevolveError {
                 let rim = format!("the cap rim at loop {loop_index} segment {segment_index}");
                 crate::swept::sliver_text(f, &rim, *reading, source)
             }
-            Self::SmoothJoinRefuted { edge } => write!(
+            Self::SmoothJoinRefuted {
+                edge,
+                mixed: Some(stations),
+            } => write!(
+                f,
+                "along the join {edge:?}, {stations}. Recourse: {}",
+                geom_core::COINCIDENCE_RECOURSE
+            ),
+            Self::SmoothJoinRefuted { edge, mixed: None } => write!(
                 f,
                 "the join along {edge:?} classified definitely smooth at its witness but \
-                 definitely a corner at a certification station, so the construction \
-                 refuses rather than choose a description for it"
+                 definitely a corner at every certification station, so the construction \
+                 refuses rather than choose a description for it. Recourse: {}",
+                geom_core::COINCIDENCE_RECOURSE
             ),
             Self::PinnedRunStation {
                 loop_index,
@@ -971,8 +971,7 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
     let band = Band::linear(tol).map_err(RevolveError::Band)?;
-    let place = profile.plane().placement;
-    let frame = axis::AxisFrame::build(place, &axis, band)?;
+    let frame = axis::AxisFrame::build(*profile.plane(), &axis, band)?;
 
     // ---- Angle classification (module docs), metered at the
     // profile's maximum radial extent (the named lever arm). ----

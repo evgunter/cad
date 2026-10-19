@@ -480,8 +480,9 @@ BOUNDS_ALLOWLIST=(
   # funnel shape: `overlapping_pairs` builds each face's certified box
   # (`boxes::face_box`) and walks the box-overlapping cross pairs, and
   # its two readers carry the bound to call it: `decided_declarations`,
-  # which hands each pair to the carrier ladder, and `coaxial_rows`,
-  # which decides the cylinder × sphere pairs' coaxial frame. None
+  # which hands each pair to the carrier ladder, and `frame_rows`,
+  # which decides the cylinder × sphere pairs' coaxial frame and the
+  # cylinder pairs' crossing one. None
   # reads a bracket of its own beyond the box builders'.
   'crates/topo/src/boolean/glue.rs 3 2026-07-29 (M5 PR 8), the driver amendment'
   # ops.rs's no-crossings extent checks and its crossings-path guard
@@ -514,7 +515,12 @@ BOUNDS_ALLOWLIST=(
   # fallback sites that build a result and hand it to `gate`; and
   # `boolean_door`, the front door's body, split from `boolean_op_with`
   # so the door can time and meter the call around it. 17 + 4 = 21.
-  'crates/topo/src/boolean/ops.rs 21 2026-07-29 (M5 PR 8), the driver amendment'
+  # Two more carry ∖'s reading of its operand's coincident edges to
+  # `census::collinear_overlaps`, the edge-edge pass's tree over the
+  # line edges' boxes: `reverted_lines_disjoint` (the seamed result's
+  # lines) and `no_unjoined_line` (the fallbacks'). Neither reads a
+  # bracket of its own. 21 + 2 = 23.
+  'crates/topo/src/boolean/ops.rs 23 2026-07-29 (M5 PR 8), the driver amendment'
   # reduce.rs's four are the sweep's own doors (`first_unsupported_pair`,
   # `gate_operand_pairs`, `face_tree`, `sweep_direction`); the fifth,
   # `sweep_and_settle`, is the one driver every boolean sweeps through,
@@ -632,7 +638,14 @@ BOUNDS_ALLOWLIST=(
   # through too: both reach `cap_transverse`, the cut-off's own
   # kind-picker (`classify` and the ellipse door), and read no bracket of
   # their own.
-  'crates/sweep/src/blend/battery.rs 20 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 20 -> 21: `strip_decided` is the support screen's stand-down: which
+  # ring pairs the screen leaves to the surgery's strip meter, read
+  # through `surgery::strip_reading` (`piece_along` and the reach's
+  # `sure`, the reading arm (a) of the ring pass takes) and the
+  # topology's own edge fans. It reads no bracket of its own, and its
+  # selection only narrows what the screen meters to what the exact
+  # meter downstream meters whole.
+  'crates/sweep/src/blend/battery.rs 21 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # surgery.rs 14 -> 15: `support_boundary_clearance` is the ring
   # carry-through pass's support-boundary arm split into its own
@@ -647,7 +660,14 @@ BOUNDS_ALLOWLIST=(
   # and `strip_clearance` is the ring carry-through pass's planar-strip
   # arm, reading brackets only where `ring_clearance`, `piece_along` and
   # `boxed_reach` already do, as `support_boundary_clearance` does.
-  'crates/sweep/src/blend/surgery.rs 17 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  # 17 -> 18: `arc_window` is the cut-off arc's window read that
+  # `CapSliver::of` and `attach_contact` share, its one bracket read the
+  # anchor pick: re-read at the half turn where the seam's read spans
+  # half a turn. Both anchors answer a parameter of the same point, so
+  # it is a representation pick (DL5(b), as `seam_split_param`'s branch
+  # shift); its other bracket read refuses a non-finite read, and
+  # whether the window runs forward stays each caller's.
+  'crates/sweep/src/blend/surgery.rs 18 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # reach.rs 9 -> 14: `sign` decides a reference point's side of a
   # bound past its bracket (`±1` decided, `0` -- a vacuous bound --
   # where not), replacing the self-division `x/|x|` that gave the
@@ -702,7 +722,7 @@ BOUNDS_ALLOWLIST=(
   # at its domain middle and read no bracket, and its callers in
   # `ssi.rs` now take `Curve3::mid_point`, the witness pin's own point.
   # The seam is unmoved: the branch certificate keeps its bounds.
-  'crates/geom-brep/src/ssi/certify.rs 16 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound'
+  'crates/geom-brep/src/ssi/certify.rs 18 M6-2, the SSI rung-3 certificate; its two-chart tube (probe_tube_pair, pair_tube_chain) at the same bound; its limbs 1-2 alone (incidence_limbs), which certify_branch now calls, at the same bound'
   # M7-8, the declare-and-check edge lane.
   # 6 -> 8: the edge lane's door value (`NurbsLane`) gained a second
   # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two
@@ -714,7 +734,7 @@ BOUNDS_ALLOWLIST=(
   # ratified at this bound) with `Limbs::Tube`, and its bound is its
   # callee's: nothing weaker compiles. The kernel reaches it only through `NurbsLane::certified`;
   # it is public so the at-rest rows can run the limb directly.
-  'crates/geom-brep/src/edge_nurbs.rs 10 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound'
+  'crates/geom-brep/src/edge_nurbs.rs 12 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2; its NURBS x NURBS twin (nurbs_pair_limbs) at the same bound; its incidence alone for OnPair (plane_nurbs_incidence) at the same bound'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one
   # DOOR that names the certified body `plane_nurbs_limbs`, the lane's
   # door value `NurbsLane::certified`'s block (`Decide +
@@ -762,7 +782,10 @@ BOUNDS_ALLOWLIST=(
   # `census_traces`, `census_with`) and the backstop's own tree over its
   # reach boxes (`sweep_cross_solid_backstop`) — spatial-index driver
   # code over the C10 tree, under the driver amendment like `separation`.
-  'crates/topo/src/census.rs 6 2026-07-29 (M5 PR 8), the driver amendment'
+  # The seventh is `collinear_overlaps`, the edge-edge pass's candidates
+  # over the same edge boxes, lifted out for ∖'s reading of coincident
+  # edges.
+  'crates/topo/src/census.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/face_boxes.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the

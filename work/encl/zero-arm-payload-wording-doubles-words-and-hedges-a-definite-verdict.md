@@ -2,10 +2,13 @@
 id: zero-arm-payload-wording-doubles-words-and-hedges-a-definite-verdict
 kind: issue
 title: geom-brep: the Zero-arm payload idiom repeats a word within a sentence, hedges a definite Negative verdict, and prints '0e0 m'
-status: open
+status: closed
+pr: 5157
 opened: 2026-10-13
 priority: P4
 cost: E
+branch: encl/zero-arm-wording
+closed: 2026-10-19
 ---
 
 (Filed by the ENCL orchestrator from PR 4976's delta review, style findings S1–S5.)
@@ -21,3 +24,16 @@ PR 4976 gave every ENCL Zero-arm payload one idiom: "is not shown … (margin {:
 - **S5, exponent form for round numbers:** "speed 2e0 m" and "(margin 0e0 m)" read poorly.
 
 Each is a reading of a rendered string. Settle them together, with whole-string pins, so the idiom stays one idiom.
+
+## Ruled (ENCL orchestrator, 2026-10-14)
+
+Fix S1, S2, S4 and S5 as plain wording. Keep one idiom across every Zero-arm payload:
+- **S1, S2:** no word repeats within a sentence.
+- **S4:** IntervalNotForward's number is called what the door calls it, "length", not "margin".
+- **S5:** round numbers print readably. Keep exponent form for small or large magnitudes, but not "2e0 m" or "0e0 m".
+
+S3 (a definite Negative payload hedged as "not shown"): the payload prints what was read. A Negative verdict was decided, so its payload says so, for example "the faces cross the wrong way (margin -5e-9 m)", while Zero arms keep "not shown". Payloads never claim no size.
+
+Pin every touched payload whole. Keep every render within the editor-core `refusal_concision*` budgets.
+
+Out of scope: the endings, and the open `[ev]` PR 5134.

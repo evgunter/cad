@@ -178,11 +178,6 @@ const LEDGER: &[Entry] = &[
                              // code and code-and-literals views
     },
     Entry {
-        path: "crates/editor-core/tests/wire_entity_door.rs",
-        disposition: Shared, // entity-door and entity-kind-carrier census over
-                             // eval/wire.rs and eval/mod.rs, code view
-    },
-    Entry {
         path: "crates/editor-core/tests/wire_operand_door.rs",
         disposition: Shared, // operand-door and expected-phrase census over
                              // eval/wire.rs and verbs/split.rs, code and
@@ -369,6 +364,10 @@ const LEDGER: &[Entry] = &[
             "Track Q — reaches the shared lexer only through `source_walk::CodeOnly`, \
              topo's handle on it; the direct call is Track Q's to make",
         ),
+    },
+    Entry {
+        path: "crates/topo/src/boolean/join.rs",
+        disposition: Shared, // the join's one face-to-surface walk, code view
     },
     Entry {
         path: "crates/topo/src/boolean/offer_rows.rs",

@@ -283,7 +283,7 @@ fn the_boundary_arcs_panic_on_a_torn_ring_link() {
 fn the_wrap_scan_panics_on_a_torn_outer_link() {
     use super::surface_group::{WrapRims, wrap_rims};
     let (mut body, face) = cyl_sheet();
-    let rims = WrapRims::Coaxial {
+    let rims = WrapRims {
         origin: Point3::origin(),
         axis: Vec3::unit_z(),
     };
@@ -307,7 +307,7 @@ fn the_wrap_scan_panics_on_a_torn_outer_link() {
 fn the_wrap_scan_panics_on_a_torn_curve() {
     use super::surface_group::{WrapRims, wrap_rims};
     let (mut body, face) = cyl_sheet();
-    let rims = WrapRims::Coaxial {
+    let rims = WrapRims {
         origin: Point3::origin(),
         axis: Vec3::unit_z(),
     };
@@ -442,6 +442,7 @@ fn the_vertex_on_face_classification_panics_on_a_torn_pierced_surface() {
             BooleanOp::Union,
             &GluedPairs::default(),
             &ReductionContacts::default(),
+            None,
             None,
             band(),
         )

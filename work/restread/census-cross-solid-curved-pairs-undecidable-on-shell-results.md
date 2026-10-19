@@ -294,3 +294,78 @@ definite finding): `0 3 2 ba S`, `1 6 0 ba S`, `3 1 0 ba S`,
 `6 1 0 ab I`, `6 1 0 ba S`. Replay with `CURVED_POSE="i j k order op"
 cargo test -p sweep --release --test all curved_notch_pinch_one --
 --ignored --nocapture`.
+
+## 2026-10-14 — the node family's `∖` (TANG, branch `tang/pinch-node-ring`)
+
+Two equal cylinders whose axes meet now build every boolean, each
+node minted as a ring in both walls. `A ∖ B` is two solids, the
+pieces of `A`'s rod either side of `B`, touching at the two nodes
+`q ± r·unit(â₁ × â₂)` (`q` the axes' meeting point), each piece with
+its own valence-2 vertex on each node. Every one of
+`sweep::bisector_nodes`'s ∖ results (θ ∈ {90°, 60°, 120°, 35°}, both
+operand orders, and the re-posed twin) builds at the closed form
+`2πrh − 16r³/(3 sin θ)`. Tier 3 passes, ∩ and ∪ pass 3′ on their own
+records, and ∖'s 3′ answers only this lane's frontier: 7
+`CensusUndecidable` "a curved face of one is within reach of the
+other" between the two pieces' faces, and the `Unexamined` pair of
+the two solids. The row admits exactly that
+(`touch_union::only_curved_within_reach`); flip it to `Ok` when this
+lane lands.
+
+The pairs touch at the nodes, so no box gap separates them, but one
+plane always does: the plane through `q` with normal `â₁` has each
+piece of `A ∖ B` (`B ∖ A`: normal `â₂`) wholly on one side, and meets
+the pieces only at the two nodes, which are shared point keys.
+
+## 2026-10-17 — scope under the D10 hold (RESTREAD)
+
+RESTREAD builds the half that certifies curved × curved and
+curved × planar cross-solid pairs apart. Where such a pair turns out
+to be a genuine coincidence, what the census does with it is the
+"census records what it decides" path of the open [ev] PR 4666 and
+INTENT stage 5; that half is not built here, and a pair the lane finds
+touching keeps its `CensusUndecidable` until then.
+
+## 2026-10-19 — the certify-apart half lands (RESTREAD, `restread/cross-solid-apart`)
+
+Arm 1 now also clears a pair on a gap in depth (`census::depth_gap`):
+the distance from an axis line, a centre or a torus's core circle that
+either face's carrier or a conic on its boundary proposes, one face's
+greatest depth below the other's least past both pads. Measured with a
+probe that runs the empty-record 3′ over every `shell` result of
+`sweep::shell7/8/9/10_*` (222 results, 100 of them multi-solid): 30
+refused `CensusUndecidable` on main `31a6c491`, 0 on the branch, the
+tori among them. Flipped to pass, each pinned: the nested shell repro,
+a hollow torus shelled again, a rod in a bore (on and off the axis), a
+part in a blind bore (`s16_box_soundness`), the plug and nested tubes
+of `an_annular_tube_through_a_plate`, and both `B ∖ A` runs of
+`a_plane_across_a_one_face_wall`. A rod flush in its bore or half a
+band inside it, and a rod crossing its bore, still refuse
+(`cross_solid_apart`).
+
+What is left here:
+
+- **Touches** — the pinch, tangent, apex-edge, node and touch-union
+  sections above. No gap clears a pair that meets; they keep
+  `CurvedWithinReach` until the census reads a curved touch (the
+  D10-held half: [ev] PR 4666, INTENT stage 5).
+- **Not re-measured on this branch**: REACH's 38 union results, JOIN-2's
+  grid (850 `BAD` lines on the branch, its sampled lines a box face on
+  the plate's; no main count at this head), TANG's tilted stubs and
+  ball-cut lumps, FLUSH's pocket battery and JOIN's delta-arc battery.
+  The door meter (`scripts/door-tier3-meter.py`) re-reads the first.
+  A pair the depth gap cannot read: a cylinder or cone face's least
+  depth about another axis (it has none but its own carrier's), and a
+  planar face's about a core circle.
+
+## 2026-10-13 — a rod flush with a plate's height (CONTACTHOLD)
+
+Measured on `contacthold/fold-step-face-face-row`: a rod (r 0.5,
+vertices off the ruling) resting on a plate's side face over the
+plate's full height, z 0 to 1, unions into two solids carrying the
+face–face record of the plate's face and the rod's wall and two
+edge–edge records where the rod's cap circles touch the plate's top and
+bottom edges. Its 3′ refuses `CensusUndecidable` on the rod's wall
+against a plate face that it meets only at a cap circle's recorded
+edge–edge point. The n-ary union row that uses it
+(`editor_core` `union_fold_face_face_touch`) does not run 3′.

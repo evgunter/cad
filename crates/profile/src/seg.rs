@@ -21,7 +21,8 @@
 
 use geom_core::k_stats::{decide, decide_reported};
 use geom_core::{
-    Arc2, Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Real, Sign, Vec2,
+    Arc2, Band, Circles2, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Real, Sign,
+    Vec2,
 };
 
 use crate::Segment;
@@ -889,7 +890,7 @@ impl<T: Real> Seg<T> {
 /// clearance margins (`carrier_line_circle`,
 /// `carrier_circles_identity` / `_external` / `_internal`) are
 /// bit-identical to [`line_arc`]/[`arc_arc`]'s expressions (the circle
-/// ones read the same [`Circles`]); line/line
+/// ones read the same [`Circles2`]); line/line
 /// joints reuse `chord_side` in the same expression form on the
 /// joint's *far* endpoint (a carrier-identity question — the pair pass
 /// asks it of other points). Same funnel, same bands, no new ε.
@@ -920,8 +921,8 @@ pub(crate) fn joint_tangency<T: Decide>(
         (SegKind::Line, SegKind::Arc(g)) => line_circle_joint(prev, g, band),
         (SegKind::Arc(g), SegKind::Line) => line_circle_joint(next, g, band),
         (SegKind::Arc(g1), SegKind::Arc(g2)) => {
-            let circles = Circles::of(g1, g2);
-            let identity = circles.identity();
+            let pair = carrier_pair(g1, g2).pair();
+            let identity = pair.identity();
             let same = decide_reported("carrier_circles_identity", Margin::of(identity), band)?;
             match same.sign {
                 Sign::Zero | Sign::Negative => Ok(JointReading {
@@ -932,7 +933,7 @@ pub(crate) fn joint_tangency<T: Decide>(
                     scale: circles_scale(g1, g2),
                 }),
                 Sign::Positive => {
-                    let external = circles.external();
+                    let external = pair.external();
                     let outside =
                         decide_reported("carrier_circles_external", Margin::of(external), band)?;
                     match outside.sign {
@@ -954,7 +955,7 @@ pub(crate) fn joint_tangency<T: Decide>(
                             scale: circles_scale(g1, g2),
                         }),
                         Sign::Negative => {
-                            let internal = circles.internal();
+                            let internal = pair.internal();
                             let inside = decide_reported(
                                 "carrier_circles_internal",
                                 Margin::of(internal),
@@ -1233,6 +1234,7 @@ fn line_arc<T: Decide>(
                 &[foot],
                 CKind::Tangency,
                 spans,
+                Settle::InStretch,
                 band,
             )?;
         }
@@ -1245,6 +1247,7 @@ fn line_arc<T: Decide>(
                 &crossings,
                 CKind::Crossing,
                 spans,
+                Settle::InStretch,
                 band,
             )?;
         }
@@ -1301,19 +1304,50 @@ fn arc_clear_of_carrier<T: Decide>(
 ///   coincident apexes; complementary spans have antipodal ones).
 ///   In-band ⇒ nearly-identical carriers — a genuine sliver, escalated.
 /// - **`carrier_circles_external`** — margin: d − (r₁ + r₂), the
-///   external clearance. Positive ⇒ separate; Zero ⇒ externally
-///   tangent at the point dividing C₁C₂ in ratio r₁ : r₂.
+///   external clearance g. Positive ⇒ separate; Zero ⇒ externally
+///   tangent.
 /// - **`carrier_circles_internal`** — margin: d − |r₁ − r₂|, the
-///   internal clearance. Negative ⇒ nested, no contact; Zero ⇒
-///   internally tangent (contact on the center line beyond both
-///   centers); Positive (with external Negative) ⇒ two proper
-///   intersections, on the radical line ([`Circles::crossings`]), whose
-///   half-chord's square is a product of four factors: the two
-///   clearances, each definite in this branch, and `d + |r₁ − r₂|` and
-///   `d + r₁ + r₂`, so it cannot poison.
+///   internal clearance g. Negative ⇒ nested, no contact; Zero ⇒
+///   internally tangent to within ε, which the next margin reads;
+///   Positive (with external Negative) ⇒ two proper intersections, on
+///   the radical line ([`Circles2::crossings`]), whose half-chord's
+///   square is a product of four factors: the two clearances, each
+///   definite in this branch, and `d + |r₁ − r₂|` and `d + r₁ + r₂`, so
+///   it cannot poison.
+/// - **`carrier_circles_chord`** — margin: the radical foot's depth
+///   inside both circles, the mean of rᵢ − |foot − Cᵢ|, the sagitta of
+///   the chord the circles cut, or zero where the foot stands outside
+///   them. Read where the internal clearance is Zero, which bounds g by
+///   ε but not the chord: the foot stands g·r₂/d and g·r₁/d off the
+///   circles (the two differ by g), so on near-concentric carriers a g
+///   within ε cuts a chord whose ends lie far apart. Positive ⇒ two
+///   crossings, [`Circles2::crossings`] as for a proper secant, whose
+///   half-chord's square has the sign of g, which the depth past Kε
+///   puts definitely positive; Zero ⇒ a tangency: the circles cross, if
+///   at all, within √(2r·ε) of the foot, or are nested. In band the
+///   pair is read both ways, and where the two readings agree on
+///   whether the arcs meet away from their ends, it takes the contacts
+///   of both: each is a point within ε of both arcs.
 ///
-/// The three margins and the crossings read one [`Circles`], so the
-/// factors the crossings take are the margins decided, bit for bit.
+///   **What the band costs.** Where the readings disagree, the pair
+///   escalates: a crossing pair and a tangency cannot be told apart
+///   there, and which one the data is decides the verdict. That is two
+///   arcs leaving a point near the tangency direction the same way, a
+///   cusp among them, on carriers whose g lies within a factor
+///   2d/(r₁ + r₂) of ε (d = 0.1, g from 0.2ε to ε, at r = 1). A smooth
+///   joint, or a pair whose arcs hold neither crossing, reads the same
+///   both ways. The escalation is sized: its ending offers the
+///   tolerance at which the sagitta decides, and the near-tangency note
+///   offers the PATHS `.fillet(r)` door, which constructs an exact
+///   tangency.
+///
+/// The margins and the crossings read one [`Circles2`], so the factors
+/// the crossings take are the margins decided, bit for bit.
+///
+/// A tangency's candidate is the midpoint of the circles' nearest
+/// points, which lie on the line of centres |g| apart, so it stands
+/// |g|/2 off each and both spans read it as a carrier point, however
+/// far the near-concentric radical foot falls from either circle.
 ///
 /// Divisions by d occur only in branches where the identity margin was
 /// definitely positive with the relevant clearances pinned, so d is
@@ -1325,10 +1359,11 @@ fn arc_arc<T: Decide>(
     g2: &ArcGeom<T>,
     band: Band,
 ) -> Result<PairOutcome<T>, Indeterminate> {
-    let circles = Circles::of(g1, g2);
+    let circles = carrier_pair(g1, g2);
+    let pair = circles.pair();
     match decide(
         "carrier_circles_identity",
-        Margin::of(circles.identity()),
+        Margin::of(pair.identity()),
         band,
     )? {
         Sign::Zero | Sign::Negative => {
@@ -1361,39 +1396,90 @@ fn arc_arc<T: Decide>(
         Sign::Positive => {
             let mut contacts = Vec::new();
             let spans = |q| (arc_span(g1, q, band), arc_span(g2, q, band));
+            // A tangency's candidate: the midpoint of the circles'
+            // nearest points c₁ + û·s₁ and c₂ + û·s₂, where each arm has
+            // bounded d away from zero.
+            let tangency = |s1: T, s2: T| {
+                let u = circles.direction();
+                let (p1, p2) = (g1.arc.centre + u * s1, g2.arc.centre + u * s2);
+                p1 + (p2 - p1) * T::from_f64(0.5)
+            };
             match decide(
                 "carrier_circles_external",
-                Margin::of(circles.external()),
+                Margin::of(pair.external()),
                 band,
             )? {
                 Sign::Positive => {}
                 Sign::Zero => {
                     // Externally tangent; d = r₁ + r₂ ≥ the definite
                     // identity margin, so the division is safe.
-                    let delta = g2.arc.centre - g1.arc.centre;
-                    let q = g1.arc.centre + delta * (g1.arc.radius / circles.d);
-                    candidates(&mut contacts, (s1, s2), &[q], CKind::Tangency, spans, band)?;
+                    let q = tangency(g1.arc.radius, -g2.arc.radius);
+                    candidates(
+                        &mut contacts,
+                        (s1, s2),
+                        &[q],
+                        CKind::Tangency,
+                        spans,
+                        Settle::InStretch,
+                        band,
+                    )?;
                 }
                 Sign::Negative => {
                     match decide(
                         "carrier_circles_internal",
-                        Margin::of(circles.internal()),
+                        Margin::of(pair.internal()),
                         band,
                     )? {
                         Sign::Negative => {}
                         Sign::Zero => {
                             // Internally tangent: d = |Δr| and the
                             // identity margin d + |Δr| = 2d is definite,
-                            // so d is bounded away from zero.
-                            let q = circles.foot();
-                            candidates(
-                                &mut contacts,
-                                (s1, s2),
-                                &[q],
-                                CKind::Tangency,
-                                spans,
+                            // so d is bounded away from zero. The foot
+                            // lies beyond the smaller circle's centre,
+                            // and `radical` is its signed distance
+                            // from c₁, about ±r₁.
+                            let foot = circles.foot();
+                            let depth = (g1.arc.radius - g1.arc.rim(foot) + g2.arc.radius
+                                - g2.arc.rim(foot))
+                                * T::from_f64(0.5);
+                            let read = |points: &[Point2<T>], kind, settle| {
+                                let mut found = Vec::new();
+                                candidates(&mut found, (s1, s2), points, kind, spans, settle, band)
+                                    .map(|()| found)
+                            };
+                            let tangent = || {
+                                let side = |r: T| pair.radical().select_le_zero(-r, r);
+                                let q = tangency(side(g1.arc.radius), side(g2.arc.radius));
+                                read(&[q], CKind::Tangency, Settle::InStretch)
+                            };
+                            // The carriers stay within ε between the
+                            // crossings, so an end there is on both.
+                            let secant = || {
+                                read(&circles.crossings(), CKind::Crossing, Settle::ApartFromEnds)
+                            };
+                            // Only a chord definitely deeper than the
+                            // band changes the reading, so a foot outside
+                            // the circles reads as the tangency it is.
+                            let chord = decide(
+                                "carrier_circles_chord",
+                                Margin::of(depth.max(T::zero())),
                                 band,
-                            )?;
+                            );
+                            contacts = match chord {
+                                Ok(Sign::Positive) => secant()?,
+                                Ok(Sign::Zero | Sign::Negative) => tangent()?,
+                                Err(undecided) => {
+                                    let interior = |found: &[Contact<T>]| {
+                                        found.iter().any(|c| !matches!(c.kind, CKind::Touch))
+                                    };
+                                    match (tangent(), secant()) {
+                                        (Ok(t), Ok(x)) if interior(&t) == interior(&x) => {
+                                            t.into_iter().chain(x).collect()
+                                        }
+                                        _ => return Err(undecided),
+                                    }
+                                }
+                            };
                         }
                         Sign::Positive => {
                             // Proper secant: d > |Δr| definitely, so
@@ -1405,6 +1491,7 @@ fn arc_arc<T: Decide>(
                                 &crossings,
                                 CKind::Crossing,
                                 spans,
+                                Settle::InStretch,
                                 band,
                             )?;
                         }
@@ -1416,97 +1503,27 @@ fn arc_arc<T: Decide>(
     }
 }
 
-/// Two carrier circles as [`arc_arc`] and [`joint_tangency`] read
-/// them: the centres `c1`, `c2`, the first radius, the centre distance
-/// `d`, and `r₁ + r₂` and `r₁ − r₂`, each formed once. The three margins
-/// are read from these fields, and so are the radical foot and the
-/// half-chord, so each factor those take is a margin the caller decided.
-pub(crate) struct Circles<T: Real> {
-    c1: Point2<T>,
-    c2: Point2<T>,
-    r1: T,
-    /// The centre distance.
-    pub d: T,
-    sum: T,
-    diff: T,
+/// The two carriers as [`arc_arc`] and [`joint_tangency`] read them.
+/// The margins and the crossings read one [`Circles2`], so each factor
+/// the crossings take is a margin the caller decided.
+fn carrier_pair<T: Real>(g1: &ArcGeom<T>, g2: &ArcGeom<T>) -> Circles2<T> {
+    Circles2::new(
+        (g1.arc.centre, g1.arc.radius),
+        (g2.arc.centre, g2.arc.radius),
+    )
 }
 
-impl<T: Real> Circles<T> {
-    pub(crate) fn of(g1: &ArcGeom<T>, g2: &ArcGeom<T>) -> Self {
-        Self::new(
-            (g1.arc.centre, g1.arc.radius),
-            (g2.arc.centre, g2.arc.radius),
-        )
-    }
-
-    /// The circles `(centre, radius)`.
-    pub(crate) fn new((c1, r1): (Point2<T>, T), (c2, r2): (Point2<T>, T)) -> Self {
-        Self {
-            c1,
-            c2,
-            r1,
-            d: c1.distance(c2),
-            sum: r1 + r2,
-            diff: r1 - r2,
-        }
-    }
-
-    /// `carrier_circles_identity`'s margin, d + |r₁ − r₂|.
-    pub(crate) fn identity(&self) -> T {
-        self.d + self.diff.abs()
-    }
-
-    /// `carrier_circles_external`'s margin, d − (r₁ + r₂).
-    pub(crate) fn external(&self) -> T {
-        self.d - self.sum
-    }
-
-    /// `carrier_circles_internal`'s margin, d − |r₁ − r₂|.
-    pub(crate) fn internal(&self) -> T {
-        self.d - self.diff.abs()
-    }
-
-    /// The radical line's signed distance `a` from `c1` along the line
-    /// of centres, and `r₁ − a = (r₁ + r₂ − d)(d − r₁ + r₂)/2d`, the
-    /// second of which [`Self::crossings`] reuses.
-    ///
-    /// The textbook `a = (d² + r₁² − r₂²)/2d` is a difference of
-    /// squares and errs by about `u·r²/d`. Each factor here rounds at
-    /// the inputs' own scale: `r₁ + r₂ − d` is minus the external
-    /// margin and `d − r₁ + r₂` is the internal one or `d + |r₁ − r₂|`.
-    fn radical(&self) -> (T, T, T) {
-        let two_d = self.d + self.d;
-        let inner = (self.sum - self.d) * (self.d - self.diff);
-        (self.r1 - inner / two_d, inner, two_d)
-    }
-
-    /// The radical foot, on the line of centres: the internally tangent
-    /// pair's contact point. `d` must be definitely positive.
-    pub(crate) fn foot(&self) -> Point2<T> {
-        let (a, _, _) = self.radical();
-        self.c1 + ((self.c2 - self.c1) / self.d) * a
-    }
-
-    /// The two crossings of a proper secant, either side of the radical
-    /// foot by the half-chord `h`, with
-    /// `h² = (r₁ + r₂ − d)(d − r₁ + r₂)(d + r₁ − r₂)(d + r₁ + r₂)/4d²`.
-    /// `d` must be definitely positive.
-    ///
-    /// The textbook `r₁² − a²` is a difference of squares, and where the
-    /// radii differ by orders of magnitude it takes the crossings off
-    /// both carriers at `f64` by up to the smaller radius. Here each of
-    /// the four factors is definite in the secant branch, so the radicand
-    /// cannot poison and at `Interval` encloses, and the crossings sit on
-    /// both carriers to a few ulps of the largest of `d`, the radii and
-    /// the centres' coordinates (the foot is `c₁ + û·a`).
-    pub(crate) fn crossings(&self) -> [Point2<T>; 2] {
-        let (a, inner, two_d) = self.radical();
-        let h = (inner * ((self.d + self.diff) * (self.sum + self.d)) / two_d.powi(2)).sqrt();
-        let u = (self.c2 - self.c1) / self.d;
-        let n = perp(u);
-        let foot = self.c1 + u * a;
-        [foot + n * h, foot - n * h]
-    }
+/// Which ends may settle a candidate a span reads in band
+/// ([`end_in_stretch`]).
+#[derive(Clone, Copy)]
+enum Settle {
+    /// Any end in the candidate's stretch.
+    InStretch,
+    /// An end in the candidate's stretch that stands definitely apart
+    /// from both of the other segment's ends: for carriers within ε of
+    /// each other between their crossings ([`end_in_stretch`] says
+    /// why).
+    ApartFromEnds,
 }
 
 /// Reads the candidate contacts of two carriers, `points`, each from
@@ -1523,6 +1540,7 @@ fn candidates<T: Decide>(
     points: &[Point2<T>],
     interior: CKind,
     spans: impl Fn(Point2<T>) -> (Result<Sign, Indeterminate>, Result<Sign, Indeterminate>),
+    settle: Settle,
     band: Band,
 ) -> Result<(), Indeterminate> {
     let mut missed = false;
@@ -1546,7 +1564,7 @@ fn candidates<T: Decide>(
                 let settled = read
                     .into_iter()
                     .filter(|&(_, _, in_band)| in_band)
-                    .all(|(seg, other, _)| end_in_stretch(seg, other, q, rival, band));
+                    .all(|(seg, other, _)| end_in_stretch(seg, other, q, rival, settle, band));
                 if !settled {
                     return Err(source);
                 }
@@ -1595,16 +1613,27 @@ fn candidates<T: Decide>(
 /// Where `seg` and `other` are adjacent, their shared vertex is on both
 /// carriers. If the carriers read secant it is one candidate, `rival`
 /// to the other, and settles that one only from nearer it than itself.
-/// If they read tangent, a re-crossing within the band of the vertex
-/// is that one candidate's stretch: the carriers stay within ε between
-/// the two, so the pair meets there only as the joint does, and the
-/// joint pass classifies it (a cusp re-crossing a few ε out reads as a
+/// That fails where the carriers stay within ε between the crossings,
+/// an internal near-tangency read as a secant: the shared vertex is on
+/// both carriers anywhere there, and the touch the settle leaves may be
+/// its own, which the discount absorbs. There the end must stand apart
+/// from both of `other`'s ends ([`Settle::ApartFromEnds`], decided as
+/// `contact_at_shared_vertex`).
+/// If they read tangent, they cut no chord deeper than ε: a line's
+/// `carrier_line_circle` margin is that depth, and two circles' is
+/// `carrier_circles_chord`, which reads a deeper chord as a secant even
+/// where the internal clearance is within ε, and a chord within the
+/// band as a secant too, keeping a verdict only where the two readings
+/// agree. So the carriers re-cross, if at all, within √(2rε) of the
+/// tangency, the pair meets there only as the joint does, and the
+/// joint pass classifies it (a cusp re-crossing that close reads as a
 /// tangent cusp).
 fn end_in_stretch<T: Decide>(
     seg: &Seg<T>,
     other: &Seg<T>,
     q: Point2<T>,
     rival: Option<&Point2<T>>,
+    settle: Settle,
     band: Band,
 ) -> bool {
     let half = seg.len * T::from_f64(0.5);
@@ -1627,7 +1656,19 @@ fn end_in_stretch<T: Decide>(
             Ok(Sign::Positive)
         )
     });
+    let apart = || {
+        [other.a, other.b].into_iter().all(|e| {
+            matches!(
+                coincident("contact_at_shared_vertex", end, e, band),
+                Ok(Sign::Positive)
+            )
+        })
+    };
     own && matches!(carrier_side(other, end, band), Ok(Sign::Zero))
+        && match settle {
+            Settle::InStretch => true,
+            Settle::ApartFromEnds => apart(),
+        }
 }
 
 /// Which side of `host`'s carrier the point `p` lies on: `chord_side`
@@ -2414,6 +2455,112 @@ mod pair_contact_tests {
         wrong_rows.extend(wrong("Interval", band_edge_rows::<Interval>()));
         assert!(wrong_rows.is_empty(), "{}", wrong_rows.join("\n"));
     }
+
+    /// What two arcs about their circles' facing angles read: the
+    /// contacts' kinds and points, or the predicate they escalated on.
+    fn facing_contacts<T: Decide>(
+        (c1, r1, t1): ((f64, f64), f64, f64),
+        (c2, r2, t2): ((f64, f64), f64, f64),
+        band: Band,
+    ) -> Result<Vec<(CKind, Point2<T>)>, Option<&'static str>> {
+        let s1 = arc::<T>(c1, r1, t1 - 0.5, 1.0, band);
+        let s2 = arc::<T>(c2, r2, t2 - 0.5, 1.0, band);
+        match pair_contacts(&s1, &s2, band) {
+            Ok(PairOutcome::Contacts(contacts)) => {
+                Ok(contacts.into_iter().map(|c| (c.kind, c.point)).collect())
+            }
+            Ok(PairOutcome::Overlap) => Err(Some("overlap")),
+            Err(source) => Err(source.predicate),
+        }
+    }
+
+    /// **A tangency's contact is the midpoint of the circles' nearest
+    /// points**, `|g|/2` off each, wherever the radical foot falls, and
+    /// a chord the circles cut deeper than the band reads as its two
+    /// crossings although their internal clearance `g` is within ε. Two
+    /// arcs a radian long about the facing points, at `f64` (kinds and
+    /// point) and `Interval` (kinds); near-concentric circles stand
+    /// `17ε` apart, where the foot is `g·r/d`, 0.03, off both.
+    #[test]
+    fn a_tangency_reads_at_the_midpoint_of_the_nearest_points() {
+        let eps = Tol::witness().eps();
+        let band = Band::linear(Tol::witness()).unwrap_or_else(|e| panic!("band: {e}"));
+        let (d, g) = (17.0 * eps, 0.5 * eps);
+        let pi = core::f64::consts::PI;
+        let rows = [
+            (
+                "internal",
+                ((0.0, 0.0), 1.0, 0.0),
+                ((0.5, 0.0), 0.5 + g, 0.0),
+                Some(1.0 + g / 2.0),
+            ),
+            (
+                "internal, larger second",
+                ((0.5, 0.0), 0.5 + g, 0.0),
+                ((0.0, 0.0), 1.0, 0.0),
+                Some(1.0 + g / 2.0),
+            ),
+            (
+                "external",
+                ((0.0, 0.0), 1.0, 0.0),
+                ((2.0 + g, 0.0), 1.0, pi),
+                Some(1.0 + g / 2.0),
+            ),
+            (
+                "near-concentric, nested",
+                ((0.0, 0.0), 1.0, 0.0),
+                ((d, 0.0), 1.0 - d - g, 0.0),
+                Some(1.0 - g / 2.0),
+            ),
+            (
+                "near-concentric, nested, larger second",
+                ((d, 0.0), 1.0 - d - g, 0.0),
+                ((0.0, 0.0), 1.0, 0.0),
+                Some(1.0 - g / 2.0),
+            ),
+            (
+                "near-concentric chord",
+                ((0.0, 0.0), 1.0, 0.0),
+                ((d, 0.0), 1.0 - d + g, 0.0),
+                None,
+            ),
+        ];
+        let mut wrong_rows = Vec::new();
+        for (name, one, two, at) in rows {
+            let want = match at {
+                Some(_) => vec![CKind::Tangency],
+                None => vec![CKind::Crossing, CKind::Crossing],
+            };
+            match facing_contacts::<f64>(one, two, band) {
+                Ok(got) => {
+                    let kinds: Vec<CKind> = got.iter().map(|c| c.0).collect();
+                    if kinds != want {
+                        wrong_rows.push(format!("f64: {name}: want {want:?}, got {kinds:?}"));
+                    }
+                    if let (Some(x), [(_, p)]) = (at, got.as_slice()) {
+                        let off = p.distance(Point2::new(x, 0.0));
+                        if off > 0.01 * eps {
+                            wrong_rows
+                                .push(format!("f64: {name}: contact {p:?}, {off:e} off ({x}, 0)"));
+                        }
+                    }
+                }
+                Err(e) => wrong_rows.push(format!("f64: {name}: escalated on {e:?}")),
+            }
+            match facing_contacts::<Interval>(one, two, band) {
+                Ok(got) if got.iter().map(|c| c.0).collect::<Vec<_>>() == want => {}
+                got => wrong_rows.push(format!(
+                    "Interval: {name}: want {want:?}, got {:?}",
+                    got.map(|g| g.into_iter().map(|c| c.0).collect::<Vec<_>>())
+                )),
+            }
+        }
+        assert!(
+            wrong_rows.is_empty(),
+            "at eps {eps:e}:\n{}",
+            wrong_rows.join("\n")
+        );
+    }
 }
 
 #[cfg(test)]
@@ -2494,9 +2641,8 @@ mod sweep_range_tests {
 #[cfg(test)]
 #[allow(clippy::panic)]
 mod circles_accuracy_tests {
-    use super::Circles;
     use crate::dd::{Dd, off_circle, radical_foot};
-    use geom_core::Point2;
+    use geom_core::{Circles2, Point2};
 
     type P = (f64, f64);
 
@@ -2506,8 +2652,8 @@ mod circles_accuracy_tests {
     /// reads 10⁴ or more on some row.
     const ULPS: f64 = 8.0;
 
-    fn circles((c1, r1): (P, f64), (c2, r2): (P, f64)) -> Circles<f64> {
-        Circles::new((Point2::new(c1.0, c1.1), r1), (Point2::new(c2.0, c2.1), r2))
+    fn circles((c1, r1): (P, f64), (c2, r2): (P, f64)) -> Circles2<f64> {
+        Circles2::new((Point2::new(c1.0, c1.1), r1), (Point2::new(c2.0, c2.1), r2))
     }
 
     fn scale((c1, r1): (P, f64), (c2, r2): (P, f64)) -> f64 {

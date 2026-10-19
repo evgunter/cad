@@ -346,8 +346,8 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
     let mid = control.len() / 2;
     control[mid] = control[mid] + Vec3::new(0.0, 0.0, 1e-4);
     let coarsened = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         control,
         fit.weights().to_vec(),
     )
@@ -498,10 +498,10 @@ fn diag_spline_spaces() {
             };
             println!(
                 "face {fk:?}: wall ku={:?} kv={:?} | fit ku={:?} kv={:?}",
-                p.knots_u().knots(),
-                p.knots_v().knots(),
-                a.fit().knots_u().knots(),
-                a.fit().knots_v().knots()
+                p.knots_u_f64_interim().knots(),
+                p.knots_v_f64_interim().knots(),
+                a.fit().knots_u_f64_interim().knots(),
+                a.fit().knots_v_f64_interim().knots()
             );
             break;
         }
@@ -514,8 +514,8 @@ fn diag_spline_spaces() {
         {
             println!(
                 "edge {ek:?}: carrier degree {} knots {:?}",
-                n.knots().degree(),
-                n.knots().knots()
+                n.knots_f64_interim().degree(),
+                n.knots_f64_interim().knots()
             );
         }
     }

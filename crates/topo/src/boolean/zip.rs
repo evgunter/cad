@@ -468,9 +468,8 @@ pub(super) fn split_cones<T: Decide + crate::props::AtRestPolicy>(
     Ok((paired, ConesSplit { splits }))
 }
 
-/// **The seams were split per cone** ([`split_cones`]): a result built
-/// past it is one whose pinches the boolean's carry reads
-/// (`ops::Zipped`). Only [`split_cones`] builds one.
+/// **The seams were split per cone** ([`split_cones`]). Only
+/// [`split_cones`] builds one.
 pub(super) struct ConesSplit {
     /// Each split `(new, split)` in the order made, keys of the body
     /// split: the vertex its moved cone now holds, on the split vertex's

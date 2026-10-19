@@ -4,7 +4,7 @@ kind: issue
 title: blend: the reach never meters two bands of one chain, or of two chains that meet, against each other, anywhere — not only at the vertex they share
 status: open
 opened: 2026-10-07
-priority: P2
+priority: P3
 cost: M
 ---
 
@@ -50,3 +50,8 @@ band-against-band case above.
 The fix would meter the band surfaces of links of one chain, and of
 chains that meet, against each other with each shared vertex's
 neighbourhood taken out.
+
+2026-10-19 (BAND orchestrator): re-banded P2 → P3. No door reaches it
+today (every chain the door builds is straight, so its links meet only
+at their shared vertex); it is latent until mixed line–arc or open arc
+chains are admitted, and that item should pick it up then.

@@ -765,18 +765,25 @@ impl<T: Real> Conic<T> {
         self.axis.cross(self.u_ref)
     }
 
+    /// The signed semi-axis vectors `semi_u·u_ref` and `semi_v·v_ref`, in
+    /// stored order: the conic is `center + cos θ·first + sin θ·second`.
+    #[must_use]
+    pub fn semi_axis_vectors(&self) -> (Vec3<T>, Vec3<T>) {
+        (self.u_ref * self.semi_u, self.v_ref() * self.semi_v)
+    }
+
     /// The least speed `|C′|` over the carrier: the smaller semi-axis
     /// magnitude.
     #[must_use]
     pub fn speed_lo(&self) -> T {
-        geom::Curve3::semi_axes_by_size(self.semi_u, self.semi_v).1
+        geom::carrier_speed::SemiAxes::new(self.semi_u, self.semi_v).speed_lo()
     }
 
     /// The greatest speed `|C′|` over the carrier, and a bound on `|C″|`:
     /// the larger semi-axis magnitude.
     #[must_use]
     pub fn speed_hi(&self) -> T {
-        geom::Curve3::semi_axes_by_size(self.semi_u, self.semi_v).0
+        geom::carrier_speed::SemiAxes::new(self.semi_u, self.semi_v).speed_hi()
     }
 
     /// A bound on the curvature over the carrier, `speed_hi / speed_lo²`:
@@ -784,14 +791,13 @@ impl<T: Real> Conic<T> {
     /// whatever order the semi-axes are stored in.
     #[must_use]
     pub fn curvature_hi(&self) -> T {
-        self.speed_hi() / self.speed_lo().powi(2)
+        geom::carrier_speed::SemiAxes::new(self.semi_u, self.semi_v).curvature_hi()
     }
 
     /// The speed `|C′(θ)|` at `theta`.
     #[must_use]
     pub fn speed_at(&self, theta: T) -> T {
-        let (sin, cos) = theta.sin_cos();
-        ((self.semi_u * sin).powi(2) + (self.semi_v * cos).powi(2)).sqrt()
+        geom::carrier_speed::SemiAxes::new(self.semi_u, self.semi_v).speed_at(theta)
     }
 
     /// The point at eccentric anomaly `theta`.

@@ -23,14 +23,18 @@
 //!
 //! Inside one copy's body an overlap stays the kernel's typed error:
 //! only verdicts between solids of two different copies are findings.
+//! A part is one copy of the document instantiating it, and the census
+//! over that document finds the part's own findings again inside the
+//! copy. Those are the part's, carried up and reported as the part's
+//! ([`crate::CarriedInterference`], [`crate::AssemblyError::CarriedAtRest`]),
+//! so the gate drops each verdict about a pair of solids the part
+//! already answered (`less_carried`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Sign, Tol};
-use topo::{
-    AtRestPolicy, Body, CensusContact, CrossingSideVerdict, FaceKey, SolidKey, ValidationError,
-};
+use topo::{AtRestPolicy, Body, FaceKey, SolidKey, ValidationError};
 
 use crate::VarId;
 use crate::doc::Doc;
@@ -62,7 +66,7 @@ pub struct FaceSite {
 }
 
 /// **Where two copies overlap.**
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Overlap {
     /// One connected overlap of the two copies' material, named by the
     /// faces of both copies that bound it, sorted and deduplicated.
@@ -76,7 +80,7 @@ pub enum Overlap {
 }
 
 /// **Why an overlap has no site.**
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Unlocalized {
     /// The intersection of the two copies refused, in its own words.
     Refused {
@@ -109,7 +113,7 @@ pub enum Unlocalized {
 /// **An overlap of two copies' material at rest** (D10): reported,
 /// never refused, and quiet only under the assertion `quiet_verdicts`
 /// finds.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct InterferenceFinding {
     /// The copy earlier in gather order.
     pub a: CopyRef,
@@ -267,36 +271,6 @@ fn opposed<T: Decide>(body: &Body<T>, outer: FaceKey, inner: FaceKey, band: Band
     }
 }
 
-/// **Which census verdict is interference evidence**, and the two
-/// solids it is about: a vertex inside another solid's material, an
-/// edge piercing a face, or an in-plane crossing read `SameSide`.
-fn interference_solids<T: Decide>(
-    body: &Body<T>,
-    error: &ValidationError,
-) -> Option<(SolidKey, SolidKey)> {
-    let of_edge = |edge| {
-        let he = body.get_edge(edge)?.he_plus;
-        body.solid_of_face(body.face_of_half_edge(he)?)
-    };
-    match error {
-        ValidationError::InstanceInterference { outer, inner, .. } => Some((*outer, *inner)),
-        ValidationError::UnrecordedContact {
-            contact: CensusContact::EdgeFacePierce { edge, face },
-            ..
-        } => Some((of_edge(*edge)?, body.solid_of_face(*face)?)),
-        ValidationError::UnrecordedContact {
-            contact:
-                CensusContact::EdgeEdgeCross {
-                    a,
-                    b,
-                    side: Some(CrossingSideVerdict::SameSide),
-                },
-            ..
-        } => Some((of_edge(*a)?, of_edge(*b)?)),
-        _ => None,
-    }
-}
-
 /// **The scalars the gate localizes an overlap at**: one seam per
 /// scalar, because localizing builds bodies (the copies' intersection
 /// and the region past each asserted carrier), which reads the
@@ -348,7 +322,9 @@ impl LocalizeLane for geom_core::Probe {}
 
 impl LocalizeLane for geom_core::Interval {}
 
-impl LocalizeLane for geom_core::Dual<f64> {}
+impl<T> LocalizeLane for geom_core::Dual<T> where geom_core::Dual<T>: Decide + AtRestPolicy {}
+
+impl<T> LocalizeLane for geom_core::Sym<T> where geom_core::Sym<T>: Decide + AtRestPolicy {}
 
 impl LocalizeLane for f64 {
     fn localize(
@@ -386,7 +362,8 @@ pub(crate) fn partition<T: LocalizeLane>(
     let mut pairs: Vec<((usize, usize), Vec<ValidationError>)> = Vec::new();
     let mut rest = Vec::new();
     for error in errors {
-        let pair = interference_solids(&product.body, &error).and_then(|(x, y)| pair_of(x, y));
+        let pair = topo::census_interference_solids(&product.body, &error)
+            .and_then(|(x, y)| pair_of(x, y));
         match pair {
             Some(pair) => match pairs.iter_mut().find(|(p, _)| *p == pair) {
                 Some((_, evidence)) => evidence.push(error),
@@ -405,17 +382,8 @@ pub(crate) fn partition<T: LocalizeLane>(
     // (`topo::record_at_rest`), and which keeps the finding loud. A pair
     // the census decided nothing about stays refused as it left it.
     let undecided_pair = |error: &ValidationError| match error {
-        ValidationError::CensusUndecidable { a, b, .. } => {
-            pair_of(solid_of(&product.body, *a)?, solid_of(&product.body, *b)?)
-        }
-        touch @ ValidationError::UnrecordedContact { .. } => {
-            let [x, y] = topo::census_contact_row(touch)?
-                .cells
-                .map(|cell| match cell {
-                    topo::RowCell::Result { cell } => cell_solid(&product.body, cell),
-                    topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
-                });
-            pair_of(x?, y?)
+        ValidationError::CensusUndecidable { .. } | ValidationError::UnrecordedContact { .. } => {
+            finding_solids(&product.body, error).and_then(|(x, y)| pair_of(x, y))
         }
         _ => None,
     };
@@ -433,6 +401,68 @@ pub(crate) fn partition<T: LocalizeLane>(
     (findings, kept)
 }
 
+/// **The two solids a census finding is about**, smaller key first:
+/// the pair an interference verdict decided
+/// ([`topo::census_interference_solids`]), the two entities an
+/// undecidable verdict names, or the two cells of an unrecorded touch.
+/// `None` for a finding that names no pair of solids: an escalation,
+/// which names no entity at all
+/// (`work/contacthold/an-escalated-census-finding-names-no-pair.md`), a
+/// pair the census had no lane for, a stale record of a vertex or an
+/// edge, a touch with a cell of an input or a tool.
+pub(crate) fn finding_solids<T: Decide>(
+    body: &Body<T>,
+    error: &ValidationError,
+) -> Option<(SolidKey, SolidKey)> {
+    let (x, y) = match error {
+        _ if let Some(pair) = topo::census_interference_solids(body, error) => pair,
+        ValidationError::CensusUndecidable { a, b, .. } => (
+            topo::census_entity_solid(body, *a)?,
+            topo::census_entity_solid(body, *b)?,
+        ),
+        touch @ ValidationError::UnrecordedContact { .. } => {
+            let [x, y] = topo::census_contact_row(touch)?
+                .cells
+                .map(|cell| match cell {
+                    topo::RowCell::Result { cell } => topo::census_cell_solid(body, cell),
+                    topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
+                });
+            (x?, y?)
+        }
+        _ => return None,
+    };
+    Some((x.min(y), x.max(y)))
+}
+
+/// **The census's verdicts less what a part already answered**: each
+/// verdict about a pair of solids a part's own census reported
+/// ([`Product::census_pairs`]) is the part's, carried up with it and
+/// reported as the part's ([`crate::assembly::CarriedInterference`],
+/// [`crate::AssemblyError::CarriedAtRest`]), so the census over this
+/// product re-finding it inside the copy says nothing new. A verdict
+/// inside one copy that answers to no carried pair is left, the copy's
+/// door's own unrecorded contact.
+// TRANSITIONAL: the final rule is that inside an arrival the census
+// reads nothing (D10, `[placement.placement]`), so this match of the
+// census's re-findings against a part's carried pairs is a check the
+// rule retires, with the in-copy census itself
+// (`work/intent/the-in-arrival-census-check-retires.md`).
+pub(crate) fn less_carried<T: Decide>(
+    product: &Product<T>,
+    errors: Vec<ValidationError>,
+) -> Vec<ValidationError> {
+    if product.census_pairs.is_empty() {
+        return errors;
+    }
+    let carried: BTreeSet<(SolidKey, SolidKey)> = product.census_pairs.iter().copied().collect();
+    errors
+        .into_iter()
+        .filter(|error| {
+            finding_solids(&product.body, error).is_none_or(|pair| !carried.contains(&pair))
+        })
+        .collect()
+}
+
 /// **Which copy each of the product's solids is**: the census's groups
 /// at rest ([`topo::record_at_rest`]), each copy its own.
 pub(crate) fn copy_groups<T: Decide>(copies: &[GatheredCopy<T>]) -> BTreeMap<SolidKey, u32> {
@@ -441,6 +471,32 @@ pub(crate) fn copy_groups<T: Decide>(copies: &[GatheredCopy<T>]) -> BTreeMap<Sol
         .zip(0u32..)
         .flat_map(|(c, i)| c.keys.solids().iter().map(move |&s| (s, i)))
         .collect()
+}
+
+/// **A cell of the gathered product, named as its copy reads it**:
+/// which copy holds it (by its index in `copies`) and the cell as that
+/// copy's placement output names it, `None` for a cell of no copy.
+pub(crate) fn copy_cell<T: Decide>(
+    body: &Body<T>,
+    names: &NameTable,
+    copies: &[GatheredCopy<T>],
+    groups: &BTreeMap<SolidKey, u32>,
+    cell: topo::Cell,
+) -> Option<(usize, crate::coincide::NamedCell)> {
+    let key = match cell {
+        topo::Cell::Face(f) => EntityKey::Face(f),
+        topo::Cell::Edge(e) => EntityKey::Edge(e),
+        topo::Cell::Vertex(v) => EntityKey::Vertex(v),
+    };
+    let copy = *groups.get(&topo::census_cell_solid(body, cell)?)? as usize;
+    let name = names.name_of(&EntityRef { body: 0, key })?.clone();
+    Some((
+        copy,
+        crate::coincide::NamedCell::Entity {
+            input: copies[copy].var,
+            name,
+        },
+    ))
 }
 
 /// **The census's rows between two copies, named** (D1 (iii), D10):
@@ -459,14 +515,7 @@ pub(crate) fn copy_rows<T: Decide>(
         let topo::RowCell::Result { cell } = cell else {
             return None;
         };
-        let key = match cell {
-            topo::Cell::Face(f) => EntityKey::Face(f),
-            topo::Cell::Edge(e) => EntityKey::Edge(e),
-            topo::Cell::Vertex(v) => EntityKey::Vertex(v),
-        };
-        let copy = *groups.get(&cell_solid(body, cell)?)? as usize;
-        let name = names.name_of(&EntityRef { body: 0, key })?.clone();
-        Some((copy, name))
+        copy_cell(body, names, copies, &groups, cell)
     };
     let by = |x: usize| CopyRef {
         var: copies[x].var,
@@ -477,14 +526,10 @@ pub(crate) fn copy_rows<T: Decide>(
             let [Some((ca, na)), Some((cb, nb))] = row.cells.map(named) else {
                 unreachable!("a row the census recorded between copies names a cell of each")
             };
-            let cell = |copy: usize, name| crate::coincide::NamedCell::Entity {
-                input: copies[copy].var,
-                name,
-            };
             crate::assembly::AtRestRow {
                 by: crate::assembly::AtRestBy::Copies(by(ca.min(cb)), by(ca.max(cb))),
                 row: crate::coincide::NamedCoincidence {
-                    cells: [cell(ca, na), cell(cb, nb)],
+                    cells: [na, nb],
                     relation: row.relation,
                     site: row.site,
                     margin: row.margin,
@@ -493,26 +538,6 @@ pub(crate) fn copy_rows<T: Decide>(
             }
         })
         .collect()
-}
-
-/// The solid an edge or a vertex of `body` belongs to, through a
-/// half-edge of it; `None` for a lone vertex.
-fn cell_solid<T: Decide>(body: &Body<T>, cell: topo::Cell) -> Option<SolidKey> {
-    let he = match cell {
-        topo::Cell::Edge(e) => body.get_edge(e)?.he_plus,
-        topo::Cell::Vertex(v) => body.get_vertex(v)?.emanating?,
-        topo::Cell::Face(f) => return body.solid_of_face(f),
-    };
-    body.solid_of_face(body.face_of_half_edge(he)?)
-}
-
-/// The solid a census entity belongs to: itself, or a face's.
-fn solid_of<T: Decide>(body: &Body<T>, entity: topo::EntityId) -> Option<SolidKey> {
-    match entity {
-        topo::EntityId::Solid(s) => Some(s),
-        topo::EntityId::Face(f) => body.solid_of_face(f),
-        _ => None,
-    }
 }
 
 /// **Two copies intersected**: the overlap of their material, `None`

@@ -17,7 +17,9 @@
 //! - **Across an ellipse**: on a tube whose bottom is cut obliquely, the
 //!   ruling meets the ellipse at its plane, and every op builds. A
 //!   coaxial rod's rim lying on that tube's walls meets the ellipse the
-//!   same way, and every op builds there too.
+//!   same way, and every op builds there too, as do two oblique bottoms
+//!   whose rims cross on one wall. Two rims in planes the band reads
+//!   coplanar are one curve only within the band.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -47,7 +49,7 @@ fn rod_z(z0: f64, len: f64) -> AtRestBody<f64> {
 fn rod_of(r: f64, z0: f64, len: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
-    let plane = profile::SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let p = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol)
         .unwrap();
@@ -475,7 +477,7 @@ fn a_continuation_on_a_wall_bounded_by_an_ellipse_builds_every_op() {
 /// `0.5π + 2/15`, and the union `2π + 2/15`. Whichever member's wall a
 /// union keeps, the piece of the other's rim lying across it (the
 /// ellipse's arc over `x > 0` in `t ∪ r`, the circle's over `x < 0` in
-/// `r ∪ t`) rests in one of its faces' charts, derived
+/// `r ∪ t`) rests in the first wall record's chart, derived
 /// ([`across_a_wall`]).
 #[test]
 fn a_rim_across_a_walls_ellipse_builds_every_op_in_both_orders() {
@@ -553,8 +555,11 @@ const TURNS: [f64; 9] = [0.0, 0.4, 1.3, 1.5, PI / 2.0, 2.0, 2.9, PI, 1.5 * PI];
 /// The carrier kind of each edge of `body` lying across a wall: both
 /// its faces on a cylinder, the two faces on different members' walls
 /// (a member's own seam ruling bounds two faces of one surface). Each
-/// edge of both kinds is first checked to rest in one of its two faces'
-/// charts, and each lying across a wall to be derived: nothing in these
+/// edge of both kinds is first checked to rest where it lies — a seam
+/// ruling in its one surface's chart, an edge across a wall in the
+/// chart of the first of its faces' two records (they are one carrier,
+/// and incidence on both is incidence on one: `topo::rest_locus`) — and
+/// each lying across a wall to be derived: nothing in these
 /// scenes declared a rim or a ruling, so a describer that stamps a
 /// declaration on one, or leaves it citing a surface it no longer
 /// bounds, reds here.
@@ -574,16 +579,18 @@ fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<CurveKind> {
         if !(cylinder(sp) && cylinder(sm)) {
             continue;
         }
-        let EdgeDescription::Chart(ch) = c.description() else {
-            panic!(
-                "{label}: {key:?} across a wall rests in a chart: {:?}",
-                c.description()
-            );
-        };
-        assert!(
-            ch.surface == sp || ch.surface == sm,
-            "{label}: {key:?} rests in one of its faces' charts"
-        );
+        match c.description() {
+            EdgeDescription::Chart(ch) if sp == sm => assert_eq!(
+                ch.surface, sp,
+                "{label}: {key:?} rests in its one surface's chart"
+            ),
+            EdgeDescription::Chart(ch) => assert_eq!(
+                ch.surface,
+                geom_brep::SurfacePair::new(sp, sm).keys()[0],
+                "{label}: {key:?} across a wall rests in its first record's chart"
+            ),
+            other => panic!("{label}: {key:?} rests where it lies, got {other:?}"),
+        }
         if sp != sm {
             assert!(
                 !c.authority().is_declared(),
@@ -602,7 +609,7 @@ fn across_a_wall(body: &topo::Body<f64>, label: &str) -> Vec<CurveKind> {
 /// of the same radius on `z ∈ [1, 3]`, turned `1.3` rad so its seam
 /// rulings miss the flat face's corners, their walls one carrier. Its
 /// volume is `2.5π` in both orders, and what lies across the kept wall
-/// rests in a wall's chart ([`across_a_wall`]):
+/// rests in the first wall record's chart ([`across_a_wall`]):
 ///
 /// - **Rod first** keeps the rod's wall whole: the rod's lower rim lies
 ///   across it over `y > 0`. The flat face `y = 0` under the rod, moved
@@ -692,6 +699,15 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: the moved body is finished: {e:?}"));
             topo::validate_geometric(&moved, tol)
                 .unwrap_or_else(|e| panic!("{op}, d = {d}: tier 3: {e:?}"));
+            // The rim across the kept wall is re-anchored with the move
+            // and asked the rule again over its new extent: the two
+            // walls are one cylinder, which under-determines it at any
+            // length, so it keeps its image.
+            let label = format!("{op}, d = {d}");
+            assert!(
+                across_a_wall(&moved, &label).contains(&CurveKind::Circle),
+                "{label}: the rim still lies across the kept wall as an image"
+            );
             let want = 2.5 * PI + d * (1.0 - d * d).sqrt() + d.asin();
             let m = topo::mass_properties(&moved, tol).unwrap();
             assert!(
@@ -704,22 +720,51 @@ fn a_half_rods_rim_across_a_rods_wall_moves_with_its_flat_face() {
     }
 }
 
-/// **Two sections the band reads coplanar are not taken for one
-/// curve.** Two radius-`0.01` rods on one axis, each cut below a plane
-/// through the origin, of slopes `100` and `100(1 + d)`: their ellipse
-/// rims cross at `(0, ±0.01, 0)`. With `d = k·ε` the planes' tilt
-/// carries about `k·ε` across the ellipses, so the band reads them
-/// parallel and through one point, and their one-curve margin is about `3·k·ε`
-/// at most. At `k = 0.5` and `0.9` every op refuses `Escalated` on
-/// `bool_carrier_cross_ellipses_one_curve`, the two rims being neither
-/// one curve nor apart within the band; at `k = 0.1` they are one curve
-/// within it, and every op refuses further on. None reads the rims'
-/// crossings away.
+/// **Two sections the band reads coplanar are one curve only where
+/// they lie within it of each other.** Two radius-`0.01` rods on one
+/// axis, each cut below a plane through the origin, of slopes `100` and
+/// `100(1 + d)`: their ellipse rims cross at `(0, ±0.01, 0)`. With
+/// `d = k·ε` the planes' tilt carries `0.01·k·ε` across the ellipses, so
+/// the band reads them parallel and through one point at every `k`
+/// here, while the rims' far ends lie `k·ε` apart. At `k` = 0.1, 0.5
+/// and 0.9 the rims are one curve within the band, and every op
+/// refuses `FallbackExtentUnsupported` further on. At 2 and 5 a seam
+/// ruling's crossing with the other rim's plane lies `k·ε` from the
+/// ruling's end, and every op refuses `Escalated`: the ruling's end,
+/// read against the rim first, lies in the band's gap of its carrier
+/// (`curve_carrier_gap`). At 30 and
+/// 80 the rims are definitely two curves, which no closed form here
+/// places, and every op refuses `CurvedPierceUnsupported`, but for the
+/// three with the first rod first at 80, which escalate on the sector
+/// reading's `conic_bend` before reaching that frontier. None reads the
+/// rims' crossings away.
+///
+/// **At a coarse ε the one-curve poses refuse `CurvedPierceUnsupported`
+/// first.** A seam ruling crosses each rim's plane at `|d̂·n̂| ≈ 0.01`,
+/// so it stays within the band's escalation `e = 10ε` of the plane for
+/// `e/0.01` metres either side. It meets the rim at the ellipse's tip,
+/// whose radius of curvature is `b²/a = 10⁻⁴` m. The meeting reader's
+/// basin meter needs the sine between the two (here one) to clear the
+/// turn of the curvature over that stretch, `2·(a/b²)·2·(e/0.01 + e)`,
+/// which fails once `ε` passes about `2.5·10⁻⁸`: at `k` below one the
+/// reading refuses `Unsettled::Meter`
+/// (`work/cpair/curve-pair-polish-meters-refuse-shallow-meetings.md`) and
+/// the pierce is unread. There the three ops with the first rod first
+/// at 80 refuse `CurvedPierceUnsupported` too, before the sector
+/// reading, on the same meter: the seam ruling lies on the other rod's
+/// wall, the interior question reads its meetings with that wall's rim
+/// (`boolean::carrier_cross`), and the line × ellipse pose's basin meter
+/// (`curve_pair_pose_basin`) decides negative, so the crossing is unread
+/// and the pierce keeps the frontier. Every one of the coarse ε's thirty
+/// pierce refusals here is that meter. The rest of the table holds at
+/// every ε.
 #[test]
-fn two_rims_the_band_reads_coplanar_are_not_one_curve() {
+fn two_rims_the_band_reads_coplanar_are_one_curve_only_within_it() {
     let tol = Tol::witness();
     let rod = rod_of(0.01, -3.0, 6.0);
-    for k in [0.1, 0.5, 0.9] {
+    let e = geom_core::Band::linear(tol).unwrap().escalate();
+    let meter_refuses = 2.0 * 1e4 * 2.0 * (e / 0.01 + e) >= 1.0;
+    for k in [0.1, 0.5, 0.9, 2.0, 5.0, 30.0, 80.0] {
         let d = k * tol.eps();
         let (a, b) = (
             cut_below(&rod, 100.0, 0.0),
@@ -727,18 +772,81 @@ fn two_rims_the_band_reads_coplanar_are_not_one_curve() {
         );
         for (op, res) in six(&a, &b) {
             let label = format!("k = {k}: {op}");
-            if k > 0.2 {
+            if meter_refuses && k < 1.0 {
+                assert!(
+                    matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                    "{label}: the basin meter refuses at this ε: {res:?}"
+                );
+            } else if k < 1.0 {
+                assert!(
+                    matches!(res, Err(BooleanError::FallbackExtentUnsupported { .. })),
+                    "{label}: one curve, refused past it: {res:?}"
+                );
+            } else if k < 10.0 {
                 let Err(BooleanError::Escalated { diag, .. }) = &res else {
                     panic!("{label}: escalates: {res:?}");
                 };
                 assert_eq!(
                     diag.predicate,
-                    Some("bool_carrier_cross_ellipses_one_curve"),
-                    "{label}: on the one-curve row"
+                    Some("curve_carrier_gap"),
+                    "{label}: on the end's reading"
                 );
             } else {
-                assert!(res.is_err(), "{label}: refuses: {res:?}");
+                // Exactly the ops with the first rod first, at 80, reach the
+                // sector reading first.
+                let sector = k > 50.0 && op.starts_with('t') && !meter_refuses;
+                if sector {
+                    let Err(BooleanError::Escalated { diag, .. }) = &res else {
+                        panic!("{label}: escalates on the sector reading: {res:?}");
+                    };
+                    assert_eq!(diag.predicate, Some("conic_bend"), "{label}");
+                } else {
+                    assert!(
+                        matches!(res, Err(BooleanError::CurvedPierceUnsupported { .. })),
+                        "{label}: two curves unplaced: {res:?}"
+                    );
+                }
             }
+        }
+    }
+}
+
+/// **Two slanted bottoms crossing on one wall build every op.** The
+/// tube from `z = −1` to [`H`] cut below `z = 0.5 + s·x` at two slopes:
+/// each rim lies on the other's wall and crosses the other's rim where
+/// `x = 0`, in planes decided apart, so each is split where it meets the
+/// other's plane. The overlap is `1.5π − (2/3)·|s₁ − s₂|`, each
+/// difference `(2/3)·|s₁ − s₂|` and the union `1.5π + (2/3)·|s₁ − s₂|`.
+#[test]
+fn two_slanted_bottoms_crossing_on_one_wall_build_every_op() {
+    let tol = Tol::witness();
+    let tube = rod_z(-1.0, H + 1.0);
+    for (s1, s2) in [(0.2, -0.3), (0.2, 0.5), (-0.6, 0.1)] {
+        let (t, b) = (cut_below(&tube, s1, 0.5), cut_below(&tube, s2, 0.5));
+        let gap = 2.0 / 3.0 * (s1 - s2).abs();
+        for (op, res) in six(&t, &b) {
+            let label = format!("slopes {s1}, {s2}: {op}");
+            let volume = if op.contains('∪') {
+                1.5 * PI + gap
+            } else if op.contains('∖') {
+                gap
+            } else {
+                1.5 * PI - gap
+            };
+            let Ok(BooleanResult::Body(bb)) = res else {
+                panic!("{label}: builds: {res:?}");
+            };
+            topo::validate_geometric(&bb.body, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
+            topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
+            let m = topo::mass_properties(&bb.body, tol).unwrap();
+            assert!(
+                (m.volume - volume).abs() <= m.volume_pad + 1e-9 * volume,
+                "{label}: the closed form: {} ± {} vs {volume}",
+                m.volume,
+                m.volume_pad
+            );
         }
     }
 }

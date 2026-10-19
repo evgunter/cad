@@ -44,7 +44,7 @@
 //! narrowed one ([`Camera::view_projection_f32`]): handing it the
 //! `f64` original would have the id pass compute with a matrix the
 //! shaded pass does not have, which is precisely the divergence
-//! `crate::idpass::disagreement` exists to report. The narrowing
+//! `crate::idpass::compare` exists to report. The narrowing
 //! itself is `crate::narrowing`'s and is spelled nowhere here.
 //!
 //! **It is also the one door here that answers for every input**, and

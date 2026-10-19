@@ -47,7 +47,7 @@ fn try_step(
     doc: &ProfileDoc,
     edit: DocEdit<ProfileProgram>,
 ) -> Result<editor_core::Applied<ProfileProgram>, EditError> {
-    apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
+    apply(doc, &edit, Tol::witness())
 }
 
 fn step(doc: &ProfileDoc, edit: DocEdit<ProfileProgram>) -> editor_core::Applied<ProfileProgram> {
@@ -808,7 +808,11 @@ fn split_and_inline_carry_readers_by_id() {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part.clone(), Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("intent-vars-3-host"), Tol::witness());
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref),
+        &crate::fixture::resolver::with_resolver(store.clone()),
+    );
     let inlined = inline(
         &host,
         instance,
@@ -908,8 +912,11 @@ fn an_unread_definition_moves_with_what_it_reads_and_comes_back() {
         "k",
         VarDecl::defined(Formula::add(named("w"), len(0.001)).expect("lengths add")),
     );
-    let (doc, cut) = block(doc, 0.0, named("w"));
+    // The kept block goes first: split appends its instance and inline
+    // its splice, so a cut whose placements come last comes back in
+    // document order (A4 promises the round trip up to order).
     let (doc, _) = block(doc, 10.0, len(1.0));
+    let (doc, cut) = block(doc, 0.0, named("w"));
     let (out, store) = split_into_store(&doc, cut, "fork6-follows-part");
     for name in ["w", "k"] {
         assert_eq!(out.remainder.var_named(name), None, "{name} left");
@@ -975,8 +982,11 @@ fn a_chain_of_definitions_moves_whole_and_comes_back() {
         "m",
         VarDecl::defined(Formula::add(named("k"), named("k")).expect("lengths add")),
     );
-    let (doc, cut) = block(doc, 0.0, named("w"));
+    // The kept block goes first: split appends its instance and inline
+    // its splice, so a cut whose placements come last comes back in
+    // document order (A4 promises the round trip up to order).
     let (doc, _) = block(doc, 10.0, len(1.0));
+    let (doc, cut) = block(doc, 0.0, named("w"));
     let (out, store) = split_into_store(&doc, cut, "fork6-chain-part");
     for name in ["w", "k", "m"] {
         assert_eq!(out.remainder.var_named(name), None, "{name} left");
@@ -1002,8 +1012,11 @@ fn a_free_variable_tied_to_a_moving_definition_moves_with_it() {
         "k",
         VarDecl::defined(Formula::add(named("w"), named("u")).expect("lengths add")),
     );
-    let (doc, cut) = block(doc, 0.0, named("w"));
+    // The kept block goes first: split appends its instance and inline
+    // its splice, so a cut whose placements come last comes back in
+    // document order (A4 promises the round trip up to order).
     let (doc, _) = block(doc, 10.0, len(1.0));
+    let (doc, cut) = block(doc, 0.0, named("w"));
     let (out, store) = split_into_store(&doc, cut, "fork6-tied-part");
     for name in ["w", "u", "k"] {
         assert_eq!(out.remainder.var_named(name), None, "{name} left");
@@ -1067,6 +1080,9 @@ fn a_definition_reading_a_deleted_variable_says_it_is_gone() {
 #[test]
 fn a_named_definition_reading_the_depth_comes_back() {
     let doc = ProfileDoc::empty(DocumentId::derive("fork6-anon-read"), Tol::witness());
+    // The kept block goes first, so the cut's placement comes last and
+    // the round trip keeps the placements' order.
+    let (doc, _) = block(doc, 10.0, len(1.0));
     let (doc, cut) = block(doc, 0.0, len(0.5));
     let depth = doc
         .slot(cut[2], SlotId::Distance)
@@ -1091,7 +1107,6 @@ fn a_named_definition_reading_the_depth_comes_back() {
     )
     .doc;
     let doc = step(&doc, k).doc;
-    let (doc, _) = block(doc, 10.0, len(1.0));
     let (out, store) = split_into_store(&doc, cut, "fork6-anon-read-part");
     assert_eq!(out.remainder.var_named("k"), None, "k left");
     let back = inline(&out.remainder, out.instance, &store, Tol::witness())
@@ -1259,7 +1274,14 @@ fn inline_repoints_readers_at_the_hosts_ids() {
         Tol::witness(),
     );
     let host = declare(&host, "pad", 1.0);
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref),
+        &editor_core::EvalOptions {
+            resolver: Some(store.clone()),
+            ..editor_core::EvalOptions::default()
+        },
+    );
     let out = inline(&host, instance, &store, Tol::witness()).expect("the part inlines");
     let (host_d, host_e) = (id(&out.doc, "d"), id(&out.doc, "e"));
     assert_ne!(host_d, id(&part, "d"), "the host mints its own d");
@@ -1298,7 +1320,14 @@ fn an_equal_valued_name_the_host_holds_refuses() {
             .bit_eq(part.var(id(&part, "d")).expect("held")),
         "the premise: the two d are bit-equal"
     );
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref),
+        &editor_core::EvalOptions {
+            resolver: Some(store.clone()),
+            ..editor_core::EvalOptions::default()
+        },
+    );
     match inline(&host, instance, &store, Tol::witness()) {
         Err(InlineError::VarNameConflict { name }) => assert_eq!(name, n("d")),
         other => panic!("expected VarNameConflict on d, got {other:?}"),
@@ -1344,7 +1373,14 @@ fn inline_carries_an_anonymous_variable_whole() {
         DocumentId::derive("intent-vars-3-inline-anon-host"),
         Tol::witness(),
     );
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref),
+        &editor_core::EvalOptions {
+            resolver: Some(store.clone()),
+            ..editor_core::EvalOptions::default()
+        },
+    );
     let out = inline(&host, instance, &store, Tol::witness()).expect("the part inlines");
     let carried = |old: RecipeNodeId| match out.doc.node(out.node_map[&old]) {
         Some(Node::Extrude { distance, .. }) => *distance,
@@ -1428,7 +1464,11 @@ fn split_and_inline_declare_in_declaration_order() {
         DocumentId::derive("intent-vars-3-order-host"),
         Tol::witness(),
     );
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref),
+        &crate::fixture::resolver::with_resolver(store.clone()),
+    );
     let inlined = inline(
         &host,
         instance,
@@ -1484,7 +1524,11 @@ fn a_reader_of_a_deleted_variable_does_not_cross_a_cut() {
         DocumentId::derive("intent-vars-3-dead-host"),
         Tol::witness(),
     );
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref_dead));
+    let (host, instance) = crate::fixture::insert_pinned(
+        host,
+        Node::instantiate_part(doc_ref_dead),
+        &crate::fixture::resolver::with_resolver(store.clone()),
+    );
     match inline(
         &host,
         instance,
@@ -1556,8 +1600,7 @@ fn recording_insert_lowers_as_apply_does() {
             fresh: Vec::new(),
         },
     );
-    let mut recording =
-        editor_core::Recording::start(&doc, Tol::witness(), &editor_core::RefusingReach);
+    let mut recording = editor_core::Recording::start(&doc, Tol::witness());
     let minted = recording.insert(node).expect("the recording inserts");
     assert_eq!(Some(minted), by_apply.record.minted);
     assert!(recording.doc().bit_eq(&by_apply.doc));

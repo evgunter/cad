@@ -95,7 +95,8 @@ fn probe_a_pick_point_coincidence_cannot_certify() {
     control[0].z += 1e-3;
     control[1].z -= 3e-3;
     let doctored = Curve3::Nurbs(std::sync::Arc::new(
-        geom::NurbsCurve3::new(b.knots().clone(), control, b.weights().to_vec()).unwrap(),
+        geom::NurbsCurve3::new(b.knots_f64_interim().clone(), control, b.weights().to_vec())
+            .unwrap(),
     ));
     // The coincidence is real: at t = 0.25 the doctored carrier sits
     // on the candidate image exactly.

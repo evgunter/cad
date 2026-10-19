@@ -93,7 +93,7 @@ use crate::tolerance::Tol;
 pub enum SymRegistration {
     /// Recorded: from here on the two nodes denote one function of the
     /// parameters in this session's EARLY normal form, and a decision
-    /// that rests on the record is counted [`crate::SymCounts::registered`].
+    /// that rests on the record is counted `crate::SymCounts::registered`.
     Recorded,
     /// Already recorded — the same two nodes, or two nodes the registry
     /// already resolves to one. Idempotent, and cheap: nothing is
@@ -494,6 +494,25 @@ pub trait Real:
     /// is a design conversation, not a bugfix.
     fn powi(self, n: i32) -> Self;
 
+    /// **`self · k` for `k` an exact power of two** — the scale a
+    /// subdivision's `2⁻ʳ` applies to a sum it formed unscaled. The
+    /// value is the product's, `self * Self::from_f64(k)`, and that is
+    /// the default: exact at `f64` wherever the result is normal, and
+    /// the same expression at the symbolic and dual scalars.
+    ///
+    /// What the method is FOR is the interval scalar, where a general
+    /// product against a point folds corners and certifies each one
+    /// through a 2Prod witness. A power of two only moves an exponent,
+    /// so [`crate::Interval`] overrides it with `[lo·k, hi·k]`, unpadded
+    /// wherever both results are strictly above the smallest normal
+    /// (a product just under it rounds up onto it), and the general product
+    /// everywhere else — a result in the subnormal range, an overflow,
+    /// a poisoned operand, or a `k` that is not a positive normal power
+    /// of two. A `k` that is not one is never wrong, only not faster.
+    fn scale_pow2(self, k: f64) -> Self {
+        self * Self::from_f64(k)
+    }
+
     /// The sine and cosine together (argument in radians) — **the
     /// primitive**.
     ///
@@ -853,8 +872,10 @@ pub trait Real:
 ///   datum door, the evaluation layer's `unit()`, and every one of
 ///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites (the
 ///   roll offset and the ladder's rungs reach it through
-///   [`RigidMotion::from_aim`](crate::RigidMotion::from_aim));
-/// - `sweep`'s `revolve::axis::AxisFrame::build`;
+///   [`RigidMotion::from_aim`](crate::RigidMotion::from_aim)), and
+///   [`UnitVec3::new`](crate::UnitVec3::new), which `sweep` reaches
+///   for the revolve's sketch axis (`revolve::axis::AxisFrame::build`)
+///   and for a path sweep's station tangents (`sweep_path_tangent`);
 /// - `topo`'s `sector_shape`, which asks it of each bounding chord
 ///   separately because its arm is their `min` and [`Real::min`]
 ///   propagates `NaN` but not infinity, so a `min` hides an
@@ -937,8 +958,10 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 ///
 /// - [`decide_unit_direction`](crate::decide_unit_direction), behind
 ///   the datum door, the evaluation layer's `unit()` and every one of
-///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites;
-/// - `sweep`'s `revolve::axis::AxisFrame::build`;
+///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites, and
+///   [`UnitVec3::new`](crate::UnitVec3::new), which `sweep` reaches
+///   for the revolve's sketch axis (`revolve::axis::AxisFrame::build`)
+///   and for a path sweep's station tangents (`sweep_path_tangent`);
 /// - `topo`'s `sector_shape`, per bounding CHORD rather than of the
 ///   arm — the arm is the two chords' `min`, which has no witness of
 ///   its own and which an underflowed chord always wins, so asking the

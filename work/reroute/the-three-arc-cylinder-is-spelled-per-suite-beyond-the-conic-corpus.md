@@ -74,3 +74,5 @@ candidates first; for the two out-of-crate commons, decide whether
 `stl` and `step-export` through their dev-dependency) or those copies
 stay with the triplicated-commons row. Measure bit-identity per member
 before folding.
+
+(2026-10-14, PATHS PR 5068) `SketchPlane::new(Affine3)` is gone: a plane is minted from its frame, and the translation-only plane above is now spelled `SketchPlane::xy_at(origin)`.

@@ -12,9 +12,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use geom_core::Point3;
 use sweep::ExtrudeSide;
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
@@ -23,7 +24,7 @@ use topo::AtRestBody;
 fn cyl(r: f64, z0: f64, z1: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     let cyl = extrude(
         &profile,
@@ -152,7 +153,7 @@ fn a_box_down_a_circular_hole_in_a_square_plate_sees_the_hole() {
             Point2::new(2.0, 2.0),
             Point2::new(-2.0, 2.0),
         ]);
-        let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
+        let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
         let profile = Profile::new(plane, vec![outer, hole.into()])
             .validate(tol)
             .unwrap();

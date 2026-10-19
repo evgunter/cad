@@ -98,3 +98,53 @@ pub fn prefix(state: TipState) -> Vec<Step<f64>> {
     };
     [lead, way_in(state).unwrap_or_default()].concat()
 }
+
+/// **Every scalar a validated profile stores**, in one fixed order: the
+/// plane's twelve placement components, then per loop each vertex, each
+/// segment's ends, and an arc's centre, radius and sweep. The walk the
+/// rows that hold one canonical form against another read bits off.
+#[must_use]
+pub fn stored_scalars<T: Real>(vp: &crate::ValidatedProfile<T>) -> Vec<T> {
+    let mut out = vp.plane().placement().components().to_vec();
+    for lp in vp.loops() {
+        for v in lp.vertices() {
+            out.extend(v.to_array());
+        }
+        for s in lp.segments() {
+            out.extend([s.start.x, s.start.y, s.end.x, s.end.y]);
+            if let crate::SegmentKind::Arc { arc, .. } = s.kind {
+                out.extend([arc.centre.x, arc.centre.y, arc.radius, arc.sweep]);
+            }
+        }
+    }
+    out
+}
+
+/// **Every fact a validated profile decided**, rendered per loop: its
+/// role, its tangent, cusp and decided joints, and each segment's kind
+/// and turn.
+#[must_use]
+pub fn decided_facts<T: Real>(vp: &crate::ValidatedProfile<T>) -> String {
+    use core::fmt::Write as _;
+    let mut out = String::new();
+    for lp in vp.loops() {
+        let _ = write!(
+            out,
+            "{:?} {:?} {:?} {:?}:",
+            lp.role(),
+            lp.tangent_joints(),
+            lp.cusp_joints(),
+            lp.decided_joints()
+        );
+        for s in lp.segments() {
+            match s.kind {
+                crate::SegmentKind::Line => out.push_str(" L"),
+                crate::SegmentKind::Arc { turn, .. } => {
+                    let _ = write!(out, " {turn:?}");
+                }
+            }
+        }
+        out.push('\n');
+    }
+    out
+}

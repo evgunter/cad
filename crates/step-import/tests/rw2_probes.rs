@@ -14,9 +14,11 @@
 //!    posture moved there verbatim;
 //! 2. dense residual sampling of every minted `IsoArc` against its own
 //!    carrier and chart, concentrated at the sub-arc JOINS, checked
-//!    against the cache's own certified numbers;
+//!    against the cache's own certified numbers (the quarter-circle
+//!    bulge is one sub-arc under C6's η, so a half-circle prism carries
+//!    the joins);
 //! 3. a FOREIGN segmentation (4 uniform sub-arcs where the native form
-//!    is 2) certified through the same public door the mint uses —
+//!    is 1) certified through the same public door the mint uses —
 //!    carrier-keyed means the class accepts any chart that really is
 //!    this circle's uniform rational-quadratic form.
 //!
@@ -40,6 +42,19 @@ use crate::common::{arc_section, stacked};
 use geom_core::Tol;
 use geom_core::{Point2, Vec3};
 use sweep::loft_body;
+
+/// The arc section with its bulge a half circle (bulge 1, sweep π):
+/// two sub-arcs, so one interior JOIN, which probe 2 samples.
+fn half_circle_section(s: f64) -> sweep::Section {
+    use profile::test_support::bulge_loop;
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+    vec![bulge_loop(vec![
+        v(-s, -s, 0.0),
+        v(s, -s, 1.0),
+        v(s, s, 0.0),
+        v(-s, s, 0.0),
+    ])]
+}
 
 fn native_arc_loft() -> topo::Body<f64> {
     loft_body::<f64>(
@@ -72,8 +87,20 @@ fn probe_dense_isoarc_residuals_at_joins() {
             .body,
         ),
         ("arc loft", native_arc_loft()),
+        (
+            "half-circle prism",
+            loft_body::<f64>(
+                &[half_circle_section(1.0), half_circle_section(1.0)],
+                &stacked(&[0.0, 1.0], 1.0),
+                1,
+                Tol::witness(),
+            )
+            .expect("the half-circle prism builds")
+            .body,
+        ),
     ];
     let mut seen = 0usize;
+    let mut joins = 0usize;
     for (who, body) in &bodies {
         for (hek, cache) in body.pcurves() {
             let geom_brep::Pcurve::IsoArc {
@@ -136,6 +163,7 @@ fn probe_dense_isoarc_residuals_at_joins() {
                         check(t);
                     }
                 }
+                joins += 1;
             }
             println!(
                 "RW2 probe 2: {who} IsoArc ({spans} sub-arcs) worst residual {worst:e} \
@@ -144,10 +172,11 @@ fn probe_dense_isoarc_residuals_at_joins() {
         }
     }
     assert!(seen >= 4, "expected at least 4 minted IsoArcs, saw {seen}");
+    assert!(joins > 0, "no minted IsoArc had an interior join to sample");
 }
 
 /// Probe 3: the FOREIGN-segmentation attack on the carrier-keyed
-/// claim. The native quarter-circle bulge mints 2 uniform sub-arcs;
+/// claim. The native quarter-circle bulge mints 1 sub-arc;
 /// here the SAME circle's chart column is authored as **4** uniform
 /// sub-arcs (weights `1, cos(h/2), 1, …` with `h = θ/4`) and offered
 /// to the same public `certify` door with the matching 4-span
@@ -161,7 +190,7 @@ fn probe_foreign_segmentation_certifies_through_the_same_door() {
 
     let radius = 1.5f64;
     let theta = core::f64::consts::FRAC_PI_2; // the native bulge's sweep
-    let spans = 4usize; // FOREIGN: native construction would use 2
+    let spans = 4usize; // FOREIGN: native construction would use 1
     #[allow(clippy::cast_precision_loss)]
     let h = theta / spans as f64;
     let w = (h / 2.0).cos();

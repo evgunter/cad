@@ -130,6 +130,24 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/geom-brep/src/carrier_net.rs",
+        subject: "outer_ends",
+        why: Payload(
+            "an edge interval's outer bracket ends, returned as the f64 pair every \
+             span and coverage gate of the certificate reads; nothing branches on them \
+             here",
+        ),
+    },
+    Site {
+        path: "crates/geom-brep/src/carrier_net.rs",
+        subject: "carrier_span",
+        why: Payload(
+            "an edge interval's outer bracket ends (`outer_ends`) become the f64 span a \
+             closed-form carrier's chart-image schedule and enclosing net are built over, \
+             lifted back through `from_computed`; nothing branches on them",
+        ),
+    },
+    Site {
         path: "crates/geom-brep/src/ssi/certify.rs",
         subject: "composite_form",
         why: HandedOff("Track Q's; a private helper S88's census names"),
@@ -339,6 +357,21 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/blend/reach.rs",
+        subject: "curve_in_core",
+        why: Selection(
+            "the reach's inside reading of an edge, a walk over parameter pieces through \
+             `sure`, as `inside_bound` walks a face's cells. Each read selects whether a \
+             piece is inside the core or halved, and any piece not certified ends the walk \
+             uncertified, so the face the edge bounds reads as a bound. Only a walk whose \
+             every piece is certain reads inside, and the depth it reports is one term of \
+             `prism_inside`'s reading, which `sure` decides and the funnel classifies. The \
+             tightening that follows reads each certified piece's upper end only to choose \
+             which piece to halve and when to stop, a cost choice: every piece it leaves \
+             holds a bound that already certified it",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/reach.rs",
         subject: "impl<T: Bounds> Unclear<T>",
         why: Selection(
             "the request's three-way verdict. Its reads only choose which of several \
@@ -446,6 +479,21 @@ const ROSTER: &[Site] = &[
             "an edge's extent along a direction over its own window: a segment's ends \
              read no bracket, and a circle's reads are `CircleFrame`'s above, whose \
              DL5(b) disposition this inherits",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/surgery.rs",
+        subject: "strip_reading",
+        why: Selection(
+            "a support ring's three-way reading against the strip a plane–plane band \
+             takes off its support, as `CapSliver::read_cycle` reads an end-face cycle \
+             against its sliver: `piece_along`'s closed-form extents and the witnesses' \
+             projections are read through `sure` to SELECT inside, crossing or neither. \
+             An inside ring joins the request's verdict, whose faces the reach must still \
+             read inside, and the screen's stand-down on a decided ring only leaves that \
+             ring to the ring pass, which meters it whole; any reading not certain is \
+             neither, metered as before, so it inherits `ring_clearance`'s DL5(b) \
+             disposition and the reach's",
         ),
     },
     Site {

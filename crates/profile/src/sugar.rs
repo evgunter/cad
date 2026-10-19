@@ -220,9 +220,6 @@ pub(crate) enum TrimRefusal<T: Real> {
     /// An in-band or poisoned fit margin (doubled-back corners and
     /// zero legs land here).
     Escalated(Indeterminate),
-    /// The exact-order band could not be formed (unreachable for the
-    /// built-in band).
-    Band(BandError),
 }
 
 /// The ratified line×line fillet closed form (#101 review MAJOR-1;
@@ -254,7 +251,7 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     let len2 = v2.norm_squared().sqrt();
     // The exact-order band (validate module docs): no representable
     // f64 lies strictly inside it, so f64 classification is total.
-    let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(TrimRefusal::Band)?;
+    let exact = Band::least();
     let fit = |len: T, leg: FilletLeg| -> Result<Sign, TrimRefusal<T>> {
         match decide("fillet_leg_fit", Margin::of(len - setback), exact) {
             Ok(Sign::Negative) => Err(TrimRefusal::DoesNotFit {
@@ -533,7 +530,7 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     let band = Band::linear(tol).map_err(ArcTrimRefusal::Band)?;
     // The exact-order band (validate module docs): no representable
     // f64 lies strictly inside it, so f64 classification is total.
-    let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ArcTrimRefusal::Band)?;
+    let exact = Band::least();
     let leg_in = Leg::at_corner(incoming, corner, head, FilletLeg::Incoming);
     let leg_out = Leg::at_corner(outgoing, corner, next, FilletLeg::Outgoing);
 
@@ -851,7 +848,8 @@ fn swept<T: Real>(from: T, to: T, turn: T) -> T {
 /// before.
 ///
 /// Over the scalars:
-/// - `ProfileLift::Guided` replays this at the evaluation scalar, through
+/// - every evaluation replays this at its own scalar (editor-core's
+///   profile lift), through
 ///   the coincidence door at `Sym<f64>` and the drive's symbolic leaf at
 ///   `Sym<Interval>`;
 /// - at `Sym` a `floor` folds only on a zero-form argument (the exact

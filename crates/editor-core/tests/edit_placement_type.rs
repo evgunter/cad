@@ -63,7 +63,8 @@ fn aimed() -> Frame {
             Vec3::new(1.0, 0.0, 0.0),
             Tol::witness(),
         )
-        .expect("the aim is definite"),
+        .expect("the aim is definite")
+        .to_affine(),
     )
 }
 
@@ -292,9 +293,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
         )),
         fresh: Vec::new(),
     };
-    let door = |edit| {
-        editor_core::apply(&doc, &edit, Tol::witness(), &editor_core::RefusingReach).map(|_| ())
-    };
+    let door = |edit| editor_core::apply(&doc, &edit, Tol::witness()).map(|_| ());
     let second = FrameSite::Step { index: 1 };
     for (what, frame) in [("mirror", mirror), ("nan", nan), ("scale", stretched)] {
         let error = door(at(&frame)).expect_err(what);
@@ -441,7 +440,6 @@ fn a_parameter_drives_a_rigid_steps_angle() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     ) {
         Err(EditError::UnknownSlot { slot, .. }) => assert_eq!(slot, SlotId::RotationAngle),
         other => panic!("step 0 is a literal and has no angle slot, got {other:?}"),
@@ -479,7 +477,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
         )
     };
     let door = |doc: &ProfileDoc, edit: DocEdit<ProfileProgram>| {
-        editor_core::apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach).map(|_| ())
+        editor_core::apply(doc, &edit, Tol::witness()).map(|_| ())
     };
     let x = SlotId::rigid(2, RigidArg::Translation(Axis3::X));
     match door(

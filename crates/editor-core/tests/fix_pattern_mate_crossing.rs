@@ -3,46 +3,43 @@
 //!
 //! The collector that fills an instance's [`InterfaceRecord`] asks ONE
 //! predicate for "is this reference a member reference" — the same one
-//! the solve's member walk and A11's groups ask. These rows pin what that
-//! identity buys, on the two shapes a pattern brings:
+//! the solve's member walk asks. These rows pin what that identity
+//! buys, on the two shapes a pattern brings:
 //!
-//! - a mate whose end is a pattern-placed instance IS an edge, so it
-//!   welds a group and AQ8's unreachability covers it — asserted in
-//!   both directions, exactly as `asm_r2b_assembly::row5_a` does for a
-//!   plain edge;
-//! - a mate whose end is a pattern head its name UNDERQUALIFIES — one
-//!   `Instance(i)` over a two-level nest — is outside the vocabulary,
-//!   welds nothing, and so genuinely reaches a cut's opposite sides — and the AQ8 (b)-SKIP ruling makes it contribute
-//!   no crossing. This is the reachable construction that tells a gate
-//!   asking the vocabulary apart from one merely matching a head's
-//!   spelling.
+//! - a constraint whose end is a pattern-placed instance IS an edge:
+//!   kept across a cut of the pattern side, it is one crossing, and a
+//!   cut of its own placement alone severs its read;
+//! - a constraint whose end is a pattern head its name UNDERQUALIFIES —
+//!   one `Instance(i)` over a two-level nest — is outside the
+//!   vocabulary, and the AQ8 (b)-SKIP ruling makes it contribute no
+//!   crossing however its ends fall. This is the reachable construction
+//!   that tells a gate asking the vocabulary apart from one merely
+//!   matching a head's spelling.
 //!
-//! - a mate whose reference is read at an operand the walk cannot
+//! - a constraint whose reference is read at an operand the walk cannot
 //!   reach its head from is outside the vocabulary too, and here the
 //!   head IS a live instance — so this is the shape a gate matching a
 //!   head's spelling gets WRONG in the other direction, minting a
-//!   record for a mate that never solved.
+//!   record for a constraint that never solved.
 //!
 //! That SKIP ruling is `crates/editor-core/ASSEMBLY.md`'s AQ8 clause.
 //!
-//! The whole-group cut also pins A4's recorded map over an
-//! `Instance(i)` head: the node ids remap, the STRUCTURAL INDEX does
-//! not.
+//! The whole cut also pins A4's recorded map over an `Instance(i)`
+//! head: the node ids remap, the STRUCTURAL INDEX does not.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EvalOptions, Formula,
-    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, Formula, MateRef, Node, PatternKind,
+    ProfileDoc, RecipeNodeId, RoleSeg, StableName,
 };
-use fixture::resolver::in_part;
-use fixture::{in_copy, insert, len, on_frame, scl, step};
+use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::{in_copy, insert, len, on_frame, scl};
 use geom_core::Tol;
 
 /// The unit cube `[0,1]³`, as a whole part document, and its body.
@@ -68,44 +65,57 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// [`block`] as a reference, and its body, placed in the part's world
 /// ([`fixture::resolver::PartStore::insert_part`], which is what lets
 /// [`in_part`] spell its caps through the placement).
-fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
+pub(crate) fn block_ref(label: &str) -> (DocRef, RecipeNodeId) {
     fixture::resolver::PartStore::new().insert_part(block(label), Tol::witness())
 }
 
-/// The reach a cut of the four-legs document levers through: a store
-/// holding both blocks, since cutting the shelf off the legs moves the
-/// remainder's root and mints its frame from the solved pose.
-fn legs_reach() -> EvalOptions {
-    let mut store = fixture::resolver::PartStore::new();
-    store.insert_part(block("fix-xs-leg"), Tol::witness());
-    store.insert_part(block("fix-xs-top"), Tol::witness());
-    fixture::resolver::with_resolver(store)
+/// **An instance of [`block`] `label`, pinned to the world at the
+/// identity** over its own geometry, its part served alone: the
+/// instance and the part's body.
+pub(crate) fn pinned_block(
+    doc: ProfileDoc,
+    label: &str,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let mut store = PartStore::new();
+    let (part, body) = store.insert_part(block(label), Tol::witness());
+    let (doc, id) =
+        fixture::insert_pinned(doc, Node::instantiate_part(part), &with_resolver(store));
+    (doc, id, body)
 }
 
-fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
-    MateFrame::authored(
-        origin,
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame")
-}
-
-/// A determining `Rest` mate seating `b`'s bottom onto `a`.
-fn seat(a: StableName, b: StableName) -> AuthoredNode {
-    Node::Mate {
-        a: crate::fixture::head(a).into(),
-        b: crate::fixture::head(b).into(),
-        class: ContactClass::Rest,
-        alignment: Alignment {
-            a: mate_frame([0.0, 0.0, 1.0]),
-            b: mate_frame([0.0, 0.0, 0.0]),
-            primitive: MatePrimitive::FrameCoincidence,
-            sense: AxisSense::Opposed,
-            clocking: None,
-        },
+/// **The reach a document of [`block`]s evaluates through**: a store
+/// holding the block of each label.
+pub(crate) fn blocks_reach(labels: &[&str]) -> EvalOptions {
+    let mut store = PartStore::new();
+    for label in labels {
+        store.insert_part(block(label), Tol::witness());
     }
+    with_resolver(store)
+}
+
+/// The reach a cut of the four-legs document evaluates through: a store
+/// holding both blocks.
+fn legs_reach() -> EvalOptions {
+    blocks_reach(&["fix-xs-leg", "fix-xs-top"])
+}
+
+/// **`mover`'s face seated on `onto`** by `placement`'s mate: a `Rest`
+/// of the two planes, the mover's origin over the target's
+/// ([`crate::p2_split::seat_at`]). The door is structural, so a target
+/// whose face reaches no member is admitted as written.
+pub(crate) fn seat(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    onto: StableName,
+    mover: StableName,
+) -> (ProfileDoc, MateRef) {
+    crate::p2_split::seat_at(
+        doc,
+        placement,
+        fixture::head(mover),
+        fixture::head(onto),
+        [0.0, 0.0],
+    )
 }
 
 fn linear(spacing: f64) -> PatternKind<Formula> {
@@ -119,11 +129,11 @@ fn linear(spacing: f64) -> PatternKind<Formula> {
 const COPY: u32 = 2;
 
 /// Four legs, one top: `leg`, a linear `pattern` of it (count 4), a
-/// `top`, and a seat mate from pattern copy [`COPY`] onto the top.
-/// Returns `(doc, leg, pattern, top, mate, leg_body)`, the last the
-/// leg part's body.
+/// `top`, and a seat constraint placing the top on pattern copy
+/// [`COPY`]. Returns `(doc, leg, pattern, top, mate, leg_body)`, the
+/// last the leg part's body.
 ///
-/// A bare datum sits AHEAD of the group and is never cut, so the part
+/// A bare datum sits AHEAD of the instances and is never cut, so the part
 /// document's id space is offset from the host's — which is what makes
 /// the recorded map's rewrite observable rather than an identity.
 fn four_legs(
@@ -133,13 +143,14 @@ fn four_legs(
     RecipeNodeId,
     RecipeNodeId,
     RecipeNodeId,
-    RecipeNodeId,
+    MateRef,
     RecipeNodeId,
 ) {
+    let o = legs_reach();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, _kept) = insert(doc, fixture::xy_frame());
     let (leg_ref, leg_body) = block_ref("fix-xs-leg");
-    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
+    let (doc, leg) = fixture::insert_pinned(doc, Node::instantiate_part(leg_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -150,19 +161,14 @@ fn four_legs(
     );
     let (top_ref, top_body) = block_ref("fix-xs-top");
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let doc = place_copies(doc, pattern, 4);
-    let doc = fixture::place(doc, top).0;
-    let (doc, mate) = step(
+    let doc = place_copies(doc, pattern, 4, &o);
+    let (doc, mate) = seat(
         doc,
-        DocEdit::InsertNode {
-            node: Box::new(seat(
-                in_copy(pattern, COPY, in_part(leg, leg_body, CapEnd::End)),
-                in_part(top, top_body, CapEnd::Start),
-            )),
-            fresh: Vec::new(),
-        },
+        top,
+        in_copy(pattern, COPY, in_part(leg, leg_body, CapEnd::End)),
+        in_part(top, top_body, CapEnd::Start),
     );
-    (doc, leg, pattern, top, mate.unwrap(), leg_body)
+    (doc, leg, pattern, top, mate, leg_body)
 }
 
 /// **`ids` and the world copies of what it moves**: each `Part` that
@@ -183,8 +189,14 @@ fn cut(doc: &ProfileDoc, ids: impl IntoIterator<Item = RecipeNodeId>) -> BTreeSe
 
 /// **Each of `pattern`'s `count` copies placed in the world**, in
 /// instance order: a `Part` per copy, each placed at the identity —
-/// the world a pattern's copies are in the product by.
-fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, count: i64) -> ProfileDoc {
+/// the world a pattern's copies are in the product by. `o` evaluates
+/// the copies each pin is read off.
+pub(crate) fn place_copies(
+    doc: ProfileDoc,
+    pattern: RecipeNodeId,
+    count: i64,
+    o: &EvalOptions,
+) -> ProfileDoc {
     (0..count).fold(doc, |doc, i| {
         let (doc, copy) = insert(
             doc,
@@ -193,8 +205,34 @@ fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, count: i64) -> ProfileDo
                 select: editor_core::PartSelect::Instance(Formula::count(i)),
             },
         );
-        fixture::place(doc, copy).0
+        fixture::insert_pinned(
+            doc,
+            Node::place(vec![editor_core::BodyRead::plain(copy)]),
+            o,
+        )
+        .0
     })
+}
+
+/// The world placement of `pattern`'s copy `i` ([`place_copies`]).
+fn copy_placement(doc: &ProfileDoc, pattern: RecipeNodeId, i: u32) -> RecipeNodeId {
+    let part = doc
+        .ids()
+        .into_iter()
+        .find(|&id| {
+            matches!(doc.node(id), Some(Node::Part { of, select: editor_core::PartSelect::Instance(n) })
+                if doc.operation_of(*of) == Some(pattern)
+                    && doc.written(&editor_core::Expr::var(*n, editor_core::Dimension::Count))
+                        == Formula::count(i64::from(i)))
+        })
+        .expect("the copy is selected");
+    doc.placements()
+        .into_iter()
+        .find(|&p| {
+            matches!(doc.node(p), Some(Node::Place { shapes, .. })
+                if shapes.iter().any(|s| doc.operation_of(s.read) == Some(part)))
+        })
+        .expect("the copy is placed")
 }
 
 fn crossings(
@@ -207,81 +245,110 @@ fn crossings(
     interface
 }
 
-/// INVARIANT: a pattern-placed mate end is a member end, so the mate
-/// welds the pattern's INPUT instance to the other
-/// member — which is what puts a pattern-headed mate under AQ8's
-/// unreachability with plain edges rather than beside it.
+/// INVARIANT: a pattern-placed constraint end is a member end, so the
+/// constraint reads the pattern's INPUT instance and the other member —
+/// which is what puts a pattern-headed constraint under AQ8's crossing
+/// gate with plain edges rather than beside it.
 #[test]
-fn a_pattern_headed_mate_is_an_edge_and_welds_the_pattern_input_instance() {
+fn a_pattern_headed_mate_is_an_edge_and_reads_the_pattern_input_instance() {
     let (doc, leg, _pattern, top, mate, _) = four_legs("fix-xs-edge");
     assert_eq!(
         crate::fixture::mate_members(&doc),
-        vec![(mate, leg), (mate, top)],
+        vec![(mate, top), (mate, leg)],
         "the pattern-placed head reads through the pattern's input instance"
-    );
-    assert_eq!(
-        editor_core::groups(&doc),
-        vec![vec![leg, top]],
-        "the mate welds both members into ONE placement group"
     );
 }
 
-/// INVARIANT (AQ8, for a PATTERN-HEADED edge — the row5_a argument,
-/// re-run on the member vocabulary): cutting either member of a
-/// pattern-headed mate alone refuses `TornGroup`, and the
-/// whole-group cut that IS accepted carries both ends, so its record
-/// is empty. No accepted cut severs a pattern-headed mate edge.
+/// INVARIANT (AQ8, for a PATTERN-HEADED edge): cutting the pattern
+/// side keeps the top's constraint, whose target reads a cut copy
+/// placed at the identity — one crossing, the top's face outside, the
+/// pattern copy's inside, in the part's names. Cutting the top alone
+/// takes its constraint with it, whose read of the kept pattern copy
+/// the cut severs. The whole cut carries both ends, so its record is
+/// empty.
+///
+/// *Breaks if* the crossing is dropped or minted from the wrong side,
+/// or a cut placement's read of a kept copy is carried in silence.
 #[test]
-fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
-    let (doc, leg, pattern, top, mate, _) = four_legs("fix-xs-torn");
+fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_its_placement() {
     let o = legs_reach();
+    let (doc, leg, pattern, top, mate, leg_body) = four_legs("fix-xs-torn");
+    let across = editor_core::split(
+        &doc,
+        &cut(&doc, [leg, pattern]),
+        DocumentId::derive("fix-xs-torn-part"),
+        Tol::witness(),
+        o.resolver.as_ref(),
+    )
+    .expect("a cut of the pattern side splits");
+    let record = crossings(&across.remainder, across.instance);
+    let [
+        editor_core::InterfaceCrossing::Mate {
+            class,
+            outer,
+            inner,
+        },
+    ] = record.crossings.as_slice()
+    else {
+        panic!("the kept constraint is one crossing: {record:?}");
+    };
+    let mate = fixture::constraint(&doc, mate);
+    let [top_side] = fixture::face_reads(&doc, mate.on)[..] else {
+        panic!("the seat reads the top's face");
+    };
+    assert_eq!(*class, ContactClass::Rest, "the crossing keeps its class");
+    assert_eq!(
+        *outer,
+        editor_core::head_of(&doc, top_side)
+            .expect("the top's side resolves")
+            .name,
+        "the outside reference is the kept top's face"
+    );
+    // The part's product spells the copy's face under the cut
+    // placement of that copy (`Placed`), in the part's ids.
+    let held = StableName {
+        kind: editor_core::EntityKind::Face,
+        node: across.node_map[&copy_placement(&doc, pattern, COPY)],
+        path: vec![RoleSeg::Placed {
+            of: editor_core::NameRef::new(in_copy(
+                across.node_map[&pattern],
+                COPY,
+                in_part(across.node_map[&leg], leg_body, CapEnd::End),
+            )),
+        }],
+    };
+    assert_eq!(
+        inner.clone().into_name(),
+        held,
+        "the inside reference is the pattern copy's face, in the part's names"
+    );
 
-    // The root is the group's document-order-first instance and the
-    // named instance is the first member on the far side of the tear,
-    // so BOTH payload fields are asserted: a refusal that named the
-    // wrong pair would still be a `TornGroup`, and the repair it
-    // tells the caller to make ("widen the cut to the whole group")
-    // is only actionable if the pair is right.
-    for (what, ids, root_is_cut) in [
-        ("the pattern side", cut(&doc, [leg, pattern]), true),
-        (
-            "the pattern side with its mate",
-            cut(&doc, [leg, pattern, mate]),
-            true,
-        ),
-        ("the other member", cut(&doc, [top]), false),
-        (
-            "the other member with the mate",
-            cut(&doc, [top, mate]),
-            false,
-        ),
-    ] {
-        let refused = editor_core::split(
-            &doc,
-            &ids,
-            DocumentId::derive("fix-xs-torn-part"),
-            Tol::witness(),
-            o.resolver.as_ref(),
-        )
-        .expect_err("a torn group refuses");
-        let editor_core::SplitError::TornGroup {
-            root,
-            instance,
-            root_is_cut: cut_side,
-        } = refused
-        else {
-            panic!("cutting {what} tears the group the mate welds: {refused:?}");
-        };
-        assert_eq!(
-            (root, instance, cut_side),
-            (doc.spoken(leg), doc.spoken(top), root_is_cut),
-            "cutting {what} names the root, the instance across the tear, \
-             and which side the root is on"
-        );
-    }
+    // The top alone: its constraint goes with it, and reads the kept
+    // pattern copy.
+    let severed = editor_core::split(
+        &doc,
+        &cut(&doc, [top]),
+        DocumentId::derive("fix-xs-torn-top-part"),
+        Tol::witness(),
+        o.resolver.as_ref(),
+    )
+    .expect_err("a cut placement's read of a kept copy is severed");
+    let editor_core::SplitError::SeveredEdge {
+        consumer,
+        consumer_is_cut,
+        ..
+    } = severed
+    else {
+        panic!("cutting the top alone severs its constraint's read: {severed:?}");
+    };
+    assert_eq!(
+        (consumer, consumer_is_cut),
+        (doc.spoken(top), true),
+        "the top is the cut-side consumer"
+    );
 
     // The pattern WITHOUT its input is a severed recipe edge, refused
-    // before the group rule is ever reached — D-2 closure, and the
+    // before any placement rule is reached — D-2 closure, and the
     // premise that keeps a pattern head's derivation nodes on the same
     // side as the member it resolves to.
     let severed = editor_core::split(
@@ -307,51 +374,58 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         "the pattern is the cut-side consumer and its instance input is the severed end"
     );
 
-    // The whole group: accepted, and nothing crosses.
+    // The whole cut: accepted, and nothing crosses.
     let out = editor_core::split(
         &doc,
-        &cut(&doc, [leg, pattern, top, mate]),
+        &cut(&doc, [leg, pattern, top]),
         DocumentId::derive("fix-xs-whole-part"),
         Tol::witness(),
         o.resolver.as_ref(),
     )
-    .expect("a whole-group cut splits");
+    .expect("a whole cut splits");
     assert!(
         crossings(&out.remainder, out.instance).is_empty(),
-        "both ends moved with the cut, so the mate says nothing about the seam"
+        "both ends moved with the cut, so the constraint says nothing about the seam"
     );
 }
 
 /// INVARIANT (A4's recorded map over an `Instance(i)` head): the map is
 /// a correspondence between NODE ID SPACES and nothing else. The moved
-/// mate's pattern-placed end has both its node ids rewritten — the
+/// constraint's pattern-placed end has both its node ids rewritten — the
 /// pattern head and the master under the qualifier — while the
 /// STRUCTURAL INDEX crosses unchanged, because the pattern's own rule
 /// moves verbatim and copy `i` denotes the same copy on both sides.
 #[test]
 fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
-    let (doc, leg, pattern, top, mate, leg_body) = four_legs("fix-xs-remap");
+    let (doc, leg, pattern, top, _, leg_body) = four_legs("fix-xs-remap");
     let o = legs_reach();
     let out = editor_core::split(
         &doc,
-        &cut(&doc, [leg, pattern, top, mate]),
+        &cut(&doc, [leg, pattern, top]),
         DocumentId::derive("fix-xs-remap-part"),
         Tol::witness(),
         o.resolver.as_ref(),
     )
-    .expect("a whole-group cut splits");
+    .expect("a whole cut splits");
 
-    let (new_leg, new_pattern, new_mate) = (
+    let (new_leg, new_pattern, new_top) = (
         out.node_map[&leg],
         out.node_map[&pattern],
-        out.node_map[&mate],
+        out.node_map[&top],
     );
     assert_ne!(new_pattern, pattern, "the part mints its own id space");
 
-    let Some(Node::Mate { a, .. }) = out.part.node(new_mate) else {
-        panic!("the mate moved into the part");
+    let moved: Vec<_> = fixture::bundle(&out.part, new_top)
+        .into_iter()
+        .filter_map(|c| c.mate().cloned())
+        .collect();
+    let [moved] = moved.as_slice() else {
+        panic!("the top's one mate moved into the part with it: {moved:?}");
     };
-    let a = crate::fixture::side_head(&out.part, *a);
+    let [a] = fixture::face_reads(&out.part, *moved.to.pose().expect("a pose target"))[..] else {
+        panic!("the seat's target reads a face");
+    };
+    let a = editor_core::head_of(&out.part, a).expect("the moved head resolves");
     assert_eq!(
         a,
         crate::fixture::head(in_copy(
@@ -368,9 +442,8 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
 }
 
 /// A head whose name qualifies FEWER copy levels than the walk meets
-/// is outside A11's member vocabulary, so the mate is not an edge,
-/// welds nothing, and its two ends DO reach opposite sides of an
-/// accepted cut.
+/// is outside A11's member vocabulary, so the constraint is not an
+/// edge, and its two ends reach opposite sides of an accepted cut.
 ///
 /// A nested COPY is a member: the walk consumes one `Instance(i)`
 /// qualifier per pattern level, and a name that wears one at each
@@ -381,17 +454,17 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
 ///
 /// INVARIANT (AQ8 option (b), SKIP — `crates/editor-core/ASSEMBLY.md`'s
 /// AQ8 clause):
-/// such a mate contributes NO crossing however its names fall, because
-/// it never solved and a record minted from it would be
-/// trusted-at-rest state. This is the
-/// row that separates a gate asking the member vocabulary from one
-/// matching a head's SPELLING: admitting `Node::Pattern` by shape mints
-/// a record here, for a mate the group graph never welded.
+/// such a constraint contributes NO crossing however its names fall,
+/// because it never solved and a record minted from it would be
+/// trusted-at-rest state. This is the row that separates a gate asking
+/// the member vocabulary from one matching a head's SPELLING: admitting
+/// `Node::Pattern` by shape mints a record here, for a constraint the
+/// member walk never resolved.
 #[test]
 fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing() {
+    let o = blocks_reach(&["fix-xs-n-leg"]);
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-nested"), Tol::witness());
-    let (leg_ref, leg_body) = block_ref("fix-xs-n-leg");
-    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
+    let (doc, leg, leg_body) = pinned_block(doc, "fix-xs-n-leg");
     let (doc, inner) = insert(
         doc,
         Node::Pattern {
@@ -410,109 +483,78 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
     );
     let (top_ref, top_body) = block_ref("fix-xs-n-top");
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let doc = place_copies(doc, outer, 2);
-    let doc = fixture::place(doc, top).0;
-    // The top sits on a gauge of its own, so once the cut side is read
-    // at the instance left behind — on the world — the mate still
-    // declares rather than starting to place (A4's refusal for that is
-    // `SplitError::WouldStartPlacing`).
-    let (doc, gauge) = insert(doc, Node::gauge(None, editor_core::Placement::IDENTITY));
-    let (doc, _) = crate::fixture::step(
+    let doc = place_copies(doc, outer, 2, &o);
+    // The constraint door is structural, so a target whose head
+    // resolves to no member is admitted as written.
+    let (doc, mate) = seat(
         doc,
-        editor_core::DocEdit::SetGauge {
-            node: top,
-            gauge: Some(gauge),
-        },
-    );
-    // The insert door refuses a head that resolves to no member, so
-    // the mate is authored the way such a head arises after insert
-    // (`insert_mate_with_stranded_head`).
-    let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
-        doc,
-        seat(
-            in_copy(outer, 1, in_part(leg, leg_body, CapEnd::End)),
-            in_part(top, top_body, CapEnd::Start),
-        ),
-        editor_core::MateSide::A,
         top,
-        top_body,
+        in_copy(outer, 1, in_part(leg, leg_body, CapEnd::End)),
+        in_part(top, top_body, CapEnd::Start),
     );
 
-    // No member at the nested head, so the two instances stay singleton
-    // groups.
+    // No member at the nested head: only the top's side resolves.
     assert_eq!(
-        editor_core::groups(&doc),
-        vec![vec![leg], vec![top]],
-        "an underqualified head welds nothing, which is what makes the cut below legal"
+        crate::fixture::mate_members(&doc),
+        vec![(mate, top)],
+        "an underqualified head resolves to no member"
     );
 
-    // And so the cut IS accepted, with the mate's ends on opposite
+    // The cut is accepted, with the constraint's ends on opposite
     // sides — the reachable seam a spelling-matched gate would mint on.
     let out = editor_core::split(
         &doc,
         &cut(&doc, [leg, inner, outer]),
         DocumentId::derive("fix-xs-nested-part"),
         Tol::witness(),
-        None,
+        o.resolver.as_ref(),
     )
-    .expect("nothing tears: the cut is a union of whole groups");
+    .expect("the cut is closed: the kept top reads the cut side");
     assert!(
         crossings(&out.remainder, out.instance).is_empty(),
-        "a mate that is not an edge says nothing about the seam (AQ8 SKIP)"
+        "a constraint that is not an edge says nothing about the seam (AQ8 SKIP)"
     );
 }
 
 /// INVARIANT: an operand that is a live `InstantiatePart` under a
-/// name derived from ANOTHER instance resolves to no member, and the
-/// edit door refuses the mate where it is authored, naming the
-/// operand as the node the walk stopped at.
+/// name derived from ANOTHER instance resolves to no member. The
+/// constraint door is structural and admits the mate as written; the
+/// member walk is what knows the reference resolves to nothing, so
+/// the target contributes no member.
 ///
 /// This is the shape that separates the vocabulary from a head's
 /// SPELLING in the direction the nested-pattern row cannot reach:
 /// there the head is a `Pattern`, so a gate matching
 /// `Node::InstantiatePart` skips it for the right answer by accident;
 /// here the head IS an `InstantiatePart` and only the walk knows the
-/// reference resolves to nothing. No EDIT produces this document any
-/// more — the insert door asks the walk, and the name-repair door
-/// moves a head read at its own mint WITH its name — so the seam
-/// meets it only through a loaded snapshot; what the row pins is that
-/// the door is the walk's verdict, not a head's kind.
+/// reference resolves to nothing.
+///
+/// *Breaks if* the walk admits a name another instance minted because
+/// the node it is read at is an instance.
 #[test]
-fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
+fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-stranded"), Tol::witness());
     let (doc, _datum) = insert(doc, fixture::xy_frame());
     // A live instance that consumes nothing: it neither places nor
     // projects `leg`, so no walk from it reaches `leg`.
-    let (stranger_ref, _) = block_ref("fix-xs-st-other");
-    let (doc, stranger) = insert(doc, Node::instantiate_part(stranger_ref));
-    let (leg_ref, leg_body) = block_ref("fix-xs-st-leg");
-    let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
+    let (doc, stranger, _) = pinned_block(doc, "fix-xs-st-other");
+    let (doc, leg, leg_body) = pinned_block(doc, "fix-xs-st-leg");
     let (top_ref, top_body) = block_ref("fix-xs-st-top");
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let mut node = seat(
-        in_part(leg, leg_body, CapEnd::End),
-        in_part(top, top_body, CapEnd::Start),
-    );
-    let Node::Mate { a, .. } = &mut node else {
-        panic!("a seat is a mate");
-    };
-    *a = crate::fixture::head_at(stranger, (*crate::fixture::authored_head(a).name).clone()).into();
-    let err = doc
-        .apply(
-            &DocEdit::InsertNode {
-                node: Box::new(node),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect_err("the a-side resolves to no member");
-    assert!(
-        matches!(
-            &err,
-            editor_core::EditError::MateRefused { fault, .. }
-                if matches!(**fault, editor_core::MateFault::DanglingHead { head, side: editor_core::MateSide::A, .. } if head == stranger)
+    // The leg's cap, read at the stranger's output.
+    let stranded = fixture::head_at(stranger, in_part(leg, leg_body, CapEnd::End));
+    let (doc, mate) = fixture::constrain_at(
+        doc,
+        top,
+        fixture::rest(
+            fixture::head(in_part(top, top_body, CapEnd::Start)),
+            stranded,
+            ContactClass::Rest,
         ),
-        "the walk stops at the operand it was read at: {err:?}"
+    );
+    assert_eq!(
+        crate::fixture::mate_members(&doc),
+        vec![(mate, top)],
+        "the stranded target resolves to no member; only the top's side does"
     );
 }

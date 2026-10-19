@@ -656,7 +656,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         Self {
             surface,
             grid: None,
-            nets: CellNets::over((surface.knots_u(), surface.knots_v())),
+            nets: CellNets::over((surface.knots_u_f64_interim(), surface.knots_v_f64_interim())),
             knots: OnceCell::new(),
             point_knots: OnceCell::new(),
         }
@@ -678,7 +678,10 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     fn cell_knots(&self) -> (&'a KnotVector, &'a KnotVector) {
         match self.grid {
             Some(g) => (&g.ku, &g.kv),
-            None => (self.surface.knots_u(), self.surface.knots_v()),
+            None => (
+                self.surface.knots_u_f64_interim(),
+                self.surface.knots_v_f64_interim(),
+            ),
         }
     }
 
@@ -714,8 +717,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// has no finite bound, `u` before `v`.
     pub(crate) fn chart_speeds(&self) -> Result<ChartSpeeds, SsiError> {
         let domain = UvWindow {
-            u: self.surface.knots_u().domain_range(),
-            v: self.surface.knots_v().domain_range(),
+            u: self.surface.knots_u_f64_interim().domain_range(),
+            v: self.surface.knots_v_f64_interim().domain_range(),
         };
         let speed = |axis: ChartAxis| {
             let m = self.speed_sup(domain, axis == ChartAxis::U);
@@ -765,8 +768,10 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// The window clamped to the knot domains.
     fn clamped(&self, w: UvWindow) -> UvWindow {
         UvWindow {
-            u: w.u.clamp_to(self.surface.knots_u().domain_range()),
-            v: w.v.clamp_to(self.surface.knots_v().domain_range()),
+            u: w.u
+                .clamp_to(self.surface.knots_u_f64_interim().domain_range()),
+            v: w.v
+                .clamp_to(self.surface.knots_v_f64_interim().domain_range()),
         }
     }
 
@@ -1086,7 +1091,7 @@ impl CellGrid {
         new_u: &[f64],
         new_v: &[f64],
     ) -> Option<Self> {
-        let (ku, kv) = (surface.knots_u(), surface.knots_v());
+        let (ku, kv) = (surface.knots_u_f64_interim(), surface.knots_v_f64_interim());
         let ref_u = RingRefinement::new(ku, new_u).ok()?;
         let ref_v = RingRefinement::new(kv, new_v).ok()?;
         let homogeneous: Vec<[Interval; 4]> = surface
@@ -1386,7 +1391,7 @@ const BLOCK_PIECE_SPLITS: usize = 2;
 
 /// A span's knot vector held as points.
 fn held(span: Span<'_>) -> Vec<Interval> {
-    span.knots()
+    span.knots_f64_interim()
         .knots()
         .iter()
         .map(|&k| Interval::point(k))
@@ -1398,7 +1403,7 @@ fn held(span: Span<'_>) -> Vec<Interval> {
 /// window covers the span whole or meets it in at most a point.
 fn inside(span: Span<'_>, w: ParamRange) -> Option<AxisCut> {
     let (lo, hi) = (w.start(), w.end());
-    let t = span.knots().knots();
+    let t = span.knots_f64_interim().knots();
     let (&ta, &tb) = t.get(span.index()).zip(t.get(span.index() + 1))?;
     let (a, b) = (lo.max(ta), hi.min(tb));
     (a < b && (a > ta || b < tb)).then_some(((ta, tb), (a, b)))
@@ -1603,7 +1608,7 @@ pub(super) mod tests {
     #[test]
     fn a_skipped_empty_span_cell_leaves_the_derivative_box_seeded() {
         let s = multiplicity_2_patch();
-        let ku = s.knots_u();
+        let ku = s.knots_u_f64_interim();
         // Anti-slack: the fixture must really present an empty cell, or
         // this row covers nothing.
         let empty: Vec<usize> = (ku.first_span()..=ku.last_span())
@@ -1762,10 +1767,37 @@ pub(super) mod tests {
     }
 
     /// Whether a rigid map moved a seated reading `a` to `b` by its
-    /// rounding width alone: a few hundred ulps of the coordinates'
-    /// `reach`, relative, times the window's `scale`.
-    fn within_rounding(a: f64, b: f64, reach: f64, scale: f64) -> bool {
-        (a - b).abs() <= 256.0 * f64::EPSILON * (1.0 + reach) * scale * a.abs().max(b.abs())
+    /// rounding width alone: some ulps of the coordinates' `reach`,
+    /// relative to the reading's `magnitude`, times the window's
+    /// `scale` — 256 for a speed or pad, 32 for a margin (its measured
+    /// worst, 9.44 at `CAD_FUZZ_EFFORT=64`, with about three times
+    /// over).
+    ///
+    /// The magnitude is what the reading's rounding is relative to. A
+    /// speed or pad rounds relative to itself
+    /// ([`Magnitude::Own`]). A transverse margin does not:
+    /// it is `mig(n·d_k) / stretch`, where each `d_k` is no longer than
+    /// the stretch, so every coefficient it reads, and the rounding of
+    /// each, sits at the stretch's scale, and the margin is that
+    /// rounding divided by the stretch. It rounds at magnitude `1`, the
+    /// most it can read, whatever small value it lands on
+    /// ([`Magnitude::Unit`]).
+    fn within_rounding(a: f64, b: f64, reach: f64, scale: f64, magnitude: Magnitude) -> bool {
+        let (ulps, m) = match magnitude {
+            Magnitude::Own => (256.0, a.abs().max(b.abs())),
+            Magnitude::Unit => (32.0, 1.0),
+        };
+        (a - b).abs() <= ulps * f64::EPSILON * (1.0 + reach) * scale * m
+    }
+
+    /// What a reading's rounding is relative to ([`within_rounding`]).
+    #[derive(Clone, Copy, Debug)]
+    enum Magnitude {
+        /// The reading itself: a speed, a pad.
+        Own,
+        /// One: a margin, a fraction of the stretch its coefficients
+        /// are no longer than.
+        Unit,
     }
 
     /// A rigid map of the rotation row's kind: a rotation by `angle`
@@ -1788,7 +1820,13 @@ pub(super) mod tests {
     /// only the rounding of the image's coordinates enters: a few hundred
     /// ulps of the coordinates' reach, relative, scaled up on a window by
     /// the cut's `1 / width` (a cut net's differences are divided by the
-    /// window's width, and its coordinates round at the reach). A norm
+    /// window's width, and its coordinates round at the reach). Relative
+    /// to what is [`within_rounding`]'s magnitude: a speed or pad to
+    /// itself, a margin to one, since a small margin is a cancellation
+    /// among coefficients at the stretch's scale (sampled over 4000 maps,
+    /// the worst margin moved 8.1 of these units at magnitude one and 257
+    /// at its own 0.0027; 9.44 at magnitude one is the worst measured, at
+    /// `CAD_FUZZ_EFFORT=64`). A norm
     /// read off a
     /// per-coordinate box would move by up to √3 instead (5.88 to 8.20
     /// over 32 maps of the 1.8 / 0.7 wall's `u` speed).
@@ -1833,17 +1871,17 @@ pub(super) mod tests {
                     .iter()
                     .zip(&image.speeds)
                     .chain(at.pads.iter().zip(&image.pads))
-                    .map(|(&a, &b)| (a, b, 1.0))
+                    .map(|(&a, &b)| (a, b, 1.0, Magnitude::Own))
                     .chain(
                         at.margins
                             .iter()
                             .zip(&image.margins)
                             .zip(window_scale)
-                            .map(|((&a, &b), k)| (a, b, k)),
+                            .map(|((&a, &b), k)| (a, b, k, Magnitude::Unit)),
                     );
-                for (a, b, scale) in pairs {
+                for (a, b, scale, magnitude) in pairs {
                     assert!(
-                        within_rounding(a, b, reach, scale),
+                        within_rounding(a, b, reach, scale, magnitude),
                         "{name}: a rigid map about {axis:?} through {pivot:?} by {angle} moved \
                          a chart reading {a} to {b}: seated {at:?}, mapped {image:?} — {}",
                         fuzz::replay()
@@ -1857,6 +1895,86 @@ pub(super) mod tests {
                     fuzz::replay()
                 );
             }
+        }
+    }
+
+    /// **The fuzzer's recorded maps, as fixed rows.** Four seeds of
+    /// [`a_rigidly_mapped_wall_reads_the_seated_chart_speeds_floors_and_tube`]
+    /// went red on the two-span patch's second-window margin, which sits
+    /// at 0.0027 of its stretch: each map moved it by about 4e-15, past
+    /// a few hundred ulps of 0.0027 and within a few dozen of one
+    /// (`work/ssiarith/rigid-map-chart-readings-fuzz-reds-past-its-rounding-bound.md`).
+    /// Each map, written down: every speed and pad stays within its
+    /// rounding at its own value, every margin within its rounding at
+    /// one, and every floor decides as seated.
+    #[test]
+    fn the_recorded_rigid_maps_move_a_small_margin_by_its_stretchs_rounding() {
+        // (seed, axis, pivot, angle), as each failure printed them.
+        let maps = [
+            (
+                "0x8371abdecebb95f9 (effort 8)",
+                Vec3::new(0.8892767327884497, -0.3111456490169011, 0.529547310454898),
+                Point3::new(-0.7856759962338078, 0.5412358116783427, 1.931254384335574),
+                3.30562505731778,
+            ),
+            (
+                "0x166d62361818555e",
+                Vec3::new(
+                    -0.9254990197806239,
+                    -0.1674496796624283,
+                    -0.38154305676260414,
+                ),
+                Point3::new(
+                    1.1971011302698784,
+                    -0.13768816972372022,
+                    -0.5807137925187895,
+                ),
+                0.5675790275065047,
+            ),
+            (
+                "0xdfa19917eaceb89e",
+                Vec3::new(0.2896241433614475, -0.1361927893414525, 0.6967084815427922),
+                Point3::new(0.40140272923285636, 0.4976481229205518, -0.6405201135113732),
+                3.6398997930903314,
+            ),
+            (
+                "0x1d0a3b646ab0444b",
+                Vec3::new(-0.15680770128407673, 0.9181613401775988, 0.3246244410860559),
+                Point3::new(0.4461639737775851, 0.612123104391344, -0.458107698741939),
+                2.91710539156148,
+            ),
+        ];
+        let wall = multiplicity_2_patch();
+        let n0 = Vec3::new(0.2, -0.5, 0.84).normalize();
+        let at = chart_readings(&wall, n0);
+        let window_scale = MARGIN_WINDOWS.map(|(u0, u1, v0, v1)| 1.0 / (u1 - u0).min(v1 - v0));
+        for (seed, axis, pivot, angle) in maps {
+            let (map, reach) = rigid_map(axis, pivot, angle);
+            let image = chart_readings(
+                &wall.map_points(|p| map.transform_point(p)),
+                map.linear * n0,
+            );
+            for (&a, &b) in at
+                .speeds
+                .iter()
+                .zip(&image.speeds)
+                .chain(at.pads.iter().zip(&image.pads))
+            {
+                assert!(
+                    within_rounding(a, b, reach, 1.0, Magnitude::Own),
+                    "{seed}: a speed or pad moved {a} to {b}"
+                );
+            }
+            for ((&a, &b), k) in at.margins.iter().zip(&image.margins).zip(window_scale) {
+                assert!(
+                    within_rounding(a, b, reach, k, Magnitude::Unit),
+                    "{seed}: a margin moved {a} to {b}"
+                );
+            }
+            assert_eq!(
+                image.floors, at.floors,
+                "{seed}: a floor decides differently"
+            );
         }
     }
 
@@ -1918,7 +2036,7 @@ pub(super) mod tests {
             let moved: Vec<bool> = seated
                 .iter()
                 .zip(&image)
-                .map(|(&a, &b)| !within_rounding(a, b, reach, 1.0))
+                .map(|(&a, &b)| !within_rounding(a, b, reach, 1.0, Magnitude::Own))
                 .collect();
             assert_eq!(
                 moved,
@@ -2088,7 +2206,7 @@ pub(super) mod tests {
         nets.push(("two-span patch", multiplicity_2_patch()));
         let n = 16;
         for (name, s) in &nets {
-            let (ku, kv) = (s.knots_u(), s.knots_v());
+            let (ku, kv) = (s.knots_u_f64_interim(), s.knots_v_f64_interim());
             for su in ku.first_span()..=ku.last_span() {
                 for sv in kv.first_span()..=kv.last_span() {
                     let Some(win) = s.window(su, sv) else {

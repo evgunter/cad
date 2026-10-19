@@ -326,7 +326,7 @@ fn sign_at<T: CertifiedBounds>(
 }
 
 /// Whether `φ` changes sign between the two ends of the line through
-/// `p` along `e`, cut to `rect` ([`slice`]). `Some(true)` puts a zero on
+/// `p` along `e`, cut to `rect` ([`slice`](fn@slice)). `Some(true)` puts a zero on
 /// the segment between them, which lies in `rect`. `Some(false)`: both
 /// ends are certified of one sign. `None`: an end has no certified
 /// sign, or the line misses the interior of `rect`.

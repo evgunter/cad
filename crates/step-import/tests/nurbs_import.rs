@@ -36,10 +36,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use geom_core::Point3;
+use profile::SketchPlane;
 
 use common::import_body;
+use geom_core::Point2;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
 use profile::test_support::bulge_loop;
 use step_import::{ImportOptions, import_step};
 use sweep::{Section, loft_body};
@@ -63,9 +65,9 @@ fn native_arc_loft() -> topo::Body<f64> {
     };
     let sections = vec![arc_section(1.0), arc_section(1.25), arc_section(1.0)];
     let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        SketchPlane::xy(),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0)),
+        SketchPlane::xy_at(Point3::new(0.0, 0.0, 2.0)),
     ];
     loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the uniformly-spaced arc loft builds natively")
@@ -424,7 +426,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
             //   two orders: two orders of one sum may round apart by at
             //   most one ulp per addition, so the volumes must agree to
             //   within `faces − 1` ulps of each other, and the pad (a sum
-            //   of non-negative pads in the same fold, outward) must still
+            //   of non-negative pads in the same fold, rounded up) must still
             //   agree bit for bit at this body's values. Measured: 0 ulps
             //   before NURBS #4553 moved the rational wall's flux bits,
             //   1 at ε = 1e-6 and 2 at 1e-9 after it, and 1 and 0 since
@@ -559,36 +561,29 @@ fn loft_prism_walls_get_distinct_surface_keys() {
     );
 }
 
-/// **The description state, re-pinned at M7-6** (stage-1 promotion),
-/// **re-expressed at PCURVE P-1b over the collapsed taxonomy**.
-///
-/// The three NUMBERS below are unchanged and so is every fact they
-/// state; what changed is that two of the class names they used to
-/// count no longer exist. U2 collapsed `IsoCurve` and `MappedCurve`
-/// into the one conventional form, so counting them would now read
-/// `(8, 0, 4)` — the same body, described the same way, with the
-/// row's whole discriminating power thrown away. **This row therefore
-/// counts the distinction that survived rather than the names that
-/// did not**: which CHART each image is drawn in.
+/// **The description state, by the distinction that matters**: which
+/// CHART each image is drawn in, and which PAIR each `Intersection` is
+/// certified against. Counting description classes alone would read
+/// `(4, 8)` and could not tell the three populations apart.
 ///
 /// - The four wall–wall seams are images in a **spline wall's** own
 ///   chart — each seam has at least one stays-NURBS wall beside it and
 ///   its carrier bitwise-matches that wall's boundary column (the
 ///   native at-rest preference, undisturbed by the neighbour's
 ///   promotion).
-/// - The four rims on the stays-NURBS walls are images in the **cap
-///   PLANE**, which is the analytic side of their own
-///   NURBS-plus-plane pair. Before the collapse these were the
-///   conventional `MappedCurve` rung (the Nurbs-adjacency exemption);
-///   they say the same thing about the same locus, in the chart the
-///   rim actually lies in.
+/// - The four rims on the stays-NURBS walls are cap-plane × spline-wall
+///   `Intersection`s: the plane × NURBS certificate takes their line
+///   carriers, and the ladder offers that rung first. They were images
+///   in the cap PLANE while that certificate took a spline carrier
+///   only, and the conventional rung took them.
 /// - The four rims on the PROMOTED walls are honest cap-plane ×
 ///   wall-plane `Intersection`s — a strictly stronger description
 ///   (certified against both surfaces) that promotion unlocked; the
 ///   ruling accepts the divergence and this row still enumerates it.
 ///
-/// So the split is 4 / 4 / 4 exactly as before, and a regression that
-/// merged the two chart populations would still be caught.
+/// So the split is 4 / 4 / 4 by the chart each seam is drawn in or
+/// the PAIR each rim is certified against, and a regression that
+/// merged two of the populations would still be caught.
 ///
 /// **The principle, because the alternative was available and worse.**
 /// Re-baselining this row to `(8, 0, 4)` would have kept its SHAPE and
@@ -602,7 +597,8 @@ fn loft_prism_descriptions_land_in_the_native_classes() {
     let (body, _) = import_body("loft_prism");
     let mut on_wall_chart = 0;
     let mut on_cap_plane = 0;
-    let mut intersection = 0;
+    let mut on_spline_wall = 0;
+    let mut on_promoted_wall = 0;
     for (_, edge) in body.edges() {
         match body.get_curve_geom(edge.curve) {
             Some(topo::CurveGeom::Certified(curve)) => match curve.description() {
@@ -611,17 +607,33 @@ fn loft_prism_descriptions_land_in_the_native_classes() {
                     Some(topo::Surface::Plane { .. }) => on_cap_plane += 1,
                     other => panic!("a chart image on neither wall nor cap: {other:?}"),
                 },
-                geom_brep::EdgeDescription::Intersection { .. } => intersection += 1,
+                geom_brep::EdgeDescription::Intersection { pair, .. } => {
+                    if pair
+                        .keys()
+                        .iter()
+                        .any(|k| matches!(body.get_surface(*k), Some(topo::Surface::Nurbs(_))))
+                    {
+                        on_spline_wall += 1;
+                    } else {
+                        on_promoted_wall += 1;
+                    }
+                }
                 other => panic!("unexpected description class on a loft edge: {other:?}"),
             },
             other => panic!("every imported edge is certified, got: {other:?}"),
         }
     }
     assert_eq!(
-        (on_wall_chart, on_cap_plane, intersection),
-        (4, 4, 4),
+        (
+            on_wall_chart,
+            on_cap_plane,
+            on_spline_wall,
+            on_promoted_wall
+        ),
+        (4, 0, 4, 4),
         "4 wall–wall seams as images in a spline wall's chart, 4 stays-NURBS-wall cap \
-         rims as images in the cap PLANE, 4 promoted-wall cap rims as Intersection"
+         rims as plane × spline Intersections, 4 promoted-wall cap rims as plane × plane \
+         Intersections"
     );
 }
 
@@ -661,7 +673,7 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
     let (wall, _) = body
         .surfaces()
         .find(|(_, s)| match s {
-            geom::Surface::Nurbs(n) => n.knots_u().domain() == (0.0, 3.0),
+            geom::Surface::Nurbs(n) => n.knots_u_f64_interim().domain() == (0.0, 3.0),
             _ => false,
         })
         .expect("the reparameterized wall survives the import");

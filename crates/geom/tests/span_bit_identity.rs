@@ -127,7 +127,7 @@ fn rows() -> Vec<(String, u64)> {
         ),
     ] {
         let c = curve(knots, degree, rational);
-        let k = c.knots().clone();
+        let k = c.knots_f64_interim().clone();
         let (lo, hi) = k.domain();
         for step in 0..5 {
             #[allow(clippy::cast_precision_loss)]
@@ -220,8 +220,8 @@ fn rows() -> Vec<(String, u64)> {
 
     // ---- surface ----
     let s = surface();
-    let (ulo, uhi) = s.knots_u().domain();
-    let (vlo, vhi) = s.knots_v().domain();
+    let (ulo, uhi) = s.knots_u_f64_interim().domain();
+    let (vlo, vhi) = s.knots_v_f64_interim().domain();
     for su in 0..3 {
         for sv in 0..3 {
             #[allow(clippy::cast_precision_loss)]

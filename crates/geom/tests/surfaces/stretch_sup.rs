@@ -34,8 +34,8 @@ fn surface(
 /// unsound with certainty.
 fn sampled_sup_floor(s: &NurbsSurface<f64>, n: usize) -> (f64, f64) {
     let si = s.map_scalar(<Interval as Real>::from_f64);
-    let (u0, u1) = s.knots_u().domain();
-    let (v0, v1) = s.knots_v().domain();
+    let (u0, u1) = s.knots_u_f64_interim().domain();
+    let (v0, v1) = s.knots_v_f64_interim().domain();
     let (mut fu, mut fv) = (0.0f64, 0.0f64);
     for i in 0..=n {
         for j in 0..=n {
@@ -73,7 +73,11 @@ fn recipe_a(s: &NurbsSurface<f64>) -> (f64, f64) {
     let least = w.iter().copied().fold(f64::INFINITY, f64::min);
     let at = |i: usize, j: usize| (ctl[i * nv + j] - c, w[i * nv + j]);
     let side = |along_u: bool| {
-        let kv = if along_u { s.knots_u() } else { s.knots_v() };
+        let kv = if along_u {
+            s.knots_u_f64_interim()
+        } else {
+            s.knots_v_f64_interim()
+        };
         let (p, t) = (kv.degree(), kv.knots());
         let (n_out, n_in) = if along_u { (nu, nv) } else { (nv, nu) };
         let (mut a, mut b) = (0.0f64, 0.0f64);

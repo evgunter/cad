@@ -45,8 +45,9 @@ impl FaceBoxes {
     /// # Errors
     ///
     /// The face that could not be boxed, with the box builder's own
-    /// [`BooleanError`]: a cylinder carrier whose axis has no decided
-    /// length. Boxed, because a [`BooleanError`] is large.
+    /// [`BooleanError`]: a cylinder carrier whose axis is no direction,
+    /// which tier 3 refuses at rest. Boxed, because a [`BooleanError`]
+    /// is large.
     pub fn of<T: Decide + Bounds>(
         body: &Body<T>,
         band: Band,

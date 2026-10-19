@@ -2,12 +2,13 @@
 id: two-verb-seats-do-not-compose
 kind: issue
 title: The kernel seat and the recipe seat expose the same verbs twice and do not compose - one verb vocabulary decided, call-minted anchors open
-status: deferred
+status: closed
 opened: 2026-08-31
 github: 1345
 refs: [757, 1372, 1388, 1224]
 priority: P1
 cost: D
+closed: 2026-10-17
 ---
 
 ## From GitHub issue 1345
@@ -227,3 +228,9 @@ dispatch estimate made by reading the row against the tree on
 2026-09-11, not a verdict on the finding, and a lane that finds it wrong
 says so in its PR. The id, the `track:` letter where the row carries
 one, and the body above are unchanged by the move.
+
+## Closed (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. Item 1 landed with SEAT (`topo/src/query.rs`, `crates/verbs`); `BooleanDeclarations` is deleted (INTENT stage 4 F); items 2 and 3 are already recorded as out of scope, with their trigger, in `crates/verbs/README.md` §5, so this row duplicated a ratified record.
+
+Signed (WIRE orchestrator).

@@ -1969,9 +1969,12 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // the door minted the joint itself, so "declare the
                     // coincidence" is advice about a declaration the caller
                     // never wrote, and the levers are the two the stored
-                    // form actually has. Three of these names —
-                    // `carrier_line_circle` and the two
-                    // `carrier_circles_*` — also carry a note at
+                    // form actually has. `carrier_circles_chord` is the
+                    // pair pass's, which the read does not run; it is
+                    // listed so that the near-tangency names render alike
+                    // here and there. Four of these names —
+                    // `carrier_line_circle` and every `carrier_circles_*`
+                    // but the identity — also carry a note at
                     // `ProfileError::Escalated`, and the two sentences
                     // differ on purpose: THERE the segment pair is the
                     // caller's own, so the declare lever is theirs and
@@ -1996,7 +1999,8 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                         | "carrier_line_circle"
                         | "carrier_circles_identity"
                         | "carrier_circles_external"
-                        | "carrier_circles_internal",
+                        | "carrier_circles_internal"
+                        | "carrier_circles_chord",
                     ) => source
                         .undecided(
                             "the fillet arc about to be stored",
@@ -3224,7 +3228,6 @@ fn map_fillet_err<T: Real>(refusal: TrimRefusal<T>, corner: Point2<T>, radius: T
             },
         ),
         TrimRefusal::Escalated(source) => PathError::Escalated { source },
-        TrimRefusal::Band(b) => PathError::Band(b),
     }
 }
 

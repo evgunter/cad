@@ -68,19 +68,17 @@ The restriction is two de Casteljau splits (`blossom::split_restrict`),
 Local, opt-level 1, `--test-threads 1`, sequential, medians of three
 interleaved runs on one box, both with #5059's sound midpoint:
 
-| row | pre-4954 | main `72ad4910` | step-2 cut (`d0497984`) | restriction cut (`9a256acd`) |
+| row | pre-4954 | main `72ad4910` | main `85caa597` (step-2 cut) | #5123 `b3d723f3` |
 |---|---|---|---|---|
-| `shelling_the_curved_loft_refuses_at_a_walls_fit` | 35.3 s | 237 s | 149 s | 123 s |
-| `r1_lane0_e2e::the_f64_seam_answers_every_public_door` | 12.6 s | 167 s | 49 s | 65 s |
+| `shelling_the_curved_loft_refuses_at_a_walls_fit` | 35.3 s | 237 s | 143 s | 97 s |
+| `r1_lane0_e2e::the_f64_seam_answers_every_public_door` | 12.6 s | 167 s | 49 s | 32 s |
 
-Either cut takes the walks well under this item's 8–15×, at 3.5–5.2× of
-pre-4954. The restriction cut is faster on shelling and slower on r1:
-on r1's walls it restricts the raised `(2p, 2q)` grids, which costs
-more than the step-2 cut's restriction of the `(p, q)` block plus its
-small products. Which cut lands is the designers' call (#5123's
-review). The rest of the gap is
-`the-slow-ssi-rows-stay-over-twice-their-pre-4954-time`. Rung counts
-and worst margins match on four parity rows. The restriction cut nests
-inside the whole cell's box (0–0.37% of meets outside, against 69–88%
-for the step-2 cut), and the meet stays. No cache is added (the fork
-admits one only if a measurement asks for it).
+The restriction is two de Casteljau splits, each step the thin convex
+step `x·(1 − t) + y·t` with equal neighbours kept exact
+(`blossom::split_restrict`). With `Certification::between` at every
+step, it ran 65 s on r1, slower than the step-2 cut's 49 s; the design
+fork's postscript round chose the thin step. Rung counts and worst
+margins match the step-2 cut on four parity rows. The cut stays inside
+the whole cell's box in 91–100% of meets, and the meet stays. No cache
+is added (the fork admits one only if a measurement asks for it). The
+rest of the gap is `the-slow-ssi-rows-stay-over-twice-their-pre-4954-time`.

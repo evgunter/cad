@@ -43,7 +43,7 @@ fn vol(body: &Body<f64>) -> f64 {
 fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
     let at = |th: f64| Point2::new(r * th.cos(), r * th.sin());
     let lp = bulge_loop(vec![(at(phi), 1.0), (at(phi + PI), 1.0)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -309,7 +309,7 @@ fn probe_involution_on_a_boolean_result_body() {
     );
     let v = vol(&holed);
     let original = format!("{holed:?}");
-    let rev = holed.revert();
+    let rev = holed.revert().unwrap();
     assert_eq!(vol(&rev).to_bits(), (-v).to_bits(), "volume bit-negated");
     assert_eq!(
         topo::validate_geometric(&rev, Tol::witness()),
@@ -318,7 +318,7 @@ fn probe_involution_on_a_boolean_result_body() {
         }])
     );
     assert_eq!(
-        format!("{:?}", rev.revert()),
+        format!("{:?}", rev.revert().unwrap()),
         original,
         "bitwise involution"
     );

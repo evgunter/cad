@@ -2,10 +2,11 @@
 id: refusal-menu-stamps-decided-coincident-on-an-in-band-coincidence
 kind: issue
 title: wire: refusal_menu stamps FlushRung::DecidedCoincident on every UndeclaredCoincidence, an in-band one included
-status: open
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: E
+closed: 2026-10-17
 ---
 
 
@@ -40,3 +41,9 @@ likely repair is for `UndeclaredCoincidence` to carry the
 `DecidedCoincident` finding on `Zero` only and names the in-band arm as
 what it is. That widens `UndeclaredCoincidence`'s payload across
 editor-core and pncad-py, which is why it is not in the topo unit.
+
+## Closed (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. `refusal_menu`, `UndeclaredCoincidence`, `NodeErrorKind::UndeclaredContact` and `FlushRung::DecidedCoincident` match nothing in `editor-core/src` or `topo/src`, retired by INTENT stage 4 E and F. The refusal it mis-stamped no longer exists.
+
+Signed (WIRE orchestrator).

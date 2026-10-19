@@ -84,62 +84,48 @@ fn faces_of(body: &Body<f64>, e: topo::EdgeKey) -> (FaceKey, FaceKey) {
     if a <= b { (a, b) } else { (b, a) }
 }
 
-/// Row 1: the tangent-tip edge (between two section faces) carries the
-/// FIRST-visited section face's chart — the keep rule pinned where
-/// keep and restate genuinely differ.
+/// Row 1: the tangent-tip edge would lie between two section faces on
+/// two coplanar records. Each half ends with maximal faces, so below's
+/// sections and the notch floor are one face and the tip edge is gone:
+/// no edge of below lies between two coplanar records.
 #[test]
-fn tip_edge_keeps_the_first_visits_section_chart() {
+fn a_coplanar_split_leaves_no_edge_between_two_coplanar_records() {
     let body = extruded(vec![notched(0.0)], 1.0);
     let body = sweep::test_support::finished("the body", body, Tol::witness());
     let result = topo::split(&body, &plane_y1(), Tol::witness()).expect("the coplanar split runs");
     let below = result.below.body().expect("below has material");
-    // The tip edge: the vertical at (4, 1, ·).
-    let tip = below
-        .edges()
-        .filter(|(_, e)| {
-            let at_tip = |he| {
-                let s = below.get_half_edge(he).unwrap().start;
-                let p = *below.get_point(below.get_vertex(s).unwrap().point).unwrap();
-                p.x == 4.0 && p.y == 1.0
-            };
-            at_tip(e.he_plus) && at_tip(e.he_minus)
-        })
-        .map(|(k, _)| k)
-        .collect::<Vec<_>>();
-    assert_eq!(tip.len(), 1, "one tip edge in below");
-    let (f_first, f_second) = faces_of(below, tip[0]);
     let surf = |f: FaceKey| below.get_face(f).unwrap().surface;
-    assert_ne!(
-        surf(f_first),
-        surf(f_second),
-        "the tip edge sits between two DISTINCT section charts"
-    );
-    let c = below
-        .get_curve_geom(below.get_edge(tip[0]).unwrap().curve)
-        .and_then(topo::CurveGeom::certified)
-        .expect("certified");
-    let geom_brep::EdgeDescription::Chart(ch) = c.description() else {
-        panic!(
-            "the tip edge is conventional after the restate: {:?}",
-            c.description()
-        );
-    };
-    // Section faces are visited in arena key order, the first visit
-    // restates, and the second KEEPS — so the chart is the lower
-    // key's. An always-restate arm would leave the higher key's chart
-    // here instead.
+    let coplanar_pairs = below
+        .edges()
+        .filter(|&(k, _)| {
+            let (fa, fb) = faces_of(below, k);
+            let plane_y1 = |f: FaceKey| {
+                matches!(below.get_surface(surf(f)), Some(geom::Surface::Plane { origin, normal, .. })
+                    if origin.y == 1.0 && normal.x == 0.0 && normal.z == 0.0)
+            };
+            plane_y1(fa) && plane_y1(fb)
+        })
+        .count();
     assert_eq!(
-        ch.surface,
-        surf(f_first),
-        "the kept chart is the first visit's, not the last's"
+        coplanar_pairs, 0,
+        "no edge of below lies between two y = 1 faces"
+    );
+    assert_eq!(
+        topo::validate_geometric(below, Tol::witness()),
+        Ok(()),
+        "below at tier 3"
     );
 }
 
 /// Row 2: a CONIC section-boundary edge — the boss-on-plate solid of
-/// revolution split at its own annulus plane — restates on its own
-/// circular carrier, bitwise.
+/// revolution split at its own annulus plane — would rest between the
+/// flush annulus and the section below. Each half ends with maximal
+/// faces, so the two are one face and the joint circle is gone there.
+/// The merged face's outer rim, the plate's circle at `r = 2`, is a
+/// kept boundary the merge re-describes: it keeps its carrier and
+/// interval bitwise.
 #[test]
-fn conic_section_boundary_restates_on_its_own_carrier() {
+fn a_split_at_an_annulus_plane_merges_it_keeping_its_rims_carrier_bits() {
     // Plate r=2 for y in [0,1], boss r=1 for y in [1,2], as one solid
     // of revolution about the y axis.
     let profile = ProfileLoop::polygon([
@@ -167,7 +153,7 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
     let body = sweep::test_support::finished("the body", body, Tol::witness());
     // The operand's circle carriers at the boss joint (r = 1, y = 1),
     // as bit-printed (carrier, interval) records.
-    let joint_circles = |b: &Body<f64>| -> Vec<String> {
+    let circles_at = |b: &Body<f64>, r: f64| -> Vec<String> {
         let mut v: Vec<String> = b
             .edges()
             .filter_map(|(_, e)| {
@@ -175,7 +161,7 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
                 let geom::Curve3::Circle { center, radius, .. } = *c.carrier() else {
                     return None;
                 };
-                (center.y == 1.0 && radius == 1.0).then(|| {
+                (center.y == 1.0 && radius == r).then(|| {
                     let (t0, t1) = c.params();
                     format!("{:?} [{:x},{:x}]", c.carrier(), t0.to_bits(), t1.to_bits())
                 })
@@ -184,7 +170,7 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
         v.sort();
         v
     };
-    let before = joint_circles(&body);
+    let before = circles_at(&body, 1.0);
     assert!(
         !before.is_empty(),
         "the operand has circle carriers at the boss joint"
@@ -201,43 +187,24 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
         Ok(()),
         "above at tier 3"
     );
-    // The joint circles surviving in below kept their carriers and
-    // intervals bitwise, and every one is conventionally described in
-    // an adjacent chart (the flush annulus/section pair).
-    let after = joint_circles(below);
+    // Below ends with maximal faces: the plate's annulus and the
+    // section disc inside it are one face, so no joint circle survives
+    // there to rest between two coplanar records.
     assert!(
-        !after.is_empty(),
-        "the joint circle lands on below's section boundary"
+        circles_at(below, 1.0).is_empty(),
+        "below's annulus and section disc merge across the joint circle"
     );
-    for rec in &after {
+    let (rim_before, rim_after) = (circles_at(&body, 2.0), circles_at(below, 2.0));
+    assert!(
+        !rim_after.is_empty(),
+        "the plate's rim bounds below's merged top"
+    );
+    for rec in &rim_after {
         assert!(
-            before.contains(rec),
-            "a joint circle's carrier or interval moved across the restatement:\n\
+            rim_before.contains(rec),
+            "the merge's re-description moved the rim's carrier or interval:\n\
              after:  {rec}\n\
-             before: {before:?}"
-        );
-    }
-    for (k, e) in below.edges() {
-        let Some(c) = below
-            .get_curve_geom(e.curve)
-            .and_then(topo::CurveGeom::certified)
-        else {
-            continue;
-        };
-        let geom::Curve3::Circle { center, radius, .. } = *c.carrier() else {
-            continue;
-        };
-        if !(center.y == 1.0 && radius == 1.0) {
-            continue;
-        }
-        let geom_brep::EdgeDescription::Chart(ch) = c.description() else {
-            panic!("joint circle {k:?} is conventional after the restate");
-        };
-        let (fa, fb) = faces_of(below, k);
-        let surf = |f: FaceKey| below.get_face(f).unwrap().surface;
-        assert!(
-            ch.surface == surf(fa) || ch.surface == surf(fb),
-            "joint circle {k:?}'s chart names an adjacent surface"
+             before: {rim_before:?}"
         );
     }
 }

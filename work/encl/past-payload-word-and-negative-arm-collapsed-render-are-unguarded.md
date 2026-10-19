@@ -20,3 +20,7 @@ Two outputs on the sized-ending path go unguarded:
 ## Ask
 
 Pin or justify Past's word, and add the negative ArmCollapsed row to the concision chains.
+
+## Progress (PR 5349)
+
+The negative `ArmCollapsed` row is in `refusal_concision_chains::every_certify_refusal_ends_in_its_routed_sentence` ("negative lever arm"). `Shows::Past`'s payload word is still unpinned.

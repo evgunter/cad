@@ -151,11 +151,12 @@ clause in `crates/geom-brep/README.md`.
 **Held: `Curve3` has no quartic kind** — `geom/src/curves.rs:Curve3`
 is `Line | Circle | Ellipse | Nurbs`.
 
-**Held, sharper: the pinch family needs no carrier.** Its section is
+**Held, sharper: the node family needs no carrier.** Its section is
 two exact `Ellipse`s (`intersect.rs:EqualCylinderSection::TwoEllipses`);
-the refusal is a frame/topology statement,
-`BooleanError::GermFrameCylinderPinch` (`topo/src/boolean/mod.rs`,
-raised in `boolean/join.rs` from `FrameError::CylinderNodes`).
+what it needs is topology: each node inside a face of both operands is
+minted as a ring in both walls (`topo/src/boolean/node.rs`,
+`vtxfac::mint_node`), and a node the placement cannot certify refuses
+typed, `BooleanError::NodeUnbuilt` (`topo/src/boolean/mod.rs`).
 
 **Refuted: RIMCAP's "same family as #1377".** §6, by §3.4's algebra.
 
@@ -405,7 +406,9 @@ with intersecting axes — two bisector-plane `Ellipse`s crossing at
 measured inventory is topology throughout: a four-fragment vertex
 factory, chord pairing at a branch point, loop walking through it,
 tier-3 valence, the second-order sector verdict at the tangency.
-Interim state: `GermFrameCylinderPinch`.
+Built (PR 5020's design): the node is a ring in each wall with its
+sides fixed by construction, and the join cuts each wall by the
+bisector plane of the germ's branch.
 
 **What SEAT's channel gives it**: nothing.
 `cylinder_cylinder_section` decides the radii equal by their margin

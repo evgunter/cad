@@ -1298,8 +1298,8 @@ impl PickIndex {
         let visible = |part: &&NodePick| !display.hidden_placements.contains(&part.node());
         // The unmoved parts, one batch per space: the kernel orders
         // faces within one space only (A9, A11 (2)), and each space is
-        // drawn where the display puts it — today an unplaced group's
-        // own space at the world's origin — so the merge below orders
+        // drawn where the display puts it — today a loose copy's own
+        // space at the world's origin — so the merge below orders
         // the batches as drawn, which is display, not logic.
         let mut unmoved: BTreeMap<Option<RecipeNodeId>, Vec<PickTarget<'_>>> = BTreeMap::new();
         for part in self
@@ -1308,7 +1308,7 @@ impl PickIndex {
             .filter(visible)
             .filter(|part| !display.moved_placements.contains_key(&part.node()))
         {
-            let space = eval.unplaced.get(&part.node()).map(|(group, _)| *group);
+            let space = eval.space(part.node()).loose();
             unmoved.entry(space).or_default().push(part.target());
         }
         // Every group's whole answer, in group order: the unmoved
@@ -1629,7 +1629,7 @@ impl PickIndex {
     /// TIE where the kernel refuses to name one of them.
     ///
     /// The door the GPU id buffer's cross-check reads
-    /// (`crate::idpass::disagreement`): that comparison's subject is the
+    /// (`crate::idpass::compare`): that comparison's subject is the
     /// PATCH under the cursor, because a patch id is the only thing an
     /// id buffer can answer, so the ray side has to answer the same
     /// question. The hover cannot stand in for it — once the priority

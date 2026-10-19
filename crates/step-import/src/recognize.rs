@@ -170,8 +170,8 @@ pub(crate) fn recognize(patch: &NurbsSurface<f64>, eps_in: f64) -> Recognition {
 /// aligned to, so the face's `same_sense` keeps its meaning across
 /// the promotion.
 fn chart_normal_mid(patch: &NurbsSurface<f64>) -> Vec3<f64> {
-    let (u0, u1) = patch.knots_u().domain();
-    let (v0, v1) = patch.knots_v().domain();
+    let (u0, u1) = patch.knots_u_f64_interim().domain();
+    let (v0, v1) = patch.knots_v_f64_interim().domain();
     let jet = patch.ders((u0 + u1) / 2.0, (v0 + v1) / 2.0);
     jet.du.cross(jet.dv)
 }
@@ -280,8 +280,8 @@ fn try_cylinder(
     // Three fixed samples of the v-start boundary at u-fractions
     // 0, 3/8, 6/8 of the domain — distinct azimuths even on a
     // full-period patch (where u-start and u-end coincide).
-    let (u0, u1) = patch.knots_u().domain();
-    let (v0, _) = patch.knots_v().domain();
+    let (u0, u1) = patch.knots_u_f64_interim().domain();
+    let (v0, _) = patch.knots_v_f64_interim().domain();
     let sample = |f: f64| patch.eval(u0 + (u1 - u0) * f, v0);
     let p0 = sample(0.0);
     let pa = sample(3.0 / 8.0);
@@ -385,8 +385,8 @@ fn enveloped_residual_sup(
         return f64::NAN;
     }
     let k = geom_brep::CERT_SAMPLES;
-    let ku = patch.knots_u();
-    let kv = patch.knots_v();
+    let ku = patch.knots_u_f64_interim();
+    let kv = patch.knots_v_f64_interim();
     let mut worst = 0.0f64;
     for su in ku.first_span()..=ku.last_span() {
         let (ua, ub) = (ku.knots()[su], ku.knots()[su + 1]);
@@ -427,8 +427,8 @@ fn enveloped_residual_sup(
 /// gradient (plane: the stored normal; cylinder: radially outward),
 /// which equals the chart normal for both promoted kinds.
 pub(crate) fn chart_flipped(patch: &NurbsSurface<f64>, promoted: &Surface<f64>) -> bool {
-    let (u0, u1) = patch.knots_u().domain();
-    let (v0, v1) = patch.knots_v().domain();
+    let (u0, u1) = patch.knots_u_f64_interim().domain();
+    let (v0, v1) = patch.knots_v_f64_interim().domain();
     let jet = patch.ders((u0 + u1) / 2.0, (v0 + v1) / 2.0);
     let nurbs_normal = jet.du.cross(jet.dv);
     let grad = geom_brep::implicit_gradient(promoted, jet.point);

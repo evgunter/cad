@@ -66,3 +66,35 @@ Rows to update when it lands:
 ## Re-homed from FLUX to FLUXTAIL (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. FLUXTAIL collects the curved arms' numeric honesty rows: rim levels, chord lengths, span folds and bounds that cancel, drop a refusal or depend on the frame, under FLUX's closed forms. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## A public-door witness: a split plane stated through a far point (2026-10-15)
+
+(cleave/rigid-turn-sliver-volume, found by that branch's sweep) The lever
+needs no hand re-anchoring: `topo::splitting::split` stores the plane
+through the point its caller states, so the section faces of an ordinary
+split carry it. A unit box (and the unit cylinder) cut by
+`x = 0.3 + 0.1·z`, stated through a point `far` metres along the plane,
+then turned rigidly (1.3 about (1, 2, 3) through (0.3, −0.2, 0.5)),
+measured by `mass_properties` at ε = 1e-9 with the conic-arc fix of that
+branch in place (exact: 0.65 above, 0.35 below):
+
+| body, far | above | below | pad |
+|---|---|---|---|
+| box, 1e2, turned | 0.6500000000004797 | 0.3499999999995202 | 0 |
+| box, 1e4, at rest | 0.6500009313 | 0.3499990687 | 0 |
+| box, 1e4, turned | 0.6499971383 | 0.3500028617 | 0 |
+| box, 1e6, turned | **+7.0102** | **−6.0102** | 0 |
+| cylinder, 1e6, turned | **−2.1586** | +5.3002 | 4.2e-9 |
+
+`Ok`, pad 0, wrong sign, through public operations. Every live wrong
+answer here needs a stated point 1e4 m or more along the plane, outside
+D4 ¶4's 1 km session box (at 1e2 m the box reads to 5e-13), so it does
+not by itself lift this row out of P3; the owner prices it. The two halves still sum to the whole (each face's error is
+equal and opposite on its twin), so a check on the sum does not see it.
+The cure above, applied at `topo::props::closed_form_of` as
+`planar_face(first loop point, loops)` and measured on that branch but
+not landed there, reads the same rows to 2.6e-14 (box, 1e4, turned),
+2.2e-12 (box, 1e6, turned), and the cylinder at 1e6 turned agrees with
+its reading through a point of the body to 5e-12. It was left out
+because it moves the premises of `tier3_tests::far_anchored_slab`'s rows,
+which need a new witness of a sum whose rounding exceeds the volume.

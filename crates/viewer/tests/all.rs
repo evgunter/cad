@@ -106,8 +106,6 @@ mod focus_highlight;
 mod frame_labels;
 #[path = "frame_policy.rs"]
 mod frame_policy;
-#[path = "gauge_door_and_badge.rs"]
-mod gauge_door_and_badge;
 #[path = "gesture_table.rs"]
 mod gesture_table;
 #[path = "gui_variables.rs"]
@@ -120,13 +118,13 @@ mod input_mapping;
 mod instance_authoring;
 #[path = "landing_gathers.rs"]
 mod landing_gathers;
+#[path = "mate_door_and_badge.rs"]
+mod mate_door_and_badge;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
 
 #[path = "msolve3_placer_refused.rs"]
 mod msolve3_placer_refused;
-#[path = "msolve4_blame_rows.rs"]
-mod msolve4_blame_rows;
 #[path = "msolve5_unplaced_read_badge.rs"]
 mod msolve5_unplaced_read_badge;
 #[path = "node_labels.rs"]

@@ -39,7 +39,7 @@ pub(crate) const ON_MEMBER_EDGE: &str = "name_frag_on_member_edge";
 
 /// The on-seam-line predicate's name (`emit_union::rank_along_seam`):
 /// whether a union seam's pieces, and the crossings of it a vertex group
-/// holds, lie on one straight line.
+/// holds, lie on one line or one open stretch of a curved carrier.
 ///
 /// **In the [`FAMILY`]**: its verdicts decide whether the group is
 /// ranked along that line or tied, so they enter the names.

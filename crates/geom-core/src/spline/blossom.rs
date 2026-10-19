@@ -261,6 +261,24 @@ fn convex(t: Interval) -> (Interval, Interval) {
     (t, Interval::point(1.0) - t)
 }
 
+/// The thin convex step `x·(1 − t) + y·t` at the weights `(t, 1 − t)`
+/// ([`convex`]), and `x` itself where `y` is the same enclosure: a run
+/// of equal coefficients (a flat wall's constant derivative) stays
+/// exactly what it was, as [`Certification::between`] keeps it, where
+/// the plain step would widen it by `t`'s own width at every level.
+/// Sound: a convex combination of two values in one interval is in it.
+/// The same enclosure means the same ends AND the same decoration
+/// ([`Interval::same_enclosure`]): a certified `x` beside a refused `y`
+/// with its ends, or a `Com` one beside a `Def` one, takes the general
+/// step, which carries the weaker, rather than coming back as `x`.
+fn step(x: Interval, y: Interval, (t, s): (Interval, Interval)) -> Interval {
+    if x.same_enclosure(y) {
+        x
+    } else {
+        x * s + y * t
+    }
+}
+
 /// The Bernstein row on `[a, b]` of the segment whose row on `[s0, s1]`
 /// is `row`, by two de Casteljau splits: at `(a − s0)/(s1 − s0)`,
 /// keeping the right part (the row on `[a, s1]`), then at
@@ -295,7 +313,7 @@ pub(crate) fn split_restrict(
         let (t, s) = convex(ratio(a, s0));
         for r in 1..=p {
             for k in 0..=p - r {
-                d[k] = d[k] * s + d[k + 1] * t;
+                d[k] = step(d[k], d[k + 1], (t, s));
             }
         }
     }
@@ -305,7 +323,7 @@ pub(crate) fn split_restrict(
         let (t, s) = convex(ratio(b, a));
         for r in 1..=p {
             for k in (r..=p).rev() {
-                d[k] = d[k - 1] * s + d[k] * t;
+                d[k] = step(d[k - 1], d[k], (t, s));
             }
         }
     }
@@ -329,7 +347,11 @@ fn admit(u: Interval, index: usize, (lo, hi): (f64, f64)) -> Result<Interval, Bl
 /// The span's closure and its level ratio: at level `r`, entry `j` of
 /// the window combines at `(u − U_i)/(U_{i+p+1−r} − U_i)`, `i = s − p + j`.
 fn span_ratio(span: Span<'_>) -> ((f64, f64), impl Fn(usize, usize, Interval) -> Interval) {
-    let (p, s, t) = (span.degree(), span.index(), span.knots().knots());
+    let (p, s, t) = (
+        span.degree(),
+        span.index(),
+        span.knots_f64_interim().knots(),
+    );
     // Indexing justified: `p ≤ s ≤ last_span() = len − p − 2`.
     ((t[s], t[s + 1]), slice_ratio(t, p, s))
 }
@@ -530,7 +552,7 @@ mod tests {
             );
             let span = win.span();
             let diagonal = diagonal_in_span(
-                span.knots().knots(),
+                span.knots_f64_interim().knots(),
                 p,
                 span.first_control(),
                 win.coeffs(),
@@ -803,6 +825,96 @@ mod tests {
                      misses the exact value; {}",
                     test_utils::fuzz::replay()
                 );
+            }
+        }
+    }
+
+    /// **Equal neighbours step to themselves exactly.** A constant row
+    /// of a drawn non-dyadic value, cut at drawn non-dyadic ends of a
+    /// non-dyadic segment, comes back the same value bit for bit, where
+    /// the plain thin step `x·(1 − t) + y·t` would widen it by the
+    /// ratio's own width at every level. Red with the `x == y` arm of
+    /// `step` removed.
+    #[test]
+    fn a_constant_row_is_cut_to_itself_exactly() {
+        let mut rng = test_utils::fuzz::start("split-restrict-constant");
+        for _ in 0..test_utils::fuzz::scaled(200) {
+            let p = 1 + rng.below(8);
+            let c = Interval::point(rng.range(-3.0, 3.0));
+            let s0 = rng.range(-2.0, 1.0);
+            let s1 = s0 + rng.range(0.1, 3.0);
+            let (x, y) = (rng.range(s0, s1), rng.range(s0, s1));
+            let (a, b) = (x.min(y), x.max(y));
+            for got in split_restrict(&vec![c; p + 1], (s0, s1), (a, b)) {
+                assert!(
+                    got.lo().to_bits() == c.lo().to_bits()
+                        && got.hi().to_bits() == c.hi().to_bits(),
+                    "degree {p} on [{s0}, {s1}] cut to [{a}, {b}]: {got:?} is not {c:?}"
+                );
+            }
+        }
+    }
+
+    /// **A refused neighbour is not laundered by the equal arm.** A
+    /// certified `[0, 2]` beside `sqrt([-1, 4])` — the same ends, refused
+    /// (the domain clamp records `Trv`) — cut strictly inside, where
+    /// every coefficient of the cut reads both, comes back refused in
+    /// either order, as [`Certification::between`] refuses
+    /// it; the pair of certified `[0, 2]`s stays certified. Red with the
+    /// equal arm comparing ends alone: the row `[certified, refused]`
+    /// came back certified.
+    #[test]
+    fn a_refused_neighbour_with_the_same_ends_stays_refused() {
+        let ok = Interval::from_bounds(0.0, 2.0);
+        let refused = Interval::from_bounds(-1.0, 4.0).sqrt();
+        assert!(ok.is_certified() && !refused.is_certified());
+        assert!(
+            ok.lo().to_bits() == refused.lo().to_bits()
+                && ok.hi().to_bits() == refused.hi().to_bits(),
+            "the probe needs the same ends: {ok:?} {refused:?}"
+        );
+        for cut in [(0.25, 0.5), (0.5, 0.75), (0.125, 0.875), (0.375, 0.375)] {
+            for row in [[ok, refused], [refused, ok]] {
+                let got = split_restrict(&row, (0.0, 1.0), cut);
+                assert!(
+                    got.iter().all(|c| !c.is_certified()),
+                    "{row:?} cut to {cut:?} came back {got:?}"
+                );
+            }
+            let got = split_restrict(&[ok, ok], (0.0, 1.0), cut);
+            assert!(got.iter().all(|c| c.is_certified()), "{got:?}");
+        }
+    }
+
+    /// **A weaker certified neighbour is not upgraded by the equal arm.**
+    /// A `Com` `[2, 3]` beside `floor([2.5, 3.5])` — the same ends, `Def`
+    /// (the hull across a step) — cut strictly inside comes back at `Def`
+    /// or below in either order, the level the general step carries; two
+    /// `Def` ones stay `Def`, and two `Com` ones `Com`. Red with the equal
+    /// arm comparing ends and `is_certified()` alone: the row
+    /// `[Com, Def]` came back `Com`.
+    #[test]
+    fn a_weaker_neighbour_with_the_same_ends_is_not_upgraded() {
+        use crate::real::Real;
+        use interval_transcendentals::Decoration;
+        let com = Interval::from_bounds(2.0, 3.0);
+        let def = Interval::from_bounds(2.5, 3.5).floor();
+        assert!(com.decoration() == Decoration::Com && def.decoration() == Decoration::Def);
+        assert!(
+            com.lo().to_bits() == def.lo().to_bits() && com.hi().to_bits() == def.hi().to_bits(),
+            "the probe needs the same ends: {com:?} {def:?}"
+        );
+        for cut in [(0.25, 0.5), (0.5, 0.75), (0.125, 0.875), (0.375, 0.375)] {
+            for row in [[com, def], [def, com]] {
+                let got = split_restrict(&row, (0.0, 1.0), cut);
+                assert!(
+                    got.iter().all(|c| c.decoration() <= Decoration::Def),
+                    "{row:?} cut to {cut:?} came back {got:?}"
+                );
+            }
+            for (x, level) in [(com, Decoration::Com), (def, Decoration::Def)] {
+                let got = split_restrict(&[x, x], (0.0, 1.0), cut);
+                assert!(got.iter().all(|c| c.decoration() == level), "{got:?}");
             }
         }
     }

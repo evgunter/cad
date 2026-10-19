@@ -10,7 +10,6 @@ tag: (NURBS orchestrator)
 ab_band: 9300-9399
 paths: [crates/geom-core/src/spline/*]
 keep_out: [opened by PROPS's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - PROPS measured 108.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are PROPS NURBS LINALG VERDICT and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, ENCL and STACK hold the certified-enclosure half, QUAD owns props/quad.rs, SSI and PCERT own the geom-brep certification lanes, PORT took the four refusal rows whose class is the crate boundary]
-priority: P1
 ---
 The spline layer's own doors, split from the property arms that consume
 them. Its two live rows are arithmetic: `refine_dir`'s exact-equality

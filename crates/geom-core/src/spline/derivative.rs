@@ -377,12 +377,14 @@ impl<T: Real, const D: usize> Vector<T, D> {
         }
     }
 
-    /// The vector times the exact power of two `k`, skipped at one.
+    /// The vector times the exact power of two `k`, skipped at one,
+    /// through [`Real::scale_pow2`]: at the interval scalar an exponent
+    /// shift, not a general product against a point.
     fn scaled(self, k: f64) -> Self {
         if k == 1.0 {
             self
         } else {
-            self * T::from_f64(k)
+            Self(self.0.map(|x| x.scale_pow2(k)))
         }
     }
 
@@ -947,7 +949,7 @@ pub fn speed_pieces<T: Real, const D: usize>(
 ) -> Option<Vec<QuotientPiece<T, D>>> {
     let kv = knots.structure();
     let mut out = Vec::new();
-    for span in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
+    for span in (kv.first_span()..=kv.last_span()).filter_map(|i| knots.span(i).map(|s| s.span())) {
         let (axis, p, pts) = span_window(knots, span, points)?;
         let raised = match weights {
             None => {
@@ -1115,7 +1117,7 @@ pub fn accel_pieces<T: Real, const D: usize>(
 ) -> Option<Vec<QuotientPiece<T, D>>> {
     let kv = knots.structure();
     let mut out = Vec::new();
-    for span in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
+    for span in (kv.first_span()..=kv.last_span()).filter_map(|i| knots.span(i).map(|s| s.span())) {
         let (axis, p, pts) = span_window(knots, span, points)?;
         let h = HomogeneousSpan::of(&axis, &pts, weights.get(span.window())?)?;
         let second = if p >= 2 {
@@ -1577,8 +1579,10 @@ pub fn stretch_pieces<T: Real>(
     let (ku, kv) = (knots_u.structure(), knots_v.structure());
     let nv = kv.control_count();
     let mut out = Vec::new();
-    for su in (ku.first_span()..=ku.last_span()).filter_map(|i| ku.span(i)) {
-        for sv in (kv.first_span()..=kv.last_span()).filter_map(|i| kv.span(i)) {
+    for su in (ku.first_span()..=ku.last_span()).filter_map(|i| knots_u.span(i).map(|s| s.span())) {
+        for sv in
+            (kv.first_span()..=kv.last_span()).filter_map(|i| knots_v.span(i).map(|s| s.span()))
+        {
             let mut block = Vec::with_capacity((su.degree() + 1) * (sv.degree() + 1));
             for iu in su.window() {
                 for iv in sv.window() {
@@ -1689,6 +1693,34 @@ mod tests {
                     "case {case}: degree {deg:?}, along_u {along_u} — {}",
                     test_utils::fuzz::replay()
                 );
+            }
+        }
+    }
+
+    /// **The halving's scale is the exact power-of-two door.** A line
+    /// whose outputs land between the smallest normal and the interval
+    /// backend's 2Prod floor (`2^-960`) halves EXACTLY through
+    /// [`Real::scale_pow2`] — each output the sum times `2⁻ʳ`, unpadded
+    /// — where a general product against the point `2⁻ʳ` would pad every
+    /// one a step outward. So a scale that went back to the general
+    /// product reds here; nothing else does, since above the floor the
+    /// two agree to the bit.
+    #[test]
+    fn the_halving_scales_through_the_exact_door() {
+        let tiny = f64::MIN_POSITIVE * 1024.0;
+        let row: Vec<super::Vector<Interval, 1>> = [3.0, 5.0, 7.0]
+            .iter()
+            .map(|&c| super::Vector([Interval::from_f64(c * tiny)]))
+            .collect();
+        let g = super::Grid::new(1, row).expect("a curve row");
+        let (lo, hi) = g.halved(true).expect("halves");
+        // The lower half's Bernstein row of [3, 5, 7]·tiny is
+        // [3, 4, 5]·tiny, the upper's [5, 6, 7]·tiny: sums scaled by
+        // 1, 1/2 and 1/4, every one exact.
+        for (half, want) in [(&lo, [3.0, 4.0, 5.0]), (&hi, [5.0, 6.0, 7.0])] {
+            for (got, w) in half.c.iter().zip(want) {
+                let x = got.0[0];
+                assert_eq!((x.lo(), x.hi()), (w * tiny, w * tiny), "{w}·tiny");
             }
         }
     }
@@ -1823,6 +1855,55 @@ mod tests {
             before,
             "a cut formed a product"
         );
+    }
+
+    /// **A flat block's cut keeps its exact derivative.** The bilinear
+    /// plane `(x, y, z) = (u, v, 0.3·u − 0.7·v)` with unit weights over
+    /// a cell has constant `N_u` and `N_v` and `W² = 1`: its whole-cell
+    /// quotient pieces read them exactly (zero-width), and so does every
+    /// cut at non-dyadic ends, so a zero-width whole box stays zero-width
+    /// under the cut. Red with `split_restrict`'s equal-neighbour arm
+    /// removed (the thin step widens constant rows by the ratio's width).
+    #[test]
+    fn a_flat_blocks_cut_keeps_its_exact_derivative() {
+        let a: Vec<[Interval; 3]> = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+            .iter()
+            .map(|&(u, v)| [u, v, 0.3 * u - 0.7 * v].map(Interval::from_f64))
+            .collect();
+        let w = vec![Interval::from_f64(1.0); 4];
+        let held = [0.0, 0.0, 1.0, 1.0].map(Interval::from_f64);
+        let k = super::super::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1)
+            .expect("a Bézier vector");
+        let axes = (
+            super::CellAxis::Span(k.span(1).expect("the span"), &held),
+            super::CellAxis::Span(k.span(1).expect("the span"), &held),
+        );
+        let whole =
+            super::cell_first_quotients(axes, super::CellBlock::Homogeneous { a: &a, w: &w })
+                .expect("a block under the ceiling");
+        let zero_width = |pieces: &[super::CellQuotients<Interval>]| {
+            pieces.iter().all(|q| {
+                [&q.u, &q.v].iter().all(|r| {
+                    r.numer()
+                        .iter()
+                        .flatten()
+                        .chain(r.denom())
+                        .all(|x| x.lo() == x.hi())
+                })
+            })
+        };
+        assert!(
+            zero_width(&whole.pieces((2, 2)).expect("the whole pieces")),
+            "the whole cell"
+        );
+        let cut = whole
+            .restrict((
+                Some(((0.0, 1.0), (0.1, 0.7))),
+                Some(((0.0, 1.0), (0.3, 0.9))),
+            ))
+            .pieces((2, 2))
+            .expect("the cut's pieces");
+        assert!(zero_width(&cut), "the cut widened a constant quotient");
     }
 
     /// An interval's two ends and its certification, as bits.

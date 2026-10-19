@@ -49,6 +49,7 @@
 //! registry would have run (both lanes, persistence, the bump). The
 //! item that schedules the resolution is on LIB's slate.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use editor_core::{CapEnd, DocEdit, LoopProgram, Node, ProfileProgram, RoleSeg, SlotId};
 
@@ -113,7 +114,7 @@ pub fn document() -> CorpusDoc {
     // document states the face it means.
     let cup = r.insert(Node::shell(blank, len(T), vec![top(blank)]));
 
-    r.place(cup);
+    r.place_part(cup);
 
     CorpusDoc {
         name: "cup",

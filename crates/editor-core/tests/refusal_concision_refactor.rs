@@ -10,9 +10,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    CapEnd, DocumentId, EditError, EntityKind, InlineError, MateSide, PersistError, RecipeNodeId,
-    ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName, SpokenNode, StableName, StepId,
-    Unplaced, VarName,
+    CapEnd, ConstraintId, DocumentId, EditError, EntityKind, InlineError, PersistError,
+    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName, SpokenNode,
+    StableName, StepId, Uncarried, VarName,
 };
 use test_utils::refusal::Admission;
 
@@ -37,6 +37,40 @@ fn name() -> SpokenName {
     )
 }
 
+/// A pair boolean's ranked `EdgeCrossing` vertex over two lateral
+/// edges of one extrude, as a refusal naming a ranked run speaks it.
+fn ranked() -> SpokenName {
+    let edge = |step| {
+        editor_core::NameRef::new(StableName {
+            kind: EntityKind::Edge,
+            node: n(3),
+            path: vec![RoleSeg::LateralEdge(editor_core::ProfileVertexRef::Piece {
+                step: StepId::new(0, test_utils::refusal::tagged(step)),
+                role: editor_core::PieceRole::Leg,
+            })],
+        })
+    };
+    editor_core::test_support::spoken_name(
+        StableName {
+            kind: EntityKind::Vertex,
+            node: n(5),
+            path: vec![
+                RoleSeg::EdgeCrossing(
+                    [1, 2]
+                        .into_iter()
+                        .map(|step| editor_core::RunLine {
+                            line: edge(step),
+                            sense: Some(editor_core::Sense::Outside),
+                        })
+                        .collect(),
+                ),
+                RoleSeg::Fragment(editor_core::Qualifier::OrderAlong { rank: 0, of: 2 }),
+            ],
+        },
+        s(5, "Subtract"),
+    )
+}
+
 fn param() -> VarName {
     VarName::from_static("width")
 }
@@ -50,36 +84,63 @@ fn var() -> editor_core::SpokenVar {
 
 test_utils::f6_variants! {
     const SPLIT: SplitError = [
-        EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, RemainderReadUncarried,
-        TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
-        NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
-        UncutVarReference, DefinitionStraddlesCut, UnresolvedVarCrossesCut,
-        PartNameReachesRemainder,
-        NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, NameOutsidePartWorld, Pin,
-        PartEdit,
-        RemainderEdit,
+        EmptyCut, UnknownCutNode, CutsTheWorld, PartIdCollides, RemainderReadUncarried,
+        SeveredEdge, NoMaterial, UncutVarReference, DefinitionStraddlesCut,
+        UnresolvedVarCrossesCut, PartNameReachesRemainder, NameStraddlesCut, NameOnDroppedStep, RankedRunReordered,
+        BodyNameCrossesCut, NameOutsidePartWorld, Pin, PartEdit, RemainderEdit,
     ];
 }
 
 test_utils::f6_variants! {
     const INLINE: InlineError = [
-        UnknownNode, NotAnInstance, PlacementPoseCrosses, InstanceReadUncarried, Unresolved,
-        EpsilonSeam,
-        PartCarriesMetadata, VarNameConflict, InstanceOutputUncarried, UnresolvedVarCrossesCut,
-        UnplaceableFrame, MatePlaced, Unplaced,
-        MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MatePairSplits,
-        InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
-        StrandedPartName, StrandedPartRead, Edit,
+        UnknownNode, NotAnInstance, UnplaceablePart, InstanceReadUncarried, Unresolved,
+        EpsilonSeam, PartCarriesMetadata, VarNameConflict, InstanceOutputUncarried,
+        UnresolvedVarCrossesCut, ConstructionReadsCopy, CopyPinnedToConstruction, PinReadsVariable,
+        ValueOnAMovedWorld, WorldPinOnAMovedWorld, InstanceUnsolved, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
+        StrandedPartName,
+        StrandedPartRead, Edit,
     ];
+}
+
+/// A constraint id, as a refusal names one in its placement.
+fn constraint() -> ConstraintId {
+    ConstraintId(editor_core::MintId::new(1, test_utils::refusal::tagged(2)))
+}
+
+/// Every [`Uncarried`] reason, on a representative payload.
+fn uncarried() -> Vec<Uncarried> {
+    vec![
+        Uncarried::Bodies { count: 2 },
+        Uncarried::HeirNamed { held: param() },
+        Uncarried::Posed {
+            placement: s(4, "Place"),
+        },
+        Uncarried::Loose {
+            placement: s(4, "InstantiatePart"),
+        },
+        Uncarried::NotAnInstance {
+            placement: s(4, "Place"),
+        },
+        Uncarried::NoSuchCopy {
+            key: Box::new(editor_core::CopyKey::part(
+                n(4),
+                editor_core::CopyKey::Read(editor_core::VarId::new(
+                    0,
+                    test_utils::refusal::tagged(8),
+                )),
+            )),
+        },
+    ]
 }
 
 /// Every `SplitError` arm, on a representative payload.
 fn split_refusals() -> Vec<SplitError> {
-    vec![
+    let mut out = vec![
         SplitError::EmptyCut,
         SplitError::UnknownCutNode {
             id: SpokenNode::absent(n(9)),
         },
+        SplitError::CutsTheWorld,
         SplitError::PartIdCollides {
             id: DocumentId::derive("refusal-concision-refactor"),
         },
@@ -89,67 +150,23 @@ fn split_refusals() -> Vec<SplitError> {
             input: s(3, "Profile"),
             consumer_is_cut: true,
         },
-        SplitError::RemainderReadUncarried {
-            reader: s(6, "Transform"),
-            why: editor_core::Uncarried::Bodies { count: 2 },
-        },
-        SplitError::RemainderReadUncarried {
-            reader: s(6, "Transform"),
-            why: editor_core::Uncarried::Posed {
-                placement: s(4, "PlaceInWorld"),
-            },
-        },
-        SplitError::TornGroup {
-            root: s(2, "InstantiatePart"),
-            instance: s(4, "InstantiatePart"),
-            root_is_cut: true,
-        },
-        SplitError::SeveredGauge {
-            gauge: s(1, "Gauge"),
-            kept: s(4, "InstantiatePart"),
-        },
-        SplitError::TwoAnchors {
-            node: s(4, "Extrude"),
-            first: Some(Box::new(s(1, "Gauge"))),
-            second: None,
-        },
-        SplitError::PlacingMateLeft { mate: s(7, "Mate") },
-        SplitError::DeadGaugeReference {
-            node: s(4, "InstantiatePart"),
-            gauge: s(1, "Gauge"),
-        },
+    ];
+    out.extend(
+        uncarried()
+            .into_iter()
+            .map(|why| SplitError::RemainderReadUncarried {
+                reader: s(6, "Union"),
+                why,
+            }),
+    );
+    out.extend([
         SplitError::NoMaterial {
-            node: s(1, "Gauge"),
-        },
-        SplitError::UnplaceableRoot {
-            root: s(6, "Measure"),
-            anchor: s(1, "Gauge"),
-        },
-        SplitError::UnplacedAlone {
-            group: s(2, "InstantiatePart"),
-        },
-        SplitError::WouldStartPlacing { mate: s(7, "Mate") },
-        SplitError::MateFrameCrosses {
-            mate: s(7, "Mate"),
-            side: MateSide::B,
-            promote: None,
-        },
-        SplitError::MateFrameCrosses {
-            mate: s(7, "Mate"),
-            side: MateSide::B,
-            promote: Some(Box::new(s(2, "InstantiatePart"))),
+            node: s(1, "Profile"),
         },
         SplitError::UncutVarReference {
             var: Box::new(var()),
             cut_node: s(4, "Extrude"),
             kept_node: s(6, "Extrude"),
-            promote: false,
-        },
-        SplitError::UncutVarReference {
-            var: Box::new(var()),
-            cut_node: s(4, "InstantiatePart"),
-            kept_node: s(6, "Gauge"),
-            promote: true,
         },
         SplitError::DefinitionStraddlesCut {
             var: Box::new(var()),
@@ -195,6 +212,7 @@ fn split_refusals() -> Vec<SplitError> {
             name: name(),
             step: StepId::new(0, 4),
         },
+        SplitError::RankedRunReordered { name: ranked() },
         SplitError::BodyNameCrossesCut { name: name() },
         SplitError::NameOutsidePartWorld { name: name() },
         SplitError::Pin {
@@ -212,25 +230,33 @@ fn split_refusals() -> Vec<SplitError> {
                 id: SpokenNode::absent(n(9)),
             }),
         },
-    ]
+    ]);
+    out
 }
 
 /// Every `InlineError` arm, on a representative payload.
 fn inline_refusals() -> Vec<InlineError> {
-    vec![
+    let mut out = vec![
         InlineError::UnknownNode {
             id: SpokenNode::absent(n(9)),
         },
         InlineError::NotAnInstance {
             node: s(5, "Extrude"),
         },
-        InlineError::PlacementPoseCrosses {
-            placement: s(4, "PlaceInWorld"),
-        },
-        InlineError::InstanceReadUncarried {
-            reader: s(5, "Union"),
-            why: editor_core::Uncarried::Bodies { count: 2 },
-        },
+    ];
+    out.extend(uncarried().into_iter().flat_map(|why| {
+        [
+            InlineError::UnplaceablePart {
+                instance: s(4, "InstantiatePart"),
+                why: why.clone(),
+            },
+            InlineError::InstanceReadUncarried {
+                reader: s(5, "Union"),
+                why,
+            },
+        ]
+    }));
+    out.extend([
         InlineError::Unresolved {
             failure: ResolveFailure::new(
                 ResolveFault::EpsilonSeam,
@@ -256,47 +282,26 @@ fn inline_refusals() -> Vec<InlineError> {
             ),
             node: s(4, "Extrude"),
         },
-        InlineError::UnplaceableFrame {
-            root: s(3, "Extrude"),
+        InlineError::ConstructionReadsCopy {
+            node: s(3, "Union"),
         },
-        InlineError::MatePlaced {
-            instance: s(4, "InstantiatePart"),
-            host_root: Box::new(s(2, "InstantiatePart")),
-            mates: vec![s(7, "Mate")],
-            part_root: None,
-            part_gauges: Vec::new(),
+        InlineError::CopyPinnedToConstruction {
+            placement: s(8, "Place"),
+            construction: s(3, "Union"),
         },
-        InlineError::MatePlaced {
-            instance: s(4, "InstantiatePart"),
-            host_root: Box::new(s(2, "InstantiatePart")),
-            mates: vec![s(7, "Mate")],
-            part_root: Some(Box::new(s(1, "InstantiatePart"))),
-            part_gauges: Vec::new(),
+        InlineError::PinReadsVariable {
+            instance: s(7, "InstantiatePart"),
+            var: Box::new(var()),
         },
-        InlineError::MatePlaced {
-            instance: s(4, "InstantiatePart"),
-            host_root: Box::new(s(2, "InstantiatePart")),
-            mates: vec![s(7, "Mate")],
-            part_root: Some(Box::new(s(1, "InstantiatePart"))),
-            part_gauges: vec![s(6, "Gauge")],
+        InlineError::ValueOnAMovedWorld {
+            placement: s(8, "Place"),
+            value: constraint(),
         },
-        InlineError::Unplaced {
-            instance: s(4, "InstantiatePart"),
-            cause: Unplaced::NoOffset,
+        InlineError::WorldPinOnAMovedWorld {
+            placement: s(8, "Place"),
         },
-        InlineError::MovedMemberOffset {
-            member: s(5, "InstantiatePart"),
-        },
-        InlineError::PartDeadGauge {
-            node: s(3, "Extrude"),
-        },
-        InlineError::MateFrameCrosses {
-            mate: s(7, "Mate"),
-            side: MateSide::A,
-        },
-        InlineError::MatePairSplits {
-            first: s(7, "Mate"),
-            second: s(8, "Mate"),
+        InlineError::InstanceUnsolved {
+            instance: s(7, "InstantiatePart"),
         },
         InlineError::InstanceBodyNameReferenced { name: name() },
         InlineError::ForeignInstanceName { name: name() },
@@ -304,6 +309,7 @@ fn inline_refusals() -> Vec<InlineError> {
             name: name(),
             step: StepId::new(0, 4),
         },
+        InlineError::RankedRunReordered { name: ranked() },
         InlineError::StrandedPartName {
             name: name(),
             missing: s(6, "Extrude"),
@@ -317,7 +323,8 @@ fn inline_refusals() -> Vec<InlineError> {
                 id: SpokenNode::absent(n(9)),
             }),
         },
-    ]
+    ]);
+    out
 }
 
 /// The stage words a refactor refusal opens with, each on the row

@@ -10,7 +10,6 @@ tag: (AUTHTAIL orchestrator)
 ab_band: 10700-10799
 paths: [crates/viewer/src/sketch.rs, crates/viewer/src/seats.rs, crates/viewer/src/pane/create.rs, crates/viewer/src/pane/viewport.rs, crates/viewer/src/marks.rs, crates/viewer/src/props.rs, crates/viewer/src/widgets.rs]
 keep_out: [opened 2026-10-02 at AUTHOR's exit (Ev, in chat) as the unblocked half of AUTHOR's cut on its priority seam — the blocked viewer halves of the kernel rows Ev ruled are DOORS's on the same files, the viewer's reported defects and its entrenching architecture are CHROME's, pane/create.rs pane/viewport.rs and marks.rs are shared with CHROME VIEW VSEAM and VGEOM and stay shared, so run scripts/work.py territory on your branch and announce the seam in the PR]
-priority: P2
 ---
 
 **What the viewer draws of a thing being authored, and the

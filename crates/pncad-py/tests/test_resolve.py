@@ -52,14 +52,18 @@ from pncad import (
     DocEdit,
     EntityKind,
     Formula,
+    FreeVar,
     Node,
     NodePick,
     Open,
     PncadError,
+    SelectRefusal,
     Start,
+    VarName,
     deg,
     evaluate,
     m,
+    mm,
 )
 
 #: The chordal budget the pick indices in this file are built at. The
@@ -131,7 +135,7 @@ class TestAResolvedVerdict(unittest.TestCase):
         self.assertEqual(len(materialized), 27)
         for name in materialized:
             with self.subTest(name=name):
-                self.assertEqual(self.ev.resolve(name).status, "resolved")
+                self.assertEqual(self.ev.resolve(self.cube, name).status, "resolved")
 
     def test_resolved_agrees_with_denotation_where_the_two_overlap(self):
         """`denotation` is the node-scoped sibling: for a name this
@@ -142,7 +146,7 @@ class TestAResolvedVerdict(unittest.TestCase):
                 denotation = self.ev.denotation(self.cube, name)
                 self.assertFalse(denotation.tied)
                 self.assertEqual(denotation.candidates, 1)
-                self.assertEqual(self.ev.resolve(name).status, "resolved")
+                self.assertEqual(self.ev.resolve(self.cube, name).status, "resolved")
 
     def test_the_kind_is_the_materializer_that_answered(self):
         """The verdict says WHAT a stored name denotes, and the door
@@ -160,7 +164,7 @@ class TestAResolvedVerdict(unittest.TestCase):
         ):
             for name in door(self.cube):
                 with self.subTest(kind=kind, name=name):
-                    self.assertEqual(self.ev.resolve(name).kind, kind)
+                    self.assertEqual(self.ev.resolve(self.cube, name).kind, kind)
 
     def test_node_and_body_are_the_address_nodepick_takes(self):
         """**The verdict's location is checkable, and the pick door is
@@ -174,7 +178,7 @@ class TestAResolvedVerdict(unittest.TestCase):
         again is the claim verified rather than asserted."""
         for name in self.ev.all_faces(self.cube):
             with self.subTest(name=name):
-                verdict = self.ev.resolve(name)
+                verdict = self.ev.resolve(self.cube, name)
                 index = NodePick.build(
                     self.ev, verdict.node, verdict.body, DELTA
                 )
@@ -183,15 +187,15 @@ class TestAResolvedVerdict(unittest.TestCase):
     def test_the_non_resolved_attributes_are_none(self):
         """`detail` and `offers` are the other states' business: a
         resolved name has nothing to explain and nothing to suggest."""
-        verdict = self.ev.resolve(self.ev.all_faces(self.cube)[0])
+        verdict = self.ev.resolve(self.cube, self.ev.all_faces(self.cube)[0])
         self.assertIsNone(verdict.detail)
         self.assertIsNone(verdict.offers)
 
 
-class TestEvaluationWideVersusNodeScoped(unittest.TestCase):
-    """`resolve` asks the whole evaluation; `denotation` asks one
-    node's table. The difference is not cosmetic and this is where it
-    shows."""
+class TestInOneRead(unittest.TestCase):
+    """`resolve` asks one read's table, as `denotation` does: a name
+    tells apart only what its variable holds (NAMES N1), so a reference
+    says the read it is read in."""
 
     def setUp(self):
         self.doc = Doc()
@@ -210,38 +214,91 @@ class TestEvaluationWideVersusNodeScoped(unittest.TestCase):
         self.other = unit_cube(self.doc, at=(9.0, 9.0))
         self.ev = evaluate(self.doc)
 
-    def test_resolve_answers_the_first_carrying_node_not_the_one_asked(self):
+    def test_resolve_answers_the_read_it_was_asked_in(self):
         """A transform passes its input's names THROUGH, so the same
-        name is in two nodes' tables. `all_faces(moved)` hands it back
-        under the downstream node; `resolve` answers the upstream one,
-        because the first carrier in evaluation order is what it
-        reports.
-
-        The evaluation's own `order()` is the oracle for "first"."""
-        order = [str(node) for node in self.ev.order()]
-        self.assertLess(order.index(str(self.cube)), order.index(str(self.moved)))
-
+        name is in two outputs' tables. Asked in the transform's output,
+        the verdict names the transform; asked in the cube's, the cube.
+        `Doc.output` names the same read the node does."""
         names = self.ev.all_faces(self.moved)
         self.assertEqual(len(names), 6)
         for name in names:
             with self.subTest(name=name):
-                # The downstream node's table carries it — `denotation`
-                # asked THERE says so.
                 self.assertEqual(self.ev.denotation(self.moved, name).candidates, 1)
-                # ...and the verdict still names the upstream carrier.
-                self.assertEqual(str(self.ev.resolve(name).node), str(self.cube))
+                self.assertEqual(str(self.ev.resolve(self.moved, name).node), str(self.moved))
+                self.assertEqual(str(self.ev.resolve(self.cube, name).node), str(self.cube))
+                self.assertEqual(
+                    str(self.ev.resolve(self.doc.output(self.moved), name).node),
+                    str(self.moved),
+                )
 
-    def test_resolve_answers_where_denotation_refuses(self):
-        """The sharp form of the same difference: ask `denotation`
-        about a node whose table does not carry the name and it refuses
-        `no_such_name`, which is correct and node-scoped. `resolve`
-        answers, because the name is perfectly good somewhere else in
-        this evaluation."""
+    def test_resolve_fails_where_denotation_refuses(self):
+        """Ask about an output whose table does not carry the name:
+        `denotation` refuses `no_such_name`, and `resolve` runs the
+        ladder to a failed verdict rather than finding the name
+        somewhere else in the evaluation."""
         name = self.ev.all_faces(self.cube)[0]
         with self.assertRaises(PncadError) as caught:
             self.ev.denotation(self.other, name)
         self.assertEqual(caught.exception.variant, "no_such_name")
-        self.assertEqual(self.ev.resolve(name).status, "resolved")
+        self.assertEqual(self.ev.resolve(self.other, name).status, "failed")
+        self.assertEqual(self.ev.resolve(self.cube, name).status, "resolved")
+
+    def test_a_node_named_alone_is_its_one_body_read(self):
+        """A node named alone reads in its one body output, in
+        `resolve` as in every name door: a revolve's body beside its
+        axis resolves; a split's two halves are no one read, so naming
+        the split alone is a `ValueError` saying to name a half."""
+        doc = Doc()
+        chain = (
+            Open.at((2 * m, 0 * m))
+            .line_to((3 * m, 0 * m))
+            .line_to((3 * m, 1 * m))
+            .line_to((2 * m, 1 * m))
+            .line_to(Start)
+        )
+        profile = doc.insert(Node.profile(chain, plane=doc.sketch_frame()))
+        revolve = doc.insert(Node.revolve(
+            profile,
+            (Formula.length_in(0, m), Formula.length_in(0, m)),
+            Formula.turn_over(4),
+            Formula.angle_in(360, deg),
+        ))
+        cube = unit_cube(doc, at=(9.0, 9.0))
+        tool = doc.insert(Node.datum_plane(
+            (Formula.length_in(9.5, m), Formula.length_in(0, m), Formula.length_in(0, m)),
+            (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
+        ))
+        split = doc.insert(Node.split(cube, tool))
+        ev = evaluate(doc)
+        name = ev.all_faces(revolve)[0]
+        self.assertEqual(ev.resolve(revolve, name).status, "resolved")
+        half = ev.all_faces(doc.output(split, 0))[0]
+        self.assertEqual(ev.resolve(doc.output(split, 0), half).status, "resolved")
+        with self.assertRaises(ValueError):
+            ev.resolve(split, half)
+
+    def test_a_reference_whose_read_is_gone_and_a_read_with_no_table(self):
+        """The transform deleted: its read went with it. Asked in that
+        read, a name answers `failed` / `read_gone` — never a `vanished`
+        that blames the cube, which did not change. Asked at the node
+        handle, which kept no read and did not mint the name, the door
+        raises `SelectRefusal` `node_not_held`. A scalar variable holds
+        no table, so asking in it raises `read_not_an_output`, never a
+        verdict."""
+        name = self.ev.all_faces(self.moved)[0]
+        read = self.doc.output(self.moved)
+        self.doc.apply(DocEdit.delete_node(self.moved))
+        self.doc.apply(DocEdit.declare_var(VarName("depth"), FreeVar.length(4.5 * mm)))
+        ev = evaluate(self.doc)
+        verdict = ev.resolve(read, name)
+        self.assertEqual((verdict.status, verdict.variant), ("failed", "read_gone"))
+        with self.assertRaises(SelectRefusal) as caught:
+            ev.resolve(self.moved, name)
+        self.assertEqual(caught.exception.reason, "node_not_held")
+        with self.assertRaises(SelectRefusal) as caught:
+            ev.resolve(self.doc.var(VarName("depth")), name)
+        self.assertEqual(caught.exception.reason, "read_not_an_output")
+        self.assertEqual(ev.resolve(self.cube, name).status, "resolved")
 
 
 def plate(doc, corners):
@@ -274,7 +331,7 @@ class TestAFailedVerdict(unittest.TestCase):
         after = evaluate(doc)
         for name in stored:
             with self.subTest(name=name):
-                verdict = after.resolve(name)
+                verdict = after.resolve(extrude, name)
                 self.assertEqual(verdict.status, "failed")
                 # The arm, which is the word a repair branches on:
                 # there is nothing to refine here, so the rebind is
@@ -318,7 +375,7 @@ class TestAFailedVerdict(unittest.TestCase):
         vanished = sorted(was - now)
         self.assertEqual(len(vanished), 1)
 
-        verdict = after.resolve(vanished[0])
+        verdict = after.resolve(extrude, vanished[0])
         self.assertEqual(verdict.status, "failed")
         # ...and it is the OTHER failure: the node still evaluates and
         # the name is gone from its table, which is a different repair
@@ -331,7 +388,7 @@ class TestAFailedVerdict(unittest.TestCase):
         # verdict is discriminating rather than pessimistic.
         for name in sorted(was & now):
             with self.subTest(name=name):
-                self.assertEqual(after.resolve(name).status, "resolved")
+                self.assertEqual(after.resolve(extrude, name).status, "resolved")
 
 
 def blank(radius):
@@ -437,7 +494,7 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
         self.assertGreater(len(names), 6)
         for name in names:
             with self.subTest(name=name):
-                verdict = self.broken.resolve(name)
+                verdict = self.broken.resolve(self.broken_blend, name)
                 self.assertEqual(verdict.status, "indeterminate")
                 # The arm says which node to look at: this one's own.
                 self.assertEqual(verdict.variant, "target_failed")
@@ -445,7 +502,7 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
                 # Not a rebind candidate: there is nothing to rebind to
                 # and nothing to suggest.
                 self.assertIsNone(verdict.offers)
-                self.assertEqual(self.good.resolve(name).status, "resolved")
+                self.assertEqual(self.good.resolve(self.good_blend, name).status, "resolved")
 
     def test_a_poisoned_minting_node_is_indeterminate_too(self):
         """A name minted by the BOOLEAN, one node further down. Its own
@@ -457,7 +514,7 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
         self.assertGreater(len(names), 6)
         for name in names:
             with self.subTest(name=name):
-                verdict = self.broken.resolve(name)
+                verdict = self.broken.resolve(self.broken_fuse, name)
                 self.assertEqual(verdict.status, "indeterminate")
                 # ...and here it says to look one node further up,
                 # which is the whole difference between the two arms
@@ -485,19 +542,19 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
 
         for name in self.good.all_faces(self.good_blend):
             with self.subTest(name=name):
-                verdict = partial.resolve(name)
+                verdict = partial.resolve(self.good_blend, name)
                 self.assertEqual(verdict.status, "indeterminate")
                 self.assertEqual(verdict.variant, "target_not_evaluated")
                 self.assertIsNone(verdict.offers)
                 # And it is not a claim about the document: the same
                 # name resolves on the run that finished.
-                self.assertEqual(self.good.resolve(name).status, "resolved")
+                self.assertEqual(self.good.resolve(self.good_blend, name).status, "resolved")
 
     def test_indeterminate_carries_no_location(self):
         """There is no location to carry: the run produced no value for
         the minting node, so `node`, `body` and `kind` would all be
         claims about an evaluation that did not happen."""
-        verdict = self.broken.resolve(self.good.all_faces(self.good_blend)[0])
+        verdict = self.broken.resolve(self.broken_blend, self.good.all_faces(self.good_blend)[0])
         self.assertIsNone(verdict.node)
         self.assertIsNone(verdict.body)
         self.assertIsNone(verdict.kind)
@@ -508,9 +565,9 @@ class TestTheVerdictSurface(unittest.TestCase):
 
     def setUp(self):
         doc = Doc()
-        cube = unit_cube(doc)
+        self.cube = unit_cube(doc)
         self.ev = evaluate(doc)
-        self.name = self.ev.all_faces(cube)[0]
+        self.name = self.ev.all_faces(self.cube)[0]
 
         stranded = Doc()
         _, extrude = plate(stranded, SQUARE)
@@ -518,16 +575,16 @@ class TestTheVerdictSurface(unittest.TestCase):
         stranded.apply(DocEdit.delete_node(extrude))
         gone_ev = evaluate(stranded)
 
-        broken_doc, _, _ = blank(0.6)
+        broken_doc, broken_blend, _ = blank(0.6)
         good_doc, good_blend, _ = blank(0.12)
         good_ev = evaluate(good_doc)
         broken_ev = evaluate(broken_doc)
 
         self.verdicts = {
-            "resolved": self.ev.resolve(self.name),
-            "failed": gone_ev.resolve(gone_names[0]),
+            "resolved": self.ev.resolve(self.cube, self.name),
+            "failed": gone_ev.resolve(extrude, gone_names[0]),
             "indeterminate": broken_ev.resolve(
-                good_ev.all_faces(good_blend)[0]
+                broken_blend, good_ev.all_faces(good_blend)[0]
             ),
         }
 
@@ -594,7 +651,7 @@ class TestTheVerdictSurface(unittest.TestCase):
         for text in ("the top face", "", "{", "[1, 2, 3]"):
             with self.subTest(text=text):
                 with self.assertRaises(ValueError) as caught:
-                    self.ev.resolve(text)
+                    self.ev.resolve(self.cube, text)
                 self.assertNotIsInstance(caught.exception, PncadError)
 
     def test_a_name_from_another_document_is_a_verdict_not_a_raise(self):
@@ -606,7 +663,7 @@ class TestTheVerdictSurface(unittest.TestCase):
         foreign = evaluate(elsewhere).all_faces(extrude)
         for name in foreign:
             with self.subTest(name=name):
-                self.assertIn(self.ev.resolve(name).status, STATES)
+                self.assertIn(self.ev.resolve(self.cube, name).status, STATES)
 
 
 if __name__ == "__main__":

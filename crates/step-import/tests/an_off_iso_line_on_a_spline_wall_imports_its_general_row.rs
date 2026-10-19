@@ -9,12 +9,13 @@
 //! `(1, 1, 0)` and `(1, 0, 1)`; the wall's two boundary edges are exact
 //! parabolas on the planes `y = 0` and `x = 1`.
 //!
-//! The diagonal adopts through the conventional rung, as an image in
-//! the plane's chart, and the pcurve re-mint then derives its image on
-//! the wall. No row or column of the wall holds the line a quarter span
-//! in, so the mint stores its `General` image, which certifies against
-//! the wall: the import ships, every wall row stored, and tier 3
-//! re-certifies them.
+//! The diagonal adopts at the `Intersection` rung, which the ladder
+//! offers first: the plane × NURBS certificate takes its line carrier,
+//! whose chart image on the wall is straight. The pcurve re-mint then
+//! derives its image on the wall. No row or column of the wall holds
+//! the line a quarter span in, so the mint stores its `General` image,
+//! which certifies against the wall: the import ships, every wall row
+//! stored, and tier 3 re-certifies them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
@@ -193,6 +194,16 @@ fn the_tetrahedron_imports_and_its_diagonal_takes_a_general_row() {
             .and_then(topo::CurveGeom::certified)
             .unwrap();
         let line = matches!(curve.carrier(), geom::Curve3::Line { .. });
+        if line {
+            assert!(
+                matches!(
+                    curve.description(),
+                    geom_brep::EdgeDescription::Intersection { .. }
+                ) && !curve.authority().is_declared(),
+                "{he:?}: the diagonal adopts at the Intersection rung: {:?}",
+                curve.description()
+            );
+        }
         let row = body
             .pcurve(he)
             .unwrap_or_else(|| panic!("{he:?}: every wall row is stored"));

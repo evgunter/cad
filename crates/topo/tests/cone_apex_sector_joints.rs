@@ -109,38 +109,28 @@ fn ruling_at<T: Real + AtRestPolicy + Bounds>(body: &Body<T>, slant: f64) -> (to
 /// and the marks escalate. The zero gap meets the image's own orbit
 /// point at that lever (the near-pole read, `lever_periods`), so the
 /// joint decides the identity; it no longer refuses as
-/// `SplitJointUndecided`. What refuses there now is the child row's
-/// own certification: its chart winding is read at the child's lever,
-/// which is as short (`pcurve_chart_winding`, filed in
+/// `SplitJointUndecided`. The child row's windings are structure it
+/// stores and certification compares exactly, never decided at the
+/// child's band-sized lever (`[ev]` PR 5113's first decision, closing
 /// `work/pcert/chart-winding-escalates-on-the-first-candidate-at-a-band-sized-lever`),
-/// with the body untouched. Well clear of the apex the split decides
-/// the identity and the body reads clean.
+/// so the child certifies and the split body reads clean. Well clear of
+/// the apex the split decides the identity and the body reads clean.
 fn split_near_the_apex<T: Real + AtRestPolicy + Bounds>(lane: &str) {
     let tol = Tol::witness();
     let near = 1.5 * tol.k() * tol.eps();
     let mut body = sector::<T>(0.1).unwrap_or_else(|e| panic!("{lane}: {e}"));
     let edges = body.edges().count();
+    let band = geom_core::Band::linear(tol).unwrap();
     let (edge, t) = ruling_at(&body, near);
-    let refused = body.split_edge(edge, t, tol);
-    assert!(
-        matches!(
-            refused,
-            Err(topo::EulerOpError::PcurveSplit {
-                error: geom_brep::PcurveCertifyError::Escalated {
-                    check: geom_brep::PcurveCheck::ChartWinding,
-                    ..
-                },
-                ..
-            })
-        ),
-        "{lane}: the split near the apex passes its joint and refuses at the child's winding: \
-         {refused:?}"
-    );
+    body.split_edge(edge, t, tol)
+        .unwrap_or_else(|e| panic!("{lane}: the split near the apex: {e:?}"));
+    assert_eq!(body.edges().count(), edges + 1, "{lane}: one more edge");
     assert_eq!(
-        body.edges().count(),
-        edges,
-        "{lane}: the refused split leaves the body as found"
+        topo::pcurves::validate_pcurves(&body, band),
+        vec![],
+        "{lane}: the split near the apex reads clean"
     );
+    let mut body = sector::<T>(0.1).unwrap_or_else(|e| panic!("{lane}: {e}"));
     let (edge, t) = ruling_at(&body, 0.5);
     let made = body
         .split_edge(edge, t, tol)
@@ -150,7 +140,6 @@ fn split_near_the_apex<T: Real + AtRestPolicy + Bounds>(lane: &str) {
         Some(topo::JointElement::IDENTITY),
         "{lane}: mid-ruling the children meet on one image"
     );
-    let band = geom_core::Band::linear(tol).unwrap();
     assert_eq!(
         topo::pcurves::validate_pcurves(&body, band),
         vec![],

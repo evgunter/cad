@@ -6,10 +6,13 @@
 //!
 //! The algebra the rows pin: the worst admitted vector `(ε, 0, K·ε)`
 //! tilts a line wall whose chord is PERPENDICULAR to the in-plane
-//! component by `sin θ = K/√(K² + 1)`; the wedge margin on a rim of
-//! chord `f·K·ε` is `f·K·sin θ` (in ε), Smooth at `≤ 1`, in band below
-//! `K`, transverse at `≥ K`. A chord PARALLEL to the in-plane
-//! component has `sin θ = 1` and reads the arm alone.
+//! component by `sin θ = K/√(K² + 1)`. Levered at a rim of chord
+//! `f·K·ε` the wedge would be `f·K·sin θ` (in ε), Smooth at `≤ 1` below
+//! the crossover; levered at the faces' extent (`topo::wedge_reach`),
+//! at least the wall's distance `ε·√(K² + 1)` to its far rim, it is at
+//! least the extrusion's height `K·ε` and transverse at every K, every
+//! tilt and every plane. A chord PARALLEL to the in-plane component has
+//! `sin θ = 1`.
 //!
 //! The in-plane component is built at [`IN_PLANE`]·ε rather than at ε
 //! exactly: `extrusion_obliquity`'s band is OPEN at ε, so a vector one
@@ -77,7 +80,7 @@ fn print_rk_probe() {
         .parse()
         .expect("a float");
     let plane = plane_under_env();
-    let place = plane.placement;
+    let place = plane.placement();
     let [u, v, n] = place.linear.cols();
     let tilt = std::env::var("RK_TILT").unwrap_or_else(|_| "x".to_string());
     let in_plane = match tilt.as_str() {
@@ -89,10 +92,10 @@ fn print_rk_probe() {
     match extrude(&rect(plane, 2.0, short), Extrusion::Vector(w), tol) {
         Ok(built) => {
             println!("RKPROBE extrude=Ok");
-            let (conventional, wall_chart, cap_chart) = chart_counts(&built);
+            let (conventional, pair, chart) = chart_counts(&built);
             println!("RKPROBE non_intersection_rims={conventional}");
-            println!("RKPROBE wall_chart_rims={wall_chart}");
-            println!("RKPROBE cap_chart_rims={cap_chart}");
+            println!("RKPROBE pair_rims={pair}");
+            println!("RKPROBE chart_rims={chart}");
             match validate_geometric(&built.body, tol) {
                 Ok(()) => println!("RKPROBE tier3=Ok"),
                 Err(errs) => {
@@ -130,31 +133,6 @@ fn at(k: &str, f: &str, tilt: &str, plane: &str) -> String {
     text
 }
 
-fn assert_smooth_built_and_refused_at_rest(text: &str, label: &str) {
-    for needle in [
-        "RKPROBE extrude=Ok",
-        "RKPROBE non_intersection_rims=4",
-        "RKPROBE wall_chart_rims=4",
-        "RKPROBE cap_chart_rims=0",
-        "RKPROBE tier3=Err n=4",
-    ] {
-        assert!(
-            text.contains(needle),
-            "{label}: expected {needle:?}:\n{text}"
-        );
-    }
-    assert_eq!(
-        text.matches("check: MaterialPairing").count(),
-        4,
-        "{label}:\n{text}"
-    );
-    assert_eq!(
-        text.matches("SliverDihedral").count(),
-        4,
-        "{label}:\n{text}"
-    );
-}
-
 fn assert_all_transverse_and_valid(text: &str, label: &str) {
     for needle in [
         "RKPROBE extrude=Ok",
@@ -168,28 +146,16 @@ fn assert_all_transverse_and_valid(text: &str, label: &str) {
     }
 }
 
-fn assert_in_band_rim(text: &str, label: &str) {
-    assert!(
-        text.contains("RKPROBE extrude=Err SliverRim") && text.contains("dihedral_wedge"),
-        "{label}: expected the typed in-band rim refusal under dihedral_wedge:\n{text}",
-    );
-}
-
-/// **Either side of `K* = √φ ≈ 1.272`, at the tightest admitted arm.**
-/// `f = 1.002`: K = 1.1 → 0.814, K = 1.2 → 0.924, K = 1.25 → 0.978
-/// (Smooth: built, refused at rest); K = 1.28 → 1.011, K = 1.3 → 1.033
-/// (in band: refused at the door as `SliverRim`). Above the crossover
-/// no admitted `f ≥ 1` reaches Smooth, since `K·sin θ > 1` there.
+/// **Either side of `K* = √φ ≈ 1.272`, at the tightest admitted arm
+/// and a comfortable one**: at `f = 1.002` a rim levered at its own
+/// chord would read 0.814 at K = 1.1 and 1.033 at K = 1.3 (Smooth, then
+/// in band); levered at the faces' extent every rim is transverse and
+/// the body valid at rest.
 #[test]
 fn the_crossover_sits_where_the_algebra_says() {
-    for k in ["1.1", "1.2", "1.25"] {
-        assert_smooth_built_and_refused_at_rest(&at(k, "1.002", "x", "xy"), k);
+    for k in ["1.1", "1.2", "1.25", "1.28", "1.3"] {
+        assert_all_transverse_and_valid(&at(k, "1.002", "x", "xy"), k);
     }
-    for k in ["1.28", "1.3"] {
-        assert_in_band_rim(&at(k, "1.002", "x", "xy"), k);
-    }
-    // A comfortable arm clears the band on both sides: K = 1.1 → 1.22
-    // ≥ 1.1; K = 1.3 → 1.545 ≥ 1.3.
     for k in ["1.1", "1.3"] {
         assert_all_transverse_and_valid(&at(k, "1.5", "x", "xy"), k);
     }
@@ -206,12 +172,11 @@ fn the_tilt_along_the_short_chord_leaves_every_rim_transverse() {
     }
 }
 
-/// **On a tilted sketch plane the same rows read the same**: the wall
-/// chart certifies the smooth rim below the crossover and the at-rest
-/// gate refuses the body, exactly as on `xy`.
+/// **On a tilted sketch plane the same rows read the same**: every rim
+/// transverse and the body valid at rest, as on `xy`.
 #[test]
 fn a_tilted_sketch_plane_moves_nothing() {
-    assert_smooth_built_and_refused_at_rest(&at("1.1", "1.002", "x", "tilted"), "tilted K=1.1");
-    assert_in_band_rim(&at("1.3", "1.002", "x", "tilted"), "tilted K=1.3");
+    assert_all_transverse_and_valid(&at("1.1", "1.002", "x", "tilted"), "tilted K=1.1");
+    assert_all_transverse_and_valid(&at("1.3", "1.002", "x", "tilted"), "tilted K=1.3");
     assert_all_transverse_and_valid(&at("1.1", "1.002", "y", "tilted"), "tilted y K=1.1");
 }

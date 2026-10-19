@@ -40,7 +40,7 @@ use std::sync::Arc;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS, SymbolicDials};
-use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileDoc, ProfileLift, evaluate};
+use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileDoc, evaluate};
 use geom_core::sym::report::{
     DecisionShape, ShapeOutcome, name_param, start_shape_report, take_shape_report,
 };
@@ -139,7 +139,6 @@ pub(crate) fn replay_retried(
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     start_shape_report();

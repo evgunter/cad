@@ -149,10 +149,12 @@ fn transverse_resplit_of_a_restated_product_stays_tier3() {
 }
 
 /// The restatement moves NO carrier bits (the rebuild-vs-restate 1-ULP
-/// class): the three operand edges the coplanar split restates keep
-/// their extrude-minted line origin/dir and parameter interval bitwise.
+/// class). The coplanar split restated three operand edges between two
+/// coplanar records (the tip edge and the floor's two rims); each half
+/// now ends with maximal faces, which merge those records into one face
+/// and take the three edges with them, so none is left to check.
 #[test]
-fn restated_edges_keep_carrier_bits() {
+fn a_coplanar_split_leaves_no_restated_operand_edge() {
     let notched = ProfileLoop::polygon(
         [
             (0.0, 0.0),
@@ -186,8 +188,13 @@ fn restated_edges_keep_carrier_bits() {
         else {
             continue;
         };
-        // Only edges restated to a chart image by the split's smooth arm.
-        if !matches!(c.description(), EdgeDescription::Chart(_)) {
+        // Only edges restated conventionally by the split's smooth arm:
+        // between two coplanar records, one carrier, an image in the
+        // first's chart (`topo::rest_locus`).
+        let (sp, sm) = topo::readback::edge_sides(below, k)
+            .expect("a live edge")
+            .surfaces();
+        if sp == sm || !matches!(c.description(), EdgeDescription::Chart(_)) {
             continue;
         }
         let Some((_, carrier0, t0, t1)) = before.iter().find(|(bk, ..)| *bk == k) else {
@@ -206,8 +213,8 @@ fn restated_edges_keep_carrier_bits() {
         checked += 1;
     }
     assert_eq!(
-        checked, 3,
-        "expected exactly the three restated operand edges"
+        checked, 0,
+        "the merge leaves no operand edge between two coplanar records"
     );
 }
 
