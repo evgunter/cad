@@ -6564,3 +6564,18 @@ Signed (WIRE orchestrator).
     elaboration of the approved "set of member cells that meet". The PR
     body flags it for Ev's retroactive read.
   (WIRE orchestrator)
+
+- 2026-10-19 — PR 5378 (unit 2, DM4's decision log) merged (248bf8cfaa).
+  - The concurrent dual (R1, R2) were both APPROVE-WITH-FIXES with no
+    MAJOR. The blinded coding (byte 214, even: A = R1) found 17 groups:
+    9 bilateral, 4 unilateral A, 4 unilateral B. 0 tallied.
+  - The row `docs/dual-review-log/rows/PR-5378.md` rode the PR as its
+    last commit.
+  - The `FoldRow::Unnamed` hold-out was narrowed to the table-miss error
+    before merge.
+  - Seven rows closed: the three-member, fold-steps, guard-pin,
+    cited-fold-row, minted-seam and two-member-margin rows, plus CLEAVE's
+    cited-misstatement row.
+  - Open residues filed on CLEAVE: the Meet that omits the minting cell;
+    the ring-tie pierce vertex; twins; the in-place Zeros.
+  (WIRE orchestrator)
