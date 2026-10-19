@@ -1689,7 +1689,9 @@ pub enum EnvelopeTerm {
     /// spiric and projected lanes, whose envelopes are 3-D, the offset
     /// past half the channel's period (`placement_terms`), which a
     /// lifted copy reads and a drift does not. Either way a whole period
-    /// off is a lifted copy, no row.
+    /// off is a lifted copy, no row. The projected lane adds its own deck
+    /// map's term here too: its `u_off`'s distance from a whole number of
+    /// periods (`off_period`), times the arm.
     FidelityU,
     /// The stored image's second channel, as [`EnvelopeTerm::FidelityU`]
     /// reads the first; a free (length) channel carries no placement
@@ -2548,8 +2550,9 @@ pub enum EnvelopeStatement {
     /// channel's sup bounded by its coefficients as above, an angular
     /// channel's constant read as it is, with no whole period taken off
     /// (a row is its placed image, C4; and a sphere's image against
-    /// `P_d`'s involution twin `(u + π, π − v)` where its azimuth sits
-    /// nearer the twin's). On the cylinder, the sphere and the
+    /// `P_d`'s involution twin `(u + π, π − v)` where its structure names
+    /// the twin: on a meridian its windings, on a parallel the sign of
+    /// its azimuth offset's cosine). On the cylinder, the sphere and the
     /// torus `S_u ⊥ S_v` everywhere, so the segment's image is no longer
     /// than `√((arm_u·sup|Δu|)² + (arm_v·sup|Δv|)²)`. The cone's
     /// azimuth arm is read along a chord at the nearer slant, which is
@@ -4237,27 +4240,8 @@ enum Record {
 }
 
 /// Folds a residual into the running max and classifies it against the
-/// band (the `certify::check_residual` idiom, one module over).
-fn check_residual<T: Decide>(
-    name: &'static str,
-    check: PcurveCheck,
-    sample: u32,
-    residual: Margin<T>,
-    band: Band,
-    max_residual: &mut T,
-) -> Result<(), PcurveCertifyError> {
-    check_residual_as(
-        Record::Verdict,
-        name,
-        check,
-        sample,
-        residual,
-        band,
-        max_residual,
-    )
-}
-
-/// [`check_residual`], recorded as `record` says.
+/// band (the `certify::check_residual` idiom, one module over), recorded
+/// as `record` says.
 fn check_residual_as<T: Decide>(
     record: Record,
     name: &'static str,
@@ -4507,15 +4491,17 @@ impl FidelityLegs {
 }
 
 /// Check 4's envelope on a periodic chart, one running sum per
-/// [`EnvelopeTerm`], how the two channel fidelities combine, and which
-/// name of the placed image the stored row is ([`ImageName`], as the
-/// lane decided it); the certified bound is [`EnvelopeTerms::total`].
+/// [`EnvelopeTerm`] and how the two channel fidelities combine; the
+/// certified bound is [`EnvelopeTerms::total`].
 #[derive(Clone, Copy)]
-struct EnvelopeTerms<T: Real>([T; EnvelopeTerm::ALL.len()], FidelityLegs, ImageName);
+struct EnvelopeTerms<T: Real>([T; EnvelopeTerm::ALL.len()], FidelityLegs);
 
 /// Which name of the placed image a stored row is: the derivation's own,
-/// or on a sphere its involution twin `(u + π, π − v)`. A lane decides it
-/// once, as structure, and [`placement_terms`] reads it from there.
+/// or on a sphere its involution twin `(u + π, π − v)`. The projected
+/// lane decides it once, as structure (`pcurve_projected_v_sign`), and
+/// returns it beside its terms; [`placement_terms`] takes it from there.
+/// The focal-section and spiric lanes live on no sphere and name the
+/// derivation's own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ImageName {
     /// The derivation's own name.
@@ -4526,11 +4512,7 @@ enum ImageName {
 
 impl<T: Decide> EnvelopeTerms<T> {
     fn new() -> Self {
-        Self(
-            [T::zero(); EnvelopeTerm::ALL.len()],
-            FidelityLegs::Summed,
-            ImageName::Derived,
-        )
+        Self([T::zero(); EnvelopeTerm::ALL.len()], FidelityLegs::Summed)
     }
 
     fn add(&mut self, term: EnvelopeTerm, value: T) {
@@ -5213,6 +5195,12 @@ impl<T: Real> Period<T> {
         self.length
     }
 
+    /// Half the period, as a length: how far an offset may sit from a
+    /// whole number of periods and still be nearer it than the next.
+    pub fn half(self) -> T {
+        self.length / (T::one() + T::one())
+    }
+
     /// `k` whole periods, as a length: a deck element's shift, or the
     /// advance of a winding of `k`.
     pub fn times(self, k: i32) -> T {
@@ -5883,7 +5871,7 @@ fn placement_terms<T: Decide>(
     let derived = chart_pcurve_over(carrier, t0, t1, surface, band)?;
     let at = stored.eval(t0);
     let past_half = |d: T, period: Option<Period<T>>| match period {
-        Some(p) => (d.abs() + d.abs() - p.length()).max(T::zero()) / (T::one() + T::one()),
+        Some(p) => (d.abs() - p.half()).max(T::zero()),
         None => T::zero(),
     };
     let offsets = |image: &Pcurve<T>| {
@@ -5910,12 +5898,15 @@ fn placement_terms<T: Decide>(
     Ok((du * arm_u, dv * arm_v))
 }
 
-/// **Check 4's verdict**, the one spelling every closed-form lane
-/// decides its envelope through (`pcurve_envelope`): `Zero` certifies;
-/// anything else refuses, or escalates, at the check `named` names — the
-/// envelope term over the band alone where the lane keeps its terms apart
-/// ([`EnvelopeTerms::first_over`]), or its placement term
-/// ([`placement_check`]) where the lane's own statement is one number.
+/// **Check 4's verdict**, the one spelling every lane decides its
+/// envelope through (`pcurve_envelope`): `Zero` certifies; anything else
+/// refuses, or escalates, at the check `named` names — the envelope term
+/// over the band alone where the lane keeps its terms apart (the harmonic
+/// and projected lanes, [`EnvelopeTerms::first_over`]), its placement
+/// term where the lane's own statement is one 3-D number (the
+/// focal-section and spiric lanes, [`placement_check`]), and the whole
+/// [`PcurveCheck::Envelope`] where it is one hull bound with no terms to
+/// name (the iso, iso-arc and fitted lanes).
 fn envelope_verdict<T: Decide>(
     envelope: T,
     band: Band,
@@ -7257,15 +7248,7 @@ fn run_fitted_checks<T: Decide>(
     // for the same reason: a certificate whose own bound exceeds ε is
     // not a certificate. It is NOT folded into `max_residual` (the
     // sampled max and the sup bound stay separate statements).
-    let mut envelope_margin = T::zero();
-    check_residual(
-        "pcurve_envelope",
-        PcurveCheck::Envelope,
-        0,
-        Margin::of(hull_sup),
-        band,
-        &mut envelope_margin,
-    )?;
+    envelope_verdict(hull_sup, band, || PcurveCheck::Envelope)?;
 
     Ok(PcurveCertificate::closed(
         CERT_SAMPLES,
@@ -7652,15 +7635,7 @@ fn run_iso_arc_checks<T: Decide>(
     };
     let slack_affine = slack_start.max(stretch_u.to_meters(far));
     let envelope = hull + slack_v + slack_affine + slack_knots;
-    let mut envelope_margin = T::zero();
-    check_residual(
-        "pcurve_envelope",
-        PcurveCheck::Envelope,
-        0,
-        Margin::of(envelope),
-        band,
-        &mut envelope_margin,
-    )?;
+    envelope_verdict(envelope, band, || PcurveCheck::Envelope)?;
 
     Ok(PcurveCertificate::closed(
         CERT_SAMPLES,
@@ -7857,15 +7832,7 @@ fn run_iso_checks<T: Decide>(
             });
         }
     };
-    let mut envelope_margin = T::zero();
-    check_residual(
-        "pcurve_envelope",
-        PcurveCheck::Envelope,
-        0,
-        Margin::of(envelope),
-        band,
-        &mut envelope_margin,
-    )?;
+    envelope_verdict(envelope, band, || PcurveCheck::Envelope)?;
 
     Ok(PcurveCertificate::closed(
         CERT_SAMPLES,

@@ -324,13 +324,20 @@ fn a_carrier_on_its_chart_images_exactly_at_f64_and_interval() {
             if sweep > 1.5 * PI {
                 continue;
             }
-            let cache = PcurveCache::certify(image.clone(), t0, t1, &carrier, &surf, b)
-                .or_else(|_| {
-                    let Pcurve::Projected(p) = image.clone() else {
-                        unreachable!()
+            // The door the row certified through, and the same door for its
+            // lifts below: the closed-form one, or the fitted lane's.
+            let door = |image: Pcurve<f64>, closed: bool| {
+                if closed {
+                    PcurveCache::certify(image, t0, t1, &carrier, &surf, b)
+                } else {
+                    let Pcurve::Projected(p) = image else {
+                        unreachable!("a projected image")
                     };
                     PcurveCache::certify_projected(*p, t0, t1, &carrier, &surf, b, Some(lane64))
-                })
+                }
+            };
+            let closed = door(image.clone(), true).is_ok();
+            let cache = door(image.clone(), closed)
                 .unwrap_or_else(|e| panic!("{what}: f64 certification refused: {e:?}"));
             let env = cache.certificate().envelope;
             assert!(env < 1e-10, "{what}: f64 envelope {env:e}");
@@ -343,15 +350,11 @@ fn a_carrier_on_its_chart_images_exactly_at_f64_and_interval() {
             if matches!(chart, Chart::Sphere | Chart::Torus) {
                 lifts.push((0.0, TAU));
             }
-            for (du, dv) in lifts {
-                let Pcurve::Projected(p) = image.translate(du, dv) else {
-                    unreachable!("a translated projected image stays one")
-                };
-                let lifted =
-                    PcurveCache::certify_projected(*p, t0, t1, &carrier, &surf, b, Some(lane64));
+            for &(du, dv) in &lifts {
+                let lifted = door(image.translate(du, dv), closed);
                 assert!(
                     lifted.is_err(),
-                    "{what}: the row lifted ({du}, {dv}) certified"
+                    "{what}: the row lifted ({du}, {dv}) certified at f64"
                 );
             }
             // The f64 lane rounds both, so the comparison has rounding room.
@@ -367,6 +370,29 @@ fn a_carrier_on_its_chart_images_exactly_at_f64_and_interval() {
             let Pcurve::Projected(p) = image else {
                 panic!("{what}: interval image {image:?}")
             };
+            for &(du, dv) in &lifts {
+                let lifted = PcurveCache::certify_projected(
+                    p.map_affine(
+                        |q| {
+                            geom_core::Point2::new(
+                                q.x + Interval::from_f64(du),
+                                q.y + Interval::from_f64(dv),
+                            )
+                        },
+                        |w| w,
+                    ),
+                    i0,
+                    i1,
+                    &ci,
+                    &si,
+                    b,
+                    Some(lane_iv),
+                );
+                assert!(
+                    lifted.is_err(),
+                    "{what}: the row lifted ({du}, {dv}) certified at Interval"
+                );
+            }
             let cache = PcurveCache::certify_projected(*p, i0, i1, &ci, &si, b, Some(lane_iv))
                 .unwrap_or_else(|e| panic!("{what}: interval certification refused: {e:?}"));
             let env = cache.certificate().envelope;
@@ -804,7 +830,9 @@ fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<(f64, 
     let pcurve = Pcurve::Projected(Box::new(image.clone()));
     let boxed = pcurve.chart_box(t0, t1);
     let lane = crate::FittedLane::<f64>::certified();
-    let terms = projected_envelope(&image, t0, t1, &boxed, &carrier, &surf, b, Some(lane)).ok()?;
+    let terms = projected_envelope(&image, t0, t1, &boxed, &carrier, &surf, b, Some(lane))
+        .map(|(terms, _)| terms)
+        .ok()?;
     Some((
         sampled(&pcurve, &carrier, &surf, t0, t1),
         terms.total(),
@@ -1374,6 +1402,7 @@ fn each_charts_conversion_is_tight_on_a_parallel_carrier() {
             let pcurve = Pcurve::Projected(Box::new(image.clone()));
             let boxed = pcurve.chart_box(0.0, 1.0);
             let terms = projected_envelope(&image, 0.0, 1.0, &boxed, &c, &surf, b, Some(lane))
+                .map(|(terms, _)| terms)
                 .unwrap_or_else(|e| panic!("{chart:?}: {e:?}"));
             let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
             assert!(
@@ -1391,6 +1420,7 @@ fn each_charts_conversion_is_tight_on_a_parallel_carrier() {
         let pcurve = Pcurve::Projected(Box::new(image.clone()));
         let boxed = pcurve.chart_box(0.3, 2.1);
         let terms = projected_envelope(&image, 0.3, 2.1, &boxed, &c, &sphere, b, None)
+            .map(|(terms, _)| terms)
             .expect("a circle reads no door");
         let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
         assert!(
@@ -1560,6 +1590,7 @@ fn moved_stored_scalars_are_dominated() {
         let pcurve = Pcurve::Projected(Box::new(image.clone()));
         let boxed = pcurve.chart_box(t0, t1);
         let env = projected_envelope(&image, t0, t1, &boxed, c, surf, b, Some(lane))
+            .map(|(terms, _)| terms)
             .unwrap_or_else(|e| panic!("{what}: {e:?}"))
             .total();
         let sup = sampled(&pcurve, c, surf, t0, t1);
@@ -1822,6 +1853,7 @@ fn the_plane_envelope_dominates_a_carrier_off_the_plane() {
     let pcurve = Pcurve::Projected(Box::new(image.clone()));
     let boxed = pcurve.chart_box(0.0, 1.0);
     let env = projected_envelope(&image, 0.0, 1.0, &boxed, &c, &plane, b, None)
+        .map(|(terms, _)| terms)
         .expect("the plane reads no door")
         .total();
     let dense = (0..=2048)
@@ -1872,6 +1904,7 @@ fn a_cone_carrier_leaving_the_apex_is_dominated() {
     assert!((sup - d).abs() < 1e-9, "the start is {d:e} off: {sup:e}");
     let boxed = pcurve.chart_box(t0, t1);
     let terms = projected_envelope(&image, t0, t1, &boxed, &c, &cone, b, Some(lane))
+        .map(|(terms, _)| terms)
         .expect("the lever is positive on the nappe");
     let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
     assert!(

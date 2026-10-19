@@ -1,7 +1,7 @@
 ---
 id: whole-period-integers-read-off-a-value-outside-the-s1-sweep
 kind: issue
-title: Whole-period integers read off a value by round, floor or periodic_branch, outside B2b's S1 sweep: three C4 violations, one read safe by slack, the rest renames no reader tells apart
+title: Whole-period integers read off a value by round, floor or periodic_branch, outside B2b's S1 sweep: three C4 violations, the rest renames no reader tells apart
 status: open
 opened: 2026-10-19
 priority: P3
@@ -31,7 +31,7 @@ with this item.
   `tests/pcurve_conic.rs`; no mint reaches it today. Fix: place the
   first sample through `Placement::over`, and decide each later step by
   the marks, or retire the function.
-- `crates/geom-brep/src/props/closure.rs:166`, `interval_loop_turns`.
+- `crates/geom-brep/src/props/closure.rs:175`, `interval_loop_turns`.
   Each junction's turns are `(mid(δ)/τ).round()` at `f64`, through no
   band, then the junction's gap is decided with that integer. On a
   half-period mark the rounding picks a side silently where
@@ -41,32 +41,36 @@ with this item.
   cost is a refusal named as an open junction instead of an escalation.
   Today's levers are: `props::quad::loop_windings`, the cylinder's radius
   (and `1` on the free `v`); `props::spiric::wall_windings`, the torus's
-  `R + r·cos v` and `r`, both at least `R − r > 0` on a ring torus. A
+  `R + r·cos v`, at least `R − r > 0` on a ring torus, and `r > 0`. A
   lever near zero (a pole, an apex) would leave the wrong integer's gap
-  inside the slack, and then the rounding would decide a verdict. Fix:
-  decide the turns with `Period::decide` at the junction's lever.
-- `crates/topo/src/shell.rs:3650`, the rim pairing's run mean:
+  inside the slack, and then the rounding would decide a verdict. Its
+  integer is then accumulated as `m[c] as i64` (`:191`), an `as` cast of
+  a rounded period quotient: a shape the sweeps' patterns cannot see.
+  Fix: decide the turns with `Period::decide` at the junction's lever.
+- `crates/topo/src/shell.rs:3657`, the rim pairing's run mean:
   `tau * ((at - mean)/tau + 0.5).floor()`. The nesting decision reads
   the shifted run. Its doc says no tie arises for the concentric pairs
   `encloses` exists for, but the same code is asked of pairs not known
   to nest (both orders before a band seam, and `pair_rings`' two orders
   before it refuses), where two full-period runs' means can sit half a
   period apart. At that tie the floor lands the later run a whole period
-  across the flat picture, moving its centroid, and the nesting decision
-  reads that placement. Fix: decide the shift by the marks, escalating
-  at the tie.
+  across the flat picture, moving its centroid, and `shell_rim_nesting`
+  (`:3581`) decides on radii read from that placement, numerically: the
+  site's own comment (`:3644`–`:3656`) says so, and that no reader takes
+  it as an identity. Both hold: the tie moves what the numeric nesting
+  decision reads, which is the C4 concern; no identity is read. Fix:
+  decide the shift by the marks, escalating at the tie.
 
 (`step-import`'s outerness `unwrap` is the same class, filed as
 `work/exch/step-import-unwrap-reads-a-whole-period-off-a-value.md`.)
 
-## Read, but safe by slack
+## Fixed on main since filing
 
-- `crates/geom-brep/src/props/curved.rs:4318`: a torus rim's `v` follows
-  the running `v` by `periodic_branch`, and the Green form reads the
-  lift it picks, so a reader does tell the lifts apart. It is safe
-  because every junction on the path is already decided closed within
-  its slack, so the running value sits within a slack of the rim's
-  level, never near a half-period mark, and the pick has one answer.
+- `crates/geom-brep/src/props/curved.rs`, a torus rim's `v` lift, read
+  by the Green form: it was `periodic_branch` (safe by slack, since every
+  junction is decided closed first), and main now decides it by the
+  marks, `torus_lift` (`:4518`, `props_torus_lift_turns`,
+  `Period::decide` at the minor radius).
 
 ## Renames no reader tells apart
 
@@ -102,6 +106,13 @@ At `Interval`, an offset of exactly `π` (a half period) escalates
 through the projected lane's `off_period` at its seam rather than
 deciding a side (B2b's delta review, N1). That is the marks doing what
 this item asks of the sites above.
+
+## Re-sweep owed
+
+An `as i32` / `as i64` cast applied to a period quotient
+(`(x / τ).round() as i64`, or a rounded `m` cast later, as at
+`closure.rs:191`) forms the integer out of sight of every pattern above.
+Re-sweep for it before closing this item.
 
 ## What the patterns could not match
 
