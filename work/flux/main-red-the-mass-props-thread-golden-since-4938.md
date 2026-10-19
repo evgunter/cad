@@ -2,11 +2,12 @@
 id: main-red-the-mass-props-thread-golden-since-4938
 kind: issue
 title: Main red (sweep slow set, unseen by per-PR CI): mass_props_are_thread_count_invariant's serial golden moved for tilted_cut_upper; suspected PR 4938
-status: review
+status: closed
+pr: 5369
+closed: 2026-10-19
 opened: 2026-10-14
 priority: P0
 cost: E
-branch: flux/main-reds-golden-and-split-rim
 ---
 
 

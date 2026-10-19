@@ -2,11 +2,12 @@
 id: geom-brep-open-split-rim-probe-refuses-chart-loop-open-not-props-loop-closed
 kind: issue
 title: geom-brep's rim_dim_review_probes open-split row is red: a loop open by 50eps now refuses ChartLoopOpen, not NotIsoRectangle props_loop_closed
-status: review
+status: closed
+pr: 5369
+closed: 2026-10-19
 opened: 2026-10-15
 priority: P1
 cost: E
-branch: flux/main-reds-golden-and-split-rim
 ---
 
 
