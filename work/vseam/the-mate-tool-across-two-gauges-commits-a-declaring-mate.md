@@ -2,10 +2,11 @@
 id: the-mate-tool-across-two-gauges-commits-a-declaring-mate
 kind: issue
 title: the viewer's mate tool has no copy-gauge-then-mate: across two gauges it commits a plain insert that declares
-status: open
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: M
+closed: 2026-10-16
 ---
 
 
@@ -45,3 +46,7 @@ owns the viewer's assembly authoring.
 The door answers a `RegaugeThenMateOutcome` (the document, the edits it
 applied in order, the maintenance, the mate's id), so such an op
 commits `edits` as one history group, as `record_run` does a staged run.
+
+## Closed by INTENT stage 3 B (PR #5232)
+
+There are no gauges and no declaring mates. A mate is a constraint in one placement's bundle. The mate tool commits `DocEdit::AddConstraint` on the placement it places (`crates/viewer/src/session.rs`, `mate_placement`): the side whose bundle is empty, else the side not on the world, else side `b`. Across two loose spaces that places one copy relative to the other. Between two copies whose bundles already pin them, the door refuses `MateFault::Overconstrained` and the session reports it; removing a pin (`SessionOp::RemoveConstraint`) is the way through. Nothing lands silently.

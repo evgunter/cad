@@ -147,9 +147,9 @@ fn both_blends_evaluate_in_one_document() {
         "the two-blend document failed: {failures:?}"
     );
     for id in [filleted, chamfered] {
-        let value = ev.value(id).expect("the blend node produced a value");
+        let table = ev.table_at(id).expect("the blend node produced a value");
         assert!(
-            value.name_table.iter().count() > 0,
+            table.iter().count() > 0,
             "node {id:?} produced an empty name table"
         );
     }
@@ -157,9 +157,8 @@ fn both_blends_evaluate_in_one_document() {
     // so their tables share no name: this is what "the discrimination
     // is the minting id" means, executed.
     let names = |id: RecipeNodeId| -> std::collections::BTreeSet<String> {
-        ev.value(id)
+        ev.table_at(id)
             .unwrap()
-            .name_table
             .iter()
             .map(|(n, _)| format!("{n:?}"))
             .collect()
@@ -246,12 +245,28 @@ fn both_blends_evaluate_in_one_document() {
 /// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED for INTENT stage 3 B (a placement is the bundle of
+/// mates): a placement is a `Place` holding a world pin where it was a
+/// `PlaceInWorld`, so its stored node, and with it its mint preimage,
+/// moved, and every id the mint chain draws after it. No outcome or
+/// point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// RE-BLESSED, every row, for INTENT stage 3 C (a mate relates two
+/// poses): each document places its copy where it stands by a loose
+/// `Place` and the named interim's world pin, where one edit minted
+/// the placement holding its world pin, so the placement's id and every
+/// id drawn after it moved. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xa2cc_a1d4_0619_11eau64),
-        ("die_chamfer", 0xe357_7e62_ae47_31f6),
+        ("die_fillet", 0x81f1_4b59_6af2_3004u64),
+        ("die_chamfer", 0xfa2a_e5e9_86d3_5f3a),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -273,9 +288,9 @@ fn the_blend_documents_evaluate_to_their_committed_digests() {
 
 /// **A registered boolean document's bytes survive the migration**:
 /// save → load → save reproduces the file exactly. The document is
-/// `crossing_slots` — two subtracts, one carrying declared pairs —
-/// so the wire spelling under pin includes the boolean node's whole
-/// payload: the op, both operand edges and the declared pairs. The
+/// `crossing_slots` — two subtracts — so the wire spelling under pin
+/// includes the boolean node's whole payload: the op and both operand
+/// edges. The
 /// corpus-wide round-trip covers the same bytes; this is the
 /// per-document form beside the digest row, so a red here names the
 /// boolean rather than the registry.
@@ -302,20 +317,19 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// method on the boolean's own channels.
 ///
 /// The three documents split the semantics between them:
-/// `crossing_slots` runs subtract twice, once with a DECLARED rest
-/// contact (so `resolve_declarations`' face-pair arm exercises under
-/// pin) and once undeclared; `heat_sink` runs the union chain;
-/// `kiss_carry` is the one whose boolean values carry NON-EMPTY
-/// surviving contacts (a discovered corner kiss, then the same record
-/// re-entered through `resolve_declarations`' carried-v-v arm). The
-/// digest feeds the boolean value's kind and contacts beside the
-/// stamped body and the name table, so the constants cover exactly
-/// what `wire_boolean` writes.
+/// `crossing_slots` runs subtract twice, the second against a floor
+/// coplanar with the first cavity's, a rest contact the subtract glues;
+/// `heat_sink` runs the union chain; `kiss_carry` is the one whose
+/// boolean values carry NON-EMPTY surviving contacts (a corner kiss the
+/// first union discovers, then the same record the second union carries
+/// from its operand). The digest feeds the boolean value's kind and
+/// contacts beside the stamped body and the name table, so the
+/// constants cover exactly what the pair lowerings write.
 ///
 /// `kiss_carry` is load-bearing for the contacts half, MEASURED: on
 /// the other two documents alone, replacing the lowering's contact
 /// carry with `ContactRecords::default()` leaves every constant
-/// standing (their surviving records are empty — declared REST
+/// standing (their surviving records are empty — glued REST
 /// contacts are consumed into seam structure), so the channel was fed
 /// but dead. With `kiss_carry` pinned that same mutation reds its
 /// row (the other two constants stand, re-measured); deleting the
@@ -399,13 +413,42 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// of that rim rather than as chords, and two floor corners' vertex
 /// names moved with them. The digest feeds the name table. No body
 /// moved.
+///
+/// RE-BLESSED, `crossing_slots` only, for the output stage's killed
+/// lineage (the records of the edges the merge kills, copied into
+/// `BooleanNaming::killed_lineage`): a stretch of the first cavity's
+/// bottom rim the merge left is named as a piece of that rim rather
+/// than as a seam, and one floor corner moved from a touch to a
+/// crossing of the two rims. The digest feeds the name table. No body
+/// moved.
+///
+/// RE-BLESSED for INTENT stage 3 B (a placement is the bundle of
+/// mates): a placement is a `Place` holding a world pin where it was a
+/// `PlaceInWorld`, so its stored node, and with it its mint preimage,
+/// moved, and every id the mint chain draws after it. No outcome or
+/// point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// RE-BLESSED, every row, for INTENT stage 3 C (a mate relates two
+/// poses): each document places its copy where it stands by a loose
+/// `Place` and the named interim's world pin, where one edit minted
+/// the placement holding its world pin, so the placement's id and every
+/// id drawn after it moved. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// RE-BLESSED, `crossing_slots` only, for a seam citing the parent face
+/// (N3): the two seams beside its merged floor cite the floor's `Merged`
+/// parent where they cited one floor. The digest feeds the name table.
+/// No body moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x83af_1043_c3da_9641u64),
-        ("heat_sink", 0x077d_7601_580e_739f),
-        ("kiss_carry", 0xb6cf_9a24_aba9_b50b),
+        ("crossing_slots", 0x47bd_54b5_90cd_cd63u64),
+        ("heat_sink", 0xd551_a6fc_787e_61ba),
+        ("kiss_carry", 0x8ee4_89b1_9c55_7144),
     ] {
         let doc = corpus::documents()
             .into_iter()

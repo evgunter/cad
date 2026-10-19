@@ -140,8 +140,8 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
     let mut control = fit.control().to_vec();
     control[0] = control[0] + Vec3::new(0.0, 0.0, 1e-3);
     let coarsened = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         control,
         fit.weights().to_vec(),
     )
@@ -165,9 +165,22 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
         },
     )
     .unwrap();
-    // The map re-mint may itself refuse on the moved chart; the claim
-    // under test is tier 3's, so run it whatever the mint said.
-    let _ = topo::mint_pcurves(&mut body, Tol::witness());
+    // The re-mint refuses on the degraded chart: its rows' images no
+    // longer map onto their carriers. Tier 3's claim is checked after.
+    let minted = topo::mint_pcurves(&mut body, Tol::witness());
+    assert!(
+        matches!(
+            minted,
+            Err(topo::PcurveMintError::Certify {
+                error: geom_brep::PcurveCertifyError::ResidualExceeded {
+                    check: geom_brep::PcurveCheck::MapResidual,
+                    ..
+                },
+                ..
+            })
+        ),
+        "the re-mint refuses the degraded chart's rows at the map residual: {minted:?}"
+    );
     let errors = topo::validate_geometric(&body, Tol::witness())
         .expect_err("a degraded fit must not validate");
     assert!(
@@ -274,8 +287,16 @@ fn approx_face_surface(body: &Body<f64>, face: FaceKey) -> Arc<geom::ApproxSurfa
 /// coordinates are compared one by one.
 fn same_net(a: &NurbsSurface<f64>, b: &NurbsSurface<f64>, what: &str) {
     assert_eq!(a.weights(), b.weights(), "{what}: weights are invariants");
-    assert_eq!(a.knots_u().knots(), b.knots_u().knots(), "{what}: knots u");
-    assert_eq!(a.knots_v().knots(), b.knots_v().knots(), "{what}: knots v");
+    assert_eq!(
+        a.knots_u_f64_interim().knots(),
+        b.knots_u_f64_interim().knots(),
+        "{what}: knots u"
+    );
+    assert_eq!(
+        a.knots_v_f64_interim().knots(),
+        b.knots_v_f64_interim().knots(),
+        "{what}: knots v"
+    );
     assert_eq!(a.control().len(), b.control().len(), "{what}: net size");
     for (i, (p, q)) in a.control().iter().zip(b.control()).enumerate() {
         assert!(
@@ -332,8 +353,12 @@ fn an_approx_faced_body_moves_under_a_rigid_map() {
     let map = rigid();
     for d in [0.05_f64, -0.05] {
         let (body, face) = box_with_approx_cap(d, MINT_TARGET);
-        let moved = topo::transform_rigid(&body, &map, Tol::witness())
-            .unwrap_or_else(|e| panic!("d = {d}: an Approx-faced body must move: {e}"));
+        let moved = topo::transform_rigid(
+            &body,
+            &geom_core::test_support::rigid(&map, Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("d = {d}: an Approx-faced body must move: {e}"));
 
         let before = approx_face_surface(&body, face);
         let after = approx_face_surface(&moved, face);
@@ -407,7 +432,12 @@ fn an_approx_faced_body_moves_under_a_rigid_map() {
 #[test]
 fn the_props_lanes_verdict_is_the_same_either_side_of_the_map() {
     let (body, _) = box_with_approx_cap(0.05, MINT_TARGET);
-    let moved = topo::transform_rigid(&body, &rigid(), Tol::witness()).expect("the body moves");
+    let moved = topo::transform_rigid(
+        &body,
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("the body moves");
     let read = |b: &Body<f64>| match topo::mass_properties(b, Tol::witness()) {
         Ok(m) => Ok((m.volume, m.surface_area, m.volume_pad, m.area_pad)),
         Err(e) => Err(format!("{e}")),
@@ -453,7 +483,12 @@ fn the_props_lanes_verdict_is_the_same_either_side_of_the_map() {
 fn the_mapped_face_is_a_certified_fit_of_the_mapped_description() {
     for d in [0.05_f64, -0.05] {
         let (body, face) = box_with_approx_cap(d, MINT_TARGET);
-        let moved = topo::transform_rigid(&body, &rigid(), Tol::witness()).expect("the body moves");
+        let moved = topo::transform_rigid(
+            &body,
+            &geom_core::test_support::rigid(&rigid(), Tol::witness()),
+            Tol::witness(),
+        )
+        .expect("the body moves");
         let after = approx_face_surface(&moved, face);
         let geom::SurfaceDescription::Offset { base, .. } = after.description();
         let fresh = geom_brep::approx_offset_surface_at(Arc::clone(base), d, MINT_TARGET, band())
@@ -479,37 +514,6 @@ fn the_mapped_face_is_a_certified_fit_of_the_mapped_description() {
     }
 }
 
-/// **The gate order is part of the contract**: a non-rigid map refuses
-/// `NotRigid` FIRST, on an `Approx`-faced body too. The `Approx` arm
-/// rests on a statement about isometries, so it must never be the arm
-/// that reports a scale or a reflection.
-#[test]
-fn a_non_rigid_map_refuses_not_rigid_first_on_an_approx_body() {
-    let (body, _) = box_with_approx_cap(0.05, MINT_TARGET);
-    let scale = Affine3::from_parts(
-        geom_core::Mat3::from_cols(
-            Vec3::new(3.0, 0.0, 0.0),
-            Vec3::new(0.0, 3.0, 0.0),
-            Vec3::new(0.0, 0.0, 3.0),
-        ),
-        Vec3::zero(),
-    );
-    let mirror = Affine3::from_parts(
-        geom_core::Mat3::from_cols(
-            Vec3::new(-1.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-        ),
-        Vec3::zero(),
-    );
-    for (name, m) in [("scale", scale), ("mirror", mirror)] {
-        match topo::transform_rigid(&body, &m, Tol::witness()) {
-            Err(topo::TransformError::NotRigid { .. }) => {}
-            other => panic!("{name} on an Approx-faced body: expected NotRigid, got {other:?}"),
-        }
-    }
-}
-
 /// **A degraded fit does not survive the map.** The same planted
 /// corruption [`a_degraded_fit_on_a_face_goes_red_at_tier_three`] uses —
 /// a fit edited after certification, carrying an honest-looking
@@ -528,8 +532,8 @@ fn a_degraded_fit_does_not_survive_the_map() {
     let mut control = fit.control().to_vec();
     control[0] = control[0] + Vec3::new(0.0, 0.0, 1e-3);
     let coarsened = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         control,
         fit.weights().to_vec(),
     )
@@ -550,8 +554,12 @@ fn a_degraded_fit_does_not_survive_the_map() {
     )
     .unwrap();
 
-    let e = topo::transform_rigid(&body, &rigid(), Tol::witness())
-        .expect_err("a degraded fit must not move");
+    let e = topo::transform_rigid(
+        &body,
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect_err("a degraded fit must not move");
     assert!(
         matches!(
             e,
@@ -582,7 +590,12 @@ fn a_degraded_fit_does_not_survive_the_map() {
 #[test]
 fn the_pcurve_pass_reaches_the_same_charts_either_side_of_the_map() {
     let (mut body, _) = box_with_approx_cap(0.05, MINT_TARGET);
-    let mut moved = topo::transform_rigid(&body, &rigid(), Tol::witness()).expect("the body moves");
+    let mut moved = topo::transform_rigid(
+        &body,
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("the body moves");
     let here = topo::mint_pcurves(&mut body, Tol::witness()).map_err(|e| format!("{e}"));
     let there = topo::mint_pcurves(&mut moved, Tol::witness()).map_err(|e| format!("{e}"));
     // The TEXT, not the boolean: both sides refuse today, so comparing
@@ -650,8 +663,12 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
     );
 
     // The map.
-    let e = topo::transform_rigid(&body, &rigid(), Tol::witness())
-        .expect_err("a narrowed window is a claim nothing proved");
+    let e = topo::transform_rigid(
+        &body,
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect_err("a narrowed window is a claim nothing proved");
     assert!(
         matches!(
             e,
@@ -692,8 +709,8 @@ fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
     let eps = Tol::witness().eps();
     control[mid] = control[mid] + Vec3::new(0.0, 0.0, 10.0 * eps);
     let nudged = NurbsSurface::new(
-        fit.knots_u().clone(),
-        fit.knots_v().clone(),
+        fit.knots_u_f64_interim().clone(),
+        fit.knots_v_f64_interim().clone(),
         control,
         fit.weights().to_vec(),
     )
@@ -713,8 +730,12 @@ fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
         },
     )
     .unwrap();
-    let e = topo::transform_rigid(&body, &rigid(), Tol::witness())
-        .expect_err("an edit of ten times ε does not certify at ε");
+    let e = topo::transform_rigid(
+        &body,
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect_err("an edit of ten times ε does not certify at ε");
     assert!(
         matches!(
             e,
@@ -764,7 +785,12 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
         },
     )
     .unwrap();
-    let moved = topo::transform_rigid(&body, &rigid(), Tol::witness()).expect("a good pair moves");
+    let moved = topo::transform_rigid(
+        &body,
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("a good pair moves");
     let after = approx_face_surface(&moved, face);
     let c = after.certificate();
     let geom::SurfaceDescription::Offset { base, .. } = after.description();
@@ -866,7 +892,7 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
 
     let e = topo::transform_rigid(
         &body,
-        &Affine3::translation(v3(1.0, 0.0, 0.0)),
+        &geom_core::RigidMotion::translation(v3(1.0, 0.0, 0.0)).unwrap(),
         Tol::witness(),
     )
     .expect_err("a scalar with no fit lane cannot move an Approx face");
@@ -897,7 +923,12 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
 #[test]
 fn the_walls_a_placed_approx_capped_part_still_meets() {
     let (body, _) = box_with_approx_cap(0.05, MINT_TARGET);
-    let placed = topo::transform_rigid(&body, &rigid(), Tol::witness()).expect("the part places");
+    let placed = topo::transform_rigid(
+        &body,
+        &geom_core::test_support::rigid(&rigid(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("the part places");
 
     let here = topo::mass_properties(&body, Tol::witness()).expect("the operand weighs");
     let props = topo::mass_properties(&placed, Tol::witness()).expect("the placed part weighs");
@@ -927,4 +958,65 @@ fn the_walls_a_placed_approx_capped_part_still_meets() {
         ),
         "expected the kind refusal, got {step}"
     );
+}
+
+/// **A rim stated as a ROW in another chart takes its own image, never a
+/// constant one.** The approximated cap is moved onto a fresh key
+/// holding the same surface, so its rims stay described as iso images
+/// in the OLD chart, and two of them are rows there (`v` fixed, `u`
+/// moving). Re-derived on the new chart, each of the cap's four rims is
+/// an exact iso line with one moving channel, and each certifies. A
+/// derivation that read a stated row as a column would build
+/// `pl = (0, 0)`, a point, which certification refuses.
+#[test]
+fn a_rim_stated_as_a_row_in_another_chart_takes_its_own_image() {
+    let d = 0.05;
+    let (mut body, face) = box_with_approx_cap(d, MINT_TARGET);
+    let same = approx_face_surface(&body, face);
+    // Lifts RechartStrandsDescriptions: the cap on a fresh key holding
+    // the same surface, its rims still described in the old chart, is
+    // the row's premise.
+    body.set_face_surface_unvouched_for_tests(
+        face,
+        FaceSurface::New {
+            surface: Surface::Approx(same),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let chart = body
+        .get_surface(body.get_face(face).unwrap().surface)
+        .unwrap()
+        .clone();
+    let rims: Vec<_> = body
+        .half_edges()
+        .map(|(k, _)| k)
+        .filter(|&k| body.face_of_half_edge(k) == Some(face))
+        .collect();
+    assert_eq!(rims.len(), 4, "the cap has four rims");
+    for h in rims {
+        let mut fresh = body.clone();
+        fresh.detach_pcurve(h);
+        let image = topo::pcurve_of(&fresh, h, band).unwrap();
+        let topo::Pcurve::IsoLine { pl, .. } = image else {
+            panic!("{h:?}: a straight rim on the cap's chart is an iso line: {image:?}")
+        };
+        assert!(
+            (pl.x == 0.0) != (pl.y == 0.0),
+            "{h:?}: exactly one channel moves, so the image is a row or a column: {pl:?}"
+        );
+        let curve = fresh
+            .get_curve_geom(
+                fresh
+                    .get_edge(fresh.get_half_edge(h).unwrap().edge)
+                    .unwrap()
+                    .curve,
+            )
+            .and_then(topo::CurveGeom::certified)
+            .unwrap();
+        let (t0, t1) = curve.params();
+        geom_brep::PcurveCache::certify(image, t0, t1, curve.carrier(), &chart, band)
+            .unwrap_or_else(|e| panic!("{h:?}: the rim's image certifies: {e:?}"));
+    }
 }

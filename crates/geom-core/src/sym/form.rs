@@ -598,16 +598,6 @@ pub(super) struct Form {
     /// `atan(+inf)` is `pi/2`, and the difference is an honest zero.
     /// The two halves catch different things and both are needed.
     pub(super) poisoned: bool,
-    /// **This form was built through a clause-3 fold** (rule C,
-    /// [`super::signed`]): it is equal to the expression at every point of
-    /// the leaf's box rather than identically in the parameters, so a zero
-    /// reached through it is `sign_gated`, not `symbolic_zero`. Every
-    /// combinator here carries it into its result. The walk drops it
-    /// only where the result does not depend on the gated operand: a
-    /// product or `copysign` whose zero factors are all ungated
-    /// (`zero_factors_gate`, in the early walk's zero arm), and the arm
-    /// A0's `Select` does not take.
-    pub(super) gated: bool,
 }
 
 impl Form {
@@ -620,7 +610,6 @@ impl Form {
             num,
             den,
             poisoned: false,
-            gated: false,
         }
     }
 
@@ -636,7 +625,6 @@ impl Form {
             num: Poly::one(),
             den: Poly::one(),
             poisoned: true,
-            gated: false,
         }
     }
 
@@ -662,7 +650,6 @@ impl Form {
                 num: self.num.add(&other.num)?,
                 den: self.den.clone(),
                 poisoned: false,
-                gated: self.gated || other.gated,
             });
         }
         Some(Self {
@@ -672,7 +659,6 @@ impl Form {
                 .add(&other.num.mul(&self.den, budget)?)?,
             den: self.den.mul(&other.den, budget)?,
             poisoned: false,
-            gated: self.gated || other.gated,
         })
     }
 
@@ -684,7 +670,6 @@ impl Form {
             num: self.num.neg()?,
             den: self.den.clone(),
             poisoned: false,
-            gated: self.gated,
         })
     }
 
@@ -696,7 +681,6 @@ impl Form {
             num: self.num.mul(&other.num, budget)?,
             den: self.den.mul(&other.den, budget)?,
             poisoned: false,
-            gated: self.gated || other.gated,
         })
     }
 
@@ -710,7 +694,6 @@ impl Form {
             num: self.den.clone(),
             den: self.num.clone(),
             poisoned: false,
-            gated: self.gated,
         })
     }
 
@@ -722,7 +705,7 @@ impl Form {
     pub(super) fn digest(&self) -> u128 {
         Hash128::new()
             .word(0x464f_524d_5f4e_4652)
-            .word(u64::from(self.poisoned) | (u64::from(self.gated) << 1))
+            .word(u64::from(self.poisoned))
             .wide(self.num.digest())
             .wide(self.den.digest())
             .finish()

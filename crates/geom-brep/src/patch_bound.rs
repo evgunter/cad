@@ -20,9 +20,9 @@
 //!
 //! Every cell reports **signed componentwise enclosures**
 //! ([`PatchCell::s_u`] … [`PatchCell::s_vv`]) of the DESCRIBED patch
-//! — on both arms and with no carve-out, because the refinement an arm
-//! performs is itself part of the enclosure ([`PatchCell`], "What the
-//! enclosure encloses"). An inf-side consumer
+//! — on both arms and with no carve-out, because the cut or the
+//! refinement an arm performs is itself part of the enclosure
+//! ([`PatchCell`], "What the enclosure encloses"). An inf-side consumer
 //! needs them as such — a magnitude sup cannot bound `‖S_u × S_v‖`
 //! from below, because the cross product's sign structure is exactly
 //! the information a magnitude throws away — and a sup-side consumer
@@ -30,61 +30,46 @@
 //! [`norm_sq`](geom_core::interval::norm_sq), whose
 //! `√hi` is a sup bound on the norm.
 //!
-//! **The signed reading is the only one**, and it is a reading of the
-//! quotient rule itself: the true `−` signs, divided by the whole
-//! weight hull. The cancellations that survive that are real — on a
-//! quarter cylinder they are worth an order of magnitude on
-//! `sup‖S_uv‖` — so a consumer wanting a magnitude takes `norm_sq`
-//! of a signed enclosure and never a magnitude recurrence.
+//! **The signed reading is the only one**: a consumer wanting a
+//! magnitude takes `norm_sq` of a signed enclosure and never a
+//! magnitude recurrence.
 //!
 //! # The rational arm
 //!
-//! A RATIONAL patch is `S = A/w` with `A = ΣΣ Nᵢ Nⱼ wᵢⱼ Pᵢⱼ` and
-//! `w = ΣΣ Nᵢ Nⱼ wᵢⱼ` — both POLYNOMIAL tensor-product B-splines, so
-//! every ingredient is the same control-hull fact taken on the
-//! homogeneous nets. With `Ã = A − c·w` for a cell-local centre `c`
-//! (so `S − c = Ã/w`, and knot differencing is linear:
-//! `d(A − c·w) = dA − c·dw`), the quotient rule — exactly
-//! `NurbsSurface::ders_in_span`'s corrections — reads
+//! A RATIONAL patch's partials are quotients with polynomial
+//! numerators — `S_u = Ã_u/W²` and `S_u × S_v = M̃/W³` at the first
+//! order, `S_uu`, `S_uv`, `S_vv` as `M/W³` at the second — and the
+//! arm reads every one of them from one statement,
+//! [`geom_core::spline::cell_second_quotients`]
+//! ([`geom_core::spline::derivative`], "The surface statement" and
+//! "The second order"): on each exact dyadic piece of a span cell,
+//! numerator and denominator are raised to one degree, and the
+//! quantity is a convex combination of the coefficient ratios
+//! `m_k/b_k`. So per piece:
 //!
-//! ```text
-//! S_u  = (Ã_u  − (S − c)·w_u) / w                        (v symmetric)
-//! S_uu = (Ã_uu − 2·S_u·w_u − (S − c)·w_uu) / w           (v symmetric)
-//! S_uv = (Ã_uv − S_u·w_v − S_v·w_u − (S − c)·w_uv) / w
-//! ```
+//! - each coordinate lies between its least and greatest ratio — the
+//!   signed enclosures [`PatchCell::s_u`] … [`PatchCell::s_vv`]
+//!   ([`QuotientPiece::coordinate_range`]);
+//! - the norm is at most the largest `‖m_k‖/b_k` —
+//!   [`PatchCell::s_u_sup`], [`PatchCell::s_v_sup`],
+//!   [`PatchCell::m_sup`];
+//! - the area's norm is at least the least ratio projected on the
+//!   piece's own direction — [`PatchCell::m_inf`].
 //!
-//! **The divisor is the cell's weight hull, argued not assumed.** On
-//! the cell `w` is a convex combination of the active weights, so
-//! `w ∈ [w_min, w_max]`; interval arithmetic's division refuses a zero-touching
-//! divisor, so a net whose positivity was never proven is refused
-//! rather than answering.
-//!
-//! **Recentring keeps the cross terms cell-sized**: with the cell's
-//! control centroid as `c`, `sup|S − c|` is a cell-of-control-net
-//! fact rather than a whole-patch one, so `(S − c)·w_dd` does not
-//! inflate with the patch's distance from the origin.
-//!
-//! A degree-1 direction's `Ã_dd` and `w_dd` are exactly zero, but its
-//! CROSS terms survive — a rational degree-1 direction genuinely
-//! curves in parameter — and the recurrences carry that.
-//!
-//! **The refinement the arm performs first is itself part of the
-//! enclosure.** The homogeneous nets are refined IN INTERVAL ARITHMETIC from ring
-//! points of the described net
-//! ([`geom_core::spline::net::TensorNet::refine_u`]), each Boehm ratio
-//! an outward-rounded quotient of the knots it is made of, so what the
-//! cells enclose is the described patch and not a rounded neighbour of
-//! it. There is no refined `f64` surface on this arm: the cell extents
-//! come from the refined knot vectors, which are exact (the inserted
-//! knots are the `f64`s the schedule chose), and a refined control
-//! point is interval arithmetic quotient `A / w`.
+//! The cells are those pieces, [`RATIONAL_CERT_SPLITS`] per span
+//! direction, halved from the cell's quotients in interval arithmetic,
+//! restriction being exact in ℝ, so what the cells enclose is the
+//! described patch; there is no refined net on this arm. A
+//! direction of degree above 18 puts the second order over
+//! [`geom_core::spline::QUOTIENT_MAX_DEGREE`], and the arm refuses
+//! typed ([`PatchBoundError::DegreeAboveCeiling`]; module docs,
+//! "Refusal").
 //!
 //! # Conservatism
 //!
-//! The answer is a bound, not an estimate. Ordinary walls measure
-//! within a small factor of the true sup; extreme weight ratios can
-//! leave it orders above, because the product terms lose the sign
-//! correlation a steep ramp lives in. The cost is only how finely a
+//! The answer is a bound, not an estimate. Its slack is the spread of
+//! the coefficient ratios over a piece, which shrinks with the piece;
+//! extreme weight ratios widen it. The cost is only how finely a
 //! consumer must subdivide; the bound is never wrong.
 //!
 //! # Refusal (fail-loud, D4 ¶2)
@@ -92,38 +77,46 @@
 //! Structural refusals are typed ([`PatchBoundError`]); arithmetic
 //! failures are refusals, and a refused hull fails every `≤ ε`
 //! comparison it reaches.
+//!
+//! **The degree ceilings.** Every quotient here is an exact Bernstein
+//! product of degree at most [`QUOTIENT_MAX_DEGREE`] (`56`) per
+//! direction. The rational arm reads its second partials at `3p`, so a
+//! rational direction of degree above 18 refuses typed
+//! ([`PatchBoundError::DegreeAboveCeiling`]). The integral arm needs a
+//! quotient only for its area floor, `A_u × A_v` at `2p − 1`, so it
+//! certifies to degree 28 with a floor and past that with the
+//! conservative floor `0.0` ([`PatchCell::m_inf`]).
+//!
+//! **The practical ceiling is lower on a wide weight spread.** The
+//! weight power's coefficients are interval enclosures, and at degree
+//! 17 and above a spread near `1e6` lets the rounding of their
+//! products reach zero: the quotient then does not certify, its sups
+//! read `NaN` and its boxes refused, and every consumer's `≤ ε` check
+//! refuses the face.
 
 use geom_core::Bounds;
+use std::borrow::Cow;
 use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, max_bound, norm_sup};
-use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::net::{TensorChannels, TensorCoeffs, TensorNet};
-use geom_core::spline::{C1Break, Derived, KnotVector};
+use geom_core::spline::weight_scale::unit_scale_exact;
+use geom_core::spline::{
+    C1Break, CellAxis, CellBlock, Derived, KnotVector, QUOTIENT_MAX_DEGREE, QuotientPiece, Span,
+    cell_second_quotients, polynomial_area_pieces,
+};
 
-/// The fixed refinement schedule of the RATIONAL arm: every nonempty
-/// span of every direction splits into this many equal pieces before
-/// the per-cell assembly. A CONSTANT (D9: structure, never a
-/// data-dependent iteration), and this arm's own: `geom::curves`'
-/// rational speed meter refines by a count of the same value, but that
-/// count prices one curve bound against the refusal frontier its own
-/// tests pin, while this one prices the per-cell partial hulls every
-/// [`patch_cells`] consumer reads (against the insertion rounding
-/// below), and `mesh::chords`' rational carrier `sup‖C″‖` bound
-/// through [`rational_split_points`]. Neither follows the other. Knot
-/// insertion is evaluation-invariant in ℝ, so it changes no geometry;
-/// it only shrinks every hull the bound is assembled from, which is
-/// what keeps the `sup‖S − c‖·sup|w_dd|` cross terms cell-sized.
-///
-/// **The schedule is not free of the arithmetic, which is why it is
-/// applied in certification arithmetic.** Each insertion the count buys is one more
-/// affine combination, and the count therefore also sets how much
-/// outward rounding the refined net carries. That width grows with the
-/// NUMBER of insertions rather than by a factor per insertion, which is
-/// what makes 16 affordable ([`geom_core::spline::CurvePlan::apply_certified`]
-/// argues the form that buys it).
+/// The fixed piece count of the RATIONAL arm: every nonempty span of
+/// every direction is read on this many equal pieces (module docs). A
+/// CONSTANT (D9: structure, never a data-dependent iteration), and this
+/// arm's own: `geom::curves`' rational meters count their pieces by
+/// their own constant, which prices one curve bound against the
+/// refusal frontier its own tests pin, while this one prices the
+/// per-cell partial readings every [`patch_cells`] consumer reads.
+/// Cutting is exact in ℝ, so it changes no geometry; it only narrows
+/// each piece's spread of coefficient ratios.
 pub const RATIONAL_CERT_SPLITS: usize = 16;
 
 /// A typed refusal of the patch-bound assembly (fail-loud). Each
@@ -152,20 +145,23 @@ pub enum PatchBoundError {
     /// surface refuses these already, so a face reaching this bound
     /// carrying one is also a finding.
     NonPositiveWeight,
-    /// The same, discovered after the fixed rational refinement: the
-    /// refined weight ENCLOSURE reaches zero. Outside the certified
-    /// inventory: every insertion step is met with the hull of its two
-    /// sources, so each refined weight's enclosure lies within the
-    /// described weights' range, whose lower end the door has already
-    /// proven positive — even at the smallest subnormal, where a
-    /// product with a ratio below one underflows to zero.
-    RefinedWeightLostPositivity,
-    /// The fixed rational refinement failed to materialise. Outside
-    /// the certified inventory: the fixed schedule inserts knots into a
-    /// direction that already passed the C¹ gate, and insertion into a
+    /// A refinement's knot-insertion chain failed to materialise.
+    /// Outside the certified inventory: the schedule inserts knots into
+    /// a direction that already passed the C¹ gate, and insertion into a
     /// valid clamped vector is total, so the description that reached
     /// this is reported rather than repaired.
     RefinementFailed,
+    /// A rational direction of degree above 18: the rational arm reads
+    /// the second partials as quotients of degree `3p`, past the
+    /// [`QUOTIENT_MAX_DEGREE`] of `56` its exact Bernstein products
+    /// reach (module docs, "Refusal").
+    DegreeAboveCeiling,
+    /// The quotient statement refused a block under its degree ceiling,
+    /// on either arm (the rational cells, or the integral area floor).
+    /// Outside the certified inventory: a block of a C¹-gated direction
+    /// with proven-positive weights and a degree under the ceiling is
+    /// one the statement always forms.
+    QuotientRefused,
     /// A direction whose differenced knot vector failed to
     /// materialise. In the patch lanes a valid face reaches this when a
     /// span only a few ulps wide is cut by the equal-split schedule:
@@ -197,14 +193,19 @@ impl PatchBoundError {
                 "rational NURBS face with a non-positive or non-finite weight, which \
                  describes no valid surface. Recourse: supply strictly positive, finite weights"
             }
-            Self::RefinedWeightLostPositivity => concat!(
-                "rational NURBS face whose refined weights lost positivity, which the \
-                 refinement of positive weights never does. ",
-                geom_core::kernel_defect_ending!()
-            ),
             Self::RefinementFailed => concat!(
                 "NURBS face that could not be subdivided for bounding, which a valid face \
                  always allows. ",
+                geom_core::kernel_defect_ending!()
+            ),
+            Self::DegreeAboveCeiling => {
+                "rational NURBS face of degree above 18 in a direction, past the degree its \
+                 second-derivative bound reaches (three times the degree, at most 56). \
+                 Recourse: describe the face at degree 18 or below in each direction"
+            }
+            Self::QuotientRefused => concat!(
+                "NURBS face whose derivative bound could not be formed under its degree \
+                 ceiling, which a valid face always allows. ",
                 geom_core::kernel_defect_ending!()
             ),
             Self::DerivedKnots => concat!(
@@ -229,13 +230,14 @@ impl core::error::Error for PatchBoundError {}
 ///
 /// # What the enclosure encloses
 ///
-/// **The DESCRIBED patch, on both arms, with no carve-out.** Refinement
-/// is part of the enclosure: where an arm inserts knots it inserts them
-/// into certification enclosures of the described homogeneous net
+/// **The DESCRIBED patch, on both arms, with no carve-out.** Where
+/// the integral arm refines it inserts knots into certification
+/// enclosures of the described net
 /// ([`geom_core::spline::net::TensorNet::refine_u`]), each Boehm ratio
 /// an outward-rounded quotient of the knots it is made of, so the
 /// insertion widens like every later step instead of rounding the net
-/// to a nearby one.
+/// to a nearby one; the rational arm cuts its pieces from the described
+/// net the same way (module docs, "The rational arm").
 ///
 /// That makes a STRUCTURAL predicate sound to read off these cells. A
 /// component whose true value is identically zero comes back as an
@@ -249,12 +251,12 @@ impl core::error::Error for PatchBoundError {}
 /// reparameterization and genuinely curves in parameter, as the module
 /// header says of the cross terms.
 ///
-/// What it costs is width, and the width is the honest one. On that
-/// same ruled face the zero `S_vv` is reported as dust at the scale the
-/// insertion contributed rather than as an exact zero, because that is
-/// all an enclosure of the refinement can say. A consumer sizing a grid
-/// pays that in the last decades of a bound; a consumer asking whether
-/// zero is in there gets the right answer.
+/// What it costs is width, and the width is the honest one: an
+/// enclosure says what the arithmetic it was formed in can say. On
+/// that ruled face the quotient's coefficients of `S_vv` are exact
+/// zeros, so the zero reads as one; a reading formed through more
+/// arithmetic would carry its rounding as dust around zero. A consumer
+/// asking whether zero is in there gets the right answer either way.
 #[derive(Clone, Copy, Debug)]
 pub struct PatchCell {
     /// The cell's `u` extent, `[lo, hi]`.
@@ -277,10 +279,8 @@ pub struct PatchCell {
     /// Euclidean norms of coefficient VECTORS (D4 ¶2), so a rigid map
     /// moves it only by rounding: on the integral arm the derived
     /// control vectors active on the cell; on the rational arm the
-    /// quotient rule `S_u = (Ã_u − (S − c)·w_u)/w` taken over norms,
-    /// `(sup‖Ã_u‖ + sup‖S − c‖·sup|w_u|)/inf w`, each `sup‖·‖` the
-    /// largest norm of one active coefficient vector. `NaN` when
-    /// refused.
+    /// largest `‖ã_k‖/b_k` of the quotient `Ã_u/W²` on the piece
+    /// (module docs, "The rational arm"). `NaN` when refused.
     pub s_u_sup: f64,
     /// Certified upper bound on `‖S_v‖` over the cell, read as
     /// [`Self::s_u_sup`] is.
@@ -288,11 +288,19 @@ pub struct PatchCell {
     /// Certified upper bound on `‖S_u × S_v‖` over the cell, read from
     /// coefficient vectors as [`Self::s_u_sup`] is: on the integral arm
     /// the cross product of the two hulls of active derived control
-    /// vectors, bounded about their centres; on the rational arm the same over
-    /// `S_u × S_v = (Ã_u × Ã_v − w_v·Ã_u × (S − c) − w_u·(S − c) × Ã_v)/w²`,
-    /// the `(S − c) × (S − c)` term being identically zero. `NaN` when
+    /// vectors, bounded about their centres; on the rational arm the
+    /// largest `‖m̃_k‖/b_k` of the area quotient `M̃/W³`. `NaN` when
     /// refused.
     pub m_sup: f64,
+    /// Certified LOWER bound on `‖S_u × S_v‖` over the cell: the area
+    /// quotient's own floor ([`QuotientPiece::inf_norm`], read from
+    /// below), on the rational arm `M̃/W³` on the piece and on the
+    /// integral arm `A_u × A_v` over one, one piece per span cell
+    /// ([`polynomial_area_pieces`]). `0.0` — the floor's conservative
+    /// answer — when the reading does not certify, separates nothing
+    /// from zero, or is past the integral arm's degree 28 (module docs,
+    /// "Refusal").
+    pub m_inf: f64,
 }
 
 /// Whether a patch is rational under the kernel's definition (any
@@ -301,21 +309,47 @@ pub fn is_rational(n: &NurbsSurface<f64>) -> bool {
     n.weights().iter().any(|w| *w != 1.0)
 }
 
+/// `n` with its weights at unit scale
+/// ([`geom_core::spline::weight_scale::unit_scale_exact`]), or `n`
+/// itself where that rescale is a no-op or would drop a bit. The
+/// rescaled net describes the same surface; what it buys is range for
+/// the weight powers the enclosures form (`w²` here, up to `w⁴` in
+/// [`crate::offset_fit`]'s composite). Which arm reads a net is decided
+/// on the DESCRIBED weights ([`is_rational`]), before this runs.
+pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface<f64>> {
+    let Some((_, scaled)) = unit_scale_exact(n.weights()) else {
+        return Cow::Borrowed(n);
+    };
+    match NurbsSurface::new(
+        n.knots_u_f64_interim().clone(),
+        n.knots_v_f64_interim().clone(),
+        n.control().to_vec(),
+        scaled,
+    ) {
+        Ok(rescaled) => Cow::Owned(rescaled),
+        Err(e) => unreachable!(
+            "the door refused an exact power-of-two rescale of weights it admitted: {e}"
+        ),
+    }
+}
+
 /// **The per-cell certified bounds** on a described NURBS patch's
 /// first and second partials (module docs).
 ///
 /// Cell granularity is the arm's own: the integral arm reports the
-/// raw knot-span cells, the rational arm the cells of the fixed
-/// [`RATIONAL_CERT_SPLITS`] refinement.
+/// raw knot-span cells, the rational arm each span cell's exact dyadic
+/// pieces, [`RATIONAL_CERT_SPLITS`] per direction at most (module docs,
+/// "The rational arm").
 ///
 /// # Errors
 ///
 /// [`PatchBoundError`] — a C⁰-creased or degree-0 direction, an
-/// illegal rational description, or a refinement/derived-knot
-/// construction that fails to materialise.
+/// illegal rational description, a rational direction of degree above
+/// 18 ([`PatchBoundError::DegreeAboveCeiling`], module docs "Refusal"),
+/// or a derived-knot construction that fails to materialise.
 pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
-    check_direction(n.knots_u())?;
-    check_direction(n.knots_v())?;
+    check_direction(n.knots_u_f64_interim())?;
+    check_direction(n.knots_v_f64_interim())?;
     if is_rational(n) {
         rational_cells(n, RATIONAL_CERT_SPLITS)
     } else {
@@ -323,32 +357,38 @@ pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundEr
     }
 }
 
-/// [`patch_cells`] on an EXPLICIT refinement schedule: every nonempty
-/// span of every direction is cut into `splits` equal pieces first,
-/// in **both** arms.
+/// [`patch_cells`] on an EXPLICIT schedule, in **both** arms: the
+/// integral arm refines every nonempty span of every direction into
+/// `splits` equal pieces first, and the rational arm reads the largest
+/// power of two at most `splits` equal pieces per span direction
+/// (module docs).
 ///
 /// Why a consumer would ask for more than [`patch_cells`] gives: a
-/// B-spline coefficient hull over one knot span covers the whole
-/// `(p + 1)`-span support of the basis functions active there, so its
-/// width shrinks only LINEARLY in the span size, with a constant
-/// `p + 1` times the cell. A sup-side consumer barely notices; an
-/// inf-side one does, because the width is subtracted from the
-/// quantity it is trying to prove positive. The measured case is the
-/// exactly-umbilic sphere band: at 16 splits the first fundamental
-/// form's own `F` — identically zero on an orthogonal chart —
-/// encloses as `[−0.82, 0.81]`, and the certified curvature range
-/// comes out twenty times wider than the surface's single value.
-/// Refinement is exact in ℝ, so this buys tightness and nothing else.
+/// cell's enclosure is as wide as its coefficients spread — on the
+/// integral arm a hull over the `(p + 1)`-span support of the basis
+/// functions active there, on the rational arm the coefficient ratios
+/// of a piece — and that width shrinks only LINEARLY in the cell size.
+/// A sup-side consumer barely notices; an inf-side one does, because
+/// the width is subtracted from the quantity it is trying to prove
+/// positive. The measured case is the exactly-umbilic sphere band
+/// (`r = 2`): at 16 splits the first fundamental form's own `F` —
+/// identically zero on an orthogonal chart — encloses as
+/// `[−0.094, 0.094]` on its widest cell, and the certified curvature
+/// range `[−0.75, −0.27]` is about as wide as the surface's single
+/// value `−0.5`.
+/// Refinement and cutting are exact in ℝ, so this buys tightness and
+/// nothing else.
 ///
 /// # Errors
 ///
-/// As [`patch_cells`], plus [`PatchBoundError::RefinementFailed`].
+/// As [`patch_cells`], plus [`PatchBoundError::RefinementFailed`] (the
+/// integral arm's insertion chain).
 pub fn patch_cells_refined(
     n: &NurbsSurface<f64>,
     splits: usize,
 ) -> Result<Vec<PatchCell>, PatchBoundError> {
-    check_direction(n.knots_u())?;
-    check_direction(n.knots_v())?;
+    check_direction(n.knots_u_f64_interim())?;
+    check_direction(n.knots_v_f64_interim())?;
     if is_rational(n) {
         rational_cells(n, splits)
     } else {
@@ -394,66 +434,15 @@ pub fn check_direction(kv: &KnotVector) -> Result<(), PatchBoundError> {
     })
 }
 
-/// The interior split points of the fixed rational refinement
-/// schedule for one knot vector: [`equal_split_points`] at
-/// [`RATIONAL_CERT_SPLITS`] pieces per nonempty span.
-pub fn rational_split_points(kv: &KnotVector) -> Vec<f64> {
-    equal_split_points(kv, RATIONAL_CERT_SPLITS)
-}
-
 /// A coefficient net as certification enclosures — the shared tensor assembly,
 /// homed in [`geom_core::spline::net`] (issue 1006). The alias is kept
 /// so this module's own prose and its consumers keep naming the thing
 /// they read; the differencing is not this module's any more.
 pub type Net = TensorNet;
 
-/// The signed hull of `a[i][j] − c·w[i][j]` over the window
-/// `wu × wv` — the recentred homogeneous net `Ã = A − c·w` read
-/// through the linearity of knot differencing (`d(A − c·w) = dA −
-/// c·dw`, entrywise, same knots). Out-of-range indices are refused.
-///
-/// This module's own READING, not the shared assembly: no other
-/// consumer of a tensor net recentres at the hull read, because no
-/// other one has a cell-local centre to recentre against.
-///
-/// Fixed association (D9): `u`-major, `i` outer and `j` inner, hulled
-/// left to right — [`TensorNet::window_hull`]'s order, so the two
-/// readings of one net agree on which coefficient came first.
-pub fn window_tilde_hull(
-    a: &Net,
-    w: &Net,
-    c: Interval,
-    wu: &RangeInclusive<usize>,
-    wv: &RangeInclusive<usize>,
-) -> Interval {
-    let mut acc: Option<Interval> = None;
-    for i in wu.clone() {
-        for j in wv.clone() {
-            let e = tilde_entry(a, w, c, i, j);
-            acc = Some(match acc {
-                None => e,
-                Some(h) => Interval::hull(h, e),
-            });
-        }
-    }
-    acc.unwrap_or_else(Interval::refused)
-}
-
-/// One entry of the recentred homogeneous net, `a[i][j] − c·w[i][j]` —
-/// the coefficient [`window_tilde_hull`] hulls and the rational cells'
-/// vector readings take norms of.
-fn tilde_entry(a: &Net, w: &Net, c: Interval, i: usize, j: usize) -> Interval {
-    a.get(i, j) - c * w.get(i, j)
-}
-
 /// The signed hull of `net[i][j]` over the window `wu × wv` —
 /// [`TensorNet::window_hull`], re-exported under the name this
 /// module's consumers already use.
-///
-/// Distinct from [`window_tilde_hull`] with a zero centre on purpose:
-/// that spelling computes `a − 0·w`, and interval arithmetic's outward rounding
-/// makes the subtraction widen the answer by an ulp — enough to put a
-/// CELL's bound above the whole-patch hull it is a subset of.
 pub fn window_hull(net: &Net, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>) -> Interval {
     net.window_hull(wu, wv)
 }
@@ -477,30 +466,18 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
 /// `PatchSpans::decompose` consumes and whose net [`window_hull`]
 /// reads.
 ///
-/// **The ARITHMETIC still diverges, and that is what is left.** This
-/// module extracts `w·P`; `offset_fit::channel` extracts `w·(P − c)`
-/// against a WHOLE-PATCH recentring origin, because its net feeds
-/// polynomial products formed once over the merged break structure,
-/// where interval arithmetic's rounding scales with the coordinate. This site
-/// recentres too, but LATER and per cell ([`window_tilde_hull`]), off
-/// the cell's own control window — the tighter centre, available here
-/// because a cell-local hull is what is being read. So a change to one
-/// is not automatically a change to both. What they still share is the
-/// ORDER (`weight · coordinate`), and a change to THAT is a change to
-/// both.
-///
-/// **Unifying the two CENTRES is open, and it is not this seam's own
-/// to close.** The patch-hull consolidation (issue 1006) unified the
-/// storage and left the centres deliberately apart: they are different
-/// centres because they are read at different granularities, and
-/// making them one means deciding whether the composite lane can
-/// afford a per-cell centre or the cell lane must give up its tighter
-/// one — a measurement on `offset_fit`'s numbers, not a refactor. It
-/// is filed rather than assigned here, because a residue whose owner
-/// is the unit that chose to keep it has no owner at all.
+/// **The ARITHMETIC diverges, and that is what is left.** This module
+/// extracts `w·P`; `offset_fit::channel` extracts `w·(P − c)` against a
+/// WHOLE-PATCH recentring origin, because its net feeds polynomial
+/// products formed once over the merged break structure, where interval
+/// arithmetic's rounding scales with the coordinate. This module's
+/// rational cells read the quotient pieces
+/// ([`geom_core::spline::cell_second_quotients`]) in the frame of each
+/// cell's first active point. What the two still share is the ORDER
+/// (`weight · coordinate`), and a change to THAT is a change to both.
 fn comp_nets(n: &NurbsSurface<f64>) -> TensorChannels<'_, 3> {
-    let nv = n.knots_v().control_count();
-    TensorChannels::from_fn(n.knots_u(), n.knots_v(), |i, j| {
+    let nv = n.knots_v_f64_interim().control_count();
+    TensorChannels::from_fn(n.knots_u_f64_interim(), n.knots_v_f64_interim(), |i, j| {
         // Row-major layout: control[iu·nv + iv] — the net's own.
         let p = n.control()[i * nv + j];
         [p.x, p.y, p.z].map(Interval::point)
@@ -590,12 +567,13 @@ struct CellWindows {
 }
 
 /// Assembles a cell from the five signed componentwise enclosures
-/// (`S_u, S_v, S_uu, S_uv, S_vv`, in that order) and the upper bounds
-/// on `‖S_u‖`, `‖S_v‖` and `‖S_u × S_v‖`.
+/// (`S_u, S_v, S_uu, S_uv, S_vv`, in that order), the upper bounds
+/// on `‖S_u‖`, `‖S_v‖` and `‖S_u × S_v‖`, and the lower bound on
+/// `‖S_u × S_v‖`.
 fn cell_from(
     uv: ((f64, f64), (f64, f64)),
     signed: [[Interval; 3]; 5],
-    [s_u_sup, s_v_sup, m_sup]: [f64; 3],
+    [s_u_sup, s_v_sup, m_sup, m_inf]: [f64; 4],
 ) -> PatchCell {
     PatchCell {
         u: uv.0,
@@ -608,6 +586,7 @@ fn cell_from(
         s_u_sup,
         s_v_sup,
         m_sup,
+        m_inf,
     }
 }
 
@@ -700,16 +679,6 @@ fn centre(vectors: &[[Interval; 3]]) -> [Interval; 3] {
     })
 }
 
-/// The signed hull of coordinate `c` over `vectors`, folded in their
-/// order; refused for none.
-fn coordinate_hull(vectors: &[[Interval; 3]], c: usize) -> Interval {
-    vectors
-        .iter()
-        .map(|v| v[c])
-        .reduce(Interval::hull)
-        .unwrap_or_else(Interval::refused)
-}
-
 /// The INTEGRAL arm (all weights bitwise `1.0`): the plain hull
 /// assembly on the spatial nets — no quotient rule intervenes, so the
 /// enclosure IS the coefficient hull.
@@ -749,6 +718,7 @@ fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>
         .map(DNets::build)
         .collect::<Result<Vec<_>, _>>()?;
     let zero = Interval::zero();
+    let (held_u, held_v) = (held(kv_u), held(kv_v));
     let mut cells = Vec::new();
     for su in kv_u.first_span()..=kv_u.last_span() {
         let Some(span_u) = kv_u.span(su) else {
@@ -801,270 +771,331 @@ fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>
                 &window_vectors(&w.u_d1, &w.v_val, |c, i, j| nets[c].d10.get(i, j)),
                 &window_vectors(&w.u_val, &w.v_d1, |c, i, j| nets[c].d01.get(i, j)),
             );
+            let m_inf = integral_area_floor(base_nets, (&held_u, &held_v), span_u, span_v)?;
             cells.push(cell_from(
                 (span_extent(kv_u, su), span_extent(kv_v, sv)),
                 [s_u, s_v, s_uu, s_uv, s_vv],
-                [s_u_sup, s_v_sup, m_sup],
+                [s_u_sup, s_v_sup, m_sup, m_inf],
             ));
         }
     }
     Ok(cells)
 }
 
-/// The RATIONAL arm: the quotient-rule assembly over the homogeneous
-/// nets, on the cells of the fixed [`RATIONAL_CERT_SPLITS`]
-/// refinement (module docs).
-#[allow(clippy::too_many_lines)]
+/// The RATIONAL arm: the quotient statement on each nonempty cell's
+/// exact dyadic pieces, `splits` per direction (module docs).
 fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>, PatchBoundError> {
-    // The convex-combination licence, on f64 STRUCTURE. `!(w > 0.0)`
-    // catches NaN. (`NurbsSurface::new` refuses these at the door;
-    // re-checked here so THIS bound never divides by an unproven
-    // denominator.)
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if n.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+    // The licence, on f64 STRUCTURE: `NurbsSurface::new` refuses these at
+    // the door; re-checked here so THIS bound never reads an unproven
+    // weight.
+    if !n
+        .weights()
+        .iter()
+        .all(|w| geom_core::spline::weight_in_regime(*w))
+    {
         return Err(PatchBoundError::NonPositiveWeight);
     }
-    // THE REFINEMENT IS PART OF THE ENCLOSURE. The homogeneous nets `w`
-    // and `w·P` are refined IN INTERVAL ARITHMETIC from point intervals of the
-    // DESCRIBED net, so insertion widens outward like every later step
-    // and the cells enclose the described patch. An `f64` refinement
-    // here would make them enclose the refined-`f64` patch instead, and
-    // the described one escapes that by insertion rounding amplified by
-    // the knot differencing.
-    // One refinement of the four homogeneous channels `w·x, w·y, w·z, w`
-    // over the surface's one pair of vectors.
-    let nv0 = n.knots_v().control_count();
-    let described = TensorChannels::from_fn(n.knots_u(), n.knots_v(), |i, j| {
-        let (p, w) = (
-            n.control()[i * nv0 + j],
-            Interval::point(n.weights()[i * nv0 + j]),
-        );
-        [
-            w * Interval::point(p.x),
-            w * Interval::point(p.y),
-            w * Interval::point(p.z),
-            w,
-        ]
-    });
-    let refined = refine_split(&described, splits)?;
-    let (kv_u, kv_v) = (refined.knots_u(), refined.knots_v());
-    let [ax, ay, az, w_pair] = refined.channels();
-    let w_grid = w_pair.net();
-    let (nu, nv) = (w_grid.nu(), w_grid.nv());
-    // Positivity survives insertion in ℝ (convex combinations); this
-    // code may not assume the ARITHMETIC proved it, so the refined
-    // licence is read off the enclosure's own `lo` — a weight hull that
-    // touches or straddles zero voids the convex-combination licence
-    // just as a described non-positive weight does, and a refusal is not a
-    // proof of positivity either.
-    for i in 0..nu {
-        for j in 0..nv {
-            let w = w_grid.get(i, j);
-            #[allow(clippy::neg_cmp_op_on_partial_ord)]
-            if !w.is_certified() || !(w.lo() > 0.0) || !w.lo().is_finite() {
-                return Err(PatchBoundError::RefinedWeightLostPositivity);
-            }
-        }
+    // The weights at unit scale: the same surface, with range for the
+    // weight powers (`W³` here) at either end of the `f64` range.
+    let scaled = unit_scaled_weights(n);
+    let n = &*scaled;
+    let (kv_u, kv_v) = (n.knots_u_f64_interim(), n.knots_v_f64_interim());
+    // The second order is read at three times each degree.
+    if 3 * kv_u.degree().max(kv_v.degree()) > QUOTIENT_MAX_DEGREE {
+        return Err(PatchBoundError::DegreeAboveCeiling);
     }
-    // Second derivatives along a degree-1 direction are EXACTLY zero
-    // in ℝ for the polynomial nets A and w (the direction is a single
-    // linear span pre-refinement — the C¹ gate — and refinement's
-    // inserted knots are removable), so those partials are
-    // `Second::Zero` and their terms exact zeros; the CROSS terms
-    // stay. A degree ≥ 2 direction with no derived vector refuses
-    // (`DerivedKnots`) rather than reading zero.
-    let w_nets = DNets::build(&w_pair)?;
-    let a_base = [ax, ay, az];
-    let a_nets = a_base
-        .iter()
-        .map(DNets::build)
-        .collect::<Result<Vec<_>, _>>()?;
-    // The refined control points, `P = A / w` per channel, ONCE for the
-    // whole net. Each is read by every cell whose window covers it —
-    // `(pu + 1)(pv + 1)` cells at the interior, twice over (the centroid
-    // and the value hull) — so computing it per cell paid the same ring
-    // division up to `2(pu + 1)(pv + 1)` times for one coefficient.
-    // Entrywise, so each point is enclosed at its own weight rather than
-    // at the cell's weight hull.
-    let p_nets: Vec<Net> = a_base
-        .iter()
-        .map(|a| Net::from_fn(nu, nv, |i, j| a.net().get(i, j) / w_grid.get(i, j)))
-        .collect();
-    let zero = Interval::zero();
-    let two = Interval::point(2.0);
+    let (held_u, held_v) = (held(kv_u), held(kv_v));
+    let nv = kv_v.control_count();
     let mut cells: Vec<PatchCell> = Vec::new();
-    for su in kv_u.first_span()..=kv_u.last_span() {
-        for sv in kv_v.first_span()..=kv_v.last_span() {
-            // Emptiness skip and span validation, both directions. The
-            // spans come from the REFINED knot vectors rather than from
-            // a refined surface: there is no refined `f64` surface on
-            // this arm any more, only refined enclosure nets.
-            let (Some(span_u), Some(span_v)) = (kv_u.span(su), kv_v.span(sv)) else {
-                continue;
-            };
-            let w = CellWindows {
-                u_val: span_u.window(),
-                v_val: span_v.window(),
-                u_d1: span_u.first_derived_window(),
-                v_d1: span_v.first_derived_window(),
-                u_d2: span_u.derived_window(2),
-                v_d2: span_v.derived_window(2),
-            };
-            let point_at = |comp: usize, i: usize, j: usize| {
-                p_nets
-                    .get(comp)
-                    .map_or_else(Interval::refused, |p| p.get(i, j))
-            };
-            // The cell centroid ([`centre`]) of the active control
-            // points, and every reading below recentred on it: the
-            // active `P − c`, whose hull holds `S − c` (positive weights
-            // make the rational basis a nonnegative partition of unity
-            // over them), and the active coefficients of `Ã_u` and `Ã_v`.
-            let cc = centre(&window_vectors(&w.u_val, &w.v_val, point_at));
-            let about = window_vectors(&w.u_val, &w.v_val, |k, i, j| point_at(k, i, j) - cc[k]);
-            let au = window_vectors(&w.u_d1, &w.v_val, |k, i, j| {
-                tilde_entry(&a_nets[k].d10, &w_nets.d10, cc[k], i, j)
+    for su in (kv_u.first_span()..=kv_u.last_span()).filter_map(|i| kv_u.span(i)) {
+        for sv in (kv_v.first_span()..=kv_v.last_span()).filter_map(|i| kv_v.span(i)) {
+            let points = on_window(su, sv, |iu, iv| {
+                let pt = n.control()[iu * nv + iv];
+                [pt.x, pt.y, pt.z].map(Interval::point)
             });
-            let av = window_vectors(&w.u_val, &w.v_d1, |k, i, j| {
-                tilde_entry(&a_nets[k].d01, &w_nets.d01, cc[k], i, j)
-            });
-            // The cell's weight hull — the divisor (module docs).
-            let w_cell = window_hull(w_grid, &w.u_val, &w.v_val);
-            // Weight-net hulls on the cell.
-            let w10s = window_hull(&w_nets.d10, &w.u_d1, &w.v_val);
-            let w01s = window_hull(&w_nets.d01, &w.u_val, &w.v_d1);
-            let w11s = window_hull(&w_nets.d11, &w.u_d1, &w.v_d1);
-            let w20s = w_nets
-                .d20
-                .hull(w.u_d2.as_ref(), |net, wu2| window_hull(net, wu2, &w.v_val));
-            let w02s = w_nets
-                .d02
-                .hull(w.v_d2.as_ref(), |net, wv2| window_hull(net, &w.u_val, wv2));
-            let mut s_u = [zero; 3];
-            let mut s_v = [zero; 3];
-            let mut s_uu = [zero; 3];
-            let mut s_uv = [zero; 3];
-            let mut s_vv = [zero; 3];
-            for (comp, a) in a_nets.iter().enumerate() {
-                let v0s = coordinate_hull(&about, comp);
-                // Recentred homogeneous derivative hulls
-                // `Ã_kl = A_kl − c·w_kl` on the cell.
-                let at =
-                    |an: &Net, wn: &Net, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>| {
-                        window_tilde_hull(an, wn, cc[comp], wu, wv)
-                    };
-                let a10s = coordinate_hull(&au, comp);
-                let a01s = coordinate_hull(&av, comp);
-                let a11s = at(&a.d11, &w_nets.d11, &w.u_d1, &w.v_d1);
-                // `A` and `w` are channels of one pair, so their second
-                // partials are both `Zero` or both nets.
-                let a20s = match (&a.d20, &w_nets.d20) {
-                    (Second::Zero, Second::Zero) => zero,
-                    (Second::Net(an), Second::Net(wn)) => w
-                        .u_d2
-                        .as_ref()
-                        .map_or_else(Interval::refused, |wu2| at(an, wn, wu2, &w.v_val)),
-                    _ => unreachable!("A and w share one pair of vectors"),
-                };
-                let a02s = match (&a.d02, &w_nets.d02) {
-                    (Second::Zero, Second::Zero) => zero,
-                    (Second::Net(an), Second::Net(wn)) => w
-                        .v_d2
-                        .as_ref()
-                        .map_or_else(Interval::refused, |wv2| at(an, wn, &w.u_val, wv2)),
-                    _ => unreachable!("A and w share one pair of vectors"),
-                };
-                // The quotient rule itself, in certification arithmetic, divided by
-                // the whole weight hull.
-                let s1u = (a10s - v0s * w10s) / w_cell;
-                let s1v = (a01s - v0s * w01s) / w_cell;
-                s_u[comp] = s1u;
-                s_v[comp] = s1v;
-                s_uu[comp] = (a20s - two * s1u * w10s - v0s * w20s) / w_cell;
-                s_vv[comp] = (a02s - two * s1v * w01s - v0s * w02s) / w_cell;
-                s_uv[comp] = (a11s - s1u * w01s - s1v * w10s - v0s * w11s) / w_cell;
-            }
-            // The vector readings over coefficient-vector norms (the
-            // fields' docs): the quotient rule for the speeds, and the
-            // cross term with the two `w_d·Ã_d × (S − c)` terms over
-            // `inf w²` for `‖S_u × S_v‖`.
-            let vectors = [
-                vectors_norm_sup(&au),
-                vectors_norm_sup(&av),
-                vectors_norm_sup(&about),
-                cross_norm_sup(&au, &av),
-            ];
-            let weights = [w_cell, w10s, w01s];
-            let sups = if vectors.iter().all(|t| t.is_finite())
-                && weights.iter().all(|i| i.is_certified())
-            {
-                let [au_sup, av_sup, reach, cross_sup] = vectors.map(Interval::point);
-                let (w_u, w_v) = (Interval::point(w10s.mag()), Interval::point(w01s.mag()));
-                let w_lo = Interval::point(w_cell.lo());
-                [
-                    certified_hi((au_sup + reach * w_u) / w_lo),
-                    certified_hi((av_sup + reach * w_v) / w_lo),
-                    certified_hi(
-                        (cross_sup + au_sup * reach * w_v + reach * av_sup * w_u) / w_lo.sqr(),
+            let weights = on_window(su, sv, |iu, iv| Interval::point(n.weights()[iu * nv + iv]));
+            let (counts, pieces) = cell_second_quotients(
+                (CellAxis::Span(su, &held_u), CellAxis::Span(sv, &held_v)),
+                CellBlock::Points {
+                    origin: points[0],
+                    points: &points,
+                    weights: &weights,
+                },
+                (splits, splits),
+            )
+            .ok_or(PatchBoundError::QuotientRefused)?;
+            let (eu, ev) = (span_extent(kv_u, su.index()), span_extent(kv_v, sv.index()));
+            for (k, (first, second)) in pieces.iter().enumerate() {
+                let (iu, iv) = (k / counts.1, k % counts.1);
+                cells.push(cell_from(
+                    (
+                        piece_extent(eu, iu, counts.0),
+                        piece_extent(ev, iv, counts.1),
                     ),
-                ]
-            } else {
-                [f64::NAN; 3]
-            };
-            cells.push(cell_from(
-                (span_extent(kv_u, su), span_extent(kv_v, sv)),
-                [s_u, s_v, s_uu, s_uv, s_vv],
-                sups,
-            ));
+                    [
+                        signed_box(&first.u),
+                        signed_box(&first.v),
+                        signed_box(&second.uu),
+                        signed_box(&second.uv),
+                        signed_box(&second.vv),
+                    ],
+                    [
+                        certified_sup(&first.u),
+                        certified_sup(&first.v),
+                        first.area.as_ref().map_or(f64::NAN, certified_sup),
+                        first.area.as_ref().map_or(0.0, certified_inf),
+                    ],
+                ));
+            }
         }
     }
     Ok(cells)
+}
+
+/// Piece `i` of `count` equal pieces of `[lo, hi]`, in `f64`: the
+/// dyadic points the pieces are cut at, rounded as
+/// [`geom_core::spline::algebra::equal_split_points`] rounds them.
+fn piece_extent((lo, hi): (f64, f64), i: usize, count: usize) -> (f64, f64) {
+    #[allow(clippy::cast_precision_loss)]
+    let at = |k: usize| {
+        if k == 0 {
+            lo
+        } else if k == count {
+            hi
+        } else {
+            lo + (hi - lo) * (k as f64 / count as f64)
+        }
+    };
+    (at(i), at(i + 1))
+}
+
+/// The signed componentwise box of a quotient over its piece: each
+/// coordinate between its least and greatest coefficient ratio
+/// ([`QuotientPiece::coordinate_range`]).
+fn signed_box(q: &QuotientPiece<Interval, 3>) -> [Interval; 3] {
+    q.coordinate_range().map(|(lo, hi)| Interval::hull(lo, hi))
+}
+
+/// The quotient's norm sup over its piece, read from above; `NaN` when
+/// it does not certify.
+fn certified_sup(q: &QuotientPiece<Interval, 3>) -> f64 {
+    let s = q.sup_norm();
+    if s.is_certified() { s.hi() } else { f64::NAN }
+}
+
+/// The quotient's norm inf over its piece, read from below; `0.0` when
+/// it does not certify or does not separate the piece from zero.
+fn certified_inf(q: &QuotientPiece<Interval, 3>) -> f64 {
+    let s = q.inf_norm();
+    if s.is_certified() {
+        s.lo().max(0.0)
+    } else {
+        0.0
+    }
+}
+
+/// The integral arm's [`PatchCell::m_inf`] on the span cell
+/// `span_u × span_v`: the area's least ratio along each piece's own
+/// direction, `A_u × A_v` over one on a single piece
+/// ([`polynomial_area_pieces`] at splits `(1, 1)`). Past the statement's
+/// ceiling (`2p − 1` above [`QUOTIENT_MAX_DEGREE`], a degree above 28)
+/// the floor is the conservative `0.0`: the cell's sup-side readings do
+/// not need it, so the arm still certifies, and an inf-side consumer
+/// reads a floor that separates nothing.
+///
+/// # Errors
+///
+/// [`PatchBoundError::QuotientRefused`] when the statement refuses a
+/// block under its ceiling.
+fn integral_area_floor(
+    nets: &TensorChannels<'_, 3>,
+    (held_u, held_v): (&[Interval], &[Interval]),
+    span_u: Span<'_>,
+    span_v: Span<'_>,
+) -> Result<f64, PatchBoundError> {
+    let over = |sp: &Span<'_>| 2 * sp.degree() - 1 > QUOTIENT_MAX_DEGREE;
+    if over(&span_u) || over(&span_v) {
+        // The conservative floor: `A_u × A_v` is past the statement's
+        // degree ceiling, so no floor can be formed, and `0.0` separates
+        // nothing from zero. The sups need no quotient, so the cell still
+        // certifies (`the_integral_floor_is_zero_past_degree_28`).
+        return Ok(0.0);
+    }
+    let channels = nets.channels();
+    let points = on_window(span_u, span_v, |iu, iv| {
+        core::array::from_fn(|c| channels[c].net().get(iu, iv))
+    });
+    let pieces = polynomial_area_pieces(
+        (
+            CellAxis::Span(span_u, held_u),
+            CellAxis::Span(span_v, held_v),
+        ),
+        &points,
+        (1, 1),
+    )
+    .ok_or(PatchBoundError::QuotientRefused)?;
+    Ok(pieces
+        .iter()
+        .map(certified_inf)
+        .fold(f64::INFINITY, f64::min))
+}
+
+/// A knot vector's knots held as certification points.
+fn held(kv: &KnotVector) -> Vec<Interval> {
+    kv.knots().iter().map(|k| Interval::point(*k)).collect()
+}
+
+/// `at(i, j)` over the control window of the span cell `su × sv`,
+/// row-major in `u` then `v`: the block a cell's quotients read.
+fn on_window<X>(su: Span<'_>, sv: Span<'_>, at: impl Fn(usize, usize) -> X) -> Vec<X> {
+    su.window()
+        .flat_map(|iu| sv.window().map(move |iv| (iu, iv)))
+        .map(|(iu, iv)| at(iu, iv))
+        .collect()
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used)]
-mod tests {
+#[allow(clippy::expect_used, clippy::panic)]
+pub(crate) mod tests {
     use super::*;
+    use geom_core::spline::weight_scale::pow2_scaled;
 
-    /// **`RefinedWeightLostPositivity` is not reached from a door-valid
-    /// face, even at the minimum subnormal.** The arm's prose claims the
-    /// refinement keeps every weight's enclosure inside the described
-    /// weights' range. The sharpest witness is the smallest subnormal
-    /// beside `1e2` — a ratio of 1e304 — where `β·w` alone underflows
-    /// to zero: only the step's meet with its sources' hull keeps the
-    /// enclosure's lower end at `w`. The walk up the scale covers
-    /// everywhere a real description could sit.
+    /// **The degree ceilings are the statement's, and each arm meets its
+    /// own.** An integral bidegree `(19, 2)` Bézier certifies: its area
+    /// floor reads `A_u × A_v` at degree `(37, 3)`, under the `56`
+    /// ceiling, and its sups need no quotient at all. The same net with
+    /// one weight off `1` refuses typed, `DegreeAboveCeiling`, because the
+    /// rational arm reads its second partials at `3 · 19 = 57`; the
+    /// refusal is a description the caller changes, not a kernel defect.
     #[test]
-    fn refined_weight_lost_positivity_is_not_reached_from_a_valid_face() {
+    fn each_arm_meets_its_own_degree_ceiling() {
+        let ku = KnotVector::clamped([vec![0.0; 20], vec![1.0; 20]].concat(), 19).expect("kv");
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("kv");
-        let control: Vec<geom_core::Point3<f64>> = (0..9)
-            .map(|i| geom_core::Point3::new(f64::from(i), 0.0, 0.0))
-            .collect();
-        let refuse = |w: f64| {
-            let mut weights = vec![w; 9];
-            weights[4] = 1.0e2;
-            let s = NurbsSurface::new(kv.clone(), kv.clone(), control.clone(), weights)
-                .expect("the door admits any positive finite weight");
-            matches!(
-                patch_cells(&s),
-                Err(PatchBoundError::RefinedWeightLostPositivity)
-            )
+        let mut control = Vec::new();
+        for i in 0..20u32 {
+            for j in 0..3u32 {
+                let (u, v) = (f64::from(i) / 19.0, f64::from(j) / 2.0);
+                control.push(geom_core::Point3::new(u, v, 0.2 * u * v + 0.1 * u * u));
+            }
+        }
+        let integral =
+            NurbsSurface::new(ku.clone(), kv.clone(), control.clone(), vec![1.0; 60]).expect("ok");
+        let cells = patch_cells(&integral).expect("an integral (19, 2) patch certifies");
+        assert!(
+            cells.iter().all(|c| c.m_inf > 0.0 && c.m_inf <= c.m_sup),
+            "the integral floor read {:?}",
+            cells.iter().map(|c| c.m_inf).collect::<Vec<_>>()
+        );
+        let mut weights = vec![1.0; 60];
+        weights[7] = 1.5;
+        let rational = NurbsSurface::new(ku, kv, control, weights).expect("ok");
+        let refusal = patch_cells(&rational).map(|c| c.len());
+        assert_eq!(refusal, Err(PatchBoundError::DegreeAboveCeiling));
+        let msg = PatchBoundError::DegreeAboveCeiling.to_string();
+        assert!(
+            msg.contains("18")
+                && msg.contains("56")
+                && !msg.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+            "{msg}"
+        );
+    }
+
+    /// **Past degree 28 the integral floor is the conservative zero.**
+    /// The integral area `A_u × A_v` sits at degree `2p − 1`, so a
+    /// degree-28 direction reads it at `55` and floors it, and a
+    /// degree-29 one would read `57`, past [`QUOTIENT_MAX_DEGREE`]. There
+    /// the arm still certifies (its sups need no quotient) and every
+    /// cell's `m_inf` is exactly `0.0`: a floor that separates nothing,
+    /// so an inf-side consumer refuses rather than reading a number the
+    /// statement cannot form.
+    #[test]
+    fn the_integral_floor_is_zero_past_degree_28() {
+        let floors = |p: usize| -> Vec<f64> {
+            let ku =
+                KnotVector::clamped([vec![0.0; p + 1], vec![1.0; p + 1]].concat(), p).expect("kv");
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("kv");
+            let mut control = Vec::new();
+            for i in 0..=p {
+                for j in 0..2u32 {
+                    #[allow(clippy::cast_precision_loss)]
+                    let u = i as f64 / p as f64;
+                    let v = f64::from(j);
+                    control.push(geom_core::Point3::new(u, v, 0.1 * u * u + 0.2 * u * v));
+                }
+            }
+            let n = NurbsSurface::new(ku, kv, control, vec![1.0; 2 * (p + 1)]).expect("ok");
+            let cells = patch_cells(&n).expect("an integral patch certifies at any degree");
+            assert!(cells.iter().all(|c| c.m_sup.is_finite()), "p = {p}");
+            cells.iter().map(|c| c.m_inf).collect()
         };
-        for w in [
-            f64::from_bits(1),
-            1.0e-320,
-            1.0e-300,
-            1.0e-200,
-            1.0e-30,
-            1.0e-2,
-            1.0,
-            1.0e2,
+        assert!(
+            floors(28).iter().all(|m| *m > 0.0),
+            "p = 28 floors: {:?}",
+            floors(28)
+        );
+        assert!(
+            floors(29).iter().all(|m| *m == 0.0),
+            "p = 29 floors: {:?}",
+            floors(29)
+        );
+    }
+
+    /// `n` with every weight multiplied by `2^k`.
+    pub(crate) fn weights_times_pow2(n: &NurbsSurface<f64>, k: i32) -> NurbsSurface<f64> {
+        NurbsSurface::new(
+            n.knots_u_f64_interim().clone(),
+            n.knots_v_f64_interim().clone(),
+            n.control().to_vec(),
+            n.weights().iter().map(|&w| pow2_scaled(w, k)).collect(),
+        )
+        .expect("an exact power-of-two scale of door-valid weights")
+    }
+
+    /// The rational quarter cylinder, weights `1, 1, s, s, 1, 1`.
+    fn quarter_cylinder() -> NurbsSurface<f64> {
+        let s = core::f64::consts::FRAC_PI_4.cos();
+        let kv2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("kv2");
+        let kv1 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("kv1");
+        let control = vec![
+            geom_core::Point3::new(1.0, 0.0, 0.0),
+            geom_core::Point3::new(1.0, 0.0, 1.0),
+            geom_core::Point3::new(1.0, 1.0, 0.0),
+            geom_core::Point3::new(1.0, 1.0, 1.0),
+            geom_core::Point3::new(0.0, 1.0, 0.0),
+            geom_core::Point3::new(0.0, 1.0, 1.0),
+        ];
+        NurbsSurface::new(kv2, kv1, control, vec![1.0, 1.0, s, s, 1.0, 1.0]).expect("door")
+    }
+
+    /// **One power of two on every weight moves no cell**, at either
+    /// end of the `f64` range. At `2⁻³⁰⁰` the `w²` the cross-product
+    /// sup divides by underflows to zero, at `2³⁰⁰` it overflows, and
+    /// at `2⁻¹⁰⁷⁰` the weights themselves are subnormal — on the
+    /// dyadic net, whose weights keep every bit there. Each scale
+    /// describes the same surface, so every cell is the unit face's to
+    /// the bit.
+    #[test]
+    fn a_uniform_weight_scale_moves_no_cell() {
+        let cylinder = quarter_cylinder();
+        let dyadic = NurbsSurface::new(
+            cylinder.knots_u_f64_interim().clone(),
+            cylinder.knots_v_f64_interim().clone(),
+            cylinder.control().to_vec(),
+            vec![1.0, 1.0, 0.75, 0.75, 1.0, 1.0],
+        )
+        .expect("door");
+        for (name, unit, scales) in [
+            ("cylinder", &cylinder, &[-1000, -300, -1, 1, 300, 1000][..]),
+            ("dyadic", &dyadic, &[-1070][..]),
         ] {
-            assert!(
-                !refuse(w),
-                "weight {w:e} beside 1e2 lost positivity in the refinement: a step reached \
-                 below the hull of its two sources"
-            );
+            let want = format!("{:?}", patch_cells(unit).expect("the unit face's cells"));
+            for &k in scales {
+                let scaled = weights_times_pow2(unit, k);
+                let got = patch_cells(&scaled).unwrap_or_else(|e| {
+                    panic!("{name} at 2^{k}: a uniformly scaled face refused: {e}")
+                });
+                assert_eq!(format!("{got:?}"), want, "{name} at 2^{k}: the cells moved");
+            }
         }
     }
 
@@ -1083,27 +1114,33 @@ mod tests {
             PatchBoundError::Degree1Crease,
             PatchBoundError::Crease,
             PatchBoundError::NonPositiveWeight,
-            PatchBoundError::RefinedWeightLostPositivity,
             PatchBoundError::RefinementFailed,
+            PatchBoundError::DegreeAboveCeiling,
+            PatchBoundError::QuotientRefused,
             PatchBoundError::DerivedKnots,
         ];
-        assert_eq!(arms.len(), 7, "an arm was added without a row here");
+        assert_eq!(arms.len(), 8, "an arm was added without a row here");
         for arm in arms {
             let msg = arm.to_string();
             assert_eq!(msg, arm.note(), "Display is the shared note");
-            // One ending: a labelled repair, or on the two arms only a
+            // One ending: a labelled repair, or on the three arms only a
             // kernel defect reaches, the shared dead end.
             assert_eq!(
                 test_utils::refusal::recourse_markers(&msg),
                 1,
                 "not exactly one ending: {msg}"
             );
-            if matches!(
+            let defect = matches!(
                 arm,
-                PatchBoundError::RefinementFailed | PatchBoundError::DerivedKnots
-            ) {
-                assert!(msg.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{msg}");
-            }
+                PatchBoundError::RefinementFailed
+                    | PatchBoundError::QuotientRefused
+                    | PatchBoundError::DerivedKnots
+            );
+            assert_eq!(
+                msg.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                defect,
+                "only a kernel defect ends on the dead end: {msg}"
+            );
             let lower = msg.to_lowercase();
             assert!(
                 RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
@@ -1165,6 +1202,232 @@ mod tests {
         }
     }
 
+    /// An integral biquadratic with interior knots, or its rational twin
+    /// with weights varying along both directions.
+    fn biquadratic(rational: bool) -> NurbsSurface<f64> {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0], 2)
+            .expect("valid");
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for i in 0..6u32 {
+            for j in 0..6u32 {
+                let (u, v) = (f64::from(i) * 0.2, f64::from(j) * 0.2);
+                control.push(geom_core::Point3::new(
+                    u + 0.1 * v * v,
+                    v,
+                    0.3 * u * (1.0 - u) + 0.2 * v * v,
+                ));
+                weights.push(if rational {
+                    1.0 + 0.6 * f64::from((i * 6 + j) % 5) / 4.0
+                } else {
+                    1.0
+                });
+            }
+        }
+        NurbsSurface::new(kv.clone(), kv, control, weights).expect("valid")
+    }
+
+    /// A rational biquadratic whose weights vary strongly along `v` (the
+    /// middle `v` column carries the large weights), found by a seeded
+    /// search for a patch on which the `w_v` term of the retired `m_sup`
+    /// recipe kept the bound above the sample.
+    fn strong_v() -> NurbsSurface<f64> {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
+        let control = [
+            (-0.891, -0.073, -0.646),
+            (0.257, -0.311, -0.081),
+            (0.577, -0.584, 0.283),
+            (-0.841, -0.157, 0.184),
+            (0.203, 0.789, 0.876),
+            (0.146, 0.698, 0.284),
+            (0.739, -0.405, 0.519),
+            (0.801, -0.122, -0.214),
+            (0.903, -0.323, -0.794),
+        ]
+        .map(|(x, y, z)| geom_core::Point3::new(x, y, z))
+        .to_vec();
+        let weights = vec![
+            0.287, 2.163, 0.446, 0.227, 0.857, 0.908, 0.399, 7.160, 0.861,
+        ];
+        NurbsSurface::new(kv.clone(), kv, control, weights).expect("valid")
+    }
+
+    /// A rational patch of bidegree `(2, 1)` whose weights vary along the
+    /// degree-1 direction.
+    fn ruled() -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("valid");
+        let control = [
+            (1.0, 0.0, 0.0),
+            (1.0, 0.0, 1.0),
+            (1.0, 1.0, 0.0),
+            (1.0, 1.0, 1.2),
+            (0.0, 1.0, 0.0),
+            (0.0, 1.0, 0.9),
+        ]
+        .map(|(x, y, z)| geom_core::Point3::new(x, y, z))
+        .to_vec();
+        let weights = vec![1.0, 2.5, 0.7, 1.6, 1.0, 0.5];
+        NurbsSurface::new(ku, kv, control, weights).expect("valid")
+    }
+
+    /// **The area floor reads each cell's own normal.** Each cell's
+    /// [`PatchCell::m_inf`] is checked against `‖S_u × S_v‖` on a 5×5
+    /// grid over the cell: never above the least certified upper end
+    /// of the samples (soundness: the true inf is at most any sampled
+    /// value), and at least a measured share of the least sampled
+    /// value (the floor follows the normal as it turns). The quarter
+    /// cylinder's normal turns through a right angle, so a floor read
+    /// along one fixed direction collapses to zero on the cells where
+    /// the normal is across it; the other fixtures are the meter row's.
+    #[test]
+    fn the_area_floor_reads_each_cells_own_normal() {
+        // Measured worst share: `0.937` (the degree-1 fixture; `0.996`
+        // the rational twin, `0.999` the integral arm and the cylinder),
+        // with about a tenth to spare.
+        const FLOOR_SHARE: f64 = 0.85;
+        for (name, n, splits, share) in [
+            ("integral", biquadratic(false), 4, true),
+            ("rational", biquadratic(true), 4, true),
+            ("rational degree-1 v", ruled(), 4, true),
+            (
+                "quarter cylinder",
+                quarter_cylinder(),
+                RATIONAL_CERT_SPLITS,
+                true,
+            ),
+            // Soundness only: near the corner `(0.31, 0.13)` the area
+            // falls to `0.036` of its scale and the normal turns inside a
+            // piece, so the cell there reads the conservative zero.
+            ("rational strong v", strong_v(), RATIONAL_CERT_SPLITS, false),
+        ] {
+            let lifted = n.map_scalar(<Interval as geom_core::Real>::from_f64);
+            let cells = patch_cells_refined(&n, splits).expect("covered");
+            let mut worst = f64::INFINITY;
+            for c in &cells {
+                let (mut least_hi, mut least) = (f64::INFINITY, f64::INFINITY);
+                for a in 0..5u32 {
+                    for b in 0..5u32 {
+                        let u = c.u.0 + (c.u.1 - c.u.0) * f64::from(a) / 4.0;
+                        let v = c.v.0 + (c.v.1 - c.v.0) * f64::from(b) / 4.0;
+                        let jet = lifted.ders(
+                            <Interval as geom_core::Real>::from_f64(u),
+                            <Interval as geom_core::Real>::from_f64(v),
+                        );
+                        let m = geom_core::interval::norm_sq(&cross(
+                            &jet.du.to_array(),
+                            &jet.dv.to_array(),
+                        ))
+                        .sqrt();
+                        least_hi = least_hi.min(m.hi());
+                        let f = n.ders(u, v);
+                        least = least.min(f.du.cross(f.dv).norm());
+                    }
+                }
+                assert!(
+                    c.m_inf <= least_hi,
+                    "{name}: m_inf {:e} above a sampled ‖S_u × S_v‖ {least_hi:e} on {:?} × {:?}",
+                    c.m_inf,
+                    c.u,
+                    c.v
+                );
+                worst = worst.min(c.m_inf / least);
+            }
+            assert!(
+                !share || worst >= FLOOR_SHARE,
+                "{name}: a cell's floor reads {worst} of its least sampled ‖S_u × S_v‖"
+            );
+        }
+    }
+
+    /// **A rational cell reads only its own points.** On a rational
+    /// biquadratic with two nonempty `u` spans, the last `u` row of
+    /// control points and weights is active on the second span alone:
+    /// moving it a hundredfold leaves every first-span cell bit-identical
+    /// (its extents, its five signed boxes and its four meters).
+    #[test]
+    fn a_rational_cell_reads_only_its_own_points() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2).expect("valid");
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let patch = |far: f64| {
+            let mut control = Vec::new();
+            let mut weights = Vec::new();
+            for i in 0..nu {
+                for j in 0..nv {
+                    #[allow(clippy::cast_precision_loss)]
+                    let (x, y) = (i as f64, j as f64);
+                    let last = i + 1 == nu;
+                    control.push(geom_core::Point3::new(
+                        x * if last { far } else { 1.0 },
+                        y,
+                        0.3 * x * y,
+                    ));
+                    weights.push(if last { far } else { 1.0 + 0.2 * (x + y) });
+                }
+            }
+            NurbsSurface::new(ku.clone(), kv.clone(), control, weights).expect("valid")
+        };
+        let first_span = |far: f64| -> Vec<Vec<u64>> {
+            patch_cells_refined(&patch(far), 4)
+                .expect("covered")
+                .iter()
+                .filter(|c| c.u.1 <= 1.0)
+                .map(|c| {
+                    let boxes = [c.s_u, c.s_v, c.s_uu, c.s_uv, c.s_vv];
+                    [c.u.0, c.u.1, c.v.0, c.v.1]
+                        .into_iter()
+                        .chain(boxes.iter().flatten().flat_map(|i| [i.lo(), i.hi()]))
+                        .chain([c.s_u_sup, c.s_v_sup, c.m_sup, c.m_inf])
+                        .map(f64::to_bits)
+                        .collect()
+                })
+                .collect()
+        };
+        let (near, far) = (first_span(1.0), first_span(100.0));
+        assert_eq!(near.len(), 16, "the first span's cells at four splits");
+        assert_eq!(near, far, "a first-span cell read the last u row");
+    }
+
+    /// **The cells are the second order's pieces, at the schedule's
+    /// count at any degree.** The rational arm halves each cell's
+    /// quotients, so a biquintic, whose second order sits at degree
+    /// `15`, reads all `16` pieces per span direction at `16` splits.
+    /// The row pins the count and that the cells tile the domain, each
+    /// extent meeting the next end to end, so extents counted otherwise
+    /// than the pieces leave a gap or an overlap.
+    #[test]
+    fn the_rational_cells_tile_each_span_at_the_second_orders_count() {
+        let kv = KnotVector::clamped([vec![0.0; 6], vec![1.0; 6]].concat(), 5).expect("valid");
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for i in 0..6u32 {
+            for j in 0..6u32 {
+                let (u, v) = (f64::from(i) * 0.2, f64::from(j) * 0.2);
+                control.push(geom_core::Point3::new(u, v, 0.4 * u * v - 0.2 * u * u));
+                weights.push(1.0 + 0.3 * f64::from((i + 2 * j) % 3));
+            }
+        }
+        let n = NurbsSurface::new(kv.clone(), kv, control, weights).expect("valid");
+        let cells = patch_cells_refined(&n, RATIONAL_CERT_SPLITS).expect("covered");
+        assert_eq!(cells.len(), 16 * 16, "a biquintic's pieces at 16 splits");
+        let ends = |axis: fn(&PatchCell) -> (f64, f64)| {
+            let mut e: Vec<(f64, f64)> = cells.iter().map(axis).collect();
+            e.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)));
+            e.dedup();
+            e
+        };
+        for (what, e) in [("u", ends(|c| c.u)), ("v", ends(|c| c.v))] {
+            assert_eq!(e.len(), 16, "{what}: {e:?}");
+            assert_eq!(e.first().map(|x| x.0), Some(0.0), "{what}: {e:?}");
+            assert_eq!(e.last().map(|x| x.1), Some(1.0), "{what}: {e:?}");
+            assert!(
+                e.windows(2).all(|w| w[0].1 == w[1].0),
+                "{what}: the extents do not meet end to end: {e:?}"
+            );
+        }
+    }
+
     /// **The meters' vector sups bound every sampled magnitude, and sit
     /// within a measured factor of the box readings they replace**, on
     /// both arms and through a degree-1 direction. Each cell's
@@ -1181,11 +1444,13 @@ mod tests {
     /// whose `S − c` is not collinear with `Ã_u`, and a rational patch of
     /// bidegree `(2, 1)` whose weights vary along the degree-1 direction,
     /// which a Möbius reparameterization makes genuinely curve in
-    /// parameter. Dropping the `(S − c)·w_d` term of either rational
-    /// speed, either `w_d·Ã_d × (S − c)` term of `m_sup`, or any of the
-    /// centred cross bound's three spread terms reads under a sampled
-    /// magnitude; a speed or `m_sup` loosened by half reads over its box
-    /// ceiling.
+    /// parameter. Dropping any of the integral arm's centred cross
+    /// bound's three spread terms reads under a sampled magnitude; a
+    /// speed loosened by `1e-9` of itself reads over its box ceiling
+    /// (one far below the ceiling's `1e-12`, `1e-13` say, does not), and
+    /// `m_sup` loosened by a fifth.
+    /// The rational arm's terms are the quotient statement's, whose own
+    /// rows drop them (`geom_core::spline::derivative`).
     ///
     /// The samples are `f64` evaluations, so the soundness comparison
     /// allows `1e-12` of the sampled value for their rounding, decades
@@ -1193,84 +1458,25 @@ mod tests {
     #[test]
     fn the_meter_sups_bound_every_sampled_magnitude() {
         use geom_core::interval::{dot, norm_sq};
-        // Measured worst over the fixtures at four splits per span, against
-        // the box reading in the fixture's own frame: the speeds at `1.125`×
-        // (the strong-`v` fixture; the integral arm's at `1.0`), `m_sup` at
-        // `1.24`× (the degree-1 fixture; `1.18`× strong-`v`, `1.12`× the
-        // rational twin, `1.02`× integral). The rational readings take the
-        // triangle inequality where the box keeps the cancellation between
-        // `Ã_d` and the `S − c` terms. Each ceiling is that worst with
-        // about a tenth to spare.
-        const SPEED_CEILING: f64 = 1.25;
-        const M_CEILING: f64 = 1.35;
-        let biquadratic = |rational: bool| {
-            let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0], 2)
-                .expect("valid");
-            let mut control = Vec::new();
-            let mut weights = Vec::new();
-            for i in 0..6u32 {
-                for j in 0..6u32 {
-                    let (u, v) = (f64::from(i) * 0.2, f64::from(j) * 0.2);
-                    control.push(geom_core::Point3::new(
-                        u + 0.1 * v * v,
-                        v,
-                        0.3 * u * (1.0 - u) + 0.2 * v * v,
-                    ));
-                    weights.push(if rational {
-                        1.0 + 0.6 * f64::from((i * 6 + j) % 5) / 4.0
-                    } else {
-                        1.0
-                    });
-                }
-            }
-            NurbsSurface::new(kv.clone(), kv, control, weights).expect("valid")
-        };
-        // Found by a seeded search for a patch on which the `w_v` term of
-        // `m_sup` is what keeps the bound above the sample (the corner
-        // `(0, 1)` at four splits). The middle `v` column carries the
-        // large weights.
-        let strong_v = {
-            let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
-            let control = [
-                (-0.891, -0.073, -0.646),
-                (0.257, -0.311, -0.081),
-                (0.577, -0.584, 0.283),
-                (-0.841, -0.157, 0.184),
-                (0.203, 0.789, 0.876),
-                (0.146, 0.698, 0.284),
-                (0.739, -0.405, 0.519),
-                (0.801, -0.122, -0.214),
-                (0.903, -0.323, -0.794),
-            ]
-            .map(|(x, y, z)| geom_core::Point3::new(x, y, z))
-            .to_vec();
-            let weights = vec![
-                0.287, 2.163, 0.446, 0.227, 0.857, 0.908, 0.399, 7.160, 0.861,
-            ];
-            NurbsSurface::new(kv.clone(), kv, control, weights).expect("valid")
-        };
-        let ruled = {
-            let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid");
-            let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("valid");
-            let control = [
-                (1.0, 0.0, 0.0),
-                (1.0, 0.0, 1.0),
-                (1.0, 1.0, 0.0),
-                (1.0, 1.0, 1.2),
-                (0.0, 1.0, 0.0),
-                (0.0, 1.0, 0.9),
-            ]
-            .map(|(x, y, z)| geom_core::Point3::new(x, y, z))
-            .to_vec();
-            let weights = vec![1.0, 2.5, 0.7, 1.6, 1.0, 0.5];
-            NurbsSurface::new(ku, kv, control, weights).expect("valid")
-        };
+        // The speeds are never above the box in ℝ, on either arm: each
+        // coefficient vector (the integral arm's derived control vectors,
+        // the rational arm's ratios `ã_k/b_k`) lies in the box, whose
+        // norm sup is the box reading. So the speed ceiling is the claim
+        // itself, `1` plus rounding: measured at most `1 + 4.5e-16`.
+        // `m_sup` has no such claim on the integral arm — the cross of two
+        // hulls is not the box of the cross — and measures `1.024`× there
+        // (at most `1.0`× on the rational fixtures, `0.90`× strong-`v`,
+        // where the box cross product loses the correlation the area
+        // quotient keeps); its ceiling is that worst with about a tenth to
+        // spare.
+        const SPEED_CEILING: f64 = 1.0 + 1e-12;
+        const M_CEILING: f64 = 1.13;
         let names = ["‖S_u‖", "‖S_v‖", "‖S_u × S_v‖"];
         for (name, n) in [
             ("integral", biquadratic(false)),
             ("rational", biquadratic(true)),
-            ("rational strong v", strong_v),
-            ("rational degree-1 v", ruled),
+            ("rational strong v", strong_v()),
+            ("rational degree-1 v", ruled()),
         ] {
             let cells = patch_cells_refined(&n, 4).expect("covered");
             assert!(cells.len() >= 16, "{name}: {} cells", cells.len());

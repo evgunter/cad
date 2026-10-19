@@ -37,7 +37,7 @@
 use crate::appearance::AppearanceRecord;
 use crate::distribution::DistributionFault;
 use crate::doc::{
-    DocParamField, ExpansionFault, FreeVar, GaugeRefFault, VarName, VarReadFault, WitnessSiteFault,
+    DocParamField, ExpansionFault, FreeVar, NameCarrier, VarName, VarReadFault, WitnessSiteFault,
 };
 use crate::edit::DocEdit;
 use crate::expr::Expr;
@@ -192,8 +192,9 @@ pub(crate) enum Walk {
     /// [`first_pose_fault`] over the variable table (D10): every pose
     /// definition reads minted variables, a live read at a kind it
     /// admits and a live scalar at its slot's dimension; no flip flips
-    /// a flip, no projection lacks its arm, a flip's stored kind is its
-    /// read's, and no definition reaches itself through its reads — the
+    /// a flip, no role is read off a pose that does not offer it or at
+    /// a read that does not admit its kind, a move's, a flip's and a
+    /// carried pose's stored kind is its read's, and no definition reaches itself through its reads — the
     /// predicates the seat door asks of a pose it mints. Snapshot only.
     Pose,
     /// [`first_definition_read_fault`] over every defined variable's
@@ -610,18 +611,28 @@ fn first_output_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     use crate::pose::{PoseDef, PoseFault};
     let fault_of = |id: crate::VarId, def: &PoseDef, kind: crate::VarKind| -> Option<PoseFault> {
-        for (read, &var, expected) in def.reads() {
-            match snapshot.var(var) {
-                None if snapshot.mint.has_var(var) => {}
-                None => return Some(PoseFault::Unminted { var }),
-                Some(held) if !expected.admits(held) => {
+        for (read, &var, role, expected) in def.reads() {
+            match (snapshot.var(var), role) {
+                (None, _) if snapshot.mint.has_var(var) => {}
+                (None, _) => return Some(PoseFault::Unminted { var }),
+                (Some(held), Some(role)) => {
+                    if crate::pose::role_kind(held.kind(), role, expected).is_none() {
+                        return Some(PoseFault::Role {
+                            read,
+                            role,
+                            found: held.kind(),
+                            expected,
+                        });
+                    }
+                }
+                (Some(held), None) if !expected.admits(held) => {
                     return Some(PoseFault::ReadKind {
                         read,
                         found: held.kind(),
                         expected,
                     });
                 }
-                Some(_) => {}
+                (Some(_), None) => {}
             }
         }
         for (slot, &var) in def.scalars() {
@@ -637,38 +648,45 @@ fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 Some(_) => {}
             }
         }
-        match def {
-            PoseDef::Flip { pose } => match snapshot.var(*pose) {
-                Some(held)
-                    if held
-                        .def()
-                        .pose()
-                        .is_some_and(|d| matches!(d, PoseDef::Flip { .. })) =>
-                {
-                    return Some(PoseFault::DoubleFlip);
-                }
-                Some(held) if held.kind() != kind => {
-                    return Some(PoseFault::Kind {
-                        stored: kind,
-                        defined: held.kind(),
-                    });
-                }
-                _ => {}
-            },
-            PoseDef::Project { of, to } => {
-                if let Some(held) = snapshot.var(*of)
-                    && !crate::pose::projects(held.kind(), *to)
-                {
-                    return Some(PoseFault::Projection {
-                        from: held.kind(),
-                        to: *to,
-                    });
-                }
+        if let PoseDef::Flip {
+            pose:
+                crate::pose::RoleRead {
+                    read: pose,
+                    role: None,
+                },
+        } = def
+            && snapshot
+                .var(*pose)
+                .and_then(|held| held.def().pose())
+                .is_some_and(|d| matches!(d, PoseDef::Flip { .. }))
+        {
+            return Some(PoseFault::DoubleFlip);
+        }
+        if let PoseDef::Carried { copy, .. } = def
+            && snapshot.var(*copy).is_some()
+            && !matches!(
+                snapshot
+                    .operation_of(*copy)
+                    .and_then(|at| snapshot.node(at)),
+                Some(crate::Node::Place { .. } | crate::Node::InstantiatePart { .. })
+            )
+        {
+            return Some(PoseFault::NotACopy { var: *copy });
+        }
+        // A move, a flip or a carried pose is of the kind it reads.
+        if let Some(kept) = def.kept()
+            && let Some(held) = snapshot.var(kept.read)
+        {
+            let defined = kept.role.map_or(held.kind(), crate::pose::PoseRole::kind);
+            if defined != kind {
+                return Some(PoseFault::Kind {
+                    stored: kind,
+                    defined,
+                });
             }
-            _ => {}
         }
         // A definition reaching itself through the poses it reads.
-        let mut stack: Vec<crate::VarId> = def.reads().into_iter().map(|(_, &r, _)| r).collect();
+        let mut stack: Vec<crate::VarId> = def.reads().into_iter().map(|(_, &r, _, _)| r).collect();
         let mut seen = std::collections::BTreeSet::new();
         while let Some(at) = stack.pop() {
             if at == id {
@@ -678,7 +696,7 @@ fn first_pose_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 continue;
             }
             if let Some(next) = snapshot.var(at).and_then(|held| held.def().pose()) {
-                stack.extend(next.reads().into_iter().map(|(_, &r, _)| r));
+                stack.extend(next.reads().into_iter().map(|(_, &r, _, _)| r));
             }
         }
         None
@@ -714,13 +732,20 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 // body read observes; each seat reading the selection
                 // is asked of the copy in the operand walk.
                 let narrow = crate::SlotKind::Is(crate::VarKind::Body);
-                let expected = if snapshot.nodes.values().any(|node| {
-                    node.operand_rows().into_iter().any(|(slot, read)| {
-                        read == id
-                            && crate::edit::selection_body_kind(crate::SlotId::Operand(slot))
-                                == narrow
-                    })
-                }) {
+                let instance = matches!(
+                    snapshot
+                        .operation_of(select.body)
+                        .and_then(|at| snapshot.node(at)),
+                    Some(crate::Node::InstantiatePart { .. })
+                );
+                let expected = if !instance
+                    && snapshot.nodes.values().any(|node| {
+                        node.operand_rows().into_iter().any(|(slot, read)| {
+                            read == id
+                                && crate::edit::selection_body_kind(crate::SlotId::Operand(slot))
+                                    == narrow
+                        })
+                    }) {
                     narrow
                 } else {
                     crate::SlotKind::Placeable
@@ -730,9 +755,6 @@ fn first_selection_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                         body: Box::new(snapshot.spoken_var(select.body)),
                         found,
                     },
-                    crate::doc::ReadFault::WorldCopy { .. } => {
-                        unreachable!("an observing read admits a world copy")
-                    }
                 }
             }
         };
@@ -868,6 +890,20 @@ fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId,
 /// keeping its output's shape is [`Walk::OutputSignature`]'s.
 fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
+        // A read through a role reads the kind the role yields.
+        if let Some((slot, found)) = node.seat_role_fault() {
+            let var = node
+                .operand_rows()
+                .into_iter()
+                .find_map(|(at, var)| (at == slot).then_some(var))?;
+            return Some(SnapshotError::SlotVarKind {
+                node: snapshot.spoken(id),
+                slot: SlotId::Operand(slot),
+                var: Box::new(snapshot.spoken_var(var)),
+                found,
+                expected: slot.kind(),
+            });
+        }
         node.operand_rows().into_iter().find_map(|(slot, var)| {
             if !snapshot.has_minted_var(var) {
                 return Some(SnapshotError::OperandUnminted {
@@ -892,13 +928,6 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                         found,
                         expected: node.seat_kind(slot),
                     },
-                    crate::doc::ReadFault::WorldCopy { placement } => {
-                        SnapshotError::ReadsWorldCopy {
-                            node: snapshot.spoken(id),
-                            slot: SlotId::Operand(slot),
-                            placement: snapshot.spoken(placement),
-                        }
-                    }
                 },
             )
         })
@@ -980,10 +1009,10 @@ fn first_non_finite(
     // door already refuses non-finite, and the frame's own components
     // are `Expr`s under the same door. There is no float left for this
     // walk to find.
-    for (name, rec) in &snapshot.appearance {
+    for (at, rec) in &snapshot.appearance {
         if let Some((key, path)) = record_non_finite(rec) {
             return Some(NonFiniteSite::Metadata {
-                name: snapshot.spoken_name(name),
+                name: snapshot.spoken_name(&at.name),
                 key,
                 path,
             });
@@ -1077,7 +1106,12 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
             var: var.clone(),
             field: DocParamField::Offset(d.first_non_finite()?),
         }),
-        DocEdit::SetAppearanceMeta { name, key, value } => {
+        DocEdit::SetAppearanceMeta {
+            body: _,
+            name,
+            key,
+            value,
+        } => {
             value
                 .first_non_finite()
                 .map(|path| NonFiniteSite::Metadata {
@@ -1098,11 +1132,9 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         //
         // - Most `InsertNode` node kinds hold their floats in `Expr`
         //   literals, finite by the construction door.
-        // - `Node::Mate`'s `alignment` and a placement's literal steps
-        //   (an inserted transform's or gauge's, an instance's offset,
-        //   `SetOffset`'s) are RAW `f64`, not `Expr`s. They are refused
-        //   on replay by `apply` (`EditError::NonFiniteAlignment`,
-        //   `NonFinitePlacement`), which `persist::load` runs the log
+        // - An inserted transform's literal placement steps are RAW
+        //   `f64`, not `Expr`s. They are refused on replay by `apply`
+        //   (`NonFinitePlacement`), which `persist::load` runs the log
         //   through — so they are guarded, but by a door this function
         //   deliberately does not rely on for the rest of its list.
         // - The `Node` vocabulary is not closed here: this match is
@@ -1145,12 +1177,14 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::SetAppearance { .. }
         | DocEdit::ClearAppearance { .. }
         | DocEdit::ClearAppearanceMeta { .. }
-        | DocEdit::SetOffset { .. }
-        // A gauge reference is a node id, and so is what a promote or a
-        // fold names.
-        | DocEdit::SetGauge { .. }
-        | DocEdit::Promote { .. }
-        | DocEdit::Fold { .. }
+        // A constraint's numbers are slots, written as formulas the
+        // door lowers.
+        | DocEdit::AddConstraint { .. }
+        | DocEdit::AddValue { .. }
+        // A world pin holds no number.
+        | DocEdit::PinWhereItStands { .. }
+        // A constraint's id is minted, not a float.
+        | DocEdit::RemoveConstraint { .. }
         // A label is text.
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => None,
@@ -1268,6 +1302,17 @@ pub enum SnapshotError {
         /// The read it carries.
         read: VarId,
     },
+    /// An appearance entry is read in a variable the document holds
+    /// live that is no output holding a body — a scalar, a selection,
+    /// a datum's output — so no table names what it holds. No edit
+    /// writes one (`EditError::AppearanceBodyNotARead`); a deleted
+    /// operation's read, the stranded key, is legal.
+    AppearanceReadNotABody {
+        /// The entry's name.
+        name: SpokenName,
+        /// The read it is keyed by.
+        read: VarId,
+    },
     /// A name the document holds spells a profile step its mint log
     /// does not hold — one the document never minted.
     NameStepNotMinted {
@@ -1311,16 +1356,6 @@ pub enum SnapshotError {
         var: SpokenVar,
         /// Why.
         fault: SelectionBodyFault,
-    },
-    /// An operand reads a world placement's copy — the edit doors'
-    /// [`crate::EditError::ReadsWorldCopy`].
-    ReadsWorldCopy {
-        /// The reading node.
-        node: SpokenNode,
-        /// The slot.
-        slot: SlotId,
-        /// The placement whose copy it reads.
-        placement: SpokenNode,
     },
     /// The nodes' reads close a loop ([`crate::Doc::upstream`]): no edit
     /// leaves a document so, since every door that writes a read asks
@@ -1391,32 +1426,25 @@ pub enum SnapshotError {
         /// The higher id holding it.
         b: VarId,
     },
-    /// The recorded ε is not finite and strictly positive.
+    /// The recorded ε is not admissible: not finite, or below
+    /// `geom_core::tolerance::EPS_MIN`.
     EpsilonInvalid {
         /// The recorded value.
         value: f64,
     },
-    /// A gauge reference — an instance's gauge or a gauge's parent —
-    /// that names a live node that is not a gauge. The edit doors
-    /// refuse it through the same predicate (`doc::gauge_ref_fault`).
-    NotAGauge {
-        /// The instance or gauge holding the reference.
+    /// A placement's constraint whose id the mint log does not hold
+    /// as a constraint's, or that a second constraint of the document
+    /// holds too: no edit mints either, so the file is corrupt.
+    ConstraintNotMinted {
+        /// The placement holding it.
         node: SpokenNode,
-        /// The node it names.
-        gauge: SpokenNode,
-    },
-    /// A gauge reference that closes a loop: a gauge sitting on
-    /// itself through its own chain.
-    GaugeCycle {
-        /// The gauge holding the reference.
-        node: SpokenNode,
-        /// The gauge it names, which sits on `node`.
-        gauge: SpokenNode,
+        /// The id.
+        constraint: crate::node::ConstraintId,
     },
     /// A placement frame carrying a non-finite coordinate — a literal
-    /// step of a transform's or a gauge's placement, or of an
-    /// instance's offset. The edit door refuses it, so a file holding
-    /// one is corrupt — refused, never repaired.
+    /// step of a transform's placement, or of a constraint's frame
+    /// offset. The edit door refuses it, so a file holding one is
+    /// corrupt — refused, never repaired.
     PlacementNonFinite {
         /// The node holding the placement.
         node: SpokenNode,
@@ -1448,12 +1476,18 @@ pub enum SnapshotError {
         /// name.
         check: &'static str,
     },
-    /// A mate's alignment datum carries a non-finite coordinate. The
-    /// edit door refuses it, so a file holding one is corrupt: no
-    /// predicate could decide anything about it.
-    MateAlignment {
-        /// The offending mate.
+    /// A constraint the edit door would refuse on what the recipe
+    /// decides of it ([`crate::mate::solve::admit_mate`]): its `on` reads
+    /// no copy, its world read is no pose, its two poses are of two
+    /// kinds, or its class is not admitted. A file holding one is
+    /// corrupt.
+    MateRefused {
+        /// The placement holding it.
         node: SpokenNode,
+        /// The offending constraint.
+        constraint: crate::node::ConstraintId,
+        /// The admission's refusal.
+        fault: Box<crate::MateFault>,
     },
     /// A placement-rule node carrying a rule the edit door would have
     /// refused (GROUP-BOOLEAN-DESIGN): the count spelled two ways, an
@@ -1680,6 +1714,12 @@ impl core::fmt::Display for SnapshotError {
                 "{name} carries the read {read}, which the document's mint log does not hold \
                  as a variable's — the document never minted it",
             ),
+            Self::AppearanceReadNotABody { name, read } => write!(
+                f,
+                "an appearance entry on {name} is read in {read}, which the document holds as \
+                 no output holding a body, so no table names what it holds. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+            ),
             Self::NameStepNotMinted { name, step } => write!(
                 f,
                 "{name} spells the profile step id {step}, which the document's mint log \
@@ -1717,15 +1757,6 @@ impl core::fmt::Display for SnapshotError {
                     )
                 }
             },
-            Self::ReadsWorldCopy {
-                node,
-                slot,
-                placement,
-            } => write!(
-                f,
-                "{node}'s {slot} reads the world copy {placement} makes, which no construction \
-                 reads: only the product, export and a measure do"
-            ),
             Self::ReadCycle { at } => write!(
                 f,
                 "the nodes' reads close a loop through {at} — no edit writes one. {}",
@@ -1841,15 +1872,14 @@ impl core::fmt::Display for SnapshotError {
             ),
             Self::EpsilonInvalid { value } => write!(
                 f,
-                "the recorded ε {value:e} is not finite and strictly positive"
+                "the recorded ε {value:e} is not admissible: {}",
+                geom_core::tolerance::EpsFloor
             ),
-            Self::NotAGauge { node, gauge } => write!(
+            Self::ConstraintNotMinted { node, constraint } => write!(
                 f,
-                "{node}'s gauge reference names {gauge}, which is not a gauge"
+                "{node}'s constraint {constraint} was minted as no constraint's id, or is held \
+                 twice"
             ),
-            Self::GaugeCycle { node, gauge } => {
-                write!(f, "{node} sits on {gauge}, which sits on it")
-            }
             // The frame clause is the frame rule's own
             // (`crate::placement::FrameFault`); these arms supply only
             // the subject, so a reader sees one sentence about a frame
@@ -1872,10 +1902,11 @@ impl core::fmt::Display for SnapshotError {
             Self::PlacementNonRigid { node, at, check } => {
                 frame_refusal(f, node, *at, FrameFault::NotRigid { check })
             }
-            Self::MateAlignment { node } => write!(
-                f,
-                "{node}'s alignment datum carries a non-finite coordinate"
-            ),
+            Self::MateRefused {
+                node,
+                constraint,
+                fault,
+            } => write!(f, "{node}'s constraint {constraint} is refused: {fault}"),
             Self::PlacementRule { node, fault } => write!(f, "{node}: {fault}"),
             Self::ReaderOfUnmintedVar { node, var } => write!(
                 f,
@@ -1983,7 +2014,12 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
             }
         }
     }
+    let mut constraint_ids: std::collections::BTreeSet<crate::node::ConstraintId> =
+        std::collections::BTreeSet::new();
     for (&id, node) in &doc.nodes {
+        if id == RecipeNodeId::WORLD {
+            continue;
+        }
         check_id(id)?;
         // Every node a reference is READ AT that is not also an
         // input (`Node::payload_read_sites` — a mate's two operands):
@@ -1992,29 +2028,14 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         for at in node.payload_read_sites() {
             check_id(at)?;
         }
-        // The gauge reference (A11 (2)), by the predicate the edit
-        // doors ask. A reference to a DELETED gauge is legal state —
-        // A11 (2) keeps it so the unplaced group names its cause — and
-        // loads; one past the counter, to a live non-gauge, or round a
-        // loop is a file no door could have written.
-        if let Some(gauge) = node.gauge_ref() {
-            check_id(gauge)?;
-            match crate::doc::gauge_ref_fault(doc, id, Some(gauge)) {
-                None | Some(GaugeRefFault::Deleted) => {}
-                // `check_id` above refused an id past the counter.
-                Some(GaugeRefFault::NeverMinted) => {
-                    unreachable!("node {}'s gauge id was checked minted above", id)
-                }
-                Some(GaugeRefFault::NotAGauge) => {
-                    return Err(SnapshotError::NotAGauge {
+        // Every constraint id the mint log holds as a constraint's, and
+        // each held once: no edit mints any other.
+        if let Some(bundle) = crate::mate::solve::bundle_of(node) {
+            for c in bundle {
+                if !doc.mint.has_constraint(c.id) || !constraint_ids.insert(c.id) {
+                    return Err(SnapshotError::ConstraintNotMinted {
                         node: doc.spoken(id),
-                        gauge: doc.spoken(gauge),
-                    });
-                }
-                Some(GaugeRefFault::Cycle) => {
-                    return Err(SnapshotError::GaugeCycle {
-                        node: doc.spoken(id),
-                        gauge: doc.spoken(gauge),
+                        constraint: c.id,
                     });
                 }
             }
@@ -2030,8 +2051,8 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 fault,
             });
         }
-        // A placement's literal frames — a transform's, a gauge's, an
-        // instance's offset — held by the predicate the edit door asks,
+        // Literal placement frames — a transform's, a constraint's
+        // frame offsets — held by the predicate the edit door asks,
         // for the rule's reason: the snapshot is the one road
         // to a document that does not pass `apply`.
         if let Some((at, fault)) = node.placement_frame_fault(tol) {
@@ -2059,17 +2080,39 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 bound,
             });
         }
-        // ASM-R2a D-1: a mate's alignment is authored numbers a
-        // predicate must be able to decide on. Asked in THIS walk, of
-        // the same `Node::has_non_finite_alignment` the edit door asks
-        // — a second pass over the nodes would be a second place to
-        // forget the question. A face-based side authors nothing: its
-        // numbers are the face its head names in the part, and whether
-        // the part has that face is the solve's at evaluation
-        // (`MateFault::FaceUnresolved`), never this door's.
-        if node.has_non_finite_alignment() {
-            return Err(SnapshotError::MateAlignment {
+        // A constraint's own admission, the one the edit door asks
+        // (`mate::solve::admit_mate`), asked in THIS walk: a second
+        // pass over the nodes would be a second place to forget the
+        // question. Whether the bundle fixes an equation twice is the
+        // fold's, for a state the edit doors did not see (A11 (1)).
+        let bundle = crate::mate::solve::bundle_of(node).unwrap_or_default();
+        for c in bundle {
+            let at = crate::mate::MateRef::new(id, c.id);
+            let admitted = match &c.kind {
+                crate::mate::ConstraintKind::Mate(mate) => {
+                    crate::mate::solve::admit_mate(doc, at, mate)
+                }
+                crate::mate::ConstraintKind::Value(value) => {
+                    crate::mate::solve::admit_value(doc, at, bundle, value)
+                }
+                crate::mate::ConstraintKind::WorldPin(_) => Ok(()),
+            };
+            if let Err(fault) = admitted {
+                return Err(SnapshotError::MateRefused {
+                    node: doc.spoken(id),
+                    constraint: c.id,
+                    fault,
+                });
+            }
+        }
+        if let Err(fault) = crate::mate::solve::world_pin_stands_alone(id, bundle) {
+            let crate::MateFault::Overconstrained { constraints, .. } = &*fault else {
+                unreachable!("a bundle beside a world pin is overconstrained")
+            };
+            return Err(SnapshotError::MateRefused {
                 node: doc.spoken(id),
+                constraint: constraints[0],
+                fault,
             });
         }
     }
@@ -2089,11 +2132,25 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // And every read it carries, against the mint log: the entity
         // derives from that input, and a read is an id no embedded name
         // states.
+        // An appearance key's body read is one too (NAMES N1, the scope).
+        let body = match carrier {
+            NameCarrier::Store { body, .. } => Some(body),
+            NameCarrier::Payload { .. } | NameCarrier::Select { .. } => None,
+        };
         if let Some(read) = derivation_reads(carrier.name())
             .into_iter()
+            .chain(body)
             .find(|r| !doc.mint.has_var(*r))
         {
             return Err(SnapshotError::NameReadNotMinted {
+                name: doc.spoken_name(carrier.name()),
+                read,
+            });
+        }
+        // An appearance key's read, while the document holds it, holds
+        // a body: what the edit door admits (NAMES N1).
+        if let Some(read) = body.filter(|&r| doc.var(r).is_some() && !doc.holds_body(r)) {
+            return Err(SnapshotError::AppearanceReadNotABody {
                 name: doc.spoken_name(carrier.name()),
                 read,
             });
@@ -2153,11 +2210,11 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // shared is the walk, irreducibly: the edit door holds the one
     // value it is about to write, and this door holds a map that
     // arrived whole. A walk over one value is not a walk.
-    for (name, rec) in &doc.appearance {
+    for (at, rec) in &doc.appearance {
         for (key, value) in &rec.metadata {
             if let Err(error) = value.require_versioned() {
                 return Err(SnapshotError::MetadataUnversioned {
-                    name: doc.spoken_name(name),
+                    name: doc.spoken_name(&at.name),
                     key: key.clone(),
                     error,
                 });
@@ -2341,9 +2398,9 @@ mod tests {
             StepIds,
             MintLogOrder,
             NameReadNotMinted,
+            AppearanceReadNotABody,
             NameStepNotMinted,
             OperandUnminted,
-            ReadsWorldCopy,
             SelectionShape,
             SelectionBody,
             PoseShape,
@@ -2367,12 +2424,11 @@ mod tests {
             DefinitionCycle,
             DefinitionTooLarge,
             EpsilonInvalid,
-            NotAGauge,
-            GaugeCycle,
+            ConstraintNotMinted,
             PlacementNonFinite,
             PlacementImproper,
             PlacementNonRigid,
-            MateAlignment,
+            MateRefused,
             PlacementRule,
             InputList,
             AssertionBound,
@@ -2409,9 +2465,7 @@ mod tests {
                 Walk::SlotRead
             }
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
-            SnapshotError::OperandUnminted { .. } | SnapshotError::ReadsWorldCopy { .. } => {
-                Walk::OperandRead
-            }
+            SnapshotError::OperandUnminted { .. } => Walk::OperandRead,
             SnapshotError::AnonymousVarUnread { .. } | SnapshotError::SharedVarNeedsName { .. } => {
                 Walk::UnnamedReader
             }
@@ -2425,18 +2479,18 @@ mod tests {
             SnapshotError::NodeNotMinted { .. }
             | SnapshotError::StepIds { .. }
             | SnapshotError::NameReadNotMinted { .. }
+            | SnapshotError::AppearanceReadNotABody { .. }
             | SnapshotError::NameStepNotMinted { .. }
             | SnapshotError::ReadCycle { .. }
             | SnapshotError::WitnessSite { .. }
             | SnapshotError::WitnessOnMissingNode { .. }
             | SnapshotError::LabelOnMissingNode { .. }
             | SnapshotError::EpsilonInvalid { .. }
-            | SnapshotError::NotAGauge { .. }
-            | SnapshotError::GaugeCycle { .. }
+            | SnapshotError::ConstraintNotMinted { .. }
             | SnapshotError::PlacementNonFinite { .. }
             | SnapshotError::PlacementImproper { .. }
             | SnapshotError::PlacementNonRigid { .. }
-            | SnapshotError::MateAlignment { .. }
+            | SnapshotError::MateRefused { .. }
             | SnapshotError::PlacementRule { .. }
             | SnapshotError::InputList { .. }
             | SnapshotError::AssertionBound { .. }
@@ -2489,6 +2543,10 @@ mod tests {
                 name: crate::SpokenName::absent(face()),
                 read: crate::VarId::new(0, 9),
             },
+            SnapshotError::AppearanceReadNotABody {
+                name: crate::SpokenName::absent(face()),
+                read: crate::VarId::new(0, 9),
+            },
             SnapshotError::NameStepNotMinted {
                 name: crate::SpokenName::absent(face()),
                 step: crate::node::StepId::new(0, 9),
@@ -2504,11 +2562,6 @@ mod tests {
                 var: Box::new(crate::SpokenVar::new(crate::VarId::new(0, 7), None)),
                 found: crate::VarKind::Profile,
                 expected: crate::SlotKind::Is(crate::VarKind::Body),
-            },
-            SnapshotError::ReadsWorldCopy {
-                node: node(),
-                slot: SlotId::Operand(crate::OperandSlot::From),
-                placement: node(),
             },
             SnapshotError::SelectionShape {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
@@ -2597,13 +2650,9 @@ mod tests {
                 nodes: 4097,
             },
             SnapshotError::EpsilonInvalid { value: 0.0 },
-            SnapshotError::NotAGauge {
+            SnapshotError::ConstraintNotMinted {
                 node: node(),
-                gauge: at(2),
-            },
-            SnapshotError::GaugeCycle {
-                node: node(),
-                gauge: at(2),
+                constraint: crate::node::ConstraintId(crate::MintId::new(2, 2)),
             },
             SnapshotError::PlacementNonFinite {
                 node: node(),
@@ -2619,7 +2668,16 @@ mod tests {
                 at: FrameSite::Step { index: 1 },
                 check: "transform_rigid_col0_unit",
             },
-            SnapshotError::MateAlignment { node: node() },
+            SnapshotError::MateRefused {
+                node: node(),
+                constraint: crate::node::ConstraintId(crate::MintId::new(2, 2)),
+                fault: Box::new(crate::MateFault::NotOnTheCopy {
+                    mate: crate::mate::MateRef::new(
+                        crate::node::RecipeNodeId::new(1, 1),
+                        crate::node::ConstraintId(crate::MintId::new(2, 2)),
+                    ),
+                }),
+            },
             SnapshotError::PlacementRule {
                 node: node(),
                 fault: crate::node::PlacementRuleFault::NoPlacements,
@@ -2718,153 +2776,6 @@ mod tests {
         }
     }
 
-    /// **`n` instances of a part reference nothing resolves**: the
-    /// `DocRef` is minted here, over bytes rather than over a part
-    /// document, because the validator never resolves a reference — it
-    /// reads the document's own structure.
-    ///
-    /// That is what distinguishes it from the same-shaped fixture in
-    /// the `edit_one_predicate` suite, which inserts a real part into a
-    /// store because its rows build mate HEADS that name faces inside
-    /// the referenced part. The two cannot be one function: an
-    /// integration suite cannot reach a `#[cfg(test)]` item in this
-    /// library, and this library cannot reach `tests/fixture`.
-    ///
-    /// Built through the edit door, so every invariant beside the one a
-    /// row then breaks is the one `apply` maintains.
-    fn instances_of_an_unresolved_reference(
-        seed: &str,
-        n: usize,
-    ) -> (ProfileDoc, Vec<RecipeNodeId>) {
-        let doc_ref = crate::ident::DocRef {
-            id: crate::ident::DocumentId::derive("check-part"),
-            pin: crate::ident::ContentPin::of_bytes(b"check-part"),
-        };
-        let mut doc = ProfileDoc::empty_derived(seed, Tol::witness());
-        let mut ids = Vec::new();
-        for _ in 0..n {
-            let applied = crate::edit::apply(
-                &doc,
-                &crate::edit::DocEdit::InsertNode {
-                    node: Box::new(Node::instantiate_part(doc_ref)),
-                    fresh: Vec::new(),
-                },
-                Tol::witness(),
-                &crate::mate::RefusingReach,
-            )
-            .expect("an instance inserts");
-            ids.push(applied.record.minted.expect("the insert minted an id"));
-            doc = applied.doc;
-        }
-        (doc, ids)
-    }
-
-    /// The two refusals a FILE cannot carry, pinned at the door that
-    /// can: JSON has no non-finite token, so a non-finite alignment or
-    /// placement coordinate reaches [`validate_document`] only from
-    /// memory — through the `pub` payloads or an in-crate bug. Both
-    /// documents are built through the edit door and then broken, so
-    /// each row's subject is the one coordinate it poked.
-    #[test]
-    fn non_finite_alignment_and_placement_refuse_at_save() {
-        let (mut doc, ids) = instances_of_an_unresolved_reference("check-align", 2);
-        let name = |instance: RecipeNodeId| crate::names::StableName {
-            kind: crate::names::EntityKind::Face,
-            node: instance,
-            path: vec![crate::names::RoleSeg::Cap(crate::names::CapEnd::Start)],
-        };
-        // A mate side is authored as a `SitedFace`, so the fixture's
-        // claim that the name it just built is a face is made where it
-        // is built.
-        let face_head = |name: crate::names::StableName| {
-            crate::node::SitedFace::at_mint(
-                crate::names::FaceName::new(name).expect("the fixture names a face"),
-            )
-        };
-        let mate = Node::Mate {
-            a: face_head(name(ids[0])).into(),
-            b: face_head(name(ids[1])).into(),
-            class: topo::ContactClass::Rest,
-            alignment: crate::mate::Alignment {
-                a: crate::mate::MateFrame::on_part(crate::placement::Placement::IDENTITY),
-                b: crate::mate::MateFrame::on_part(crate::placement::Placement::IDENTITY),
-                primitive: crate::mate::MatePrimitive::FrameCoincidence,
-                sense: crate::mate::AxisSense::Aligned,
-                clocking: None,
-            },
-        };
-        let applied = crate::edit::apply(
-            &doc,
-            &crate::edit::DocEdit::InsertNode {
-                node: Box::new(mate),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-            &crate::mate::RefusingReach,
-        )
-        .expect("a finite alignment inserts");
-        let mate_id = applied.record.minted.expect("the insert minted an id");
-        doc = applied.doc;
-        // Finite, the document saves — so the refusals below are the
-        // poked coordinates'.
-        save(&doc, &[], Tol::witness()).expect("the mated assembly saves");
-        let poked = |alignment: fn(&mut crate::mate::Alignment)| {
-            let mut doc = doc.clone();
-            match doc.nodes.get_mut(&mate_id) {
-                Some(Node::Mate { alignment: a, .. }) => alignment(a),
-                other => panic!("the fixture's mate is a mate, got {other:?}"),
-            }
-            let refused = save(&doc, &[], Tol::witness());
-            (doc, refused)
-        };
-        let (doc_rider, rider) = poked(|a| a.clocking = Some(f64::NAN));
-        match rider {
-            Err(PersistError::Snapshot(SnapshotError::MateAlignment { node })) => {
-                assert_eq!(node, doc_rider.spoken(mate_id));
-            }
-            other => panic!("a non-finite rider must refuse at save, got {other:?}"),
-        }
-        // A frame offset's literal step is a placement's, held by the
-        // frame rule as a gauge's is, and named by its side.
-        let (doc_frame, frame) = poked(|a| {
-            a.b = crate::mate::MateFrame::on_part(crate::placement::Placement::literal(
-                &crate::placement::Frame::translation([f64::NAN, 0.0, 0.0]),
-            ));
-        });
-        match frame {
-            Err(PersistError::Snapshot(SnapshotError::PlacementNonFinite { node, at })) => {
-                assert_eq!(node, doc_frame.spoken(mate_id));
-                assert_eq!(
-                    at,
-                    FrameSite::MateStep {
-                        side: crate::mate::MateSide::B,
-                        index: 0
-                    }
-                );
-            }
-            other => panic!("a non-finite frame offset must refuse at save, got {other:?}"),
-        }
-
-        let (mut doc, ids) = instances_of_an_unresolved_reference("check-place", 1);
-        match doc.nodes.get_mut(&ids[0]) {
-            Some(Node::InstantiatePart { offset, .. }) => {
-                *offset = Some(crate::placement::Placement::literal(
-                    &crate::placement::Frame {
-                        columns: [[f64::NAN, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-                        translation: [0.0; 3],
-                    },
-                ));
-            }
-            other => panic!("the fixture's instance is an instance, got {other:?}"),
-        }
-        match save(&doc, &[], Tol::witness()) {
-            Err(PersistError::Snapshot(SnapshotError::PlacementNonFinite { node, .. })) => {
-                assert_eq!(node, doc.spoken(ids[0]));
-            }
-            other => panic!("a non-finite placement must refuse at save, got {other:?}"),
-        }
-    }
-
     /// A triangle profile on a frame, the profile labelled `outline`,
     /// as the edit doors build it.
     fn labelled_triangle(tol: Tol) -> (ProfileDoc, RecipeNodeId) {
@@ -2876,7 +2787,6 @@ mod tests {
                         fresh: Vec::new(),
                     },
                     tol,
-                    &crate::RefusingReach,
                 )
                 .expect("the node inserts")
                 .doc;
@@ -2902,7 +2812,6 @@ mod tests {
                     label: Some(crate::Label::new("outline").expect("a label")),
                 },
                 tol,
-                &crate::RefusingReach,
             )
             .expect("the label sets")
             .doc;
@@ -2954,7 +2863,10 @@ mod tests {
         record
             .metadata
             .insert("swatch".to_owned(), crate::meta::MetaValue::Float(f64::NAN));
-        doc.appearance.insert(name.clone(), record);
+        doc.appearance.insert(
+            crate::appearance::AppearanceKey::new(crate::VarId::new(0, 1), name.clone()),
+            record,
+        );
         match save(&doc, &[], tol) {
             Err(e @ PersistError::NonFinite { .. }) => {
                 let PersistError::NonFinite {
@@ -3016,7 +2928,10 @@ mod tests {
             "the empty document has minted nothing"
         );
         doc.appearance.insert(
-            rv_name(7, crate::names::EntityKind::Face),
+            crate::appearance::AppearanceKey::new(
+                crate::VarId::new(0, 1),
+                rv_name(7, crate::names::EntityKind::Face),
+            ),
             crate::appearance::AppearanceRecord::default(),
         );
         match save(&doc, &[], Tol::witness()) {

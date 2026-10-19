@@ -9,13 +9,16 @@
 //! another outside ([`BlendError::FaceClearance`], `bounded: false`),
 //! which would need the band trimmed by the face; or wholly inside such
 //! a region, every cell of the face's box that may hold a point of its
-//! surface inside it ([`BlendError::WhollyInside`]), where the face goes
-//! with the material and that carve is not built. A face certified none
-//! of the three refuses [`BlendError::FaceClearance`] with
-//! `bounded: true`. The readings make one verdict for the request with
-//! a cut-off's end-face meter's ([`Unclear`]): a crossing anywhere wins,
-//! then a bound, so the request reads wholly inside only when every face
-//! and end-face cycle not clear does.
+//! surface inside it, or inside the prism a straight band removes or
+//! fills, read through the cycles its caps read inside and the edges its
+//! exact core holds ([`prism_inside`]); inside a straight band's material
+//! the face goes with it ([`Consumed`]; elsewhere that carve is not
+//! built, and the request refuses [`BlendError::WhollyInside`]). A
+//! face certified none of the three refuses [`BlendError::FaceClearance`]
+//! with `bounded: true`. The readings make one verdict for the request
+//! with a cut-off's end-face meter's ([`Unclear`]): a crossing anywhere
+//! wins, then a bound, so the request reads wholly inside only when
+//! every face and end-face cycle not clear does.
 //!
 //! # The region
 //!
@@ -31,7 +34,10 @@
 //!   the plane of the face it runs into, and the window widens by the
 //!   cross-section's run along it; at a corner patch it ends at the
 //!   patch's anchors. A cut-off, a cap or a mitre ends the band within
-//!   that plane — at a mitre, the other band's support.
+//!   that plane — at a mitre, the other band's support. At an overrun
+//!   the far band runs on past the mitre's end and is cut off by that
+//!   same plane down to the third edge, so its material still ends
+//!   there and the cap holds.
 //! - A circular link is taken over the whole turn, every bound a
 //!   function of its meridian sheet; a support off the band's axis is
 //!   read about it with its departure as slack.
@@ -50,9 +56,16 @@
 //! is one the band runs into, judged by predicate 6 and the surgery:
 //! a plane the reach is capped by, so it lies on the reach's boundary
 //! (a curved one is the battery's refusal, and the reach fails loud on
-//! it), or a support of a corner patch's links. A face at another
-//! link's end bounds nothing here and is metered like any other; a
-//! circular link's window has no ends. A support of
+//! it), or a support of a corner patch's links. What the band takes of
+//! such a face is the cut-off's sliver, which the surgery's ring pass
+//! meters too (arm (c)); a feature standing in it is refused here
+//! first-hand, since its own faces lie in the band's material. At an
+//! overrun arm (c) reads the far band's whole sliver on the near band's
+//! support, a bound larger than the overrun, so a chamfer's also
+//! refuses some features the overrun clears
+//! (`work/band/a-turns-overrun-meters-the-whole-cut-off-sliver.md`).
+//! A face at another link's end bounds nothing here and is metered like
+//! any other; a circular link's window has no ends. A support of
 //! another chain of the request is metered by what survives that
 //! chain's band: a cell inside the strip the band replaces is clear.
 //! The other band's surface is metered too, except a concave band's
@@ -72,17 +85,17 @@
 //! the face's whole box: a face whose surface leaves the material
 //! outside its trim is read uncertified, never inside.
 
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 
 use geom::{Curve3, Surface};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
-use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, SurfaceKey, VertexKey};
+use topo::{Body, EdgeKey, EntityId, FaceBoxes, FaceKey, LoopKey, SurfaceKey, VertexKey};
 
 use super::arms::{chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{
     Chain, Convexity, Link, carrier_of, classified, face_clearance_margin, outward,
 };
-use super::surgery::not_intact;
+use super::surgery::{degenerate, disagrees, loop_walk, unresolved, unwalked};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, classify};
 
 /// How many cells one face may be cut into against one reach before it
@@ -199,9 +212,7 @@ fn gap<T: Real>(lo: T, hi: T, c: T) -> T {
 /// chord `|b̂ − ±a|`.
 fn tilt<T: Real>(b: Vec3<T>, a: Vec3<T>) -> T {
     let b = b.normalize();
-    (T::from_f64(2.0) - T::from_f64(2.0) * b.dot(a).abs())
-        .max(T::zero())
-        .sqrt()
+    (b - a).norm().min((b + a).norm())
 }
 
 /// `±1` where the sign of `x` is decided past the bracket, `0` where it
@@ -589,35 +600,40 @@ fn sheet_fn_own<T: Real>(s: &Surface<T>) -> Option<(SheetFn<T>, Point3<T>, Vec3<
 /// **A surface's distance read in the sheet about the unit axis `a`
 /// through `o`**, with the slack that makes it an enclosure: a sheet
 /// function `f` and `δ` with `|d(x) − f(ρ(x), z(x))| ≤ δ` for every `x`
-/// within `lever(p)` of the surface's own reference point `p`, `d` the
-/// surface's own signed distance. The slack is the surface's departure
-/// from a surface of revolution about `(o, a)`: its reference point's
-/// distance from the axis, and its own axis's tilt (the chord
-/// `|â − ±a|`) levered over that reach. `None` for a surface with no
-/// closed form here.
+/// in the box `(lo, hi)`, `d` the surface's own signed distance. The
+/// slack is the surface's departure from a surface of revolution about
+/// `(o, a)`: a reference point's distance from the axis, and its own
+/// axis's tilt (the chord `|â − ±a|`) levered from there over the box.
+/// A cone, a sphere and a torus are read at their anchor; a plane and a
+/// cylinder at the foot of the box's centre on the plane or the axis,
+/// since the origin they store may be anywhere on it. `None` for a
+/// surface with no closed form here.
 fn sheet_fn<T: Decide + Bounds>(
     s: &Surface<T>,
     o: Point3<T>,
     a: Vec3<T>,
-    lever: impl Fn(Point3<T>) -> T,
+    (lo, hi): (Point3<T>, Point3<T>),
 ) -> Option<(SheetFn<T>, T)> {
     let tilt = |b: Vec3<T>| tilt(b, a);
     let one = T::one();
     let off_axis = |p: Point3<T>| sheet_of(o, a, p);
+    let lever = |p: Point3<T>| corner_max(lo, hi, |x| (x - p).norm());
+    let centre = lo + (hi - lo) / T::from_f64(2.0);
     Some(match s {
         Surface::Plane { origin, normal, .. } => {
             let n = normal.normalize();
+            let foot = centre - n * (centre - *origin).dot(n);
             // Either sign encloses, the slack being the chord to it, so a
             // plane parallel to the axis takes one by decision.
             let sg = if n.dot(a).hi() < 0.0 { -one } else { one };
-            let (_, z) = off_axis(*origin);
+            let (_, z) = off_axis(foot);
             (
                 SheetFn::Line {
                     alpha: T::zero(),
                     beta: sg,
                     gamma: -sg * z,
                 },
-                (n - a * sg).norm() * lever(*origin),
+                (n - a * sg).norm() * lever(foot),
             )
         }
         Surface::Cylinder {
@@ -625,14 +641,18 @@ fn sheet_fn<T: Decide + Bounds>(
             axis,
             radius,
             ..
-        } => (
-            SheetFn::Line {
-                alpha: one,
-                beta: T::zero(),
-                gamma: -*radius,
-            },
-            off_axis(*origin).0 + tilt(*axis) * lever(*origin),
-        ),
+        } => {
+            let b = axis.normalize();
+            let foot = *origin + b * (centre - *origin).dot(b);
+            (
+                SheetFn::Line {
+                    alpha: one,
+                    beta: T::zero(),
+                    gamma: -*radius,
+                },
+                off_axis(foot).0 + tilt(*axis) * lever(foot),
+            )
+        }
         Surface::Sphere { center, radius, .. } => {
             let (rho, z) = off_axis(*center);
             (
@@ -738,14 +758,9 @@ struct Reach<T: Real> {
     /// The cross-section's reach from its spine point: the scale a
     /// sheet bound's slack is weighed against ([`metered`]).
     width: T,
-}
-
-impl<T: Real> Reach<T> {
-    /// The farthest a point of the reach's box lies from `p`: the lever
-    /// a sheet slack is taken over ([`sheet_fn`]).
-    fn lever(&self, p: Point3<T>) -> T {
-        corner_max(self.lo, self.hi, |x| (x - p).norm())
-    }
+    /// A straight link's edge and unit spine direction, which its
+    /// prism reading takes ([`prism_inside`]).
+    spine: Option<(EdgeKey, Vec3<T>)>,
 }
 
 /// The outward normal of `face` at `p`, or the body's refusal.
@@ -755,30 +770,30 @@ fn normal_at<T: Decide>(
     p: Point3<T>,
 ) -> Result<Vec3<T>, BlendError> {
     outward(body, face, p)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face the band reach reads"))
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))
 }
 
 fn surface_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Surface<T>, BlendError> {
     body.get_face(face)
         .and_then(|f| body.get_surface(f.surface))
         .cloned()
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face's stored surface"))
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face's stored surface"))
 }
 
 fn surface_key<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<SurfaceKey, BlendError> {
     body.get_face(face)
         .map(|f| f.surface)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face's stored surface"))
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face's stored surface"))
 }
 
 fn point_of<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Point3<T>, BlendError> {
     super::surgery::point_of(body, v)
-        .ok_or_else(|| not_intact(EntityId::Vertex(v), "a chain vertex's point"))
+        .ok_or_else(|| unresolved(EntityId::Vertex(v), "a chain vertex's point"))
 }
 
 fn faces_at<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Vec<FaceKey>, BlendError> {
     body.faces_of_vertex(v)
-        .ok_or_else(|| not_intact(EntityId::Vertex(v), "a chain vertex's face fan"))
+        .ok_or_else(|| unwalked(EntityId::Vertex(v), "a chain vertex's face fan"))
 }
 
 /// The point of `curve` nearest `p`, for a line or a circle (a band's
@@ -873,18 +888,18 @@ fn screened<T: Decide + Bounds>(
 ) -> Result<bool, BlendError> {
     let f = body
         .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a support the band replaces"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a support the band replaces"))?;
     let mut vacant = true;
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let vertices: Vec<VertexKey> = match body.get_loop(lp).map(|l| l.boundary) {
             Some(topo::LoopBoundary::Cycle { first }) => body
                 .loop_cycle(first)
-                .ok_or_else(|| not_intact(EntityId::Loop(lp), "a support's cycle"))?
+                .ok_or_else(|| unwalked(EntityId::Loop(lp), "a support's cycle"))?
                 .into_iter()
                 .filter_map(|he| body.get_half_edge(he).map(|h| h.start))
                 .collect(),
             Some(topo::LoopBoundary::Empty { vertex }) => vec![vertex],
-            None => return Err(not_intact(EntityId::Loop(lp), "a support's loop")),
+            None => return Err(unresolved(EntityId::Loop(lp), "a support's loop")),
         };
         for v in vertices {
             if ends.binary_search(&v).is_ok() {
@@ -923,11 +938,12 @@ impl<T: Real> Station<T> {
 }
 
 fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, BlendError> {
-    let unread = || not_intact(EntityId::Edge(link.edge), "a link's carrier or trimlines");
-    let (carrier, t0, t1) = carrier_of(body, link.edge).ok_or_else(unread)?;
+    let at = EntityId::Edge(link.edge);
+    let (carrier, t0, t1) = carrier_of(body, link.edge)?;
     let p = carrier.eval(geom::mid_param(t0, t1));
-    let fa = foot_on(&link.blend.trim_a.0, p).ok_or_else(unread)?;
-    let fb = foot_on(&link.blend.trim_b.0, p).ok_or_else(unread)?;
+    let off_trim = || disagrees(at, "a link's trimline is neither a line nor a circle");
+    let fa = foot_on(&link.blend.trim_a.0, p).ok_or_else(off_trim)?;
+    let fb = foot_on(&link.blend.trim_b.0, p).ok_or_else(off_trim)?;
     let c = match link.blend.surface {
         Surface::Cylinder {
             origin,
@@ -1168,6 +1184,7 @@ fn straight_reach<T: Decide + Bounds>(
         chains: vec![chain],
         skip,
         width: reach,
+        spine: Some((link.edge, tau)),
     })
 }
 
@@ -1189,20 +1206,19 @@ fn circular_reach<T: Decide + Bounds>(
         ..
     } = link.blend.surface
     else {
-        return Err(not_intact(
+        return Err(disagrees(
             EntityId::Edge(link.edge),
             "a circular spine's band is not a torus",
         ));
     };
     let (o, a) = canonical_axis(center, axis);
     let (c, _) =
-        st.c.ok_or_else(|| not_intact(EntityId::Edge(link.edge), "a torus band's spine point"))?;
+        st.c.ok_or_else(|| disagrees(EntityId::Edge(link.edge), "a torus band's spine point"))?;
     let reach = (st.p - c).norm();
     // A torus about its own axis: `big + reach` across, `reach` along.
-    let ext = |k: T| major_radius * (T::one() - k.powi(2)).max(T::zero()).sqrt() + reach;
-    let e = Vec3::new(ext(a.x), ext(a.y), ext(a.z));
+    let ext = |p: T, q: T| major_radius * (p.powi(2) + q.powi(2)).sqrt() + reach;
+    let e = Vec3::new(ext(a.y, a.z), ext(a.z, a.x), ext(a.x, a.y));
     let (lo, hi) = (center - e, center + e);
-    let lever = |p: Point3<T>| corner_max(lo, hi, |x| (x - p).norm());
     let sheet = |x: Point3<T>| sheet_of(o, a, x);
     let in_sheet = |f: SheetFn<T>, slack: T| Bound::Sheet { o, a, f, slack };
     let mut bounds = Vec::new();
@@ -1213,7 +1229,7 @@ fn circular_reach<T: Decide + Bounds>(
     for f in [link.face_a, link.face_b] {
         let s = surface_of(body, f)?;
         exact &= matches!(s, Surface::Plane { .. } | Surface::Cylinder { .. });
-        if let Some((g, slack)) = sheet_fn(&s, o, a, lever) {
+        if let Some((g, slack)) = sheet_fn(&s, o, a, (lo, hi)) {
             let at = g.at(qr, qz);
             bounds.push((Role::Side(f), in_sheet(g.scaled(-sign(at)), slack)));
             sides.push(surface_key(body, f)?);
@@ -1301,6 +1317,7 @@ fn circular_reach<T: Decide + Bounds>(
         chains: vec![chain],
         skip: Vec::new(),
         width: reach,
+        spine: None,
     })
 }
 
@@ -1473,6 +1490,7 @@ fn corner_reach<T: Decide + Bounds>(
                 at_v
             },
             width: far,
+            spine: None,
         },
         anchors,
     )))
@@ -1606,16 +1624,16 @@ fn inside_bound<T: Bounds>(
     most
 }
 
-/// A coaxial face's image in the sheet, along its own trace: an axial
-/// range for a sphere, a cylinder or a cone, a radial one for a plane ⊥
-/// the axis.
+/// A face's image in the sheet, along its own trace: an axial range for
+/// a sphere, a cylinder or a cone, a radial one for a plane.
 enum Clip<T: Real> {
     Z(T, T),
     Rho(T, T),
 }
 
-/// **The extent of a coaxial face's image along its trace**, read from
-/// its boundary (`None` where it cannot be).
+/// **The extent of a face's image along its trace**, read from its
+/// boundary (`None` where it cannot be): a sphere and a cone coaxial
+/// with the trace, a cylinder and a plane at any pose.
 ///
 /// The image of a connected face is an arc of the trace whose ends are
 /// images of its boundary or a singular point on the axis (a pole, an
@@ -1624,6 +1642,16 @@ enum Clip<T: Real> {
 /// on a sphere, where `W = 0` leaves none or both poles, the sign of
 /// `∮ (z − z_c) dθ = 2πR·k − A/R` (`k` the poles inside) decides. Any
 /// other boundary leaves the box alone; a torus is not clipped.
+///
+/// A cylinder and a plane need no shared axis. Along a cylinder's
+/// ruling `z` is affine, so the ruling through any point of a face
+/// leaves it at a boundary point no lower, and one no higher: the
+/// boundary's span is the face's, at every pose of the cylinder. On a
+/// plane `ρ` is convex, so its maximum over a face is on the boundary;
+/// a plane the axis crosses has its one minimum `0` there, inside the
+/// face exactly when the boundary winds once about the axis, and on a
+/// plane parallel to the axis `ρ` is constant along the axis's
+/// direction, so the boundary holds the minimum too.
 fn sheet_clip<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
@@ -1635,7 +1663,7 @@ fn sheet_clip<T: Decide + Bounds>(
     let tilt = |b: Vec3<T>| tilt(b, a);
     let off = |p: Point3<T>| sheet_of(o, a, p).0;
     let near = |x: T| x.hi() <= band.zero();
-    // The surface, read about the axis it must share with the band.
+    // The surface, read about the band's axis.
     enum Kind<T: Real> {
         Sphere { zc: T, r: T, center: Point3<T> },
         Cylinder,
@@ -1648,13 +1676,11 @@ fn sheet_clip<T: Decide + Bounds>(
             r: *radius,
             center: *center,
         },
-        Surface::Cylinder { origin, axis, .. } if near(off(*origin)) && near(tilt(*axis)) => {
-            Kind::Cylinder
-        }
+        Surface::Cylinder { .. } => Kind::Cylinder,
         Surface::Cone { apex, axis, .. } if near(off(*apex)) && near(tilt(*axis)) => Kind::Cone {
             z_apex: sheet_of(o, a, *apex).1,
         },
-        Surface::Plane { normal, .. } if near(tilt(*normal)) => Kind::Plane,
+        Surface::Plane { .. } => Kind::Plane,
         _ => return None,
     };
     let pad = T::from_f64(band.escalate());
@@ -1742,10 +1768,11 @@ fn sheet_clip<T: Decide + Bounds>(
                     let ax = axis.normalize();
                     let dot = ax.dot(a);
                     let d_lat = off(center) + tilt(ax) * radius;
-                    let lean = (T::from_f64(2.0)
-                        - T::from_f64(2.0) * (T::one() - dot.powi(2)).max(T::zero()).sqrt())
-                    .max(T::zero())
-                    .sqrt();
+                    // The chord to the nearest ⊥ direction,
+                    // `√(2 − 2·cos φ)` with `sin φ = |dot|`, spelt
+                    // without the cancellation near ⊥.
+                    let lean = dot.abs() * T::from_f64(2.0).sqrt()
+                        / (T::one() + (T::one() - dot.powi(2)).max(T::zero()).sqrt()).sqrt();
                     let d_mer = off(center) + lean * radius;
                     if d_lat.hi() <= d_mer.lo() {
                         // A latitude circle: the azimuth turns with the
@@ -1885,7 +1912,7 @@ fn face_bound_in_sheet<T: Decide + Bounds>(
     band: Band,
 ) -> Option<T> {
     let (o, a) = reach.sheet?;
-    let (f, slack) = sheet_fn(surface, o, a, |p| reach.lever(p))?;
+    let (f, slack) = sheet_fn(surface, o, a, (reach.lo, reach.hi))?;
     let mut rect = sheet_box(o, a, &Cell::<T>::new(lo, hi));
     // The face's own extent along its trace, where its boundary says it.
     match face.and_then(|face| sheet_clip(body, face, surface, o, a, band)) {
@@ -1946,7 +1973,7 @@ fn boundary_reading<T: Decide>(
 ) -> Result<Option<(T, T)>, BlendError> {
     let f = body
         .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face the band reach reads"))?;
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))?;
     let most = |x: Point3<T>, g: fn(&Bound<T>, Point3<T>) -> T| {
         core.iter()
             .map(|b| g(b, x))
@@ -1961,7 +1988,7 @@ fn boundary_reading<T: Decide>(
     for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
         let l = body
             .get_loop(lp)
-            .ok_or_else(|| not_intact(EntityId::Loop(lp), "a face's loop"))?;
+            .ok_or_else(|| unresolved(EntityId::Loop(lp), "a face's loop"))?;
         let first = match l.boundary {
             topo::LoopBoundary::Cycle { first } => first,
             topo::LoopBoundary::Empty { vertex } => {
@@ -1971,21 +1998,288 @@ fn boundary_reading<T: Decide>(
         };
         for he in body
             .loop_cycle(first)
-            .ok_or_else(|| not_intact(EntityId::Loop(lp), "a face's cycle"))?
+            .ok_or_else(|| unwalked(EntityId::Loop(lp), "a face's cycle"))?
         {
             let edge = body
                 .get_half_edge(he)
-                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a face's boundary"))?
+                .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a face's boundary"))?
                 .edge;
-            let Some((c, t0, t1)) = carrier_of(body, edge) else {
-                continue;
-            };
+            let (c, t0, t1) = carrier_of(body, edge)?;
             for i in 0..EDGE_SAMPLES {
                 fold(c.eval(geom_brep::schedule_param(t0, t1, i, EDGE_SAMPLES)));
             }
         }
     }
     Ok(reading)
+}
+
+/// What a face is read against for the prism a straight band removes or
+/// fills ([`prism_inside`]): the spine's unit direction, the cycles its
+/// caps' meter read inside the sliver, whether the section is convex,
+/// and the depth of a curve over a parameter range inside the band's
+/// exact core ([`curve_in_core`]).
+struct Prism<'a, T: Real> {
+    tau: Vec3<T>,
+    rings: &'a [CapRing<T>],
+    convex: bool,
+    in_core: &'a CurveDepth<'a, T>,
+}
+
+/// The depth of a curve over a parameter range inside a core.
+type CurveDepth<'a, T> = dyn Fn(&Curve3<T>, (T, T)) -> Option<T> + 'a;
+
+/// How many pieces one edge may be cut into against a core before it is
+/// read uncertified ([`curve_in_core`]): a cost ceiling, as
+/// [`CELL_BUDGET`] is, which decides only how far an edge is chased.
+const EDGE_PIECES: usize = 1024;
+
+/// Certify `k` at `deep`, keeping the deepest of its certifications.
+fn certify<K: Ord, T: Real>(all: &mut BTreeMap<K, T>, k: K, deep: T) {
+    all.entry(k)
+        .and_modify(|d| *d = d.max(deep))
+        .or_insert(deep);
+}
+
+/// **How deep inside a straight band's exact core every point of the
+/// curve `eval` over `[t0, t1]` lies**: positive when certified, and
+/// then a lower bound on each point's distance from the core's
+/// complement; `None` for a curve not certified.
+///
+/// The curve is cut into pieces by parameter; a piece of parameter width
+/// `w` lies within `σ·w/2` of the point at its middle parameter, `σ` the
+/// bound `speed` on the carrier's speed, so in that point's box widened
+/// by that much,
+/// over which [`Bound::high_strict`] bounds each core bound from above.
+/// A piece that does not certify is halved until it does, its radius
+/// falls within the band's `escalate`, or [`EDGE_PIECES`] are spent.
+/// What pieces remain then tighten the reading, the least of the
+/// pieces' depths: the shallowest piece is halved while its radius
+/// exceeds an eighth of its depth, each half reading the lesser of its
+/// own bound and its parent's, both of which hold over it.
+fn curve_in_core<T: Bounds>(
+    speed: T,
+    eval: &dyn Fn(T) -> Point3<T>,
+    (t0, t1): (T, T),
+    core: &[Bound<T>],
+    band: Band,
+) -> Option<T> {
+    if core.is_empty() {
+        return None;
+    }
+    let half = T::from_f64(0.5);
+    // A piece's greatest core bound over its box, and the box's radius.
+    let read = |a: T, b: T| {
+        let m = eval((a + b) * half);
+        let r = Bounds::hi(speed * (b - a).abs() * half);
+        let cell = Cell::<T>::new(
+            [m.x, m.y, m.z].map(|x| Bounds::lo(x) - r),
+            [m.x, m.y, m.z].map(|x| Bounds::hi(x) + r),
+        );
+        let inner = core
+            .iter()
+            .map(|g| g.high_strict(&cell))
+            .reduce(|m, g| m.max(g))?;
+        Some((inner, r))
+    };
+    let mut queue = VecDeque::from([(t0, t1)]);
+    let mut pieces: Vec<(T, T, T, f64)> = Vec::new();
+    let mut spent = 0;
+    while let Some((a, b)) = queue.pop_front() {
+        let (inner, r) = read(a, b)?;
+        if sure(T::zero() - inner, band) {
+            pieces.push((a, b, inner, r));
+            continue;
+        }
+        spent += 1;
+        if spent >= EDGE_PIECES || r <= band.escalate() {
+            return None;
+        }
+        let mid = (a + b) * half;
+        queue.extend([(a, mid), (mid, b)]);
+    }
+    while spent < EDGE_PIECES {
+        let Some((i, &(a, b, inner, r))) = pieces
+            .iter()
+            .enumerate()
+            .max_by(|x, y| Bounds::hi(x.1.2).total_cmp(&Bounds::hi(y.1.2)))
+        else {
+            break;
+        };
+        if r <= band.escalate() || 8.0 * r <= -Bounds::hi(inner) {
+            break;
+        }
+        spent += 1;
+        pieces.swap_remove(i);
+        let mid = (a + b) * half;
+        for (p, q) in [(a, mid), (mid, b)] {
+            let (own, r) = read(p, q)?;
+            pieces.push((p, q, own.min(inner), r));
+        }
+    }
+    pieces
+        .iter()
+        .map(|p| p.2)
+        .reduce(|m, g| m.max(g))
+        .map(|m| T::zero() - m)
+}
+
+/// **How surely a face lies wholly inside the prism a straight band
+/// removes or fills**: positive when it certainly does, and then a
+/// lower bound on how far inside; `None` when the face is not of the
+/// shape the reading takes.
+///
+/// The band's material `M` is the prism over its cross-section `S⊥`
+/// along the spine `τ`, between the two cap planes. A point is
+/// certified at depth `δ` when it lies between the cap planes and its
+/// projection along `τ` lies at least `δ` inside `S⊥`. Each edge of the
+/// face's boundary is certified one of three ways:
+/// - an edge of one of the `rings`, at its depth in a cap of normal `n`
+///   times `|n·τ|`;
+/// - an edge read inside the band's exact core ([`edge_in_core`]);
+/// - a line `u → w` along `d` between two certified vertices, each of
+///   whose points lies between the cap planes and within
+///   `|w − u|·|d × τ|` of an end's projection (the lines' slack).
+///
+/// The face then reads at the least of those depths:
+/// - less the slack, on a plane whose `|n·τ|` is certainly positive
+///   (`by_boundary`, the caller's reading): it
+///   projects one-to-one onto `S⊥`'s plane, onto the region its boundary
+///   encloses there, and each component of `S⊥`'s points deeper than
+///   `δ` is simply connected (`S⊥`'s complement is connected), so holds
+///   all it encloses;
+/// - less the slack and its box's diagonal times `|a × τ|`, on a surface
+///   ruled along `a` (a cylinder's axis, or a plane's direction nearest
+///   `τ`, for which `|a × τ| = |n·τ|`): each point lies on an `a`-line
+///   between two points of its boundary;
+/// - as it is, where `S⊥` is `convex`: depth inside a convex set is
+///   concave, and each point of a line or a face is a convex combination
+///   of boundary points.
+fn prism_inside<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    surface: &Surface<T>,
+    (flo, fhi): ([f64; 3], [f64; 3]),
+    prism: &Prism<'_, T>,
+    by_boundary: bool,
+) -> Result<Option<T>, BlendError> {
+    let Prism {
+        tau, rings, convex, ..
+    } = *prism;
+    if rings.is_empty() || flo.iter().chain(&fhi).any(|x| !x.is_finite()) {
+        return Ok(None);
+    }
+    // The ruling's `|a × τ|`, or `None` for a plane read by its boundary.
+    let ruled = match surface {
+        Surface::Cylinder { axis, .. } => Some(axis.normalize().cross(tau).norm()),
+        Surface::Plane { normal, .. } => (!by_boundary).then(|| normal.normalize().dot(tau).abs()),
+        _ => return Ok(None),
+    };
+    let mut edges = BTreeMap::new();
+    let mut vertices = BTreeMap::new();
+    let mut least: Option<T> = None;
+    for r in rings {
+        let Surface::Plane { normal, .. } = surface_of(body, r.cap)? else {
+            return Ok(None);
+        };
+        let deep = (T::zero() - r.depth) * normal.normalize().dot(tau).abs();
+        least = Some(least.map_or(deep, |l| l.min(deep)));
+        let Some(walk) = loop_walk(body, r.ring) else {
+            return Ok(None);
+        };
+        for (_, start, edge) in walk {
+            certify(&mut edges, edge, deep);
+            certify(&mut vertices, start, deep);
+        }
+    }
+    let Some(mut least) = least else {
+        return Ok(None);
+    };
+    let f = body
+        .get_face(face)
+        .ok_or_else(|| unresolved(EntityId::Face(face), "a face the band reach reads"))?;
+    // Every edge but a line first: its ends certify the lines.
+    let mut lines = Vec::new();
+    for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let Some(walk) = loop_walk(body, lp) else {
+            return Ok(None);
+        };
+        for (he, u, edge) in walk {
+            if let Some(&deep) = edges.get(&edge) {
+                least = least.min(deep);
+                continue;
+            }
+            let w = body
+                .half_edge_end(he)
+                .ok_or_else(|| unresolved(EntityId::HalfEdge(he), "a face edge's end"))?;
+            let carrier = carrier_of(body, edge)?;
+            if let Curve3::Line { dir, .. } = carrier.0 {
+                lines.push((carrier, u, w, dir));
+                continue;
+            }
+            let Some(deep) = edge_in_core(body, &carrier, [u, w], prism, &mut vertices)? else {
+                return Ok(None);
+            };
+            least = least.min(deep);
+        }
+    }
+    // A line between two certified vertices takes the slack; any other
+    // is read in the core, its ends certified with it, or waits for its
+    // ends.
+    let certified = |v: &BTreeMap<VertexKey, T>, u, w| v.get(&u).copied().zip(v.get(&w).copied());
+    let mut pending = Vec::new();
+    for (carrier, u, w, dir) in lines {
+        if certified(&vertices, u, w).is_some() {
+            pending.push((u, w, dir));
+        } else if let Some(deep) = edge_in_core(body, &carrier, [u, w], prism, &mut vertices)? {
+            least = least.min(deep);
+        } else {
+            pending.push((u, w, dir));
+        }
+    }
+    let mut slack = T::zero();
+    for (u, w, dir) in pending {
+        let Some((du, dw)) = certified(&vertices, u, w) else {
+            return Ok(None);
+        };
+        least = least.min(du).min(dw);
+        let run = (point_of(body, w)? - point_of(body, u)?).norm();
+        slack = slack.max(run * dir.normalize().cross(tau).norm());
+    }
+    if convex {
+        return Ok(Some(least));
+    }
+    let Some(tilt) = ruled else {
+        return Ok(Some(least - slack));
+    };
+    let corner = |v: [f64; 3]| {
+        let [x, y, z] = v.map(T::from_computed);
+        Point3::new(x, y, z)
+    };
+    let diagonal = (corner(fhi) - corner(flo)).norm();
+    Ok(Some(least - slack - diagonal * tilt))
+}
+
+/// **An edge read inside a straight band's exact core**: its depth
+/// ([`Prism`]'s `in_core`), its ends `u` and `w` certified at that depth less
+/// each one's distance from the carrier's nearer end — every point of the
+/// curve lies at that depth, and depth is 1-Lipschitz — and `None` when
+/// the curve is not certified.
+fn edge_in_core<T: Decide>(
+    body: &Body<T>,
+    (c, t0, t1): &(Curve3<T>, T, T),
+    ends: [VertexKey; 2],
+    prism: &Prism<'_, T>,
+    vertices: &mut BTreeMap<VertexKey, T>,
+) -> Result<Option<T>, BlendError> {
+    let Some(deep) = (prism.in_core)(c, (*t0, *t1)) else {
+        return Ok(None);
+    };
+    let (a, b) = (c.eval(*t0), c.eval(*t1));
+    for v in ends {
+        let p = point_of(body, v)?;
+        certify(vertices, v, deep - (p - a).norm().min((p - b).norm()));
+    }
+    Ok(Some(deep))
 }
 
 /// **The request's three-way verdict**, over every face and end-face
@@ -1995,10 +2289,99 @@ fn boundary_reading<T: Decide>(
 /// when every reading that is not clear does, whatever order the faces
 /// and cycles are read in. Of several bounds it names the least margin,
 /// and of several inside readings the shallowest, which bounds the depth
-/// of every one.
+/// of every one; a tie on the margin's upper end names the least entity
+/// ([`entity_order`]), so the refusal is the same in every read order.
+///
+/// An inside reading the carve consumes is one on a straight band's
+/// cap ([`CapRing`]), a face of the prism over such rings
+/// ([`prism_inside`]) or a face inside a straight band's exact core:
+/// only when every inside reading is one does the request build
+/// ([`Consumed`]); otherwise it refuses `WhollyInside`.
 pub(crate) struct Unclear<T> {
     bound: Option<(T, BlendError)>,
     inside: Option<(T, BlendError)>,
+    rings: Vec<CapRing<T>>,
+    faces: Vec<(FaceKey, EdgeKey)>,
+    unconsumed: bool,
+}
+
+/// **A cycle of a straight band's cap read wholly inside its sliver**:
+/// the crease whose band removes or buries it, the cap, the cycle, and
+/// its depth (negative; its size a lower bound on the cycle's distance
+/// from the sliver's boundary in the cap's plane), and whether the
+/// sliver was read as its exact triangle, so convex.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CapRing<T> {
+    pub(crate) crease: EdgeKey,
+    pub(crate) cap: FaceKey,
+    pub(crate) ring: LoopKey,
+    pub(crate) depth: T,
+    pub(crate) convex: bool,
+}
+
+/// **What a request whose verdict is inside consumes**: the cap cycles
+/// and the faces read wholly inside the material a straight band
+/// removes or fills, each with the crease of every band it was read
+/// inside, and the refusal they would owe were the carve not to take
+/// them ([`BlendError::WhollyInside`], the shallowest).
+pub(crate) struct Consumed<T> {
+    pub(crate) rings: Vec<CapRing<T>>,
+    /// Each face and a crease whose band's material it was read in.
+    pub(crate) read: Vec<(FaceKey, EdgeKey)>,
+    pub(crate) refusal: BlendError,
+}
+
+/// A total order on the entities refusals name: by kind, then by key.
+fn entity_order(a: EntityId, b: EntityId) -> core::cmp::Ordering {
+    use EntityId as E;
+    let kind = |x: EntityId| match x {
+        E::Solid(_) => 0,
+        E::Shell(_) => 1,
+        E::Face(_) => 2,
+        E::Loop(_) => 3,
+        E::HalfEdge(_) => 4,
+        E::Edge(_) => 5,
+        E::Vertex(_) => 6,
+    };
+    match (a, b) {
+        (E::Solid(x), E::Solid(y)) => x.cmp(&y),
+        (E::Shell(x), E::Shell(y)) => x.cmp(&y),
+        (E::Face(x), E::Face(y)) => x.cmp(&y),
+        (E::Loop(x), E::Loop(y)) => x.cmp(&y),
+        (E::HalfEdge(x), E::HalfEdge(y)) => x.cmp(&y),
+        (E::Edge(x), E::Edge(y)) => x.cmp(&y),
+        (E::Vertex(x), E::Vertex(y)) => x.cmp(&y),
+        _ => kind(a).cmp(&kind(b)),
+    }
+}
+
+/// The entity a reach or end-face refusal names.
+fn named(e: &BlendError) -> Option<EntityId> {
+    match *e {
+        BlendError::FaceClearance { at, .. } | BlendError::WhollyInside { at, .. } => Some(at),
+        BlendError::RingClearance { face, .. } => Some(EntityId::Face(face)),
+        _ => None,
+    }
+}
+
+/// Whether `(margin, refusal)` takes the place of `held`: its margin's
+/// upper end on the `better` side, or equal and naming a lesser entity.
+fn displaces<T: Bounds>(
+    held: Option<&(T, BlendError)>,
+    margin: T,
+    refusal: &BlendError,
+    better: core::cmp::Ordering,
+) -> bool {
+    let Some((m, r)) = held else {
+        return true;
+    };
+    match margin.hi().total_cmp(&m.hi()) {
+        core::cmp::Ordering::Equal => match (named(refusal), named(r)) {
+            (Some(a), Some(b)) => entity_order(a, b).is_lt(),
+            _ => false,
+        },
+        o => o == better,
+    }
 }
 
 impl<T: Bounds> Unclear<T> {
@@ -2007,41 +2390,85 @@ impl<T: Bounds> Unclear<T> {
         Self {
             bound: None,
             inside: None,
+            rings: Vec::new(),
+            faces: Vec::new(),
+            unconsumed: false,
         }
     }
 
     /// A reading certified neither clear, nor inside, nor crossing, its
     /// margin `margin`.
     pub(crate) fn bound(&mut self, margin: T, refusal: BlendError) {
-        if self
-            .bound
-            .as_ref()
-            .is_none_or(|(m, _)| margin.hi() < m.hi())
-        {
+        if displaces(
+            self.bound.as_ref(),
+            margin,
+            &refusal,
+            core::cmp::Ordering::Less,
+        ) {
             self.bound = Some((margin, refusal));
         }
     }
 
-    /// A reading certified wholly inside, `margin` its (negative) depth.
-    pub(crate) fn inside(&mut self, margin: T, refusal: BlendError) {
-        if self
-            .inside
-            .as_ref()
-            .is_none_or(|(m, _)| margin.hi() > m.hi())
-        {
+    /// A reading certified wholly inside, `margin` its (negative) depth,
+    /// that the carve does not consume.
+    pub(crate) fn unconsumed_inside(&mut self, margin: T, refusal: BlendError) {
+        self.unconsumed = true;
+        self.deepen(margin, refusal);
+    }
+
+    /// A cap cycle certified wholly inside a straight band's sliver,
+    /// which the carve consumes with the feature it bounds.
+    pub(crate) fn cap_ring(&mut self, ring: CapRing<T>, refusal: BlendError) {
+        self.rings.push(ring);
+        self.deepen(ring.depth, refusal);
+    }
+
+    /// A face certified wholly inside the prism the band of `crease`
+    /// removes or fills ([`prism_inside`], or its exact core), which the
+    /// carve consumes.
+    fn prism_face(&mut self, face: FaceKey, crease: EdgeKey, depth: T, refusal: BlendError) {
+        if !self.faces.contains(&(face, crease)) {
+            self.faces.push((face, crease));
+        }
+        self.deepen(depth, refusal);
+    }
+
+    /// The cycles read inside a straight band's caps so far.
+    fn cap_rings(&self) -> &[CapRing<T>] {
+        &self.rings
+    }
+
+    fn deepen(&mut self, margin: T, refusal: BlendError) {
+        if displaces(
+            self.inside.as_ref(),
+            margin,
+            &refusal,
+            core::cmp::Ordering::Greater,
+        ) {
             self.inside = Some((margin, refusal));
         }
     }
 
-    /// The request's refusal: a bound if any, else wholly inside if any.
+    /// The request's refusal — a bound if any, else wholly inside where
+    /// an inside reading is one the carve does not consume — or what it
+    /// consumes (`None` where no reading was inside: every consumed
+    /// reading is an inside one).
     ///
     /// # Errors
     ///
     /// That refusal.
-    pub(crate) fn verdict(self) -> Result<(), BlendError> {
-        match self.bound.or(self.inside) {
-            Some((_, refusal)) => Err(refusal),
-            None => Ok(()),
+    pub(crate) fn verdict(self) -> Result<Option<Consumed<T>>, BlendError> {
+        if let Some((_, refusal)) = self.bound {
+            return Err(refusal);
+        }
+        match self.inside {
+            None => Ok(None),
+            Some((_, refusal)) if self.unconsumed => Err(refusal),
+            Some((_, refusal)) => Ok(Some(Consumed {
+                rings: self.rings,
+                read: self.faces,
+                refusal,
+            })),
         }
     }
 }
@@ -2065,7 +2492,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
     kind: BlendKind,
     band: Band,
     mut unclear: Unclear<T>,
-) -> Result<(), BlendError> {
+) -> Result<Option<Consumed<T>>, BlendError> {
     let all: Vec<(usize, &Link<T>)> = chains
         .iter()
         .enumerate()
@@ -2089,7 +2516,7 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
     for v in verts {
         let fan = body
             .edges_of_vertex(v)
-            .ok_or_else(|| not_intact(EntityId::Vertex(v), "a chain vertex's edge fan"))?;
+            .ok_or_else(|| unwalked(EntityId::Vertex(v), "a chain vertex's edge fan"))?;
         if !fan.iter().all(|e| requested.binary_search(e).is_ok()) {
             continue;
         }
@@ -2119,8 +2546,12 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
         r.skip.dedup();
         reaches.push(r);
     }
-    let boxes = FaceBoxes::of(body, band)
-        .map_err(|e| not_intact(EntityId::Face(e.0), "a face's certified box"))?;
+    let boxes = FaceBoxes::of(body, band).map_err(|e| {
+        degenerate(
+            EntityId::Face(e.0),
+            "a face's stored surface, which its box reads",
+        )
+    })?;
     // Two chains that share a vertex meet there in a corner or a turn,
     // which the corner predicate and the surgery judge: their bands
     // touch by construction.
@@ -2238,15 +2669,64 @@ pub(crate) fn band_reach<T: Decide + Bounds>(
             });
             if let Some((exact, deep)) = inside {
                 let sign = classify_bound(deep)?;
-                unclear.inside(
-                    deep,
-                    BlendError::WhollyInside {
-                        at: EntityId::Face(face),
-                        chain: chains[exact.chain].first().convexity,
-                        margin: classified(decision, deep, band, sign),
-                    },
-                );
+                let refusal = BlendError::WhollyInside {
+                    at: EntityId::Face(face),
+                    chain: chains[exact.chain].first().convexity,
+                    margin: classified(decision, deep, band, sign),
+                };
+                // A straight band's exact core lies in its prism.
+                match exact.spine {
+                    Some((crease, _)) => unclear.prism_face(face, crease, deep, refusal),
+                    None => unclear.unconsumed_inside(deep, refusal),
+                }
                 continue;
+            }
+            // Inside the prism a straight band removes or fills, read through
+            // the cycles its caps' meter read inside the sliver.
+            if let Some((edge, tau)) = reach.spine.filter(|_| !supports_a_band) {
+                let mine: Vec<CapRing<T>> = unclear
+                    .cap_rings()
+                    .iter()
+                    .filter(|r| r.crease == edge)
+                    .copied()
+                    .collect();
+                // The prism's slice in a cap's plane is an affine image
+                // of `S⊥` (projection along `τ`), so `S⊥` is convex
+                // exactly when that slice is; a ring read through the
+                // exact triangle certifies it for its cap.
+                let convex = mine.iter().all(|r| r.convex);
+                // A carrier with a speed bound (a line, a circle, an
+                // ellipse) is read piecewise; any other is not certified.
+                let in_core = |c: &Curve3<T>, span| {
+                    let speed = geom::carrier_speed::speed_hi(c)?;
+                    curve_in_core(speed, &|t| c.eval(t), span, &reach.core, band)
+                };
+                let prism = Prism {
+                    tau,
+                    rings: &mine,
+                    convex,
+                    in_core: &in_core,
+                };
+                let by_boundary = match &surface {
+                    Surface::Plane { normal, .. } => sure(normal.normalize().dot(tau).abs(), band),
+                    _ => false,
+                };
+                let reading = prism_inside(body, face, &surface, fbox, &prism, by_boundary)?;
+                if let Some(excess) = reading.filter(|x| sure(*x, band)) {
+                    let deep = T::zero() - excess;
+                    let sign = classify_bound(deep)?;
+                    unclear.prism_face(
+                        face,
+                        edge,
+                        deep,
+                        BlendError::WhollyInside {
+                            at: EntityId::Face(face),
+                            chain: chains[reach.chain].first().convexity,
+                            margin: classified(decision, deep, band, sign),
+                        },
+                    );
+                    continue;
+                }
             }
             unclear.bound(
                 bound,
@@ -2373,7 +2853,7 @@ fn metered<T: Decide + Bounds>(
     let certified = |m: T| m.lo() >= band.escalate();
     let coaxial = reach
         .sheet
-        .and_then(|(o, a)| sheet_fn(surface, o, a, |p| reach.lever(p)))
+        .and_then(|(o, a)| sheet_fn(surface, o, a, (reach.lo, reach.hi)))
         .is_some_and(|(_, slack)| slack.hi() < reach.width.lo());
     if coaxial {
         match sheet() {
@@ -2393,14 +2873,15 @@ fn metered<T: Decide + Bounds>(
 /// The test-support door to [`band_reach`] alone, for a fillet request:
 /// its links resolved, walked into chains and broken at their turns as
 /// the battery builds the verdict's chains, and no other predicate run
-/// — so a row can pin the reach on a body some earlier predicate or
-/// door refuses, over the chains production meters. Compiled into no
-/// shipped build.
+/// but the carve's plan of what the verdict consumes
+/// (`consume::plan`) — so a row can pin the reach on a body some earlier
+/// predicate or door refuses, over the chains production meters.
+/// Compiled into no shipped build.
 ///
 /// # Errors
 ///
-/// [`band_reach`]'s, and whatever resolving a link or classifying a
-/// junction refuses.
+/// [`band_reach`]'s and the plan's, and whatever resolving a link or
+/// classifying a junction refuses.
 #[cfg(any(test, feature = "test-support"))]
 pub fn band_reach_for_tests<T: Decide + Bounds>(
     req: &super::BlendRequest<'_, T>,
@@ -2425,7 +2906,10 @@ pub fn band_reach_for_tests<T: Decide + Bounds>(
         BlendKind::Fillet,
         band,
         Unclear::new(),
-    )
+    )?
+    .map_or(Ok(()), |consumed| {
+        super::consume::plan(req.body, &consumed).map(|_| ())
+    })
 }
 
 #[cfg(test)]
@@ -2436,7 +2920,58 @@ mod tests {
 
     use geom_core::{Point3, Vec3};
 
-    use super::{Bound, Cell, SheetFn};
+    use super::{Bound, Cell, SheetFn, Unclear};
+
+    /// **A tie on the margin names the least entity, in every read
+    /// order**: two faces read inside at one depth, and two read as
+    /// bounds at one margin, refuse naming the lesser key whichever is
+    /// read first.
+    #[test]
+    #[allow(clippy::expect_used, clippy::panic)]
+    fn a_margin_tie_names_the_least_entity_in_either_order() {
+        use super::super::{BlendDecision, BlendError, Convexity, battery::classified};
+        use geom_core::{Band, Sign, Tol};
+        use topo::{EntityId, FaceKey};
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let body = crate::test_support::cube::<f64>(1.0, Tol::witness());
+        let mut faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        faces.sort_unstable();
+        let (lo, hi) = (faces[0], faces[1]);
+        let at = |e: &BlendError| match e {
+            BlendError::WhollyInside { at, .. } | BlendError::FaceClearance { at, .. } => *at,
+            other => panic!("not a reach refusal: {other:?}"),
+        };
+        let decision = BlendDecision::FaceClearance;
+        let inside = |f: FaceKey| BlendError::WhollyInside {
+            at: EntityId::Face(f),
+            chain: Convexity::Convex,
+            margin: classified(decision, -0.25, band, Sign::Negative),
+        };
+        let bound = |f: FaceKey| BlendError::FaceClearance {
+            at: EntityId::Face(f),
+            chain: Convexity::Convex,
+            margin: classified(decision, -0.25, band, Sign::Negative),
+            bounded: true,
+        };
+        for order in [[lo, hi], [hi, lo]] {
+            let mut u = Unclear::<f64>::new();
+            for f in order {
+                u.unconsumed_inside(-0.25, inside(f));
+            }
+            let Err(e) = u.verdict() else {
+                panic!("two inside readings the carve does not take refuse")
+            };
+            assert_eq!(at(&e), EntityId::Face(lo), "inside, read {order:?}");
+            let mut u = Unclear::<f64>::new();
+            for f in order {
+                u.bound(-0.25, bound(f));
+            }
+            let Err(e) = u.verdict() else {
+                panic!("two bounds refuse")
+            };
+            assert_eq!(at(&e), EntityId::Face(lo), "bound, read {order:?}");
+        }
+    }
 
     /// **A cell's corners are computed values**: box arithmetic over the
     /// faces' certified boxes produced them in `f64`, so at `Sym` each
@@ -2458,6 +2993,599 @@ mod tests {
             revalued, [None; 4],
             "a corner, the centre and the lever are unknowns, not the constants the box read"
         );
+    }
+
+    /// The rod `ρ ≤ ½` about `z` over `z ∈ [0, 1]`, a wall face of it,
+    /// and that face's stored cylinder.
+    #[allow(clippy::expect_used)]
+    fn rod<T: topo::AtRestPolicy>() -> (topo::Body<T>, topo::FaceKey, geom::Surface<T>) {
+        use geom_core::{Point2, Tol};
+        let half = T::from_f64(0.5);
+        let body = crate::test_support::prism_at(
+            vec![
+                (Point2::new(-half, T::zero()), T::one()),
+                (Point2::new(half, T::zero()), T::one()),
+            ],
+            T::zero(),
+            T::one(),
+            Tol::witness(),
+        );
+        let mut faces: Vec<topo::FaceKey> = body.faces().map(|(k, _)| k).collect();
+        faces.sort_unstable();
+        let (wall, stored) = faces
+            .into_iter()
+            .find_map(|f| {
+                let s = body.get_surface(body.get_face(f)?.surface)?;
+                matches!(s, geom::Surface::Cylinder { .. }).then(|| (f, s.clone()))
+            })
+            .expect("the rod's wall");
+        (body, wall, stored)
+    }
+
+    /// The unit axis `cos t · z + sin t · x` through the origin.
+    fn leaning<T: geom_core::Real>(t: f64) -> (Point3<T>, Vec3<T>) {
+        (
+            Point3::new(T::zero(), T::zero(), T::zero()),
+            Vec3::new(T::from_f64(t.sin()), T::zero(), T::from_f64(t.cos())),
+        )
+    }
+
+    /// The witness band.
+    #[allow(clippy::expect_used)]
+    fn band() -> geom_core::Band {
+        geom_core::Band::linear(geom_core::Tol::witness()).expect("the witness band")
+    }
+
+    /// The rod's wall stored with its origin `along` metres up its axis.
+    #[allow(clippy::expect_used, clippy::panic)]
+    fn stored_at<T: geom_core::Real>(s: &geom::Surface<T>, along: f64) -> geom::Surface<T> {
+        let geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } = s.clone()
+        else {
+            panic!("the rod's wall is a cylinder")
+        };
+        geom::Surface::Cylinder {
+            origin: origin + axis * T::from_f64(along),
+            axis,
+            radius,
+            u_ref,
+        }
+    }
+
+    /// **A cylinder's clip does not move with where its origin is
+    /// stored**: the rod's wall read about an axis leaning half the zero
+    /// band off its own, with its origin stored at the base and up to
+    /// 1e5 m along, clips to its boundary's span at every storage, at
+    /// `f64` and at `Interval`. Stored 3 m along, the origin stood
+    /// `1.5·zero` off the axis and the face's clip was lost.
+    #[test]
+    #[allow(clippy::panic)]
+    fn the_clip_reads_one_span_at_every_stored_origin() {
+        use super::{Clip, sheet_clip};
+        use geom_core::Bounds;
+        let band = band();
+        let storages = [0.0, -3.0, 1.0e3, 1.0e5];
+        macro_rules! spans {
+            ($t:ty) => {{
+                let (body, wall, stored) = rod::<$t>();
+                let (o, a) = leaning::<$t>(0.5 * band.zero());
+                storages.map(|along| {
+                    match sheet_clip(&body, wall, &stored_at(&stored, along), o, a, band) {
+                        Some(Clip::Z(z0, z1)) => (z0.lo(), z1.hi()),
+                        Some(Clip::Rho(..)) => {
+                            panic!("stored {along} m along: an axial clip, not a radial one")
+                        }
+                        None => panic!("stored {along} m along: the wall clips"),
+                    }
+                })
+            }};
+        }
+        for (scalar, spans) in [
+            ("f64", spans!(f64)),
+            ("Interval", spans!(geom_core::interval::Interval)),
+        ] {
+            for (along, span) in storages.into_iter().zip(spans) {
+                assert_eq!(
+                    span, spans[0],
+                    "{scalar}, stored {along} m along: the base storage's span"
+                );
+            }
+            let (z0, z1) = spans[0];
+            assert!(
+                z0 <= 0.0 && z1 >= 1.0 && z1 - z0 < 1.0 + 4.0 * band.escalate(),
+                "{scalar}: the span holds the wall's [0, 1] and little else: {z0}..{z1}"
+            );
+        }
+    }
+
+    /// A profile loop as an `(x, y, bulge)` vertex chain.
+    type Chain = Vec<(f64, f64, f64)>;
+
+    /// The clip corpus: each fixture a list of profile loops (outer
+    /// first) as `(x, y, bulge)` chains, extruded over `z ∈ [0, 1]` —
+    /// a full rod, a half-rod, a 270° and a 90° circular segment (walls
+    /// that do and do not wrap past a tilted axis's extremes), a disc
+    /// with an off-centre bore (a holed cap, an off-axis bore wall), and
+    /// a square (planar walls).
+    fn clip_fixtures() -> Vec<(&'static str, Vec<Chain>)> {
+        let q = core::f64::consts::FRAC_PI_4;
+        let big = (3.0 * core::f64::consts::PI / 8.0).tan();
+        let (c, s) = (0.3f64.cos(), 0.3f64.sin());
+        vec![
+            ("rod", vec![vec![(-0.5, 0.0, 1.0), (0.5, 0.0, 1.0)]]),
+            ("half-rod", vec![vec![(-0.5, 0.0, 1.0), (0.5, 0.0, 0.0)]]),
+            (
+                "major-segment",
+                vec![vec![
+                    (0.5 * q.cos(), 0.5 * q.sin(), big),
+                    (0.5 * q.cos(), -0.5 * q.sin(), 0.0),
+                ]],
+            ),
+            (
+                "minor-segment",
+                vec![vec![
+                    (0.5 * q.cos(), -0.5 * q.sin(), 1.0 / big),
+                    (0.5 * q.cos(), 0.5 * q.sin(), 0.0),
+                ]],
+            ),
+            (
+                "bored",
+                vec![
+                    vec![(c, s, 1.0), (-c, -s, 1.0)],
+                    vec![(0.6, 0.0, -1.0), (0.2, 0.0, -1.0)],
+                ],
+            ),
+            (
+                "square",
+                vec![vec![
+                    (-0.5, -0.5, 0.0),
+                    (0.5, -0.5, 0.0),
+                    (0.5, 0.5, 0.0),
+                    (-0.5, 0.5, 0.0),
+                ]],
+            ),
+        ]
+    }
+
+    fn extrude<T: topo::AtRestPolicy>(loops: &[Chain]) -> topo::Body<T> {
+        use geom_core::Point2;
+        let loops = loops
+            .iter()
+            .map(|l| {
+                profile::test_support::bulge_loop(
+                    l.iter()
+                        .map(|&(x, y, b)| {
+                            (Point2::new(T::from_f64(x), T::from_f64(y)), T::from_f64(b))
+                        })
+                        .collect(),
+                )
+            })
+            .collect();
+        crate::test_support::extruded(
+            profile::SketchPlane::xy(),
+            loops,
+            T::one(),
+            geom_core::Tol::witness(),
+        )
+    }
+
+    /// Ordered samples of each boundary loop of `face`.
+    #[allow(clippy::expect_used)]
+    fn boundary_samples(body: &topo::Body<f64>, face: topo::FaceKey) -> Vec<Vec<Point3<f64>>> {
+        let f = body.get_face(face).expect("the face");
+        let mut out = Vec::new();
+        for lp in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+            let topo::LoopBoundary::Cycle { first } = body.get_loop(lp).expect("its loop").boundary
+            else {
+                continue;
+            };
+            let mut pts = Vec::new();
+            for he in body.loop_cycle(first).expect("its cycle") {
+                let h = body.get_half_edge(he).expect("a half-edge");
+                let e = body.get_edge(h.edge).expect("its edge");
+                let cert = body
+                    .get_curve_geom(e.curve)
+                    .and_then(|g| g.certified())
+                    .expect("a certified curve");
+                let (t0, t1) = cert.params();
+                for k in 0..48 {
+                    let s = f64::from(k) / 48.0;
+                    let s = if e.he_plus == he { s } else { 1.0 - s };
+                    pts.push(cert.carrier().eval(t0 + (t1 - t0) * s));
+                }
+            }
+            out.push(pts);
+        }
+        out
+    }
+
+    /// Points of a face of a z-extrusion: a wall's boundary points
+    /// spread over `z ∈ [0, 1]`; a cap's grid points the boundary winds
+    /// about, clear of it by 0.01.
+    fn face_samples(
+        body: &topo::Body<f64>,
+        face: topo::FaceKey,
+        s: &geom::Surface<f64>,
+    ) -> Vec<Point3<f64>> {
+        let loops = boundary_samples(body, face);
+        let all: Vec<Point3<f64>> = loops.iter().flatten().copied().collect();
+        let mut out = all.clone();
+        match s {
+            geom::Surface::Cylinder { .. } => {
+                for p in &all {
+                    out.extend((0..=4).map(|j| Point3::new(p.x, p.y, f64::from(j) / 4.0)));
+                }
+            }
+            geom::Surface::Plane { origin, .. } => {
+                let pi = core::f64::consts::PI;
+                for i in 0..=40 {
+                    for j in 0..=40 {
+                        let (x, y) = (-1.0 + f64::from(i) / 20.0, -1.0 + f64::from(j) / 20.0);
+                        let clear = all.iter().all(|p| (p.x - x).hypot(p.y - y) > 0.01);
+                        let mut w = 0.0;
+                        for l in &loops {
+                            for k in 0..l.len() {
+                                let (p, q) = (l[k], l[(k + 1) % l.len()]);
+                                let d = (q.y - y).atan2(q.x - x) - (p.y - y).atan2(p.x - x);
+                                w += (d + pi).rem_euclid(2.0 * pi) - pi;
+                            }
+                        }
+                        if clear && w.abs() > 3.0 {
+                            out.push(Point3::new(x, y, origin.z));
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+        out
+    }
+
+    /// The unit axis at polar angle `t` from `z`, azimuth `phi`.
+    fn polar(t: f64, phi: f64) -> Vec3<f64> {
+        Vec3::new(t.sin() * phi.cos(), t.sin() * phi.sin(), t.cos())
+    }
+
+    /// Leans of the trace's axis off `z`: coaxial, within the zero
+    /// band, through ⊥ (exactly, and either side of it within and past
+    /// a band), to antiparallel.
+    fn clip_leans() -> Vec<f64> {
+        let h = core::f64::consts::FRAC_PI_2;
+        let pi = core::f64::consts::PI;
+        vec![
+            0.0,
+            0.9 * band().zero(),
+            1.0e-3,
+            0.3,
+            1.2,
+            1.5,
+            h - 1.0e-3,
+            h - 1.0e-6,
+            h - 3.0 * band().escalate(),
+            h,
+            h + 1.0e-4,
+            2.0,
+            3.0,
+            pi - 1.0e-9,
+            pi,
+        ]
+    }
+
+    /// **A clip holds its face at every pose**: on every cylinder and
+    /// plane face of the corpus, about axes at every lean, three
+    /// azimuths and seven origins (through a cap, near a rim, inside the
+    /// bore, outside the body, far below, at a cap corner), every
+    /// sampled face point lies in the clip `sheet_clip` reads, at `f64`
+    /// and at `Interval`. A wall ⊥ the axis is clipped too: `z` is
+    /// constant along its rulings.
+    #[allow(clippy::expect_used)]
+    #[test]
+    fn a_clip_holds_its_face_at_every_pose() {
+        use super::{Clip, sheet_clip};
+        use geom_core::interval::Interval;
+        use geom_core::{Bounds, Real};
+        let band = band();
+        let origins = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.1, -0.2, 0.3),
+            Point3::new(0.45, 0.0, 0.5),
+            Point3::new(0.4, 0.0, 0.5),
+            Point3::new(2.0, 1.0, 0.0),
+            Point3::new(0.0, 0.0, -7.0),
+            Point3::new(0.49, 0.49, 1.0),
+        ];
+        macro_rules! read {
+            ($c:expr) => {
+                $c.map(|c| match c {
+                    Clip::Z(lo, hi) => ("Z", lo.lo(), hi.hi()),
+                    Clip::Rho(lo, hi) => ("Rho", lo.lo(), hi.hi()),
+                })
+            };
+        }
+        #[allow(clippy::expect_used)]
+        fn surface<T: geom_core::Real>(b: &topo::Body<T>, k: topo::FaceKey) -> geom::Surface<T> {
+            b.get_face(k)
+                .and_then(|face| b.get_surface(face.surface))
+                .cloned()
+                .expect("the face's surface")
+        }
+        let iv = |x: f64| Interval::from_f64(x);
+        let (mut clipped, mut perpendicular_walls, mut bad) = (0usize, 0usize, Vec::new());
+        for (name, loops) in clip_fixtures() {
+            let body = extrude::<f64>(&loops);
+            let ibody = extrude::<Interval>(&loops);
+            let mut faces: Vec<_> = body.faces().map(|(k, _)| k).collect();
+            faces.sort_unstable();
+            let mut ifaces: Vec<_> = ibody.faces().map(|(k, _)| k).collect();
+            ifaces.sort_unstable();
+            assert_eq!(faces.len(), ifaces.len(), "{name}: the twin bodies' faces");
+            for (&f, &fi) in faces.iter().zip(&ifaces) {
+                let (s, si) = (surface(&body, f), surface(&ibody, fi));
+                if !matches!(
+                    s,
+                    geom::Surface::Cylinder { .. } | geom::Surface::Plane { .. }
+                ) {
+                    continue;
+                }
+                let pts = face_samples(&body, f, &s);
+                assert!(pts.len() > 50, "{name} {f:?}: the face's samples");
+                for t in clip_leans() {
+                    for phi in [0.0, 0.7, 2.0] {
+                        let a = polar(t, phi);
+                        let ai = Vec3::new(iv(a.x), iv(a.y), iv(a.z));
+                        for o in origins {
+                            let oi = Point3::new(iv(o.x), iv(o.y), iv(o.z));
+                            for (scalar, clip) in [
+                                ("f64", read!(sheet_clip(&body, f, &s, o, a, band))),
+                                ("Interval", read!(sheet_clip(&ibody, fi, &si, oi, ai, band))),
+                            ] {
+                                let Some((kind, lo, hi)) = clip else {
+                                    continue;
+                                };
+                                clipped += 1;
+                                let wall = matches!(s, geom::Surface::Cylinder { .. });
+                                perpendicular_walls +=
+                                    usize::from(wall && t == core::f64::consts::FRAC_PI_2);
+                                let worst = pts
+                                    .iter()
+                                    .map(|p| {
+                                        let v = *p - o;
+                                        let z = v.dot(a);
+                                        let x = if kind == "Z" { z } else { (v - a * z).norm() };
+                                        (lo - x).max(x - hi)
+                                    })
+                                    .fold(f64::NEG_INFINITY, f64::max);
+                                if worst > 0.0 {
+                                    bad.push(format!(
+                                        "{name} {f:?} {scalar} lean {t} phi {phi} o {o:?}: \
+                                         its {kind} clip {lo}..{hi} misses a face point by {worst}"
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(clipped > 5000, "the corpus reads clips: {clipped}");
+        assert!(
+            perpendicular_walls > 0,
+            "walls ⊥ the axis are clipped: {perpendicular_walls}"
+        );
+        assert!(
+            bad.is_empty(),
+            "{} clips miss their face:\n{}",
+            bad.len(),
+            bad[..bad.len().min(40)].join("\n")
+        );
+    }
+
+    /// **A sheet slack does not move with where a plane's or a
+    /// cylinder's origin is stored**: about an axis leaning half the zero
+    /// band, over a box of half-width 2 about the origin, the rod's wall
+    /// stored up to 1e5 m along its axis, and a plane `z = 1` stored up to
+    /// 1e5 m across itself, each read one slack within rounding, a few
+    /// zero bands and not none. Read at the stored origin, the far
+    /// storage's slack was about 1e5 zero bands.
+    #[test]
+    #[allow(clippy::panic)]
+    fn a_sheet_slack_reads_one_value_at_every_stored_origin() {
+        use super::sheet_fn;
+        let band = band();
+        let (_, _, wall) = rod::<f64>();
+        let (o, a) = leaning::<f64>(0.5 * band.zero());
+        let reach = (Point3::new(-2.0, -2.0, -2.0), Point3::new(2.0, 2.0, 2.0));
+        let plane_at = |x: f64| geom::Surface::Plane {
+            origin: Point3::new(x, 0.0, 1.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        for (what, at) in [
+            (
+                "the wall",
+                &(|along: f64| stored_at(&wall, along)) as &dyn Fn(f64) -> geom::Surface<f64>,
+            ),
+            ("the plane", &plane_at),
+        ] {
+            let slack = |along: f64| match sheet_fn(&at(along), o, a, reach) {
+                Some((_, slack)) => slack,
+                None => panic!("{what} stored {along} m along: a sheet form"),
+            };
+            let base = slack(0.0);
+            assert!(
+                base > 0.0 && base < 10.0 * band.zero(),
+                "{what}: a slack of a few zero bands, the lean read: {base}"
+            );
+            for along in [-3.0, 1.0e3, 1.0e5] {
+                let s = slack(along);
+                assert!(
+                    (s - base).abs() <= 0.1 * band.zero(),
+                    "{what} stored {along} m along: the base storage's slack {base}, read {s}"
+                );
+            }
+        }
+    }
+
+    /// **A sheet slack encloses the distance it stands for**: for a
+    /// cylinder and a plane at seven leans of their own, stored at four
+    /// places along or across themselves, in three reach boxes (one 1e4 m
+    /// out), about axes at every lean, `|d(x) − f(ρ, z)| ≤ slack` at the
+    /// box's 5×5×5 grid points.
+    #[test]
+    fn a_sheet_slack_encloses_the_distance() {
+        use super::sheet_fn;
+        let boxes = [
+            (Point3::new(-2.0, -2.0, -2.0), Point3::new(2.0, 2.0, 2.0)),
+            (Point3::new(50.0, -3.0, 40.0), Point3::new(51.0, -2.0, 41.0)),
+            (
+                Point3::new(-1e4, 0.0, 1e4),
+                Point3::new(-1e4 + 0.1, 0.1, 1e4 + 0.1),
+            ),
+        ];
+        let (mut read, mut bad) = (0usize, Vec::new());
+        let o = Point3::origin();
+        for t in clip_leans() {
+            let a = polar(t, 0.4);
+            for own in [
+                0.0,
+                1e-9,
+                1e-6,
+                1e-3,
+                0.5,
+                2.0,
+                core::f64::consts::PI - 1e-7,
+            ] {
+                let b = polar(own, 1.3);
+                let in_plane = b.cross(Vec3::new(1.0, 0.2, 0.0));
+                for along in [0.0, -3.0, 1e3, 1e5] {
+                    let cylinder = geom::Surface::Cylinder {
+                        origin: Point3::new(0.3, -0.1, 0.0) + b * along,
+                        axis: b * 3.0,
+                        radius: 0.5,
+                        u_ref: b.cross(Vec3::new(0.3, 1.0, 0.1)).normalize(),
+                    };
+                    let plane = geom::Surface::Plane {
+                        origin: Point3::new(0.0, 0.0, 1.0) + in_plane * along,
+                        normal: b,
+                        u_ref: in_plane.normalize(),
+                    };
+                    let distance = |s: &geom::Surface<f64>, x: Point3<f64>| match *s {
+                        geom::Surface::Cylinder {
+                            origin,
+                            axis,
+                            radius,
+                            ..
+                        } => {
+                            let (v, n) = (x - origin, axis.normalize());
+                            (v - n * v.dot(n)).norm() - radius
+                        }
+                        geom::Surface::Plane { origin, normal, .. } => {
+                            (x - origin).dot(normal.normalize())
+                        }
+                        _ => f64::NAN,
+                    };
+                    for s in [cylinder, plane] {
+                        for (lo, hi) in boxes {
+                            let Some((g, slack)) = sheet_fn(&s, o, a, (lo, hi)) else {
+                                continue;
+                            };
+                            read += 1;
+                            // The row's own f64 rounding at these magnitudes.
+                            let round = 1e-12 * (1.0 + lo.x.abs() + lo.z.abs() + along.abs());
+                            let at = |l: f64, h: f64, m: i32| l + (h - l) * f64::from(m) / 4.0;
+                            let mut worst = f64::NEG_INFINITY;
+                            for i in 0..=4 {
+                                for j in 0..=4 {
+                                    for k in 0..=4 {
+                                        let x = Point3::new(
+                                            at(lo.x, hi.x, i),
+                                            at(lo.y, hi.y, j),
+                                            at(lo.z, hi.z, k),
+                                        );
+                                        let v = x - o;
+                                        let z = v.dot(a);
+                                        let rho = (v - a * z).norm();
+                                        let gap = (distance(&s, x) - g.at(rho, z)).abs() - slack;
+                                        worst = worst.max(gap - round);
+                                    }
+                                }
+                            }
+                            if worst > 0.0 || worst.is_nan() {
+                                bad.push(format!(
+                                    "lean {t}, own lean {own}, stored {along} along, {:?}, box {lo:?}: \
+                                     slack {slack} short by {worst}",
+                                    core::mem::discriminant(&s)
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(read > 1000, "the row reads slacks: {read}");
+        assert!(
+            bad.is_empty(),
+            "{} slacks short:\n{}",
+            bad.len(),
+            bad[..bad.len().min(40)].join("\n")
+        );
+    }
+
+    /// **`tilt` reads the chord to the nearer of `±a`**: `2·sin(θ/2)`, θ
+    /// that angle, near 0, ⊥ and π, for a unit, a short and a long `b` —
+    /// within 4 ulp at `f64`, enclosed at `Interval`.
+    #[test]
+    fn tilt_reads_the_chord() {
+        use super::tilt;
+        use geom_core::interval::Interval;
+        use geom_core::{Bounds, Real};
+        let pi = core::f64::consts::PI;
+        let iv = |v: Vec3<f64>| {
+            Vec3::new(
+                Interval::from_f64(v.x),
+                Interval::from_f64(v.y),
+                Interval::from_f64(v.z),
+            )
+        };
+        let a = Vec3::new(0.0, 0.0, 1.0);
+        for th in [
+            0.0,
+            1e-15,
+            1e-12,
+            1e-9,
+            1e-6,
+            0.3,
+            pi / 2.0 - 1e-9,
+            pi / 2.0,
+            2.0,
+            pi - 1e-6,
+            pi - 1e-9,
+            pi - 1e-12,
+            pi,
+        ] {
+            for scale in [1.0, 1e-3, 7.0e3] {
+                let b = Vec3::new(th.sin(), 0.0, th.cos()) * scale;
+                let truth = 2.0 * (th.min(pi - th) / 2.0).sin();
+                let f = tilt(b, a);
+                assert!(
+                    (f - truth).abs() <= 4.0 * f64::EPSILON * (1.0 + truth) + 1e-16,
+                    "f64 tilt at θ {th}, ×{scale}: {f}, the chord {truth}"
+                );
+                // `b` is the rounded input: an outward margin of its rounding.
+                let g = tilt(iv(b), iv(a));
+                let m = 4.0 * f64::EPSILON;
+                assert!(
+                    g.lo() <= truth + m && g.hi() >= truth - m,
+                    "Interval tilt at θ {th}, ×{scale}: [{}, {}] holds the chord {truth}",
+                    g.lo(),
+                    g.hi()
+                );
+            }
+        }
     }
 
     /// **A sheet bound read as the band's own material takes its slack
@@ -2489,6 +3617,49 @@ mod tests {
         assert!(
             high < 0.0 && high_strict > 0.0,
             "over the cell: plain {high}, strict {high_strict}"
+        );
+    }
+
+    /// **A curve is read in a core over every point of each piece, and
+    /// the reading tightens**: a unit circle about the origin against
+    /// the half-space `x ≤ 1 − h` refuses for `h = 10⁻³`, its point at
+    /// the parameter's seam a hair out (a piece's box must reach `σ·w/2`
+    /// from its middle, which it does not at half that, nor at none);
+    /// against `x ≤ 1.5` it reads within `[0.4, 0.5]`, a lower bound on
+    /// the true `0.5` that the first quarter-circles to certify, at
+    /// `≈ 0.008`, would leave far below.
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn a_curve_is_read_in_a_core_piecewise_and_tightened() {
+        let circle = geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let core = |d: f64| {
+            [Bound::Affine {
+                n: Vec3::new(1.0, 0.0, 0.0),
+                d,
+            }]
+        };
+        let tau = core::f64::consts::TAU;
+        assert_eq!(
+            super::curve_in_core(
+                1.0,
+                &|t| circle.eval(t),
+                (0.0, tau),
+                &core(1.0 - 1e-3),
+                band()
+            ),
+            None,
+            "a circle a hair out of the core at its seam is not certified"
+        );
+        let deep = super::curve_in_core(1.0, &|t| circle.eval(t), (0.0, tau), &core(1.5), band())
+            .expect("a circle half a unit inside the core certifies");
+        assert!(
+            (0.4..=0.5).contains(&deep),
+            "the reading {deep} is a lower bound within a fifth of the true 0.5"
         );
     }
 }

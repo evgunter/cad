@@ -21,13 +21,9 @@
 //!   alone: its end vertices sit on a RING of each cap (asserted), and
 //!   the ruled band carves it there;
 //! - the corner ball's own arcs on a SLIM WEDGE (the skewed cavity of
-//!   `blend4_r1_probes`): the arc's extent `r·θ` is the folded lever
-//!   arm, so its margin `θ²·r/2` reaches the in-band verdict at an
-//!   ordinary radius with no scaling into the octave, and one step
-//!   slimmer reaches the UNDER-DETERMINED verdict — four contact edges
-//!   stored as chart images on a tier-3-valid body — which the unit's
-//!   algebra (`margin ≥ headroom/2`, an `r_band` lever) calls
-//!   unreachable through the door;
+//!   `blend4_r1_probes`): levered at the faces' extent the arc's margin
+//!   is the radius's, so the skews that put an arc levered at its own
+//!   length in band or under it build determinate;
 //! - the K cost on the die (48 contact edges, corner arcs included):
 //!   `48 × 2 × 7` samples of `tangent_second_order`, under `probe`.
 
@@ -228,8 +224,9 @@ fn r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door() {
 /// `R/r = 1.1` the clearance screen's margin is `≈ −0.27·r` (the unit
 /// measured `−2.717e-2` at `r = 0.1`), so a member whose screen reading
 /// would sit in the band has `r ≈ 1.8·Kε` — and there the mill refuses
-/// first: the flat grazes the cylinder at `R − r = 0.1·r`, in band
-/// (`split_conic_belly_graze`). The family is out of the rule's reach
+/// first: the flat grazes the cylinder at `R − r = 0.1·r`, in band, and
+/// the boolean's glue door escalates the plane×cylinder tangency it
+/// cannot decide (`pc_parallel_gap`). The family is out of the rule's reach
 /// at every scale, but the unit's "definite negative whatever the
 /// scale" describes the screen at ordinary scale only: at this one the
 /// body is not buildable.
@@ -239,8 +236,8 @@ fn r1_the_screened_ratio_scaled_into_the_band_is_refused_at_the_mill() {
     let r = 0.5 * b.escalate() / 0.2717;
     match rod_with_flat_at(1.1 * r, r, 10.0 * r, 2.2 * r, tol()) {
         Err(text) => assert!(
-            text.contains("split_conic_belly_graze"),
-            "the mill escalates the belly graze: {text}"
+            text.contains("pc_parallel_gap"),
+            "the mill escalates the belly graze at the glue door: {text}"
         ),
         Ok(body) => {
             let crease = rod_upper_crease(&body);
@@ -424,9 +421,8 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
 // The corner ball's own arcs on a slim wedge: the EXTENT lever.
 // ---------------------------------------------------------------
 
-/// Edges of a carved body stored as a non-seam chart image — the rule's
-/// UNDER-DETERMINED description, and any other chart-described edge
-/// the body carries (a boolean's rims among them): a whole-body count.
+/// Edges of a carved body stored as a non-seam chart image (a boolean's
+/// rims among them): a whole-body count.
 fn chart_contact_edges(body: &Body<f64>) -> usize {
     body.edges()
         .filter(|(_, e)| {
@@ -440,64 +436,61 @@ fn chart_contact_edges(body: &Body<f64>) -> usize {
         .count()
 }
 
-/// **The corner ball's arcs reach BOTH non-determinate verdicts at an
-/// ordinary radius, through the public door, with no scaling into
-/// the band's octave.** At a wedge of skew `θ` the corner arc between
-/// the band and the ball is `r·θ` long, and that extent is the folded
-/// lever arm, so the arc's margin is `(2r·sin(θ/2))²/(2r) = 2r·sin²(θ/2)
-/// ≈ θ²·r/2` — independent of the support's curvature and far below
-/// `r/2`. The radius is `8.7e-5` on the 4 m block at the default ε
-/// (the pose `blend4_r1_probes::p2_slim_skews…` already carves at
-/// `0.2°`); the WHOLE fixture scales with `ε` across the rows so every
-/// margin, the band and the f64 floor keep their ratios (at `1e-12`
-/// the unscaled block refuses at the attachment gate on a first-order
-/// residual, which is the floor and not this rule); and the skew is
-/// chosen from the band: at `θ² r/2 = 0.75·Kε` the request refuses
-/// typed with the contact recourse and the deciding station reads the
-/// closed form; at `θ² r/2 = 0.5·ε` the request BUILDS, tier-3 valid,
-/// with four contact edges stored as chart images — the
-/// `UnderDetermined → Chart` arm — this row is that arm's pin.
+/// Edges of a carved body storing the conventional pair (`OnPair`) —
+/// the rule's UNDER-DETERMINED description: a whole-body count.
+fn pair_edges(body: &Body<f64>) -> usize {
+    body.edges()
+        .filter(|(_, e)| {
+            matches!(
+                body.get_curve_geom(e.curve)
+                    .and_then(|g| g.certified())
+                    .map(|c| c.description()),
+                Some(EdgeDescription::OnPair { .. })
+            )
+        })
+        .count()
+}
+
+/// **The corner ball's arcs on a slim wedge are determinate.** At a
+/// wedge of skew `θ` the corner arc between the band and the ball is
+/// `r·θ` long, and levered at that length its margin would be
+/// `2r·sin²(θ/2) ≈ θ²·r/2`. The rule levers it at the faces' extent
+/// (`topo::wedge_reach`): the band runs the wedge's length, so the arm
+/// is the radius and the margin `r/2`, definite. At the skews where the
+/// arc's own length put the margin at `0.75·Kε` and at `0.5·ε` the
+/// request builds, tier-3 valid, with every one of the 48 contact
+/// edges the intrinsic tangency (the vent's two chart edges are the
+/// boolean's). The radius is `8.7e-5` on the 4 m block at the default
+/// ε, the WHOLE fixture scaled with `ε` across the rows. The arc's
+/// in-band and under-determined verdicts these poses reached have no
+/// row now (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
-fn r1_a_slim_wedges_corner_arcs_reach_the_in_band_and_under_determined_verdicts() {
+fn r1_a_slim_wedges_corner_arcs_are_the_intrinsic_tangency() {
     let b = band();
     let scale = b.zero() / 1e-9;
     let r = 8.7e-5 * scale;
-    // In band.
-    let theta = (1.5 * b.escalate() / r).sqrt();
-    let (body, edges) = skewed_cavity_edges(theta, scale);
-    let m = contact_in_band_margin(
-        fillet_edges(
+    for theta in [(1.5 * b.escalate() / r).sqrt(), (b.zero() / r).sqrt()] {
+        let (body, edges) = skewed_cavity_edges(theta, scale);
+        let out = fillet_edges(
             &sweep::test_support::at_rest(&body, tol()),
             &edges,
             r,
             tol(),
-        ),
-        &format!("the skewed cavity at θ = {theta:e}, r = {r:e}"),
-    );
-    let predicted = 2.0 * r * (0.5 * theta).sin().powi(2);
-    assert!(
-        ((m - predicted) / predicted).abs() < 1e-6,
-        "the deciding station reads the corner arc's closed form: {m:e} vs {predicted:e}"
-    );
-    // Under-determined: the same pose, slimmer.
-    let theta = (b.zero() / r).sqrt();
-    let (body, edges) = skewed_cavity_edges(theta, scale);
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &edges,
-        r,
-        tol(),
-    )
-    .unwrap_or_else(|e| panic!("the slimmer skew at θ = {theta:e} builds: {e}"));
-    assert_eq!(
-        topo::validate_geometric(&out.body, tol()),
-        Ok(()),
-        "the carve with chart-described corner arcs is tier-3 valid"
-    );
-    assert_eq!(
-        (intrinsic_edges(&out.body), chart_contact_edges(&out.body)),
-        (44, 6),
-        "four of the 48 contact edges store the conventional chart image (the vent's two \
-         chart edges are the boolean's)"
-    );
+        )
+        .unwrap_or_else(|e| panic!("the skew at θ = {theta:e} builds: {e}"));
+        assert_eq!(
+            topo::validate_geometric(&out.body, tol()),
+            Ok(()),
+            "θ = {theta:e}: the carve is tier-3 valid"
+        );
+        assert_eq!(
+            (
+                intrinsic_edges(&out.body),
+                pair_edges(&out.body),
+                chart_contact_edges(&out.body)
+            ),
+            (48, 0, 2),
+            "θ = {theta:e}: every contact edge is the intrinsic tangency"
+        );
+    }
 }

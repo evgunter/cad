@@ -480,6 +480,17 @@ pub enum ReplaceFaceError<T: Real> {
         /// The scaffolded edge.
         edge: EdgeKey,
     },
+    /// **A moved edge the pair it lies on under-determined reads its
+    /// two moved faces at a corner at one station and smoothly at its
+    /// neighbour**, re-asked the must-carry rule after the move: the
+    /// two bracket an in-band point the schedule did not sample, so the
+    /// edge is certifiable as neither (D2's mixed edge).
+    MixedEdge {
+        /// The moved edge.
+        edge: EdgeKey,
+        /// The two neighbouring stations that disagree.
+        stations: geom_brep::MixedStations,
+    },
     /// **A moved vertex ran past the end of a spline carrier.** Newton's
     /// foot on an untouched edge from the endpoint's old parameter is
     /// stopped by the domain clamp at the carrier's end, `gap` from the
@@ -847,6 +858,12 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                  offset tilts it against, so the moved edge is no longer the curve its sketch \
                  drew. {NOT_YET_ENDING}"
             ),
+            Self::MixedEdge { stations, .. } => {
+                write!(
+                    f,
+                    "along an edge the offset moves, {stations}. Recourse: {COINCIDENCE_RECOURSE}"
+                )
+            }
             Self::ReanchorPastCarrierEnd { gap, .. } => write!(
                 f,
                 "a corner of the face moves {gap:?} m past the end of the curve of an edge \
@@ -1173,8 +1190,8 @@ fn transport_curve<T: Decide>(
 /// sample point the read chose, entered as the constant it is (a held
 /// midpoint would only widen the parameter at an enclosure scalar).
 fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
-    let (u0, u1) = s.knots_u().domain();
-    let (v0, v1) = s.knots_v().domain();
+    let (u0, u1) = s.knots_u_f64_interim().domain();
+    let (v0, v1) = s.knots_v_f64_interim().domain();
     let jet = s.ders(T::from_f64((u0 + u1) * 0.5), T::from_f64((v0 + v1) * 0.5));
     let n = jet.du.cross(jet.dv).normalize();
     (!n.x.is_poison() && !n.y.is_poison() && !n.z.is_poison()).then_some(n)
@@ -1206,14 +1223,14 @@ pub(crate) fn translate_curve<T: Real>(
         Curve3::Ellipse {
             center,
             axis,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => Curve3::Ellipse {
             center: *center + delta,
             axis: *axis,
-            major: *major,
-            minor: *minor,
+            semi_u: *semi_u,
+            semi_v: *semi_v,
             u_ref: *u_ref,
         },
         Curve3::Spiric {
@@ -2214,12 +2231,12 @@ fn cone_v_range<T: Decide>(
         Curve3::Ellipse {
             center,
             axis: ca,
-            major,
-            minor,
+            semi_u,
+            semi_v,
             u_ref,
         } => {
             let v_ref = ca.cross(*u_ref);
-            let amp = ((u_ref.dot(axis) * *major).powi(2) + (v_ref.dot(axis) * *minor).powi(2))
+            let amp = ((u_ref.dot(axis) * *semi_u).powi(2) + (v_ref.dot(axis) * *semi_v).powi(2))
                 .sqrt()
                 / cos_a;
             let c = v_of(*center);
@@ -2328,6 +2345,12 @@ fn plan_edge<T: Decide>(
             return plan_between_moved(
                 (edge, start, end, sides),
                 curve,
+                crate::wedge_reach(
+                    body,
+                    crate::edge_faces(body, edge),
+                    curve.carrier(),
+                    curve.params(),
+                ),
                 (a, b),
                 band,
                 tol,
@@ -2464,7 +2487,8 @@ fn plan_edge<T: Decide>(
             EdgeDescription::Scaffold(_) => Some("a curve still under construction"),
             EdgeDescription::Chart(_)
             | EdgeDescription::Intersection { .. }
-            | EdgeDescription::TangentIntersection { .. } => {
+            | EdgeDescription::TangentIntersection { .. }
+            | EdgeDescription::OnPair { .. } => {
                 (sides[0] == sides[1]).then_some("a seam the fitted face shares with itself")
             }
         };
@@ -2497,6 +2521,7 @@ fn plan_edge<T: Decide>(
                 (curve, &description, (t0, t1)),
                 (old_key, other_key, new_surface, held),
                 extent,
+                crate::wedge_reach(body, crate::edge_faces(body, edge), &old_carrier, (t0, t1)),
                 band,
                 section_lane,
             );
@@ -2532,16 +2557,14 @@ fn plan_edge<T: Decide>(
     // at its new home silently destroyed it for every edge the fence
     // had converted.
     //
-    // Dropping it also flips `EdgeAuthority::is_declared`, which tier
-    // 3's prefer-intrinsic rules read — a verdict change.
-    //
     // The `delta` requirement is the pre-collapse one, unchanged and
     // for the pre-collapse reason: a pushforward can only be carried
     // when the offset is a rigid translation of a family that
     // translates. It is asked for ONLY when a declaration is actually
-    // present, so an edge whose locus nothing declared still crosses a
-    // non-translating offset freely — which is what the retirement
-    // bought, and this keeps it.
+    // present and the restated edge keeps it, so an edge whose locus
+    // nothing declared, or whose moved pair the rule reads intrinsic,
+    // still crosses a non-translating offset freely — which is what
+    // the retirement bought, and this keeps it.
     let carried_declaration =
         || -> Result<Option<geom_brep::MappedCurve<T>>, ReplaceFaceError<T>> {
             match curve.authority() {
@@ -2633,19 +2656,63 @@ fn plan_edge<T: Decide>(
         }
         // Every other image on the MOVED chart shifts with the chart's
         // own offset action: `d·cot α` in `v` on a cone, zero on every
-        // other kind.
-        EdgeDescription::Chart(ref c) if c.surface == old_key => EdgeDescriptionSpec::Chart {
-            surface: old_key,
-            image: Some(shift_chart_v(&c.pcurve, shift).ok_or(
-                ReplaceFaceError::CarrierLaneUnsupported {
-                    edge,
-                    what: "it is drawn on a fitted or cone surface, where the offset has no \
-                           exact shift for it",
+        // other kind — where the rule still reads the moved pair
+        // under-determined. It is asked again beside a distinct
+        // neighbour, as every door that keeps an image does
+        // (`offset_restate::re_ask_chart`). For a closed form the
+        // demand is unreachable from a valid body today: this arm runs
+        // only where the neighbour holds the move (`holds_the_move`),
+        // every such pose meets the moved surface square
+        // (`offset_derive`'s `every_held_pose_routes_and_reads_the_section`),
+        // and an offset leaves the normals along the edge as they were,
+        // so the edge was already a corner, where an image is refused.
+        EdgeDescription::Chart(ref c) if c.surface == old_key => {
+            let held = body.get_surface(other_key).unwrap_or_else(|| {
+                dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(other_key))
+            });
+            let demanded = crate::offset_restate::re_ask_chart(
+                edge,
+                [(old_key, new_surface), (other_key, held)],
+                &carrier,
+                (t0, t1),
+                crate::wedge_reach(body, crate::edge_faces(body, edge), &carrier, (t0, t1)),
+                band,
+            )?;
+            match demanded {
+                Some(intrinsic) => intrinsic,
+                None => EdgeDescriptionSpec::Chart {
+                    surface: old_key,
+                    image: Some(shift_chart_v(&c.pcurve, shift).ok_or(
+                        ReplaceFaceError::CarrierLaneUnsupported {
+                            edge,
+                            what: "it is drawn on a fitted or cone surface, where the offset \
+                                   has no exact shift for it",
+                        },
+                    )?),
+                    wrap: false,
+                    declared: carried_declaration()?,
                 },
-            )?),
-            wrap: false,
-            declared: carried_declaration()?,
-        },
+            }
+        }
+        // A pair the two surfaces under-determined: the moved edge lies
+        // on the moved surface and on its held neighbour, which the move
+        // carries onto itself, and the rule is asked of the pair as it
+        // now stands.
+        EdgeDescription::OnPair { pair } if let Some(other) = pair.other(old_key) => {
+            neighbour_section(other)?;
+            let held = body.get_surface(other).unwrap_or_else(|| {
+                dangling_link(EntityId::Edge(edge), "description", GeomRef::Surface(other))
+            });
+            crate::offset_restate::re_ask_on_pair(
+                edge,
+                [(old_key, new_surface), (other, held)],
+                &carrier,
+                (t0, t1),
+                crate::wedge_reach(body, crate::edge_faces(body, edge), &carrier, (t0, t1)),
+                carried_declaration,
+                band,
+            )?
+        }
         EdgeDescription::Intersection { pair, .. }
         | EdgeDescription::TangentIntersection { pair, .. }
             if let Some(other) = pair.other(old_key) =>
@@ -2717,13 +2784,28 @@ fn plan_edge<T: Decide>(
                 },
             )?)
         }
-        // An image in an untouched neighbour's chart.
+        // An image in an untouched neighbour's chart: the edge has left
+        // the locus it draws and lies on the moved surface and that
+        // neighbour, whose pair the rule is asked; it stores what the
+        // rule reads, declared or not.
         EdgeDescription::Chart(ref c) => {
-            let declared = carried_declaration()?;
-            if declared.is_none() {
-                neighbour_section(c.surface)?;
-            }
-            crate::offset_restate::held_neighbour_image(old_key, c.surface, declared, new_mid)
+            neighbour_section(c.surface)?;
+            let held = body.get_surface(c.surface).unwrap_or_else(|| {
+                dangling_link(
+                    EntityId::Edge(edge),
+                    "description",
+                    GeomRef::Surface(c.surface),
+                )
+            });
+            crate::offset_restate::re_ask_on_pair(
+                edge,
+                [(old_key, new_surface), (c.surface, held)],
+                &carrier,
+                (t0, t1),
+                crate::wedge_reach(body, crate::edge_faces(body, edge), &carrier, (t0, t1)),
+                carried_declaration,
+                band,
+            )?
         }
         EdgeDescription::Intersection { pair, witness } => {
             EdgeDescriptionSpec::Intersection { pair, witness }
@@ -2731,6 +2813,10 @@ fn plan_edge<T: Decide>(
         EdgeDescription::TangentIntersection { pair, witness } => {
             EdgeDescriptionSpec::TangentIntersection { pair, witness }
         }
+        EdgeDescription::OnPair { pair } => EdgeDescriptionSpec::OnPair {
+            pair,
+            declared: carried_declaration()?,
+        },
     };
 
     Ok(EdgePlan {
@@ -2772,6 +2858,7 @@ fn edge_side_keys<T: Real>(
 fn plan_between_moved<T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
     curve: &geom_brep::EdgeCurve<T>,
+    reach: T,
     (a, b): (&MovedChart<'_, T>, &MovedChart<'_, T>),
     band: Band,
     tol: Tol,
@@ -2804,6 +2891,27 @@ fn plan_between_moved<T: Decide>(
             true,
             mid,
             carried,
+            |declared| {
+                crate::offset_restate::re_ask_on_pair(
+                    edge,
+                    [(a.old_key, &a.new_surface), (b.old_key, &b.new_surface)],
+                    &carrier,
+                    (t0, t1),
+                    reach,
+                    declared,
+                    band,
+                )
+            },
+            || {
+                crate::offset_restate::re_ask_chart(
+                    edge,
+                    [(a.old_key, &a.new_surface), (b.old_key, &b.new_surface)],
+                    &carrier,
+                    (t0, t1),
+                    reach,
+                    band,
+                )
+            },
         )?;
         return Ok(EdgePlan {
             edge,
@@ -2827,6 +2935,7 @@ fn plan_between_moved<T: Decide>(
         (curve, &description, (t0, t1)),
         (a.old_key, b.old_key, &a.new_surface, &b.new_surface),
         extent,
+        reach,
         band,
         section_lane,
     )
@@ -2903,7 +3012,9 @@ fn untilted<T: Real>(
 /// section, nearest the old carrier and
 /// running with it, stated as their `Intersection` with any sketch
 /// record beside it dropped — the moved edge is not the curve a sketch
-/// drew. Its ends are its corners', read once those are solved.
+/// drew — or, for a pair that under-determined the old edge, as the
+/// must-carry rule reads the section ([`crate::offset_restate::re_ask_on_pair`]).
+/// Its ends are its corners', read once those are solved.
 #[allow(clippy::type_complexity)]
 fn derive_edge<T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
@@ -2915,6 +3026,7 @@ fn derive_edge<T: Decide>(
         &Surface<T>,
     ),
     extent: T,
+    reach: T,
     band: Band,
     section_lane: Option<crate::offset_derive::SectionLane<T>>,
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
@@ -3026,13 +3138,28 @@ fn derive_edge<T: Decide>(
         _ => (t0, t1),
     };
     let witness = carrier.mid_point(t0, t1);
+    // A pair the two surfaces under-determined is re-asked the rule over
+    // the section: the moved pair may now cross, touch determinately or
+    // still under-determine it.
+    let description = match (description, &refused) {
+        (EdgeDescription::OnPair { .. }, None) => crate::offset_restate::re_ask_on_pair(
+            edge,
+            [(old_key, new_surface), (other_key, neighbour)],
+            &carrier,
+            (t0, t1),
+            reach,
+            || Ok(None),
+            band,
+        )?,
+        _ => EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(old_key, other_key),
+            witness,
+        },
+    };
     Ok(EdgePlan {
         edge,
         spec: EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                pair: SurfacePair::new(old_key, other_key),
-                witness,
-            },
+            description,
             carrier,
             param_start: t0,
             param_end: t1,
@@ -3106,10 +3233,16 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
                     pm,
                     pa,
                 },
-                geom_brep::SpiricImage::Wall { u0, v0, sense } => geom_brep::SpiricImage::Wall {
+                geom_brep::SpiricImage::Wall {
+                    u0,
+                    v0,
+                    sense,
+                    torus,
+                } => geom_brep::SpiricImage::Wall {
                     u0,
                     v0: v0 + shift,
                     sense,
+                    torus,
                 },
             },
         },
@@ -3212,8 +3345,13 @@ pub(crate) fn move_points_then_rechart<T: Decide + crate::props::AtRestPolicy>(
 
 /// `vertices` grouped by the point each sits on, groups in order of
 /// first appearance and each group in `vertices`' order (D9): the
-/// copies of one vertex that an op moves together. Each vertex is one
-/// this call resolved or read out of a record.
+/// copies of one vertex that an op moves together. A group may span
+/// several solids: a split's halves keep one point at a tip, and a
+/// boolean puts two solids' corners it decided one point on one key
+/// (`boolean::ops::record_classes`). Each caller solves such a group as
+/// one corner where it can, and parts it per solid where it cannot
+/// ([`split_by_solid`]). Each vertex is one this call resolved or read
+/// out of a record.
 #[track_caller]
 pub(crate) fn group_by_point<T: Real>(
     body: &Body<T>,
@@ -3228,6 +3366,28 @@ pub(crate) fn group_by_point<T: Real>(
         }
     }
     groups.into_iter().map(|(_, group)| group).collect()
+}
+
+/// `group`, parted by the solid each vertex lies in, in `group`'s order:
+/// one part where the group is one solid's. A corner is one solid's
+/// problem (`offset_together`'s scope), so a group on a key two solids
+/// share whose joint solve refuses (two cubes kissing at a corner,
+/// whose six planes do not concur after the offset) is solved per
+/// solid, and its corners part.
+pub(crate) fn split_by_solid<T: Real>(body: &Body<T>, group: &[VertexKey]) -> Vec<Vec<VertexKey>> {
+    let solid = |vertex: VertexKey| {
+        let he = proven(&body.vertices, vertex, EntityId::Vertex).emanating?;
+        body.solid_of_face(body.face_of_half_edge(he)?)
+    };
+    let mut parts: Vec<(Option<crate::SolidKey>, Vec<VertexKey>)> = Vec::new();
+    for &vertex in group {
+        let s = solid(vertex);
+        match parts.iter_mut().find(|(k, _)| *k == s) {
+            Some((_, part)) => part.push(vertex),
+            None => parts.push((s, vec![vertex])),
+        }
+    }
+    parts.into_iter().map(|(_, part)| part).collect()
 }
 
 /// `description` with every occurrence of `old` re-pointed at `new` —
@@ -3249,6 +3409,10 @@ pub(crate) fn remap_description<T: Real>(
                 witness,
             }
         }
+        EdgeDescriptionSpec::OnPair { pair, declared } => EdgeDescriptionSpec::OnPair {
+            pair: pair.map(map),
+            declared,
+        },
         EdgeDescriptionSpec::Chart {
             surface,
             image,
@@ -3524,7 +3688,17 @@ fn plan_reanchors<T: Decide>(
                     wrap,
                     declared: Some(restate(mc)?),
                 },
-                other => other,
+                EdgeDescriptionSpec::OnPair {
+                    pair,
+                    declared: Some(mc),
+                } => EdgeDescriptionSpec::OnPair {
+                    pair,
+                    declared: Some(restate(mc)?),
+                },
+                other @ (EdgeDescriptionSpec::Intersection { .. }
+                | EdgeDescriptionSpec::TangentIntersection { .. }
+                | EdgeDescriptionSpec::OnPair { declared: None, .. }
+                | EdgeDescriptionSpec::Chart { declared: None, .. }) => other,
             };
             if is_start {
                 t0 = t_new;
@@ -3547,7 +3721,32 @@ fn plan_reanchors<T: Decide>(
             EdgeDescriptionSpec::TangentIntersection { pair, .. } => {
                 EdgeDescriptionSpec::TangentIntersection { pair, witness: mid }
             }
-            other => other,
+            // The re-anchor changes the edge's extent, which the
+            // must-carry verdict reads, so the pair is asked again over
+            // the edge as it now runs; its surfaces hold.
+            EdgeDescriptionSpec::OnPair { pair, declared } => {
+                let [ka, kb] = pair.keys();
+                let surface = |k| {
+                    body.get_surface(k).unwrap_or_else(|| {
+                        dangling_link(EntityId::Edge(edge), "description", GeomRef::Surface(k))
+                    })
+                };
+                crate::offset_restate::re_ask_on_pair(
+                    edge,
+                    [(ka, surface(ka)), (kb, surface(kb))],
+                    &carrier,
+                    (t0, t1),
+                    crate::wedge_reach(body, crate::edge_faces(body, edge), &carrier, (t0, t1)),
+                    || Ok(declared),
+                    band,
+                )?
+            }
+            // An image is asked the same, between the edge's faces.
+            chart @ EdgeDescriptionSpec::Chart { wrap: false, .. } => body
+                .reask_chart_on(edge, &carrier, (t0, t1), band)
+                .map_err(|refusal| crate::offset_restate::pair_refusal(edge, refusal))?
+                .unwrap_or(chart),
+            other @ (EdgeDescriptionSpec::Chart { .. } | EdgeDescriptionSpec::Scaffold(_)) => other,
         };
         // A line or a clamped spline has no turn to choose, so a span
         // that stops being forward on it is the move's length alone.
@@ -3701,7 +3900,13 @@ fn corner_of_root<T: Decide>(
     tol: Tol,
     held: &geom_core::spline::Knots<T>,
 ) -> Result<Result<T, crate::offset_derive::CornerVerdict<T>>, ReplaceFaceError<T>> {
-    let held_end = |v: f64| held.value_at(v).unwrap_or_else(|| T::from_computed(v));
+    // `held` is a carrier's knots, which are points (`net::carrier_knots`).
+    let held_end = |v: f64| match held.value_at(v) {
+        Ok(k) => k.unwrap_or_else(|| T::from_computed(v)),
+        Err(e) => {
+            unreachable!("a carrier's door admits only point knots (`CarrierKnotNotAPoint`): {e}")
+        }
+    };
     use crate::offset_derive::SplineRoot;
     match root {
         Ok(SplineRoot::At(t)) => Ok(Ok(T::from_computed(t))),
@@ -3784,7 +3989,11 @@ fn solve_corners<T: Decide>(
             }
         }
     }
-    for group in group_by_point(body, keys) {
+    // One corner's solve, its rows pushed to `corners` only once it holds.
+    let solve = |group: Vec<VertexKey>,
+                 corners: &mut Corners<T>,
+                 holds: &mut Vec<(SurfaceKey, SurfaceKey, bool)>|
+     -> Result<(), ReplaceFaceError<T>> {
         let vertex = group[0];
         let old_point = *body
             .get_point(proven(&body.vertices, vertex, EntityId::Vertex).point)
@@ -4016,6 +4225,29 @@ fn solve_corners<T: Decide>(
         }
         corners.groups.push((group, points[0]));
         corners.offsets.push(d);
+        Ok(())
+    };
+    // A key two solids share is one point now; it stays one where its
+    // corners solve as one, and parts per solid where they do not
+    // (`split_by_solid`).
+    let mut work = group_by_point(body, keys);
+    work.reverse();
+    while let Some(group) = work.pop() {
+        let mark = (corners.rooted.len(), corners.solved.len());
+        // Only copies that definitely land apart part; an escalated
+        // joint solve is undecided, not refused, and propagates.
+        if let Err(refused) = solve(group.clone(), &mut corners, &mut holds) {
+            if !matches!(refused, ReplaceFaceError::VertexDisagreement { .. }) {
+                return Err(refused);
+            }
+            let parts = split_by_solid(body, &group);
+            if parts.len() < 2 {
+                return Err(refused);
+            }
+            corners.rooted.truncate(mark.0);
+            corners.solved.truncate(mark.1);
+            work.extend(parts.into_iter().rev());
+        }
     }
     Ok(corners)
 }
@@ -4187,9 +4419,14 @@ fn read_ends<T: Decide>(
         }
         EdgeDescriptionSpec::Chart {
             declared: Some(mc), ..
+        }
+        | EdgeDescriptionSpec::OnPair {
+            declared: Some(mc), ..
         } => *mc = restated(*mc)?,
         EdgeDescriptionSpec::Scaffold(mc) => *mc = restated(*mc)?,
-        _ => {}
+        EdgeDescriptionSpec::TangentIntersection { .. }
+        | EdgeDescriptionSpec::OnPair { declared: None, .. }
+        | EdgeDescriptionSpec::Chart { declared: None, .. } => {}
     }
     plan.ends = Some((p_start, p_end));
     Ok(())
@@ -4339,8 +4576,8 @@ mod offset_fit_door_rows {
                 .iter()
                 .flat_map(|p| p.to_array())
                 .chain(n.weights().iter().copied())
-                .chain(n.knots_u().knots().iter().copied())
-                .chain(n.knots_v().knots().iter().copied())
+                .chain(n.knots_u_f64_interim().knots().iter().copied())
+                .chain(n.knots_v_f64_interim().knots().iter().copied())
                 .map(f64::to_bits)
                 .collect()
         };
@@ -4415,8 +4652,8 @@ mod pose_reach_rows {
             let e = Curve3::Ellipse {
                 center: Point3::new(0.1, 0.2, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),
-                major,
-                minor,
+                semi_u: major,
+                semi_v: minor,
                 u_ref: Vec3::new(u, 0.0, 0.0),
             };
             let reach = Reach::Span {

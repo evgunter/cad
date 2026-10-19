@@ -65,8 +65,8 @@ use editor_core::drive::{
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
-    LoopProgram, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileLift,
-    ProfileProgram, VarName, evaluate,
+    LoopProgram, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileProgram, VarName,
+    evaluate,
 };
 use geom_core::{Bounds, Interval, Tol};
 
@@ -540,6 +540,14 @@ fn the_certification_width_is_no_longer_bounded_by_epsilon() {
          different predicate means the mechanism that sets the ceiling moved, and the \
          doc above is then wrong rather than the number: {why:?}"
     );
+    // That read is the extrude's first-order wall join, `SliverJoin`,
+    // an arm no point input reaches since the wedge is levered at its
+    // faces (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`):
+    // this row is where it is reached.
+    assert!(
+        why.iter().any(|f| f.contains("SliverJoin")),
+        "just past the ceiling the one-leaf replay refuses at the extrude's wall join: {why:?}"
+    );
     let wide = slab(1.0, 0.5);
     let why = node_failures(&wide, &analyzed_box(&wide, &AnalysisPolicy::default()));
     assert!(
@@ -579,7 +587,6 @@ fn ceiling_at(eps: f64) -> (f64, f64) {
 fn node_failures(doc: &editor_core::ProfileDoc, analyzed: &AnalyzedBox) -> Vec<String> {
     let opts = EvalOptions {
         param_box: Some(std::sync::Arc::new(ParamBox::of(analyzed))),
-        profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
     let dials = SymbolicDials::default();
@@ -661,7 +668,7 @@ fn a_macroscopic_box_certifies_at_the_shipped_depth_budget() {
     // symbolically, everything else numerically.
     let d = v.decisions();
     assert!(
-        d.symbolic_zero > 0 && d.numeric > 0,
+        d.symbolic > 0 && d.numeric > 0,
         "both tiers are live on this drive: {d:?}"
     );
 }
@@ -1273,10 +1280,7 @@ fn a_witness_that_does_not_build_refuses_up_front() {
 #[test]
 fn an_unused_box_seam_changes_no_decision() {
     let doc = slab(1.0, 0.0);
-    let opts = EvalOptions {
-        profile_lift: ProfileLift::Guided,
-        ..EvalOptions::default()
-    };
+    let opts = EvalOptions::default();
     let plain = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, Tol::witness());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let boxed = evaluate::<f64>(

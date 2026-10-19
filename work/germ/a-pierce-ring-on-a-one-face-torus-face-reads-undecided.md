@@ -2,8 +2,11 @@
 id: a-pierce-ring-on-a-one-face-torus-face-reads-undecided
 kind: issue
 title: A pierce ring on the one-face torus's face reads RingHomingAmbiguous: no path from it decides
-status: open
+status: closed
 opened: 2026-10-12
+closed: 2026-10-12
+branch: germ/one-face-torus-pierce-ring
+pr: 4910
 ---
 
 
@@ -46,3 +49,30 @@ unverified: phases 0 and 1 have the same shape of references and build.
 The pose builds its true body in all six ops (volume, tier 3,
 `point_in_solid`), or refuses with a typed cause that names why the
 ring cannot be placed.
+
+## Measured and fixed (`germ/one-face-torus-pierce-ring`)
+
+At `h = −0.3` the divided face's run is four arcs: the inner parallel
+of `y = h` and the meridian circle of `x = 0` (both box faces'), and
+pieces of the wrap meridian and the wrap parallel. The ring point
+`(0, h, −2.4)` lies in the planes of the box faces' two arcs: on the
+other loop of `y = h`'s pair of parallels, and on the `x = 0` meridian
+circle itself, off the arc's span. Every reference of the face's outer
+loop lies on the wrap edges' circles, which carry the other two arcs.
+So each of the 768 paths had a piece running along an arc's plane: the
+lead (zero length, from the ring point), the ring point's meridian
+(in `x = 0`), its parallel (in `y = h`), or the reference's meridian or
+parallel (a wrap circle). `split_ring_path_meets_plane` or
+`split_ring_path_segment_side` read Zero on each, and every path said
+nothing.
+
+`ring_path::path_parity` now reads such a piece apart from the arc
+where it is decided so (`misses_in_plane`: its circle clear of the
+arc's annulus, or the arc's own circle with disjoint spans; a lead
+decided farther from the arc than half its length). Every op builds
+its true body at all three `h`
+(`germ_plane_torus_chord::a_box_edge_piercing_a_one_face_torus_builds_its_true_body`).
+The two-face donut's bar `[−3, 3] × [0.2, 1.2] × [0, 3]`, torus first,
+was the same defect (its run's two arcs lie in the plane `z = 0`, the
+ring point on that plane's other loop) and builds too
+(`…::a_bar_on_the_donuts_meridian_plane_builds_its_true_body`).

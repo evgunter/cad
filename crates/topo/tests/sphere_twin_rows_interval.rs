@@ -2,7 +2,7 @@
 //! certifying scalar.** The pole-crossing half cap's meridian arc is
 //! met by the loop walk through the sphere's twin `(u + π, π − v)`
 //! (`topo::pcurves::sphere_twin`, the joint's element), and check 4's fidelity reads it
-//! against the twin's branch (`geom_brep::whole_periods`, decided as
+//! against the twin's branch (`geom_brep::Period::decide`, decided as
 //! `pcurve_fidelity_twin`). An exact twin's azimuth offset is π, which
 //! is the centred fold's jump: a selection read off that fold encloses
 //! both signs over a box and kept the derivation's own name, so the cap

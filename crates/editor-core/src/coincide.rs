@@ -34,6 +34,17 @@
 //! ([`Rung::MarginIdentity`]). A row no rung proves is
 //! [`Proof::Unproven`]: it holds at the current values, and the door
 //! has not shown that it holds across the family.
+//!
+//! **A row at rest** is read off the replay's copies, where
+//! [`REPLAYS_PLACED_COPIES`] is on. A placed copy is the construction
+//! its bundle states (D10, `[placement.placement]`), so the replay folds
+//! each bundle at `Sym` like any other operation, and the carrier
+//! verdict on the two copies' faces reads a mate-placed face, or a face
+//! built on one, as the construction it is. The census itself is not
+//! re-run, so a row at rest between anything but two faces has no form
+//! the door reads, and neither does one whose replay reads no verdict
+//! of the row's relation. Off (today), an at-rest row is not replayed,
+//! and the replay resolves no part.
 
 use core::fmt;
 
@@ -45,6 +56,8 @@ use crate::names::{
 use crate::node::{Node, RecipeNodeId};
 
 mod replay;
+
+pub use replay::{REPLAYS_PLACED_COPIES, with_replay_session};
 
 /// **What a contact record's positional input is**: the input a
 /// [`topo::Backing::Carried`] names by its position, as the value that
@@ -92,6 +105,9 @@ pub enum NamedCell {
     Tool {
         /// The tool read.
         input: crate::VarId,
+        /// The role the tool is read through, `None` for a plane read
+        /// plainly.
+        role: Option<crate::pose::PoseRole>,
     },
     /// A piece of the deciding profile itself: a junction's two
     /// segments, each named by the piece it is (`names/README.md`, "N1,
@@ -127,11 +143,11 @@ pub enum Rung {
     SameConstruction,
     /// The kernel's carrier-pair verdict, run on the two cells'
     /// carriers in the replay at `Sym`, decided them one carrier, every
-    /// Zero it stands on a theorem of this kind.
-    CarrierVerdict(geom_core::Theorem),
-    /// The deciding margin, read in the replay at `Sym`, is zero as a
-    /// polynomial in the variables: a theorem of this kind.
-    MarginIdentity(geom_core::Theorem),
+    /// Zero it stands on proven by the symbolic tier.
+    CarrierVerdict,
+    /// The deciding margin, read in the replay at `Sym`, is proven zero
+    /// by the symbolic tier.
+    MarginIdentity,
 }
 
 /// **The door was canceled** before it decided every row: the token
@@ -162,14 +178,16 @@ pub enum Unreplayed {
     /// budget: it is a coincidence of values, as far as the door can
     /// tell.
     Numeric,
-    /// The row stands on a part instance, and the replay resolves no
-    /// part: a symbolic run crosses no part seam
-    /// ([`crate::analysis::ParamBoxError::SymbolsAcrossAPartSeam`]).
+    /// The row stands on a part instance the replay resolves no part
+    /// for: the evaluation the door was handed resolved none, or the
+    /// replay builds no placed copies ([`REPLAYS_PLACED_COPIES`]).
     ThroughAPart,
-    /// The row is not replayed: the at-rest census's rows ride the
-    /// gathered product, which the door does not replay, and a
-    /// document of a payload the evaluator does not read is not
-    /// replayed either.
+    /// The row is not replayed: an at-rest census row while the replay
+    /// builds no placed copies ([`REPLAYS_PLACED_COPIES`]), or one the
+    /// replay reads no carrier verdict of the row's relation on (cells
+    /// other than two faces, a verdict that decides otherwise; the
+    /// census itself is not re-run), and every row of a document of a
+    /// payload the evaluator does not read.
     NotReplayed,
 }
 
@@ -211,9 +229,10 @@ pub enum Origin {
     /// piece qualifiers dropped, since every piece of an entity lies on
     /// its one carrier.
     Minted(StableName),
-    /// A datum node's own plane: a split's tool, and every section face
-    /// the split mints on it.
-    Datum(RecipeNodeId),
+    /// A datum node's plane, read through the role the split's tool
+    /// reads it through (`None` for its own plane): a split's tool, and
+    /// every section face the split mints on it.
+    Datum(RecipeNodeId, Option<crate::pose::PoseRole>),
     /// A profile's piece: the step of that profile that drew it, and
     /// its role there.
     Piece(RecipeNodeId, ProfileEdgeRef),
@@ -277,7 +296,7 @@ pub enum Placed {
     Transform(RecipeNodeId),
     /// A pattern's (or a placed union's) instance `i`.
     Instance(RecipeNodeId, u32),
-    /// A world placement's copy.
+    /// A placement's copy (a [`crate::Node::Place`]'s).
     World(RecipeNodeId),
 }
 
@@ -361,12 +380,13 @@ pub(crate) const fn relation_words(relation: topo::Relation) -> &'static str {
         topo::Relation::SameOriented => "continues on one carrier with",
         topo::Relation::SameOpposite => "rests on one carrier against",
         topo::Relation::OnCarrier => "lies on",
-        topo::Relation::EqualAngles => "makes an equal angle at its turn with",
+        topo::Relation::CommonFoot => "ends on its turn's third edge at one point with",
         topo::Relation::Tangent { aligned: true } => "continues tangent into",
         topo::Relation::Tangent { aligned: false } => "turns back tangent into",
-        topo::Relation::TangentContact { seam: false } => "touches tangentially against",
-        topo::Relation::TangentContact { seam: true } => "continues tangentially into",
+        topo::Relation::SurfaceTangent => "is tangent along a locus to",
         topo::Relation::Coaxial => "shares an axis with",
+        topo::Relation::SameRadius => "shares a radius with",
+        topo::Relation::AxesMeet => "has an axis meeting the axis of",
         topo::Relation::CoRuled => "is ruled along one direction with",
     }
 }
@@ -378,8 +398,11 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
         topo::DecisionSite::CarrierLadder => "a pair of carriers its margins read as one",
         topo::DecisionSite::TangentWitness => "a tangency verified along its locus",
         topo::DecisionSite::CoaxialSphere => "a sphere's centre read on a cylinder's axis",
+        topo::DecisionSite::CrossingCylinders => {
+            "two cylinders read as one radius with meeting axes"
+        }
         topo::DecisionSite::SplitOn => "a split's on-plane verdict where its pieces touch",
-        topo::DecisionSite::BatteryTurn => "a blend's isosceles turn",
+        topo::DecisionSite::BatteryTurn => "a blend turn's two feet read as one point",
         topo::DecisionSite::BatteryJoint => "a blend chain's joint read as tangent",
         topo::DecisionSite::BatterySupportAxis => {
             "a blend's two supports read as sharing the axis its band is minted on"
@@ -392,12 +415,13 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
 
 /// **The door**: whether each row a node of `doc` decided holds
 /// structurally. `nodes` holds each deciding node with its rows in
-/// decision order, as its value carries them (a mate stands for the
-/// at-rest census's rows on its pair); the answer is one [`Proof`] per
+/// decision order, as its value carries them (a placement stands for
+/// the at-rest census's rows on its copies); the answer is one [`Proof`] per
 /// row, in the same shape. The rungs are tried in order (module docs)
 /// at the door's one strength ([`replay`]'s budget): the document is
 /// replayed once, at `tol`, only where a row the first rung leaves asks
-/// for it.
+/// for it, its parts resolved through `resolver` (the evaluation's own,
+/// [`crate::Evaluation::resolver`]).
 ///
 /// # Errors
 ///
@@ -406,6 +430,7 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
 pub fn prove<P: crate::ProfilePayload>(
     doc: &crate::doc::Doc<P>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
+    resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: geom_core::Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<Vec<Proof>>, Canceled> {
@@ -415,7 +440,7 @@ pub fn prove<P: crate::ProfilePayload>(
         .collect();
     let asks = walked.iter().flatten().any(|c| !one_construction(c));
     let replayed = match P::evaluable(doc) {
-        Some(doc) if asks => replay::rungs(doc, nodes, tol, cancel)?,
+        Some(doc) if asks => replay::rungs(doc, nodes, resolver, tol, cancel)?,
         _ => nodes
             .iter()
             .map(|(_, rows)| {
@@ -459,10 +484,10 @@ fn constructions<P>(
 ) -> [Result<Construction, Unwalked>; 2] {
     row.cells.each_ref().map(|cell| match cell {
         NamedCell::Entity { input, name } => construction(doc, *input, name),
-        NamedCell::Tool { input } => doc
+        NamedCell::Tool { input, role } => doc
             .operation_of(*input)
             .ok_or(Unwalked::Unread(*input))
-            .and_then(|at| datum(doc, at, Vec::new())),
+            .and_then(|at| datum(doc, at, *role, Vec::new())),
         NamedCell::Piece { profile, piece } => Ok(Construction {
             origin: Origin::Piece(*profile, *piece),
             placed: Vec::new(),
@@ -519,7 +544,7 @@ pub fn construction<P>(
             SegOrigin::Minted => {
                 return match (seg, node(at)?) {
                     (RoleSeg::SectionFace { .. }, Node::Split { tool, .. }) => {
-                        datum(doc, operation(doc, at, *tool)?, placed)
+                        datum(doc, operation(doc, at, tool.read)?, tool.role, placed)
                     }
                     (RoleSeg::SectionFace { .. }, _) => Err(Unwalked::Misplaced(at)),
                     _ => {
@@ -537,7 +562,7 @@ pub fn construction<P>(
             SegOrigin::Unclassified => return Err(Unwalked::Unclassified(at)),
             SegOrigin::Carried(of, _) => of.clone(),
         };
-        read = carried_read(seg, node(at)?, at, &mut placed)?;
+        read = carried_read(doc, seg, node(at)?, at, &mut placed)?;
         at = operation(doc, at, read)?;
         name = of;
     }
@@ -564,6 +589,7 @@ fn operation<P>(
 ///
 /// [`Unwalked::Misplaced`] for a segment `at`'s kind does not carry.
 fn carried_read<P>(
+    doc: &crate::doc::Doc<P>,
     seg: &RoleSeg,
     node: &Node<P>,
     at: RecipeNodeId,
@@ -580,9 +606,15 @@ fn carried_read<P>(
             Ok(*input)
         }
         (RoleSeg::Instance { .. }, _) => Err(misplaced),
-        (RoleSeg::Placed { .. }, Node::PlaceInWorld { body, .. }) => {
+        (RoleSeg::Placed { of }, Node::Place { shapes, .. }) => {
             placed.push(Placed::World(at));
-            Ok(body.read)
+            // The copy of the shape whose name the segment carries.
+            let shape = shapes
+                .iter()
+                .find(|shape| doc.operation_of(shape.read) == Some(of.node))
+                .or_else(|| shapes.first())
+                .ok_or(misplaced)?;
+            Ok(shape.read)
         }
         // Every other carried segment is a split's, carried from its
         // target.
@@ -596,6 +628,7 @@ fn carried_read<P>(
 fn datum<P>(
     doc: &crate::doc::Doc<P>,
     mut at: RecipeNodeId,
+    role: Option<crate::pose::PoseRole>,
     mut placed: Vec<Placed>,
 ) -> Result<Construction, Unwalked> {
     loop {
@@ -606,7 +639,7 @@ fn datum<P>(
             }
             _ => {
                 return Ok(Construction {
-                    origin: Origin::Datum(at),
+                    origin: Origin::Datum(at, role),
                     placed,
                 });
             }
@@ -623,7 +656,7 @@ pub(crate) struct RowInputs<'a> {
     /// Operand B's, for an operation that reads two bodies.
     pub b: Option<(crate::VarId, &'a NameTable)>,
     /// The tool read, for an operation that cuts with one.
-    pub tool: Option<crate::VarId>,
+    pub tool: Option<crate::pose::RoleRead<crate::VarId>>,
 }
 
 /// **The kernel's rows, named**: each cell by its name in the input
@@ -644,7 +677,10 @@ pub(crate) fn name_rows(
         match *cell {
             topo::RowCell::Tool => inputs
                 .tool
-                .map(|input| NamedCell::Tool { input })
+                .map(|read| NamedCell::Tool {
+                    input: read.read,
+                    role: read.role,
+                })
                 .ok_or_else(unnamed),
             topo::RowCell::Result { .. } => Err(unnamed()),
             topo::RowCell::Input { input, cell } => {

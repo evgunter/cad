@@ -53,10 +53,9 @@ fn quarter_cylinder_wall() -> Surface<f64> {
 }
 
 /// A genuinely certified `Pcurve::Fitted` cache: the wall's `u = 0`
-/// ruling as a rung-3 carrier, its chart image `(0, v)`, and a mate
-/// plane meeting the wall at 45° along it, so the pair's tube is
-/// transverse. A fitted image is certified on a spline chart only (an
-/// analytic chart's image of a spline carrier is the projected one).
+/// ruling as a rung-3 carrier and its chart image `(0, v)`. A fitted
+/// image is certified on a spline chart only (an analytic chart's image
+/// of a spline carrier is the projected one).
 fn build_fitted_cache() -> PcurveCache<f64> {
     let k = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let ruling = NurbsCurve3::new(
@@ -71,19 +70,12 @@ fn build_fitted_cache() -> PcurveCache<f64> {
         vec![1.0, 1.0],
     )
     .unwrap();
-    let r = core::f64::consts::FRAC_1_SQRT_2;
-    let mate = Surface::Plane {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        normal: Vec3::new(r, r, 0.0),
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
-    };
     PcurveCache::<f64>::certify_fitted(
         Arc::new(image),
         0.0,
         1.0,
         &Curve3::Nurbs(Arc::new(ruling)),
         &quarter_cylinder_wall(),
-        Some(&mate),
         Band::linear(Tol::witness()).unwrap(),
         geom_brep::FittedLane::certified(),
     )

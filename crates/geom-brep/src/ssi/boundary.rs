@@ -301,6 +301,8 @@ fn inward(end: ChartEnd) -> f64 {
 pub(crate) struct Pass<'a> {
     /// The wall.
     pub wall: &'a NurbsSurface<f64>,
+    /// Its chart enclosures over its own cells, read for the whole pass.
+    pub boxes: &'a NurbsBoxes<'a, f64>,
     /// Its chart speeds.
     pub speeds: ChartSpeeds,
     /// The plane.
@@ -357,7 +359,10 @@ enum CornerClass {
 impl Pass<'_> {
     /// The wall's `(u, v)` domain.
     fn domain(&self) -> ((f64, f64), (f64, f64)) {
-        (self.wall.knots_u().domain(), self.wall.knots_v().domain())
+        (
+            self.wall.knots_u_f64_interim().domain(),
+            self.wall.knots_v_f64_interim().domain(),
+        )
     }
 
     /// The side's curve ([`side_row`]).
@@ -376,7 +381,7 @@ impl Pass<'_> {
 
     /// The plane distance's partials over a chart rectangle.
     fn partials(&self, r: UvRect) -> (Interval, Interval) {
-        let boxes = NurbsBoxes::new(self.wall);
+        let boxes = self.boxes;
         let n = [
             self.plane.normal.x,
             self.plane.normal.y,
@@ -397,8 +402,8 @@ impl Pass<'_> {
     /// net's corner control point, so this encloses it exactly.
     fn corner_distance(&self, c: ChartCorner) -> Interval {
         let (nu, nv) = (
-            self.wall.knots_u().control_count(),
-            self.wall.knots_v().control_count(),
+            self.wall.knots_u_f64_interim().control_count(),
+            self.wall.knots_v_f64_interim().control_count(),
         );
         let iu = match c.u {
             ChartEnd::Low => 0,
@@ -521,7 +526,7 @@ impl Pass<'_> {
                 }
             }
             match side_cover(
-                &NurbsBoxes::new(self.wall),
+                self.boxes,
                 self.plane.normal_interval(),
                 (side, domain),
                 strip,
@@ -610,7 +615,7 @@ impl Pass<'_> {
         }
         let ((u0, u1), (v0, v1)) = self.domain();
         let mag = magnitude(phi);
-        let boxes = NurbsBoxes::new(self.wall);
+        let boxes = self.boxes;
         for &pad in &rungs[first..] {
             let cell = self.corner_cell(corner, pad);
             let (pu, pv) = self.partials(cell);
@@ -936,18 +941,24 @@ pub(crate) fn side_row_parts<T: CertifiedBounds>(
     let (knots, indices): (_, Vec<usize>) = match side.fixed {
         ChartAxis::U => {
             let base = if high { (nu - 1) * nv } else { 0 };
-            (wall.knots_v().clone(), (base..base + nv).collect())
+            (
+                wall.knots_v_f64_interim().clone(),
+                (base..base + nv).collect(),
+            )
         }
         ChartAxis::V => {
             let offset = if high { nv - 1 } else { 0 };
             (
-                wall.knots_u().clone(),
+                wall.knots_u_f64_interim().clone(),
                 (0..nu).map(|iu| iu * nv + offset).collect(),
             )
         }
     };
     let control = indices.iter().map(|&i| wall.control()[i]).collect();
-    let channel = indices.iter().map(|&i| wall.weight_channel()[i]).collect();
+    let channel = indices
+        .iter()
+        .map(|&i| wall.weights_f64_interim()[i])
+        .collect();
     (knots, control, channel)
 }
 

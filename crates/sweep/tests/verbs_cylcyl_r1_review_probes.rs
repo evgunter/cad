@@ -39,14 +39,22 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
 fn turned(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
     topo::transform_rigid(
         b,
-        &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
+        &geom_core::test_support::rigid(
+            &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
 }
 
 fn moved(b: &Body<f64>, d: Vec3<f64>) -> Body<f64> {
-    topo::transform_rigid(b, &Affine3::translation(d), Tol::witness()).unwrap()
+    topo::transform_rigid(
+        b,
+        &geom_core::RigidMotion::translation(d).unwrap(),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// Every crossing pose this reviewer could author must refuse TYPED —
@@ -149,7 +157,7 @@ fn every_reachable_crossing_pose_refuses_typed_or_answers_correctly() {
                 Err(e) => assert!(
                     matches!(
                         e.kind(),
-                        BooleanErrorKind::GermFrameCylinderPinch
+                        BooleanErrorKind::NodeUnbuilt
                             | BooleanErrorKind::GermFrameUnsupported
                             | BooleanErrorKind::FallbackExtentUnsupported
                     ),
@@ -375,7 +383,9 @@ fn revolved_cyl(r: f64, h: f64) -> Body<f64> {
 
 /// The gate catches a crossing pose built from REVOLVE-minted
 /// (full-turn, seam-carrying) walls too — the wall-pair scan keys on
-/// the surface kind, not on the extrude door's half-wall convention.
+/// the surface kind, not on the extrude door's half-wall convention —
+/// and the union builds at the bicylinder's closed form: B's wall runs
+/// clean through A's, so the shared volume is `16r³/3`.
 #[test]
 fn revolve_minted_walls_meet_the_same_gate() {
     let tol = Tol::witness();
@@ -385,24 +395,20 @@ fn revolve_minted_walls_meet_the_same_gate() {
         Vec3::new(1.5, 5.0, 0.0),
     );
     let b = finished("B", b, tol);
-    match topo::union(&a, &b, tol) {
-        Err(e) => assert_eq!(
-            e.kind(),
-            BooleanErrorKind::GermFrameCylinderPinch,
-            "the germ frame's pinch refusal: {e}"
-        ),
-        Ok(topo::BooleanResult::Body(body)) => {
-            let va = topo::mass_properties(&a, tol).unwrap().volume;
-            let vb = topo::mass_properties(&b, tol).unwrap().volume;
-            let v = topo::mass_properties(&body.body, tol).unwrap().volume;
-            assert!(
-                (v - (va + vb)).abs() > 1e-6,
-                "the D10 double-count on revolve-minted walls: {v}"
-            );
-            panic!("unexpected OK for interpenetrating revolve walls (volume {v})");
-        }
-        Ok(other) => panic!("unexpected {other:?}"),
-    }
+    let out = topo::union(&a, &b, tol);
+    let Ok(topo::BooleanResult::Body(body)) = &out else {
+        panic!("the revolve-minted crossing pair builds: {out:?}");
+    };
+    let va = topo::mass_properties(&a, tol).unwrap().volume;
+    let vb = topo::mass_properties(&b, tol).unwrap().volume;
+    let m = topo::mass_properties(&body.body, tol).unwrap();
+    let want = va + vb - 16.0 / 3.0;
+    assert!(
+        (m.volume - want).abs() <= m.volume_pad + 1e-9,
+        "the union of revolve-minted walls: {} ± {}, want {want}",
+        m.volume,
+        m.volume_pad
+    );
 }
 
 /// The containment door handed a revolve-minted wall: an on-wall point

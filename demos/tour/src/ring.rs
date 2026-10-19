@@ -103,7 +103,7 @@
 use core::f64::consts::PI;
 
 use pncad::authoring::{p2, validated};
-use pncad::document::{Operand, RefusingReach};
+use pncad::document::Operand;
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
     CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Formula, LoopProgram, MM, Node,
@@ -181,14 +181,7 @@ fn through_the_document(tol: Tol) -> Body<f64> {
 /// hands a reader exactly the recipe this scene's claim rests on.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, revolved) = document(tol);
-    apply(
-        &doc,
-        &DocEdit::place(Operand::output(revolved, 0), None),
-        tol,
-        &RefusingReach,
-    )
-    .expect("the revolve places")
-    .doc
+    crate::world::place_in_world(&doc, Operand::output(revolved, 0), tol).doc
 }
 
 /// The ring's recipe and its revolve node.
@@ -205,7 +198,6 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
                 fresh: Vec::new(),
             },
             tol,
-            &RefusingReach,
         )
         .expect("the edit applies");
         *doc = applied.doc;
@@ -240,13 +232,11 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
             profile: profile.into(),
             // The axis of revolution, written in the sketch it turns:
             // the frame's v is world +Y, so this is its own +y through
-            // (0, 0). Four numbers in the sketch's coordinates, with no
-            // way to write one that leaves its plane.
-            axis_origin: [mm(0.0), mm(0.0)],
-            axis_direction: [
-                Formula::literal(0.0, Dimension::Scalar).expect("a scalar"),
-                Formula::literal(1.0, Dimension::Scalar).expect("a scalar"),
-            ],
+            // (0, 0), a quarter turn from its x. Two lengths and an
+            // angle in the sketch's coordinates, with no way to write
+            // one that leaves its plane.
+            axis_through: [mm(0.0), mm(0.0)],
+            axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             // A full turn, written as one: the half-turn row is a
             // NOTATION carried as a unit, so the recipe says `2 pi rad`
             // where it would otherwise say `6.283185307179586 rad`.

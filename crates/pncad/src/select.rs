@@ -89,15 +89,16 @@
 // for a consumer of `pncad::document` alone, and the cost the other
 // way is the same name on two lists.
 pub use editor_core::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict, CurveKind,
+    At, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict, CurveKind,
     CurveKindSet, DeclaredContact, Denotation, DuplicateName, EntityKind, FIT_DEFERRAL, GeomPred,
-    InterrogateError, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,
-    OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces, ProfileVertexRef, RimShare,
-    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag,
-    SelectRefusal, Selector, Sense, Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies,
-    all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried,
-    denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame, face_name,
-    leaf_role, meridian_vertex, role_leaf, select, select_where, vertex_position,
+    InterrogateError, KindMismatch, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable,
+    NamingError, OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfilePieces, ProfileVertexRef,
+    RimShare, RimSupport, RolePath, RoleSeg, RunLine, SEL_DATUM_DISTANCE, SeatingRefusal,
+    SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side, SplitHalf, StepId,
+    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band,
+    band_pi, band_rim, band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame, edge_name,
+    face_carrier_kind, face_frame, face_name, leaf_role, meridian_vertex, role_leaf, select,
+    select_where, vertex_position,
 };
 /// The kernel contact FINDING — "this face pair would verify as this
 /// class, on this evidence" — the fourth quarter of a vocabulary this
@@ -110,7 +111,7 @@ pub use editor_core::{
 /// prelude-curated `ValidationError` down to that arm was binding a
 /// value whose type this list did not name — and it is what the flush
 /// detector's own vocabulary is built from, since a
-/// [`FlushFinding`] is a finding plus the pair it was found on.
+/// `FlushFinding` is a finding plus the pair it was found on.
 ///
 /// Its two fields are already here, which is what makes the stop
 /// under it a stop rather than a deferral: a finding is a
@@ -221,6 +222,6 @@ pub use editor_core::{
 // which is what a curated list owes; nothing here names one as a
 // type.
 pub use editor_core::{
-    AboutReference, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, RunCtx,
-    resolve,
+    AboutReference, ReadEdit, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate,
+    ResolveRefusal, RunCtx, resolve, stranded_at,
 };

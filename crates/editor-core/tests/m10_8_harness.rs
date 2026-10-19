@@ -11,7 +11,7 @@ use std::time::Instant;
 use std::collections::BTreeMap;
 
 use editor_core::ProfileDoc;
-use editor_core::analysis::{AnalysisPolicy, AnalyzedBox, BoxAxis, ParamBox, analyzed_box};
+use editor_core::analysis::{AnalysisPolicy, AnalyzedBox, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use geom_core::sym::report::{DecisionShape, ShapeOutcome};
 use geom_core::{SymRules, Tol};
@@ -73,15 +73,13 @@ pub(crate) fn certifies_whole(doc: &editor_core::ProfileDoc, rules: SymRules, to
 }
 
 /// The degenerate box at the nominal: every axis of the analyzed box
-/// fixed at its nominal value.
+/// varying over `[0, 0]` ([`ParamBox::at_nominal`]).
 pub(crate) fn nominal_box(analyzed: &AnalyzedBox) -> ParamBox {
-    ParamBox::from_axes(
-        ParamBox::of(analyzed)
-            .axes()
-            .keys()
-            .map(|n| (*n, BoxAxis::Fixed))
-            .collect(),
-    )
+    // Every axis VARYING over `[0, 0]`: the nominal's values, each
+    // variable a parameter symbol at `Sym`, and so an analysis whose lift
+    // is guided. A `Fixed` axis holds its variable at the nominal as a
+    // constant, which is the build, not this measurement.
+    ParamBox::of(analyzed).at_nominal()
 }
 
 /// The widest whole-certifying scale of a document's study between `lo`
@@ -136,9 +134,8 @@ pub(crate) fn ceiling_with(
     (lo, hi, spent / probes)
 }
 
-/// **THE PER-PREDICATE SPLIT of one replay**: `predicate -> [theorem,
-/// sign-gated, registered, numeric]`, every predicate that decided at
-/// all. The spelling of the DISCHARGE table that the pins, the
+/// **THE PER-PREDICATE SPLIT of one replay**: `predicate -> [symbolic,
+/// numeric]`, every predicate that decided at all. The spelling of the DISCHARGE table that the pins, the
 /// evidence rows and the probes read; a pin asserts it whole
 /// (`assert_split`).
 ///
@@ -147,15 +144,13 @@ pub(crate) fn ceiling_with(
 /// discharged and the wrong shape for a claim about what BLOCKED:
 /// [`blocked`] is that table, and the two are siblings over the same
 /// `shapes` rather than one table with a column nobody reads.
-pub(crate) fn split(shapes: &[DecisionShape]) -> BTreeMap<&'static str, [u64; 4]> {
-    let mut table: BTreeMap<&'static str, [u64; 4]> = BTreeMap::new();
+pub(crate) fn split(shapes: &[DecisionShape]) -> BTreeMap<&'static str, [u64; 2]> {
+    let mut table: BTreeMap<&'static str, [u64; 2]> = BTreeMap::new();
     for s in shapes {
         let row = table.entry(s.predicate).or_default();
         row[match s.outcome {
-            ShapeOutcome::Theorem => 0,
-            ShapeOutcome::SignGated => 1,
-            ShapeOutcome::Registered => 2,
-            _ => 3,
+            ShapeOutcome::Symbolic => 0,
+            _ => 1,
         }] += 1;
     }
     table
@@ -211,7 +206,7 @@ pub(crate) fn split_at_the_nominal(
     doc: &ProfileDoc,
     rules: SymRules,
     tol: Tol,
-) -> BTreeMap<&'static str, [u64; 4]> {
+) -> BTreeMap<&'static str, [u64; 2]> {
     split_at_the_nominal_retried(doc, rules, geom_core::SymRetry::none(), tol)
 }
 
@@ -222,7 +217,7 @@ pub(crate) fn split_at_the_nominal_retried(
     rules: SymRules,
     retry: geom_core::SymRetry,
     tol: Tol,
-) -> BTreeMap<&'static str, [u64; 4]> {
+) -> BTreeMap<&'static str, [u64; 2]> {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     let (shapes, _, _) = crate::m10_8_arc_family_interval::replay_retried(
         doc,
@@ -242,8 +237,8 @@ pub(crate) fn split_at_the_nominal_retried(
 #[allow(clippy::panic)]
 pub(crate) fn assert_split(
     name: &str,
-    table: &BTreeMap<&'static str, [u64; 4]>,
-    expected: &[(&str, [u64; 4])],
+    table: &BTreeMap<&'static str, [u64; 2]>,
+    expected: &[(&str, [u64; 2])],
 ) {
     // EVERY row that moved, in one panic. A per-row `assert_eq!` stops
     // at the first, so re-pinning a table that moved on six rows cost
@@ -264,7 +259,7 @@ pub(crate) fn assert_split(
         .collect();
     assert!(
         moved.is_empty() && unlisted.is_empty(),
-        "{name}: these moved at the nominal (theorem/gated/registered/numeric); if a rule \
+        "{name}: these moved at the nominal (symbolic/numeric); if a rule \
          took them, re-pin and say which: {moved:?}; and these decided but the pinned table \
          does not list them: {unlisted:?}"
     );

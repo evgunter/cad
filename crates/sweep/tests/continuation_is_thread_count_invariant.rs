@@ -46,12 +46,10 @@ fn sym_arc_loft(s: f64) -> Body<Sym<f64>> {
 
 fn counts_line(refused: bool, c: &SymCounts, shapes: usize) -> String {
     format!(
-        "{} decisions={} sz={} sg={} reg={} rref={} rcon={} num={} frozen={} shapes={}",
+        "{} decisions={} sym={} rref={} rcon={} num={} frozen={} shapes={}",
         if refused { "REFUSED" } else { "OK" },
         c.decisions(),
-        c.symbolic_zero,
-        c.sign_gated,
-        c.registered,
+        c.symbolic,
         c.registrations_refused,
         c.registrations_contradicted,
         c.numeric,

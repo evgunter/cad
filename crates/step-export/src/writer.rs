@@ -288,9 +288,9 @@ impl<'a> Writer<'a> {
         Ok(self.emit(&format!("CARTESIAN_POINT('', ({x}, {y}, {z}))")))
     }
 
-    /// `DIRECTION` from a kernel vector (unit by the conventions of
-    /// every stored normal/axis/dir — emitted as stored, never
-    /// renormalized: renormalization would move bits, D9).
+    /// `DIRECTION` from a kernel vector, emitted as stored. The writer
+    /// translates; it does not repair, so a direction is never
+    /// renormalized here.
     fn direction(&mut self, v: Vec3<f64>, context: &'static str) -> Result<u64, StepExportError> {
         let (x, y, z) = (
             fmt_real(v.x, context)?,
@@ -303,17 +303,15 @@ impl<'a> Writer<'a> {
     /// `AXIS2_PLACEMENT_3D` from a kernel frame `(origin, axis,
     /// ref_dir)` — the shared right-handed placement every elementary
     /// surface and conic carries. Emission order is location, axis,
-    /// ref_direction, placement (the order M4's inline plane arm used,
-    /// preserved so the planar goldens stay byte-identical).
+    /// ref_direction, placement.
     ///
-    /// The three kernel fields go in **verbatim**: every kernel frame
-    /// stores `axis` unit, `ref_dir` unit and ⊥ `axis`, and the derived
-    /// second in-plane direction is `axis × ref_dir` — which is exactly
-    /// ISO 10303-42's `axis2_placement_3d` convention (`z = axis`,
-    /// `x = ref_direction` after the standard's orthogonalization,
-    /// `y = z × x`). No renormalization, no orthogonalization, no
-    /// negation: the placement IS the kernel frame (D9 — any repair
-    /// here would move bits and export a different surface).
+    /// The three kernel fields go in **verbatim**. The derived second
+    /// in-plane direction is `axis × ref_dir`, which is ISO 10303-42's
+    /// `axis2_placement_3d` convention (`z = axis`, `x = ref_direction`
+    /// after the standard's orthogonalization, `y = z × x`), so the
+    /// placement IS the kernel frame. No renormalization, no
+    /// orthogonalization, no negation: the writer translates; it does
+    /// not repair.
     fn axis2_placement(
         &mut self,
         origin: Point3<f64>,
@@ -431,20 +429,22 @@ impl<'a> Writer<'a> {
             Curve3::Ellipse {
                 center,
                 axis,
-                major,
-                minor,
+                semi_u,
+                semi_v,
                 u_ref,
             } => {
+                // STEP's `semi_axis_1` lies along the placement's
+                // reference direction, in either order with `semi_axis_2`.
                 let placement = self.axis2_placement(
                     center,
                     axis,
                     u_ref,
                     "ellipse centre",
                     "ellipse axis",
-                    "ellipse u_ref (semi-major direction)",
+                    "ellipse u_ref (seam direction)",
                 )?;
-                let a = fmt_real(major, "ellipse semi-major axis")?;
-                let b = fmt_real(minor, "ellipse semi-minor axis")?;
+                let a = fmt_real(semi_u, "ellipse semi-axis along the seam")?;
+                let b = fmt_real(semi_v, "ellipse semi-axis across the seam")?;
                 self.emit(&format!("ELLIPSE('', #{placement}, {a}, {b})"))
             }
             // A spiric has no STEP entity — a bicircular quartic of
@@ -471,14 +471,20 @@ impl<'a> Writer<'a> {
                     None => bound,
                     Some(worst) => worst.max(bound),
                 });
-                self.b_spline_curve(spline.knots(), spline.control(), spline.weights())?
+                self.b_spline_curve(
+                    spline.knots_f64_interim(),
+                    spline.control(),
+                    spline.weights(),
+                )?
             }
             // The placeholder is already refused by
             // `printable_carrier` above, so what reaches here is a
             // described net.
-            Curve3::Nurbs(ref payload) => {
-                self.b_spline_curve(payload.knots(), payload.control(), payload.weights())?
-            }
+            Curve3::Nurbs(ref payload) => self.b_spline_curve(
+                payload.knots_f64_interim(),
+                payload.control(),
+                payload.weights(),
+            )?,
         };
         let id = self.emit(&format!("EDGE_CURVE('', #{start}, #{end}, #{curve}, .T.)"));
         self.shared.edge_curves.insert(edge_key, id);
@@ -626,9 +632,14 @@ impl<'a> Writer<'a> {
             rows.push(format!("({})", refs(&row)));
         }
         let points = rows.join(", ");
-        let (du, dv) = (surface.knots_u().degree(), surface.knots_v().degree());
-        let (u_mults, u_values) = run_length_knots(surface.knots_u(), "b-spline surface u-knot")?;
-        let (v_mults, v_values) = run_length_knots(surface.knots_v(), "b-spline surface v-knot")?;
+        let (du, dv) = (
+            surface.knots_u_f64_interim().degree(),
+            surface.knots_v_f64_interim().degree(),
+        );
+        let (u_mults, u_values) =
+            run_length_knots(surface.knots_u_f64_interim(), "b-spline surface u-knot")?;
+        let (v_mults, v_values) =
+            run_length_knots(surface.knots_v_f64_interim(), "b-spline surface v-knot")?;
         if surface.weights().iter().all(|w| *w == 1.0) {
             Ok(self.emit(&format!(
                 "B_SPLINE_SURFACE_WITH_KNOTS('', {du}, {dv}, ({points}), .UNSPECIFIED., .U., \
@@ -1179,7 +1190,7 @@ mod tests {
     fn emitted(curve: &NurbsCurve3<f64>) -> String {
         let body = Body::<f64>::new();
         let mut w = Writer::new(&body, geom_core::Tol::witness().eps());
-        w.b_spline_curve(curve.knots(), curve.control(), curve.weights())
+        w.b_spline_curve(curve.knots_f64_interim(), curve.control(), curve.weights())
             .expect("a validated curve prints");
         w.data
             .lines()

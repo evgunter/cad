@@ -43,7 +43,10 @@
 //! parameter is named `turn`. A count of integer constants alone
 //! beside an operand that is no count reads as the scalar it equals,
 //! where a count could not stand (`turn/4`, `w * 2`, `2 * 3 * w`); a
-//! count reading a variable is promoted only by `scalar(n)`. A decimal no constant in range spells
+//! count reading a variable is promoted only by `scalar(n)`. A `0`
+//! beside an operand of another dimension is that dimension's zero,
+//! where it can stand there (`w + 0`; VR5), and a lone `0` at a slot
+//! is the slot's (`DocEdit::SetParam`). A decimal no constant in range spells
 //! exactly (a reduced numerator or denominator past 2^53: `1e-20`,
 //! `0.30000000000000004`) refuses
 //! [`DimensionError::ConstantOutOfRange`] inside a formula; the whole
@@ -52,7 +55,7 @@
 //! acquires a continuous dimension other than `Scalar`. Count→Scalar
 //! promotion is spelled `scalar(n)` — the one call not in the trig/
 //! minmax family, chosen as the round-trip fixed point for
-//! [`Expr::count_to_scalar`].
+//! [`Expr::count_to_scalar`](crate::expr::ExprTree::count_to_scalar).
 //!
 //! A minus sign directly before a number is that number's own sign:
 //! `-25 mm` is the quantity −25 mm, and the negation of 25 mm is
@@ -63,7 +66,7 @@
 //! Functions are `sin cos tan` (Angle→Scalar), `atan2 min max`
 //! (binary), `scalar` (Count→Scalar). `-` is both unary and binary
 //! with standard precedence; child order is argument order, matching
-//! [`Expr::child`]'s indices (persisted `ExprPath`s depend on it —
+//! [`Expr::child`](crate::expr::ExprTree::child)'s indices (persisted `ExprPath`s depend on it —
 //! pinned by descend tests).
 //!
 //! Param refs resolve against the caller's name→dimension table (the
@@ -736,6 +739,21 @@ fn fold(pending: Option<(Formula, usize, Make)>, rhs: Formula) -> Result<Formula
     // that reads a variable is promoted only explicitly (`scalar(n)`).
     // Where the scalar cannot stand either, the refusal is the one the
     // text as written earns.
+    // A lone `0` beside a length or an angle is that dimension's zero,
+    // where it can stand there (VR5): `w + 0` adds nothing to a length,
+    // and `w * 0` keeps its scalar.
+    let zero = |f: &Formula, other: &Formula| {
+        (f.as_integer() == Some(0) && matches!(other.dim(), Dimension::Length | Dimension::Angle))
+            .then(|| Formula::zero(other.dim()))
+    };
+    if let (l @ Some(_), r) | (l, r @ Some(_)) = (zero(&lhs, &rhs), zero(&rhs, &lhs))
+        && let Ok(built) = make(
+            l.unwrap_or_else(|| lhs.clone()),
+            r.unwrap_or_else(|| rhs.clone()),
+        )
+    {
+        return Ok(built);
+    }
     let scalar = |f: &Formula, other: &Formula| {
         (other.dim() != Dimension::Count)
             .then(|| constant_scalar(f))

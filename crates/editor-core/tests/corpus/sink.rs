@@ -32,6 +32,7 @@
 //! one — the golden fixture in `m4_pr6_golden.rs` is where a pinned ε
 //! belongs, deliberately.
 
+use super::PlacePart;
 use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
@@ -203,7 +204,7 @@ pub fn document() -> CorpusDoc {
     let revolve = r.insert(revolve_about(
         rev_profile,
         (0.0, 0.0),
-        (0.0, 1.0),
+        crate::fixture::along_y(),
         ang(std::f64::consts::FRAC_PI_2),
     ));
 
@@ -281,29 +282,35 @@ pub fn document() -> CorpusDoc {
         path: vec![RoleSeg::OutputBody],
     };
     r.push(DocEdit::SetAppearance {
+        body: crate::fixture::painted_in(&r.doc, &body),
         name: body.clone(),
         attr: Attr::Color(Rgba8::opaque(200, 40, 40)),
     });
     r.push(DocEdit::SetAppearance {
+        body: crate::fixture::painted_in(&r.doc, &body),
         name: body.clone(),
         attr: Attr::Label(editor_core::Label::new("kitchen sink").unwrap()),
     });
     r.push(DocEdit::SetAppearanceMeta {
+        body: crate::fixture::painted_in(&r.doc, &body),
         name: body.clone(),
         key: "tool.example/annotation".into(),
         value: meta_tree(),
     });
     r.push(DocEdit::SetAppearanceMeta {
+        body: crate::fixture::painted_in(&r.doc, &body),
         name: body.clone(),
         key: "tool.example/scratch".into(),
         value: MetaValue::map(BTreeMap::from([("v".into(), MetaValue::Int(1.into()))]))
             .expect("a shallow value"),
     });
     r.push(DocEdit::ClearAppearanceMeta {
+        body: crate::fixture::painted_in(&r.doc, &body),
         name: body.clone(),
         key: "tool.example/scratch".into(),
     });
     r.push(DocEdit::ClearAppearance {
+        body: crate::fixture::painted_in(&r.doc, &body),
         name: body,
         kind: AttrKind::Label,
     });
@@ -320,6 +327,7 @@ pub fn document() -> CorpusDoc {
         path: vec![RoleSeg::OutputBody],
     };
     r.push(DocEdit::SetAppearance {
+        body: crate::fixture::painted_in(&r.doc, &a_body),
         name: a_body.clone(),
         attr: Attr::Color(Rgba8::opaque(20, 90, 160)),
     });
@@ -333,7 +341,7 @@ pub fn document() -> CorpusDoc {
     super::place_instances(&mut r, circular, 2);
     super::place_halves(&mut r, split);
     super::place_instances(&mut r, linear, 3);
-    r.place(revolve);
+    r.place_part(revolve);
 
     CorpusDoc {
         name: "kitchen_sink",

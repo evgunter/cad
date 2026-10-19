@@ -51,7 +51,6 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                     fresh: Vec::new(),
                 },
                 Tol::witness(),
-                &editor_core::RefusingReach,
             )
             .unwrap();
         *doc = applied.doc;
@@ -447,7 +446,13 @@ fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
                 slab: 1,
                 source: escalation,
             }),
-            escalation.to_string(),
+            // An undecided refusal carries its escalation's payload, then
+            // the sized ending the stacking decision takes.
+            format!(
+                "{}. {}",
+                escalation.payload(),
+                escalation.ending(geom_core::COINCIDENCE_RECOURSE)
+            ),
         ),
         (
             K::Split(topo::SplitError::Finish(topo::SplitFinishError::Band(band))),

@@ -54,7 +54,7 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 //
 // Every kernel verb derives its band from `Band::linear(tol)` at its
 // own entry (the paragraph above), which is `Band::new(ε, K·ε)`.
-// `Tol`'s invariant is ε finite and strictly positive and K finite
+// `Tol`'s invariant is ε finite and at least `EPS_MIN` and K finite
 // and greater than one, so `Band::new`'s `zero` check cannot fire —
 // the only `InvalidValue` reachable from a prelude door is
 // `field: Escalate`, the K·ε overflow residue that `Band::linear`'s
@@ -97,13 +97,13 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // **`Indeterminate` IS here, and the count is the argument.** It is
 // the two-tolerance escalation payload (D4 ¶1 addendum): the thing a
 // refusal carries when the kernel could not certify a sign at the
-// tolerance it was given. TWELVE prelude-curated refusals carry it
+// tolerance it was given. ELEVEN prelude-curated refusals carry it
 // — `BlendError`, `BooleanError`, `ContactRefusal`, `ExtrudeError`,
-// `LoftError`, `MateFault`, `PathError`, `ProfileError`,
+// `LoftError`, `PathError`, `ProfileError`,
 // `RevolveError`, `SelectRefusal`, `TubeError`, `ValidationError` —
 // against one carrier for the payload CUR3 carried and one apiece
 // for CUR4's four. (`geom_core::UnitVec3Error`, the unit-vector
-// witness's refusal, and `geom_core::OrthoFrameError`, the frame
+// witness's refusal, and `geom_core::OrthonormalizeError`, the frame
 // witness's, carry it too and are reached at `pncad::geom_core`
 // beside the types they refuse for, not through this prelude —
 // kernel types' refusals, not curated façade names.) A caller holding an
@@ -150,8 +150,8 @@ pub use crate::authoring::{p2, p3, polygon, real, v2, v3, validated};
 // margin out of the kernel's prose again: then the type is telemetry
 // with no consumer, which is what a curated list does not publish.
 pub use geom_core::{
-    Affine3, Band, BandError, Indeterminate, MarginDiag, MarginKind, Mat3, OrthoFrame, Point2,
-    Point3, Real, Tol, Tolerance, Vec2, Vec3,
+    Affine3, Band, BandError, Indeterminate, MarginDiag, MarginKind, Mat3, Point2, Point3, Real,
+    RigidMotion, Tol, Tolerance, Vec2, Vec3,
 };
 // The D6 quantity layer: value types, unit constants
 // (`25.0 * MM`), and the display formatter. NAME DISCIPLINE: this
@@ -320,8 +320,8 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // met is that a caller holding a prelude-curated `BlendError` could
 // not branch on what its arms say.
 //
-// What each one decides, which is why matchability is worth the four
-// names:
+// What each one decides, which is why matchability is worth carrying
+// each:
 //
 // - `CornerConfig` is `UnsupportedCorner`'s whole content (the OQ6
 //   vocabulary, decided at #85). A valence-4 vertex says "request the
@@ -335,6 +335,10 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 //   the payload half of the two-tolerance shape (D4 ¶1 addendum).
 // - `BlendDecision` is `Escalated`'s too: the question that could not
 //   be taken, which alone decides the refusal's recourse.
+// - `Breach` is `BodyNotIntact`'s: a key that did not resolve, a walk
+//   that did not close, construction scaffolding, a degenerate stored
+//   carrier, or keys that disagree with the blend's reading — the
+//   cause the refusal states, and the one a bug report needs.
 // - `Convexity` is `ConvexitySignFlip`'s: which way the chain's
 //   material wedge turns. It is NOT one of the three the CUR3 bank
 //   named — the struct-payload sweep found it — and leaving it out
@@ -348,7 +352,7 @@ pub use sweep::blend::{BlendKind, BlendRefusal};
 // here to split and none to pin. That the blend door is unprojected
 // is #1479's census row, not this list's business.
 pub use sweep::blend::battery::Convexity;
-pub use sweep::blend::{BlendDecision, BlendSite, CornerConfig, RunOutPolicy};
+pub use sweep::blend::{BlendDecision, BlendSite, Breach, CornerConfig, RunOutPolicy};
 // **`RevolvedKind` is `Revolved::kind`**, and it is the same claim one
 // value over: the payloads above are what a carried REFUSAL says, this
 // is what a carried RESULT says, and a curated list owes matchability
@@ -736,10 +740,10 @@ pub use crate::select::{
     CurveKind, CurveKindSet, DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL, GeomPred,
     InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
     PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
-    SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side,
-    SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
-    attribute, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame,
-    face_name, select, select_where, vertex_position,
+    RunLine, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense,
+    Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
+    all_vertices, attribute, denotation, edge_carrier_kind, edge_frame, edge_name,
+    face_carrier_kind, face_frame, face_name, select, select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

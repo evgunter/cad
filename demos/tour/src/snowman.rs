@@ -48,7 +48,7 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, v3, validated};
 use pncad::geom::Surface;
-use pncad::geom_core::{Affine3, Point2, Tol, Vec2};
+use pncad::geom_core::{Point2, RigidMotion, Tol, Vec2};
 use pncad::prelude::{Open, Start, SurfaceKind, SurfaceKindSet, fillet_edges, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
@@ -247,8 +247,12 @@ fn waist(body: &Body<f64>) -> Vec<EdgeKey> {
 
 /// The cell's bodies sit side by side along `x`.
 fn placed(body: &Body<f64>, slot: f64, tol: Tol) -> Body<f64> {
-    pncad::topo::transform_rigid(body, &Affine3::translation(v3(slot * STEP, 0.0, 0.0)), tol)
-        .expect("a translation is rigid")
+    pncad::topo::transform_rigid(
+        body,
+        &RigidMotion::translation(v3(slot * STEP, 0.0, 0.0)).expect("a finite translation"),
+        tol,
+    )
+    .expect("a translation is rigid")
 }
 
 /// A boolean result, placed in its slot and routed by
@@ -386,9 +390,12 @@ mod tests {
     fn a_head_moved_off_the_axis_in_the_seam_plane_builds_to_its_closed_form() {
         let tol = Tol::witness();
         let (bottom, head) = (ball(R1, 0.0, tol), ball(R2, D, tol));
-        let moved =
-            pncad::topo::transform_rigid(&head, &Affine3::translation(v3(0.05, 0.0, 0.0)), tol)
-                .expect("a rigid pose");
+        let moved = pncad::topo::transform_rigid(
+            &head,
+            &RigidMotion::translation(v3(0.05, 0.0, 0.0)).expect("a finite translation"),
+            tol,
+        )
+        .expect("a rigid pose");
         let moved = finished("the moved head", moved, tol);
         let (va, vb, vl) = (
             ball_volume(R1),
@@ -417,11 +424,8 @@ mod tests {
     fn a_head_spun_about_the_axis_builds_to_its_closed_form() {
         let tol = Tol::witness();
         let (bottom, head) = (ball(R1, 0.0, tol), ball(R2, D, tol));
-        let spin = Affine3::rotation_about_axis(
-            pncad::geom_core::Point3::origin(),
-            v3(0.0, 1.0, 0.0),
-            0.9,
-        );
+        let spin = RigidMotion::rotation(pncad::geom_core::UnitVec3::exact_y(), 0.9)
+            .expect("a finite angle");
         let moved = pncad::topo::transform_rigid(&head, &spin, tol).expect("a rigid pose");
         let moved = finished("the moved head", moved, tol);
         let (va, vb, vl) = (ball_volume(R1), ball_volume(R2), lens_volume_at(D));
@@ -447,9 +451,12 @@ mod tests {
     fn the_head_moved_out_of_the_seam_plane_builds_through_its_ring() {
         let tol = Tol::witness();
         let (bottom, head) = (ball(R1, 0.0, tol), ball(R2, D, tol));
-        let moved =
-            pncad::topo::transform_rigid(&head, &Affine3::translation(v3(0.0, 0.0, 0.05)), tol)
-                .expect("a rigid pose");
+        let moved = pncad::topo::transform_rigid(
+            &head,
+            &RigidMotion::translation(v3(0.0, 0.0, 0.05)).expect("a finite translation"),
+            tol,
+        )
+        .expect("a rigid pose");
         let moved = finished("the moved head", moved, tol);
         let d = (D * D + 0.05 * 0.05).sqrt();
         let (va, vb, vl) = (ball_volume(R1), ball_volume(R2), lens_volume_at(d));

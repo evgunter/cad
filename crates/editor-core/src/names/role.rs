@@ -1058,6 +1058,20 @@ impl Sense {
     }
 }
 
+/// One line of a [`RoleSeg::EdgeCrossing`] run: the line, by the edge
+/// it is cited as, and its sense there. An edge carries a sense; a
+/// union's seam carries none.
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
+pub struct RunLine {
+    /// The line: an edge's name read as its line, or a union seam edge's.
+    pub line: NameRef,
+    /// The edge's sense at the vertex; `None` for a seam.
+    pub sense: Option<Sense>,
+}
+
 /// An N2 fragment discriminator against recipe-covariant references.
 /// NO values, NO bare indices: `Borders`, `Keeps` and `Ends` cite
 /// names, and `OrderAlong.rank` is an ordinal under the named
@@ -1075,10 +1089,12 @@ pub enum Qualifier {
     /// result's topology and the boolean's record of what it discarded;
     /// the pieces the wall set does not tell apart are N2's tie.
     Borders(Vec<StableName>),
-    /// The boundary edges of its parent face a Split's same-side face
-    /// piece holds a stretch of, each cited by its name without piece
-    /// qualifiers, sorted and deduplicated (N2). Pieces with equal sets
-    /// are N2's tie.
+    /// A Split's same-side face piece or vertex copy, by what it keeps
+    /// of its parent: for a face piece, the parent face's boundary edges
+    /// it holds a stretch of; for a vertex copy, the operand vertex's
+    /// own edges it is an end of a piece of, an edge lying in the tool
+    /// plane included. Each cited by its name without piece qualifiers,
+    /// sorted and deduplicated (N2). Equal sets are N2's tie.
     Keeps(Vec<StableName>),
     /// The names of an edge piece's two end vertices as the node
     /// publishes them, sorted, a repeat kept (N2): the qualifier of
@@ -1279,7 +1295,10 @@ pub enum RoleSeg {
     /// named by the sorted run of those lines' face × face `Seam`
     /// segments, one segment per line and nothing after them.
     ///
-    /// In a pair boolean's table `a` is the A side and `b` the B side.
+    /// In a pair boolean's table `a` is the A side and `b` the B side,
+    /// except on a seam between two faces of one operand, which only a
+    /// union makes (the other operand filled the gap between them and
+    /// was consumed): its sides are that operand's, in name order.
     /// In a UNION's published table they are not: a union has no A
     /// and B, so the two sides are in name order (`names::canonical`,
     /// at the collapse and after any rewrite), and `a` is only the
@@ -1305,22 +1324,16 @@ pub enum RoleSeg {
         /// The edge's sense at the vertex.
         sense: Sense,
     },
-    /// A vertex where an edge of each side of a boolean or union meet,
-    /// by the two edges, each with its [`Sense`] against the closed body
-    /// of the other side (N2). In a pair boolean's table `a` is the A
-    /// side; in a union's the two are in name order, each sense with its
-    /// edge. Several such crossings with the same senses carry a
-    /// `Fragment(OrderAlong)` along `a` in a pair boolean's table.
-    EdgeCrossing {
-        /// The A-side edge (the lesser name, in a union's table).
-        a: NameRef,
-        /// `a`'s sense against the other side's closed body.
-        a_sense: Sense,
-        /// The B-side edge (the greater name, in a union's table).
-        b: NameRef,
-        /// `b`'s sense against the other side's closed body.
-        b_sense: Sense,
-    },
+    /// A vertex where two or more lines meet (N2): the RUN of those
+    /// lines in name order, each a [`RunLine`]. A line is an edge cut at
+    /// the vertex, edges that run flush on one line counted once as the
+    /// least of them, with its [`Sense`] against the closed bodies of the
+    /// other entries' members; at a union it is also a seam through the
+    /// vertex whose two faces bound none of those edges, cited as a seam
+    /// edge is and carrying no sense. Several vertices with one run carry
+    /// a `Fragment(OrderAlong)` along the run's least edge, or where it
+    /// holds none along a straight seam in it.
+    EdgeCrossing(Vec<RunLine>),
     /// An F7 merged face, or an edge a boolean's output stage joined
     /// across several operand or member edges (`names/README.md`,
     /// "Flush edges at a union"): the sorted, FLAT set of constituent
@@ -1339,64 +1352,57 @@ pub enum RoleSeg {
     Fragment(Qualifier),
 
     // ---- Split ----
-    /// A split output body (the half is the tool plane's own
-    /// orientation — covariant).
-    SplitBody(SplitHalf),
-    /// A section face: the split-minted face on the tool plane,
-    /// bounding the `side` half; `section` is the position in section
+    //
+    // A name is scoped by the variable that holds its body (N1, the
+    // scope): each half is its own output with its own table, so no
+    // split role says which half — the variable a reader reads does.
+    /// A split output body: the body of the half whose table holds it.
+    SplitBody,
+    /// A section face: the split-minted face on the tool plane bounding
+    /// its half; `section` is the position in that half's section
     /// completion order — a function of the recipe + the recorded
     /// `split_join_order_*` verdicts (the exact-order sort), so
     /// covariant in N4's sense (reorderings are recorded flips).
     SectionFace {
-        /// Which output half this section face bounds.
-        side: SplitHalf,
         /// Position in section completion order (covariance: module
         /// docs of `topo::splitting::order` — the sort runs through
         /// named exact-order predicates).
         section: u32,
     },
     /// A section-boundary edge: where the section meets an operand
-    /// face (argument: the operand face's name), on the `side` half
-    /// (each half owns its own coincident copy).
+    /// face (argument: the operand face's name). Each half owns its own
+    /// coincident copy, in its own table.
     SectionEdge {
-        /// Which output half.
-        side: SplitHalf,
         /// The operand face the section boundary runs across.
         face: NameRef,
     },
     /// A fragment of an operand entity carved by the split: faces cut
-    /// by the section, edges crossing the plane. The side IS the N2
-    /// discriminator (the kernel's own decided classification against
-    /// the tool plane — the split node's recipe-covariant reference);
-    /// same-side face multiplicity appends `Fragment(Keeps)`, and
-    /// same-side edge multiplicity `Fragment(Ends)`.
+    /// by the section, edges crossing the plane. Which half holds it is
+    /// the kernel's own decided classification against the tool plane
+    /// (N2): the fragment is in that half's table, and a plane edit
+    /// that flips it moves it to the other table rather than renaming
+    /// it (N5's `PredicateFlip`). Several in one half: faces append
+    /// `Fragment(Keeps)`, edges `Fragment(Ends)`.
     SplitFragment {
-        /// Which output half holds this fragment.
-        side: SplitHalf,
         /// The operand entity's name.
         parent: NameRef,
     },
     /// A crossing vertex minted where the tool plane crossed an
     /// operand edge (argument: the operand edge's name; each half
-    /// keeps its own coincident copy — `side` names which), with the
+    /// keeps its own coincident copy, in its own table), with the
     /// edge's [`Sense`] against that half (N2).
     CrossingVertex {
-        /// Which output half holds this copy.
-        side: SplitHalf,
         /// The operand edge the plane crossed.
         edge: NameRef,
-        /// The edge's sense against the `side` half.
+        /// The edge's sense against the half that holds the copy.
         sense: Sense,
     },
-    /// A per-half copy of an operand vertex the tool plane passed
-    /// THROUGH (review R2): both halves keep a coincident copy, so
-    /// the operand name alone would alias — the side tag (the
-    /// kernel's own recorded side assignment, a verdict) is the
-    /// discriminator. Fully birth-derived: the operand identity via
-    /// the null-pair copy row, the side via which half owns the copy.
+    /// A half's copy of an operand vertex the tool plane passed THROUGH:
+    /// each half keeps a coincident copy, in its own table, the operand
+    /// identity read through the null-pair copy rows. A half holding
+    /// several copies (a pinch: one per piece of material at the point)
+    /// appends `Fragment(Keeps)` to each (N2).
     OnToolVertex {
-        /// Which output half holds this copy.
-        side: SplitHalf,
         /// The operand vertex the plane passed through.
         of: NameRef,
     },
@@ -1458,8 +1464,8 @@ pub enum RoleSeg {
         vertex: NameRef,
     },
     /// **Where a turn's unrequested edge now ends**: the mitre's lower
-    /// end, on that edge. One name whether the trihedron is isosceles or
-    /// not; the trimlines' crossing on the shared face is the turn's
+    /// end, on that edge. One name whether the two bands' feet on it
+    /// coincide or not; the trimlines' crossing on the shared face is the turn's
     /// [`RoleSeg::FootVertex`] on that face.
     TurnFoot {
         /// The source vertex the two bands turn at.
@@ -1568,9 +1574,9 @@ pub enum RoleSeg {
         of: NameRef,
     },
 
-    // ---- World placement ----
-    /// The copy a world placement defines of its body's entity `of`
-    /// (D10, A10). The placement's identity rides in the enclosing
+    // ---- Placement ----
+    /// The copy a [`crate::Node::Place`] defines of its shape's entity
+    /// `of` (D10, A10). The placement's identity rides in the enclosing
     /// [`StableName::node`], so two placements of one body name their
     /// copies apart, as [`RoleSeg::Instance`] names a pattern's.
     Placed {
@@ -1708,7 +1714,7 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
         name_free_seg!() => None,
         RoleSeg::Seam { .. }
         | RoleSeg::Crossing { .. }
-        | RoleSeg::EdgeCrossing { .. }
+        | RoleSeg::EdgeCrossing(_)
         | RoleSeg::Merged(_)
         | RoleSeg::Fragment(_)
         | RoleSeg::SectionEdge { .. }
@@ -1808,11 +1814,10 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Union { .. }
         | Node::Intersect { .. }
         | Node::Pattern { .. }
-        | Node::PlaceInWorld { .. }
+        | Node::Place { .. }
+        | Node::World
         | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. }
-        | Node::Gauge { .. }
-        | Node::Mate { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
     }
@@ -1863,7 +1868,7 @@ macro_rules! inert_seg {
         $crate::names::RoleSeg::OutputBody
             | $crate::names::RoleSeg::Cap(_)
             | $crate::names::RoleSeg::RevolveCap(_)
-            | $crate::names::RoleSeg::SplitBody(_)
+            | $crate::names::RoleSeg::SplitBody
             | $crate::names::RoleSeg::SectionFace { .. }
     };
 }
@@ -1981,6 +1986,23 @@ pub(crate) trait SegRewrite {
     /// The rewriter's own.
     fn read(&mut self, r: VarId) -> Result<VarId, Self::Error> {
         Ok(r)
+    }
+
+    /// A name `was` whose rank the rewrite cannot re-read against the
+    /// line it now lies on (`names::canonical::rewritten`): `Ok` carries
+    /// it exactly as the segment rewrite left it, nothing reordered and
+    /// nothing re-ranked.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own, where it will not carry such a name.
+    fn unrankable(
+        &mut self,
+        was: &StableName,
+        why: canonical::Unrankable,
+    ) -> Result<(), Self::Error> {
+        let _ = (was, why);
+        Ok(())
     }
 }
 
@@ -2182,17 +2204,16 @@ impl RoleSeg {
                 face: rewrite_ref(face, w)?,
                 sense: *sense,
             },
-            R::EdgeCrossing {
-                a,
-                a_sense,
-                b,
-                b_sense,
-            } => R::EdgeCrossing {
-                a: rewrite_ref(a, w)?,
-                a_sense: *a_sense,
-                b: rewrite_ref(b, w)?,
-                b_sense: *b_sense,
-            },
+            R::EdgeCrossing(run) => R::EdgeCrossing(
+                run.iter()
+                    .map(|l| {
+                        rewrite_ref(&l.line, w).map(|line| RunLine {
+                            line,
+                            sense: l.sense,
+                        })
+                    })
+                    .collect::<Result<_, _>>()?,
+            ),
             R::Merged(v) => R::Merged(rewrite_set(v, w)?),
             R::Fragment(q) => R::Fragment(match q {
                 Qualifier::Borders(walls) => Qualifier::Borders(rewrite_set(walls, w)?),
@@ -2200,21 +2221,17 @@ impl RoleSeg {
                 Qualifier::Ends(ends) => Qualifier::Ends(rewrite_set(ends, w)?),
                 Qualifier::OrderAlong { .. } => q.clone(),
             }),
-            R::SectionEdge { side, face } => R::SectionEdge {
-                side: *side,
+            R::SectionEdge { face } => R::SectionEdge {
                 face: rewrite_ref(face, w)?,
             },
-            R::SplitFragment { side, parent } => R::SplitFragment {
-                side: *side,
+            R::SplitFragment { parent } => R::SplitFragment {
                 parent: rewrite_ref(parent, w)?,
             },
-            R::CrossingVertex { side, edge, sense } => R::CrossingVertex {
-                side: *side,
+            R::CrossingVertex { edge, sense } => R::CrossingVertex {
                 edge: rewrite_ref(edge, w)?,
                 sense: *sense,
             },
-            R::OnToolVertex { side, of } => R::OnToolVertex {
-                side: *side,
+            R::OnToolVertex { of } => R::OnToolVertex {
                 of: rewrite_ref(of, w)?,
             },
             R::BlendFace(n) => R::BlendFace(rewrite_ref(n, w)?),
@@ -2272,7 +2289,7 @@ impl RoleSeg {
 }
 
 impl StableName {
-    /// **This entity as world placement `placement`'s copy names it**
+    /// **This entity as placement `placement`'s copy names it**
     /// (D10, A10): the body's own name, worn inside the one
     /// [`RoleSeg::Placed`] qualifier the placement puts round every
     /// name of the body it places, headed at the placement. What the
@@ -2313,7 +2330,8 @@ impl StableName {
     /// come out swapped — in this name, or in a name it embeds — reverses
     /// the ranks along its line, so the rule is read from the name as it
     /// was and as it is, with the images `w` gives the seam's sides
-    /// (`names::canonical::rewritten`).
+    /// (`names::canonical::rewritten`). A rank that cannot be re-read is
+    /// `w`'s to carry or refuse ([`SegRewrite::unrankable`]).
     ///
     /// A carried name `w` descends into ([`Carry::Descend`]) is
     /// rewritten the same way, and a name nests as deep as its
@@ -2354,9 +2372,16 @@ impl StableName {
         if w.listing.is_some() {
             return Ok(now);
         }
-        canonical::rewritten(self, now, &mut |n| {
+        let formed: Result<_, Stopped<'s, W::Error>> = canonical::rewritten(self, now, &mut |n| {
             Ok(w.carried(n)?.unwrap_or_else(|| n.clone()))
-        })
+        });
+        match formed? {
+            canonical::Rewritten::Canonical(name) => Ok(name),
+            canonical::Rewritten::Carried(name, why) => {
+                w.w.unrankable(self, why).map_err(Stopped::Refused)?;
+                Ok(name)
+            }
+        }
     }
 
     /// **Every authored step this name spells a piece of** — in its own
@@ -2468,7 +2493,7 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::RevolveCap(_)
             | $crate::names::RoleSeg::Pole(_)
             | $crate::names::RoleSeg::AxisEdge(_)
-            | $crate::names::RoleSeg::SplitBody(_)
+            | $crate::names::RoleSeg::SplitBody
             | $crate::names::RoleSeg::SectionFace { .. }
             | $crate::names::RoleSeg::SectionEdge { .. }
             | $crate::names::RoleSeg::SplitFragment { .. }

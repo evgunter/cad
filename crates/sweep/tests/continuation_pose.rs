@@ -17,10 +17,7 @@
 //!   reach. The world boxes of the ellipse edges and the brick's edges
 //!   overlap once the scene is turned and not unturned, so a reading
 //!   that takes their overlap for a meeting flips with the pose. Nothing
-//!   meets, so no face pair is recorded at any pose. Whether these
-//!   results are legal operands of a next boolean is not asserted: the
-//!   at-infinity probe refuses an ellipse-trimmed wall
-//!   (`restread/at-infinity-probe-measures-in-closed-form-only`).
+//!   meets, so no face pair is recorded at any pose.
 //! - **plugged**: the upright plug back in the slab it was cut from.
 //!   The union is the slab again, its top and bottom continuing across
 //!   the two rim circles and the hole's wall resting on the plug's; the
@@ -108,7 +105,8 @@ fn plug_and_hole(tilt: f64, tol: Tol) -> (AtRestBody<f64>, AtRestBody<f64>) {
 }
 
 fn posed(what: &str, body: &Body<f64>, map: &Affine3<f64>, tol: Tol) -> AtRestBody<f64> {
-    let b = topo::transform_rigid(body, map, tol).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+    let b = topo::transform_rigid(body, &geom_core::test_support::rigid(map, tol), tol)
+        .unwrap_or_else(|e| panic!("{what}: {e:?}"));
     finished(what, b, tol)
 }
 
@@ -157,14 +155,13 @@ fn face_pair_rows(rows: &[topo::Coincidence]) -> usize {
 }
 
 /// The five ops on `a` and `b`, each held to every validation tier and
-/// to its closed form (the intersections empty), and, where `legal`, to
-/// being a legal operand of the next boolean.
+/// to its closed form (the intersections empty), and to being a legal
+/// operand of the next boolean.
 fn every_op(
     label: &str,
     a: &AtRestBody<f64>,
     b: &AtRestBody<f64>,
     (union, [a_minus_b, b_minus_a]): (Want, [f64; 2]),
-    legal: bool,
 ) -> Vec<Reading> {
     let tol = Tol::witness();
     [
@@ -205,9 +202,6 @@ fn every_op(
             Ok(()),
             "{label}: tier 3"
         );
-        if legal {
-            sweep::test_support::assert_legal_operand(&label, &out.body, tol);
-        }
         let m = topo::mass_properties(&out.body, tol)
             .unwrap_or_else(|e| panic!("{label}: mass properties {e:?}"));
         assert!(
@@ -215,6 +209,24 @@ fn every_op(
             "{label}: volume {} ± {} against the closed form {truth}",
             m.volume,
             m.volume_pad
+        );
+        // A legal operand: its union with a far unit brick builds and
+        // holds the brick beside it.
+        let far = finished(
+            "the far brick",
+            brick((50.0, 51.0), (50.0, 51.0), (50.0, 51.0), tol),
+            tol,
+        );
+        let joined = topo::union(&out.body, &far, tol)
+            .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: {e:?}"));
+        let j = topo::mass_properties(&joined.body().expect("not empty").body, tol)
+            .unwrap_or_else(|e| panic!("{label}: ∪ a far brick: mass properties {e:?}"));
+        assert!(
+            (j.volume - (truth + 1.0)).abs() <= j.volume_pad + 1e-9 * (truth + 1.0),
+            "{label}: ∪ a far brick: volume {} ± {} against {}",
+            j.volume,
+            j.volume_pad,
+            truth + 1.0
         );
         Reading::Body {
             faces: out.body.faces().count(),
@@ -260,7 +272,6 @@ fn a_plug_clear_of_a_brick_on_its_planes_reads_alike_at_every_pose() {
             &posed("the plug", &plug, map, tol),
             &posed("the brick", &beside, map, tol),
             (Want::Builds(v_a + v_b), [v_a, v_b]),
-            false,
         )
     });
     for reading in reference {
@@ -286,7 +297,6 @@ fn a_plug_in_its_hole_reads_alike_at_every_pose() {
             &posed("the plug", &plug, map, tol),
             &posed("the holed slab", &hole, map, tol),
             (Want::Builds(SLAB_VOLUME), [v_a, v_b]),
-            true,
         )
     });
     assert_eq!(
@@ -315,7 +325,6 @@ fn a_tilted_plug_in_its_hole_reads_alike_at_every_pose() {
                 &posed("the plug", &plug, map, tol),
                 &posed("the holed slab", &hole, map, tol),
                 (Want::GermEdgeRefused, [v_a, v_b]),
-                false,
             )
         });
         assert_eq!(

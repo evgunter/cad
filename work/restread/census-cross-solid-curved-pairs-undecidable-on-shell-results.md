@@ -51,9 +51,15 @@ curved face in reach of the other piece lands in this class as well:
 the "same geometry passes as shells of one solid" asymmetry above is
 gone from the verbs' outputs, which no longer put two pieces under one
 solid. Measured on PR 3891's branch with a box declared `Tangent` to a
-plate's fillet (two solids, tier 3 green, 3′ `CensusUndecidable` alone);
-main has since refused that union (`TangentSlitArmUnbuilt`), so no row
-pins it today.
+plate's fillet (two solids, tier 3 green, 3′ `CensusUndecidable` alone).
+Main refused that union for a while (`TangentSlitArmUnbuilt`); it answers
+again since `contacthold/face-face-touch-row` (PR 4921), two solids with
+the face–face record of the box's wall and the fillet
+(`reach_continuation::a_tangent_beside_a_fillet_builds_every_op_in_either_order`,
+which does not run 3′). The like rod resting on a plate
+(`face_face_touch::a_rod_on_a_plate_records_its_touch_and_a_bridge_lands_it`)
+refuses 3′ `CensusUndecidable` on the rod's wall and a plate face,
+measured on PR 4921's review; no row pins that verdict.
 
 ## 2026-10-03 — 38 boolean results on main (REACH, `boolean-door-adopts-the-finished-body-type`)
 
@@ -288,3 +294,34 @@ definite finding): `0 3 2 ba S`, `1 6 0 ba S`, `3 1 0 ba S`,
 `6 1 0 ab I`, `6 1 0 ba S`. Replay with `CURVED_POSE="i j k order op"
 cargo test -p sweep --release --test all curved_notch_pinch_one --
 --ignored --nocapture`.
+
+## 2026-10-14 — the node family's `∖` (TANG, branch `tang/pinch-node-ring`)
+
+Two equal cylinders whose axes meet now build every boolean, each
+node minted as a ring in both walls. `A ∖ B` is two solids, the
+pieces of `A`'s rod either side of `B`, touching at the two nodes
+`q ± r·unit(â₁ × â₂)` (`q` the axes' meeting point), each piece with
+its own valence-2 vertex on each node. Every one of
+`sweep::bisector_nodes`'s ∖ results (θ ∈ {90°, 60°, 120°, 35°}, both
+operand orders, and the re-posed twin) builds at the closed form
+`2πrh − 16r³/(3 sin θ)`. Tier 3 passes, ∩ and ∪ pass 3′ on their own
+records, and ∖'s 3′ answers only this lane's frontier: 7
+`CensusUndecidable` "a curved face of one is within reach of the
+other" between the two pieces' faces, and the `Unexamined` pair of
+the two solids. The row admits exactly that
+(`touch_union::only_curved_within_reach`); flip it to `Ok` when this
+lane lands.
+
+The pairs touch at the nodes, so no box gap separates them, but one
+plane always does: the plane through `q` with normal `â₁` has each
+piece of `A ∖ B` (`B ∖ A`: normal `â₂`) wholly on one side, and meets
+the pieces only at the two nodes, which are shared point keys.
+
+## 2026-10-17 — scope under the D10 hold (RESTREAD)
+
+RESTREAD builds the half that certifies curved × curved and
+curved × planar cross-solid pairs apart. Where such a pair turns out
+to be a genuine coincidence, what the census does with it is the
+"census records what it decides" path of the open [ev] PR 4666 and
+INTENT stage 5; that half is not built here, and a pair the lane finds
+touching keeps its `CensusUndecidable` until then.

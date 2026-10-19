@@ -14,15 +14,17 @@
 //!    `UnderDetermined` only if the walk reaches the second station.
 //! 2. The band-derived family, re-derived on different fixtures: a
 //!    stadium extruded to a band-derived height, and a cylinder–torus
-//!    ring revolved through a band-derived ANGLE so the fold's extent
-//!    term, not a radius, is the arm. Both refuse typed at both ends
-//!    of the band and store what the contract says on either side.
+//!    ring revolved through a band-derived ANGLE. The wedge is levered
+//!    at the faces' extent (`topo::wedge_reach`), which the profile's
+//!    own segments set whatever the height or the angle, so neither
+//!    reaches the band: both store the intrinsic tangency at every
+//!    height and angle.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
 use geom_brep::{MustCarryVerdict, must_carry_over_edge};
-use geom_core::{Band, ErrorTextReading, Point2, Point3, Sign, Tol, Vec2, Vec3};
+use geom_core::{Band, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, RevolveError, extrude, revolve};
@@ -189,25 +191,11 @@ fn in_band_margins() -> [f64; 2] {
     [2.0 * b.zero(), b.escalate() / 2.0]
 }
 
-fn assert_in_band(source: geom_core::Indeterminate) {
-    assert_eq!(source.predicate, Some("tangent_second_order"));
-    let b = band();
-    match source.margin.diagnostic_f64_for_error_text() {
-        ErrorTextReading::Value(m) => assert!(
-            m.abs() > b.zero() && m.abs() < b.escalate(),
-            "margin {m:e} outside ({:e}, {:e})",
-            b.zero(),
-            b.escalate()
-        ),
-        other => panic!("expected a value margin, got {other:?}"),
-    }
-}
-
 const STADIUM_R: f64 = 0.4;
 
 /// A stadium — two semicircles of radius [`STADIUM_R`] joined by two
 /// lines — extruded to height `h`: four smooth plane–cylinder struts
-/// whose fold is `min(∞, r, h)`.
+/// whose fold is `min(∞, r, the walls' extent)`, the radius here.
 fn stadium(h: f64) -> Result<Body<f64>, ExtrudeError> {
     let r = STADIUM_R;
     // A semicircle's bulge is tan(π/4) = 1.
@@ -231,21 +219,21 @@ fn stadium(h: f64) -> Result<Body<f64>, ExtrudeError> {
     .map(|e| e.body)
 }
 
-/// **C2, extrude.** Both ends of the band refuse typed under the
-/// rule's predicate; either definite side stores what the contract
-/// says on all four struts.
+/// **C2, extrude.** The heights that put a sagitta levered at the
+/// strut's own length in the band, or under it, store the intrinsic
+/// tangency on all four struts: the walls run the stadium's length, so
+/// the arm is the radius at every height.
 #[test]
-fn a_stadium_strut_refuses_at_both_ends_of_the_band_and_stores_either_definite_side() {
-    for margin in in_band_margins() {
-        match stadium(arm_for(margin, STADIUM_R)) {
-            Err(ExtrudeError::SliverJoin { source, .. }) => assert_in_band(source),
-            other => panic!("margin {margin:e} must refuse as a sliver join: {other:?}"),
-        }
+fn a_stadium_strut_reads_its_walls_at_every_height() {
+    let [low, high] = in_band_margins();
+    for margin in [low, high, band().zero() / 50.0, STADIUM_R / 4.0] {
+        let body = stadium(arm_for(margin, STADIUM_R)).expect("the stadium builds");
+        assert_eq!(
+            intrinsic_edges(&body),
+            4,
+            "height for margin {margin:e}: every strut stores the intrinsic tangency"
+        );
     }
-    let positive = stadium(arm_for(STADIUM_R / 4.0, STADIUM_R)).expect("definite builds");
-    assert_eq!(intrinsic_edges(&positive), 4);
-    let zero = stadium(arm_for(band().zero() / 50.0, STADIUM_R)).expect("under-determined builds");
-    assert_eq!(intrinsic_edges(&zero), 0);
 }
 
 const LIP_R: f64 = 0.4;
@@ -254,8 +242,8 @@ const LIP_R: f64 = 0.4;
 /// lip of minor radius [`LIP_R`] (major 0.6) tangent to the outer
 /// cylinder at the torus's OUTER equator — revolved through the angle
 /// whose latitude-arc chord is `chord`. The join's fold is
-/// `min(1, r, extent)` with `extent ≈ chord` for a small angle, so the
-/// ANGLE, not a radius, is what puts the sagitta in the band.
+/// `min(1, r, the walls' extent)`, which the meridians hold at the
+/// lip radius whatever the angle.
 fn lipped_ring(chord: f64) -> Result<Body<f64>, RevolveError> {
     let r = LIP_R;
     // A 45° arc (bulge tan(π/16)) from the outer equator, so its far
@@ -280,21 +268,25 @@ fn lipped_ring(chord: f64) -> Result<Body<f64>, RevolveError> {
     revolve(&profile, axis, Revolution::Partial(theta), Tol::witness()).map(|r| r.body)
 }
 
-/// **C2, revolve.** The same family with the fold's EXTENT term as
-/// the arm: both ends of the band refuse `RevolveError::SliverJoin`
-/// under the rule's predicate; a definite angle stores the intrinsic
-/// tangency on the one smooth latitude arc.
+/// **C2, revolve.** The angles that put a sagitta levered at the
+/// latitude arc's own chord in the band, or under it, store the
+/// intrinsic tangency on the one smooth latitude arc: the lip and the
+/// outer wall run their meridians whatever the angle, so the arm is the
+/// lip radius.
 #[test]
-fn a_lipped_ring_refuses_at_both_ends_of_the_band_and_stores_the_definite_side() {
-    for margin in in_band_margins() {
-        match lipped_ring(arm_for(margin, LIP_R)) {
-            Err(RevolveError::SliverJoin { source, .. }) => assert_in_band(source),
-            other => panic!("margin {margin:e} must refuse as a sliver join: {other:?}"),
-        }
+fn a_lipped_ring_reads_its_walls_at_every_angle() {
+    let [low, high] = in_band_margins();
+    for chord in [
+        arm_for(low, LIP_R),
+        arm_for(high, LIP_R),
+        arm_for(band().zero() / 50.0, LIP_R),
+        2.0 * (0.25f64).sin(),
+    ] {
+        let body = lipped_ring(chord).expect("the ring builds");
+        assert_eq!(
+            intrinsic_edges(&body),
+            1,
+            "chord {chord:e}: the smooth latitude arc stores the intrinsic tangency"
+        );
     }
-    // A wide angle: the fold saturates at the lip radius, margin r/2.
-    let positive = lipped_ring(2.0 * (0.25f64).sin()).expect("definite builds");
-    assert_eq!(intrinsic_edges(&positive), 1);
-    let zero = lipped_ring(arm_for(band().zero() / 50.0, LIP_R)).expect("under-determined builds");
-    assert_eq!(intrinsic_edges(&zero), 0);
 }

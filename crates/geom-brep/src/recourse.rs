@@ -15,8 +15,8 @@
 
 use geom_core::{
     Band, Decided, FileCoincidence, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
-    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource, NOT_YET_ENDING, Sign,
-    SizedWords, lever_recourse, noted,
+    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource, NOT_YET_ENDING,
+    RefusedReading, Sign, SizedWords, lever_recourse, noted,
 };
 pub use geom_core::{SizedPass, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE};
 
@@ -328,11 +328,17 @@ impl LeverOnly {
     }
 }
 
-/// What a zero verdict that leaves no size to tighten below may mean
-/// beyond the lever, by where it is read: appended to the lever as
-/// "; {note}".
+/// What a reading that shows no size may mean beyond the lever, by
+/// where it is read: appended to the lever as "; {note}" on an exact
+/// zero, a reading wholly on zero or the refused side (in band or past
+/// it, and so a sign-certain arm, save a stored contradiction's at
+/// rest), or a zero the symbolic tier proved
+/// ([`MarginDiag::sized_recourse`]), and on no other reading. At the
+/// import door it rides only on a reading whose nearer end lies past
+/// ε_in, which the door reads as at rest; within ε_in the door's one
+/// sentence carries no note ([`MarginDiag::sized_recourse_in_file`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct AtZero {
+pub struct NoSize {
     /// The note at a build, where the kernel made the geometry.
     pub build: &'static str,
     /// The note over stored geometry, which a damaged file reaches as
@@ -340,7 +346,7 @@ pub struct AtZero {
     pub stored: &'static str,
 }
 
-impl AtZero {
+impl NoSize {
     /// The same note wherever the refusal is read.
     #[must_use]
     pub const fn same(note: &'static str) -> Self {
@@ -360,8 +366,8 @@ impl AtZero {
     }
 }
 
-/// How a sized decision's sign-certain refusal ends when it is read over
-/// stored geometry.
+/// How a sized decision's definite refusal ends when it is read over
+/// stored geometry, on the sign-certain arm and past the band alike.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StoredDefinite {
     /// A contradiction between a stored description and its stored
@@ -369,8 +375,8 @@ pub enum StoredDefinite {
     /// defect of the kernel or the file (D4 ¶1 (iv)).
     Contradiction,
     /// The decision's own lever reaches it (the stored description is
-    /// what the lever edits), so it ends in the lever alone, as at a
-    /// build.
+    /// what the lever edits), so it ends as its in-band sibling does: the
+    /// lever and the decision's note.
     Lever,
 }
 
@@ -385,12 +391,12 @@ pub struct SizedDecision {
     pub size: &'static str,
     /// What it passes on.
     pub passes: SizedPass,
-    /// How its sign-certain arm ends over stored geometry.
+    /// How its definite refusal ends over stored geometry.
     pub stored: StoredDefinite,
-    /// What a zero verdict leaving no size to tighten below may mean
-    /// beyond the lever, where the decision's own metering can reach
-    /// zero on sound geometry or no construction mints it.
-    pub at_zero: Option<AtZero>,
+    /// What a reading that shows no size may mean beyond the lever,
+    /// where the decision's own metering can reach zero on sound geometry
+    /// or no construction mints it.
+    pub no_size: Option<NoSize>,
 }
 
 impl SizedDecision {
@@ -398,77 +404,71 @@ impl SizedDecision {
     /// at `at` (D4 ¶1 (i)/(iv)).
     ///
     /// - Every band-decided arm — in band, zero where zero does not
-    ///   pass, or an undecided enclosure straddling zero — ends in the lever at
-    ///   every reading, with the words the arm's reporting margin gives
-    ///   ([`MarginDiag::sized_recourse`]): at a build or at rest, the
-    ///   tolerance below which a smaller one decides the margin passing,
-    ///   where one does. A zero verdict that leaves no size to tighten
-    ///   below adds [`SizedDecision::at_zero`] where the decision has
-    ///   one, on a gate's rejected Zero ([`MarginDiag::rejected_sign`])
-    ///   too, whichever arm its reader routed it on. A poisoned margin
-    ///   keeps the lever and takes the note its reading gives
-    ///   ([`unreadable_margin_note`]) instead.
-    /// - The sign-certain arm names the lever alone at a build. Read
-    ///   over stored geometry it ends as [`SizedDecision::stored`] says.
+    ///   pass, or an undecided enclosure straddling zero — ends as its
+    ///   reporting margin's class gives ([`MarginDiag::sized_recourse`]),
+    ///   read from the number whichever arm its reader routed it on, with
+    ///   [`SizedDecision::no_size`] as the no-size note and the note its
+    ///   reading gives an unreadable margin ([`unreadable_margin_note`]).
+    /// - The sign-certain arm ends as a reading past the band wholly on
+    ///   the refused side does, on either route
+    ///   ([`geom_core::SizedWords::sign_certain_recourse`]): at a build,
+    ///   and at rest where the lever reaches it, in the lever and the
+    ///   decision's note; at rest as [`SizedDecision::stored`] says.
     /// - The import door ([`ReadAt::File`]) reads as at rest, except that
     ///   a band-decided arm whose margin's nearer end lies at or below the
     ///   file's declared coincidence distance ends in the door's one
-    ///   sentence for a size the file does not state
+    ///   sentence for a size the file cannot tell from zero
     ///   ([`MarginDiag::sized_recourse_in_file`]), whichever arm the run's
-    ///   band placed it on. A straddle carries no single margin to place
-    ///   against ε_in.
+    ///   band placed it on, with no decision's note. A straddle carries no
+    ///   single margin to place against ε_in.
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
-        let Self {
-            lever,
-            passes,
-            stored,
-            at_zero,
-            ..
-        } = self;
+        let Self { lever, passes, .. } = self;
         let at = at.into();
         let reading = at.reading();
         let file = match at {
             ReadAt::Run(_) => None,
             ReadAt::File(file) => Some(file),
         };
-        let at_zero = at_zero.map(|note| note.at(reading));
-        let (margin, band, otherwise) = match arm {
+        let (margin, band) = match arm {
             RefusedArm::Zero(_) if passes.passes_zero() => return lever_recourse(lever, None),
-            RefusedArm::Zero(Classified { margin, band }) => (margin, band, at_zero),
-            RefusedArm::Undecided(cause) => (
-                cause.margin,
-                cause.band,
-                at_zero.filter(|_| cause.margin.rejected_sign() == Some(Sign::Zero)),
-            ),
+            RefusedArm::Zero(Classified { margin, band }) => (margin, band),
+            RefusedArm::Undecided(cause) => (cause.margin, cause.band),
             // No single margin is carried, so none sizes a tolerance.
             RefusedArm::Straddle => return lever_recourse(lever, None),
-            RefusedArm::SignCertain(_) => {
-                return match (reading, stored) {
-                    (Reading::Build, _) | (Reading::AtRest, StoredDefinite::Lever) => {
-                        lever_recourse(lever, None)
-                    }
-                    (Reading::AtRest, StoredDefinite::Contradiction) => {
-                        KERNEL_OR_FILE_DEFECT_ENDING.to_owned()
-                    }
-                };
-            }
+            RefusedArm::SignCertain(_) => return self.words(reading).sign_certain_recourse(),
         };
-        let words = self.words(otherwise, reading);
+        let words = self.words(reading);
         match file {
             None => margin.sized_recourse(band, words),
             Some(file) => margin.sized_recourse_in_file(band, words, file),
         }
     }
 
-    /// Everything the reporting margin's sentence needs but the number.
-    fn words(self, otherwise: Option<&'static str>, reading: Reading) -> SizedWords<'static> {
+    /// Everything the reporting margin's sentence needs but the number,
+    /// at `reading`: the one place a definite refused reading's ending is
+    /// chosen, so the sign-certain arm and a reading past the band routed
+    /// as undecided end alike. Over stored geometry a
+    /// [`StoredDefinite::Contradiction`] contradicts the stored data the
+    /// decision reads ([`RefusedReading::ContradictsStoredData`], a defect,
+    /// D4 ¶1 (iv)); every other definite reading ends as its in-band
+    /// sibling does, in the lever and the decision's note.
+    fn words(self, reading: Reading) -> SizedWords<'static> {
+        let refused = match (reading, self.stored) {
+            (Reading::AtRest, StoredDefinite::Contradiction) => {
+                RefusedReading::ContradictsStoredData
+            }
+            (Reading::Build, _) | (Reading::AtRest, StoredDefinite::Lever) => {
+                RefusedReading::AsShown
+            }
+        };
         SizedWords {
             lever: self.lever,
             size: self.size,
             passes: self.passes,
-            otherwise,
+            no_size: self.no_size.map(|note| note.at(reading)),
             unreadable: unreadable_margin_note(reading),
+            refused,
         }
     }
 }
@@ -546,13 +546,13 @@ mod tests {
             SizedPass::AnySign,
         ] {
             for stored in [StoredDefinite::Contradiction, StoredDefinite::Lever] {
-                for at_zero in [None, Some(AtZero::same("a note"))] {
+                for no_size in [None, Some(NoSize::same("a note"))] {
                     let decision = SizedDecision {
                         lever: "move it",
                         size: "size",
                         passes,
                         stored,
-                        at_zero,
+                        no_size,
                     };
                     let file = FileCoincidence::new(2e-9);
                     for reading in [Some(Reading::Build), Some(Reading::AtRest), None] {
@@ -610,8 +610,9 @@ mod tests {
     /// The two-sided decision through the table: a void-side margin is
     /// offered the tolerance at its magnitude, on either band-decided
     /// arm; an enclosure across zero names the lever alone; a zero of no
-    /// size names the lever and the decision's note; an unreadable
-    /// margin names the lever and says what it may mean.
+    /// size names the lever and the decision's note, save at the import
+    /// door, where the lever stands alone; an unreadable margin names the
+    /// lever and says what it may mean.
     #[test]
     fn a_two_sided_decision_ends_by_its_verdict() {
         let decision = SizedDecision {
@@ -619,7 +620,7 @@ mod tests {
             size: "thickness",
             passes: SizedPass::NonZero,
             stored: StoredDefinite::Lever,
-            at_zero: Some(AtZero {
+            no_size: Some(NoSize {
                 build: "at a build",
                 stored: "at rest",
             }),
@@ -669,13 +670,13 @@ mod tests {
                 eps_in,
             )
         };
-        let unstated = "This thickness is below the file's declared coincidence distance \
-                        ε_in = 1e-8 m, so the file does not state it. Recourse: L, or, if this \
-                        thickness is intended, re-export the file with its uncertainty declared \
-                        below 5e-9 m and tighten the tolerance below 5e-10 m";
+        let untold = "This thickness is within the file's declared coincidence distance \
+                        ε_in = 1e-8 m, so the file cannot tell it from zero. Recourse: L, or, if \
+                        this thickness is intended, re-export the file with its uncertainty \
+                        declared below 5e-9 m and tighten the tolerance below 5e-10 m";
         assert_eq!(
             zero_in_file(1e-8),
-            unstated,
+            untold,
             "a zero within ε_in reads as the in-band arm does at the import door"
         );
         assert_eq!(
@@ -683,7 +684,7 @@ mod tests {
                 RefusedArm::Undecided(&cause(MarginDiag::value(-5e-9))),
                 1e-8
             ),
-            unstated,
+            untold,
             "an undecided size within ε_in names both steps that keep it"
         );
         assert_eq!(
@@ -694,15 +695,113 @@ mod tests {
                 }),
                 1e-8
             ),
-            "This thickness is below the file's declared coincidence distance ε_in = 1e-8 m, so \
-             the file does not state it. Recourse: L; at rest",
-            "a zero of no size names the lever and the decision's note"
+            "This thickness is within the file's declared coincidence distance ε_in = 1e-8 m, so \
+             the file cannot tell it from zero. Recourse: L",
+            "a zero of no size at the import door names the lever and no decision's note"
         );
         assert_eq!(
             zero_in_file(1e-9),
             offer,
             "a size past ε_in reads as at rest"
         );
+    }
+
+    /// **Either route ends a reading alike** (`SizedDecision::recourse`):
+    /// what the ending adds is read from the number, so a gate's rejected
+    /// Zero routed as `RefusedArm::Undecided`, the same reading untagged
+    /// on that route, and the Zero arm end identically at a build, at
+    /// rest and at the import door, on both lanes — the decision's note on
+    /// a reading that shows no size, the floor's sentence on a sub-floor
+    /// size, the lever alone on an enclosure across zero, the offer on a
+    /// size — and the import door adds no decision's note to any of these
+    /// readings, all within ε_in, but keeps the floor's sentence. Red if a route keys the note on the tag rather
+    /// than the reading.
+    #[test]
+    fn either_route_ends_a_reading_alike() {
+        use geom_core::{Interval, Margin, floor_note, k_stats::decide_positive};
+
+        let band = band();
+        let decision = SizedDecision {
+            lever: "L",
+            size: "length",
+            passes: SizedPass::Positive,
+            stored: StoredDefinite::Contradiction,
+            no_size: Some(NoSize {
+                build: "B",
+                stored: "S",
+            }),
+        };
+        let noted = "Recourse: L; B".to_owned();
+        let point = |m: f64| {
+            (
+                decide_positive("p", Margin::of(m), band).unwrap_err(),
+                MarginDiag::value(m),
+            )
+        };
+        let enclosure = |lo: f64, hi: f64| {
+            (
+                decide_positive("p", Margin::of(Interval::from_bounds(lo, hi)), band).unwrap_err(),
+                MarginDiag::enclosure(lo, hi),
+            )
+        };
+        let rows = [
+            (point(0.0), noted.clone()),
+            (point(-5e-10), noted.clone()),
+            (
+                point(2e-12),
+                format!("Recourse: L; {}", floor_note("length")),
+            ),
+            (
+                point(5e-10),
+                "Recourse: L, or, if this length is intended, tighten the tolerance below 5e-11 m"
+                    .to_owned(),
+            ),
+            (enclosure(-2e-12, 6e-12), "Recourse: L".to_owned()),
+            (enclosure(-5e-10, 0.0), noted.clone()),
+            (enclosure(0.0, 0.0), noted),
+        ];
+        let file = FileCoincidence::new(1e-8);
+        for ((tagged, margin), want) in rows {
+            assert_eq!(tagged.margin.rejected_sign(), Some(Sign::Zero), "{margin}");
+            let untagged = Indeterminate {
+                margin,
+                band,
+                predicate: None,
+                terminal_sliver: false,
+            };
+            let zero = Refused::rejected(&tagged).unwrap().arm();
+            for at in [
+                ReadAt::Run(Reading::Build),
+                ReadAt::Run(Reading::AtRest),
+                ReadAt::File(file),
+            ] {
+                let got = decision.recourse(RefusedArm::Undecided(&tagged), at);
+                assert_eq!(
+                    got,
+                    decision.recourse(zero, at),
+                    "{margin} at {at:?}: Zero arm"
+                );
+                assert_eq!(
+                    got,
+                    decision.recourse(RefusedArm::Undecided(&untagged), at),
+                    "{margin} at {at:?}: untagged"
+                );
+                match at {
+                    ReadAt::Run(Reading::Build) => assert_eq!(got, want, "{margin}"),
+                    ReadAt::File(_) => {
+                        // No decision's note within ε_in; the floor's
+                        // sentence, true of the number, rides as at a build.
+                        assert!(!got.ends_with("; S"), "{margin} at the import door: {got}");
+                        assert_eq!(
+                            got.ends_with(&floor_note("length")),
+                            want.ends_with(&floor_note("length")),
+                            "{margin} at the import door: {got}"
+                        );
+                    }
+                    ReadAt::Run(Reading::AtRest) => {}
+                }
+            }
+        }
     }
 
     /// **A residual's sign-certain arm is read by the margin it carries**
@@ -729,6 +828,140 @@ mod tests {
         }
     }
 
+    /// **One definite reading ends one way at a door, whichever arm
+    /// routes it** (D4 ¶1 (iv)): over the sized decisions with a no-size
+    /// note, and one stored contradiction without one, a refused reading
+    /// past the band routed as undecided (tagged by its gate, or not) and
+    /// the same verdict on the sign-certain arm (with its reading or
+    /// without) end alike. At a build each ends in the lever and the
+    /// build's note; at rest, and at the import door past ε_in where the
+    /// decision has one (the offset meters have none), a stored
+    /// contradiction ends in the defect ending and a decision the lever
+    /// reaches in the lever and the stored note. An in-band reading on the
+    /// refused side is not definite, so it keeps the lever and the note at
+    /// rest and at the door. Red if either route keys its ending on the
+    /// arm rather than the reading's class and the decision.
+    #[test]
+    fn one_definite_reading_ends_one_way_whichever_arm_routes_it() {
+        use geom_core::{Margin, k_stats::decide_positive};
+
+        use crate::CertCheck;
+        use crate::offset_meters::Meter;
+
+        let band = band();
+        let gate = decide_positive("p", Margin::of(-1e-3), band).unwrap_err();
+        assert_eq!(gate.margin.rejected_sign(), Some(Sign::Negative));
+        let cause = |m: f64| Indeterminate {
+            margin: MarginDiag::value(m),
+            band,
+            predicate: None,
+            terminal_sliver: false,
+        };
+        let (untagged, in_band) = (cause(-1e-3), cause(-5e-9));
+        let verdict = Refused::rejected(&gate).unwrap().arm();
+        let routes = [
+            ("tagged past", RefusedArm::Undecided(&gate)),
+            ("untagged past", RefusedArm::Undecided(&untagged)),
+            ("the gate's verdict", verdict),
+            (
+                "sign-certain, read",
+                RefusedArm::SignCertain(Some(gate.margin)),
+            ),
+        ];
+        let file = ReadAt::File(FileCoincidence::new(1e-9));
+        let span = "Recourse: move the geometry so this edge runs forward over a clear length; an \
+                    edge of no length, or a reversed one, is one no kernel construction mints, so \
+                    this is a kernel defect";
+        let meter = "Recourse: move the geometry so this spline edge runs steadily forward, never \
+                     stalling or turning back; if it does neither, the speed floor has reached \
+                     its limit, which is worth reporting";
+        let floor = "Recourse: split the face clear of any pole, cusp or pinch; if it has none, \
+                     this may indicate a kernel bug worth reporting";
+        let arm = "Recourse: move the geometry so that edge's faces clearly run farther and none \
+                   curves tightly there; faces of no extent or a cone's point leave no \
+                   angle to measure; a radius below zero is a defect";
+        let angle = "Recourse: move the geometry so the surfaces cross at a clearer angle";
+        let defect = KERNEL_OR_FILE_DEFECT_ENDING.to_owned();
+        // `None` where the decision has no import door: the offset
+        // meters are asked at a build or at rest only (`Meter::recourse`).
+        type End = Box<dyn Fn(RefusedArm<'_>, ReadAt) -> Option<String>>;
+        let certify =
+            |check| -> End { Box::new(move |a, at| Some(crate::certify::recourse(check, a, at))) };
+        // (decision, its ending, at a build, definite at rest, in band at rest)
+        let rows: [(&str, End, String, String, String); 5] = [
+            (
+                "ParamSpan",
+                certify(CertCheck::ParamSpan),
+                format!("{span} worth reporting"),
+                defect.clone(),
+                format!("{span} or a damaged file, worth reporting"),
+            ),
+            (
+                "ParamSpanMeter",
+                certify(CertCheck::ParamSpanMeter),
+                meter.to_owned(),
+                meter.to_owned(),
+                meter.to_owned(),
+            ),
+            (
+                "NormalFloor",
+                Box::new(|a, at| match at {
+                    ReadAt::Run(reading) => Some(Meter::NormalFloor.recourse(a, reading)),
+                    ReadAt::File(_) => None,
+                }),
+                floor.to_owned(),
+                floor.to_owned(),
+                floor.to_owned(),
+            ),
+            (
+                "DIHEDRAL_ARM",
+                Box::new(|a, at| Some(crate::DIHEDRAL_ARM.recourse(a, at))),
+                arm.to_owned(),
+                defect.clone(),
+                arm.to_owned(),
+            ),
+            (
+                "Transversality",
+                certify(CertCheck::Transversality),
+                angle.to_owned(),
+                defect,
+                angle.to_owned(),
+            ),
+        ];
+        for (decision, end, build, definite, kept) in rows {
+            let door = decision != "NormalFloor";
+            for (route, refused) in routes {
+                let at = |at: ReadAt| end(refused, at);
+                assert_eq!(
+                    at(Reading::Build.into()),
+                    Some(build.clone()),
+                    "{decision}, {route}, at a build"
+                );
+                assert_eq!(
+                    at(Reading::AtRest.into()),
+                    Some(definite.clone()),
+                    "{decision}, {route}, at rest"
+                );
+                assert_eq!(
+                    at(file),
+                    door.then(|| definite.clone()),
+                    "{decision}, {route}, at the door past ε_in"
+                );
+            }
+            let undecided = RefusedArm::Undecided(&in_band);
+            assert_eq!(
+                end(undecided, Reading::AtRest.into()),
+                Some(kept.clone()),
+                "{decision}, in band, at rest"
+            );
+            assert_eq!(
+                end(undecided, file),
+                door.then_some(kept),
+                "{decision}, in band, at the door past ε_in"
+            );
+        }
+    }
+
     /// A straddle of two bounds names the lever alone on a sized decision
     /// at every reading, and the last resort at rest.
     #[test]
@@ -738,7 +971,7 @@ mod tests {
             size: "distance",
             passes: SizedPass::AnySign,
             stored: StoredDefinite::Lever,
-            at_zero: None,
+            no_size: None,
         };
         for reading in [Reading::Build, Reading::AtRest] {
             assert_eq!(
@@ -782,6 +1015,11 @@ mod tests {
             for margin in margins() {
                 let want = if margin.is_invalid() { &noted } else { &plain };
                 let undecided = cause(margin);
+                // geom-core's build-reading spelling of the undecided arm
+                // says the same bytes.
+                if reading == Reading::Build {
+                    assert_eq!(&undecided.lever_ending("L"), want, "{margin:?}");
+                }
                 for arm in [RefusedArm::Undecided(&undecided), zero(margin)] {
                     assert_eq!(
                         &lever.recourse(arm, reading),
@@ -816,7 +1054,7 @@ mod tests {
             size: "thickness",
             passes: SizedPass::Positive,
             stored: StoredDefinite::Lever,
-            at_zero: Some(AtZero::same("N")),
+            no_size: Some(NoSize::same("N")),
         };
         let cause = Indeterminate {
             margin: MarginDiag::INVALID,
@@ -878,7 +1116,7 @@ mod tests {
                 size: "distance",
                 passes,
                 stored,
-                at_zero: Some(AtZero::same("N")),
+                no_size: Some(NoSize::same("N")),
             })
         })
         .collect();

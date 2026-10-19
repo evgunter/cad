@@ -999,3 +999,532 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - un-`pub` the unpaired `rational_span_speed_sup`.
   - **Class:** the issue's four-site census, a hand-written list, missed `mesh` chords `rational_carrier_m_bound` (recipe A on C′), plus `patch_bound` `rational_cells` and `offset_fit` `m_tilde_sup`. Part 2 takes them or files a row for each, with a hit list in its body.
   - **Brief correction (mine):** `weight_ratio_factor` is not inf-only until part 2 (pcurve_cache `nurbs_stretch_bounds` is a surface sup). — (NURBS orchestrator)
+
+- **2026-10-12 20:08Z — 4892 fix pass read (head `48801e68342514cb2ee8e16f307c0366b3f30589`).** All 7 items landed:
+  - `speed_upper_bound_on` deleted;
+  - weight arm deleted;
+  - pin at j outside the pair (14 exactly; the mutants read 2 and 8);
+  - locality row;
+  - rational offset_derive rows reaching `level_row` and `plane_spline_root`;
+  - `rational_span_speed_sup` private;
+  - one `session_memo` helper.
+  - "Lift once" is declined (perf only, needs a caller-side cache).
+  - `offset_fit` `m_tilde_sup` is accepted as out of class: a polynomial product, no quotient.
+  - **Build C corrected the reviewer:** the weight arm was not unreachable. Knot insertion can round a subnormal weight to 0, and `from_validated_parts` admits it. The bound reads non-finite there (pinned), so deleting the arm stays sound. The admission itself is a latent invariant breach. Build C files `knot-insertion-can-round-a-weight-to-zero` (P3) in this PR, and I post a seam note on KNOT (co-owner of `algebra.rs`). — (NURBS orchestrator)
+
+- **2026-10-12 20:40Z — PR 4904 (rational surface bound, part 2, stacked on 4892) up; single FULL reviewer dispatched.**
+  - The reviewer is session_01TTzHgrMCC5fMeXpHU6eyTA at `b56fe691f1b831b13034a76f4ccbae1f903e39d0`, confirmed connected.
+  - Tier FULL, because the surface twin of a soundness bound carries its own index arithmetic.
+  - Claims to falsify: surface soundness per direction; the routed sites (recognize, the pcurve sups, enclose bit-identical); the six-cell `frozen=` digest re-cut with disp=0; red-under-mutation including locality; the dispositions of patch_bound/chords (filed) and offset_fit (out of class).
+  - **4892 harness red explained:** `lo + (hi−lo)·n/n` rounded one ulp past the domain. The bound was not unsound there. The clamp is in 0e26675ae0.
+  - **4892 merge waits on one push:** main merged (contacthold 4809 and 4820 also touch `topo/src/shell.rs`) plus the zero-weight row. — (NURBS orchestrator)
+
+- **2026-10-12 21:00Z — PR 4904 FULL review: APPROVE-WITH-FIXES.**
+  - **What holds:**
+    - the surface statement is sound per direction (hand-checked, plus a 300-surface sweep, 0 failures);
+    - enclose is bit-identical (200k Interval cases, to_bits);
+    - the recognize None arms were dead;
+    - the digest re-cut reproduces at 1e-9 with disp=0.
+  - **The finding that matters:** the "j over the pair's own points only" mutant is UNSOUND (the true sup is up to 136× above it, on a coincident pair with a large weight step), and NO row catches it: not fuzz, not the named carriers, not recognize. This also refutes part 1's "no cubic Bézier beats pairs-only" search. Part 1's j-outside-the-pair pin catches it on curves by value only.
+  - **Class, logged as a rule I will brief from now on:** for a soundness bound, random fuzz does not witness each clause. Every clause whose removal is unsound owes a named witness row that goes red under the mutant that drops it, and every locality clause owes a row that goes red when the bound degrades.
+  - **Fix pass sent to build C:**
+    - the witness row (surface, plus a curve twin);
+    - a locality row;
+    - the stale "sup multiplies by the weight ratio" prose (a class: sweep `ratio`/`Floater`);
+    - `offset_meters` `patch_regularity` and mesh `nurbs_cert` `cell_readings` read patch_bound's recipe-A first-order sup → named in row (b) or routed;
+    - enclose `about` restates `RationalPairTerm::at` (a fresh copy of the duplication the PR closes);
+    - one per-pair builder;
+    - the tautological `the_two_doors_report_one_sup`;
+    - widen the fuzz;
+    - correct "fewer frozen ⇒ tighter".
+  - **Handed to build B's P2 floor row:** the inf side's `skipping_surface_derivative_net` with its own `denom == 0` skip. — (NURBS orchestrator)
+
+- **2026-10-12 21:50Z — PR 4892 merges** (`47226e9fb248e5c78a2a1e7cbe3273d39b248ac4` → main `9c414f94e8`).
+  - Its gate ok was green on a base containing contacthold 4809 and 4820 (which touch `shell.rs`).
+  - Main took 4831 and germ/conic after that run. I checked: no shared files, `merge-tree` clean, and none of main's new code calls an API 4892 removed. I merged rather than re-run.
+  - Seam notes are posted to SHELF/SHELL, PCERT/PCTAIL, TCOST/TINT and KNOT.
+  - Build C merges main into 4904 before its fix pass. — (NURBS orchestrator)
+
+- **2026-10-12 22:25Z — PR 4904 fix pass pushed** (head `064fcbb6fce841007133fdf468340051449110ee`; base is now main).
+  - The pair-only counterexample is pinned on the surface and on the curve. `check` asserts bound ≥ sampled floor, so it is red under the j-over-pair mutant.
+  - Part 1's search had drawn weights from {0.25…8} only. That was the blind spot.
+  - Also landed:
+    - a locality row;
+    - the stale ratio prose (m9_2 re-measured);
+    - row (b) names `patch_regularity` and `cell_readings`;
+    - `RationalPairTerm::about` as the one spelling, with private fields;
+    - one `pair_scale`;
+    - the tautological test deleted;
+    - the fuzz widened (degree 1–5, 10^±3, `expect` on KnotVector);
+    - the body corrected on `frozen`.
+  - Tier for the fix pass: orchestrator's read. Every item answers a named finding, and the refactors are covered by the rows that pinned the review's mutants.
+  - It merges on green. — (NURBS orchestrator)
+
+- **2026-10-12 23:10Z — PR 4904 merges** (`064fcbb6fce841007133fdf468340051449110ee` → main `51d913c3ca`).
+  - gate ok was green on a base containing main with 4892. Main's later drift shares no file with it, and no new main code reads a symbol it changed.
+  - The digest's six `frozen=` cells moved with it, and no other digest-touching merge is in between.
+  - The rational sup is now one statement for curves and surfaces. The design row `rational-speed-bounds-have-two-recipes-across-four-sites` is closed in the PR.
+  - Seam notes are posted to PCERT/PCTAIL, SSIARITH/SSIEDGE/SSIMARCH, EXCH and KNOT.
+  - Next: build B on the P2 inf floor. Build C is archived: its context was at about 700k, and its unit is done. — (NURBS orchestrator)
+
+- **2026-10-12 23:10Z — friction (message delivery).** Build C reports that six of my messages queued between 18:19Z and 21:49Z reached it only at about 23:09Z, up to five hours late.
+  - Its work kept pace only because I re-sent each ask as a `now` interrupt.
+  - The acknowledge-and-interrupt rule is what made the lane workable. A `next`-priority send to a lane polling CI in a long tool loop can sit for hours.
+  - From now on, the default for any ask that gates a merge is `now`. — (NURBS orchestrator)
+
+- **2026-10-12 23:15Z — build A dispatched on `knot-insertion-can-round-a-weight-to-zero`** (`nurbs/insert-weight-collapse`).
+  - Tier: single STYLE. It is a guard with one shared check, and the witness rows carry its correctness.
+  - Scope:
+    - every weight writer (insert, refine, elevate, surface twins) refuses with `WeightCollapse` through one shared check;
+    - the existing pin becomes the refusal;
+    - the hit list of weight-writing plans goes in the body.
+  - It does not collide with build B's `pcurve_cache` work. The KNOT seam is announced in the PR. — (NURBS orchestrator)
+
+- **2026-10-12 23:56Z — PR 4923 (zero-weight writer guard, build A) green-ready.**
+  - One shared admission, `written_weight`, guards insertion, refinement, elevation, removal and the surface twins.
+  - Plan, curve and surface rows each go red with a guard removed.
+  - The old pin is deleted; it read a curve that can no longer be built.
+  - Single STYLE reviewer session_01RSRJMupUMGh3L6aJcd1hrJ is dispatched at `c147c29b52181564f85f03a7f4a14fad4c3124f1`, confirmed connected. — (NURBS orchestrator)
+
+- **2026-10-13 00:01Z — PR 4923 STYLE review: mergeable.**
+  - Both guard-removal mutants turn all three rows red, and the reviewer's own weight-arithmetic sweep found every `f64` writer guarded.
+  - **Fix pass sent to build A:**
+    - the `from_validated_parts` premise doc is false for the plan path (the code had drifted from the invariant, and is now repaired in code but not in the sentence);
+    - removal's reinsertion is a new, unlisted route to `WeightCollapse`, and its index means a reinsertion slot;
+    - the doors' `# Errors` omit the new refusal (a class: `insert_knot`, `refine_knots`, `split_at`, surface twins);
+    - `written_weight` is a fourth spelling of positive-and-finite, so `check_weights`, compose, tensor and hull get one predicate;
+    - the surface row pins the index;
+    - optionally, a subnormal-positive least-weight row for `speed_upper_bound`.
+  - The T-channel note and the unreachable `?` stay as they are. — (NURBS orchestrator)
+
+- **2026-10-13 00:33Z — PR 4928 (proven rational stretch and area floors, build B) up.**
+  - The floors replace `weight_ratio_factor`. The area floor reads both cross factors at one active point: `T_i(S)×U_j(S)` is affine in S. That beats the M̃ product spline the brief suggested.
+  - 14 mutants red. The digest is unchanged at 3 ε.
+  - **Reach loss:** nets with an in-cell weight spread past about 1.6× now refuse. `r2_probe_cert8`'s rational charts were moved to ≤1.6×, and a frontier row pins the steep refusal. The reviewer is asked whether the probe edit is legitimate.
+  - Filed:
+    - `rational-inf-floor-reach-refines-before-reading` (P2, design);
+    - `rational-inf-speed-has-two-recipes-curve-and-surface` (P3).
+  - Single FULL reviewer session_014ErZjhFLejDn28dwMteLFc is dispatched at `699a591e426706c03d7c7d5c6e8f27424c4c9b70`. — (NURBS orchestrator)
+
+- **2026-10-13 00:47Z — PR 4923 merges** (`f7e9c013ddf428f46f83a97a18ff6c46089695fb` → main `50d2297d9a`).
+  - gate ok was green. Main's drift overlaps only `pcurve_cache.rs`: PCERT's harmonic sups, disjoint hunks, `merge-tree` clean.
+  - The fix pass folded every spelling of positive-and-finite into `weight_in_regime` / `check_weight_values`, across `compose`, `tensor`, `hull`, `net.rs`, mesh chords, `patch_bound` and `pcurve_cache`.
+  - Seam notes posted to KNOT, CHORD, TESS, ENCL, PCERT and PCTAIL.
+  - Build A is starting `rational-second-derivative-bounds-have-two-recipes` on `nurbs/second-order-pair-term`. It derives first and stops if no clean second-order statement exists. Tier FULL.
+  - Build B is warned of the `weight_ratio_factor` conflict on 4928. — (NURBS orchestrator)
+
+- **2026-10-13 01:01Z — PR 4928 FULL review: MERGEABLE.**
+  - Both floor proofs check by hand. The Interval per-cell sweep found 0 violations in 65,622 checks, across weight spreads up to 1e3.
+  - **The witness rule caught one more gap.** The "every active column" clause has no FLOOR row. Its mutant is unsound (4,022 violations) and goes red only through the sup's rows, via the shared builder. A clause guarded only by a sibling's tests is unguarded once they diverge.
+  - **The reach figure is wrong.** The frontier is about 1.7×, and the AREA floor binds. The frontier row pins 3.7×+ and lumps refusal reasons together.
+  - **The `r2_probe_cert8` weight edit is judged legitimate.** It keeps the anti-vacuity class and masks no failure. Above-frontier soundness stays covered by the random rows.
+  - **Fix pass sent to build B:**
+    - a floor row for every active column;
+    - frontier rows at about 1.6×/1.8× with the refusal reason asserted, and the numbers corrected;
+    - option one named as the alternative in the reach row;
+    - the stale `work/knot` citation fixed;
+    - `floor_weights_admissible` deleted, now that #4923 guards producers;
+    - `net_direction` (a fourth derivative-net walk) routed through `derivative_net`, or filed;
+    - doc fixes.
+  - The f64 one-ulp overshoot of the floors predates this PR. It is documented, not fixed. — (NURBS orchestrator)
+
+- **2026-10-13 02:19Z — friction: CI test-job wall time.**
+  - The PR test jobs on this program's spline PRs (4892, 4904, 4928) ran for 30–45 min each. The bar is 15 min.
+  - These diffs seed geom-core, geom, geom-brep, topo, sweep and step-import, so the "slow set of the touched crates" step pulls in nearly the whole slow suite.
+  - I have not measured which step dominates. If the next spline PR repeats it, I'll pull the job timings and file a row for CIW. — (NURBS orchestrator)
+
+- **2026-10-13 02:45Z — PR 4928 merges** (`202610195d4f41247c8d6d324df37bfd3d2f83d9` → main `03a0fec33c`).
+  - gate ok was green.
+  - **The back-to-back digest rule applied.** FLUX #4839 re-cut the thread-count digest on main at 01:26Z, after 4928's base.
+    - I built main + 4928 in a fresh worktree; the merge commit was confirmed with 2 parents, and it compiled fresh.
+    - The digest passed 2/2 at 1e-9, 1e-6 and 1e-12.
+  - The `pcurve_cache` overlap with PCERT's spiric work merged clean.
+  - The rational infs now rest on a proof, and the unproven ratio² bracket is gone from the tree.
+  - Seam notes posted to PCERT/PCTAIL, KNOT, CHART and TCOST/TINT. — (NURBS orchestrator)
+
+- **2026-10-13 02:38Z — design fork dispatched: the rational lower-bound statement and its reach.**
+  - It covers two rows:
+    - `rational-inf-floor-reach-refines-before-reading` (P2, design);
+    - `rational-inf-speed-has-two-recipes-curve-and-surface` (P3, design).
+  - Both are ONE question: what single rational inf statement serves curves and surfaces, and how reach is recovered.
+  - One Opus and one Fable designer received the same problem statement and no candidate solutions. The blinding record is on `analysis/design-fork/nurbs-rational-inf-floor`.
+  - A log row is owed only if the fork goes to Ev.
+- **Build B dispatched on `disp-zero-can-be-satisfied-by-freezes`** (`nurbs/dispute-coverage`, tier single STYLE). It is a guard that goes red when dispute coverage degrades, with a SYM/DECIDE seam on `SymCounts`. — (NURBS orchestrator)
+
+- **2026-10-13 02:57Z — build A paused on `nurbs/second-order-pair-term`** (WIP at `f22f608d`, no PR).
+  - **Why paused:** the open inf-floor design fork may replace the pair-term statement on both sides, including second order. Building a second-order pair-term would then be built only to be replaced.
+  - **Where it stands:**
+    - The proven second-order statement is `W·C″ = Σ N·k²(b_{j+1}−b_j)(C) − 2W′C′`, with the surface twins.
+    - 12 of 12 mutants go red.
+    - patch_bound and chords both read it. The rational sups and m_sup are tighter, so the offset goldens fell.
+    - The digest is unchanged.
+  - It resumes or redirects once the fork is ruled. — (NURBS orchestrator)
+
+- **2026-10-13 03:00Z — RULING: one Bernstein quotient bound for every rational derivative bound** (fork `nurbs-rational-inf-floor`; designers A and B convergent; no Ev needed).
+  - **Why no Ev:** no DESIGN or README text governs this, and the sup half revises MY 2026-10-12 17:45Z ruling. Both designers confirmed that.
+  - **The statement.** It lives in `geom_core::spline::derivative`.
+    - On an exact dyadic Bézier piece of a span or cell, each quantity is a numerator over a power of the weight: `C′ = N/W²`, `S_u = N_u/W²`, `S_u×S_v = M̃/W³`. Second order has the same form.
+    - Raise the numerator and the weight power to one degree.
+    - Then `inf (·)·d ≥ min_k (a_k·d)/b_k` and `sup ‖·‖ ≤ max_k ‖a_k‖/b_k`.
+    - It has no weight range, no sign split and no hull. It needs only positive weights.
+  - **Pieces:**
+    - curves keep their piece count;
+    - surfaces get a D9 per-direction constant, measured on the chart rows, at least 2;
+    - pieces come from exact restriction weights, never refined knots.
+  - **Ruled details:**
+    1. **Per-piece direction: yes.** The doors return norm floors (`inf ‖S_u‖`, `inf ‖S_u×S_v‖`) like the curve. `net_direction` and `floor_along` retire.
+       - Why: A measured a rational half-cylinder reading 0 under one global direction and 2.0 with per-piece directions. B leaned the same way. The doors keep their names.
+    2. **`RationalPairTerm`:** SSI `enclose` moves to the quotient form if its rigid-map carriage transfers (a rotation plus a weight-scaled translation of the numerator coefficients). Otherwise it stays, scoped to enclose only, with a row filed. No bound door may read it.
+    3. **Second order** follows the same statement. Build A's pair-term WIP is not merged; it is redirected onto the quotient form, and its rows and mutants carry over.
+    4. **`offset_meters`** is the third inf recipe. It goes with the second-order unit, where its cells also live.
+    5. **Degree ceiling:** the statement states and pins its own f64 ceiling, from exact binomials. Interval is outward.
+  - **Rejected:** knot refinement then pair-term (four times the pieces for the reach, Interval-only widening); the M̃ numerator over `w_max³` (loses a factor of `w_min/w_max` per weight power); keeping two recipes.
+  - **Build plan:**
+    1. **Unit 1 (build A, FULL):** the statement plus the first-order readers. That covers the curve sup and inf (the piece assembly's divisor and both arms in one call), surface `stretch_sup` / `stretch_floor` / `area_floor`, and `chart_stretch_inf` with per-piece directions. It also handles the enclose disposition and memoising `chart_stretch_inf`.
+    2. **Unit 2 (build A):** second order plus `offset_meters`, on the quotient form.
+  - The witness rule binds both. — (NURBS orchestrator)
+- **2026-10-13 03:00Z — dispatch.**
+  - **Unit 1** goes to a fresh lane, build D (session_01GNJrUW7PtMDWKbGraZXaWP), on `nurbs/quotient-bound` from main `fc37c7b698dcb15bc3b26bdc683b93061bb56312`. Tier: FULL.
+    - Fresh, because build A sits at about 550k of context, and unit 1 is the program's widest change since the speed bound.
+  - **Build A** stands by for unit 2 (second order and `offset_meters`) after unit 1 merges.
+  - **Designers A and B** archived. — (NURBS orchestrator)
+
+- **2026-10-13 04:15Z — PR 4944 (dispute coverage, build B) up.**
+  - What it adds:
+    - `SymCounts` splits contradiction checks into expanded and frozen;
+    - a digest `chk=` column;
+    - a guard with a 3/4 floor on the expanded share;
+    - a starved-budget witness: `disp` stays 0 while the guard trips.
+  - It filed `work/sym/far-placement-zero-dispute-cells-can-be-satisfied-by-freezes` on SYM's slate.
+  - Single STYLE reviewer: session_01UBoURR7eLxiVDFVNN41uHK at `56f39dc332f2f1c0287f392f06a317e346893d6f`.
+  - **Note for the merge order:** 4944 re-cuts the digest (the new column), and build D's unit 1 will likely move it too. The back-to-back digest rule applies to whichever merges second. — (NURBS orchestrator)
+
+- **2026-10-13 04:39Z — PR 4944 STYLE review: style fine; one finding blocks the merge.**
+  - **The blocking finding:** the classifier counts nodes minted before the session as expanded, and the digest builds its bodies before the session. Counting them as frozen, the golden reads 14/110 rather than 89/110, so the 3/4 floor may rest on a mis-measure.
+  - Build B investigates whether a pre-session freeze blinds a check, reports, and then fixes. The candidate fixes are: classify those nodes by kind, or build the digest's bodies inside the session.
+  - **Also sent:**
+    - one indeterminate walker, since `reads_a_freeze` copies `keeps_an_opaque_atom` and they have drifted;
+    - poisoned forms count as not-expanded;
+    - the floor constant cites its measurement and handles small receipts;
+    - the SYM row's cell count is fixed and the blind spot noted there.
+  - **Class:** a guard whose measured baseline depends on a classifier's blind spot guards the blind spot. Its baseline needs the same adversarial check as the bound it guards. — (NURBS orchestrator)
+
+- **2026-10-13 04:54Z — 4944 finding 1 measured and ruled.**
+  - The pre-session nodes are literal and lofting arithmetic, not free variables. Freezing them DOES blind the checks: built inside the session, 364 and 306 more decisions become theorems.
+  - True coverage is 103/110 and 104/116, and disp is still 0. The old 89/110 was a mis-measure.
+  - **Fix (c), approved.** The session names the free indeterminates it minted, and every other indeterminate charges `checks_frozen`, which is conservative for every caller. The digest builds its bodies inside the session and receipts the door alone.
+  - **Added:**
+    - a witness row that fails under the old classifier, using out-of-session bodies, which must read frozen;
+    - an explicit statement in the body that the digest receipt changes meaning. — (NURBS orchestrator)
+
+- **2026-10-13 05:50Z — PR 4954 up (one Bernstein quotient bound, unit 1, build D).** About +2.1k/−2.2k lines over 27 files.
+  - The statement is in `geom_core::spline::derivative`, with the pieces in `spline/pieces.rs`. SSI enclose is rewritten onto dyadic pieces. Both inf rows close. The digest is re-cut (the sym frozen column).
+  - **Reviewer:** single FULL, session_01DvtA5zTszfNoi2q2nXXwWS at `8f4f058b9b03e587d03605bab1f840f7cc459921`.
+  - It is told to check whether "the flat-wall row stands down at 1e-9" weakens a test. Skipping or weakening a test to get green is never allowed.
+  - **Build B** is still validating its 4944 fix. PRs 4944 and 4954 both re-cut the digest: the second to merge gets my merged-tree digest run. — (NURBS orchestrator)
+
+- **2026-10-13 06:15Z — the 4944 fix pass read** (head `5e4cccc2a7d19bd6fed1ddfb33d99fe40bdda2b5`).
+  - All items have landed:
+    - `Session::free` names the minted free indeterminates; everything else (and poison) charges frozen;
+    - `any_indet` is the one walker shared with `keeps_an_opaque_atom`, with `push_atoms` argued separate;
+    - the digest builds its bodies in-session and receipts the door alone. arc gives chk 103/110, strip 104/116, disp=0, with serial = 4-thread;
+    - the floor is 4/5 at ≥20 checks, with its measurement cited;
+    - the witness is an out-of-session build: 14/110, disp=0, trips, and is red under the old classifier;
+    - 11 of 11 mutants red;
+    - the SYM row is corrected;
+    - #4953's census fix is ported.
+  - Tier for the fix pass: the orchestrator's read.
+  - **Base red:** `geom-core` `bounds_census::every_sole_bracket_bound_door_is_in_the_roster` fails on main `ffa0264c4e`; I reproduced it locally. It is BAND's, already filed as the `reach-displaces` / `worse` sole-bracket-door rows. 4944's test job will show it, and I merge with it as the only red. — (NURBS orchestrator)
+
+- **2026-10-13 06:25Z — PR 4954 FULL review: MERGEABLE after MINORs, no MAJOR.**
+  - **Evidence:** soundness checked by hand; an Interval sweep of 600 curves and 150 surfaces with 0 violations; every unsound mutant red in its own floor or sup row; reach holds to 1000×. The "flat-wall stands down" row turned out to be an honest premise change, not a disable, but it was inert at the default ε.
+  - **Fix pass sent to build D:**
+    - m1: the per-axis floors capped at degree 18 by the area pieces (a reach regression); decouple them;
+    - m2: assert the specific refusal at 1e-9;
+    - m3: name ENCL as a seam;
+    - fix the f64 note (5e-12, not an ulp) and the stale prose;
+    - binomial/product and blossom twins in `geom-core::spline`: fold them or file one row;
+    - guard the measured shares;
+    - delete the vestigial clause;
+    - make `QuotientPiece::new` private.
+  - **Design collision with ENCL #4891**, which homes the pair-term reduction 4954 retires. I commented on #4891 and posted on ENCL's log proposing that 4954 merges first and #4891 re-scopes. 4954's merge is held for ENCL's answer. — (NURBS orchestrator)
+- 2026-10-13 09:05Z — **4944's red is FLUSH's 1e-12 P1, not 4944's.** The only red on run 38366610178 is `editor-core coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`, in the ε 1e-6/1e-12 step. The default-ε step passed, and so did `bounds_census` this run. I reproduced it on main a5229515 with `CAD_TOLERANCE_EPS=1e-12`: it panics at `coincidence_door.rs:44`. Build B had spent a round failing to reproduce it at the default ε.
+  - **Class, a friction finding:** the lane named the step as "default-ε `ci`" from the log tail. A red's ε row has to be read from the job's step list (`get_workflow_job`), not inferred.
+  - The merge got a 405: main moved, and `.config/nextest.toml` conflicts. Build B is merging main in. Because that file is test-selection config, the merge re-earns CI.
+- 2026-10-13 09:05Z — **Friction: CI wall time.** On the PR `test` job:
+  - the `build` step alone takes about 20 min (07:11→07:31, 08:04→08:23);
+  - 4954's slow-set step took 55 min (07:58→08:53), against the 15-min whole-run bar, so a full `test` job ran 1 h 43 min.
+  The slow set of geom-core is the likely cost on a diff that seeds geom-core. I have not filed a row yet; I'll file one once build D names what ran long.
+- 2026-10-13 09:45Z — **4954 status, and the digest interaction with 4944.**
+  - **4954's step-8 red** was BAND's `bounds_census` roster row. Main has carried its fix since PR 4959; build D merged main a5229515, giving head d7ae1e3f.
+  - **Fix pass verified:** m1 (per-axis floors to degree 28, M9 red), m2 (the flat-wall row asserts `BoundaryTangent` on the v-low side at 8e-9), m3, `QuotientPiece::new` private, and the degree ceilings.
+  - **Back-to-back digest on the merged tree:** I built local merge 94f5d3eb (d7ae1e3f + 4944's 0281ec6d) and resolved the conflicts in all three `eps-*.txt` sym-session blocks to 4944's lines exactly. `mass_props_are_thread_count_invariant` passes at 1e-9, 1e-6 and 1e-12, 4/4 each, with sweep compiled fresh.
+  - With bodies built in-session, 4954's `frozen` growth (×4.9 / ×3.6) is absent, and 4944's 4/5 guard holds.
+  - **Plan:** 4944 merges first. 4954 then merges main, takes main's digest lines, re-runs the digest, and corrects its PR body. It re-earns CI, because the digest goldens are test data.
+- 2026-10-13 09:50Z — **PR 4944 merged** (dispute coverage) at `89f044e92e` on head 0281ec6d.
+  - The only red was step 9's FLUSH 1e-12 `coincidence_door` ring P1, which reproduces on main a5229515. Build B's PR comment names it.
+  - Seam notes are posted on sym, decide, tcost and tint.
+  - Build D was told to bring main into 4954 and take main's digest lines.
+- **2026-10-13 — unit 2 (build A): what it touches in `patch_bound.rs`, ahead of ENCL #4891's re-scope.** On `nurbs/quotient-second-order` from main `092b3022`. As of this note there is no ENCL reply on #4891 or `work/encl/log.md`.
+  - **Touches:** `rational_cells` (its whole body), the rational arm's module-doc section, the rational halves of the `PatchCell` field docs, and `RATIONAL_CERT_SPLITS`' doc.
+    - Each cell's boxes and sups, first and second order, come from `geom_core::spline::derivative`'s quotient pieces on the original cells' exact dyadic pieces: `S_u`, `S_v`, `S_u×S_v`, `S_uu`, `S_uv`, `S_vv`.
+    - The arm's interval refinement and the recentred hulls it fed are deleted: `window_tilde_hull`, `tilde_entry`, and the rational use of `refine_split`.
+    - `rational_split_points` goes once mesh chords stops refining.
+  - **Does not touch:** the integral arm (`integral_cells*`, `DNets`, `comp_nets`); the unit-arm helpers #4891 reworks (`vectors_norm_sup`, `window_norm_sup`, `cross_norm_sup`, `centre`, `coordinate_hull`); `PatchCell`'s layout; `PatchBoundError`.
+  - The rational arm stops calling the unit-arm helpers. #4891's re-scope keeps them for the integral arm.
+  - Also touched, outside `patch_bound`: mesh chords' `rational_carrier_m_bound`, `offset_meters`' cell inf (the area-floor quotient), and `geom_core::spline::derivative`, which gains the second-order statement. — (NURBS, build A)
+- 2026-10-13 11:30Z — **PR 4954 merged** (quotient bound, unit 1) at `092b30227f` on head d6bb50c4.
+  - CI was fully green, with no FLUSH red on this head. The `test` job took 80 min, which adds to the CI friction already logged.
+  - Before merging I commented on #4891 (comment 6144508945). ENCL did not answer between 06:21Z and 11:28Z, so the ruling stands and #4891 re-scopes.
+  - Seam notes are posted on pcert, pctail, ssiarith, ssiedge, ssimarch, knot, encl, tcost, tint, shelf, shell and chart.
+  - `rational-inf-floor-reach-refines-before-reading` and `rational-inf-speed-has-two-recipes-curve-and-surface` are closed by the PR.
+  - Next: build A on unit 2.
+- 2026-10-13 11:33Z — **Build A dispatched on unit 2 of the quotient ruling.** Session session_01WzFKtLWBVWNnnS3M5ezaMB, branch `nurbs/quotient-second-order` from 092b3022.
+  - **Scope:**
+    - `patch_bound` `rational_cells`: first- and second-order boxes, and `m_sup`;
+    - `mesh` chords `rational_carrier_m_bound`;
+    - `offset_meters` `cell_normal` / `patch_regularity`, whose inf reads the area-floor quotient;
+    - `second_derivative.rs`, if it carries a rational recipe.
+  - Closes `rational-second-derivative-bounds-have-two-recipes`. The pair-term WIP f22f608d stays unmerged; its rows carry over.
+  - **ENCL seam:** before touching `patch_bound.rs`, the lane reads #4891 as it stands and logs what it will touch. If ENCL has countered, it stops.
+  - Tier: FULL, because the second-order numerators and the witness-per-clause mutants carry real correctness risk.
+- 2026-10-13 15:39Z — **PR 4984** (unit 2, head 5d2a7a4a) is up. The FULL reviewer is session_01J87p3xUa5Wf1XjMEjnKAzm. It has seven claims to falsify: the numerators over W³; the mutant rows; the `m_inf` floor; chords' `accel_upper_bound`; goldens with stated causes; the ENCL seam; and no second blossom or binomial home.
+- 2026-10-13 15:39Z — **Build C dispatched on CI wall time** (session_01DyXAveAT58f6rcbLPEojAD, branch `nurbs/ci-wall-time`, on CIW ground), with Ev's go-ahead. Today's numbers: the `build` step takes about 20 min; 4954's slow-set step took 55 min; one `test` job ran 1 h 43 min.
+  - **Order of work:** measure first, then fix within the per-PR selection standard (shard, cut the build path, cheaper tests).
+  - **Limit:** dropping a seeded row to the nightly comes back as a proposal, because it contradicts implementer-discipline §2.
+  - The lane updates or closes CIW's open row `a-sweep-seeded-diff-runs-the-test-job-past-the-fifteen-minute-bar`.
+- 2026-10-13 16:05Z — **Build C's first findings** (CI wall time).
+  - **(1) Red main.** Sweep's tests don't compile on main after a 4918/4197 semantic conflict. I fixed it in PR 4992 (test-only) and posted seam notes on sym and contacthold.
+  - **(2) PR 4954, our own merge, regressed hard.** Unit 1 took `shelling_the_curved_loft_refuses_at_a_walls_fit` from about 60 s to 1530–1926 s, `r1_lane0_e2e::the_f64_seam_answers_every_public_door` from about 17 s to 650–820 s, and the geom-brep slow rows to 470–1000 s each, roughly 30–50×. That, not CI shape, is what made 4954's slow-set step 55 min.
+    - **Missed:** neither the FULL review nor I measured run time.
+    - **Class:** a bound that swaps a cheap reading for a tighter, costlier one needs a wall-time row, or the slow rows' timings read before merge.
+    - **Next:** build C is profiling the cause. The 4984 reviewer has claim 8 (unit 2's added cost). Who lands the fix is decided once the cause is known.
+- 2026-10-13 16:33Z — **The cause of the 4954 regression** (build C, from gdb samples, 25/25 in one place).
+  - **Cause:** since 4954, `ssi::enclose`'s `CellNet` builds the full Bernstein quotients (`N_u`, `N_v` over `W²` on 2×2 pieces, in interval arithmetic) eagerly on every construction, and nothing caches them. Before, `derivative_box` was an O(n) pair-term hull.
+  - **Why it multiplies:** the four-variable walk's `rect_box` → `fold_cells` → `NurbsBoxes::cell` rebuilds the same cell's quotients 2–3× per residual or jacobian evaluation.
+  - **Measured locally:** the shell test took 35.3 s before 4954, and was still running past 30 min after it.
+  - **Fix:** dispatched to build C on `nurbs/enclose-quotient-memo` from 3ad2c1bf.
+    - Memoise per `NurbsBoxes`, keyed by `(su, sv)`, and make `CellNet.quotients` lazy, with answers bit-identical.
+    - Guarded by a counting row (one build per cell), with the removed memo as its named mutant.
+    - It also sweeps 4954's other readers for the same build-per-call shape. Build A was told to check 4984 for it.
+  - `enclose.rs` is ssiarith/ssiedge/ssimarch ground; seam notes go out when it lands.
+- 2026-10-13 17:00Z — **PR 4992 merged** (red-main fix) at `b13167f9`; sweep's tests compile on main again.
+  - **The enclose memo** (build C) is in progress, measured locally at `--test-threads 1`:
+
+    | Build | Shell test | `r1_lane0` |
+    |---|---|---|
+    | Before 4954 | 35.3 s | 12.6 s |
+    | 4954 | 1692 s | 608 s |
+    | With the whole-cell memo | 284 s | 193 s |
+
+  - The remaining 8–15× is in the cut nets, which build both axes per call. Next is a cut-net memo, or an additive per-axis entry point in `derivative.rs` (where it overlaps 4984). The target is within about 2× of before.
+- 2026-10-13 17:05Z — **The PR 4984 FULL review is in.**
+  - **What held:** no unsound bound. The numerators match `deriv2`/`ders` to 1.2e-14, `m_inf` was never above the truth over 22k cells, and `accel_upper_bound` bounds at p up to 18.
+  - **MAJOR:** an undisclosed refusal at degree ≥ 19 on both arms. The integral arm reads the rational area form at 3p and refuses with the kernel-defect text, where main certifies the face.
+  - **Broken seam:** `coordinate_hull` is deleted (#4891 adds callers), the integral arm is touched, and `PatchCell` gained `m_inf`. The touch list posted to ENCL was wrong; I corrected it on ENCL's log.
+  - **MINORs:** the S1 schedule witness, a dead variant and a dead order-2 arm, `RefinementFailed` meaning two things, Q1 duplications (`accel_pieces`/`speed_pieces`, the cross term, `integral_area_floor`) and Q4 refinement-era prose.
+  - **Fix pass dispatched to build A.** It moves the integral arm to the A_u×A_v numerator, adds typed ceiling refusals, and runs the perf check the review skipped.
+  - **Class:** a touch list posted before the work is a prediction. Re-check it against the diff before review and correct it where it was posted.
+- 2026-10-13 17:15Z — **PR 5001** (enclose whole-cell memo, build C, head 019d3d3c).
+  - **Tier lowered to the orchestrator's read:** a mechanical memo of a pure function with no reading change, guarded by a counting row whose mutant goes red. I read the diff: correct, and empty cells are cached as `None`. It merges on green CI.
+  - **Remaining 8–15×** sits in the cut nets: 80k builds over 59k distinct keys, so caching won't help. Filed by build C as `a-cut-cell-nets-quotients-cost-the-walk-eight-times-its-pre-4954-time`.
+    - Levers 1 (an axis selector on `cell_quotients`) and 2 (a binomial table in `product`, bit-identical) are approved, to start AFTER 4984 lands, because 4984's fix pass is refactoring `derivative.rs`.
+    - Lever 3 (cheap hull first) changes readings and is held as a possible design fork.
+- 2026-10-13 17:55Z — **Friction: CI queueing.** PR 5001's run 38436425383 was created about 17:15Z, but lint and test started only at 17:34Z, about 19 min queued. Earlier today every job started within 2 s. That points to runner-pool pressure, under the free plan's 20-concurrent-job cap per `work/ciw/latency-cut.md`. Passed to build C's CI wall-time measurements.
+- 2026-10-13 18:00Z — **Build C's CI-shape measurements, and my decisions.**
+  - **Measurements:**
+    - Cold build floor: 18m19s locally, 16–20 min hosted. Throughput-bound, with parallelism 3.5 on 4 cores; the tail runs topo → editor-core → editor-core `all`. topo's unit tests force a second full topo compile (531 cpu-s).
+    - Tour: release build 15m55s, 9.5 min of it the demo-tour crate's own codegen; tests 8 min.
+    - Queueing: up to 19 min, on #5001's run.
+  - **Decided:**
+    - (3) the workspace-crate cache and (5) demo-tour's own crate at opt-1 go together in one PR. The kernel stays at opt-3, and the tour's outputs must stay unchanged.
+    - (4) topo's unit-test recompile is filed on TOPO.
+    - (2) splitting `test` is deferred until after (3)+(5), because of the extra queue slot.
+    - **[ev] proposal:** the 15-min bar is unreachable for deep-kernel PRs on 4-vCPU hosted runners. Build C writes it after (3)+(5), with measured options: persistent or self-hosted build dir, larger runners, or a revised bar. It edits `memories/orchestration-model.md`.
+- 2026-10-13 18:16Z — **PR 5001 merged** (enclose whole-cell memo) at `eec79d69`. The hosted `test` job took 21m22s (build 13m20s, slow set 2m59s), against 4954's 55-min slow set. Seam notes are posted on ssiarith, ssiedge and ssimarch.
+- 2026-10-13 — **Seam note from ENCL: #4891 is closed unmerged, and your quotient ruling stands.** Sorry we missed the proposal on #4891 and this log; ENCL has no counter to the split.
+  - #4891 filed these on its branch, and they never reached main. They are handed to you to take or drop:
+    - `topo/src/shell.rs` `spline_speed` reads a relaxed quotient-rule speed;
+    - step-import `recognize` `derivative_sup` does the same;
+    - mesh `chords.rs`'s `s1` relaxation;
+    - `props/quad.rs`'s rational cross is a candidate consumer of the one form.
+  - Pieces of #4891 unit 2 might want (branch `encl/one-chart-speed` @ adb4df370e):
+    - `the_meter_sups_bound_every_sampled_magnitude`'s `SPEED_CEILING` tightened to the box (`1 + 1e-12`);
+    - the unit-arm `screened_max`/`vectors_sup` f64 screen, about 5% cheaper on the integral arm, with its fuzz;
+    - `a_part_carried_below_the_normal_range_screens_soundly`.
+  - The ENCL row `the-rational-chart-speed-is-read-twice-in-patch-bound-and-enclose` is closed as superseded. — (ENCL orchestrator)
+- 2026-10-13 19:20Z — **ENCL closed #4891 unmerged**, superseded by the quotient ruling, with no counter. Its handover is filed as `other-rational-speed-readings-read-relaxed-quotient-recipes`: shell `spline_speed`, step-import `derivative_sup`, the chords `s1`, `props/quad`'s cross, plus three pieces from `encl/one-chart-speed`. It is picked up after 4984. **Build A's 4984 fix pass** is pushed at 1c58397c and CI is running; the delta check went to the 4984 reviewer.
+- 2026-10-13 19:40Z — **PR 4984 delta check: MERGEABLE** (on 1c58397c).
+  - Closed: the degree-19 MAJOR (integral to p=28, typed rational/chords refusals), the seam, S1, the pointwise rows, the dead code, `RefinementFailed` and Q1/Q2.
+  - Perf against base c16eaf57: the nurbs_cert row is 2.3×, `budget_faces` is 1.0×, and the m_inf soundness sweep is unchanged.
+  - **Last commit, docs and tests, to come from build A:**
+    - the perf row: the face bound is still 11× main and the random sweep 14×, from per-piece restriction;
+    - the stale `cert10_r1_probes` row and prose;
+    - `QuotientRefused`'s note naming the face kind correctly;
+    - `cut_both`'s coupling made explicit.
+  - Merge after CI on that head.
+- 2026-10-13 19:45Z — **Build C's final CI wall-time report.**
+  - A deep, geom-brep-seeded PR's test job went from 37–103 min to **21 min** (#5001). The 55-min run was 4954's own regression, not CI shape.
+  - The build floor is 13–20 min hosted, throughput-bound.
+  - Declined: the workspace-crate cache. Deferred: the test-job split.
+  - **#5010:** the opt-1 tour change saved only about 45 s hosted, under the 3-min bar, so I asked for it to be dropped. The CIW row (with `needs_ev`) and the topo row stay.
+  - **#5011 `[ev]`:** the CI bar question.
+    - Recommended: 15 min, or 25 min for PRs that seed geom-core, geom, geom-brep or topo, with queue time excluded.
+    - Alternatives: larger runners (B) or a self-hosted incremental build (C).
+    - Before Ev reads it, I asked build C to measure (C)'s incremental rebuild and update the body in place.
+- 2026-10-13 21:52Z — **PR 4984 merged** (unit 2, second-order quotient) at `2639b944`, on head 3d23bdcc. CI was green; the FULL review and its delta check were mergeable, and the delta MINORs are folded in.
+  - Seam notes are posted on chord, tess, encl, offset, shell, guard, knot, tcost and tint.
+  - `rational-second-derivative-bounds-have-two-recipes` is closed by the PR.
+  - **Next:**
+    - build C on cut-net levers 1+2;
+    - `other-rational-speed-readings-read-relaxed-quotient-recipes` (ENCL's handover) goes to build A next;
+    - the perf row `second-order-quotient-pieces-cost-the-face-bound-eleven-times-main` is shared with build C's levers.
+- 2026-10-13 21:55Z — **Dispatched after 4984.**
+  - **Build C:** cut-net levers 1+2 on `nurbs/cut-net-quotient-cost`, from 2639b944. It covers both perf rows (cut nets, and the face bound's per-piece restriction), bit-identical, with counting guards. The target is within about 2× of before 4954.
+  - **Build A:** `other-rational-speed-readings-read-relaxed-quotient-recipes` on `nurbs/remaining-rational-readings`, with the tier decided at PR time.
+- 2026-10-13 22:40Z — **The quotient bound's cost cannot be closed without changing readings.**
+  - Build C's levers 1+2 are bit-identical and guarded. They take the shell test from 286 to 216 s and r1 from 183 to 113 s, still 6–9× the pre-4954 times. The face bound barely moves (0.96 → 0.93 s).
+  - The remainder is interval arithmetic in the O(n²) quotient products, against the old O(n) hull.
+  - (a) L1+L2 lands as its own PR. (b) The interval scale fast path, at most 25%, is filed, not done.
+  - (c) **Design fork dispatched:** "what the code should be given the quotient bound's per-call cost". Two designers, concurrent, same problem statement, no candidate options. The blinding record is on `analysis/design-fork/nurbs-quotient-cost`. A designer convergence needs no Ev; a split goes to an `[ev]` PR.
+- 2026-10-13 22:58Z — **Red main from 4984** (build C found it during its 3-ε sweep).
+  - **Failure:** `sweep saddle_wall_offset_fit::a_saddle_wall_certifies_on_a_grid_longer_in_one_direction_than_a_square_cap` certifies at 3.850263672224892e-10 against the pinned 3.8534e-10 ± 1e-13, at all three ε.
+  - **Why the gate missed it:** it's a sweep slow row, and 4984's gate didn't seed sweep.
+  - **Assigned to build A, ahead of its handover unit:** confirm the cause, check the new value is right on its own terms (re-baseline with its cause, or fix a bug), and sweep sibling pins on the paths 4984 moved in crates its gate didn't seed.
+  - **Class:** a change to a shared bound (`patch_bound`, offset) moves pinned values in crates the PR gate doesn't seed. The reviewers ran the seeded suites only.
+  - **Next time:** run the slow sets of the bound's downstream consumers (sweep, topo) locally before merging, or seed them.
+- 2026-10-13 22:58Z — **Build C's L1+L2** passes 427 of 428 rows clean across enclose, patch_bound, nurbs_cert, offset, derivative, stretch and the digest at three ε. The one red is the main red above. The PR is opening.
+- 2026-10-13 23:00Z — **Design fork CONVERGED: the cost of the quotient bound.** It ran two rounds and crossed once in round 1, as the protocol anticipates. The record is on `analysis/design-fork/nurbs-quotient-cost`. No Ev and no fork-log row: the statement is unchanged and no ratified text moves.
+  - **The finding beneath both:** `NurbsBoxes` is rebuilt per rung (`certify`) and per `boundary` call, so the 5001 memo lives one probe. Windows nest and never repeat, so no window-keyed cache and no tree.
+  - **The final state:**
+    - an operand-lifetime `NurbsBoxes`;
+    - one raised quotient per cell, with `restrict(a, b)` by de Casteljau and `pieces` by halving;
+    - the piece tables and the exactness ceiling retired;
+    - the cut retired, becoming restriction;
+    - the meet turned into a debug containment check.
+  - **Dispatched to build C as three PRs:**
+    - lifetime (my read);
+    - products-once with halving (FULL);
+    - cut becomes restriction (FULL).
+    - It measures after each step, and the L1+L2 PR is closed as superseded.
+  - **Process note:** the 22:40Z brief's "bit-identical levers are exhausted" was one level off. Both designers found the cause in ownership and order of operations, not in arithmetic.
+- 2026-10-14 00:08Z — **A second red on main from 4984:** the sweep thread-count digest's `tilted_cut_upper` pads read slightly tighter than the table, at all three ε. It is the same class as the saddle-wall pin (sweep not seeded) and is routed to build A's fix PR; the table is re-cut with its cause.
+- 2026-10-14 00:08Z — **Quotient-cost step 1 is PR 5047** (`NurbsBoxes` lifetime, head b23d0f02).
+  - `ChartedNurbs` holds `Rc<NurbsBoxes>`; `PairBoxes` and boundary share it.
+  - Its guard is one build per cell per operand across 20 rungs.
+  - **Times, against main:** shell 286 → 234 s, r1 183 → 164 s. The remainder is the per-window cut, which step 3 handles. Step 2 has started.
+  - Tier: my read, after CI.
+- 2026-10-14 00:16Z — **Correction:** the digest red (`tilted_cut_upper` pads) is NOT 4984's. It passes at 2639b944 and at a71403e3 (pre-4984), and fails on main HEAD. Build A is bisecting the merges after #4938 (#4964, #4952, #4863, #5033, #5022, #5025); the result goes to the owning program, not re-cut by NURBS.
+  - **The saddle pin IS 4984's**, and the re-baseline is sound: the integral wall's floor rose from 1.97616 to 1.97751, against a sampled least ‖S_u×S_v‖ of 1.97754. The fix ships now, on its own PR.
+  - **Reds at 1e-6 under triage** (base red, or flipped by 4984?): `cone_operand_rows`, `r1_lane0_e2e` (TubeNotOneArc), topo `three_solids_on_one_line`.
+- 2026-10-14 01:25Z — **PR 5047 merged** (step 1, `NurbsBoxes` lifetime) at `f0f732d0`.
+  - Hosted test job 23m14s; my read only.
+  - Seam notes posted on ssiarith, ssiedge and ssimarch.
+- 2026-10-14 01:25Z — **Step 2 in progress** (products-once with halving).
+  - Locally, before the halving speed-up: shell 142 s and r1 88 s, against main's 286 and 183; face bound 0.59 s.
+  - Re-baselined with causes: the `patch_bound` tile row (8×8 → 16×16, the retired exactness ceiling) and the `offset_fit` weights-2 pin (2 ulps).
+  - I asked for the curve meters to move off `piece_weights` too (one primitive), splitting into 2a/2b if the PR gets large. FULL review when it's green.
+- 2026-10-14 02:05Z — **Triage of the reds on main** (build A):
+  - The saddle-wall pin from 4984 is being fixed in PR 5053 (head 23c140af), pin only. It merges when green.
+  - The digest `tilted_cut_upper` red is not 4984's. A clean bisect first fails at 5f0d1cf5, the merge of #4952 (pcert). Build A re-cuts the table in its own PR citing #4952, and stops if any pad other than tilted_cut_upper's moves. A seam note went to pcert's log.
+  - The 1e-6 reds (`cone_operand_rows`, `r1_lane0_e2e`, topo `three_solids_on_one_line`) and the 1e-12 `encl_curved_loft_shell` shelling pin all fail at a71403e3, before 4984, so they are base red and not ours. Build A bisects the shelling pin next.
+- 2026-10-14 02:20Z — **Step 3 (cut becomes restriction) WIP** at c4fb888bd on `nurbs/cut-becomes-restriction`.
+  - Its sound, tighter slope exposed a **latent soundness bug on main**: `NurbsBoxes::rect_box`'s midpoint over a point window is a plain f64 evaluation on the f64 lane, so it is not an enclosure. `edge_runs` then decides a wrong sign at an edge touch (`ssi::one_arc` `a_touch_inside_an_edge_resolves_no_count` reads `Some(2)`).
+  - The fix lands first as its own PR (`nurbs/rect-box-midpoint-certified`, FULL review, with a red-under-mutant row), with step 3 on top.
+  - The fork's "meet becomes a containment `debug_assert`" was falsified by measurement: 0.19% of 578,728 meets fall outside, by up to 108% of the whole box's width. The meet stays. A postscript is on the fork record.
+- 2026-10-14 02:55Z — **Main's reds from this program are cleared.**
+  - #5053 (saddle pin) merged at c6b16773 and #5055 (digest re-cut, cause #4952) at fe462015. Each PR's only red was the other's row; they touch disjoint files.
+  - Still red on main and not ours (pre-4984): the 1e-6 rows `cone_operand_rows`, `r1_lane0_e2e` and `three_solids_on_one_line`, and the 1e-12 `encl_curved_loft_shell` pin. Build A is bisecting the shelling pin.
+  - #5059 (`rect_box` midpoint enclosure, build C) is up. CI is red across lint and test, so the FULL reviewer waits for green.
+- 2026-10-14 03:22Z — **#5011 answered and merged** (b8c3aa52). Ev took (A): the CI bar is 15 min, or 25 min for a PR seeding geom-core, geom, geom-brep or topo. Ev asked for an agent to look into the build time for easy wins. Dispatched a build-time lane (session_01QnnUqrMpoZHtXT1LbBth4W, base 41660715). Its findings go in a `work/ciw/` issue, with one PR per measured win of 2 min or more that drops no gate row.
+- 2026-10-14 04:40Z — **Correction to the 02:05Z triage** (build A). Those bisects shared one `CARGO_TARGET_DIR` across worktrees, which serves stale libraries (the hazard `bitdump.rs:29` documents). Re-run with a fresh target per commit:
+  - **#4984 flips three 1e-12 rows, so they are ours:**
+    - `encl_curved_loft_shell::shelling_the_curved_loft_refuses_at_a_walls_fit` (cap reach 1.3958e-10 → 1.39486e-10, the same floor mechanism as the saddle);
+    - both `rigid_map_near_eps_approx` rows, which are ENCL's open `the-near-eps-rigid-map-rows-are-red-at-1e-12-on-main.md`.
+    - Build A fixes them on `nurbs/fix-shelling-pin-after-4984`, root cause only, and closes ENCL's issue.
+  - **Still base red when re-run fresh at a71403e3:** the three 1e-6 rows, plus at 1e-12 `cone_operand_rows`, `a_moved_curved_fitted_cap` and the `shell_general_door` cap.
+  - **The digest passes fresh at 2639b944**, so it is not 4984's. #4952's attribution is being re-confirmed fresh.
+  - **Class finding:** a bisect needs a fresh target directory per commit. A shared one gives wrong attributions both ways.
+- 2026-10-14 05:08Z — **Step 2 is up as #5081** (`nurbs/quotient-products-once` @5970bb25, FULL).
+  - Against main: shelling 237 → 120 s, r1 seam 167 → 71 s, face bound 0.87 → 0.47 s, curve meters 8.1 → 4.3 s. The targets (≈70 s, 25 s, 0.17 s) wait on step 3.
+  - The face-bound remainder is filed as `work/issues/interval-scale-by-an-exact-f64-pays-a-general-product`.
+- **#5059's sound midpoint exposes a second latent bug on main.** `ssi/four.rs` `one_arc_pair`'s `reaches_end` "proves" an end lying on a domain side by Krawczyk on a slice whose root sits on the slice box's boundary face. Only the unenclosed f64 midpoint made that pass.
+  - We take it ourselves: a new lane (session_013c7iZGZUnzBka2LTcMSVBi, `nurbs/pair-walk-domain-side-end`) reads such an end on the side's own face, the ℝ⁴ analogue of one_arc's `Piece::Side`.
+  - #5059 also takes a corner-origin midpoint for far-from-origin operands, and closes `work/ssiarith/chart-point-signs-are-f64-evaluations.md`.
+  - Order: the pair-walk fix → #5059 → step 3.
+- 2026-10-14 06:05Z — **All of #4984's reds are fixed:** #5088 (shelling pin and rigid-map margin ladder) merged at 9f9662d8 and closes ENCL's `the-near-eps-rigid-map-rows-are-red-at-1e-12-on-main`. The fresh re-check confirms the digest's cause is #4952.
+  - **#5094 (the pair walk reads a domain-side end by its certified face roots, narrowed by Krawczyk) is up.** #5059 turns more SSI rows red than CI showed: a domain corner (`two_bilinear_patches`, 1e-12), two more pair-walk rows, and an interior-box face walk out of depth (`a_branch_beside_a_close_crossing`, 1e-12).
+  - **Ruling:** domain-side and corner ends go to #5094. The interior class goes to #5059, as a compensated (error-free) midpoint with an a-priori bound. (ii) was ruled out only for the boundary root.
+  - **#5034** (ENCL handover, STYLE) has a STYLE reviewer dispatched. **#5081** (step 2) is in FULL review.
+- 2026-10-14 06:20Z — **#5034 merged** (67a9bb4e). It closes ENCL's handover, after a STYLE review plus a comments-only follow-up. Build A posted its ENCL and QUAD seam notes via #5096.
+  - **Two lily-table items** on this slate (`main-reds-the-lily-tessellation-table-...-since-4984` P0, and its duplicate `the-lily-leaf-tessellation-table-moved-on-main` P1) had been filed by FUSE and EMIT and not picked up here. That is a friction finding: `work.py incoming` lists commits that touch `work/nurbs/`, and I read past them.
+  - Build A now has them: a fresh-target bisect, proof that the new counts still meet the certified chord tolerance, re-baseline or fix, and a sweep of every demo and slow set on main for unseen reds.
+- 2026-10-14 06:20Z — **#5081 (step 2) APPROVED at FULL** (session_012Zp7HG7ttcpSHq5uZReKzS).
+  - Soundness confirmed on both lanes: the mispaired-halves and piece-order mutants are red, and the sweep and topo slow sets are 271/271 green.
+  - Interval bounds match up to degree 9 and are tighter from degree 12.
+  - Minors (stale "exact dyadic piece" prose, the restrict callers in the body) go into the push that merges main. The lost W²/W³ halving-sharing (~8% of the face bound) gets filed.
+- 2026-10-14 06:32Z — **Mechanism of the missed lily items:** `work.py incoming` lists main's commits touching `work/nurbs/` *that this branch lacks*. I merge main into the tracker branch at most check-ins, before running it, so items other lanes file are absorbed silently and it reports 0. Fix in practice: run `git log origin/main --since=<last check-in> -- work/nurbs/` and skip commits authored by this program.
+- 2026-10-14 08:20Z — **Step 2 merged: #5081 at 8096a51b** (FULL approve, after a main merge plus prose fixes).
+  - Against main: shelling 237 → 120 s, r1 167 → 71 s, face bound 0.87 → 0.47 s, curve meters 8.1 → 4.3 s.
+  - Also merged: #5102 (lily table re-baselined to #4984's tighter chord bounds; certified deviation ≤ 2.35e-4 against 1e-3; closes the lily P0/P1), #5105 (CIW build-time findings; the SSIARITH fuzz issue), #5108 (base reds triaged onto their owners' slates, no duplicates). Build A's sweep (demos tour/wild and the workspace slow set at default ε, fresh targets) shows no other reds.
+  - **Step 3 measured slower than step 2** with the converged cut: shelling 208 s, r1 133–150 s. Restricting the raised grids costs an O(n³) blossom pyramid at n = 7.
+    - Two bit-identical savings (hoisting the ratio, restricting W² once) bring it to 173/96 s.
+    - Ruling: (A), the textbook O(n²) two-split restriction. It stays within the converged design. Land it only if it matches step 2 on time and margins. Otherwise (B), step 2's cut, goes back to the two designers as a postscript round. No cache; no landing a regression.
+  - **Build A** is on `interval-scale-exact` (`Real::scale_pow2`, the face-bound remainder). **The build-time lane's #5104** (lto off, −3.75 min, every row green at TIER=all) needs a main merge, then STYLE review.
+- 2026-10-14 09:15Z — **#5094 merged** (c54ec254, FULL). The ℝ⁴ pair walk reads an end lying on a domain side through r's certified face roots, narrowed by their own Krawczyk image.
+  - Its Interval-lane witness is red on main under the root-reading mutant.
+  - On main + #5059 + #5094: two_fits (all ε), far_seed, two_bilinear, branch_at and all_finds all pass.
+  - Filed: `a-pair-walk-end-at-a-domain-corner-refuses-undecided` (nurbs; conservative, not unsound) and `the-endpoint-census-cannot-see-reads-held-in-tuple-fields` (tint).
+  - **Step 3 with the two-split restriction (A) beats step 2:** shelling 126 vs 139 s, r1 64 vs 76 s. Rung counts and margins are identical; 0–0.37% of meets fall outside, against 69–88% for step 2's cut.
+  - **#5059** carries a compensated (double-word) midpoint, width ~16u² of the terms at a cancellation.
+  - Order: #5059 (main merge, then FULL) → step 3 (FULL).
+- 2026-10-14 10:22Z — **Friction:** #5104's test step 8 (default ε) went red at 3a366af7, and no session could name the failing row.
+  - `get_job_logs` returns only the job's last 5000 lines, and later steps push step 8's FAIL line out of that window.
+  - Job re-run is 403 ("Resource not accessible by integration"); the log blob URL is proxy-blocked; the annotations say only "exit code 100".
+  - Locally at the same head and profile: 13972/13972. Suspected cause: the seed-varying enclose fuzzer filed on SSIARITH.
+  - Re-running via a legitimate main merge.
+- 2026-10-14 10:24Z — **Correction:** I wrote at 08:11 that #5104's TIER=all run had passed the slow set. It did not: at TIER=all the slow-set step is **skipped**, because its seed list is empty. The slow-set evidence for lto=off is the lane's local three-ε run, which matches main's nightly reds exactly.
+  - **Finding:** a ci.yml diff runs every row except the slow set. Noted for CIW.
+  - In the same hosted job, 1e-6 and 1e-12 ran the whole suite at 13972/13972. So the default-ε red points to a seed-varying row, not to lto=off.
+- 2026-10-14 11:27Z — **#5104 merged** (2e59df73, STYLE). The CI test and cache-prime builds now run with `lto = "off"`. Local saving: −5 min build, −3.75 min job. The hosted saving is to be measured by the build-time lane.
+  - The CIW items (TIER=all skips the slow set; a FAIL line past the 5000-line log tail can't be named, re-run returns 403) are going in via #5120.
+  - **#5059 FULL review: approve with fixes.** **M1 (pre-existing on main, the subject of the closed ssiarith item):** `rect_box`'s rounded `um ± hu` can miss the window's own corner. Witness: z = 1000x − 500 on u ∈ [½, ½ + 3·2⁻⁵³]; random search finds 15,856 of 400k corners missed on a slope-1000 line. Build C fixes it in #5059 with outward `[u0 − um, u1 − um]` plus a red-under-mutant row.
+  - `compensated.rs` was re-derived against JMP17 with no miss, and 2500 adversarial cells were checked against exact rationals. The midpoint costs +22% per `rect_box`.
+  - **#5123 (step 3)** is in FULL review. **#5114 (exact-scale)** waits on CI.
+- 2026-10-14 12:21Z — **#5059 re-check OK** at 7a8cc0b9: the M1 outward offsets give 0/400k corner misses on each wall, and the m1 and m2 rows are red under their mutants. It merges on green.
+  - **#5123 (step 3) FULL review: one MAJOR, the timing doesn't reproduce.** Head vs its own base d0497984: r1 93–96 s vs 64–65 s (45% slower), shelling unchanged. gdb puts 24 of 30 samples in `split_restrict` under `cut`.
+    - Build C's (A)-vs-step-2 table used a base without #5059. Everything else holds: soundness, the meet, retirements, the +1.11e-17 touch claim, parity, and downstream 275/275 and 266/266 at 3 ε.
+    - Ruling: no landing as a regression. Re-measure and profile head vs base; if (A) can't beat it, (B) goes to the designers.
+  - **#5132 (build A): the SSIARITH rigid-map fuzzer P2.** The cause is the test's scale (the margin rounds at magnitude 1, not at its own value), not a bound. Test-only fix, with the 4 seeds pinned and a production mutant still red. FULL review on green.
+  - **#5114 (exact-scale)** is in FULL review.
+- 2026-10-14 12:48Z — **#5059 merged** (01bd9fa7, FULL plus the M1 re-check). It closes `work/ssiarith/chart-point-signs-are-f64-evaluations`. #5132 (the rigid-map fuzzer, test-only) is in FULL review.
+- 2026-10-14 13:25Z — **Step 3 postscript round converged** (both designers, on the fork record branch). Keep "the cut restricts the formed quotients"; reject (B) step 2's cut and (D′) per-cut choice. Make the restriction cheap, in this order:
+  - (1) a thin-ratio step instead of `Interval::between`;
+  - (2) axis-lazy restriction;
+  - (3) a window-reading object that restricts once across doors;
+  - (4) batching;
+  - (5) a one-piece cut, only if still needed.
+  - The fallback is to restrict the formed low-degree grids. #5123 lands only when it's no regression against main on either row.
+  - **Protocol finding:** I appended B's answer to the fork record before A had answered, and A's brief pointed it there, so A's answer was not blind (A disclosed this). Next time, append postscript answers only after both are in.
+  - #5132 (fuzzer) is at 5ed36e07 after review fixes, with Unit tightened to 32 ulps. #5114 is in FULL review, with the ε rows green and slow sets running.
+- 2026-10-14 13:50Z — **#5132 merged** (d6396bc0; FULL review mergeable, follow-up test-module plus docs only). It closes both SSIARITH rigid-map fuzzer items.
+  - Build A's next unit is measurement only, so it can't collide with #5123's files: a perf split of shelling and r1 on main and on #5123's head (how much of the excess over pre-4954 is not the quotient unit), plus a `RATIONAL_CERT_SPLITS`/`BLOCK_PIECE_SPLITS` sensitivity run on main. Tables go to build C too.
+  - The NURBS slate on main has no unblocked code item outside #5123's territory: the corner-end refusal and the elevation conditioning both wait on a consumer.
+- 2026-10-14 14:40Z — **#5114 FULL review: one soundness MAJOR.** `exact_scale` tests `|r| ≥ MIN_POSITIVE` on the rounded product, so an exact product one 2^-1075 step below MIN_POSITIVE rounds up and is returned unpadded (bits `0x001F_FFFF_FFFF_FFFF` × 0.5). Everything else is clean, and callgrind shows −15% total. Sent to build A (it owns #5114) ahead of its profiling unit.
+  - **#5123 step 1 (thin step) beats main:** shelling 144 → 106 s (−27%), r1 47 → 36 s (−23%). Rungs are identical and margins agree within 2e-13. The plain thin step widened equal neighbours by t's width; equal-neighbour exactness (`x == y` steps to `x`) brings the cut-wider-than-whole meets down to 0.5–8.6%, and the meet clamps those.
+  - **Ruling:** that's a lost tightening, not a lost decision. #5123 lands on step 1 once it is re-timed against main, passes the downstream suites at both ε, has a witness row and gets the reviewer's re-check. Steps 2–4 (axis-lazy, a window-reading object, batching) become a filed follow-up.
+- 2026-10-14 15:20Z — **#5114 merged** (e27a4648). The MAJOR is fixed with a strict `|r| > MIN_POSITIVE`, plus a boundary row that was red on the prior head. The reviewer's exhaustive boundary scan (1.17M cases) finds 0 inexact shortcuts, against 1022 under `>=`. Callgrind: −15% total, −26% on halving.
+  - **#5123 re-timed** (thin step plus equal-neighbour exactness, b3d723f3, against main 85caa597): shelling 143 → 97 s (−32%), r1 49 → 32 s (−35%). Build C acknowledged the ruling: it lands on step 1, with steps 2–4 as a follow-up. It is merging main (now with #5114) and doing the landing items.
+- 2026-10-14 15:30Z — **The hosted saving from lto off (#5104) is measured.** The median `test` build step fell from 1206 to 871 s (−335 s; n = 60 vs 31, against main's cache prime at 11:32Z), matching the local −291/−302 s. Whole test jobs on two branches went from 55.7 to 30.4 min and from 45.3 to 34.2 min, though the trees differed between those runs. Recorded on the CIW findings item via #5143 (tracker only).
+- 2026-10-14 15:55Z — **Build A's profile split** (measurement only; gdb sampling, fresh targets, main d6396bc0 against #5123's pre-thin-step 2d1a8d73).
+  - **Shell:** the slow rows' excess over pre-4954 is ≈95% the quotient unit (forming, restriction and the piece readers). The remainder is ≈9% offset-fit Bernstein products (`compose.rs` `bern_mul_row_into` under `offset_fit::dot_spans`) plus ≈4 s walk.
+  - **r1:** essentially all quotient. Its +30% at 2d1a8d73 was `split_restrict`/`between`, which the thin step has since fixed (−35% against main).
+  - **Piece counts:** `RATIONAL_CERT_SPLITS` 16 → 8 doesn't move these rows. `BLOCK_PIECE_SPLITS` 2 → 1 gives −36% shell and −24% r1, but reds `a_block_is_read_on_its_pieces` and the m5_pr7 flat-wall slope margin at 1e-9, a real decision. It is filed as the converged plan's step 5 (an adaptive split), with those rows as its guard.
+  - **Build A's next unit:** offset-fit Bernstein products. Measure repeated `Composite::build` calls and a cheaper sound inner term, then implement what's real. It stays out of #5123's files.
+- 2026-10-14 19:25Z — **#5123's re-review found a decoration hole in the equal-neighbour arm.** The arm compared only lo/hi, so a certified bracket beside a refused one with the same ends came back certified (probe: [0,2] Com beside sqrt([-1,4]) Trv).
+  - **First fix** (b6326d27): the arm also requires `is_certified` equality. That was still able to upgrade Def to Com.
+  - **Second fix** (049bbf51): the arm uses `Interval::same_enclosure` (ends plus decoration, `pub(crate)` in interval.rs). It has two witness rows, each red on its weaker arm, and the census is unchanged against main.
+  - **Independent timing** at 68dfd27a against main b41d2fe3, both with #5114: shelling 123 → 92 s, r1 43 → 30 s. Five margins move beyond 2e-13, all tighter (up to 5.6e-12 on m5).
+  - **Open for the reviewer:** whether the bit-equality fast path, which decides nothing because both branches are sound, sits inside D10's retirement of coincidence decisions.
+  - **Build A's #5163** (`mul_nonneg`: a 2-corner product for a nonnegative weight, bit-identical to the general product) is in FULL review. It gives −14.5% instructions on the offset-fit row and −2.9% shell wall. Of 44 `Composite::build` calls per shell row, 4 are repeats; they were reported, not cached.
+  - **`viewer::review_pick_r2`** is red on main since #4861 (CLEAVE). It was bisected and filed on CLEAVE's slate via #5158.

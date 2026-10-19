@@ -913,7 +913,19 @@ Signed (CLEAVE orchestrator).
   Filed: units `a-section-ellipse-is-re-posed-at-its-nearest-principal-vertex` (P2), `the-section-table-admits-a-curve-on-its-resolution` (P2, parked on the re-pose) and `the-split-reads-a-vertex-against-the-section-it-ends-not-the-plane` (P2), plus germ's P3 `circular-axes-refuses-between-the-rim-alignment-band-and-the-axes-band`. A note went on GERM's conic row (FLUX's quadrature row is still on 4810's branch; the re-pose unit re-measures it), and seam notes to CURVED, GERM and PCERT. PR 4810 is reworked on top of the first two units.
 - 2026-10-12 — Dispatched the re-pose unit to the 4810 lane (`cleave/section-ellipse-re-pose`; then admission, then the 4810 rework, in order). Dispatched the vertex-against-section unit to a new lane (`cleave/vertex-against-section`).
 - 2026-10-12 — PR 4782 merged at `8790d3db44`, after the narrow re-review said MERGE. Its last run was red only on FLUSH's known 1e-12 `coincidence_door` row; the PR comment says why. Main had moved only in nextest.toml since the merge-in, and the merged tree passes clippy on topo and sweep. Rows closed: `a-tilted-plug-in-its-hole-refuses-at-the-ellipse-rims` and TANG's `an-ellipse-lying-on-a-wall-keeps-the-door` (the PR built it). Dispatched P2 `crossing-equal-cylinders-take-the-parallel-radical-plane-and-desync` (`cleave/crossing-cylinders-join`) and P2 `a-rod-rim-across-a-tube-ellipse-union-is-undescribed-in-one-order` (`cleave/rod-rim-union-describe`). `a-tilted-plug-union-refuses-at-the-germ-segment-and-section-copy-rosters` waits for the ellipse re-pose, because both touch `chord_join`'s section copy. Note for FLUSH: four rows now cover the one `coincidence_door` 1e-12 red.
+- 2026-10-12 — PR 4856 (rod rim across a tube's ellipse) went up and is in full review. `describe_edges`' stale-curved lane handled circles only. In `t ∪ r` the union keeps the tube's wall whole, which leaves the ellipse arc stale, so that order refused `NoConventionalLane`. The fix restates every kind as a derived image in `s1`'s chart, carrying its authority unchanged; the old circle and line lanes had stamped a fabricated `Declared`. Its CI is red only on FLUSH's 1e-12 `coincidence_door` row.
 - 2026-10-12 — Seam note from ENCL (PR 4855, merged at `5903a8c5a2`): `geom_brep::recourse::SizedDecision::recourse`'s Undecided arm takes the decision's `at_zero` note when the cause carries a gate-rejected Zero, sharing the Zero arm's body. The note shows only where no smaller tolerance decides passing (a rejected-side zero, a proven zero, or an Interval straddle in the zero band). Readers of `DIHEDRAL_ARM` (merge_faces, validate, refusal_routes Seam, certify) and offset_meters' cell decisions gain the note on that route. (ENCL orchestrator)
+- 2026-10-12 — PR 4863 (crossing cylinders) went up green and is in full review. `kind_arm` now reads the cylinder pair's axes through the frame dispatch's own decision, `cylinder_pair_axes`. A definite crossing goes to the edge-plane lane, and an in-band one is `Escalated`. The scene then refuses one step on, at `chord_join::along_edge_spec` ('only lines and circles are copied'). That is filed as `the-edge-plane-lane-copies-no-ellipse-edge` (P2) on the PR's branch. It waits for the ellipse re-pose, which holds `chord_join`. Lane clones from merged work were removed to free disk (about 8 GB free).
+- 2026-10-12 — PR 4858 (vertex against section) went up green and is in full review. `vertex_section::decide_vertex_on_plane` is now the one home, used by the split and the Boolean's three sites. An offset read Zero is read again at δ/sin ψ under `vertex_section_side`. Three rows were filed. The review is asked to look hard at three things: a CI-driven exclusion (a face beside a conic edge that reads parallel), the 'shallowest face' rule, and the δ < 0 definite side, which now refuses `UnpairedLooseEnds` at the join.
+- 2026-10-12 — PR 4856 review: APPROVE-WITH-FIXES, no MAJOR. Every stale ellipse certifies against `s1`'s chart; the image is held to the pcurve map residual. Declared → Derived is an improvement: the old record was made up, and `EdgeAuthority`'s docs count kernel images as `Derived`. It does change `replace_face` outcomes (a half rod ∪ rod offset now builds), and no test can see the difference. Fix pass sent: pins for that consequence and for the stale-line path; one home for the 'restate in chart' idiom the fix copied; a correction to DESIGN's `TransverseNotIntrinsic` exemption, which an agent editing pass (99cc678bfd) had inverted against Ev's 2026-07-19 text and the code; doc fixes; and rows for the unreachable spiric/NURBS lanes and the scaffold `Declared` path.
+- 2026-10-13 — PR 4863 review: APPROVE-WITH-FIXES, no MAJOR. Outside the new fixture, every kind-arm reading in the topo and sweep ci profiles at the default ε and 1e-12 is parallel; the fixture's 24 runs are the only APART readings, so no outcome moved. The routing is right: a crossing EF germ's edge must be an ellipse. Fix pass sent for the gaps the mutations found: the join's in-band arm and its one-reading lever are unpinned (M3a and M4 stay green); the fixture pin accepts a kernel-invariant ending with no ratchet; and there are stale docs, a double destructure, and FF germs reading their axes twice. Usage limit hit 2026-10-12 about 20:00; all four lanes were resumed on 10-13. A diagram of the keel geometry is posted on [ev] PR 4795 at Ev's request (branch `analysis/diagrams/cleave-keel`).
+- 2026-10-13 — PR 4858 review: CHANGES. The core fix is right and the two readings never disagree in sign. But the section reading divides by sin ψ with no bound on its own rounding, so at small ψ it offers the kernel's amplified rounding as a `SliverVertex` lever. That breaks PR 4335 and is DESIGN's Q1 class again: 15 of 25 runs at 1e-9 with ψ = 1e-7, and 13 or more at 1e-12. It also reads a face whose section is never minted, so a supporting plane touching only at the vertex refuses where main builds. Fix pass sent:
+  - bound the reading's rounding, admit it as the input's only at ε/K, and end the rest as a kernel limit with no lever, in one home that part 2 reuses;
+  - take the face set from where the join decides it;
+  - add pins the mutations showed missing (min vs max ψ, the exclusion, exact Off endings);
+  - correct the mirrored row, which is a live definite defect: raise it to P2;
+  - fix the docs, and type or justify the silent fallbacks.
+- 2026-10-13 — PR 4863 fix pass done (`de9a48d229`, green). Added an EF door pin that reaches the in-band arm and turns M3a and M4 red. The fixture now asserts each op's exact ending, with the row id. `segment_arm` is computed for every segment before surgery, at the frame's own lever. Filed P3 `an-in-band-axis-parallelism-offers-a-proximity-lever`. Narrow re-review resumed.
 - 2026-10-12 — Seam note from ENCL: PR 4874 merged (`encl/fitted-escalated-keeps-decision`).
   - `pcurve_cache`'s `FittedEscalated` keeps its SSI decision (`SsiDecision {Trace, Limb}`) and ends through `SsiDecision::ending`, which takes `impl Into<ReadAt>`.
   - Its Display and `PcurveCertifyError::Escalated`'s now end in the decision's own labelled recourse at `Reading::Build`, so the doors that print the Display (`PcurveMintError::Certify`, step-import, `replace_face`, loft, blend) carry one ending each. Both texts are pinned literally.
@@ -924,3 +936,238 @@ Signed (CLEAVE orchestrator).
     - `work/issues/describe-maps-every-chart-pcurve-escalation-to-chart-image`;
     - ENCL `unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`.
   - Pointers were added on the PCTAIL coincidence-menu row, the CHROME escalations-forwarded-whole row and the EXCH step-import row. (ENCL orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 4925 merged. ε now has a floor: geom-core `tolerance::SESSION_BOX_EXTENT` = 1 km and `EPS_MIN` = box · 2⁻⁵² ≈ 2.2e-13 m, per D4 ¶4 (Ev, PR 4836).
+  - Every door that sets a run's ε refuses below it. `tolerance::EpsFloor` is the one wording of the refusal.
+  - `Band::offer_deciding(m)` is the one offer rule: no tighten offer at or below ε_min. Tests that predict an offer should call it rather than restate `|m|/K`.
+  - At CI's 1e-12 row, every zero-band offer now withholds.
+  - A run below the floor (for example `CAD_TOLERANCE_EPS=1e-14`) is refused. Outside geom-core it silently falls back to the default; that is filed on SCALAR. (ENCL orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 4943 merged. A sized decision's ending now depends on one classification of the reading, `MarginDiag::shows` (geom-core): Offer, NoSize, Floor, Unresolved, Past or Unreadable.
+  - The decision's note (`SizedWords::no_size`, renamed from `at_zero`/`otherwise`; geom-brep `NoSize`, renamed from `AtZero`) appears only on NoSize: an exact zero, the refused side, or a theorem.
+  - A positive reading below the floor gets the one `floor_note` sentence.
+  - A reading that touches or straddles zero gets the lever alone.
+  - The import door gives its sentence plus the lever, and never a decision note.
+  - PR 4855's rejected-sign filter is gone.
+  - New sized decisions take `no_size:`.
+  - Tests that predict an ending should call `MarginDiag::sized_recourse`, not restate the rule. (ENCL orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 4766 has merged. It covers the sweep slice of the undecided-wording sweep (sweep crate endings by decision kind), and geom-core now has `Indeterminate::lever_ending` as the one lever-only-at-build ending. Lever-only decisions (angles, cos/sin, winding, form selection, gauges, walks) end through it. Do not compose `lever_recourse` + the unreadable note by hand. (ENCL orchestrator)
+- 2026-10-13 — PR 4863 narrow re-review: MERGE. Mutations M1–M5 go red where they should. The hoisted read was instrumented over about 16k reads per ε row: it never differed from the old post-surgery read, and no outcome moved. Filed P3 `boolean-join-resolves-germ-face-surfaces-in-three-closures`, the copy the fix minted. Merged main (192 commits) into the PR. Main's new `BooleanJoin` lift broke the pin's pattern, so I adapted it through `.error()`. Clippy on topo and sweep is clean and the pins pass; waiting on CI. PR 4856's fix pass is done (`d8dbca1190`, green) and in narrow re-review. It includes the DESIGN.md `TransverseNotIntrinsic` sentence restored to Ev's 2026-07-20 ratified text (b846df1f10); the inverting sentence came only from agent edit 99cc678bfd.
+- 2026-10-13 — PR 4858 fix pass done (`302460facd`, green).
+  - M1: δ/sin ψ now carries a running bound ρ (`Rounded::quotient`, moved to `geom_core::running`). It is the input's only at ρ ≤ ε/K (`geom_brep::recourse::UnsupportedConditioning::admit`); otherwise it is the kernel-limit `SectionUnresolved`, with no lever. Part 2's row is told that this is the shared home.
+  - m1: faces entered come from the walk's own `entry_side`/`bisector_side`; the parallel-edge exclusion is gone.
+  - Pins and docs fixed; the fallbacks are typed or justified.
+  - Residue: the Boolean reads entry through the split's `entry_side` beside its own `side_code`, two spellings of one question. To be filed after the re-review shapes it.
+  
+  Narrow re-review resumed.
+- 2026-10-13 — PR 4863 merged at `5d15bdc231` on a green head. Clippy on topo and sweep was clean against current main before merging. Row `crossing-equal-cylinders-take-the-parallel-radical-plane-and-desync` closed. Its residue, `the-edge-plane-lane-copies-no-ellipse-edge` (P2), waits for the ellipse re-pose, which holds `chord_join`.
+- 2026-10-13 — PR 4861 (ellipse re-pose, unit 1) is up, green at `a2e3c1614b`, and in full review. The lane merged main three times; main's spiric chord arm (4927) takes an oval as it stands. A main test caught a near-circle whose minor axis rounds one ulp above its major, which is fixed with `Curve3::section_frame(axis)`. A second sweep found two more ordered readers (blend `end_face`, `ring_path`). Re-baselined: seat7 `cut_cylinder`/`boss_union`, `cut_cylinder.expect`, and the thread-count digest's `tilted_cut_upper` pads (narrower). Part 2 (admission) is next on that lane once the review settles.
+- 2026-10-13 — PR 4856 re-review: FIX-FIRST, narrowly. The mutants discriminate, `restated_in_chart` is honestly the one spelling, the `finish.rs` merge resolution is right, and nothing regressed. But the restored DESIGN.md sentence says more than b846df1f10: read as exhaustive, it would let a derived chart on a transverse edge pass, which is restfront's open question. It must be reworded so it decides nothing new. Also asked for: a stale line asserted derived (the old chord mutant stays green), and doc fixes. Narrow fix pass sent.
+- 2026-10-13 — Correction. Ev decided GERM's conic-past-band fork on PR 4812 on 2026-10-12, in parallel with our section-end fork, and a GERM seam note on our part-2 row recorded it. I missed that note, and two lanes built against the superseded admission shape. The decision: the anchored conic, with the centre derived, as the end state; no refusal at the arm; in the interim, a miss within a carrier's own resolution ends as a kernel limitation and nothing new refuses; the refusing check is deferred to D4 ¶4. Re-scoped accordingly:
+  - part 2 becomes the anchored conic (H, still after the re-pose);
+  - part 3 (PR 4810) carries the interim relabel at the join;
+  - part 4 (PR 4858) must refuse nothing new.
+  PR 4858's re-review is FIX-FIRST on exactly this. Its `SectionUnresolved` refuses poses main builds tier-3-valid: 6 of 7 at ψ = 3e-4, and all at ψ = 1e-4 and 1e-5, at 1e-9. Fix pass sent. Lesson: before building a design, re-read the target rows on current main for seam notes.
+- 2026-10-14 — PR 4856 merged at `a1b214d8d7`. Its last run was red only on three main reds, all filed: FLUX's thread-count golden, and NURBS's saddle-wall fit and lily tessellation table. Main had moved only in `certify.rs`, and the merged tree passes clippy on geom-brep, topo and sweep. The DESIGN.md `TransverseNotIntrinsic` sentence is restored to the meaning of b846df1f10 without claiming to be exhaustive; the derived-chart question stays on restfront's row. Row `a-rod-rim-across-a-tube-ellipse-union-is-undescribed-in-one-order` closed.
+- 2026-10-14 — Dispatched P3 cleanups that stay clear of the ellipse and vertex fences:
+  - `boolean-join-resolves-germ-face-surfaces-in-three-closures` and `an-in-band-axis-parallelism-offers-a-proximity-lever`, together on `cleave/join-face-surface-one-home`;
+  - `carrier-cross-one-curve-reads-tilt-apart-and-conic-helper-copies-conic-of` on `cleave/carrier-cross-one-curve`.
+- 2026-10-14 — Ev asked on [ev] PR 4795: 'how is the top of a convex wedge represented?', then 'what happens if we glue a plane to its tip?'. Answered: a convex top is one edge, and a tip touching a face is one edge in edge-on-face contact (two solids by D1/3901 unless joined elsewhere). The second question showed the D1 sentence was too broad, because a face's own 180° side is no wedge. Narrowed it in 7e245eea9b to 'two material wedges, each bounded by two faces at an angle', adding that 'an edge touching a face from outside its wedge stays one edge, in contact with that face'. PR 4858's second fix pass (`efa3830bc7`) brings it in line with Ev's 4812 ruling: an unresolved reading keeps the offset's verdict, so nothing new refuses. Its CI is red only on the two filed main reds. Short re-review resumed. Filed: P1 `a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body` (a pre-existing invalid Ok body) and P3 `the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways`.
+- 2026-10-14 — PR 4861 review: CHANGES. The design holds: the parameter miss falls about 1000×, no old-convention reader survives in the kernel, and the re-baselines are justified. But at 1e-12 the at-rest gate refuses 64 of the 162 claimed-building poses with `UnrepresentableCurveDatum`. Tier 3's frame margin reads ε − δ·A, and the unnormalized turned seam worsens it, while the pins only assert that split returned Ok. The public `Pose::u_ref` readback now returns the minor direction for re-seamed chords, and the FLUX pose credit is wrong (it already builds on main). Fix pass sent:
+  - normalize the seam;
+  - validate the pins at rest;
+  - derive the major direction at readback;
+  - give 'larger semi-axis' and the quarter turn one home at the curve;
+  - rename the remaining `major`/`minor` names;
+  - pin the tie-break;
+  - correct the PR body;
+  - close restfront's minor-over-major row;
+  - file the tier-3 frame-margin residue on its owner (Ev's 4812 interim).
+- 2026-10-14 — The container restarted.
+  - Resumed: the two P3 lanes (join.rs, and carrier_cross).
+  - Lost: the 4858 short re-review and the 4861 fix-pass lane.
+    - The 4858 re-review was re-created.
+    - The 4861 lane was re-created from the recovered fix-pass brief. The old lane's clone was mid-merge of main, with no fix-pass code yet; the new lane chooses whether to finish or abort that merge.
+  - No new Ev comment on 4795.
+  - Noted the new CLAUDE.md rule: a blocking question about an open PR goes on that PR, with `[ev]` added to its title and the question at the top of its body.
+- 2026-10-14 — PR 4858 third review: MERGE. Head's output is byte-identical to main's on 222 witness rows across three ε. The one newly refusing row in the full ψ×δ ladder sits exactly on the zero band's edge, and is the intended in-band refusal with a lever. No lever is offered on an unadmitted reading, `plane_offset_rounded` is bit-identical at every door, every mutation goes red, and nothing regressed. Its MINORs are filed as P2 `vertex-section-quotient-has-no-room-precondition-and-four-offset-spellings`: the quotient has no room>0 precondition, the sine charge is asserted rather than derived, and offset/side is spelled several ways. I merged main into the PR (197 behind, splitting files touched): clippy is clean on geom-core, geom-brep, topo and sweep, the 22 pins pass, and the merge is pushed (`d938ebc42c`) and waiting on CI.
+- 2026-10-14 — PR 4858 merged at `0adcbf0ea0` on a green head; main had moved 35 commits, none in its files. Part 4 (`the-split-reads-a-vertex-against-the-section-it-ends-not-the-plane`) is closed. Now on main from it: P1 `a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body` (a pre-existing invalid Ok, also on main), P2 `vertex-section-quotient-...` (on the tracker branch), and P3 `the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways`.
+- 2026-10-14 — Dispatched P1 `a-split-along-a-seam-at-a-vanishing-tilt-returns-an-invalid-body` (`cleave/seam-split-invalid-ok`). The split's result gate passes halves its own `validate_geometric` refuses. Two separate questions: why the gate accepts them, and whether the near-axial ellipse's amplified error should end under Ev's 4812 interim kernel-limitation ending. The lane measures on main and on 4861's branch.
+- 2026-10-14 — PR 5058 (one-curve margin) went up and is in full review. The margin is now `|Δc| + ‖L_e − L_f·Q‖_op`, with Q an up-sign flip plus a Procrustes turn. It bounds Hausdorff outright, and measured margin/Hausdorff is 1.00–1.54 (the old margin under-read tilt to 0.24). The speed arms read once through `Kind::of`/`Conic::of`. There is a new body pin for the transverse ellipse×ellipse arm. Its CI is red only on the three filed main reds.
+- 2026-10-14 — Keel PR 4795, Ev's questions continued. Ev saw the keel and the glued tip as one picture flipped, with material and void swapped. Answered: four sheets meet at the line, and the material forces their pairing. Ev then asked whether the other pairing could be used instead. Answered: it is forced given an edge's meaning, and the real alternative is a non-manifold radial edge. Ev asked for radial edges to be weighed 'for completeness'. A designer pair has been dispatched on the same problem statement; the blinding record is on `analysis/design-fork/cleave-radial-edges`. Results go into 4795's body as A and B, with a new fork-log row.
+- 2026-10-14 — PR 5061 (join.rs: one germ-face resolver, and an angle lever for axes read parallel in band) went up and is in full review. Its CI is red only on NURBS's lily table. Filed: P3 `the-germ-frames-in-band-angle-rungs-offer-a-proximity-lever`.
+- 2026-10-14 — Radial-edges fork, both reports in. A and B agree: keep the manifold model with the forced pairing, restate D1 as one principle (the material decides the edges, the sectors are disjoint, the complement re-pairs, tier 3′ reads sides), and do not adopt radial edges. Their reasons: the asymmetry is honest (manifold bounds the material, radial the surface; PR 3901 chose the material), radial still needs the ring, and radial means replacing the topology kernel. No reconciliation was needed. Each raised one extra text change: A, qualify 'legal together or not at all'; B, the agent-written 'genuine non-manifoldness is unrepresentable'. Both are put to Ev separately in 4795's body. Rows 141 and 142 are added on the ev branch after merging main (row 121 collided, renumbered to 141). My 'radial needs no ring' was wrong, and it is corrected on the PR. Filed P1 on topo, `reverting-a-slit-body-overlaps-its-coincident-edges-wedges-and-passes-every-tier` (reachable via ∖ with 4622's slit). Notes added to restread's census row and the keel row.
+- 2026-10-14 — TOPO's P1 `reverting-a-slit-body-overlaps-its-coincident-edges-wedges-and-passes-every-tier` dispatched from CLEAVE (TOPO has no orchestrator, and the slit form is CLEAVE's). Branch `cleave/revert-repairs-coincident-edges`; measure first.
+- 2026-10-14 — PR 4861 fix pass pushed (`014d0a4177`). Its CI is red only on NURBS's lily table, which main's push CI skips (demos). Changes:
+  - the seam is normalized, and the pins validate at rest;
+  - at 1e-12: coin-flip 66/66 valid; through-axis 64/96 valid and 32 refusing on tier 3's frame margin; off-axis 38 refusing the same way;
+  - one regression remains (`axial w0.7 φ3.9 θ1e-4`);
+  - the public `edge_pose` u_ref is read through `major_frame`;
+  - `semi_axes_by_size`/`quarter_turned_where` are the one home; the `Conic` fields are renamed; seat7/8 history is cut.
+  Filed: RESTFRONT P2 `tier-3s-frame-check-reads-a-section-ellipses-rounding-amplified-by-its-semi-axis`; CLEAVE P3 `a-split-leaves-an-in-band-sliver-wall-face-that-refuses-only-at-rest` and `a-joined-section-arc-runs-its-kept-carrier-without-re-seaming`. Closed RESTFRONT's minor-over-major row. Narrow re-review resumed. The render lane's `render_gui.py` int-parse failure is main's, and CIW has it filed twice.
+- 2026-10-14 — PR 5061 review: APPROVE-WITH-FIXES, no MAJOR. Across 240 probe runs the 'clearly not parallel' half of the new lever never builds, so the lever is to name only the parallel side (the house convention: `RIM_LEVER` names both sides because both pass, `WallRoots(AxisParallel)` only its passing side). The two new loud refusals are unreachable; nothing that built now refuses. Fix pass sent:
+  - one-site segments still re-read their frame after surgery, contradicting the module doc;
+  - the `carrier_cyl_axis_parallel` subject is a near-twin wording of the new decision;
+  - the visible-tilt endings carry ε-sized margins (real coincidence or amplified error?);
+  - a fresh surface closure in `choose_roles`, out of a class of about 19 inline chains across boolean/;
+  - unify the FrameError variants;
+  - docs.
+- 2026-10-14 — PR 5058 review: APPROVE-WITH-FIXES. The new one-curve margin is proved a Hausdorff upper bound (adversarial worst H/margin 0.999999), and the k<1 re-baseline is right. Found a sibling of the same defect class: `parallel_circles` decides one circle from three separate Zeros and never reads the radius, so a great circle against a section tilted 0.9ε certifies Clear across an in-band crossing (arithmetic, not yet run). Fix pass sent: fix the sibling in this PR with the shared displacement margin; pin the body rows exactly; correct the filed row's backwards fix (Zero is definite, so the refusal is a frontier, not a lever); remove the fresh double match in `Kind::of`; one home for the semi-axis frame.
+- 2026-10-14 — PR 5100 (seam split invalid Ok) went up and is in full review. The split never ran tier 3: it gated with `validate_closed` only. It now runs the Boolean's `AtRestPolicy` per side and refuses with `SplitFinishError::ResultNotAtRest`, carrying the validator's findings verbatim. The witness family's invalid Oks become refusals at 1e-9 and 1e-12; 1e-6 is unchanged (all valid). The invalidity is the far-centre ellipse's chart image, which only Ev's 4812 anchored conic fixes. Filed on CARVE: the sweep doors gate only in debug builds. The review checks that nothing that builds valid today refuses, and what tier 3 costs per split.
+- 2026-10-14 — PR 4861 narrow re-review: MERGE.
+  - M1 closed honestly. The at-rest tables match an independent probe exactly at 1e-12 (coin-flip 66/66 valid; through-axis 64/96), and the 1e-6 and 1e-9 tables pass on main.
+  - The remaining regression, `axial w0.7 φ3.9 θ1e-4`, is a far-centre coin flip of limit (b): main builds it with a 9.1e-13 miss, under ε by a hair. Off-axis builds rose overall (58→81 at w0.3, 60→69 at w0.7), and Ev's 4812 anchored conic removes the term.
+  - Every mutation goes red. The public `u_ref` readback is deterministic.
+  - Filed P3 `semi-axes-by-size-misses-seven-inline-sites`: a half-fix of the class, since the sweep missed locals named a/b.
+  - The re-review also found FLUX's `main-red-the-mass-props-thread-golden-since-4938` stale at the merge base: #4952 re-cut it.
+  - Merging main (236 behind) into the PR; a workspace clippy is running on the merged tree because of the field rename.
+- 2026-10-14 — PR 5058 fix pass is green (`e86336714b`). `parallel_circles` now decides one circle with the shared `one_curve_gap`, and the witness is pinned at unit level only, since no door reaches it. Pins assert exact endings and bitwise symmetry. `Kind::of` matches once, and `meetings` reads every conic arm from `Conic`. Filed: flux `frame-read-off-ellipse-fields-in-curved-props`, and cleave `a-ball-cut-by-a-plane-turned-epsilon-escalates-arc-ahead`. Narrow re-review resumed. PR 4861: I merged main (236 behind). Main's new `flat_cone_tilted_ellipse.rs` still used the old fields, so I adapted it to `semi_u`/`semi_v`. Workspace and demos clippy are clean, the pins pass, and it is pushed (`acd896a622`), waiting on CI. 4861 and 5058 overlap on `Conic`, and the second to land reconciles.
+- 2026-10-14 — PR 5061 fix pass is green (`3fb534e707`). The lever names only the passing side; the frontier is pinned exactly at 0.2 rad across three ε; frames are read before surgery; `FrameError` has one `Escalated`; and join.rs has one face-to-surface walk, enforced by a census test. Filed (P3): `boolean-walks-face-to-surface-inline-at-two-dozen-sites` and `tipped-seams-pose-reads-eps-scaled-margins-at-visible-tilts`. Narrow re-review resumed. Main's lily red is fixed by #5102. PR 4861: main moved in 19 of its files after CI went green, so I merged main again; clippy is clean, and it is pushed (`3d9c62584b`).
+- 2026-10-14 — PR 5100 full review: APPROVE-WITH-FIXES. Nothing valid changes outcome (8940 tests per ε; the only hits are the pin and one lever-only grazing test), and the witness family reproduces exactly. Cost: median 0.35 ms per side, but up to 5 s on the pin's quadrature poses; editor `finished_operand` re-gates every split side. Fixes sent to the implementer lane:
+  - pin the exact variant;
+  - one Display and one python tag shared with the Boolean;
+  - route through the Boolean's in-band typing (D4), or stop and report;
+  - a `ResultNotAtRest` arm in 4861's seam table if 4861 lands first;
+  - stale docs;
+  - raise `split-sides-are-not-finished-bodies` to P2 for the double pay;
+  - correct the CARVE row's two false claims and add its measured extrude witness (R 200–400 m arc, 4/20 at 1e-12);
+  - make sure the RESTFRONT row reaches main;
+  - probe `transform_rigid`.
+- 2026-10-14 — PR 4861 (the re-pose) is merged (`1d6c939490`), green on `3d9c62584b` after a second merge of main. Its row is closed, and the anchored-conic unit (`the-section-table-admits-a-curve-on-its-resolution`, P2/H) is unparked to open. The part 3 rework of PR 4810 is dispatched: an escalated section-end pin is read against its carrier's per-kind resolution, so a miss the bound explains ends as a kernel limitation with no lever, a miss it can't explain stays the input's with its lever, and nothing new refuses. 5058 and 5100 are told that 4861 is in.
+- 2026-10-14 — The topo P1 `reverting-a-slit-body-…` is up as PR 5106 (`a2948a17dc`, gate ok). `revert` refuses typed (`RevertError::CoincidentEdges`) where two lines or one curve key run between the same two point keys. The ∖ finish reads B's coincident edges through the split lineage and refuses as `BooleanError::Revert` unless a piece is `On`. The void door refuses before writing. Three pinch rows on main pinned overlapping same-brick pairings and now refuse. Filed: topo `revert-re-pairs-the-sheets-…` and `subtracting-a-glued-tip-…` (P2, both blocked on 4795), and cleave `subtracting-a-slit-tool-resting-its-floor-…` (P2). Full review dispatched, focused on whether the flipped pinch rows were really wrong.
+- 2026-10-14 — PR 5058 narrow re-review: FIX-FIRST on the merge with main only (4861 renames, and `carrier_speed.rs` moved to geom-brep); the fix pass itself is sound. The oracle's margin matches Hausdorff, 49,438 `parallel_circles` calls moved only on the witness, and every mutant is red, including the body pin under the old margin. The lane is merging with the reviewer's recipe and renaming `semi_axes()` → `semi_axis_vectors()`.
+- 2026-10-14 — PR 5061 narrow re-review: MERGE, with no MAJOR or MINOR. The frontiers are exact at the gated ε, the 0.1 rad escalation is the input's (its margin is invariant in ε), join endings are identical main vs head, and the mutants are red apart from frames-after-surgery, which is disclosed and unpinned. One small pass before it lands: `join::face_surface` delegates to `readback::carrier_surface` (Q1), the doc's 'every tolerance' claim is corrected, `decision_words` names the shared constant, and the census blind spots get one P3 row.
+- 2026-10-14 — PR 5058 merged (`8b4d8d0d65`), after the lane merged main (4861 renames; `carrier_speed.rs` now lives in geom-brep) and renamed `semi_axes()` → `semi_axis_vectors()`. Its row is closed.
+- 2026-10-14 — PR 4810 reworked for unit 3 (`f3bc0cd05f`, gate ok at three ε).
+  - The new per-kind bound `Curve3::resolution` replaces the plane-offset re-read. An escalated end pin is admitted as the input's where K·ρ ≤ ε (`vertex_section::resolved`, shared with 4858) and keeps its lever; otherwise it ends as `SectionUnresolved`, a kernel limitation with no lever.
+  - Census: at 1e-12, the 83 in-band 'kernel defect' endings become `SectionUnresolved`. Nothing newly refuses or builds at any ε, and M1–M4 are red.
+  - Filed: `a-definite-section-end-miss-within-its-carriers-resolution-ends-as-a-kernel-defect` (P2; 119 runs).
+  - Full review dispatched: soundness of the bound (is 32 derived?), whether removing the re-read loses a lever, and whether the 119 belong in this unit under Ev's interim.
+- 2026-10-14 — PR 5100 fix pass green (`9c363d9d94`).
+  - The pin asserts `ResultNotAtRest` exactly; all three mutants are red.
+  - One renderer, `write_result_not_at_rest`.
+  - The Boolean's `at_rest_refusal` is lifted to `pub(crate)`: a split side failing only in band is now `ResultEscalated`, rendered through `BooleanDecision`.
+  - 4861's seam table gets a `ResultNotAtRest` arm; 50 rows that returned tier-3-refused sides now refuse at the gate.
+  - Tracker: `split-sides-are-not-finished-bodies` raised to P2; the CARVE row corrected and renamed; the RESTFRONT note added.
+  - Filed: CLEAVE P2 `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out` (40 of 784 at 1e-9) and P3 `the-at-rest-result-gate-and-its-typing-live-in-five-homes`.
+  - Narrow re-review resumed.
+- 2026-10-14 — PR 5061 merged, after its last pass and my merge of main (clippy clean; 163 topo census and join tests pass; CI green on `9dc53b6fef`).
+  - `join::face_surface` delegates to `readback::carrier_surface`.
+  - `decision_words` names the shared constant.
+  - Filed (P3): `join-census-blind-spots`.
+  - Both rows are closed.
+- 2026-10-14 — PR 5106 full review: FIX-FIRST.
+  - The three flipped pinch rows were wrong on main (wedges overlapping 180°/41°), so those flips stand, and nothing over-refuses at three ε.
+  - MAJOR: the `On` exemption passes overlapping edges through every tier, at its own row and on a line only partly On; it goes, and the 7 rows it covered get read one by one.
+  - MAJOR: a pinch with unequal heights is missed (its ends are on different keys); widen to collinear overlap by reusing census's reader.
+  - Also: pin the curve-key arm, print coordinates instead of keys, return a line record, and fix the docs.
+  - To file at P1: `(slab − c1) − c2` overlaps with no coincident input edges (a join defect), and the flat-corner union overlaps.
+  - Restread's side-check row gets the witnesses.
+- 2026-10-14 — PR 5106 fix pass stopped at its stop condition.
+  - Removing `On` refuses 11 rows, and 2 of them are right on main: the vertex-crossing pinch (one 90° edge) and the staircase `P − X` (two disjoint 90° edges). The input reading can't tell them from the 9 wrong ones.
+  - Ruling: the ∖ finish decides on the RESULT's wedges on the lines B's lineage names, through a shared census wedge reader (the primitive for restread's tier-3′ side check), escalating in band. No `On` exemption.
+  - `revert` and the void door keep the structural refusal.
+  - The P1 for overlapping edges from inputs with none is being filed with witnesses.
+- 2026-10-14 — PR 4810 full review: APPROVE-WITH-FIXES, no MAJOR.
+  - The bound is sound with ≥10× margin (mpmath oracle, 14.5k samples), and the census is reproduced exactly.
+  - Fixes sent:
+    - MINOR-1: the admission depends on distance from the world origin. A pose 27 m off loses its lever and gets a false 'rounding can account' sentence. Admit on the reading's own `Rounded` error, and pin the x0 sweep.
+    - MINOR-2: the 119 definite misses within ρ are in scope under Ev's wording; this is free in outcomes.
+    - MINOR-3: the fitted part of 32 gets a double-double guard.
+    - MINOR-4: torus circle provenance.
+  - Style: three spellings of conic rounding; `resolved` hosted in a consumer module; stale docs.
+- 2026-10-14 — PR 5100 narrow re-review: FIX-FIRST on small items.
+  - The substance holds: all 50 re-baselined rows were invalid on main, no other outcome changes, and one home for the typing.
+  - Fixes sent:
+    - a broken intra-doc link (`validate.rs:5801`, the nightly rustdoc gate);
+    - `ResultEscalated` renders the Boolean's 'move the parts' lever at the split door, so the split gets its own ending and the python tag aligns;
+    - a unit pin for the unreached arm;
+    - the `ops.rs` doc.
+  - `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out` goes to P1: `mass_properties` returns Ok with a wrong-signed, angle-dependent volume on the turned body.
+- 2026-10-14 — (NURBS orchestrator, seam note) **Main is red on `viewer::review_pick_r2` since #4861's merge (`1d6c939490`).** A fresh-target bisect moved the pinned tally exactly once, there: (…141261, 14088, 7230) → (…141201, 12294, 6504). That is 60 fewer aimed-vertex answers and 1794 fewer refused candidates. The row is in the slow set, so #4861's CI didn't run it. Filed on your slate: `review-pick-r2-tally-moved-by-4861-section-ellipse-re-pose`. NURBS has not re-pinned it; the call is yours.
+- 2026-10-14 — (PATHS, #5159's fix pass) Filed on your slate: `a-boss-over-a-hole-tangent-inside-its-rim-at-its-vertex-unites-as-two-shells` (P0). A one-segment boss over a hole tangent inside its rim, both vertices at the tangent point, unites as two shells sharing the crescent; tier 3′ fails, the door does not run it, and `main` builds the same body. It becomes common once PATHS unit 4 lowers `circle` to one segment.
+- 2026-10-14 — Main red filed to GERM (P1): `main-red-the-copysign-census-since-the-apex-tangent-generator`. PR 5152's `half_turn.copysign(c)` in `intersect.rs` is unregistered in `sym_rule_f_rows`'s copysign census. PR 5100's head `3b82cc090c` is red only on it.
+- 2026-10-14 — PR 5100 merged (`4e6dbdef73`).
+  - Its last pass: the split's own lever for `ResultEscalated`, the `escalated` tag, a unit pin, and the doc link fixed.
+  - Merged with `gate ok` red only on main's copysign census (GERM P1, filed), with a PR comment. I checked main's moves in tags, `offer_rows` and `boolean/mod.rs` on a local merge: clippy is clean, and 92 targeted tests pass.
+  - The P1 row is closed.
+- 2026-10-14 — PR 5106 fix pass pushed (`a48cdb7881`).
+  - ∖ decides on the result's wedges (`census::line_wedges`, the primitive for restread's side check) over B's lineage lines with `collinear_overlaps`. No `On` exemption.
+  - Refused (main wrong): the slit, pinch, flat-corner, crossings, dangling and `cube ∖ y` rows.
+  - Built (main right): the vertex-crossing pinch and the staircase.
+  - `revert` and the void door stay structural.
+  - Filed: CLEAVE P1 `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none`.
+  - Re-review dispatched.
+- 2026-10-14 — Main red caused by CLEAVE: `reach_cone_split::steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt` at 1e-12. GERM's #5164 pinned `(1.3, 100)` as splitting at 1e-12 with tier 3 skipped. After my merge of 5100, the split's at-rest gate refuses those halves on `VolumeUncomputable` (FLUX's elevation over-read). The fix (the row pins the at-rest refusal below `measured_from`) is on `cleave/steep-frustum-at-rest-gate`. Lesson: when a merge adds a gate, grep main's newest tests for the door's `unwrap` before landing.
+- 2026-10-14 — PR 5171 merged: the steep-frustum row pins the split's at-rest refusal below its tier-3 floor, which fixes the main red I caused (5100 × #5164). FLUX's row has a note to lift the floor once its over-read is fixed.
+- 2026-10-14 — PR 4810 fix pass (`2753f15012`). `gate ok` is red only on GERM's copysign census.
+  - MINOR-1: a window-relative bound (`carrier_resolution`). The x0 sweep, 0 m to 30 km, ends `OnPlane` with a lever that builds.
+  - MINOR-2: the 119 definite misses become `Unresolved{Past}`.
+  - MINOR-3: an exact-rational guard at a quarter of the bound.
+  - MINOR-4: torus concentric circles become `SquareToAxis`.
+  - Filed: CLEAVE P3 `a-torus-meridian-circle-…` and `three-readings-of-a-points-rounding-…`; FLUX P2 `a-cylinder-split-just-off-its-rim-vertex-exhausts-the-volume-quadrature-at-rest`.
+  - Narrow re-review on whether a window-relative bound ignores the pin's own coordinate rounding (≈1.1e-13 at 1 km vs ε/K), and on levers that refuse on one side.
+- 2026-10-15 — PR 4810 narrow re-review: MERGE, with no MAJOR.
+  - The window-relative bound is honest: at 1 km the pin's own arithmetic error measured 2.4e-14 < ε/K, which matches DESIGN Q1/D4 ¶4.
+  - `Past` is right, and the census against current main is unchanged.
+  - The levers each have a buildable side.
+  - Last pass sent for the two evidence MINORs: a translation pin along the miss's own coordinate, and a guard that reds at 32→16.
+- 2026-10-15 — PR 4810 merged (`fcc680bde8`, unit 3). Its last pass: the guard is red at 32→16, a z0 pin along the miss, and the second kind gate dropped. Merged with `gate ok` red only on GERM's copysign census, with a PR comment. Parent section-end row closed; unit 2 (anchored conic) stays open on its own row.
+- 2026-10-15 — Dispatched two P1s:
+  - `a-rigid-turn-reads-a-valid-ellipse-sliver-inside-out`: `mass_properties` returns Ok with a wrong-signed volume. Root-cause transform vs certificate.
+  - `a-near-tangent-coplanar-circle-pair-places-its-touch-off-both-circles`: re-measure after 5058 first.
+- 2026-10-15 — PR 5106 re-review: APPROVE-WITH-FIXES.
+  - The result-wedge criterion is sound: 99/99 Overlap and 30/30 Disjoint agree with an independent diagnostic; correct rows build; the census is exactly the 19 pinned tests; mutants are red.
+  - MAJOR: `collinear_overlaps(B)` escalates over every candidate pair before the kept filter and before the gap, so ∖ refuses on two edges 0.7 apart (an η-skew prism; main builds).
+  - MINOR: the `Undecided` arm is typed `Revert` but renders levers. Type the input's in-band reading as `Escalated` per PR 4335.
+  - MINOR: the void door's unequal-pinch hole (only 3′ catches it); fix the doc and add the witness to the P1.
+  - Plus: neutral attribution, the fourth strictly-inside-wedge spelling, and docs.
+  - Fix pass 2 sent.
+- 2026-10-15 — The circle-pair P1 is up as PR 5190 (`66322ac2fa`, gate ok).
+  - Every witness survived 5058, and the lane found a third arm.
+  - Fix: `conic_meets_plane` replaces `common_line`, which cancelled offsets from the world origin over sin²θ. A `Zero` touch is placed at the clamped double root on the conic, and `parallel_circles` reads `geom_core::Circles` with real crossings.
+  - No verdict flips except a new door row that main refuses at 1e-12 with an amplified lever.
+  - Full review dispatched; it diffs the margin partition bit-for-bit against main.
+  - Disk: removed the merged 4810 dir and my target dir (17→23 GB free).
+- 2026-10-15 — PR 5106 round 4 (`22fd89e82c`), CI green on the merged head.
+  - MAJOR-1: a keep filter, plus `lines_apart` overruling an in-band parallel reading; the η-skew prism builds.
+  - MINOR-1: new `BooleanDecision::LineEdges` / `LineWedges` with a lever only; the wedge reading is typed as the input's.
+  - S1: `wedge_holds` reused.
+  - Narrow re-review on whether the levers are truthful, `lines_apart` with converging edges, and `wedge_holds` semantics.
+- 2026-10-15 — PR 5106 round-4 narrow re-review: MERGE. MAJOR-1 is fixed, `lines_apart` is sound, and verdicts agree 100%. Last pass sent:
+  - name only the `LineEdges` lever half that builds ('clearly share a line' leads to `WedgesOverlap`), per PR 4335;
+  - `WedgesOverlap` text says the re-pairing isn't built;
+  - guard K > 2/√3;
+  - `decision_words` for the `wedge_holds` predicates.
+- 2026-10-15 — PR 5190 full review: APPROVE-WITH-FIXES.
+  - Suites are clean at three ε, and the door row on main refuses all four ops with an amplified lever; head is valid and exact.
+  - MAJOR: at 1e-12, below ~3e-5 tilt, `conic_meets_plane`'s margin carries 2u(r+|Δc|)/sin of unaccounted noise, leaving 47/600 silent misses (main 128). Do the row's item 2 (double root by root gap in metres), or charge the rounding so it escalates; add near-tangent small-tilt oracle poses.
+  - MINORs: two Cramer siblings to file (`offset_derive plane_plane`, blend `corner_ball`); add a translated pin and close the far-dot twin rows; stale citations; 'same margin' holds to first order only.
+  - Fix pass sent.
+- 2026-10-15 — PR 5106 merged (topo P1, the revert of a slit body).
+  - ∖ refuses only where the result's coincident wedges overlap (`census::line_wedges` over B's kept lineage lines, read with `collinear_overlaps`, with a `lines_apart` overrule).
+  - `revert` and the void door refuse structurally.
+  - New decisions `LineEdges` and `LineWedges` offer only levers that build; K > 2/√3 is guarded.
+  - Three rounds of review. The row is closed.
+  - Open follow-ups: CLEAVE P1 `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none`; topo `revert-re-pairs-the-sheets…` (blocked on 4795); restread's side check.
+- 2026-10-15 — Dispatched P1 `boolean-doors-build-overlapping-coincident-edges-from-inputs-that-hold-none` as a gate check. The Boolean result gate runs `census::line_wedges` over every line holding coincident edges and refuses a definite overlap as a kernel limitation (the re-pairing waits on 4795). Over-refusal census against main is required; tier 3′'s side check stays restread's.
+- 2026-10-15 — The rigid-turn P1 is up as PR 5185 (`403960e619`, gate ok).
+  - Root cause: `loop_vector_area`'s conic arm takes its moment about the ellipse centre (|C| ~ 1e5), so two ~900 m² terms cancel. The chord's rounding is multiplied by the lever, under a pad of 0. The transform is cleared.
+  - Fix: triangle(ref, p0, p1) + k(Δ − sin Δ)·axis. Enclosure misses go from 238/812 (1e-9) and 14/348 (1e-12) to 0.
+  - Golden `frozen` counts re-cut.
+  - geom-brep's cone-wall test bound loosened to 4·EPS.
+  - Filed: FLUXTAIL P1 `a-cone-wall-far-from-its-apex-…` (2.6% off, Ok, pad 0).
+  - Full review dispatched; focus on whether the pad alone is sound.
+- 2026-10-18 — Seam note from RESTREAD (branch `restread/one-edge-box-map`, PR 5308), on `crates/topo/src/boolean/boxes.rs`:
+  - `edge_rule_box` is now the one `EdgeBoxRule → SpanBox` map. `edge_box` reads it at `f64` brackets; `census::edge_reach_of` reads it at the census's scalar, in its frame.
+  - Its spiric arm is `geom::spiric_period_box`, which charges for its own rounding and encloses with no pad. Both lanes' spiric boxes widen a little: about `32·u·S` off the fold, more near it.
+  - `EdgeBoxRule::ConicAmplitude` is now a tuple variant over `ConicArc`, and `EdgeBoxRule::Spiric` drops `carrier`.
+  - The door inventory counts `edge_rule_box(` and turbofish calls; `census.rs` pins 10.
+  - Test-only change in `boolean/conic_oracle/exact.rs`: `Dd` and its `of`/`add`/`sub`/`mul`/`sqrt`/`to_f64` are now `pub(in crate::boolean)`, for the spiric box rows' exact reference. Nothing else in the file moves.
+  - (RESTREAD implementer)
+- 2026-10-19 — Usage limit hit 10-15 (reset 10-17); three lanes resumed (the gate-wedges P1, the 5190 fix pass, the 5185 review).
+  - Ev asked on 4795 'any update here?'. I had put the radial-edges reports into the body without commenting. Lesson: an `[ev]` PR update always gets a comment, because Ev reads comments, not body edits.
+  - Replied with the designers' verdict (both keep the manifold model) and the three questions.
+  - Resolved 4795's merge conflict: my fork rows are renumbered 141/142 → 149/150, since main used 141–148. The PR body's round headings still cite 141/142; fix them when folding in Ev's answer.
+- 2026-10-19 — Usage limit hit 10-15 (reset 10-17); the gate-wedges P1 lane and the 5185 review are resumed.
+  - Ev asked on 4795 'any update here?'. I had put the radial-edges reports into the body without commenting. Lesson: an `[ev]` PR update always gets a comment, because Ev reads comments, not body edits. Replied with the verdict (both designers keep the manifold model) and the three questions.
+  - Resolved 4795's merge conflict: fork rows renumbered 141/142 → 149/150. The PR body's headings still cite 141/142; fix them with Ev's answer.
+  - PR 5190 is superseded: FUSE's curve-pair reader (`fuse/curve-pair-reader-c`) replaced `carrier_cross::meetings` on 10-14 and closed the row, deciding a double root by its root chord. The lane is redirected to salvage the door row and M-1 family against main, file the Cramer siblings, and close 5190. Lesson: before a fix pass, re-read the row on main; FUSE landed during review.

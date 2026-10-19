@@ -44,8 +44,8 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
         let e = Curve3::Ellipse {
             center: Point3::origin(),
             axis: Vec3::new(0.0, 0.0, 1.0),
-            major,
-            minor,
+            semi_u: major,
+            semi_v: minor,
             u_ref,
         };
         let spec = EdgeCurveSpec {
@@ -62,6 +62,7 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
             e.eval(0.0),
             e.eval(core::f64::consts::FRAC_PI_2),
             |k| surfaces.get(k).cloned(),
+            1.0,
             band,
         )
     };

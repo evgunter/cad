@@ -12,9 +12,7 @@
 use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
 use crate::fixture::{ends, insert, point, table};
-use editor_core::{
-    EntityKey, Entry, Node, ProfileDoc, RecipeNodeId, RoleSeg, Sense, Speaker, StableName,
-};
+use editor_core::{EntityKey, Entry, Node, ProfileDoc, RecipeNodeId, RoleSeg, Sense, StableName};
 use geom_core::Tol;
 
 /// A closed rectangle in plan, `(x0, x1, y0, y1)`.
@@ -71,18 +69,7 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
     let body = body_of(&ev, u);
     let mut seen = 0;
     for (name, entry) in table(&ev, u).iter() {
-        let (
-            Entry::Unique(r),
-            [
-                RoleSeg::EdgeCrossing {
-                    a: ea,
-                    a_sense,
-                    b: eb,
-                    b_sense,
-                },
-            ],
-        ) = (entry, name.path.as_slice())
-        else {
+        let (Entry::Unique(r), [RoleSeg::EdgeCrossing(run)]) = (entry, name.path.as_slice()) else {
             continue;
         };
         let EntityKey::Vertex(v) = r.key else {
@@ -98,12 +85,13 @@ fn two_crossing_edges_carry_each_ones_sense_against_the_other_block() {
             [RoleSeg::From { read, of }] if *read == br => (b, (**of).clone(), plan_a),
             _ => panic!("a crossing's side is a member's edge: {edge:?}"),
         };
-        for (edge, sense) in [(ea, a_sense), (eb, b_sense)] {
-            let (node, of, other) = member(edge);
+        assert_eq!(run.len(), 2, "two blocks' walls: {name:?}");
+        for l in run {
+            let (node, of, other) = member(&l.line);
             assert_eq!(
-                *sense,
+                l.sense.expect("an edge carries its sense"),
                 sense_against(&ev, node, &of, at, other),
-                "{edge:?} against the other block at {p:?}: {name:?}"
+                "{l:?} against the other block at {p:?}: {name:?}"
             );
         }
         seen += 1;
@@ -133,17 +121,20 @@ fn names_at(
         .collect()
 }
 
-/// **A rim lying on the other operand's face on both sides of where
-/// it meets a wall touches that wall from inside** (N2: a side on the
-/// face counts as inside). In the corpus's `crossing_slots`, the second
-/// slot's floor is flush with the first cavity's, so a bottom rim of the
-/// second slot lies on that floor across the first cavity: where it
-/// meets a wall of the cavity it touches the wall from inside, and where
-/// it meets the cavity's own bottom rims the two edges cross, the
-/// cavity's rim entering or leaving the slot and the slot's rim inside
-/// the cavity on both sides.
+/// **A rim lying on the other cavity's floor meets that cavity's rim
+/// wherever it meets its wall** (N2). In the corpus's `crossing_slots`,
+/// the second slot's floor is flush with the first cavity's, so a bottom
+/// rim of the second slot lies on that floor across the first cavity.
+/// The cavity's wall meets the floor along the cavity's bottom rim, so
+/// where the slot's rim meets a wall it meets that rim: each such vertex
+/// is the two edges' crossing, the cavity's rim entering or leaving the
+/// slot and the slot's rim inside the cavity on both sides (a side on
+/// the face counts as inside). That holds where the merge of the two
+/// floors took one stretch of the cavity's rim and kept the next: the
+/// stretch kept is still a piece of the rim, so no vertex there is a
+/// touch of the wall alone.
 #[test]
-fn a_rim_on_the_other_cavitys_floor_touches_its_wall_from_inside() {
+fn a_rim_on_the_other_cavitys_floor_meets_its_rim_where_it_meets_its_wall() {
     let d = crate::corpus::documents()
         .into_iter()
         .find(|d| d.name == "crossing_slots")
@@ -171,36 +162,40 @@ fn a_rim_on_the_other_cavitys_floor_touches_its_wall_from_inside() {
             [RoleSeg::Crossing { sense, .. }] if !sense.crosses() => {
                 touches.push((name.clone(), *sense, point(body, v)));
             }
-            [
-                RoleSeg::EdgeCrossing {
-                    a_sense, b_sense, ..
-                },
-            ] => {
-                crossings.push((*a_sense, *b_sense, point(body, v)));
+            [RoleSeg::EdgeCrossing(run)] => {
+                crossings.push((run.clone(), point(body, v)));
             }
             _ => {}
         }
     }
-    let [(name, sense, p)] = touches.as_slice() else {
-        panic!("one touch: {touches:?}");
-    };
-    assert_eq!(*sense, Sense::Inside, "{name:?}");
     assert!(
-        (p.z - 0.5).abs() < 1e-12,
-        "the touch is on the floor: {p:?}"
+        touches.is_empty(),
+        "every vertex where the slot's rim meets a wall lies on the cavity's rim: {touches:?}"
     );
-    let said = Speaker::TAG.within(&ev).name(name).to_string();
-    assert!(
-        said.starts_with("the touch where ") && said.contains(" meets from inside the body of "),
-        "{said}"
-    );
-    assert_eq!(crossings.len(), 3, "{crossings:?}");
-    for (a_sense, b_sense, p) in &crossings {
+    assert_eq!(crossings.len(), 4, "{crossings:?}");
+    let mut slot_nodes = std::collections::BTreeSet::new();
+    let mut cavity_nodes = std::collections::BTreeSet::new();
+    for (run, p) in &crossings {
+        let [x, y] = run.as_slice() else {
+            panic!("two lines at {p:?}: {run:?}");
+        };
+        let (slot, cavity) = match (x.sense, y.sense) {
+            (Some(Sense::Inside), Some(s)) if s.crosses() => (x, y),
+            (Some(s), Some(Sense::Inside)) if s.crosses() => (y, x),
+            _ => panic!("one rim inside, the other crossing, at {p:?}: {run:?}"),
+        };
         assert!(
-            a_sense.crosses() && *b_sense == Sense::Inside && (p.z - 0.5).abs() < 1e-12,
-            "{a_sense:?} {b_sense:?} at {p:?}"
+            (p.z - 0.5).abs() < 1e-12,
+            "the rims cross on the floor at {p:?}: {run:?}"
         );
+        slot_nodes.insert(slot.line.node);
+        cavity_nodes.insert(cavity.line.node);
     }
+    assert!(
+        slot_nodes.len() == 1 && cavity_nodes.len() == 1 && slot_nodes != cavity_nodes,
+        "the slot's rims are one operand's and the cavity's the other's: \
+         {slot_nodes:?}, {cavity_nodes:?}"
+    );
 }
 
 /// **A corner resting on the other member's face is that corner** (N2),
@@ -241,7 +236,7 @@ fn a_corner_resting_on_a_face_is_the_corner_in_either_order() {
 
 /// **Where a member's edge crosses another's, the union names the vertex
 /// by the two edges and their senses in either member order**, read
-/// from the finished body (`emit_union::Flush::edge_crossing`): `b`
+/// from the finished body (`emit_union::Flush::meeting`): `b`
 /// stands out of `a`'s top, flush with it on the `y = 0` and `y = 1`
 /// walls and the bottom, and its lateral edge at `x = 1.5`, `y = 0`
 /// crosses `a`'s top rim there.
@@ -267,8 +262,9 @@ fn an_edge_crossing_of_two_members_is_named_alike_in_either_order() {
                     names.as_slice(),
                     [StableName { path, .. }] if matches!(
                         path.as_slice(),
-                        [RoleSeg::EdgeCrossing { a_sense, b_sense, .. }]
-                            if a_sense.crosses() && b_sense.crosses()
+                        [RoleSeg::EdgeCrossing(run)]
+                            if run.len() == 2
+                                && run.iter().all(|l| l.sense.is_some_and(|s| s.crosses()))
                     )
                 ),
                 "{label}: the crossing at {at:?}: {names:?}"
@@ -286,6 +282,110 @@ fn an_edge_crossing_of_two_members_is_named_alike_in_either_order() {
         match &first {
             None => first = Some((label, names)),
             Some((was, want)) => assert_eq!(&names, want, "{label} against {was}"),
+        }
+    }
+}
+
+/// **An edge in a run with a seam carries its sense against the seam's
+/// members** (N2): `y` and `z` are blocks whose union holds the seam
+/// where `y`'s top (z = 1) meets `z`'s wall (x = 1), and a lean prism
+/// `x`'s lateral edge pierces that seam at `(1, 1, 1)`, running from
+/// outside both blocks into both. The vertex is the run of the edge and
+/// the seam, the seam with no sense, in every member order, and the
+/// edge's sense is the one read off the two boxes either side of the
+/// point along the edge as `x` stores it.
+#[test]
+fn an_edge_through_a_seam_is_read_against_the_seams_members() {
+    let d = [0.5f64.sqrt(), 0.0, -(0.5f64.sqrt())];
+    let w = [0.5f64.sqrt(), 0.0, 0.5f64.sqrt()];
+    let meet = [1.0, 1.0, 1.0];
+    let origin = [0, 1, 2].map(|i| 0.3f64.mul_add(-d[i], meet[i]));
+    let inside = |p: [f64; 3]| {
+        let within = |lo: [f64; 3], hi: [f64; 3]| (0..3).all(|i| lo[i] <= p[i] && p[i] <= hi[i]);
+        within([0.0, 0.0, 0.0], [2.0, 2.0, 1.0]) || within([1.0, 0.0, 0.5], [3.0, 2.0, 1.5])
+    };
+    let mut first: Option<StableName> = None;
+    for order in [
+        [0, 1, 2],
+        [0, 2, 1],
+        [1, 0, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+        [2, 1, 0],
+    ] {
+        let doc = ProfileDoc::empty_derived("edge-through-seam", Tol::witness());
+        let (doc, y) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+        let (doc, z) = block(doc, (1.0, 3.0), (0.0, 2.0), 0.5, 1.0);
+        let (doc, p) = crate::fixture::on_frame(
+            doc,
+            origin,
+            [0.0, 1.0, 0.0],
+            w,
+            vec![vec![(0.0, 0.0), (0.05, 0.2), (-0.05, 0.2)]],
+        );
+        let (doc, x) = insert(
+            doc,
+            Node::Extrude {
+                profile: p.into(),
+                distance: crate::fixture::len(0.6),
+                side: editor_core::ExtrudeSide::Along,
+            },
+        );
+        let m = [y, z, x];
+        let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| m[i]));
+        let ev = run(&doc);
+        assert!(
+            failure(&ev, u).is_none(),
+            "{order:?}: {:?}",
+            failure(&ev, u)
+        );
+        let names = names_at(&ev, u, meet);
+        let [name] = names.as_slice() else {
+            panic!("{order:?}: one name at the meeting point: {names:?}");
+        };
+        let [RoleSeg::EdgeCrossing(run)] = name.path.as_slice() else {
+            panic!("{order:?}: a run: {name:?}");
+        };
+        let [edge, seam] = match run.as_slice() {
+            [a, b] if a.sense.is_some() && b.sense.is_none() => [a, b],
+            [a, b] if b.sense.is_some() && a.sense.is_none() => [b, a],
+            _ => panic!("{order:?}: one edge and one seam: {name:?}"),
+        };
+        assert!(
+            matches!(seam.line.path.as_slice(), [RoleSeg::Seam { .. }]),
+            "{order:?}: the seam is cited as a seam edge is: {name:?}"
+        );
+        let [RoleSeg::From { read, of }] = edge.line.path.as_slice() else {
+            panic!("{order:?}: the edge is a member's: {name:?}");
+        };
+        assert_eq!(
+            *read,
+            crate::fixture::out(&doc, x),
+            "{order:?}: the prism's edge"
+        );
+        let Some(Entry::Unique(r)) = table(&ev, x).lookup(of) else {
+            panic!("{of:?} names one edge of the prism");
+        };
+        let EntityKey::Edge(k) = r.key else {
+            panic!("{of:?} names an edge");
+        };
+        let xb = body_of(&ev, x);
+        let [v0, v1] = ends(xb, k);
+        let dir = point(xb, v1) - point(xb, v0);
+        let dir = dir / dir.norm();
+        let dir = [dir.x, dir.y, dir.z];
+        let side = |t: f64| inside([0, 1, 2].map(|i| t.mul_add(dir[i], meet[i])));
+        let want = match (side(-0.05), side(0.05)) {
+            (false, true) => Sense::Enters,
+            (true, false) => Sense::Leaves,
+            (false, false) => Sense::Outside,
+            (true, true) => Sense::Inside,
+        };
+        assert!(want.crosses(), "the fixture's edge crosses both blocks");
+        assert_eq!(edge.sense, Some(want), "{order:?}: {name:?}");
+        match &first {
+            None => first = Some(name.clone()),
+            Some(f) => assert_eq!(name, f, "{order:?}: the meeting point's name"),
         }
     }
 }

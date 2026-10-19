@@ -112,13 +112,18 @@
 //! face measures and encodes its side as a rectangle does. [`boundary_material_sign_loops`] reads
 //! each kind's side off the quantity its flux integrates.
 //!
-//! Closure: the cylinder's and torus's Green forms check it on the
-//! traversed endpoints (`props_loop_closed`, and
-//! `props_chart_loops_closed` / `props_torus_lift_closed_u` and `_v`),
-//! the sphere's Gauss–Bonnet and the cone's vector area on every
-//! junction (`props_loop_closed`). No lane reads the loop-local vertex **tags**
+//! Closure: every lane on a cylinder or torus chart decides it one way
+//! (`closure`): each junction's chart gap, less whole periods, against a
+//! stated slack, then whole-number windings held to a face boundary's
+//! integer facts. The windings are read two ways by what the lane holds:
+//! an interval lane sums the whole periods its junctions are nearest, a
+//! closed form reads its loop's total angle at half-turn thresholds. The
+//! sphere's Gauss–Bonnet and the cone's vector area decide every junction
+//! in space (`props_loop_closed`). No lane reads the loop-local vertex **tags**
 //! ([`LoopEdge`]).
 
+mod bracket;
+mod closure;
 mod curved;
 mod loop_area;
 pub mod quad;
@@ -382,13 +387,23 @@ pub enum PropsError {
     /// wrong, whichever lane reads it: the closed forms' and the
     /// cylinder quadrature's one decision (`curved::require_holes_wound_against`).
     RingWoundWithFace,
-    /// **A loop's stored chart images are a period apart at a junction**
-    /// (`props_quad_junction_period`): one edge's image starts a whole
-    /// turn of the azimuth from where the edge before it ends, so the
-    /// loop closes in space but not on the chart, and no Green form over
-    /// the chart reads it. Stored data that is wrong: a boundary's images
-    /// on one face are minted in one branch of its chart.
-    ChartPeriodJump,
+    /// **A loop does not close on its periodic chart**
+    /// (`props_chart_junction_open`): at one junction the edge after
+    /// starts definitely farther from where the edge before ends than
+    /// the junction's stated slack allows, once whole periods are taken
+    /// off. Stored data that is wrong: consecutive edges of a loop meet
+    /// at their shared vertex. Every lane on a cylinder or torus chart
+    /// decides it the one way (`closure::require_junction_closed`).
+    ChartLoopOpen,
+    /// **A face's loops wind its periodic chart as no face's boundary
+    /// does**: with every junction decided closed, one loop winds the
+    /// chart more than once about one of its directions, or the face's
+    /// loops wind it a nonzero number of times together, so they bound
+    /// no region of it. Stored data that is wrong: a face's boundary is
+    /// simple closed curves that bound it. A band's two rims, once each
+    /// and opposite ways, are not this; a lane whose closed form cannot
+    /// fold such a band refuses it as its inventory.
+    LoopsWindChart,
     /// A boundary edge's traversed **arc** leaves one branch of the
     /// chart, though its CARRIER is a certified iso curve: the arc's
     /// stored parameter span contains a chart singularity in its
@@ -575,7 +590,7 @@ pub const FACE_EXTENT: SizedDecision = SizedDecision {
     passes: SizedPass::Positive,
     // The stored description a lever edits IS the face's own extent.
     stored: StoredDefinite::Lever,
-    at_zero: None,
+    no_size: None,
 };
 
 /// **The one recourse a spent quadrature budget names** (D4 ¶1 (i)'s
@@ -686,11 +701,16 @@ impl core::fmt::Display for PropsError {
                  its area would be added to the face's rather than taken from it. \
                  {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
-            Self::ChartPeriodJump => write!(
+            Self::ChartLoopOpen => write!(
                 f,
-                "a face's stored boundary images on its surface's chart do not meet: one \
-                 edge's image starts a whole turn around the surface from where the edge \
-                 before it ends. {KERNEL_OR_FILE_DEFECT_ENDING}"
+                "a face's stored boundary does not close on its surface: one edge starts away \
+                 from where the edge before it ends. {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::LoopsWindChart => write!(
+                f,
+                "a face's stored boundary loops wind around its surface as no face's boundary \
+                 does: one winds more than once, or together they do not wind to zero, so they \
+                 bound no region of the face. {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
             Self::NappeSpanning => write!(
                 f,
@@ -996,7 +1016,8 @@ mod tests {
             PropsError::SenseContradicted,
             PropsError::SenseInverted,
             PropsError::RingWoundWithFace,
-            PropsError::ChartPeriodJump,
+            PropsError::ChartLoopOpen,
+            PropsError::LoopsWindChart,
             PropsError::NappeSpanning,
             PropsError::NotOneChartBranch {
                 edge: 0,
@@ -1021,7 +1042,7 @@ mod tests {
             "state", "widen", "loosen", "report", "re-cut", "re-mint", "lie",
         ];
         let arms = props_error_arms();
-        assert_eq!(arms.len(), 16, "an arm was added without a row here");
+        assert_eq!(arms.len(), 17, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             assert_eq!(

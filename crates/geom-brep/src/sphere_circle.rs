@@ -15,11 +15,14 @@
 //! ```
 //!
 //! exactly, for any `a`, `b` (the second harmonics vanish for an
-//! orthonormal frame) — [`off_sphere_coefficients`]. Since
+//! orthonormal frame) — [`off_sphere_coefficients`]. Each harmonic pair
+//! is read at its exact sup, so
+//! `K = |k₀| + √(k₁² + k₂²) + √(k₃² + k₄²)` bounds `| |C(t) − s|² − R² |`
+//! ([`crate::harmonic`]). Since
 //! `| |p − s| − R | = | |p − s|² − R² | / (|p − s| + R) ≤ | |p − s|² − R² | / R`,
-//! `D = Σ|kᵢ| / R` bounds the circle's distance from the sphere over the
+//! `D = K / R` bounds the circle's distance from the sphere over the
 //! whole circle, inside the sphere and out; and since that distance is
-//! at most `D`, `|p − s| ≥ R − D`, so `Σ|kᵢ| / (R + max(0, R − D))` does
+//! at most `D`, `|p − s| ≥ R − D`, so `K / (R + max(0, R − D))` does
 //! too, within rounding of the distance itself for a circle near the
 //! sphere ([`off_sphere_sup`]): an upper bound, which the projected
 //! row's certificate reads. (The chart door's incidence
@@ -27,6 +30,8 @@
 //! `pcurve_cache::chart_incidence`.)
 
 use geom_core::{Real, Vec3};
+
+use crate::harmonic::harmonic_sup_scalar;
 
 /// The coefficients `[k₀, k₁, k₂, k₃, k₄]` of `|C(t) − s|² − R²` for
 /// `C(t) = s + d + a·cos t + b·sin t` (module docs) — the one home of
@@ -48,11 +53,11 @@ pub(crate) fn off_sphere_coefficients<T: Real>(
     ]
 }
 
-/// `Σ|kᵢ| / (R + max(0, R − Σ|kᵢ|/R))`: a bound in metres on
-/// `| |C(t) − s| − R |` over the whole circle (module docs).
+/// `K / (R + max(0, R − K/R))` with `K = |k₀| + √(k₁² + k₂²) + √(k₃² + k₄²)`:
+/// a bound in metres on `| |C(t) − s| − R |` over the whole circle
+/// (module docs).
 pub(crate) fn off_sphere_sup<T: Real>(coefficients: [T; 5], radius: T) -> T {
-    let sum = coefficients
-        .into_iter()
-        .fold(T::zero(), |sum, k| sum + k.abs());
+    let [k0, k1, k2, k3, k4] = coefficients;
+    let sum = k0.abs() + harmonic_sup_scalar(k1, k2) + harmonic_sup_scalar(k3, k4);
     sum / (radius + (radius - sum / radius).max(T::zero()))
 }

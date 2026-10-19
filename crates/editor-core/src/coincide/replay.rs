@@ -1,7 +1,8 @@
 //! **The door's symbolic rungs** (D10, FORK-S4F): the document replayed
 //! in the `Sym` lane with every continuous variable a symbol of its own
 //! ([`crate::analysis::var_env_symbolic`]), profile geometry elaborated
-//! in that lane ([`crate::ProfileLift::Guided`]), and each row read
+//! in that lane (symbols make the lift [`crate::ProfileLift::Guided`]),
+//! and each row read
 //! twice off the replay.
 //!
 //! - **The carrier-pair verdict** ([`Rung::CarrierVerdict`]): for a row
@@ -35,20 +36,35 @@
 //!
 //! A row of the replay is the f64 row's when it was decided at the same
 //! node, at the same site, as the same ordinal among that site's rows
-//! there, between cells of the same names.
+//! there, between cells of the same names. An at-rest row is matched
+//! by no ordinal (the census is not re-run): its cells are read off the
+//! replay's copies by name, which stand where the f64 run's do because
+//! the deferring session takes every decision as the numeric channel
+//! takes it.
 
 use std::collections::BTreeMap;
-use std::sync::Arc;
 
 use geom_core::sym::deferred;
 use geom_core::{Band, Sym, SymBudget, SymRules, Tol};
 use topo::{Body, CarrierRelation, FaceKey};
 
 use super::{Canceled, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
-use crate::eval::{BooleanValue, EvalOptions, EvalOutcome, Evaluation, ProfileLift, ValuePayload};
+use crate::eval::{EvalOptions, EvalOutcome, Evaluation};
 use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
+
+/// **Whether the replay builds placed copies to read them**: resolving
+/// the parts a document instances at `Sym`, and reading an at-rest row
+/// off the replay's copies by the carrier verdict. Off: an at-rest row
+/// is [`Unreplayed::NotReplayed`] and a row on a part
+/// [`Unreplayed::ThroughAPart`]. Measured on, it costs the viewer's
+/// door 10–20× on mated assemblies (about 4 s building the parts, about
+/// 15 s more reading the windmill's seats) and proves no mated seat
+/// within [`BUDGET`] while frames hold component symbols
+/// (`work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`,
+/// whose fix turns it on).
+pub const REPLAYS_PLACED_COPIES: bool = false;
 
 /// **The door's one strength**: the tier's budget, with the drive's
 /// retry ladder. A margin whose form outgrows it is not proved, and
@@ -61,6 +77,36 @@ const BUDGET: SymBudget = SymBudget {
     max_terms: 256,
     max_degree: crate::drive::DEFAULT_SYM_MAX_DEGREE,
 };
+
+/// **The replay with every variable a symbol, as one session**: the
+/// door's budget ([`BUDGET`]) with the drive's retry ladder, DEFERRING
+/// (a margin's form is built only where a reader asks for its
+/// discharge), on `base`, the caller's environment — which binds every
+/// variable a symbol or varies a box, so its profile geometry is
+/// elaborated in the lane ([`crate::eval::ProfileLift::Guided`], read off
+/// what the evaluation binds by [`EvalOptions::profile_lift_over`]). Every
+/// reader of a replay opens it here — the door (`symbols`), its census,
+/// and the re-valuation instrument (`editor-core/tests/revalue_corpus.rs`,
+/// its own degenerate boxes) — so the instrument reads exactly what
+/// the door replays.
+///
+/// Deferring is what keeps it tractable: a guided profile at `Sym` is a
+/// polynomial in the atoms it mints, and an eager session builds every
+/// definite margin's form for its contradiction check. Measured on
+/// `plate_param`: eager at 4096 terms past 4.9 GB and not done at
+/// 120 s, here 136 MB in 1.07 s
+/// (`work/inlane/the-sym-profile-lowering-exhausts-memory-under-the-revalue-instrument.md`).
+pub fn with_replay_session<R>(
+    base: EvalOptions,
+    f: impl FnOnce(&EvalOptions) -> R,
+) -> (R, geom_core::SymCounts) {
+    deferred::with_deferred_session(
+        BUDGET,
+        SymRules::shipped(),
+        crate::drive::DEFAULT_SYM_RETRY,
+        || f(&base),
+    )
+}
 
 /// The scalar the door replays at: `f64` arithmetic, every variable a
 /// symbol.
@@ -76,47 +122,42 @@ type Left = (Unreplayed, Recourse);
 pub(super) fn rungs(
     doc: &crate::doc::Doc<ProfileProgram>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
+    resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
     cancel: &crate::CancelToken,
 ) -> Result<Vec<Vec<Result<Rung, Left>>>, Canceled> {
-    let opts = EvalOptions {
+    let symbols = EvalOptions {
         symbols: true,
-        profile_lift: ProfileLift::Guided,
+        resolver: resolver.filter(|_| REPLAYS_PLACED_COPIES).cloned(),
         ..EvalOptions::default()
     };
-    let (out, _) = deferred::with_deferred_session(
-        BUDGET,
-        SymRules::shipped(),
-        crate::drive::DEFAULT_SYM_RETRY,
-        || {
-            let ev: Evaluation<Lane> = crate::eval::evaluate(doc, None, cancel, &opts, tol);
-            if ev.outcome == EvalOutcome::Canceled {
-                return Err(Canceled);
-            }
-            let band = Band::linear(tol).ok();
-            nodes
-                .iter()
-                .map(|&(node, rows)| {
-                    let mut ordinals = BTreeMap::new();
-                    rows.iter()
-                        .map(|row| {
-                            let ordinal = ordinals.entry(row.site).or_insert(0usize);
-                            let at = *ordinal;
-                            *ordinal += 1;
-                            prove_row(doc, &ev, node, row, at, band, cancel)
-                        })
-                        .collect()
-                })
-                .collect()
-        },
-    );
+    let (out, _) = with_replay_session(symbols, |opts| {
+        let ev: Evaluation<Lane> = crate::eval::evaluate(doc, None, cancel, opts, tol);
+        if ev.outcome == EvalOutcome::Canceled {
+            return Err(Canceled);
+        }
+        let band = Band::linear(tol).ok();
+        nodes
+            .iter()
+            .map(|&(node, rows)| {
+                let mut ordinals = BTreeMap::new();
+                rows.iter()
+                    .map(|row| {
+                        let ordinal = ordinals.entry(row.site).or_insert(0usize);
+                        let at = *ordinal;
+                        *ordinal += 1;
+                        prove_row(&ev, node, row, at, band, cancel)
+                    })
+                    .collect()
+            })
+            .collect()
+    });
     out
 }
 
 /// The two symbolic rungs for one row, `at` its ordinal among its
 /// node's rows at its site. Canceled before it discharges a margin.
 fn prove_row(
-    doc: &crate::doc::Doc<ProfileProgram>,
     ev: &Evaluation<Lane>,
     node: RecipeNodeId,
     row: &NamedCoincidence,
@@ -128,7 +169,18 @@ fn prove_row(
     // could read, so the recourse is the assertion.
     let left = |why| Ok(Err((why, Recourse::Assert)));
     if row.site == topo::DecisionSite::CensusAtRest {
-        return left(Unreplayed::NotReplayed);
+        if !REPLAYS_PLACED_COPIES {
+            return left(Unreplayed::NotReplayed);
+        }
+        // The census is not re-run: its row is read off the copies.
+        if cancel.is_canceled() {
+            return Err(Canceled);
+        }
+        return Ok(match band.map(|band| carrier_verdict(ev, row, band)) {
+            Some(Some(Ok(()))) => Ok(Rung::CarrierVerdict),
+            Some(Some(Err(why))) => Err(numeric(why)),
+            Some(None) | None => Err((at_rest_unread(ev, node, row), Recourse::Assert)),
+        });
     }
     let Some(value) = ev.value(node) else {
         return left(why_no_value(ev, node));
@@ -146,22 +198,44 @@ fn prove_row(
         return Err(Canceled);
     }
     if let Some(band) = band
-        && let Some(how) = carrier_verdict(doc, ev, row, band)
+        && let Some(Ok(())) = carrier_verdict(ev, row, band)
     {
-        return Ok(Ok(Rung::CarrierVerdict(how)));
+        return Ok(Ok(Rung::CarrierVerdict));
     }
     if cancel.is_canceled() {
         return Err(Canceled);
     }
-    Ok(match deferred::discharge_or_why(replayed.margin) {
-        Ok(how) => Ok(Rung::MarginIdentity(how)),
-        Err(deferred::Undischarged::KeepsAnOpaqueAtom) => {
-            Err((Unreplayed::Numeric, Recourse::Assert))
-        }
-        Err(deferred::Undischarged::Otherwise) => {
-            Err((Unreplayed::Numeric, Recourse::OneConstruction))
-        }
-    })
+    Ok(deferred::discharge_or_why(replayed.margin)
+        .map(|()| Rung::MarginIdentity)
+        .map_err(numeric))
+}
+
+/// A form the tier read and did not discharge: a coincidence of values
+/// as far as the door can tell, its recourse one construction unless
+/// the form keeps a value computed apart from the variables.
+fn numeric(why: deferred::Undischarged) -> Left {
+    match why {
+        deferred::Undischarged::KeepsAnOpaqueAtom => (Unreplayed::Numeric, Recourse::Assert),
+        deferred::Undischarged::Otherwise => (Unreplayed::Numeric, Recourse::OneConstruction),
+    }
+}
+
+/// Why the replay offers no carrier verdict on an at-rest row: a copy
+/// it could not build (its placement or what it reads refused, or a
+/// part it resolves none for), else a pair of cells that is not two
+/// faces.
+fn at_rest_unread(ev: &Evaluation<Lane>, node: RecipeNodeId, row: &NamedCoincidence) -> Unreplayed {
+    let unbuilt = row.cells.iter().find_map(|cell| match cell {
+        NamedCell::Entity { input, .. } => ev
+            .table(*input)
+            .is_none()
+            .then(|| ev.read_port(*input).map_or(node, |(at, _)| at)),
+        NamedCell::Tool { .. } | NamedCell::Piece { .. } => None,
+    });
+    match unbuilt {
+        Some(at) => why_no_value(ev, at),
+        None => Unreplayed::NotReplayed,
+    }
 }
 
 /// Why the replay holds no value at `node`: a part it does not resolve
@@ -177,50 +251,43 @@ fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
 }
 
 /// **The kernel's carrier-pair verdict on the row's two cells**, where
-/// the row decided two faces one carrier: the theorem that decided
-/// every Zero it stands on, or `None` where it is not one.
+/// the row decided two faces one carrier: whether every Zero it stands
+/// on is proven, or why the first that is not keeps; `None` where the
+/// replay reads no such verdict (not two faces, a face it did not
+/// build, or another relation decided).
 fn carrier_verdict(
-    doc: &crate::doc::Doc<ProfileProgram>,
     ev: &Evaluation<Lane>,
     row: &NamedCoincidence,
     band: Band,
-) -> Option<geom_core::Theorem> {
+) -> Option<Result<(), deferred::Undischarged>> {
     let wanted = match row.relation {
         topo::Relation::SameOriented => CarrierRelation::SameOriented,
         topo::Relation::SameOpposite => CarrierRelation::SameOpposite,
         _ => return None,
     };
-    let [a, b] = row.cells.each_ref().map(|cell| face_of(doc, ev, cell));
+    let [a, b] = row.cells.each_ref().map(|cell| face_of(ev, cell));
     let ((a, fa), (b, fb)) = (a?, b?);
-    match topo::boolean::carrier_pair_decided(&a, fa, &b, fb, band) {
-        Ok(Ok((relation, Some(margin)))) if relation == wanted => deferred::discharge(margin),
+    match topo::boolean::carrier_pair_decided(a, fa, b, fb, band) {
+        Ok(Ok((relation, Some(margin)))) if relation == wanted => {
+            Some(deferred::discharge_or_why(margin))
+        }
         _ => None,
     }
 }
 
 /// The face `cell` names, as the replay built it: the body of the read
-/// it came in through and its key there.
-fn face_of(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    ev: &Evaluation<Lane>,
-    cell: &NamedCell,
-) -> Option<(Arc<Body<Lane>>, FaceKey)> {
+/// it came in through and its key there, read in that read's own table.
+fn face_of<'e>(ev: &'e Evaluation<Lane>, cell: &NamedCell) -> Option<(&'e Body<Lane>, FaceKey)> {
     let NamedCell::Entity { input, name } = cell else {
         return None;
     };
-    let value = ev.value(doc.operation_of(*input)?)?;
     let Some(Entry::Unique(EntityRef {
         body,
         key: EntityKey::Face(face),
-    })) = value.name_table.lookup(name)
+    })) = ev.table(*input)?.lookup(name)
     else {
         return None;
     };
-    let body = match (&value.payload, body) {
-        (ValuePayload::Body(b), 0)
-        | (ValuePayload::Boolean(BooleanValue::Body { body: b, .. }), 0) => Arc::clone(b),
-        (ValuePayload::Instances(bodies), i) => Arc::clone(bodies.get(usize::try_from(*i).ok()?)?),
-        _ => return None,
-    };
+    let body = ev.read_body(*input, *body).ok()?.ok()?;
     Some((body, *face))
 }

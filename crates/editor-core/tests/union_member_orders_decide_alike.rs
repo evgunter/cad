@@ -32,12 +32,11 @@
 //! bits.
 //!
 //! **Scope.** The corpus is planar blocks: rests, continuations, a
-//! transverse union and an in-band sliver. Unions known to decide by
-//! member order are pinned where their issues own them, not here:
-//! `emit_shared_rim_several`'s `RESIDUES` (`cross` reaches an emitter
-//! residue in some orders and builds in the others;
-//! `work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`),
-//! and the capsule's rod ending on its joint
+//! transverse union and an in-band sliver; vertex rows are pinned
+//! beside it on an L-prism and a tilted cube that pinch, and on blocks
+//! that kiss at a corner. Unions known to decide by
+//! member order are pinned where their issues own them, not here: the
+//! capsule's rod ending on its joint
 //! (`work/tang/the-capsule-rod-ending-on-the-joint-parts-by-member-order.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -46,8 +45,8 @@ use std::collections::BTreeMap;
 use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
 use crate::emit_boolean_vertex_keys::named_geometry;
-use crate::fixture::insert;
-use editor_core::{Evaluation, Node, NodeErrorKind, ProfileDoc, RecipeNodeId};
+use crate::fixture::{insert, len, on_frame};
+use editor_core::{Evaluation, ExtrudeSide, Node, NodeErrorKind, ProfileDoc, RecipeNodeId};
 use geom_core::Tol;
 
 /// The orders sampled where a union's members have more than this
@@ -211,8 +210,68 @@ fn decide(
             Decided::FoldStep(kind)
         }
         Some(other) => Decided::Refused(format!("{other:?}")),
-        None => built(&ev, union),
+        None => {
+            cells_are_held(&ev, union, order);
+            built(&ev, union)
+        }
     }
+}
+
+/// What [`cells_are_held`] checked: published rows, and their entity
+/// cells read from a member and minted by the fold.
+#[derive(Debug, Default, Clone, Copy)]
+struct Held {
+    rows: usize,
+    member: usize,
+    minted: usize,
+}
+
+/// **Every cell of a union's published row denotes a live entity of the
+/// body its read delivers**: its name is a strict row of that read's
+/// table — a member's table for a member cell, the union's own published
+/// table for a cell the fold minted — of the cell's kind, whose key is
+/// an entity of that read's body. A fold row is named against the
+/// fold's intermediate tables, and a cell left in their terms would name
+/// nothing the document can resolve.
+fn cells_are_held(ev: &Evaluation<f64>, union: RecipeNodeId, order: &[usize]) -> Held {
+    use editor_core::{EntityKey, Entry, NamedCell};
+    let value = ev.value(union).expect("the union evaluated");
+    let own = ev.output_var(union, 0).expect("a union defines its output");
+    let mut held = Held {
+        rows: value.coincidences.len(),
+        ..Held::default()
+    };
+    for r in value.coincidences.iter() {
+        for cell in &r.cells {
+            let NamedCell::Entity { input, name } = cell else {
+                continue;
+            };
+            let at = |why: &str| {
+                format!("{order:?}: a published row's cell {name:?} of {input:?} {why}: {r:?}")
+            };
+            let Some(Entry::Unique(e)) = ev.table(*input).and_then(|t| t.lookup(name)) else {
+                panic!("{}", at("is no strict name of its read's table"));
+            };
+            assert_eq!(e.key.kind(), name.kind, "{}", at("denotes another kind"));
+            let body = ev
+                .read_body(*input, e.body)
+                .expect("the read evaluated")
+                .expect("the read holds the cell's body");
+            let live = match e.key {
+                EntityKey::Body => true,
+                EntityKey::Face(k) => body.faces().any(|(f, _)| f == k),
+                EntityKey::Edge(k) => body.edges().any(|(f, _)| f == k),
+                EntityKey::Vertex(k) => body.vertices().any(|(f, _)| f == k),
+            };
+            assert!(live, "{}", at("denotes no entity of its read's body"));
+            if *input == own {
+                held.minted += 1;
+            } else {
+                held.member += 1;
+            }
+        }
+    }
+    held
 }
 
 fn built(ev: &Evaluation<f64>, union: RecipeNodeId) -> Decided {
@@ -357,25 +416,16 @@ fn the_corpus_reaches_its_classes() {
     }
 }
 
-/// The emit corpus's union that reaches an emitter residue in some
-/// member orders, owned where its row says and pinned in
-/// `emit_shared_rim_several`: `cross` the held-edge residue
-/// (`work/emit/a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere.md`).
-const EMIT_RESIDUES: [&str; 1] = ["cross"];
-
 /// **Every union of the emit corpus decides alike in every member
 /// order** (`emit_shared_rim_several::probe_corpus`: blocks flush on
 /// each other, slabs cutting them and faces cut and merged by one
-/// step), but for [`EMIT_RESIDUES`]. Each is compared as
+/// step). Each is compared as
 /// [`every_union_decides_alike_in_every_member_order`] compares its own.
 #[test]
 fn every_union_of_the_emit_corpus_decides_alike_in_every_member_order() {
     let mut failures = Vec::new();
     let mut compared = 0;
     for (label, blocks, creation) in crate::emit_shared_rim_several::probe_corpus() {
-        if EMIT_RESIDUES.contains(&label.as_str()) {
-            continue;
-        }
         let fixture = |_: ProfileDoc| crate::emit_shared_rim_several::document(&blocks, &creation);
         let orders = orders(blocks.len());
         let first = decide(&fixture, &orders[0]);
@@ -388,4 +438,410 @@ fn every_union_of_the_emit_corpus_decides_alike_in_every_member_order() {
     }
     assert!(compared > 0, "the emit corpus holds unions to compare");
     assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// The L-prism and the tilted cube of `topo`'s
+/// `records_cite_their_decision::a_pinch_records_the_vertex_identity_that_made_it`:
+/// the cube's bottom face passes through the L's reflex corner
+/// (1, 1, 1), and their union pinches there.
+fn prism_and_cube(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let ell = vec![
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 1.0),
+        (1.0, 1.0),
+        (1.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let (doc, profile) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![ell]);
+    let (doc, prism) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    // The frame through the corner whose normal is (1, 1.3, 0.7),
+    // normalised: `u` its tilt of +z, `v` = normal × `u`.
+    let unit = |m: [f64; 3]| {
+        let n = m.iter().map(|c| c * c).sum::<f64>().sqrt();
+        m.map(|c| c / n)
+    };
+    let m = unit([1.0, 1.3, 0.7]);
+    let u = unit([-m[2] * m[0], -m[2] * m[1], 1.0 - m[2] * m[2]]);
+    let v = [
+        m[1] * u[2] - m[2] * u[1],
+        m[2] * u[0] - m[0] * u[2],
+        m[0] * u[1] - m[1] * u[0],
+    ];
+    let square = vec![(-2.0, -2.0), (2.0, -2.0), (2.0, 2.0), (-2.0, 2.0)];
+    let (doc, profile) = on_frame(doc, [1.0, 1.0, 1.0], u, v, vec![square]);
+    let (doc, cube) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(4.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    (doc, vec![prism, cube])
+}
+
+/// [`prism_and_cube`] and a block far from both.
+fn pinch_and_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, mut m) = prism_and_cube(doc);
+    let (doc, far) = block(doc, (6.0, 7.0), (6.0, 7.0), 0.0, 1.0);
+    m.push(far);
+    (doc, m)
+}
+
+/// [`prism_and_cube`] and a block over the corner, which fills the
+/// pinch.
+fn pinch_and_cap(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, mut m) = prism_and_cube(doc);
+    let (doc, cap) = block(doc, (0.8, 1.2), (0.8, 1.2), 0.8, 0.4);
+    m.push(cap);
+    (doc, m)
+}
+
+/// Where a union holds a pinch an earlier fold step made, its end pass
+/// refuses naming the corner's copies.
+const CARRIED_PINCH: &str = "work/refs/a-pinch-carried-through-a-later-fold-step-refuses-naming.md";
+
+/// Two unit blocks kissing at the corner (1, 1, 1): one vertex-vertex
+/// record, citing its `VertexFusion` row.
+fn kiss(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
+    (doc, [a, b])
+}
+
+/// [`kiss`] and a block far from both: the touch is a fold step's, its
+/// record the union's in the orders that fold it last.
+fn kiss_and_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, [a, b]) = kiss(doc);
+    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
+    (doc, vec![a, b, far])
+}
+
+/// [`kiss`] with its first block read twice: the pairs of `b` with
+/// each read of `a` state one touch. A read repeated keys its cells
+/// alike, so the statements name it `m0` both times.
+fn kiss_read_twice(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, [a, b]) = kiss(doc);
+    (doc, vec![a, a, b])
+}
+
+/// The union of `fixture`'s members in `order`, each row as the
+/// statement it makes: its site and relation, and its two cells as the
+/// entity kind and the fixture's index of the member they are read
+/// from, the cells sorted, as [`row`] sorts them (which cell a
+/// decision read first follows operand order, and a statement is the
+/// same either way).
+fn statements(fixture: Members, order: &[usize]) -> Vec<String> {
+    let doc = ProfileDoc::empty_derived("union-member-orders", Tol::witness());
+    let (doc, members) = fixture(doc);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(
+                order.iter().map(|&i| members[i].into()).collect(),
+            ),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{order:?} builds");
+    let cell = |c: &editor_core::NamedCell| match c {
+        editor_core::NamedCell::Entity { input, name } => {
+            let member = members
+                .iter()
+                .position(|&m| doc.output(m, 0) == Some(*input))
+                .map_or("the union".to_string(), |i| format!("m{i}"));
+            format!("{:?}@{member}", name.kind)
+        }
+        other => format!("{other:?}"),
+    };
+    let mut out: Vec<String> = ev
+        .value(union)
+        .expect("the union evaluated")
+        .coincidences
+        .iter()
+        .map(|r| {
+            let mut cells = r.cells.each_ref().map(cell);
+            cells.sort();
+            format!("{:?} {:?} {} {}", r.site, r.relation, cells[0], cells[1])
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+/// **A vertex row is one row of the union in every member order, once**
+/// (DM4: the union's rows are its member pairs', and a fold row a judged
+/// row states cites it): the L-prism and the cube pinching at its
+/// corner, alone, with a far third member, and with a third member
+/// filling the pinch, whose pair still decided it; two blocks kissing at
+/// a corner, whose touch a record cites, with a far third member and
+/// with one block read twice; two blocks pinching on a plate
+/// (`union_pinch_member_order`), where a fold step meets a vertex an
+/// earlier step minted. Every order that builds decides alike,
+/// and the first that builds publishes exactly the statements listed, so a row
+/// published twice or not at all is red. The orders that fold the far
+/// member last after the pinch refuse [`CARRIED_PINCH`] and are
+/// excluded, each checked to refuse that way.
+#[test]
+fn a_vertex_row_is_the_unions_once_in_every_member_order() {
+    type Row = (
+        &'static str,
+        Members,
+        fn(&[usize]) -> bool,
+        &'static [&'static str],
+    );
+    const PINCH: &[&str] = &["VertexFusion OnCarrier Face@m1 Vertex@m0"];
+    // The kiss: the three walls through the corner, each against the
+    // other block's, and the corner itself.
+    const KISS: &[&str] = &[
+        "PlaneLadder SameOpposite Face@m0 Face@m1",
+        "PlaneLadder SameOpposite Face@m0 Face@m1",
+        "PlaneLadder SameOpposite Face@m0 Face@m1",
+        "VertexFusion OnCarrier Vertex@m0 Vertex@m1",
+    ];
+    // Read twice: each of the block's six faces against its twin (DM5),
+    // and the kiss once, though two pairs state it.
+    const TWICE: &[&str] = &[
+        "PlaneLadder SameOpposite Face@m0 Face@m2",
+        "PlaneLadder SameOpposite Face@m0 Face@m2",
+        "PlaneLadder SameOpposite Face@m0 Face@m2",
+        "PlaneLadder SameOriented Face@m0 Face@m0",
+        "PlaneLadder SameOriented Face@m0 Face@m0",
+        "PlaneLadder SameOriented Face@m0 Face@m0",
+        "PlaneLadder SameOriented Face@m0 Face@m0",
+        "PlaneLadder SameOriented Face@m0 Face@m0",
+        "PlaneLadder SameOriented Face@m0 Face@m0",
+        "VertexFusion OnCarrier Vertex@m0 Vertex@m2",
+    ];
+    // Two blocks on a plate, touching along the line through the
+    // plate's corner: their two walls on that line, and each block's end
+    // of the line on the other's edge. Folded after the plate, the
+    // second block meets the point the first one's edge made on the
+    // plate's top, which those two rows already put on its edge.
+    const PLATE: &[&str] = &[
+        "PlaneLadder SameOpposite Face@m1 Face@m2",
+        "PlaneLadder SameOpposite Face@m1 Face@m2",
+        "VertexFusion OnCarrier Edge@m1 Vertex@m2",
+        "VertexFusion OnCarrier Edge@m2 Vertex@m1",
+    ];
+    let rows: [Row; 6] = [
+        ("prism and cube", prism_and_cube, |_| false, PINCH),
+        (
+            "two blocks pinching on a plate",
+            crate::union_pinch_member_order::pinch,
+            |_| false,
+            PLATE,
+        ),
+        (
+            "the pinch with a far member",
+            pinch_and_far,
+            |o| o[2] == 2,
+            PINCH,
+        ),
+        (
+            "the pinch with a cap over the corner",
+            pinch_and_cap,
+            |_| false,
+            PINCH,
+        ),
+        ("the kiss with a far member", kiss_and_far, |_| false, KISS),
+        (
+            "the kiss with a block read twice",
+            kiss_read_twice,
+            |_| false,
+            TWICE,
+        ),
+    ];
+    let mut failures = Vec::new();
+    for (what, fixture, carried, expected) in rows {
+        let n = fixture(ProfileDoc::empty_derived("count", Tol::witness()))
+            .1
+            .len();
+        let mut first: Option<(Vec<usize>, Decided)> = None;
+        for order in orders(n) {
+            let got = decide(&fixture, &order);
+            if carried(&order) {
+                assert!(
+                    matches!(&got, Decided::Refused(e)
+                        if e.contains("a copy of a corner held as several meets no recorded discard")),
+                    "{what}, {order:?}: refused other than {CARRIED_PINCH}: {got:?}"
+                );
+                continue;
+            }
+            assert!(
+                matches!(got, Decided::Built { .. }),
+                "{what}, {order:?}: built: {got:?}"
+            );
+            match &first {
+                None => first = Some((order, got)),
+                Some((o, f)) => {
+                    if let Err(why) = compare(f, &got) {
+                        failures.push(format!("{what}, {o:?} vs {order:?}: {why}"));
+                    }
+                }
+            }
+        }
+        let Some((order, _)) = &first else {
+            panic!("{what}: no order builds");
+        };
+        let said = statements(fixture, order);
+        if said != *expected {
+            failures.push(format!("{what}: the statements {said:#?}"));
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// **A record the fold re-cites cites the judged rows that state its
+/// contact** (DM4, "A row names member cells"): in every order of
+/// [`crate::union_pinch_member_order::pinch`], the blocks' touching legs
+/// are one edge-edge record citing the two judged rows that put an end of
+/// each leg on the other, and the end below the plate's top one
+/// vertex-edge record citing the row that puts it there. Folded after
+/// the plate, a block's leg meets the point the other's made on the
+/// plate's top, and that step's decision is cited as those rows.
+#[test]
+fn a_re_cited_record_cites_the_judged_rows_in_every_member_order() {
+    let fixture = crate::union_pinch_member_order::pinch;
+    let mut failures = Vec::new();
+    for order in orders(3) {
+        let doc = ProfileDoc::empty_derived("union-member-orders", Tol::witness());
+        let (doc, members) = fixture(doc);
+        let (doc, union) = insert(
+            doc,
+            Node::Union {
+                members: editor_core::Bodies::Spelled(
+                    order.iter().map(|&i| members[i].into()).collect(),
+                ),
+            },
+        );
+        let ev = run(&doc);
+        assert!(failure(&ev, union).is_none(), "{order:?} builds");
+        let value = ev.value(union).expect("the union evaluated");
+        let cell = |c: &editor_core::NamedCell| match c {
+            editor_core::NamedCell::Entity { input, name } => {
+                let member = members
+                    .iter()
+                    .position(|&m| doc.output(m, 0) == Some(*input))
+                    .map_or("the union".to_string(), |i| format!("m{i}"));
+                format!("{:?}@{member}", name.kind)
+            }
+            other => format!("{other:?}"),
+        };
+        let statement = |k: u32| {
+            let r = &value.coincidences[k as usize];
+            let mut cells = r.cells.each_ref().map(cell);
+            cells.sort();
+            format!("{:?} {:?} {} {}", r.site, r.relation, cells[0], cells[1])
+        };
+        let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
+            contacts, ..
+        }) = &value.payload
+        else {
+            panic!("{order:?}: a union of three blocks is a boolean body");
+        };
+        let mut cited: Vec<(String, Vec<String>)> = contacts
+            .rows()
+            .iter()
+            .map(|c| {
+                let kind = format!("{:?}", c.record.kind());
+                let kind = kind.split('(').next().unwrap_or_default().to_string();
+                let mut rows: Vec<String> = c
+                    .cites
+                    .iter()
+                    .map(|b| match b {
+                        topo::Backing::Decided(k) => statement(k),
+                        other => format!("{other:?}"),
+                    })
+                    .collect();
+                rows.sort();
+                (kind, rows)
+            })
+            .collect();
+        cited.sort();
+        let want = vec![
+            (
+                "EdgeEdge".to_string(),
+                vec![
+                    "VertexFusion OnCarrier Edge@m1 Vertex@m2".to_string(),
+                    "VertexFusion OnCarrier Edge@m2 Vertex@m1".to_string(),
+                ],
+            ),
+            (
+                "VertexEdge".to_string(),
+                vec!["VertexFusion OnCarrier Edge@m1 Vertex@m2".to_string()],
+            ),
+        ];
+        if cited != want {
+            failures.push(format!("{order:?}: the records cite {cited:#?}"));
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}
+
+/// Two blocks flush along x and a third touching both along one edge:
+/// the flush rims are one `Merged` edge the fold mints, and the third
+/// block's touch on it is a row citing that edge
+/// (`union_flush_onto_edge_contact`).
+fn flush_onto_an_edge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block(doc, (0.5, 1.5), (-1.0, 0.0), -1.0, 1.0);
+    (doc, vec![a, b, c])
+}
+
+/// **Every published row's cells denote entities of their reads, in
+/// every member order** ([`cells_are_held`]), on a fixture whose rows
+/// cite member cells (the plate pinch) and one whose rows cite a cell
+/// the fold minted (a `Merged` edge, in the orders that fold the flush
+/// pair before the third block). Every order must publish rows, and each
+/// fixture cells of the kind it is here for, so neither half passes on
+/// nothing.
+#[test]
+fn published_row_cells_denote_entities_of_their_reads() {
+    type Row = (&'static str, Members, fn(Held) -> bool);
+    let rows: [Row; 2] = [
+        (
+            "two blocks pinching on a plate",
+            crate::union_pinch_member_order::pinch,
+            |h| h.member > 0,
+        ),
+        ("a flush pair on an edge", flush_onto_an_edge, |h| {
+            h.minted > 0
+        }),
+    ];
+    for (what, fixture, reaches) in rows {
+        let n = fixture(ProfileDoc::empty_derived("count", Tol::witness()))
+            .1
+            .len();
+        let mut total = Held::default();
+        for order in orders(n) {
+            let doc = ProfileDoc::empty_derived("union-member-orders", Tol::witness());
+            let (doc, members) = fixture(doc);
+            let (doc, union) = insert(
+                doc,
+                Node::Union {
+                    members: editor_core::Bodies::Spelled(
+                        order.iter().map(|&i| members[i].into()).collect(),
+                    ),
+                },
+            );
+            let ev = run(&doc);
+            assert!(failure(&ev, union).is_none(), "{what}, {order:?}: builds");
+            let held = cells_are_held(&ev, union, &order);
+            assert!(held.rows > 0, "{what}, {order:?}: publishes rows");
+            total.rows += held.rows;
+            total.member += held.member;
+            total.minted += held.minted;
+        }
+        assert!(reaches(total), "{what}: checked {total:?}");
+    }
 }

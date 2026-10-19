@@ -38,7 +38,12 @@ fn wall(o: [f64; 3], axis: [f64; 3], r: f64) -> geom::Surface<f64> {
     }
 }
 
-fn door(e: &geom::Curve3<f64>, s: &geom::Surface<f64>, t0: f64, t1: f64) -> CircleRoots<f64> {
+fn door(
+    e: &geom::Curve3<f64>,
+    s: &geom::Surface<f64>,
+    t0: f64,
+    t1: f64,
+) -> Result<CircleRoots<f64>, Unsettled> {
     conic_quadric_roots(e, t0, t1, s, band()).unwrap()
 }
 
@@ -102,7 +107,7 @@ fn a_clear_carrier_is_a_miss() {
         ("inside a wall", wall([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 1.2)),
     ] {
         assert!(
-            matches!(door(&thin, &s, 0.0, TAU), CircleRoots::Miss),
+            matches!(door(&thin, &s, 0.0, TAU), Ok(CircleRoots::Miss)),
             "{label}: got {:?}",
             door(&thin, &s, 0.0, TAU)
         );
@@ -117,7 +122,7 @@ fn a_clear_carrier_is_a_miss() {
 /// wall's axis point at tilt `φ` cuts the wall of radius `r` in the
 /// ellipse of semi-axes `r/cos φ` and `r`, whose residual against
 /// that wall is identically zero: the first-harmonic arm reads it
-/// `OnSurface` (the ladder could not read a constant). Against a
+/// `On` (the ladder could not read a constant). Against a
 /// coaxial wall of another radius the residual is a definite constant,
 /// a `Miss`.
 #[test]
@@ -132,13 +137,13 @@ fn a_wall_s_own_tilted_section_is_on_it() {
     );
     let on = wall([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.5);
     assert!(
-        matches!(door(&section, &on, 0.0, PI), CircleRoots::OnSurface),
+        matches!(door(&section, &on, 0.0, PI), Ok(CircleRoots::On(_))),
         "its own wall: got {:?}",
         door(&section, &on, 0.0, PI)
     );
     let wider = wall([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.7);
     assert!(
-        matches!(door(&section, &wider, 0.0, PI), CircleRoots::Miss),
+        matches!(door(&section, &wider, 0.0, PI), Ok(CircleRoots::Miss)),
         "a coaxial wider wall: got {:?}",
         door(&section, &wider, 0.0, PI)
     );
@@ -151,7 +156,7 @@ fn a_wall_s_own_tilted_section_is_on_it() {
 /// parallel to it the second harmonic vanishes and the residual is the
 /// first harmonic of two circles in the cross-section — which no tilt
 /// predicate sees: the plane's tilt to the axis is definite, and read on
-/// it the coaxial poses below took the ladder and answered `Uncertain`.
+/// it the coaxial poses below took the ladder and refused `Unsettled`.
 /// Against a
 /// wall of radius `r` whose axis is `offset` off the section's, by the
 /// true distance:
@@ -160,7 +165,7 @@ fn a_wall_s_own_tilted_section_is_on_it() {
 ///   oracle's crossings;
 /// - tangent inside (`offset = r − ρ`): not a crossing at any order the
 ///   door sees, and neither a `Miss` nor certified roots;
-/// - coaxial (`offset = 0`): its own wall `OnSurface` (a constant zero
+/// - coaxial (`offset = 0`): its own wall `On` (a constant zero
 ///   residual, which the ladder cannot read), a wider one a `Miss`.
 #[test]
 fn a_section_whose_projection_is_a_circle_is_a_first_harmonic() {
@@ -195,22 +200,19 @@ fn a_section_whose_projection_is_a_circle_is_a_first_harmonic() {
         if offset == 0.0 {
             assert!(lo.abs() <= band.zero(), "{label}: on its own wall, {lo:e}");
             assert!(
-                matches!(got, Ok(CircleRoots::OnSurface)),
+                matches!(got, Ok(Ok(CircleRoots::On(_)))),
                 "{label}: on its own wall, got {got:?}"
             );
             assert!(
                 matches!(
                     conic_quadric_roots(&section, -0.5, 0.5, &wall_at(0.0, 0.7), band),
-                    Ok(CircleRoots::Miss)
+                    Ok(Ok(CircleRoots::Miss))
                 ),
                 "{label}: inside a coaxial wider wall"
             );
         } else {
             assert!(
-                matches!(
-                    got,
-                    Ok(CircleRoots::Uncertain) | Err(BooleanError::Escalated { .. })
-                ),
+                matches!(got, Ok(Err(_)) | Err(BooleanError::Escalated { .. })),
                 "{label}: a tangency is no certified answer, got {got:?}"
             );
         }
@@ -224,7 +226,7 @@ fn a_section_whose_projection_is_a_circle_is_a_first_harmonic() {
 /// or, at a depth inside the band, grazes it. At the default band: a
 /// graze in the band is no certified answer either way, a definite
 /// depth is four certified crossings, each on the wall — or, at 2e-8 m
-/// on the 50 m and 500 m walls, `Uncertain`: there the `f64`
+/// on the 50 m and 500 m walls, `Unsettled`: there the `f64`
 /// residual's rounding places the shallow roots up to 3.1e-10 and
 /// 4.5e-9 m from the true ones (the exact oracle), and the root slack,
 /// which must read inside the zero band, refuses them. The half-angle
@@ -253,23 +255,24 @@ fn a_graze_is_read_by_its_depth() {
         let got = conic_quadric_roots(&e, 0.0, PI, &w, band);
         if f64::abs(depth) <= band.zero() * 10.0 {
             assert!(
-                matches!(got, Ok(CircleRoots::Uncertain) | Err(_)),
+                matches!(got, Ok(Err(_)) | Err(_)),
                 "{label}: a graze in the band, got {got:?}"
             );
             continue;
         }
         if !placed {
             assert!(
-                matches!(got, Ok(CircleRoots::Uncertain)),
+                matches!(got, Ok(Err(_))),
                 "{label}: roots the band cannot place refuse on their slack, got {got:?}"
             );
             continue;
         }
-        let Ok(CircleRoots::Certified { count, thetas }) = got else {
+        let Ok(Ok(CircleRoots::Certified(found))) = got else {
             panic!("{label}: four certified crossings, got {got:?}");
         };
+        let count = found.count();
         assert_eq!(count, 4, "{label}");
-        for &t in &thetas[..count] {
+        for &t in found.roots() {
             let p = e.eval(t);
             let off = (p.x.hypot(p.y) - r).abs();
             assert!(
@@ -298,8 +301,8 @@ fn the_subdivision_reads_its_pieces_at_the_top_speed() {
             -0.6904757134714763,
             0.7228549842399846,
         ),
-        major: 0.0011565902894188694,
-        minor: 0.00017995811133866398,
+        semi_u: 0.0011565902894188694,
+        semi_v: 0.00017995811133866398,
         u_ref: Vec3::new(-0.8791819779574158, 0.360475481131658, 0.3116030762649587),
     };
     let center = Point3::new(
@@ -323,11 +326,12 @@ fn the_subdivision_reads_its_pieces_at_the_top_speed() {
         ),
     };
     let got = conic_quadric_roots(&e, 3.511343352233997, 7.298353179068743, &s, band);
-    let Ok(CircleRoots::Certified { count, thetas }) = got else {
+    let Ok(Ok(CircleRoots::Certified(found))) = got else {
         panic!("certified crossings, got {got:?}");
     };
+    let count = found.count();
     assert!(count > 0, "crossings");
-    for &t in &thetas[..count] {
+    for &t in found.roots() {
         let off = ((e.eval(t) - center).norm() - radius).abs();
         assert!(off <= band.zero(), "root {t} lies {off} off the sphere");
     }
@@ -363,14 +367,13 @@ fn the_first_harmonic_arm_places_its_roots_along_the_arc() {
         let h = 10f64.powf(-6.0 + 5.7 * f64::from(k) / 80.0);
         let w = wall([0.0, -1.0, 0.0], [0.0, 0.0, 1.0], 2.0 - h);
         let (t0, t1) = (-0.2, PI + 0.2);
-        let Ok(CircleRoots::Certified { count, thetas }) =
-            conic_quadric_roots(&section, t0, t1, &w, band)
+        let Ok(Ok(CircleRoots::Certified(found))) = conic_quadric_roots(&section, t0, t1, &w, band)
         else {
             continue;
         };
         certified += 1;
         let truth = oracle(&section, &w, t0, t1);
-        for &t in &thetas[..count] {
+        for &t in found.roots() {
             let nearest = truth
                 .iter()
                 .copied()
@@ -417,11 +420,11 @@ mod fuzz_rows {
     /// - a certified count is the true count of crossings, which the
     ///   exact oracle ([`exact::truth`]) places round the turn, a graze
     ///   pair however close included;
-    /// - a `Miss` is never certified for a carrier that comes within the
-    ///   zero band of the surface, or crosses it.
+    /// - a `Miss` is never certified for a carrier that comes within `Kε`
+    ///   of the surface in the residual the band classifies, or crosses it.
     ///
     /// At ε = 1e-6 the ladder alone certified roots up to 1.9e-5 m of arc
-    /// off, 15 zero bands off the wall. The `Uncertain` count is printed.
+    /// off, 15 zero bands off the wall. The `Unsettled` count is printed.
     #[test]
     fn certified_answers_hold_against_the_true_distance() {
         hold_against_the_true_distance(&mut fuzz::start("conic_quadric::certified_answers_hold"));
@@ -462,8 +465,8 @@ mod fuzz_rows {
                 let e = geom::Curve3::Ellipse {
                     center: Point3::new(0.0, 0.0, 0.0),
                     axis: n,
-                    major,
-                    minor,
+                    semi_u: major,
+                    semi_v: minor,
                     u_ref: (u - n * u.dot(n)).normalize(),
                 };
                 // A surface through a random point of the carrier, so the
@@ -499,9 +502,10 @@ mod fuzz_rows {
                     fuzz::replay()
                 );
                 match found {
-                    CircleRoots::Certified { count, thetas } => {
+                    Ok(CircleRoots::Certified(found)) => {
+                        let count = found.count();
                         certified += 1;
-                        for &t in &thetas[..count] {
+                        for &t in found.roots() {
                             let off = distance(&s, e.eval(t)).abs();
                             assert!(off <= eps, "{label}: root {t} lies {off} off the surface");
                         }
@@ -512,17 +516,17 @@ mod fuzz_rows {
                             truth.roots
                         );
                     }
-                    CircleRoots::Miss => {
+                    Ok(CircleRoots::Miss) => {
                         misses += 1;
                         assert!(
-                            truth.roots.is_empty() && truth.depth > eps,
+                            truth.roots.is_empty() && truth.residual_depth >= 10.0 * eps,
                             "{label}: a Miss {} from the surface, true crossings {:?}",
-                            truth.depth,
+                            truth.residual_depth,
                             truth.roots
                         );
                     }
-                    CircleRoots::Uncertain | CircleRoots::OnSurface => uncertain += 1,
-                    CircleRoots::AtApex => panic!("{label}: no apex on a sphere or a wall"),
+                    Err(Unsettled::AtApex) => panic!("{label}: no apex on a sphere or a wall"),
+                    Err(_) | Ok(CircleRoots::On(_)) => uncertain += 1,
                 }
             }
             println!(
@@ -583,8 +587,8 @@ mod graze_rows {
             let e = geom::Curve3::Ellipse {
                 center: center + out,
                 axis,
-                major: -3.413_716_003_510_488,
-                minor: -0.175_755_441_781_259_68,
+                semi_u: -3.413_716_003_510_488,
+                semi_v: -0.175_755_441_781_259_68,
                 u_ref,
             };
             let s = geom::Surface::Sphere {
@@ -608,7 +612,7 @@ mod graze_rows {
                 .unwrap();
             let got = conic_quadric_roots(&e, vertex - 0.5, vertex + 0.5, &s, band);
             assert!(
-                !matches!(got, Ok(CircleRoots::Miss)),
+                !matches!(got, Ok(Ok(CircleRoots::Miss))),
                 "{out:?} out: a certified Miss for a crossing 1.8e-11 m deep"
             );
         }
@@ -676,8 +680,8 @@ mod graze_rows {
                     geom::Curve3::Ellipse {
                         center,
                         axis: n,
-                        major,
-                        minor,
+                        semi_u: major,
+                        semi_v: minor,
                         u_ref,
                     }
                 };
@@ -741,7 +745,7 @@ mod graze_rows {
                     fuzz::replay()
                 );
                 match got {
-                    Ok(CircleRoots::Miss) => {
+                    Ok(Ok(CircleRoots::Miss)) => {
                         misses += 1;
                         // Clear only when the extreme distance, at the
                         // vertex, is past the band on the far side.
@@ -749,9 +753,9 @@ mod graze_rows {
                         let clear = if least { at > eps } else { at < -eps };
                         assert!(clear, "{label}: a certified Miss ({at:e} at the vertex)");
                     }
-                    Ok(CircleRoots::Certified { count, thetas }) => {
+                    Ok(Ok(CircleRoots::Certified(found))) => {
                         certified += 1;
-                        for &t in &thetas[..count] {
+                        for &t in found.roots() {
                             let off = distance(e.eval(t)).abs();
                             assert!(off <= eps, "{label}: root {t} lies {off} off");
                         }

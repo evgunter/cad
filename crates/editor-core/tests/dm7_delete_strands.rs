@@ -29,9 +29,9 @@ use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
 use editor_core::{
-    Alignment, Attr, AttrKind, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId,
-    EntityKind, Maintenance, MateFrame, MatePrimitive, MeasurePrimitive, Node, ProfileDoc,
-    RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply, cascade_delete_order,
+    Attr, AttrKind, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EntityKind, Maintenance,
+    MeasurePrimitive, Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
+    cascade_delete_order,
 };
 use fixture::{ang, fname, insert, len, wall};
 use geom_core::Tol;
@@ -50,10 +50,8 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
                 };
                 Some((reader.id(), name.name().clone()))
             }
-            Maintenance::OffsetCleared { .. }
-            | Maintenance::StrandedAppearance { .. }
+            Maintenance::StrandedAppearance { .. }
             | Maintenance::StrandedRead { .. }
-            | Maintenance::LabelDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect()
@@ -76,9 +74,7 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
             Maintenance::StrandedAppearance { name, .. } => Some(name.name().clone()),
             Maintenance::Strand { .. }
             | Maintenance::StrandedSelection { .. }
-            | Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedRead { .. }
-            | Maintenance::LabelDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect()
@@ -90,11 +86,11 @@ fn paint(doc: &editor_core::ProfileDoc, name: &StableName) -> ProfileDoc {
     apply(
         doc,
         &DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(doc, name),
             name: name.clone(),
             attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the painted name's node is live")
     .doc
@@ -106,13 +102,8 @@ fn delete(
     doc: &editor_core::ProfileDoc,
     id: RecipeNodeId,
 ) -> editor_core::Applied<editor_core::ProfileProgram> {
-    apply(
-        doc,
-        &DocEdit::DeleteNode { id },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("a payload name is not a DAG edge, so the delete is legal")
+    apply(doc, &DocEdit::DeleteNode { id }, Tol::witness())
+        .expect("a payload name is not a DAG edge, so the delete is legal")
 }
 
 // ---------------------------------------------------------------------
@@ -138,23 +129,24 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
 
     let f0 = fname(victim, wall(&doc, victim, 0));
-    let f1 = fname(victim, wall(&doc, victim, 1));
     let f2 = fname(victim, wall(&doc, victim, 2));
     let f3 = fname(victim, RoleSeg::Cap(CapEnd::End));
     let f4 = fname(victim, RoleSeg::Cap(CapEnd::Start));
+    let e0 = crate::fixture::end_rim(&doc, victim, 0);
+    let e1 = crate::fixture::end_rim(&doc, victim, 1);
 
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
             radius: len(0.1),
-            selection: editor_core::Operand::select(body, vec![f0.clone()]),
+            selection: editor_core::Operand::select(body, vec![e0.clone()]),
         },
     );
     let (doc, chamfer) = insert(
         doc,
         Node::Chamfer {
             distance: len(0.1),
-            selection: editor_core::Operand::select(body, vec![f1.clone()]),
+            selection: editor_core::Operand::select(body, vec![e1.clone()]),
         },
     );
     let (doc, shell) = insert(
@@ -191,16 +183,12 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     for id in doc.ids() {
         let Some(node) = doc.node(id) else { continue };
         match node {
-            Node::Fillet { .. } => expected.push((id, f0.clone())),
-            Node::Chamfer { .. } => expected.push((id, f1.clone())),
+            Node::Fillet { .. } => expected.push((id, e0.clone())),
+            Node::Chamfer { .. } => expected.push((id, e1.clone())),
             Node::Shell { .. } => expected.push((id, f2.clone())),
             Node::Datum(Datum::FaceFrame { .. }) => expected.push((id, f3.clone())),
             // Argument order, which is meaning for a measure.
             Node::Measure { .. } => expected.extend([(id, f4.clone()), (id, f0.clone())]),
-            // A mate's heads need an instance to be minted by, which
-            // this document has none of: its row is
-            // `a_mates_head_strands_and_its_read_site_does_not`.
-            Node::Mate { .. } => panic!("this fixture builds no mate"),
             // An instance's crossing `outer`s need an interface
             // record to ride, which only a
             // split mints: their rows are
@@ -253,7 +241,7 @@ fn a_delete_that_strands_nothing_reports_nothing() {
     let (doc, spare) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let node = Node::Fillet {
         radius: len(0.1),
-        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
+        selection: editor_core::Operand::select(body, vec![crate::fixture::end_rim(&doc, body, 0)]),
     };
     let (doc, _fillet) = insert(doc, node);
 
@@ -275,7 +263,7 @@ fn a_carrier_deleted_with_the_node_it_names_reports_nothing() {
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node1 = Node::Fillet {
         radius: len(0.1),
-        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
+        selection: editor_core::Operand::select(body, vec![crate::fixture::end_rim(&doc, body, 0)]),
     };
     let (doc, fillet) = insert(doc, node1);
 
@@ -314,7 +302,7 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     let (doc, other) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let node2 = Node::Fillet {
         radius: len(0.1),
-        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
+        selection: editor_core::Operand::select(body, vec![crate::fixture::end_rim(&doc, body, 0)]),
     };
     let (doc, fillet) = insert(doc, node2);
     let face = fname(fillet, wall(&doc, fillet, 2));
@@ -365,14 +353,10 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
 // A mate: a side is a read.
 // ---------------------------------------------------------------------
 
-fn mate_frame() -> MateFrame<Formula> {
-    MateFrame::authored(
-        [0.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        geom_core::Tol::witness(),
-    )
-    .expect("a definite frame")
+/// A rest of `on`'s face against `to`'s, `on` the face of the copy it
+/// places.
+fn rest(to: StableName, on: StableName) -> editor_core::Mate<Formula> {
+    fixture::rest(fixture::head(on), fixture::head(to), ContactClass::Rest)
 }
 
 fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName {
@@ -404,31 +388,20 @@ fn a_mates_side_strands_as_a_read() {
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_mate"), Tol::witness());
     let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, ib) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, ib) = insert(doc, fixture::mated_instance(doc_ref));
     let head_a = instance_face(ia, part_body);
-    let (doc, mate) = insert(
-        doc,
-        Node::Mate {
-            a: crate::fixture::head(head_a.clone()).into(),
-            b: crate::fixture::head(instance_face(ib, part_body)).into(),
-            class: ContactClass::Rest,
-            alignment: Alignment {
-                a: mate_frame(),
-                b: mate_frame(),
-                primitive: MatePrimitive::Coaxial,
-                sense: AxisSense::Aligned,
-                clocking: Some(0.0),
-            },
-        },
-    );
+    let (doc, mate) = fixture::constrain(doc, rest(head_a.clone(), instance_face(ib, part_body)));
 
     let applied = delete(&doc, ia);
     let rows = crate::fixture::without_anonymous(&applied.maintenance);
     assert_eq!(
         rows.first(),
         Some(&Maintenance::StrandedRead {
-            node: doc.spoken(mate),
-            slot: editor_core::OperandSlot::Side(editor_core::MateSide::A),
+            node: doc.spoken(mate.placement),
+            slot: editor_core::OperandSlot::Side {
+                constraint: mate.id,
+                side: editor_core::MateSide::To,
+            },
             var: doc.spoken_var(doc.output(ia, 0).expect("the instance's body")),
         }),
         "the side's read is reported"
@@ -437,7 +410,7 @@ fn a_mates_side_strands_as_a_read() {
         matches!(
             &rows[1..],
             [Maintenance::StrandedSelection { readers, name, .. }]
-                if readers == &vec![doc.spoken(mate)] && *name.name() == head_a
+                if readers == &vec![doc.spoken(mate.placement)] && *name.name() == head_a
         ),
         "and its selection, once, naming the side's face: {rows:?}"
     );
@@ -462,12 +435,12 @@ fn a_round_tripped_document_reports_the_same_strands() {
     let doc = ProfileDoc::empty_derived("dm7_round_trip", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let wall_of_b = fname(b, wall(&doc, b, 0));
+    let rim_of_b = crate::fixture::end_rim(&doc, b, 0);
     let (doc, _) = insert(
         doc,
         Node::Fillet {
             radius: len(0.1),
-            selection: editor_core::Operand::select(body, vec![wall_of_b]),
+            selection: editor_core::Operand::select(body, vec![rim_of_b]),
         },
     );
 
@@ -560,7 +533,7 @@ fn an_appearance_key_minted_by_a_live_node_is_never_reported() {
         crate::fixture::without_anonymous(&applied.maintenance)
     );
     assert!(
-        applied.doc.appearance().contains_key(&live),
+        crate::fixture::painted(&applied.doc, &live).is_some(),
         "and the live node's paint is still in the store"
     );
 }
@@ -577,10 +550,10 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_order", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    // The fillet's selection reads `body`; what it NAMES is a face of
+    // The fillet's selection reads `body`; what it NAMES is an edge of
     // `victim`, which is a name and not a read, so deleting `victim` is
     // accepted and strands it.
-    let carried = fname(victim, wall(&doc, victim, 0));
+    let carried = crate::fixture::end_rim(&doc, victim, 0);
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
@@ -602,6 +575,7 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
                 took: editor_core::Took::Node
             },
             Maintenance::StrandedAppearance {
+                body: doc.spoken_var(crate::fixture::painted_in(&doc, &painted)),
                 name: doc.spoken_name(&painted),
                 took: editor_core::Took::Node
             },
@@ -610,18 +584,17 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
     );
 }
 
-/// **A delete's report is its strands alone, payload then store; the
-/// only placement row an edit reports is the mate door's, on an
-/// insert.**
+/// **A delete's report is its strands alone, payload then store, and
+/// adding a constraint reports nothing.**
 ///
-/// Deleting a member leaves its group's offsets where they are
-/// (ASSEMBLY.md A11 (2)), so [`Maintenance::OffsetCleared`] comes only
-/// from a mate's insert, and an insert strands nothing. This row pins
-/// both halves: the mate's insert reports its clear and no strand, and
-/// the delete of the painted, mated instance reports the payload
-/// strand, then the appearance strand, and nothing after them.
+/// Deleting an instance a mate reads leaves the bundle that holds the
+/// mate where it is (ASSEMBLY.md A11 (2)), and an added constraint
+/// strands nothing. This row pins both halves: the constraint's add
+/// reports no row, and the delete of the painted instance the mate
+/// reads reports the read strand, then the appearance strand, and
+/// nothing after them.
 #[test]
-fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() {
+fn a_delete_reports_its_strands_alone_and_a_constraint_add_reports_nothing() {
     let mut store = PartStore::new();
     let part = ProfileDoc::empty_derived("dm7_app_order_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
@@ -629,38 +602,24 @@ fn a_delete_reports_its_strands_alone_and_only_a_mate_insert_clears_an_offset() 
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_app_order"), Tol::witness());
     let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, ib) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, ib) = insert(doc, fixture::mated_instance(doc_ref));
     let head_a = instance_face(ia, part_body);
     let mated = apply(
         &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Mate {
-                a: crate::fixture::head(head_a.clone()).into(),
-                b: crate::fixture::head(instance_face(ib, part_body)).into(),
-                class: ContactClass::Rest,
-                alignment: Alignment {
-                    a: mate_frame(),
-                    b: mate_frame(),
-                    primitive: MatePrimitive::Coaxial,
-                    sense: AxisSense::Aligned,
-                    clocking: Some(0.0),
-                },
-            }),
+        &DocEdit::AddConstraint {
+            placement: ib,
+            mate: Box::new(rest(head_a.clone(), instance_face(ib, part_body))),
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
-    .expect("the mate inserts");
+    .expect("the mate is added");
     assert!(
-        matches!(
-            crate::fixture::without_anonymous(&mated.maintenance).as_slice(),
-            [Maintenance::OffsetCleared { instance, .. }] if instance.id() == ia
-        ),
-        "the mate's insert clears the mover's offset and strands nothing: {:?}",
+        crate::fixture::without_anonymous(&mated.maintenance).is_empty(),
+        "the constraint's add strands nothing: {:?}",
         crate::fixture::without_anonymous(&mated.maintenance)
     );
-    let mate = mated.record.minted.expect("the mate is minted");
+    let mate = ib;
     let doc = mated.doc;
     let painted = instance_face(ia, part_body);
     let doc = paint(&doc, &painted);
@@ -697,7 +656,7 @@ fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node3 = Node::Fillet {
         radius: len(0.1),
-        selection: editor_core::Operand::select(body, vec![fname(body, wall(&doc, body, 0))]),
+        selection: editor_core::Operand::select(body, vec![crate::fixture::end_rim(&doc, body, 0)]),
     };
     let (doc, fillet) = insert(doc, node3);
     let on_fillet = fname(fillet, wall(&doc, fillet, 2));
@@ -753,16 +712,16 @@ fn a_reported_appearance_strand_is_still_clearable() {
     let cleared = apply(
         &applied.doc,
         &DocEdit::ClearAppearance {
+            body: crate::fixture::painted_in(&doc, &painted),
             name: painted.clone(),
             kind: AttrKind::Color,
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("clearing does not require the name's node to be live")
     .doc;
     assert!(
-        !cleared.appearance().contains_key(&painted),
+        !crate::fixture::painted(&cleared, &painted).is_some(),
         "the stranded attachment is gone once its last attribute is cleared"
     );
 }

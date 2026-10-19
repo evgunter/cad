@@ -97,6 +97,8 @@ mod ellipse_signed_semi_axis_gate;
 mod end_samples_read_the_carrier;
 #[path = "exhaust_lane_meters.rs"]
 mod exhaust_lane_meters;
+#[path = "flat_cone_tilted_ellipse.rs"]
+mod flat_cone_tilted_ellipse;
 #[path = "germ_pose_gate.rs"]
 mod germ_pose_gate;
 #[path = "imported_chart_arc_rim.rs"]
@@ -127,12 +129,16 @@ mod offa_r1_probes;
 mod offb_r1_probes;
 #[path = "onb_wall_frame_interval.rs"]
 mod onb_wall_frame_interval;
+#[path = "onpair_plane_nurbs.rs"]
+mod onpair_plane_nurbs;
 #[path = "pcurve_frame_premise_rows.rs"]
 mod pcurve_frame_premise_rows;
 #[path = "pn_apex_pair_over_a_span.rs"]
 mod pn_apex_pair_over_a_span;
 #[path = "pn_apex_reach.rs"]
 mod pn_apex_reach;
+#[path = "pn_apex_tangent_generator.rs"]
+mod pn_apex_tangent_generator;
 #[path = "props_cone_apex_cap.rs"]
 mod props_cone_apex_cap;
 #[path = "props_cone_incidence.rs"]
@@ -178,6 +184,8 @@ mod cert5_r2_probes;
 mod chart_incidence;
 #[path = "cone_incidence_fuzz.rs"]
 mod cone_incidence_fuzz;
+#[path = "iso_parse_incidence.rs"]
+mod iso_parse_incidence;
 #[path = "offset_mint.rs"]
 mod offset_mint;
 #[path = "pcurve_cone_section.rs"]
@@ -194,6 +202,8 @@ mod pcurve_p1b_r2_probes;
 mod pcurve_parameter_finding;
 #[path = "pcurve_villarceau.rs"]
 mod pcurve_villarceau;
+#[path = "periodic_chart_closure.rs"]
+mod periodic_chart_closure;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
 #[path = "r2_cert3_e2e.rs"]
@@ -240,6 +250,8 @@ mod s81_one_rim_level_rule;
 mod sketch_segment_restriction;
 #[path = "span_meter_dim_twins.rs"]
 mod span_meter_dim_twins;
+#[path = "spline_pair_any_carrier.rs"]
+mod spline_pair_any_carrier;
 #[path = "ssi_limb3_one_arc.rs"]
 mod ssi_limb3_one_arc;
 #[path = "stored_span_winding_bound.rs"]

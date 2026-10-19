@@ -56,9 +56,10 @@ use std::collections::HashMap;
 
 use geom::Curve3;
 use geom_brep::Pcurve;
+use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::spline::{KnotVector, SplineCoeffs};
+use geom_core::spline::SplineCoeffs;
 use topo::{Body, EdgeKey};
 
 use crate::nurbs_cert::{FaceBounds, face_bound};
@@ -123,8 +124,8 @@ pub(crate) fn compute_chords(
             // certified-conservative curvature-bound step; no torus
             // tightening applies (an ellipse never lies on a torus
             // chart of this kernel's constructions).
-            Curve3::Ellipse { major, minor, .. } => {
-                ceil_count(span, ellipse_step(delta_s, major, minor))?
+            Curve3::Ellipse { semi_u, semi_v, .. } => {
+                ceil_count(span, ellipse_step(delta_s, semi_u, semi_v))?
             }
             // Spiric arcs (the hollowed partial revolve's torus rim):
             // the curvature-bound step from the closed-form `sup|C″|`
@@ -148,8 +149,8 @@ pub(crate) fn compute_chords(
             // multiplicities ≤ p − 1), and sup|C″| is a control-
             // coefficient convexity fact via iterated derivative
             // hulls — on the CONTROL NET directly for an integral
-            // carrier, through the quotient-rule assembly over the
-            // homogeneous net for a RATIONAL one (M8-5; a
+            // carrier, through the second-order quotient statement
+            // for a RATIONAL one (M8-5; a
             // rational-walled body's seam edges read back rational,
             // so this gate is what makes the face bound reachable).
             Curve3::Nurbs(ref n) => nurbs_chord_count(n, span, delta_s, ek)?,
@@ -194,7 +195,7 @@ pub(crate) fn compute_chords(
 /// `|C″| ≤ √(Σ sup²)`, and the per-step bound `h²·M/8 ≤ δ_s` sizes
 /// `h`. Integral carriers take the direct control-hull arm; RATIONAL
 /// carriers (M8-5) take [`rational_carrier_m_bound`] — the surface
-/// bound's quotient-rule assembly one dimension down. (The former
+/// bound's second-order quotient statement one dimension down. (The former
 /// blanket rational refusal claimed "arc-bearing profiles refuse at
 /// the rational-wall gate" — false since M8-2's rational span meter:
 /// arc-walled bodies BUILD now, and their seam edges read back
@@ -208,9 +209,12 @@ fn nurbs_chord_count(
     let rational = n.weights().iter().any(|w| *w != 1.0);
     // The convex-combination licence (the surface arm's rule): every
     // hull fact below needs strictly positive finite weights.
-    // `!(w > 0.0)` catches NaN.
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if rational && n.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
+    if rational
+        && !n
+            .weights()
+            .iter()
+            .all(|w| geom_core::spline::weight_in_regime(*w))
+    {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
             note: "rational B-spline carrier with a non-positive or non-finite weight — \
@@ -218,7 +222,7 @@ fn nurbs_chord_count(
                    every hull fact rests on requires strictly positive weights",
         });
     }
-    let kv = n.knots();
+    let kv = n.knots_f64_interim();
     let p = kv.degree();
     if p < 2 {
         // A single-segment degree-1 carrier is an exact chord — for a
@@ -250,8 +254,8 @@ fn nurbs_chord_count(
     // The non-rational hull is `geom`'s, so the export lane's node-count
     // schedule and this chord schedule read one spelling of the iterated
     // difference-coefficient bound; the door names which structure
-    // denied a bound, and a rational carrier goes to the quotient-rule
-    // assembly below.
+    // denied a bound, and a rational carrier goes to the second-order
+    // quotient statement below.
     let refuse = |note| TessellateError::UnsupportedCurve { edge: ek, note };
     let m_bound = match geom::nonrational_second_derivative_sup(n) {
         Ok(bound) => bound,
@@ -282,204 +286,46 @@ fn nurbs_chord_count(
 }
 
 /// Certified `sup‖C″‖` for a RATIONAL B-spline carrier (M8-5): the
-/// face bound's quotient-rule assembly one dimension down. Write
-/// `C = A/w` with `A = Σ Nᵢ wᵢ Pᵢ`, `w = Σ Nᵢ wᵢ` (both polynomial);
-/// for any constant `c` (`Ã = A − c·w`):
+/// second-order quotient statement
+/// ([`geom::NurbsCurve3::accel_upper_bound`]; the derivation is
+/// `geom_core::spline::derivative`'s "The second order"), read in
+/// certification arithmetic off the described carrier, every value a
+/// point, so the bound's upper end is certified. `C″ = M/W³` on each
+/// dyadic piece of each span (halved from `M` and `W³` formed once over
+/// the span), and the bound is the largest
+/// `‖m_k‖/b_k` over them. A refusal (a degree above the statement's
+/// ceiling, a poisoned piece) refuses typed.
 ///
-/// ```text
-/// C′ = (Ã′ − (C − c)·w′) / w
-/// C″ = (Ã″ − 2·C′·w′ − (C − c)·w″) / w
-/// ```
+/// # Errors
 ///
-/// Per span (after the fixed
-/// [`geom_brep::patch_bound::RATIONAL_CERT_SPLITS`] refinement), each
-/// ingredient is an active-window hull on the homogeneous nets:
-/// `sup|C − c| ≤ max_active |P − c|` (positive weights — the licence
-/// the caller checked — make the rational basis a nonnegative
-/// partition of unity), `sup|Ã'|`/`sup|Ã″|`/`sup|w′|`/`sup|w″|` are
-/// iterated [`geom_core::spline::SplineCoeffs::derivative_coeffs`] hulls, and the divisor is the span's
-/// weight range: for a SUP bound with a nonnegative numerator the
-/// conservative division is by `w_min` (the mirror image of the speed
-/// meter's lower-bound `w_max` choice — the interval division by
-/// `[w_lo, w_hi]` computes exactly that, outward-rounded, and refuses
-/// if positivity was never proven). Recentring at the span's control
-/// centroid keeps the cross terms span-sized. The domain bound is the
-/// max over spans (hull of the squared enclosures), read from above
-/// off its root — a refusal flows to the caller's finite check.
+/// [`TessellateError::UnsupportedCurve`] — a degree above 18 (`C″`'s
+/// quotient sits at `3p`, past [`geom_core::spline::QUOTIENT_MAX_DEGREE`]),
+/// or a bound that does not certify: at degree 17 and above a weight
+/// spread near `1e6` lets the weight power's coefficient enclosures
+/// reach zero.
 fn rational_carrier_m_bound(
     n: &geom::NurbsCurve3<f64>,
     ek: EdgeKey,
 ) -> Result<f64, TessellateError> {
-    let refined = n
-        .refine_knots(&geom_brep::patch_bound::rational_split_points(n.knots()))
-        .map_err(|_| TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "rational B-spline carrier whose refinement fails to materialise — \
-                   outside the certified chord inventory",
-        })?;
-    // Positivity survives insertion in ℝ; re-checked on the refined
-    // weights because this code may not assume floating point did.
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if refined
-        .weights()
-        .iter()
-        .any(|w| !(*w > 0.0) || !w.is_finite())
-    {
+    if 3 * n.knots_f64_interim().degree() > geom_core::spline::QUOTIENT_MAX_DEGREE {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
-            note: "rational B-spline carrier whose refined weights lost positivity — \
-                   outside the certified chord inventory",
+            note: "rational B-spline carrier of degree above 18, past the degree its \
+                   second-derivative bound reaches (three times the degree, at most 56); \
+                   describe the edge at degree 18 or below",
         });
     }
-    let kv = refined.knots();
-    let p = kv.degree(); // ≥ 2: the caller's degree gate ran first
-    let inner = kv.derivative_knot_slice().to_vec();
-    let Ok(kv1) = KnotVector::clamped(inner, p - 1) else {
-        return Err(TessellateError::UnsupportedCurve {
+    let bound = n.map_scalar(Interval::point).accel_upper_bound();
+    if bound.is_certified() && bound.hi().is_finite() {
+        Ok(bound.hi())
+    } else {
+        Err(TessellateError::UnsupportedCurve {
             edge: ek,
-            note: "B-spline carrier whose derivative knot vector fails to \
-                   materialise — outside the certified chord inventory",
-        });
-    };
-    // Homogeneous coefficient nets and their derivative enclosures.
-    let w_pts: Vec<Interval> = refined
-        .weights()
-        .iter()
-        .map(|w| Interval::point(*w))
-        .collect();
-    let dw = kv.difference_coeffs(&w_pts);
-    let ddw = kv1.difference_coeffs(&dw);
-    let comp = |c: usize| -> Vec<Interval> {
-        refined
-            .control()
-            .iter()
-            .zip(refined.weights())
-            .map(|(pt, w)| {
-                Interval::point(*w)
-                    * Interval::point(match c {
-                        0 => pt.x,
-                        1 => pt.y,
-                        _ => pt.z,
-                    })
-            })
-            .collect()
-    };
-    let a_nets: Vec<(Vec<Interval>, Vec<Interval>)> = (0..3)
-        .map(|c| {
-            let a = comp(c);
-            let da = kv.difference_coeffs(&a);
-            let dda = kv1.difference_coeffs(&da);
-            (da, dda)
+            note: "rational B-spline carrier whose second-derivative bound does not certify: \
+                   at high degree a wide weight spread lets the weight power reach zero \
+                   within its rounding — outside the certified chord inventory",
         })
-        .collect();
-    // The signed hull of `net[i] − c·wnet[i]` over `[i0, i1]`
-    // (out-of-range is refused; recentring commutes with differencing).
-    let window = |net: &[Interval],
-                  wnet: &[Interval],
-                  c: Interval,
-                  active: core::ops::RangeInclusive<usize>|
-     -> Interval {
-        let mut acc: Option<Interval> = None;
-        for i in active {
-            let e = match (net.get(i), wnet.get(i)) {
-                (Some(&a), Some(&w)) => a - c * w,
-                _ => Interval::refused(),
-            };
-            acc = Some(match acc {
-                None => e,
-                Some(h) => Interval::hull(h, e),
-            });
-        }
-        acc.unwrap_or_else(Interval::refused)
-    };
-    let mag = |h: Interval| Interval::from_bounds(0.0, h.mag());
-    let two = Interval::point(2.0);
-    let mut sq_acc: Option<Interval> = None;
-    for s in kv.first_span()..=kv.last_span() {
-        // Emptiness check and window validation in one step: `span`
-        // yields `None` exactly for the empty spans this loop skipped,
-        // and its `first_control` is `s − p` computed once, in range.
-        // The two runtime refusals this replaces ("span below its
-        // degree", "span beyond its control net") are now
-        // unrepresentable: `Span` exists only for `p ≤ s ≤ last_span`,
-        // and `last_span = knots.len() − p − 2 = control_count − 1`,
-        // which `validate_counts` pins to `refined.control().len()`.
-        let Some(span) = kv.span(s) else { continue };
-        // The span centroid — a translation CHOICE (any finite c is
-        // sound), f64 structure, fixed order.
-        let mut csum = [0.0f64; 3];
-        let mut count = 0.0f64;
-        for pt in &refined.control()[span.window()] {
-            csum[0] += pt.x;
-            csum[1] += pt.y;
-            csum[2] += pt.z;
-            count += 1.0;
-        }
-        let cen = [csum[0] / count, csum[1] / count, csum[2] / count];
-        // The span's weight range — the divisor (doc comment).
-        let mut w_span: Option<Interval> = None;
-        for w in &w_pts[span.window()] {
-            w_span = Some(match w_span {
-                None => *w,
-                Some(h) => Interval::hull(h, *w),
-            });
-        }
-        let w_span = w_span.unwrap_or_else(Interval::refused);
-        let zero = Interval::zero();
-        // Active windows: value [s−p, s]; each differencing drops the
-        // top index, which is what `derived_window` names — so `s − 1`
-        // and `s − 2` are not subtractions at the use site either. The
-        // caller's degree gate makes p ≥ 2, so the order-2 window is
-        // always `Some`; if that ever stopped holding the bound
-        // is REFUSED (and the caller's finite check reads it) rather than
-        // underflowing.
-        // `p ≥ 2` (the caller's degree gate), so the order-2 window is
-        // `Some` on every reachable path. It is asserted rather than
-        // merely commented: `debug_assert` is the tree's fail-loud form
-        // for a state that cannot occur — the panic family is denied in
-        // kernel code (workspace lints), so the release build still
-        // takes the total route below and REFUSES the
-        // bound instead of quietly under-reporting it.
-        let d2 = span.derived_window(2);
-        debug_assert!(
-            d2.is_some(),
-            "the degree gate promised p ≥ 2 for this carrier, got {p}"
-        );
-        let w1 = mag(window(&dw, &dw, zero, span.first_derived_window()));
-        let w2 = mag(d2
-            .clone()
-            .map_or_else(Interval::refused, |a| window(&ddw, &ddw, zero, a)));
-        let mut sq = Interval::zero();
-        for (c, (da, dda)) in a_nets.iter().enumerate() {
-            let cc = Interval::point(cen[c]);
-            let mut v0h: Option<Interval> = None;
-            for pt in &refined.control()[span.window()] {
-                let e = Interval::point(match c {
-                    0 => pt.x,
-                    1 => pt.y,
-                    _ => pt.z,
-                }) - cc;
-                v0h = Some(match v0h {
-                    None => e,
-                    Some(h) => Interval::hull(h, e),
-                });
-            }
-            let v0 = mag(v0h.unwrap_or_else(Interval::refused));
-            let a1 = mag(window(da, &dw, cc, span.first_derived_window()));
-            let a2 = mag(d2
-                .clone()
-                .map_or_else(Interval::refused, |a| window(dda, &ddw, cc, a)));
-            let s1 = (a1 + v0 * w1) / w_span;
-            let s2 = (a2 + two * s1 * w1 + v0 * w2) / w_span;
-            sq = sq + s2.sqr();
-        }
-        sq_acc = Some(match sq_acc {
-            None => sq,
-            Some(h) => Interval::hull(h, sq),
-        });
     }
-    // Same contract, same reason: a refused hull answers `NaN`.
-    Ok(sq_acc.map_or(f64::NAN, |s| s.sqrt().mag()))
 }
 
 /// The adjacent-NURBS chord tightening (module docs): for each
@@ -575,8 +421,8 @@ fn nurbs_tighten(
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,
                     note: "NURBS-face half-edge carries a SPIRIC pcurve — a spiric's \
-                           chart images live on its own cutting plane and its own \
-                           torus, so no spline chart mints one",
+                           chart images live on its own cutting plane and the two tori \
+                           that hold it, so no spline chart mints one",
                 });
             }
             // As the spiric: a focal-section image certifies on a cone
@@ -655,7 +501,7 @@ fn nurbs_tighten(
 ///
 /// **What this function does NOT check, because the type already
 /// does.** A degree-0 image and an interior multiplicity above the
-/// degree are both refused by [`KnotVector::clamped`] at construction,
+/// degree are both refused by [`KnotVector::clamped`](geom_core::KnotVector::clamped) at construction,
 /// so no image carrying either can reach here. Multiplicity `= p` — a
 /// C⁰ kink — IS constructible and IS admitted: the bound is a
 /// Lipschitz statement, which C⁰ suffices for.
@@ -678,7 +524,7 @@ fn general_uv_speeds(
                    produces a rational chart image of this class",
         });
     }
-    let kv = image.knots();
+    let kv = image.knots_f64_interim();
     let (d0, d1) = kv.domain();
     let (t0, t1) = params;
     if !(t0 >= d0 && t1 <= d1) {
@@ -787,6 +633,7 @@ mod tests {
     use super::*;
     use crate::nurbs_cert::tests::Domination;
     use geom::NurbsCurve3;
+    use geom_core::spline::KnotVector;
     use geom_core::{Point2, Point3};
     use topo::EdgeKey;
 
@@ -866,7 +713,7 @@ mod tests {
     /// [`interior_knot_quadratic`] is the leg that makes this an
     /// assertion rather than a precaution).
     fn sampled_uv_speeds(c: &geom::NurbsCurve2<f64>, samples: usize) -> (f64, f64) {
-        let (d0, d1) = c.knots().domain();
+        let (d0, d1) = c.knots_f64_interim().domain();
         let span = d1 - d0;
         let mut ts: Vec<f64> = Vec::new();
         for i in 0..=samples {
@@ -874,7 +721,7 @@ mod tests {
             let lam = i as f64 / samples as f64;
             ts.push(d0 + span * lam);
         }
-        for (k, _) in c.knots().interior_knots() {
+        for (k, _) in c.knots_f64_interim().interior_knots() {
             ts.push(k - span * 1e-9);
             ts.push(k + span * 1e-9);
         }
@@ -931,7 +778,7 @@ mod tests {
                 false,
             ),
         ] {
-            let (d0, d1) = image.knots().domain();
+            let (d0, d1) = image.knots_f64_interim().domain();
             let (su, sv) = general_uv_speeds(&image, (d0, d1), EdgeKey::default())
                 .expect("a constant-weight polynomial image is in the certified inventory");
             let (wu, wv) = sampled_uv_speeds(&image, 4096);
@@ -997,11 +844,11 @@ mod tests {
     #[test]
     fn a_constant_weight_image_answers_and_a_varying_one_refuses() {
         let base = interior_max_cubic();
-        let (d0, d1) = base.knots().domain();
+        let (d0, d1) = base.knots_f64_interim().domain();
         let plain = general_uv_speeds(&base, (d0, d1), EdgeKey::default()).unwrap();
 
         let two = geom::NurbsCurve2::new(
-            base.knots().clone(),
+            base.knots_f64_interim().clone(),
             base.control().to_vec(),
             vec![2.0; base.control().len()],
         )
@@ -1016,7 +863,8 @@ mod tests {
         let mut w = vec![1.0; base.control().len()];
         w[2] = 0.5;
         let varying =
-            geom::NurbsCurve2::new(base.knots().clone(), base.control().to_vec(), w).unwrap();
+            geom::NurbsCurve2::new(base.knots_f64_interim().clone(), base.control().to_vec(), w)
+                .unwrap();
         let err = general_uv_speeds(&varying, (d0, d1), EdgeKey::default())
             .expect_err("a varying weight vector has no certified net here");
         assert!(
@@ -1067,7 +915,7 @@ mod tests {
     #[test]
     fn a_read_outside_the_images_domain_refuses_and_a_subrange_is_over_bounded() {
         let image = interior_max_cubic();
-        let (d0, d1) = image.knots().domain();
+        let (d0, d1) = image.knots_f64_interim().domain();
         let err = general_uv_speeds(&image, (d0, d1 + 0.25), EdgeKey::default())
             .expect_err("past the domain there is no certified bound");
         assert!(
@@ -1117,7 +965,7 @@ mod tests {
     #[test]
     fn nurbs_chords_bound_the_secant_deviation() {
         let n = wiggle();
-        let (d0, d1) = n.knots().domain();
+        let (d0, d1) = n.knots_f64_interim().domain();
         for delta_s in [1e-2, 1e-3, 1e-4] {
             let count =
                 nurbs_chord_count(&n, d1 - d0, delta_s, EdgeKey::default()).expect("in inventory");
@@ -1171,7 +1019,7 @@ mod tests {
         .map(|&(x, y)| Point3::new(x, y, 0.0))
         .collect();
         let n = NurbsCurve3::interpolate(&pts, 3).unwrap();
-        let (d0, d1) = n.knots().domain();
+        let (d0, d1) = n.knots_f64_interim().domain();
         for delta_s in [1e-2, 1e-3, 1e-4] {
             let count =
                 nurbs_chord_count(&n, d1 - d0, delta_s, EdgeKey::default()).expect("in inventory");
@@ -1209,7 +1057,7 @@ mod tests {
 
     /// CONSCIOUS FLIP (M8-5): `rational_nurbs_carrier_refuses_typed`
     /// re-derived as the positive row. Rational carriers are metered
-    /// now (the quotient-rule `sup|C″|` of
+    /// now (the quotient `sup|C″|` of
     /// [`rational_carrier_m_bound`]), and the pin is the bound's
     /// honesty against the TRUTH: on adversarial rational carriers the
     /// dense-sampled secant deviation stays inside the certified
@@ -1240,10 +1088,14 @@ mod tests {
                 _ => 0.6,
             })
             .collect();
-        let wiggle_r =
-            NurbsCurve3::new(base.knots().clone(), base.control().to_vec(), steep).unwrap();
+        let wiggle_r = NurbsCurve3::new(
+            base.knots_f64_interim().clone(),
+            base.control().to_vec(),
+            steep,
+        )
+        .unwrap();
         for (name, n) in [("quarter_arc", arc), ("steep_wiggle", wiggle_r)] {
-            let (d0, d1) = n.knots().domain();
+            let (d0, d1) = n.knots_f64_interim().domain();
             for delta_s in [1e-2, 1e-3, 1e-4] {
                 let count = nurbs_chord_count(&n, d1 - d0, delta_s, EdgeKey::default())
                     .expect("rational carriers are in the chord inventory now");
@@ -1289,7 +1141,8 @@ mod tests {
             let mut weights = vec![1.0; n.control().len()];
             weights[2] = bad;
             assert!(
-                NurbsCurve3::new(n.knots().clone(), n.control().to_vec(), weights).is_err(),
+                NurbsCurve3::new(n.knots_f64_interim().clone(), n.control().to_vec(), weights)
+                    .is_err(),
                 "weight {bad} must refuse at construction"
             );
         }
@@ -1304,7 +1157,7 @@ mod tests {
     // ------------------------------------------------------------------
 
     fn r1_secant_worst(n: &NurbsCurve3<f64>, count: usize) -> f64 {
-        let (d0, d1) = n.knots().domain();
+        let (d0, d1) = n.knots_f64_interim().domain();
         #[allow(clippy::cast_precision_loss)]
         let h = (d1 - d0) / count as f64;
         let mut worst = 0.0f64;
@@ -1338,7 +1191,7 @@ mod tests {
         // (a) m-bound vs dense-sampled true sup|C''|. δ-free: every
         // carrier gets this arm in full.
         let m = rational_carrier_m_bound(n, EdgeKey::default()).expect("in inventory");
-        let (d0, d1) = n.knots().domain();
+        let (d0, d1) = n.knots_f64_interim().domain();
         let mut truth = 0.0f64;
         for k in 0..=4000 {
             let t = d0 + (d1 - d0) * f64::from(k) / 4000.0;
@@ -1394,7 +1247,8 @@ mod tests {
         let w: Vec<f64> = (0..base.control().len())
             .map(|i| [1e-2, 1.0, 1e2, 0.3, 7.0][i % 5])
             .collect();
-        let n = NurbsCurve3::new(base.knots().clone(), base.control().to_vec(), w).unwrap();
+        let n =
+            NurbsCurve3::new(base.knots_f64_interim().clone(), base.control().to_vec(), w).unwrap();
         r1_check("extreme_weight_carrier", &n, &R1_DELTAS[..2]);
     }
 
@@ -1404,7 +1258,8 @@ mod tests {
         let base = wiggle();
         let mut w = vec![1.0; base.control().len()];
         w[3] = 1e-5;
-        let n = NurbsCurve3::new(base.knots().clone(), base.control().to_vec(), w).unwrap();
+        let n =
+            NurbsCurve3::new(base.knots_f64_interim().clone(), base.control().to_vec(), w).unwrap();
         r1_check("near_zero_weight_carrier", &n, &R1_DELTAS);
     }
 
@@ -1443,36 +1298,56 @@ mod tests {
         NurbsCurve3::new(kv, pts, w).expect("legal rational cubic")
     }
 
-    /// The row that pins the deletion of the two runtime refusals
-    /// [`rational_carrier_m_bound`]'s span loop used to carry ("NURBS
-    /// span below its degree", "NURBS span beyond its control net").
-    /// Drawing the window from a `Span` makes both unrepresentable, so
-    /// the loop head's ONLY remaining exit is the empty-span skip —
-    /// and an interior knot of multiplicity ≥ 2 is exactly what
-    /// produces one (`knots[s] == knots[s+1]` for an `s` inside
-    /// `[first_span, last_span]`).
+    /// **A rational carrier past the second-order ceiling refuses
+    /// typed.** A rational Bézier of degree 19 reads `C″` at
+    /// `3 · 19 = 57`, past the statement's `56`: the chord pass names the
+    /// ceiling rather than sizing a count from a `NaN` bound.
+    #[test]
+    fn a_rational_carrier_past_the_ceiling_refuses_typed() {
+        let kv = KnotVector::clamped([vec![0.0; 20], vec![1.0; 20]].concat(), 19).unwrap();
+        let pts = (0..20)
+            .map(|i| {
+                let t = f64::from(i) / 19.0;
+                Point3::new(t, t * t, 0.0)
+            })
+            .collect();
+        let mut w = vec![1.0; 20];
+        w[3] = 2.0;
+        let n = NurbsCurve3::new(kv, pts, w).unwrap();
+        match nurbs_chord_count(&n, 1.0, 1e-3, EdgeKey::default()) {
+            Err(TessellateError::UnsupportedCurve { note, .. }) => assert!(
+                note.contains("degree above 18") && note.contains("56"),
+                "{note}"
+            ),
+            other => panic!("a degree-19 rational carrier was not refused typed: {other:?}"),
+        }
+    }
+
+    /// **A rational carrier with an empty span is bounded.** The
+    /// quotient's span loop ([`geom_core::spline::accel_pieces`]) draws
+    /// each window from a `Span`, so a window past the net or below the
+    /// degree is unrepresentable and the loop's only exit is the
+    /// empty-span skip — which an interior knot of multiplicity ≥ 2
+    /// produces (`knots[s] == knots[s+1]` for an `s` inside
+    /// `[first_span, last_span]`). The fixture's bound and chords are
+    /// checked as every carrier's are.
     ///
     /// The `any(span(s).is_none())` assertion is the anti-slack guard:
-    /// it fails loudly if refinement ever stops presenting an empty
+    /// it fails loudly if the fixture ever stops presenting an empty
     /// span, which would silently make this row cover nothing.
     ///
     /// Multiplicity `p` itself is checked too, and it is a REFUSAL, not
     /// a bound: a C⁰ kink leaves the certified inventory at the
-    /// degree/kink gate, well before the span loop. That exit is
-    /// `UnsupportedCurve` and always was — the deleted `MissingEntity`
-    /// refusals never guarded it.
+    /// degree/kink gate, before any span is read.
     #[test]
-    fn empty_spans_survive_the_deleted_window_guards() {
+    fn a_rational_carrier_with_an_empty_span_is_bounded() {
         // p − 1 = 2: inside the inventory, and it presents an empty span.
         let n = mult_cubic(2);
-        let refined = n
-            .refine_knots(&geom_brep::patch_bound::rational_split_points(n.knots()))
-            .expect("refinement materialises");
-        let rkv = refined.knots();
+        let kv = n.knots_f64_interim();
         assert!(
-            (rkv.first_span()..=rkv.last_span()).any(|s| rkv.span(s).is_none()),
-            "the multiplicity-2 fixture must still present an empty span after \
-             refinement — otherwise this row stops covering the skip"
+            (kv.first_span()..=kv.last_span()).any(|s| kv.span(s).is_none()),
+            "the multiplicity-2 fixture must present an empty span — \
+             otherwise this row stops covering the skip"
         );
         // The full δ schedule, as the other cheap carriers take: this
         // fixture is `rational_mult_p1_carrier`'s sibling in cost, not
@@ -1481,7 +1356,7 @@ mod tests {
 
         // p = 3: refused, typed, and NOT by either deleted message.
         let n = mult_cubic(3);
-        let (d0, d1) = n.knots().domain();
+        let (d0, d1) = n.knots_f64_interim().domain();
         match nurbs_chord_count(&n, d1 - d0, 1e-3, EdgeKey::default()) {
             Err(TessellateError::UnsupportedCurve { note, .. }) => assert!(
                 note.contains("C⁰ kink"),

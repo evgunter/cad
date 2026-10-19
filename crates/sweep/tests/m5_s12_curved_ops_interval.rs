@@ -28,7 +28,7 @@ mod certified {
         recut_ball,
     };
     use geom::Surface;
-    use geom_core::{Bounds, Interval, OrthoFrame};
+    use geom_core::{Bounds, Interval, RigidMotion};
     use profile::{
         Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
     };
@@ -92,10 +92,14 @@ mod certified {
     fn interval_curved_revert_is_bitwise() {
         for body in [m5_boss(3, 0.0, 1.0), notched()] {
             let original = format!("{body:?}");
-            let rev = body.revert();
-            assert_eq!(format!("{:?}", rev.revert()), original, "involution");
+            let rev = body.revert().unwrap();
             assert_eq!(
-                format!("{:?}", body.revert()),
+                format!("{:?}", rev.revert().unwrap()),
+                original,
+                "involution"
+            );
+            assert_eq!(
+                format!("{:?}", body.revert().unwrap()),
                 format!("{rev:?}"),
                 "determinism"
             );
@@ -153,7 +157,7 @@ mod certified {
             p2(4.0, 2.5),
             p2(2.0, 2.5),
         ]);
-        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.3)));
+        let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, 0.3)));
         let vp = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();

@@ -35,8 +35,8 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
     };
     for id in &ev.order {
         feed(&format!("#{id:?}"));
-        if let Some(v) = ev.value(*id) {
-            for (n, e) in v.name_table.iter() {
+        for t in crate::fixture::tables(ev, *id) {
+            for (n, e) in t.iter() {
                 feed(&format!("{n:?}={e:?};"));
             }
         }
@@ -79,14 +79,6 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// ancestor its forwarded records name (`topo`'s combine door), which
 /// is why the documents whose booleans graft a split operand carry
 /// versions that no name reads.
-///
-/// Two more rows are worth a reader's second look, and neither is a bug.
-///
-/// `die` is the same number
-/// `m4_pr3_names_ci::DIE_TABLE_DIGEST` carries, because it is the same
-/// digest of the same tables. The two pins agreeing is a cross-check,
-/// not a duplication: that one covers the die FIXTURE through its own
-/// bump rows, this one covers the registry.
 ///
 /// `measured_web` (M10-2) was ADDED to this table when its document
 /// joined the registry, and the add is the header's "one row moves"
@@ -175,36 +167,93 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// junction of three seam lines to a crossing of the rim, and one from
 /// a face crossing to the seam vertex of two edges that touch. Every
 /// other document held its word.
+///
+/// **Re-pinned for the vertex run** (N2: an `EdgeCrossing` is a run of
+/// (line, sense) in name order): `corner_table` and `crossing_slots`,
+/// the two documents whose pair booleans meet edge to edge. Their
+/// tables are the old ones with each edge × edge vertex re-spelled: read
+/// as a set of (line, sense), every run is the pair it replaced, and no
+/// other row moved.
+/// **Re-pinned for the output stage's killed lineage** (`topo`'s
+/// output stage copies the records of the edges its merge kills into
+/// `BooleanNaming::killed_lineage`, which `KilledSplits` reads):
+/// `crossing_slots` only. The second subtract's merge of the two flush
+/// floors kills one stretch of the first cavity's bottom rim and keeps
+/// the next, whose lineage stopped at the stretch killed, so it was
+/// named a seam of the cavity's wall and the slot's floor. It is now a
+/// piece of that rim, and the floor corner where the slot's rim meets
+/// the cavity's wall moved from a touch of the wall to a crossing of the
+/// two rims, as the other three such corners are named. Every
+/// other document held its word.
+///
+/// **Re-pinned for FORK-DM4 unit 2** (a name is scoped by the variable
+/// holding its body): `cut_cylinder`, `kitchen_sink` and `part_select`,
+/// the three documents holding a split. A split's two halves are two
+/// tables and its names spell no half, so each row walks both tables of
+/// the half-free names; `part_select`'s union, which declares the rest
+/// between the halves by the section face, also took a new id. Every
+/// other row held its word, and the id-masked geometry fence held.
+///
+/// Re-taken merged over INTENT stage 3 PR A (a revolve's axis is a
+/// line on the node), which moved `kitchen_sink` too: its merged row is
+/// neither tree's value; every other row is the one of the two trees
+/// that moved it.
+///
+/// **Re-taken merged over INTENT stage 4 F** (declared pairs retire):
+/// main's re-bless and this unit's each moved these rows, so the merged
+/// rows are neither tree's value; the id-masked geometry fence held.
+///
+/// **Re-taken merged over INTENT stage 3 B** (#5232, a placement is the
+/// bundle of mates), which re-pinned every row by its new mint chain:
+/// the merged rows are main's values but for the three split documents,
+/// `cut_cylinder`, `kitchen_sink` and `part_select`, which this unit
+/// moves, and whose merged values are neither tree's.
+///
+/// **Re-pinned for INTENT stage 3 C** (a mate relates two poses), every
+/// row: each document places its copy where it stands by a loose
+/// `Place` and the named interim's world pin, where one `place_in_world`
+/// edit minted the placement holding its world pin. The placement's mint
+/// preimage moved, and every id drawn after it. No outcome or point
+/// moved: `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// **Re-pinned for a seam citing the parent face** (N3: at every
+/// boolean a seam cites, as each side, the parent of the face beside
+/// it): `crossing_slots` only. Its second subtract merges the two flush
+/// floors, and the two seams where the first slot's side walls meet the
+/// merged floor cited the second slot's floor alone; they now cite the
+/// merged floor's `Merged` parent, in the subtract and its world copy.
+/// No other row moved.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0xa5e9e0fd2bbaebcf),
-    ("corner_table", 0x2da74bb6e496b7ae),
-    ("heat_sink", 0xaa9e6024a43311a1),
-    ("crossing_slots", 0x962d84d07b19aeef),
-    ("nested_islands_105", 0x8ab7c6f45f60f9dd),
-    ("nested_islands_106_depth1", 0x2ba81ab7b5c23ae0),
-    ("nested_islands_106_depth2", 0x4c2246499d325098),
-    ("declared_tangency", 0x370595ad9c1f1053),
-    ("kitchen_sink", 0xe3b1a15c1c8c90f7),
-    ("cut_cylinder", 0xecad82208268b4e3),
-    ("measured_web", 0xa8eab47c82dec152),
-    ("boss_union", 0xec906d7e4dad0987),
-    ("die_fillet", 0x27b561518c428c4e),
-    ("die_chamfer", 0xab3bd8b84ab7788a),
-    ("die_pips", 0x8ca99379ad4fce85),
-    ("heat_sink_fins", 0xf0b12754e2c4efed),
-    ("die_tool", 0x986cc55c1b053bca),
-    ("face_sketch", 0x033a72b2be1ba6b8),
-    ("part_select", 0xe7b7356226c1c5a7),
-    ("loft_prism", 0x4413e8ba1b27cd15),
-    ("die_composed", 0xfda7c05a2b1dc778),
-    ("die_composed_tour", 0x9419316a77aec305),
-    ("plate_param", 0xcefbede6b07a38cf),
-    ("kiss_carry", 0xa340b36cff1bc386),
-    ("tube_ring", 0x0d0d950420bce9dd),
-    ("tube_arc", 0x0dc2a35cb5306ecc),
-    ("hollow_tube_elbow", 0xa033450e9f76acfa),
-    ("hollow_tube_ring", 0x2c05f4d199bc5e59),
-    ("reshaped_rod", 0x89d66f7d03bbccf2),
+    ("die", 0x34df2e9c2dc71228),
+    ("corner_table", 0xc87991ff2a580c70),
+    ("heat_sink", 0x04120ec6d62ef7f6),
+    ("crossing_slots", 0xc571bba468251dc7),
+    ("nested_islands_105", 0x23ef0bd25d97014f),
+    ("nested_islands_106_depth1", 0xbb2608969c4bdff2),
+    ("nested_islands_106_depth2", 0x7d47ceb3a8f6fb10),
+    ("declared_tangency", 0xdadb9b611dfeec91),
+    ("kitchen_sink", 0x78e1bcfb451a86e9),
+    ("cut_cylinder", 0xed4591d0e46ab26c),
+    ("measured_web", 0xb60ba5962e3bb7ae),
+    ("boss_union", 0x0cfde2c7b3d753df),
+    ("die_fillet", 0x3fba24f805b44522),
+    ("die_chamfer", 0xf6507c3d5fc829d4),
+    ("die_pips", 0xc8330dcd32bbe4c2),
+    ("heat_sink_fins", 0x77b693009a096215),
+    ("die_tool", 0x14c3b16d494dd0ea),
+    ("face_sketch", 0xaca757ed8125029c),
+    ("part_select", 0x0f1851989e0f6454),
+    ("loft_prism", 0xd378e1199a49b979),
+    ("die_composed", 0x2aa2ac2b837dd67f),
+    ("die_composed_tour", 0x6f9c6f0fdb75b39c),
+    ("plate_param", 0x6d3705920c7cddfd),
+    ("kiss_carry", 0x3376b24ca731e0c0),
+    ("tube_ring", 0x461bd2fc66ba103f),
+    ("tube_arc", 0x9d966ca409e9076e),
+    ("hollow_tube_elbow", 0x7d091445dfdb76ae),
+    ("hollow_tube_ring", 0x5128e0d1fca325bd),
+    ("reshaped_rod", 0xf2e7ed288565c49e),
 ];
 
 #[test]

@@ -49,7 +49,7 @@ fn law_def() -> VarDecl {
 }
 
 fn step(doc: &ProfileDoc, edit: DocEdit<ProfileProgram>) -> Result<ProfileDoc, EditError> {
-    apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach).map(|a| a.doc)
+    apply(doc, &edit, Tol::witness()).map(|a| a.doc)
 }
 
 fn declare(doc: &ProfileDoc, name: &'static str, def: VarDecl) -> ProfileDoc {
@@ -82,7 +82,6 @@ fn measured_twins() -> (ProfileDoc, editor_core::VarId) {
             def: editor_core::VarDecl::Defined(sum),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("the definition declares");
     let measure = applied.doc.var_named("m").expect("declared");
@@ -213,14 +212,14 @@ fn the_symbol_is_the_variables_id() {
         decide(w - w)
     });
     assert_eq!(same, Ok(Sign::Zero));
-    assert_eq!(counts.symbolic_zero, 1, "w − w is a theorem");
+    assert_eq!(counts.symbolic, 1, "w − w is a theorem");
 
     let (_, counts) = session(|| {
         let env = var_env_over::<Sym<f64>, _>(&doc, &leaf).unwrap();
         decide(bound(w_id, &env) - bound(v_id, &env))
     });
     assert_eq!(
-        counts.symbolic_zero, 0,
+        counts.symbolic, 0,
         "w − v at equal values is not a theorem: two symbols"
     );
 
@@ -231,7 +230,7 @@ fn the_symbol_is_the_variables_id() {
                 + Sym::param_over(ParamSymbol::new(var.0.digest()), 0.0, 0.0, 0.0);
             decide(bound(var, &env) - by_hand)
         });
-        assert_eq!(counts.symbolic_zero, 1, "{name}'s symbol is its id");
+        assert_eq!(counts.symbolic, 1, "{name}'s symbol is its id");
     }
 }
 

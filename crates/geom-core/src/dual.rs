@@ -554,6 +554,11 @@ impl<T: KinkJacobian> Real for Dual<T> {
         self.value.is_poison()
     }
 
+    /// The value channel, as for [`Real::is_poison`].
+    fn is_bounded(self) -> bool {
+        self.value.is_bounded()
+    }
+
     /// `(⌊a⌋, floor′(a)·a′)` with the factor from
     /// [`KinkJacobian::floor_jacobian_factor`] (the module-doc step
     /// convention: 0 on plateaus at `f64`, the jump enclosure `[0, +∞]`
@@ -793,6 +798,14 @@ where
 
     fn point_value(self) -> Option<f64> {
         self.value.point_value()
+    }
+
+    fn structure_positive(self) -> bool {
+        self.value.structure_positive()
+    }
+
+    fn structure_bracket(self) -> Option<(f64, f64)> {
+        self.value.structure_bracket()
     }
 
     /// A constant only with a derivative of exactly zero: a value that

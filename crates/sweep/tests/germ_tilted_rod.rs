@@ -21,7 +21,7 @@ use crate::revolve_common::{self, axis_y, validated};
 
 use core::f64::consts::FRAC_PI_2;
 use geom::SurfaceKind;
-use geom_core::{Affine3, Point3, Tol, Vec3};
+use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::{AtRestBody, Body, BooleanError, BooleanOp as Op, BooleanResult, FaceKey};
@@ -51,8 +51,12 @@ fn rod(beta: f64, spin: f64) -> AtRestBody<f64> {
     let c = germ_pair::spin(&germ_pair::cyl(0.15, 0.85), Vec3::unit_z(), spin);
     let c = germ_pair::spin(&c, Vec3::unit_y(), beta);
     let centre = Vec3::new(1.8, 0.0, 0.0) + dir(beta) * 0.55;
-    let moved = topo::transform_rigid(&c, &Affine3::translation(centre), Tol::witness())
-        .expect("the rod moves");
+    let moved = topo::transform_rigid(
+        &c,
+        &geom_core::RigidMotion::translation(centre).unwrap(),
+        Tol::witness(),
+    )
+    .expect("the rod moves");
     finished("the rod", moved, Tol::witness())
 }
 
@@ -159,9 +163,8 @@ fn the_rod_that_pokes_the_lens_refuses_every_op_on_its_certified_loop() {
 /// its axis point `t = 0` leaves `πr²·1.4` of it inside the half donut
 /// (`π²/2`), of its `πr²·1.7`. Probes: on the axis above the cap (the
 /// rod only), on it below the cap (both), and in the far half of the
-/// tube (the half donut only), each answered, except an outside probe of
-/// a rod piece the at-infinity probe cannot measure. Each torus ×
-/// rod-wall pair clears.
+/// tube (the half donut only), each answered. Each torus × rod-wall pair
+/// clears.
 /// Refused on reach before the square-wall arm.
 #[test]
 fn the_rod_short_of_the_inner_equator_answers_every_op() {
@@ -199,10 +202,6 @@ fn the_rod_short_of_the_inner_equator_answers_every_op() {
                 "{what} at {pose}: volume {} against the closed form {want}",
                 m.volume
             );
-            // The rod pieces (∩, `c ∖ h`) carry the cap's ellipse on
-            // their wall, which the closed-form volume cannot measure: a
-            // ray from outside that misses them is sided by a ray aimed
-            // at a planar face.
             for (q, inside) in probes.into_iter().zip(inside) {
                 assert_eq!(
                     in_solid(&b.body, q),

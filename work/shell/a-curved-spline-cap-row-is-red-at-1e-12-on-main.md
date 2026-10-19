@@ -22,3 +22,13 @@ the row does not list, or the fit's stop is not reaching a refusal at all.
 Reproduce with
 `CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep --test shell_general_door a_curved_spline_cap_moves_with_its_sides`
 and read which.
+
+## 2026-10-13 — still red on main
+
+The FLUX cylinder-band lane (PR 4839) re-ran the row alone by name on
+clean main `e71d719f1`. It is red at `CAD_TOLERANCE_EPS=1e-12` and green at
+1e-6.
+
+## 2026-10-14 — still red at 1e-12 on main (NURBS, fresh target)
+
+Re-run alone with a fresh `CARGO_TARGET_DIR` per commit: red at `a71403e3` and still red on main at `307ed404`. Not moved by NURBS PR 4984 (red on both sides of it). (NURBS build A)

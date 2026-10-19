@@ -28,7 +28,7 @@
 //!   between-samples envelope ([`enveloped_residual_sup`]): a
 //!   [`geom_brep::CERT_SAMPLES`]² grid per knot-span cell, and the
 //!   grid sup widened by `L·(Du·δu + Dv·δv)` from the whole-patch
-//!   derivative-coefficient hull bounds ([`derivative_sup`]) and the
+//!   quotient stretch bounds ([`geom::NurbsSurface::stretch_sup`]) and the
 //!   residual's own Lipschitz constant. Fixed, never data-dependent
 //!   (D9). The envelope's slack is patch-scale over the sample count,
 //!   so it honestly REFUSES curved-kind certification at fine ε even
@@ -79,7 +79,6 @@
 //! refuted one.
 
 use geom::{NurbsSurface, Surface};
-use geom_core::spline::span_derivative_scale;
 use geom_core::{Point3, Vec3};
 
 use crate::signed_zero::{plus_zero, plus_zero_point};
@@ -171,8 +170,8 @@ pub(crate) fn recognize(patch: &NurbsSurface<f64>, eps_in: f64) -> Recognition {
 /// aligned to, so the face's `same_sense` keeps its meaning across
 /// the promotion.
 fn chart_normal_mid(patch: &NurbsSurface<f64>) -> Vec3<f64> {
-    let (u0, u1) = patch.knots_u().domain();
-    let (v0, v1) = patch.knots_v().domain();
+    let (u0, u1) = patch.knots_u_f64_interim().domain();
+    let (v0, v1) = patch.knots_v_f64_interim().domain();
     let jet = patch.ders((u0 + u1) / 2.0, (v0 + v1) / 2.0);
     jet.du.cross(jet.dv)
 }
@@ -281,8 +280,8 @@ fn try_cylinder(
     // Three fixed samples of the v-start boundary at u-fractions
     // 0, 3/8, 6/8 of the domain — distinct azimuths even on a
     // full-period patch (where u-start and u-end coincide).
-    let (u0, u1) = patch.knots_u().domain();
-    let (v0, _) = patch.knots_v().domain();
+    let (u0, u1) = patch.knots_u_f64_interim().domain();
+    let (v0, _) = patch.knots_v_f64_interim().domain();
     let sample = |f: f64| patch.eval(u0 + (u1 - u0) * f, v0);
     let p0 = sample(0.0);
     let pa = sample(3.0 / 8.0);
@@ -357,7 +356,7 @@ fn try_cylinder(
 ///   placement depend only on the knot vectors, never on data);
 /// * every domain point lies within half a sample spacing of a sample
 ///   in each direction, so with `Du`, `Dv` the whole-patch derivative
-///   sup bounds ([`derivative_sup`]) and `L` the candidate's implicit-
+///   sup bounds ([`NurbsSurface::stretch_sup`]) and `L` the candidate's implicit-
 ///   residual Lipschitz constant in the point,
 ///   `sup |r| ≤ grid sup + L·(Du·δu + Dv·δv)`, `δ = span/(2·(k−1))` —
 ///   a first-order whole-patch envelope, conservative by construction.
@@ -378,12 +377,16 @@ fn enveloped_residual_sup(
     candidate: &Surface<f64>,
     lipschitz: f64,
 ) -> f64 {
-    let Some((du_sup, dv_sup)) = derivative_sup(patch) else {
+    let (du_sup, dv_sup) = patch.stretch_sup();
+    let (du_sup, dv_sup) = (du_sup.get(), dv_sup.get());
+    // A poisoned net poisons the bound; `f64::max` below would drop
+    // that NaN, so it is surfaced here (D4 ¶2).
+    if du_sup.is_nan() || dv_sup.is_nan() {
         return f64::NAN;
-    };
+    }
     let k = geom_brep::CERT_SAMPLES;
-    let ku = patch.knots_u();
-    let kv = patch.knots_v();
+    let ku = patch.knots_u_f64_interim();
+    let kv = patch.knots_v_f64_interim();
     let mut worst = 0.0f64;
     for su in ku.first_span()..=ku.last_span() {
         let (ua, ub) = (ku.knots()[su], ku.knots()[su + 1]);
@@ -418,102 +421,14 @@ fn enveloped_residual_sup(
     worst
 }
 
-/// Whole-patch sup bounds `(Du, Dv)` on `|∂S/∂u|`, `|∂S/∂v|` from the
-/// control net — closed form, D9-fixed, both tracks:
-///
-/// * **non-rational**: the derivative surface's control coefficients
-///   are `p·(P_{i+1} − P_i)/(t_{i+p+1} − t_{i+1})` (empty-support
-///   coefficients skipped), and a B-spline lies in its coefficient
-///   hull, so the max coefficient norm bounds the derivative — the
-///   `nurbs_cert` derivative-coefficient-hull precedent.
-/// * **rational**: with `S = A/w` (`A = Σ N w_i P′_i` in a frame
-///   translated to the control centroid, `w = Σ N w_i`),
-///   `S_u = (A_u − S·w_u)/w`, so
-///   `|S_u| ≤ (sup|A_u| + sup|S − c|·sup|w_u|) / w_min` — numerator
-///   and denominator derivative coefficient hulls, `|S − c|` bounded
-///   by the translated control hull (positive weights), and the
-///   denominator bounded BELOW by min-weight positivity
-///   (`w(u,v) ≥ min_i w_i > 0`, since `w` is a convex combination of
-///   the weights). Conservative, never data-dependent.
-///
-/// With all weights bitwise 1 the rational formula degenerates to the
-/// exact non-rational bound (`w_u ≡ 0`, `w_min = 1`), so one
-/// evaluation covers both tracks. `None` for a degenerate knot
-/// structure (no differentiable span).
-fn derivative_sup(patch: &NurbsSurface<f64>) -> Option<(f64, f64)> {
-    let (nu, nv) = patch.control_counts();
-    let control = patch.control();
-    let weights = patch.weights();
-    if nu < 2 && nv < 2 {
-        return None;
-    }
-    // Translated frame: bounds on |S − c| stay patch-sized instead of
-    // origin-distance-sized (the derivative is translation-invariant).
-    let n = control.len() as f64;
-    let mut sum = Vec3::zero();
-    for p in control {
-        sum = sum + (*p - Point3::origin());
-    }
-    let c = Point3::origin() + sum / n;
-    let mut sup_s = 0.0f64;
-    let mut w_min = f64::INFINITY;
-    for (p, w) in control.iter().zip(weights) {
-        sup_s = sup_s.max((*p - c).norm());
-        w_min = w_min.min(*w);
-    }
-    if !(w_min.is_finite() && w_min > 0.0) {
-        return None;
-    }
-    let at = |iu: usize, iv: usize| (control[iu * nv + iv] - c, weights[iu * nv + iv]);
-    // u-direction coefficient hulls of A_u and w_u.
-    let pu = patch.knots_u().degree();
-    let tu = patch.knots_u().knots();
-    let mut sup_au = 0.0f64;
-    let mut sup_wu = 0.0f64;
-    for iu in 0..nu.saturating_sub(1) {
-        let denom = tu[iu + pu + 1] - tu[iu + 1];
-        if denom <= 0.0 {
-            continue; // empty support — the coefficient never acts.
-        }
-        let factor = span_derivative_scale(pu, tu[iu + 1], tu[iu + pu + 1]);
-        for iv in 0..nv {
-            let (p1, w1) = at(iu + 1, iv);
-            let (p0, w0) = at(iu, iv);
-            sup_au = sup_au.max((p1 * w1 - p0 * w0).norm() * factor);
-            sup_wu = sup_wu.max((w1 - w0).abs() * factor);
-        }
-    }
-    // v-direction, same shape.
-    let pv = patch.knots_v().degree();
-    let tv = patch.knots_v().knots();
-    let mut sup_av = 0.0f64;
-    let mut sup_wv = 0.0f64;
-    for iv in 0..nv.saturating_sub(1) {
-        let denom = tv[iv + pv + 1] - tv[iv + 1];
-        if denom <= 0.0 {
-            continue;
-        }
-        let factor = span_derivative_scale(pv, tv[iv + 1], tv[iv + pv + 1]);
-        for iu in 0..nu {
-            let (p1, w1) = at(iu, iv + 1);
-            let (p0, w0) = at(iu, iv);
-            sup_av = sup_av.max((p1 * w1 - p0 * w0).norm() * factor);
-            sup_wv = sup_wv.max((w1 - w0).abs() * factor);
-        }
-    }
-    let du = (sup_au + sup_s * sup_wu) / w_min;
-    let dv = (sup_av + sup_s * sup_wv) / w_min;
-    (du.is_finite() && dv.is_finite()).then_some((du, dv))
-}
-
 /// Whether the promoted chart's normal OPPOSES the NURBS chart's at
 /// the domain midpoint — the `same_sense` composition bit. Computed
 /// against the promoted surface's own chart normal via the implicit
 /// gradient (plane: the stored normal; cylinder: radially outward),
 /// which equals the chart normal for both promoted kinds.
 pub(crate) fn chart_flipped(patch: &NurbsSurface<f64>, promoted: &Surface<f64>) -> bool {
-    let (u0, u1) = patch.knots_u().domain();
-    let (v0, v1) = patch.knots_v().domain();
+    let (u0, u1) = patch.knots_u_f64_interim().domain();
+    let (v0, v1) = patch.knots_v_f64_interim().domain();
     let jet = patch.ders((u0 + u1) / 2.0, (v0 + v1) / 2.0);
     let nurbs_normal = jet.du.cross(jet.dv);
     let grad = geom_brep::implicit_gradient(promoted, jet.point);

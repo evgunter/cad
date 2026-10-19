@@ -87,6 +87,8 @@
 //! - [`stations`] — a station cut back into a rim by hand, and the
 //!   reader that finds stations on a body: body authoring plus the one
 //!   reader its rows check with, as [`cone_nappe`];
+//! - [`oblique`] — the oblique clip, a body cut by a turned cube so
+//!   its corners are oblique trihedra (body authoring, same routing);
 //! - [`pinch_cones`] — a boolean's cones at a point from the operands'
 //!   convex pieces, and the vertices a built body holds there: a truth
 //!   derived without the kernel plus the check against it, so beside
@@ -95,6 +97,12 @@
 //!   and the check of a boolean's body against it (volume, tier 3,
 //!   `point_in_solid`): a truth plus the check against it, so beside
 //!   [`differential`];
+//! - [`quadrature`] — the 7–15 Gauss–Kronrod panel the volume oracles
+//!   integrate with: a tool for deriving a truth without the kernel,
+//!   so beside [`oracles`];
+//! - [`enclosure`] — the box an `Interval` loft row lofts over, and
+//!   the check of the enclosing body against one member's `f64` loft:
+//!   a check of a body, so beside [`orient`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -275,11 +283,22 @@ pub mod solid_truth;
 /// edge–edge record): a check of a body, so beside [`solid_truth`].
 pub mod touch_union;
 
+/// The 7–15 Gauss–Kronrod panel the volume oracles integrate with.
+pub mod quadrature;
+
+/// Whether a loft at `Interval` encloses one member of its family: a
+/// check of a body, so beside [`orient`].
+pub mod enclosure;
+
 /// A station cut back into a rim by hand, and the reader that finds a
 /// body's stations, curved carriers included. Body authoring plus the
 /// one reader the run-wall and blend rows check with, so it routes
 /// here.
 pub mod stations;
+
+/// The oblique clip: a body cut by a turned cube so its corners are
+/// oblique trihedra. Body authoring, so it routes here.
+pub mod oblique;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
@@ -331,10 +350,11 @@ pub fn chain(s: f64) -> Section {
 
 /// **The arc section**: a square of half-width `s` with a
 /// quarter-circle bulge on the `+x` side — the arc-bearing profile
-/// whose lofted wall is RATIONAL (weights `1, cos 22.5°, 1` over two
-/// 45° sub-arcs), and so the cheapest profile in this corpus that puts
-/// a body's enclosure on the QUADRATURE lane rather than a closed
-/// form.
+/// whose lofted wall is RATIONAL (weights `1, cos 45°, 1` over one 90°
+/// sub-arc: its sweep `4·atan(tan(π/8))` rounds just past π/2, which
+/// the sub-arc rule's η keeps at one; C6), and so the cheapest profile
+/// in this corpus that puts a body's enclosure on the QUADRATURE lane
+/// rather than a closed form.
 ///
 /// One copy for the crate. It was four — `m8_3_rational_volume`,
 /// `cert5_offgrid_knot_rational` and the certificate suite each held a
@@ -628,10 +648,11 @@ pub fn tilted_bore() -> Body<f64> {
         Vec3::new(1.0, 0.0, 0.0),
         0.4,
     );
-    let bore = topo::transform_rigid(&bore, &tilt, tol).expect("the bore turns");
+    let bore = topo::transform_rigid(&bore, &geom_core::test_support::rigid(&tilt, tol), tol)
+        .expect("the bore turns");
     topo::transform_rigid(
         &bore,
-        &geom_core::Affine3::translation(Vec3::new(0.5, 0.5, 0.5)),
+        &geom_core::RigidMotion::translation(Vec3::new(0.5, 0.5, 0.5)).unwrap(),
         tol,
     )
     .expect("the bore moves")

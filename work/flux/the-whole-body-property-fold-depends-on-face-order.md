@@ -5,8 +5,6 @@ title: The whole-body property fold sums face terms in arena order, so one solid
 status: open
 opened: 2026-10-11
 priority: P2
-design: true
-needs_ev: true
 ---
 
 
@@ -116,3 +114,16 @@ The designers split: one recommends (A) (likely), the other leans to (S)
 (unsure). Either way, the current `faces − 1` ulp bound is the wrong
 shape for signed terms. D9 idiom 2's "arena order" wording also changes,
 in a different direction under each answer.
+
+## Ev's answer (PR 4830, 2026-10-19): (A), storage-dependent
+
+"i think i want to pick storage-dependent for simplicity". D9's
+determinism bullet now names a body's storage as part of the input,
+and idiom 2 reads "the walk's own fixed order". The (S) spike is kept
+findable (`docs/doc-ledger/exact-sum-spike.md`).
+
+What remains, and keeps this row open: the STEP round trip's
+`faces − 1` ulp bound
+(`step-import::nurbs_import::arc_loft_natively_computes_its_rational_volume`)
+is the wrong shape for signed terms. Replace it with a bound computed
+from the face terms, or compare structure.

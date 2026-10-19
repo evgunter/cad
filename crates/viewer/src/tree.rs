@@ -3,7 +3,7 @@
 //! # Failures are values, and this module invents none of them
 //!
 //! GQ2's ratified codomain is a per-node result — `Ok`, `Failed(e)`,
-//! `Poisoned { through }` — and the ratified error rule is that a
+//! `Poisoned { through }` — and G4's ratified error rule is that a
 //! failure is a typed value the GUI renders, never a string invented
 //! at the interaction layer. So a failing row's message is the
 //! kernel's own rendering of the `NodeError`, its node spoken from the
@@ -17,7 +17,7 @@
 //! out of the kernel's own relation and two computed values.
 //!
 //! A failure that CARRIES another node's refusal — a part whose root
-//! failed or was poisoned, a mate whose placer refused — points at the
+//! failed or was poisoned, a mate whose pose did not evaluate — points at the
 //! node that failed and never quotes it, so the carried refusal is
 //! drawn under the row as a line of its own, and so on down, one line
 //! per document level ([`carried_lines`]). Each line is the kernel's
@@ -41,24 +41,27 @@
 //! an `Ok` value says ([`Readout`]) — a measure's value, spelled when
 //! drawn as the chrome spells any computed value, or the kernel's typed
 //! reason it has none; what an assertion found of it ([`Asserted`]);
-//! that a boolean, or a side of a split, holds no material; and
-//! whether a mate placed its child or only declares ([`MateRole`]).
+//! and that a boolean, or a side of a split, holds no material.
+//!
+//! A placement's constraints are its children ([`ConstraintRow`]): a
+//! constraint is no node, so its row hangs under its placement's.
 //!
 //! # A mate refusal poisons across the placement graph, not the DAG
 //!
-//! Mates and instances are DAG LEAVES — a mate's references are names,
-//! not edges — so the placement solve is one shared computation the
-//! result DAG has no edges for. When a group refuses, the kernel
-//! records the SAME typed fault against every instance in that group
-//! and every mate holding it together, and each of those nodes reports
-//! it as its own `Failed`. Read verbatim that draws four identical
-//! FAILED badges and sends the eye nowhere.
+//! A constraint's reads say where a copy stands, not what it is made
+//! of, so the placement solve is a computation the result DAG has no
+//! edges for. When a placement's bundle refuses, the kernel records the
+//! SAME typed fault against that placement and against every placement
+//! chained to it, and each of those nodes reports it as its own
+//! `Failed`. Read verbatim that draws several identical FAILED badges
+//! and sends the eye nowhere.
 //!
-//! The fault itself resolves that wherever it names a mate
-//! (`blamed_mates` is the reading). So a mate the fault BLAMES is the
-//! cause and keeps its `Failed`; a row the same fault merely reached
-//! is [`RowStatus::Poisoned`] through the blamed mate — the only thing
-//! read being which node the kernel's own words point at.
+//! The fault itself resolves that wherever it names a constraint
+//! (`blamed_mates` is the reading). So the placement holding a
+//! constraint the fault BLAMES is the cause and keeps its `Failed`; a
+//! row the same fault merely reached is [`RowStatus::Poisoned`] through
+//! the blamed placement — the only thing read being which node the
+//! kernel's own words point at.
 //!
 //! **This is the viewer's one answer to which row a node's failure
 //! is.** Every other surface that says why a node has no value reads
@@ -69,77 +72,13 @@
 //! `crates/viewer/src` that hands back a standing is censused by
 //! `tree_badges::every_standing_door_in_the_viewer_reads_the_trees_answer`.
 //!
-//! **The blamed node is the row that carries the fault's words, and
-//! it need not be the node an author edits.** This is the one
-//! statement of why; [`blamed_mates`] points here. Several arms name a
-//! node beside the mate, and ONE of them is a node the kernel's own
-//! doc for the arm calls the thing to repair: `PlacerRefused`'s
-//! `placer`, *"the node an author goes and fixes"*. The others are
-//! where the refusal was noticed or held, and the repair is the
-//! mate's: `DanglingHead`'s `head` *"may be perfectly live"* and its
-//! message's recourse, *"rebind it"*, is the mate's reference;
-//! `PartSelectsAnotherCopy` is refused *"rather than choosing"*
-//! between the name and the `Part`; `Under`'s pair and `SelfMate`'s
-//! instance are evidence about where the refusal held. Blame stays on
-//! the mate for every one of them, and what decides it is REACH —
-//! where the solve records the fault:
-//!
-//! - **Raised where the solve reads one mate's references**
-//!   (`mate::member::check_reference` and the walk): every
-//!   [`MateFault::DanglingHead`], every
-//!   [`MateFault::PartSelectsAnotherCopy`], and a
-//!   [`MateFault::PlacerRefused`] whose placer's own slot does not
-//!   evaluate. The fault is recorded against THAT MATE ONLY, so blame
-//!   decides a single row: whether the mate reads `Failed` with the
-//!   words, or `Poisoned` — a pointer away from the only row that has
-//!   them. The named node's row is whatever the evaluation says of it
-//!   on its own: `Ok` when it evaluates, `Failed` beside the mate when
-//!   it does not (a `Part` indexing past its pattern's count, a pattern
-//!   of no copies), and then both rows are loud and neither is
-//!   poisoned through the other.
-//! - **Raised while a group's fold derives an offset**
-//!   (`mate::member::derived_offset`): a `PlacerRefused` only. It
-//!   reaches every instance and mate of the group, and they point at
-//!   the mate, whose row carries the placer's refusal verbatim. A
-//!   placer on the chain above an instance the fault reached is
-//!   poisoned by the evaluation even when its own slots are broken, so
-//!   its row carries the pointer at the mate rather than the words —
-//!   the arm's doc's *"this fault is the only place that cause
-//!   appears"*.
-//!
-//! **So a `PlacerRefused` mate's row LINKS to the placer**
-//! ([`TreeRow::repair_at`]), on either path: blame decides which row
-//! is loud and carries the words, and the link is how a reader gets
-//! from those words to the node the kernel says to fix. No other mate
-//! arm links, for the reason above; `repaired_at` is where an arm
-//! answers this. On the fold's path the link lands on a poisoned
-//! placer whose own line points back at the mate — the words are on
-//! the mate's row, so the link's job is to put the placer under the
-//! selection, not to show a second copy of them.
-//!
-//! **One seat the link inherits is wrong, and it is the kernel's.**
-//! `check_reference` evaluates a `Part`'s index expression under the
-//! PATTERN below the `Part` (`count_of(level.node, index,
-//! SlotId::Instance)`), so a `Part` index that does not evaluate names
-//! the pattern as the placer: the link then selects an `Ok` pattern
-//! while the `Part` beside it is `Failed` with the real cause
-//! (`work/msolve/placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate.md`).
-//! The tree draws what the fault names; the fix is MSOLVE's.
-//!
-//! `crates/viewer/tests/msolve3_placer_refused.rs` holds one fixture
-//! of each shape above.
-//!
-//! **[`MateFault::Band`] names none, and it is the arm that still
-//! reaches rows.** A band is the RUN's tolerance, not a decision about
-//! any node: with no band the solve decides nothing, and faults every
-//! mate and every instance in the DOCUMENT — across group
-//! boundaries, and including instances no mate touches — with one
-//! shared cause. No row is more at fault than another, so nothing here
-//! picks one and every row it reached keeps its own `Failed`. That
-//! reading is honest about blame and poor about scope, and improving
-//! it wants a status saying "the run, not this row" rather than a
-//! culprit invented here
-//! (`work/chrome/band-refusal-still-badges-every-row.md`).
+//! **The blamed node is the row that carries the fault's words.** This
+//! is the one statement of why; [`blamed_mates`] points here. Every arm
+//! that names a constraint blames the placement holding it: a mate
+//! reads poses, and a pose that does not evaluate is
+//! [`MateFault::SideUnevaluated`], which carries the evaluation layer's
+//! own refusal — drawn under the placement's row as a carried line
+//! ([`carried_lines`]), never as a link to another node to repair.
 //!
 //! # A failed row outside the solve links where its own error says
 //!
@@ -184,13 +123,15 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc,
-    Evaluation, Expr, Formula, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError,
-    NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode,
-    ValuePayload, VarId, node_kind_noun,
+    AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Datum, Dimension,
+    Doc, Evaluation, Expr, Formula, Label, MateFault, MateRef, MeasureUnavailableAt, Node,
+    NodeError, NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide,
+    SpokenNode, ValuePayload, VarId, node_kind_noun,
 };
 use pncad::quantity::UnitDef;
-use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};
+use pncad::select::{
+    InterrogateError, Resolution, ResolveIndeterminate, RunCtx, SplitHalf, resolve,
+};
 
 use crate::frame::Tone;
 use crate::parts::PartFiles;
@@ -236,9 +177,9 @@ pub enum RowStatus {
     ///
     /// Two things arrive here: a DAG descendant of a failed node, which
     /// the evaluation itself reports as poisoned; and a node the
-    /// placement solve left without a pose because some OTHER mate in
-    /// its group refused, which the evaluation reports as its own
-    /// `Failed` (the module header's second section).
+    /// placement solve left without a pose because the bundle of a
+    /// placement it is chained to refused, which the evaluation reports
+    /// as its own `Failed` (the module header's second section).
     Poisoned {
         /// The row to go and read: a node THIS TREE badges `Failed`,
         /// so the walk is one hop as DRAWN and not merely as evaluated
@@ -277,9 +218,8 @@ impl RowStatus {
     /// points at the row that owns it, so both stay
     /// [`Tone::Advisory`] and the eye goes to the one row a reader can
     /// do something about — a document with six rows downstream of one
-    /// broken feature has one loud row, not seven. There can be more
-    /// than one: a `MateFault::Contradictory` naming two different
-    /// mates blames both, and both are actionable ([`blamed_mates`]).
+    /// broken feature has one loud row, not seven. A mate refusal is
+    /// actionable on the placements it blames ([`blamed_mates`]).
     ///
     /// **Total, where [`RowStatus::message`] is not**, because an `Ok`
     /// row still has a [`badge`](RowStatus::badge) — a report, nothing
@@ -356,10 +296,7 @@ pub struct TreeRow {
     /// **Another node whose own slot refused**, when a
     /// [`RowStatus::Failed`] row's error names one: whatever
     /// `repair_named` answers for the row's own error, never this row.
-    /// That node's own row may read `Ok`. The one known exception is
-    /// the kernel's: a `PlacerRefused` for a `Part` index that does not
-    /// evaluate names the pattern, whose slot refused nothing (module
-    /// header).
+    /// That node's own row may read `Ok`.
     ///
     /// `None` on every row that is not `Failed`. A row's other links
     /// carry their own target: a `Poisoned` row's is its `through`,
@@ -375,6 +312,59 @@ pub struct TreeRow {
     /// on every row while a newer document's run is outstanding
     /// (`DocSession::tree_rows`).
     pub version_offer: Option<VersionOffer>,
+    /// **A placement's constraints, its children** ([`ConstraintRow`]):
+    /// a `Place`'s or an instance's bundle, in bundle order. Empty on
+    /// every other row. A constraint is no node, so it has no row of its
+    /// own in the order; its placement's row carries it.
+    pub constraints: Vec<ConstraintRow>,
+}
+
+/// **One constraint of a placement, as a child of its row**: its
+/// address and what it is.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConstraintRow {
+    /// The constraint's address: its placement and minted id.
+    pub mate: MateRef,
+    /// What the constraint is, in a few words ([`constraint_said`]).
+    pub said: String,
+}
+
+/// **What a constraint is, as its child row says it**: its 1-based
+/// position in its bundle (`at`), then `world mate` for a mate whose
+/// target reads the world, its contact class's name and `mate` for any
+/// other mate, and the freedom a value sets —
+/// `constraint 1: world mate`, `constraint 2: Rest mate`,
+/// `constraint 3: spin value`, and `world pin` for the named interim's
+/// pin where its body stands. Never its minted id, which is an arena
+/// key and no word a person reads.
+pub fn constraint_said(at: usize, constraint: &Constraint) -> String {
+    if constraint.world_pin().is_some() {
+        return format!("constraint {at}: world pin");
+    }
+    match (constraint.mate(), constraint.value()) {
+        (Some(mate), _) if matches!(mate.to, pncad::document::Target::World(_)) => {
+            format!("constraint {at}: world mate")
+        }
+        (Some(mate), _) => format!("constraint {at}: {} mate", mate.class.name()),
+        (None, Some(value)) => format!("constraint {at}: {} value", value.coord.name()),
+        (None, None) => unreachable!("a constraint is a mate, a value or a world pin"),
+    }
+}
+
+/// `node`'s constraints as child rows, empty for a node that is no
+/// placement.
+fn constraint_rows(id: RecipeNodeId, node: &Node<ProfileProgram>) -> Vec<ConstraintRow> {
+    match node {
+        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => constraints
+            .iter()
+            .enumerate()
+            .map(|(at, constraint)| ConstraintRow {
+                mate: MateRef::new(id, constraint.id),
+                said: constraint_said(at + 1, constraint),
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 impl TreeRow {
@@ -384,10 +374,9 @@ impl TreeRow {
     pub fn tone(&self) -> Tone {
         match &self.readout {
             Some(Readout::Asserted(asserted)) => asserted.tone(),
-            Some(
-                Readout::Value(_) | Readout::Unavailable(_) | Readout::Empty(_) | Readout::Role(_),
-            )
-            | None => self.status.tone(),
+            Some(Readout::Value(_) | Readout::Unavailable(_) | Readout::Empty(_)) | None => {
+                self.status.tone()
+            }
         }
     }
 }
@@ -412,9 +401,6 @@ pub enum Readout {
     /// holds no material. A legal value, and the one a consumer
     /// refuses as its input, so the row it came from says so.
     Empty(Emptiness),
-    /// A mate's role in the solve: it placed its child, or it only
-    /// declares a contact. Its `Display` is the kernel's sentence.
-    Role(MateRole),
 }
 
 /// **Which part of a value holds no material**, and its phrase.
@@ -651,10 +637,9 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. }
-        | Node::Mate { .. }
-        | Node::Gauge { .. }
+        | Node::Place { .. }
+        | Node::World
         | Node::Measure { .. }
-        | Node::PlaceInWorld { .. }
         | Node::Assertion { .. } => None,
     }
 }
@@ -762,7 +747,9 @@ pub fn rows(
     let mut depths: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     let mut rows = Vec::with_capacity(order.len());
     for id in order {
-        let Some(node) = doc.node(id) else {
+        // The world is no feature: it is in every document, defines no
+        // variable, and is never deleted, so it has no row.
+        let Some(node) = doc.node(id).filter(|node| !matches!(node, Node::World)) else {
             continue;
         };
         let depth = depth_of(&doc.upstream(id), &depths);
@@ -794,6 +781,7 @@ pub fn rows(
             repair_at,
             readout,
             version_offer,
+            constraints: constraint_rows(id, node),
         });
     }
     rows
@@ -821,14 +809,8 @@ fn depth_of(inputs: &[RecipeNodeId], depths: &BTreeMap<RecipeNodeId, usize>) -> 
 /// words, never a sentence composed here (the same rule the badges
 /// follow).
 fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
-    match node {
-        Node::Mate { class, .. } => match pncad::document::class_admission(*class) {
-            pncad::document::ClassAdmission::Mints => None,
-            caveat @ (pncad::document::ClassAdmission::NoAtRestRecord { .. }
-            | pncad::document::ClassAdmission::NotAdmitted) => {
-                Some(format!("{}: {}", class.name(), caveat.no_record_reason()))
-            }
-        },
+    let constraints = match node {
+        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => constraints,
         Node::Datum(_)
         | Node::Profile(_)
         | Node::Extrude { .. }
@@ -848,12 +830,27 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::Pattern { .. }
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
-        | Node::InstantiatePart { .. }
-        | Node::Gauge { .. }
+        | Node::World
         | Node::Measure { .. }
-        | Node::PlaceInWorld { .. }
-        | Node::Assertion { .. } => None,
-    }
+        | Node::Assertion { .. } => return None,
+    };
+    // One caveat per constraint whose class carries no at-rest record,
+    // in bundle order: a placement's mates are its constraints, so their
+    // standing caveats ride the placement's own row.
+    let caveats: Vec<String> = constraints
+        .iter()
+        .filter_map(|constraint| {
+            let class = constraint.mate()?.class;
+            match pncad::document::class_admission(class) {
+                pncad::document::ClassAdmission::Mints => None,
+                caveat @ (pncad::document::ClassAdmission::NoAtRestRecord { .. }
+                | pncad::document::ClassAdmission::NotAdmitted) => {
+                    Some(format!("{}: {}", class.name(), caveat.no_record_reason()))
+                }
+            }
+        })
+        .collect();
+    (!caveats.is_empty()).then(|| caveats.join("; "))
 }
 
 /// **What `id`'s value says in `evaluation`** — asked only of a row
@@ -861,7 +858,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
 /// whether there is one. `None` for a payload whose `Ok` is the whole
 /// of it: a body, a datum, a profile, a pattern's instances (its
 /// count is authored, and the words of any refusal state it), a
-/// declaration, a gauge.
+/// placement's copies, the world.
 fn readout_of(
     doc: &Doc<ProfileProgram>,
     id: RecipeNodeId,
@@ -886,13 +883,12 @@ fn readout_of(
             }
             (SplitSide::Body(_), SplitSide::Body(_)) => None,
         },
-        ValuePayload::Mate(role) => Some(Readout::Role(*role)),
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
         | ValuePayload::Instances(_)
-        | ValuePayload::Gauge => None,
+        | ValuePayload::Copies(_) => None,
     }
 }
 
@@ -1079,10 +1075,10 @@ pub fn own_error(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<&Node
 /// **A kernel standing, re-read as this tree draws its node** (the
 /// module header's second section).
 ///
-/// The kernel reports a node a group refusal reached as its own
+/// The kernel reports a placement a bundle refusal reached as its own
 /// `Failed`, and a node poisoned through such a node as poisoned
-/// through it; the tree draws both as downstream of the mate the fault
-/// blames. Answered off [`cause_row`]: a node whose cause is another
+/// through it; the tree draws both as downstream of the placement the
+/// fault blames. Answered off [`cause_row`]: a node whose cause is another
 /// row reads `Poisoned` through that row, a node that is its own cause
 /// reads `Failed`. A standing [`cause_row`] has no row for — no
 /// evaluation entry, not in the document, a chain that ends at no
@@ -1104,6 +1100,56 @@ pub fn standing_as_drawn(standing: NodeStanding, evaluation: &Evaluation<f64>) -
             }
         }
         NodeStanding::NotEvaluated { .. } | NodeStanding::NotInDocument { .. } => standing,
+    }
+}
+
+/// **A picked name's [`Resolution`], as drawn** ([`resolution_as_drawn`]):
+/// read in the read holding the body the pick met (NAMES N1: resolution
+/// names the read; `Doc::read_of_body`). A pick whose node the document
+/// no longer holds is stranded with it where the name was minted there
+/// (`stranded_at`), and is otherwise not in the document; one whose
+/// node defines no such read answers the node's standing.
+pub fn pick_resolution(
+    doc: &pncad::document::Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    node: RecipeNodeId,
+    body: u32,
+    name: &pncad::prelude::StableName,
+) -> Resolution {
+    match pncad::select::stranded_at(doc, node, name) {
+        Some(Ok(gone)) => return gone,
+        // The node took its reads with it, and a pick keeps no read.
+        Some(Err(_)) => {
+            return Resolution::Indeterminate(ResolveIndeterminate {
+                standing: NodeStanding::NotInDocument { node },
+            });
+        }
+        None => {}
+    }
+    match doc.read_of_body(node, body) {
+        Some(read) => resolution_as_drawn(
+            resolve(
+                RunCtx {
+                    doc,
+                    eval: evaluation,
+                },
+                read,
+                name,
+            )
+            .unwrap_or_else(|refusal| {
+                unreachable!("a pick met a body, read in a body output: {refusal}")
+            }),
+            evaluation,
+        ),
+        None => Resolution::Indeterminate(ResolveIndeterminate {
+            standing: standing_as_drawn(
+                evaluation
+                    .usable(node)
+                    .err()
+                    .unwrap_or(NodeStanding::NotInDocument { node }),
+                evaluation,
+            ),
+        }),
     }
 }
 
@@ -1138,6 +1184,7 @@ pub fn interrogation_as_drawn(
         | InterrogateError::WholeBody
         | InterrogateError::NoBodies { .. }
         | InterrogateError::NoSuchBody { .. }
+        | InterrogateError::SeveralOutputs { .. }
         | InterrogateError::Readback(_) => error,
     }
 }
@@ -1174,12 +1221,13 @@ fn repair_of(id: RecipeNodeId, ev: &Evaluation<f64>) -> Option<RecipeNodeId> {
 /// **Which node an evaluation error names whose own slot refused**,
 /// as against a node the words mention as evidence or as the input
 /// the failing node chose. The kernel's doc for the arm says which:
-/// `PlacerRefused`'s calls it *"the node an author goes and fixes"*;
 /// `FrameDirection`'s refusal is the frame's own slot's, carried
 /// unaltered to the reader.
 fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
     match kind {
-        NodeErrorKind::Mate(fault) => repaired_at(fault),
+        // A mate refusal is the placement's: the pose that did not
+        // evaluate is carried in its own node's words (module header).
+        NodeErrorKind::Mate(_) => None,
         // The frame's own direction slot refused; the profile only
         // read it, and the frame's row may well read `Ok`.
         NodeErrorKind::FrameDirection { frame, .. } => Some(*frame),
@@ -1202,14 +1250,17 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         NodeErrorKind::UnfinishedOperand { .. } => None,
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
-        // The kernel's own words: "repair <the node>" — the gauge, or
-        // the root whose offset did not evaluate.
-        NodeErrorKind::PlacementRefused { node, .. } => Some(*node),
-        // Names the unplaced group's root as evidence of which space
-        // the node reached into. Either the reading node or the group
-        // is the repair — read within one space, or place the group —
-        // and one link would pick for the reader.
-        NodeErrorKind::Unplaced { .. } => None,
+        // Names the two spaces the operands live in, as evidence: the
+        // repair is the reading node's own operands, or a constraint
+        // that pins the loose copy, and one link would pick for the
+        // reader.
+        NodeErrorKind::SpaceMismatch { .. } => None,
+        // A copy read the placement does not hold, a copy of the wrong
+        // shape, or two copies under one key: the reading node's own
+        // read, or the placement's own shapes, are the repair.
+        NodeErrorKind::NoSuchCopy { .. }
+        | NodeErrorKind::CopyShape { .. }
+        | NodeErrorKind::CopiesShareAKey { .. } => None,
         // A payload that names a node does so as evidence: a name's
         // minting node, where the repair is the referring node's own
         // reference; an upstream table the naming pass found missing;
@@ -1217,7 +1268,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // no row of this tree is.
         NodeErrorKind::Part { .. }
         | NodeErrorKind::SelectResolve { .. }
-        | NodeErrorKind::SelectKind { .. }
         | NodeErrorKind::MeasureRefUnreadable { .. }
         | NodeErrorKind::Naming(_) => None,
         // The member names the step that refused, not the node to
@@ -1231,8 +1281,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Profile(_)
         | NodeErrorKind::ProfileReplay { .. }
         | NodeErrorKind::ProfileLaneReplay { .. }
-        | NodeErrorKind::ProfileAnchor { .. }
+        | NodeErrorKind::ProfileAnchor
         | NodeErrorKind::ProfilePieces { .. }
+        | NodeErrorKind::ProfileRecordMissing { .. }
         | NodeErrorKind::Extrude(_)
         | NodeErrorKind::Revolve(_)
         | NodeErrorKind::Tube(_)
@@ -1240,6 +1291,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Blend { .. }
         | NodeErrorKind::Boolean(_)
         | NodeErrorKind::Transform(_)
+        | NodeErrorKind::Motion(_)
         | NodeErrorKind::Skin(_)
         | NodeErrorKind::Loft(_)
         | NodeErrorKind::CurvedSolidFrontier { .. }
@@ -1256,7 +1308,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::MeasureEscalated { .. }
         | NodeErrorKind::PlacementAxisEscalated { .. }
         | NodeErrorKind::PoseDirectionEscalated { .. }
-        | NodeErrorKind::NonPositiveCount { .. }
+        | NodeErrorKind::CountOutOfRange { .. }
         | NodeErrorKind::NegativeSpacing { .. }
         | NodeErrorKind::DegenerateSpacing
         | NodeErrorKind::DegenerateStep
@@ -1279,51 +1331,16 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
     }
 }
 
-/// **Which node a mate refusal names as the one an author repairs,
-/// where that is not the blamed mate** — the module header's second
-/// section, one arm per fault.
-fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
-    match fault {
-        // The kernel's own doc: "the node an author goes and fixes".
-        // For a `Part` index that does not evaluate, the kernel names
-        // the pattern below the `Part` here (the module header's
-        // kernel-seat paragraph).
-        MateFault::PlacerRefused { placer, .. } => Some(*placer),
-        // Named beside the mate, and not the repair (module header).
-        MateFault::DanglingHead { .. } | MateFault::PartSelectsAnotherCopy { .. } => None,
-        // The side's read is repaired at the mate itself.
-        MateFault::SideUnresolved { .. } => None,
-        // Name no node beside the mate, or name one only as evidence
-        // of where the refusal held.
-        MateFault::Frame { .. }
-        | MateFault::ClassNotAdmitted { .. }
-        | MateFault::TableLacks { .. }
-        | MateFault::Indeterminate { .. }
-        | MateFault::PoseOutOfRange { .. }
-        | MateFault::Under { .. }
-        | MateFault::SelfMate { .. }
-        | MateFault::Unleverable { .. }
-        | MateFault::FaceUnresolved { .. }
-        | MateFault::FrameUnevaluated { .. }
-        | MateFault::Contradictory { .. }
-        | MateFault::Band { .. }
-        | MateFault::PosesOfAnotherDocument { .. } => None,
-        // Sit on the instance whose offset is the statement, and name
-        // its root only as the group the solve placed it in.
-        MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => None,
-    }
-}
-
 /// The status of a row the EVALUATION poisoned, given the nearest
 /// failed ancestor it named.
 ///
 /// That ancestor is `Failed` in the run, but the tree may redraw its
-/// row as downstream itself — reachably: a boolean over two instances
-/// of a group that then refuses is poisoned through an instance
-/// whose own row now points at the mate. Two hops, one of them a row
-/// with nothing to act on, so this carries the same cause that row
-/// does. One step settles it: a mate the fault names keeps its own
-/// `Failed`.
+/// row as downstream itself — reachably: a union over the copy of an
+/// instance chained to a bundle that then refuses is poisoned through
+/// that instance, whose own row now points at the refused placement.
+/// Two hops, one of them a row with nothing to act on, so this carries
+/// the same cause that row does. One step settles it: the placement of
+/// a constraint the fault names keeps its own `Failed`.
 fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_> {
     let Some(error) = ev.result(through).and_then(NodeResult::error) else {
         // The chain does not end at a failure: report the absence.
@@ -1338,52 +1355,34 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
     })
 }
 
-/// The mates a solve refusal BLAMES — the nodes the fault's own words
-/// point the user at.
+/// The placements a solve refusal BLAMES — the placements holding the
+/// constraints the fault's own words point the user at. A constraint
+/// is no node, so its fault and its row are its placement's.
 ///
-/// Every arm that names a mate blames it, whatever else it names; why
-/// that holds for an arm naming a node an author may repair is stated
-/// once, in the module header's second section.
+/// Every arm that names a constraint blames its placement, whatever
+/// else it names; why that holds for an arm naming a node an author
+/// may repair is stated once, in the module header's second section.
 ///
-/// Four arms name none: `Band` reaches every row, the mispairing
-/// reaches none, and the two checked-offset arms reach only the
-/// instance that states the offset.
+/// One arm names none: the mispairing, which reaches no row.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
-        MateFault::Frame { mate, .. }
-        | MateFault::ClassNotAdmitted { mate }
-        | MateFault::TableLacks { mate, .. }
-        | MateFault::Indeterminate { mate, .. }
-        | MateFault::Under { mate, .. }
-        | MateFault::SideUnresolved { mate, .. }
-        | MateFault::DanglingHead { mate, .. }
-        | MateFault::PlacerRefused { mate, .. }
-        | MateFault::SelfMate { mate, .. }
-        | MateFault::PartSelectsAnotherCopy { mate, .. }
+        MateFault::ClassNotAdmitted { mate }
+        | MateFault::NotOnTheCopy { mate }
         | MateFault::Unleverable { mate, .. }
-        | MateFault::FaceUnresolved { mate, .. }
-        | MateFault::FrameUnevaluated { mate, .. } => vec![*mate],
-        // Names no mate and reaches EVERY row of the document — the
-        // asymmetry with the arm below is stated once, on `MateFault`.
-        MateFault::Band { .. } => Vec::new(),
+        | MateFault::KindsDiffer { mate, .. }
+        | MateFault::WorldRead { mate, .. }
+        | MateFault::SideUnevaluated { mate, .. } => vec![mate.placement],
+        MateFault::ValueNamesNoMate { value, .. }
+        | MateFault::NotAFreedom { value, .. }
+        | MateFault::NoChart { value, .. } => vec![value.placement],
+        // A claim about one bundle: its placement is the row.
+        MateFault::Overconstrained { placement, .. }
+        | MateFault::TargetsDiffer { placement, .. } => {
+            vec![*placement]
+        }
         // Names no mate and reaches NO row (`MateFault`'s doc says
         // why); the empty answer here is unreachable, not a reading.
         MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
-        // Name no mate: the fault is the instance's own checked
-        // offset, so the instance's row keeps its own `Failed`.
-        MateFault::OffsetDisagrees { .. } | MateFault::OffsetUnchecked { .. } => Vec::new(),
-        // A contradiction is a claim about a PAIR of mates, and so is
-        // a meeting point past the format: neither is the wrong one on
-        // the fault's own telling, so both read as causes and the user
-        // picks which to relax.
-        MateFault::Contradictory { held, added, .. }
-        | MateFault::PoseOutOfRange { held, added } => {
-            if held == added {
-                vec![*held]
-            } else {
-                vec![*held, *added]
-            }
-        }
     }
 }
 
@@ -1392,15 +1391,13 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
 ///
 /// `None` — the row keeps its own `Failed` — when the failure is not
 /// a mate refusal, when the fault names this very node, and when it
-/// names no mate at all ([`MateFault::Band`], the module header's
-/// second section).
+/// names no mate at all.
 ///
 /// **The blame is read directly**, and [`RowStatus::Poisoned`]'s
 /// walkable-in-one-hop invariant holds because the kernel's answer is
-/// consistent: a mate's content key carries the solve's answer, so a
-/// mate the fault names is `Failed` in the evaluation carrying that
-/// fault — never `Ok` off a stale memo, and never `Poisoned`, since
-/// mates are DAG leaves. A row here that pointed at a green row would
+/// consistent: a placement's content key carries the solve's answer, so
+/// the placement of a constraint the fault names is `Failed` in the
+/// evaluation carrying that fault — never `Ok` off a stale memo. A row here that pointed at a green row would
 /// be that inconsistency surfacing, not a case to absorb.
 fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<Standing<'static>> {
     let NodeErrorKind::Mate(fault) = &error.kind else {
@@ -1410,7 +1407,7 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<Standing<'s
     if blamed.contains(&id) {
         return None;
     }
-    // The first mate the fault names, in the fault's own order.
+    // The first placement the fault names, in the fault's own order.
     let through = blamed.into_iter().next()?;
     Some(Standing::Downstream {
         through,

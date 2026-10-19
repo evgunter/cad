@@ -218,7 +218,10 @@ fn edge_keys(
     body: u32,
     names: &[StableName],
 ) -> Vec<topo::EdgeKey> {
-    let table = &ev.value(node).expect("a value").name_table;
+    // The read holding output `body`, and its index there (a split's
+    // half is body 0 of its own table, NAMES N1).
+    let (var, body) = ev.body_read_of(node, body).expect("a value");
+    let table = ev.table(var).expect("a value");
     let mut keys: Vec<topo::EdgeKey> = names
         .iter()
         .map(|n| match table.lookup(n) {
@@ -291,7 +294,12 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
             Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), 0.0),
             Vec3::new(0.0, 0.0, LIFT),
         );
-        let placed = transform_rigid(side, &map, Tol::witness()).expect("a rigid placement");
+        let placed = transform_rigid(
+            side,
+            &geom_core::test_support::rigid(&map, Tol::witness()),
+            Tol::witness(),
+        )
+        .expect("a rigid placement");
         assert_eq!(
             bits(body_arc(&ev, moved)),
             bits(&placed),
@@ -354,9 +362,11 @@ fn a2_the_instance_is_the_instance() {
 
 /// The edge names of ONE output body of a node's table.
 fn edges_of_body(ev: &Evaluation<f64>, node: RecipeNodeId, body: u32) -> Vec<StableName> {
-    ev.value(node)
+    // The read holding the body, and its index in that read's table (a
+    // split's half is body 0 of its own, NAMES N1).
+    let (var, body) = ev.body_read_of(node, body).expect("a value");
+    ev.table(var)
         .expect("a value")
-        .name_table
         .iter()
         .filter_map(|(name, entry)| match entry {
             Entry::Unique(e) if e.body == body && name.kind == EntityKind::Edge => {
@@ -388,7 +398,12 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
     let moved = lift(&mut r, port(split, SplitHalf::Above), 0.0);
     let base = eval(&r.doc);
     let spelled = edges_of_body(&base, split, SplitHalf::Above.output_body());
-    let below_rows = edges_of_body(&base, split, SplitHalf::Below.output_body());
+    // The below half's own rows: a name both halves hold (a section
+    // edge, scoped by the read of each half, NAMES N1) is each half's.
+    let below_rows: Vec<StableName> = edges_of_body(&base, split, SplitHalf::Below.output_body())
+        .into_iter()
+        .filter(|n| !spelled.contains(n))
+        .collect();
     assert!(!spelled.is_empty() && !below_rows.is_empty());
     let mut selection = spelled.clone();
     selection.sort();
@@ -440,8 +455,8 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
     let pat = pattern3(&mut r, cube);
     let p1 = part(&mut r, pat, instance(1));
     let base = eval(&r.doc);
-    let master = base.value(cube).expect("the master").name_table.len();
-    let table = &base.value(p1).expect("the Part").name_table;
+    let master = base.table_at(cube).expect("the master").len();
+    let table = base.table_at(p1).expect("the Part");
     assert_eq!(table.len(), master, "exactly the master's row count");
     for (name, _) in table.iter() {
         assert!(
@@ -545,7 +560,6 @@ fn a4_every_refusal_is_typed() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a structural edit")
     .doc;
@@ -592,7 +606,6 @@ fn a4_every_refusal_is_typed() {
                 fresh: Vec::new(),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .err()
     };
@@ -632,7 +645,6 @@ fn a4_every_refusal_is_typed() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     );
     assert!(
         matches!(
@@ -686,7 +698,6 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a structural edit")
     .doc;
@@ -712,10 +723,7 @@ fn a7_the_product_of_a_lone_placed_half_is_that_half() {
         target: cube.into(),
         tool: tool.into(),
     });
-    r.insert(Node::place_in_world(
-        port(split, SplitHalf::Above),
-        editor_core::Placement::IDENTITY,
-    ));
+    r.place(port(split, SplitHalf::Above));
     let ev = eval(&r.doc);
     let body = product(&r.doc, &ev, Tol::witness()).expect("the product gathers");
     let m = mass_properties(&body, Tol::witness()).expect("mass properties");
@@ -746,10 +754,10 @@ fn the_two_section_planes_of_one_split_face_away_from_each_other() {
     let (above, below) = sides(&ev, split);
     // Each half's section face, by its name among that half's rows.
     let section = |side: SplitHalf, body: &Body<f64>| {
-        let name = corpus::part_select::section_face(split, side);
-        let table = &ev.value(split).expect("the split evaluates").name_table;
+        let name = corpus::part_select::section_face(split);
+        let table = crate::fixture::half(&ev, split, side);
         let face = match table.lookup(&name) {
-            Some(Entry::Unique(e)) if e.body == side.output_body() => match e.key {
+            Some(Entry::Unique(e)) if e.body == 0 => match e.key {
                 EntityKey::Face(k) => k,
                 other => panic!("{name} is not a face: {other:?}"),
             },
@@ -834,9 +842,8 @@ fn ties(
     ev: &Evaluation<f64>,
     node: RecipeNodeId,
 ) -> Vec<(StableName, Vec<editor_core::EntityRef>)> {
-    ev.value(node)
+    ev.table_at(node)
         .expect("a value")
-        .name_table
         .iter()
         .filter_map(|(n, e)| match e {
             Entry::Tied(c) => Some((n.clone(), c.clone())),
@@ -848,12 +855,11 @@ fn ties(
 /// **A tie the split separates, and what a read of each half makes of
 /// it.** A split at `y = 2` puts the U-cutter tie's two candidates in
 /// different halves WITHOUT cutting either: each passes through intact
-/// under its upstream name, so the split's table holds one `Tied` row
-/// straddling body 0 and body 1. A read of each half sees the name
-/// `Unique` — the projection separated the candidates as an op would,
-/// by the one narrowing rule the emitter's flush uses — so a selector
-/// spelled against the tied name resolves through each port to that
-/// half's own entity. The split's table stays tied.
+/// under its upstream name. Each half is its own table (NAMES N1), so
+/// each holds the name `Unique` — narrowed as an op narrows, by the one
+/// rule the emitter's flush uses — and a selector spelled against the
+/// tied name resolves through each port to that half's own entity. The
+/// subtract's table stays tied.
 #[test]
 fn a_tie_the_split_separates_is_unique_through_each_port() {
     let mut r = Recorder::new();
@@ -874,34 +880,34 @@ fn a_tie_the_split_separates_is_unique_through_each_port() {
         "{:?}",
         corpus::failures(&ev)
     );
-    let straddling: Vec<_> = ties(&ev, split)
+    let separated: Vec<_> = ties(&ev, sub)
         .into_iter()
-        .filter(|(_, c)| {
-            let bodies: std::collections::BTreeSet<u32> = c.iter().map(|e| e.body).collect();
-            bodies.len() > 1
+        .filter(|(name, _)| {
+            [SplitHalf::Above, SplitHalf::Below].into_iter().all(|h| {
+                matches!(
+                    crate::fixture::half(&ev, split, h).lookup(name),
+                    Some(Entry::Unique(_))
+                )
+            })
         })
         .collect();
     assert!(
-        !straddling.is_empty(),
-        "the premise: the split's table holds a tie straddling its two halves"
+        !separated.is_empty(),
+        "the premise: a tie of the subtract the split puts one candidate in each half"
     );
-    for (name, candidates) in &straddling {
+    for (name, candidates) in &separated {
+        assert_eq!(candidates.len(), 2, "{name}: one candidate per half");
         for (p, h) in [(above, SplitHalf::Above), (below, SplitHalf::Below)] {
-            let mine: Vec<_> = candidates
-                .iter()
-                .filter(|e| e.body == h.output_body())
-                .collect();
-            assert_eq!(mine.len(), 1, "{name}: one candidate per half");
             assert_eq!(
                 denotation(&ev, p, name),
                 Ok(Denotation::Unique),
                 "{name} is unique through the {h:?} port"
             );
         }
-        // The split's own table is untouched: still tied there.
+        // The subtract's own table is untouched: still tied there.
         assert!(
-            ev.value(split).expect("the split").name_table.is_tied(name),
-            "{name} stays tied on the split"
+            ev.table_at(sub).expect("the subtract").is_tied(name),
+            "{name} stays tied on the subtract"
         );
     }
 }
@@ -968,12 +974,12 @@ fn project_narrows_a_tie_by_the_flush_rule() {
     assert_eq!(keys.len(), 4);
     let face = |k: usize| EntityKey::Face(keys[k]);
     let ent = |body: u32, key: EntityKey| EntityRef { body, key };
-    let name = |h: SplitHalf| StableName {
+    let name = |section: u32| StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId::new(0, 7),
-        path: vec![RoleSeg::SplitBody(h)],
+        path: vec![RoleSeg::SectionFace { section }],
     };
-    let (inside, outside) = (name(SplitHalf::Above), name(SplitHalf::Below));
+    let (inside, outside) = (name(0), name(1));
 
     let mut t = NameTable::new();
     t.insert_tied(inside.clone(), vec![ent(0, face(0)), ent(0, face(1))])

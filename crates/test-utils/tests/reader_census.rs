@@ -178,11 +178,6 @@ const LEDGER: &[Entry] = &[
                              // code and code-and-literals views
     },
     Entry {
-        path: "crates/editor-core/tests/wire_entity_door.rs",
-        disposition: Shared, // entity-door and entity-kind-carrier census over
-                             // eval/wire.rs and eval/mod.rs, code view
-    },
-    Entry {
         path: "crates/editor-core/tests/wire_operand_door.rs",
         disposition: Shared, // operand-door and expected-phrase census over
                              // eval/wire.rs and verbs/split.rs, code and
@@ -371,6 +366,10 @@ const LEDGER: &[Entry] = &[
         ),
     },
     Entry {
+        path: "crates/topo/src/boolean/join.rs",
+        disposition: Shared, // the join's one face-to-surface walk, code view
+    },
+    Entry {
         path: "crates/topo/src/boolean/offer_rows.rs",
         disposition: Shared, // the Boolean's decision sites, code view
     },
@@ -431,6 +430,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/src/validate.rs",
         disposition: Shared, // the at-rest door roster, prose view and code view
+    },
+    Entry {
+        path: "crates/topo/tests/a_given_pair_is_made_from_a_kernel_verdict.rs",
+        disposition: Shared, // the given pair's public mints, fields and derives, code view
     },
     Entry {
         path: "crates/topo/tests/all.rs",

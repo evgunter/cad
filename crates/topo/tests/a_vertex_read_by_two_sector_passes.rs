@@ -32,9 +32,18 @@
 //!   inside an island in the void, and one inside a void in the arch;
 //!   a pyramid over a void in a quadrilateral arch, with the plate and
 //!   without;
+//! - **two arches sharing a ray**, united with the plate, against a
+//!   pyramid with an edge along that ray, which lies on both arches'
+//!   boundaries (`vtxfac::along_partners`);
+//! - **two blocks glued** at their corners' face, against a pyramid
+//!   whose edge runs through the contact face, on both blocks' flush
+//!   faces (`vtxfac::along_partners`);
 //! - a pyramid with an edge lying **along** the arch's face;
 //! - a pyramid **lying** on the plate, an edge on its top, which a
-//!   touching vertex refuses to pair with (`vtxfac::partner_side`);
+//!   touching vertex pairs with (`vtxfac::partner_side`), pyramids along
+//!   that edge, and the lying pyramid's corner tipped off the top; and
+//!   pyramids with a face on the top or on the lying pyramid's, which
+//!   refuse `PartnerAlongFace`;
 //! - a **dart** on the plate, whose apex is a reflex edge, and the plate
 //!   less a dart or a near-flat quadrilateral, a void below the top
 //!   whose apex is one too, each read as a polygon cone
@@ -54,17 +63,23 @@
 use crate::common;
 
 use common::meeting::{
-    MEET, PLATE, Pose, apex_pyramid, at, bearing, corners, leaned, mix, near_flat, nest,
-    nest_polygon, orders, posed_box, posed_boxes, posed_prism, poses, wedge,
+    MEET, PLATE, Pose, along_lying_ray, apex_pyramid, at, bearing, corners, leaned, lying, mix,
+    near_flat, nest, nest_polygon, on_the_lying_faces, orders, posed_box, posed_boxes, posed_prism,
+    poses, wedge,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, BooleanError, BooleanResult, CensusContact, EntityId, Operand, SectorRead,
-    SideCode, SolidContainment, ValidationError, intersect, mass_properties, point_in_solid,
-    point_in_solid_of, readback, subtract, union, validate_geometric, validate_pseudomanifold,
+    AlongFace, AtRestBody, BooleanError, BooleanResult, CensusContact, EntityId, Operand,
+    SectorRead, SideCode, SolidContainment, ValidationError, intersect, mass_properties,
+    point_in_solid, point_in_solid_of, readback, subtract, union, validate_geometric,
+    validate_pseudomanifold,
 };
 
 const THIRD: f64 = 1.0 / 3.0;
+
+/// The ops in which the flush pyramid's pierce crosses the top, which
+/// refuses before its pair is read.
+const FLUSH_CROSSES: [&str; 2] = ["x ∪ y", "y ∪ x"];
 
 fn t() -> Tol {
     Tol::witness()
@@ -107,6 +122,16 @@ fn dart_below() -> [[f64; 3]; 4] {
     ]
 }
 
+/// The far end of the lying pyramid's ray along the top.
+fn lying_ray() -> Option<[f64; 3]> {
+    Some(lying(0.0)[2])
+}
+
+/// `base` mirrored through the top.
+fn below_the_top(base: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
+    base.map(|[x, y, z]| [x, y, -z])
+}
+
 /// The arch: a pyramid standing on [`MEET`].
 fn arch() -> [[f64; 3]; 3] {
     corners(60.0, 0.5, 0.4)
@@ -135,13 +160,48 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 /// pyramid's edge lies in a face of the other's, and that edge's own
 /// contact, which no record carries, may refuse too
 /// (`work/flush/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-unrecorded-contacts.md`).
-/// Returns whether 3′ held.
-fn three_prime(what: &str, r: &topo::BooleanBody<f64>, pose: &Pose, along: bool) -> bool {
+/// Where `ray` names the far end of the lying pyramid's ray along the
+/// top (relative to [`MEET`]), that ray's contacts may refuse too: its
+/// corner on the top and the ray on it, the operand's own, likewise not
+/// carried. The result's record carries an edge of the other
+/// operand's along the ray.
+/// Where `glued` names the corners, in order round it, of a rectangle in
+/// which one operand's own pieces touch, glued face to face, their own
+/// contacts there may refuse too: coincident corners, and edges
+/// overlapping along a side. Those are the operand's records, which an
+/// op called without them does not carry
+/// (`work/contacthold/a-booleans-records-are-complete-only-relative-to-the-records-passed-in.md`);
+/// an edge of the other operand through the rectangle's interior is not
+/// admitted. Returns whether 3′ held.
+fn three_prime(
+    what: &str,
+    r: &topo::BooleanBody<f64>,
+    pose: &Pose,
+    along: bool,
+    ray: Option<[f64; 3]>,
+    glued: Option<[[f64; 3]; 4]>,
+) -> bool {
     let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) else {
         return true;
     };
     let meet = at(pose.at(MEET));
     let at_meet = |v| at(readback::vertex_point(&r.body, v).unwrap()) == meet;
+    let far = ray.map(|c| pose.at([0, 1, 2].map(|k| MEET[k] + c[k])));
+    let at_far = |v| Some(at(readback::vertex_point(&r.body, v).unwrap())) == far.map(at);
+    // On the segment from `MEET` to the ray's far end, to a micron.
+    let on_ray = |e| {
+        let Some(c) = far else { return false };
+        let o = pose.at(MEET);
+        let edge = r.body.get_edge(e).unwrap();
+        let plus = r.body.get_half_edge(edge.he_plus).unwrap();
+        let next = r.body.get_half_edge(plus.next).unwrap();
+        [plus.start, next.start].iter().all(|&v| {
+            let q = readback::vertex_point(&r.body, v).unwrap();
+            let (d, l) = (c - o, q - o);
+            let s = l.dot(d) / d.dot(d);
+            (-1e-9..=1.0 + 1e-9).contains(&s) && (l - d * s).norm() < 1e-6
+        })
+    };
     let band = Band::linear(t()).unwrap();
     let touches_meet = |e: &EntityId| match *e {
         EntityId::Solid(s) => matches!(
@@ -150,12 +210,40 @@ fn three_prime(what: &str, r: &topo::BooleanBody<f64>, pose: &Pose, along: bool)
         ),
         _ => false,
     };
+    // The glued rectangle's sides, posed: segment `k` runs from corner
+    // `k` to the next.
+    let sides: Vec<[Point3<f64>; 2]> = glued.map_or_else(Vec::new, |g| {
+        (0..4)
+            .map(|k| [g[k], g[(k + 1) % 4]].map(|c| pose.at(c)))
+            .collect()
+    });
+    let point = |v| readback::vertex_point(&r.body, v).unwrap();
+    // On side `k`, between its corners, to a micron.
+    let on_side = |q: Point3<f64>, k: usize| {
+        let [o, c] = sides[k];
+        let (d, l) = (c - o, q - o);
+        let s = l.dot(d) / d.dot(d);
+        (-1e-9..=1.0 + 1e-9).contains(&s) && (l - d * s).norm() < 1e-6
+    };
+    let corner = |v| sides.iter().any(|&[o, _]| at(point(v)) == at(o));
+    let along_a_side = |e| {
+        let edge = r.body.get_edge(e).unwrap();
+        let plus = r.body.get_half_edge(edge.he_plus).unwrap();
+        let next = r.body.get_half_edge(plus.next).unwrap();
+        let ends = [plus.start, next.start].map(point);
+        (0..sides.len()).any(|k| ends.iter().all(|&q| on_side(q, k)))
+    };
     for e in &errors {
         let ok = match e {
             ValidationError::UnrecordedContact { contact, .. } => match *contact {
-                CensusContact::VertexVertex { a, b } => at_meet(a) && at_meet(b),
-                CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex),
-                CensusContact::EdgeFaceOverlap { .. } => along,
+                CensusContact::VertexVertex { a, b } => {
+                    (at_meet(a) && at_meet(b)) || (corner(a) && at(point(a)) == at(point(b)))
+                }
+                CensusContact::EdgeEdgeOverlap { a, b } if along_a_side(a) && along_a_side(b) => {
+                    true
+                }
+                CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex) || at_far(vertex),
+                CensusContact::EdgeFaceOverlap { edge, .. } => along || on_ray(edge),
                 _ => false,
             },
             ValidationError::CensusUndecidable { a, b, what: class } => {
@@ -283,17 +371,33 @@ fn material_holds(
 /// |x| + |y|` and `|x − y| + |x ∩ y| = |x|`, each alike in both orders.
 /// Returns how many results held 3′.
 fn builds(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) -> usize {
-    builds_along(label, x, y, pose, false)
+    builds_along(label, x, y, pose, false, None)
 }
 
 /// [`builds`], where `along` says an edge of one lies in a face of the
-/// other ([`three_prime`]).
+/// other, and `ray` names a ray an edge of each lies along
+/// ([`three_prime`]).
 fn builds_along(
     label: &str,
     x: &AtRestBody<f64>,
     y: &AtRestBody<f64>,
     pose: &Pose,
     along: bool,
+    ray: Option<[f64; 3]>,
+) -> usize {
+    builds_where(label, x, y, pose, along, ray, None)
+}
+
+/// [`builds_along`], where `glued` names the faces two blocks of `y`
+/// share ([`three_prime`]).
+fn builds_where(
+    label: &str,
+    x: &AtRestBody<f64>,
+    y: &AtRestBody<f64>,
+    pose: &Pose,
+    along: bool,
+    ray: Option<[f64; 3]>,
+    glued: Option<[[f64; 3]; 4]>,
 ) -> usize {
     let mut held = 0;
     let mut v = [0.0; 6];
@@ -323,7 +427,7 @@ fn builds_along(
                 assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
                 material_holds(&what, keep, Some(&r.body), &probes);
                 classes_hold(&what, &r, a, b, pose);
-                held += usize::from(three_prime(&what, &r, pose, along));
+                held += usize::from(three_prime(&what, &r, pose, along, ray, glued));
                 volume(&r.body)
             }
             Ok(BooleanResult::Empty) => {
@@ -336,6 +440,7 @@ fn builds_along(
     let (vx, vy) = (volume(x), volume(y));
     let what = format!("{label}, {}", pose.label);
     let [xy, yx, u, u2, i, i2] = v;
+    // Each sum, which every result enters.
     for (sum, want, which) in [
         (u + i, vx + vy, "|x ∪ y| + |x ∩ y|"),
         (xy + i, vx, "|x − y| + |x ∩ y|"),
@@ -349,6 +454,73 @@ fn builds_along(
         );
     }
     held
+}
+
+/// Every op on `(x, y)`, in both orders, refuses on a vertex of `x`'s
+/// operand that touches the top and pairs with a partner along it, its
+/// apex at [`MEET`] or one the sweep mints where `x`'s edge crosses the
+/// lying pyramid's ray, whichever pair is read first:
+/// `PartnerAlongFace` as `how`, or, in the `crossing` ops, where that
+/// vertex's pierce crosses the top, `VertexReadTwice` before the pair is
+/// read.
+fn refuses_beside_the_ray(
+    label: &str,
+    x: &AtRestBody<f64>,
+    y: &AtRestBody<f64>,
+    pose: &Pose,
+    how: AlongFace,
+    crossing: &[&str],
+) {
+    let meet = at(pose.at(MEET));
+    let at_meet_or_minted =
+        |body: &AtRestBody<f64>, v| readback::vertex_point(body, v).map_or(true, |p| at(p) == meet);
+    for (what, x_is, r) in [
+        ("x − y", Operand::A, subtract(x, y, t())),
+        ("y − x", Operand::B, subtract(y, x, t())),
+        ("x ∪ y", Operand::A, union(x, y, t())),
+        ("y ∪ x", Operand::B, union(y, x, t())),
+        ("x ∩ y", Operand::A, intersect(x, y, t())),
+        ("y ∩ x", Operand::B, intersect(y, x, t())),
+    ] {
+        let crosses = crossing.contains(&what);
+        let what = format!("{label}, {}, {what}", pose.label);
+        match r {
+            Err(BooleanError::PartnerAlongFace {
+                operand,
+                vertex,
+                partner,
+                along,
+                ..
+            }) => {
+                assert!(
+                    !crosses,
+                    "{what}: refuses at the crossing pierce, got {along:?}"
+                );
+                assert_eq!(operand, x_is, "{what}: the touching operand");
+                assert!(
+                    at_meet_or_minted(x, vertex) && at_meet_or_minted(y, partner),
+                    "{what}: the pair is at MEET or minted"
+                );
+                assert_eq!(along, how, "{what}: how the partner meets the face");
+            }
+            Err(BooleanError::VertexReadTwice {
+                operand,
+                vertex,
+                reads: [SectorRead::Pierce(_), SectorRead::Pair(partner)],
+            }) => {
+                assert!(crosses, "{what}: refuses {how:?}, got the crossing pierce");
+                assert_eq!(operand, x_is, "{what}: the touching operand");
+                assert!(
+                    at_meet_or_minted(x, vertex) && at_meet_or_minted(y, partner),
+                    "{what}: the pair is at MEET or minted"
+                );
+            }
+            other => panic!(
+                "{what}: refuses PartnerAlongFace, got {:?}",
+                other.map(|_| ())
+            ),
+        }
+    }
 }
 
 /// Every op on `(x, y)`, in both orders, refuses `VertexReadTwice` on
@@ -437,6 +609,11 @@ struct Scene {
     cross_in: AtRestBody<f64>,
     along: AtRestBody<f64>,
     lying: AtRestBody<f64>,
+    along_ray: Vec<(&'static str, AtRestBody<f64>)>,
+    void_lying: AtRestBody<f64>,
+    along_void_ray: Vec<(String, AtRestBody<f64>)>,
+    flush: AtRestBody<f64>,
+    on_lying: AtRestBody<f64>,
     dart: AtRestBody<f64>,
     dart_void: AtRestBody<f64>,
     flat_voids: [AtRestBody<f64>; 2],
@@ -485,16 +662,6 @@ impl Scene {
             [1.2 * c[0] + 0.2 * k, 1.2 * c[1] + 0.2 * s, 1.2 * c[2]]
         };
         let mid = [0, 1, 2].map(|k| 0.6 * (p[k] + q[k]));
-        // A pyramid whose link runs along the top: one base corner on it.
-        let corner = |d: f64, r: f64, z: f64| {
-            let (s, c) = (60.0 + d).to_radians().sin_cos();
-            [r * c, r * s, z]
-        };
-        let lie = [
-            corner(20.0, 0.4, 0.5),
-            corner(-20.0, 0.4, 0.5),
-            corner(0.0, 0.5, 0.0),
-        ];
         Self {
             cone: standing(240.0, 0.7, 0.5, pose),
             over: standing(50.0, 0.7, 0.5, pose),
@@ -561,8 +728,29 @@ impl Scene {
             along: tet([mid, out(p), out(q)], pose),
             lying: built(
                 "the plate and a lying pyramid",
-                union(&plate, &tet(lie, pose), t()),
+                union(&plate, &tet(lying(0.0), pose), t()),
             ),
+            along_ray: along_lying_ray()
+                .into_iter()
+                .map(|(label, base)| (label, tet(base, pose)))
+                .collect(),
+            // The lying scene mirrored through the top: a void below it
+            // whose ray lies on it, and the same partners mirrored.
+            void_lying: built(
+                "the plate less a void lying under the top",
+                subtract(&plate, &tet(below_the_top(lying(0.0)), pose), t()),
+            ),
+            along_void_ray: along_lying_ray()
+                .into_iter()
+                .map(|(label, base)| {
+                    (
+                        format!("{label}, mirrored into the void"),
+                        tet(below_the_top(base), pose),
+                    )
+                })
+                .collect(),
+            flush: tet(on_the_lying_faces()[0], pose),
+            on_lying: tet(on_the_lying_faces()[1], pose),
             // A pyramid over a quadrilateral with a dent: its apex is a
             // reflex edge, read as a polygon cone.
             dart: built(
@@ -620,9 +808,10 @@ impl Scene {
 /// builds sound in every op**: a standing pyramid beside the arch, one
 /// crossing it, one hanging inside the plate below it, and a standing
 /// and a crossing hanging pyramid against the cavity, and one running
-/// into its void; and beside partners read as polygon cones: a dart on
-/// the top, and a dart's or a near-flat quadrilateral's void below it.
-/// At rest; every pose is the slow matrix's.
+/// into its void; beside partners read as polygon cones: a dart on
+/// the top, and a dart's or a near-flat quadrilateral's void below it;
+/// and beside a pyramid lying on the top, standing, over it and hanging
+/// below it. At rest; every pose is the slow matrix's.
 #[test]
 fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
     let pose = &Pose::rest();
@@ -680,6 +869,15 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
         let what = format!("a pyramid hanging across a quadrilateral void {dent} from flat");
         builds(&what, &s.hang_over, flat, pose);
     }
+    // A partner whose link runs along the top, a ray on it
+    // (`vtxfac::partner_side`).
+    for (label, x) in [
+        ("standing beside a lying pyramid", &s.cone),
+        ("over a lying pyramid", &s.over),
+        ("hanging below a lying pyramid", &s.hang),
+    ] {
+        builds_along(label, x, &s.lying, pose, false, lying_ray());
+    }
     // The crossed arch is one of three partners, each in turn, whichever
     // the pairs' order reads first.
     for b in [50.0, 170.0, 290.0] {
@@ -687,6 +885,46 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
         let what = format!("a standing pyramid over the arch at {b}°");
         builds(&what, &over, &s.arches, pose);
     }
+}
+
+/// **A vertex touching a face beside a partner whose link runs along
+/// the face builds sound in every op** (`vtxfac::partner_side`): the
+/// lying pyramid's ray along the top is an edge of its own on the top,
+/// and pyramids under it, on it beside the lying one, around it, inside
+/// it and continuing its face across it each pair with its apex; and
+/// the scene mirrored through the top, a void below it whose ray lies
+/// on it, which the edge-edge event reads under the top and in the
+/// void's complement at once (`recl::HeldFace`). A
+/// pyramid with a face flush on the top across the ray, and one with a
+/// face on the lying pyramid's, refuse `PartnerAlongFace`: the layering
+/// is not read beside a coincidence of the touch's or the pair's
+/// (`vtxfac::partner_side`). At rest; every pose is the slow matrix's.
+#[test]
+fn a_touching_vertex_beside_a_partner_along_the_face_builds_sound_in_every_op() {
+    let pose = &Pose::rest();
+    let s = Scene::at(pose);
+    for (label, x) in &s.along_ray {
+        builds_along(label, x, &s.lying, pose, false, lying_ray());
+    }
+    for (label, x) in &s.along_void_ray {
+        builds_along(label, x, &s.void_lying, pose, false, lying_ray());
+    }
+    refuses_beside_the_ray(
+        "flush on the top",
+        &s.flush,
+        &s.lying,
+        pose,
+        AlongFace::Flush,
+        &FLUSH_CROSSES,
+    );
+    refuses_beside_the_ray(
+        "on the lying pyramid's face",
+        &s.on_lying,
+        &s.lying,
+        pose,
+        AlongFace::FacesInOnePlane,
+        &[],
+    );
 }
 
 /// **A vertex in several pairs, or touching a face beside nested
@@ -735,7 +973,14 @@ fn a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once() {
         &s.hollow,
         pose,
     );
-    builds_along("a pyramid along the arch", &s.along, &s.one, pose, true);
+    builds_along(
+        "a pyramid along the arch",
+        &s.along,
+        &s.one,
+        pose,
+        true,
+        None,
+    );
     // A void in the arch reads through its complement: an edge on its
     // face is on the solid's, two boundaries deep, and a pyramid over a
     // void in the arch alone names as it did before any of this.
@@ -751,6 +996,183 @@ fn a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once() {
         &s.bare_hollow,
         pose,
     );
+}
+
+/// **A touching vertex with an edge along two arches' shared ray builds
+/// in every op**: the plate united with two pyramids standing on
+/// [`MEET`] that share an edge ray, against a pyramid standing there
+/// with an edge along that ray. Its apex touches the top and pairs with
+/// both arches' apexes, and the edge lies on both arches' boundaries;
+/// the arches' faces part around the ray, so the edge is on the solid's
+/// (`vtxfac::along_partners`). The pyramid lies outside both arches,
+/// inside the wedge between their far faces, or with a face in each,
+/// at every pose. Tier 3′ holds in one result of the first pyramid and
+/// three of each other, at every pose; elsewhere it refuses only as
+/// [`three_prime`] allows.
+/// Slow set; the row below is its per-PR pose.
+#[test]
+fn a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op() {
+    for pose in &poses() {
+        for (shape, held) in ARCH_PYRAMIDS.iter().zip([1, 3, 3]) {
+            assert_eq!(
+                along_two_arches_shared_ray(pose, shape),
+                held,
+                "{}",
+                shape.0
+            );
+        }
+    }
+}
+
+/// The per-PR pose of the row above: the pyramid outside both arches,
+/// at rest.
+#[test]
+fn a_touching_vertex_along_two_arches_shared_ray_builds_at_rest() {
+    assert_eq!(
+        along_two_arches_shared_ray(&Pose::rest(), &ARCH_PYRAMIDS[0]),
+        1
+    );
+}
+
+/// A pyramid along the arches' shared ray: a label, and its base's two
+/// corners off the ray as bearing, radius and height.
+type ArchPyramid = (&'static str, [(f64, f64, f64); 2]);
+
+/// The pyramids along the arches' shared ray.
+const ARCH_PYRAMIDS: [ArchPyramid; 3] = [
+    (
+        "a pyramid along the arches' ray, outside both",
+        [(160.0, 0.4, 0.5), (220.0, 0.4, 0.5)],
+    ),
+    (
+        "a pyramid along the arches' ray, in the wedge between them",
+        [(20.0, 0.2, 0.3), (60.0, 0.2, 0.3)],
+    ),
+    (
+        "a pyramid along the arches' ray, a face in each",
+        [(10.0, 0.3, 0.45), (70.0, 0.3, 0.45)],
+    ),
+];
+
+/// The arches' scene ([`a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op`])
+/// at `pose`, against one of [`ARCH_PYRAMIDS`]; how many results held
+/// tier 3′.
+fn along_two_arches_shared_ray(pose: &Pose, &(label, corners): &ArchPyramid) -> usize {
+    let plate = posed_box("the plate", PLATE, pose, t());
+    let shared = bearing(40.0, 0.4, 0.5);
+    let arches = [
+        [bearing(0.0, 0.4, 0.5), shared, bearing(20.0, 0.25, 0.4)],
+        [shared, bearing(80.0, 0.4, 0.5), bearing(60.0, 0.25, 0.4)],
+    ]
+    .map(|base| tet(base, pose));
+    let line = arches.iter().fold(plate, |body, arch| {
+        built("the plate and arches", union(&body, arch, t()))
+    });
+    let [(b, r, z), (c, s, w)] = corners;
+    let base = [bearing(40.0, 0.6, 0.75), bearing(b, r, z), bearing(c, s, w)];
+    builds_where(label, &tet(base, pose), &line, pose, false, None, None)
+}
+
+/// **A vertex whose edge runs through two blocks' glued faces builds in
+/// every op**: two blocks in face contact, their corners at [`MEET`],
+/// against a pyramid standing there whose edge runs through the contact
+/// face's interior and leaves the blocks, out the side, the bottom, or
+/// a far corner. The edge lies on both blocks' boundaries, their
+/// contact faces flush along it: plane faces bounding material on
+/// opposite sides, coincident only to within the band, so the edge is
+/// `On` (`vtxfac::along_partners`), its class as the naming records it
+/// and as the blocks read the point beside it ([`classes_hold`]). Tier 3′
+/// is as [`three_prime`] allows. Slow set, at every pose; the row below
+/// is its per-PR pose.
+#[test]
+fn an_edge_through_two_blocks_glued_faces_builds_in_every_op() {
+    for pose in &poses() {
+        for pyramid in &GLUED_PYRAMIDS {
+            through_glued_faces(pose, pyramid);
+        }
+    }
+}
+
+/// The per-PR pose of the row above: the pyramid out the side, at rest.
+#[test]
+fn an_edge_through_two_blocks_glued_faces_builds_at_rest() {
+    through_glued_faces(&Pose::rest(), &GLUED_PYRAMIDS[0]);
+}
+
+/// A pyramid through the blocks' glued faces: a label, the far end of
+/// its edge along the contact face, and its base's two corners off it
+/// (bearing, radius and height), relative to [`MEET`].
+type GluedPyramid = (&'static str, [f64; 3], [(f64, f64, f64); 2]);
+
+/// The pyramids through the blocks' glued faces.
+const GLUED_PYRAMIDS: [GluedPyramid; 3] = [
+    (
+        "a pyramid through the glued faces, out the side",
+        [0.0, 0.8, -0.8],
+        [(200.0, 0.4, 0.2), (240.0, 0.4, 0.2)],
+    ),
+    (
+        "a pyramid through the glued faces, out the bottom",
+        [0.0, 0.3, -0.8],
+        [(200.0, 0.4, 0.2), (240.0, 0.4, 0.2)],
+    ),
+    (
+        "a pyramid through the glued faces, out a far corner",
+        [0.0, 0.7, -0.7],
+        [(170.0, 0.4, 0.3), (260.0, 0.4, 0.3)],
+    ),
+];
+
+/// The glued blocks' scene ([`an_edge_through_two_blocks_glued_faces_builds_in_every_op`])
+/// at `pose`, against one of [`GLUED_PYRAMIDS`]: every op builds, and
+/// the union names the edge through the glued faces `On`.
+fn through_glued_faces(pose: &Pose, &(label, along, corners): &GluedPyramid) {
+    let blocks = posed_boxes(
+        "two blocks glued at their corners' face",
+        &[
+            [(1.0, 1.5), (1.0, 1.5), (0.5, 1.0)],
+            [(1.5, 2.0), (1.0, 1.5), (0.5, 1.0)],
+        ],
+        pose,
+        t(),
+    );
+    let [(b, r, z), (c, s, w)] = corners;
+    let x = tet([along, bearing(b, r, z), bearing(c, s, w)], pose);
+    // The blocks' own contacts on their glued rectangle, x = 1.5, which
+    // no record carries here, may refuse 3′ too.
+    let glued = [
+        [1.5, 1.0, 0.5],
+        [1.5, 1.5, 0.5],
+        [1.5, 1.5, 1.0],
+        [1.5, 1.0, 1.0],
+    ];
+    builds_where(label, &x, &blocks, pose, false, None, Some(glued));
+    let meet = at(pose.at(MEET));
+    let far = at(pose.at([0, 1, 2].map(|k| MEET[k] + along[k])));
+    let r = match union(&x, &blocks, t()) {
+        Ok(BooleanResult::Body(r)) => r,
+        other => panic!("{label}: x ∪ y: {:?}", other.map(|_| ())),
+    };
+    let through: Vec<_> = r
+        .naming
+        .edge_classes
+        .iter()
+        .filter(|row| row.operand == Operand::A)
+        .filter(|row| {
+            let Ok(p) = readback::vertex_point(&x, row.vertex) else {
+                return false;
+            };
+            let edge = x.get_edge(row.edge).unwrap();
+            let plus = x.get_half_edge(edge.he_plus).unwrap();
+            let ends = [plus.start, x.get_half_edge(plus.next).unwrap().start]
+                .map(|v| at(readback::vertex_point(&x, v).unwrap()));
+            at(p) == meet && ends.contains(&far)
+        })
+        .collect();
+    assert!(!through.is_empty(), "{label}: the union names the edge");
+    for row in through {
+        assert_eq!(row.class, SideCode::On, "{label}: {row:?}");
+    }
 }
 
 /// **A vertex that crosses a face it is paired on, or pierces two
@@ -777,14 +1199,6 @@ fn a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_o
             "pair",
             true,
         );
-        // A partner whose link runs along the top (`vtxfac::partner_side`).
-        for (label, x) in [
-            ("standing beside a lying pyramid", &s.cone),
-            ("over a lying pyramid", &s.over),
-            ("hanging below a lying pyramid", &s.hang),
-        ] {
-            refuses(label, x, &s.lying, &pose, "pair", false);
-        }
         refuses("two blocks", &s.cone, &s.blocks, &pose, "pierce", false);
         // The prism's edge crosses the contact at `MEET`, so its first
         // pierce would hang struts there: only a refusal before that
@@ -801,7 +1215,7 @@ fn a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_o
 }
 
 /// **Every scene, at every pose, in every op and both orders, builds
-/// sound or refuses typed**: 58 scenes, 1740 op cells.
+/// sound or refuses typed**: 66 scenes, 1980 op cells.
 #[test]
 fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
     let mut held = 0;
@@ -880,15 +1294,37 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
         ] {
             held += builds(label, x, y, &pose);
         }
-        held += builds_along("along the arch", &s.along, &s.one, &pose, true);
-        held += builds_along("along the bare arch", &s.along, &s.arch, &pose, true);
+        held += builds_along("along the arch", &s.along, &s.one, &pose, true, None);
+        held += builds_along("along the bare arch", &s.along, &s.arch, &pose, true, None);
         for (label, x) in [
             ("standing beside a lying pyramid", &s.cone),
             ("over a lying pyramid", &s.over),
             ("hanging below a lying pyramid", &s.hang),
         ] {
-            refuses(label, x, &s.lying, &pose, "pair", false);
+            held += builds_along(label, x, &s.lying, &pose, false, lying_ray());
         }
+        for (label, x) in &s.along_ray {
+            held += builds_along(label, x, &s.lying, &pose, false, lying_ray());
+        }
+        for (label, x) in &s.along_void_ray {
+            held += builds_along(label, x, &s.void_lying, &pose, false, lying_ray());
+        }
+        refuses_beside_the_ray(
+            "flush on the top",
+            &s.flush,
+            &s.lying,
+            &pose,
+            AlongFace::Flush,
+            &FLUSH_CROSSES,
+        );
+        refuses_beside_the_ray(
+            "on the lying pyramid's face",
+            &s.on_lying,
+            &s.lying,
+            &pose,
+            AlongFace::FacesInOnePlane,
+            &[],
+        );
         refuses(
             "a prism through the top",
             &s.prism,
@@ -943,7 +1379,7 @@ fn standing_pyramids_folded_onto_the_plate_build_in_every_member_order() {
             }
             let last = last.unwrap();
             assert_eq!(validate_geometric(&body, t()), Ok(()), "{what}: tier 3");
-            three_prime(&what, &last, &pose, false);
+            three_prime(&what, &last, &pose, false, None, None);
             let v = volume(&body);
             assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
         }
@@ -977,9 +1413,196 @@ fn five_members_fold_onto_the_plate_in_sampled_member_orders() {
                 }
             }
             assert_eq!(validate_geometric(&body, t()), Ok(()), "{what}: tier 3");
-            three_prime(&what, &last.unwrap(), pose, false);
+            three_prime(&what, &last.unwrap(), pose, false, None, None);
             let v = volume(&body);
             assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
         }
     }
+}
+
+/// Whether `body` holds `q`: `None` on its boundary or where the read
+/// escalates, so a probe within the band of a face reads nothing.
+fn inside_or_unread(body: &AtRestBody<f64>, q: Point3<f64>) -> Option<bool> {
+    let band = Band::linear(t()).unwrap();
+    match point_in_solid(body, q, band, t()) {
+        Ok(SolidContainment::In) => Some(true),
+        Ok(SolidContainment::Out) => Some(false),
+        Ok(SolidContainment::OnBoundary) | Err(_) => None,
+    }
+}
+
+/// Every op on `(x, y)`, in both orders, builds sound or refuses as
+/// `typed` allows: a built result is tier 3, its material at the probes
+/// about [`MEET`] the op's over the operands', and each class its naming
+/// reads at `MEET` the other operand's containment a little along the
+/// edge, wherever those read; where all six build, their volumes add up
+/// as in [`builds_along`]. Returns how many built.
+fn builds_or_refuses(
+    label: &str,
+    x: &AtRestBody<f64>,
+    y: &AtRestBody<f64>,
+    pose: &Pose,
+    typed: &dyn Fn(&BooleanError) -> bool,
+) -> usize {
+    let probes: Vec<_> = samples(x, y, pose)
+        .into_iter()
+        .filter_map(|q| Some((q, inside_or_unread(x, q)?, inside_or_unread(y, q)?)))
+        .collect();
+    let meet = at(pose.at(MEET));
+    let x_less: fn(bool, bool) -> bool = |x, y| x && !y;
+    let y_less: fn(bool, bool) -> bool = |x, y| y && !x;
+    let or: fn(bool, bool) -> bool = |x, y| x || y;
+    let and: fn(bool, bool) -> bool = |x, y| x && y;
+    let mut v = [None; 6];
+    for (k, (what, keep, a, b, r)) in [
+        ("x − y", x_less, x, y, subtract(x, y, t())),
+        ("y − x", y_less, y, x, subtract(y, x, t())),
+        ("x ∪ y", or, x, y, union(x, y, t())),
+        ("y ∪ x", or, y, x, union(y, x, t())),
+        ("x ∩ y", and, x, y, intersect(x, y, t())),
+        ("y ∩ x", and, y, x, intersect(y, x, t())),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let what = format!("{label}, {}, {what}", pose.label);
+        let r = match r {
+            Ok(BooleanResult::Body(r)) => r,
+            Ok(BooleanResult::Empty) => {
+                for &(q, inx, iny) in &probes {
+                    assert!(!keep(inx, iny), "{what}: empty, but holds {q:?}");
+                }
+                v[k] = Some(0.0);
+                continue;
+            }
+            Err(e) => {
+                assert!(typed(&e), "{what}: builds or refuses typed, got {e:?}");
+                continue;
+            }
+        };
+        assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
+        for &(q, inx, iny) in &probes {
+            if let Some(got) = inside_or_unread(&r.body, q) {
+                assert_eq!(got, keep(inx, iny), "{what}: material at {q:?}");
+            }
+        }
+        for row in &r.naming.edge_classes {
+            let own = if row.operand == Operand::A { a } else { b };
+            let other = if row.operand == Operand::A { b } else { a };
+            let Ok(p) = readback::vertex_point(own, row.vertex) else {
+                continue;
+            };
+            if at(p) != meet {
+                continue;
+            }
+            let edge = own.get_edge(row.edge).unwrap();
+            let plus = own.get_half_edge(edge.he_plus).unwrap();
+            let far = if row.starts {
+                own.get_half_edge(plus.next).unwrap().start
+            } else {
+                plus.start
+            };
+            let d = readback::vertex_point(own, far).unwrap() - p;
+            let band = Band::linear(t()).unwrap();
+            let want = match point_in_solid(other, p + d * (0.02 / d.norm()), band, t()) {
+                Ok(SolidContainment::In) => SideCode::In,
+                Ok(SolidContainment::Out) => SideCode::Out,
+                Ok(SolidContainment::OnBoundary) => SideCode::On,
+                Err(_) => continue,
+            };
+            assert_eq!(row.class, want, "{what}: {row:?} against the other operand");
+        }
+        v[k] = Some(volume(&r.body));
+    }
+    if let [Some(xy), Some(yx), Some(u), Some(u2), Some(i), Some(i2)] = v {
+        let (vx, vy) = (volume(x), volume(y));
+        for (sum, want, which) in [
+            (u + i, vx + vy, "|x ∪ y| + |x ∩ y|"),
+            (xy + i, vx, "|x − y| + |x ∩ y|"),
+            (yx + i, vy, "|y − x| + |x ∩ y|"),
+            (u2, u, "|y ∪ x|"),
+            (i2, i, "|y ∩ x|"),
+        ] {
+            assert!(
+                (sum - want).abs() < 1e-9,
+                "{label}, {}: {which} {sum}, want {want}",
+                pose.label
+            );
+        }
+    }
+    v.iter().filter(|v| v.is_some()).count()
+}
+
+/// **A partner tipped off the face, just in and just out of the band on
+/// either side, builds sound or refuses typed in every op**: the lying
+/// pyramid's corner on the top lifted or sunk by half a zero band (it
+/// reads on the top), three and five (in band) and a hundred (off it),
+/// each a multiple of ε, so every tolerance row reads the same margins.
+/// In band the plate and the lying pyramid do not unite: their own
+/// touch escalates, so no partner in band reaches a pair. Within the
+/// zero every scene builds as on the top or escalates where a sector
+/// pair reads in band; off it the partner is strictly one side, or
+/// crosses the top. A refusal is an escalation, the
+/// coincidence a face of the pyramid on the top or on the lying one's
+/// refuses (`PartnerAlongFace`, or `VertexReadTwice` where its pierce
+/// crosses the top), or, a pyramid inside the lifted one, the
+/// pierce germ that no sector holds alone
+/// (`work/cleave/near-tangent-pierce-poses-reach-three-classification-invariants.md`).
+#[test]
+fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
+    let eps = t().eps();
+    let mut built = 0;
+    for pose in poses() {
+        let s = Scene::at(&pose);
+        for k in [0.5, -0.5, 3.0, -3.0, 5.0, -5.0, 100.0, -100.0] {
+            let y = match union(&s.plate, &tet(lying(k * eps), &pose), t()) {
+                Ok(BooleanResult::Body(r)) => r.body,
+                other => {
+                    assert!(
+                        (2.0..=5.0).contains(&f64::abs(k))
+                            && matches!(other, Err(BooleanError::Escalated { .. })),
+                        "the plate and a pyramid lying {k}ε off the top, {}: builds out of \
+                         band, escalates in it, got {:?}",
+                        pose.label,
+                        other.map(|_| ())
+                    );
+                    continue;
+                }
+            };
+            assert!(
+                f64::abs(k) < 1.0 || f64::abs(k) > 10.0,
+                "{}: the plate and a pyramid lying {k}ε off the top build in band",
+                pose.label
+            );
+            let germ = |e: &BooleanError| {
+                k > 10.0
+                    && matches!(e, BooleanError::ClassificationInvariant { what }
+                        if *what == "pierce germ direction not uniquely within its sector")
+            };
+            for (label, x, faced) in [
+                ("standing beside", &s.cone, false),
+                ("over", &s.over, false),
+                ("hanging below", &s.hang, false),
+                ("flush on the top", &s.flush, true),
+                ("on its face", &s.on_lying, true),
+            ]
+            .into_iter()
+            .chain(s.along_ray.iter().map(|(label, x)| (*label, x, false)))
+            {
+                let inside = label.starts_with("inside");
+                let label = format!("{label}, the pyramid lying {k}ε off the top");
+                built += builds_or_refuses(&label, x, &y, &pose, &|e| {
+                    matches!(e, BooleanError::Escalated { .. })
+                        || (faced
+                            && matches!(
+                                e,
+                                BooleanError::PartnerAlongFace { .. }
+                                    | BooleanError::VertexReadTwice { .. }
+                            ))
+                        || (inside && germ(e))
+                });
+            }
+        }
+    }
+    assert!(built > 0, "cells built");
 }

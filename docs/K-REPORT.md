@@ -987,6 +987,39 @@ They pool with nothing: the region is read by the point-in-solid door
 at points on a sphere, a population apart from the planar walk's and
 the boolean's boundary pre-pass's.
 
+**Roster change (RESTREAD): a torus face's region.** Seventeen names from
+`topo/src/boolean/torus_region.rs`, which replaces the torus chart
+windows: `bool_torus_trim`, `bool_torus_trim_major_period`,
+`bool_torus_trim_minor_period`, `bool_torus_chart_affine`,
+`bool_torus_chart_box` and `bool_torus_chart_closure` leave the roster,
+and `bool_torus_frame_radius` moves into the region. Seven are its paths'
+bare literals, four a `FirstHarmonicRows` value (`ROOT_ROWS`), two a
+`ConicRows` value (`BOUNDARY`) and four a `SpiricRows` value (`SPIRIC`)
+for its boundary pre-pass:
+
+| name | carrier |
+|---|---|
+| `bool_torus_region_component` | a bare literal: which of a plane's two curves a root lies on, in metres (a meridian plane's `(y − c)·ρ̂`, a parallel plane's `ρ − R` against the edge's decided side, a circle's distance from its mirror and from itself, an oval's `(y − c)·m`); and whether an edge in a leg's plane is on the leg's own circle (a meridian's centre against the leg's `ρ̂`, a parallel's radius less the leg's) |
+| `bool_torus_region_family` | a bare literal: whether a circle edge is a parallel (the sine between its axis and the torus's, at its radius) off the top and bottom circles (`ρ − R`, metres): a class selection between two readings, each sound |
+| `bool_torus_region_span` | a bare literal: a root's parameter against its edge's span ends, at the circle's radius or the tube's |
+| `bool_torus_region_at` | a bare literal: a crossing's place along its leg from the leg's start, at the leg's radius |
+| `bool_torus_region_corner` | a bare literal: a first leg's crossing, or an end of an edge on its circle, against its corner |
+| `bool_torus_region_order` | a bare literal: two crossings' places along the path |
+| `bool_torus_region_cross` | a bare literal: the leg's heading against the face side at the closest crossing, at the tube's radius |
+| `bool_torus_region_roots_noise` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_torus_region_roots_coaxial` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_torus_region_roots_extreme` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_torus_region_roots_slack` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_torus_region_arc_span` | `ConicRows` field (`BOUNDARY`): a circle edge's gap to a whole turn |
+| `bool_torus_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle; a circle never mints it, and it never reaches the funnel |
+| `bool_torus_region_spiric_end` | `SpiricRows` field (`SPIRIC`): the distance to either end of an oval arc |
+| `bool_torus_region_spiric_clear` | `SpiricRows` field (`SPIRIC`): a piece's ball's clearance from the point |
+| `bool_torus_region_spiric_on` | `SpiricRows` field (`SPIRIC`): the distance to a point of the arc |
+| `bool_torus_region_spiric_leaf` | `SpiricRows` field (`SPIRIC`): a piece's ball's radius |
+
+They pool with nothing: the region is read by the point doors at points
+on a torus.
+
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of
 the crate scan — the same carrier shape `chart_bound_gap` has):
@@ -1037,13 +1070,13 @@ new frame mint carries the caller's name.** `sweep`'s tube door used to
 decide its own frame — `tube_frame_unit` (the axis's and the reference
 direction's length against 1, `Margin::levered` on `major + minor`) and
 `tube_frame_orthogonal` (their dot product on the same lever). Both are
-gone: the door takes a `geom_core::OrthoFrame`, whose axes were decided
+gone: the door takes a `geom_core::RigidMotion`, whose axes were decided
 at whichever mint built it, so the two names are no longer emitted by
 anything and drop out of the roster. Neither was ever recorded here —
 both were bare literals at their `decide` sites — so this paragraph is
 the record of their retirement rather than a deletion from a table.
 
-What replaces them is not a name of the kernel's: `OrthoFrame`'s mints
+What replaces them is not a name of the kernel's: `RigidMotion`'s mints
 take the funnel site as a PARAMETER, exactly as `decide_unit_direction`
 does and for the same reason (the name belongs to the layer that owns
 the value). The names that reach the funnel through them today:
@@ -1058,7 +1091,6 @@ the value). The names that reach the funnel through them today:
 | `sketch_plane_frame_norm` | `crates/pncad-py/src/py/doc.rs`, the binding's own | no — the binding is not in the sweep's roster |
 | `mate_axes_parallel` | `crates/editor-core/src/mate/coset.rs`'s `parallel`, a name the mate solve already recorded by a bare `decide` | as before — the mate solve is not in the sweep's roster; see the MSOLVE-8 paragraph below |
 | `mate_coset_inverse` | `crates/editor-core/src/mate/solve.rs`'s `invert`, the solve's own | no — the mate solve is not in the sweep's roster |
-| `mate_residual_quote` | `crates/editor-core/src/mate/solve.rs`'s `quoted_residual`, the solve's own: an UNDER refusal's residual quoted at `f64` on an analysis lane, each direction re-minted | no — the mate solve is not in the sweep's roster, and the `f64` lane names its residual without re-minting it |
 | `mate_frame_offset_axis` | `crates/editor-core/src/mate/solve.rs`'s `compose_offset`: a mate side's axis re-minted from the frame its base and offset compose, once per side whose offset is not the identity — every authored side, which is the part base with one literal step | no — the mate solve is not in the sweep's roster |
 | `fixture_mate_axis` | `crates/editor-core/tests/fixture/mod.rs`, a const the mate suites own | no — a test-owned name, as `fixture_frame_axis` |
 | `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
@@ -2033,10 +2065,9 @@ axis output and decides the lifted 3-D vector under `datum_unit_norm`
 (`wire/pose.rs`'s `datum_unit(u * dir.x + v * dir.y, …)`), while
 `sweep`'s revolve takes the
 UNLIFTED sketch pair and decides it again under
-`revolve_axis_direction` (`revolve/axis.rs`) — same authored numbers,
-two names, because the frame's axes are orthonormal and
-`|lift(d)| = |d|`. `Revolve`'s field doc says why it carries both
-spellings. So "one length, two funnel names, split by road" is a
+`revolve_axis_direction` (`revolve/axis.rs`) — one authored heading,
+its `(cos h, sin h)` decided under two names, because the frame's axes
+are orthonormal and `|lift(d)| = |d|`. So "one length, two funnel names, split by road" is a
 SHAPE in this workspace rather than a one-off, and the ruling below is
 about which layer names a decision, not about ever having only one
 name for a value.
@@ -3028,3 +3059,98 @@ what gates. The ceiling stays as the re-cut trigger that
 `docs/k-report-data/README.md` names, and nothing mechanical fires
 it any more: a fresh sweep past it shows up only as a larger tally in
 the printed output.
+
+## The rigidity rows move to the decided door (SYM-17, 2026-10-12)
+
+`topo::transform_rigid` takes a `geom_core::RigidMotion` and decides
+nothing about rigidity. The seven `transform_rigid_*` margins (ledger
+row F10) keep their spellings and are now minted at one site,
+`RigidMotion::check_rigid` (`crates/geom-core/src/linalg/rigid_motion.rs`,
+the same table-of-names loop, so a grep for a literal at the decide
+site still misses them). They are asked of a raw map only: a literal
+placement frame, a STEP placement, a pose the mate solve composed, a
+library caller's matrix. A `Transform` step, a stepped pattern and a
+revolve's turn mint their motion by construction and ask none of them.
+
+**Three names retire**: `transform_rigid_trans_finite_{x,y,z}`, the
+`0·tᵢ` probes of the translation's finiteness. The door now asks it
+as the mints do, by `Real::is_bounded`, an exact fact about the
+representation that is not a band decision and logs no sample. The
+probe was the weaker question as well as a second spelling: at
+`Interval`, `0·[MAX, ∞]` is the finite `[0, 0]`, so it admitted an
+unbounded translation enclosure the mints refuse.
+
+**The population moves both ways**, measured on SYM-17's own pins:
+- It **shrinks** at minted placements: ten samples fewer per
+  `Transform` node or pattern copy (`m10_6_certifying_keys`'s
+  `min_clearance_neck` key moves; on the chain's symbolic lane
+  `symbolic` (then `symbolic_zero`) is 30 fewer at one link and 200 fewer at four).
+- It **shrinks by three** at an instance placed by a literal offset:
+  the literal is decided once at the door (the group frame is read
+  once a node), seven margins where the composite was decided once at
+  `transform_rigid`, ten names (`asm2a_instantiate` and
+  `kstats_bracket_rows` 466 → 463 a placing op, 922 → 919 nested).
+- It **grows** at a mate whose sides carry literal offset steps: each
+  side's literal is now admitted at the door, seven samples a side,
+  where nothing was asked before (`msolve11_mate_log`'s `OWN_FRAMES`,
+  2 → 16).
+
+No gating rule reads the added samples. A literal frame admitted at the
+door decides every margin `Zero`, so its samples reach only rule 2's
+zero arm, and that arm is a tally that fails nothing ("Rule 2's zero arm
+is a tally" above). The margins themselves need not be rounding-sized:
+a literal admitted at A6 against the same band may sit anywhere up to
+the band's zero, so a sample can land past `ε / 10²` and be counted
+there. It is counted, not gated.
+
+One name is added: **`revolve_placed_axis`** (`sweep`'s
+`revolve/axis.rs`), the placed revolve axis decided into a witness
+before the revolve turns about it, through `UnitVec3::new`'s
+`Margin::norm3`. Its margin is the length of a placed unit direction,
+about one, against the linear band. It is a third name for the
+revolve axis's length, beside `revolve_axis_direction` (the sketch
+pair) and `datum_unit_norm` (the evaluation layer's lift), on the
+"one length, two funnel names, split by road" shape above: the
+placement is a general map, so the placed axis is a length of its
+own until the sketch plane is a frame.
+
+## DECIDE-10 addendum (2026-10-13): one symbolic token
+
+The symbolic tier's three K tokens are one. A decision the tier
+discharged is recorded as `symbolic` (`SampleOutcome::Symbolic`),
+however the walk reached the zero; `symbolic_zero`, `sign_gated`
+(M10-8) and `registered` (M10-9) are retired, and `k-lint` refuses each
+by name (`tools/k-lint/tests/outcome_vocabulary.rs`). The per-file and
+TOTAL lines print `(N symbolic, M classified)`. Like the tokens it
+replaces, `symbolic` is never a rule sample.
+
+What moved, measured on the driver dump (`k_report_driver_dump`,
+`--features probe`, ε = 1e-9) before and after: nothing but the
+spelling. The three fixtures' 57,124 samples are row-for-row identical
+with `symbolic_zero` read as `symbolic` (37,420 of them; 19,620
+positive, 52 negative and 32 zero classified on both sides). The
+decision read, which now declines at a point scalar such as the
+replay's `Sym<Probe>`, answered none of them.
+
+## RESTREAD addendum (2026-10-18): the crossing lane's two-bound readings
+
+The census crossing lane decides each reach and the lines' gap off an
+enclosure, so a pair sharing no point key records two decides where it
+recorded one (`census::enclosure_reading`). Measured at ε = 1e-12 with
+the Band 4 corpus and the tour scenes, main against the branch:
+`pm_census_ee_span` 2 361 → 4 722 samples and `pm_census_ee_gap` 14 → 28,
+nothing else moving. `pm_census_ee_span`'s largest zero-classified |m|
+rose from 4.44089e-16 to 3.06422e-15 (both on demo/az), the upper bound
+carrying its rounding charge; that is under M7's 5.32907e-15 and 3.3×
+under `band_zero/100`. Rule 1's rows are the same on both sides (41
+`chart_bound_outer_span` invalid, 2 `props_quad_converged` in band), and
+the population's zero-side ceiling, on both, is
+`bool_circle_torus_root_slack` at 3.14912e-13 (demo/lily_walls), which
+no census name approaches
+(`work/germ/circle-torus-root-slack-crowds-the-zero-band-at-1e-12.md`;
+the invalid rows are `work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`).
+The full lint fails at the branch on definite-arm flags, none a census
+name and so the same at main (`curve_pair_pose_parallel`, `curve_pair_pose_clear`,
+`curve_pair_pose_travel` on demo/projectbox_cutaway, `bool_pair_gap` on
+demo/tiltedcut), and the nightly's sweep stops before it in the
+plain-suite prelude, so these figures are a local reading.

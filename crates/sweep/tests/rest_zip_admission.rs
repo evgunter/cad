@@ -16,7 +16,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{OrthoFrame, Point3, Tol};
+use geom_core::{Point3, RigidMotion, Tol};
 use sweep::test_support::{brick, extruded, finished, sketch_at};
 use topo::{AtRestBody, BooleanError, BooleanResult};
 
@@ -102,7 +102,7 @@ fn reflex_beside_a_post(
     let post = finished(
         "the post",
         extruded(
-            profile::SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(x0, -1.5, 1.0))),
+            profile::SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(x0, -1.5, 1.0))),
             vec![rounded(1.0, 1.0, 0.25)],
             1.8,
             t,
@@ -176,7 +176,7 @@ fn a_tangent_sites_controls_build_sound() {
 /// dips into the plate: across its straight south wall, or inside the
 /// contact, where the dip's boundary on the plate's top is the slab's
 /// own edges and no section segment marks it
-/// (`work/fuse/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate.md`).
+/// (`a-dip-inside-a-rest-contact-is-refused-by-the-result-gate` (a closed FUSE row; `docs/doc-ledger/fuse-leaves-the-tracker.md`)).
 /// Each builds sound at box arithmetic, in both orders. The control, a
 /// box above the plate, joins too.
 #[test]
@@ -286,7 +286,7 @@ fn rounded_at(at: (f64, f64, f64), w: f64, h: f64, r: f64, height: f64) -> AtRes
     finished(
         "a rounded block",
         extruded(
-            profile::SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(at.0, at.1, at.2))),
+            profile::SketchPlane::from_frame(RigidMotion::axes_xy(Point3::new(at.0, at.1, at.2))),
             vec![rounded(w, h, r)],
             height,
             t,
@@ -414,7 +414,7 @@ fn the_tangent_site_keeps_building_pure_contacts() {
 
 /// **A line kiss beside the tangent site builds at its closed form and
 /// records its contact** (shape 2 of
-/// `work/fuse/a-dip-inside-a-rest-contact-is-refused-by-the-result-gate`).
+/// `a-dip-inside-a-rest-contact-is-refused-by-the-result-gate` (a closed FUSE row; `docs/doc-ledger/fuse-leaves-the-tracker.md`)).
 /// At these poses one of `b`'s cap edges from the reflex corner lies in
 /// `a`'s top, with the cap above it elsewhere: `v∩ = 0`, and `b` kisses
 /// `a` along that edge and at its far vertex. Each union, in both

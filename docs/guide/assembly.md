@@ -24,8 +24,10 @@ Everything below runs. The Python blocks are executed by
 `test_assembly_eval.py` and `test_assembly_author.py` (which build
 one scene, `crates/pncad-py/tests/bench_scene.py`), and the same scene
 in Rust is `demos/tour/src/assembly.rs`, which goes one step further:
-it stands the stand on a turntable gauge a `swing` parameter turns,
-and sets a crate on the shelf through a gauge nested on it.
+it stands the stand on a turntable — the near post's world pin, whose
+frame turns about the turntable's pivot by a `swing` parameter — and
+sets a crate on the shelf by a mate and values in the crate's own
+bundle.
 
 The scene is the tour's bench: two square posts, one shelf resting on
 them. Two part documents, and two assemblies built from those — a
@@ -133,70 +135,96 @@ meant yesterday" a fact rather than a hope.
 
 ## 2. Authoring an assembly
 
-Three doors — and one property, *placement lives on a gauge*, that
-explains the second of them.
+Three doors, and one property that explains all three: *an instance is
+a placement*.
 
-`Node.instantiate_part(reference)` is an instance: a **leaf** whose
-material crosses the document seam. It is inserted on the world at the
-empty offset — at the origin.
+`Node.instantiate_part(reference, constraints)` is an instance: a
+**leaf** whose material crosses the document seam, and a
+**placement** — its part's world, moved as one copy by the placement's
+**bundle** of constraints. The bundle is what says where the copy
+sits. Left empty it is a **loose** copy that lives in a space of its
+own until constraints pin it. `Doc.pin(instance, pose)` is the "place
+part" gesture on it: a plane mate on the copy's first planar face to
+the world plane that face lies in at `pose`, and the three values that
+put it there, so the copy stands at `pose` and can then be moved by
+its numbers. An instance pinned to the world is in the product,
+because a placement is what the product gathers: nothing else has to
+place it. `Doc.place(body)` and `Doc.place_at(body, pose)` are the
+same gesture over a body of this document.
 
-`DocEdit.set_offset(node, placement)` moves it: an instance names a
-**gauge** (the world by default; `Node.gauge` makes one, and
-`DocEdit.set_gauge` puts an instance on it) and may carry an
-**offset** in it. Instances coupled by placing mates form a **group**,
-rooted at its earliest member that carries an offset; the group's
-frame is its gauge composed with that offset, and every other member's
-pose is *solved*. A mate places only between instances on one gauge,
-and "mate `a` to `b`" places `a`'s group on `b`'s: the insert clears
-the offset of `a`'s root, so the group keeps one.
+`Mate(on, to, class_)` is one value carrying both halves of "these two
+parts meet here": the placement constraint the solve folds, and the
+contact declaration the gate mints. A mate is not a node. It is a
+constraint in the bundle of the copy it places, and it equates two
+poses of one kind: `on`, read off that copy's geometry, and `to`, a
+pose of the space the copy joins — another copy's face, say — or a
+`WorldRead`, a pose of the world read inside the mate. The kind is the
+primitive: plane to plane rests, axis to axis is coaxial, frame to
+frame coincides, point to point is a ball, direction to direction is
+parallel. A plain plane mate equates outward normals, so two faces
+resting on each other carry a flip on the target
+(`PoseDef.flip(PoseDef.plane(...))`).
 
-`Node.mate(a_at, a, b_at, b, class_, alignment)` is one node carrying
-both halves of "these two parts meet here": the placement constraint
-the solve folds, and the contact declaration the gate mints.
+A mate holds no number. What it leaves free — a plane mate's two
+slides and its spin, an axis mate's slide along it and its spin — is
+set by a **value**: `Doc.add_value(mate, Coord.slide("x"), by)`. A
+value is charted on the two bodies' own frames, each swung onto the
+mated direction, so zero says the bodies' own coordinates agree as far
+as the mate allows. A standoff is not a value: it is the target plane
+slid along its own normal (`PoseDef.slide`).
 
-Each side is TWO things. `a` and `b` are instance-qualified entity
-names — the text `Evaluation.select` answers with when you query it on
-an instantiate node, so no name is ever composed by hand. `a_at` and
-`b_at` are the nodes those names are read at, which is to say the
-geometry the mate is talking about: each side is a read of a face of
-that body, exactly as any other node reads a variable. They are the
-instances themselves in the plain case. They diverge the moment
-something PLACES an instance — a `Node.transform` moves a body and
-mints no name of its own, so the name alone cannot tell a mate on the
-instance from a mate on the transformed instance, and the body read
-is what does. The solve walks from the body read down to the minting
-instance and composes the map of everything it passes.
+`Doc.constrain(placement, mate)` adds a mate to a placement's bundle
+and answers its address, a `MateRef`: the placement and the id the
+edit minted, never a position; `Doc.add_value` answers a value's the
+same way. `DocEdit.add_constraint` and `DocEdit.add_value` are the
+same edits as recorded values; `Doc.remove_mate` takes a mate out with
+every value naming it, and `DocEdit.remove_constraint` takes one
+constraint out by its address. What a removed constraint pinned is
+recomputed from what remains, so a copy left unpinned is loose rather
+than refused. `Doc.bundle(placement)` reads a bundle back.
+
+So a mated assembly is one copy pinned to the world, and every other
+copy placed by the mates and values in its own bundle. A bundle that
+pins its copy fully puts it in its target's space; a copy pinned,
+directly or through the copies it is placed on, to the world is in the
+world's space, and the world's space is the product.
+
+A pose is read off a face of a NODE by a NAME — the instance-qualified
+text `Evaluation.select` answers with when you query it on an
+instantiate node, so no name is ever composed by hand. The node is the
+geometry the pose is about. It is the instance itself in the plain
+case, and it diverges the moment something moves an instance: a
+`Node.transform` moves a body and mints no name of its own, so the
+name alone cannot tell the face on the instance from the face on the
+transformed instance, and the node read is what does.
 
 ```python
 import tempfile
 
 from pncad import (
-    Alignment,
-    AxisSense,
     CapEnd,
     ContactClass,
+    Coord,
     Doc,
-    DocEdit,
     DocRef,
     EntityKind,
     Formula,
     Frame,
-    MateFrame,
-    MatePrimitive,
+    Mate,
+    MateValue,
     NamePat,
     Node,
-    Placement,
+    PoseDef,
     ProductError,
     SegPat,
     SegTag,
     Selector,
     Workspace,
-    groups,
-    product,
+    WorldRead,
     content_pin,
     evaluate,
-    root_of,
     m,
+    product,
     relative_freedom_components,
 )
 
@@ -205,7 +233,8 @@ SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
 
 
 def prism(seed, width, depth, height):
-    """One part: a rectangular block, rooted at its own origin."""
+    """One part: a rectangular block, placed in its world where it is
+    drawn by the "place part" gesture."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
@@ -229,12 +258,6 @@ def instance_cap(ev, instance, side):
     return found[0]
 
 
-def frame_at(x, y, z):
-    """An AUTHORED mate frame: +z axis, +x clocking reference."""
-    return MateFrame(origin=(x * m, y * m, z * m), axis=(0.0, 0.0, 1.0),
-                     reference=(1.0, 0.0, 0.0))
-
-
 store = Workspace(tempfile.mkdtemp())
 post = prism("bench-post", POST_SECTION, POST_SECTION, POST_HEIGHT)
 shelf = prism("bench-shelf", SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS)
@@ -244,163 +267,137 @@ post_ref = DocRef(post.id, content_pin(post))
 shelf_ref = DocRef(shelf.id, content_pin(shelf))
 
 stand = Doc("bench-stand")
+# Three loose copies, each in a space of its own until something pins
+# it.
 post_a = stand.insert(Node.instantiate_part(post_ref))
-# Only the root is placed by hand. The other two poses are solved.
-stand.apply(
-    DocEdit.set_offset(
-        post_a,
-        Placement.literal(
-            Frame.translation((0 * m, (SHELF_DEPTH - POST_SECTION) / 2 * m, 0 * m))
-        ),
-    )
-)
 shelf_i = stand.insert(Node.instantiate_part(shelf_ref))
 post_b = stand.insert(Node.instantiate_part(post_ref))
+assert stand.bundle(post_a) == []
 
-# The mate references, SELECTED rather than spelled: evaluate against
-# the store, then ask each instantiate node for its face.
+# The near post is the one copy pinned to the world, at a pose: inset
+# in y so the shelf overhangs front and back. The gesture writes a
+# plane mate and its three values.
+inset = (SHELF_DEPTH - POST_SECTION) / 2
+pinned = stand.pin(post_a, Frame.translation((0 * m, inset * m, 0 * m)), resolver=store)
+assert pinned.by == "planar_face" and len(pinned.values) == 3
+
+# The faces, SELECTED rather than spelled: evaluate against the store,
+# then ask each instantiate node for its face.
 ev = evaluate(stand, resolver=store)
+assert set(ev.loose) == {shelf_i, post_b}
 a_top = instance_cap(ev, post_a, CapEnd.End)
 b_top = instance_cap(ev, post_b, CapEnd.End)
 shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 
-# Where each post's top meets the shelf's underside, each written in
-# its OWN part's coordinates. The post's seat IS its top cap face —
-# the face the post side's reference already names, so the frame
-# takes nothing, and one `own_face` serves every side framed on its
-# own head: the solve reads the cap's pose off the post's
-# evaluation every time, so a post whose height changes moves the
-# seat with it. The shelf's seats are authored numbers in the shelf's
-# own coordinates — the part base with one literal step. (Each could
-# equally be the underside face with an offset inside it,
-# `MateFrame.on_face(...)`; the shelf is modelled from its underside
-# up, so no shelf edit moves these.) The posts sit flush with the
-# shelf's two ends, which is the obvious way to draw a bench.
-own_face = MateFrame.from_face()
-seat_a = frame_at(POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
-seat_b = frame_at(SHELF_LENGTH - POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
+
+def rest(placement, on, to, slides):
+    """`placement`'s face `on` resting on the face `to` — the target
+    flipped, so the two faces face each other — and the values that
+    set where on `to` it rests: two slides, and no spin."""
+    mate = stand.constrain(
+        placement,
+        Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to)), ContactClass.Rest),
+    )
+    for coord, by in ((Coord.slide("x"), slides[0] * m), (Coord.slide("y"), slides[1] * m),
+                      (Coord.spin(), 0)):
+        stand.add_value(mate, coord, by)
+    return mate
 
 
-def seat(a, b):
-    """Two frames meeting outright, axes aligned, no clocking rider."""
-    return Alignment(a, b, MatePrimitive.frame_coincidence(), AxisSense.Aligned)
+# Each mate goes in the bundle of the copy it PLACES, and reads that
+# copy's face as `on`: the shelf on the near post, then the far post
+# under the shelf. Each mate's poses are read off the faces at every
+# evaluation, so a post whose height changes moves the shelf with it.
+# The values put each post's top centre under its seat on the shelf,
+# flush with the shelf's ends, in the chart of the mate's target: the
+# post's own x and y for the shelf on a post, and for a post under the
+# shelf the shelf's x and its -y, the shelf's frame swung onto its
+# underside's outward normal.
+half = POST_SECTION / 2
+mate_a = rest(shelf_i, (shelf_i, shelf_underside), (post_a, a_top), (0.0, half - SHELF_DEPTH / 2))
+mate_b = rest(post_b, (post_b, b_top), (shelf_i, shelf_underside),
+              (SHELF_LENGTH - 2 * half, half - SHELF_DEPTH / 2))
 
+# A constraint is addressed by the placement that holds it. The near
+# post's bundle is its pin, which reads the world; each other bundle is
+# the mate that places it and its three values.
+assert (mate_a.placement, mate_b.placement) == (shelf_i, post_b)
+assert isinstance(stand.bundle(post_a)[0][1].to, WorldRead)
+held = stand.bundle(shelf_i)
+assert held[0][0] == mate_a
+assert [type(v) for _, v in held[1:]] == [MateValue] * 3
 
-# Each mate names the part it MOVES first: "mate the shelf to the
-# post" places the shelf's group on the post's. The insert asks the
-# solve's own admission of each mate, and a side framed on its face is
-# resolved there — through the store, since the face is the part's.
-mate_a = stand.insert(
-    Node.mate(
-        shelf_i, shelf_underside, post_a, a_top, ContactClass.Rest,
-        seat(seat_a, own_face),
-    ),
-    resolver=store,
-)
-mate_b = stand.insert(
-    Node.mate(
-        post_b, b_top, shelf_i, shelf_underside, ContactClass.Rest,
-        seat(own_face, seat_b),
-    ),
-    resolver=store,
-)
+# Pinned, through the mates, to the world: no copy is loose, and every
+# copy is in the world's space.
+ev = evaluate(stand, resolver=store)
+assert ev.loose == []
+assert all(ev.space(n) == "world" for n in (post_a, shelf_i, post_b))
 
-# The two mates couple all three instances into ONE group, rooted at
-# its earliest member carrying an offset — the post placed by hand.
-assert groups(stand) == [[post_a, shelf_i, post_b]]
-assert all(root_of(stand, n) == post_a for n in (post_a, shelf_i, post_b))
+# A mate's poses are reads, like any other node's, and its reads are
+# what couple the graph: all three instances are one relatively-free
+# component.
+(component,) = [c for c in relative_freedom_components(stand) if shelf_i in c]
+assert {post_a, shelf_i, post_b} <= set(component)
 
-# ...because each mate cleared the offset of the part it moved:
-# exactly one instance still carries one.
-assert stand.offset(shelf_i) is None and stand.offset(post_b) is None
-assert stand.offset(post_a) is not None
+# The world says what this document IS: its product is every copy its
+# placements define in the world's space, in the placements' document
+# order. The instances ARE the placements, so the product is the three
+# parts, and nothing else placed them. A mate is no body, so it is
+# never in the product.
+assert stand.placements() == [post_a, shelf_i, post_b]
+assert [stand.node_kind(n) for n in stand.placements()] == ["instantiate_part"] * 3
+volume = product(stand, ev).mass_properties().volume
+expected = 2 * POST_SECTION**2 * POST_HEIGHT + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
+assert abs(volume - expected) < 1e-12
 
-# A mate's sides are reads, like any other node's, and inserting one
-# places nothing. Its reads are what couple the graph: both mates and
-# all three instances are one relatively-free component.
-(component,) = [c for c in relative_freedom_components(stand) if mate_a in c]
-assert {post_a, shelf_i, post_b, mate_a, mate_b} <= set(component)
-
-# The world says what this document IS: its product is every copy a
-# world placement defines, in the placements' document order. No insert
-# places anything — not an instance, not a mate — so this world is
-# empty, and the gather refuses naming every body nothing places, each
-# as the output variable `place` takes.
+# A loose copy is placed, but in a space of its own, so it is not in
+# the product. A document holding nothing else has no product, and the
+# gather says so: no unplaced body, and the loose copy named in the
+# message.
+flat = Doc("bench-loose")
+alone = flat.insert(Node.instantiate_part(post_ref, []))
 try:
-    product(stand, evaluate(stand, resolver=store))
+    product(flat, evaluate(flat, resolver=store))
     raise AssertionError("expected a typed refusal")
 except ProductError as refusal:
     assert refusal.variant == "empty_product"
-    assert refusal.unplaced_bodies == [stand.output(n) for n in (post_a, shelf_i, post_b)]
-
-# `place` is the one door that puts a body in the world: one copy, at
-# the identity unless a pose is given. The order the copies are placed
-# in is the product's solid order. The mates are not bodies; nothing
-# places them, so they are never in the product.
-placed = [stand.place(n) for n in (shelf_i, post_a, post_b)]
-assert stand.placements() == placed
-assert [stand.node_kind(n) for n in placed] == ["place_in_world"] * 3
+    assert refusal.unplaced_bodies == []
+    assert "loose" in str(refusal)
 ```
 
 Two things in that block are worth pausing on.
 
-**A mate frame is a base and an offset.** The base is the side's
-part frame, or its own face; the offset is a `Placement` written in
-the base's frame — any rigid motion, the empty chain by default.
-`MateFrame.from_face()` is the face base with no offset: the side's
-frame is the face its reference names, and the solve resolves it from
-the part's own evaluation at every evaluation — its origin, its chart
-axis as local +Z and the carrier's own reference direction as local
-+Y — so nothing is stored twice and the mate follows the face when
-the part is edited, when the reference is rebound, and across a split
-or an inline. `MateFrame.on_face(offset)` adds an offset in that
-face's frame: a slide along the face, a turn about its normal, a
-set-back from it — and the side follows the face, offset and all.
-`MateFrame(origin, axis, reference)` is three authored vectors, the
-part base with one literal step, and `MateFrame.on_part(offset)` the
-part base with any chain. A rigid step's expressions may read a
-document parameter, so a parameter can drive where a side sits. The
-offset is any rigid motion, and the mate's contact class says which
-are legal: a `Rest` side set back from its face declares a contact
-that is not there, and the at-rest gate refutes it. A face with no
-canonical frame (a NURBS carrier) refuses typed and keeps taking a
-part base. Every frame resolves on every lane: `stackup.sensitivities`'
-dual passes read a pose with its tangent, and a certified
-`clearance`'s interval leaf an enclosure of it — a face base's pose,
-and an offset whose step reads a parameter the lane binds. Two honest
-limits stand at the placement door, where a solved pose becomes a
-placed body: a box wider than about ε over a placer's translation
-refuses there (each placed edge is certified on its placed carrier,
-and the box widens both apart), and a boxed rotation refuses
-`NotRigid`, so such an interval leaf refuses rather than encloses. The
-solve's
-*algorithm* is unchanged — coset intersection over decided
-predicates, no numeric fitting — and its inputs are the document plus
-its mated parts' evaluations. What is still not checked is a PART
-frame against the faces the mate names: such a mate can
-solve perfectly and still be refuted at the gate, which is the
-boundary between "where you said the parts meet" and "where they
-actually do", kept visible.
+**A pose follows its face.** A mate's poses are definitions read off
+geometry — a face read as its plane, with its outward normal; an edge
+or a carrier read as its axis; a vertex or a centre read as a point —
+and moved, where the author moves them, by slides and spins whose
+numbers are lengths and angles. The solve reads each pose off the
+evaluation at every evaluation, so nothing is stored twice and the
+mate follows the face when the part is edited, when the name is
+rebound, and across a split or an inline. A value's number may read a
+document parameter, so a parameter can drive where a copy sits. The
+mate's contact class says what is declared: a `Rest` on two faces
+declares they touch, and where the values set them apart, the at-rest
+gate refutes it. The solve constructs each copy's pose from its mates
+and values, checking nothing and fitting nothing, and its inputs are
+the document plus its mated parts' evaluations.
 
-**What the solve would refuse about a mate on its own, the insert
-refuses.** A head that resolves to no member, one member named
-twice, a class outside the vocabulary, a frame offset that does not
-evaluate, a frame with no definite direction, a primitive-and-rider
-pair the coset table has no row
-for, a clocking rider that contradicts the frame coincidence it rides
-— each is a fact about the mate alone, which the solve records
-against the mate whenever it reads the datum. So `Doc.insert` asks
-the solve's own per-mate admission and raises `EditError` with
-variant `mate_refused`, `fault` carrying the solve's `MateFault`
-whole. The rider on a coincidence is decided over the mated parts'
-extent, and a side framed on its face is resolved from the part's own
-evaluation, so those two need `resolver=` at the insert; everything
-else is decided on the datum alone. The doors decide edits and the solve
-decides states: a verdict about a *pair* — under-determined, two
-mates that contradict each other — is the solve's, met at evaluation
-as below, and so is a per-mate fault a mate comes to carry after
-insert — a head a rebind or a shrunk pattern strands, a `Part`
-re-pointed at another copy, a file whose snapshot holds one.
+**The constraint door is structural.** A mate whose `on` does not read
+the copy it places (`mate_not_on_the_copy`), whose two poses are of
+two kinds (`mate_kinds_differ`), whose world read's moves do not
+compose (`mate_world_read`), or whose class is outside the vocabulary
+is refused where it is added; so is a value on a freedom its mate's
+kind fixes (`mate_not_a_freedom`) or on a point mate's rotation, which
+has no chart (`mate_no_chart`), and so is a constraint any of whose
+equations the rest of its bundle already fixes, pinned or not
+(`mate_overconstrained`): two plane mates fix a normal twice, whatever
+their faces' angle. `Doc.constrain`, `Doc.add_value` and their
+`DocEdit` twins raise `EditError` with variant `mate_refused`, `fault`
+carrying the `MateFault` whole. What needs the poses' values — a face
+that is gone (`mate_side_unevaluated`), a chart the band cannot swing —
+is the placement's own refusal where it evaluates, met as below. A bundle
+that pins less than its copy needs is no verdict at all: that copy is
+loose (§5).
 
 **Ask `class_admission` before you author a class.** The solve and the
 gate admit different sets, and the table is one value both read:
@@ -435,24 +432,22 @@ empty. Evaluation stays total, as everywhere else in this kernel: the
 refusal is read off the node, not raised by the call.
 
 `product(doc, evaluation)` is then what an assembly *is*: its world,
-every copy a placement defines, gathered in the placements' document
-order into one body. It
-is the only useful reading of an assembly document, because an
-assembly's nodes are instances and mates and no single node's value is
-the assembly.
+every copy a placement defines in the world's space, gathered in the
+placements' document order into one body. It is the only useful
+reading of an assembly document, because an assembly's nodes are
+instances, each one copy of its part with its mates in its bundle, and
+no single node's value is the assembly.
 
 ```python
 import tempfile
 
 from pncad import (
     Doc,
-    DocEdit,
     DocRef,
     EvaluationError,
     Formula,
     Frame,
     Node,
-    Placement,
     Workspace,
     content_pin,
     evaluate,
@@ -480,19 +475,15 @@ store.create(post)
 store.create(shelf)
 
 # The flat-pack layout: a post and the shelf beside it, nothing
-# touching. No mates, so each instance is its own group and each
-# carries its own offset.
+# touching. No mates between them: each instance is pinned to the
+# world by the gesture — the post at the identity, the shelf at a pose
+# beside it — and being pinned to the world is what puts each in the
+# product. The gesture reads each copy's faces, through the store.
 layout = Doc("bench-layout")
 post_i = layout.insert(Node.instantiate_part(DocRef(post.id, content_pin(post))))
+layout.pin(post_i, resolver=store)
 shelf_i = layout.insert(Node.instantiate_part(DocRef(shelf.id, content_pin(shelf))))
-layout.apply(
-    DocEdit.set_offset(
-        shelf_i, Placement.literal(Frame.translation((0 * m, 0.5 * m, 0 * m)))
-    )
-)
-# Both are placed in the world: that is what makes them the product.
-layout.place(post_i)
-layout.place(shelf_i)
+layout.pin(shelf_i, Frame.translation((0 * m, 0.5 * m, 0 * m)), resolver=store)
 
 # With no resolver there is nowhere to look, and the node says so.
 # Evaluation is TOTAL — it did not raise; reading the value does.
@@ -577,6 +568,8 @@ store.create(shelf)
 layout = Doc("bench-layout")
 shelf_i = layout.insert(Node.instantiate_part(DocRef(shelf.id, content_pin(shelf))))
 
+# One node runs: the instance. The world every document holds is
+# scheduled nowhere.
 before = evaluate(layout, resolver=store)
 assert (before.reused, before.recomputed) == (0, 1)
 pinned_volume = before.value(shelf_i).body().mass_properties().volume
@@ -620,17 +613,29 @@ than the one it might become.
 
 Two doors, and they check different things.
 
-`solve_document(doc, resolver=store)` folds the mates: per-pair
-cosets along a deterministic spanning tree, producing each instance's
-pose relative to its group root. It is **total** — a refusing
-group must not fail an unrelated one, so refusals are read back per
-node through `SolvedPoses.fault` rather than raised. It inspects no
-geometry except each mated part's own extent — an upper bound taken
-from its evaluated body, which is why it crosses the same `resolver=`
-seam `evaluate` does — and that extent enters only as the lever a
-parallelism verdict is decided over: a tilt is priced across the parts
-that carry it, at their scale. Without a resolver every mate on a part
-faults `mate_unleverable`.
+`solve_document(doc, resolver=store)` folds the bundles: each
+placement's bundle by itself, where the placement evaluates — its
+mates' poses read off the evaluated geometry and intersected as exact
+cosets, then its values placing the copy inside what the mates leave.
+What it produces is each placement's **pose** in its space — in the
+world's coordinates for a copy pinned, directly or through the copies
+it is placed on, to the world — read back through `SolvedPoses.pose`;
+`SolvedPoses.placement` is the world pose. It is **total** — a
+refusing bundle must not fail an unrelated one, so refusals are read
+back per placement through `SolvedPoses.fault` rather than raised, and
+a refusal reaches only the refusing placement and the placements
+pinned to it. It crosses the same `resolver=` seam `evaluate` does,
+because the poses are read off the parts' evaluations, and each mated
+body's own extent enters as the lever a parallelism verdict is decided
+over: a tilt is priced across the bodies that carry it, at their
+scale.
+
+What a bundle decides is a copy's **space**. `Evaluation.space(node)`
+answers `"world"` for a copy pinned to the world, directly or through
+the copies it is placed on, and otherwise the loose copy whose space
+it is; `Evaluation.loose` lists the loose copies. Nothing in one space
+is compared with another's, so a copy is either in the product or
+checked by itself, never half of each.
 
 `assemble(doc, evaluation)` is the **at-rest gate**: it gathers the
 product, mints every solved mate's declaration into contact records,
@@ -646,22 +651,18 @@ against the geometry it claims.
 import tempfile
 
 from pncad import (
-    Alignment,
-    AxisSense,
     CapEnd,
     ContactClass,
+    Coord,
     Doc,
-    DocEdit,
     DocRef,
     EntityKind,
     Formula,
     Frame,
-    MateFrame,
-    MatePrimitive,
-    MateRole,
+    Mate,
     NamePat,
     Node,
-    Placement,
+    PoseDef,
     SegPat,
     SegTag,
     Selector,
@@ -676,20 +677,18 @@ from pncad import (
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
+INSET = (SHELF_DEPTH - POST_SECTION) / 2
+HALF = POST_SECTION / 2
 
 
 def prism(seed, width, depth, height):
-    """One part: a rectangular block, rooted at its own origin."""
+    """One part: a rectangular block, placed in its world where it is
+    drawn by the "place part" gesture."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
-
-
-def frame_at(x, y, z):
-    return MateFrame(origin=(x * m, y * m, z * m), axis=(0.0, 0.0, 1.0),
-                     reference=(1.0, 0.0, 0.0))
 
 
 def instance_cap(ev, instance, side):
@@ -698,6 +697,19 @@ def instance_cap(ev, instance, side):
     through = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.InPart).of([copy]))
     (found,) = ev.select(instance, Selector.of(through))
     return found
+
+
+def rest(doc, placement, on, to, slides, class_=ContactClass.Rest):
+    """`placement`'s face `on` resting on the face `to`, flipped so the
+    two face each other, and two slide values and no spin setting where
+    on `to` it rests. `on` and `to` are (node, face name) pairs."""
+    mate = doc.constrain(
+        placement, Mate(PoseDef.plane(*on), PoseDef.flip(PoseDef.plane(*to)), class_)
+    )
+    for coord, by in ((Coord.slide("x"), slides[0] * m), (Coord.slide("y"), slides[1] * m),
+                      (Coord.spin(), 0)):
+        doc.add_value(mate, coord, by)
+    return mate
 
 
 store = Workspace(tempfile.mkdtemp())
@@ -709,76 +721,63 @@ post_ref = DocRef(post.id, content_pin(post))
 shelf_ref = DocRef(shelf.id, content_pin(shelf))
 
 
-def bench(primitive=None, class_=ContactClass.Rest):
+def bench(class_=ContactClass.Rest):
     """The stand: two posts, a shelf seated on them by two mates."""
     doc = Doc("bench-stand")
     a = doc.insert(Node.instantiate_part(post_ref))
-    doc.apply(
-        DocEdit.set_offset(
-            a,
-            Placement.literal(
-                Frame.translation((0 * m, (SHELF_DEPTH - POST_SECTION) / 2 * m, 0 * m))
-            ),
-        )
-    )
+    doc.pin(a, Frame.translation((0 * m, INSET * m, 0 * m)), resolver=store)
     s = doc.insert(Node.instantiate_part(shelf_ref))
     b = doc.insert(Node.instantiate_part(post_ref))
-    for instance in (a, s, b):
-        doc.place(instance)
     ev = evaluate(doc, resolver=store)
-    post_seat = frame_at(POST_SECTION / 2, POST_SECTION / 2, POST_HEIGHT)
-    seat_a = frame_at(POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
-    seat_b = frame_at(SHELF_LENGTH - POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
-    fold = primitive or MatePrimitive.frame_coincidence()
-
-    def align(x, y):
-        return Alignment(x, y, fold, AxisSense.Aligned)
-
-    # Each mate names the part it moves first.
-    m_a = doc.insert(
-        Node.mate(s, instance_cap(ev, s, CapEnd.Start),
-                  a, instance_cap(ev, a, CapEnd.End),
-                  class_, align(seat_a, post_seat))
-    )
-    m_b = doc.insert(
-        Node.mate(b, instance_cap(ev, b, CapEnd.End),
-                  s, instance_cap(ev, s, CapEnd.Start),
-                  class_, align(post_seat, seat_b))
-    )
+    underside = (s, instance_cap(ev, s, CapEnd.Start))
+    # Each mate goes in the bundle of the part it places; its values
+    # put each post's top centre under the shelf's seat, flush with the
+    # shelf's ends.
+    m_a = rest(doc, s, underside, (a, instance_cap(ev, a, CapEnd.End)),
+               (0.0, HALF - SHELF_DEPTH / 2), class_)
+    m_b = rest(doc, b, (b, instance_cap(ev, b, CapEnd.End)), underside,
+               (SHELF_LENGTH - 2 * HALF, HALF - SHELF_DEPTH / 2), class_)
     return doc, (a, s, b), (m_a, m_b)
 
 
 stand, (post_a, shelf_i, post_b), mates = bench()
 
 solved = solve_document(stand, resolver=store)
-assert all(solved.fault(n) is None for n in (post_a, shelf_i, post_b, *mates))
-# Both mates PLACED a child — that is what `Determining` means. A
-# mate that solved nothing and is carried to evaluation as a pure
-# contact declaration is `Declaring`.
-assert [solved.role(mate) for mate in mates] == [MateRole.Determining] * 2
+assert all(solved.fault(n) is None for n in (post_a, shelf_i, post_b))
+# Every bundle pins its copy, and the near post is pinned to the
+# world, so all three copies are in the world's space.
+ev = evaluate(stand, resolver=store)
+assert ev.loose == []
+assert [ev.space(n) for n in (post_a, shelf_i, post_b)] == ["world"] * 3
 
-# The root's relative pose is the identity, bit-exactly, so its
-# world placement is its offset's frame verbatim...
-assert solved.placement(stand, post_a).origin == (
-    0 * m, (SHELF_DEPTH - POST_SECTION) / 2 * m, 0 * m,
-)
-# ...and the other two are composed outward along the mate tree,
-# never stored. The shelf sits on top of the posts.
-assert abs(solved.placement(stand, shelf_i).origin[2].meters - POST_HEIGHT) < 1e-12
-far = solved.placement(stand, post_b).origin
-assert abs(far[0].meters - (SHELF_LENGTH - POST_SECTION)) < 1e-12
-# The ROTATION, which a translation check cannot see: both mates
-# align +z with +z at zero clocking, so the far post is not turned. A
-# solve that rotated it and still landed its seating point would put
-# the part in sideways.
-assert solved.placement(stand, post_b).columns == (
-    (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0),
-)
+
+def near(got, want):
+    return all(abs(g.meters - w) < 1e-12 for g, w in zip(got, want, strict=True))
+
+
+# The near post stands at its pin's pose...
+assert near(solved.placement(stand, post_a).origin, (0.0, INSET, 0.0))
+# ...and each other pose is solved from the mates and values in its
+# bundle, never stored. A copy pinned, through the copies it is placed
+# on, to the world is posed in the world's coordinates, so its pose is
+# its world placement: the shelf sits on top of the posts, flush with
+# the bench's front.
+assert near(solved.pose(shelf_i).origin, (0.0, 0.0, POST_HEIGHT))
+assert near(solved.placement(stand, shelf_i).origin, (0.0, 0.0, POST_HEIGHT))
+assert near(solved.placement(stand, post_b).origin, (SHELF_LENGTH - POST_SECTION, INSET, 0.0))
+# The ROTATION, which a translation check cannot see: both mates rest
+# a cap on a cap at zero spin, so the far post is not turned. A solve
+# that rotated it and still landed its seating point would put the
+# part in sideways.
+columns = solved.placement(stand, post_b).columns
+identity = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+assert all(abs(g - w) < 1e-12 for c, i in zip(columns, identity) for g, w in zip(c, i))
 
 # The gate: the flush-seated stand CERTIFIES, and hands back one
 # minted declaration per solved mate, at face granularity, in the
-# alphabet the mates were authored in.
-assembly = assemble(stand, evaluate(stand, resolver=store))
+# alphabet the mates were authored in — each naming its mate by its
+# address.
+assembly = assemble(stand, ev)
 assert [d.mate for d in assembly.minted] == list(mates)
 assert [d.class_ for d in assembly.minted] == [ContactClass.Rest] * 2
 expected = (2 * POST_SECTION**2 * POST_HEIGHT
@@ -788,7 +787,7 @@ assert abs(assembly.body.mass_properties().volume - expected) < 1e-12
 # `assemble` IS the gather plus the check, so its body is the gathered
 # body — and a mate-less, disjoint layout passes the same gate
 # outright, with nothing minted.
-gathered = product(stand, evaluate(stand, resolver=store))
+gathered = product(stand, ev)
 assert gathered.mass_properties().volume == assembly.body.mass_properties().volume
 ```
 
@@ -796,34 +795,35 @@ assert gathered.mass_properties().volume == assembly.body.mass_properties().volu
 
 Each of these is reached by authoring the mistake. They are the
 product working: the kernel declining to pick a pose, invent a record,
-or widen a declaration you did not make.
+or widen a declaration you did not make. The first is not a refusal
+at all: it is the kernel declining to pick a pose without refusing
+anything.
 
 ```python
 import tempfile
 
 from pncad import (
-    Alignment,
     AssemblyError,
-    AxisSense,
     CapEnd,
     ContactClass,
+    Coord,
     Doc,
-    DocEdit,
     DocRef,
     EditError,
     EntityKind,
+    EvaluationError,
     Formula,
-    Frame,
-    MateFrame,
-    MatePrimitive,
+    Mate,
     NamePat,
     Node,
+    OVERCONSTRAINED_RECOURSE,
+    PoseDef,
     ProductError,
     SegPat,
     SegTag,
     Selector,
-    UNDER_RECOURSE,
     Workspace,
+    WorldRead,
     assemble,
     content_pin,
     evaluate,
@@ -834,20 +834,17 @@ from pncad import (
 
 POST_SECTION, POST_HEIGHT = 0.12, 0.5
 SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS = 0.9, 0.30, 0.04
+HALF = POST_SECTION / 2
 
 
 def prism(seed, width, depth, height):
-    """One part: a rectangular block, rooted at its own origin."""
+    """One part: a rectangular block, placed in its world where it is
+    drawn by the "place part" gesture."""
     doc = Doc(seed)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
     profile = doc.insert(Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame()))
     doc.place(doc.insert(Node.extrude(profile, Formula.length_in(height, m))))
     return doc
-
-
-def frame_at(x, y, z):
-    return MateFrame(origin=(x * m, y * m, z * m), axis=(0.0, 0.0, 1.0),
-                     reference=(1.0, 0.0, 0.0))
 
 
 def instance_cap(ev, instance, side):
@@ -866,61 +863,102 @@ store.create(shelf)
 post_ref = DocRef(post.id, content_pin(post))
 shelf_ref = DocRef(shelf.id, content_pin(shelf))
 
-post_seat = frame_at(POST_SECTION / 2, POST_SECTION / 2, POST_HEIGHT)
-seat_a = frame_at(POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
-
 
 def two_instances():
+    """A loose post — its bundle empty, so a mate is what places it —
+    and the shelf, pinned to the world at the identity."""
     doc = Doc("bench-refusals")
     a = doc.insert(Node.instantiate_part(post_ref))
     s = doc.insert(Node.instantiate_part(shelf_ref))
-    # The shelf sits where its mates put it, so the post roots the
-    # pair however the mates below read. Both are placed in the world.
-    doc.apply(DocEdit.set_offset(s, None))
-    doc.place(a)
-    doc.place(s)
+    doc.pin(s, resolver=store)
     return doc, a, s
 
 
-# 1. UNDER-DETERMINED. One planar rest fixes the seating plane and
-#    nothing else: the pair may still slide and spin in it. The solve
-#    refuses and names the RESIDUAL in class vocabulary rather than
-#    picking a pose — and the residual is point-FREE, because no base
-#    point distinguishes one plane from a parallel one.
-doc, post_i, shelf_i = two_instances()
-ev = evaluate(doc, resolver=store)
-mate = doc.insert(
-    Node.mate(
-        post_i, instance_cap(ev, post_i, CapEnd.End),
-        shelf_i, instance_cap(ev, shelf_i, CapEnd.Start),
-        ContactClass.Rest,
-        Alignment(post_seat, seat_a, MatePrimitive.planar_rest(0 * m),
-                  AxisSense.Aligned),
-    )
-)
-fault = solve_document(doc, resolver=store).fault(mate)
-assert fault.variant == "mate_under"
-assert fault.residual.variant == "planar"
-assert fault.residual.normal == (0.0, 0.0, 1.0)
-assert fault.residual.point is None
-assert (fault.parent, fault.child) == (post_i, shelf_i)
-# The kernel's own prose, ending on the recourse.
-assert UNDER_RECOURSE in str(fault)
+def post_under_shelf(doc, post_i, shelf_i, class_, values=True):
+    """The post's top resting on the shelf's underside, the post's
+    side first, and — unless `values` is false — the values that set it
+    flush under the shelf's near end."""
+    ev = evaluate(doc, resolver=store)
+    mate = doc.constrain(post_i, Mate(
+        PoseDef.plane(post_i, instance_cap(ev, post_i, CapEnd.End)),
+        PoseDef.flip(PoseDef.plane(shelf_i, instance_cap(ev, shelf_i, CapEnd.Start))),
+        class_,
+    ))
+    if values:
+        for coord, by in ((Coord.slide("x"), 0 * m),
+                          (Coord.slide("y"), (HALF - SHELF_DEPTH / 2) * m),
+                          (Coord.spin(), 0)):
+            doc.add_value(mate, coord, by)
+    return mate
 
-# 2. A CLASS THE GATE CANNOT MINT. `Tangent` solves and mints nothing
+
+# 1. A LOOSE COPY. One planar rest fixes the seating plane and nothing
+#    else: the post may still slide and spin in it, and no value says
+#    where. That is no refusal, and the solve picks no pose: a bundle
+#    that pins less than its copy needs makes a LOOSE copy, a space of
+#    its own. Nothing outside that space is compared with it, so it has
+#    no world pose and is not in the product — the world here is the
+#    shelf alone.
+doc, post_i, shelf_i = two_instances()
+post_under_shelf(doc, post_i, shelf_i, ContactClass.Rest, values=False)
+solved = solve_document(doc, resolver=store)
+assert solved.fault(post_i) is None, "a loose copy is not a refusal"
+ev = evaluate(doc, resolver=store)
+assert ev.loose == [post_i]
+assert (ev.space(post_i), ev.space(shelf_i)) == (post_i, "world")
+try:
+    solved.placement(doc, post_i)
+    raise AssertionError("expected a typed refusal")
+except EvaluationError as refusal:
+    assert refusal.kind == "space_mismatch"
+shelf_volume = SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
+assert abs(product(doc, ev).mass_properties().volume - shelf_volume) < 1e-12
+
+# 2. OVERCONSTRAINED. A post rests on the world's floor by its
+#    underside, and a second plane mate, a side on one of the world's
+#    walls, fixes a normal the first already fixes. The door reads the
+#    two mates' kinds, measures nothing, and refuses the second where it
+#    is authored, naming both and ending on the recourse; the document
+#    is as it was. One mate and its values pin the post instead.
+doc = Doc("bench-overconstrained")
+post_i = doc.insert(Node.instantiate_part(post_ref))
+ev = evaluate(doc, resolver=store)
+
+
+def facing(normal):
+    """The post's face whose outward normal is `normal`, as its plane."""
+    def outward(name):
+        pose = ev.face_frame(post_i, name)
+        sign = 1.0 if pose.sense else -1.0
+        return tuple(round(sign * c, 9) + 0.0 for c in pose.axis)
+    (name,) = [n for n in ev.all_faces(post_i) if outward(n) == normal]
+    return PoseDef.plane(post_i, name)
+
+
+floor = doc.constrain(post_i, Mate(facing((0.0, 0.0, -1.0)),
+                                   WorldRead.through("xy").flip(), ContactClass.Rest))
+try:
+    doc.constrain(post_i, Mate(facing((-1.0, 0.0, 0.0)), WorldRead.through("yz").flip(),
+                               ContactClass.Rest))
+    raise AssertionError("expected a typed refusal")
+except EditError as refusal:
+    fault = refusal.fault
+assert fault.variant == "mate_overconstrained"
+assert fault.placement == post_i
+assert floor in fault.constraints and fault.free == 1
+assert OVERCONSTRAINED_RECOURSE in str(fault)
+# The repair the recourse names: the floor mate's three freedoms set,
+# the post stands where it is drawn, pinned.
+for coord in (Coord.slide("x"), Coord.slide("y"), Coord.spin()):
+    doc.add_value(floor, coord, 0)
+assert solve_document(doc, resolver=store).fault(post_i) is None
+assert evaluate(doc, resolver=store).space(post_i) == "world"
+
+# 3. A CLASS THE GATE CANNOT MINT. `Tangent` solves and mints nothing
 #    at rest — exactly what `class_admission` said before the edit
 #    landed.
 doc, post_i, shelf_i = two_instances()
-ev = evaluate(doc, resolver=store)
-mate = doc.insert(
-    Node.mate(
-        post_i, instance_cap(ev, post_i, CapEnd.End),
-        shelf_i, instance_cap(ev, shelf_i, CapEnd.Start),
-        ContactClass.Tangent,
-        Alignment(post_seat, seat_a, MatePrimitive.frame_coincidence(),
-                  AxisSense.Aligned),
-    )
-)
+mate = post_under_shelf(doc, post_i, shelf_i, ContactClass.Tangent)
 try:
     assemble(doc, evaluate(doc, resolver=store))
     raise AssertionError("expected a typed refusal")
@@ -933,44 +971,44 @@ except AssemblyError as refusal:
     assert row.mate == mate
     assert row.class_ == ContactClass.Tangent
 
-# 3. A HEAD THAT IS NOT A FACE — refused where the mate is BUILT, not
-#    at the gate. A mate declares a FACE PAIR, and the kernel says so
-#    in the TYPE of a head, so a Rust caller cannot write this mate at
-#    all. Python holds names as opaque text, so `Node.mate` asks the
-#    same constructor on your behalf and refuses at the call.
+# 4. A PLANE READ OFF AN EDGE. A plane is read off a face, and Python
+#    holds names as opaque text, so a plane read off an edge's name is
+#    built, and the edit door refuses it: a selection's kind is the
+#    name's own, held where the selection is written, and the sentence
+#    names the side and what the name denotes.
 doc, post_i, shelf_i = two_instances()
 ev = evaluate(doc, resolver=store)
 edge = sorted(ev.all_edges(post_i))[0]
 try:
-    Node.mate(
-        post_i, edge,
-        shelf_i, instance_cap(ev, shelf_i, CapEnd.Start),
+    doc.constrain(post_i, Mate(
+        PoseDef.plane(post_i, edge),
+        PoseDef.flip(PoseDef.plane(shelf_i, instance_cap(ev, shelf_i, CapEnd.Start))),
         ContactClass.Rest,
-        Alignment(post_seat, seat_a, MatePrimitive.frame_coincidence(),
-                  AxisSense.Aligned),
-    )
-    raise AssertionError("expected a typed refusal")
-except EditError as refusal:
-    assert refusal.variant == "mate_head_not_a_face"
-    assert "edge" in str(refusal)
+    ))
+except EditError as err:
+    assert err.variant == "selection_name_kind"
+    assert "edge, not a face" in str(err)
+else:
+    raise AssertionError("an edge-read plane is refused at the door")
 
-# 4. NOTHING TO GATHER. Evaluated with no resolver, the instance
-#    produced no body and its placement none either, so the GATHER
-#    refuses before the gate runs — and it refuses under the gather's
-#    own tag, not a wrapper's, because which invariant broke is what
-#    you branch on. `node` is the placement, `through` the instance.
-doc, post_i, _ = two_instances()
+# 5. NOTHING TO GATHER. Evaluated with no resolver, the shelf instance
+#    — a placement pinned to the world — produced no copies, so the
+#    GATHER refuses before the gate runs — and it refuses under the
+#    gather's own tag, not a wrapper's, because which invariant broke
+#    is what you branch on. `node` is the placement that failed.
+doc, _, shelf_i = two_instances()
 try:
     assemble(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")
 except AssemblyError as refusal:
-    assert refusal.variant == "root_poisoned"
-    assert refusal.through == post_i and refusal.refusals is None
+    assert refusal.variant == "root_failed"
+    assert refusal.node == shelf_i and refusal.refusals is None
 try:
     product(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")
 except ProductError as refusal:
-    assert refusal.variant == "root_poisoned"
+    assert refusal.variant == "root_failed"
+    assert refusal.node == shelf_i
 ```
 
 Read an `AssemblyError`'s `variant` first, and read it as three
@@ -1002,10 +1040,16 @@ frontier is the library telling you what it cannot yet decide, which
 is a different sentence from "your assembly is wrong", and it is
 spelled differently on purpose.
 
+The gate runs the same check over each loose copy's space, by itself:
+copies placed on a loose copy are compared with each other and never
+with the world, so two parts that interpenetrate inside a loose
+sub-assembly refuse even where the world beside them certifies.
+
 ## 6. Moving a part in or out: `split`, `inline`, and the pin door
 
-`split(doc, cut, part_id)` cuts a closed node set out into a new
-document and leaves **one instance** of it behind. `inline(doc,
+`split(doc, cut, part_id, resolver=)` cuts a closed node set out into
+a new document and leaves **one instance** of it behind, pinned where
+the part's world stands by the world pin, which reads nothing. `inline(doc,
 instance, resolver)` is its inverse: splice the referenced document's
 nodes back in.
 
@@ -1014,9 +1058,10 @@ ordinary recorded edits that produce them, and mutate nothing — which
 is what makes each atomic at your single step. Persisting a result is
 the store's write side, not the refactoring's.
 
-They differ in one way that matters: `split` reads no store, and
-`inline` crosses the document seam **at the call**, under the full pin
-gate. A reference whose pinned version is not what the store holds
+They differ in one way that matters: `split` reads the store only
+for the copies it cuts, to read the geometry its instance is pinned
+over, and `inline` crosses the document seam **at the call**, under
+the full pin gate. A reference whose pinned version is not what the store holds
 refuses `part_pin_mismatch` rather than splicing the version on disk.
 
 ```python
@@ -1024,13 +1069,11 @@ import tempfile
 
 from pncad import (
     Doc,
-    DocEdit,
     DocRef,
     Formula,
     Frame,
     InlineError,
     Node,
-    Placement,
     SplitError,
     Workspace,
     content_pin,
@@ -1060,13 +1103,9 @@ store.create(shelf)
 
 layout = Doc("bench-layout")
 post_i = layout.insert(Node.instantiate_part(DocRef(post.id, content_pin(post))))
+layout.pin(post_i, resolver=store)
 shelf_i = layout.insert(Node.instantiate_part(DocRef(shelf.id, content_pin(shelf))))
-layout.apply(
-    DocEdit.set_offset(
-        shelf_i, Placement.literal(Frame.translation((0 * m, 0.5 * m, 0 * m)))
-    )
-)
-_, on_shelf = layout.place(post_i), layout.place(shelf_i)
+layout.pin(shelf_i, Frame.translation((0 * m, 0.5 * m, 0 * m)), resolver=store)
 
 
 def volume(doc):
@@ -1075,18 +1114,20 @@ def volume(doc):
 
 before = volume(layout)
 
-# Split the shelf out into a part of its own, with its world placement:
-# a part delivers only its world, so a cut of a body takes the
-# placement that puts it there. Identity is never defaulted: the new
-# document's id is supplied by the caller, and a fresh one is what
-# lets both documents live in one store.
-outcome = split(layout, [shelf_i, on_shelf], random_document_id())
+# Split the shelf instance out into a part of its own. A part delivers
+# only its world, and the shelf instance is a placement pinned to the
+# world, so it is a whole cut: the part's world is that placement.
+# Identity is never defaulted: the new document's id is supplied by
+# the caller, and a fresh one is what lets both documents live in one
+# store.
+outcome = split(layout, [shelf_i], random_document_id(), resolver=store)
 assert volume(layout) == before, "pure: the original is untouched"
-# The remainder places the instance once, where the cut placement
-# stood beside the post's.
+# The remainder holds one instance of the new part, pinned to the
+# world where the part's world stands — where the shelf already did —
+# beside the post.
 assert len(outcome.remainder.placements()) == 2
 assert outcome.remainder.reference(outcome.instance) is not None
-assert len(outcome.node_map) == 2
+assert len(outcome.node_map) == 1
 # No mate spanned the cut, so nothing crossed the new seam. An
 # instance you authored by hand crosses nothing either — a non-empty
 # interface record is mintable only by a split that OBSERVED
@@ -1228,7 +1269,7 @@ except UpdateError as refusal:
 
 ## Where the edges still are
 
-Two honest limits, so you do not spend an afternoon looking for a
+Three honest limits, so you do not spend an afternoon looking for a
 door that is not there, and one rule worth stating outright.
 
 **Mates and patterns do not compose** (issue #945). A patterned family
@@ -1242,13 +1283,20 @@ mate that certifies. A face base's in-plane axes are the witness
 ladder's: the carrier's reference is local +Y, not +X, so an offset
 along the face's reference is written along y.
 
-**A mate places nothing.** The product is what the world's
-placements place: a body is in it exactly when `Doc.place` has put a
-copy of it there, and the placements' document order is the solid
-order. A mate is no body, so it is never in the product — and neither
-inserting it nor inserting anything else places a body as a side
-effect. A boolean of two placed bodies is a new body nobody placed
-until you place it.
+**A bundle's mates all target one copy, or all the world.** A copy
+held by mates onto two different copies refuses `mate_targets_differ`,
+naming the placement and the constraints whose targets differ. And the
+solve reads a face only of an instance, or of a pattern's copy of one:
+a face side on a copy `Doc.place` made of a body refuses typed, while
+a world pin works on any placement.
+
+**Only a placement places.** The product is the copies the
+document's placements define in the world's space — each instance
+pinned there, and each copy `Doc.place` has made of a body — and the
+placements' document order is the solid order. A mate is a constraint
+in a placement's bundle and no body, so it is never in the product,
+and no insert places a body as a side effect. A boolean of two placed
+bodies is a new body nobody placed until you place it.
 
 For the wider picture of what the Python surface can and cannot author
 today, `docs/guide/north-star-audit.md` keeps the row-by-row account.

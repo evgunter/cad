@@ -615,13 +615,17 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                         pm,
                         pa,
                     },
-                    geom_brep::SpiricImage::Wall { u0, v0, sense } => {
-                        geom_brep::SpiricImage::Wall {
-                            u0: u0 + TAU,
-                            v0,
-                            sense,
-                        }
-                    }
+                    geom_brep::SpiricImage::Wall {
+                        u0,
+                        v0,
+                        sense,
+                        torus,
+                    } => geom_brep::SpiricImage::Wall {
+                        u0: u0 + TAU,
+                        v0,
+                        sense,
+                        torus,
+                    },
                 },
             },
             // Likewise no cone or torus chart here; `u0` is the one
@@ -723,8 +727,8 @@ fn the_trimmed_nurbs_lane_misses_when_its_surface_changes() {
     let mut weights = net.weights().to_vec();
     weights[0] *= 1.0 + 1.0 / 64.0;
     let moved = geom::NurbsSurface::new(
-        net.knots_u().clone(),
-        net.knots_v().clone(),
+        net.knots_u_f64_interim().clone(),
+        net.knots_v_f64_interim().clone(),
         net.control().to_vec(),
         weights,
     )

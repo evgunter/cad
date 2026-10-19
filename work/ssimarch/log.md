@@ -35,3 +35,41 @@ Rows moved with `git mv` and keep their ids.
     - `work/issues/describe-maps-every-chart-pcurve-escalation-to-chart-image`;
     - ENCL `unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`.
   - Pointers were added on the PCTAIL coincidence-menu row, the CHROME escalations-forwarded-whole row and the EXCH step-import row. (ENCL orchestrator)
+
+- **2026-10-12 — seam note from NURBS: PR 4904 merged** (one rational surface bound: `geom_core::spline::rational_stretch_sup`, `NurbsSurface::stretch_sup`, `RationalPairTerm`).
+  - `ssi/enclose.rs`'s local `PairTerm` is now `geom_core::spline::RationalPairTerm<Interval, 3>` (private fields; `about`/`at`/`weight_step`).
+  - The result is bit-identical: the reviewer checked 200k Interval cases to_bits.
+  - Write any new pair-term reading through `RationalPairTerm::about`. — (NURBS orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 4925 merged. ε now has a floor: geom-core `tolerance::SESSION_BOX_EXTENT` = 1 km and `EPS_MIN` = box · 2⁻⁵² ≈ 2.2e-13 m, per D4 ¶4 (Ev, PR 4836).
+  - Every door that sets a run's ε refuses below it. `tolerance::EpsFloor` is the one wording of the refusal.
+  - `Band::offer_deciding(m)` is the one offer rule: no tighten offer at or below ε_min. Tests that predict an offer should call it rather than restate `|m|/K`.
+  - At CI's 1e-12 row, every zero-band offer now withholds.
+  - A run below the floor (for example `CAD_TOLERANCE_EPS=1e-14`) is refused. Outside geom-core it silently falls back to the default; that is filed on SCALAR. (ENCL orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 4954 merged** (`092b30227f`). Every first-order rational derivative bound now reads one Bernstein quotient bound on exact dyadic Bézier pieces (`geom_core::spline::derivative::QuotientPiece`, with the pieces in `geom_core::spline::pieces`).
+  - **Retired:**
+    - `rational_speed_sup`, `rational_stretch_sup`, `rational_stretch_floor` and `rational_area_floor`;
+    - `RationalPairTerm`, `pair_sup`, `Cell` and `over_cells`;
+    - enclose's `pair_norm_sup`, `Centred`, `Affine` and `screen_bound`;
+    - `pcurve_cache`'s `net_direction` and `floor_along`.
+  - **API change:** `NurbsSurface::stretch_floor(along_u)` and `area_floor()` are norm floors and lost their `d` argument.
+  - **Tighter readings:** `speed_upper_bound`, `stretch_sup`, `chart_stretch_inf` and enclose's `deriv_box` / `speed_sup` / `transverse_readings`. So iso slacks shrink and floors rise.
+  - **Degree ceilings:** curves meter to degree 28, surface sups and per-axis floors to 28 per axis, and the area floor to 18. Above those the bound refuses.
+  - **Filed:** `work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md` and `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
+  - **Next:** NURBS unit 2 moves `patch_bound` `rational_cells` (first and second order), mesh chords and `offset_meters` onto the same form. — (NURBS orchestrator)
+
+- 2026-10-13 — **Seam note from NURBS: PR 5001 merged** (`eec79d69`).
+  - **Change:** `ssi::enclose::NurbsBoxes` now builds each span cell's whole `CellNet` once, memoised per `(su, sv)` in a `OnceCell`, and `NurbsBoxes::cell` returns `&CellNet`. **No reading changes.**
+  - **Why:** it fixes most of 4954's 30–50× walk regression. The shell test went from 1692 s to 284 s locally, and the PR slow set from 55 min to 3 min.
+  - **Still open:** cut nets still cost about 8× the pre-4954 time. The row is `work/nurbs/a-cut-cell-nets-quotients-cost-the-walk-eight-times-its-pre-4954-time.md`; levers 1 and 2 (axis selector, binomial table) follow once NURBS unit 2 (PR 4984) lands.
+  - **Side effect:** `NurbsBoxes` is now `!Sync`, because of `OnceCell`. — (NURBS orchestrator)
+- 2026-10-13 — Seam note from ENCL: PR 4872 merged. A face whose weights sit at subnormal scale is now rescaled by an exact power of two (geom-core `spline::weight_scale::unit_scale_exact`) before its rational arm is certified, so its certificate equals the unit face's. `ssi::section` and the meters share the one checked helper. Any certified read of rational weights should divide by the weight floor after unit scaling, never after the norm. (ENCL orchestrator)
+
+- 2026-10-14 — **Seam note from NURBS: PR 5047 merged** (`f0f732d0`), step 1 of the quotient-cost unit.
+  - **Change:** `ChartedNurbs` now builds its `NurbsBoxes` once at mint and holds it in an `Rc`. It is `Clone`, no longer `Copy`, and not `Send`. `boundary::Pass` and `PairBoxes` share it.
+  - **Effect:** a cell's chart enclosure is formed once per operand rather than once per rung or per call. Answers are bit-identical.
+  - **Bounds:** `SsiOperand`, `ChartedNurbs` and `certify::Lane` are bounded by `CertifiedBounds`.
+  - **Guard:** `every_rung_reads_the_operands_one_build_of_each_cell`.
+  - **Next:** products-once with de Casteljau halving, then the cut becomes exact restriction (`analysis/design-fork/nurbs-quotient-cost`, converged). — (NURBS orchestrator)
+- 2026-10-14 — **Seam (NURBS):** `ssi/four.rs` `one_arc_pair` → `reaches_end` proves an end lying on a domain side (e.g. v_a = 0) by Krawczyk on a slice whose root sits exactly on the slice box's boundary face. A sound enclosure can't prove that. Main passes only because `rect_box`'s midpoint is an unenclosed f64 point (`work/ssiarith/chart-point-signs-are-f64-evaluations.md`). NURBS #5059 makes the midpoint sound, which turns `nurbs_nurbs_section::two_fits_cross_at_their_offset_crease` red. NURBS lane session_013c7iZGZUnzBka2LTcMSVBi is fixing it on `nurbs/pair-walk-domain-side-end`, reading such an end on the side's own face (the ℝ⁴ analogue of one_arc's `Piece::Side`). It will note whether the ℝ³ side reading can be shared (`work/ssiedge/the-r4-one-arc-walk-duplicates-r3s.md`). (NURBS orchestrator)
+- 2026-10-14 — **Seam (NURBS):** PR 5094 merged (c54ec254). `ssi/four.rs` `one_arc_pair`'s `reaches_end` now first reads r's own certified boundary roots, the ones `one_arc_pair` already holds. Each is narrowed by meeting it with its own Krawczyk image, and a root box inside the end's ball is Found. An end lying on a domain side is reached without a slice whose root sits on its edge. An end at a domain *corner* still refuses Undecided (`face_roots` → None): filed as `work/nurbs/a-pair-walk-end-at-a-domain-corner-refuses-undecided.md`. (NURBS orchestrator)

@@ -5,15 +5,23 @@
 //!
 //! # The taxonomy, after the collapse
 //!
-//! [`EdgeDescription`] has four arms and exactly ONE conventional
-//! form (and [`EdgeDescriptionSpec`] is its pre-mint twin, the form a
-//! CONSTRUCTION states — see that type for why the input needs one):
+//! [`EdgeDescription`] has five arms: two intrinsic, two conventional
+//! and the scaffolding door (and [`EdgeDescriptionSpec`] is its
+//! pre-mint twin, the form a CONSTRUCTION states — see that type for
+//! why the input needs one):
 //!
 //! - the two INTRINSIC arms ([`EdgeDescription::Intersection`],
 //!   [`EdgeDescription::TangentIntersection`]) are D2's, untouched —
 //!   the surfaces determine the locus and the description names them;
+//! - [`EdgeDescription::OnPair`] is a locus two DISTINCT surfaces
+//!   under-determine (D2): the carrier is the defining data, certified
+//!   by incidence on both surfaces. It names no chart, because a chart
+//!   key there records nothing about the locus — each face's pcurve is
+//!   its own derived cache;
 //! - [`EdgeDescription::Chart`] is U2's one conventional form,
-//!   `(surface, Pcurve)`. `Seam` and `IsoCurve` were not two classes
+//!   `(surface, Pcurve)`, for a locus ONE chart defines (wraps, iso
+//!   lines, splits whose two faces share one surface, stated spline
+//!   isos). `Seam` and `IsoCurve` were not two classes
 //!   of locus; they were two ways of writing a chart image down, and
 //!   the certification lanes that DO differ survive where they belong
 //!   — as [`Pcurve`]'s exactness variants;
@@ -38,13 +46,13 @@
 //!
 //! # The authority record (U2 Q3)
 //!
-//! [`EdgeAuthority`] is the per-edge kernel datum that replaces
-//! `MappedCurve`'s NEGATIVE SPACE. Tier 3's prefer-intrinsic rules
-//! (`topo`'s `TransverseNotIntrinsic` / `TangentNotIntrinsic`) today
-//! read "the description is a `MappedCurve`" as "the modeler declared
-//! this locus"; once the conventional forms collapse there is no such
-//! shape to read, so the declaration is recorded data. Sketch truth is
-//! recorded, not derived.
+//! [`EdgeAuthority`] is the per-edge kernel datum that records whether
+//! a sketch entity declared the locus, and with what source: the
+//! declaration doors carry and transport it (a split restricts it, an
+//! offset or a rigid motion moves it). Sketch truth is recorded, not
+//! derived. Tier 3's prefer-intrinsic rules (`topo`'s
+//! `TransverseNotIntrinsic` / `TangentNotIntrinsic`) do not read it:
+//! they key on the description's form (D2).
 
 use geom_core::Real;
 
@@ -84,8 +92,8 @@ pub struct ChartCurve<T: Real> {
 }
 
 /// The **authority record** (U2 Q3): who determined this edge's
-/// locus. Per-edge kernel data, because tier 3's prefer-intrinsic
-/// enforcement must read it and the naming layer is invisible to the
+/// locus. Per-edge kernel data, because the doors that transport a
+/// declaration must read it and the naming layer is invisible to the
 /// kernel.
 ///
 /// `Copy` — [`MappedCurve`] is plain sketch data with no heap payload,
@@ -105,9 +113,7 @@ pub enum EdgeAuthority<T: Real> {
 }
 
 impl<T: Real> EdgeAuthority<T> {
-    /// Whether a modeler DECLARED this locus — the read tier 3's
-    /// prefer-intrinsic rules make, in place of the pre-collapse
-    /// "the description is a pushforward" shape test.
+    /// Whether a modeler DECLARED this locus.
     pub fn is_declared(&self) -> bool {
         matches!(*self, EdgeAuthority::Declared(_))
     }
@@ -138,8 +144,16 @@ pub enum EdgeDescription<T: Real> {
         /// The mid-parameter witness point.
         witness: geom_core::Point3<T>,
     },
-    /// **Conventional — the one form** (U2): a chart and the edge's
-    /// image in it.
+    /// Conventional, on two distinct surfaces (D2): a locus the pair
+    /// under-determines. Certified by incidence on both surfaces; no
+    /// witness and no smoothness claim — tier 3's must-carry predicate
+    /// admits it exactly where it reads the join under-determined.
+    OnPair {
+        /// The two surfaces, as a set.
+        pair: SurfacePair,
+    },
+    /// **Conventional — a locus one chart defines** (U2): a chart and
+    /// the edge's image in it.
     Chart(ChartCurve<T>),
     /// The fenced scaffolding door (D3): a pushforward standing in as
     /// a description while the edge is TRANSIENT — Euler-op ring
@@ -155,6 +169,21 @@ impl<T: Real> EdgeDescription<T> {
         matches!(self, EdgeDescription::Scaffold(_))
     }
 
+    /// Whether this is a **conventional form** the must-carry rule
+    /// judges (D2): an `OnPair`, or a chart image that is not a wrap.
+    /// It claims the edge's two surfaces under-determine its locus,
+    /// whoever stated it. A wrap edge (one surface) falls outside the
+    /// rule, and a scaffold is no description at rest.
+    pub fn is_conventional(&self) -> bool {
+        match self {
+            EdgeDescription::OnPair { .. } => true,
+            EdgeDescription::Chart(c) => !c.wrap,
+            EdgeDescription::Intersection { .. }
+            | EdgeDescription::TangentIntersection { .. }
+            | EdgeDescription::Scaffold(_) => false,
+        }
+    }
+
     /// The chart image, when this description has one — the accessor
     /// consumers read instead of matching two conventional variants.
     pub fn chart(&self) -> Option<&ChartCurve<T>> {
@@ -164,12 +193,14 @@ impl<T: Real> EdgeDescription<T> {
         }
     }
 
-    /// The surface pair, when this is an intrinsic description.
+    /// The surface pair, when the description names two surfaces: an
+    /// intrinsic one, or [`EdgeDescription::OnPair`].
     pub fn pair(&self) -> Option<SurfacePair> {
         match self {
             EdgeDescription::Intersection { pair, .. }
-            | EdgeDescription::TangentIntersection { pair, .. } => Some(*pair),
-            _ => None,
+            | EdgeDescription::TangentIntersection { pair, .. }
+            | EdgeDescription::OnPair { pair } => Some(*pair),
+            EdgeDescription::Chart(_) | EdgeDescription::Scaffold(_) => None,
         }
     }
 }
@@ -181,7 +212,8 @@ impl<T: Real> EdgeDescription<T> {
 ///
 /// **The taxonomy is NOT doubled here — read the next paragraph before
 /// concluding the collapse left two of anything.** These arms are
-/// [`EdgeDescription`]'s, one for one: two intrinsic, ONE conventional
+/// [`EdgeDescription`]'s, one for one: two intrinsic, the two
+/// conventional [`EdgeDescriptionSpec::OnPair`] and
 /// [`EdgeDescriptionSpec::Chart`], the fenced scaffolding door. What
 /// differs is not what an edge can BE; it is who derives the chart
 /// image.
@@ -227,8 +259,17 @@ pub enum EdgeDescriptionSpec<T: Real> {
         /// The mid-parameter witness point.
         witness: geom_core::Point3<T>,
     },
-    /// **Conventional — the one form** (U2): this edge's locus is the
-    /// image of `image` in the chart `surface`.
+    /// Conventional, on two distinct surfaces (D2): a locus the pair
+    /// under-determines, certified by incidence on both.
+    OnPair {
+        /// The two surfaces, as a set.
+        pair: SurfacePair,
+        /// The authority record this construction states (U2 Q3), as
+        /// on [`EdgeDescriptionSpec::Chart`].
+        declared: Option<MappedCurve<T>>,
+    },
+    /// **Conventional — a locus one chart defines** (U2): this edge's
+    /// locus is the image of `image` in the chart `surface`.
     Chart {
         /// The chart the locus is described in.
         surface: SurfaceKey,
@@ -258,6 +299,14 @@ pub enum EdgeDescriptionSpec<T: Real> {
 }
 
 impl<T: Real> EdgeDescriptionSpec<T> {
+    /// A locus the two distinct surfaces of `pair` under-determine.
+    pub fn on_pair(pair: SurfacePair) -> Self {
+        EdgeDescriptionSpec::OnPair {
+            pair,
+            declared: None,
+        }
+    }
+
     /// A chart image the door derives from the carrier, owed the one
     /// meter and nothing else.
     pub fn chart(surface: SurfaceKey) -> Self {
@@ -336,7 +385,13 @@ impl<T: Real> EdgeDescriptionSpec<T> {
                 wrap,
                 declared: Some(mc),
             },
-            other => other,
+            EdgeDescriptionSpec::OnPair { pair, .. } => EdgeDescriptionSpec::OnPair {
+                pair,
+                declared: Some(mc),
+            },
+            other @ (EdgeDescriptionSpec::Intersection { .. }
+            | EdgeDescriptionSpec::TangentIntersection { .. }
+            | EdgeDescriptionSpec::Scaffold(_)) => other,
         }
     }
 }
@@ -352,8 +407,12 @@ pub fn authority_of<T: Real>(description: &EdgeDescriptionSpec<T>) -> EdgeAuthor
         EdgeDescriptionSpec::Scaffold(mc) => EdgeAuthority::Declared(mc),
         EdgeDescriptionSpec::Chart {
             declared: Some(mc), ..
+        }
+        | EdgeDescriptionSpec::OnPair {
+            declared: Some(mc), ..
         } => EdgeAuthority::Declared(mc),
         EdgeDescriptionSpec::Chart { declared: None, .. }
+        | EdgeDescriptionSpec::OnPair { declared: None, .. }
         | EdgeDescriptionSpec::Intersection { .. }
         | EdgeDescriptionSpec::TangentIntersection { .. } => EdgeAuthority::Derived,
     }

@@ -32,3 +32,5 @@ form already returns a `SignCertificate`), on a separate return, or is
 not wanted because the door's doc is the statement. Today the
 `_structural` doors have no production caller outside validate.rs, so
 this is latent.
+
+Since `pcert/fitted-row-reads-carrier-and-chart` (PR 4900), these doors no longer re-derive the uniqueness tube through the fitted-grade row either. The row's check 4 reads its chart alone, so at those doors nothing re-derives the tube of a skipped edge. That is what the doors document, and no lane is added for it (H5 ruling 3).

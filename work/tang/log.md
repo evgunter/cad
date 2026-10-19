@@ -939,3 +939,94 @@ siblings went to WIRE and EMIT.
 - 2026-10-12 — Seam note from ENCL (PR 4745, merged at `512ef4b6c7`): `chord_join` re-homing, join and order endings changed (see the cleave note of the same date): `RingHoming` is lever-only with a 're-homing a hole loop: ' lead, and order predicates are named by `splitting::order::FRAME_AXIS`/`FRAME_ARM`. (ENCL orchestrator)
 - 2026-10-12 — Note from ENCL (nightly triage): `parallel_cylinder_join::a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings` (1e-12) is filed twice, as tint `tipped-rod-join-escalates-at-1e-12` and tang `a-far-origin-rod-cut-escalates-its-mapped-source-at-eps-1e-12`; fold one into the other. (ENCL orchestrator)
 - 2026-10-12 — Note from ENCL: the new `chord_join` arms `TangentChordEscalated` and `TangentChordBendEscalated` (PR 4394) end through `diag.ending(JOIN_RECOURSE)`, which carries the valued tolerance arm. If their margins are tangency or angle decisions rather than user-chosen lengths, the settled undecided-wording rule (ENCL `too-close-to-call-remainder`; recourse.rs's Unsized) gives them the lever alone, via geom-core `Indeterminate::lever_ending` once PR 4766 lands. Yours to rule on. (ENCL orchestrator)
+- 2026-10-12: five-conventions design fork weighed by a designer pair over three reconciliation rounds (row 130 of `docs/DESIGN-FORK-LOG.md`). Evidence gathered:
+  - Readers of the chart on a two-surface conventional seam: `topo::pcurves::nurbs_iso_derive` (the spline mint; P0 `nurbs-iso-derive-line-cap-arm-guesses-wrong-channel` is an instance) and `boolean::edge_join`, whose `Chart` arm needs `sf == sg`, so such a seam never re-joins.
+  - Naming, `topo::validate` adjacency and `topo::iso` do not read the chart.
+  - STEP adoption is a ninth door (`fs_plus`).
+  - Probe on branch `tang/probe-smooth-seam-chart-offset` (`crates/sweep/tests/probe_smooth_seam_chart_offset.rs`, `#[ignore]`d): single-face `replace_face_offset` of either face of the wedge shoulder's seam refuses identically whether the seam stores `Chart(Plane)` or `Chart(Cylinder)`. `plan_edge` re-derives a distinct-surface edge before reading its description. The group doors (`offset_restate`) were not probed.
+  - The mixed-edge exemption in `TransverseNotIntrinsic`'s doc entered in 03ff10b376 (2026-07-19) as "not enforced at M2", a scope deferral.
+  - The `[ev]` PR states both decisions in D2.
+- 2026-10-12: closed `split-edge-keeps-a-tangent-description-on-a-short-piece-without-the-must-carry-rule` (PR 4815): `Body::tangent_piece` routes each tangent child of `split_edge` through the must-carry rule (Intrinsic stays the tangency, Conventional rests in `he_plus`'s face's chart, in-band and transverse refuse as `SplitTangent*`). Filed `every-must-carry-caller-spells-the-same-chain` (P1), `five-conventions-pick-a-conventional-smooth-edges-chart` (P1, design), and rows on CLEAVE and SHELF.
+- 2026-10-12: closed `every-must-carry-caller-spells-the-same-chain` (PR 4859): `geom_brep::must_carry_description` is the one chain (sort, extent, rule, map, route) for seven callers. The chart is a lazy closure checked against the pair (`foreign_chart`; split refuses `DescriptionNotAdjacent` on an incoherent body, the six by-construction sites `unreachable!`). `DihedralReading` lives in geom-brep. Outcomes are identical before and after at default ε, 1e-6 and 1e-12 (topo + sweep + editor-core). The boolean's stale-seam re-description keeps its own path: a transverse seam stays conventional there and its arm rebuilds `at_rest_in_chart(s1)`. Its rows that fail on main are all filed (SHELL's spline cap on PR 4898).
+- 2026-10-12: folded TINT's `tipped-rod-join-escalates-at-1e-12` into `a-far-origin-rod-cut-escalates-its-mapped-source-at-eps-1e-12` (ENCL's nightly-triage note). Ruled on ENCL's note on the `TangentChord*Escalated` endings: tangency decisions take the lever alone. Filed `tangent-escalations-end-with-the-lever-alone` (P3), parked on PR 4766. Dispatched the five-conventions design fork to a designer pair.
+- 2026-10-12: parked four P1 rows on `intent-stage4-is-built`:
+  - `a-declared-seam-subtract-and-intersect-stop-at-the-fallback-extent`;
+  - `a-torus-seam-graze-needs-the-rim-root-deflated` (also still on its meridian-span row);
+  - `a-turned-lens-keeps-the-door`;
+  - `declared-cusps-second-order-wedge-arm` (items 3–5; the #131 ruling's "declared" condition is re-read against how stage 4 says a tangency).
+
+  Each acts on declared contacts, which D10 stage 4 retires, and the D10 hold keeps the declared path from widening (the same ruling as the strut cover, PR 4400). Dispatched `a-far-origin-rod-cut-escalates-its-mapped-source-at-eps-1e-12` (undeclared; TANG's red-nightly row).
+- 2026-10-12: closed `pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided` (PR 4924). Containment now reads a cone as inside another where every edge is held or on the other's boundary and some of it is held: an edge or, where none is, a direction strictly inside it. That decides "outermost disagree": a cone touching its void along a ray, or an island touching each face of its notch (new germ scenes: main doubled their rows; the PR's first head refused `ClassificationInvariant`). An edge on two partners' boundaries reads `vtxfac::along_partners` (`On`, else `Escalated` with `PartnerFaces`). Across the suites, of main's per-pair edge rows 1 470 On/Out now read On, 346 In/Out read In and 8 In/Out read Out (a void in an island in a void); no build or refusal moved. cone_fuzz now draws partners along a ray and on the faces. Filed `pair-classes-refuses-partners-flush-along-an-edge`, `a-touching-vertex-refuses-an-edge-on-two-partners-boundaries` and `a-lone-unread-partner-leaves-its-vertex-edges-unclassed`.
+- 2026-10-13: closed `a-far-origin-rod-cut-escalates-its-mapped-source-at-eps-1e-12` (PR 4909): the escalation is correct. D4 ¶4's range binds: one f64 ulp at |z| ≈ 6.2e4 is 7.28e-12, so no datum certifies the 1e5 pose at 1e-12. The row stands that pose down via `test_utils::vacuity::stood_down` and asserts that some pose runs. Filed `scalar/no-door-rejects-geometry-past-eps-f64-resolution`, and added evidence to CIW's passing-stdout row. Opened PR 4945 (merged): the python binding census missing `RunLine` after d720a29b8. Filed main reds found by PR 4413's lane: `pcert/pcurve-cache-endpoint-reads-outgrew-the-certified-endpoint-roster` and `band/reach-displaces-is-a-sole-bracket-door-missing-from-the-bounds-roster`.
+- 2026-10-13 — Seam note from ENCL: PR 4766 has merged. It covers the sweep slice of the undecided-wording sweep (sweep crate endings by decision kind), and geom-core now has `Indeterminate::lever_ending` as the one lever-only-at-build ending. Lever-only decisions (angles, cos/sin, winding, form selection, gauges, walks) end through it. Do not compose `lever_recourse` + the unreadable note by hand. (ENCL orchestrator)
+- 2026-10-13: pinch-valence-4 design fork weighed by a designer pair over two reconciliation rounds (row 137 of `docs/DESIGN-FORK-LOG.md`); converged on a node minted from the section table; [ev] PR asks for D2's `Intersection` branch clause (Ev's words, 9f0bb4d915).
+- 2026-10-14 — **Seam (ENCL):** FYI: `loop-boundary-discards.sh --selftest` fails on a clean main since your 8f0b0ffd25 gate edit (filed on guard as `loop-boundary-discards-selftest-fails-on-a-clean-tree`). (ENCL orchestrator)
+- 2026-10-15: closed `a-declared-tangent-seam-flips-invalid-when-eps-tightens` (PR 5191), building Ev's decision on PR 5150. Tier 3 reads a body at its build ε only (the finer-ε branch, `PairCornerDetermined`, `PairTangencyDetermined` and `tier3_at` are gone, and the battery takes no band). Check 4 keys on the form (`OnPair`, or a non-wrap `Chart`), declared or derived. The offset arm stores the rule's reading for a declared image too. Digest fence: 43 (test, kind) keys moved, every one a hand-stated fixture, a scaffold's duplicate report or a renamed row. Closed TOPOTAIL's `offset-held-neighbour-image-keeps-a-declared-chart-on-a-transverse-section`. Filed `a-kept-chart-is-not-re-asked-when-a-door-changes-its-extent` from the landing sweep.
+- 2026-10-15: closed `a-kept-chart-is-not-re-asked-when-a-door-changes-its-extent`. Every door that keeps a chart image asks the must-carry rule again (`reask_chart`), as its `OnPair` arm does: edge_join, split, plan_reanchors, the shell's re-anchor, restate's keep arm and replace_face's moved-chart shift arm. A probe found no valid input reaching a determinate reading at any arm; the real hole is `describe_edges`' extent-dependent smooth keep, which has no valid witness today.
+
+- 2026-10-15 — **No live row is at or above this track's own band (P0).** The 58 rows left are 7 at P1, 8 at P2, 34 at P3, 6 at P4, 3 with no band. Consider wrapping up: land the work already in flight and close the program by its exit walk. Failing that, at least re-home the low-priority rows to a program whose band matches them (by `git mv`, ids unchanged, per the closing rules), and do not start any more low-priority work here.
+  Band the 3 unbanded rows first: if one of them turns out to be at or above P0, this note does not apply.
+  (tracker sweep)
+- 2026-10-15: closed `pair-classes-refuses-partners-flush-along-an-edge` (PR 5207). `along_partners` reads its partners' face shapes (`vtxfac::ShapeOf`, read on the partners' body; a face with no carrier is an invariant). Where every half-plane meets another's at a decided zero and every meeting is of plane faces bounding material on opposite sides, the faces are glued, and the edge reads `On`, not the item's `In`: the coincidence holds only to within the band, so only `On` is decided there (D4). The orchestrator ruled it after the polygon-cone fuzzer (seed `0x334ea383a21209f7`) failed `In` on two pair probes. Plane faces on one side, a curved face in a meeting, and a chord in band each keep `Escalated(PartnerFaces)`. Public witness: two blocks in face contact against a pyramid whose edge runs through the contact face; main refused all 18 cells, all build now, the union naming that edge `On`.
+- 2026-10-16: closed `an-edge-along-a-partners-ray-through-a-touch-has-no-record`. The edge-edge event reads the half-turn under a face of the solid's own that holds the line together with its wedge (`recl::HeldFace`, from the reduction's touches), where the face holds the line at a decided zero; in band it refuses typed. The two compose by the side of the face the solid's link lies on: union where out of it, intersection where in it (a void below the top, whose mirrored scene was 3′-red on main and now builds). A plane face among the solid's own sectors beside its edge is read the same way, so a touch's two ends agree; this retires the contact-line arm's blind reading for face half-turns (kept between two edges and for curved faces), and records the subtraction touch in `three_solids_on_one_line`'s bisector row, 3′-red on main. `y − x` along the lying pyramid's ray now reads a touch at both ends and records the edge-edge row; `three_prime`'s EE `ray` admission is deleted. The tier-3 door meter vs main moves no existing call at any ε (it gates tier 3 only, so it cannot see 3′; 3′ is witnessed by the rows: the lying and mirrored-void cells of `a_vertex_read_by_two_sector_passes`, which pin the two mirrored cells red on main as builds). A time-seeded fuzz sweep that differs at 1e-6 is identical under pinned seeds. Filed `a-line-held-by-a-curved-touched-face-refuses-at-the-edge-edge-event` for the curved holding face, which refuses.
+- 2026-10-16: design fork on `onpair-has-no-incidence-lane-on-a-spline-adjacent-pair` (fork-log row 152), opened as an `[ev]` PR. Evidence both designers measured, with every probe reverted:
+  - **Doors switched to the pair, at main #5198:**
+    - topo: 0 failures.
+    - step-import: 3 failures. dm1 edge #352's refusal text changes; that file is refused on main too.
+    - sweep: about 42 failures:
+      - 5 at Interval: `PlaneNurbs(Unsupported "…not exact")`, with exact inputs;
+      - 6 at Dual: `NurbsLaneUnsupported`;
+      - about 9 at f64: offset/shell `dihedral_arm` margin `Invalid`;
+      - 3 at f64: `FootPointInconclusive`, last distance about 1e-13;
+      - the rest pin the present form.
+  - **Loft door switched to `Chart(wall)` with the mint's row image:**
+    - every Interval and Dual loft row passes;
+    - still failing: the offset/shell `dihedral_arm` rows and the offset's rim re-anchor; `onpair_rim_pcurves`; two split rows, where the child inherits the parent's stated `IsoArc`; `a_dual_scalar_refuses_the_spline_seam_re_anchor_by_name`; one mass-props golden.
+  - **`OnPair` with no lane** (the plane image plus the wall's exact image):
+    - sweep Dual rows: 26/27 pass;
+    - topo + step-import Dual/Interval rows: 132/132 pass;
+    - geom-brep `onpair|plane_nurbs|incidence` rows: 57/58 pass.
+  - **Correction to the item:** Interval holds the plane × NURBS lane. What refuses is `ssi::certify::composite_form`'s exactness gate, on a cap plane fitted at Interval even from exact inputs.
+  - **Off-question defects to file:**
+    - offset/shell `dihedral_arm` reads a rim not stated in the plane's chart as `Invalid` (DL6 class);
+    - `FootPointInconclusive` at about 1e-13 is a stop criterion, not a miss;
+    - the Dual attach gate refuses lane classes its f64 anchor certified, which surfaces as `PairingViolation::ResultArm`;
+    - the `composite_form` exactness gate on a plane operand, for `Intersection`.
+- 2026-10-16: round 2 of the plane × spline rim fork (row 152), on Ev's pushback in PR 5216. Census of every site on main (f6730185) that rests a two-surface locus with no declaration:
+  - sweep joins and rims (extrude, revolve, loft rims) are already declared (`ExtrudedPoint`, `RevolvedPoint`, `PlacedSegment` through `Body::describe_at_rest`);
+  - loft wall–wall seams are undeclared `Chart` columns, and need a skinned-vertex source;
+  - fillet contacts and tangent section chords go undeclared through a lane gate: `must_carry_over_edge` files a `Determinate` reading outside `tangent_certificate_lane` as `UnderDetermined`;
+  - a short split piece of a `TangentIntersection` falls to the pair because `folded_lever_arm` folds the edge's chord extent into the second-order arm;
+  - `rest_locus`'s in-band coincidence and undecided-rung arms answer the pair (a D3 lane choice);
+  - STEP adoption declares lines and circles through a sketch made up from the carrier (`mapped_self_description`), and mints no `OnPair` today.
+- 2026-10-16: rounds 3–5 of the plane × spline rim fork (row 152), on Ev's PR 5216 comments.
+  - Measured on main f6730185: 202 undeclared `OnPair` certifications across sweep, topo and step-import, from five path types:
+    - `chord_join.rs:2261`, a shallow tangent ruling;
+    - `split.rs:356`, short pieces of a `TangentIntersection`, with join, offset and chord rows;
+    - `blend/surgery.rs:5421`, fillet corner arcs;
+    - `splitting/finish.rs:1219` → `carrier_pair.rs:666`, the in-band coincidence arm, which reaches rest in `split_through_an_apex`'s in-band corner rows;
+    - import: none in the corpus.
+  - The first three are lane-shape gaps that planned units close: the lever arm over the faces, pose-based witness certificates, and blend rails as structural selectors. The fourth is the in-band case D2 forbids a conventional form for.
+  - Retracted: the round-2 claim that a G2 join's margin falls in band. The order-3 jet margin is about 1e-3 m, against a band of about 1e-8.
+
+## 2026-10-16 — the orchestrator hands the track back
+
+- Merged:
+  - [ev] PR 5216 (D2: a two-surface edge is `{ pair, selector }`, Ev's decision; fork-log row 152);
+  - PR 5220 (the half-turn under a solid's own face at the edge-edge event);
+  - PR 5204 (U-lever);
+  - PR 5203 (U2p).
+- U-lever's item closes. The pinch item records U2a, U-lever and U2p as built; U2b and U2c remain.
+- Not dispatched: the D2 selector build (units 1–8 on `onpair-has-no-incidence-lane-on-a-spline-adjacent-pair`, P2) and the rest of the open slate. No row is at P0 or above.
+- The orchestrator steps off, and the program goes `ready`. No lanes are live, and no check-ins are scheduled.
+
+## 2026-10-17 — the priority-seam cut
+
+Ev, in chat: split TANG into multiple programs. TANG measured 142.5 budget points against 30, with 70 live rows. Four successors opened on its priority seam, each under its ceiling. Their rows moved by `git mv` with ids and bodies unchanged:
+
+- **SELECT** (P2, 28.5 points): the D2 selector build and the `OnPair` and chart-image rows it retires or keeps honest.
+- **LEVER** (P2, 28): the levers that still read the wrong extent.
+- **TWICE** (P3, 28): one question read twice; reach measures read past their span.
+- **TANGTAIL** (P3, 30): the contact-line and ring corners, the banked torus rest lane, Approx and offset readings, fixtures.
+
+TANG keeps the pinch machinery (U2b, U2c), the declared-tangency arms parked on the D10 hold, and the contact corners nearest them: 28 points, 20 live rows. Four rows that carried no band were banded at the cut: `a-lone-unread-partner-has-no-class-rule` P2; `an-iso-arc-certificate-…`, `a-carrier-pair-tangency-…` and `chord-join-serves-lines-…` P3. Every in-tree citation of a moved row's path is re-pointed.

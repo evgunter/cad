@@ -28,7 +28,7 @@ use editor_core::{
     CancelToken, Datum, Dimension, DirectionRefusal, DocEdit, EvalOptions, Formula, FramePlacement,
     FreeVar, Node, ProfileDoc, RecipeNodeId, ValuePayload, VarName, evaluate,
 };
-use geom_core::{OrthoFrame, Tol};
+use geom_core::{RigidMotion, Tol};
 
 fn eval(
     doc: &ProfileDoc,
@@ -142,7 +142,6 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, lift)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -221,7 +220,9 @@ fn an_authored_frames_value_carries_its_f64_placement() {
 /// by hand: the oracle for a frame whose origin is a PARAMETER, which
 /// `fixture::plane_of` (literals only) cannot read.
 fn shared_frame_plane(lift: f64) -> profile::SketchPlane<f64> {
-    profile::SketchPlane::from_frame(OrthoFrame::axes_yz(geom_core::Point3::new(2.0, -3.0, lift)))
+    profile::SketchPlane::from_frame(RigidMotion::axes_yz(geom_core::Point3::new(
+        2.0, -3.0, lift,
+    )))
 }
 
 /// Row 2 — the carry follows the parameter that drives the frame, and
@@ -430,24 +431,25 @@ fn a_frame_whose_v_is_not_perpendicular_carries_the_orthonormalized_pair() {
     let ev = eval(&doc, None);
     assert_same_plane(
         &authored(&ev, frame),
-        &profile::SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
+        &profile::SketchPlane::from_frame(RigidMotion::axes_xy(geom_core::Point3::new(
             0.0, 0.0, 0.0,
         ))),
         "v yields its component along u",
     );
 }
 
-/// Row 6 — **an authored frame's profile is placed from the NOMINAL
-/// read, never from the frame's landed value.** That is what the
-/// carry's `Authored` arm is for, and it is invisible while the two
-/// agree — so this row drives the evaluation off the nominal with a
-/// degenerate `ParamBox` (`p ∈ nominal + [c, c]`, the shape
-/// `eval10_section_reads_the_nominal` uses), where they cannot.
-///
-/// A reader that answered "derived" for this authored frame would
-/// place its profile at the LANE and the body would sit `c` away.
+/// Row 6 — **under a box, an authored frame's profile is placed at the
+/// LANE, as the document moved there places it.** The build places a
+/// profile from the frame's nominal read (the carry's `Authored` arm),
+/// and a box that varies an axis makes the evaluation an analysis, whose
+/// profile lift is guided (`EvalOptions::profile_lift`): the profile is
+/// elaborated on the frame's landed value. So the boxed body is the body
+/// of the document authored at the offset nominal, point for point —
+/// where the pinned lift used to place it from the unmoved nominal and
+/// leave it `c` away
+/// (`work/inlane/the-pinned-profile-lift-launders-at-sym.md`).
 #[test]
-fn an_authored_frames_profile_places_at_the_nominal_not_at_the_boxed_lane() {
+fn an_authored_frames_profile_places_at_the_boxed_lane() {
     let (doc, _frame, _profiles, extrude) = shared_frame_doc(0.0);
     let unboxed = eval(&doc, None);
     let boxed = evaluate::<f64>(
@@ -460,11 +462,17 @@ fn an_authored_frames_profile_places_at_the_nominal_not_at_the_boxed_lane() {
         },
         Tol::witness(),
     );
+    let (moved, _, _, moved_extrude) = shared_frame_doc(5.0);
+    let moved = eval(&moved, None);
+    assert_ne!(
+        point_bits(&moved, moved_extrude),
+        point_bits(&unboxed, extrude),
+        "the offset moves the body, so the equality below is not vacuous"
+    );
     assert_eq!(
         point_bits(&boxed, extrude),
-        point_bits(&unboxed, extrude),
-        "the profile is placed from the frame's NOMINAL read, so a box that moves \
-         the lane off the nominal moves no point of it"
+        point_bits(&moved, moved_extrude),
+        "the boxed profile is placed at the lane, as the moved document places it"
     );
 }
 
@@ -487,7 +495,6 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, 0.0)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -614,7 +621,6 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, 0.0)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;
@@ -687,7 +693,6 @@ fn a_frame_undecided_at_the_nominal_keeps_its_held_sentence() {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, in_band)),
             },
             tol,
-            &editor_core::RefusingReach,
         )
         .expect("the parameter declares")
         .doc;

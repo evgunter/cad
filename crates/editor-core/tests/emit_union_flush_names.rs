@@ -91,8 +91,8 @@ fn member_vertices_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> 
             .copied()
             .filter(|&n| {
                 n != union
-                    && ev.value(n).is_some_and(|v| {
-                        matches!(v.name_table.lookup(of), Some(Entry::Unique(w))
+                    && crate::fixture::tables(ev, n).into_iter().any(|t| {
+                        matches!(t.lookup(of), Some(Entry::Unique(w))
                             if matches!(w.key, EntityKey::Vertex(_)))
                     })
             })
@@ -252,19 +252,17 @@ const B: Bx = ((0.5, 1.5), (0.0, 1.0), (0.0, 1.0));
 const NEAR: Bx = ((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0));
 
 /// The ZIP row's shape
-/// (`work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`):
+/// (`a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made` (a closed FUSE row; `docs/doc-ledger/fuse-leaves-the-tracker.md`)):
 /// `a`, `b` flush and a slab over `b`'s end.
 fn near_slab() -> Case {
     Case::flat("near", vec![A, B, NEAR], vec![0, 1, 2])
 }
 
 /// The unions that refuse in some member orders, as `(case, union,
-/// orders refusing, each refusal variant with its count of orders)`: the permanent row's
-/// `KNOWN_MIXED` (`emit_union_rim_piece_ranks`) and the cases every order
-/// of which refuses. The rows below check what the others publish, and
-/// fail on any refusal not pinned here, so a new one cannot pass by
-/// being skipped.
-const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[("cross", "U", 10, "Naming:10")];
+/// orders refusing, each refusal variant with its count of orders)`:
+/// none. The rows below check what the others publish, and fail on any
+/// refusal not pinned here, so a new one cannot pass by being skipped.
+const KNOWN_REFUSING: &[(&str, &str, usize, &str)] = &[];
 
 /// Every refusal `case`'s runs meet, pinned against [`KNOWN_REFUSING`]
 /// for the whole run; `each` sees the unions that publish.
