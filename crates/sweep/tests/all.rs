@@ -138,6 +138,8 @@ mod band_subdivided_side_walls;
 mod bisector_lane_stubs;
 #[path = "bisector_nodes.rs"]
 mod bisector_nodes;
+#[path = "blend_arms_centre_placement.rs"]
+mod blend_arms_centre_placement;
 #[path = "bool1_fix_pass.rs"]
 mod bool1_fix_pass;
 #[path = "bool1_r1_probes.rs"]
