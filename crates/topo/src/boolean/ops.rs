@@ -7807,8 +7807,7 @@ mod tests {
                     aimed: FaceKey::default(),
                     aim: Some("(0.5, 0.5, 1.0)".to_owned()),
                     why: crate::side_reader::SetAsideWhy::Corner {
-                        near: FaceKey::default(),
-                        far: FaceKey::default(),
+                        faces: [FaceKey::default(); 2],
                         gap: gap(1e-9),
                     },
                 }],

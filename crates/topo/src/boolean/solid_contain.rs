@@ -10,7 +10,7 @@
 //! shell's role or a solid's orientation (that module's header names
 //! them).
 //!
-//! # Method: closest-hit ray test with the fixed schedule
+//! # Method: a counted ray with the fixed schedule
 //!
 //! Cast a ray from `q` along a direction of the fixed schedule — the
 //! same 16-member table of dyadic directions as the planar loop walk, and
@@ -21,22 +21,26 @@
 //! near-parallel members. One table, two different sweeps — the
 //! shared const buys the absence of drift between copies, not
 //! agreement on a direction, and determinism is per site (a `const`
-//! swept in a fixed order every run). For each planar face:
-//! intersect the ray with the face plane, test the hit point against
-//! the face's loops (outer minus rings) on their edges' own carriers
-//! (`point_in_loop_projected`: the vertex polygon for a loop of lines,
-//! each circle or ellipse arc crossed on its conic otherwise) — and
-//! keep the **closest** crossing; the curved kinds' arms below fold
-//! their roots the same way. The verdict reads the material side
-//! from that crossing's outward normal: `d·n > 0` at the closest hit
-//! ⇒ the ray *exits* material there ⇒ `In`; `d·n < 0` ⇒ `Out`.
+//! swept in a fixed order every run). The ray is crossed edge by edge
+//! (D10, Booleans; [`ray_crossings`]): each line edge between two planar
+//! faces whose planes it crosses is decided once, for both faces, and an
+//! edge it passes within the band of meets it, half a crossing for each
+//! face the edge bounds; a planar face clear of its edges is crossed
+//! where the turn of its loops says, and one with an edge no such
+//! reading decides tests the hit against its loops on their edges' own
+//! carriers (`point_in_loop_projected`); the curved kinds' arms below
+//! offer their roots. Each crossing counts `+1` leaving material
+//! (`d·n > 0`) and `−1` entering it, crossings in band of each other are
+//! summed, and the sign of the first nonzero running count is the side
+//! of `q`: rising ⇒ the ray *exits* material first ⇒ `In`; falling ⇒
+//! `Out`.
 //!
-//! **Why closest-hit, not bare parity** (a documented deviation from
+//! **Why a signed count, not bare parity** (a documented deviation from
 //! the plan's "ray parity" wording): parity is orientation-blind — on
 //! a reverted (complement) operand it reports containment in the
 //! *enclosed* region rather than in the body's actual material, and
 //! the `A∖B ≡ A∩revert(B)` oracle (Problem 15.9) feeds reverted
-//! operands through this very fallback. The closest-hit normal test
+//! operands through this very fallback. The signed count
 //! answers "is `q` in the material?" uniformly for ordinary bodies,
 //! multi-shell bodies with voids, and complements; for an ordinary
 //! embedded boundary it agrees with parity.
@@ -49,12 +53,12 @@
 //! where `q` is in band of a face. Past it, `q` is off every FACE by
 //! more than the band's zero — but it may still be in band of a face's
 //! CARRIER, where its foot lies outside the face. The schedule is walked
-//! by [`crate::ray_walk::walk`], and each ray folds its crossings to the
-//! closest ([`crate::ray_walk::Crossings`]): a closest crossing landing
-//! ON a face's trim boundary (an edge or vertex hit) or meeting its face
-//! tangentially, a tie with the closest crossing, a tangent root, or a
-//! crossing at `q` grazes the ray; one of these beyond the closest
-//! crossing decides nothing the verdict reads. A ray that may meet an
+//! by [`crate::ray_walk::walk`], and each ray counts its crossings
+//! ([`crate::ray_walk::Crossings::first_count`]): a crossing landing ON
+//! a curved face's trim boundary or meeting its face tangentially before
+//! the count turns, a tie between two faces that do not meet, a tangent
+//! root, or a crossing at `q` grazes the ray; a ray within the band of a
+//! vertex, or of a face at two of its edges (a wedge), reads nothing. A ray that may meet an
 //! untrimmable cone face (`FaceGeo::PartialCone`) ahead of `q` is
 //! blocked, and so is one whose hit lands where a face's outline cannot
 //! be read. On the plane arm, and at every crossing's advance and order,
@@ -175,8 +179,19 @@
 //!   in band of a junction's (the sine and cosine of their angle,
 //!   levered by the radius), and **`bool_wall_outline_reach`** the
 //!   confined refusal's ball (a distance less a radius, metres).
+//! - **`bool_point_in_solid_vertex`**: a ray's distance from a vertex of
+//!   an edge it is read against (metres); in band ⇒ a corner, Zero ⇒ a
+//!   graze. **`bool_point_in_solid_edge`**: the lower end of the
+//!   enclosed gap between the ray and a line edge's line, read by the
+//!   census's closest read (`census::line_passes`); not Positive ⇒ the
+//!   ray meets the edge where **`bool_point_in_solid_edge_span`** puts
+//!   the closest point definitely inside the edge.
+//!   **`bool_point_in_solid_winding`**: the turn of a planar face's loops
+//!   about the ray's hit, less `π`, levered by the reach; Positive ⇒ the
+//!   hit is inside the face.
 //! - **`side_at_infinity_advance`**, **`_denom`**, **`_clearance`**,
-//!   **`_beside`** and **`_order`**: the planar rows above, as a ray aimed
+//!   **`_beside`**, **`_order`**, **`_vertex`**, **`_edge`**,
+//!   **`_edge_span`** and **`_winding`**: the planar rows above, as a ray aimed
 //!   from beyond the selection decides them
 //!   ([`crate::side_reader::AIMED_ROWS`]); the curved
 //!   arms keep their own names.
@@ -185,8 +200,8 @@
 //!   when a ray crosses NO boundary at all: `q` then sits on the
 //!   at-infinity side, which is `Out` for a positively-oriented body
 //!   and `In` for a complement ([`missed_side`]). A ray aimed from beyond
-//!   the selection at a point inside a planar face, at 60° to its normal,
-//!   reads it off its closest crossing on the rows above; only where no
+//!   the selection at a face, 10° off its normal, reads it off its count
+//!   on the rows above; only where no
 //!   face offers an aim that reads, **`bool_point_in_solid_infinity`**,
 //!   the selection's signed volume scaled to a length (`V/A`), does.
 
@@ -4421,6 +4436,10 @@ pub(crate) struct RayRows {
     pub(crate) clearance: &'static str,
     pub(crate) beside: &'static str,
     pub(crate) order: &'static str,
+    pub(crate) vertex: &'static str,
+    pub(crate) edge: &'static str,
+    pub(crate) edge_span: &'static str,
+    pub(crate) winding: &'static str,
 }
 
 /// A schedule ray's rows (module docs).
@@ -4430,10 +4449,15 @@ const SCHEDULE_ROWS: RayRows = RayRows {
     clearance: "bool_point_in_solid_clearance",
     beside: "bool_point_in_solid_beside",
     order: "bool_point_in_solid_order",
+    vertex: "bool_point_in_solid_vertex",
+    edge: "bool_point_in_solid_edge",
+    edge_span: "bool_point_in_solid_edge_span",
+    winding: "bool_point_in_solid_winding",
 };
 
-/// One ray of the sweep: the verdict its closest crossing reads
-/// ([`Crossings`]), or `None` where the ray crosses no face.
+/// One ray of the sweep: the side its running count reads
+/// ([`Crossings::first_count`]), or `None` where it crosses nothing
+/// that counts.
 fn cast_ray<T: Decide>(
     body: &Body<T>,
     geos: &[(FaceKey, FaceGeo<T>)],
@@ -4442,17 +4466,28 @@ fn cast_ray<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<Option<SolidContainment>, RayFault<PointInSolidError>> {
-    let closest = ray_crossings(body, geos, q, d, reach, band, SCHEDULE_ROWS)?.closest(
+    let side = ray_crossings(body, geos, q, d, reach, band, SCHEDULE_ROWS)?.first_count(
         SCHEDULE_ROWS.order,
         band,
-        |diag, &(_, face, _), _| PointInSolidError::Escalated { face, diag },
+        RayHit::count,
+        |a, b| !a.meets(body, b),
+        |diag, hit, _| PointInSolidError::Escalated {
+            face: hit.face,
+            diag,
+        },
+        |hits| {
+            RayHit::unread(hits, |faces, diag| PointInSolidError::Escalated {
+                face: faces[1],
+                diag,
+            })
+        },
     )?;
-    Ok(closest.map(|(outward, _, _)| side_before(outward)))
+    Ok(side.map(side_before))
 }
 
-/// The side of a ray's start read off its closest crossing's outward
-/// sign: a crossing that exits material (`d·n > 0`) leaves the start
-/// `In`.
+/// The side of a ray's start read off the sign of its first nonzero
+/// running count: a count that rises leaves material (`d·n > 0`), so
+/// the start is `In`.
 pub(crate) const fn side_before(outward: Sign) -> SolidContainment {
     match outward {
         Sign::Positive => SolidContainment::In,
@@ -4460,15 +4495,302 @@ pub(crate) const fn side_before(outward: Sign) -> SolidContainment {
     }
 }
 
-/// A ray's crossings, each with its face's outward sign, the face and
-/// its advance.
-pub(crate) type RayCrossings<T> = Crossings<T, (Sign, FaceKey, T)>;
+/// **One crossing of a ray**: a face it crosses, or an edge it meets,
+/// half a crossing for each face the edge bounds (D10, Booleans).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RayHit<T> {
+    /// `+1` leaving material, `−1` entering it, `0` an edge whose two
+    /// faces the ray crosses opposite ways (a fold it passes by or
+    /// through, either way crossing nothing net).
+    pub(crate) count: i32,
+    /// The face crossed, or the edge's first face.
+    pub(crate) face: FaceKey,
+    /// The edge's other face, for an edge met.
+    pub(crate) other: Option<FaceKey>,
+    /// Its advance along the ray.
+    pub(crate) at: T,
+    /// A mark, where the ray reads nothing ([`edge_meets`]): a corner or
+    /// a wedge, with the ray's distance from it in band, or a graze with
+    /// none. A mark counts nothing and is sideless, so it matters only
+    /// where the count reaches it.
+    pub(crate) mark: Option<Option<Indeterminate>>,
+}
+
+impl<T> RayHit<T> {
+    /// The hit's count.
+    pub(crate) const fn count(&self) -> i32 {
+        self.count
+    }
+
+    /// The faces it crosses.
+    fn faces(&self) -> impl Iterator<Item = FaceKey> {
+        core::iter::once(self.face).chain(self.other)
+    }
+
+    /// Whether two hits are no pair: a mark, or two hits every face of
+    /// one of which meets every face of the other
+    /// ([`crate::side_reader::meet`]), their gap closing at the cells
+    /// they share.
+    pub(crate) fn meets<U: geom_core::Real>(&self, body: &Body<U>, other: &Self) -> bool {
+        self.mark.is_some()
+            || other.mark.is_some()
+            || self
+                .faces()
+                .all(|a| other.faces().all(|b| crate::side_reader::meet(body, a, b)))
+    }
+
+    /// The fault a sideless hit the count reached reads, `corner` a
+    /// corner's: a corner or wedge in band of the ray, else a graze.
+    pub(crate) fn unread<E>(
+        hits: &[&Self],
+        corner: impl FnOnce([FaceKey; 2], Indeterminate) -> E,
+    ) -> RayFault<E> {
+        match hits.iter().find_map(|h| match h.mark {
+            Some(Some(gap)) => Some(([h.face, h.other.unwrap_or(h.face)], gap)),
+            _ => None,
+        }) {
+            Some((faces, gap)) => RayFault::InBand(corner(faces, gap)),
+            None => RayFault::Graze,
+        }
+    }
+}
+
+/// A ray's crossings, each a [`RayHit`].
+pub(crate) type RayCrossings<T> = Crossings<T, RayHit<T>>;
+
+/// A planar face's plane as one ray crosses it: the advance, the
+/// crossing point and the face's outward sign there.
+struct PlaneCross<T: geom_core::Real> {
+    face: FaceKey,
+    normal: Vec3<T>,
+    t: T,
+    p: Point3<T>,
+    outward: Sign,
+}
+
+/// **The line edges a ray meets**: each line edge between two planar
+/// faces whose planes it crosses ([`census::line_passes`], the
+/// census's closest read of two lines) is decided once, for both faces.
+/// `met` holds each edge it passes within the band of, with its advance;
+/// `read` every edge decided, met or not; `marks` where along the ray it
+/// meets what it reads nothing at ([`RayHit::mark`]).
+struct EdgeMeets<T> {
+    met: Vec<(crate::entity::EdgeKey, FaceKey, FaceKey, T)>,
+    read: std::collections::BTreeSet<crate::entity::EdgeKey>,
+    marks: Vec<RayHit<T>>,
+}
+
+/// A mark at advance `at` ([`RayHit::mark`]): a corner of `faces`, `gap`
+/// its distance in band, or a graze with none.
+const fn mark<T>(faces: [FaceKey; 2], at: T, gap: Option<Indeterminate>) -> RayHit<T> {
+    RayHit {
+        count: 0,
+        face: faces[0],
+        other: Some(faces[1]),
+        at,
+        mark: Some(gap),
+    }
+}
+
+/// The edges and vertices the ray `q + s·d` passes ([`EdgeMeets`]). A
+/// vertex of a decided edge within the band of the ray is a corner, and
+/// one on it a graze, marked where the ray comes closest to it. An edge
+/// whose lines' gap is not definitely past the band and whose closest
+/// point lies definitely inside it is met; one whose closest point lies
+/// definitely past an end is nearest the ray at that end, read as its
+/// vertex; one whose closest point is in band of an end is marked a
+/// graze there, which no reading here places. A met edge
+/// that bounds a face another met edge bounds, or shares a vertex with
+/// one, is a wedge, marked at both: the face is narrower than the band
+/// where the ray passes it, and the half crossings the ray would count
+/// there are each face's only where a ray could pass through every edge
+/// it meets at once. A mark matters only where the count reaches it
+/// ([`Crossings::first_count`]).
+#[allow(clippy::too_many_arguments)] // the ray, the planes and the rows, no less
+fn edge_meets<T: Decide>(
+    body: &Body<T>,
+    planes: &[PlaneCross<T>],
+    q: Point3<T>,
+    d: Vec3<T>,
+    reach: T,
+    band: Band,
+    rows: RayRows,
+) -> Result<EdgeMeets<T>, RayFault<PointInSolidError>> {
+    let crossed = |f: FaceKey| planes.iter().any(|c| c.face == f);
+    let far = q + d * (reach * T::from_f64(2.0));
+    let passes = crate::census::line_passes(body, (q, far), |_, a, b| crossed(a) && crossed(b));
+    let mut meets = EdgeMeets {
+        met: Vec::new(),
+        read: std::collections::BTreeSet::new(),
+        marks: Vec::new(),
+    };
+    let mut vertices: Vec<crate::entity::VertexKey> = Vec::new();
+    for pass in &passes {
+        for v in pass.ends {
+            if vertices.contains(&v) {
+                continue;
+            }
+            vertices.push(v);
+            let at = body
+                .get_vertex(v)
+                .and_then(|vx| body.get_point(vx.point))
+                .copied()
+                .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace {
+                    face: pass.faces.0,
+                }))?;
+            let gap = crate::sector_shape::point_segment_distance(q, far, at);
+            let faces = [pass.faces.0, pass.faces.1];
+            match geom_core::k_stats::decide_magnitude(rows.vertex, Margin::of(gap), band) {
+                Ok(geom_core::k_stats::Magnitude::Positive) => {}
+                Ok(geom_core::k_stats::Magnitude::Zero) => {
+                    meets.marks.push(mark(faces, (at - q).dot(d), None));
+                }
+                Err(gap) => meets.marks.push(mark(faces, (at - q).dot(d), Some(gap))),
+            }
+        }
+    }
+    // The gap of each edge met in band, for a wedge's reading.
+    let mut gaps: Vec<Option<Indeterminate>> = Vec::new();
+    for pass in passes {
+        meets.read.insert(pass.edge);
+        let gap =
+            match geom_core::k_stats::decide_magnitude(rows.edge, Margin::of(pass.gap[0]), band) {
+                Ok(geom_core::k_stats::Magnitude::Positive) => continue,
+                Ok(geom_core::k_stats::Magnitude::Zero) => None,
+                Err(gap) => Some(gap),
+            };
+        let faces = [pass.faces.0, pass.faces.1];
+        let [lo, hi] = pass.along;
+        let at = geom::mid_param(lo, hi);
+        // The ray starts at `q`: an edge it comes closest to behind `q`
+        // it passes no nearer than `q`, which the boundary pre-pass holds
+        // clear of every face.
+        if decide(rows.advance, Margin::of(at), band) == Ok(Sign::Negative) {
+            continue;
+        }
+        // Where the lines come closest, against each end of the edge:
+        // inside it, past it (the edge's nearest point to the ray is that
+        // end, its vertex read above), or in band of it.
+        let mut inside = true;
+        for [lo, hi] in pass.reach {
+            if decide(rows.edge_span, Margin::of(lo), band) == Ok(Sign::Positive) {
+                continue;
+            }
+            inside = false;
+            if decide(rows.edge_span, Margin::of(hi), band) != Ok(Sign::Negative) {
+                meets.marks.push(mark(faces, at, None));
+            }
+            break;
+        }
+        if !inside {
+            continue;
+        }
+        let wedge = meets.met.iter().position(|w| {
+            [w.1, w.2].iter().any(|f| faces.contains(f))
+                || body.get_edge(w.0).is_some_and(|e| {
+                    let start = |h| body.get_half_edge(h).map(|he| he.start);
+                    let theirs = [start(e.he_plus), start(e.he_minus)];
+                    pass.ends.iter().any(|v| theirs.contains(&Some(*v)))
+                })
+        });
+        if let Some(k) = wedge {
+            let gap = gap.or(gaps[k]);
+            meets.marks.push(mark(faces, at, gap));
+            let (_, a, b, other) = meets.met[k];
+            meets.marks.push(mark([a, b], other, gap));
+        }
+        meets.met.push((pass.edge, faces[0], faces[1], at));
+        gaps.push(gap);
+    }
+    Ok(meets)
+}
+
+/// **Whether a ray crosses planar `face` at `p`**, off the turn of its
+/// loops about `p` — every edge of `face` a line edge the ray was decided
+/// definitely clear of ([`edge_meets`]), so the turn is `±2π` inside the
+/// face and `0` outside it, and `winding` decides its excess over `π`,
+/// levered by `reach`. No auxiliary direction is cast, so no tie the
+/// face's geometry does not hold is ever decided.
+fn crosses_by_turn<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    normal: Vec3<T>,
+    p: Point3<T>,
+    reach: T,
+    band: Band,
+    rows: RayRows,
+) -> Result<bool, RayFault<PointInSolidError>> {
+    let f = body
+        .get_face(face)
+        .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?;
+    let mut turn = T::zero();
+    for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let Some(LoopBoundary::Cycle { first }) = body.get_loop(l).map(|lp| lp.boundary) else {
+            continue;
+        };
+        for h in body.loop_walk(first).closed("loop", first) {
+            let ends = body.get_half_edge(h).and_then(|he| {
+                let at = |v| {
+                    body.get_vertex(v)
+                        .and_then(|vx| body.get_point(vx.point))
+                        .copied()
+                };
+                Some((at(he.start)?, at(body.half_edge_end(h)?)?))
+            });
+            let (a, b) = ends.ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?;
+            let (u, w) = (a - p, b - p);
+            turn = turn + normal.dot(u.cross(w)).atan2(u.dot(w));
+        }
+    }
+    Ok(decide(
+        rows.winding,
+        Margin::levered(turn.abs() - T::pi(), reach),
+        band,
+    )
+    .map_err(|diag| RayFault::InBand(PointInSolidError::Escalated { face, diag }))?
+        == Sign::Positive)
+}
+
+/// Whether every edge of `face` is one [`edge_meets`] decided.
+fn every_edge_read<T: geom_core::Real>(
+    body: &Body<T>,
+    face: FaceKey,
+    read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
+) -> bool {
+    body.get_face(face).is_some_and(|f| {
+        core::iter::once(f.outer)
+            .chain(f.rings.iter().copied())
+            .all(|l| match body.get_loop(l).map(|lp| lp.boundary) {
+                Some(LoopBoundary::Cycle { first }) => body
+                    .loop_walk(first)
+                    .closed("loop", first)
+                    .into_iter()
+                    .all(|h| {
+                        body.get_half_edge(h)
+                            .is_some_and(|he| read.contains(&he.edge))
+                    }),
+                Some(LoopBoundary::Empty { .. }) => true,
+                None => false,
+            })
+    })
+}
 
 /// Every crossing of the ray `q + s·d` ahead of `q` with the faces of
 /// `geos` (a selection's, each with its resolved query geometry), each
-/// offered with the outward sign of the face it crosses and its advance,
-/// and as on an edge where it lands on that face's trim boundary or
-/// meets it tangentially.
+/// offered as a [`RayHit`] at its advance, and as on an edge where it
+/// lands on a curved face's trim boundary or meets it tangentially.
+///
+/// **A planar face is crossed edge by edge** (D10, Booleans): every line
+/// edge between two planar faces whose planes the ray crosses is decided
+/// once, for both faces ([`edge_meets`]). An edge the ray passes within
+/// the band of meets it, half a crossing for each face it bounds, at the
+/// lines' closest point; a face with such an edge offers no crossing of
+/// its own. A face clear of all its edges, each one decided, is crossed
+/// where the turn of its loops says ([`crosses_by_turn`]); a face with an
+/// edge no such reading decides (a curved edge, or one shared with a
+/// curved face) takes its in-face walk, as a curved face takes its trim.
+/// A ray within the band of a vertex, or a wedge, is marked there and
+/// reads nothing where its count reaches the mark ([`RayHit::mark`]).
 pub(crate) fn ray_crossings<T: Decide>(
     body: &Body<T>,
     geos: &[(FaceKey, FaceGeo<T>)],
@@ -4479,62 +4801,150 @@ pub(crate) fn ray_crossings<T: Decide>(
     rows: RayRows,
 ) -> Result<RayCrossings<T>, RayFault<PointInSolidError>> {
     let mut crossings = Crossings::new();
-    // A crossing at advance `t` on `face`; behind `q` it is none.
-    let mut offer = |face: FaceKey, t: T, outward: Sign, edge: bool| {
-        let escalate = |diag| PointInSolidError::Escalated { face, diag };
-        let ahead =
-            ray_walk::advance(rows.advance, Margin::of(t), band).map_err(|f| f.map(escalate))?;
+    // A crossing at advance `t`; behind `q` it is none.
+    let mut offer = |hit: RayHit<T>, sideless: bool| {
+        let escalate = |diag| PointInSolidError::Escalated {
+            face: hit.face,
+            diag,
+        };
+        let ahead = ray_walk::advance(rows.advance, Margin::of(hit.at), band)
+            .map_err(|f| f.map(escalate))?;
         if ahead == Sign::Positive {
-            crossings.push(t, (outward, face, t), edge || outward == Sign::Zero);
+            crossings.push(hit.at, hit, sideless);
         }
         Ok::<(), RayFault<PointInSolidError>>(())
+    };
+    // A curved face's crossing, `outward` its sign there.
+    let count = |outward: Sign| match outward {
+        Sign::Positive => 1,
+        Sign::Negative => -1,
+        Sign::Zero => 0,
+    };
+    // ---- Each planar face's plane, crossed once. ----
+    let mut planes: Vec<PlaneCross<T>> = Vec::new();
+    for &(face, ref geo) in geos {
+        let FaceGeo::Plane(origin, normal) = *geo else {
+            continue;
+        };
+        let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
+        // `normal` is the face's OUTWARD normal (S10, folded in by
+        // `face_geo`), so this sign IS the material-side verdict the
+        // count consumes; the advance `t` below is a ratio of two such
+        // dots and cannot see the orientation at all.
+        let denom = d.dot(normal);
+        // The cosine levered by the selection's reach: how far the ray
+        // rises off the plane over every length at which it could meet
+        // the face ([`selection_reach`]).
+        let outward = decide(rows.denom, Margin::levered(denom, reach), band).map_err(escalate)?;
+        if outward == Sign::Zero {
+            // A ray parallel to the plane within the band rises off it
+            // by at most the band's zero over the reach. The pre-pass
+            // passes q in band of the carrier wherever its foot is
+            // outside the face, so a miss is asked, not assumed: q
+            // definitely off the plane, or the face definitely to one
+            // side of the ray.
+            let clear = clear_of_carrier((q - origin).dot(normal), face, band, rows);
+            if matches!(clear, Ok(true)) || ray_passes_beside(body, face, q, d, normal, band, rows)?
+            {
+                continue;
+            }
+            return Err(match clear {
+                Err(in_band) => in_band,
+                Ok(_) => RayFault::Graze,
+            });
+        }
+        let t = (origin - q).dot(normal) / denom;
+        planes.push(PlaneCross {
+            face,
+            normal,
+            t,
+            p: q + d * t,
+            outward,
+        });
+    }
+    let mut meets = edge_meets(body, &planes, q, d, reach, band, rows)?;
+    for c in &planes {
+        let face = c.face;
+        let met: Vec<T> = meets
+            .met
+            .iter()
+            .filter(|m| m.1 == face || m.2 == face)
+            .map(|m| m.3)
+            .collect();
+        let read = every_edge_read(body, face, &meets.read);
+        if !met.is_empty() {
+            // Its crossing is its edges'; one no reading here decides
+            // could lie in band of it too, so the ray is marked a graze
+            // at its crossing and at each edge it meets.
+            if !read {
+                for at in met.into_iter().chain([c.t]) {
+                    meets.marks.push(mark([face, face], at, None));
+                }
+            }
+            continue;
+        }
+        // In-face test FIRST: a plane hit outside the face region is no
+        // crossing at all — in particular a `t = 0` hit on a face plane
+        // through `q` (a corner-aligned query) must be skipped, not
+        // grazed, when the face itself is elsewhere.
+        let inside = if read {
+            Some(crosses_by_turn(
+                body, face, c.normal, c.p, reach, band, rows,
+            )?)
+        } else {
+            point_in_face(body, face, c.normal, c.p, band).map_err(at_hit)?
+        };
+        let hit = |count| RayHit {
+            count,
+            face,
+            other: None,
+            at: c.t,
+            mark: None,
+        };
+        match inside {
+            Some(false) => {}
+            Some(true) => offer(hit(count(c.outward)), false)?,
+            None => offer(hit(0), true)?,
+        }
+    }
+    for &(_, a, b, at) in &meets.met {
+        let sign = |f: FaceKey| {
+            planes
+                .iter()
+                .find(|c| c.face == f)
+                .map_or(0, |c| count(c.outward))
+        };
+        offer(
+            RayHit {
+                count: (sign(a) + sign(b)) / 2,
+                face: a,
+                other: Some(b),
+                at,
+                mark: None,
+            },
+            false,
+        )?;
+    }
+    for m in meets.marks {
+        offer(m, true)?;
+    }
+    // A curved face's crossing at `t`, `outward` its sign there.
+    let mut offer = |face: FaceKey, t: T, outward: Sign, edge: bool| {
+        offer(
+            RayHit {
+                count: count(outward),
+                face,
+                other: None,
+                at: t,
+                mark: None,
+            },
+            edge || outward == Sign::Zero,
+        )
     };
     for &(face, ref geo) in geos {
         let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
         match *geo {
-            FaceGeo::Plane(origin, normal) => {
-                // `normal` is the face's OUTWARD normal (S10, folded in
-                // by `face_geo`), so this sign IS the material-side
-                // verdict the closest-hit rule consumes; the advance
-                // `t` below is a ratio of two such dots and cannot see
-                // the orientation at all.
-                let denom = d.dot(normal);
-                // The cosine levered by the selection's reach: how far
-                // the ray rises off the plane over every length at which
-                // it could meet the face ([`selection_reach`]).
-                let denom_sign =
-                    decide(rows.denom, Margin::levered(denom, reach), band).map_err(escalate)?;
-                if denom_sign == Sign::Zero {
-                    // A ray parallel to the plane within the band rises
-                    // off it by at most the band's zero over the reach.
-                    // The pre-pass passes q in band of the carrier
-                    // wherever its foot is outside the face, so a miss
-                    // is asked, not assumed: q definitely off the plane,
-                    // or the face definitely to one side of the ray.
-                    let clear = clear_of_carrier((q - origin).dot(normal), face, band, rows);
-                    if matches!(clear, Ok(true))
-                        || ray_passes_beside(body, face, q, d, normal, band, rows)?
-                    {
-                        continue;
-                    }
-                    return Err(match clear {
-                        Err(in_band) => in_band,
-                        Ok(_) => RayFault::Graze,
-                    });
-                }
-                let t = (origin - q).dot(normal) / denom;
-                // In-face test FIRST: a plane hit outside the face
-                // region is no crossing at all — in particular a
-                // `t = 0` hit on a face plane through `q` (a
-                // corner-aligned query) must be skipped, not grazed,
-                // when the face itself is elsewhere.
-                let p = q + d * t;
-                match point_in_face(body, face, normal, p, band).map_err(at_hit)? {
-                    Some(false) => {}
-                    Some(true) => offer(face, t, denom_sign, false)?,
-                    None => offer(face, t, Sign::Zero, true)?,
-                }
-            }
+            FaceGeo::Plane(..) => {}
             // The cylinder wall arm (M5 PR 9): the ray meets the
             // infinite wall at the roots of a quadratic in metres
             // (the linearized residual along the ray); each definite
@@ -5133,12 +5543,12 @@ fn missed_side<T: Decide + crate::props::AtRestPolicy>(
             if let Some(e) = unread.limit() {
                 kept.blocked(e.clone());
             }
-            // A ray set aside at a sharp corner read in band there: it is
-            // this point's evidence, not a pair.
+            // A ray set aside at a corner read in band there: it is this
+            // point's evidence, not a pair.
             for s in set_aside {
-                if let crate::side_reader::SetAsideWhy::Corner { far, gap, .. } = &s.why {
+                if let crate::side_reader::SetAsideWhy::Corner { faces, gap } = &s.why {
                     kept.in_band(PointInSolidError::Escalated {
-                        face: *far,
+                        face: faces[1],
                         diag: *gap,
                     });
                 }

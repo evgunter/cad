@@ -378,6 +378,109 @@ impl<T: Decide, H> Crossings<T, H> {
             None => Ok(None),
         }
     }
+
+    /// **The sign of the ray's first nonzero running count**: each
+    /// crossing counts `count(hit)` (`+1` leaving material, `−1`
+    /// entering it, `0` a meeting it passes without crossing), and the
+    /// running count is read at each gap the caller's `order` row
+    /// decides definite. Crossings in band of each other are summed,
+    /// never ordered: a cluster is every crossing not definitely after
+    /// one already in it, so each crossing outside it lies definitely
+    /// after every crossing inside it. `None` where every cluster sums
+    /// to zero.
+    ///
+    /// A sideless crossing in a cluster read before the count turns sets
+    /// the ray aside as `sideless` reads the cluster's sideless crossings:
+    /// what the ray meets there it reads nothing at, the pairs beside it
+    /// included. Two crossings of one cluster that `apart` says no cell
+    /// joins (two faces that do not meet) are a pair: in band of each
+    /// other, it sets the ray aside as `escalate(diag, hit, other)`; at a
+    /// tie, it grazes. A count that turns by more than one, which no closed
+    /// boundary crossed one cluster at a time gives, grazes. Each gap is
+    /// decided once.
+    ///
+    /// # Errors
+    ///
+    /// [`RayFault::Graze`] or [`RayFault::InBand`].
+    pub(crate) fn first_count<E>(
+        self,
+        order: &'static str,
+        band: Band,
+        count: impl Fn(&H) -> i32,
+        apart: impl Fn(&H, &H) -> bool,
+        escalate: impl FnOnce(Indeterminate, &H, &H) -> E,
+        sideless: impl FnOnce(&[&H]) -> RayFault<E>,
+    ) -> Result<Option<Sign>, RayFault<E>> {
+        let n = self.ahead.len();
+        let mut decided: Vec<Option<Result<Sign, Indeterminate>>> = vec![None; n * n];
+        // `k`'s advance less `b`'s, decided once per pair.
+        let mut gap = |k: usize, b: usize| {
+            let (lo, hi, flip) = if k < b { (k, b, false) } else { (b, k, true) };
+            let read = *decided[lo * n + hi].get_or_insert_with(|| {
+                decide(order, Margin::of(self.ahead[lo].0 - self.ahead[hi].0), band)
+            });
+            read.map(|s| if flip { s.flip() } else { s })
+        };
+        let mut left: Vec<usize> = (0..n).collect();
+        let mut running = 0;
+        while let Some(&first) = left.first() {
+            let mut least = first;
+            for &k in &left[1..] {
+                if gap(k, least) == Ok(Sign::Negative) {
+                    least = k;
+                }
+            }
+            let mut cluster = vec![least];
+            let mut rest: Vec<usize> = left.iter().copied().filter(|&k| k != least).collect();
+            loop {
+                let (joined, after): (Vec<usize>, Vec<usize>) = rest
+                    .iter()
+                    .partition(|&&k| cluster.iter().any(|&j| gap(k, j) != Ok(Sign::Positive)));
+                if joined.is_empty() {
+                    break;
+                }
+                cluster.extend(joined);
+                rest = after;
+            }
+            let unread: Vec<&H> = cluster
+                .iter()
+                .filter(|&&k| self.ahead[k].2)
+                .map(|&k| &self.ahead[k].1)
+                .collect();
+            if !unread.is_empty() {
+                return Err(sideless(&unread));
+            }
+            for (i, &a) in cluster.iter().enumerate() {
+                for &b in &cluster[i + 1..] {
+                    if !apart(&self.ahead[a].1, &self.ahead[b].1) {
+                        continue;
+                    }
+                    match gap(a, b) {
+                        Ok(Sign::Zero) => return Err(RayFault::Graze),
+                        Err(diag) => {
+                            return Err(RayFault::InBand(escalate(
+                                diag,
+                                &self.ahead[a].1,
+                                &self.ahead[b].1,
+                            )));
+                        }
+                        Ok(_) => {}
+                    }
+                }
+            }
+            running += cluster
+                .iter()
+                .map(|&k| count(&self.ahead[k].1))
+                .sum::<i32>();
+            match running {
+                0 => left = rest,
+                1 => return Ok(Some(Sign::Positive)),
+                -1 => return Ok(Some(Sign::Negative)),
+                _ => return Err(RayFault::Graze),
+            }
+        }
+        Ok(None)
+    }
 }
 
 /// The point/displacement algebra the walk needs, so that one body of
