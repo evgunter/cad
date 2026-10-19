@@ -15031,6 +15031,181 @@ mod two_carrier_records {
                 assert!(!rows.iter().any(|r| r.contains("DISAGREE")), "{rows:#?}");
             }
         }
+
+        /// Review probes for PR 5390: the census verdict on families whose
+        /// true answer is known in closed form (the line y = 0, z = 1).
+        mod review_5390 {
+            use super::*;
+
+            fn class(errors: &[ValidationError], a: FaceKey, b: FaceKey) -> String {
+                let is = |x: FaceKey, y: FaceKey| (x, y) == (a, b) || (x, y) == (b, a);
+                let mut out = Vec::new();
+                for e in errors {
+                    match e {
+                        ValidationError::StaleContactDeclaration {
+                            declaration: StaleDeclaration::Patch { face_a, face_b },
+                        } if is(*face_a, *face_b) => out.push("stale".to_owned()),
+                        ValidationError::ContactContradicted { declaration, margin, .. }
+                            if is(declaration.a, declaration.b) =>
+                        {
+                            out.push(format!("contradicted({:?})", margin.predicate));
+                        }
+                        ValidationError::CensusEscalated { cause } => {
+                            out.push(format!("escalated({:?})", cause.predicate));
+                        }
+                        ValidationError::CensusUnsupported { .. } => out.push("unsupported".into()),
+                        _ => {}
+                    }
+                }
+                if out.is_empty() {
+                    "confirmed".into()
+                } else {
+                    out.join("+")
+                }
+            }
+
+            fn run(tag: &str, outline: &[(f64, f64)], wx: (f64, f64), sense: bool, expect: &str) -> String {
+                let r = match std::panic::catch_unwind(|| {
+                    let mut r = rig(outline, wx, (-0.5, 0.5));
+                    r.body.get_face_mut(r.wall).unwrap().sense = sense;
+                    r
+                }) {
+                    Ok(r) => r,
+                    Err(_) => return format!("{tag}: fixture refused"),
+                };
+                let b = Band::linear(Tol::witness()).unwrap();
+                let mut row = String::new();
+                for swap in [false, true] {
+                    let (x, y) = if swap { (r.top, r.wall) } else { (r.wall, r.top) };
+                    let errors = census_and_certify(
+                        &r.body,
+                        &one(&r.body, Cell::Face(x), Cell::Face(y)),
+                        b,
+                        Tol::witness(),
+                        None,
+                    );
+                    let c = class(&errors, r.wall, r.top);
+                    let ok = c.starts_with(expect);
+                    row += &format!("{tag} swap {swap}: {c} (expect {expect}){}\n",
+                        if ok { "" } else { "  <-- DISAGREE" });
+                }
+                eprint!("{row}");
+                row
+            }
+
+            #[test]
+            fn p1_edge_offset_family() {
+                let b = Band::linear(Tol::witness()).unwrap();
+                let (z, e) = (b.zero(), b.escalate());
+                eprintln!("zero {z:e} escalate {e:e}");
+                let mut rows = Vec::new();
+                for (d, expect_wrong, expect_right) in [
+                    (-1e-2, "stale", "stale"),
+                    (-10.0 * e, "stale", "stale"),
+                    (-2.0 * e, "stale", "stale"),
+                    (-0.5 * z, "stale", "stale"),
+                    (0.0, "stale", "stale"),
+                    (0.5 * z, "stale", "stale"),
+                    (0.5 * (z + e), "escalated", "escalated"),
+                    (2.0 * e, "contradicted", "confirmed"),
+                    (10.0 * e, "contradicted", "confirmed"),
+                    (1e-2, "contradicted", "confirmed"),
+                ] {
+                    let o = [(0.0, -1.0), (4.0, -1.0), (4.0, d), (0.0, d)];
+                    rows.push(run(&format!("p1 d {d:e} wrong"), &o, (0.5, 3.5), false, expect_wrong));
+                    rows.push(run(&format!("p1 d {d:e} right"), &o, (0.5, 3.5), true, expect_right));
+                }
+                assert!(!rows.iter().any(|r| r.contains("DISAGREE")), "{rows:#?}");
+            }
+
+            #[test]
+            fn p2_extent_endpoint_family() {
+                let b = Band::linear(Tol::witness()).unwrap();
+                let (z, e) = (b.zero(), b.escalate());
+                let mut rows = Vec::new();
+                for (s, expect_wrong) in [
+                    (-10.0 * e, "contradicted"),
+                    (-0.5 * (z + e), "escalated"),
+                    (-0.5 * z, "stale"),
+                    (0.0, "stale"),
+                    (0.5 * z, "stale"),
+                    (10.0 * e, "stale"),
+                ] {
+                    rows.push(run(&format!("p2 s {s:e} wrong"), &PLAIN, (4.0 + s, 5.0), false, expect_wrong));
+                }
+                assert!(!rows.iter().any(|r| r.contains("DISAGREE")), "{rows:#?}");
+            }
+
+            #[test]
+            fn p3_tab_width_family() {
+                let b = Band::linear(Tol::witness()).unwrap();
+                let (z, e) = (b.zero(), b.escalate());
+                let mut rows = Vec::new();
+                for (w, expect_wrong) in [
+                    (0.5 * z, "stale"),
+                    (0.5 * (z + e), "escalated"),
+                    (10.0 * e, "contradicted"),
+                    (1e-3, "contradicted"),
+                ] {
+                    rows.push(run(&format!("p3 w {w:e} wrong"), &tab(1.1, 1.1 + w), (-1.0, 5.0), false, expect_wrong));
+                }
+                // vertex graze with the sides wrong
+                rows.push(run(
+                    "p3 graze wrong",
+                    &[(0.0, -1.0), (4.0, -1.0), (4.0, -0.5), (2.0, 0.0), (0.0, -0.5)],
+                    (-1.0, 5.0),
+                    false,
+                    "stale",
+                ));
+                assert!(!rows.iter().any(|r| r.contains("DISAGREE")), "{rows:#?}");
+            }
+
+            /// The crescent: a cylinder inside the plate tangent to its top
+            /// from below, its material outside (the bore): the line runs
+            /// through both faces, so the census must contradict on the
+            /// crescent; with the plate's face stopping short, stale.
+            #[test]
+            fn p4_crescent_through_and_off() {
+                let tol = Tol::witness();
+                let b = Band::linear(tol).unwrap();
+                let mut rows = Vec::new();
+                for (tag, outline, sense, expect) in [
+                    ("bore through", PLAIN.to_vec(), false, "contradicted(Some(\"contact_tangent_overlap\"))"),
+                    ("peg through", PLAIN.to_vec(), true, "contradicted"),
+                    ("bore off", vec![(0.0, -1.0), (4.0, -1.0), (4.0, -0.5), (0.0, -0.5)], false, "stale"),
+                ] {
+                    let mut body = crate::test_support_fixtures::prism::<f64>(&outline, 1.0, tol).body;
+                    let top = body
+                        .faces()
+                        .find(|(_, f)| match body.get_surface(f.surface) {
+                            Some(geom::Surface::Plane { origin, normal, .. }) => {
+                                normal.z.abs() > 0.5 && (origin.z - 1.0).abs() < 1e-12
+                            }
+                            _ => false,
+                        })
+                        .map(|(k, _)| k)
+                        .unwrap();
+                    let frame = CylFrame {
+                        origin: geom_core::Point3::new(0.0, 0.0, 0.0),
+                        axis: geom_core::Vec3::unit_x(),
+                        radius: 1.0,
+                        u_ref: geom_core::Vec3::unit_z(),
+                    };
+                    let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.5, 3.5), tol);
+                    body.get_face_mut(wall).unwrap().sense = sense;
+                    for swap in [false, true] {
+                        let (x, y) = if swap { (top, wall) } else { (wall, top) };
+                        let errors = census_and_certify(&body, &one(&body, Cell::Face(x), Cell::Face(y)), b, tol, None);
+                        let c = class(&errors, wall, top);
+                        let ok = c.starts_with(expect);
+                        let row = format!("p4 {tag} swap {swap}: {c} (expect {expect}){}", if ok { "" } else { "  <-- DISAGREE" });
+                        eprintln!("{row}");
+                        rows.push(row);
+                    }
+                }
+                assert!(!rows.iter().any(|r| r.contains("DISAGREE")), "{rows:#?}");
+            }
+        }
     }
 }
 
