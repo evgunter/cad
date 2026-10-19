@@ -83,21 +83,20 @@ fn decide_3_no_predicate_loses_a_decision() {
             // MOVE, and a pin on both sides is what tells a re-baseline
             // from a drift.
             //
-            // `carrier_on_surface_1`/`_2` is rule G's trade: the tangent
-            // arc's quarter-tangent `2w / sqrt(4w²)`, which rule G
-            // re-keys as a sign quotient the tier does not hold, so the
-            // shipped side reaches through the door what the G-shut side
-            // proves outright, and four of each slot's twelve numeric
-            // decisions go symbolic. The two slots are the pair's key
-            // order (`geom_brep::SurfacePair`), so the trade lands half
-            // on each. The whole measurement and its remedy record is
-            // `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`.
+            // `carrier_on_surface_1`/`_2` was rule G's trade while the
+            // tangent arc's sweep was `4·atan` of the quarter-tangent
+            // `2w / sqrt(4w²)`, a sign quotient rule G re-keyed and the
+            // tier did not hold (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`).
+            // Read as `2·atan2(across, along)`, a half turn's literal-zero
+            // `along` folds through rule D's half-π fold, and both slots
+            // prove all 108 outright on both sides.
             //
             // `carrier_matches_mapped_source` is the other side of the
             // arc's span spelled from the decided turn (`sweep`'s
-            // `arc_span`): the carrier's span meets the pushforward's
-            // atom on the shipped side, four more decisions out of
-            // `numeric`.
+            // `arc_span`). The carrier's span met the pushforward's atom
+            // on the shipped side while the sweep was `4·atan(X)`, four
+            // more decisions out of `numeric`; with the sweep an angle the
+            // two sides read alike, `[152, 28]`.
             //
             // The sums are the split columns of the day before DECIDE-10
             // made them one (`[96, 0, 0, 12] -> [92, 0, 8, 8]` and
@@ -108,9 +107,9 @@ fn decide_3_no_predicate_loses_a_decision() {
             // (`sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`).
             let pinned: Option<([u64; 2], [u64; 2])> = match (*name, *p) {
                 ("r2_link", "carrier_on_surface_1" | "carrier_on_surface_2") => {
-                    Some(([96, 12], [100, 8]))
+                    Some(([108, 0], [108, 0]))
                 }
-                ("r2_link", "carrier_matches_mapped_source") => Some(([152, 28], [156, 24])),
+                ("r2_link", "carrier_matches_mapped_source") => Some(([152, 28], [152, 28])),
                 _ => None,
             };
             if let Some(expected) = pinned {

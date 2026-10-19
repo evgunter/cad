@@ -117,7 +117,7 @@ fn clearance_reading(result: &Result<(), ProfileError>) -> (bool, bool) {
 
 /// The phrase the full-turn refusal names its second case by, for
 /// either verb.
-const FULL_TURN_CASE: &str = "one end lies on the line tangent at the other";
+const FULL_TURN_CASE: &str = "one end lies on the other's tangent line";
 
 /// A replay's refusal on the departure line: the chord a
 /// `DegenerateArcChord` reports (its enclosure's ends) when its message

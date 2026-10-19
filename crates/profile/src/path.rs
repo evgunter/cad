@@ -1898,11 +1898,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::DegenerateArcChord { chord } => write!(
                 f,
-                "an arc leg spans no arc short of a full turn (chord {chord} m): its ends are \
-                 within tolerance of each other, or one end lies on the line tangent at the \
-                 other, on the side only a full turn reaches. A closed carrier is a circle \
-                 primitive, not a chain leg. Recourse: move the ends apart, or off that \
-                 tangent line, or author the full turn as a circle",
+                "an arc leg spans no arc short of a full turn (chord {chord} m): its ends \
+                 coincide within tolerance, or one end lies on the other's tangent line where \
+                 only a full turn reaches it. Recourse: move the ends apart or off that line; a \
+                 closed carrier is a circle",
                 chord = num(chord)
             ),
             Self::ArcCenterNotEquidistant {

@@ -597,6 +597,15 @@ fn sym_9_what_each_retry_recovers() {
 /// 1311/1043 → 1311/1047, with the ladder and without it alike; no
 /// recovered decision moved.
 ///
+/// Every arc's sweep read as an `atan2` angle (`profile`'s
+/// `sugar::split_sweep`, `split_turn`, `sweep_about`) rather than
+/// `4·atan` of a quarter-tangent: a half turn's literal-zero `along`
+/// folds through rule D's half-π fold, so the link 767/687 → 779/675 and
+/// its `carrier_on_surface_2` `[100, 8]` → `[108, 0]` (rule G's trade is
+/// gone), with the ladder and without it alike; the bracket
+/// 1311/1047 → 1323/1035 without the ladder and 1324/1034 with it, one
+/// decision recovered by a retry. Every row moved up.
+///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
@@ -609,8 +618,8 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
         ("two_hole_plate", [939, 693], [939, 693], 0),
         ("r1_annulus", [475, 431], [475, 431], 0),
         ("r1_segment_boss", [468, 399], [468, 399], 0),
-        ("r2_filleted_bracket", [1311, 1047], [1311, 1047], 0),
-        ("r2_link", [767, 687], [767, 687], 0),
+        ("r2_filleted_bracket", [1323, 1035], [1324, 1034], 1),
+        ("r2_link", [779, 675], [779, 675], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -630,7 +639,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
             // named second, so rule G's trade lands half on each slot:
             // `[76, 0, 16, 16]` became `[92, 0, 8, 8]` here.
             for (pred, want) in [
-                ("carrier_on_surface_2", [100, 8]),
+                ("carrier_on_surface_2", [108, 0]),
                 ("witness_on_surface_2", [16, 0]),
             ] {
                 let got = t.get(pred).copied().unwrap_or([0; 2]);
@@ -683,14 +692,17 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// `SymRetry::none()`.
 ///
 /// It reads both receipts the drive writes: the goldening line carries
-/// `retried=38` after the discharge columns, and the human form names
-/// the thirty-eight as discharges a second attempt reached. Without
+/// `retried=` after the discharge columns, and the human form names
+/// that many as discharges a second attempt reached. Without
 /// the ladder neither appears and the line is the one a drive wrote
 /// before the ladder existed. The thirty-eight move `symbolic`
 /// 1208 → 1246. The junction's turn levered by the shorter leg's arm
 /// (#5377's fix pass) moves sixteen more of the leaf's decisions from
 /// `numeric` to `symbolic`: 1246/1294 → 1262/1278 with the ladder and
-/// 1208/1332 → 1224/1316 without it, the thirty-eight held.
+/// 1208/1332 → 1224/1316 without it, the thirty-eight held. Every arc's
+/// sweep read as an `atan2` angle: the pad's fillet sweeps are atoms
+/// rule D does not fold, 1224/1316 → 1204/1336 without the ladder and
+/// 1262/1278 → 1244/1296 with it, the ladder recovering forty.
 ///
 /// The row read the filleted bracket, then the link, then the pad as
 /// authored. Since the constructions store the carriers they build,
@@ -698,7 +710,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// used to; since a chord's director is its components, it does on the
 /// pad as authored too (it retried four). Spelling the pad's one
 /// point-target leg as an angle puts a `sin_cos(π/2)` round trip back,
-/// and the ladder reaches thirty-eight. It is the heaviest leaf here:
+/// and the ladder reaches forty. It is the heaviest leaf here:
 /// this row costs minutes in a debug build.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
@@ -735,19 +747,19 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1262, 1278, 38],
+        [1244, 1296, 40],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains(" retried=38\n"),
+        line.contains(" retried=40\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
-        human.contains("; 38 of those discharges reached only by a second attempt"),
-        "the human form names the thirty-eight as the ladder's: {human}"
+        human.contains("; 40 of those discharges reached only by a second attempt"),
+        "the human form names the forty as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1224, 1316, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1204, 1336, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

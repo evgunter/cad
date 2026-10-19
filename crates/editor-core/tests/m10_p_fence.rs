@@ -66,6 +66,13 @@
 //! spelling (`sugar::quarter_tan_about`): the fixture's fillet sweeps
 //! enclose differently, and the `f64` bits do not move.
 //!
+//! **ALL FOUR NUMBERS MOVED WHEN EVERY ARC'S SWEEP CAME TO BE READ AS
+//! AN ANGLE** (`profile`'s `sugar::split_sweep`, `split_turn`,
+//! `sweep_about`, where it was `4·atan` of a quarter-tangent), through
+//! the fixture loops' stored sweeps alone: the id-free row's nodes,
+//! outcomes and every point of every body, dumped on main and on the
+//! branch, were identical, 378 nodes and 2135 points.
+//!
 //! **The stream hashes each node's id and walks the nodes in id
 //! order**, so a change to how the mint draws ids moves all three
 //! numbers with no point moving.
@@ -931,7 +938,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x63cb_9654_8918_588f, 0x3bbf_ca21_e4a7_b7b3),
+        (0x8a9a_bed3_75e3_c62f, 0x3421_9eaa_451e_6a7b),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -961,7 +968,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x385b_7814_3b4b_6c16, 0x0f94_3dcb_8b3c_15ca),
+        (0x022c_8540_c095_f4ab, 0x5986_21e7_b7b6_2adf),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -985,7 +992,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x63cb_9654_8918_588f, 0x3bbf_ca21_e4a7_b7b3),
+        (0x8a9a_bed3_75e3_c62f, 0x3421_9eaa_451e_6a7b),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -1063,7 +1070,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x27f7_a941_3d23_2dd7, 0xf0a8_b0a4_3724_cd63),
+        (0x6166_1ef3_cf50_76a6, 0xe890_ae4b_5a28_f3d2),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );
