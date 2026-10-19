@@ -30,7 +30,7 @@ fn face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
 
 /// A brick resting on a cube's top: the union's one verdict is the
 /// touch it decided, and handed back to the same two operands it glues
-/// that pair and decides nothing else.
+/// that pair and decides no face pair of its own.
 #[test]
 fn a_rest_touch_is_the_unions_one_verdict_and_glues_as_given() {
     let a = finished("a", brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol()), tol());
@@ -69,9 +69,22 @@ fn a_rest_touch_is_the_unions_one_verdict_and_glues_as_given() {
         given: Some(vec![verdict.given_at(topo::Operand::A, verdict.a())]),
         ..BooleanInputs::default()
     });
+    // The step still decides the brick's four bottom corners on the
+    // cube's top, by value.
+    let top = topo::RowCell::Input {
+        input: topo::Operand::A,
+        cell: topo::Cell::Face(face_at_z(&a, 1.0)),
+    };
     assert!(
-        given.coincidences.is_empty() && given.verdicts.is_empty(),
-        "a given step decides no pair of its own: {:?}",
+        given.verdicts.is_empty()
+            && given.coincidences.len() == 4
+            && given.coincidences.iter().all(|c| c.site == topo::DecisionSite::VertexFusion
+                && matches!(
+                    c.cells,
+                    [topo::RowCell::Input { input: topo::Operand::B, cell: topo::Cell::Vertex(_) }, t]
+                        if t == top
+                )),
+        "a given step decides no pair of its own, only the corners on the top: {:?}",
         given.coincidences
     );
     let volume =

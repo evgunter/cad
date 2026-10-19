@@ -295,10 +295,8 @@ pub struct BooleanNaming {
     /// (`BooleanBody::contacts` drops such rows by design). Its cells
     /// are the reading: each record's [`crate::Backing::Decided`]
     /// names a decision of the reduction's own, which the result
-    /// records as a row where a record citing it survives or where it
-    /// put a vertex the op left as copies on one point key (a pinch the
-    /// op made, [`carry`]), so its citations index no list a reader
-    /// holds.
+    /// renumbers onto its rows ([`carry`]), so its citations index no
+    /// list a reader holds.
     pub reduction_contacts: ReductionContacts,
     /// Every face an operand lost to the result, with the kept faces it
     /// bordered (`boolean::discard`, which says which paths record
@@ -953,10 +951,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         tol,
     )?;
     let output = output_substitutions(&merged, &edge_joins)?;
-    let zipped = Zipped {
-        operands: [a, b],
-        _cones: cones,
-    };
     // Curved results carry certified per-half-edge pcurves at rest
     // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
     // the finished body — the same pass the split lane runs. A planar
@@ -970,7 +964,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         views,
         &desc,
         [&discarded[0], &discarded[1]],
-        Some(zipped),
         band,
     )?;
     share_recorded_points(&mut body, &contacts, &coincidences)?;
@@ -1130,6 +1123,15 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let cuts = apply_cut_ins(&mut a2, &mut b2, &recuts.cut_in, band, tol)?;
             let mut result = boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol)?;
             if let BooleanResult::Body(out) = &mut result {
+                // A row names the cells of the op's inputs, not of the
+                // cut operands ([`crate::coincidence`]).
+                for row in &mut out.coincidences {
+                    for end in &mut row.cells {
+                        if let crate::RowCell::Input { input, cell } = end {
+                            *cell = cuts[usize::from(*input == Operand::B)].input_cell(*cell);
+                        }
+                    }
+                }
                 // The cut-ins divided faces before the join did, in the
                 // operand keys the join's rows are in.
                 let n = &mut out.naming;
@@ -3755,16 +3757,15 @@ fn tagged(d: &ReductionContacts) -> Vec<Tagged<'_>> {
 /// a group implies cites every record on every shortest chain of
 /// records joining its two cells in the group, so no chain is picked
 /// over another; a pair of two copies of one vertex cites the records
-/// that put the vertex in its group. Each decision a surviving record
-/// cites is emitted, in decision order, after the op's own
-/// coincidences, and the records are renumbered onto those rows. So is
-/// each decision at a pinch the op made ([`pinch_rows`]), read only
-/// for a result the seams were zipped into (`zipped`): the op's copies
-/// there touch on one point key, which no record states. Any other
-/// decision placed topology and is not a coincidence (D1). A surviving
-/// record whose decisions all decided no margin (a transverse pierce)
-/// is a touch without a decision, which the op refuses rather than
-/// ship.
+/// that put the vertex in its group.
+///
+/// **Every decision the op took with a margin is a row**, cited or
+/// not (D10 `[coincidence.door]`): emitted in decision order after the
+/// op's own coincidences, the records renumbered onto them. A decision
+/// with no margin (a transverse pierce's landing) placed topology and
+/// is not a coincidence (D1); a surviving record whose decisions all
+/// decided no margin is a touch without a decision, which the op
+/// refuses rather than ship.
 ///
 /// # Errors
 ///
@@ -3778,7 +3779,6 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
     views: [&KeyView<'_>; 2],
     desc: &Descendants,
     discarded: [&BTreeSet<FaceKey>; 2],
-    zipped: Option<Zipped<'_, T>>,
     band: Band,
 ) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
     let mut pending = ledger.pending.clone();
@@ -3793,11 +3793,7 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
         band,
     )?;
     record_spans(body, &mut records, band)?;
-    let pinched = match zipped {
-        Some(z) => pinch_rows(body, z.operands, &pending, views, desc)?,
-        None => Vec::new(),
-    };
-    cite_rows(records, ledger, &pending, &pinched)
+    cite_rows(records, ledger, &pending)
 }
 
 /// **The one carry, for the boolean** (D1): each operand's carried
@@ -4170,86 +4166,6 @@ fn carried_vertices<T: Real>(
         .collect())
 }
 
-/// **A result the seams were zipped into**, with its two operands: the
-/// only path that leaves an op's copies of one vertex on one point key
-/// (the join's null-edge copies, the zip's split per cone) when
-/// [`carry`] runs, so the only one it reads pinches for. The keys
-/// [`share_recorded_points`] ties come after the carry, and are read by
-/// no pinch row. It holds the zip's
-/// [`super::zip::ConesSplit`], which only `zip::split_cones` builds.
-pub(super) struct Zipped<'a, T: Real> {
-    operands: [&'a Body<T>; 2],
-    _cones: super::zip::ConesSplit,
-}
-
-/// **The decisions at the pinches the op made**, as indices into the
-/// ledger's pending rows, ascending: each decided row with a vertex end
-/// whose live descendant shares its point key with another live vertex,
-/// where not every vertex on that key descends from an operand vertex
-/// that already shared its key. When the carry runs, two vertices on
-/// one point key the op made are its copies of one vertex: the join's
-/// null-edge copies ([`Descendants::copies_of`]) or the zip's split per
-/// cone (`zip::split_cones`), so pieces of the result touch there with
-/// no record between them (D1's structural sharing), and the row that
-/// put the vertex on the other operand's cell is the coincidence that
-/// made them touch (DESIGN, the reduction's coincidence discipline).
-/// Keys an operand already shared are its own structure, which no
-/// decision of this op made: its copies, or two corners an earlier
-/// boolean decided one point and recorded ([`share_recorded_points`]).
-fn pinch_rows<T: Real>(
-    body: &Body<T>,
-    operands: [&Body<T>; 2],
-    pending: &[PendingRow],
-    views: [&KeyView<'_>; 2],
-    desc: &Descendants,
-) -> Result<Vec<u32>, BooleanError> {
-    let mut inherited: BTreeSet<VertexKey> = BTreeSet::new();
-    for (side, operand) in [Operand::A, Operand::B].into_iter().zip(operands) {
-        let mut shared: BTreeMap<crate::geometry::PointKey, usize> = BTreeMap::new();
-        for (_, v) in operand.vertices() {
-            *shared.entry(v.point).or_default() += 1;
-        }
-        let view = views[usize::from(side == Operand::B)];
-        for (u, v) in operand.vertices() {
-            if shared[&v.point] >= 2
-                && let Some(Cell::Vertex(w)) = desc.live(body, side, view, Cell::Vertex(u))?
-            {
-                inherited.insert(w);
-            }
-        }
-    }
-    let mut held: BTreeMap<crate::geometry::PointKey, (usize, bool)> = BTreeMap::new();
-    for (w, v) in body.vertices() {
-        let at = held.entry(v.point).or_default();
-        at.0 += 1;
-        at.1 |= !inherited.contains(&w);
-    }
-    let pinch = |w: VertexKey| {
-        body.get_vertex(w)
-            .is_some_and(|v| held.get(&v.point).is_some_and(|&(n, made)| n >= 2 && made))
-    };
-    let mut out = Vec::new();
-    for (k, row) in pending.iter().enumerate() {
-        if row.margin.is_none() {
-            continue;
-        }
-        let mut at_pinch = false;
-        for &(side, cell) in &row.cells {
-            let Cell::Vertex(v) = cell else { continue };
-            let view = views[usize::from(side == Operand::B)];
-            for copy in desc.copies_of(side, v) {
-                if let Some(Cell::Vertex(w)) = desc.live(body, side, view, Cell::Vertex(copy))? {
-                    at_pinch |= pinch(w);
-                }
-            }
-        }
-        if at_pinch {
-            out.push(super::reduce::index(k));
-        }
-    }
-    Ok(out)
-}
-
 /// **The output stage's one key rule**: the vertices of every
 /// vertex-vertex record of the result move onto one point key
 /// ([`record_classes`]), on every path a boolean builds by. Run
@@ -4329,30 +4245,29 @@ fn record_classes<T: Real>(
     Ok(classes.into_values().collect())
 }
 
-/// The records `carry_rows` left, their decisions and `pinched`'s
-/// emitted after the op's own coincidences and the records' citations
-/// renumbered onto them ([`carry`]).
+/// The records `carry_rows` left and every decision the op took with a
+/// margin, emitted after the op's own coincidences in decision order,
+/// the records' citations renumbered onto them ([`carry`]).
 fn cite_rows(
     records: ContactRecords,
     ledger: &Ledger,
     pending: &[PendingRow],
-    pinched: &[u32],
 ) -> Result<(ContactRecords, Vec<crate::Coincidence>), BooleanError> {
-    let decided = records.decided();
-    if decided.last().is_some_and(|&k| k as usize >= pending.len()) {
+    if records
+        .decided()
+        .last()
+        .is_some_and(|&k| k as usize >= pending.len())
+    {
         return Err(BooleanError::JoinDesync {
             what: "a contact record cites a decision the reduction did not make",
         });
     }
     // A decision with no margin (a transverse pierce's landing) is not
     // a coincidence, and a record citing only such is refused below.
-    let mut used: Vec<u32> = decided
-        .into_iter()
-        .filter(|&k| pending[k as usize].margin.is_some())
-        .chain(pinched.iter().copied())
+    let used: Vec<u32> = (0..pending.len())
+        .filter(|&k| pending[k].margin.is_some())
+        .map(super::reduce::index)
         .collect();
-    used.sort_unstable();
-    used.dedup();
     // A row the op recorded already (a tangency the glue door decided)
     // is cited where it stands: one decision, one row.
     let mut coincidences = ledger.recorded.clone();
@@ -6723,11 +6638,16 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         };
         let (below_split, below_vertex) = (below.split, below.vertex);
         let (over_split, over_vertex) = (over.split, over.vertex);
+        let mut arc_splits = Vec::new();
         let mut end =
             |split: Option<(EdgeKey, T, bool, T)>, vertex: Option<VertexKey>| match (split, vertex)
             {
                 (_, Some(v)) => Ok(v),
-                (Some((edge, theta, _, _)), None) => Ok(body.split_edge(edge, theta, tol)?.vertex),
+                (Some((edge, theta, _, _)), None) => {
+                    let created = body.split_edge(edge, theta, tol)?;
+                    arc_splits.push((created.vertex, created.new_edge, edge));
+                    Ok(created.vertex)
+                }
                 (None, None) => Err(corrupt(
                     "cut-in: a boundary hit with neither vertex nor arc",
                 )),
@@ -6827,6 +6747,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         let side = &mut made[usize::from(cut.operand == Operand::B)];
         side.divisions.push((created.face, face));
         side.edges.push(created.edge);
+        side.arc_splits.extend(arc_splits);
     }
     for body in [a, b] {
         crate::pcurves::mint_pcurves(body, tol)
@@ -6843,8 +6764,42 @@ type CutsPerOperand = [ChartCuts; 2];
 struct ChartCuts {
     /// `(new face, divided-from face)`, in mint order.
     divisions: Vec<(FaceKey, FaceKey)>,
-    /// The meridian edge each cut minted.
+    /// The meridian edge each cut minted, beside its division.
     edges: Vec<EdgeKey>,
+    /// `(new vertex, new edge, split edge)` for each arc a cut's end
+    /// split, in mint order.
+    arc_splits: Vec<(VertexKey, EdgeKey, EdgeKey)>,
+}
+
+impl ChartCuts {
+    /// The input cell `cell` of the cut operand lies in: a division's
+    /// face is the face it was cut from, a meridian the face it runs
+    /// in, and an arc split's vertex or second piece the arc it split.
+    fn input_cell(&self, cell: Cell) -> Cell {
+        let face = |mut f: FaceKey| {
+            while let Some(&(_, from)) = self.divisions.iter().find(|&&(new, _)| new == f) {
+                f = from;
+            }
+            f
+        };
+        let edge = |mut e: EdgeKey| {
+            while let Some(&(_, _, split)) = self.arc_splits.iter().find(|&&(_, new, _)| new == e) {
+                e = split;
+            }
+            e
+        };
+        match cell {
+            Cell::Face(f) => Cell::Face(face(f)),
+            Cell::Edge(e) => match self.edges.iter().position(|&m| m == e) {
+                Some(i) => Cell::Face(face(self.divisions[i].1)),
+                None => Cell::Edge(edge(e)),
+            },
+            Cell::Vertex(v) => match self.arc_splits.iter().find(|&&(w, _, _)| w == v) {
+                Some(&(_, _, split)) => Cell::Edge(edge(split)),
+                None => cell,
+            },
+        }
+    }
 }
 
 /// Per-shell classification of one operand's clone against the other
@@ -7033,7 +6988,6 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 views,
                 &desc,
                 [&discarded[0], &discarded[1]],
-                None,
                 band,
             )?;
             share_recorded_points(&mut body, &contacts, &coincidences)?;
@@ -7138,7 +7092,6 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         [&a_view, &b_view],
         &desc,
         [&discarded[0], &discarded[1]],
-        None,
         band,
     )?;
     share_recorded_points(&mut body, &contacts, &coincidences)?;

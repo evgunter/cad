@@ -16,12 +16,9 @@
 //! What is recorded is what a ladder decides from a margin and the
 //! result holds. A pair on one surface key is structure and is not
 //! recorded, and an ON verdict that only places topology is not a
-//! coincidence (D1): a vertex identity is recorded only where a record
-//! citing it survives or the op's copies of the vertex touch in the
-//! result (a pinch the op made: copies an operand already held on one
-//! key are its structure, and record nothing), and a boolean's
-//! face-pair decision only where the two faces meet, at a point, an
-//! edge or an area.
+//! coincidence (D1): a boolean records every vertex identity it decides
+//! with a margin, and a face-pair decision only where the two faces
+//! meet, at a point, an edge or an area.
 
 use geom_core::MarginDiag;
 
@@ -174,8 +171,8 @@ pub enum DecisionSite {
     ProfileJunction,
     /// A boolean's vertex identity: a vertex of one operand decided on
     /// a vertex, an edge or a face of the other, or a carried record's
-    /// vertex on a vertex the reduction minted, whose touch survives
-    /// into the result, as a record or as a pinch.
+    /// vertex on a vertex the reduction minted, every one the boolean
+    /// decides with a margin.
     VertexFusion,
     /// The at-rest census: two cells of different groups of a body at
     /// rest (two copies, two imported instances) decided one, or two

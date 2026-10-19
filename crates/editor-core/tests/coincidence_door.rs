@@ -111,7 +111,8 @@ fn entity(input: VarId, name: &StableName) -> NamedCell {
 /// a block, unioned: the union holds one `SameOpposite` row naming the
 /// block's top and the plate's bottom by their operands' own names,
 /// decided by the plane ladder, and the check reports it unproven: the
-/// two caps are two constructions.
+/// two caps are two constructions. The plate's four bottom corners,
+/// each decided on the block's top, are a row each, reported alike.
 #[test]
 fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
     let doc = ProfileDoc::empty_derived("coincide-declared-rest", Tol::witness());
@@ -127,8 +128,18 @@ fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
     );
     let ev = run(&doc);
     let got = rows(&ev, union);
-    assert_eq!(got.len(), 1, "one row for the one rest: {got:?}");
+    assert_eq!(got.len(), 5, "the rest and its four corners: {got:?}");
     let row = &got[0];
+    for corner in &got[1..] {
+        assert!(
+            corner.site == DecisionSite::VertexFusion
+                && corner.relation == Relation::OnCarrier
+                && matches!(&corner.cells[0], NamedCell::Entity { name, .. }
+                    if name.node == plate && name.kind == EntityKind::Vertex)
+                && corner.cells[1] == entity(out(&doc, base), &top),
+            "a plate corner on the block's top: {corner:?}"
+        );
+    }
     assert_eq!(
         row.cells,
         [
@@ -154,11 +165,12 @@ fn a_glued_rest_is_one_unproven_row_named_by_its_operands() {
         "two constructions: {residual:?}"
     );
     let findings = unproven(&doc, &ev);
-    assert_eq!(findings.len(), 1, "{findings:?}");
-    assert_eq!(
-        findings[0].subject,
-        FindingSubject::Node(union),
-        "attributed to the deciding node"
+    assert_eq!(findings.len(), 5, "every row reported: {findings:?}");
+    assert!(
+        findings
+            .iter()
+            .all(|f| f.subject == FindingSubject::Node(union)),
+        "attributed to the deciding node: {findings:?}"
     );
     match &findings[0].evidence {
         CheckEvidence::UnprovenCoincidence { row: found, .. } => assert_eq!(**found, *row),
@@ -316,9 +328,10 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
 /// **A union's rows are its pairwise judgement's, in the author's
 /// order** (#4323: the list is the author's stated order). Two blocks
 /// overlapping in x, their caps and y-walls flush, unioned as `[a, b]`
-/// and as `[b, a]`: the same decisions either way,
-/// each row's first cell the listed-first member's face, named by that
-/// member's own table.
+/// and as `[b, a]`: the same decisions either way, a row per flush
+/// family, each its first cell the listed-first member's face, named by
+/// that member's own table, and a row per corner of each block decided
+/// on the other's boundary.
 #[test]
 fn a_unions_rows_follow_its_member_order() {
     let doc = ProfileDoc::empty_derived("coincide-union-order", Tol::witness());
@@ -330,12 +343,20 @@ fn a_unions_rows_follow_its_member_order() {
         let (doc, union) = crate::fixture::union_over(doc.clone(), &members);
         let ev = run(&doc);
         let got = rows(&ev, union);
-        assert_eq!(got.len(), n, "{members:?}: one row per flush family");
-        for row in &got {
-            assert_eq!(
-                (row.relation, row.site),
-                (Relation::SameOriented, DecisionSite::PlaneLadder)
-            );
+        let (faces, corners): (Vec<_>, Vec<_>) = got
+            .iter()
+            .partition(|r| r.site == DecisionSite::PlaneLadder);
+        assert_eq!(faces.len(), n, "{members:?}: one row per flush family");
+        assert!(
+            corners.len() == 8
+                && corners
+                    .iter()
+                    .all(|r| (r.relation, r.site)
+                        == (Relation::OnCarrier, DecisionSite::VertexFusion)),
+            "{members:?}: the four corners of each block inside the other's x span: {corners:?}"
+        );
+        for row in faces {
+            assert_eq!(row.relation, Relation::SameOriented);
             let input = |c: &NamedCell| match c {
                 NamedCell::Entity { input, name } if out(&doc, name.node) == *input => *input,
                 other => panic!("{members:?}: a cell is a member's own face: {other:?}"),
@@ -348,16 +369,23 @@ fn a_unions_rows_follow_its_member_order() {
         }
         seen.push(got);
     }
-    let [ab, ba] = [&seen[0], &seen[1]];
-    let mut ab: Vec<_> = ab.iter().map(|r| r.cells.clone()).collect();
-    let mut ba: Vec<_> = ba
-        .iter()
-        .map(|r| [r.cells[1].clone(), r.cells[0].clone()])
-        .collect();
-    let key = |c: &[NamedCell; 2]| format!("{c:?}");
-    ab.sort_by_key(key);
-    ba.sort_by_key(key);
-    assert_eq!(ab, ba, "the same decisions in either order");
+    let unordered = |got: &[NamedCoincidence]| {
+        let mut pairs: Vec<[String; 2]> = got
+            .iter()
+            .map(|r| {
+                let mut pair = r.cells.each_ref().map(|c| format!("{c:?}"));
+                pair.sort();
+                pair
+            })
+            .collect();
+        pairs.sort();
+        pairs
+    };
+    assert_eq!(
+        unordered(&seen[0]),
+        unordered(&seen[1]),
+        "the same decisions in either order"
+    );
 }
 
 /// **A pattern's instances are placed apart.** The walk reads each
@@ -1485,11 +1513,12 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 
 /// **What the door proves on the tour's composed dies**: the blend
 /// joints whose `fillet3_chain_g1` margin is the zero polynomial. One of
-/// `die_composed`'s two and 21 of `die_composed_tour`'s 42 prove as
-/// theorems, and the rest stay unproven.
+/// `die_composed`'s two joints and 21 of `die_composed_tour`'s 42 prove
+/// as theorems; the rest, and the boolean vertex identities beside them
+/// (two and 42), stay unproven.
 #[test]
 fn the_door_proves_half_the_composed_dies_joints() {
-    for (name, proved, rows) in [("die_composed", 1, 2), ("die_composed_tour", 21, 42)] {
+    for (name, proved, rows) in [("die_composed", 1, 4), ("die_composed_tour", 21, 84)] {
         let cd = crate::corpus::documents()
             .into_iter()
             .find(|cd| cd.name == name)
@@ -1803,13 +1832,12 @@ fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 /// the ring glues the two by a shared point key alone, which records
 /// nothing.
 ///
-/// **Two pierces already on one point key record nothing.** That
-/// intersection keeps the pierces on one key: the ring's copies, the
-/// plate's side. A slab whose face runs through (1.5, 1, 1) obliquely,
-/// intersected with it, meets the two vertices there as two pierces of
-/// one face on one key. They share the key as copies of one ring, which
-/// is structure, so the slab's intersection records no fusion of them,
-/// and the check reports nothing of the kind there.
+/// **Two pierces already on one point key are decided onto a face that
+/// runs through them.** That intersection keeps the pierces on one key:
+/// the ring's copies, the plate's side. A slab whose face runs through
+/// (1.5, 1, 1) obliquely, intersected with it, decides the vertices
+/// there onto that face, and records each decision, though the copies
+/// were already one key's.
 #[test]
 fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     let (doc, plate, blocks) = ring_pinch(pierce_gap());
@@ -1879,9 +1907,17 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
         "the slab's intersection builds: {:?}",
         failure(&ev, cut)
     );
-    assert_eq!(
-        fusions(&ev, cut),
-        vec![],
-        "two pierces on one key record nothing"
+    let onto = fusions(&ev, cut);
+    let slab_face = |c: &NamedCell| {
+        matches!(c, NamedCell::Entity { input, name }
+        if *input == out(&doc, slab) && name.kind == EntityKind::Face)
+    };
+    assert!(
+        onto.len() >= 2
+            && onto.iter().all(|r| slab_face(&r.cells[1])
+                && r.cells[1] == onto[0].cells[1]
+                && matches!(&r.cells[0], NamedCell::Entity { input, name }
+                    if *input == out(&doc, common) && name.kind == EntityKind::Vertex)),
+        "the pierces and the vertices beside them, each on the slab's one face: {onto:?}"
     );
 }

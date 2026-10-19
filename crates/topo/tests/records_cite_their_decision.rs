@@ -333,7 +333,14 @@ fn a_cell_reached_from_both_sides_cites_its_shortest_chain() {
         .iter()
         .filter(|c| c.site == DecisionSite::VertexFusion)
         .count();
-    assert_eq!(fusions, 2, "only the cited decisions: {:?}", r.coincidences);
+    // Every vertex identity the union decided is a row, cited or not:
+    // A's four corners on C's face, B's kissing vertex on C's corner and
+    // the far end of B's edge along C's.
+    assert_eq!(
+        fusions, 6,
+        "every vertex identity decided: {:?}",
+        r.coincidences
+    );
 }
 
 /// **A carried vertex-on-face record cites its operand's record**: a
@@ -448,8 +455,9 @@ fn cube_beyond(m: [f64; 3], side: f64) -> AtRestBody<f64> {
 /// vertices on one point key, which no record states. Each carries one
 /// `VertexFusion` row, the prism's corner on the cube's bottom face, in
 /// either operand order. The prism minus the cube keeps one vertex there
-/// and records nothing. Red if a vertex identity no surviving record
-/// cites is dropped though the result pinches at it.
+/// and records the same decision: a row is the decision, whatever the
+/// result made of the vertex. Red if a vertex identity no surviving
+/// record cites is dropped.
 #[test]
 fn a_pinch_records_the_vertex_identity_that_made_it() {
     let prism = topo::test_support::prism::<f64>(
@@ -553,10 +561,16 @@ fn a_pinch_records_the_vertex_identity_that_made_it() {
         1,
         "the subtraction keeps one vertex there"
     );
-    assert_eq!(
-        vertex_rows(&r),
-        [],
-        "the subtraction records no vertex identity"
+    let rows = vertex_rows(&r);
+    assert!(
+        matches!(
+            rows.as_slice(),
+            [c] if c.cells == [
+                RowCell::Input { input: Operand::A, cell: Cell::Vertex(corner) },
+                RowCell::Input { input: Operand::B, cell: Cell::Face(bottom) },
+            ]
+        ),
+        "the subtraction records the corner on the cube's bottom: {rows:?}"
     );
 }
 
@@ -639,22 +653,18 @@ fn built(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>) -> Boole
     }
 }
 
-/// **Copies an operand already held on one key record no pinch row**
-/// (`boolean::reduce::PendingRow`): the prism's intersection with the
-/// cube is two lobes on one point key at the corner. Cut by a halfspace
-/// whose face passes through the corner, at three normals where both
-/// lobes stay, in either operand order, the result keeps the two copies
-/// on one key and records no `VertexFusion` row: every vertex there
-/// descends from a copy the operand held. Where the union with the
-/// halfspace at `(−1, −1, 0)` puts a vertex of its own on that key
-/// beside an inherited copy, the op made that pinch and records it. Red
-/// if the skip is dropped (the intersections emit the corner's row) or
-/// widened to any key an inherited copy is on (the union emits none).
-/// Whether a decision onto this op's face at an inherited pinch is owed
-/// a row is open
-/// (`work/contacthold/an-inherited-pinch-decided-onto-the-ops-face-records-nothing.md`).
+/// **A decision onto an op's face at copies an operand already held is
+/// a row** (`boolean::reduce::PendingRow`): the prism's intersection
+/// with the cube is two lobes on one point key at the corner. Cut by a
+/// halfspace whose face passes through the corner, at three normals
+/// where both lobes stay, in either operand order, the result keeps the
+/// two copies on one key and records the copies decided onto the
+/// halfspace's face; so does the union with the halfspace at
+/// `(−1, −1, 0)`, which puts a vertex of its own on that key beside an
+/// inherited copy. Red if a decision is dropped because the copies were
+/// the operand's.
 #[test]
-fn copies_an_operand_already_held_on_one_key_record_no_pinch_row() {
+fn a_decision_at_copies_an_operand_already_held_is_a_row() {
     let pinched = built(
         "the two lobes",
         topo::intersect(&ell(), &cube_beyond([1.0, 1.3, 0.7], 4.0), tol()),
@@ -674,7 +684,10 @@ fn copies_an_operand_already_held_on_one_key_record_no_pinch_row() {
                 keys.len() == 2 && keys[0] == keys[1],
                 "{what}: both copies stay on one key: {keys:?}"
             );
-            assert_eq!(rows, 0, "{what}: copies the operand held record no row");
+            assert!(
+                rows > 0,
+                "{what}: the copies decided onto the face record rows"
+            );
         }
     }
     let half = cube_beyond([-1.0, -1.0, 0.0], 8.0);

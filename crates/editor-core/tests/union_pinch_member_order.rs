@@ -1579,3 +1579,97 @@ fn a_prism_crossing_one_wedge_about_the_line_publishes_one_table_in_every_member
         }
     }
 }
+
+/// Two boxes whose union has a concave seam along the z axis, and a
+/// prism whose diagonal face holds that seam over its height.
+fn pencil(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, a) = block(doc, (-1.0, 1.0), (-1.0, 0.0), 0.0, 2.0);
+    let (doc, b) = block(doc, (0.0, 1.0), (-1.0, 1.0), 0.3, 1.4);
+    let (doc, c) = prism(doc, &[(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5)], 0.6, 0.8);
+    (doc, vec![a, b, c])
+}
+
+/// **A face through a seam is a decision of the step that meets it**:
+/// folding the prism into the boxes' union decides the seam edge on the
+/// prism's two diagonal rim edges, and records both, though no contact
+/// record of the result cites them.
+#[test]
+fn a_face_through_a_seam_is_recorded_by_the_step_that_meets_it() {
+    for order in [[0, 1, 2], [1, 0, 2]] {
+        let (doc, m) = pencil(ProfileDoc::empty_derived("pencil", Tol::witness()));
+        let ev = run(&doc);
+        let operand = |i: usize| {
+            sweep::test_support::finished("member", body_of(&ev, m[i]).clone(), Tol::witness())
+        };
+        let joined = match topo::union(&operand(order[0]), &operand(order[1]), Tol::witness()) {
+            Ok(topo::BooleanResult::Body(out)) => out.body,
+            other => panic!("{order:?}: the boxes join: {other:?}"),
+        };
+        let Ok(topo::BooleanResult::Body(out)) =
+            topo::union(&joined, &operand(order[2]), Tol::witness())
+        else {
+            panic!("{order:?}: the prism folds in");
+        };
+        let seam: Vec<_> = out
+            .coincidences
+            .iter()
+            .map(|c| (c.site, c.relation, c.cells))
+            .collect();
+        let [first, second] = seam.as_slice() else {
+            panic!("{order:?}: the step records the seam on both rim edges: {seam:?}");
+        };
+        for (site, relation, cells) in [first, second] {
+            assert!(
+                *site == topo::DecisionSite::VertexFusion
+                    && *relation == topo::Relation::OnCarrier
+                    && matches!(
+                        cells,
+                        [
+                            topo::RowCell::Input {
+                                input: topo::Operand::A,
+                                cell: topo::Cell::Edge(_)
+                            },
+                            topo::RowCell::Input {
+                                input: topo::Operand::B,
+                                cell: topo::Cell::Edge(_)
+                            },
+                        ]
+                    ),
+                "{order:?}: a seam edge on a rim edge: {seam:?}"
+            );
+        }
+        assert!(
+            first.2[0] == second.2[0] && first.2[1] != second.2[1],
+            "{order:?}: one seam, two rim edges: {seam:?}"
+        );
+    }
+}
+
+/// **Two wedges overlapping about one line publish their apex rows**:
+/// each wedge's apex corner lies on the other's apex edge, and the
+/// two-member union records both, in either list order.
+#[test]
+fn two_wedges_overlapping_about_one_line_publish_their_apex_rows() {
+    for order in [[1, 3], [3, 1]] {
+        let (doc, m) = crossing_one_wedge(ProfileDoc::empty_derived("wedges", Tol::witness()));
+        let (doc, u) = crate::fixture::union_over(doc, &[m[order[0]], m[order[1]]]);
+        let ev = run(&doc);
+        if let Some(e) = failure(&ev, u) {
+            panic!("{order:?}: refused: {e:?}");
+        }
+        let rows: Vec<String> = ev
+            .value(u)
+            .expect("the union evaluates")
+            .coincidences
+            .iter()
+            .map(|r| format!("{:?} {:?} {:?}", r.site, r.relation, r.cells))
+            .collect();
+        assert!(
+            rows.len() == 2
+                && rows.iter().all(|r| r.starts_with("VertexFusion OnCarrier")
+                    && r.contains("CapVertex(")
+                    && r.contains("LateralEdge(")),
+            "{order:?}: each apex corner on the other's apex edge: {rows:#?}"
+        );
+    }
+}

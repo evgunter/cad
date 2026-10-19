@@ -187,3 +187,53 @@ fn a_sphere_cut_in_refuses_only_where_its_rows_are_filed() {
         }
     }
 }
+
+/// **The cap's rows name the lens's own cells**: the kernel cuts the
+/// lens's top face along a meridian before the op, and the cap decides
+/// the section circle's crossings of that meridian on the brick's near
+/// face. Each row names the cell of the lens the cut lies in, the face
+/// it divided, never the cut, which no input holds. Red if a row names
+/// a cell the cut minted.
+#[test]
+fn the_caps_rows_name_the_lenss_own_cells() {
+    for lens_first in [true, false] {
+        let (doc, [lens, brick, _]) = document("intersect", lens_first);
+        let ev = run(&doc);
+        let operand = |id| {
+            sweep::test_support::finished(
+                "operand",
+                crate::corpus::body_of(&ev, id).clone(),
+                Tol::witness(),
+            )
+        };
+        let (lens, brick) = (operand(lens), operand(brick));
+        let (a, b) = if lens_first {
+            (&lens, &brick)
+        } else {
+            (&brick, &lens)
+        };
+        let Ok(topo::BooleanResult::Body(cap)) = topo::intersect(a, b, Tol::witness()) else {
+            panic!("lens first {lens_first}: the cap builds");
+        };
+        let holds = |input: topo::Operand, cell: topo::Cell| {
+            let body = if input == topo::Operand::A { a } else { b };
+            match cell {
+                topo::Cell::Vertex(v) => body.vertices().any(|(k, _)| k == v),
+                topo::Cell::Edge(e) => body.edges().any(|(k, _)| k == e),
+                topo::Cell::Face(f) => body.faces().any(|(k, _)| k == f),
+            }
+        };
+        assert!(
+            !cap.coincidences.is_empty()
+                && cap
+                    .coincidences
+                    .iter()
+                    .all(|c| c.cells.iter().all(|end| matches!(
+                        *end,
+                        topo::RowCell::Input { input, cell } if holds(input, cell)
+                    ))),
+            "lens first {lens_first}: every row names an input's cell: {:?}",
+            cap.coincidences
+        );
+    }
+}
