@@ -1234,7 +1234,7 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
         let (_, nv) = self.control_counts();
         let mut cols = Vec::with_capacity(nv);
         let mut new_knots_u = self.knots_u.clone();
-        let kv = spline::point_knots(&self.knots_u)?;
+        let kv = spline::plan_inputs::point_knots(&self.knots_u)?;
         for iv in 0..nv {
             let col = self.u_column(iv);
             let plans = build(kv, &col.channel)?;
@@ -1343,7 +1343,7 @@ impl<T: ProjectiveScalar> NurbsSurface<T> {
             for iv in 0..nv {
                 let col = cur.u_column(iv);
                 let steps = spline::algebra::remove_knot_plan(
-                    spline::point_knots(&cur.knots_u)?,
+                    spline::plan_inputs::point_knots(&cur.knots_u)?,
                     &col.channel,
                     u,
                     1,

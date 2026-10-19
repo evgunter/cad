@@ -185,13 +185,29 @@ fn node_error_payload(e: &pncad::document::NodeErrorKind) {
     }
 }
 
-// `DuplicateName` — the refusal of `NameTable::insert` — is
+// `SeatingRefusal` — the refusal of `NameTable::insert` — is
 // re-exported at `editor_core`'s root and carried beside `NameTable`
-// by `pncad::select`. Destructuring it by a `pncad::` path is
-// what "nameable" means here; the field's type is named too, so the
-// whole payload has a writable path and not just the outer struct.
-fn duplicate_name_payload(e: &pncad::select::DuplicateName) {
-    named::<&StableName>(&e.name);
+// by `pncad::select`, with both its payloads. Destructuring it by a
+// `pncad::` path is what "nameable" means here; the fields' types are
+// named too, so the whole payload has a writable path and not just
+// the outer type.
+fn seating_refusal_payload(e: &pncad::select::SeatingRefusal) {
+    match e {
+        pncad::select::SeatingRefusal::Duplicate(d) => {
+            named::<&pncad::select::DuplicateName>(d);
+            named::<&StableName>(&d.name);
+        }
+        pncad::select::SeatingRefusal::KindMismatch(k) => {
+            named::<&pncad::select::KindMismatch>(k);
+            named::<&StableName>(&k.name);
+            named::<&pncad::select::EntityKind>(&k.found);
+        }
+        pncad::select::SeatingRefusal::ShortTie(t) => {
+            named::<&pncad::select::ShortTie>(t);
+            named::<&StableName>(&t.name);
+            named::<&usize>(&t.candidates);
+        }
+    }
 }
 
 // The display/export crates carry topo entity keys.
@@ -1007,7 +1023,7 @@ fn cross_crate_error_payloads_are_nameable_through_the_facade() {
     named(skin_payload as fn(&pncad::sweep::SkinError));
     named(fit_payload as fn(&pncad::geom::FitError));
     named(node_error_payload as fn(&pncad::document::NodeErrorKind));
-    named(duplicate_name_payload as fn(&pncad::select::DuplicateName));
+    named(seating_refusal_payload as fn(&pncad::select::SeatingRefusal));
     named(tessellate_payload as fn(&TessellateError));
     named(step_export_payload as fn(&StepExportError));
     named(step_import_payload as fn(&StepImportError));

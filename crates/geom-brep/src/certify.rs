@@ -68,7 +68,7 @@ use crate::dihedral::{
 };
 use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
-use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
+use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve_over};
 use crate::recourse::{
     Classified, NoSize, ReadAt, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
     Unsized,
@@ -700,7 +700,7 @@ impl core::fmt::Display for CertifyError {
             ),
             Self::WindingExceeded => write!(
                 f,
-                "a periodic (circle/ellipse) carrier's parameter interval \
+                "a periodic carrier's parameter interval \
                  spans more than one full period — |t₁ − t₀| ≤ τ is required to close the \
                  sample-schedule winding alias (8kτ family)"
             ),
@@ -3219,7 +3219,14 @@ fn run_checks<T: Decide>(
                 // D4, the minted half: an analytic chart's image is
                 // derived from the carrier through the one door that
                 // derives chart images anywhere in this kernel.
-                None => chart_pcurve(&spec.carrier, surface, band).map_err(|e| match e {
+                None => chart_pcurve_over(
+                    &spec.carrier,
+                    spec.param_start,
+                    spec.param_end,
+                    surface,
+                    band,
+                )
+                .map_err(|e| match e {
                     // The mint runs ONCE, before the schedule, so the
                     // sample field carries the not-a-sample sentinel:
                     // reporting `0` would name a schedule point that

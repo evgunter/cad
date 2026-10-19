@@ -1848,7 +1848,8 @@ FAMILIES: dict[str, str] = {
 #: `ProgramTarget`, `ProgramArcData`, `StepArg`): the PATHS lattice
 #: hands `Node.profile` a `ClosedLoop` and the program is built inside
 #: Rust, so no Python value is ever one of these. The naming table and
-#: its provenance payloads (`NameTable`, `DuplicateName`,
+#: its provenance payloads (`NameTable`, `SeatingRefusal`,
+#: `DuplicateName`, `KindMismatch`, `ShortTie`,
 #: `ProfileEdgeRef`, `ProfileVertexRef`, `edge_name`, `face_name` —
 #: key-to-name inversions with no key to invert), the declared-contact
 #: interior (`DeclaredContact`, `ContactVerdict`, `ContactRefusal`,
@@ -2850,6 +2851,9 @@ NOT_BOUND = {
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
+    "KindMismatch": INTERIOR,
+    "SeatingRefusal": INTERIOR,
+    "ShortTie": INTERIOR,
     # What an edge's locus IS, read back off a certified carrier.
     # Python holds an opaque `Body` handle and no door on it answers a
     # description, so nothing here is a thing Python can read.

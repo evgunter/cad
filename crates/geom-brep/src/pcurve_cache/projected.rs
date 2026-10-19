@@ -1172,6 +1172,25 @@ pub(crate) fn project<T: Decide>(
     image.breaks = breaks_vector(&breaks);
     image.azimuth = azimuth;
     image.tube = tube;
+    // C4's placement: the deck origin names the image's azimuth, and on
+    // a torus its tube angle, in the principal window at the span's
+    // midpoint, so where the carrier's parameter starts moves no image;
+    // each levered by `Placement`'s one rule.
+    let place = span.map_or_else(
+        || super::Placement::own(carrier, surface),
+        |span| super::Placement::over(span, carrier, surface),
+    );
+    let at = image.eval(place.mid());
+    let deck = |along, angle: T| {
+        Ok::<_, PcurveCertifyError>(match place.turns(along, angle, band)? {
+            0 => T::zero(),
+            k => super::Period::new(T::tau()).times(-k),
+        })
+    };
+    image.u_off = deck(super::Along::Azimuth, at.x)?;
+    if matches!(image.chart, ProjectedChart::Torus { .. }) {
+        image.v_off = deck(super::Along::Tube, at.y)?;
+    }
     Ok(image)
 }
 
@@ -2194,6 +2213,11 @@ pub(super) fn run_projected_checks<T: Decide>(
     if curved {
         // The period gate reads the sweep on a cover finer than the
         // pieces (`ProjectedImage::sweep_box`); the arms read the box.
+        // This lane keeps the gate the closed-form lanes dropped: their
+        // span past a period is bounded by the edge certificate's
+        // `interval_span_winding`, which counts a carrier's turns, and a
+        // spline carrier's parameter is no angle, so it has no turns to
+        // count (`work/pcert/projected-period-gate-stands-in-for-a-winding-bound-a-spline-carrier-has-none.md`).
         let (u_arm, _) = super::chart_arms_at(surface, &boxed)?;
         let swept = image.sweep_box(t0, t1);
         let mut gates = vec![(
