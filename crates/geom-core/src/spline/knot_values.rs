@@ -48,24 +48,51 @@ pub struct KnotSpan<'a, T> {
 }
 
 impl<T: SpanLocate> Knots<T> {
+    /// **The vector a knot-algebra plan is decided against** (C6 S5b):
+    /// each run's value where it is a point, so at point knots it is
+    /// the knots' own `f64` vector, bit for bit; and where a run is wider
+    /// than a point, the midpoint of its bracket, a stand-in that orders
+    /// as the run does for every member: runs certified to ascend
+    /// ([`Self::new`]) have disjoint brackets, so their midpoints ascend
+    /// too. A plan made against it has the right schedule (its steps
+    /// name the runs by index, and the appliers at a scalar read the held
+    /// values); its `f64` reference values are a stand-in's, which the
+    /// plan's holder marks (`plan_inputs`). `None` for a poison run,
+    /// which [`Self::new`] refuses.
+    #[must_use]
+    pub fn plan_proxy(&self) -> Option<KnotVector> {
+        if let Some(point) = &self.point {
+            return Some(point.clone());
+        }
+        let mut knots = Vec::with_capacity(self.values.len());
+        for (value, m) in self.runs() {
+            let (lo, hi) = value.structure_bracket()?;
+            knots.extend(core::iter::repeat_n(0.5 * lo + 0.5 * hi, m));
+        }
+        Some(KnotVector::from_algebra(knots, self.degree()))
+    }
+
     /// These knots carried onto `structure`, the vector a knot-algebra
-    /// plan made of this one: a breakpoint `structure` shares with this
-    /// vector (bit-equal value channel) keeps its held value, so it
-    /// stays one quantity through the operation, and a new one is
-    /// `fresh(v)`, the caller's entry of the value it inserted. The
-    /// plans run on point knots (C6 S4 takes the enclosure algebra).
+    /// plan made of this one ([`Self::plan_proxy`]'s): a breakpoint
+    /// `structure` shares with that vector (bit-equal) keeps its held
+    /// value, so it stays one quantity through the operation, and a new
+    /// one is `fresh(v)`, the caller's entry of the value it inserted.
     ///
     /// # Panics
     ///
     /// When `fresh` moves a new breakpoint's point: the structure would
-    /// no longer be the values' value channel. And on knots that are
-    /// not all points ([`Self::structure_f64_interim`]).
+    /// no longer be the values' value channel. And on knots with a
+    /// poison run, which [`Self::new`] refuses.
     #[must_use]
     #[track_caller]
+    #[allow(clippy::panic)]
     pub fn restructure(&self, structure: KnotVector, fresh: impl Fn(f64) -> T) -> Self {
+        let Some(proxy) = self.plan_proxy() else {
+            panic!("Knots::restructure: a poison run, which Knots::new refuses")
+        };
         let held: Vec<(f64, T)> = {
             let mut at = 0;
-            self.structure_f64_interim()
+            proxy
                 .knot_runs()
                 .map(|(v, m)| {
                     let value = self.values[at];
@@ -94,9 +121,15 @@ impl<T: SpanLocate> Knots<T> {
             };
             values.extend(core::iter::repeat_n(value, m));
         }
+        // The vector is the values' own only where every one is a point;
+        // over a wide run it is a stand-in's.
+        let point = values
+            .iter()
+            .all(|v| v.point_value().is_some())
+            .then_some(structure.clone());
         Self {
             structure: structure.structure().clone(),
-            point: Some(structure),
+            point,
             values,
         }
     }

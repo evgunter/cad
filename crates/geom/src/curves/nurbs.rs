@@ -837,8 +837,7 @@ macro_rules! nurbs_curve {
             /// inserted weight rounds out of the positive regime (both
             /// blend terms underflowing, on subnormal weights).
             pub fn insert_knot(&self, u: f64, times: usize) -> Result<Self, KnotAlgebraError> {
-                let (kv, w) = spline::point_inputs(&self.knots, &self.weights)?;
-                let plans = spline::algebra::insert_knot_plan(kv, w, u, times)?;
+                let plans = spline::plan_inputs::insert_knot_plan(&self.knots, &self.weights, u, times)?;
                 self.apply_plans(&plans, &Self::inserted)
             }
 
@@ -861,13 +860,20 @@ macro_rules! nurbs_curve {
             /// [`KnotAlgebraError::WeightCollapse`] included
             /// ([`Self::insert_knot`]).
             pub fn split_at(&self, u: f64) -> Result<(Self, Self), KnotAlgebraError> {
-                let kv = spline::point_knots(&self.knots)?;
-                let p = kv.degree();
-                let (d0, d1) = kv.domain();
+                let p = self.knots.degree();
+                // The decisions read `u` against the held knots, certified
+                // for every member (`spline::plan_inputs`); the domain's ends
+                // against the vector the plans are decided on.
+                let have = spline::plan_inputs::multiplicity(&self.knots, u)?;
+                let proxy = |k: &Knots<T>| {
+                    k.plan_proxy().ok_or(KnotAlgebraError::Structure(SplineError::KnotIsPoison {
+                        index: k.first_wide_run().unwrap_or(0),
+                    }))
+                };
+                let (d0, d1) = proxy(&self.knots)?.domain();
                 if !u.is_finite() || !(u > d0 && u < d1) {
                     return Err(KnotAlgebraError::ParameterOutsideDomain { u });
                 }
-                let have = kv.multiplicity_of(u).map_or(0, |(m, _)| m);
                 let full = if have < p {
                     self.insert_knot(u, p - have)?
                 } else {
@@ -876,7 +882,8 @@ macro_rules! nurbs_curve {
                 // First occurrence of `u` in the saturated vector
                 // (multiplicity is exactly `p` there). Present by
                 // construction; `ok_or` keeps the path total.
-                let knots = spline::point_knots(&full.knots)?.knots();
+                let saturated = proxy(&full.knots)?;
+                let knots = saturated.knots();
                 let f = knots
                     .iter()
                     .position(|k| *k == u)
@@ -918,8 +925,7 @@ macro_rules! nurbs_curve {
             /// As [`Self::insert_knot`], against the cumulative
             /// structure, [`KnotAlgebraError::WeightCollapse`] included.
             pub fn refine_knots(&self, add: &[f64]) -> Result<Self, KnotAlgebraError> {
-                let (kv, w) = spline::point_inputs(&self.knots, &self.weights)?;
-                let plans = spline::algebra::refine_plan(kv, w, add)?;
+                let plans = spline::plan_inputs::refine_plan(&self.knots, &self.weights, add)?;
                 self.apply_plans(&plans, &Self::inserted)
             }
 
@@ -949,7 +955,7 @@ macro_rules! nurbs_curve {
                 let curves: Vec<&Self> = curves.into_iter().collect();
                 let vectors: Vec<&KnotVector> = curves
                     .iter()
-                    .map(|c| spline::point_knots(&c.knots))
+                    .map(|c| spline::plan_inputs::point_knots(&c.knots))
                     .collect::<Result<_, _>>()?;
                 curves
                     .iter()
@@ -983,8 +989,7 @@ macro_rules! nurbs_curve {
             /// removal chain writes, or one its reinsertion writes,
             /// out of the positive regime.
             pub fn remove_knot(&self, u: f64, times: usize) -> Result<(Self, T), KnotAlgebraError> {
-                let (kv, w) = spline::point_inputs(&self.knots, &self.weights)?;
-                let steps = spline::algebra::remove_knot_plan(kv, w, u, times)?;
+                let steps = spline::plan_inputs::remove_knot_plan(&self.knots, &self.weights, u, times)?;
                 let mut cur = self.clone();
                 let mut bound = T::zero();
                 for step in &steps {
@@ -1510,8 +1515,7 @@ macro_rules! nurbs_curve {
             pub fn elevate_degree(&self, raise: usize) -> Result<Self, KnotAlgebraError> {
                 let mut cur = self.clone();
                 for _ in 0..raise {
-                    let (kv, w) = spline::point_inputs(&cur.knots, &cur.weights)?;
-                    let plans = spline::algebra::elevate_plan(kv, w)?;
+                    let plans = spline::plan_inputs::elevate_plan(&cur.knots, &cur.weights)?;
                     cur = cur.apply_plans(&plans, &Self::inserted)?;
                 }
                 Ok(cur)

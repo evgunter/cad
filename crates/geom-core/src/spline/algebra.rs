@@ -95,6 +95,19 @@ pub enum KnotAlgebraError {
         /// The requested removal count.
         requested: usize,
     },
+    /// At an enclosure scalar, whether a parameter the operation
+    /// inserts or removes is a breakpoint, or in which span it lies, is
+    /// not the same for every member: run `run`'s bracket holds `u`
+    /// (C6 S5b). The margin is `u`'s distance to that bracket; knots
+    /// narrow enough that it clears zero lift the refusal.
+    ParameterUndecided {
+        /// The parameter.
+        u: f64,
+        /// The run whose bracket holds it.
+        run: usize,
+        /// `u`'s distance to that run's bracket, as read.
+        margin: crate::MarginDiag,
+    },
     /// A plan wrote a non-positive or non-finite weight: a removal
     /// chain left the positive-weight regime, or an insertion's or
     /// elevation's combination of two positive weights rounded to zero
@@ -153,6 +166,14 @@ impl core::fmt::Display for KnotAlgebraError {
                 f,
                 "removing knot {} {requested} times exceeds its multiplicity {have}. \
                  Recourse: ask for at most {have} removals of it",
+                Readable(*u)
+            ),
+            KnotAlgebraError::ParameterUndecided { u, run, margin } => write!(
+                f,
+                "whether knot parameter {} is a breakpoint, or in which span it lies, is \
+                 undecided over the values the knots stand for: breakpoint {run}'s enclosure \
+                 is {margin} from it. Recourse: supply knots narrow enough that the \
+                 parameter clears that breakpoint, or a parameter that does",
                 Readable(*u)
             ),
             KnotAlgebraError::WeightCollapse { index } => write!(
@@ -279,9 +300,32 @@ pub struct CurvePlan {
     knots: KnotVector,
     weights: Vec<f64>,
     steps: Vec<Step>,
+    /// Whether the plan's `f64` values (its knot vector's values, its
+    /// weights, each step's `λ` and ring ingredients) are its inputs'
+    /// own. A plan decided against a stand-in vector for wide held knots
+    /// ([`super::Knots::plan_proxy`], C6 S5b) has the right schedule and
+    /// structure but a stand-in's values, so the appliers that read them
+    /// ([`Self::apply_points`], [`Self::apply_certified`]) refuse it;
+    /// the appliers at a scalar read the held values and run it.
+    reference: bool,
 }
 
 impl CurvePlan {
+    /// This plan marked as decided against a stand-in vector (the
+    /// `reference` field's docs).
+    pub(super) fn without_reference(mut self) -> Self {
+        self.reference = false;
+        self
+    }
+
+    /// Whether the plan's `f64` values are its inputs' own (the
+    /// `reference` field's docs): a plan decided against point knots and
+    /// weights.
+    #[must_use]
+    pub fn is_reference(&self) -> bool {
+        self.reference
+    }
+
     /// The knot vector after this plan.
     pub fn knots(&self) -> &KnotVector {
         &self.knots
@@ -313,6 +357,9 @@ impl CurvePlan {
         lerp: impl Fn(P, P, f64) -> P,
     ) -> Vec<P> {
         let n_new = self.knots.control_count();
+        if !self.reference {
+            return vec![poison; n_new];
+        }
         let mut new: Vec<Option<P>> = vec![None; n_new];
         let fetch = |new: &[Option<P>], s: Src| -> Option<P> {
             match s {
@@ -489,6 +536,9 @@ impl CurvePlan {
     /// channel of the wrong length refuses its targets. The refusal
     /// then flows through every hull the caller reads.
     pub fn apply_certified(&self, old: &[Interval]) -> Vec<Interval> {
+        if !self.reference {
+            return vec![Interval::refused(); self.knots.control_count()];
+        }
         self.apply_ratios(old, Interval::refused(), |x, y, r, form| {
             Some(match form {
                 Form::Blend(_) => boehm_step(x, y, r.lo, r.hi, r.inserted),
@@ -722,6 +772,7 @@ fn insert_once(
         knots: new_kv,
         weights: new_w,
         steps,
+        reference: true,
     })
 }
 
@@ -1277,6 +1328,7 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
         knots: new_kv,
         weights: new_w,
         steps,
+        reference: true,
     })
 }
 
@@ -1397,6 +1449,7 @@ fn elevate_bezier_stage(kv: &KnotVector, weights: &[f64]) -> Result<CurvePlan, K
         knots: new_kv,
         weights: new_w,
         steps,
+        reference: true,
     })
 }
 
