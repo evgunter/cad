@@ -96,6 +96,8 @@ Closes the placement half of `a-boxed-rotation-refuses-not-rigid-at-every-placer
 - `m10_di_dual_corpus`: die_composed_tour has 16 undecided touches at Interval. The mechanism was not found.
 - **Design-level, needs a ruling:** `drive_and_report(1 link, f=1)` certifies 0 leaves, so `demo-tour certified` fails. At the nominal, link 1 is at rest and the witness places it by no map, deciding no transforms. Every leaf off θ = 0 moves it, so the decision lists differ and the drive refuses `flip_crossing`. Under C-5's rest snap plus "the identity is placed by no map", a toleranced placement whose nominal is at rest cannot certify in the drive; before D, the Transform node always ran. Sent to the orchestrator.
 
+**Ruling on the at-rest drive (orchestrator, 2026-10-19): (a).** C-5 is narrowed: snap only when the bundle reads no variable. A placement whose bundle reads a toleranced or free variable always runs its map. Apply this in the next lane; it should clear `demo-tour certified`'s 1-link chain.
+
 **Known reds at the full-suite run on `ea25544a9a`:** 68 editor-core failures, listed with their owners above. pncad's 2 are re-bless. The viewer `--test all` suite needs a re-run (the 17 gallery_ring goldens are re-bless). The viewer's 2 lib reds are the GPU tests (no adapter). `every_suite_file_is_aggregated` fails only because of the local `zz_*` probe roots.
 
 **Uncommitted:** nothing. The local `zz_*` probe roots and their `Cargo.toml` entries were removed at handoff, so `every_suite_file_is_aggregated` passes again.
