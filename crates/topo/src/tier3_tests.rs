@@ -1881,8 +1881,9 @@ fn revert_maps_the_legal_cusp_to_the_legal_slit() {
 ///   conventional line both edges carry;
 /// - osculating (radii 1 and 1) — conformal along the locus, the
 ///   lamina the material arm does not admit;
-/// - in-band (κ_rel = 6ε on a unit arm, so the sagitta margin is 3ε
-///   at every CI ε row) — the honest escalation, naming
+/// - in-band (κ_rel = 24ε levered at the faces' reach, half the
+///   seam, so the sagitta margin is 3ε at every CI ε row) — the
+///   honest escalation, naming
 ///   `tangent_second_order`, and NOT a refusal: ε-tightening escalates
 ///   an edge, it never flips a valid body to invalid.
 #[test]
@@ -1904,7 +1905,7 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
             .all(|e| matches!(e, ValidationError::LaminaWedge { .. })),
         "{osculating:?}"
     );
-    let (in_band, _) = kissing_cylinder_pillow(tol, 1.0 / (1.0 - 6.0 * eps));
+    let (in_band, _) = kissing_cylinder_pillow(tol, 1.0 / (1.0 - 24.0 * eps));
     assert!(
         in_band.iter().all(|e| matches!(
             e,
@@ -2020,7 +2021,10 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
         origin: Point3::new(0.0, 0.0, 0.0),
         dir: Vec3::unit_y(),
     };
-    let extent = geom_brep::edge_extent(&carrier, 0.0, 1.0, 1.0);
+    // The pillow's two faces are bounded by its two coincident seams, so
+    // each reaches half a seam from the seam's middle: the wedge's
+    // reach tier 3 reads (`crate::wedge_reach`).
+    let reach = 0.5;
     let rule = |r2: f64| {
         must_carry_over_edge(
             &cylinder(1.0),
@@ -2028,7 +2032,7 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
             &carrier,
             0.0,
             1.0,
-            extent,
+            reach,
             band,
         )
     };
@@ -2060,7 +2064,7 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
         "osculating: tier 3 reads the same under-determination as a lamina: {tier3:?}"
     );
 
-    let r2 = 1.0 / (1.0 - 6.0 * eps);
+    let r2 = 1.0 / (1.0 - 24.0 * eps);
     let (tier3, _) = kissing_cylinder_pillow(tol, r2);
     assert!(
         matches!(
@@ -2465,9 +2469,9 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
         cause: stop.cause,
     };
     let lead = "which side of an edge the material of its two smoothly meeting faces lies on \
-                is undecided. Recourse: move the geometry so that edge is clearly longer and no \
-                face curves tightly there, or, if this length is intended, tighten the tolerance \
-                below ";
+                is undecided. Recourse: move the geometry so that edge's faces clearly run farther \
+                and none curves tightly there, or, if this length is intended, tighten the \
+                tolerance below ";
     let sin42 = 42.0_f64.to_radians().sin();
     let cos30 = 30.0_f64.to_radians().cos();
     for (label, degrees, offered) in [
@@ -3444,8 +3448,9 @@ mod line_conic_review {
     /// through the apex touches the post there and nowhere else (above
     /// the cap on one side of the apex, outside the wall on the other).
     /// Pass 4 reads the touch as `OnEdge` of the cap and reports nothing,
-    /// pass 5 never sees the arc, and the cross-solid backstop is what
-    /// refuses.
+    /// pass 5 never sees the arc, and the cross-solid backstop refuses;
+    /// pass 5′ reads the touch itself, the rim's and the wedge edge's
+    /// interiors meeting with no record.
     #[test]
     fn a_wedge_edge_touching_the_rim_transversally_never_validates_clean() {
         let (mut body, cap) = post();
@@ -3474,12 +3479,19 @@ mod line_conic_review {
             )),
             "the backstop holds the cap against the wedge: {errors:?}"
         );
-        assert!(
-            !errors
-                .iter()
-                .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
-            "no census lane reads the touch itself: {errors:?}"
-        );
+        let rim_touch = errors
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    ValidationError::UnrecordedContact {
+                        contact: crate::CensusContact::EdgeEdgeCross { side: None, .. },
+                        ..
+                    }
+                )
+            })
+            .count();
+        assert_eq!(rim_touch, 1, "pass 5′ reads the touch itself: {errors:?}");
     }
 }
 

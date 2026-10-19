@@ -353,11 +353,7 @@ fn a_rim_crossing_reaches_the_join() {
 /// plane's section of it is not a latitude circle, as charted about the
 /// cut's normal — and every op builds its closed form: the ball is
 /// centred on the cut plane, clear of the wall and the floor, so the
-/// drum holds exactly its lower half. The classification's at-infinity
-/// probe cannot measure the cut wall in closed form
-/// (`work/restread/at-infinity-probe-measures-in-closed-form-only.md`), so
-/// a probe ray that meets nothing is set aside and one that meets the
-/// boundary answers.
+/// drum holds exactly its lower half.
 #[test]
 fn a_ball_through_the_cut_face_clears_the_rim_and_builds() {
     let a = drum_lower();

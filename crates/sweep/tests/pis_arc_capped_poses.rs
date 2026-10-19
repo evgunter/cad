@@ -1350,7 +1350,8 @@ fn every_tilted_cut_wall_reads_its_truth() {
 /// face, is plainly `Out`: base (`ce256f0c23`) answers it, and the
 /// region's boundary pass must not refuse it on the carrier alone.
 /// (Review lane `cleave-review-4083-r1`; red at `1edb52efb0` with
-/// `Escalated { bool_sphere_region_arc_on }` at every in-band offset.)
+/// `Escalated { bool_sphere_region_arc_on }`, the arc's retired distance
+/// row, at every in-band offset.)
 #[test]
 fn a_point_in_band_of_a_meridians_continuation_reads_out() {
     let band = Band::linear(tol()).expect("the witness band");

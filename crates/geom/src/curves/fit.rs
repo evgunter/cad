@@ -14,7 +14,11 @@
 //! control bits), never routed through `k_stats` (no topology decision
 //! exists here), never consulted by topology (cache shape is invisible
 //! to predicates). Raw `f64` comparisons below are all structure
-//! selection under that rule.
+//! selection under that rule. The generic solve's refusals
+//! ([`interpolate_columns_in`]) read the value channel at a point
+//! scalar and hold for every value of a bracket at an enclosure scalar
+//! ([`geom_core::spline::structure_ascends`], [`Real::is_bounded`](geom_core::Real::is_bounded)):
+//! a refusal, never a choice among structures.
 //!
 //! # OUR bound semantics (not Eq. 9.77's)
 //!
@@ -325,12 +329,15 @@ fn check_degree(n: usize, degree: usize) -> Result<(), FitError> {
 /// The fit's parameterization rule, its one home: clamped `0 → 1` and
 /// strictly ascending, which is what makes the averaged knot vector
 /// valid and the collocation matrix nonsingular (Schoenberg–Whitney).
-/// `!(a < b)` is NaN-catching, so a NaN parameter refuses.
-fn check_ordered(params: &[f64]) -> Result<(), FitError> {
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    let ordered = params.first() == Some(&0.0)
-        && params.last() == Some(&1.0)
-        && params.windows(2).all(|w| w[0] < w[1]);
+/// The ends are the points `0` and `1`, and each step ascends for every
+/// value it stands for ([`geom_core::spline::structure_ascends`]): at `f64`
+/// that is `a < b`, which a NaN parameter fails.
+fn check_ordered<T: SpanLocate>(params: &[T]) -> Result<(), FitError> {
+    let ordered = params.first().and_then(|u| u.point_value()) == Some(0.0)
+        && params.last().and_then(|u| u.point_value()) == Some(1.0)
+        && params
+            .windows(2)
+            .all(|w| geom_core::spline::structure_ascends(w[0], w[1]));
     if ordered {
         Ok(())
     } else {
@@ -405,11 +412,17 @@ pub fn interpolate_columns(
 /// averaged knots (Book Eq. 9.8), the collocation rows and the banded
 /// solve are all formed in `T`, so a parameter or a datum that is a
 /// function of the variables gives knots and control rows that are
-/// functions of them too. The structure is read off the value channel
-/// ([`SpanLocate::point_value`]): the refusals are
-/// [`interpolate_columns`]', decided there, the span each parameter
-/// lies in is located there, and the banded solve refuses on it
-/// (`curves/banded.rs`). The arithmetic is [`interpolate_columns`]'s
+/// functions of them too. The refusals are [`interpolate_columns`]',
+/// decided for every value a datum or parameter stands for: a datum
+/// that is not finite ([`Real::is_bounded`](geom_core::Real::is_bounded)), a step that
+/// does not ascend ([`geom_core::spline::structure_ascends`]), and in the
+/// banded solve a pivot that is not certainly nonzero
+/// (`curves/banded.rs`). So at an enclosure scalar a datum or an
+/// interior parameter may be wider than a point. The averaged knots are
+/// a carrier's, and one wider than a point refuses
+/// ([`SplineError::CarrierKnotNotAPoint`]) before the collocation rows
+/// are formed: a row is one span's basis, and over a wide knot the
+/// members' spans differ. The arithmetic is [`interpolate_columns`]'s
 /// operation for operation (a unit weight's product `n · 1` is `n`,
 /// bit for bit), so at `f64` the two answer the same bits.
 ///
@@ -440,15 +453,11 @@ pub fn interpolate_columns_in<T: SpanLocate>(
                 found: row.len(),
             });
         }
-        if row
-            .iter()
-            .any(|v| !v.point_value().is_some_and(f64::is_finite))
-        {
+        if row.iter().any(|v| !v.is_bounded()) {
             return Err(FitError::NonFinitePoint { index });
         }
     }
-    let channel: Vec<f64> = params.iter().map(|u| u.value_channel()).collect();
-    check_ordered(&channel)?;
+    check_ordered(params)?;
     check_degree(n, degree)?;
     let knots = averaged_knots_in(params, degree)?;
     let (first, basis): (Vec<usize>, Vec<Vec<T>>) =
@@ -490,7 +499,13 @@ fn averaged_knots_in<T: SpanLocate>(params: &[T], degree: usize) -> Result<Knots
         Some((held, m)) if held.value_channel() == 1.0 => *m = m.saturating_add(degree + 1),
         _ => runs.push((T::one(), end)),
     }
-    Knots::new(runs, degree).map_err(FitError::Structure)
+    let knots = Knots::new(runs, degree).map_err(FitError::Structure)?;
+    if let Some(index) = knots.runs().position(|(v, _)| v.point_value().is_none()) {
+        return Err(FitError::Structure(SplineError::CarrierKnotNotAPoint {
+            index,
+        }));
+    }
+    Ok(knots)
 }
 
 /// [`rational_row`] at unit weights, in `T`: the basis values alive at
@@ -840,7 +855,7 @@ macro_rules! nurbs_fit {
                         // Collected: the body replaces `cur`, so the
                         // candidate list must outlive the borrow.
                         let candidates: Vec<f64> =
-                            cur.knots().interior_knots().map(|(u, _)| u).collect();
+                            cur.knots_f64_interim().interior_knots().map(|(u, _)| u).collect();
                         for u in candidates {
                             if attempts >= budget {
                                 return Err(FitError::BudgetExhausted {
@@ -922,7 +937,7 @@ macro_rules! nurbs_fit {
                 bound: f64,
                 tolerance: f64,
             ) -> Result<(Self, f64, Option<RefitSkip>), FitError> {
-                let n_ctrl = cur.knots().control_count();
+                let n_ctrl = cur.knots_f64_interim().control_count();
                 let n_data = points.len();
                 if n_ctrl > n_data || n_ctrl < 3 || n_data < 3 {
                     return Ok((cur, bound, Some(RefitSkip::StructureRicherThanData)));
@@ -931,7 +946,7 @@ macro_rules! nurbs_fit {
                 // in this vector and evaluates the basis through it, so
                 // the vector the span names should be the curve's own
                 // rather than a copy of it.
-                let kv = cur.knots();
+                let kv = cur.knots_f64_interim();
                 let weights = cur.weights().to_vec();
                 let q0 = points[0];
                 let qm = points[n_data - 1];
@@ -1073,7 +1088,11 @@ mod tests {
 
                 let collocation = Collocation::new(&params, degree).unwrap();
                 let on = NurbsCurve3::interpolate_on(&pts, &collocation).unwrap();
-                assert_eq!(on.knots(), curve.knots(), "factor-once knots, n = {n}");
+                assert_eq!(
+                    on.knots_f64_interim(),
+                    curve.knots_f64_interim(),
+                    "factor-once knots, n = {n}"
+                );
                 let on_bits: Vec<Vec<f64>> =
                     on.control().iter().map(|q| vec![q.x, q.y, q.z]).collect();
                 assert_eq!(bits(&on_bits), bits(&dense), "factor-once door, n = {n}");
@@ -1348,7 +1367,11 @@ mod tests {
         for degree in 1..=3 {
             let (kv, plain) = interpolate_columns(&params, degree, &rows).unwrap();
             let (held, in_t) = interpolate_columns_in(&params, degree, &rows).unwrap();
-            assert_eq!(held.structure().knots(), kv.knots(), "degree {degree}");
+            assert_eq!(
+                held.structure_f64_interim().knots(),
+                kv.knots(),
+                "degree {degree}"
+            );
             assert_eq!(bits(&in_t), bits(&plain), "degree {degree}");
         }
         // Averages that round onto one value: one run, repeated, as the
@@ -1358,7 +1381,11 @@ mod tests {
         let rows: Vec<Vec<f64>> = params.iter().map(|u| vec![*u, 1.0 - u]).collect();
         let (kv, plain) = interpolate_columns(&params, 2, &rows).unwrap();
         let (held, in_t) = interpolate_columns_in(&params, 2, &rows).unwrap();
-        assert_eq!(held.structure().knots(), kv.knots(), "a repeated average");
+        assert_eq!(
+            held.structure_f64_interim().knots(),
+            kv.knots(),
+            "a repeated average"
+        );
         assert_eq!(bits(&in_t), bits(&plain), "a repeated average");
     }
 }

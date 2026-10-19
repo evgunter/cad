@@ -44,7 +44,7 @@ Unprobed.
 
 It is the candidate witness for `SharedVertexCrossings`' fan arm (a
 null edge both of whose ways round hold another pair's cut,
-`work/fuse/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`):
+`work/gauge/shared-vertex-crossings-that-tie-or-interleave-are-unprobed.md`):
 a pair with four crossings, its In-arc wrapping the A orbit's first
 sector, pairs across the arcs outside its piece, and a piece in each
 of those arcs leaves neither way round clear. With two more corners

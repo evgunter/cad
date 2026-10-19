@@ -27,7 +27,7 @@ use crate::common::plate_index;
 
 use pncad::document::{Evaluation, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
-use pncad::select::{HitTestError, Resolution, RunCtx, resolve};
+use pncad::select::{HitTestError, Resolution, RunCtx};
 use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::input::{PickAction, ViewportSize};
@@ -194,7 +194,10 @@ fn every_drawn_edge_names_an_edge_that_resolves() {
         );
         let name = index.edge_name_of(*id).expect("a drawn edge has a name");
         assert!(
-            matches!(resolve(RunCtx { doc, eval }, name), Resolution::Resolved(_)),
+            matches!(
+                crate::fixture::resolve_at_mint(RunCtx { doc, eval }, name),
+                Resolution::Resolved(_)
+            ),
             "a just-drawn edge's name resolves in the run it was drawn from"
         );
         assert!(names.insert(name.clone()), "one name per drawn edge");

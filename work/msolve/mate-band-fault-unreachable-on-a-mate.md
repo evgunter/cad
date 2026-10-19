@@ -74,3 +74,9 @@ its ε and not its K, which is how a file authored where a band existed
 meets a process with none. The kernel half and the viewer half are one
 row: the loader asserts both. Nothing retired: the hand-built values
 in `display_contract.rs` and the Python arm table stand.
+
+2026-10-17: INTENT stage 3 C (`a-mate-relates-two-poses`) retired
+`MateFault::Band`: a run with no band refuses the placement as the
+node's own `NodeErrorKind::Band` (`eval/wire.rs`), so no mate fault
+names one, and the arm, its class word `mate_band` and the rows above
+are gone.

@@ -5,9 +5,11 @@
 //! ([`profile::ValidatedProfile::value_channel`]), and no section is
 //! validated again. At `f64` it is [`sweep::loft_body`] bit for bit; at
 //! `Dual64` its values are the caller's, derivatives included; at
-//! `Interval` a section or placement with no single point refuses by
-//! name.
+//! `Interval` a section or placement wider than a point encloses its
+//! family. A value that is not finite refuses by name at both doors.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common::enclosure::{assert_encloses, box_about};
 
 use geom::Surface;
 use geom_core::{Affine3, Decide, Dual64, Interval, Point2, Real, Tol, Vec3};
@@ -146,54 +148,112 @@ fn at_interval_a_point_polygon_lofts_on_its_value_channel() {
         Tol::witness(),
     )
     .expect("the f64 sections loft");
-    assert_eq!(lofted.section_params, nominal.section_params);
+    assert_eq!(
+        lofted
+            .section_params
+            .iter()
+            .map(|u| geom_core::spline::SpanLocate::point_value(*u))
+            .collect::<Vec<_>>(),
+        nominal
+            .section_params
+            .iter()
+            .map(|u| Some(*u))
+            .collect::<Vec<_>>()
+    );
     assert_eq!(wall_bits(&lofted), wall_bits(&nominal));
 }
 
-/// At `Interval` a section vertex wider than a point has no value
-/// channel to select the skin on, and refuses by name, naming its
-/// section. The vertex is one ulp wide: the section still validates at
-/// every tolerance row, since the validator's margins at that vertex
-/// widen by a few ulps and stay inside the zero band.
+/// At `Interval` a section vertex wider than a point lofts in `T`, and
+/// the walls hold the `f64` loft of every member sampled: the box's
+/// ends and its middle.
 #[test]
-fn at_interval_a_wide_section_refuses_as_section_not_a_point() {
+fn at_interval_a_wide_section_encloses_its_family() {
     let i = Interval::from_f64;
-    let wide = Interval::from_bounds(1.2, 1.2f64.next_up());
-    match loft_profiles::<Interval>(
+    let (lo, hi) = box_about(1.2);
+    let enclosing = loft_profiles::<Interval>(
         &[
             validated(i(1.0), i(0.0), i(0.0)),
-            validated(wide, i(0.0), i(1.0)),
+            validated(Interval::from_bounds(lo, hi), i(0.0), i(1.0)),
         ],
         1,
         Tol::witness(),
-    ) {
-        Err(LoftError::SectionNotAPoint { section: 1 }) => {}
-        other => panic!(
-            "expected section 1's not-a-point refusal, got {:?}",
-            other.map(|_| ())
-        ),
+    )
+    .expect("the wide polygon lofts at Interval");
+    for r in [lo, 1.2, hi] {
+        let sample = loft_profiles::<f64>(
+            &[validated(1.0, 0.0, 0.0), validated(r, 0.0, 1.0)],
+            1,
+            Tol::witness(),
+        )
+        .expect("each member lofts at f64");
+        assert_encloses(&format!("r = {r}"), &enclosing, &sample);
     }
 }
 
-/// At `Interval` a plane wider than a point refuses as the placement
-/// it is, before the sections are read.
+/// At `Interval` a plane wider than a point is a placement over a box,
+/// and the walls hold every sampled member's.
 #[test]
-fn at_interval_a_wide_plane_refuses_as_placement_not_a_point() {
+fn at_interval_a_wide_plane_encloses_its_family() {
     let i = Interval::from_f64;
-    match loft_profiles::<Interval>(
+    let (lo, hi) = box_about(1.0);
+    let enclosing = loft_profiles::<Interval>(
         &[
             validated(i(1.0), i(0.0), i(0.0)),
-            validated(i(1.2), i(0.0), Interval::from_bounds(0.99, 1.01)),
+            validated(i(1.2), i(0.0), Interval::from_bounds(lo, hi)),
         ],
         1,
         Tol::witness(),
+    )
+    .expect("the polygon on a wide plane lofts at Interval");
+    for z in [lo, 1.0, hi] {
+        let sample = loft_profiles::<f64>(
+            &[validated(1.0, 0.0, 0.0), validated(1.2, 0.0, z)],
+            1,
+            Tol::witness(),
+        )
+        .expect("each member lofts at f64");
+        assert_encloses(&format!("z = {z}"), &enclosing, &sample);
+    }
+}
+
+/// A section or placement holding a value that is not finite refuses
+/// by name at `loft_body`; a form validated over a plane that is not
+/// finite cannot exist, so none reaches `loft_profiles`.
+#[test]
+fn a_value_that_is_not_finite_refuses_by_name_at_both_doors() {
+    match loft_body::<f64>(
+        &[section(1.0, 0.0), section(f64::NAN, 0.0)],
+        &[at(0.0), at(1.0)],
+        1,
+        Tol::witness(),
     ) {
-        Err(LoftError::PlacementNotAPoint { section: 1 }) => {}
+        Err(LoftError::SectionNotFinite { section: 1 }) => {}
         other => panic!(
-            "expected section 1's placement refusal, got {:?}",
+            "loft_body: expected section 1's refusal, got {:?}",
             other.map(|_| ())
         ),
     }
+    match loft_body::<f64>(
+        &[section(1.0, 0.0), section(1.2, 0.0)],
+        &[at(0.0), at(f64::INFINITY)],
+        1,
+        Tol::witness(),
+    ) {
+        Err(LoftError::PlacementNotFinite { section: 1 }) => {}
+        other => panic!(
+            "loft_body: expected section 1's placement refusal, got {:?}",
+            other.map(|_| ())
+        ),
+    }
+    // `loft_profiles` takes forms already validated, and validation
+    // refuses a plane that is not finite before it is a form.
+    assert_eq!(
+        Profile::new(SketchPlane::new(at(f64::NAN)), section(1.2, 0.0))
+            .validate(Tol::witness())
+            .map(|_| ()),
+        Err(profile::ProfileError::PlaneNotFinite),
+        "a NaN plane never reaches loft_profiles"
+    );
 }
 
 /// The value channel of a form validated at `Dual64` is the form the
@@ -202,7 +262,9 @@ fn at_interval_a_wide_plane_refuses_as_placement_not_a_point() {
 #[test]
 fn a_dual_forms_value_channel_is_its_f64_form() {
     let c = Dual64::constant;
-    let dual = validated(Dual64::variable(1.2), c(0.2), c(1.0)).value_channel();
+    let dual = validated(Dual64::variable(1.2), c(0.2), c(1.0))
+        .value_channel()
+        .expect("a Dual form's values are points");
     let nominal = validated(1.2, 0.2, 1.0);
     assert_eq!(format!("{dual:?}"), format!("{nominal:?}"));
 }

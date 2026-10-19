@@ -324,7 +324,7 @@ fn m10_10_the_plates_ceiling_is_the_flip() {
 /// **THE WALKED ROWS' ENVELOPE IS A THEOREM OVER THE PLATE'S BOX** (the
 /// row that closed `work/pcert/loop-walk-branch-is-an-opaque-floor-atom`).
 /// The loop walk stores each wall row's whole-period branch as a literal
-/// `k` (`geom_brep::whole_periods`, decided once from the joint's margin
+/// `k` (`geom_brep::Period::decide`, decided once from the joint's margin
 /// as `pcurve_loop_branch`), and check 4's fidelity reads the branch the
 /// same way (`pcurve_fidelity_branch`). So the stored azimuth is
 /// `α + k·τ` with `k` a constant, and the stored image minus the one

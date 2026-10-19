@@ -254,7 +254,6 @@ fn the_quantile_box_is_deterministic_monotone_and_covers_its_mass() {
                 )),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("applies")
         .doc
@@ -331,7 +330,6 @@ fn every_annotation_pair_is_visible_to_bit_eq_and_diff() {
                 def: editor_core::VarDecl::Free(value),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("applies")
         .doc
@@ -379,7 +377,6 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
             fresh: Vec::new(),
         },
         Tol::witness(),
-        &editor_core::RefusingReach,
     )
     .expect("a distribution-only edit applies")
     .doc;
@@ -424,7 +421,6 @@ fn the_var_env_is_blind_to_annotations_even_after_a_round_trip() {
                 def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.25)),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("applies")
         .doc
@@ -445,7 +441,6 @@ fn the_var_env_is_blind_to_annotations_even_after_a_round_trip() {
                 )),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("applies")
         .doc
@@ -514,7 +509,6 @@ fn a_mixed_document_analyzes_end_to_end() {
                 def: editor_core::VarDecl::Free(value),
             },
             Tol::witness(),
-            &editor_core::RefusingReach,
         )
         .expect("applies")
         .doc;

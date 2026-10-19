@@ -1083,8 +1083,8 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
 /// box, so fidelity is what refuses a stored image that is not the
 /// carrier's; every corruption here refuses, at both scalars, and every
 /// legitimate renaming (a whole period, a sphere's involution twin)
-/// certifies at both. A branch past `MAX_BRANCH_PERIODS` refuses by
-/// type.
+/// certifies at both, however many periods out: check 4 decides the
+/// branch by the period's marks from zero, with no cap.
 #[test]
 fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
     let fixtures: Vec<(Surface<f64>, Curve3<f64>, &str)> = vec![
@@ -1173,17 +1173,12 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
             unreachable!()
         };
         let h = |p0: Point2<f64>, pl: Vec2<f64>| Pcurve::Harmonic { p0, pa, pb, pl };
-        // `Ok(())` certifies; `Err(true)` refuses by the branch's type;
-        // `Err(false)` refuses as a residual.
+        // `Ok(())` certifies; `Err(false)` refuses as a residual.
         let corruptions: Vec<(&str, Pcurve<f64>, Result<(), bool>)> = vec![
             ("exact", image.clone(), Ok(())),
             ("u + τ", h(Point2::new(p0.x + TAU, p0.y), pl), Ok(())),
             ("u − 3τ", h(Point2::new(p0.x - 3.0 * TAU, p0.y), pl), Ok(())),
-            (
-                "u + 7τ, past MAX_BRANCH_PERIODS",
-                h(Point2::new(p0.x + 7.0 * TAU, p0.y), pl),
-                Err(true),
-            ),
+            ("u + 7τ", h(Point2::new(p0.x + 7.0 * TAU, p0.y), pl), Ok(())),
             ("u + π", h(Point2::new(p0.x + PI, p0.y), pl), Err(false)),
             (
                 "u + τ/2 + 1e-9",
@@ -1240,7 +1235,6 @@ fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
         for (what, stored, want) in corruptions {
             let read = |r: Result<(), PcurveCertifyError>| match r {
                 Ok(()) => Ok(()),
-                Err(PcurveCertifyError::BranchOutOfReach) => Err(true),
                 // At f64 check 3's cross-check may refuse first.
                 Err(
                     PcurveCertifyError::ResidualExceeded {

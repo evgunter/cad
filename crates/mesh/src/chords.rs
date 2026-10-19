@@ -222,7 +222,7 @@ fn nurbs_chord_count(
                    every hull fact rests on requires strictly positive weights",
         });
     }
-    let kv = n.knots();
+    let kv = n.knots_f64_interim();
     let p = kv.degree();
     if p < 2 {
         // A single-segment degree-1 carrier is an exact chord — for a
@@ -307,7 +307,7 @@ fn rational_carrier_m_bound(
     n: &geom::NurbsCurve3<f64>,
     ek: EdgeKey,
 ) -> Result<f64, TessellateError> {
-    if 3 * n.knots().degree() > geom_core::spline::QUOTIENT_MAX_DEGREE {
+    if 3 * n.knots_f64_interim().degree() > geom_core::spline::QUOTIENT_MAX_DEGREE {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
             note: "rational B-spline carrier of degree above 18, past the degree its \
@@ -501,7 +501,7 @@ fn nurbs_tighten(
 ///
 /// **What this function does NOT check, because the type already
 /// does.** A degree-0 image and an interior multiplicity above the
-/// degree are both refused by [`KnotVector::clamped`] at construction,
+/// degree are both refused by [`KnotVector::clamped`](geom_core::KnotVector::clamped) at construction,
 /// so no image carrying either can reach here. Multiplicity `= p` — a
 /// C⁰ kink — IS constructible and IS admitted: the bound is a
 /// Lipschitz statement, which C⁰ suffices for.
@@ -524,7 +524,7 @@ fn general_uv_speeds(
                    produces a rational chart image of this class",
         });
     }
-    let kv = image.knots();
+    let kv = image.knots_f64_interim();
     let (d0, d1) = kv.domain();
     let (t0, t1) = params;
     if !(t0 >= d0 && t1 <= d1) {
@@ -713,7 +713,7 @@ mod tests {
     /// [`interior_knot_quadratic`] is the leg that makes this an
     /// assertion rather than a precaution).
     fn sampled_uv_speeds(c: &geom::NurbsCurve2<f64>, samples: usize) -> (f64, f64) {
-        let (d0, d1) = c.knots().domain();
+        let (d0, d1) = c.knots_f64_interim().domain();
         let span = d1 - d0;
         let mut ts: Vec<f64> = Vec::new();
         for i in 0..=samples {
@@ -721,7 +721,7 @@ mod tests {
             let lam = i as f64 / samples as f64;
             ts.push(d0 + span * lam);
         }
-        for (k, _) in c.knots().interior_knots() {
+        for (k, _) in c.knots_f64_interim().interior_knots() {
             ts.push(k - span * 1e-9);
             ts.push(k + span * 1e-9);
         }
@@ -778,7 +778,7 @@ mod tests {
                 false,
             ),
         ] {
-            let (d0, d1) = image.knots().domain();
+            let (d0, d1) = image.knots_f64_interim().domain();
             let (su, sv) = general_uv_speeds(&image, (d0, d1), EdgeKey::default())
                 .expect("a constant-weight polynomial image is in the certified inventory");
             let (wu, wv) = sampled_uv_speeds(&image, 4096);
@@ -844,11 +844,11 @@ mod tests {
     #[test]
     fn a_constant_weight_image_answers_and_a_varying_one_refuses() {
         let base = interior_max_cubic();
-        let (d0, d1) = base.knots().domain();
+        let (d0, d1) = base.knots_f64_interim().domain();
         let plain = general_uv_speeds(&base, (d0, d1), EdgeKey::default()).unwrap();
 
         let two = geom::NurbsCurve2::new(
-            base.knots().clone(),
+            base.knots_f64_interim().clone(),
             base.control().to_vec(),
             vec![2.0; base.control().len()],
         )
@@ -863,7 +863,8 @@ mod tests {
         let mut w = vec![1.0; base.control().len()];
         w[2] = 0.5;
         let varying =
-            geom::NurbsCurve2::new(base.knots().clone(), base.control().to_vec(), w).unwrap();
+            geom::NurbsCurve2::new(base.knots_f64_interim().clone(), base.control().to_vec(), w)
+                .unwrap();
         let err = general_uv_speeds(&varying, (d0, d1), EdgeKey::default())
             .expect_err("a varying weight vector has no certified net here");
         assert!(
@@ -914,7 +915,7 @@ mod tests {
     #[test]
     fn a_read_outside_the_images_domain_refuses_and_a_subrange_is_over_bounded() {
         let image = interior_max_cubic();
-        let (d0, d1) = image.knots().domain();
+        let (d0, d1) = image.knots_f64_interim().domain();
         let err = general_uv_speeds(&image, (d0, d1 + 0.25), EdgeKey::default())
             .expect_err("past the domain there is no certified bound");
         assert!(
@@ -964,7 +965,7 @@ mod tests {
     #[test]
     fn nurbs_chords_bound_the_secant_deviation() {
         let n = wiggle();
-        let (d0, d1) = n.knots().domain();
+        let (d0, d1) = n.knots_f64_interim().domain();
         for delta_s in [1e-2, 1e-3, 1e-4] {
             let count =
                 nurbs_chord_count(&n, d1 - d0, delta_s, EdgeKey::default()).expect("in inventory");
@@ -1018,7 +1019,7 @@ mod tests {
         .map(|&(x, y)| Point3::new(x, y, 0.0))
         .collect();
         let n = NurbsCurve3::interpolate(&pts, 3).unwrap();
-        let (d0, d1) = n.knots().domain();
+        let (d0, d1) = n.knots_f64_interim().domain();
         for delta_s in [1e-2, 1e-3, 1e-4] {
             let count =
                 nurbs_chord_count(&n, d1 - d0, delta_s, EdgeKey::default()).expect("in inventory");
@@ -1087,10 +1088,14 @@ mod tests {
                 _ => 0.6,
             })
             .collect();
-        let wiggle_r =
-            NurbsCurve3::new(base.knots().clone(), base.control().to_vec(), steep).unwrap();
+        let wiggle_r = NurbsCurve3::new(
+            base.knots_f64_interim().clone(),
+            base.control().to_vec(),
+            steep,
+        )
+        .unwrap();
         for (name, n) in [("quarter_arc", arc), ("steep_wiggle", wiggle_r)] {
-            let (d0, d1) = n.knots().domain();
+            let (d0, d1) = n.knots_f64_interim().domain();
             for delta_s in [1e-2, 1e-3, 1e-4] {
                 let count = nurbs_chord_count(&n, d1 - d0, delta_s, EdgeKey::default())
                     .expect("rational carriers are in the chord inventory now");
@@ -1136,7 +1141,8 @@ mod tests {
             let mut weights = vec![1.0; n.control().len()];
             weights[2] = bad;
             assert!(
-                NurbsCurve3::new(n.knots().clone(), n.control().to_vec(), weights).is_err(),
+                NurbsCurve3::new(n.knots_f64_interim().clone(), n.control().to_vec(), weights)
+                    .is_err(),
                 "weight {bad} must refuse at construction"
             );
         }
@@ -1151,7 +1157,7 @@ mod tests {
     // ------------------------------------------------------------------
 
     fn r1_secant_worst(n: &NurbsCurve3<f64>, count: usize) -> f64 {
-        let (d0, d1) = n.knots().domain();
+        let (d0, d1) = n.knots_f64_interim().domain();
         #[allow(clippy::cast_precision_loss)]
         let h = (d1 - d0) / count as f64;
         let mut worst = 0.0f64;
@@ -1185,7 +1191,7 @@ mod tests {
         // (a) m-bound vs dense-sampled true sup|C''|. δ-free: every
         // carrier gets this arm in full.
         let m = rational_carrier_m_bound(n, EdgeKey::default()).expect("in inventory");
-        let (d0, d1) = n.knots().domain();
+        let (d0, d1) = n.knots_f64_interim().domain();
         let mut truth = 0.0f64;
         for k in 0..=4000 {
             let t = d0 + (d1 - d0) * f64::from(k) / 4000.0;
@@ -1241,7 +1247,8 @@ mod tests {
         let w: Vec<f64> = (0..base.control().len())
             .map(|i| [1e-2, 1.0, 1e2, 0.3, 7.0][i % 5])
             .collect();
-        let n = NurbsCurve3::new(base.knots().clone(), base.control().to_vec(), w).unwrap();
+        let n =
+            NurbsCurve3::new(base.knots_f64_interim().clone(), base.control().to_vec(), w).unwrap();
         r1_check("extreme_weight_carrier", &n, &R1_DELTAS[..2]);
     }
 
@@ -1251,7 +1258,8 @@ mod tests {
         let base = wiggle();
         let mut w = vec![1.0; base.control().len()];
         w[3] = 1e-5;
-        let n = NurbsCurve3::new(base.knots().clone(), base.control().to_vec(), w).unwrap();
+        let n =
+            NurbsCurve3::new(base.knots_f64_interim().clone(), base.control().to_vec(), w).unwrap();
         r1_check("near_zero_weight_carrier", &n, &R1_DELTAS);
     }
 
@@ -1335,7 +1343,7 @@ mod tests {
     fn a_rational_carrier_with_an_empty_span_is_bounded() {
         // p − 1 = 2: inside the inventory, and it presents an empty span.
         let n = mult_cubic(2);
-        let kv = n.knots();
+        let kv = n.knots_f64_interim();
         assert!(
             (kv.first_span()..=kv.last_span()).any(|s| kv.span(s).is_none()),
             "the multiplicity-2 fixture must present an empty span — \
@@ -1348,7 +1356,7 @@ mod tests {
 
         // p = 3: refused, typed, and NOT by either deleted message.
         let n = mult_cubic(3);
-        let (d0, d1) = n.knots().domain();
+        let (d0, d1) = n.knots_f64_interim().domain();
         match nurbs_chord_count(&n, d1 - d0, 1e-3, EdgeKey::default()) {
             Err(TessellateError::UnsupportedCurve { note, .. }) => assert!(
                 note.contains("C⁰ kink"),

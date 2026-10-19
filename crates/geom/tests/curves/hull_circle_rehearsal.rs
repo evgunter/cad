@@ -137,7 +137,7 @@ fn arc_bounds(curve: &NurbsCurve3<f64>) -> Vec<ArcBound> {
     let c = center();
     let n = axis();
     let coords = curve.certified_coords();
-    let data = CurveCertData::new(curve.knots(), curve.weights(), &coords).unwrap();
+    let data = CurveCertData::new(curve.knots_f64_interim(), curve.weights(), &coords).unwrap();
 
     let sphere = compose::implicit_composite(
         &data,

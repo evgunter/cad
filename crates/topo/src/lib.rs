@@ -303,31 +303,14 @@ pub mod test_support {
     pub use crate::props::{FaceTerm, mass_properties_with_face_terms};
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
-        StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_both_rules, brick,
+        StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence, brick,
         cube_into, cyl_arc_at, cyl_wall_sheet, cyl_wall_sheet_keyed, declined_cube,
-        describe_as_intersections, drill_hole, face_facing, geometric_cube, holed_block,
-        identity_map, kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face,
-        plant_disc_face, plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
-        wedge_on_a_block_top,
+        describe_as_intersections, drill_hole, every_chord_stated_as_its_pair, face_facing,
+        geometric_cube, holed_block, identity_map, kill_under_a_null_strut, line, mapped_cube,
+        plane, plane_every_face, plant_disc_face, plant_ring_face, prism, prism_ops, prism_z,
+        split_plane, straddle_seat, wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
-
-    /// Tier 3's local checks on `body` at the band of `eps` rather than
-    /// the run's: `Tol` is committed once per process, so this is how
-    /// one test reads a body built at the run's ε at a tighter one.
-    ///
-    /// # Panics
-    ///
-    /// Where `eps` forms no band with the run's K.
-    #[allow(clippy::expect_used)]
-    pub fn tier3_at(
-        body: &Body<f64>,
-        eps: f64,
-        tol: geom_core::Tol,
-    ) -> Vec<crate::ValidationError> {
-        let band = geom_core::Band::linear_at(tol, eps).expect("a band at eps");
-        crate::validate::tier3_local_checks(body, band, tol, None, None).0
-    }
 
     /// **Restates the surface at `key`** as `surface`: a row that needs
     /// a datum no construction mints (a cone's seam off square to its
@@ -879,6 +862,8 @@ mod r2_probes;
 mod tier3_tests;
 pub mod transform;
 pub mod validate;
+mod wedge_reach;
+pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
 
 pub use body::Body;
@@ -895,13 +880,13 @@ pub use boolean::{
     PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
     PointInSolidError, ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck,
     SettleError, Settler, Settling, ShellOrientation, SideCode, SolidContainment, SolidFaces,
-    SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, VeContact, VfContact,
-    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
-    boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
-    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
-    is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
-    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, rest_locus,
-    subtract, tangent_pair_relation, union,
+    SphereQuestion, SpiricLoops, SweepStrategy, SweepTrace, TorusConvention, UnreadNeighbourhood,
+    UnreadPartner, VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
+    VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce, carrier_eq, contfp,
+    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
+    insert_voids, intersect, is_conventional_vertex, join_covers, joinable_vertices, joined_cell,
+    joined_edge, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
+    rest_locus, subtract, tangent_pair_relation, union,
 };
 pub use joint::{Deck, JointElement};
 pub use lineage::{
@@ -913,9 +898,9 @@ pub use surgery::Surgery;
 // that can hold it: upward layers RE-EXPORT these, never redefine.
 #[cfg(feature = "sweep-testing")]
 pub use boolean::{
-    PlantedDegradation, SharedClass, StagePoints, arm_output_stage_points, swap_split_roles,
-    sweep_records, sweep_split, sweep_traces, sweep_traces_with_pad, take_output_stage_points,
-    take_shared_points,
+    PlantedDegradation, SharedClass, StagePoints, arm_output_stage_points, forget_branches,
+    swap_split_roles, sweep_records, sweep_split, sweep_traces, sweep_traces_with_pad,
+    take_output_stage_points, take_shared_points,
 };
 #[cfg(feature = "sweep-testing")]
 pub use chord_join::face_azimuth_window_traces;
@@ -923,8 +908,9 @@ pub use chord_join::face_azimuth_window_traces;
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
 pub use census::{
-    CensusStrategy, CensusTrace, RecordedAtRest, SweepPairs, census_contact_row,
-    census_rest_decision, record_at_rest,
+    CensusStrategy, CensusTrace, RecordedAtRest, SweepPairs, census_cell_solid, census_contact_row,
+    census_entity_solid, census_interference_solids, census_rest_decision, census_uncleared_solids,
+    record_at_rest,
 };
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};

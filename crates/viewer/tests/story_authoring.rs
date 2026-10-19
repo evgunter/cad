@@ -102,13 +102,14 @@ const MERLON_OFF: f64 = 0.009;
 /// profile names the plane it sits on.
 const CARVED_STATES: usize = 23;
 /// The world's own edits among the carving actions (A10), each riding
-/// in the action that caused it: five extrudes each placed (5); the
+/// in the action that caused it: five extrudes each placed — the
+/// placement, then the mate and three values that place it (25); the
 /// chamfer re-pointing the plinth's placement (1); four booleans each
 /// re-pointing their first operand's placement and deleting the
 /// second's (8); the transform of the cutter that boolean already
 /// withdrew, which places nothing (0); and the last boolean, whose
 /// second operand nothing places, re-pointing only (1).
-const WORLD_EDITS: usize = 15;
+const WORLD_EDITS: usize = 35;
 /// Edits on the FINAL saved path: the twenty-two carving actions'
 /// own edits (`CARVED_STATES` less the root), the world's edits among
 /// them, and the taller-drum edit — edits, where `CARVED_STATES`
@@ -338,7 +339,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert_eq!(
         common::world(session.committed_doc()),
         [carved],
-        "the world is one copy: the rook"
+        "the world is one copy: the rook: {:?}",
+        common::world(session.committed_doc())
+            .into_iter()
+            .map(|node| session.committed_doc().spoken(node).to_string())
+            .collect::<Vec<_>>()
     );
     let carved_doc = session.committed_doc().clone();
 
@@ -464,14 +469,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     assert!(
         affordance.hover.as_deref().is_some_and(|hover| {
-            [
-                "1 × Pattern",
-                "1 × PlacedUnion",
-                "1 × Union",
-                "1 × PlaceInWorld",
-            ]
-            .iter()
-            .all(|kind| hover.contains(kind))
+            ["1 × Pattern", "1 × PlacedUnion", "1 × Union", "1 × Place"]
+                .iter()
+                .all(|kind| hover.contains(kind))
         }),
         "the hover names each dependent by kind: {:?}",
         affordance.hover

@@ -2570,7 +2570,7 @@ struct Session {
     plain_atoms: Vec<u128>,
     plain_frozen: Vec<SymId>,
     /// **The Zeros a deferring session left for later**
-    /// ([`with_deferred_session`]): `None` in every other session, which
+    /// ([`with_deferred_session`](self::deferred::with_deferred_session)): `None` in every other session, which
     /// discharges each decision as it is taken.
     deferred: Option<std::collections::HashMap<u32, deferred::Pending>>,
     /// **The roots the PLAIN walk was asked for** — the leaf's NEED is
@@ -5194,6 +5194,14 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 
     fn point_value(self) -> Option<f64> {
         self.value.point_value()
+    }
+
+    fn structure_positive(self) -> bool {
+        self.value.structure_positive()
+    }
+
+    fn structure_bracket(self) -> Option<(f64, f64)> {
+        self.value.structure_bracket()
     }
 
     /// A constant only when this value's node is the literal of its

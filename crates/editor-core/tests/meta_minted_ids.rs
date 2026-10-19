@@ -122,9 +122,11 @@ fn metadata_holding_a_name_minted_above_i64_max_saves_and_loads() {
         "at".to_owned(),
         to_value(&name).expect("the name is metadata"),
     );
+    let read = crate::fixture::painted_in(&doc, &name);
     let (doc, _) = fixture::step(
         doc,
         DocEdit::SetAppearanceMeta {
+            body: read,
             name: name.clone(),
             key: "probe".to_owned(),
             value: MetaValue::map(record).expect("a shallow value"),
@@ -143,9 +145,7 @@ fn metadata_holding_a_name_minted_above_i64_max_saves_and_loads() {
         content_pin(&doc, tol).unwrap(),
         "and pins the same"
     );
-    let stored = &loaded
-        .doc
-        .appearance_of(&name)
+    let stored = &crate::fixture::painted(&loaded.doc, &name)
         .expect("the record loads")
         .metadata["probe"];
     let MetaValue::Map(entries) = stored else {

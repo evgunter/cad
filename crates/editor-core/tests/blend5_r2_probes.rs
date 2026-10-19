@@ -59,7 +59,12 @@ fn lantern_with(profile_pts: Vec<(f64, f64)>) -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, revolve) = insert(
         doc,
-        revolve_about(profile, (0.0, 0.0), (0.0, 1.0), ang(std::f64::consts::TAU)),
+        revolve_about(
+            profile,
+            (0.0, 0.0),
+            crate::fixture::along_y(),
+            ang(std::f64::consts::TAU),
+        ),
     );
     (doc, revolve)
 }
@@ -150,8 +155,8 @@ fn the_corpus_band_trim_census_is_the_recorded_one() {
             let n = ev
                 .order
                 .iter()
-                .filter_map(|id| ev.value(*id))
-                .flat_map(|v| v.name_table.iter())
+                .flat_map(|id| crate::fixture::tables(&ev, *id))
+                .flat_map(|t| t.iter())
                 // A joined edge's members included (the blend's closing
                 // join names two trimlines it made one by both names).
                 .map(|(n, _)| match n.path.first() {

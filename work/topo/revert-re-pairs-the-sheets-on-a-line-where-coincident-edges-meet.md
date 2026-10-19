@@ -102,3 +102,26 @@ The re-pairing retires the refusals and these with them.
   cut the same slab and read a carried edge-edge record's lineage at a
   plate's pierce (`a_carried_edge_edge_record_split_at_a_pierce_names_its_inputs_cells`).
   It now pins the refusal; the lineage row comes back with the re-pairing.
+- `crates/topo/tests/a_vertex_read_by_two_sector_passes.rs`
+  `a_touching_vertex_along_two_arches_shared_ray_builds_in_every_op`
+  (slow set; TANG, PR 5196): the plate united with two pyramids standing
+  on `MEET` that share an edge ray, so two coincident edges lie along
+  it. A pyramid along the ray with its faces in the arches, less them
+  (`x − y`), reverts their kept part and refuses `Revert { source:
+  WedgesOverlap }`: two cells a pose, the pyramid "in the wedge between
+  them" and the one with "a face in each". `builds_where`'s `reverting`
+  lists pin them; they come back as bodies with the re-pairing.
+
+## 2026-10-17: the arches' two cells were not this row's (RESTREAD, PR 5259)
+
+`census::line_wedges` read every line edge against the line through
+`collinear_overlap` with no parallel screen. So an edge leaving the
+line's end at a definite angle (`a_vertex_read_by_two_sector_passes`'s
+arches: six edges at the ray's ends, 11° to 50° off it) read as lying
+on it, and their wedges "overlapped". Only one edge lies on the arches'
+ray. Behind its parallel screen (`census::parallel_overlap`) the line
+holds that one edge, revert has nothing to re-pair, and `x − y` builds
+for both pyramids at every pose. Each body holds its material, its
+volume sums and tier 3, and passes 3′. The test's `reverting` lists are
+gone; the arches entry above no longer returns with the re-pairing. The
+other refusals listed here still refuse on the branch's CI.

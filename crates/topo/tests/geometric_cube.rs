@@ -20,7 +20,7 @@ use topo::{
 
 use crate::common;
 use common::{
-    CubeOps, assert_every_chord_named_by_both_rules, describe_as_intersections, geometric_cube,
+    CubeOps, assert_every_chord_named_by_the_fence, describe_as_intersections, geometric_cube,
 };
 use geom_core::Tol;
 
@@ -39,22 +39,15 @@ fn geometric_cube_passes_all_three_tiers() {
             .surfaces()
             .all(|(_, s)| matches!(s, Surface::Plane { .. }))
     );
-    // At rest the un-upgraded chords are named — all twelve, once by
-    // each of the two rules they break, and nothing else.
-    //
-    // **Re-expressed at PCURVE P-1b.** Before this unit the only
-    // at-rest rule a conventional chord broke was prefer-intrinsic
-    // (D2), so the row counted twelve. U2's transience fence added a
-    // second, independent one: this cube is built entirely through the
-    // Euler-op door, which describes chords BEFORE any face surface
-    // exists, so every chord is still a scaffold once the body comes
-    // to rest. Rewriting `12` as `24` would have kept the row's shape
-    // and thrown away its content; `assert_every_chord_named_by_both_
-    // rules` asserts the bijection instead — one report per rule per
-    // edge, in arena order, no third kind — and says at its own doc
-    // why the two rules are independent rather than one doubled.
+    // At rest the un-upgraded chords are named — all twelve, once each
+    // by the transience fence, and nothing else: the Euler-op door
+    // describes chords before any face surface exists.
     let errs = validate_geometric(&t.body, Tol::witness()).unwrap_err();
-    assert_every_chord_named_by_both_rules(&t.body, &errs);
+    assert_every_chord_named_by_the_fence(&t.body, &errs);
+    // Stated conventionally instead, every chord reads a corner: the
+    // dihedral classification the scaffolds hide.
+    let (paired, want) = common::every_chord_stated_as_its_pair(&t.body, Tol::witness());
+    assert_eq!(validate_geometric(&paired, Tol::witness()), Err(want));
     // Upgraded (the construction-discipline the rule enforces), the
     // cube passes all three tiers.
     let mut body = t.body;

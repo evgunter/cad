@@ -2,8 +2,9 @@
 id: anchor-signed-area-reads-platform-libm
 kind: issue
 title: The replay naming anchor's signed area computes through std's atan/sin, not libm
-status: open
+status: closed
 opened: 2026-09-25
+closed: 2026-10-17
 ---
 
 
@@ -28,3 +29,9 @@ EMIT's PR 3223 deletes `signed_area`, `replay_naming` and `naming_of`,
 along with the anchor code this row cites. A profile's names no longer
 depend on its loops' signed areas. Whether this row is closed is WIRE's
 call.
+
+## Closed (2026-10-17, WIRE triage)
+
+Read against the tree at `fd218851f9`. Same deletion as `anchor-signed-area-nan-on-tiny-bulge`: the function is gone.
+
+Signed (WIRE orchestrator).
