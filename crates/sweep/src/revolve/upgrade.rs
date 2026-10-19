@@ -4,13 +4,14 @@
 //! joins to `Intersection`, full-revolve meridians to `Seam`. All
 //! witnesses are the carrier's mid-parameter point (the S2 witness
 //! contract; a full-period rim's witness is the start point's
-//! antipode); all re-descriptions go through `topo`'s certified
-//! `set_edge_curve` door with the carrier and interval kept verbatim.
+//! antipode); every re-description restates the stored carrier and
+//! interval verbatim (`topo::Body::restate_stored_edge`, or
+//! `describe_at_rest`).
 
 use geom::Curve3;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, SmoothJoin,
-    SurfacePair, classify_dihedral, must_carry_description,
+    DihedralClass, EdgeDescriptionSpec, MustCarryDescription, SmoothJoin, SurfacePair,
+    classify_dihedral, must_carry_description,
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
@@ -92,16 +93,14 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
         .unwrap_or_else(|| unreachable!("surface {s2:?} was read off a live face of this revolve"));
     match classify_dihedral(&surf1, &surf2, data.witness, data.reach, band) {
         Ok(DihedralClass::Transverse) => {
-            let spec = EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
+            body.restate_stored_edge(
+                edge,
+                EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(s1, s2),
                     witness: data.witness,
                 },
-                carrier: data.carrier,
-                param_start: data.t0,
-                param_end: data.t1,
-            };
-            body.set_edge_curve(edge, spec, tol)?;
+                tol,
+            )?;
             Ok(())
         }
         // A revolve join's carrier is a latitude CIRCLE, which the
@@ -140,13 +139,7 @@ pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
                 |mixed| RevolveError::SmoothJoinRefuted { edge, mixed },
             )? {
                 MustCarryDescription::Intrinsic(description) => {
-                    let spec = EdgeCurveSpec {
-                        description,
-                        carrier: data.carrier,
-                        param_start: data.t0,
-                        param_end: data.t1,
-                    };
-                    body.set_edge_curve(edge, spec, tol)?;
+                    body.restate_stored_edge(edge, description, tol)?;
                 }
                 MustCarryDescription::Conventional => {
                     // No intrinsic tangency is demanded (a zero-side

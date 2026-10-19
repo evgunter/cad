@@ -1710,6 +1710,23 @@ fn a_parted_wrap_arc_past_a_turn_is_a_kernel_bug() {
     });
 }
 
+/// **The public restatement door re-describes the stored edge as the
+/// kernel's** (`[failure]`): a stored arc past a full turn, restated
+/// under a description its caller chose, panics at the door's site.
+#[test]
+fn a_stored_arc_past_a_turn_restated_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let chart = body.get_face(split.face).unwrap().surface;
+    panics_as_a_kernel_bug_at(KernelSite::StoredRestatement, || {
+        let _ = body.restate_stored_edge(
+            split.edge,
+            geom_brep::EdgeDescriptionSpec::chart(chart),
+            tol,
+        );
+    });
+}
+
 /// **A smooth seam its surfaces determine restates its stored carrier**
 /// (`[failure]`): the pillow's faces re-charted as the unit cylinder and
 /// the unit sphere about the arc's centre, tangent along its circle, so
