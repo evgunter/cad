@@ -170,9 +170,9 @@ pub use path::program::{
 };
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
-    CornerRefusal, CornerWindow, LineTarget, Open, PartialPath, PathError, PathErrorKind,
-    PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via, circle,
-    circle_split,
+    CornerRefusal, CornerWindow, LineTarget, OntoTarget, Open, PartialPath, PathError,
+    PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via,
+    circle, circle_split,
 };
 pub use structure::{
     CIRCLE_PIECES, CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision,
