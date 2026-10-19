@@ -357,44 +357,6 @@ pub fn cone(doc: &editor_core::ProfileDoc, root: RecipeNodeId) -> BTreeSet<Recip
     set
 }
 
-/// **Options under which an evaluation of `doc` at its nominal takes
-/// `lift`**, `None` for `Guided` on a document with no continuous
-/// variable. The lift is read off the environment
-/// ([`editor_core::EvalOptions::profile_lift`]), so a row that compares
-/// the two at the nominal asks for each by environment: the build
-/// (`Pinned`), or an analysis over a box spanning `[0, 0]` on every
-/// continuous variable, whose every value is still its nominal
-/// (`Guided`).
-pub fn options_under(
-    doc: &ProfileDoc,
-    lift: editor_core::ProfileLift,
-) -> Option<editor_core::EvalOptions> {
-    use editor_core::analysis::{BoxAxis, ParamBox};
-    let options = match lift {
-        editor_core::ProfileLift::Pinned => editor_core::EvalOptions::default(),
-        editor_core::ProfileLift::Guided => {
-            let axes: BTreeMap<_, _> = doc
-                .free_vars()
-                .filter(|(_, p)| matches!(p, editor_core::FreeVar::Continuous { .. }))
-                .map(|(id, _)| (id, BoxAxis::Varying { lo: 0.0, hi: 0.0 }))
-                .collect();
-            if axes.is_empty() {
-                return None;
-            }
-            editor_core::EvalOptions {
-                param_box: Some(std::sync::Arc::new(ParamBox::from_axes(axes))),
-                ..editor_core::EvalOptions::default()
-            }
-        }
-    };
-    assert_eq!(
-        options.profile_lift(),
-        lift,
-        "the environment reads as {lift:?}"
-    );
-    Some(options)
-}
-
 /// Evaluates a document at scalar `T` with default options.
 pub fn eval<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
     evaluate::<T>(

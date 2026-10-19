@@ -84,3 +84,16 @@ The 2026-10-17, 2026-10-18 and 2026-10-19 nightlies fail three `sweep` rows at �
 - `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`, at `Interval`. This row is not listed above.
 
 CONTACTHOLD's nightly-red lane built `sweep`'s `all` binary on both sides of PR 5227's merge. All three pass at its first parent `f4ebb63a56` and fail at `37edb540a9`.
+
+## Evidence: more fillet joints at ε 1e-12 (2026-10-19, PR 5346)
+
+On `main`'s blend code at `CAD_TOLERANCE_EPS=1e-12`,
+`band_turn_overrun_fillet::leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales`
+("lean -2 scale 100 r 0.05") and
+`band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`
+fail tier 3′ on the same `CensusUnsupported { ContactLane(NotCertifiable("the meeting reading of two curved edges could not settle a count")) }`.
+So does every fillet row of PR 5346's
+`band_planar_cut_off_interval::a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar`
+at `Interval`: the sheared box's top edge, shears `±0.1 … ±0.6`, convex
+and concave. That row admits exactly this finding below `ε = 1e-9`
+(its `tier_3_prime`), so its tolerance comes out when this item is fixed.

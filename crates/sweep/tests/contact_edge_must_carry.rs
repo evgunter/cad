@@ -614,7 +614,7 @@ fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever(
 /// radius's, so the skew that put an arc levered at its own length in
 /// band builds at `r` and at `r/10`, no corner arc the conventional
 /// pair; the corner arc's in-band refusal has no row now
-/// (`work/tang/the-arms-the-faces-lever-left-without-a-row.md`).
+/// (`work/lever/the-arms-the-faces-lever-left-without-a-row.md`).
 #[test]
 fn the_contact_recourse_is_followable_at_each_site_kind() {
     let b = band();

@@ -58,3 +58,5 @@ About 16 fast-set rows would cross the one-second bar. A non-apart pair tries ev
 - **Folded in.** `kitchen-sink-census-pairs-planes-out-of-order` is folded in here: kitchen_sink's `bool_plane_parallel` swap is the same misreading.
 - **Done when** boss_union's apart move reads no laundering at the `bool_pair_gap` swap, kitchen_sink's census reads none at its plane swap, and a row pins each.
 - **What stays outside.** boss_union's apart move will then meet plate_param's ray-schedule exact zero further on. That item owns it.
+
+**Pinned (2026-10-19, PATHS #5068's fix pass).** `revalue_corpus::revalue_boss_union_apart_to_its_parting` now holds boss_union under the apart move over the decisions before its parting: `bool_pair_gap` owed to this item as the one laundered name, the parting at `pcurve_chart_radial_moving` (3,961 compared, 3,238 moved). A fix here moves both pins; returning `revalue_boss_union` to the apart move retires the prefix row.

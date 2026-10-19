@@ -184,7 +184,7 @@ fn rod(z0: f64, z1: f64) -> Body<f64> {
     use sweep::{ExtrudeSide, Extrusion, extrude};
     let tol = Tol::witness();
     let lp = profile::circle(geom_core::Point2::new(0.0, 0.0), 1.0, tol).unwrap();
-    let plane = profile::SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = profile::SketchPlane::xy_at(geom_core::Point3::new(0.0, 0.0, z0));
     let p = profile::Profile::new(plane, vec![lp.into()])
         .validate(tol)
         .unwrap();
@@ -1257,7 +1257,7 @@ fn a_tilted_pin_in_a_bore_keeps_its_own_route() {
 ///   tilt's plane (turned `0` or `π`) or a quarter turn off it;
 /// - at `1e-7°` both orders escalate on one margin, but at two
 ///   decisions, which this row does not hold alike
-///   (`work/tang/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`).
+///   (`work/tangtail/a-glued-rod-answers-differently-by-order-off-the-pinned-angles.md`).
 #[test]
 fn a_rod_glued_in_its_bore_answers_alike_in_either_order() {
     let tol = Tol::witness();

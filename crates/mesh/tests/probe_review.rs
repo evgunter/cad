@@ -3,9 +3,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Point3;
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 
-use geom_core::{Affine3, Point2, Vec3};
+use geom_core::Point2;
 use sweep::loft_body;
 // The corpus swept elbow is the kernel crate's fixture, not this
 // suite's: the falsification rows below need the SAME solid the
@@ -25,9 +27,9 @@ fn rational_pie() -> Body<f64> {
     let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
     let lp = bulge_loop(vec![v(1.0, 0.0, 0.4), v(0.0, 1.0, 0.0), v(0.0, 0.0, 0.0)]);
     let sections = vec![vec![lp.clone()], vec![lp]];
-    let places: Vec<Affine3<f64>> = [0.0, 1.0]
+    let places: Vec<SketchPlane<f64>> = [0.0, 1.0]
         .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, *z)))
         .collect();
     loft_body::<f64>(&sections, &places, 1, Tol::witness())
         .expect("the rational pie lofts")

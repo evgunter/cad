@@ -455,19 +455,13 @@ pub trait AxisScalar: geom_core::Real {
     /// same ids and two versions of one document share them, so a run
     /// that binds a part's variables beside its own never makes two of
     /// them one symbol.
-    /// A scalar that binds identities ([`AxisScalar::BINDS_IDENTITIES`])
-    /// overrides this as well as [`AxisScalar::axis_of`]: the default
+    /// A scalar that binds identities (`Sym`) overrides this as well as
+    /// [`AxisScalar::axis_of`]: the default
     /// drops `scope`, which only an anonymous enclosure may.
     fn axis_of_in(scope: u64, var: VarId, lo: f64, hi: f64) -> Option<Self> {
         let _ = scope;
         Self::axis_of(var, lo, hi)
     }
-
-    /// Whether [`AxisScalar::axis_of`] binds the variable as a PARAMETER
-    /// SYMBOL (its identity), rather than as a number: true for
-    /// `geom_core::Sym<T>` alone, whose door does exactly that. Read by
-    /// [`var_env_over`] into [`crate::expr::VarEnv::binds_symbols`].
-    const BINDS_IDENTITIES: bool = false;
 }
 
 /// A point scalar carries only a degenerate axis, and the comparison is
@@ -534,8 +528,6 @@ where
     fn axis(lo: f64, hi: f64) -> Option<Self> {
         T::axis(lo, hi).map(geom_core::Sym::opaque)
     }
-
-    const BINDS_IDENTITIES: bool = true;
 
     fn axis_of(var: VarId, lo: f64, hi: f64) -> Option<Self> {
         // The bracket goes with the value: it is the one value the
@@ -941,10 +933,9 @@ impl ParamBox {
     /// **This box collapsed to the nominal**: every varying axis spans
     /// `[0, 0]`, every fixed one stays fixed, in the same order. Its
     /// values are the nominal's, but it still varies its axes, so an
-    /// evaluation over it reads the document as the box's own leaves do
-    /// ([`crate::EvalOptions::profile_lift_over`]): a drive's witness and a
-    /// Monte Carlo run's nominal build, whose verdicts the leaves' and
-    /// the samples' are read against.
+    /// evaluation over it binds what the box's own leaves bind at its
+    /// centre: a drive's witness and a Monte Carlo run's nominal build,
+    /// whose verdicts the leaves' and the samples' are read against.
     #[must_use]
     pub fn at_nominal(&self) -> Self {
         let axes = self
@@ -1118,8 +1109,7 @@ impl ParamBox {
 /// axis of no width through the identified door, so at `Sym` it is its
 /// id's symbol (VR8). A parameter with no tolerance the box does not name
 /// is no axis ([`is_axis`]) and binds its nominal as a constant, as
-/// [`Doc::var_env`] binds it. The environment records whether any
-/// binding is a symbol ([`crate::expr::VarEnv::binds_symbols`]).
+/// [`Doc::var_env`] binds it.
 ///
 /// # Errors
 ///
@@ -1138,7 +1128,6 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
         }
     }
     let mut bindings = BTreeMap::new();
-    let mut binds_symbols = false;
     for (id, p) in doc.free_vars() {
         // Bound by id, as `Doc::var_env` binds it: the two environment
         // doors read one iteration base.
@@ -1180,7 +1169,6 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
                         lo,
                         hi,
                     })?;
-                binds_symbols |= T::BINDS_IDENTITIES;
                 crate::expr::ParamValue::Continuous {
                     dim,
                     value: T::from_f64(value) + offset,
@@ -1194,7 +1182,6 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
         bindings,
         refused: BTreeMap::new(),
         written: std::collections::BTreeSet::new(),
-        binds_symbols,
     };
     // A defined variable is no axis: it binds its definition over the
     // widened inputs, so it carries their enclosure.
@@ -1244,7 +1231,6 @@ pub fn var_env_symbolic_pinned<T: AxisScalar + geom_core::predicate::Decide, P>(
     pin: Option<&crate::ident::ContentPin>,
 ) -> Result<crate::expr::VarEnv<T>, ParamBoxError> {
     let scope = symbol_scope(doc.id(), pin);
-    let mut binds_symbols = false;
     let mut bindings = BTreeMap::new();
     for (id, p) in doc.free_vars() {
         let v = match *p {
@@ -1256,7 +1242,6 @@ pub fn var_env_symbolic_pinned<T: AxisScalar + geom_core::predicate::Decide, P>(
                         hi: 0.0,
                     }
                 })?;
-                binds_symbols |= T::BINDS_IDENTITIES;
                 crate::expr::ParamValue::Continuous {
                     dim,
                     value: T::from_f64(value) + offset,
@@ -1270,7 +1255,6 @@ pub fn var_env_symbolic_pinned<T: AxisScalar + geom_core::predicate::Decide, P>(
         bindings,
         refused: BTreeMap::new(),
         written: std::collections::BTreeSet::new(),
-        binds_symbols,
     };
     doc.bind_definitions(&mut env);
     Ok(env)

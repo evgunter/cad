@@ -56,6 +56,8 @@ mod mate2_common;
 mod revolve_common;
 mod seam_region_common;
 
+#[path = "a_carried_record_no_reading_covers.rs"]
+mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_curved_keel_in_the_plane.rs"]
@@ -254,6 +256,8 @@ mod r2_mesh1_donut_probes;
 mod rehome_rings_lune;
 #[path = "review_4704_flush_round_oracle.rs"]
 mod review_4704_flush_round_oracle;
+#[path = "review_4996_blend_cap.rs"]
+mod review_4996_blend_cap;
 #[path = "review_r2_vv_probes.rs"]
 mod review_r2_vv_probes;
 #[path = "review_sixx_r2_probes.rs"]

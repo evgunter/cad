@@ -761,12 +761,6 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             // name one symbol.
             symbols: self.symbols,
         };
-        // No profile lift is set here, because none is inherited: it is
-        // read off what the evaluation binds
-        // (`EvalOptions::profile_lift_over`), and with
-        // no box and no seed a referenced document runs at its own
-        // nominal, so it is built as its instantiator's build would build
-        // it — pinned, with its own variables' values.
         let evaluation =
             super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), &doc_ref.pin, tol);
         // A2's uniformity: what a document MEANS is its product, one

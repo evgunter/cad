@@ -19,17 +19,16 @@
 use crate::common::germ_pair::cyl;
 use sweep::ExtrudeSide;
 
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use sweep::test_support::finished;
 use topo::{Body, BooleanOp};
 
 /// A profile in the `yz` plane at `x = x0`, extruded `dist` along `x`.
 fn yz_prism(lp: ProfileLoop<f64>, x0: f64, dist: f64) -> Body<f64> {
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_y(), Vec3::unit_z(), Vec3::unit_x()),
-        Vec3::new(x0, 0.0, 0.0),
-    ));
+    let plane = profile::SketchPlane::from_frame(geom_core::RigidMotion::axes_yz(Point3::new(
+        x0, 0.0, 0.0,
+    )));
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the profile validates");

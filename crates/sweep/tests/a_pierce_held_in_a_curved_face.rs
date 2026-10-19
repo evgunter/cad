@@ -47,7 +47,7 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol};
 use sweep::test_support::{brick, corners, finished, prism_at};
 use sweep::{ExtrudeSide, Extrusion, extrude};
 use topo::{AtRestBody, BooleanError, BooleanErrorKind, BooleanResult};
@@ -107,7 +107,7 @@ fn extruded(
 /// seam rulings at `±x` of its axis.
 fn rod() -> AtRestBody<f64> {
     let lp = profile::circle(Point2::new(C.0, C.1), R, tol()).unwrap();
-    let plane = profile::SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, ROD_Z.0)));
+    let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, ROD_Z.0));
     extruded(plane, lp.into(), ROD_Z.1 - ROD_Z.0)
 }
 

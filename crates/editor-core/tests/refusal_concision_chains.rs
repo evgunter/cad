@@ -2605,6 +2605,7 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             },
         ),
         ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
+        ("PathTangentVanishes", E::PathTangentVanishes { station: 4 }),
         ("RowMotionUndecided", E::RowMotionUndecided { row: 1 }),
         (
             "ArcSweepUndecided",

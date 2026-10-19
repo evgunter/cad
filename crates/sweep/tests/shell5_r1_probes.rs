@@ -13,7 +13,7 @@
     clippy::float_cmp
 )]
 
-use geom_core::{Affine3, Point2, Point3, Sign, Tol, Vec2, Vec3};
+use geom_core::{Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -40,7 +40,7 @@ fn boxy_at(x0: f64, y0: f64, z0: f64, w: f64, d: f64, h: f64) -> Body<f64> {
 /// axis through `(axis_x, 0)`, on the xy plane translated by `z0`.
 fn revolved_at(pts: &[(f64, f64)], axis_x: f64, z0: f64) -> Body<f64> {
     let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, vec![lp])
         .validate(tol())
         .expect("the meridian is a valid profile");
@@ -346,7 +346,7 @@ fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
         (Point2::new(2.2, 2.2), 0.0),
         (Point2::new(2.2, 1.8), 0.0),
     ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 1.0));
     let profile = match Profile::new(plane, vec![outer_loop, hole]).validate(tol()) {
         Ok(p) => p,
         Err(e) => {

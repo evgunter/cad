@@ -628,7 +628,6 @@ fn a_three_face_cylinder_rod_builds_under_every_op() {
 /// A radius-1 cylinder about `z`, two metres tall, its wall split into
 /// three faces by seams at 0°, 120° and 240°.
 fn three_face_cylinder() -> AtRestBody<f64> {
-    use geom_core::{Affine3, Mat3, Vec3};
     let bulge = (std::f64::consts::PI / 6.0).tan();
     let s = 3f64.sqrt() / 2.0;
     let lp = bulge_loop(vec![
@@ -636,10 +635,7 @@ fn three_face_cylinder() -> AtRestBody<f64> {
         (Point2::new(-0.5, s), bulge),
         (Point2::new(-0.5, -s), bulge),
     ]);
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Vec3::new(0.0, 0.0, 0.0),
-    ));
+    let plane = profile::SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the three-arc circle validates");
@@ -893,15 +889,13 @@ fn a_torus_poking_through_a_slab_face_is_not_an_assembly() {
 /// see.
 #[test]
 fn a_cylinder_grazing_the_outer_equator_is_not_an_assembly() {
-    use geom_core::{Affine3, Mat3, Vec3};
     let lp = bulge_loop(vec![
         (Point2::new(-0.55, 3.0), 1.0),
         (Point2::new(0.55, 3.0), 1.0),
     ]);
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_y(), Vec3::unit_z(), Vec3::unit_x()),
-        Vec3::new(-1.0, 0.0, 0.0),
-    ));
+    let plane = profile::SketchPlane::from_frame(geom_core::RigidMotion::axes_yz(Point3::new(
+        -1.0, 0.0, 0.0,
+    )));
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the circle validates");
@@ -1219,10 +1213,9 @@ fn subtract_and_intersect_refuse_where_union_does() {
             (Point2::new(-0.55, 3.0), 1.0),
             (Point2::new(0.55, 3.0), 1.0),
         ]);
-        let plane = profile::SketchPlane::new(Affine3::from_parts(
-            Mat3::from_cols(Vec3::unit_y(), Vec3::unit_z(), Vec3::unit_x()),
-            Vec3::new(-1.0, 0.0, 0.0),
-        ));
+        let plane = profile::SketchPlane::from_frame(geom_core::RigidMotion::axes_yz(Point3::new(
+            -1.0, 0.0, 0.0,
+        )));
         let vp = profile::Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .expect("the circle validates");
