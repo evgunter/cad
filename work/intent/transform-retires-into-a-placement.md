@@ -96,7 +96,14 @@ Closes the placement half of `a-boxed-rotation-refuses-not-rigid-at-every-placer
 - `m10_di_dual_corpus`: die_composed_tour has 16 undecided touches at Interval. The mechanism was not found.
 - **Design-level, needs a ruling:** `drive_and_report(1 link, f=1)` certifies 0 leaves, so `demo-tour certified` fails. At the nominal, link 1 is at rest and the witness places it by no map, deciding no transforms. Every leaf off θ = 0 moves it, so the decision lists differ and the drive refuses `flip_crossing`. Under C-5's rest snap plus "the identity is placed by no map", a toleranced placement whose nominal is at rest cannot certify in the drive; before D, the Transform node always ran. Sent to the orchestrator.
 
-**Ruling on the at-rest drive (orchestrator, 2026-10-19): (a).** C-5 is narrowed: snap only when the bundle reads no variable. A placement whose bundle reads a toleranced or free variable always runs its map. Applied (`eval/wire.rs` `bundle_reads_a_variable`, read before the snap in `fold_with`); verification is in progress: the f64 guards, the m10 rows, chaintol and `demo-tour certified` (`/home/user/c5-run.txt`).
+**Ruling on the at-rest drive (orchestrator, 2026-10-19): (a).** C-5 is narrowed: snap only when the bundle reads no variable. A placement whose bundle reads a toleranced or free variable always runs its map. Tried and reverted (3fc2842244, reverted by the next commit). The attempt read `bundle_reads_a_variable` (every free variable reached from the bundle's numbers and mate reads, through definitions and the operations behind outputs, excluding the copied shapes) before the snap in `eval/wire.rs` `fold_with`. Measured:
+- chaintol 3/3 still pass;
+- **the plate study fell from 211/512 to 0/512**: 94.9% of leaves refuse `flip_crossing`, 4.6% hit the budget;
+- `m10_p_fence` f64, Interval and ids-masked moved (expected, since a varying placement now runs its map at the nominal);
+- m10_bulge ×3 (carrier_* counts rose at the nominal), `m10_9_no_registrant` (two_hole_plate 1381 decisions) and sym_9's kept-atom row regressed;
+- whether the 1-link chain drive certifies is unknown, because `demo-tour certified` stops at the plate study.
+
+So running the map at the nominal does not by itself make the lanes' decision lists agree: the plate's placements still flip. The next lane should find which decision differs between the nominal and a leaf once both run the map (`holds_rest`/`with_rest` are skipped on that path, and the transform's re-certification predicates may still decide differently). Then re-apply the narrowing with that fixed, re-run the plate study, chaintol and `certified`, and re-bless the f64 guards that move.
 
 **Known reds at the full-suite run on `ea25544a9a`:** 68 editor-core failures, listed with their owners above. pncad's 2 are re-bless. The viewer `--test all` suite needs a re-run (the 17 gallery_ring goldens are re-bless). The viewer's 2 lib reds are the GPU tests (no adapter). `every_suite_file_is_aggregated` fails only because of the local `zz_*` probe roots.
 
