@@ -371,9 +371,10 @@ fn probe_c_a_third_solids_findings_do_not_block_a_pair() {
 /// **Probe D — a definitely-separated pair never reaches the material
 /// test.** Two bricks a metre apart: one extent margin is definitely
 /// negative, so the gate clears both orderings for free and no vertex
-/// is probed. The "over-width costs a probe per vertex" sentence the PR
-/// adds to `boxes.rs` needs a reach box inflated by a CURVED face to
-/// bite, and such a pair is arm 1's first.
+/// is probed. The "over-width costs a probe per vertex" sentence in
+/// `boxes.rs` needs a reach box inflated by a CURVED face to bite,
+/// which reaches the material test only once arm 1 has proved the
+/// curved face's pairs apart.
 #[test]
 fn probe_d_a_separated_planar_pair_clears_at_the_gate() {
     let a = common::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());

@@ -310,8 +310,8 @@ The qualifier depends on what was split:
   Crossings of one line by one face with the same sense, and vertices with
   the same run, are ranked along a line they share by its carrier's own
   parameter, in its stored orientation: the run's least edge, or where the
-  run holds no edge, a straight seam in it. An equal pair, or a run with no
-  such line, ties.
+  run holds no edge, a seam in it whose pieces lie on one open carrier. An
+  equal pair, or a run with no such line, ties.
   Where the result holds an operand corner as several vertices, each is a
   fragment of it, qualified as the operation's face pieces are. At a boolean
   or a union it is `Fragment(Borders)` over the walls that divide the corner
@@ -373,8 +373,12 @@ their names, flat and in name order: the shell's survivors as `From` of
 their names and its cavity twins as `Inner` of theirs, a set among them listed by its
 constituents. A split's section chords, joined, stay a chord of the face they
 cross, and a join over section chords and whole operand edges, across a
-merged face, is named from its two faces, as a seam is. A join with no such reading, a chord with an operand edge's piece or
-pieces of several operand edges, is refused, not named.
+merged face, is named from its two faces, as a seam is. A split's join that
+lies along several operand edges, holding part of one or more of them, is a
+piece of their `Merged` set, flat and in name order, several of one set in a
+half told apart by their ends, as a union names a flush rim along several
+member edges. A join with no such reading, a chord with an operand edge's
+piece, is refused, not named.
 
 A blend names an edge its closing join made the same way. Each trim the blend
 mints is the image of one input edge on one support, as a cavity twin is, so
@@ -450,7 +454,10 @@ at `RoleSeg::Merged`). A split's section faces are constituents like any
 other face: a split finishes each half with maximal faces, and a group that
 holds section faces is `Merged` of its constituents' names, each
 `SectionFace { k }` numbered in the completion order it had before the
-merge, so no section is renumbered. A `Merged` whose set has one element is that
+merge, so no section is renumbered. A split's group that holds no section
+face is named as a boolean names it: `Merged` of the operand faces its faces
+descend from, the faces of one such parent in one half told apart by `Keeps`
+(N2). A `Merged` whose set has one element is that
 element: a face glued to its twin, the same read spelled twice (REFERENCES
 DM5), is named as the face. A merged row COVERS a name when the name is a constituent
 or is a merged face all of whose faces are (`names/merged.rs`), which is how the

@@ -4940,7 +4940,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `PairingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
-///   can carry).
+///   can carry; and `ProfileLane`, the sealed fact that the `f64`
+///   lane is a profile's first pass).
 ///
 ///   **The rest of this family is now CARRIED**, by `crate::analysis`
 ///   (M10-6): the driver and its box,
@@ -4982,7 +4983,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The "place part" gesture's answer** (`Placed`): the mate, its
 ///   values and how the copy was placed, which `place_at` (carried)
 ///   answers; a consumer reads its fields and never names the type.
-const NOT_CARRIED: [&str; 98] = [
+const NOT_CARRIED: [&str; 99] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5028,6 +5029,7 @@ const NOT_CARRIED: [&str; 98] = [
     "ParamValue",
     "Placed",
     "PredicateDivergence",
+    "ProfileLane",
     "ProfilePayload",
     "Qualifier",
     "RangeField",
@@ -5525,13 +5527,18 @@ fn the_root_readers_read_statements_not_lines() {
 ///   revolve, loft). A modeller asks a validated loop through its own
 ///   `ValidatedLoop::is_full_turn`, which the façade carries with the
 ///   type.
+/// - `PINNED_UNDER_GUIDANCE`, the predicates a guided validation does
+///   not run: what the evaluator's `f64` lane logs in the second pass's
+///   place is read off it. A fact between the profile layer and the
+///   evaluator, which a modeller never asks.
 ///
 /// The list is checked in both directions — a future interior root
 /// export is a finding, and a stale entry fails. It once held
 /// `RawLoop`, the minting tier, which left the shipped root surface
 /// behind that crate's `test-support` feature instead
 /// ([`code_without_cfg_gated`] is what makes the scan agree).
-const PROFILE_NOT_CARRIED: [&str; 2] = ["decision_subject", "is_full_turn"];
+const PROFILE_NOT_CARRIED: [&str; 3] =
+    ["PINNED_UNDER_GUIDANCE", "decision_subject", "is_full_turn"];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**
@@ -6603,9 +6610,9 @@ mod unit_vector_witness_through_the_facade {
             Tol::witness(),
         )
         .unwrap();
-        assert_eq!(bits(frame.linear * Vec3::unit_z()), bits(normal.get()));
+        assert_eq!(bits(frame.linear() * Vec3::unit_z()), bits(normal.get()));
         let start = path_start_frame(ao, dir.get(), Tol::witness()).unwrap();
-        assert_eq!(bits(start.linear * Vec3::unit_z()), bits(dir.get()));
+        assert_eq!(bits(start.linear() * Vec3::unit_z()), bits(dir.get()));
         let mirror = mirror_across_plane(origin, normal.get(), Tol::witness()).unwrap();
         let p = mirror.transform_point(Point3::new(1.0, 2.0, 4.0));
         assert!((p.z - 2.0).abs() < 1e-12, "{p:?}");
@@ -6935,8 +6942,8 @@ fn a_lattice_built_loft_section_decides_no_consistency_check() {
             .expect("the section authors")
     };
     let places = [
-        pncad::geom_core::Affine3::identity(),
-        pncad::geom_core::Affine3::translation(pncad::geom_core::Vec3::new(0.0, 0.0, 1.0)),
+        pncad::profile::SketchPlane::xy(),
+        pncad::profile::SketchPlane::xy_at(pncad::geom_core::Point3::new(0.0, 0.0, 1.0)),
     ];
     let constructed: Vec<Vec<ConstructedLoop<f64>>> = vec![vec![d_shape().into()]; 2];
     let asked = consistency_asked(|| {

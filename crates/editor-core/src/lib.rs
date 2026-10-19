@@ -139,7 +139,7 @@ pub use eval::{
     ContentBits, ContentKey, Copies, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
     Evaluation, FramePlacement, KeyedCopy, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
     NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PiecesFault, PoseValue,
-    ProfileLift, ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
+    ProfileLane, ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};

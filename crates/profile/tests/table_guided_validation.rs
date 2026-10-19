@@ -5,7 +5,7 @@
 //! their derivative.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Dual64, Point2, Real, Tol};
+use geom_core::{Dual64, Point2, Real, Tol};
 use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 
@@ -24,7 +24,7 @@ fn square<T: Real>(b: T) -> Vec<ProfileLoop<T>> {
 #[test]
 fn a_tables_guided_validation_is_its_plain_validation_at_f64() {
     let tol = Tol::witness();
-    let profile = Profile::new(SketchPlane::new(Affine3::identity()), square(0.2));
+    let profile = Profile::new(SketchPlane::xy(), square(0.2));
     let plain = profile.validate(tol).unwrap();
     let (recorded, record) = profile.validate_recording(tol).unwrap();
     let guided = profile.validate_guided(tol, &record).unwrap();
@@ -35,15 +35,12 @@ fn a_tables_guided_validation_is_its_plain_validation_at_f64() {
 #[test]
 fn a_tables_guided_validation_at_dual_keeps_the_record_and_the_derivative() {
     let tol = Tol::witness();
-    let (nominal, record) = Profile::new(SketchPlane::new(Affine3::identity()), square(0.2))
+    let (nominal, record) = Profile::new(SketchPlane::xy(), square(0.2))
         .validate_recording(tol)
         .unwrap();
-    let guided = Profile::new(
-        SketchPlane::new(Affine3::<Dual64>::identity()),
-        square(Dual64::variable(0.2)),
-    )
-    .validate_guided(tol, &record)
-    .unwrap();
+    let guided = Profile::new(SketchPlane::<Dual64>::xy(), square(Dual64::variable(0.2)))
+        .validate_guided(tol, &record)
+        .unwrap();
     let values = |v: Vec<f64>| v.into_iter().map(f64::to_bits).collect::<Vec<_>>();
     let starts = |segs: &[profile::ValidatedSegment<f64>]| -> Vec<f64> {
         segs.iter().flat_map(|s| [s.start.x, s.start.y]).collect()

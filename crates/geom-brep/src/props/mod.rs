@@ -68,11 +68,13 @@
 //! endpoints on the carrier:
 //!
 //! - line: `(1/2)·(a − ref)×(b − ref)`;
-//! - circular arc (center C, unit axis n̂, radius R, angle t0→t1):
-//!   `(1/2)·[(C − ref)×(p1 − p0) + R²·(t1 − t0)·n̂]`
+//! - circular arc (unit axis n̂, radius R, angle `Δ = t1 − t0`):
+//!   `(1/2)·[(p0 − ref)×(p1 − p0) + R²·(Δ − sin Δ)·n̂]`
 //!
-//! (derived by splitting `p − ref = (C − ref) + (p − C)` and using
-//! `(p−C)×d(p−C) = R²·n̂·dt`). Reversed traversal negates the form.
+//! (the triangle `ref, p0, p1` plus the segment between chord and arc,
+//! from `(p − C)×dp = R²·n̂·dt`; an ellipse's is the same with
+//! `R² → a·b`, and [`loop_vector_area`] says why the lever is `p0`
+//! rather than the centre). Reversed traversal negates the form.
 //!
 //! # Stored-data discipline and the iso-rectangle premise
 //!
@@ -112,14 +114,14 @@
 //! face measures and encodes its side as a rectangle does. [`boundary_material_sign_loops`] reads
 //! each kind's side off the quantity its flux integrates.
 //!
-//! Closure: every lane on a cylinder or torus chart decides it one way
+//! Closure: every lane on a cylinder, torus or cone chart decides it one way
 //! (`closure`): each junction's chart gap, less whole periods, against a
 //! stated slack, then whole-number windings held to a face boundary's
 //! integer facts. The windings are read two ways by what the lane holds:
 //! an interval lane sums the whole periods its junctions are nearest, a
 //! closed form reads its loop's total angle at half-turn thresholds. The
-//! sphere's Gauss–Bonnet and the cone's vector area decide every junction
-//! in space (`props_loop_closed`). No lane reads the loop-local vertex **tags**
+//! sphere's Gauss–Bonnet decides every junction in space
+//! (`props_loop_closed`). No lane reads the loop-local vertex **tags**
 //! ([`LoopEdge`]).
 
 mod bracket;
@@ -133,14 +135,14 @@ use geom::Curve3;
 use geom_core::spline::SpanLocate;
 use geom_core::{Indeterminate, KERNEL_OR_FILE_DEFECT_ENDING, Point3, Real, SizedPass, Vec3};
 
-use crate::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite, Unsized};
+use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, Unsized};
 
 pub use curved::{
     MaterialSign, boundary_material_sign, boundary_material_sign_loops, cone_face_closed_form,
     curved_face, curved_face_loops, require_iso_rectangle, require_one_chart_branch,
     sphere_region_material_sign,
 };
-pub use loop_area::loop_vector_area;
+pub use loop_area::{arc_segment_term, chord_bulge, loop_vector_area};
 
 /// One traversed boundary edge of a face loop: a key-free view of
 /// (carrier, certified `he_plus`-forward parameter interval, traversal
@@ -351,9 +353,8 @@ pub enum PropsError {
         what: &'static str,
     },
     /// A cone face (`curved::cone_face_closed_form`) fails a premise of
-    /// its vector-area closed form: a loop that does not close, that
-    /// winds the axis twice or sweeps past a turn through the apex, that
-    /// meets itself at a vertex, or a ring that winds the axis or
+    /// its vector-area closed form: a loop that sweeps past a turn
+    /// through the apex, that meets itself at a vertex, or a ring that
     /// touches the apex. Name-only, as [`Self::SphereLoop`]: `what` is
     /// the deciding predicate's name.
     ConeLoop {
@@ -589,7 +590,7 @@ pub const FACE_EXTENT: SizedDecision = SizedDecision {
     size: "width",
     passes: SizedPass::Positive,
     // The stored description a lever edits IS the face's own extent.
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 

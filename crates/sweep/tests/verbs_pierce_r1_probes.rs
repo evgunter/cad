@@ -10,9 +10,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use geom_core::Point3;
 use sweep::ExtrudeSide;
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
@@ -24,7 +25,7 @@ fn pv(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
 
 fn body_of(loops: Vec<ProfileLoop<f64>>, z0: f64, z1: f64) -> AtRestBody<f64> {
     let tol = Tol::witness();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, loops).validate(tol).unwrap();
     let body = extrude(
         &profile,

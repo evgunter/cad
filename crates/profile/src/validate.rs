@@ -1808,6 +1808,14 @@ pub struct BlendArc<T: Real> {
 /// stated rather than hidden. It is **not** invariant under reordering
 /// the input's loop *list*: holes keep discovery (input) order, and D9
 /// recipes replay that order — see the crate docs.
+///
+/// **Its mints**, the one list of them: [`Profile::validate`],
+/// [`Profile::validate_recording`] and [`Profile::validate_guided`] from
+/// a raw profile; [`ConstructedProfile`]'s three validations from a
+/// replayed one; [`ValidatedProfile::lift_onto`] from an `f64` one;
+/// [`ValidatedProfile::value_channel`] from one at another scalar; and
+/// [`ValidatedProfile::on_plane`] from one at the same scalar. Nothing
+/// else mints one.
 #[derive(Debug, Clone)]
 pub struct ValidatedProfile<T: Real> {
     plane: crate::SketchPlane<T>,
@@ -1819,6 +1827,15 @@ impl<T: Real> ValidatedProfile<T> {
     /// 2-D; the plane is conventional data).
     pub fn plane(&self) -> &crate::SketchPlane<T> {
         &self.plane
+    }
+
+    /// **The same canonical form on `plane`**, at the same scalar:
+    /// validation is 2-D and reads nothing of the plane
+    /// ([`ValidatedProfile::plane`]), so every decision it made holds on
+    /// any plane. Nothing is computed, and no scalar is crossed.
+    #[must_use]
+    pub fn on_plane(self, plane: crate::SketchPlane<T>) -> Self {
+        Self { plane, ..self }
     }
 
     /// The canonicalized loops (outer first, then holes in input
@@ -1894,9 +1911,7 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                 (Some(x), Some(y)) => Ok(Point2::new(x, y)),
                 _ => Err(site),
             };
-        let plane = self
-            .plane
-            .try_map(|x| x.point_value().ok_or(ValueNotAPoint::Plane))?;
+        let plane = self.plane.point_value().ok_or(ValueNotAPoint::Plane)?;
         let mut loops = Vec::with_capacity(self.loops.len());
         for (loop_index, lp) in self.loops.iter().enumerate() {
             let vertices = lp
@@ -1952,12 +1967,8 @@ impl ValidatedProfile<f64> {
     /// plane taken as given once it is finite (validation is 2-D and
     /// decides nothing of it — [`ValidatedProfile::plane`]); everything
     /// else carried. No
-    /// predicate runs and no verdict is logged. A `ValidatedProfile` is
-    /// minted by [`Profile::validate`] and [`Profile::validate_recording`]
-    /// from a raw profile, by [`ConstructedProfile`]'s three validations
-    /// from a replayed one, by this
-    /// from an `f64` one, and by [`ValidatedProfile::value_channel`]
-    /// from one at another scalar; nothing else mints one.
+    /// predicate runs and no verdict is logged. One of the mints
+    /// [`ValidatedProfile`] lists.
     ///
     /// # What is carried, and on whose authority
     ///
@@ -1973,17 +1984,18 @@ impl ValidatedProfile<f64> {
     /// tangency, the absence of contact — are the verdicts `validate`
     /// made at `f64`. They are carried AS THE `f64` DECISIONS, and that
     /// is the design of this door rather than a claim that a validation
-    /// at `U` would agree: under the evaluator's pinned lift, structure
-    /// is selected once, at `f64`, identically for every lane, and the
-    /// guided lift is the lane that re-verifies every decision at its
-    /// own scalar and refuses what that scalar cannot confirm
-    /// (`ProfileLift`'s doc in `editor-core`). What a validation at `U`
+    /// at `U` would agree: the door is for a build whose structure is the
+    /// `f64` one by construction (sweep's loft at an enclosure scalar,
+    /// which encloses the `f64` loft its sections' value channel
+    /// describes), while a profile elaborated at its own scalar
+    /// re-verifies every decision there through
+    /// [`ConstructedProfile::validate_guided`]. What a validation at `U`
     /// would say, for the record: at `Dual64` the value channel is bit
     /// for bit the `f64` computation, so every predicate would decide
     /// the same; at `Interval` every margin is an enclosure of the
     /// `f64` margin, so a predicate would decide the same or escalate
     /// as indeterminate — and that escalation is deliberately the
-    /// guided lift's job, not re-consulted here. The one bit the two
+    /// guided validation's job, not re-consulted here. The one bit the two
     /// forms can differ in is a `Dual64` derivative channel: constants
     /// embed with `+0.0` where a negated constant's derivative at `U`
     /// would be `-0.0` — equal as numbers, read by no predicate.
@@ -2146,7 +2158,11 @@ fn recording_loops<T: Decide, L: LoopInput<T>>(
 /// value it stands for ([`Real::is_bounded`]): validation is 2-D and
 /// decides nothing on the plane, but a validated profile carries it.
 fn plane_is_finite<T: Real>(plane: &SketchPlane<T>) -> bool {
-    plane.placement.components().iter().all(|c| c.is_bounded())
+    plane
+        .placement()
+        .components()
+        .iter()
+        .all(|c| c.is_bounded())
 }
 
 /// The validation of `loops` on `plane` ([`Profile::validate`]'s body),
@@ -2514,6 +2530,15 @@ impl<T: Decide> ConstructedProfile<T> {
         )
     }
 }
+
+/// **The predicates a guided validation does not run**: the
+/// containment representative's lexicographic order and each loop's
+/// orientation, which guidance takes from the record rather than asking
+/// a lane scalar (`lex_min_index`, `loop_orientation`). Each is decided
+/// at that site and nowhere else, so where the guided pass decides what
+/// the recording one did, its log is the recording's less these.
+pub const PINNED_UNDER_GUIDANCE: [&str; 3] =
+    ["canonical_order_x", "canonical_order_y", "loop_orientation"];
 
 /// How a validation treats its own discrete decisions: selecting
 /// freely and writing them down, or consuming a prior pass's and
