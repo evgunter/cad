@@ -40,3 +40,12 @@ Found while D's rows were restated (2026-10-18):
   - `msolve1_transform_aware::a3b_a_placed_copy_of_a_pattern_seats_and_gates`: the at-rest gate reported `StaleContactDeclaration` (via `Refuted`) for copies 1 and 2 of a placed 3-copy pattern;
   - `msolve13_read_at_operand::a1b_a_placement_above_the_operand_mints_nothing`: a mate read at an unplaced pattern copy minted on a placement of that copy that stands elsewhere.
 - **Absorb, if the chart is rewritten:** `sym-solve-atan2-has-no-branch-rule-about-pi` (Sym's angle readback) and `a-slide-value-doubles-its-translations-width` (the slide's width). D's box-lane solve fixes (`Chart::turned`, `mate::solve::tightened`, Sym's at-rest snap) are the base the new chart builds on.
+
+**§1, answered by Ev on PR 5315 (a space names its bodies)**, which D′ builds:
+- A body placed into a space is a **pick**: a `Body` variable of the space defined as one copy, or `Bodies` for a pattern.
+- Its `of` is the path through the source's placements to the first variable it reaches, and that is its one spelling.
+- Readers hold the pick; nothing else reads a placement's copies. An unpicked copy is still a body of the space.
+- Names pass through from the source and are told apart by the pick. A duplicate pick is two variables.
+- `RoleSeg::Placed`, `RoleSeg::InPart`, `CopyKey` and `StableName::copy_of` retire. The minting and reading sites as of D's head are listed in the orchestrator readout: `names/role.rs:1579`, `:2287`, `:2302`; `names/emit.rs:919-1000`; `eval/wire.rs:2575`, `:3546-3754`; `operand.rs:502`; `eval/parts.rs:852`; `eval/mod.rs:5585`, `:6558`; `coincide.rs:588`; `refactor.rs:2834`, `:3424`, `:4420-4470`; `edit.rs` `stranded_by_repoint`'s copy reach. The rows deleted pending this ruling, `msolve1::a3b` and `msolve13::a1b`, come back restated over picks.
+
+D′'s carry shape must not preclude two units of their own, from PR 4666 (which awaits Ev's last look): each space runs its own census between arrivals, and a placement carries its source's at-rest decisions.
