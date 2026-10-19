@@ -49,9 +49,10 @@
 //!
 //! **Role resolution and side-specific certification are the callers'**
 //! — that is what makes this core side-agnostic. The split lane
-//! resolves roles by membership of its null edges' above-end set and
-//! certifies the section area (`split_section_area`, refusing a
-//! zero-area polygon as [`SplitJoinError::DegenerateSection`]); the
+//! resolves roles by membership of its null edges' above-end set, reads
+//! a slit trace from the loops' topology, and certifies every other
+//! section's area (`split_section_area`, refusing a zero-area polygon
+//! as [`SplitJoinError::DegenerateSection`]); the
 //! boolean lane resolves them from its own germ records. Neither
 //! posture is visible here.
 //!
@@ -268,12 +269,15 @@ pub enum SplitJoinError {
     /// A section loop that closes on one vertex bounds nothing however
     /// large the section it should be
     /// (`work/cleave/a-revolved-tube-split-across-its-axis-refuses-a-degenerate-section.md`).
-    /// A pinch does not reach it: the split's reduction keeps one vertex
-    /// per piece round a vertex on each side, so pieces meeting there do
-    /// not share one. A plane tangent to a curved wall does not reach it
-    /// either: rule (b) classifies a convex graze with its material,
-    /// and rule (a) refuses a concave one
-    /// ([`crate::SplitReduceError::KnifeEdge`]).
+    /// A pinch at a vertex does not reach it: the split's reduction keeps
+    /// one vertex per piece round a vertex on each side, so pieces
+    /// meeting there do not share one. A pinch along an edge in the
+    /// plane, wrapped round at both ends by the other side's material,
+    /// would: its trace is a polygon of its own, which the split reads as
+    /// a slit trace from its topology before its area, and builds. A
+    /// plane tangent to a curved wall does not reach it either: rule (b)
+    /// classifies a convex graze with its material, and rule (a) refuses
+    /// a concave one ([`crate::SplitReduceError::KnifeEdge`]).
     DegenerateSection {
         /// The completed null face.
         face: FaceKey,

@@ -61,6 +61,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/TornComponent",
     "Split/Finish/UnclassifiableComponent",
     "Split/Finish/NestingContradiction",
+    "Split/Finish/SlitUnplaced",
     "Split/Finish/ResultInvalid",
     "Split/Pcurves",
     "Transform/Pcurve",
@@ -1987,6 +1988,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "NestingContradiction",
             F::NestingContradiction { hole: face },
+        ),
+        (
+            "SlitUnplaced",
+            F::SlitUnplaced {
+                slit: face,
+                in_hole: true,
+            },
         ),
         (
             "EdgeJoin",

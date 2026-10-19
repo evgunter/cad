@@ -112,3 +112,24 @@ neighbouring sentences:
 - the representability boundary speaks of non-solids only.
 
 Code follow-up: `non-manifold-result-calls-a-buildable-solid-permanently-unrepresentable`.
+
+## Built (`cleave/keel-slit-ring`, 2026-10-19)
+
+- The join reads a slit trace from topology before the area check: a
+  loop that runs along each of its edges both ways (a tree walk; for one
+  keel, two struts). That covers two crossing keels and a bent one too,
+  which refused the same way.
+- The finish drops the strut loop's face, a component of its own, and
+  nests the slit as a ring of the section face containing it, read by
+  containment (`nest_slit`). A slit in no outline, or in or against a
+  hole, refuses `SlitUnplaced`.
+- `plane_section` skips slit traces.
+- Volumes: 15.7 above and 16 below. The 12.65 in 4795's round-1 report
+  does not match the closed form, 16 − ½ · 1 · 0.6 · 1.
+- Filed:
+  - `a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs`: the
+    curved ring fails tier 3′, as 4622's one-end form already does;
+  - `the-split-keeps-an-in-plane-edge-it-doubles-at-a-dead-key`:
+    lineage;
+  - `work/tess/a-zero-area-ring-meshes-non-manifold-at-its-shared-ends`:
+    the mesh.
