@@ -1595,3 +1595,14 @@ coincidence is now a margined verdict (no declarations), checked by the
   - Implementation is the open row `a-proven-zero-is-definite-yet-ends-as-no-size-at-rest`. Its panic arms wait on EXCH closing the import gaps; a seam note is on the EXCH row.
   - The rows that waited on 5134 are unblocked as far as the design goes.
   (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5157** (`zero-arm-payload-wording-doubles-words-and-hedges-a-definite-verdict`, closed): zero-arm payloads no longer double words or hedge a definite verdict, and margins print through `MarginDiag::readable` ("0 m", not "0e0 m").
+  - A lane merged main in. Under TANG's U-lever nouns ("faces wide enough"), the step-import `TANGENT_SECOND_ORDER_ZERO` pin was retired on main. Local: 8375/8375. `gate ok` passed on 745a2bfbaf.
+  - **Filed:**
+    - encl `the-dihedral-arm-noun-is-spelled-twice-and-its-docs-still-say-edge-length`
+    - encl `zero-and-negative-payloads-of-one-decision-use-different-nouns`
+    - scalar `readable-below-zero-restates-the-bracket-layout`
+  - **Evidence added to:**
+    - restfront `validate-window-leads-say-no-length-on-a-zero-arm`
+    - scalar `user-facing-number-format-is-not-one-across-payloads-endings-and-escalations`
+  - **Seam:** the payload text changed in geom-brep `certify.rs` (select's territory). The exch, tcost and offset tests that pin those payloads were re-baselined in the PR.
+  (ENCL orchestrator)

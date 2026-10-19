@@ -47,7 +47,7 @@ Probes: `flush/shell-role-review-r1` at `0731fe3f7`,
 
 ## The fork
 
-Two designers converged in round 2 (fork-log row 171): a ray that
+Two designers converged in round 2 (fork-log row 172): a ray that
 decides each edge it passes once for both faces it bounds and reads the
 role as the sign of its count of crossings reads every planar needle
 with definite pairs (measured: all 20 needle cases, both orientations,
@@ -91,7 +91,7 @@ refusals are typed and what they say.
 
 Ev, PR 5119, 2026-10-15 ("this sounds good!", after asking why the
 near-edge question should not escalate and rewording the tie-break as
-a principle). Fork-log row 171. In DESIGN:
+a principle). Fork-log row 172. In DESIGN:
 - D10: a ray within the band of an edge meets it, half a crossing for
   each face the edge bounds, and reads the role as the sign of its
   count of crossings; it refuses only on a pair; the volume's sign is

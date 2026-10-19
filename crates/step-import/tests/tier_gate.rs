@@ -402,12 +402,12 @@ const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
 /// A span of no length ends in the lever and a note instead, which the
 /// offer's words cannot match.
 const POLEBAND_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not shown to run \
-     forward (margin 5.654866773844621e-9 m). Recourse: move the geometry so this \
+     forward (length 5.654866773844621e-9 m). Recourse: move the geometry so this \
      edge runs forward over a clear length, or, if this length is intended, tighten the tolerance \
      below 5.654866773844621e-10 m";
 /// [`POLEBAND_ZERO_SPAN_TOLD`], for the frustum twin's shorter span.
 const POLEFRUSTUM_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not shown to run \
-     forward (margin 1.799999999166981e-9 m). Recourse: move the geometry so this \
+     forward (length 1.799999999166981e-9 m). Recourse: move the geometry so this \
      edge runs forward over a clear length, or, if this length is intended, tighten the tolerance \
      below 1.799999999166981e-10 m";
 /// The ε-relative sibling at every band: its span lies within the
@@ -418,7 +418,7 @@ const POLEFRUSTUM_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not s
 /// span together — declare the file's uncertainty below it, and tighten
 /// below it over K (D4 ¶1). The values pin the span.
 const INTERVAL_ZERO_SPAN_UNTOLD: &str = "the stored parameter interval is not shown to run \
-     forward (margin 5.65487109168879e-12 m). This length is within the file's \
+     forward (length 5.65487109168879e-12 m). This length is within the file's \
      declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it from zero. \
      Recourse: move the geometry so this edge runs forward over a clear length, or, if this length \
      is intended, re-export the file with its uncertainty declared below 5.65487109168879e-12 m \

@@ -705,11 +705,19 @@ class AssemblyError(PncadError):
     rest over a part whose contact nothing verified — and `refusals`
     is then a `CarriedRefusal` per mate, each carrying the route it
     arrived by, because its `mate` is a constraint of `of` and not of the
-    document that was gathered."""
+    document that was gathered.
+
+    `carried_at_rest` is a part's own at-rest refusal: a document BELOW
+    this one refused over a finding none of its declarations answers
+    for, and the refusal crosses whole, its attributed findings with it.
+    Each is the part's, reported once, and `findings` is then a
+    `CarriedAtRestFinding` per finding with the route it arrived by. It
+    is raised after `carried_mint_refusal` and before this document's
+    own arms."""
 
     variant: str
     refusals: Optional[list[MintRefusal] | list[CarriedRefusal]]
-    findings: Optional[list[AtRestFinding]]
+    findings: Optional[list[AtRestFinding] | list[CarriedAtRestFinding]]
     name: Optional[str]
     node: Optional[NodeId]
     of: Optional[str]
@@ -6370,6 +6378,48 @@ class CarriedRefusal:
     @property
     def via(self) -> list[NodeId]: ...
 
+class CarriedInterference:
+    """An overlap a document BELOW this one reported between two of its
+    own copies, with the route this document reached it by: a row of
+    `Assembly.carried_interference`, reported and never raised, quiet
+    or loud as the part's own assertions judged it.
+
+    The finding is the part's: its copies are variables of `of`, which
+    this document does not hold, so their `Var` handles carry no kind."""
+
+    @property
+    def finding(self) -> InterferenceFinding: ...
+    @property
+    def through(self) -> NodeId: ...
+    @property
+    def pin(self) -> ContentPin:
+        """Which version of `of` found it: two pins are two findings."""
+    @property
+    def of(self) -> str: ...
+    @property
+    def via(self) -> list[NodeId]: ...
+
+class CarriedAtRestFinding:
+    """One finding of an at-rest refusal a document BELOW this one
+    raised over something none of its declarations answers for: a row
+    of `AssemblyError.findings` under `carried_at_rest`, with the route
+    it arrived by. Its `finding.attribution`, where it has one, names
+    the part's own declaration."""
+
+    @property
+    def finding(self) -> AtRestFinding:
+        """The part's own finding, said as the part holds its nodes."""
+
+    @property
+    def through(self) -> NodeId: ...
+    @property
+    def pin(self) -> ContentPin:
+        """Which version of `of` found it: two pins are two findings."""
+    @property
+    def of(self) -> str: ...
+    @property
+    def via(self) -> list[NodeId]: ...
+
 class Assembly:
     """A validated assembly: the gathered body, its product names, one
     minted declaration per solved mate of THIS document, and one
@@ -6399,6 +6449,13 @@ class Assembly:
         """Every overlap between two copies' material, quiet or loud,
         in the census's order. An overlap is reported here, never
         raised."""
+
+    @property
+    def carried_interference(self) -> list[CarriedInterference]:
+        """Every overlap a document BELOW this one reported between two
+        of its own copies, once per part row, in gather order: the
+        part's findings, reported here and never raised. An overlap
+        inside one part's copy is the part's, not this document's."""
 
 class FaceSite:
     """A face of a copy, as the copy's own name table spells it: the
@@ -6469,13 +6526,15 @@ def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     so the gather refuses `root_failed` before the gate runs.
 
     An overlap between two copies' material is not raised: it is an
-    `InterferenceFinding` on `Assembly.interference`.
+    `InterferenceFinding` on `Assembly.interference`, or, between two
+    copies of a part, the part's own finding on
+    `Assembly.carried_interference`.
 
     Raises AssemblyError, typed. Read `variant` first: `at_rest` is a
     verdict AGAINST the document, `uncertified` is the declared
     direction's FRONTIER where nothing was decided either way, and the
-    remaining arms (`unminted_mates`, `carried_mint_refusal`, the
-    gather's own tags) refuse before any verdict. The two mint arms
+    remaining arms (`unminted_mates`, `carried_mint_refusal`,
+    `carried_at_rest`, the gather's own tags) refuse before any verdict. The two mint arms
     answer with `refusals`, every mate that did not mint rather than
     the first."""
 
