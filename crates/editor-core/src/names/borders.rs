@@ -46,10 +46,13 @@
 //! ([`Obstacles::walls`]), and both refuse a piece or copy, among
 //! several, that meets no divider.
 
+use core::convert::Infallible;
+use core::ops::ControlFlow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use topo::{Body, Cell, EdgeKey, FaceKey, Provenance, VertexKey};
 
+use super::chase;
 use super::emit::{NamingError, face_half_edges};
 use super::least_root::LeastRoot;
 
@@ -325,7 +328,7 @@ impl<K: Ord + Clone> Obstacles<K> {
         for r in read {
             // A chain edge an earlier seam was split into since that
             // seam's step still touches it: its lineage reaches the seam.
-            let touches = self.lineage_hits(body, r.chains.concat(), &earlier)?;
+            let touches = self.lineage_hits(body, r.chains.concat(), &earlier);
             // An edge at a stretch's end, a piece of an edge another
             // discard borders end to end, has the point in that edge's
             // closure.
@@ -336,7 +339,7 @@ impl<K: Ord + Clone> Obstacles<K> {
                         .ok_or_else(|| bug("a stretch end's star does not resolve"))?,
                 );
             }
-            let meets = self.lineage_hits(body, at_ends, &whole_so_far)?;
+            let meets = self.lineage_hits(body, at_ends, &whole_so_far);
             let row = r.row;
             let parents = parents_of(row.operand, row.face)?;
             for k in &parents {
@@ -370,7 +373,7 @@ impl<K: Ord + Clone> Obstacles<K> {
         body: &Body<T>,
         edges: Vec<EdgeKey>,
         targets: &BTreeSet<EdgeKey>,
-    ) -> Result<Vec<EdgeKey>, NamingError> {
+    ) -> Vec<EdgeKey> {
         let mut hits = BTreeSet::new();
         for k in edges {
             self.up_lineage(body, k, |up| {
@@ -379,9 +382,9 @@ impl<K: Ord + Clone> Obstacles<K> {
                     hits.insert(up);
                 }
                 hit
-            })?;
+            });
         }
-        Ok(hits.into_iter().collect())
+        hits.into_iter().collect()
     }
 
     /// Walks edge `e`'s split lineage upward, `e` first: the edge `body`'s
@@ -390,32 +393,36 @@ impl<K: Ord + Clone> Obstacles<K> {
     /// answering true; it also ends where the lineage does, or at a
     /// provenance other than a split.
     ///
-    /// # Errors
+    /// # Panics
     ///
-    /// [`NamingError::Emission`] where the lineage comes back to an edge.
+    /// Where the lineage cycles ([`chase::to_root`]): `split_from` holds
+    /// copies of the `SplitEdge` records of the booleans recorded, and
+    /// the records point at older keys.
     fn up_lineage<T: geom_core::Real>(
         &self,
         body: &Body<T>,
-        mut e: EdgeKey,
+        e: EdgeKey,
         mut stop: impl FnMut(EdgeKey) -> bool,
-    ) -> Result<(), NamingError> {
-        let mut chain = BTreeSet::new();
-        loop {
-            if !chain.insert(e) {
-                return Err(bug("a piece edge's split lineage is cyclic"));
-            }
-            if stop(e) {
-                return Ok(());
-            }
-            e = match body.edge_provenance_of(e) {
-                Some(Provenance::SplitEdge { edge }) => *edge,
-                Some(_) => return Ok(()),
-                None => match self.split_from.get(&e) {
-                    Some(&up) => up,
-                    None => return Ok(()),
-                },
-            };
-        }
+    ) {
+        let bound = body.edges().count() + self.split_from.len();
+        let Ok(_) = chase::to_root::<_, Infallible>(
+            e,
+            bound,
+            "a boolean's SplitEdge records and their copies point at older keys",
+            |e| {
+                if stop(e) {
+                    return Ok(ControlFlow::Break(e));
+                }
+                Ok(match body.edge_provenance_of(e) {
+                    Some(Provenance::SplitEdge { edge }) => ControlFlow::Continue(*edge),
+                    Some(_) => ControlFlow::Break(e),
+                    None => match self.split_from.get(&e) {
+                        Some(&up) => ControlFlow::Continue(up),
+                        None => ControlFlow::Break(e),
+                    },
+                })
+            },
+        );
     }
 
     /// The rule on a face: `pieces`, the faces of `body` that one face
@@ -584,7 +591,7 @@ impl<K: Ord + Clone> Obstacles<K> {
         // edge the join made of two seams meets the discards of both,
         // and they are one obstacle: they meet where the join deleted a
         // vertex.
-        let reached = |e: EdgeKey| -> Result<BTreeSet<usize>, NamingError> {
+        let reached = |e: EdgeKey| -> BTreeSet<usize> {
             let mut out = BTreeSet::new();
             let mut seen = BTreeSet::new();
             let mut todo = vec![e];
@@ -602,10 +609,10 @@ impl<K: Ord + Clone> Obstacles<K> {
                         }
                         None => false,
                     }
-                })?;
+                });
                 todo.extend(joined);
             }
-            Ok(out)
+            out
         };
         let mut sides: Vec<(BTreeSet<usize>, usize, FaceKey)> = Vec::new();
         for (p, hes) in boundaries.iter().enumerate() {
@@ -614,7 +621,7 @@ impl<K: Ord + Clone> Obstacles<K> {
                     .get_half_edge(he)
                     .ok_or_else(|| bug("a piece's half-edge is dangling"))?
                     .edge;
-                let ds = reached(edge)?;
+                let ds = reached(edge);
                 let Some(&first) = ds.first() else {
                     continue;
                 };

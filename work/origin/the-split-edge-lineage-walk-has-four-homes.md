@@ -79,3 +79,20 @@ it asks for should take the copies as another record lookup:
   and refuses `bug("a piece edge's split lineage is cyclic")`.
 
 Inherited from `join-desync-is-the-catch-all-for-cyclic-lineage-records`, beyond the readers: nothing checks the `SplitEdge` records where `Body::split_edge` writes them, and the three copies (`SplitNaming::joined_lineage`, `BooleanNaming::killed_lineage`, `DiscardRow::boundary_chains`) are `pub` fields a caller can write. The fix checks acyclicity where the records are written, or says at the write site why it cannot. It also decides whether the copies stay writable from outside the kernel. The readers' bounds are unreachable only once both hold.
+
+## The editor-core readers share one walk now (`wire/one-chain-chase`, 2026-10-19)
+
+`emit_topo::chase_edge_to_table`, `emit_topo::chase_split_lineage` and
+`borders.rs`'s `Obstacles::up_lineage` now chase through one helper,
+`names::chase::to_root`. It takes a step closure and a bound, and so
+does `emit_topo::pair_original` over a split's null-pair rows. When a
+walk outlasts its bound, the helper panics (D9 row 4) and does not
+refuse typed. The emitters read only rows the kernel's own split or
+boolean wrote, so in `editor-core` a cycle is a kernel bug. The panic
+message names the rows and why they cannot cycle.
+
+`Body::split_root`'s own `SplitLineageCycle` still passes through
+`chase_edge_to_table` and `chase_b` as `NamingError::SplitLineage`.
+That is `topo`'s published refusal and stays with this row. When the
+`topo` walk this row asks for lands, `to_root`'s callers can take it
+as their step.
