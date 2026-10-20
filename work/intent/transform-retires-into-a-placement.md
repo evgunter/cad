@@ -235,6 +235,13 @@ So running the map at the nominal does not by itself make the lanes' decision li
 - `die_tool` says its turns exactly (`5cf76d715e`). Its rule frames come from `Frame::rotate_by_turns_then_translate` (Python: `Frame.rotate_by_turns_then_translate`). Its master stands on the cube's `corner_frame` by an axis mate (Python: `Doc.corner_frame`). The Python twin follows it edit for edit. The viewer had refused to tessellate it, because its master's rounded `atan2` turns disagreed with its now-exact frames by an ulp: `work/tess/a-sphere-face-tilted-by-an-ulp-against-its-copies-fails-the-cdt.md`.
 - Re-pinned (`0f9036b1fe`, `a5eba92a09`): the viewer's `display_budget` (die_composed_tour back to its pre-D values), `index_memo`'s ring probes (aimed `y` exactly 0) and `review_pick_r2`'s tally; die_tool's rows in edit_placement, lib_g16, perf2, name_words, intent_s2_c_world and m10_p_fence (all four numbers).
 - Measured at `a5eba92a09`: editor-core `--test all` is green (2595), apart from the 8 die_tool goldens re-pinned above, now 97/97; the viewer is 770/770 after the re-pins; the gates pass.
+- Measured at `220c41b1a5` and after:
+  - ε = 1e-6 m10/sym/census: 419/419. ε = 1e-12: 418/419. The one red is `reshaped_rod`'s census at `Interval`, already on CENSUS's slate with evidence.
+  - pncad 76/76; pncad-py's Rust tests 133/133 and Python 932/932; the `probe` rows 343/343.
+  - geom-core 1007/1007. Three rows that asserted `cos(π/3) − ½` stays numeric are restated: the rational fold makes it a theorem, so each now keeps an irrational row that never folds.
+  - The tour's `certified` exits 0 (the plate at 211/512; the chain at [1, .3702, .1851, .1110]); chaintol 3/3.
+  - clippy (workspace, all targets, all features), fmt, the demos' clippy, `work.py lint` and the gates are clean.
+  - The rest of the workspace: 10035/10038. `deny_unknown_fields_census` was re-synced to D's moves (node.rs 9→10, placement.rs 3→1; D's own, unsynced since before this lane). The other two are main's own reds, already filed by ENCL: `reader_census` (`work/encl/main-red-reader-census-lacks-sweep-lib-after-restate-review.md`) and topo's `every_public_mutation_path_preserves_tier1` (`work/encl/main-red-restate-stored-edge-is-off-the-tier1-mutation-roster.md`).
 - **Red on D before this lane, not this lane's:** `python3 scripts/payload-rung-sweep.py --check` (CI's gates step) reports "STALE row in DISPOSITIONS: Placed". It is already red at `557e581a64^1`. D's façade curates `mate::Placed` (`crates/pncad/src/document.rs`), which shares a name with the `coincide::Placed` rung the row is about. The sweep keys on the name, so it now reads that rung as curated. The fix is to key the scan on the path or to rename one of the two types; that is D's call.
 
 ### Draft PR body
@@ -375,6 +382,9 @@ The exact-turn lane (2026-10-20), each with its reason in its file:
   - `display_budget`: `die_composed_tour`'s two rows read their pre-D values again (29740 probe triangles; δ 1.9336e-5).
   - `index_memo`'s ring probes: the aimed vertices' `y` is exactly 0, where it was `2.7e-19`/`2.9e-19`.
   - `review_pick_r2`'s tally, to `(440460, 141443, 13482, 6882)`. Landing by landing against the turn form switched off, the exact turns move `kitchen_sink` (its 1044 refused candidates are gone), `gallery_ring`, `die_composed_tour` and `die_tool`. The writers move the rest, measured in aggregate.
+- **restated:**
+  - Three geom-core rows (`sym::tests::rule_d_folds_trig_at_rational_multiples_of_pi_and_nothing_else`, renamed; `m10_10_r1_sym_probes`; `m10_10_r2_probes`) asserted that `cos(π/3) − ½` stays numeric. The rational fold proves it now, so each row proves it and keeps `cos(π/5) + cos(4π/5)` as a row that never folds.
+  - `deny_unknown_fields_census` is re-synced to D's own moves (node.rs 9→10, placement.rs 3→1).
 
 #### Items filed
 
