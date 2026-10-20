@@ -1206,4 +1206,3 @@ fn row7e_a_mate_not_on_its_copy_refuses_at_the_door() {
     );
     assert!(fault.to_string().contains("pins nothing"), "{fault}");
 }
-

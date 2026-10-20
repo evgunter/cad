@@ -434,4 +434,3 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
         }
     }
 }
-

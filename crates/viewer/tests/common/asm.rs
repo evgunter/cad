@@ -225,7 +225,9 @@ pub fn world_pin_of(
 ) -> pncad::document::MateRef {
     let bundle = crate::fixture::bundle(doc, placement);
     if let Some(first) = bundle.first()
-        && bundle.iter().all(|c| c.value().is_some_and(|v| v.mate.is_none()))
+        && bundle
+            .iter()
+            .all(|c| c.value().is_some_and(|v| v.mate.is_none()))
     {
         return pncad::document::MateRef::new(placement, first.id);
     }

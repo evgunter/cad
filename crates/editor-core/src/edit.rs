@@ -6802,9 +6802,10 @@ fn remove_constraints<P: Clone + crate::ProfilePayload>(
     // A mate goes only once no value left names it: the value's freedom
     // would be no freedom of anything.
     for &mate in ids {
-        if let Some(value) = bundle.iter().find(|c| {
-            !ids.contains(&c.id) && c.value().is_some_and(|v| v.mate == Some(mate))
-        }) {
+        if let Some(value) = bundle
+            .iter()
+            .find(|c| !ids.contains(&c.id) && c.value().is_some_and(|v| v.mate == Some(mate)))
+        {
             return Err(EditError::MateNamedByValue {
                 node: doc.spoken(placement),
                 mate,

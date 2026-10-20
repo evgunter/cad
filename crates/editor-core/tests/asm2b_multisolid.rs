@@ -494,4 +494,3 @@ fn the_at_rest_gate_does_not_see_instance_interference_single_or_multi() {
         "and a multi-solid instance reaches exactly the same decision"
     );
 }
-

@@ -754,14 +754,21 @@ pub fn offset_of(doc: &ProfileDoc, id: RecipeNodeId) -> Option<editor_core::Worl
             editor_core::TargetAxis::Y => PoseRole::Y,
             editor_core::TargetAxis::Z => PoseRole::Z,
         };
-        let written = |v: &editor_core::Value| doc.written(&editor_core::Expr::var(v.by, v.coord.dimension()));
-        let values: Vec<_> = constraints.iter().filter_map(editor_core::Constraint::value).collect();
-        let spun = values.iter().fold(editor_core::WorldRead::Frame, |at, v| match v.coord {
-            editor_core::Coord::SpinAbout(axis) => {
-                at.spin(editor_core::WorldRead::through(role(axis)), written(v))
-            }
-            _ => at,
-        });
+        let written = |v: &editor_core::Value| {
+            doc.written(&editor_core::Expr::var(v.by, v.coord.dimension()))
+        };
+        let values: Vec<_> = constraints
+            .iter()
+            .filter_map(editor_core::Constraint::value)
+            .collect();
+        let spun = values
+            .iter()
+            .fold(editor_core::WorldRead::Frame, |at, v| match v.coord {
+                editor_core::Coord::SpinAbout(axis) => {
+                    at.spin(editor_core::WorldRead::through(role(axis)), written(v))
+                }
+                _ => at,
+            });
         return Some(values.iter().fold(spun, |at, v| match v.coord {
             editor_core::Coord::Slide(axis) => {
                 at.slide(editor_core::WorldRead::through(role(axis)), written(v))

@@ -3980,7 +3980,8 @@ pub fn inline(
         part.node(p)
             .and_then(crate::mate::solve::bundle_of)
             .is_some_and(|bundle| {
-                crate::mate::solve::unmated_bundle(bundle) || bundle.iter().any(crate::mate::Constraint::reads_world)
+                crate::mate::solve::unmated_bundle(bundle)
+                    || bundle.iter().any(crate::mate::Constraint::reads_world)
             })
     };
     // Where the part's placements land (A4). A pin's numbers are the
@@ -4605,7 +4606,10 @@ pub fn inline(
                 })
                 .map_err(refused)?;
         }
-        for constraint in bundle.iter().filter(|_| !crate::mate::solve::unmated_bundle(&bundle)) {
+        for constraint in bundle
+            .iter()
+            .filter(|_| !crate::mate::solve::unmated_bundle(&bundle))
+        {
             let one = Node::Place {
                 shapes: Vec::new(),
                 constraints: vec![constraint.clone()],
