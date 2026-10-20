@@ -1739,3 +1739,17 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **The validator keeps its own read.** A link miss is one of its findings, not a panic.
   - **Output.** Bitwise unchanged.
   (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5473**: the census for `a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids`. The row stays open.
+  - **Scope.** 56 sites append `KERNEL_DEFECT_ENDING` to a typed refusal (as of main 5df6e6c854; not guarded).
+  - **Classes.**
+    - class 1 (input reaches it): 7
+    - class 2 (bug-only): 47, of which 5 are HELD under D10
+    - class 3 (approximation limit): 2
+    - class 4 (import door): 0
+  - **Rows.** 12 child rows filed on the owners' slates. Five existing rows carry evidence; four of them planned the retired "tag → shared ending" swap and now say so.
+  - **Review MAJORs, fixed before merge.** Each would have turned a "bug-only" site into a panic input can reach:
+    - The Boolean volume backstop is reachable through the public `AtRestPolicy::gate_volume_backstop`.
+    - Replace-face `ResultNotClosed` has a known input trigger; the SHELF row is `blocked_on` the transport fix.
+    - `OffsetFitError::Structure` may collapse knots by rounding; it needs a proof before any panic.
+  - **Not yet classified.** About 25 sites reach the ending through helpers, and 18 spell "(kernel bug)" in prose.
+  (ENCL orchestrator)
