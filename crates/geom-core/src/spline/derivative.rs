@@ -586,6 +586,16 @@ fn halvings<X>(whole: X, count: usize, halve: impl Fn(&X) -> Option<(X, X)>) -> 
 /// `Σ C(ma,i)C(mb,k−i)·C(na,j)C(nb,l−j)·mul(a_ij, b_{k−i,l−j})` over
 /// `C(ma+mb, k)·C(na+nb, l)`, folded in ascending `(i, j)` then
 /// ascending `b` index (D9). `None` above [`QUOTIENT_MAX_DEGREE`].
+///
+/// **Not `compose`'s product, on purpose.** `super::compose`'s
+/// `bern_mul_row` states the same product on univariate certification
+/// rows, folding a memoized outward quotient weight per term; this one
+/// keeps the numerators exact and divides once after the sum, at any
+/// scalar (the `f64` lane included, where a quotient per term would
+/// round every term). Their bits differ today and each side's are
+/// pinned, so neither is the other's instance; both enclose the exact
+/// rational product
+/// (`tests::both_bernstein_products_enclose_the_exact_rational_product`).
 fn product<T: Real, const A: usize, const B: usize, const C: usize>(
     a: &Grid<T, A>,
     b: &Grid<T, B>,
@@ -2484,6 +2494,84 @@ mod tests {
                         None => assert!(!with_area, "the area is absent at {at}"),
                     }
                     assert!(f.area.is_some() == with_area, "the area asked at {at}");
+                }
+            }
+        }
+    }
+
+    /// `x` against `n / d` exactly, for `d > 0`: `x` read as `m·2ᵉ` in
+    /// integers.
+    fn against_ratio(x: f64, n: i128, d: i128) -> core::cmp::Ordering {
+        let bits = x.to_bits();
+        let sign: i128 = if bits >> 63 == 1 { -1 } else { 1 };
+        let exp = ((bits >> 52) & 0x7ff) as i32;
+        let frac = i128::from(bits & ((1 << 52) - 1));
+        let (m, e) = if exp == 0 {
+            (frac, -1074)
+        } else {
+            (frac | (1 << 52), exp - 1075)
+        };
+        let m = sign * m;
+        if m == 0 {
+            return 0.cmp(&n);
+        }
+        assert!(
+            (-100..=40).contains(&e),
+            "an endpoint out of the fixture's range: {x:e}"
+        );
+        if e >= 0 {
+            ((m * d) << e).cmp(&n)
+        } else {
+            (m * d).cmp(&(n << -e))
+        }
+    }
+
+    /// **Two Bernstein products, one statement.** On integer rows, the
+    /// exact product's coefficient `k` is the rational
+    /// `Σ C(da,i)·C(db,k−i)·a_i·b_{k−i} / C(da+db, k)`. Both homes of
+    /// the Bernstein product (this module's [`super::product`] on
+    /// one-row grids, `compose`'s `bern_mul_row` on certification rows)
+    /// enclose it, whatever their association rounds (`product`'s docs).
+    #[test]
+    fn both_bernstein_products_enclose_the_exact_rational_product() {
+        let choose = |n: usize, k: usize| -> i128 {
+            (0..k).fold(1_i128, |acc, j| acc * (n - j) as i128 / (j + 1) as i128)
+        };
+        let iv = |x: i128| Interval::from_f64(x as f64);
+        let grid = |r: &[i128]| {
+            super::Grid::new(1, r.iter().map(|&x| super::Vector([iv(x)])).collect())
+                .expect("a one-row grid")
+        };
+        for (da, db) in [(1, 1), (3, 2), (5, 7), (12, 9), (20, 20)] {
+            let a: Vec<i128> = (0..=da).map(|i| ((i * 7 + 3) % 11) as i128 - 5).collect();
+            let b: Vec<i128> = (0..=db).map(|j| ((j * 5 + 1) % 9) as i128 - 4).collect();
+            let rows = (
+                a.iter().map(|&x| iv(x)).collect::<Vec<_>>(),
+                b.iter().map(|&x| iv(x)).collect::<Vec<_>>(),
+            );
+            let compose = super::super::compose::bern_mul_row(&rows.0, &rows.1);
+            let ours = super::product(
+                &grid(&a),
+                &grid(&b),
+                |x: [Interval; 1], y: [Interval; 1]| [x[0] * y[0]],
+            )
+            .expect("a product under the ceiling");
+            assert_eq!(compose.len(), da + db + 1);
+            assert_eq!(ours.c.len(), da + db + 1);
+            for k in 0..=da + db {
+                let n: i128 = (k.saturating_sub(db)..=k.min(da))
+                    .map(|i| choose(da, i) * choose(db, k - i) * a[i] * b[k - i])
+                    .sum();
+                let d = choose(da + db, k);
+                for (home, x) in [("compose", compose[k]), ("derivative", ours.c[k].0[0])] {
+                    use core::cmp::Ordering::{Greater, Less};
+                    assert!(
+                        against_ratio(x.lo(), n, d) != Greater
+                            && against_ratio(x.hi(), n, d) != Less,
+                        "{home} misses {n}/{d} at ({da}, {db}) k = {k}: [{:e}, {:e}]",
+                        x.lo(),
+                        x.hi()
+                    );
                 }
             }
         }

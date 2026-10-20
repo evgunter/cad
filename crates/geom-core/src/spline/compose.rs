@@ -393,7 +393,20 @@ fn binom_table() -> &'static [Vec<f64>] {
 /// whenever the output row is served at all: by Vandermonde,
 /// `C(da,i)·C(db,j) ≤ C(da+db, i+j)`, and `da + db >`
 /// [`BINOM_EXACT_MAX`] is already refused through `binom_row`.
-fn bern_mul_row(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
+///
+/// **Not `derivative`'s product, on purpose.** `super::derivative`'s
+/// `product` states the same Bernstein product at any `Real`, on
+/// bivariate grids under a bilinear `mul`, with exact integer
+/// numerators and one division by `C(m+n, k)` after the sum. This one
+/// folds a weight per term, each an outward quotient formed once per
+/// degree pair ([`bern_weights`]) and read on two corners
+/// ([`Interval::mul_nonneg`]). The two round differently, and both
+/// sides' bits are pinned (this module's by the rehearsal's ratified
+/// bit-identity rows), so folding either into the other would move the
+/// other's pins and give up either the memo or the single division.
+/// Both enclose the exact rational product
+/// (`derivative`'s `both_bernstein_products_enclose_the_exact_rational_product`).
+pub(super) fn bern_mul_row(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
     let w = bern_weights(a.len() - 1, b.len() - 1);
     bern_mul_row_with(a, b, &w)
 }

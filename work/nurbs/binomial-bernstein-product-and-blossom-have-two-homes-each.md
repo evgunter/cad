@@ -72,3 +72,20 @@ The step-3 cut (`nurbs/cut-becomes-restriction`) adds a third
 restriction, `blossom.rs`'s `split_restrict`: two de Casteljau splits,
 `O(p²)` against `restrict_segment`'s `O(p³)` pyramid. The fold should
 take all three: one restriction door with a halving fast path.
+
+## Progress
+
+- **Binomials: folded** (PR 5414, with the cap's one home and the last
+  `f64` folds in PR 5433). `pieces::binomial` is the one home, and
+  `pieces::BINOMIAL_EXACT_MAX` the one cap.
+- **Bernstein product: two homes by design** (PR 2 of this item).
+  `compose::bern_mul_row` folds a memoized outward quotient weight per
+  term, read on two corners (`Interval::mul_nonneg`), and its bits are
+  pinned by the rehearsal's ratified rows; `derivative::product` keeps
+  exact integer numerators and divides once after the sum, at any
+  `Real`, on bivariate grids under a bilinear `mul`. Folding either into
+  the other moves the other's pins. Each product's docs state this, and
+  `derivative::tests::both_bernstein_products_enclose_the_exact_rational_product`
+  pins that both enclose the exact rational product.
+- **Blossom and restriction: open** (`restrict_segment`, `split_restrict`,
+  `Grid::halved`: one restriction door with a halving fast path).
