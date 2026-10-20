@@ -2339,6 +2339,7 @@ fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
                     // through its wedge: the keel-in-face form
                     // (`work/cleave/a-boolean-builds-a-reflex-edge-lying-inside-a-face.md`).
                     let errors = verdict.expect_err(&format!("{pose}: 3′ refuses the keel"));
+                    crate::probe_rev5431_wedge_ring::report(&format!("{pose} {what}"), &out.body, &errors, tol);
                     assert!(
                         errors
                             .iter()

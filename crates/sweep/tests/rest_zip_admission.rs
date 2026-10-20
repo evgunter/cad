@@ -58,6 +58,7 @@ fn three_prime_or_curved_unread(what: &str, bb: &topo::BooleanBody<f64>) {
     let Err(errors) = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()) else {
         return;
     };
+    crate::common::differential::probe_rev5431::report(what, &bb.body, &errors, tol());
     assert!(
         errors.iter().all(|e| matches!(
             e,

@@ -82,6 +82,7 @@ fn built(what: &str, r: Result<BooleanResult<f64>, topo::BooleanError>) -> topo:
 fn keel_refuses(what: &str, r: &topo::BooleanBody<f64>, (y, z): (f64, f64)) {
     let errors = validate_pseudomanifold(&r.body, &r.contacts, t())
         .expect_err(&format!("{what}: tier 3′ refuses the keel in the floor"));
+    crate::probe_rev5431_wedge_ring::report(what, &r.body, &errors, t());
     for e in &errors {
         let ValidationError::FaceThroughEdgeWedge {
             edge,
@@ -166,6 +167,22 @@ fn a_ridge_resting_on_its_own_solids_floor_passes_tier_3_prime() {
         Ok(()),
         "the keel's wedge lies outside the floor's material"
     );
+    // Probe control: the ridge's keel against the floor.
+    for (ek, e) in r.body.edges() {
+        let plus = r.body.get_half_edge(e.he_plus).unwrap();
+        let a = vertex_point(&r.body, plus.start).unwrap();
+        let b = vertex_point(&r.body, r.body.get_half_edge(plus.next).unwrap().start).unwrap();
+        let on = |p: geom_core::Point3<f64>| (p.y - 1.5).abs() < 1e-9 && (p.z - 1.0).abs() < 1e-9;
+        if on(a) && on(b) {
+            for (fk, _) in r.body.faces() {
+                let pose = face_pose(&r.body, fk).unwrap();
+                if pose.axis.z.abs() > 0.999 && (pose.origin.z - 1.0).abs() < 1e-9 {
+                    let (k, line) = crate::probe_rev5431_wedge_ring::arcs(&r.body, ek, fk, tol);
+                    println!("REV5431-CONTROL ridge k={k} {fk:?}: {line}");
+                }
+            }
+        }
+    }
 }
 
 #[test]

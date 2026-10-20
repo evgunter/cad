@@ -13,6 +13,8 @@
 //! are both parametrized by wedge angle, which [`ReflexPose`]'s one
 //! fixed corner is not.
 
+#[path = "../../../topo/tests/probe_rev5431_wedge_ring.rs"]
+pub mod probe_rev5431;
 use geom_core::{Point3, Tol};
 use sweep::test_support::finished;
 use topo::test_support::{FaceGeometry, describe_as_intersections, prism_ops, prism_z};
@@ -277,6 +279,9 @@ fn judge(
                         .iter()
                         .all(|e| matches!(e, topo::ValidationError::FaceThroughEdgeWedge { .. }))
                 });
+                if let Err(errors) = &t3 {
+                    probe_rev5431::report("sweep-judge", &bb.body, errors, tol);
+                }
                 let t3 = t3.is_ok();
                 let cert = topo::validate_geometric_certificate(&bb.body, tol).is_ok();
                 let far = finished(

@@ -458,6 +458,7 @@ fn every_op(
             let findings = topo::validate_pseudomanifold(body, &r.contacts, tol())
                 .err()
                 .unwrap_or_default();
+            crate::common::differential::probe_rev5431::report(&what, body, &findings, tol());
             let unrecorded = findings
                 .iter()
                 .filter(|e| {
@@ -551,6 +552,7 @@ fn every_order(
         let errors = topo::validate_pseudomanifold(&r.body, &r.contacts, tol())
             .err()
             .unwrap_or_default();
+        crate::common::differential::probe_rev5431::report(&what, &r.body, &errors, tol());
         assert!(
             errors.iter().all(curved_unread),
             "{what}: tier 3′: {errors:?}"

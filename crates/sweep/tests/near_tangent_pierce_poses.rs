@@ -343,8 +343,11 @@ fn check_pose((name, edge, a, d): (&str, usize, f64, f64), tol: Tol) -> (Vec<Str
         let findings: Vec<ValidationError> =
             match topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol) {
                 Ok(()) => Vec::new(),
-                Err(errors) => errors
-                    .into_iter()
+                Err(errors) => {
+                    crate::common::differential::probe_rev5431::report(&tag, &bb.body, &errors, tol);
+                    errors
+                }
+                .into_iter()
                     // In band: an escalation, or an edge lying in a
                     // face of its own solid whose side is undecided.
                     .filter(|e| {

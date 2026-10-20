@@ -67,6 +67,8 @@ mod probe_support;
 mod a_callers_interval_is_refused_at_its_door;
 #[path = "a_doubled_line_does_not_revert.rs"]
 mod a_doubled_line_does_not_revert;
+#[path = "probe_rev5431_wedge_ring.rs"]
+mod probe_rev5431_wedge_ring;
 #[path = "a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs"]
 mod a_face_inside_an_edges_wedge_refuses_at_tier_3_prime;
 #[path = "a_given_pair_is_made_from_a_kernel_verdict.rs"]

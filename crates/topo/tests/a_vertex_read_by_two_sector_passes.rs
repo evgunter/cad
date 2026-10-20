@@ -182,6 +182,7 @@ fn three_prime(
     let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) else {
         return true;
     };
+    crate::probe_rev5431_wedge_ring::report(&format!("{what} rider={rider}"), &r.body, &errors, t());
     let meet = at(pose.at(MEET));
     let at_meet = |v| at(readback::vertex_point(&r.body, v).unwrap()) == meet;
     let far = ray.map(|c| pose.at([0, 1, 2].map(|k| MEET[k] + c[k])));
