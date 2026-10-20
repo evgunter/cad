@@ -574,9 +574,10 @@ pub(crate) fn tessellate_trimmed(
                     radius,
                 } => cert::cert_cylinder(origin, axis, radius, tri),
                 // TESS-SPAN: the certificate of the cell(s) covering
-                // the triangle's UV box — for a grid triangle, the one
-                // cell containing it (`NurbsCellGrid::cert` argues the
-                // half-open boundary case).
+                // the triangle's UV box — one band's cells in `v`, since
+                // rows land on the `v` cuts, but possibly several in `u`,
+                // whose columns do not (`NurbsCellGrid::cert` argues the
+                // straddling and half-open boundary cases).
                 Lane::Nurbs { ref grid, .. } => grid.cert(uv),
             };
             // THE DEVIATION PASS (`crate::budget`, issue #320):
@@ -827,7 +828,9 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
 /// * Row lines land exactly on the band cuts (never through the lerp,
 ///   whose rounding would put two almost-coincident lines an ulp
 ///   apart on a shared boundary), so a grid triangle sits inside one
-///   band and its certificate is that band's cells'. A cut line gets
+///   band and its certificate is that band's cells' (one or several
+///   in `u`: the columns are uniform over the trim box, not on the `u`
+///   cuts). A cut line gets
 ///   points from BOTH adjacent bands' column schedules (their union —
 ///   the shared cut value is the same f64 either side, so the dedup
 ///   merges the line itself; snapped neighbours contribute the SAME
