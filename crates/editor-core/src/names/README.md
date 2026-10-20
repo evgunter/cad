@@ -420,7 +420,7 @@ resolves is offered every set listing that member edge.
 **A union's face is named for its PARENT.** Two member faces are linked when
 the pairwise judgement of their two members (DM4) merged or covered them:
 its two-member union merged the faces or held either face's region through
-the other (`BooleanNaming::merge_groups`, `BooleanNaming::covered`). A pair
+the other (`BooleanNaming::merge_groups`, `BooleanNaming::substituted`). A pair
 the judgement never brought together links nothing. Linking is
 transitive. The member faces so linked are one parent, named `Merged` of all of
 them, and a member face nothing links is its own parent. A parent is a set of
