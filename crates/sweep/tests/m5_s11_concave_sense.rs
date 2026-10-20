@@ -606,8 +606,16 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
             // easier as the enclosure degrades, so a loosening pad
             // cannot absorb it without tripping this. Keyed to ε
             // because the schedule is fixed and the pad is what the
-            // schedule achieves.
-            let ceiling = 2.0 * target;
+            // schedule achieves. It is twice the `2·target` it was while
+            // every face was read about the world origin: each face is
+            // read about a vertex of its shell (`topo::props`'
+            // `shell_reference`), whose lever is at most the shell's
+            // diameter, against about its radius from the origin these
+            // prisms stand on, and the quadrature's width scales with the
+            // lever (`m8_3_rational_volume`'s ceiling has the trade). The
+            // lofted concave prism measured 2.07e-3 at 1e-6, 2.02 times
+            // the target.
+            let ceiling = 4.0 * target;
             assert!(
                 m.volume_pad.is_finite() && m.volume_pad < ceiling,
                 "{row}: volume pad {} vs {ceiling:e}",

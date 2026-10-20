@@ -2893,28 +2893,39 @@ fn closed_form_about<U: Decide>(
 }
 
 /// **The point a face's flux is read about** — its shell's reference:
-/// the first point of the first loop of the shell's first face with a
-/// loop, in the shell's own face order (the world origin for a shell with
-/// no loop point, whose faces sum nothing). A closed surface's volume is a
-/// third of its faces' fluxes about any one point, so a shell's sum does
-/// not depend on it, nor a body's, which sums its shells'; each face's
-/// width does, by the lever from it, and a point of the shell bounds that
-/// lever by the shell's own diameter wherever the body sits (D4 ¶4's box,
-/// W1). The point is the shell's, not the walk's: a whole-body walk, a
-/// face-list walk in any order, a solid's or a shell's own walk, and every
+/// the stored point of the vertex its first face's outer loop starts at
+/// (a cycle's first half-edge's start, or a vertex loop's vertex), in
+/// the shell's own face order (the world origin for a shell of no face,
+/// which sums nothing). A closed surface's volume is a third of its
+/// faces' fluxes about any one point, so a shell's sum does not depend on
+/// it, nor a body's, which sums its shells'; each face's width does, by
+/// the lever from it, and a vertex of the shell bounds that lever by the
+/// shell's own diameter wherever the body sits (D4 ¶4's box, W1). A
+/// stored vertex point, not a carrier evaluated at a parameter: moving
+/// a face by it moves every point by the same value, which an interval
+/// scalar's evaluated point, wide by its own rounding, would not. The
+/// point is the shell's, not the walk's: a whole-body walk, a face-list
+/// walk in any order, a solid's or a shell's own walk, and every
 /// resumption of any of them read each face about the same point, so a
 /// face's term is one value whichever walk reads it. [`corner_of`] is
 /// this point, lifted.
 fn shell_reference<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<Point3<T>, MassPropsError> {
+    use crate::entity::EntityId;
     let (face, _) = resolve_face(body, face);
-    let shell = crate::live::proven(&body.shells, face.shell, crate::entity::EntityId::Shell);
-    for &key in &shell.faces {
-        let (face, _) = resolve_face(body, key);
-        if let Some(e) = face_loops(body, face)?.iter().flatten().next() {
-            return Ok(e.carrier.eval(e.t0));
+    let shell = crate::live::proven(&body.shells, face.shell, EntityId::Shell);
+    let Some(&first) = shell.faces.first() else {
+        return Ok(Point3::origin());
+    };
+    let (first, _) = resolve_face(body, first);
+    let outer = crate::live::proven(&body.loops, first.outer, EntityId::Loop);
+    let vertex = match outer.boundary {
+        LoopBoundary::Empty { vertex } => vertex,
+        LoopBoundary::Cycle { first } => {
+            crate::live::proven(&body.half_edges, first, EntityId::HalfEdge).start
         }
-    }
-    Ok(Point3::origin())
+    };
+    let record = crate::live::proven(&body.vertices, vertex, EntityId::Vertex);
+    Ok(body.point_of(vertex, record))
 }
 
 /// The per-face body of the flux walk (module docs), about the face's
