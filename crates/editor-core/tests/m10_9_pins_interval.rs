@@ -168,7 +168,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [945, 945, 945],
+            symbolic: [1009, 1009, 1009],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -179,7 +179,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             without_the_registry: None,
-            symbolic: [664, 664, 664],
+            symbolic: [728, 728, 728],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -199,9 +199,9 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // circle's radius and orientation read as one pair), so it
             // decides 3 of the envelope's 9 terms on each of its two
             // reads. Under INTENT stage 3 D's placement it decides two
-            // fewer numeric comparisons on the way.
-            without_the_registry: Some(((722, 734), Some("pcurve_envelope"))),
-            symbolic: [956, 956, 956],
+            // fewer numeric comparisons on the way (712 -> 710).
+            without_the_registry: Some(((782, 710), Some("pcurve_envelope"))),
+            symbolic: [1016, 1016, 1016],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -215,13 +215,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1630, 1432), None)),
+            without_the_registry: Some(((1708, 1387), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1689, 1689, 1689],
+            symbolic: [1765, 1765, 1765],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -239,11 +239,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // exact components, the tier proves what the door used to
             // discharge (64 decisions, `(1147, 1392)` shut against
             // `(1211, 1328)` shipped, when they were angles).
-            without_the_registry: Some(((1580, 1310), None)),
+            without_the_registry: Some(((1438, 1508), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1578, 1578, 1578],
+            symbolic: [1500, 1500, 1500],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -727,7 +727,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1578, 1312, 1733), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1500, 1446, 1406), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
