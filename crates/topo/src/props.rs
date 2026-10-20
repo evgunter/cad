@@ -5948,9 +5948,10 @@ mod exact_enclosure_rows {
 /// **A shell's reference moves no volume in the reals**
 /// ([`shell_reference`]): a closed surface's flux sum does not depend on
 /// the point it is about, so a closed-form body's volume about its
-/// shells' first loop points is its volume about the world origin, to
-/// the rounding of the sum.
+/// shells' first vertices is its volume about the world origin, to the
+/// rounding of the sum.
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod shell_reference_rows {
     use super::*;
 

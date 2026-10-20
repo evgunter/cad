@@ -240,7 +240,7 @@ fn loops_vector_area(
 /// `surface` carried by `−by`: every point-valued datum moved, every
 /// direction and length kept. `None` for a kind with no analytic datum
 /// to move (a spline or fitted surface).
-pub(super) fn translated_surface<T: geom_core::Real>(
+pub(super) fn translated_surface<T: Decide>(
     surface: &Surface<T>,
     by: Point3<T>,
 ) -> Option<Surface<T>> {
@@ -308,10 +308,7 @@ pub(super) fn translated_surface<T: geom_core::Real>(
 /// `curve` carried by `−by`: the analytic kinds' centre or origin moved,
 /// a spline's control net moved point for point (its net is stored
 /// Euclidean, so a translation is the curve's image).
-pub(super) fn translated_curve<T: geom_core::Real>(
-    curve: &Curve3<T>,
-    by: Point3<T>,
-) -> Option<Curve3<T>> {
+pub(super) fn translated_curve<T: Decide>(curve: &Curve3<T>, by: Point3<T>) -> Option<Curve3<T>> {
     let shift = |p: Point3<T>| Point3::origin() + (p - by);
     Some(match curve.clone() {
         Curve3::Line { origin, dir } => Curve3::Line {
