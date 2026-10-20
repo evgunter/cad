@@ -53,3 +53,13 @@ test; an argument that excludes it moves it to `unreachable!` with its
 rows to `#[should_panic]`. For `MintLimb`'s on-locus arm, a loop that
 also accepts on the on-locus limb (or a mint that compares it with the
 rounding the sample carries) may make the question moot.
+
+## Rides with this row
+
+A topo `test_support_samples.rs` sample of an unproven `Fit` arm (e.g.
+`FitError::NonFinitePoint`), so editor-core's
+`refusal_concision_chains` `every_offset_fit_refusal_ends_exactly_once`
+pins the `Fit/` last-resort ending as it pins `Fit/TooFewPoints`'s
+lever (its roster's `Fit/` count goes to 2). Split out of PR 5476: a
+topo change pulls the sweep eps rows into that PR's gate, where a known
+main red at 1e-12 sits (`cpair/curve-pair-polish-meters-refuse-shallow-meetings`).
