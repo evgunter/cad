@@ -6805,3 +6805,10 @@ Signed (WIRE orchestrator).
   - m2: per-witness admissions. m3: tilt refusals were skipped. m4: the copy row's remedy conflicts with N0. m5: wrong row cited. m6: add an OrderAlong case. m7: the arena row. m8: test 5 is a subset of 7.
   - Fix pass sent.
   - Class note: an invariance test over a corpus that mostly refuses or is empty passes by comparing nothing. Assert that each case compared something.
+
+- 2026-10-20 (WIRE orchestrator) PR 5457 FULL review at 8f279e27fc: approve with fixes.
+  - No input-reachable panic found arm by arm. The anchor mutations go red. Key bytes unchanged.
+  - MAJOR-1: Verb<T> left as an enum nothing in production builds, so the V1 rewording would have changed what V1 decides. The fix routes production through Verb with the typed doors as payloads and deletes Arity if unread. No [ev] needed if V1 keeps its decision.
+  - Also: one supertrait for the 5-copy bound (pin back to 1); profile_edges_of's caller-reachable assert; stale citers; derive_naming's silent no-Outer; NITs.
+  - Filed a-doc-deserialized-directly-skips-the-load-doors-checks (P2).
+  - Class note: a rewording 'because code moved' must be checked against whether the code still does what the clause decides.
