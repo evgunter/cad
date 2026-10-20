@@ -107,10 +107,10 @@ pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{
-    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DihedralClass, DihedralReading, MATERIAL_PAIRING,
-    MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations, MustCarryDescription,
-    MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal, RestLocus, SecondOrder,
-    SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral,
+    DIHEDRAL_ARM, DIHEDRAL_ARM_CLAUSE, DIHEDRAL_ARM_NOUN, DihedralClass, DihedralReading,
+    MATERIAL_PAIRING, MATERIAL_PAIRING_CLAUSE, MaterialPairing, MaterialWedge, MixedStations,
+    MustCarryDescription, MustCarryEscalation, MustCarryRefusal, MustCarryVerdict, PairRefusal,
+    RestLocus, SecondOrder, SecondOrderWalk, SmoothJoin, Station, StationHook, classify_dihedral,
     classify_material_pairing, classify_material_pairing_as, folded_lever_arm, interior_stations,
     material_kappa_rel, must_carry_description, must_carry_over_edge, reask_chart, reask_pair,
     second_order_walk, tangent_second_order,

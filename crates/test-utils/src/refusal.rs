@@ -130,6 +130,7 @@ const QUANTITY_WORDS: &[&str] = &[
     "clearance",
     "offset",
     "length",
+    "width",
     "separation",
     "distance",
     "radius",

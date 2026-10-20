@@ -3041,7 +3041,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
             "lever arm",
             escalated(CertCheck::TransversalityArm, in_band),
             "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
-             tightly there, or, if this length or the gap its faces open is intended, \
+             tightly there, or, if this width or the gap its faces open is intended, \
              tighten the tolerance below 5e-10 m",
         ),
         (
@@ -3051,7 +3051,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                 MarginDiag::enclosure(2.0e-9, 5.0e-9),
             ),
             "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
-             tightly there, or, if this length or the gap its faces open is intended, \
+             tightly there, or, if this width or the gap its faces open is intended, \
              tighten the tolerance below 2e-10 m",
         ),
         (
