@@ -505,6 +505,7 @@ mod tests {
     /// `Deck { v: −2 }` by −6. On a torus it moves by `τ`. On a cylinder,
     /// whose `v` is a length, the element does not apply.
     #[test]
+    #[allow(clippy::unwrap_used)]
     fn an_elements_v_periods_are_the_charts_own() {
         use geom::Surface;
         use geom_brep::Pcurve;
