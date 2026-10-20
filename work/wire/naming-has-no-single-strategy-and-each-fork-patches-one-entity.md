@@ -2,14 +2,14 @@
 id: naming-has-no-single-strategy-and-each-fork-patches-one-entity
 kind: issue
 title: Names have no single strategy: each naming fork patches one entity kind, and the same leak (build order, slot, index, frame) keeps recurring
-status: dispatched
+status: closed
 opened: 2026-10-20
 priority: P1
 cost: H
 design: true
-needs_ev: true
 pr: 5455
 branch: wire/ev-naming-strategy
+closed: 2026-10-20
 ---
 
 

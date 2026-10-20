@@ -22,3 +22,12 @@ Likely a live inconsistency. It is D10 ground, so it is INTENT's to settle;
 WIRE's naming-strategy row
 (`work/wire/naming-has-no-single-strategy-and-each-fork-patches-one-entity.md`)
 will cite whatever INTENT rules.
+
+## N0 depends on the answer (WIRE orchestrator, 2026-10-20)
+
+Ev ratified N0 on PR 5455 (`crates/editor-core/src/names/README.md`),
+noting "i don't know if the intent refactor will affect it". N0's NS1(b)
+and NS4 say identical operands are told apart by their reads, which
+include a placement copy's `CopyKey`. When the placement rebuild settles
+this row, re-check those two clauses with WIRE and rewrite the losing
+text in N1, N4 or N0 with it.

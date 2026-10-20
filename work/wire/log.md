@@ -6871,3 +6871,12 @@ Signed (WIRE orchestrator).
   - The Emissions are reclassed under D9; tied-flag fold; limits row; NITs.
   - Goldens confirmed spelling-only by a full dump. Fix pass sent.
   - Class note: a lane's 'motivating defect is fixed' needs the witness to red on the base. 'Now passes' is not 'would have caught it'.
+
+- 2026-10-20 (WIRE orchestrator) Ev approved 5455 ('this seems alright though i don't know if the intent refactor will affect it'). N0 merged (0c9d84779c); fork-log row 183 filled. Strategy row closed.
+  - Ev's caveat is recorded on intent's Placed row: N0's NS1(b)/NS4 are re-checked when the placement rebuild lands.
+  - Filed N0's follow-ups:
+    - clause pointers (P3);
+    - the RoleSeg→form map (P2);
+    - the denotation verifier (P2 H);
+    - the coverage fuzzer (P2 H).
+  - Already filed: the arena-permute helper (P2) and OrderAlong.of. The one-namer program is left to the slate.
