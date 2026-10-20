@@ -25,16 +25,20 @@ one home now, `geom_core::KERNEL_DEFECT_ENDING`.
 
 ## Repair shape
 
+**Superseded in direction (ENCL, 2026-10-20): read "Evidence: the repair is the shape D2 retires" below before acting on this section.** Ending these arms in `KERNEL_DEFECT_ENDING` is the shape the parent census retires.
+
+
 Replace each tag with ". {KERNEL_DEFECT_ENDING}".
 
 ## Evidence: the repair is the shape D2 retires (ENCL, 2026-10-20)
 
 `work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md` holds that a typed refusal ending in `KERNEL_DEFECT_ENDING` is wrong
 in both of `[failure]`'s classes. `UnderdeterminedLeg` and
-`OverdeterminedJunction` say the authoring surface rules them out,
-which makes them class 2: they panic (`[failure.taxonomy]` row 4),
-with their tests moved to `#[should_panic]`, rather than taking the
-constant. If an authoring path does reach one, it is class 1 and names
-its lever. `constructed-tangent-joint-refusals-are-typed-kernel-defects`,
+`OverdeterminedJunction` are in the census's second pass, and are
+unclassified there. They say the authoring surface rules them out. If
+that holds, they are class 2 and panic (`[failure.taxonomy]` row 4),
+with their tests moved to `#[should_panic]`. If an authoring path
+reaches one, it is class 1 and names its lever. Either way, it does
+not take the constant. `constructed-tangent-joint-refusals-are-typed-kernel-defects`,
 on this slate, carries the two `ProfileError` arms that already take
 the constant.

@@ -38,6 +38,9 @@ All are rows in `editor-core/tests/refusal_concision_chains.rs`
 
 ## Repair shape
 
+**Superseded in direction (ENCL, 2026-10-20): read "Evidence: the repair is the shape D2 retires" below before acting on this section.** Ending these arms in `KERNEL_DEFECT_ENDING` is the shape the parent census retires.
+
+
 Replace each tag with ". {KERNEL_DEFECT_ENDING}" (or the file
 variant where the body may have been read).
 

@@ -179,16 +179,25 @@ consumed its On has not been instrumented.
 The census in `work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md`, on main 5df6e6c854, classifies the `BooleanError`
 `Display` arms in `crates/topo/src/boolean/mod.rs` that append
 `KERNEL_DEFECT_ENDING`. It leaves them to this row instead of filing a
-second one. All are class 2, "only a kernel bug reaches it", and
-`likely` unless marked:
+second one. Each is class 2, "only a kernel bug reaches it", and
+`likely`, unless marked otherwise:
 
 - `SplitLineage` (~4819): the split records are the Boolean's own.
 - `LineageRow` (~4823): `lineage::RowRefusal` is refused at append, on
   rows the op writes itself.
-- `ResultVolumeImplausible` (~4937): a postcondition on the result's
-  volume.
-- `VolumeCorrupt { operand: None }` (~4953): the result's own mass
-  properties. The `Some` arm already names the file.
+- `ResultVolumeImplausible` (~4937): **class 1, sure.** The public
+  `topo::AtRestPolicy::gate_volume_backstop(op, a, b, result, band, tol)`
+  (`props.rs`, re-exported from `lib.rs`) takes a caller's `result`,
+  and `props.rs`'s test (~5355) plants one and gets this refusal. Only
+  the Boolean's own call (`ops.rs` ~1005) is a kernel postcondition.
+- `VolumeCorrupt { operand: None }` (~4953): **class 1, likely**,
+  through the same public door, whose "result" is the caller's body.
+  The Boolean's own call is the class-2 postcondition. The `Some` arm
+  already names the file.
+
+For both, the repair splits the public door's input case, which names
+the caller's lever, from the internal postcondition, which panics.
+Panicking on the variant as a whole would let input reach the panic.
 - `EdgeInFace { Crossed | TwinIncident }` (~5001): a postcondition on
   the result's edges.
 - `ContactContradicted` with a `Tangent` declaration (~4585): `unsure`.

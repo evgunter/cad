@@ -29,6 +29,9 @@ among them, takes the three as typed refusals.
 
 ## Owed
 
+**Superseded in direction (ENCL, 2026-10-20): read "Evidence: the owed repair is the shape D2 retires" below before acting on this section.** Ending these arms in `KERNEL_DEFECT_ENDING` is the shape the parent census retires.
+
+
 End each defect `Display` in `KERNEL_DEFECT_ENDING` (one story, D4 ¶1
 (i)), so `offer_key` reads the ending alone and its kind list goes.
 

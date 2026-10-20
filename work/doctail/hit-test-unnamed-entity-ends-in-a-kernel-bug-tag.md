@@ -31,6 +31,9 @@ it.
 
 ## Repair shape
 
+**Superseded in direction (ENCL, 2026-10-20): read "Evidence: the repair is the shape D2 retires" below before acting on this section.** Ending these arms in `KERNEL_DEFECT_ENDING` is the shape the parent census retires.
+
+
 End the sentence with ". {KERNEL_DEFECT_ENDING}" and re-pin the two
 tests to the constant.
 

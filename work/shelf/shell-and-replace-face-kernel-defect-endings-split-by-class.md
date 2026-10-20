@@ -7,20 +7,10 @@ opened: 2026-10-20
 parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
 priority: P3
 cost: M
+blocked_on: [replace-face-transports-a-nurbs-edge-as-a-ruling]
 ---
 
-(ENCL implementer, from the census in
-`work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md`,
-on main 5df6e6c854.)
-
-`[failure]` (D2) splits every state in two: one input reaches, which
-is a typed refusal whose ending must name the decision's lever, and one
-only a kernel bug reaches, which MUST panic ("downgrading one … to a
-typed error launders a bug into a supported outcome"). A typed refusal
-ending in `geom_core::KERNEL_DEFECT_ENDING` is therefore wrong in either
-class. The one exception is a kernel approximation limit, which takes
-`[tolerance.recourse]`'s last resort (`KERNEL_LIMIT_RECOURSE` /
-`KERNEL_LIMIT_LAST_RESORT`), not this ending.
+A child of the census in `work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md` (as of main 5df6e6c854); why a typed `KERNEL_DEFECT_ENDING` is wrong in either D2 class is that row's "What" and "Shape of the work".
 
 ## Sites
 
@@ -33,11 +23,16 @@ offset/replace-face doors.
 - `shell.rs` `ShellError` `Display`, `Pcurve` (~756). **Class 3,
   unsure**: no gate before the closing mint certifies that a fitted
   offset carrier admits pcurves, so the pcurve fit's own limit is not
-  excluded. If one is shown to exclude it, this is class 2.
+  excluded. If one is shown to exclude it, this is class 2. Also,
+  `PcurveMintError` wraps `UnsupportedChart` and `IsoUnsupported`
+  (`pcurve_cache.rs`). Those parts may be D2 row 2 (not yet built,
+  `NOT_YET_ENDING`) rather than approximation limits, so decide per
+  arm.
 - `shell.rs` `ShellError` `Display`, `NotValid` (~767). **Class 2,
   likely**: a postcondition on the op's own result. `[failure]`: "a
   check that fails on the kernel's own result reports a bug and
-  panics".
+  panics". It is probably reached today through the bug that
+  `ResultNotClosed` (below) is.
 - `shell.rs` `AsShelled` `Display`, the six "asked" arms (`StaleFace`,
   `EmptyGroup`, `GroupChartsDiffer`/`TogetherChartMixed`,
   `SharedSurfaceKey`, `TogetherFaceRepeated`, `TogetherPartialSet`)
@@ -47,7 +42,8 @@ offset/replace-face doors.
   **Class 2, sure**: the thickness gate passes only a finite, positive
   wall, and the tolerance is the run's witness.
 - `shell.rs` `AsShelled` `Display`, `Pcurve` (~899). **Class 3,
-  unsure**, as `ShellError::Pcurve`.
+  unsure**, as `ShellError::Pcurve`, including the per-arm row-2
+  question.
 - `crates/topo/src/replace_face.rs` `ReplaceFaceError` `Display`,
   `Structure` (~843). **Class 2, likely**: moving a valid spline's
   control points keeps its knots and degree.
@@ -55,17 +51,16 @@ offset/replace-face doors.
   (~983). **Class 2, likely**: a postcondition on the door's own
   result.
 
+**Order: after `replace-face-transports-a-nurbs-edge-as-a-ruling`**
+(`blocked_on`). That open row is a known input trigger of
+`ResultNotClosed` and, probably, of `ShellError::NotValid`: input
+reaches the postcondition through that kernel bug. Converting either
+site to a panic before the transport fix lands ships a panic that input
+reaches.
+
 ## Repair shape
 
-- **Class 2** (only a kernel bug reaches it): `unreachable!` or
-  `debug_assert` per `[failure.taxonomy]` rows 4–5, answering row 0
-  first (a type that cannot hold the state is preferred). The tests
-  that pin the refusal's text move to `#[should_panic]`, or are deleted
-  where they only built the error value by hand.
-- **Class 1** (input reaches it): the decision's own lever, written in
-  its own words (`[tolerance.recourse]` (i)), and a test that reaches it
-  through the door.
-- **Class 3** (an approximation limit): the last-resort recourse.
+- **Class 2**: `unreachable!` or `debug_assert` per `[failure.taxonomy]` rows 4–5, answering row 0 first; the tests that pin the text move to `#[should_panic]`.
+- **Class 3**: the last-resort recourse (`KERNEL_LIMIT_RECOURSE` / `KERNEL_LIMIT_LAST_RESORT`).
 
-Re-check each `likely` or `unsure` argument before acting on it: one
-that fails moves the site to class 1.
+Re-check each `likely` or `unsure` argument before acting on it; one that fails moves the site to class 1.
