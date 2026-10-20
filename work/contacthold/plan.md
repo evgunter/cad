@@ -12,11 +12,13 @@ points against 30 with its P0 units landed or parked (PRs 4363, 4368,
 As of the 2026-10-19 hand-back. `python3 scripts/work.py` lists every
 row; this names the ones that set the order.
 
-- **Waiting on Ev** (`[ev]` PR 5395, fork-log row 177): the P1
+- **Decided** (`[ev]` PR 5395, fork-log row 182): a material crescent
+  along a tangent line is two coincident cusp edges; a void crescent and
+  every point touch are records. The P1
   `the-census-discovers-no-same-solid-tangent-touch-through-face-interiors`
-  and `a-bore-tangent-to-a-plates-face-mints-a-face-face-record-the-census-contradicts`.
-  Both designers agree the discovery is a build; the split is whether a
-  material-crescent pinch is a record or two cusp edges.
+  is dispatchable (the discovery reads sides), with the builds it named:
+  `a-material-crescent-tangent-line-builds-two-coincident-cusp-edges`
+  and `a-material-crescent-face-face-record-refuses-typed-at-the-op-and-the-carry`.
 - **P2, dispatchable:** `a-touch-along-a-glued-tangency-cites-no-tangency-decision`
   (unreached today; measure first), `a-point-touchs-kappa-is-levered-by-the-carriers-radius-not-the-cells-reach`
   (a design question under C3), `an-inherited-pinch-decided-onto-the-ops-face-records-nothing`,
