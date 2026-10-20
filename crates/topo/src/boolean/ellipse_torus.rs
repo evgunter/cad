@@ -46,7 +46,7 @@ use geom_brep::half_angle::{
     RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
 };
 use geom_brep::roots::{Roots, Unsettled};
-use geom_brep::rounding_charge;
+use geom_core::rounding_charge;
 /// The torus arm's subdivision rows (module docs).
 const TORUS_ROWS: SubdivisionRows = SubdivisionRows {
     clear: "bool_ellipse_torus_sub_clear",

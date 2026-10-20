@@ -731,6 +731,10 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             half_edge,
             cause: diag(),
         },
+        PcurveMintError::NetStretchUndecided {
+            half_edge,
+            cause: diag(),
+        },
     ];
     v.extend(band_errors().into_iter().map(PcurveMintError::Band));
     v.extend(
@@ -962,6 +966,16 @@ fn census_contacts() -> Vec<CensusContact> {
         },
         CensusContact::EdgeEdgeOverlap { a: edge, b: edge },
         CensusContact::EdgeFaceOverlap { edge, face },
+        CensusContact::FaceFaceTangent {
+            finding: ContactFinding {
+                pair: DeclaredContact {
+                    a: face,
+                    b: face,
+                    class: ContactClass::Tangent,
+                },
+                verdict: ContactVerdict::Definite,
+            },
+        },
         CensusContact::ConformalPatch {
             finding: ContactFinding {
                 pair: DeclaredContact {
@@ -1310,6 +1324,11 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             inner: solid,
             witness: vertex,
         },
+        ValidationError::CuspEdgesMissing {
+            a: face,
+            b: face,
+            witness: "(0.0, 2.0, 0.5)".to_owned(),
+        },
     ] {
         s.push((label("", &e).trim_start_matches('/').to_owned(), e));
     }
@@ -1651,6 +1670,25 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 a,
                 b,
                 what: why.what(),
+            },
+        ));
+    }
+    s.push((
+        "FaceThroughEdgeWedge".to_owned(),
+        ValidationError::FaceThroughEdgeWedge {
+            edge: EdgeKey::default(),
+            face,
+            witness: "(0.0, 0.0, 0.0)".to_owned(),
+        },
+    ));
+    for why in crate::census::TouchUnread::iter() {
+        s.push((
+            format!("FaceThroughEdgeWedgeUndecided/{why:?}"),
+            ValidationError::FaceThroughEdgeWedgeUndecided {
+                edge: EdgeKey::default(),
+                face,
+                witness: "(0.0, 0.0, 0.0)".to_owned(),
+                why,
             },
         ));
     }

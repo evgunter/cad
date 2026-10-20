@@ -197,27 +197,32 @@ impl<'s> WallCharts<'s> {
     }
 
     /// The slot of the operation's `i`th moved chart's new surface.
-    pub(crate) fn moved(&self, i: usize) -> Option<&OnceCell<ChartedNurbs<'s, f64>>> {
+    pub(crate) fn moved(&self, i: usize) -> WallSlot<'_, 's> {
         self.moved.get(i)
     }
 
     /// The slot of the held surface `key`.
-    pub(crate) fn held(&self, key: SurfaceKey) -> Option<&OnceCell<ChartedNurbs<'s, f64>>> {
+    pub(crate) fn held(&self, key: SurfaceKey) -> WallSlot<'_, 's> {
         self.held.get(&key)
     }
 }
 
+/// A wall's chart slot as a section is handed it: the operation's
+/// [`WallCharts`] entry, or `None` to mint the chart afresh.
+pub(crate) type WallSlot<'w, 's> = Option<&'w OnceCell<ChartedNurbs<'s, f64>>>;
+
 /// **A spline wall as a section reads it**: its net, and the operation's
 /// slot for its chart ([`WallCharts`]) where the operation holds one.
-/// The slot must be the net's own: the section doors check it in every
-/// build and refuse a chart of another surface
-/// (`geom_brep::Section::of_charted`).
+/// The slot must be the net's own. The section doors check it in every
+/// build (`geom_brep::Section::of_charted`), and since this module
+/// builds every pairing, a mispaired one here is a kernel bug: the
+/// door's refusal panics at the call site ([`mispaired`]).
 #[derive(Clone, Copy)]
 pub(crate) struct Wall<'w, 's, T: Real> {
     /// The net.
     pub(crate) net: &'s NurbsSurface<T>,
     /// Its chart's slot, or `None` to mint the chart afresh.
-    pub(crate) chart: Option<&'w OnceCell<ChartedNurbs<'s, f64>>>,
+    pub(crate) chart: WallSlot<'w, 's>,
 }
 
 /// A `WrongLane` from a charted door, which this module builds every
@@ -237,7 +242,7 @@ fn mispaired(door: &str, wall: &str, e: &SsiError) -> ! {
 /// How a section has `wall`'s chart: from the operation's slot, minting
 /// into it the first time, or minted afresh where there is no slot.
 fn chart_of<'w, 's>(
-    slot: Option<&'w OnceCell<ChartedNurbs<'s, f64>>>,
+    slot: WallSlot<'w, 's>,
 ) -> impl FnOnce(&'s NurbsSurface<f64>) -> Result<ChartedNurbs<'s, f64>, SsiError> + 'w {
     move |net| match slot {
         None => ChartedNurbs::mint(net),

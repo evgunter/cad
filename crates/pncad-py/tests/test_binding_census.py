@@ -2804,9 +2804,10 @@ NOT_BOUND = {
     # The contact vocabulary's fourth quarter, curated beside the
     # three that were already here. `INTERIOR` by the carrier rule,
     # measured one rung DOWN from where its carrier now crosses: it is
-    # `CensusContact::ConformalPatch`'s payload, and `CensusContact`
-    # itself reaches Python as `ValidationFinding.contact_kind` —
-    # `conformal_patch`, the word — while what that arm CARRIES stays
+    # `CensusContact::ConformalPatch`'s and `FaceFaceTangent`'s payload,
+    # and `CensusContact` itself reaches Python as
+    # `ValidationFinding.contact_kind` — `conformal_patch` or
+    # `face_face_tangent`, the word — while what that arm CARRIES stays
     # behind it. The finding is a declared pair and a verdict, and
     # projecting it would be projecting a payload's payload; the
     # discriminant is what a curated list owes and it crosses.
@@ -3991,6 +3992,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::EmptyLoop": "TessellateError.variant",
     "TessellateError::MissingEntity": "TessellateError.variant",
     "TessellateError::ResolutionOverflow": "TessellateError.variant",
+    "TessellateError::StepNotPositive": "TessellateError.variant",
     "TessellateError::CertificateExceeded": "TessellateError.variant",
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
@@ -4059,8 +4061,11 @@ MEMBERS_BOUND_AS = {
     "ValidationError::CensusUnsupported": "ValidationFinding.variant",
     "ValidationError::CensusLaneUnsupported": "ValidationFinding.variant",
     "ValidationError::CensusUndecidable": "ValidationFinding.variant",
+    "ValidationError::FaceThroughEdgeWedge": "ValidationFinding.variant",
+    "ValidationError::FaceThroughEdgeWedgeUndecided": "ValidationFinding.variant",
     "ValidationError::ArcEndOffCorner": "ValidationFinding.variant",
     "ValidationError::InstanceInterference": "ValidationFinding.variant",
+    "ValidationError::CuspEdgesMissing": "ValidationFinding.variant",
     "ValidationError::DanglingTopology": "ValidationFinding.variant",
     "ValidationError::DanglingGeometry": "ValidationFinding.variant",
     "ValidationError::NextPrevMismatch": "ValidationFinding.variant",

@@ -1782,7 +1782,7 @@ fn sheet_clip<T: Decide + Bounds>(
             let h = body.get_half_edge(he)?;
             let e = body.get_edge(h.edge)?;
             let forward = e.he_plus == he;
-            let cert = body.get_curve_geom(e.curve)?.certified()?;
+            let cert = body.stored_curve(h.edge).ok()?;
             let (t0, t1) = cert.params();
             let carrier = cert.carrier();
             let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
