@@ -2,11 +2,12 @@
 id: a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone
 kind: issue
 title: A solid touching itself at a point reads its touch star from its vertex there alone, so a second solid resting at that point refuses MixedTouch
-status: open
+status: closed
 opened: 2026-10-07
 priority: P2
 cost: M
 rides_with: a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap
+closed: 2026-10-19
 ---
 
 
@@ -57,3 +58,15 @@ nothing else of the solid reaches the point.
 Moved from INSIDE by `git mv`: the same missing reading as
 `a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap` (a solid's whole link at a point, decided by one complete test of two
 polygonal cones). Decided there; one unit closes all three.
+
+## Closed
+
+2026-10-19, with the carrier row (branch `restread/link-touch-reading`). A
+face whose loop passes through the touch vertex twice is read as one sector
+per pass (`face_piece`'s `also`), and a face a record ties at the point
+joins the solid's link. `cavity ∪ cone`, `cone ∪ cavity`, `cavity − cone`
+and `one − hang` refuse no solid pair at any pose
+(`a_vertex_read_by_two_sector_passes::a_pyramid_resting_where_a_solid_touches_itself_holds_tier_three_prime`;
+what tier 3′ still refuses there is the operand's own unrecorded contact at
+`MEET`, which an op called without records does not carry), and
+`three_prime` no longer accepts the saddle text.

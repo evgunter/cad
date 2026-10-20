@@ -1751,8 +1751,7 @@ fn four_pairs_battery() {
     }
 }
 
-/// **Three pairs at one vertex build on one key; their unions fail tier
-/// 3′ with `MixedTouch`.**
+/// **Three pairs at one vertex build on one key, and every op is sound.**
 /// [`notch343`]'s corner against three cubes whose corners touch only
 /// there, two poses (PR 4249's review probes): `three i=4 j=3 k=1`
 /// (side-2 cubes, diagonals 120° apart in the plane normal to the grid
@@ -1762,15 +1761,16 @@ fn four_pairs_battery() {
 /// links the pinched operand's cones. The touch unions that built the
 /// operand decided its corners one point and put them on one key
 /// (`ops::record_classes`), so every op builds at the oracle's volume
-/// with one vertex per cone at `v`, on one key, and meshes. The
-/// intersections and differences are `SOUND`. Tier 3′ refuses both
-/// unions with the census's `MixedTouch` alone, at the point where the
-/// notch's solid and a cube's touch
-/// (`work/restread/a-pinch-point-the-census-reads-as-mixed-touch-where-the-body-holds-no-overlap.md`).
-/// Red, a key finding at `v` or a refusal, where the touch unions leave
-/// their corners on separate keys.
+/// with one vertex per cone at `v`, on one key, and meshes. In each
+/// union the notch's solid holds two cones at `v`, one a convex sliver
+/// hole and one a saddle round a pocket a cube's corner sits in: tier 3′
+/// reads that solid's whole link at `v` against the cube's and finds
+/// them apart. Red as `MixedTouch` where the census reads one of the
+/// two cones as its solid's material there, or as a key finding at `v`
+/// or a refusal where the touch unions leave their corners on separate
+/// keys.
 #[test]
-fn three_pairs_at_one_vertex_build_on_one_key_and_their_unions_fail_mixed_touch() {
+fn three_pairs_at_one_vertex_build_on_one_key_and_every_op_is_sound() {
     let v = notch343().v;
     let mut poses: Vec<(&str, Vec<Frame>, f64)> = Vec::new();
     // `three`: each cube's corner diagonal along `d`, twisted by `psi`.
@@ -1826,26 +1826,9 @@ fn three_pairs_at_one_vertex_build_on_one_key_and_their_unions_fail_mixed_touch(
                     tag_cones(&tag, "ab", (&notch_pieces, &pinch_pieces)),
                 )
             });
-            let t3p = r
-                .as_ref()
-                .ok()
-                .and_then(BooleanResult::body)
-                .map(|bb| topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()).err());
             let line = outcome(r, want, tol());
             assert_eq!(finding, Some(None), "{pose} {tag}: {line}");
-            if tag.ends_with('U') {
-                let mixed = |e: &topo::ValidationError| {
-                    matches!(e, topo::ValidationError::CensusUndecidable { what, .. }
-                        if what.starts_with("one passes into the other"))
-                };
-                let errors = t3p.flatten().unwrap_or_default();
-                assert!(
-                    line.starts_with("OK BAD") && !errors.is_empty() && errors.iter().all(mixed),
-                    "{pose} {tag}: {line} {errors:?}"
-                );
-            } else {
-                assert!(line.starts_with("OK SOUND"), "{pose} {tag}: {line}");
-            }
+            assert!(line.starts_with("OK SOUND"), "{pose} {tag}: {line}");
         }
     }
 }

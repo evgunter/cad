@@ -150,13 +150,9 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 
 /// Every refusal of tier 3′ is at [`MEET`]: a contact there no record
 /// backs, an operand's own, which a kernel op called without
-/// `BooleanInputs` records does not carry, or a touch there between two solids that the census misreads. Those
-/// are a pyramid notched by another, a saddle corner on the plate
-/// (`work/inside/a-touch-at-a-saddle-corner-refuses-unanalysed.md`),
-/// and a pyramid on a solid that touches itself there, read from its
-/// vertex alone
-/// (`work/inside/a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone.md`).
-/// [`material_holds`] reads those results right. Where `along`, a
+/// `BooleanInputs` records does not carry, or a touch there between two
+/// solids where one passes into the other (a pyramid notched by
+/// another). [`material_holds`] reads those results right. Where `along`, a
 /// pyramid's edge lies in a face of the other's, and that edge's own
 /// contact, which no record carries, may refuse too
 /// (`work/flush/a-corner-pair-with-an-edge-in-the-partners-face-plane-builds-with-unrecorded-contacts.md`).
@@ -247,8 +243,7 @@ fn three_prime(
                 _ => false,
             },
             ValidationError::CensusUndecidable { a, b, what: class } => {
-                (class.starts_with("they touch at a corner neither convex nor concave")
-                    || class.starts_with("one passes into the other where they touch"))
+                class.starts_with("one passes into the other where they touch")
                     && touches_meet(a)
                     && touches_meet(b)
             }
@@ -1408,6 +1403,48 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
         );
     }
     assert!(held > 0, "some result holds tier 3′");
+}
+
+/// **A pyramid resting where a solid touches itself holds tier 3′.**
+/// The cavity, the plate less a pyramid hanging from [`MEET`], touches
+/// itself there: the void's apex on the top's interior. A pyramid
+/// standing on its apex at `MEET` rests on the top, and the plate and
+/// one arch less a pyramid hanging below `MEET` leaves the arch resting
+/// on the hollow. Each result's solids are read with their whole links
+/// at `MEET` — the top's disc less the void's cone, not the void's apex
+/// alone — and tier 3′ refuses no solid pair, at every pose: what it
+/// refuses is the operand's own contact at `MEET`, which the op called
+/// without records does not carry ([`three_prime`]).
+#[test]
+fn a_pyramid_resting_where_a_solid_touches_itself_holds_tier_three_prime() {
+    for pose in poses() {
+        let s = Scene::at(&pose);
+        for (what, r) in [
+            ("cavity ∪ cone", union(&s.cavity, &s.cone, t())),
+            ("cone ∪ cavity", union(&s.cone, &s.cavity, t())),
+            ("cavity − cone", subtract(&s.cavity, &s.cone, t())),
+            ("one − hang", subtract(&s.one, &s.hang, t())),
+        ] {
+            let what = format!("{}, {what}", pose.label);
+            let Ok(BooleanResult::Body(r)) = r else {
+                panic!("{what}: builds, got {:?}", r.map(|_| ()));
+            };
+            let errors = validate_pseudomanifold(&r.body, &r.contacts, t()).err();
+            let pairs: Vec<_> = errors
+                .iter()
+                .flatten()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        ValidationError::CensusUndecidable { .. }
+                            | ValidationError::InstanceInterference { .. }
+                    )
+                })
+                .collect();
+            assert!(pairs.is_empty(), "{what}: {errors:?}");
+            three_prime(&what, &r, &pose, false, None, None);
+        }
+    }
 }
 
 /// **Standing pyramids folded onto the plate one at a time build in
