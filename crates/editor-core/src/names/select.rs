@@ -907,7 +907,7 @@ pub fn select_where<T: Decide>(
     let Some(table) = ev.table(var) else {
         return Ok(Vec::new());
     };
-    let atoms = geompred::prepare(ev, var, geom, params)?;
+    let atoms = geompred::prepare(ev, var, geom, params, tol)?;
     let band = Band::linear(tol)?;
     let mut out: Vec<StableName> = Vec::new();
     for (name, entry) in table.iter() {

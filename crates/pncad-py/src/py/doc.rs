@@ -2335,12 +2335,8 @@ impl StationMove {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "StationMove.{}({:?}, {})",
-            self.kind(),
-            self.axis(),
-            self.by().0
-        )
+        let super::expr::Formula(by) = self.by();
+        format!("StationMove.{}({:?}, {by})", self.kind(), self.axis())
     }
 }
 

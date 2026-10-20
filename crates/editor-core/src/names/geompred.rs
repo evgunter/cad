@@ -434,6 +434,7 @@ pub(crate) fn prepare<T: Decide>(
     var: crate::VarId,
     geom: &[GeomPred],
     params: &VarEnv<T>,
+    tol: geom_core::Tol,
 ) -> Result<Vec<Prepared<T>>, SelectRefusal> {
     geom.iter()
         .map(|atom| match atom {
@@ -467,7 +468,7 @@ pub(crate) fn prepare<T: Decide>(
                 }
                 let at = topo::readback::face_pose(body, f).map_err(|_| unresolved())?;
                 let normal = geom_brep::OutwardNormal::from_chart(at.axis, at.sense).vec();
-                let band = Band::linear(geom_core::Tol::witness())?;
+                let band = Band::linear(tol)?;
                 let normal = geom_core::UnitVec3::new(normal, query::DATUM_UNIT_NORM, band)
                     .map_err(|_| unresolved())?;
                 Ok(Prepared::Distance {
