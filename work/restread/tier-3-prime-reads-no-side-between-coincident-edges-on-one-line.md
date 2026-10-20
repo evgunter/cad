@@ -39,6 +39,16 @@ certifies a collinear overlap, and refuse an overlap typed beside
 `validate_pseudomanifold` directly, and the `insert_voids` graft
 above with its records.
 
+## Evidence: the tangent pinch
+
+Ev's decision on `[ev]` PR 5395 makes a material-crescent pinch along a
+tangent line two coincident cusp edges (D1 tier 3, C7). A complement
+that fails to re-pair leaves two coincident edges each claiming a 2π
+wedge, which tier 3 reads one edge at a time and passes; this row's
+check, that coincident edges' sectors are disjoint, covers it (sectors
+0 and 2π, read at second order). Builder: CONTACTHOLD's
+`a-material-crescent-tangent-line-builds-two-coincident-cusp-edges`.
+
 ## Evidence: two readers of wedge overlap on a line
 
 PR 5431 added a second reader of whether two material wedges about one

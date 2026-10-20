@@ -8963,6 +8963,51 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
+    /// A face read through an edge's wedge under an undecided reading
+    /// holds only where that branch lays the edge in the face, so the
+    /// refusal beside the margin carries it undecided in band; an
+    /// unrecorded contact is dropped, and every other finding carried.
+    #[test]
+    fn a_branchs_wedge_crossing_is_carried_undecided() {
+        let (edge, face) = (EdgeKey::default(), FaceKey::default());
+        let witness = || "(0.0, 0.0, 0.0)".to_owned();
+        let branch = vec![
+            ValidationError::FaceThroughEdgeWedge {
+                edge,
+                face,
+                witness: witness(),
+            },
+            ValidationError::UnrecordedContact {
+                contact: CensusContact::EdgeFaceOverlap { edge, face },
+                witness: witness(),
+                margin: None,
+            },
+            ValidationError::FaceThroughEdgeWedgeUndecided {
+                edge,
+                face,
+                witness: witness(),
+                why: TouchUnread::Unreadable,
+            },
+        ];
+        assert_eq!(
+            Branch::carries(branch),
+            vec![
+                ValidationError::FaceThroughEdgeWedgeUndecided {
+                    edge,
+                    face,
+                    witness: witness(),
+                    why: TouchUnread::InBand,
+                },
+                ValidationError::FaceThroughEdgeWedgeUndecided {
+                    edge,
+                    face,
+                    witness: witness(),
+                    why: TouchUnread::Unreadable,
+                },
+            ]
+        );
+    }
+
     /// A refusal the solid door carries reads by its own kind: only an
     /// in-band walk is a witness too close to call, and one every ray
     /// grazed is not.
