@@ -769,13 +769,13 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let p = vertex_point(self.body, v)?;
         let mut on = Vec::with_capacity(set.len());
         for line in set {
-            let m = self.member(line.0, line.1.name());
+            let read = line.0;
+            let m = self.member(read, line.1.name());
             let entry = m.table.lookup(line.1.name()).unwrap_or_else(|| {
                 unreachable!(
                     "member edge {:?}, which finished edge {k:?} lies along, is not in member \
-                     {:?}'s table: `Flush::edge_cover` read it there by key",
-                    line.1.name(),
-                    line.0
+                     {read:?}'s table: `Flush::edge_cover` read it there by key",
+                    line.1.name()
                 )
             });
             let mut candidates = Vec::with_capacity(entry.entities().len());
