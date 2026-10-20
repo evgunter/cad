@@ -2,8 +2,9 @@
 id: circle-torus-roots-refuse-large-circles-for-want-of-recentering
 kind: issue
 title: The circle x torus root door refuses circles much larger than the torus: its degree-2 harmonics cancel ~rho^4 terms
-status: review
+status: closed
 opened: 2026-09-29
+closed: 2026-10-20
 branch: germ/circle-torus-recentering
 pr: 5394
 priority: P3

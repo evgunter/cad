@@ -31,3 +31,12 @@ A rod glued in a bore of its own radius is the coincidence a shared construction
 The curve-pair reader (PR 5154) replaced `carrier_cross`'s candidate search with `geom_brep::curve_pair::meet`, and with it the end cluster (`bool_carrier_cross_cluster_spread`). Its line×line pose then levered the tilt by the longer span: one order read the rod's whole eight-metre ruling and escalated (`curve_pair_pose_tilt`, `1.4e-9`), and the other read its split pieces and decided parallel. The verdict depended on how the sweep split the edge.
 
 The pose now levers the tilt by the overlap of the two spans' projections, which is where they can meet, and reads the offset inside it. Inside the four-metre block a `1e-8°` tilt moves the rod's ruling `7e-10` from the bore's, within the zero band. Every `1e-8°` pose of `sweep bisector_nodes::a_rod_glued_in_its_bore_answers_alike_in_either_order` (along `y`; about `z` with the seam at 0, π and π/2) now builds alike in both orders, as `1e-9°` does. The row's `builds` flips to true at those three poses that escalated. Its `1e-7°` pose is unchanged: alike outcome, two decisions.
+
+## At ε = 1e-12 (2026-10-19, PR 5156)
+
+With `ellipse_axes_distinct` retired, the rod along `y` at `1e-7°`
+no longer escalates alike at ε = 1e-12: ∩ refuses at a pcurve
+certificate of the long bisector ellipse in both orders, in the join
+(`Pcurves`) in one and in the merge (`Merge`) in the other. The row
+admits that pair for this pose; the cause is filed as
+`a-sliver-crossings-long-bisector-ellipse-is-served-past-representability`.

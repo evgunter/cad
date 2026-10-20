@@ -2,10 +2,11 @@
 id: flat-cone-tilted-ellipse-stands-off-the-cone
 kind: issue
 title: A flat cone's TiltedEllipse stands far off the cone where k = c² − sin²α cancels
-status: review
+status: closed
 branch: germ/flat-cone-tilted-ellipse
 refs: [conic-section-just-past-its-band-fails-certification-downstream]
 opened: 2026-10-13
+closed: 2026-10-14
 pr: 5043
 ---
 

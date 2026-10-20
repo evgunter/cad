@@ -421,11 +421,19 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 "the foot-point projection did not converge at schedule sample {sample} \
                  (last distance {last_distance:e} m)"
             ),
-            Self::NotTransverse { sample, lever, .. } => write!(
+            // One decision, one sentence: certification's, which this
+            // refusal lifts into ([`crate::certify::CertifyError::NotTransverse`]).
+            Self::NotTransverse {
+                sample,
+                lever,
+                verdict,
+            } => core::fmt::Display::fmt(
+                &crate::certify::CertifyError::NotTransverse {
+                    sample: *sample,
+                    lever: Some(*lever),
+                    verdict: *verdict,
+                },
                 f,
-                "the plane and the NURBS wall have coincident tangent planes at interior \
-                 sample {sample}, their angle levered by {lever}, where the edge's \
-                 description says they cross"
             ),
             Self::TransversalityEscalated { sample, cause } => write!(
                 f,
