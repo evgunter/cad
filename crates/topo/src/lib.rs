@@ -921,9 +921,9 @@ pub use chord_join::face_azimuth_window_traces;
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
 pub use census::{
-    CensusStrategy, CensusTrace, RecordedAtRest, SweepPairs, census_cell_solid, census_contact_row,
-    census_entity_solid, census_interference_solids, census_rest_decision, census_uncleared_solids,
-    record_at_rest,
+    CensusStrategy, CensusTrace, RecordedAtRest, SweepPairs, TouchUnread, census_cell_solid,
+    census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
+    census_uncleared_solids, record_at_rest,
 };
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
