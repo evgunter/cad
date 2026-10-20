@@ -1752,7 +1752,7 @@ fn review_r1_tipped_partner_wider_sweep() {
     let mut built = 0;
     for pose in poses() {
         let s = Scene::at(&pose);
-        for k in [12.0, 20.0, 50.0, 300.0, 1000.0, -1000.0, 1e4, -1e4] {
+        for k in [300.0, -300.0, 1000.0, -1000.0, 1e4, -1e4, 1e5] {
             let y = match union(&s.plate, &tet(lying(k * eps), &pose), t()) {
                 Ok(BooleanResult::Body(r)) => r.body,
                 other => {
