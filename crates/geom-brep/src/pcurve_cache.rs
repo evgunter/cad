@@ -187,7 +187,8 @@ use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::ladder::{IdentityLadder, read_identity};
 use crate::recourse::{
-    Reading, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision, Unsized,
+    Provenance, Reading, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision,
+    Unsized,
 };
 use crate::ssi::{SsiDecision, SsiLimb};
 
@@ -2412,7 +2413,7 @@ impl PcurveCheck {
             // no edge check counts (the projected lane's gate): a stored
             // contradiction, over a cache the kernel derives.
             Self::AzimuthPeriod | Self::TubePeriod => {
-                Routing::Sized(SpanDecision::Winding.on(StoredContradiction))
+                Routing::Sized(SpanDecision::Winding.on(StoredContradiction(Provenance::Derived)))
             }
             // The winding the kernel stores exactly: a form selection.
             Self::ChartWinding | Self::ChartIncidence | Self::Sector => {
@@ -10217,6 +10218,66 @@ mod tests {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// **Each pcurve check's sized decision names whose data it refuses**
+    /// (D4 ¶1 (iv)): the image's span and its period gates read a cache
+    /// the kernel derives, so each refused side is
+    /// [`Provenance::Derived`], and past ε_in at the import door a
+    /// reading in band wholly on it names the kernel beside the file.
+    /// The table is an exhaustive match, so a check added without a row
+    /// does not compile; red if a provenance is flipped.
+    #[test]
+    fn each_pcurve_check_names_its_refused_sides_provenance() {
+        use crate::recourse::RefusedSide;
+        use geom_core::{FileCoincidence, KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag};
+
+        let derived = Some(RefusedSide::StoredContradiction(Provenance::Derived));
+        let want = |check: PcurveCheck| match check {
+            PcurveCheck::ParamSpan | PcurveCheck::AzimuthPeriod | PcurveCheck::TubePeriod => {
+                derived
+            }
+            PcurveCheck::MapResidual
+            | PcurveCheck::Envelope
+            | PcurveCheck::EnvelopeTerm(_)
+            | PcurveCheck::ChartWinding
+            | PcurveCheck::ChartIncidence
+            | PcurveCheck::Sector => None,
+        };
+        let in_band = Indeterminate {
+            margin: MarginDiag::value(-2e-6),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: None,
+            terminal_sliver: false,
+        };
+        let past = RefusedArm::Undecided(&in_band);
+        let file = FileCoincidence::new(1e-6);
+        let checks = [
+            PcurveCheck::ParamSpan,
+            PcurveCheck::MapResidual,
+            PcurveCheck::Envelope,
+            PcurveCheck::ChartWinding,
+            PcurveCheck::AzimuthPeriod,
+            PcurveCheck::TubePeriod,
+            PcurveCheck::ChartIncidence,
+            PcurveCheck::Sector,
+        ]
+        .into_iter()
+        .chain(EnvelopeTerm::ALL.map(PcurveCheck::EnvelopeTerm));
+        for check in checks {
+            let side = match check.routing() {
+                Routing::Sized(decision) => {
+                    assert_eq!(
+                        decision.recourse(past, file),
+                        KERNEL_OR_FILE_DEFECT_ENDING,
+                        "{check:?} past ε_in at the import door"
+                    );
+                    Some(decision.side)
+                }
+                Routing::Unsized(_) => None,
+            };
+            assert_eq!(side, want(check), "{check:?}");
+        }
     }
 
     /// **A sphere parallel's twin read is one sign, and undecided it

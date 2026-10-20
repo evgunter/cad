@@ -70,8 +70,8 @@ use crate::implicit::implicit_residual;
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve_over};
 use crate::recourse::{
-    Classified, ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass, SpanDecision,
-    Unsized,
+    Classified, Provenance, ReadAt, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass,
+    SpanDecision, Unsized,
 };
 
 // **The sized decisions' nouns, each spelled once.** A size noun is the
@@ -1066,11 +1066,11 @@ impl StatedSpan {
             } => Self::Winding(WindingReading::InBand(cause)),
             _ => return None,
         };
-        let (decision, RefusedSide::Unminted) = refused.check().span()? else {
+        let (decision, side @ RefusedSide::Unminted(_)) = refused.check().span()? else {
             return None;
         };
         decision
-            .on(RefusedSide::Unminted)
+            .on(side)
             .certainly_refused(refused.arm())
             .then_some(refused)
     }
@@ -1101,12 +1101,14 @@ impl StatedSpan {
         decision
     }
 
-    /// The decision this refusal ends by. The interval is the door's
-    /// input, so at a build it ends in the check's lever, and at the
-    /// import door it is the file's as every reading of the check's
-    /// refused side is there: a stored contradiction's ending.
+    /// The decision this refusal ends by: the check's own, on its
+    /// refused side ([`CertCheck::span`]). The interval is the door's
+    /// input, so at a build it ends in the check's lever.
     fn ends_by(self) -> SizedDecision {
-        self.decision().on(RefusedSide::StoredContradiction)
+        let Some((decision, side)) = self.check().span() else {
+            unreachable!("{:?} is a span check", self.check())
+        };
+        decision.on(side)
     }
 
     /// The refused arm its reading is.
@@ -1121,8 +1123,8 @@ impl StatedSpan {
 
     /// The ending it carries, read at `at` (D4 ¶1 (iv)): the check's
     /// lever at a build; at the import door, within ε_in the door's one
-    /// sentence and the lever, and past it the file's, as the check's
-    /// refused side is there.
+    /// sentence and the lever, and past it as the check's refused side
+    /// is there.
     #[must_use]
     pub fn ending(&self, at: impl Into<ReadAt>) -> String {
         self.ends_by().recourse(self.arm(), at)
@@ -1253,17 +1255,31 @@ impl CertCheck {
     ///   produces. Every public door reports a reading certainly on it as
     ///   its input's ([`CertifyError::StatedInterval`]), and where that
     ///   input is data the kernel holds, the kernel's call site panics on
-    ///   it as a kernel bug.
+    ///   it as a kernel bug. [`Provenance::Derived`]: the import door
+    ///   certifies the interval it computes from the file's vertices
+    ///   (`step-import`'s `endpoint_params`, which projects, takes an
+    ///   eccentric anomaly, wraps an angle or pins a spline's domain
+    ///   end), not one the file stores.
     /// - The span of the edge's image on a spline wall
     ///   ([`CertCheck::ImageSpan`]): a stored contradiction. The kernel
     ///   derives the image at the band the operation passes, where a
     ///   span its edge's mint decided forward can read in band at a
-    ///   looser one.
+    ///   looser one. [`Provenance::Derived`]: the image is the kernel's
+    ///   chart image, which no file stores.
     pub(crate) const fn span(self) -> Option<(SpanDecision, RefusedSide)> {
         match self {
-            Self::ParamSpan => Some((SpanDecision::Forward, RefusedSide::Unminted)),
-            Self::ParamWinding => Some((SpanDecision::Winding, RefusedSide::Unminted)),
-            Self::ImageSpan => Some((SpanDecision::Forward, RefusedSide::StoredContradiction)),
+            Self::ParamSpan => Some((
+                SpanDecision::Forward,
+                RefusedSide::Unminted(Provenance::Derived),
+            )),
+            Self::ParamWinding => Some((
+                SpanDecision::Winding,
+                RefusedSide::Unminted(Provenance::Derived),
+            )),
+            Self::ImageSpan => Some((
+                SpanDecision::Forward,
+                RefusedSide::StoredContradiction(Provenance::Derived),
+            )),
             _ => None,
         }
     }
@@ -1293,11 +1309,14 @@ impl CertCheck {
                      reporting",
                 ),
             }),
+            // At the import door the description is the adoption
+            // ladder's candidate, which no file states, and the angle is
+            // sampled at the parameters the import derives.
             Self::Transversality => Ending::Sized(SizedDecision {
                 lever: CROSS_LEVER,
                 size: angle_noun!(),
                 passes: SizedPass::Positive,
-                side: RefusedSide::StoredContradiction,
+                side: RefusedSide::StoredContradiction(Provenance::Derived),
                 no_size: None,
             }),
             // The tube's clearance is a conservative lower bound, so a
@@ -1312,11 +1331,12 @@ impl CertCheck {
             }),
             Self::TransversalityArm => Ending::Sized(crate::DIHEDRAL_ARM),
             Self::TangentPlanes => Ending::Undefined(TANGENT_PLANES_RECOURSE),
+            // Derived at the import door as transversality is.
             Self::TangentSecondOrder => Ending::Sized(SizedDecision {
                 lever: "move the geometry so the faces curve apart more clearly where they touch",
                 size: curvature_noun!(),
                 passes: SizedPass::Positive,
-                side: RefusedSide::StoredContradiction,
+                side: RefusedSide::StoredContradiction(Provenance::Derived),
                 no_size: None,
             }),
             // The tube's margin is a conservative lower bound, so a
@@ -6366,12 +6386,13 @@ mod tests {
 
     /// **A proved-zero span ends by its unminted side**: a zero the
     /// symbolic tier proved, its rounded number outside the zero band,
-    /// ends at rest in the defect ending that names the kernel or the
-    /// file, and at the import door past ε_in in the file's.
+    /// ends at rest and at the import door past ε_in in the defect
+    /// ending that names the kernel or the file: the import door
+    /// certifies an interval it derives.
     #[test]
     fn a_proved_zero_span_ends_by_its_side_at_rest_and_at_the_import_door() {
         use geom_core::sym::with_session;
-        use geom_core::{DAMAGED_FILE_ENDING, Margin, ParamSymbol, Sym, SymBudget};
+        use geom_core::{Margin, ParamSymbol, Sym, SymBudget};
 
         let band = Band::new(1e-9, 1e-8).unwrap();
         // `x·3/3 − x` at this `x` rounds to 3.7e-9 m; the symbolic tier
@@ -6401,7 +6422,7 @@ mod tests {
         );
         assert_eq!(
             span.ending(FileCoincidence::new(1e-12)).as_deref(),
-            Some(DAMAGED_FILE_ENDING),
+            Some(KERNEL_OR_FILE_DEFECT_ENDING),
             "at the import door past ε_in"
         );
     }
@@ -6413,7 +6434,7 @@ mod tests {
     /// refusals, and `recourse` on its check's arm, ends as the
     /// [`CertifyError::StatedInterval`] a public door returns for the
     /// same reading: the check's lever at a build, the kernel's or the
-    /// file's defect at rest, and the damaged file at the import door.
+    /// file's defect at rest and at the import door.
     #[test]
     fn a_hand_built_unminted_refusal_renders_at_every_door() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -6457,7 +6478,7 @@ mod tests {
             ),
             (
                 ReadAt::File(FileCoincidence::new(1e-12)),
-                Some(geom_core::DAMAGED_FILE_ENDING),
+                Some(KERNEL_OR_FILE_DEFECT_ENDING),
             ),
         ];
         for (error, refused) in rows {
@@ -6503,7 +6524,7 @@ mod tests {
     /// past a turn by up to it, and a public re-certification at a finer
     /// band, the caller's, reads it past one — past the band, or in band
     /// wholly below zero. Each refuses as the door's input, ending in the
-    /// winding lever at a build and in the damaged-file ending at the
+    /// winding lever at a build and in the kernel-or-file ending at the
     /// import door past ε_in, and neither panics; every re-certification
     /// door, the one the tier-3 validator reads through among them,
     /// refuses it alike.
@@ -6544,7 +6565,7 @@ mod tests {
             assert!(built.ends_with(lever), "{finer:?}: {built}");
             assert_eq!(
                 error.ending(FileCoincidence::new(1e-12)).as_deref(),
-                Some(geom_core::DAMAGED_FILE_ENDING),
+                Some(KERNEL_OR_FILE_DEFECT_ENDING),
                 "{finer:?} at the import door"
             );
             let kernels = minted
@@ -6563,7 +6584,7 @@ mod tests {
     /// turn refuse as the caller's. At a build each ends in the check's
     /// lever; at rest in the defect ending; at the import door the
     /// empty line, a size within ε_in, in the door's sentence and the
-    /// lever, and the reversed line and the arc, past it, as the file's.
+    /// lever, and the reversed line and the arc, past it, as at rest.
     /// A span a smaller tolerance decides forward stays the check's own,
     /// its offer intact. The reversed line's payload names how far it runs
     /// backwards, and renders whole at a build.
@@ -6614,14 +6635,14 @@ mod tests {
                 "reversed",
                 line(1.0, 0.0),
                 true,
-                geom_core::DAMAGED_FILE_ENDING.to_owned(),
+                KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
             ),
             ("empty", line(0.5, 0.5), true, format!("{untold} {span}")),
             (
                 "past a turn",
                 past,
                 false,
-                geom_core::DAMAGED_FILE_ENDING.to_owned(),
+                KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
             ),
         ];
         for (door, mint) in doors {
@@ -7346,11 +7367,11 @@ mod tests {
     /// included — and a residual's miss within ε_in but beyond ε, or a
     /// certified bound on it wholly within ε_in, names setting ε to ε_in
     /// as a stopgap. An ε_in below every margin leaves every ending at
-    /// rest but a reading at zero's, and the defect ending of a sized
-    /// decision whose refused side is stored data, which the door names
-    /// the file's: those checks are named here, so a side or a culprit
-    /// misfiled reads red. No ending at the door blames the kernel alone,
-    /// or carries a second recourse.
+    /// rest but a reading at zero's: every check's refused side compares
+    /// a value the kernel derives at adoption, so no defect ending at the
+    /// door names the file alone, and a side filed as the file's reads
+    /// red. No ending at the door blames the kernel alone, or carries a
+    /// second recourse.
     #[test]
     fn the_import_door_reads_at_rest_with_its_eps_in_words() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -7376,16 +7397,6 @@ mod tests {
             };
             (cause, miss)
         });
-        // The checks whose refused side is stored data: past ε_in, the
-        // file's.
-        let the_files = [
-            CertCheck::ParamSpan,
-            CertCheck::ParamWinding,
-            CertCheck::ImageSpan,
-            CertCheck::Transversality,
-            CertCheck::TangentSecondOrder,
-        ];
-        let mut named_the_file = Vec::new();
         for check in all_checks() {
             let mut arms: Vec<(RefusedArm<'_>, bool)> = causes
                 .iter()
@@ -7448,14 +7459,6 @@ mod tests {
                             ),
                             "{check:?} {arm:?}: a reading at zero lies below every ε_in"
                         );
-                    }
-                    _ if the_files.contains(&check) && at_rest == KERNEL_OR_FILE_DEFECT_ENDING => {
-                        assert_eq!(
-                            narrow_door,
-                            geom_core::DAMAGED_FILE_ENDING,
-                            "{check:?} {arm:?}: past ε_in a stored side's defect is the file's"
-                        );
-                        named_the_file.push(check);
                     }
                     _ => assert_eq!(
                         narrow_door, at_rest,
@@ -7522,18 +7525,9 @@ mod tests {
                         door.contains("as a stopgap, set the tolerance to ε_in"),
                         "{check:?} {arm:?}: {door}"
                     ),
-                    _ if the_files.contains(&check) && at_rest == KERNEL_OR_FILE_DEFECT_ENDING => {
-                        assert_eq!(door, geom_core::DAMAGED_FILE_ENDING, "{check:?} {arm:?}");
-                    }
                     _ => assert_eq!(door, at_rest, "{check:?} {arm:?}"),
                 }
             }
-        }
-        for check in the_files {
-            assert!(
-                named_the_file.contains(&check),
-                "{check:?}: no reading past ε_in named the file"
-            );
         }
     }
 
@@ -7616,10 +7610,12 @@ mod tests {
     /// data it is about** ([`crate::recourse::culprit`]): one row per
     /// class, read at a build, at rest, and at the import door with the
     /// reading within ε_in and past it. Past ε_in a sized decision's
-    /// stored side is the file's, and a decision with no size, whose
-    /// comparands the kernel derives there, names the kernel beside the
-    /// file; a fit keeps its last resort at a build, and a bound
-    /// everywhere. Red if a class's culprit is chosen by the door alone.
+    /// stored side over a description the kernel's adoption ladder
+    /// proposes, and a decision with no size, whose comparands the kernel
+    /// derives there, name the kernel beside the file; a fit keeps its
+    /// last resort at a build, and a bound everywhere. A side over the
+    /// file's own values is the file's
+    /// (`one_definite_reading_ends_one_way_whichever_arm_routes_it`).
     #[test]
     fn a_defects_culprit_follows_the_door_and_the_provenance() {
         let file = FileCoincidence::new(1e-6);
@@ -7639,11 +7635,7 @@ mod tests {
              distance ε_in = 1e-6 m. {stopgap}; this refusal may indicate a kernel bug worth \
              reporting"
         );
-        let (k, kf, damaged) = (
-            KERNEL_DEFECT_ENDING,
-            KERNEL_OR_FILE_DEFECT_ENDING,
-            geom_core::DAMAGED_FILE_ENDING,
-        );
+        let (k, kf) = (KERNEL_DEFECT_ENDING, KERNEL_OR_FILE_DEFECT_ENDING);
         let lever = "Recourse: move the geometry so the faces curve apart more clearly where they \
                      touch";
         let sized_within = format!(
@@ -7667,12 +7659,12 @@ mod tests {
         let rows = [
             (
                 CertCheck::TangentSecondOrder,
-                "a sized decision's stored contradiction",
+                "a sized decision's stored contradiction over a derived description",
                 refused,
                 lever,
                 kf,
                 sized_within.as_str(),
-                damaged,
+                kf,
             ),
             (
                 CertCheck::EndpointStart,
@@ -7733,6 +7725,91 @@ mod tests {
             ] {
                 assert_eq!(got, want, "{check:?}, {class}, at {door}");
             }
+        }
+    }
+
+    /// **Every sized decision ends past ε_in at the import door by its
+    /// own refused side and provenance** (D4 ¶1 (iv)): a reading in band
+    /// wholly on the refused side, its size past the file's ε_in, ends in
+    /// the lever where the lever reaches that side, and in the defect
+    /// ending its provenance names where it does not, each written out
+    /// here. Every defect side the edge certifier has compares a value
+    /// the kernel derives at adoption, so it names the kernel beside the
+    /// file; a door's refusal of its stated interval ends as its check
+    /// does. Red if a provenance is flipped, or a sized check is added
+    /// without a row.
+    #[test]
+    fn each_sized_decision_ends_past_eps_in_by_its_provenance() {
+        let file = FileCoincidence::new(1e-6);
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let in_band = Indeterminate {
+            margin: MarginDiag::value(-2e-6),
+            band,
+            predicate: None,
+            terminal_sliver: false,
+        };
+        let past = RefusedArm::Undecided(&in_band);
+        let kf = KERNEL_OR_FILE_DEFECT_ENDING;
+        let rows = [
+            (CertCheck::ParamSpan, kf),
+            (
+                CertCheck::ParamSpanMeter,
+                "Recourse: move the geometry so this spline edge runs steadily forward, never \
+                 stalling or turning back; if it does neither, the speed floor has reached its \
+                 limit, which is worth reporting",
+            ),
+            (CertCheck::ParamWinding, kf),
+            (CertCheck::ImageSpan, kf),
+            (CertCheck::Transversality, kf),
+            (
+                CertCheck::TransversalityTube,
+                "Recourse: move the geometry so the surfaces cross at a clearer angle",
+            ),
+            (
+                CertCheck::TransversalityArm,
+                "Recourse: move the geometry so that edge's faces clearly run farther and none \
+                 curves tightly there; faces of no extent or a cone's point leave no angle to \
+                 measure",
+            ),
+            (CertCheck::TangentSecondOrder, kf),
+            (
+                CertCheck::TangentTube,
+                "Recourse: move the geometry so the faces curve apart more clearly where they \
+                 touch",
+            ),
+            (
+                CertCheck::PlaneNurbsChartSpeed,
+                "Recourse: move the geometry so the spline face varies along both of its \
+                 parameter directions",
+            ),
+            (
+                CertCheck::PlaneNurbsChartSpeedBound,
+                "Recourse: move the geometry to a scale where the spline face's control points \
+                 stay well inside the range of finite numbers",
+            ),
+        ];
+        let sized: Vec<CertCheck> = all_checks()
+            .into_iter()
+            .filter(|check| matches!(check.ending(), Ending::Sized(_)))
+            .collect();
+        assert_eq!(
+            rows.map(|(check, _)| check).to_vec(),
+            sized,
+            "one row per sized check, in taxonomy order"
+        );
+        for (check, want) in rows {
+            assert_eq!(recourse(check, past, file), want, "{check:?} past ε_in");
+        }
+        for refused in [
+            StatedSpan::Forward(ForwardReading::InBand(in_band)),
+            StatedSpan::Winding(WindingReading::InBand(in_band)),
+        ] {
+            let stated = CertifyError::StatedInterval { refused };
+            assert_eq!(
+                stated.ending(file).as_deref(),
+                Some(kf),
+                "{refused:?}: the stated interval past ε_in"
+            );
         }
     }
 
@@ -8289,29 +8366,41 @@ mod tests {
 
     /// Every decision's class, pinned against a table written out by
     /// hand (D4 ¶1 (i)): a decision that passes on a nonzero sign is
-    /// sized, with its pass set; an exact construction ends as a defect,
-    /// an approximation as a fit and a certified bound on the miss as a
-    /// bound; a residual, whose refused margin is a miss, is marked so as
-    /// any of them. The table is the
+    /// sized, with its pass set and its refused side, and a defect side
+    /// with whose data it reads at the import door; an exact
+    /// construction ends as a defect, an approximation as a fit and a
+    /// certified bound on the miss as a bound; a residual, whose refused
+    /// margin is a miss, is marked so as any of them. The table is the
     /// independent side, so a decision `ending()` misfiles fails here.
     #[test]
     fn each_decision_is_classified_as_the_table_says() {
         #[derive(Debug, PartialEq, Eq)]
         enum Class {
-            Sized(SizedPass),
+            Sized(SizedPass, RefusedSide),
             NoSize(Unsized),
             Miss(Unsized),
             Undefined,
         }
-        use Class::{Miss, NoSize, Sized, Undefined};
+        use Class::{Miss, NoSize, Undefined};
+        use RefusedSide::{Lever, StoredContradiction, Unminted};
         use SizedPass::{NonNegative, Positive};
+        let derived = Provenance::Derived;
         let table = [
             (CertCheck::EndpointStart, Miss(Unsized::Defect)),
             (CertCheck::EndpointEnd, Miss(Unsized::Defect)),
-            (CertCheck::ParamSpan, Sized(Positive)),
-            (CertCheck::ParamSpanMeter, Sized(Positive)),
-            (CertCheck::ParamWinding, Sized(NonNegative)),
-            (CertCheck::ImageSpan, Sized(Positive)),
+            (
+                CertCheck::ParamSpan,
+                Class::Sized(Positive, Unminted(derived)),
+            ),
+            (CertCheck::ParamSpanMeter, Class::Sized(Positive, Lever)),
+            (
+                CertCheck::ParamWinding,
+                Class::Sized(NonNegative, Unminted(derived)),
+            ),
+            (
+                CertCheck::ImageSpan,
+                Class::Sized(Positive, StoredContradiction(derived)),
+            ),
             (
                 CertCheck::SurfaceResidual {
                     surface: SurfaceKey::default(),
@@ -8325,15 +8414,21 @@ mod tests {
                 Miss(Unsized::Defect),
             ),
             (CertCheck::WitnessMidpoint, Miss(Unsized::Defect)),
-            (CertCheck::Transversality, Sized(Positive)),
-            (CertCheck::TransversalityTube, Sized(Positive)),
-            (CertCheck::TransversalityArm, Sized(Positive)),
+            (
+                CertCheck::Transversality,
+                Class::Sized(Positive, StoredContradiction(derived)),
+            ),
+            (CertCheck::TransversalityTube, Class::Sized(Positive, Lever)),
+            (CertCheck::TransversalityArm, Class::Sized(Positive, Lever)),
             (CertCheck::TangentPlanes, Undefined),
-            (CertCheck::TangentSecondOrder, Sized(Positive)),
+            (
+                CertCheck::TangentSecondOrder,
+                Class::Sized(Positive, StoredContradiction(derived)),
+            ),
             (CertCheck::TangentParallel, Miss(Unsized::Defect)),
             (CertCheck::TangentGap, Miss(Unsized::Defect)),
             (CertCheck::TangentHull, Miss(Unsized::Bound)),
-            (CertCheck::TangentTube, Sized(Positive)),
+            (CertCheck::TangentTube, Class::Sized(Positive, Lever)),
             (CertCheck::MappedSource, Miss(Unsized::Defect)),
             (CertCheck::ChartResidual, Miss(Unsized::Defect)),
             (CertCheck::ChartImage, NoSize(Unsized::Defect)),
@@ -8346,8 +8441,14 @@ mod tests {
                 CertCheck::PlaneNurbsReportedTransversality,
                 NoSize(Unsized::Defect),
             ),
-            (CertCheck::PlaneNurbsChartSpeed, Sized(Positive)),
-            (CertCheck::PlaneNurbsChartSpeedBound, Sized(Positive)),
+            (
+                CertCheck::PlaneNurbsChartSpeed,
+                Class::Sized(Positive, Lever),
+            ),
+            (
+                CertCheck::PlaneNurbsChartSpeedBound,
+                Class::Sized(Positive, Lever),
+            ),
         ];
         assert_eq!(table.len(), all_checks().len());
         for check in all_checks() {
@@ -8356,7 +8457,7 @@ mod tests {
                 .find(|(c, _)| *c == check)
                 .unwrap_or_else(|| panic!("{check:?} is missing from the table"));
             let got = match check.ending() {
-                Ending::Sized(sized) => Sized(sized.passes),
+                Ending::Sized(sized) => Class::Sized(sized.passes, sized.side),
                 Ending::Unsized(no_size) => NoSize(no_size),
                 Ending::Residual(residual) => Miss(residual),
                 Ending::Undefined(_) => Undefined,
@@ -8365,7 +8466,7 @@ mod tests {
             // A lever is named exactly where the decision is sized.
             let at_build = recourse(check, RefusedArm::SignCertain(None), Reading::Build);
             let named = at_build.starts_with("Recourse: move the geometry");
-            assert_eq!(named, matches!(want, Sized(_)), "{check:?}");
+            assert_eq!(named, matches!(want, Class::Sized(..)), "{check:?}");
         }
     }
 }

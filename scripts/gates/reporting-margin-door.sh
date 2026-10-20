@@ -163,7 +163,7 @@ DEFINITE_RE='(RefusedReading::Defect|sign_certain_recourse|shows_no_size|certain
 # call a culprit chooser, or spell the file's own provenance or the
 # file culprit.
 CULPRIT_ALLOWLIST=(
-  'crates/geom-brep/src/recourse.rs 8 the culprit chooser: the definitions of recourse::culprit and Reading::culprit, culprit reading the run door and naming the file for stored data, defect_ending and unreadable_margin_note reading the run door, Unsized::recourse reading it for a derived value, and SizedDecision::words for stored data'
+  'crates/geom-brep/src/recourse.rs 8 the culprit chooser: the definitions of recourse::culprit and Reading::culprit, culprit reading the run door and naming the file for stored data, defect_ending and unreadable_margin_note reading the run door, Unsized::recourse reading it for a derived value, and SizedDecision::words for the provenance its refused side names'
 )
 CULPRIT_RE='(culprit\(|(Provenance::Stored|StoredCulprit::File)([^A-Za-z0-9_]|$))'
 
