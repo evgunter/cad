@@ -6107,7 +6107,15 @@ mod tests {
                                    holds the circle at the interior probe — not an arc rim \
                                    spanning the chart's u domain",
                         },
-                        authority: geom_brep::EdgeAuthority::<f64>::Derived.kind(),
+                        // The split's circle is scaffolding, whose
+                        // pushforward is its declaration.
+                        authority: body
+                            .get_edge(created.edge)
+                            .and_then(|e| body.get_curve_geom(e.curve))
+                            .and_then(crate::CurveGeom::certified)
+                            .unwrap()
+                            .authority()
+                            .kind(),
                     },
                 },
             ],

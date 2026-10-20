@@ -1054,7 +1054,7 @@ fn certify_refused<T: Real>(
 ) -> PcurveMintError {
     let (edge, data) = edge_record(body, half_edge);
     let Some(curve) = body.edge_curve_linked(edge, data).certified() else {
-        panic!("a row's certification refused on a half-edge with no certified carrier");
+        unreachable!("a row's certification refused on a half-edge with no certified carrier");
     };
     PcurveMintError::Certify {
         half_edge,
