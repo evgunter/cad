@@ -173,3 +173,27 @@ record crosses along one ray: the graze is most likely that germ read
 twice. That fails only where the two Ons lie on opposite rays of the
 line. Whether any census row reaches the arm after an earlier germ
 consumed its On has not been instrumented.
+
+## Evidence: the census of typed kernel-defect endings (ENCL, 2026-10-20)
+
+The census in `work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md`, on main 5df6e6c854, classifies the `BooleanError`
+`Display` arms in `crates/topo/src/boolean/mod.rs` that append
+`KERNEL_DEFECT_ENDING`. It leaves them to this row instead of filing a
+second one. All are class 2, "only a kernel bug reaches it", and
+`likely` unless marked:
+
+- `SplitLineage` (~4819): the split records are the Boolean's own.
+- `LineageRow` (~4823): `lineage::RowRefusal` is refused at append, on
+  rows the op writes itself.
+- `ResultVolumeImplausible` (~4937): a postcondition on the result's
+  volume.
+- `VolumeCorrupt { operand: None }` (~4953): the result's own mass
+  properties. The `Some` arm already names the file.
+- `EdgeInFace { Crossed | TwinIncident }` (~5001): a postcondition on
+  the result's edges.
+- `ContactContradicted` with a `Tangent` declaration (~4585): `unsure`.
+  It is HELD under D10 (contact records), so it is classified there and
+  not carried here.
+
+The prose-ending arms (`JoinDesync`, `TornComponent`, `SeamOrientation`,
+`ZipCorrespondence`) are in the census's second pass, unclassified.
