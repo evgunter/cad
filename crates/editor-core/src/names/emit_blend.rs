@@ -38,9 +38,9 @@
 //! One guard sits between those two cases, because "keeps its source
 //! arena key" is a claim about NUMBERING and nothing here re-checks
 //! it. A would-be survivor whose key the records list as RETIRED
-//! refuses [`NamingError::Emission`].
+//! panics.
 //!
-//! That guard is unreachable while `topo::Body`'s arenas reissue no
+//! That guard cannot fire while `topo::Body`'s arenas reissue no
 //! retired key. The kernel owns that statement: [`sweep::blend::naming`]'s
 //! module doc says what [`Retired`](sweep::blend::naming::Retired) is
 //! for in this consumer — a guard that cannot fire, holding the
@@ -49,7 +49,7 @@
 //! container: were a retired key ever reissued, an unrecorded mint
 //! would be named `From` of an unrelated entity, caught only if
 //! the name's real owner happened to collide at insertion. Same
-//! posture as `wire_blend`'s refusal of `naming: None`.
+//! posture as `wire_blend`'s panic on `naming: None`.
 //!
 //! # An upstream tie PROPAGATES (B1)
 //!
@@ -89,6 +89,12 @@ use crate::node::RecipeNodeId;
 /// chamfer's names from a fillet's is `node` — the minting id every
 /// segment is stamped with. Written twice, the pair would drift, and
 /// the thing they would drift on is the tie deferral.
+///
+/// # Panics
+///
+/// Where `rec` records one entity twice, or lists as retired the key
+/// of an output entity it did not mint: `rec` is the surgery's own
+/// record of `body`, so either is a kernel bug.
 pub(super) fn name_blend<T: geom_core::Real>(
     node: RecipeNodeId,
     target_node: RecipeNodeId,
@@ -132,9 +138,10 @@ pub(super) fn name_blend<T: geom_core::Real>(
         // Two records for one key is an emission bug, not a tie: the
         // surgery mints each entity once.
         if minted.insert(key, (seg, tied)).is_some() {
-            return Err(NamingError::Emission {
-                what: "the surgery recorded one entity twice",
-            });
+            unreachable!(
+                "the blend's record mints {key:?} twice, though the surgery mints each entity \
+                 once and records it as it mints"
+            );
         }
         Ok(())
     };
@@ -339,10 +346,10 @@ pub(super) fn name_blend<T: geom_core::Real>(
                     EntityKey::Body => false,
                 };
                 if dead {
-                    return Err(NamingError::Emission {
-                        what: "an output entity is neither minted nor a survivor: its key was \
-                               recorded as RETIRED, so the match is an arena coincidence",
-                    });
+                    unreachable!(
+                        "output entity {key:?} is neither minted nor a survivor: the blend \
+                         recorded its key as RETIRED, and a versioned arena never reissues one"
+                    );
                 }
                 let u = up(key)?;
                 (
