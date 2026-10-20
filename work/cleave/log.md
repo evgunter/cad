@@ -1300,3 +1300,7 @@ Signed (CLEAVE orchestrator).
     - recl along a slit line: 60 + 40 cells; the lever is false on the kernel's own slit;
     - a slit face glued away: the probe. The split's slits fail it on main too.
   - Ruling: A. Type both as construction gaps with no lever, disclose exactly (a per-family table against main), and file both builds as P1. The rider form's silent wrong answers outweigh holding the PR for two more kernel sites.
+- 2026-10-20 — PR 5380 fix pass pushed (`0f01263600`, main + 5357 merged). Gate red only on the_needle (filed with CPAIR).
+  - Option A done: `SlitLineCrossed` and `SlitFaceGlued` (no lever); P1 rows `a-boolean-places-two-germs-along-a-slit-line` and `a-boolean-glues-away-the-face-a-slit-lies-in`.
+  - Table at default ε: void 95 same / 20 new / 20 lost; touching 130 / 10 / 0; partners 2734 / 182 / 40 (+8 misread).
+  - Narrow re-review dispatched. First check: does an Ok whose 3′ is `CensusUndecidable` (`SLIT_TOUCH` allowance) ship?
