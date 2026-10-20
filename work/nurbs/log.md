@@ -1628,3 +1628,11 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - the shelling probe is byte-identical;
     - all 7 topo and sweep 1e-12 reds are filed base reds, word for word.
   - **#5440:** review MERGEABLE (1450 pieces bit-identical, M2–M7 red, 267 decisions match). It waits on C resolving the item conflict that my aafaa9b2 caused. The two `split_restrict` carry-overs move to build A's PR 3.
+- 2026-10-20 07:25Z — **#5439 resolved: two Bernstein product homes, kept for precision** (build A's measurement under the rule fixed at 04:42Z).
+  - **Decisions:** neither fold direction moves one (the geom-brep and sweep slow sets at both ε, plus the `limb_three` census over 735 rung lines; only margin bits and one box count change).
+  - **Widths:**
+    - B (compose on exact numerators) widens compose's tensor and `ch_mul` and `mul_block` coefficients up to 6× and loses exact zero-width points at `tensor.rs:383/386`, though it is narrower on 7–40% of them;
+    - C (derivative on compose's per-term weights) widens `area_raised` up to 1470× and `doubled_cross` up to 208×.
+  - **Ruled:** rule 3. Each association is tightest for its own callers, so two homes stay, with precision as the stated reason and the table in the item. #5439 drops back to STANDARD: docs, the bit rows kept, the enclosure rows, the review's MINOR and NOTE, no golden moves.
+  - **Lesson:** fixing the rule before the numbers was worth it. The first ruling (bits) was wrong in kind; this one is right in kind and holds to its threshold.
+  - **#5419:** C pushed 67c2d535. Topo's `of_charted` sites panic on `WrongLane`; the release mutant is red on 8 rows by the panic, against 3. The reviewer re-verifies.
