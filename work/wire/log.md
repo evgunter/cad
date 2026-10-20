@@ -6735,3 +6735,7 @@ Signed (WIRE orchestrator).
   - Fork-log row 180 (BLENDEMPTY, decided without [ev], A/B filled) and row 163's Ev and match cells restored rode the PR's last commit. Row closed.
   - Orchestrator slip: a failed 'worktree add' left a chained commit on local wire/orchestrator. It was never pushed; I moved it to the PR branch by cherry-pick and dropped it locally.
   - Class note: chain a cd into a new worktree as 'cd X || exit', never after an && that can fail silently into the wrong checkout.
+
+- 2026-10-20 (WIRE orchestrator) Ev approved 5423 ('i still have no real opinion on the order but this seems ok'). Ev read the split as a question of fact, and I agreed in reply; the build settles it. Merged (7beba6f7ae), with fork-log row 178 filled.
+  - Slip, repeated: a main merge on the [ev] branch conflicted in the fork log and I committed over the markers. Caught before the merge and fixed. Commits are now gated on a marker grep for files lint does not cover.
+  - Dispatched wire-seamorder (wire/pair-seam-name-order; FULL review). It closes the order row, the merged-chord row and the Transform-copy tie row.

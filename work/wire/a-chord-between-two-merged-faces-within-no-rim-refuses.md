@@ -7,7 +7,6 @@ opened: 2026-10-18
 priority: P2
 cost: M
 design: true
-needs_ev: true
 pr: 5423
 branch: wire/ev-pairseam-order
 ---

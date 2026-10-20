@@ -2,7 +2,7 @@
 id: a-subtract-of-a-transform-copy-ties-its-seam-crossings
 kind: issue
 title: A subtract whose operands share face names (a Transform copy) publishes its four Crossing seam vertices Tied, because the pair's seam sides and crossings cite bare operand names
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P2
 cost: M
