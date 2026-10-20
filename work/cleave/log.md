@@ -1309,3 +1309,8 @@ Signed (CLEAVE orchestrator).
   - Ruling: not a blocker. The door's ratified contract is tier 3, and main already ships ~6.8k such Oks. Disclose it in the PR and on the REACHHOLD row and the slit-line row.
   - Small fixes: twin-record typing, coplanar units, narrow `slit_line_refusal` to the slit's own line.
   - The table holds; nothing main read right is read wrong.
+- 2026-10-20 — PR 5380 merged (`607a0d3c1f`): the Boolean builds the slit form and agrees with the split.
+  - Riders parted into ring / slit / divided face; slit tips read structurally (`SlitTips`).
+  - Gaps typed: `SlitLineCrossed`, `SlitFaceGlued`, `EdgeInFace{…}`.
+  - The 414 3′-uncertified Oks are disclosed (inside the door's tier-3 contract; REACHHOLD row noted).
+  - P1 row closed. Follow-ups: P1 `a-boolean-places-two-germs-along-a-slit-line`, P1 `a-boolean-glues-away-the-face-a-slit-lies-in`, P1 `a-boolean-edge-running-past-the-face-…`, P1 `a-boolean-edge-lying-in-a-curved-face-…`, P2 `the-boolean-parting-refuses-its-rarer-configurations`.
