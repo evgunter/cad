@@ -6781,3 +6781,13 @@ Signed (WIRE orchestrator).
     - slot and order explained, with the measurement under way in wire-nameinv;
     - the example;
     - identical operands never collide (the read is in every carried name), but N4 ties remain by design where geometry doesn't distinguish, plus D10's Placed question.
+
+- 2026-10-20 (WIRE orchestrator) PR 5460 (wire-nameinv) is green at 93d1cf0c37.
+  - Seven invariance tests over a contact-heavy corpus.
+  - Found:
+    - a body and its copy named from the copy minted first;
+    - a pinch named by the leg minted first;
+    - one pair-union order refusing EntityNamed.
+  - Filed 3 new wire rows, a P3 topo arena-helper row, and a cleave at-rest refusal.
+  - Perturbations 3 and 4 find nothing today.
+  - STYLE review dispatched; it presses whether the set-sort normalisation hides content leaks.
