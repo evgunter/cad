@@ -1328,3 +1328,6 @@ Signed (CLEAVE orchestrator).
   - The join merges a glued slit's sliver into one wall|wall edge (`merge_glued_slits` via `kef`; the sliver side reads Out). All 100 cells per ε build at closed form, 3′ ok; no new refusals; 34 `union_flush` LineWedges re-pinned to builds.
   - Filed FLUSH P1 `a-fate-cut-refuses-a-slit-floor-flush-with-an-inner-slab` (a main red since 5368).
   - Full review dispatched; focus on whether the merge hides a true overlap.
+- 2026-10-20 — PR 5505 review: APPROVE-WITH-FIXES, no MAJOR.
+  - Families correct at 3 ε, including partly glued; the 34 `union_flush` re-pins are correct, not hidden overlaps; the FLUSH regression is confirmed.
+  - Fixes: the sliver-Out rule must not override `Ranked::Blocked`; rename and re-doc the merge to its true scope (zero-area two-edge faces alone on a line); the FLUSH row quote; one predicate helper; small Q7s.
