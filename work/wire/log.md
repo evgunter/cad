@@ -6880,3 +6880,7 @@ Signed (WIRE orchestrator).
     - the denotation verifier (P2 H);
     - the coverage fuzzer (P2 H).
   - Already filed: the arena-permute helper (P2) and OrderAlong.of. The one-namer program is left to the slate.
+
+- 2026-10-20 (WIRE orchestrator) Ev on 5457 asked where the verb/door mismatch could happen before.
+  - Answered: never in shipped code. At the merge base every Verb door method took any variant and refused Arity at runtime; only the verbs crate's own door-matrix tests made the mismatched call, on purpose. editor-core's correspondences always matched.
+  - So the (a)/(b)/(c) choice is API shape only. (a) is the smallest.
