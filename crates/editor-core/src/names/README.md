@@ -253,6 +253,19 @@ The qualifier depends on what was split:
   in one half are further qualified by `Qualifier::Keeps`, the sorted set
   of the parent's boundary edges each holds a stretch of, cited by their lines
   (below); equal sets tie.
+- **A Split's section faces** are pieces of one parent, the tool plane.
+  - One plane piece in a half is the bare `SectionFace`.
+  - Several are each `SectionFace` + `Fragment(Borders)`, read over the
+    plane's complement in that half. An obstacle is a connected part of
+    the plane the half's pieces do not hold, and it divides where it
+    borders two or more pieces. A piece's walls are the operand faces
+    across its edges along a divider, each cited by its parent's name, as
+    its `SectionEdge` chords cite them. So two sections never cite each
+    other, and a hole that no other piece sits in renames nothing.
+  - Equal sets tie (N4); nothing breaks the tie by an order, since every
+    order the join has reads the plane.
+  - A parent that holds the plane qualifies its pieces by `Borders`, since
+    the plane has no boundary edges for `Keeps` to cite.
 - **Edge pieces** take `Qualifier::Ends`: the sorted pair of a piece's two end
   vertices' names as the node publishes them. A piece is spelled on its parent
   edge's *line*: the edge's name with every piece qualifier removed, at every
@@ -458,11 +471,11 @@ and a constituent is never itself a bare merged face: whatever mints a `Merged`
 mints it flat — a merge of a merged face lists the faces, never the merge — and
 a nested `Merged` is an emission bug, refused at the mint and again at the
 union's collapse rather than flattened (the fragment carve-out is stated once,
-at `RoleSeg::Merged`). A split's section faces are constituents like any
-other face: a split finishes each half with maximal faces, and a group that
-holds section faces is `Merged` of its constituents' names, each
-`SectionFace { k }` numbered in the completion order it had before the
-merge, so no section is renumbered. A split's group that holds no section
+at `RoleSeg::Merged`). A split finishes each half with maximal faces, and
+a group that holds section faces is `Merged` of the plane and the operand
+faces it absorbed: the plane is a parent linked as an operand face is,
+cited once and bare, whatever number of sections the join completed, and
+every plane piece of the half is a piece of that parent. A split's group that holds no section
 face is named as a boolean names it: `Merged` of the operand faces its faces
 descend from, the faces of one such parent in one half told apart by `Keeps`
 (N2). A `Merged` whose set has one element is that
