@@ -1,0 +1,95 @@
+diff --git a/crates/topo/src/boolean/solid_contain.rs b/crates/topo/src/boolean/solid_contain.rs
+index 320f96fee7..9a16bb10b8 100644
+--- a/crates/topo/src/boolean/solid_contain.rs
++++ b/crates/topo/src/boolean/solid_contain.rs
+@@ -4766,10 +4766,10 @@ fn edge_meets<T: Decide>(
+         if !inside {
+             continue;
+         }
+-        let wedge = meets
++        let wedge = if std::env::var("EMR_NOWEDGE").is_ok() { None } else { meets
+             .met
+             .iter()
+-            .position(|w| [w.1, w.2].iter().any(|f| faces.contains(f)));
++            .position(|w| [w.1, w.2].iter().any(|f| faces.contains(f))) };
+         if let Some(k) = wedge {
+             let mark = gap.or(gaps[k]).map_or(Mark::Graze, Mark::Wedge);
+             meets.marks.push(RayHit::marked(faces, at, mark));
+@@ -5954,6 +5954,46 @@ mod per_solid_entry_tests {
+     /// their faces' planes it crosses at least `g` apart: it reads, or is
+     /// set aside, and never refuses on a pair (`bool_point_in_solid_order`
+     /// in band).
++    /// Review R2 re-check: a shallow ray leaves a wall of one box and,
++    /// `L` further on, passes the top edge of a second box, whose top it
++    /// crosses obliquely: the top's carrier is crossed beside the wall,
++    /// though the two faces stand `L` apart.
++    #[test]
++    fn review_r2_an_oblique_carrier_crossing_beside_another_face() {
++        let tol = Tol::witness();
++        let band = Band::linear(tol).unwrap();
++        for m in [3.0, 5.0, 8.0] {
++            for slope in [0.05, 0.1, 0.15] {
++                let l = m * tol.k() * tol.eps();
++                let mut body =
++                    quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.5, tol);
++                let other = quad_prism(
++                    &[(1.0 + l, 0.0), (2.0 + l, 0.0), (2.0 + l, 1.0), (1.0 + l, 1.0)],
++                    1.0,
++                    tol,
++                );
++                crate::instance::graft_disjoint(&mut body, &other).unwrap();
++                let sel =
++                    SolidFaces::select(&body, body.faces().map(|(k, _)| k).collect()).unwrap();
++                let geos: Vec<_> = sel
++                    .faces()
++                    .iter()
++                    .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
++                    .collect();
++                let d = Vec3::new(1.0, 0.05, -slope).normalize();
++                // Through the wall's middle at the second box's top height.
++                let q = Point3::new(1.0, 0.5, 1.0 + 3.0 * tol.eps() * slope) - d * 0.3;
++                let reach = selection_reach(&body, sel.faces(), q).unwrap();
++                let got = cast_ray(&body, &geos, q, d, reach, band);
++                eprintln!(
++                    "R2OBL L={m}Kε slope={slope} eps={:e}: {:?}",
++                    tol.eps(),
++                    got.map_err(|e| format!("{e:?}").chars().take(140).collect::<String>())
++                );
++            }
++        }
++    }
++
+     #[test]
+     fn two_edges_of_faces_definite_apart_are_no_pair() {
+         let tol = Tol::witness();
+diff --git a/crates/topo/tests/narrow_needle_containment.rs b/crates/topo/tests/narrow_needle_containment.rs
+index d962b1059f..8dad167939 100644
+--- a/crates/topo/tests/narrow_needle_containment.rs
++++ b/crates/topo/tests/narrow_needle_containment.rs
+@@ -270,3 +270,26 @@ fn r1s_witnesses_outside_a_turned_needle_read_outside() {
+         }
+     }
+ }
++
++/// Review R2 re-check: whether the turned needles validate at rest at
++/// this run's ε.
++#[test]
++#[ignore = "review probe"]
++fn review_r2_turned_needles_at_rest() {
++    let tol = Tol::witness();
++    let e = tol.eps();
++    for (what, w) in [("square", 12.0), ("wide", 30.0), ("very wide", 1000.0)] {
++        let profile = vec![(0.0, 0.0), (w * e, 0.0), (w * e, w * e), (0.0, w * e)];
++        for (pose_name, pose) in [
++            ("at rest", (rot([0.0, 0.0, 1.0], 0.0), [0.0; 3])),
++            ("turned", (rot([37.0, -21.0, 13.0], 0.7), [0.3, -0.2, 0.5])),
++        ] {
++            let body = prism(&profile, 1.0, pose, tol);
++            let got = topo::AtRestBody::validate(body, tol).map(|_| ());
++            println!(
++                "R2REST eps={e:e} {what} {pose_name}: {}",
++                format!("{got:?}").chars().take(220).collect::<String>()
++            );
++        }
++    }
++}
