@@ -8,7 +8,7 @@
 //! edges along it are section chords.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::fixture::{self, ang, insert, len, on_frame, scl};
 use editor_core::{
@@ -58,6 +58,8 @@ pub(crate) const REVOLVED: &[(f64, f64)] =
 enum Solid {
     /// Extruded 1 along `z`.
     Prism,
+    /// Drawn with its `x` along `z`, and extruded 1 along `-x`.
+    PrismAlongZ,
     /// Revolved a full turn about `y`.
     Turned,
 }
@@ -95,15 +97,19 @@ fn split_doc(
     normal: [f64; 3],
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("split_pinch_keeps", Tol::witness());
+    let u = match solid {
+        Solid::PrismAlongZ => [0.0, 0.0, 1.0],
+        Solid::Prism | Solid::Turned => [1.0, 0.0, 0.0],
+    };
     let (doc, p) = on_frame(
         doc,
         [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
+        u,
         [0.0, 1.0, 0.0],
         vec![outline.to_vec()],
     );
     let operand = match solid {
-        Solid::Prism => Node::Extrude {
+        Solid::Prism | Solid::PrismAlongZ => Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
@@ -133,20 +139,96 @@ fn split_doc(
     (doc, target, plane, sp)
 }
 
-/// `side`'s names, each spelled with the split's node read as `as_node`
-/// (two documents that differ only in the plane's normal mint the split
-/// under different digests).
-fn names(
+/// What each of `side`'s names denotes: the name, spelled with the
+/// split's node read as `as_node` (two documents that differ only in
+/// the plane's normal mint the split under different digests), and
+/// where each of its entities sits, the mean of its vertices' points.
+type Denoted = BTreeMap<String, Vec<[f64; 3]>>;
+
+fn denoted(
     ev: &Evaluation<f64>,
     sp: RecipeNodeId,
     side: SplitHalf,
     as_node: RecipeNodeId,
-) -> BTreeSet<String> {
+) -> Denoted {
     let (from, to) = (format!("{sp:?}"), format!("{as_node:?}"));
+    let body = ev
+        .value(sp)
+        .unwrap()
+        .payload
+        .output_body(side.output_body())
+        .unwrap();
+    let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let mean = |vs: Vec<topo::VertexKey>| {
+        let n = vs.len() as f64;
+        let s = vs
+            .into_iter()
+            .map(point)
+            .fold([0.0; 3], |a, p: Point3<f64>| {
+                [a[0] + p.x, a[1] + p.y, a[2] + p.z]
+            });
+        s.map(|c| c / n)
+    };
+    let at = |key: &EntityKey| match *key {
+        EntityKey::Vertex(v) => mean(vec![v]),
+        EntityKey::Edge(e) => {
+            let he = body.get_edge(e).unwrap().he_plus;
+            mean(vec![
+                body.get_half_edge(he).unwrap().start,
+                body.half_edge_end(he).unwrap(),
+            ])
+        }
+        EntityKey::Face(f) => {
+            let topo::LoopBoundary::Cycle { first } = body
+                .get_loop(body.get_face(f).unwrap().outer)
+                .unwrap()
+                .boundary
+            else {
+                panic!("a face with an empty outer loop")
+            };
+            mean(
+                body.loop_cycle(first)
+                    .unwrap()
+                    .into_iter()
+                    .map(|he| body.get_half_edge(he).unwrap().start)
+                    .collect(),
+            )
+        }
+        _ => [0.0; 3],
+    };
     fixture::half(ev, sp, side)
         .iter()
-        .map(|(n, _)| format!("{n:?}").replace(&from, &to))
+        .map(|(n, entry)| {
+            let mut places: Vec<[f64; 3]> = match entry {
+                Entry::Unique(r) => vec![at(&r.key)],
+                Entry::Tied(c) => c.iter().map(|r| at(&r.key)).collect(),
+            };
+            places.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            (format!("{n:?}").replace(&from, &to), places)
+        })
         .collect()
+}
+
+/// Whether two tables name alike and each name denotes entities within
+/// `tol` of each other.
+fn denote_alike(a: &Denoted, b: &Denoted, tol: f64) -> Result<(), String> {
+    if a.keys().ne(b.keys()) {
+        let only_a: Vec<_> = a.keys().filter(|k| !b.contains_key(*k)).collect();
+        let only_b: Vec<_> = b.keys().filter(|k| !a.contains_key(*k)).collect();
+        return Err(format!("the names differ: {only_a:?} against {only_b:?}"));
+    }
+    for (n, pa) in a {
+        let pb = &b[n];
+        let near = pa.len() == pb.len()
+            && pa
+                .iter()
+                .zip(pb)
+                .all(|(p, q)| (0..3).all(|i| (p[i] - q[i]).abs() <= tol));
+        if !near {
+            return Err(format!("{n} moved from {pa:?} to {pb:?}"));
+        }
+    }
+    Ok(())
 }
 
 /// The name of the operand's edge from `a` to `b` (a closed edge where
@@ -286,16 +368,15 @@ fn assert_pinch(pinch: &Pinch, what: &str) {
     );
     if pinch.flips {
         let (flipped, _, fsp) = split_at_y1(pinch.outline, pinch.solid, -1.0);
-        assert_eq!(
-            names(&ev, sp, pinch.pinched, sp),
-            names(&flipped, fsp, other, sp),
-            "{what}: flipping the normal swaps the halves' tables"
-        );
-        assert_eq!(
-            names(&ev, sp, other, sp),
-            names(&flipped, fsp, pinch.pinched, sp),
-            "{what}: flipping the normal swaps the halves' tables"
-        );
+        for (here, there) in [(pinch.pinched, other), (other, pinch.pinched)] {
+            if let Err(why) = denote_alike(
+                &denoted(&ev, sp, here, sp),
+                &denoted(&flipped, fsp, there, sp),
+                1e-12,
+            ) {
+                panic!("{what}: flipping the normal swaps the halves' tables: {why}");
+            }
+        }
     }
 }
 
@@ -476,7 +557,7 @@ fn a_lower_half_on_the_plane_takes_a_box_hole() {
             vec![outline.to_vec()],
         );
         let operand = match solid {
-            Solid::Prism => Node::Extrude {
+            Solid::Prism | Solid::PrismAlongZ => Node::Extrude {
                 profile: p.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
@@ -544,8 +625,8 @@ fn a_lower_half_on_the_plane_takes_a_box_hole() {
 // A Split's section faces: pieces of the plane (N2)
 // ------------------------------------------------------------------ //
 
-/// The operand face of `target` whose plane holds `p` with normal `±n`
-/// (`n` a unit vector).
+/// The one operand face of `target` whose plane holds `p` with normal
+/// `±n` (`n` a unit vector), its outer loop's box holding `p`.
 fn operand_face_on(
     ev: &Evaluation<f64>,
     target: RecipeNodeId,
@@ -553,10 +634,35 @@ fn operand_face_on(
     n: [f64; 3],
 ) -> StableName {
     let body = ev.value(target).unwrap().payload.output_body(0).unwrap();
-    ev.table(ev.output_var(target, 0).unwrap())
+    let boxed = |f: topo::FaceKey| {
+        let topo::LoopBoundary::Cycle { first } = body
+            .get_loop(body.get_face(f).unwrap().outer)
+            .unwrap()
+            .boundary
+        else {
+            return false;
+        };
+        let pts: Vec<_> = body
+            .loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .map(|he| {
+                let v = body.get_half_edge(he).unwrap().start;
+                *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+            })
+            .collect();
+        let within = |q: f64, at: fn(&Point3<f64>) -> f64| {
+            let lo = pts.iter().map(at).fold(f64::INFINITY, f64::min);
+            let hi = pts.iter().map(at).fold(f64::NEG_INFINITY, f64::max);
+            lo - 1e-9 <= q && q <= hi + 1e-9
+        };
+        within(p[0], |q| q.x) && within(p[1], |q| q.y) && within(p[2], |q| q.z)
+    };
+    let found: Vec<StableName> = ev
+        .table(ev.output_var(target, 0).unwrap())
         .unwrap()
         .iter()
-        .find_map(|(name, entry)| match entry {
+        .filter_map(|(name, entry)| match entry {
             Entry::Unique(EntityRef {
                 key: EntityKey::Face(f),
                 ..
@@ -566,17 +672,23 @@ fn operand_face_on(
                         + (p[1] - origin.y) * normal.y
                         + (p[2] - origin.z) * normal.z;
                     let along = n[0] * normal.x + n[1] * normal.y + n[2] * normal.z;
-                    (off.abs() < 1e-9 && (along.abs() - 1.0).abs() < 1e-9).then(|| name.clone())
+                    (off.abs() < 1e-9 && (along.abs() - 1.0).abs() < 1e-9 && boxed(*f))
+                        .then(|| name.clone())
                 }
                 _ => None,
             },
             _ => None,
         })
-        .unwrap_or_else(|| panic!("an operand face through {p:?} normal to {n:?}"))
+        .collect();
+    match found.as_slice() {
+        [one] => one.clone(),
+        _ => panic!("one operand face through {p:?} normal to {n:?}: {found:?}"),
+    }
 }
 
-/// `side`'s pieces of the plane, by their qualifier: `None` for the bare
-/// `SectionFace`, else the `Borders` walls; each with its candidates.
+/// `side`'s pieces of the plane, under the bare `SectionFace` or a
+/// `Merged` holding it, by their qualifier: `None` for the parent's bare
+/// name, else the `Borders` walls; each with its candidates.
 fn plane_pieces(
     ev: &Evaluation<f64>,
     sp: RecipeNodeId,
@@ -585,14 +697,20 @@ fn plane_pieces(
     fixture::half(ev, sp, side)
         .iter()
         .filter_map(|(n, entry)| {
-            let walls = match n.path.as_slice() {
-                [RoleSeg::SectionFace] => None,
-                [
-                    RoleSeg::SectionFace,
-                    RoleSeg::Fragment(Qualifier::Borders(walls)),
-                ] => Some(walls.clone()),
-                [RoleSeg::SectionFace, ..] => panic!("an unexpected plane piece {n:?}"),
-                _ => return None,
+            let plane = match n.path.first() {
+                Some(RoleSeg::SectionFace) => true,
+                Some(RoleSeg::Merged(set)) => set
+                    .iter()
+                    .any(|c| matches!(c.path.as_slice(), [RoleSeg::SectionFace])),
+                _ => false,
+            };
+            if !plane {
+                return None;
+            }
+            let walls = match &n.path[1..] {
+                [] => None,
+                [RoleSeg::Fragment(Qualifier::Borders(walls))] => Some(walls.clone()),
+                _ => panic!("an unexpected plane piece {n:?}"),
             };
             let candidates = match entry {
                 Entry::Unique(_) => 1,
@@ -692,33 +810,36 @@ fn a_pentagons_upper_section_is_bare_below_its_apex_and_two_borders_pieces_above
 }
 
 /// **A tilt within one topology moves no section's name.** The notched
-/// block cut at `y = 1.5` holds three sections in each half, each by
-/// its own walls; turning the plane a little about `z` or `x`, which
-/// reorders the join's sweep, renames none of them.
+/// block, drawn along `z`, cut at `y = 1.5` holds three sections in each
+/// half, each by its own walls; turning the plane a little about `z` or
+/// `x`, which reorders the join's sweep, moves no name to another
+/// entity.
 #[test]
 fn a_notched_blocks_three_sections_keep_their_names_under_a_tilt() {
     let eval = |normal| {
-        let (doc, _, _, sp) = split_doc(NOTCHED, Solid::Prism, [0.0, 1.5, 0.0], normal);
+        let (doc, _, _, sp) = split_doc(NOTCHED, Solid::PrismAlongZ, [0.0, 1.5, 0.0], normal);
         (fixture::run(&doc, &Default::default()), sp)
     };
     let (flat, sp) = eval([0.0, 1.0, 0.0]);
+    let t = 0.06_f64.to_radians();
+    for normal in [[t.sin(), t.cos(), 0.0], [0.0, t.cos(), t.sin()]] {
+        let (tilted, tsp) = eval(normal);
+        for side in [SplitHalf::Above, SplitHalf::Below] {
+            if let Err(why) = denote_alike(
+                &denoted(&flat, sp, side, sp),
+                &denoted(&tilted, tsp, side, sp),
+                0.05,
+            ) {
+                panic!("{side:?}: the plane turned to {normal:?} renames nothing: {why}");
+            }
+        }
+    }
     for side in [SplitHalf::Above, SplitHalf::Below] {
         let pieces = plane_pieces(&flat, sp, side);
         assert!(
             pieces.len() == 3 && pieces.iter().all(|(w, c)| w.is_some() && *c == 1),
             "{side:?}: three sections, each by its walls: {pieces:?}"
         );
-    }
-    let t = 0.06_f64.to_radians();
-    for normal in [[t.sin(), t.cos(), 0.0], [0.0, t.cos(), t.sin()]] {
-        let (tilted, tsp) = eval(normal);
-        for side in [SplitHalf::Above, SplitHalf::Below] {
-            assert_eq!(
-                names(&flat, sp, side, sp),
-                names(&tilted, tsp, side, sp),
-                "{side:?}: the plane turned to {normal:?} renames nothing"
-            );
-        }
     }
 }
 
@@ -901,6 +1022,122 @@ fn a_ring_holding_an_island_cites_the_ring_and_the_island() {
             "{side:?}: the wall by the ring, the pin by its own"
         );
     }
+}
+
+/// **An island is read in the half as it ends.** A block with a pocket
+/// down to `y = 1` round a pin, and a moat round the pin cut on down to
+/// `y = 0.5`, split at `y = 1`. Below, the half's merge joins the rim's
+/// section and the pocket's floor into one face, whose ring is the moat's
+/// rim, and the pin's section lies in that ring: the pin cites the moat's
+/// faces beside it, the merged face the moat's outer faces. Above, the
+/// rim's section holds the pocket as a ring and the pin lies in it.
+#[test]
+fn an_island_in_a_ring_the_merge_made_cites_the_moat() {
+    let doc = ProfileDoc::empty_derived("split_section_moat", Tol::witness());
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (0.0, 3.0)]],
+    );
+    let (doc, block) = insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(4.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    // An annular tool along +y from `y = floor`: drawn in z (u) and x (v).
+    let square = |a: f64, b: f64| vec![(a, a), (b, a), (b, b), (a, b)];
+    let annulus = |doc, floor: f64, outer: f64| {
+        let (doc, q) = on_frame(
+            doc,
+            [0.0, floor, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            vec![square(outer, 4.0 - outer), square(1.5, 2.5)],
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile: q.into(),
+                distance: len(4.0),
+                side: ExtrudeSide::Along,
+            },
+        )
+    };
+    let (doc, pocket) = annulus(doc, 1.0, 0.5);
+    let (doc, moat) = annulus(doc, 0.5, 1.2);
+    let (doc, cut) = insert(
+        doc,
+        Node::Subtract {
+            from: editor_core::Operand::output(block, 0).into(),
+            tool: pocket.into(),
+        },
+    );
+    let (doc, cut) = insert(
+        doc,
+        Node::Subtract {
+            from: editor_core::Operand::output(cut, 0).into(),
+            tool: moat.into(),
+        },
+    );
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(1.0), len(0.0)],
+            normal: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
+    let (doc, sp) = insert(
+        doc,
+        Node::Split {
+            target: editor_core::Operand::output(cut, 0).into(),
+            tool: plane.into(),
+        },
+    );
+    let ev = fixture::run(&doc, &Default::default());
+    assert!(ev.value(sp).is_some(), "{:?}", ev.node_error(sp));
+    let face = |p, n| operand_face_on(&ev, cut, p, n);
+    let square_walls = |a: f64, b: f64, y: f64| {
+        let m = 0.5 * (a + b);
+        sorted(vec![
+            face([a, y, m], [1.0, 0.0, 0.0]),
+            face([b, y, m], [1.0, 0.0, 0.0]),
+            face([m, y, a], [0.0, 0.0, 1.0]),
+            face([m, y, b], [0.0, 0.0, 1.0]),
+        ])
+    };
+    let pieces = |side| {
+        let mut got: Vec<_> = plane_pieces(&ev, sp, side)
+            .into_iter()
+            .map(|(walls, c)| (walls.expect("two pieces, each qualified"), c))
+            .collect();
+        got.sort();
+        got
+    };
+    let mut below = vec![
+        (square_walls(1.2, 2.8, 0.75), 1),
+        (square_walls(1.5, 2.5, 0.75), 1),
+    ];
+    below.sort();
+    assert_eq!(
+        pieces(SplitHalf::Below),
+        below,
+        "below: the merged face by the moat's outer faces, the pin by its own"
+    );
+    let mut above = vec![
+        (square_walls(0.5, 3.5, 2.0), 1),
+        (square_walls(1.5, 2.5, 2.0), 1),
+    ];
+    above.sort();
+    assert_eq!(
+        pieces(SplitHalf::Above),
+        above,
+        "above: the rim by the pocket's faces, the pin by its own"
+    );
 }
 
 /// **Two sections bounded alike tie.** A square ring, its square

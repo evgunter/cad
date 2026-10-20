@@ -4,6 +4,9 @@ kind: issue
 title: A split half's merge that rejoins one operand face's pieces across its own seam publishes Merged([face]) under the split, which N3's Merged-of-one rule says is the face
 status: open
 opened: 2026-10-20
+priority: P3
+cost: E
+design: true
 ---
 
 

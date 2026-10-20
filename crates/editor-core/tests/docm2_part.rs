@@ -981,7 +981,7 @@ fn project_narrows_a_tie_by_the_flush_rule() {
     };
     let (inside, outside) = (
         name(vec![RoleSeg::SectionFace]),
-        name(vec![RoleSeg::SplitBody]),
+        name(vec![RoleSeg::Cap(editor_core::CapEnd::End)]),
     );
 
     let mut t = NameTable::new();

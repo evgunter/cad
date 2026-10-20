@@ -9,8 +9,9 @@
 //! any other outline the exterior. Parts whose loops meet at a vertex are
 //! one obstacle. An obstacle that borders two or more pieces divides the
 //! plane, and a piece's walls are the faces across its edges on the loops
-//! bounding a divider. Two pieces never share an edge (each half ends with
-//! maximal faces), so nothing across a piece's edge is another piece.
+//! bounding a divider. An edge between two pieces, which a curved group
+//! the merge left unglued can leave (`SplitNaming::merge_skipped`), has
+//! material on both sides and borders no obstacle, so it cites nothing.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -24,46 +25,50 @@ fn bug(what: &'static str) -> NamingError {
 
 /// The walls of each of `pieces`, in their order: the faces of `body`
 /// across each piece's edges along a divider, each read by `wall`.
-/// `islands` is the kernel's `(ring, island)` record, and `piece_of`
-/// takes an island's section face to the piece of `body` holding it.
+/// `islands` is the kernel's `(ring, island)` record over the faces
+/// holding part of the plane, both halves' rows together.
+///
+/// # Panics
+///
+/// Where the kernel's record disagrees with `pieces`, or a piece among
+/// several meets no divider, both kernel bugs (the `unreachable!`s say
+/// why).
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where a piece or a loop does not walk, an
-/// island's ring is no ring of a piece, a piece's outline lies in two
-/// rings, or, among several pieces, one meets no divider; and `wall`'s.
+/// [`NamingError::Emission`] where a piece or a loop does not walk, and
+/// `wall`'s.
 pub(super) fn plane_walls<T: geom_core::Real, W: Ord>(
     body: &Body<T>,
     pieces: &[FaceKey],
     islands: &[(LoopKey, FaceKey)],
-    piece_of: impl Fn(FaceKey) -> Option<FaceKey>,
     mut wall: impl FnMut(FaceKey) -> Result<W, NamingError>,
 ) -> Result<Vec<BTreeSet<W>>, NamingError> {
     let ix: BTreeMap<FaceKey, usize> = pieces.iter().enumerate().map(|(i, &f)| (f, i)).collect();
     // Region 0 is the exterior; each ring of a piece bounds its own.
-    let mut ring_region: BTreeMap<LoopKey, (usize, FaceKey)> = BTreeMap::new();
+    let mut ring_region: BTreeMap<LoopKey, usize> = BTreeMap::new();
     for &f in pieces {
         let face = body
             .get_face(f)
             .ok_or_else(|| bug("a plane piece is not live in its half"))?;
         for &r in &face.rings {
             let n = ring_region.len() + 1;
-            ring_region.insert(r, (n, f));
+            ring_region.insert(r, n);
         }
     }
     let mut outline_region: BTreeMap<FaceKey, usize> = BTreeMap::new();
-    for &(ring, island) in islands {
-        let Some(p) = piece_of(island).filter(|p| ix.contains_key(p)) else {
-            continue;
+    for &(ring, island) in islands.iter().filter(|(_, i)| ix.contains_key(i)) {
+        let Some(&r) = ring_region.get(&ring) else {
+            unreachable!(
+                "the kernel records each island against a ring of a face its side's plane \
+                 pieces hold (`SplitNaming::plane_pieces`), the faces named here"
+            );
         };
-        let &(r, holder) = ring_region
-            .get(&ring)
-            .ok_or_else(|| bug("an island's ring is no ring of a plane piece"))?;
-        if holder == p {
-            continue;
-        }
-        if outline_region.insert(p, r).is_some_and(|was| was != r) {
-            return Err(bug("a plane piece's outline lies in two rings"));
+        if outline_region.insert(island, r).is_some() {
+            unreachable!(
+                "the nesting rule places each outline in one innermost ring, so the kernel \
+                 records it once"
+            );
         }
     }
     let mut link: Vec<usize> = (0..=ring_region.len()).collect();
@@ -78,7 +83,7 @@ pub(super) fn plane_walls<T: geom_core::Real, W: Ord>(
             let region = if l == face.outer {
                 outline_region.get(&f).copied().unwrap_or(0)
             } else {
-                ring_region[&l].0
+                ring_region[&l]
             };
             let hes = loop_half_edges(body, l)?;
             for &he in &hes {
@@ -116,7 +121,11 @@ pub(super) fn plane_walls<T: geom_core::Real, W: Ord>(
         }
     }
     if pieces.len() >= 2 && walls.iter().any(BTreeSet::is_empty) {
-        return Err(bug("a plane piece among several meets no divider"));
+        unreachable!(
+            "every outline lies in the exterior or in a ring of another piece, so the pieces \
+             and the parts they border are connected, and with two pieces each borders a part \
+             another borders, along an edge whose other side is an operand face"
+        );
     }
     Ok(walls)
 }

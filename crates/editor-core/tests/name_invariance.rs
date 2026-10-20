@@ -1031,6 +1031,9 @@ fn sunk_boss_cut(tool: &[Spans], pose: CutPose) -> Published {
 #[derive(Clone, Copy)]
 enum Target {
     Prism(&'static [(f64, f64)]),
+    /// [`Target::Prism`] with the outline's `x` drawn along `z`, so the
+    /// prism runs along `-x`.
+    PrismAlongZ(&'static [(f64, f64)]),
     Turned(&'static [(f64, f64)]),
     Union(Members),
 }
@@ -1039,9 +1042,14 @@ enum Target {
 /// one, and the node split.
 fn target(doc: ProfileDoc, t: Target) -> (ProfileDoc, (Option<RecipeNodeId>, RecipeNodeId)) {
     match t {
-        Target::Prism(outline) | Target::Turned(outline) => {
-            let (doc, p) = on_frame(doc, [0.0; 3], X, Y, vec![outline.to_vec()]);
-            let node = if matches!(t, Target::Prism(_)) {
+        Target::Prism(outline) | Target::PrismAlongZ(outline) | Target::Turned(outline) => {
+            let u = if matches!(t, Target::PrismAlongZ(_)) {
+                Z
+            } else {
+                X
+            };
+            let (doc, p) = on_frame(doc, [0.0; 3], u, Y, vec![outline.to_vec()]);
+            let node = if matches!(t, Target::Prism(_) | Target::PrismAlongZ(_)) {
                 Node::Extrude {
                     profile: p.into(),
                     distance: len(1.0),
@@ -1365,11 +1373,11 @@ fn pentagon_split_turned(deg: f64) -> Halves {
     )
 }
 
-/// The notched block's split by the plane `y = 1.5`, which cuts three
-/// sections from each half, turned `deg` about `z`.
+/// The notched block, drawn along `z`, split by the plane `y = 1.5`,
+/// which cuts three sections from each half, turned `deg` about `z`.
 fn notched_split_turned(deg: f64) -> Halves {
     split(
-        Target::Prism(crate::split_pinch_keeps::NOTCHED),
+        Target::PrismAlongZ(crate::split_pinch_keeps::NOTCHED),
         Tool::Plane([0.0, 1.5, 0.0], turned(Y, Z, deg)),
         &unedited,
     )
