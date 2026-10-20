@@ -1127,7 +1127,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
             Ok(_) => {}
             Err(source) => return Err(PathError::Escalated { source }),
         }
-        let b = super::via_quarter_tan(at, self.q, self.p);
+        let b = crate::bulge_from_via(at, self.q, self.p);
         let (c, w, start) = bulge_carrier(at, self.p, b, tol)?;
         Ok((c, w, start, self.p))
     }

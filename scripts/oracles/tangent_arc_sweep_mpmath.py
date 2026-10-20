@@ -13,13 +13,14 @@ from the dumped inputs alone, as twice the signed angle from `c` to `b - a`:
   any f64 arc has there;
 - Interval: the sweep's enclosure contains the true sweep, and its width.
 
-Rows keyed `C` are arcs about a known centre (`sugar::sweep_about`): the true
+Rows keyed `C` are arcs about a known centre (`path::center_sweep`, on the
+carrier through `a`): the true
 sweep is the angle between the two radii wound into the arc's sense, and the
 f64 error and the enclosure are checked the same way.
 
 For comparison it also replays, in Python's IEEE doubles, the sweep spelled
-`4·atan(across / (|d| + along))`, the quarter-tangent spelling the kernel
-replaced with `2·atan2(across, along)`.
+`4·atan(across / (|d| + along))`, the home's first arm alone, which the kernel
+replaced with the select between both arms (`sugar::split_half_tan`).
 
 It prints the worst of each, per region (short arcs, half turns, near a full
 turn), and exits non-zero on any violation. Run:

@@ -1899,9 +1899,9 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::DegenerateArcChord { chord } => write!(
                 f,
                 "an arc leg spans no arc short of a full turn (chord {chord} m): its ends \
-                 coincide within tolerance, or one end lies on the other's tangent line where \
-                 only a full turn reaches it. Recourse: move the ends apart or off that line; a \
-                 closed carrier is a circle",
+                 coincide within tolerance, or a tangent arc's far end lies on its tangent \
+                 line where only a full turn reaches it. Recourse: move the ends apart, or that \
+                 end off the tangent line; a closed carrier is a circle",
                 chord = num(chord)
             ),
             Self::ArcCenterNotEquidistant {
@@ -2898,11 +2898,20 @@ fn unit<T: Real>(ang: T) -> Vec2<T> {
     Vec2::new(c, s)
 }
 
-/// **The arc about a known centre**: Δθ from `a` to `b` about `centre`,
-/// turning in the `winding` sense — [`crate::sugar::sweep_about`], which
-/// the fillet's bulge reads too.
-fn center_sweep<T: Real>(a: Point2<T>, b: Point2<T>, centre: Point2<T>, winding: ArcSweep) -> T {
-    crate::sugar::sweep_about(a, b, centre, winding.sign::<T>())
+/// **The arc about a known centre**: Δθ from `a` to `b` about `centre`
+/// on the carrier of `radius`, turning in the `winding` sense, spelled
+/// `4·atan(X)` with X the [`crate::sugar::quarter_tan_about`]
+/// [`crate::bulge_from_center`] reads too — accurate from a short arc
+/// to a near full turn.
+fn center_sweep<T: Real>(
+    a: Point2<T>,
+    b: Point2<T>,
+    centre: Point2<T>,
+    radius: T,
+    winding: ArcSweep,
+) -> T {
+    T::from_f64(4.0)
+        * crate::sugar::quarter_tan_about(a, b, centre, radius, winding.sign::<T>()).atan()
 }
 
 /// **A fillet side's carrier run**: the arc from `a` to `b` about the
@@ -2915,8 +2924,8 @@ fn center_sweep<T: Real>(a: Point2<T>, b: Point2<T>, centre: Point2<T>, winding:
 /// wherever both ends lie on that circle by construction: the fillet
 /// resolution puts its tangent point on the side's circle, and the
 /// other end is the anchor itself or a point the incoming mode's
-/// algebra put on the same circle; [`center_sweep`] is then tan(θ/4)
-/// exactly. A caller with an end on it only to a decision passes
+/// algebra put on the same circle; the quarter-tangent [`center_sweep`]
+/// reads is then tan(θ/4) exactly. A caller with an end on it only to a decision passes
 /// [`crate::Facts::Decided`].
 fn side_arc<T: Real>(
     a: Point2<T>,
@@ -2930,7 +2939,7 @@ fn side_arc<T: Real>(
         arc: Arc2 {
             centre,
             radius,
-            sweep: center_sweep(a, b, centre, winding),
+            sweep: center_sweep(a, b, centre, radius, winding),
         },
         facts,
     }
@@ -2959,19 +2968,13 @@ fn center_arc<T: Real>(
 }
 
 /// **The `Via` mode's one conversion**: the arc from `a` through `q` to
-/// `b`, lowered from its chord ([`crate::bulge_leg`]) with X = tan(θ/4)
-/// read off the split of the turn at `q` from `q − a` to `b − q` (by the
-/// inscribed angle, the included angle is twice that turn) by
-/// [`crate::sugar::split_quarter_tan`] — [`crate::sugar::bulge_from_via`]'s X.
-/// The turn reaches ±π only with `q` on the chord's line outside it,
-/// which the door's collinear gate refuses first.
+/// `b`, lowered from its chord ([`crate::bulge_leg`]) with X =
+/// [`crate::bulge_from_via`], tan(θ/4) of the turn at `q` from `q − a`
+/// to `b − q` (by the inscribed angle, half the included angle). The
+/// turn reaches ±π only with `q` on the chord's line outside it, which
+/// the door's collinear gate refuses first.
 fn via_arc<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> Option<BuiltArc<T>> {
-    crate::bulge_leg(a, b, via_quarter_tan(a, q, b))
-}
-
-/// [`via_arc`]'s X: tan(θ/4) of the arc from `a` through `q` to `b`.
-fn via_quarter_tan<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> T {
-    crate::sugar::bulge_from_via(a, q, b)
+    crate::bulge_leg(a, b, crate::bulge_from_via(a, q, b))
 }
 
 /// **The tangent arc's one conversion**: the arc leaving `a` along the
@@ -2980,23 +2983,25 @@ fn via_quarter_tan<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> T {
 /// the circle tangent to `u` at `a` through `b`: the centre `a + n̂·ρ`
 /// (n̂ the left normal of `u`) at the signed offset
 /// `ρ = |d|² / (2·across)`, the radius `|ρ|`, with `d = b − a` resolved
-/// along and across `u` — no root. Δθ is twice the tangent-chord angle,
-/// [`crate::sugar::split_sweep`]`(across, along)`.
+/// along and across `u` — no root. Δθ = 4·atan(X) with X the tangent of
+/// half the angle δ from `u` to the chord (the arc turns 2δ, so X is
+/// tan(θ/4)), [`crate::sugar::split_half_tan`]`(across, along, |d|)`.
 ///
 /// **Its endpoint facts are theorems** ([`crate::Facts::Registered`]):
 /// `‖a − c‖ = |ρ|` because n̂ is a unit normal, and
 /// `‖b − c‖² = |d|² − 2ρ·across + ρ² = ρ²` by the choice of ρ; the
 /// centre lies on the chord's perpendicular bisector, so the included
-/// angle about it is twice the tangent-chord angle.
+/// angle about it is 2δ, whose quarter-tangent X is.
 fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> BuiltArc<T> {
     let d = b - a;
-    let across = u.perp_dot(d);
+    let (along, across) = (u.dot(d), u.perp_dot(d));
+    let x = crate::sugar::split_half_tan(across, along, d.norm());
     let rho = d.norm_squared() / (T::from_f64(2.0) * across);
     BuiltArc {
         arc: Arc2 {
             centre: a + Vec2::new(-u.y, u.x) * rho,
             radius: rho.abs(),
-            sweep: crate::sugar::split_sweep(across, u.dot(d)),
+            sweep: T::from_f64(4.0) * x.atan(),
         },
         facts: crate::Facts::Registered,
     }
@@ -3461,16 +3466,18 @@ fn one_corner<T: Real>(at: Point2<T>, radius: T, reason: CornerReason<T>) -> Pat
 /// **The fillet's one conversion**: the arc a fillet resolution built,
 /// stored as built — its own carrier (the centre the resolution
 /// derived, the authored radius as its magnitude `|r|`, as
-/// [`circle_loop`] stores it) and the resolution's sweep, read by
-/// [`crate::sugar::split_turn`] (the line×line fillet: the corner's
-/// turn) or [`crate::sugar::sweep_about`] (`arc_fillet`, about its
-/// centre) — with `facts`, which the caller derives by [`fillet_facts`].
-fn fillet_arc<T: Real>(carrier: ArcData<T>, sweep: T, facts: crate::Facts) -> BuiltArc<T> {
+/// [`circle_loop`] stores it) and Δθ = 4·atan(b), `b` the resolution's
+/// quarter-tangent, algebraic in the corner's data — the first arm of
+/// [`crate::sugar::split_half_tan`], a fillet sweeping under a half
+/// turn ([`line_line_fillet_trims`]'s half-angle identity on the legs'
+/// split, or `arc_fillet`'s on the centre's) — with `facts`, which the
+/// caller derives by [`fillet_facts`].
+fn fillet_arc<T: Real>(carrier: ArcData<T>, bulge: T, facts: crate::Facts) -> BuiltArc<T> {
     BuiltArc {
         arc: Arc2 {
             centre: carrier.center,
             radius: carrier.radius.abs(),
-            sweep,
+            sweep: T::from_f64(4.0) * bulge.atan(),
         },
         facts,
     }
@@ -3909,7 +3916,7 @@ impl<T: Decide> Core<T> {
         let arc = fillet_arc_carrier(&trims, u2, pending.radius, sgn);
         let built = fillet_arc(
             arc,
-            trims.sweep,
+            trims.bulge,
             fillet_facts(crate::Facts::Registered, trims.fit_in),
         );
         register_incoming_tangency(&built, trims.t1, u1, sgn * pending.radius, tol);
@@ -4077,7 +4084,7 @@ impl<T: Decide> Core<T> {
         // extended arc's endpoint facts are that decision's, not
         // theorems.
         let arc = Arc2 {
-            sweep: center_sweep(from, t1, leg.arc.centre, sweep),
+            sweep: center_sweep(from, t1, leg.arc.centre, leg.arc.radius, sweep),
             ..leg.arc
         };
         self.verts[n - 2] = (
@@ -6190,7 +6197,8 @@ mod tests {
     /// 60-digit oracle**: one JSON line per case — the tip `a`, the
     /// director's components, the target `b`, and the arc [`tangent_arc`]
     /// stores at `f64` and at `Interval`; then, keyed `C`, the ends, the
-    /// centre and [`crate::sugar::sweep_about`] at both scalars — over
+    /// centre and [`center_sweep`] at both scalars (on the carrier through
+    /// `a`, as a `Center` leg stores it) — over
     /// turns from 1e-12 to 2π − 1e-12 in both windings, at scales 1e-6 to
     /// 1e6. `scripts/oracles/tangent_arc_sweep_mpmath.py` re-derives
     /// each sweep from the dumped inputs and checks the `f64` error, the
@@ -6281,16 +6289,13 @@ mod tests {
                         let start = 0.4;
                         let on = |t: f64| Point2::new(c.x + scale * t.cos(), c.y + scale * t.sin());
                         let (a, b) = (on(start), on(start + w * theta));
-                        let f = crate::sugar::sweep_about(a, b, c, w);
+                        let winding = if w > 0.0 { ArcSweep::Ccw } else { ArcSweep::Cw };
+                        let f = center_sweep(a, b, c, a.distance(c), winding);
                         let lift = |p: Point2<f64>| {
                             Point2::new(Interval::from_f64(p.x), Interval::from_f64(p.y))
                         };
-                        let i = crate::sugar::sweep_about(
-                            lift(a),
-                            lift(b),
-                            lift(c),
-                            Interval::from_f64(w),
-                        );
+                        let (ia, ic) = (lift(a), lift(c));
+                        let i = center_sweep(ia, lift(b), ic, (ia - ic).norm(), winding);
                         println!(
                             "TADUMP {{\"k\":\"C\",\"a\":[{:e},{:e}],\"o\":[{:e},{:e}],\"b\":[{:e},{:e}],\
                              \"turn\":{:e},\"w\":{w},\"f\":{:e},\"i\":[{:e},{:e}]}}",

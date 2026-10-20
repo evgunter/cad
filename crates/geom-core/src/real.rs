@@ -659,7 +659,7 @@ pub trait Real:
     /// named predicate, per Q1). Its consumers include
     /// [`crate::Vec3::orthonormal_basis`], which chooses which world
     /// axis to cross the normal with, and `profile`'s
-    /// `sugar::split_quarter_tan`, which chooses which half-angle
+    /// `sugar::split_half_tan`, which chooses which half-angle
     /// quotient of a chord split does not cancel.
     ///
     /// **The tie is keyed on the VALUE zero, never on a zero's sign

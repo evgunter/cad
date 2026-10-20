@@ -1,7 +1,8 @@
 //! **A tangent arc whose target is nearly behind the tip keeps its end
 //! vertex.** `tangent_arc_to` and `arc_onto` share one kernel, which
-//! stores the sweep as twice the tangent-chord angle. As the target
-//! goes behind the tip the turn nears 2π, and the
+//! stores the sweep as `4·atan(X)`, X the half-angle tangent of the
+//! tip's departure against the chord. As the target goes behind the
+//! tip the turn nears 2π, and the
 //! stored arc has to land on its own end vertex there as it does
 //! anywhere: within the scene's f64 resolution at `f64`, and inside an
 //! enclosure that stays narrow at `Interval`.
@@ -115,13 +116,8 @@ fn clearance_reading(result: &Result<(), ProfileError>) -> (bool, bool) {
     (near_full, undecided)
 }
 
-/// The phrase the full-turn refusal names its second case by, for
-/// either verb.
-const FULL_TURN_CASE: &str = "one end lies on the other's tangent line";
-
 /// A replay's refusal on the departure line: the chord a
-/// `DegenerateArcChord` reports (its enclosure's ends) when its message
-/// names the full-turn case, and whether the replay escalates on
+/// `DegenerateArcChord` reports (its enclosure's ends), and whether the replay escalates on
 /// `path_collinear_target` instead; the replay's own answer when it is
 /// anything else.
 fn departure_line_refusal<T: profile::ArcCarrierScalar>(
@@ -133,11 +129,7 @@ fn departure_line_refusal<T: profile::ArcCarrierScalar>(
             ..
         }) => {
             let chord = match &e {
-                PathError::DegenerateArcChord { chord }
-                    if e.to_string().contains(FULL_TURN_CASE) =>
-                {
-                    Some((chord.lo(), chord.hi()))
-                }
+                PathError::DegenerateArcChord { chord } => Some((chord.lo(), chord.hi())),
                 _ => None,
             };
             let undecided = matches!(&e, PathError::Escalated { source }
@@ -359,8 +351,7 @@ fn the_through_point_arc_near_a_full_turn_keeps_its_end_vertex() {
 
 /// **On the departure line, by both verbs, at every ε row**: a target
 /// a quarter-ε off the line 2.7 m behind the tip refuses
-/// `DegenerateArcChord` naming the full-turn case and reporting the
-/// 2.7 m its ends span; one a quarter-ε from the tip refuses the same
+/// `DegenerateArcChord` reporting the 2.7 m its ends span; one a quarter-ε from the tip refuses the same
 /// kind reporting a chord under ε.
 #[test]
 fn on_the_departure_line_the_refusal_reports_the_chord_its_ends_span() {
@@ -403,7 +394,8 @@ fn on_the_departure_line_the_refusal_reports_the_chord_its_ends_span() {
 /// home by way of a vertex below the chord. At `f64` it lands within 8
 /// ulps of its radius of the end vertex (the radius-plus-apothem
 /// quarter-tangent missed by 2.5e-8, 5.0e-6 and 2.1e-4, and validated),
-/// and so does its `Interval` landing.
+/// and so does its `Interval` landing, whose sweep stays under 1e-13
+/// wide.
 #[test]
 fn the_centre_arc_near_a_full_turn_keeps_its_end_vertex() {
     let a = Point2::new(0.0, 0.0);
@@ -443,6 +435,13 @@ fn the_centre_arc_near_a_full_turn_keeps_its_end_vertex() {
             }
             Err(e) => panic!("{what}: Interval replay refused: {e}"),
         };
+        let sweep = first_arc(&li, &what).sweep;
+        assert!(
+            sweep.hi() - sweep.lo() <= 1e-13,
+            "{what}: the Interval sweep [{:e}, {:e}] is wider than 1e-13",
+            sweep.lo(),
+            sweep.hi()
+        );
         // The end vertex sits off the carrier by its own rounding, so the
         // landing is read against it at the f64 row's 8 ulps of R.
         let v = li.vertices();
@@ -454,5 +453,65 @@ fn the_centre_arc_near_a_full_turn_keeps_its_end_vertex() {
             near(end.x, v[1].x) && near(end.y, v[1].y),
             "{what}: the Interval landing is not within 8 ulps of R of its end vertex"
         );
+    }
+}
+
+/// **Short arcs, by every mode that reads the home**: a tangent arc, an
+/// arc through a point and an arc about a centre, each turning `θ` from
+/// 1e-4 to 1e-2 on a carrier of radius `r`, its sagitta well clear of
+/// the band. Each stored arc lands on its end vertex within 8 ulps of its
+/// radius at `f64`. Here `along` is near `len`, where the home's second
+/// arm `(len − along)/across` cancels: read alone, it misses by about
+/// `r·θ·2⁻⁵²·8/θ²`, a thousand times the bound and more.
+#[test]
+fn short_arcs_keep_their_end_vertex_by_every_mode() {
+    for (r, theta) in [(1e4, 1e-3), (1e4, 1e-2), (1e6, 1e-4)] {
+        let a = Point2::new(0.0, 0.0);
+        let at = |t: f64| Point2::new(r * t.sin(), r * (1.0 - t.cos()));
+        let b = at(theta);
+        let home = Point2::new(0.5 * b.x, -r * theta);
+        for (mode, leg) in [
+            ("tangent", None),
+            (
+                "Via",
+                Some(ArcData::Via {
+                    q: at(0.5 * theta),
+                    target: Target::Point(b),
+                }),
+            ),
+            (
+                "Center",
+                Some(ArcData::Center {
+                    c: Point2::new(0.0, r),
+                    winding: profile::ArcSweep::Ccw,
+                    target: Target::Point(b),
+                }),
+            ),
+        ] {
+            let steps = match leg {
+                None => vec![
+                    Step::At(a),
+                    Step::Toward { dx: 1.0, dy: 0.0 },
+                    Step::TangentArcTo(Target::Point(b)),
+                    Step::LineTo(Target::Point(home)),
+                    Step::LineTo(Target::Start),
+                ],
+                Some(leg) => vec![
+                    Step::At(a),
+                    Step::ArcTo(leg),
+                    Step::LineTo(Target::Point(home)),
+                    Step::LineTo(Target::Start),
+                ],
+            };
+            let what = format!("{mode}, R {r:e}, turn {theta:e}");
+            let lp = try_replay_at::<f64>(&steps)
+                .unwrap_or_else(|e| panic!("{what}: f64 replay refused: {e}"));
+            let miss = f64_miss(&lp, &what);
+            assert!(
+                miss <= 8.0 * r * ULP,
+                "{what}: the stored arc misses its end vertex by {miss:e} m, past 8 ulps of \
+                 its radius"
+            );
+        }
     }
 }
