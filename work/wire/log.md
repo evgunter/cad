@@ -6812,3 +6812,7 @@ Signed (WIRE orchestrator).
   - Also: one supertrait for the 5-copy bound (pin back to 1); profile_edges_of's caller-reachable assert; stale citers; derive_naming's silent no-Outer; NITs.
   - Filed a-doc-deserialized-directly-skips-the-load-doors-checks (P2).
   - Class note: a rewording 'because code moved' must be checked against whether the code still does what the clause decides.
+
+- 2026-10-20 (WIRE orchestrator) 5457: the lane showed that MAJOR-1's fix (route production through Verb<T>) is impossible without bringing the mismatch back. With no GADTs, a variant can't be tied to its operand type.
+  - V1 is ratified (#1388, #1870, #1983, #1997), so the question went on 5457 itself, titled [ev]. Recommended (a): delete Verb<T> and Arity, keep VerbKind closed. (b) keep a vocabulary-only wrapper; (c) one unreachable arm per lowering.
+  - The lane pushes items 2–6 meanwhile (DoorScalar, pin 2). Subscribed.

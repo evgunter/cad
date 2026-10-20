@@ -9,5 +9,6 @@ cost: M
 refs: [a-kernel-defect-is-a-panic-or-a-typed-refusal-and-nothing-says-which]
 pr: 5457
 branch: wire/eval-defect-arms
+needs_ev: true
 ---
 
