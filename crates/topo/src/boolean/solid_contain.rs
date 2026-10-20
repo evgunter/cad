@@ -4666,7 +4666,7 @@ struct EdgeMeets<T> {
 /// - **A vertex** of a decided edge within the band of the ray is a
 ///   corner, and one on it a graze, marked where the ray comes closest
 ///   to it. Its distance from the ray is enclosed by its rounding
-///   charge ([`geom_brep::rounding_charge`] over the lengths it is read
+///   charge ([`geom_core::rounding_charge`] over the lengths it is read
 ///   from), and the enclosure's lower end is decided, as an edge's gap
 ///   is.
 /// - **An edge** whose lines' gap is not definitely past the band and
@@ -4718,13 +4718,10 @@ fn edge_meets<T: Decide>(
                     face: pass.faces.0,
                 }))?;
             let gap = crate::sector_shape::point_segment_distance(q, far, at);
-            // The charge is the kernel's one spelling of a short chain's
-            // rounding (`HARMONIC_NOISE_ULPS` half-ulps of a term bound,
-            // named for the implicit residuals it was first counted on):
-            // the distance is such a chain — differences, a projection, a
-            // norm — each rounding under half an ulp of the lengths it is
-            // read from.
-            let low = gap - geom_brep::rounding_charge((at - q).norm() + gap);
+            // The distance is a short chain (differences, a projection, a
+            // norm), each rounding under half an ulp of the lengths it is
+            // read from: the kernel's one charge for such a chain.
+            let low = gap - geom_core::rounding_charge((at - q).norm() + gap);
             let faces = [pass.faces.0, pass.faces.1];
             let along = (at - q).dot(d);
             match geom_core::k_stats::decide_magnitude(
