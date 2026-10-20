@@ -1244,6 +1244,49 @@ fn rederived<T: Decide>(
         .map(|r| (SignReading::exact(r.volume, r.area), r.limit()))
 }
 
+/// The interval signature of a closed form read about a centre
+/// ([`QuadLane`]'s `closed_form`).
+type ClosedFormAt<T> = fn(
+    &Surface<T>,
+    &[Vec<LoopEdge<T>>],
+    bool,
+    Band,
+    Point3<Interval>,
+    Option<((Interval, Interval), Point3<Interval>)>,
+) -> Result<(FaceContribution<Interval>, bool), PropsError>;
+
+/// **A closed-form face's flux about `from`, its shell's reference**, as
+/// [`rederive_faces`] reads it, and whether it was read there
+/// (recentred). The closed form read again about `from` decides its
+/// inventory again there, at the interval's rounding about that point,
+/// and may read it in band where the walk decided it: the face is then
+/// read about the world origin, where a refusal the face itself earns
+/// refuses, and carried to `from` by its vector area, at the world-origin
+/// width. A closed-form face is bounded by no spiric, so its loops'
+/// vector area has a closed form.
+fn closed_form_or_carried<T: Decide>(
+    closed_form: ClosedFormAt<T>,
+    surface: &Surface<T>,
+    loops: &[Vec<LoopEdge<T>>],
+    sense: bool,
+    band: Band,
+    from: Point3<Interval>,
+) -> Result<(FaceContribution<Interval>, bool), PropsError> {
+    if let Ok(read) = closed_form(surface, loops, sense, band, from, None) {
+        return Ok(read);
+    }
+    let (origin, _) = closed_form(surface, loops, sense, band, Point3::origin(), None)?;
+    let (carried, _) = closed_form(
+        surface,
+        loops,
+        sense,
+        band,
+        from,
+        Some(((origin.flux, origin.area), Point3::origin())),
+    )?;
+    Ok((carried, false))
+}
+
 /// **A walk's runs re-derived in interval arithmetic**, each face about
 /// its shell's vertex `c` ([`corner_of`]): `(volume, surface area)`,
 /// whether every face was taken about its `c`, and whether a face was
@@ -1351,42 +1394,19 @@ fn rederive_faces<T: Decide>(
                     Err(_) => enclosure,
                 }
             }
-            // A closed form read again about `from` decides its
-            // inventory again there, at the interval's rounding about
-            // that point, and may read it in band where the walk decided
-            // it: the face is then read about the world origin, where a
-            // refusal the face itself earns refuses, and carried to
-            // `from` by its vector area, at the world-origin width. A
-            // closed-form face is bounded by no spiric, so its loops'
-            // vector area has a closed form.
-            None => match (lane.closed_form)(surface, &loops, face.sense, band, from, None) {
-                Ok((c, moved)) => {
-                    recentred &= moved;
-                    (c.flux, c.area)
-                }
-                Err(_) => {
-                    let (origin, _) = (lane.closed_form)(
-                        surface,
-                        &loops,
-                        face.sense,
-                        band,
-                        Point3::origin(),
-                        None,
-                    )
-                    .map_err(refused)?;
-                    let (c, _) = (lane.closed_form)(
-                        surface,
-                        &loops,
-                        face.sense,
-                        band,
-                        from,
-                        Some(((origin.flux, origin.area), Point3::origin())),
-                    )
-                    .map_err(refused)?;
-                    recentred = false;
-                    (c.flux, c.area)
-                }
-            },
+            None => {
+                let (c, moved) = closed_form_or_carried(
+                    lane.closed_form,
+                    surface,
+                    &loops,
+                    face.sense,
+                    band,
+                    from,
+                )
+                .map_err(refused)?;
+                recentred &= moved;
+                (c.flux, c.area)
+            }
         };
         flux = flux + f;
         area = area + a;
@@ -4129,14 +4149,7 @@ pub struct QuadLane<T: Decide> {
     /// closed forms run at the walk's scalar, where an `f64` sum rounds
     /// with no pad to say so; this is the enclosure a decision about a
     /// rounding-scale sign reads instead ([`rederive`]).
-    closed_form: fn(
-        &Surface<T>,
-        &[Vec<LoopEdge<T>>],
-        bool,
-        Band,
-        Point3<Interval>,
-        Option<((Interval, Interval), Point3<Interval>)>,
-    ) -> Result<(FaceContribution<Interval>, bool), PropsError>,
+    closed_form: ClosedFormAt<T>,
     /// A value of the walk's scalar as the interval holding it —
     /// `Interval::from_certified` (`wiring_rows` pins the pointer).
     lift: fn(T) -> Interval,
@@ -6153,7 +6166,8 @@ mod shell_reference_rows {
     }
 
     /// **A closed-form face that refuses about its shell's reference is
-    /// carried there from the world origin** (`rederive_faces`). The
+    /// carried there from the world origin** ([`closed_form_or_carried`],
+    /// `rederive_faces`' closed-form read). The
     /// notch prism with a disc in its top, moved off the origin so its
     /// reference is too, keeps its faces off the polygon route; a lane
     /// whose closed form refuses its two up-facing planes about the
@@ -6196,24 +6210,30 @@ mod shell_reference_rows {
             shell_polygons(&body, lane, &runs).unwrap().is_none(),
             "the disc keeps every face off the polygon route"
         );
-        let stub = QuadLane {
-            closed_form: refusing_up_planes,
-            ..lane
-        };
         REFUSED.store(0, core::sync::atomic::Ordering::Relaxed);
-        let got = rederive(&body, band, tol, stub, &runs, true).unwrap();
+        let mut flux = Interval::zero();
+        let mut carried = 0;
+        for run in &runs {
+            let (face, surface) = resolve_face(&body, run.face);
+            let loops = face_loops(&body, face).unwrap();
+            let from = corner_of(&body, lane, run.face).unwrap();
+            let (c, moved) =
+                closed_form_or_carried(refusing_up_planes, surface, &loops, face.sense, band, from)
+                    .unwrap();
+            carried += usize::from(!moved);
+            flux = flux + c.flux;
+        }
         assert_eq!(
             REFUSED.load(core::sync::atomic::Ordering::Relaxed),
             2,
             "the top and the disc refuse about the reference"
         );
-        assert!(!got.recentred, "two faces were carried from the origin");
+        assert_eq!(carried, 2, "two faces were carried from the origin");
         use geom_core::Bounds;
-        let six = Interval::from_f64(6.0);
+        let volume = flux / Interval::from_f64(3.0);
         assert!(
-            got.volume.lo() <= 6.0 && 6.0 <= got.volume.hi(),
-            "the carried sum encloses the prism's 6 m³: {:?} against {six:?}",
-            got.volume
+            volume.lo() <= 6.0 && 6.0 <= volume.hi(),
+            "the carried sum encloses the prism's 6 m³: {volume:?}"
         );
     }
 }
