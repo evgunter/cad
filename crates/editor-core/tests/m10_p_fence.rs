@@ -704,6 +704,16 @@
 //! row: at ε = 1e-12 `die_composed`'s and the tour die's fillets build
 //! on the `Interval` lane, which refused there while their pips stood
 //! on frames spun by rounded radians.
+//!
+//! **THE `INTERVAL` NUMBER RE-TAKEN WHEN AN EXACT ZERO SPIN CAME TO BE
+//! UNDONE AS NOTHING** (`(0x7c4a_e28b_4433_f12e, …)` before): the box
+//! lanes' `solve_atan2` encloses an exact `(0, x > 0)` as the exact zero
+//! where the backend gave subnormal dust whose cosine is an ulp wide,
+//! and a placement's measured spin that is exactly zero is not undone,
+//! so an axis-mated copy (every die's pip) is placed without that
+//! ulp's width on its translation. The `f64`, Probe and id-free numbers
+//! did not move: `f64` measures no dust and undoes its exact zero
+//! exactly.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -1029,7 +1039,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x7c4a_e28b_4433_f12e, 0xaed0_a779_3fdc_79aa),
+        (0x209f_e752_6cd3_feec, 0x8ad9_2b13_f548_bfe8),
         "the corpus's Interval evaluation moved"
     );
 }

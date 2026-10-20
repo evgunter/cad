@@ -128,7 +128,9 @@ impl Turns {
             None,
             Some(-1),
         ];
-        SIN[usize::try_from(self.twelfths()?).ok()?]
+        SIN.get(usize::try_from(self.twelfths()?).ok()?)
+            .copied()
+            .flatten()
     }
 
     /// **The cosine, in halves, where it is rational**: the sine a
@@ -161,8 +163,11 @@ impl Turns {
         ];
         let den = i64::try_from(self.den).ok()?;
         let eighths = self.num.rem_euclid(den).checked_mul(8)?;
-        (eighths % den == 0)
-            .then(|| TAN[usize::try_from(eighths / den).ok()?])
+        if eighths % den != 0 {
+            return None;
+        }
+        TAN.get(usize::try_from(eighths / den).ok()?)
+            .copied()
             .flatten()
     }
 

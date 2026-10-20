@@ -3055,6 +3055,15 @@ NOT_BOUND = {
     # themselves.
     "frame_at": INTERIOR,
     "frame_at_in": INTERIOR,
+    # A frame read off a body's corner, and a frame moved by stated
+    # turns and slides: Python spells both through the `PoseDef` doors
+    # they are made of (`PoseDef.through` of an edge's axis and a
+    # vertex's point; `PoseDef.spin` and `PoseDef.slide` by a `Formula`,
+    # `Formula.turn_over(4)` a quarter turn).
+    "corner_frame": INTERIOR,
+    "corner_frame_in": INTERIOR,
+    "moved_frame": INTERIOR,
+    "FrameMove": INTERIOR,
     # A pose variable's evaluated value, read by the mates and the
     # splits that consume it: a Python caller reads where a face sits
     # off the geometry (`Evaluation.face_frame`, `Pose`), never a pose
