@@ -6944,3 +6944,4 @@ Signed (WIRE orchestrator).
 - 2026-10-20 (WIRE orchestrator) PR 5502 FULL review: MERGEABLE. The low-K/ε probe fired no `unreachable!`, and the head merges clean with 5503.
   - A small fix pass is sent for: stale "refuses" prose in sweep/blend and wire.rs, the RowCell::Result premise, emit_sweep's empty-run ordering and messages, track_caller, the new rows' frontmatter, and a PR body citation.
   - Filed `emit-rs-shared-helpers-raise-emission-for-torn-reads` for the 12 shared-helper raises no lane owned (review M4).
+- 2026-10-20 (WIRE orchestrator) PR 5502 fix pass at 43ec29c0cb, read by the orchestrator: prose, the RowCell::Result premise (topo doc corrected), emit_sweep's message order, closures out of the panic paths. CI green; merged at 3b93410f6d. The parent row stays dispatched until 5501 and 5503 land.
