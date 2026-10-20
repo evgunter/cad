@@ -299,15 +299,14 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
     eprintln!("refused: {refused:?}");
     assert!(wrong.is_empty(), "wrong answers:\n{}", wrong.join("\n"));
     // The brick through the top leaves a ring on the L's top face `kε`
-    // from its far carrier, inside the escalate band, and the door's
-    // tier-3 result gate cannot certify the ring's containment: ∪ and ∖
-    // refuse it there, at every k and every ε, and nothing else refuses
-    // (`work/tally/a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate.md`).
-    let want: Vec<(String, bool)> = [2.0, 5.0, 9.0]
-        .iter()
-        .flat_map(|k| ["Union", "Subtract"].map(|op| (format!("k={k} through the top {op}"), true)))
-        .collect();
-    assert_eq!(refused, want, "the refusals, each the ring's escalation");
+    // across from its far carrier, inside the escalate band, but far
+    // along it: check 9 reads the two edges' gap on one line before
+    // their sides (`lines_meet`, through `geom_core::one_line`), finds
+    // them apart, and the result gate certifies the ring's containment.
+    // ∪ and ∖ build there at every k, to the closed form; nothing
+    // refuses (`work/tally/a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate.md`,
+    // closed by PR 2 of `work/cpair/two-spans-projections-on-one-line-are-read-four-ways`).
+    assert_eq!(refused, Vec::<(String, bool)>::new(), "no refusals");
 }
 
 // ---- Fuzz against a closed-form oracle -------------------------------
