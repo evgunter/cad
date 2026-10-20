@@ -2,10 +2,11 @@
 id: a-flat-frustums-revolve-refuses-its-rim-image-at-1e-12
 kind: issue
 title: a flat frustum (α ≥ 1.45) a few hundred units across refuses to revolve at ε = 1e-12, certifying a pcurve's envelope or a carrier's endpoint; cause unmeasured
-status: review
+status: closed
 branch: germ/flat-frustum-revolve
 pr: 5382
 opened: 2026-10-14
+closed: 2026-10-20
 priority: P3
 cost: M
 refs: [a-steep-frustum-cut-at-a-shallow-tilt-refuses-at-the-endpoint-gate-at-1e-12, conic-section-just-past-its-band-fails-certification-downstream, a-full-revolves-return-half-rim-misses-its-start-by-two-rounded-half-turns, focal-section-image-reads-its-slant-off-height-on-a-flat-cone, cone-point-reads-take-the-slant-as-height-over-cos-alpha]

@@ -1571,3 +1571,30 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Timing:** shelling 2.14× → 1.86× of pre-4954 (−13%); r1 flat at 1.49×.
   - **Deviation from ruling (A), accepted:** a concrete `f64` `OnceCell` slot in `offset_derive::WallCharts`, with no associated type on the lane trait, because the planners are bounded by `T: Decide` only. `props.rs` is untouched, so there's no collision with flux.
   - FULL reviewer: session_01RsTjMpvtHiPMQ64nQhBY4V.
+- 2026-10-20 00:40Z — **#5424 is up** (build C, the `mul_nonneg` thin step in `split_restrict`, STANDARD, head ece8fbf1, bit-identical). Shelling −7.6%, r1 −11% against main 8c6e959e; independent of #5419, so the two should stack. STANDARD reviewer: session_018C4CWrdSjiRiekkGe59P8T.
+  - **Friction:** C reports my `next`-priority messages from ~22:00Z and 00:06Z (the `props.rs` ruling and #5419's latency red) arrived late, all at once. `next` joins the running turn, but C's long background timing loops leave few points where it can. The #5419 red was re-sent at `now` priority. A red on a lane's own PR should go `now` from the start.
+- 2026-10-20 01:55Z — **#5414 merged** (93aa9511; binomials fold PR 1, so pairs with da+db of 55/56 are now served).
+  - **FULL review MERGEABLE, 0 MAJOR:**
+    - the 55/56 cap is exact;
+    - the cap mutants at 54, 55 and 57 go red;
+    - 9 reds at 1e-12/1e-6, each red with the change reverted and all filed.
+  - **Routed:**
+    - MINOR-1 (two test-only copies of the f64 binomial fold, at `ssi.rs:4397` and `m5_pr7_ssi.rs:5535`), the stale prose and the doubled constant go into build A's STANDARD follow-up, with the #5399 items;
+    - the NOTE (the guard mutant survives at `compose/tensor.rs:429`) is filed P3 as `tensor-residual-degree-guard-has-no-row-at-its-edge`.
+  - Reviewer archived.
+- 2026-10-20 02:35Z — **#5433 up** (build A's STANDARD follow-up to #5399 and #5414, head 47d1d68c). It also folds a third, production copy of the binomial fold (`carrier_net.rs`'s Taylor re-expansion, bit-identical).
+  - **Base red found by A:** topo's `every_public_mutation_path_preserves_tier1` is red on main since ENCL's PR 5418 (`restate_stored_edge` is off the roster). Filed on ENCL's slate with a seam note; NURBS PRs cite it as a base red.
+- 2026-10-20 02:50Z — **#5424 merged** (8f1edb5f; the `mul_nonneg` thin step).
+  - **STANDARD review MERGEABLE:** a probe of 296k real weight pairs (~1.19M steps) found 0 differences, and no weight read `lo < 0`. Suites are green at both ε on head and main; r1 is −8% at opt-level 0.
+  - The MINOR (the "[0,1]" comment is inexact; `s.hi` reaches 1+2⁻⁵²) and the row's missing wide/tiny-t draws ride C's next `split_restrict` PR.
+  - The lever is marked done in `cheapen-the-restriction-cut-steps-2-to-4` and the slow-rows item. Reviewer archived.
+- 2026-10-20 03:16Z — **#5419 partial review** (FULL, at c75c3a2c):
+  - the `limb_three` probe is byte-identical on 4 rows;
+  - geom-brep and mesh are green at default and 1e-6 on both trees;
+  - C's latency fix is test-only, and the swap mutant stays red.
+  - **Ruled into this PR:** the chart/surface pairing check on the `pub` `of_charted` doors was debug-only, and with it stripped a wrong-held-key mutant passed 6 of 8 rows silently. The reviewer graded it MINOR; ruled in because it is a fail-loud gap on a public door, closed by a pointer compare. C makes it a release check and adds a mismatched-chart row.
+  - Two 1e-6 head reds (`cone_operand_rows::an_oblique_rod…`, `r1_lane0_e2e::the_f64_seam…`) await attribution against main's 1e-6 run. The full matrix ETA is 3–4 h.
+- 2026-10-20 03:50Z — **#5433 merged** (10b9dfd5; build A's follow-up to #5399/#5414).
+  - **STANDARD review MERGEABLE, 0 MAJOR:** the `carrier_net` fold is bit-identical (the old fold first differs at C(55,26); this code uses n ≤ 6), and the slow sets match main at both ε.
+  - **Routed:** the minors (three more test-only folds, `polynomial_area_pieces`' hand-written pair, `shared_pieces`' silent fallback) are added to `cut-side-quotients-halve-the-shared-weight-power-per-axis`, build C's next PR, which is now unblocked. Build A moves to the binomial item's PR 2 (the product and blossom homes).
+  - **#5419:** the pairing check now runs in every build (head cd38b6f7, `SsiError::WrongLane`, two mismatched-chart rows). Both 1e-6 head reds are confirmed base reds, identical word for word on main (GERM's oblique rod; ssiedge's `TubeNotOneArc` at the post-frame mint). The reviewer is verifying the delta.
