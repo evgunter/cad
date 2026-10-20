@@ -6773,3 +6773,11 @@ Signed (WIRE orchestrator).
   - [ev] PR 5455 adds N0, rewrites N4's invariant, and lists [identity] in [intrinsic]. Fork-log row 183.
   - Open: whether a crossing's sense may read an edge's stored orientation; it waits on the arena-permutation check. The Placed question goes to D10.
   - Subscribed.
+
+- 2026-10-20 (WIRE orchestrator) Ev on 5455: 'this is looking good!'.
+  - Ev is sure of no frame and no value, but less sure of slot and order, and asked what slot means. Ev also asked for a usage example and how ties are ruled out for identical operands; 3 and 5 'yes'.
+  - Added a definition of slot (sequence vs set) and a worked example to N0 (26abb74f8d).
+  - Replied:
+    - slot and order explained, with the measurement under way in wire-nameinv;
+    - the example;
+    - identical operands never collide (the read is in every carried name), but N4 ties remain by design where geometry doesn't distinguish, plus D10's Placed question.
