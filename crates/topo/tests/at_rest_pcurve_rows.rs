@@ -83,8 +83,7 @@ fn wrong_branch_row(
 /// the row with a deck element, which C4 never certifies again: a row is
 /// its placed image, so certification refuses each one at check 4, its
 /// whole period read as the azimuth's offset, and no such face can be
-/// stored for tier 3 to read. (Before placement, this row read the moved
-/// loop clean, complete or half-minted: R1's probes p5/p6 on PR 3759.)
+/// stored for tier 3 to read. Adopted from R1's probes p5/p6 on PR 3759.
 #[test]
 fn a_loop_moved_a_whole_period_is_no_rows() {
     let (body, face) = sheet();

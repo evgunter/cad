@@ -2,7 +2,9 @@
 id: props-torus-lift-and-gauss-bonnet-fan-pick-a-branch-by-floor
 kind: issue
 title: the props torus lift and the Gauss–Bonnet fan pick a whole-period branch by floor
-status: open
+status: closed
+pr: 5375
+closed: 2026-10-19
 opened: 2026-10-13
 priority: P3
 cost: E
@@ -55,3 +57,36 @@ every scalar, and the rim levels read it as the constant it is. Rows at
   there would fail, since the enclosure is wider than a period.
 - At an f64 tie either branch blends to within the fan's agreement band.
 - At `Sym` the blend is numeric whatever `turns` is.
+
+## Resolution (FLUX, `flux/e-bundle-lane-honesty`)
+
+**The premise, re-checked.** PR 4938 removed `props_torus_lift_joint`,
+so the "no ties because the joint decides it" argument above is stale
+as written. It holds through the closure decision instead: the torus
+lift runs after `closure::closed_form_windings`, which decides every
+junction closed within `3ε` (`props_chart_junction_closed`) and every
+edge's turn whole within its slack (`props_chart_loop_whole`, per edge
+since PR 5333). So the running angle reaches each rim within `≈ Kε/minor`
+of a whole turn, half a turn clear of each mark.
+
+**The torus lift is decided as structure.** `torus_lift` (new) takes
+the branch of `at − angle` through `Period::decide`
+(`props_torus_lift_turns`, metered `Margin::levered(g, minor)`), as an
+integer, and lifts the rim to `angle + Period::times(k)`. The loop's
+base is the least of those integers, so every lift's shift is a literal.
+`props_torus_lift_turns` is new: `props_torus_lift_branch` was already
+taken by the lift start's `atan2` branch. Row:
+`props::curved::torus_lift_rows::a_rims_lift_is_its_whole_turns_as_a_theorem_over_a_box`
+(`Sym<Interval>` over a box, `k ∈ {−1, 0, 1, 2}`: the lift decides `k`,
+and the lifted level less the rim's plus `kτ` is the zero polynomial).
+The floor-restoring mutant and the constant-branch mutant both red it.
+No digest moved (no digest body reaches the lift).
+
+**The Gauss–Bonnet fan keeps its floor, with the argument at the site**
+(`solid_angle`), as proposed: no decision or identity reads `turns`,
+only the numeric blend; a straddling interval encloses both branches
+and the blend the true value; an `f64` tie leaves a gap of `±2π`, far
+past the agreement band, so either branch blends to Gauss–Bonnet's value
+exactly; and at `Sym` the blend is numeric. The residue comment beside
+it said `τ` and `2τ` where the code reads `FAN_AGREEMENT_SR`; corrected.
+

@@ -136,6 +136,20 @@ pub(crate) struct PartValue<T: Decide> {
     /// The product's inputs its carried records cite
     /// ([`crate::Product::cited_inputs`]).
     pub cited_inputs: Arc<Vec<crate::coincide::CitedInput>>,
+    /// **The part's own at-rest census verdict** ([`crate::assembly::SeamVerdict`]),
+    /// its own rows first and then those it carried up: the overlaps
+    /// between its copies, reported and never refused, as its gate
+    /// reports them.
+    pub interference:
+        Arc<Vec<PartRow<crate::assembly::Pinned<crate::checks::at_rest::InterferenceFinding>>>>,
+    /// The census findings its gate refuses that name none of its
+    /// declarations, its own first: inner at-rest health is the
+    /// outermost gate's business, as inner mint health is.
+    pub at_rest: Arc<Vec<PartRow<crate::assembly::Pinned<crate::assembly::AtRestFinding>>>>,
+    /// The pairs of solids both lists are about, keyed in [`Self::body`],
+    /// smaller first: what the census over an instantiating product finds
+    /// again inside this part's copy, and must not report a second time.
+    pub census_pairs: Arc<Vec<(topo::SolidKey, topo::SolidKey)>>,
     /// How many parts the referenced document's product is: its
     /// placements' copies ([`crate::product::Product::solid_copies`]),
     /// each counted at its own value's `parts`, so a sub-assembly's
@@ -155,6 +169,9 @@ impl<T: Decide> Clone for PartValue<T> {
             refused: Arc::clone(&self.refused),
             coincidences: Arc::clone(&self.coincidences),
             cited_inputs: Arc::clone(&self.cited_inputs),
+            interference: Arc::clone(&self.interference),
+            at_rest: Arc::clone(&self.at_rest),
+            census_pairs: Arc::clone(&self.census_pairs),
             parts: self.parts,
         }
     }
@@ -744,12 +761,6 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             // name one symbol.
             symbols: self.symbols,
         };
-        // No profile lift is set here, because none is inherited: it is
-        // read off what the evaluation binds
-        // (`EvalOptions::profile_lift_over`), and with
-        // no box and no seed a referenced document runs at its own
-        // nominal, so it is built as its instantiator's build would build
-        // it — pinned, with its own variables' values.
         let evaluation =
             super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), &doc_ref.pin, tol);
         // A2's uniformity: what a document MEANS is its product, one
@@ -785,7 +796,63 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             })
             .sum();
         let copies = Arc::new(keyed_copies(doc, &evaluation));
+        // The part's own verdict on what its census found, judged as its
+        // gate judges it, so the document instantiating it reports each
+        // finding once, as the part's (`assembly::seam_verdict`).
+        let seam = crate::assembly::seam_verdict(&product, tol);
         Ok(PartValue {
+            interference: Arc::new(
+                seam.interference
+                    .into_iter()
+                    .map(|finding| {
+                        PartRow::unspoken(
+                            doc_ref.id,
+                            crate::assembly::Pinned {
+                                pin: doc_ref.pin,
+                                finding,
+                            },
+                        )
+                    })
+                    .chain(product.carried_interference.into_iter().map(|row| {
+                        PartRow::below(
+                            doc,
+                            row.route,
+                            crate::assembly::Pinned {
+                                pin: row.pin,
+                                finding: row.finding,
+                            },
+                            Arc::default(),
+                        )
+                    }))
+                    .collect(),
+            ),
+            at_rest: Arc::new(
+                seam.refused
+                    .into_iter()
+                    .map(|finding| {
+                        PartRow::own(
+                            doc,
+                            doc_ref.id,
+                            crate::assembly::Pinned {
+                                pin: doc_ref.pin,
+                                finding,
+                            },
+                        )
+                    })
+                    .chain(product.carried_at_rest.into_iter().map(|row| {
+                        PartRow::below(
+                            doc,
+                            row.route,
+                            crate::assembly::Pinned {
+                                pin: row.pin,
+                                finding: row.finding,
+                            },
+                            row.held,
+                        )
+                    }))
+                    .collect(),
+            ),
+            census_pairs: Arc::new(seam.pairs),
             parts,
             copies,
             body: Arc::new(product.body.into_body()),

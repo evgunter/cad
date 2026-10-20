@@ -86,17 +86,16 @@ says which old step each new step keeps by its minted id, and reports
 every name on a step it drops (`crates/editor-core/REFERENCES.md` DM7).
 
 Evaluation resolves the program at f64 (`ProfileProgram::resolve`),
-replays it, embeds the loops into the lane scalar and validates there.
-Structure — junction classes, fillet fits and candidate picks, loop
-orientation, loop roles — is selected once, at f64, identically for
-every scalar lane (the rule the code cites as C6). That is why profile
-expressions are f64-pinned while node magnitude slots are lane-live.
-Under `ProfileLift::Guided` the same program is also resolved at the
-lane scalar and replayed through `replay_guided`, which consumes and
+replays it and validates it there. Structure — junction classes, fillet
+fits and candidate picks, loop orientation, loop roles — is selected
+once, at f64, identically for every scalar lane (the rule the code
+cites as C6). Every evaluation then resolves the same program at its
+lane scalar and replays it through `replay_guided`, which consumes and
 re-verifies the f64 pass's `ReplayStructure` instead of re-deciding it
-(the profile-parameter lift, `crates/editor-core/README.md`). Junction
-checks re-run under every binding, and every constructed tangency is
-re-verified by `validate`, never trusted.
+(the profile-parameter lift, `crates/editor-core/README.md`); at f64
+the lane is the first pass itself. Junction checks re-run under every
+binding, and every constructed tangency is re-verified by `validate`,
+never trusted.
 
 `ProfileProgram::check` runs resolve + replay + validate under the
 current parameter environment at the edit door
@@ -189,11 +188,10 @@ persistence header door.
 replayed output under every binding: constructed tangency verified,
 never trusted (`TangencyContradicted`); a value-decided junction
 recorded; same-carrier continuation is a tangent joint, constructed or
-decided; fit gating. A `ValidatedProfile` is minted on segments by the validate doors
-(`validate` and `validate_recording` on a `Profile` or a
-`ConstructedProfile`, and `validate_guided` on a `ConstructedProfile`)
-and by `ValidatedProfile::lift_onto` from an `f64` one;
-extrude/revolve/fillet/loft/sweep never see a program. Junction
+decided; fit gating. A `ValidatedProfile` is minted on segments by the
+doors its type's docs list (the validations, and three crossings of a
+canonical form already validated: `lift_onto`, `value_channel`,
+`on_plane`); extrude/revolve/fillet/loft/sweep never see a program. Junction
 predicates classify at replay exactly as at typed authoring. Replay is
 deterministic (libm-pure, no ordering effects). A chain's seam still
 sits at a junction or fillet, never mid-carrier (PQ4); `circle` and
@@ -236,7 +234,7 @@ validate or hold by construction, and never be decided twice. Which one
 applies is a fact of the loop's provenance, carried by its type.
 
 - **A table** (`ProfileLoop`: the fixture door, a hand-built loop,
-  `map_scalar`, a pinned lift) is checked: `Profile::validate` decides
+  `map_scalar`) is checked: `Profile::validate` decides
   the three as ε-decisions at the validating scalar
   (`arc_start_on_carrier`, `arc_landing`, `arc_sweep_range`) and refuses
   `InconsistentArc`. A check whose difference the scene cannot resolve
@@ -319,18 +317,24 @@ STORES, and a loop stores an arc as its chord and a carrier. Two things
 can happen to that claim between the door's arithmetic and the stored
 form, and both are refused at the door rather than left for validation:
 
-- **The arc flattens.** A fillet whose sagitta `r(1 − cos(θ/2))` sits at
-  or below ε is read back as a straight segment, so the carrier is not
-  there (`PathError::FilletArcFlattenedInStorage`; the levers are a
+- **The arc flattens.** A fillet whose sagitta `r(1 − cos(θ/2))` sits
+  at or below ε is read back as a straight segment, its chord. The
+  chord turns from each leg by half the fillet's turn over its own
+  length, so at the shorter arm its joints turn by about four times
+  the sagitta: within ε the declared tangency holds on the chord and
+  the loop validates; in band the door escalates; past the band it
+  refuses (`PathError::FilletArcFlattenedInStorage`; the levers are a
   larger turn or a larger radius).
-- **The joint falls below scene resolution.** A carrier clearance is a
-  difference of lengths at the scene's own magnitude, so it resolves
-  only to about that magnitude times 2⁻⁵². Past the radius, or the
-  distance from the origin, where that floor is coarser than ε, the
+- **The joint falls below scene resolution.** A joint's turn is read
+  off its legs' headings, each a difference of coordinates at the
+  scene's own magnitude over the length it is taken across, so levered
+  by the joint's arm it resolves only to about that magnitude times
+  2⁻⁵² times `arm/ρ`, at most about the magnitude times 2⁻⁵². Past the
+  distance from the origin where that floor is coarser than ε, the
   joint cannot be classified, nor the stored carrier read against its
-  own vertex (`PathError::FilletCarrierBelowSceneResolution`; the levers
-  run the other way — a smaller radius, or the geometry nearer the
-  origin).
+  own vertex (`PathError::FilletCarrierBelowSceneResolution`; the lever
+  is the magnitude — the geometry nearer the origin, a radius no larger
+  than its distance from it — not the turn).
 
 Both read back through `seg::build_seg` and `seg::joint_tangency`, the
 verify layer's own classifications, so the door's answer is the verify
@@ -485,7 +489,15 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   (`TangentJointOutOfRange`); a junction decided Zero that no
   constructor made is a tangent joint all the same, recorded for the
   `unproven-coincidence` lint ([coincidence]); the sliver band refuses. Every
-  zero-turn joint is a tangent joint. Zero new ε: the per-junction
-  classifier reuses the carrier predicates verbatim. The tangent-joint
+  zero-turn joint is a tangent joint. A junction's tangency is decided
+  by its turn levered by the shorter of its two legs' arms
+  (`seg::junction_turn`, `path_junction_turn`): one reading, at one
+  arm, that the path door and validation both call; the sweep reads
+  the same turn of the body's faces, levered at their reach; no new ε. The
+  simplicity pass reads where a loop meets itself, never how far two
+  adjacent segments run within ε of each other past their joint: that
+  neighbourhood is the joint's own ([topology.census]). Whether a
+  tangent cusp is a legal edge is decided where it becomes one, by the
+  sweep's second-order arm. The tangent-joint
   set is derived at lowering, from the constructors and the junction
   verdicts, never stored.

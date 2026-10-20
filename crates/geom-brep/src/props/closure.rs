@@ -1,8 +1,11 @@
 //! **Whether a face's loops close on a periodic chart, and wind it as a
 //! face's boundary does**: one decision for every lane that reads a face
-//! on a cylinder or a torus chart — the cylinder quadrature
-//! ([`super::quad`]), the cylinder and torus closed forms
-//! ([`super::curved`]) and the spiric wall ([`super::spiric`]).
+//! on a cylinder, a torus or a cone chart — the cylinder quadrature
+//! ([`super::quad`]), the cylinder, torus and cone closed forms
+//! ([`super::curved`]) and the spiric wall ([`super::spiric`]). The
+//! cone keeps what is its own: a loop through the apex, where its
+//! azimuth is undefined, and the apex as the chart's puncture, which a
+//! face that holds it winds about.
 //!
 //! At each junction the edge before ends where the edge after starts:
 //! their chart points differ by a whole number of periods in each
@@ -43,6 +46,11 @@ use crate::dihedral::decide;
 /// ε = 1e-12, 3428 junctions of real faces read up to `1.99ε` beyond
 /// their end slack alone.
 pub(super) const VERTEX_SLACK: f64 = 3.0;
+
+/// A closed form's junction and loop slack, [`VERTEX_SLACK`]`·ε` (m).
+fn vertex_slack<T: Decide>(band: Band) -> T {
+    T::from_f64(VERTEX_SLACK * band.zero())
+}
 
 /// How far `gap` exceeds what `slack` allows: `0` within it, so a
 /// closed junction reads zero rather than a negative margin the band
@@ -195,10 +203,65 @@ pub(super) struct Joint<T, const N: usize> {
     pub(super) flat: T,
 }
 
-/// One closed-form loop: per periodic coordinate, the signed sweep of
-/// its edges summed (rad), and its joints in loop order.
+/// One edge of a closed-form loop, per periodic coordinate: its signed
+/// turn between its own two ends (rad), the angle by which that turn
+/// misses carrying its start's direction onto its end's (rad), and the
+/// least radius the edge is read at (m).
+#[derive(Clone, Copy)]
+pub(super) struct EdgeTurn<T> {
+    pub(super) sweep: T,
+    pub(super) miss: T,
+    pub(super) lever: T,
+}
+
+impl<T: geom_core::Real> EdgeTurn<T> {
+    /// An edge that turns `sweep` from a start direction to an end
+    /// direction whose dot and cross products about the turn's axis are
+    /// `arms`: its miss is the principal angle from the start turned by
+    /// `sweep` to the end, near zero for a sweep that agrees with its
+    /// ends, so it is read clear of the branch cut whatever the sweep.
+    pub(super) fn new(sweep: T, (dot, cross): (T, T), lever: T) -> Self {
+        let (s, c) = sweep.sin_cos();
+        Self {
+            sweep,
+            miss: (cross * c - dot * s).atan2(dot * c + cross * s),
+            lever,
+        }
+    }
+
+    /// An edge whose sweep agrees with its own ends by construction —
+    /// the short turn between them, or a sum of principal angles between
+    /// its evaluated points with each branch decided — so it misses them
+    /// by nothing, exactly: its miss is zero, rather than that sweep read
+    /// back against the ends it was read off, which at the interval
+    /// scalar charges the points' own width as a disagreement.
+    pub(super) fn exact(sweep: T, lever: T) -> Self {
+        Self {
+            sweep,
+            miss: T::zero(),
+            lever,
+        }
+    }
+
+    /// An edge whose sweep about the axis is its own turn `own` about its
+    /// centre carried to the axis at each end: its miss is the carry's
+    /// complement, read in its own frame — the principal angle from its
+    /// start turned by `own` to its end, about its centre (`own_arms`) —
+    /// since the carry adds to the sweep exactly what it adds to the
+    /// ends' turn, and cancels. Read about the axis instead, it carries
+    /// the width of the centre's place against the axis's point, which
+    /// for a body far from the origin is many times the circle's own.
+    pub(super) fn carried(sweep: T, own: T, own_arms: (T, T), lever: T) -> Self {
+        Self {
+            sweep,
+            ..Self::new(own, own_arms, lever)
+        }
+    }
+}
+
+/// One closed-form loop: its edges' turns and its joints, in loop order.
 pub(super) struct ChartLoop<T, const N: usize> {
-    pub(super) sweep: [T; N],
+    pub(super) edges: Vec<[EdgeTurn<T>; N]>,
     pub(super) joints: Vec<Joint<T, N>>,
 }
 
@@ -212,12 +275,13 @@ pub(super) struct ChartLoop<T, const N: usize> {
 /// axis (`curved::about_axis` and the tube's analogue) is read clear of
 /// its branch cut. `Kε` is also the least radius the parse's axis class
 /// admits a rim at (`props_circle_axis_class`, `r_c·|n_c·â|` definite),
-/// so no circle the parse admits is refused here for want of it. The
-/// cylinder decides it once at its radius, which every rim's is within
-/// `ε` of; the torus once at its minor radius, for its meridians, and at
-/// each parallel's own. A circle narrower than that is within its own
-/// band, and this closed form has no reading of it
-/// ([`PropsError::NotIsoRectangle`]).
+/// so a call at a circle's own radius refuses nothing the parse admits:
+/// the torus decides it at each parallel's own, and at its minor radius
+/// for its meridians; the cylinder once, at its least rim's radius (not
+/// the surface's, which a rim's may exceed by up to `ε`: a cylinder
+/// narrower than `Kε` may carry rims the axis class admits). A circle
+/// narrower than `Kε` is within its own band, and this closed form has
+/// no reading of it ([`PropsError::NotIsoRectangle`]).
 pub(super) fn require_axis_inside<T: Decide>(radius: T, band: Band) -> Result<(), PropsError> {
     if decide("props_chart_axis_inside", Margin::of(radius), band).map_err(escalated)?
         == Sign::Positive
@@ -231,13 +295,30 @@ pub(super) fn require_axis_inside<T: Decide>(radius: T, band: Band) -> Result<()
 }
 
 /// **A closed form's loops close and wind as a face's boundary does**,
-/// returning each loop's whole turns per periodic coordinate.
+/// returning each loop's whole turns per periodic coordinate: each
+/// loop's junctions closed ([`require_joints_closed`]: a closed form's
+/// carriers end exactly where they are evaluated, so a junction's slack
+/// is [`VERTEX_SLACK`]`·ε` and its gap is one value), its whole turns
+/// ([`closed_loop_turns`]), then [`require_boundary_windings`].
+pub(super) fn closed_form_windings<T: Decide, const N: usize>(
+    loops: &[ChartLoop<T, N>],
+    band: Band,
+) -> Result<Vec<[i64; N]>, PropsError> {
+    let mut windings = Vec::with_capacity(loops.len());
+    for l in loops {
+        require_joints_closed(&l.joints, band)?;
+        windings.extend(closed_loop_turns([l], band)?);
+    }
+    require_boundary_windings(&windings)?;
+    Ok(windings)
+}
+
+/// **A closed form's loops are each a whole number of turns**, per
+/// periodic coordinate, before the face's windings are asked whether
+/// they bound one region; their junctions are decided closed already
+/// ([`require_joints_closed`], or the caller's own reading in space).
 ///
-/// A closed form's carriers end exactly where they are evaluated, so a
-/// junction's slack is [`VERTEX_SLACK`]`·ε` and its gap is one value,
-/// `Σ lever·|turn| + |flat|`.
-///
-/// A loop's total angle about a direction is `W = sweep + Σ turn`: its
+/// A loop's total angle about a direction is `W = Σ sweep + Σ turn`: its
 /// edges' sweeps and the short turns across its junctions. The caller's
 /// sweep is each edge's turn about the surface's own axis (or core
 /// circle) between that edge's own two ends, never a nominal:
@@ -253,38 +334,54 @@ pub(super) fn require_axis_inside<T: Decide>(radius: T, band: Band) -> Result<()
 ///   turn between its ends: a ruling certified axial may still turn by
 ///   `ε/R`, and a loop may hold any number of them.
 ///
-/// So `W` is exactly the total turn of a closed path — each edge about
-/// the axis, then the short way across each junction — and a whole
-/// number of turns up to rounding, whatever the junction gaps and
-/// however many edges. [`loop_turns`] reads the whole number `k` at
-/// half-turn thresholds, and the residual is then decided
-/// (`props_chart_loop_whole`): `|W − k·τ|` metered at the loop's largest
-/// junction radius, against [`VERTEX_SLACK`]`·ε` for the loop. A residual
-/// past it is a sweep that disagrees with its edge's ends
-/// ([`PropsError::LoopsWindChart`]), and in the band it escalates.
+/// [`loop_turns`] reads the whole number `k` of `W` at half-turn
+/// thresholds, metered at the loop's largest junction radius; they are
+/// clear by `π` times any radius.
 ///
-/// The thresholds are metered at that radius too; they are clear by `π`
-/// times any radius.
+/// **Whether `W` is that whole number is decided edge by edge**
+/// (`props_chart_loop_whole`). Each edge's sweep carries its start's
+/// direction onto its end's up to a whole number of turns, and the angle
+/// by which it misses ([`EdgeTurn::new`]) is metered at the least radius
+/// the edge is read at: summed over the loop, against
+/// [`VERTEX_SLACK`]`·ε`. What is left of `W` is
+/// the short turns through the loop's vertices, a whole number of turns
+/// by construction, so nothing more is decided of it. A residual past
+/// the slack is a sweep that disagrees with its edge's ends
+/// ([`PropsError::LoopsWindChart`]), and in the band it escalates. Each
+/// edge's rounding is charged at its own radius: an azimuth read within
+/// `ρ` of the axis rounds by `≈ u·|p|/ρ`, metres at `ρ` but far more at
+/// a loop's largest radius.
+///
+/// **A miss is stated where it is exact.** An edge whose sweep agrees
+/// with its own ends by construction misses them by nothing, and says
+/// so ([`EdgeTurn::exact`]); a circle's turn carried to the axis misses
+/// its ends by what its own turn misses them about its centre
+/// ([`EdgeTurn::carried`]), the carry cancelling. Read back about the
+/// axis against the very ends it was read off, a sweep is charged the
+/// interval scalar's width of those points about the axis's point as a
+/// disagreement: on a 410 m frustum wall in a generic pose that is
+/// `≈ 1e-12` an edge, past the slack at `ε = 1e-12`.
 ///
 /// The interval lanes ([`interval_loop_turns`]) read each edge's own
 /// chart ends, so their turns are exact by construction and ask no such
 /// question.
-pub(super) fn closed_form_windings<T: Decide, const N: usize>(
-    loops: &[ChartLoop<T, N>],
+pub(super) fn closed_loop_turns<'a, T: Decide + 'a, const N: usize>(
+    loops: impl IntoIterator<Item = &'a ChartLoop<T, N>>,
     band: Band,
 ) -> Result<Vec<[i64; N]>, PropsError> {
-    let slack = T::from_f64(VERTEX_SLACK * band.zero());
-    let mut windings = Vec::with_capacity(loops.len());
+    let slack = vertex_slack(band);
+    let mut windings = Vec::new();
     for l in loops {
-        let mut w = l.sweep;
+        let mut w = [T::zero(); N];
+        let mut off = [T::zero(); N];
+        for e in &l.edges {
+            for c in 0..N {
+                w[c] = w[c] + e[c].sweep;
+                off[c] = off[c] + e[c].lever * e[c].miss.abs();
+            }
+        }
         let mut lever = [T::zero(); N];
         for j in &l.joints {
-            let gap = j
-                .turn
-                .iter()
-                .fold(j.flat.abs(), |g, &(turn, lever)| g + lever * turn.abs());
-            let over = Margin::of(excess(gap, slack));
-            require_junction_closed(JunctionExcess { hi: over, lo: over }, band)?;
             for c in 0..N {
                 w[c] = w[c] + j.turn[c].0;
                 lever[c] = lever[c].max(j.turn[c].1);
@@ -293,17 +390,13 @@ pub(super) fn closed_form_windings<T: Decide, const N: usize>(
         let mut k = [0i64; N];
         for c in 0..N {
             k[c] = loop_turns(w[c], lever[c], band)?;
-            let whole = match k[c] {
-                0 => T::zero(),
-                1 => T::tau(),
-                -1 => T::zero() - T::tau(),
-                // Past one turn: refused below as no boundary's.
-                _ => continue,
-            };
-            let residual = (w[c] - whole).abs() * lever[c];
+            if k[c].abs() > 1 {
+                // Past one turn: refused as no boundary's.
+                continue;
+            }
             if decide(
                 "props_chart_loop_whole",
-                Margin::of(excess(residual, slack)),
+                Margin::of(excess(off[c], slack)),
                 band,
             )
             .map_err(escalated)?
@@ -314,8 +407,30 @@ pub(super) fn closed_form_windings<T: Decide, const N: usize>(
         }
         windings.push(k);
     }
-    require_boundary_windings(&windings)?;
     Ok(windings)
+}
+
+/// **A closed form's junctions close** ([`require_junction_closed`]):
+/// each gap, `Σ lever·|turn| + |flat|`, against [`VERTEX_SLACK`]`·ε`.
+pub(super) fn require_joints_closed<T: Decide, const N: usize>(
+    joints: &[Joint<T, N>],
+    band: Band,
+) -> Result<(), PropsError> {
+    for j in joints {
+        let gap = j
+            .turn
+            .iter()
+            .fold(j.flat.abs(), |g, &(turn, lever)| g + lever * turn.abs());
+        require_gap_closed(gap, band)?;
+    }
+    Ok(())
+}
+
+/// **A closed form's junction closes**, its gap `gap` (m) one value read
+/// against [`VERTEX_SLACK`]`·ε` ([`require_junction_closed`]).
+pub(super) fn require_gap_closed<T: Decide>(gap: T, band: Band) -> Result<(), PropsError> {
+    let over = Margin::of(excess(gap, vertex_slack(band)));
+    require_junction_closed(JunctionExcess { hi: over, lo: over }, band)
 }
 
 /// **A closed loop's whole turns** from its total angle `W` (rad),
@@ -351,11 +466,16 @@ mod tests {
     use super::*;
     use geom_core::{Interval, Tol};
 
-    /// One loop of one closed junction whose edges' sweep is `excess`
-    /// metres (at a radius of `1`) off no turn at all.
+    /// One loop of one closed junction and one edge whose sweep is
+    /// `excess` metres (at a radius of `1`) off its ends, which turn by
+    /// nothing.
     fn off_a_whole_turn<T: Decide>(excess: f64, band: Band) -> Result<Vec<[i64; 1]>, PropsError> {
         let one = ChartLoop {
-            sweep: [T::from_f64(excess)],
+            edges: vec![[EdgeTurn::new(
+                T::from_f64(excess),
+                (T::one(), T::zero()),
+                T::one(),
+            )]],
             joints: vec![Joint {
                 turn: [(T::zero(), T::one())],
                 flat: T::zero(),
@@ -395,5 +515,45 @@ mod tests {
                 "in the band at {scalar}"
             );
         }
+    }
+    /// **Each edge's miss is charged at its own radius**, not at the
+    /// loop's least: an edge at a radius of `1` whose sweep misses its
+    /// ends by `2Kε` past the slack refuses beside an edge read a
+    /// millionth as far out, at `f64` and at the interval scalar.
+    #[test]
+    fn an_edges_miss_is_charged_at_its_own_radius() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let past = VERTEX_SLACK * band.zero() + 2.0 * band.escalate();
+        fn run<T: Decide>(past: f64, band: Band) -> Result<Vec<[i64; 1]>, PropsError> {
+            let edges = vec![
+                [EdgeTurn::new(
+                    T::from_f64(past),
+                    (T::one(), T::zero()),
+                    T::one(),
+                )],
+                [EdgeTurn::new(
+                    T::zero(),
+                    (T::one(), T::zero()),
+                    T::from_f64(1e-6),
+                )],
+            ];
+            let joints = (0..2)
+                .map(|_| Joint {
+                    turn: [(T::zero(), T::one())],
+                    flat: T::zero(),
+                })
+                .collect();
+            closed_form_windings(&[ChartLoop { edges, joints }], band)
+        }
+        assert_eq!(
+            run::<f64>(past, band),
+            Err(PropsError::LoopsWindChart),
+            "f64"
+        );
+        assert_eq!(
+            run::<Interval>(past, band),
+            Err(PropsError::LoopsWindChart),
+            "interval"
+        );
     }
 }

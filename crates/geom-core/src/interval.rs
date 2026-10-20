@@ -248,6 +248,30 @@ impl Interval {
         self.0.decoration() >= Decoration::Def
     }
 
+    /// Whether `self` and `other` are the same stored enclosure: the
+    /// same bound bits and the same decoration ([`Interval::repr_bits`]
+    /// equal). Scalar plumbing for an arithmetic fast path that may hand
+    /// back one operand in place of an expression of both — the de
+    /// Casteljau step's equal neighbours (`spline::blossom`) — where
+    /// either answer is a sound enclosure and the operand is the
+    /// narrower. Never a coincidence decision (the no-`PartialEq`
+    /// rationale on the type stands): it picks between two sound
+    /// enclosures and decides nothing. The decoration is in the
+    /// comparison so the fast path cannot hand back a stronger claim
+    /// than the expression would carry: a refusal, or `Def` beside
+    /// `Com`, takes the expression.
+    #[must_use]
+    pub(crate) fn same_enclosure(self, other: Self) -> bool {
+        self.repr_bits() == other.repr_bits()
+    }
+
+    /// The decoration, for rows that pin which level an operation
+    /// carries.
+    #[cfg(test)]
+    pub(crate) fn decoration(self) -> Decoration {
+        self.0.decoration()
+    }
+
     /// Reads a scalar's bracket into certification arithmetic through
     /// the **certified** door, carrying the refusal in the DECORATION
     /// rather than in the endpoints — the crossing from a lane scalar
@@ -402,6 +426,26 @@ pub fn certified_hi(x: Interval) -> f64 {
 pub fn div_up(num: f64, den: f64) -> f64 {
     let q = Interval::from_bounds(num, num) / Interval::from_bounds(den, den);
     if q.is_certified() { q.hi() } else { num / den }
+}
+
+/// `a + b` rounded UP — an upper bound on the real sum, which is what a
+/// sum of upper bounds (half-widths, pads) has to stay. A sum rounded to
+/// nearest can land half an ulp below the real one. Refusals fall back to
+/// the bare sum exactly as [`div_down`]'s do; an exact sum (`0 + 0`
+/// among them) is returned exactly.
+#[must_use]
+pub fn add_up(a: f64, b: f64) -> f64 {
+    let s = Interval::from_bounds(a, a) + Interval::from_bounds(b, b);
+    if s.is_certified() { s.hi() } else { a + b }
+}
+
+impl Interval {
+    /// `self · w` for a multiplier with a non-negative lower end, read
+    /// on the two corners its signs select ([`DInterval::mul_nonneg`]).
+    #[must_use]
+    pub fn mul_nonneg(self, w: Self) -> Self {
+        Self(self.0.mul_nonneg(w.0))
+    }
 }
 
 impl Add for Interval {
@@ -912,6 +956,23 @@ impl crate::spline::SpanLocate for Interval {
         Self(enclosure_hull_of(self.0, other.0))
     }
 
+    fn clip_to(self, lo: f64, hi: f64) -> Self {
+        // A narrowing that keeps the decoration: the rebuilt bounds are
+        // capped at `self`'s, so an uncertified value stays uncertified.
+        let (l, h) = (Bounds::lo(self).max(lo), Bounds::hi(self).min(hi));
+        let meets = matches!(
+            l.partial_cmp(&h),
+            Some(core::cmp::Ordering::Less | core::cmp::Ordering::Equal)
+        );
+        if self.0.is_nai() || self.0.is_empty() || !meets {
+            return self;
+        }
+        Self(cap_decoration(
+            DInterval::from_bounds(l, h),
+            self.0.decoration(),
+        ))
+    }
+
     fn restrict_window(
         window: &[Self],
         span: crate::spline::Span<'_>,
@@ -1388,6 +1449,27 @@ mod tests {
         for x in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
             assert!(Interval::from_f64(x).0.is_nai(), "from_f64({x:e})");
         }
+    }
+
+    /// **`clip_to` intersects and keeps the decoration (C6 S5c).** A
+    /// value narrowed to `[lo, hi]` is the intersection; an uncertified
+    /// value stays uncertified; a value that misses `[lo, hi]`, and
+    /// poison, come back as they were.
+    #[test]
+    fn clip_to_intersects_and_keeps_the_decoration() {
+        use crate::spline::SpanLocate;
+        let x = Interval::from_bounds(0.2, 0.8);
+        let c = x.clip_to(0.5, 1.0);
+        assert_eq!((Bounds::lo(c), Bounds::hi(c)), (0.5, 0.8));
+        assert!(c.is_certified());
+        let uncertified = Interval::from_bounds(-1.0, 4.0).sqrt();
+        assert!(!uncertified.is_certified());
+        assert!(!uncertified.clip_to(0.5, 1.0).is_certified());
+        let missed = x.clip_to(0.9, 1.0);
+        assert_eq!((Bounds::lo(missed), Bounds::hi(missed)), (0.2, 0.8));
+        assert!(Real::is_poison(
+            Interval::from_f64(f64::NAN).clip_to(0.0, 1.0)
+        ));
     }
 
     #[test]

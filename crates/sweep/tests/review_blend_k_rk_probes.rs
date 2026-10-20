@@ -80,7 +80,7 @@ fn print_rk_probe() {
         .parse()
         .expect("a float");
     let plane = plane_under_env();
-    let place = plane.placement;
+    let place = plane.placement();
     let [u, v, n] = place.linear.cols();
     let tilt = std::env::var("RK_TILT").unwrap_or_else(|_| "x".to_string());
     let in_plane = match tilt.as_str() {
@@ -134,16 +134,16 @@ fn at(k: &str, f: &str, tilt: &str, plane: &str) -> String {
 }
 
 fn assert_all_transverse_and_valid(text: &str, label: &str) {
-    for needle in [
-        "RKPROBE extrude=Ok",
-        "RKPROBE non_intersection_rims=0",
-        "RKPROBE tier3=Ok",
-    ] {
+    for needle in ["RKPROBE extrude=Ok", "RKPROBE non_intersection_rims=0"] {
         assert!(
             text.contains(needle),
             "{label}: expected {needle:?}:\n{text}"
         );
     }
+    assert!(
+        text.contains("RKPROBE tier3=Ok"),
+        "{label}: the body must validate at rest:\n{text}"
+    );
 }
 
 /// **Either side of `K* = √φ ≈ 1.272`, at the tightest admitted arm

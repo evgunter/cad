@@ -36,11 +36,11 @@ of the residual refuses the same way wherever the region read would say
   the curved point-touch confirm): the carriers' gap escalates before
   `in_face` reads the trims.
 
-Each site refuses the body either way: an escalation or a
-`StaleContactDeclaration` / unbacked finding. So nothing passes that
-should not. What is wrong is the typing: an escalation tells the reader
-"undecided, try another tolerance", where the region read says the
-record is stale or the crossing unbacked.
+In 3′ each site refuses the body either way, as an escalation or as a
+`StaleContactDeclaration` / unbacked finding, and the escalation tells
+the reader "undecided, try another tolerance" where the region read
+says the record is stale or the crossing unbacked. Through a carry the
+difference is behaviour, not typing (below).
 
 ## The shape to give
 
@@ -59,3 +59,16 @@ reading refuses the same way (stale, or unbacked), push that refusal
 instead of the escalation. A sibling of `read_undecided` comparing the
 branches' answers is the natural home. Carry the escalations the
 branches met as `census::Branch::carries` does.
+
+## The carry makes the typing a behaviour (2026-10-19)
+
+From `contacthold/ff-divided-reads-stale` (PR 5390). When an op divides
+a recorded cell, `boolean::records::landings` confirms the row on each
+pair of the cells' images through `census::RecordConfirm::meets`: a
+stale pair is passed over and the row lands on the pair that holds the
+touch, while any other finding refuses the op
+`CarryRefused { Found, Unread }`. So a piece pair these sites escalate,
+where the region read says `Out`, refuses an op that should land the
+record on another piece. The sense-first sibling in `confirm_patch` is
+its own row:
+`a-rest-patch-records-door-one-contradicts-a-piece-its-door-two-would-read-stale`.

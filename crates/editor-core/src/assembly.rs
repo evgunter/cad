@@ -28,7 +28,8 @@
 //!   recorded as a row of the product and a record citing it
 //!   ([`topo::record_at_rest`]), which the `unproven-coincidence`
 //!   check reads (D1 (iii), D10), and one inside a copy is that copy's
-//!   defect.
+//!   defect, unless it is a part's own finding found again inside the
+//!   part's copy, which is the part's (`seam_verdict`).
 //!
 //! # What this module does NOT do
 //!
@@ -68,7 +69,11 @@
 //! Each says why at its own definition. The kernel's finding passes
 //! straight through either way — stated, never swallowed, never
 //! re-labelled — and the declaration still does its job: it is what
-//! suppresses the F1 `UnrecordedContact` refusal.
+//! suppresses the F1 `UnrecordedContact` refusal. A part's own census
+//! findings are the part's: the census over a document instantiating it
+//! finds them again inside the part's copy, and the part's carried rows
+//! report them in that re-finding's place, once
+//! (`checks::at_rest::less_carried`).
 
 use std::sync::Arc;
 
@@ -226,6 +231,18 @@ impl<B: crate::spoken::Say> PartRow<B> {
 }
 
 impl<B> PartRow<B> {
+    /// `of`'s own row whose body names no node a sentence says: an
+    /// interference finding, whose copies are `of`'s variables and its
+    /// faces `of`'s names.
+    pub(crate) fn unspoken(of: crate::ident::DocumentId, body: B) -> Self {
+        Self {
+            of,
+            via: Vec::new(),
+            body,
+            held: Arc::default(),
+        }
+    }
+
     /// A row `doc` carried up from its parts by `route`: its first
     /// instance is `doc`'s, said as `doc` holds it, and is the next
     /// hop of the document instantiating `doc`.
@@ -347,6 +364,84 @@ pub struct CarriedDeclarations {
     pub refused: Vec<ValidationError>,
     /// The refusals, in the inner documents' own order.
     pub unminted: Vec<CarriedRefusal>,
+    /// The interference the documents below reported between their own
+    /// copies, each the part's finding, judged against the part's own
+    /// assertions.
+    pub interference: Vec<CarriedInterference>,
+    /// The at-rest refusals of the documents below over a finding none
+    /// of their declarations answers for, each crossing whole.
+    pub at_rest: Vec<CarriedAtRestFinding>,
+    /// The pairs of solids those findings are about, keyed in the same
+    /// arena as the records, so a census over this body that finds
+    /// them again inside the copy can tell they were answered
+    /// ([`crate::Product::census_pairs`]).
+    pub census_pairs: Vec<(topo::SolidKey, topo::SolidKey)>,
+}
+
+/// **An overlap a document BELOW this one reported between two of its
+/// own copies**, arriving across the instantiation seam: reported, never
+/// a refusal (D10), and quiet or loud as the part's own assertions
+/// judged it.
+///
+/// The finding is the part's own, carried verbatim: its copies are
+/// placements of `route.of`, its faces named as that document names
+/// them.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CarriedInterference {
+    /// How it reached this document.
+    pub route: Route,
+    /// The pin of `route.of` the finding is of: two pins of one document
+    /// are two part rows, and two findings.
+    pub pin: crate::ident::ContentPin,
+    /// The part's own finding, in `route.of`'s ids.
+    pub finding: crate::checks::at_rest::InterferenceFinding,
+}
+
+/// **One finding of an at-rest refusal a document BELOW this one
+/// raised** over something none of its declarations answers for (an
+/// unrecorded touch its census could not record, a pair it could not
+/// decide, a pair it could not look at), the refusal's other findings
+/// riding with it. [`CarriedRefusal`]'s twin for the census: the part's
+/// own verdict, carried verbatim and raised by the outermost gate
+/// ([`AssemblyError::CarriedAtRest`]). Its `attribution`, where it has
+/// one, names the part's own declaration, in the part's ids.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CarriedAtRestFinding {
+    /// How it reached this document.
+    pub route: Route,
+    /// The pin of `route.of` the finding is of: two pins of one document
+    /// are two part rows, and two findings.
+    pub pin: crate::ident::ContentPin,
+    /// The part's own finding, keyed in its own product.
+    pub finding: AtRestFinding,
+    /// The finding's nodes, as `route.of` holds them.
+    pub held: Arc<HeldNodes>,
+}
+
+// One carried finding as an author reads it: which document, and what
+// its census found. Said as the part says it, for the reason
+// [`CarriedRefusal`]'s row is.
+impl crate::spoken::Say for CarriedAtRestFinding {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        write!(
+            f,
+            "{} is not at rest by its own census: {}",
+            crate::spoken::Said(&self.route, by),
+            crate::spoken::Said(&self.finding, crate::spoken::Speaker::held(&self.held))
+        )
+    }
+}
+
+/// The row where no document is at hand: its route's first instance
+/// by its tag.
+impl core::fmt::Display for CarriedAtRestFinding {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
 }
 
 /// What a kernel finding says about a declaration it names: the
@@ -403,6 +498,11 @@ pub struct Assembly<T: Decide> {
     /// reported, quiet or loud, and never a refusal
     /// ([`crate::checks::at_rest`]).
     pub interference: Vec<crate::checks::at_rest::InterferenceFinding>,
+    /// Every overlap a document BELOW this one reported between two of
+    /// its own copies, once per part row, in gather order: the part's
+    /// findings, quiet or loud by the part's own assertions, and never
+    /// a refusal here either.
+    pub carried_interference: Vec<CarriedInterference>,
 }
 
 /// Why a mate side did not resolve to one product face.
@@ -813,6 +913,28 @@ pub enum AssemblyError {
         /// Every carried refusal.
         refusals: Vec<CarriedRefusal>,
     },
+    /// The at-rest refusals of documents BELOW this one whose census
+    /// found what none of their declarations answers for: a touch it
+    /// could not record, a pair it could not decide or a pair it could
+    /// not look at. Each part's refusal crosses whole, the findings it
+    /// attributes to its own declarations with it, in its own ids.
+    ///
+    /// Each is the part's finding, reported once, as the part's: the
+    /// census over this product re-finds it inside the part's copy, and
+    /// that re-finding is not a second finding of this document's
+    /// ([`crate::checks::at_rest`]). Raised after
+    /// [`AssemblyError::CarriedMintRefusal`], whose rows are about a
+    /// record set the part's census never saw whole, and before this
+    /// document's own refusals, for the same reason that arm is: the
+    /// inner document is the file the author has to open.
+    ///
+    /// **Every finding travels**, in gather order, each with the route
+    /// it arrived by. Non-empty on the same terms as
+    /// [`AssemblyError::Mint`].
+    CarriedAtRest {
+        /// Every carried finding.
+        findings: Vec<CarriedAtRestFinding>,
+    },
     /// The kernel's tier-3′ door refused the assembled product with
     /// its records (A5): at least one finding is a verdict AGAINST the
     /// document — a refuted declaration or an unrecorded contact.
@@ -928,6 +1050,18 @@ impl crate::spoken::Say for AssemblyError {
                     refusals.len()
                 )?;
                 crate::finding::render_lines(f, refusals.iter().map(|r| crate::spoken::Said(r, by)))
+            }
+            // Spelled as the carried mint refusals are: each row in the
+            // ids of the document below that found it.
+            Self::CarriedAtRest { findings } => {
+                write!(
+                    f,
+                    "assembly: {} at-rest finding(s) refuse documents below this \
+                     one, so this assembly is not at rest over them — open those \
+                     documents and repair them there",
+                    findings.len()
+                )?;
+                crate::finding::render_lines(f, findings.iter().map(|r| crate::spoken::Said(r, by)))
             }
             Self::AtRest { findings } => {
                 write!(f, "{} finding(s) against this assembly:", findings.len())?;
@@ -1052,12 +1186,81 @@ pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLan
                 gate_spaces(
                     crate::product::loose_spaces(doc, evaluation, tol),
                     tol,
-                    &mut Vec::new(),
+                    &mut Reported {
+                        interference: &mut Vec::new(),
+                        carried: Vec::new(),
+                    },
                 )?;
             }
             Err(AssemblyError::Product(Box::new(refusal)))
         }
     }
+}
+
+/// **A part's carried findings, each once per part row** (A5, *A part's
+/// own census findings*): `rows` appended to `held`, but for a row an
+/// earlier list already holds, the same finding of the same pinned
+/// document arriving by another route (a part placed twice, or in the world and
+/// in a loose space). Only an earlier list's row is the same row: one
+/// list is its part's, and two equal findings in it (escalations, which
+/// name no entity) are two findings.
+pub(crate) fn once_per_part_row<R: CarriedRow + Clone>(
+    held: &mut Vec<R>,
+    rows: impl IntoIterator<Item = R>,
+) {
+    let earlier = held.len();
+    for row in rows {
+        if !held[..earlier].iter().any(|h| h.same_row(&row)) {
+            held.push(row);
+        }
+    }
+}
+
+/// A carried census row: the same row is the same document's same
+/// finding, whatever route it came by.
+pub(crate) trait CarriedRow {
+    /// Whether `other` is this row by another route.
+    fn same_row(&self, other: &Self) -> bool;
+}
+
+impl CarriedRow for CarriedInterference {
+    fn same_row(&self, other: &Self) -> bool {
+        (self.route.of, self.pin, &self.finding) == (other.route.of, other.pin, &other.finding)
+    }
+}
+
+impl CarriedRow for CarriedAtRestFinding {
+    fn same_row(&self, other: &Self) -> bool {
+        (self.route.of, self.pin, &self.finding) == (other.route.of, other.pin, &other.finding)
+    }
+}
+
+/// **A carried census finding with the pin of the document it is of**,
+/// the body of a part's census row ([`crate::eval`]'s `PartValue`): which
+/// version of `of` found it, which a [`Route`] does not say.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Pinned<F> {
+    pub(crate) pin: crate::ident::ContentPin,
+    pub(crate) finding: F,
+}
+
+// Said as the finding is: the pin names no node.
+impl<F: crate::spoken::Say> crate::spoken::Say for Pinned<F> {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
+        self.finding.say(f, by)
+    }
+}
+
+/// What the gate reports over the spaces it checks, never refused: this
+/// document's own interference findings, and those its parts carried up
+/// ([`Assembly::carried_interference`]).
+struct Reported<'a> {
+    interference: &'a mut Vec<crate::checks::at_rest::InterferenceFinding>,
+    carried: Vec<CarriedInterference>,
 }
 
 /// **Each loose copy's space checks as usual inside itself**, and
@@ -1067,11 +1270,17 @@ pub fn assemble<P: crate::ProfilePayload, T: crate::checks::at_rest::LocalizeLan
 fn gate_spaces<T: crate::checks::at_rest::LocalizeLane>(
     spaces: Vec<crate::LooseSpace<T>>,
     tol: Tol,
-    interference: &mut Vec<crate::checks::at_rest::InterferenceFinding>,
+    reported: &mut Reported<'_>,
 ) -> Result<(), AssemblyError> {
     for space in spaces {
         match space.gather {
-            Ok(product) => interference.extend(verdict(&product, tol)?),
+            Ok(product) => {
+                reported.interference.extend(verdict(&product, tol)?);
+                once_per_part_row(
+                    &mut reported.carried,
+                    product.carried_interference.iter().cloned(),
+                );
+            }
             Err(refusal) if refusal.kind().means_no_body() => {}
             Err(refusal) => {
                 return Err(AssemblyError::Space {
@@ -1123,9 +1332,15 @@ pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
         minted,
         carried,
         spaces,
+        carried_interference,
         ..
     } = product;
-    gate_spaces(spaces, tol, &mut interference)?;
+    let mut reported = Reported {
+        interference: &mut interference,
+        carried: carried_interference,
+    };
+    gate_spaces(spaces, tol, &mut reported)?;
+    let carried_interference = reported.carried;
     Ok(Assembly {
         body: body.into_body(),
         names,
@@ -1133,24 +1348,31 @@ pub fn assemble_gathered<T: crate::checks::at_rest::LocalizeLane>(
         minted,
         carried,
         interference,
+        carried_interference,
     })
 }
 
-/// **The gate's verdict over one gathered space** — the world, or one
-/// loose copy's own ([`gate_spaces`]): the one copy of the gate's
-/// checks, their attributions and their refusal order.
-fn verdict<T: crate::checks::at_rest::LocalizeLane>(
-    product: &Product<T>,
-    tol: Tol,
-) -> Result<Vec<crate::checks::at_rest::InterferenceFinding>, AssemblyError> {
+/// **What the gate refuses before it reads the census**, in its order:
+/// the mint refusals of the documents below, their own at-rest
+/// refusals, then this document's mint refusals. `None` when the gate
+/// goes on to its at-rest stage ([`at_rest_stage`]).
+fn ahead_of_at_rest<T: Decide>(product: &Product<T>) -> Option<AssemblyError> {
     // Inner mint health, before this document's own: an outer assembly
     // is unusable while an inner part is broken, and the file the
     // author must open is the inner one. Verification still runs once
     // — nothing is re-decided here, the rows ARE the inner documents'
     // own refusals. EVERY carried row, in gather order.
     if !product.carried_unminted.is_empty() {
-        return Err(AssemblyError::CarriedMintRefusal {
+        return Some(AssemblyError::CarriedMintRefusal {
             refusals: product.carried_unminted.clone(),
+        });
+    }
+    // A part's own at-rest refusals, before this document's: the part
+    // decided them, and the census over this product re-finds them only
+    // inside the part's copy (`less_carried`, in the at-rest stage).
+    if !product.carried_at_rest.is_empty() {
+        return Some(AssemblyError::CarriedAtRest {
+            findings: product.carried_at_rest.clone(),
         });
     }
     // The gather records what it could not mint; this door is where
@@ -1162,33 +1384,65 @@ fn verdict<T: crate::checks::at_rest::LocalizeLane>(
     // document with two broken mates is two repairs, and reporting one
     // of them makes the second a second evaluation.
     if !product.unminted.is_empty() {
-        return Err(AssemblyError::Mint {
+        return Some(AssemblyError::Mint {
             refusals: product.unminted.clone(),
         });
     }
+    None
+}
+
+/// **The gate's at-rest stage**: the overlaps between copies, reported,
+/// and every other verdict, attributed, which the gate refuses. Read by
+/// [`verdict`] and, at the seam, by [`seam_verdict`]: one reading of
+/// what the census found, so a part's verdict crosses as its own gate
+/// gave it.
+fn at_rest_stage<T: crate::checks::at_rest::LocalizeLane>(
+    product: &Product<T>,
+    tol: Tol,
+) -> (
+    Vec<crate::checks::at_rest::InterferenceFinding>,
+    Vec<AtRestFinding>,
+) {
     // The census's findings over the records, as the gather kept them,
     // then its findings for the mated pairs it refused at the mint,
     // which minted no record: the gate's own order, as when it read
     // those pairs itself. A contact between copies is not among them:
     // the gather recorded it as a row (D10).
-    let mut errors = product.census.clone();
+    //
+    // What a part's census already reported, re-found here inside its
+    // copy, is the part's, carried up and reported as the part's.
+    let mut errors = crate::checks::at_rest::less_carried(product, product.census.clone());
     errors.extend(product.refused_at_rest.iter().cloned());
     if errors.is_empty() {
-        return Ok(Vec::new());
+        return (Vec::new(), Vec::new());
     }
     // An overlap between two copies is a finding, never a refusal
     // (D10); what is left is refused as it always was.
     let (interference, errors) = crate::checks::at_rest::partition(product, errors, tol);
-    if errors.is_empty() {
-        return Ok(interference);
-    }
-    let findings: Vec<AtRestFinding> = errors
+    let findings = errors
         .into_iter()
         .map(|error| AtRestFinding {
             attribution: attribute(&error, &product.minted, &product.carried),
             error,
         })
         .collect();
+    (interference, findings)
+}
+
+/// **The gate's verdict over one gathered space** — the world, or one
+/// loose copy's own ([`gate_spaces`]): the one copy of the gate's
+/// checks, their attributions and their refusal order.
+fn verdict<T: crate::checks::at_rest::LocalizeLane>(
+    product: &Product<T>,
+    tol: Tol,
+) -> Result<Vec<crate::checks::at_rest::InterferenceFinding>, AssemblyError> {
+    if let Some(refusal) = ahead_of_at_rest(product) {
+        return Err(refusal);
+    }
+    let (interference, findings) = at_rest_stage(product, tol);
+    if findings.is_empty() {
+        return Ok(interference);
+    }
     // The split is the whole point of the two arms: ONE finding against
     // the document makes this a refusal of the document, however many
     // declines ride with it. Only a refusal that is declines and
@@ -1208,6 +1462,83 @@ fn verdict<T: crate::checks::at_rest::LocalizeLane>(
         })
     } else {
         Err(AssemblyError::AtRest { findings })
+    }
+}
+
+/// **A part's own at-rest verdict, as it crosses the seam**
+/// ([`crate::eval`]'s part store): what the census over the part's
+/// product found, judged as the part's own gate judges it, so the
+/// document instantiating the part reports each finding once, as the
+/// part's.
+///
+/// A refusal whose every finding [`attribute`] ties to one of the
+/// part's declarations stays out: those declarations' records cross the
+/// seam, and the census over the instantiating product verifies them
+/// again and attributes each finding there ([`Attribution::Carried`]),
+/// a decline included. A refusal with one finding that names no
+/// declaration crosses whole, the part's attributed findings with it,
+/// because it refuses the instantiating gate before that gate's own
+/// verdict ([`AssemblyError::CarriedAtRest`]).
+pub(crate) struct SeamVerdict {
+    /// The overlaps between the part's own copies.
+    pub(crate) interference: Vec<crate::checks::at_rest::InterferenceFinding>,
+    /// The part's at-rest refusal, whole, when one of its findings
+    /// names none of its declarations; empty otherwise.
+    pub(crate) refused: Vec<AtRestFinding>,
+    /// The pairs of solids both lists are about, with those the part
+    /// carried from below, sorted, in the part's product.
+    pub(crate) pairs: Vec<(topo::SolidKey, topo::SolidKey)>,
+}
+
+/// The part's at-rest verdict over its gathered `product`
+/// ([`SeamVerdict`]): its gate's [`at_rest_stage`], as [`verdict`] reads
+/// it, and nothing of it when the gate refuses before that stage
+/// ([`ahead_of_at_rest`]). The mint's own refusals cross the seam on
+/// their own rows.
+///
+/// One departure from the part's own gate, deliberate: the stage's
+/// overlaps cross even when its refusal does not (every finding of it
+/// attributed). The part's gate reports no overlap beside a refusal, but
+/// the refusal's findings re-verify at the instantiating gate, and an
+/// overlap that did not cross would be found again there inside the
+/// part's copy and refused as that document's own.
+pub(crate) fn seam_verdict<T: crate::checks::at_rest::LocalizeLane>(
+    product: &Product<T>,
+    tol: Tol,
+) -> SeamVerdict {
+    // A part whose gate refuses before its at-rest stage reports nothing
+    // of its own census, here as at its own gate: what refuses it crosses
+    // on its own rows (the mint refusals, the at-rest refusals carried
+    // from below), and the census's re-findings of those carried
+    // findings are no finding of the part's.
+    let (interference, refused) = if ahead_of_at_rest(product).is_some() {
+        (Vec::new(), Vec::new())
+    } else {
+        at_rest_stage(product, tol)
+    };
+    let refused = if refused.iter().any(|f| f.attribution.is_none()) {
+        refused
+    } else {
+        Vec::new()
+    };
+    let mut pairs: Vec<(topo::SolidKey, topo::SolidKey)> = product
+        .census_pairs
+        .iter()
+        .copied()
+        .chain(
+            interference
+                .iter()
+                .flat_map(|finding| &finding.evidence)
+                .chain(refused.iter().map(|finding| &finding.error))
+                .filter_map(|error| crate::checks::at_rest::finding_solids(&product.body, error)),
+        )
+        .collect();
+    pairs.sort_unstable();
+    pairs.dedup();
+    SeamVerdict {
+        interference,
+        refused,
+        pairs,
     }
 }
 
@@ -1439,11 +1770,12 @@ impl AtRestRows {
                 self.coincidences.push(AtRestRow {
                     by: AtRestBy::Mate(mate),
                     row: crate::coincide::NamedCoincidence {
-                        cells: [cell_of(face_a), cell_of(face_b)],
+                        cells: vec![cell_of(face_a), cell_of(face_b)],
                         relation: row.relation,
                         site: row.site,
                         margin: row.margin,
                         discharge: row.discharge,
+                        origin: crate::coincide::RowOrigin::Node,
                     },
                 });
                 let Ok(contact) = Contact::new(body, Cell::Face(face_a), Cell::Face(face_b)) else {
@@ -1835,6 +2167,7 @@ fn attribute(
         | ValidationError::SliverInsideOut { .. }
         | ValidationError::VolumeUncomputable { .. }
         | ValidationError::VolumeSignUnresolved { .. }
+        | ValidationError::OrientationUndecided { .. }
         | ValidationError::Pcurve { .. }
         | ValidationError::RingMeetsOuter { .. }
         | ValidationError::RingContactEscalated { .. }

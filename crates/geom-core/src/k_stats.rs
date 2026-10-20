@@ -214,6 +214,7 @@
 use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
+use std::collections::BTreeMap;
 
 use crate::predicate::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Sign, SizedPass};
 use crate::real::Real;
@@ -247,6 +248,62 @@ thread_local! {
     /// life of the thread, so a guard can tell its own frame from any
     /// frame that later occupies its depth.
     static NEXT_FRAME_ID: Cell<u64> = const { Cell::new(0) };
+    /// The family the verdicts decided now are recorded under, if any
+    /// ([`in_family`]).
+    static FAMILY: Cell<Option<&'static str>> = const { Cell::new(None) };
+    /// Each predicate's name under a family, minted once per thread
+    /// ([`family_name`]).
+    static FAMILY_NAMES: RefCell<BTreeMap<(&'static str, &'static str), &'static str>> =
+        const { RefCell::new(BTreeMap::new()) };
+}
+
+/// **Runs `work` with every verdict it records named under `family`**:
+/// a predicate decided inside it reaches the verdict channel as
+/// `family` followed by its own name (a name already in the family is
+/// left as it is). For an instrument a flip among whose decisions can
+/// change whether it reads, never what it reads (`topo`'s ray caster), so
+/// that a reader of the verdict log can tell them apart from the
+/// decisions of the operation that ran it (`editor_core::resolve`'s N5
+/// passes over them). Only the verdict
+/// channel is renamed: an escalation keeps the name its refusal is
+/// typed by, and a K sample the name its population is counted under.
+/// The symbolic recorder tags the decisions taken inside it with the
+/// family (`sym::revalue::Decision::family`), for the same reader's sake.
+///
+/// The family is this thread's for the call, an inner one replacing it
+/// until it returns, and [`map_detached`] hands it to its workers. A
+/// panic inside `work` restores the outer family on unwind.
+pub fn in_family<R>(family: &'static str, work: impl FnOnce() -> R) -> R {
+    struct Restore(Option<&'static str>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            FAMILY.with(|f| f.set(self.0));
+        }
+    }
+    let _restore = Restore(FAMILY.with(|f| f.replace(Some(family))));
+    work()
+}
+
+/// The family verdicts are recorded under on this thread, if any
+/// ([`in_family`]); the symbolic recorder tags its decisions with it
+/// (`sym::revalue::Decision::family`).
+pub(crate) fn current_family() -> Option<&'static str> {
+    FAMILY.with(Cell::get)
+}
+
+/// `predicate`'s name under `family`: the family followed by the name,
+/// minted once per thread for each pair (the names a family can hold
+/// are the kernel's static predicate names, a bounded set).
+fn family_name(family: &'static str, predicate: &'static str) -> &'static str {
+    if predicate.starts_with(family) {
+        return predicate;
+    }
+    FAMILY_NAMES.with(|names| {
+        *names
+            .borrow_mut()
+            .entry((family, predicate))
+            .or_insert_with(|| Box::leak(format!("{family}{predicate}").into_boxed_str()))
+    })
 }
 
 /// One open bracket's frame: what it has recorded, and the id its guard
@@ -386,7 +443,10 @@ fn classify_in<T: Decide>(
 /// Pushes one definite decision onto the innermost open frame — the
 /// only write to the verdict channel. With no frame open the verdict is
 /// recorded nowhere, which is what a decision outside every bracket is.
-fn record_verdict(verdict: Verdict) {
+fn record_verdict(mut verdict: Verdict) {
+    if let Some(family) = current_family() {
+        verdict.predicate = family_name(family, verdict.predicate);
+    }
     FRAMES.with(|f| {
         if let Some(top) = f.borrow_mut().last_mut() {
             top.recorded.verdicts.push(verdict);
@@ -1303,6 +1363,25 @@ pub fn splice_superseded(recording: Detached) {
     splice_channels(recording, false);
 }
 
+/// **Appends a recording's verdicts and escalations to this thread's
+/// open frame**, for a pass the caller does not run because it knows
+/// what that pass decides: the frame then holds what running it would
+/// have recorded.
+///
+/// The caller owes that knowledge at its own site, held by a row that
+/// runs the pass and compares the two logs. No margin is measured, so
+/// no sample reaches the sink.
+pub fn relog(recorded: &Recorded) {
+    FRAMES.with(|f| {
+        if let Some(top) = f.borrow_mut().last_mut() {
+            top.recorded.verdicts.extend_from_slice(&recorded.verdicts);
+            top.recorded
+                .escalations
+                .extend_from_slice(&recorded.escalations);
+        }
+    });
+}
+
 /// The one body behind [`splice`] and [`splice_superseded`]: they differ
 /// only in whether the escalation channel travels.
 fn splice_channels(recording: Detached, escalations: bool) {
@@ -1355,9 +1434,13 @@ pub fn map_detached<I: Sync, R: Send>(
         "map_detached reached with a symbolic session or shape report installed: the caller \
          owes the serial walk here (`sym::decisions_are_thread_portable`)"
     );
+    let family = current_family();
     items
         .par_iter()
-        .map(|item| detached(|| run(item)))
+        .map(|item| match family {
+            Some(family) => in_family(family, || detached(|| run(item))),
+            None => detached(|| run(item)),
+        })
         .collect()
 }
 

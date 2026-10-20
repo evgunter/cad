@@ -48,3 +48,39 @@ or the refusal should be a variant naming the short chord, with a lever
 that works (a longer run, or no run at all). In both cases,
 `FilletCarrierBelowSceneResolution` should only be raised when its
 `resolution` is at least ε.
+
+## Narrower since the joint reads its turn at the shorter arm (2026-10-19)
+
+`paths/joint-reads-its-turn` (Ev's ruling on #5354, and its fix pass)
+decides a joint by its turn levered by the SHORTER leg's arm
+(`seg::joint_tangency`; the stored-form read names it
+`path_fillet_joint_turn`). A stored chord turns half its sweep from the
+fillet over its own length, about four times its sagitta, so a chord
+whose sagitta is below the band reads as the tangent joint it was
+declared. Re-measured on the construction above, turns 1e-13 to 0.3 rad
+in quarter decades, against main:
+
+| ε | main | this branch |
+|---|---|---|
+| 1e-12 | 5.6e-12 to 1.8e-11: `FilletCarrierBelowSceneResolution` on `carrier_line_circle`; 3.2e-11, 5.6e-11: door escalates `carrier_line_circle` | 5.6e-12: builds, validation escalates `arc_span`; 1e-11, 1.8e-11: validates; 3.2e-11, 5.6e-11: builds, validation's pair pass escalates `carrier_line_circle`; 1.8e-6: door escalates `path_fillet_joint_turn` |
+| 1e-9 | builds and validates from 1e-8 up, but for 1e-4 and 1.8e-4 (validation escalates `segment_straightness`) | the same, but for 3.2e-5 and 5.6e-5: door escalates `path_fillet_joint_turn` |
+| 1e-6 | unchanged | unchanged |
+
+So this construction no longer reaches `FilletCarrierBelowSceneResolution`
+at any ε. What remains is an in-band band of turns where the run out's
+chord turns within `K·ε` of the fillet at its own length, refused as an
+escalation that names the stored-form read, and the pair escalations the
+door now hands on to validation
+(`an-adjacent-line-arc-pair-tangent-at-its-joint-escalates-its-carriers-clearance`).
+Grid A's recourse census (`common::past_the_corner`) counts the same
+in-band class: 4 entries at 1e-9 and 16 at 1e-6, the closer's junction
+included.
+
+The variant's resolution is now the joint read's own floor,
+`2⁻⁵²·scale·arm·(1/b_prev + 1/b_next)` with `b` a line's length or an
+arc's radius, and its text names that floor and its levers (nearer the
+origin, a radius no larger than the geometry's distance from it).
+`fillet_recourse_followability.rs` still reaches it with a radius far
+larger than the scene. What this row still asks is whether a refusal
+that names the stored form should ever name scene resolution when its
+`resolution` reads below ε.

@@ -1,10 +1,12 @@
 //! **The polygon-cone reader against an exact oracle**: random cones
-//! nobody chose, read by [`cone_side`] and [`wedge_classes`], each
-//! decided class checked against an exact rational reading of the same
-//! cone.
+//! nobody chose, read by [`cone_side`] and [`wedge_classes`], and by the
+//! census's link reader (`census::bare_cone_reads`), each decided class
+//! checked against an exact rational reading of the same cone.
 //!
-//! **What it certifies.** Every `cone_side` and every `wedge_classes`
-//! reading, on every family.
+//! **What it certifies.** Every `cone_side`, every `wedge_classes` and
+//! every census link reading (`crate::census::bare_cone_reads`, the
+//! census touch analysis's parity reader over the same cone as one
+//! link), on every family.
 //!
 //! The cones are stars about an axis, their corners risen and fallen
 //! at random, some with two corners a hair apart (a thin fin or
@@ -643,12 +645,23 @@ fn check_cone(
     probes: &[[f64; 3]],
     band: Band,
     rng: &mut Rng,
-    counts: &mut [Counts; 2],
+    counts: &mut [Counts; 3],
 ) -> Vec<String> {
     let Some(oracle) = cone_oracle(cone, band) else {
         return Vec::new();
     };
     let sectors = bool_sectors(cone);
+    // The same cone as the census's link reader takes it: each face a
+    // wedge of its two bounds' far points.
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let pt = |a: [f64; 3]| Point3::new(a[0], a[1], a[2]);
+    let faces: Vec<_> = cone
+        .iter()
+        .map(|s| {
+            let m = Vec3::new(s.normal[0], s.normal[1], s.normal[2]);
+            (m, pt(s.start_far), pt(s.end_far))
+        })
+        .collect();
     let mut wrong = Vec::new();
     for (k, &far) in probes.iter().enumerate() {
         let probe = probe_sector(far);
@@ -659,6 +672,16 @@ fn check_cone(
                 "wedge_classes",
                 wedge_classes(std::slice::from_ref(&probe), &sectors, band)
                     .map(|r| r.map(|r| r.rows[0].1)),
+            ),
+            (
+                "census_link",
+                Ok(
+                    crate::census::bare_cone_reads(o, &faces, o + d, band).map(|got| match got {
+                        crate::census::Material::In => SideCode::In,
+                        crate::census::Material::Out => SideCode::Out,
+                        crate::census::Material::On(_) => SideCode::On,
+                    }),
+                ),
             ),
         ];
         let truth = oracle.class(far, rng);
@@ -1090,7 +1113,7 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
     }
     for eps in eps_set {
         let band = Band::linear_at(Tol::witness(), eps).unwrap();
-        let mut counts = [Counts::default(), Counts::default()];
+        let mut counts = [Counts::default(), Counts::default(), Counts::default()];
         let mut read_cones = Vec::new();
         let before = wrong.len();
         for c in 0..cones {
@@ -1132,17 +1155,20 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
             ));
             read_cones.push((what, cone));
         }
-        let [cs, wc] = &counts;
+        let [cs, wc, cl] = &counts;
         println!(
             "[fuzz] sectors_cone_fuzz at ε {eps:e}: {} wrong; cone_side read {}, {} read \
-             nothing, {} refused; wedge_classes read {}, {} read nothing, {} refused",
+             nothing, {} refused; wedge_classes read {}, {} read nothing, {} refused; \
+             census_link read {}, {} read nothing",
             wrong.len() - before,
             cs.read,
             cs.unread,
             cs.refused,
             wc.read,
             wc.unread,
-            wc.refused
+            wc.refused,
+            cl.read,
+            cl.unread
         );
         pair_passes.push((eps, band, read_cones));
     }

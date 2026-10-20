@@ -10,7 +10,7 @@ Ev approved the plan in chat on 2026-10-10). Every row here moved from
 
 ## The slate
 
-**31 points** of dispatchable work against a ceiling of 32
+**39 points** of dispatchable work against a ceiling of 32, so **over budget** and owed a split along the priority seam (2026-10-19, after PR 5119 closed its two rows and filed five residues; several older rows are unpriced and charged 2.5)
 (`work/flush/program.md` states why it is not 30). INTENT stage 4 E
 released three rows on 2026-10-10 (each says so in its own section);
 step 2's reader's closes took back 10 and filed one P1 residue, and the
@@ -18,7 +18,13 @@ lanes in flight are expected to close more, so the track is not split.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P2 | `check-10-reads-a-cavitys-role-from-its-volume-sign` | M | check 10 reads a cavity's role from its V/A (Ev ruled on PR 4990; dispatched 2026-10-14, `flush/shell-role-reader`) |
+| P1 | `coincident-faces-are-not-imprinted-on-each-other-before-the-lump` | H | imprint each coincident face with the partner's in-plane edges before the Eq. 15.3 lump (filed from EMIT's `[ev]` PR 5153, Ev 2026-10-19: "no stopgap"); the structural fix under PRs 4650 and 4737's records, and EMIT's pocket-floor row waits on it |
+| P2 | `a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face` | H | the ray half of Ev's needle ruling (fork-log row 176): a ray in band of an edge meets it, half a crossing per face; also closes CLEAVE's point-in-solid set-aside row |
+| P2 | `a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read` | M | a needle cavity 10.5–15ε refuses `SectionLoopUndecided` at the join before any read (PR 5119's residue) |
+| P2 | `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal` | – | the reader's aims meet exact ties at symmetric nominals; retired by the edge-meeting ray |
+| P3 | `revalue-pairs-the-ray-casters-decisions-only-to-their-first-difference` | – | a laundering after the reader's first divergence goes uncounted (PR 5119's delta review) |
+| P3 | `the-volume-backstops-plus-v-posture-reads-a-sign-the-side-reader-cannot` | E | the backstop's V/A goes (Ev: "filing removing V/A on flush works") |
+| P3 | `the-lane-free-rounding-bound-charges-a-thin-face-its-spread-squared` | M | lane-free doors at 1e-9 reach only bars wider than about 230ε; the bound charges a thin face its spread squared (PR 5119's third check) |
 
 Parked, and not counted:
 

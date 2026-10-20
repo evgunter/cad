@@ -38,7 +38,7 @@ use std::collections::BTreeMap;
 
 use geom::SurfaceKind;
 use geom::{NetState, Surface};
-use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
+use geom_brep::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass, Unsized};
 use geom_core::{Band, BandError, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
@@ -1134,7 +1134,7 @@ const DECLARED_ORIENTATION: SizedDecision = SizedDecision {
             span a length",
     size: "span of the two faces",
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -1147,7 +1147,7 @@ const LOOP_WINDING: SizedDecision = SizedDecision {
     lever: "reshape the merged faces so each loop of the result clearly encloses an area",
     size: "area a loop encloses over its length",
     passes: SizedPass::NonZero,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -1631,8 +1631,8 @@ impl EstablishedFact {
 ///
 /// | site | can return |
 /// | --- | --- |
-/// | `ring_move_minting` | `RingIsOuter` (C), `CrossShell` (C); its site mint's `Certification` (a `tol` that forms no band), never `PcurveMint`: a moved loop is left as found on a spline chart, and a minting door owes no keys-only row |
-/// | `kef_minting` | `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C); its site mint's, as `ring_move_minting`'s |
+/// | `ring_move_unasked` | `RingIsOuter` (C), `CrossShell` (C); its site mint's `Certification` (a `tol` that forms no band), never `PcurveMint`: a moved loop is left as found on a spline chart, and a minting door owes no keys-only row |
+/// | `kef_minting` | `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C); its site mint's, as `ring_move_unasked`'s |
 /// | `kev` | `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
 /// | `mekr_chord` (a lone vertex's ring) | `LoopNotEmpty`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
 /// | `kemr` | `NotSameLoop` (C) |
@@ -1859,6 +1859,12 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// [`MergeCoplanarOutcome::joins`]); a body that also has nothing to
     /// join is untouched (deterministic no-op).
     ///
+    /// # Panics
+    ///
+    /// On a kernel bug: an edge the body stores, re-minted or restated on its
+    /// own carrier and interval, whose span or winding reads certainly
+    /// refused at the run's band.
+    ///
     /// # Errors
     ///
     /// [`MergeCoplanarError`], the body untouched in every case.
@@ -1970,6 +1976,12 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// [`MergeCoplanarOutcome::joins`]), so the body it leaves has
     /// maximal faces and maximal edges (`docs/DESIGN.md`, maximal
     /// edges); a body with nothing to merge is still joined.
+    ///
+    /// # Panics
+    ///
+    /// On a kernel bug: an edge the body stores, re-minted or restated on its
+    /// own carrier and interval, whose span or winding reads certainly
+    /// refused at the run's band.
     ///
     /// # Errors
     ///
@@ -2901,7 +2913,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                 );
                 #[cfg(test)]
                 tear_before_ring_move(self, ring);
-                self.ring_move_minting(ring, rep, tol)?;
+                self.ring_move_unasked(ring, rep, tol)?;
             }
             // The two facts `kef` could contradict. The drain above is
             // exactly the mutation that invalidates a fact read before

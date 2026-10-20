@@ -15,9 +15,9 @@
 // Panicking is a test's failure mechanism (workspace lint policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::Affine3;
 use geom_core::Tol;
 use profile::RawLoop;
+use profile::SketchPlane;
 use sweep::ExtrudeSide;
 use sweep::test_support::{PRISM_Z, finished, loft_prism_sections, stacked_at};
 use sweep::{Section, loft_body};
@@ -25,7 +25,7 @@ use sweep::{Section, loft_body};
 /// The shape (iii) acceptance sections: squares at z = 0 and z = 2,
 /// a trapezoid at z = 1 — `sweep::test_support`'s `loft_prism`
 /// sections under the placement this suite's derivation assumes.
-fn shape_iii_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
+fn shape_iii_sections() -> (Vec<Section>, Vec<SketchPlane<f64>>) {
     (loft_prism_sections(), stacked_at(&PRISM_Z))
 }
 
@@ -230,7 +230,7 @@ mod certified {
         let (sections, places) = shape_iii_sections();
         let lofted = loft_body::<Interval>(
             &sweep::test_support::lift_sections::<Interval>(&sections),
-            &sweep::test_support::lift_places::<Interval>(&places),
+            &sweep::test_support::lift_places::<Interval>(&places, geom_core::Tol::witness()),
             2,
             Tol::witness(),
         )

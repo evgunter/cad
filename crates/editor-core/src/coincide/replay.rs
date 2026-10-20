@@ -1,8 +1,7 @@
 //! **The door's symbolic rungs** (D10, FORK-S4F): the document replayed
 //! in the `Sym` lane with every continuous variable a symbol of its own
 //! ([`crate::analysis::var_env_symbolic`]), profile geometry elaborated
-//! in that lane (symbols make the lift [`crate::ProfileLift::Guided`]),
-//! and each row read
+//! in that lane ([`crate::ProfileLane`]), and each row read
 //! twice off the replay.
 //!
 //! - **The carrier-pair verdict** ([`Rung::CarrierVerdict`]): for a row
@@ -82,9 +81,9 @@ const BUDGET: SymBudget = SymBudget {
 /// door's budget ([`BUDGET`]) with the drive's retry ladder, DEFERRING
 /// (a margin's form is built only where a reader asks for its
 /// discharge), on `base`, the caller's environment — which binds every
-/// variable a symbol or varies a box, so its profile geometry is
-/// elaborated in the lane ([`crate::eval::ProfileLift::Guided`], read off
-/// what the evaluation binds by [`EvalOptions::profile_lift_over`]). Every
+/// variable a symbol or varies a box; its profile geometry is
+/// elaborated in the lane, as every evaluation's is
+/// ([`crate::ProfileLane`]). Every
 /// reader of a replay opens it here — the door (`symbols`), its census,
 /// and the re-valuation instrument (`editor-core/tests/revalue_corpus.rs`,
 /// its own degenerate boxes) — so the instrument reads exactly what
@@ -254,7 +253,9 @@ fn why_no_value(ev: &Evaluation<Lane>, node: RecipeNodeId) -> Unreplayed {
 /// the row decided two faces one carrier: whether every Zero it stands
 /// on is proven, or why the first that is not keeps; `None` where the
 /// replay reads no such verdict (not two faces, a face it did not
-/// build, or another relation decided).
+/// build, or another relation decided). A meeting of cells at a point
+/// is read by the margin that decided it, which the replay computes
+/// from the cells' symbolic carriers ([`Rung::MarginIdentity`]).
 fn carrier_verdict(
     ev: &Evaluation<Lane>,
     row: &NamedCoincidence,
@@ -265,8 +266,10 @@ fn carrier_verdict(
         topo::Relation::SameOpposite => CarrierRelation::SameOpposite,
         _ => return None,
     };
-    let [a, b] = row.cells.each_ref().map(|cell| face_of(ev, cell));
-    let ((a, fa), (b, fb)) = (a?, b?);
+    let [a, b] = row.cells.as_slice() else {
+        return None;
+    };
+    let ((a, fa), (b, fb)) = (face_of(ev, a)?, face_of(ev, b)?);
     match topo::boolean::carrier_pair_decided(a, fa, b, fb, band) {
         Ok(Ok((relation, Some(margin)))) if relation == wanted => {
             Some(deferred::discharge_or_why(margin))

@@ -900,7 +900,8 @@ fn graft_solids_impl<T: geom_core::Decide>(
             curve.carrier(),
             curve.params(),
         );
-        let recert = geom_brep::EdgeCurve::certify_via(
+        let recert = crate::policy_lane::certify_via(
+            crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::Graft),
             spec,
             point(start_v),
             point(end_v),

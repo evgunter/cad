@@ -297,7 +297,7 @@ fn j3r2_pocket_battery() {
                 let inside = off.0.abs() + 0.5 < 1.0 && off.1.abs() + 0.5 < 1.0;
                 let shape = turn(&base, phi, off);
                 for (entry, z0, h) in entries {
-                    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+                    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
                     let c = body_of(plane, &shape, h);
                     let vc = topo::mass_properties(&c, tol()).unwrap().volume;
                     if (vc - s * h).abs() > 1e-9 {
@@ -353,7 +353,14 @@ fn j3r2_tilted_battery() {
                         let place = Affine3::translation(p - Point3::origin()) * rot;
                         let o = place.transform_point(Point3::origin());
                         assert!((o - p).norm() < 1e-12, "placement composes as expected");
-                        let c = body_of(SketchPlane::new(place), &shape, h);
+                        let c = body_of(
+                            SketchPlane::from_frame(geom_core::test_support::rigid(
+                                &place,
+                                geom_core::Tol::witness(),
+                            )),
+                            &shape,
+                            h,
+                        );
                         let vc = topo::mass_properties(&c, tol()).unwrap().volume;
                         let n = place.transform_vec(Vec3::new(0.0, 0.0, 1.0));
                         // The oblique closed form, only for the through
@@ -476,7 +483,7 @@ fn j3r2_rand() {
         let shape = |pts: &[(f64, f64)]| -> Shape { pts.iter().map(|&p| (p, 0.0)).collect() };
         let zb = |sh: &Shape, z: (f64, f64)| {
             body_of(
-                SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z.0))),
+                SketchPlane::xy_at(Point3::new(0.0, 0.0, z.0)),
                 sh,
                 z.1 - z.0,
             )
@@ -514,9 +521,15 @@ fn j3r2_groove_battery() {
             );
             // Sketch (u, v) lands at world (z = −u, y = v).
             let disc = profile::circle(Point2::new(-z0, y0), r, tol()).unwrap();
-            let p = Profile::new(SketchPlane::new(place), vec![disc.into()])
-                .validate(tol())
-                .unwrap();
+            let p = Profile::new(
+                SketchPlane::from_frame(geom_core::test_support::rigid(
+                    &place,
+                    geom_core::Tol::witness(),
+                )),
+                vec![disc.into()],
+            )
+            .validate(tol())
+            .unwrap();
             let rod = extrude(
                 &p,
                 Extrusion::Distance {
@@ -624,7 +637,14 @@ fn j3r2_tilted_operands() {
             for theta in [0.0, 0.15, 0.3] {
                 let rot = Affine3::rotation_about_axis(Point3::origin(), axis, theta);
                 let place = Affine3::translation(Vec3::new(0.0, 0.0, 0.5)) * rot;
-                let c = body_of(SketchPlane::new(place), &base, 1.0);
+                let c = body_of(
+                    SketchPlane::from_frame(geom_core::test_support::rigid(
+                        &place,
+                        geom_core::Tol::witness(),
+                    )),
+                    &base,
+                    1.0,
+                );
                 let r = legal(c);
                 println!("J3R2OP {name} ax={ax_name} th={theta} => {r:?}");
             }
@@ -658,7 +678,14 @@ fn j3r2_tilted_rod_operand() {
             let rot =
                 Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), theta);
             let place = Affine3::translation(Vec3::new(0.0, 0.0, 0.5)) * rot;
-            let c = body_of(SketchPlane::new(place), &shape, 1.0);
+            let c = body_of(
+                SketchPlane::from_frame(geom_core::test_support::rigid(
+                    &place,
+                    geom_core::Tol::witness(),
+                )),
+                &shape,
+                1.0,
+            );
             let c = match as_operand(c) {
                 Ok(c) => c,
                 Err(e) => {

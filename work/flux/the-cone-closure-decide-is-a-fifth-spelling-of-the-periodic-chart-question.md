@@ -2,10 +2,12 @@
 id: the-cone-closure-decide-is-a-fifth-spelling-of-the-periodic-chart-question
 kind: issue
 title: The cone's loop closure and winding are decided apart from the periodic-chart closure decision
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: M
+pr: 5333
+closed: 2026-10-19
 ---
 
 

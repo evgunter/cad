@@ -23,6 +23,12 @@
 //!
 //! Inside one copy's body an overlap stays the kernel's typed error:
 //! only verdicts between solids of two different copies are findings.
+//! A part is one copy of the document instantiating it, and the census
+//! over that document finds the part's own findings again inside the
+//! copy. Those are the part's, carried up and reported as the part's
+//! ([`crate::CarriedInterference`], [`crate::AssemblyError::CarriedAtRest`]),
+//! so the gate drops each verdict about a pair of solids the part
+//! already answered (`less_carried`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -60,7 +66,7 @@ pub struct FaceSite {
 }
 
 /// **Where two copies overlap.**
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Overlap {
     /// One connected overlap of the two copies' material, named by the
     /// faces of both copies that bound it, sorted and deduplicated.
@@ -74,7 +80,7 @@ pub enum Overlap {
 }
 
 /// **Why an overlap has no site.**
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Unlocalized {
     /// The intersection of the two copies refused, in its own words.
     Refused {
@@ -107,7 +113,7 @@ pub enum Unlocalized {
 /// **An overlap of two copies' material at rest** (D10): reported,
 /// never refused, and quiet only under the assertion `quiet_verdicts`
 /// finds.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct InterferenceFinding {
     /// The copy earlier in gather order.
     pub a: CopyRef,
@@ -316,7 +322,9 @@ impl LocalizeLane for geom_core::Probe {}
 
 impl LocalizeLane for geom_core::Interval {}
 
-impl LocalizeLane for geom_core::Dual<f64> {}
+impl<T> LocalizeLane for geom_core::Dual<T> where geom_core::Dual<T>: Decide + AtRestPolicy {}
+
+impl<T> LocalizeLane for geom_core::Sym<T> where geom_core::Sym<T>: Decide + AtRestPolicy {}
 
 impl LocalizeLane for f64 {
     fn localize(
@@ -374,18 +382,8 @@ pub(crate) fn partition<T: LocalizeLane>(
     // (`topo::record_at_rest`), and which keeps the finding loud. A pair
     // the census decided nothing about stays refused as it left it.
     let undecided_pair = |error: &ValidationError| match error {
-        ValidationError::CensusUndecidable { a, b, .. } => pair_of(
-            topo::census_entity_solid(&product.body, *a)?,
-            topo::census_entity_solid(&product.body, *b)?,
-        ),
-        touch @ ValidationError::UnrecordedContact { .. } => {
-            let [x, y] = topo::census_contact_row(touch)?
-                .cells
-                .map(|cell| match cell {
-                    topo::RowCell::Result { cell } => topo::census_cell_solid(&product.body, cell),
-                    topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
-                });
-            pair_of(x?, y?)
+        ValidationError::CensusUndecidable { .. } | ValidationError::UnrecordedContact { .. } => {
+            finding_solids(&product.body, error).and_then(|(x, y)| pair_of(x, y))
         }
         _ => None,
     };
@@ -401,6 +399,68 @@ pub(crate) fn partition<T: LocalizeLane>(
         .flat_map(|((a, b), evidence)| T::localize(product, a, b, evidence, tol))
         .collect();
     (findings, kept)
+}
+
+/// **The two solids a census finding is about**, smaller key first:
+/// the pair an interference verdict decided
+/// ([`topo::census_interference_solids`]), the two entities an
+/// undecidable verdict names, or the two cells of an unrecorded touch.
+/// `None` for a finding that names no pair of solids: an escalation,
+/// which names no entity at all
+/// (`work/contacthold/an-escalated-census-finding-names-no-pair.md`), a
+/// pair the census had no lane for, a stale record of a vertex or an
+/// edge, a touch with a cell of an input or a tool.
+pub(crate) fn finding_solids<T: Decide>(
+    body: &Body<T>,
+    error: &ValidationError,
+) -> Option<(SolidKey, SolidKey)> {
+    let (x, y) = match error {
+        _ if let Some(pair) = topo::census_interference_solids(body, error) => pair,
+        ValidationError::CensusUndecidable { a, b, .. } => (
+            topo::census_entity_solid(body, *a)?,
+            topo::census_entity_solid(body, *b)?,
+        ),
+        touch @ ValidationError::UnrecordedContact { .. } => {
+            let [x, y] = topo::census_contact_row(touch)?
+                .cells
+                .map(|cell| match cell {
+                    topo::RowCell::Result { cell } => topo::census_cell_solid(body, cell),
+                    topo::RowCell::Input { .. } | topo::RowCell::Tool => None,
+                });
+            (x?, y?)
+        }
+        _ => return None,
+    };
+    Some((x.min(y), x.max(y)))
+}
+
+/// **The census's verdicts less what a part already answered**: each
+/// verdict about a pair of solids a part's own census reported
+/// ([`Product::census_pairs`]) is the part's, carried up with it and
+/// reported as the part's ([`crate::assembly::CarriedInterference`],
+/// [`crate::AssemblyError::CarriedAtRest`]), so the census over this
+/// product re-finding it inside the copy says nothing new. A verdict
+/// inside one copy that answers to no carried pair is left, the copy's
+/// door's own unrecorded contact.
+// TRANSITIONAL: the final rule is that inside an arrival the census
+// reads nothing (D10, `[placement.placement]`), so this match of the
+// census's re-findings against a part's carried pairs is a check the
+// rule retires, with the in-copy census itself
+// (`work/intent/the-in-arrival-census-check-retires.md`).
+pub(crate) fn less_carried<T: Decide>(
+    product: &Product<T>,
+    errors: Vec<ValidationError>,
+) -> Vec<ValidationError> {
+    if product.census_pairs.is_empty() {
+        return errors;
+    }
+    let carried: BTreeSet<(SolidKey, SolidKey)> = product.census_pairs.iter().copied().collect();
+    errors
+        .into_iter()
+        .filter(|error| {
+            finding_solids(&product.body, error).is_none_or(|pair| !carried.contains(&pair))
+        })
+        .collect()
 }
 
 /// **Which copy each of the product's solids is**: the census's groups
@@ -469,11 +529,12 @@ pub(crate) fn copy_rows<T: Decide>(
             crate::assembly::AtRestRow {
                 by: crate::assembly::AtRestBy::Copies(by(ca.min(cb)), by(ca.max(cb))),
                 row: crate::coincide::NamedCoincidence {
-                    cells: [na, nb],
+                    cells: vec![na, nb],
                     relation: row.relation,
                     site: row.site,
                     margin: row.margin,
                     discharge: row.discharge,
+                    origin: crate::coincide::RowOrigin::Node,
                 },
             }
         })

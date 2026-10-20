@@ -31,7 +31,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::Point3;
+use geom_core::{Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
@@ -46,7 +47,7 @@ fn lens(z0: f64, h: f64) -> Body<f64> {
         (Point2::new(-1.0, 0.0), 0.6),
         (Point2::new(1.0, 0.0), 0.6),
     ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, z0));
     let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
     extrude(
         &profile,

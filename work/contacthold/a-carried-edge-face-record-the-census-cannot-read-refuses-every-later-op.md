@@ -2,10 +2,13 @@
 id: a-carried-edge-face-record-the-census-cannot-read-refuses-every-later-op
 kind: issue
 title: A union ships edge–face records its census cannot read, and the one carry refuses the same records in every later op, even one touching neither cell
-status: open
+status: closed
 opened: 2026-10-13
 priority: P1
 design: true
+branch: contacthold/carry-by-lineage
+pr: 4996
+closed: 2026-10-19
 ---
 
 
@@ -76,6 +79,18 @@ whole ships them unread (PR 4921's review probe
 A designer pair (fork log row 132) converged in two rounds: a point-touch reading in the census for any cell pair (C3); every door that mints a record reads it with the census's record confirm and refuses typed one no reading covers, the search for unrecorded touches staying parked (D1 tier 3); the carry lands a record whose cells the op kept or substituted by lineage, unread, and confirms only pairs drawn from a divided cell (D1's carry clause). `[ev]` PR for the D1/C3 text. Sequencing either way: the point-touch reading lands before the mint-time confirm, so the rod-on-plate union never refuses in between.
 
 Ev on `[ev]` PR 4951 (2026-10-13): the point-touch reading and the carry by lineage, confirming only on division, as recommended; the mint-time per-record confirm is not built now but folds into un-parking the door's result gate (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`), since its job there is "escalate or not". Owed: the lineage carry (D1's carry clause as PR 4951 left it). The point-touch reading is PR 4956.
+
+## 2026-10-13 — an n-ary union's next fold step refuses it too (CONTACTHOLD)
+
+Measured on `contacthold/fold-step-face-face-row`: the rod of
+`face_face_touch` (z 0.25 to 0.75) on the plate, unioned through
+`editor_core` with a block apart from both, members in the order plate,
+rod, block, refuses `UnionFoldStep { member: 2, refusal:
+CarryRefused { row: Carried(A), refusal: Unread { cells: [Edge, Face] } } }`:
+the step folding in the block carries the first step's cap-circle
+edge–face record and cannot read it. The fold-step witness of that
+branch uses a rod of the plate's height instead, whose ends are
+edge–edge records the carry reads.
 
 ## 2026-10-13 — the point-touch reading lands (`contacthold/point-touch-reading`)
 

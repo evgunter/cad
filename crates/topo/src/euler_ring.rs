@@ -1042,6 +1042,10 @@ impl<T: Decide> Body<T> {
     /// # Panics
     ///
     /// As [`Body::kfmrh`].
+    ///
+    /// Also on a kernel bug: an edge the body stores, re-minted or
+    /// restated on its own carrier and interval, whose span or winding
+    /// reads certainly refused at the run's band.
     pub fn kfmrh_describing(
         &mut self,
         f1: FaceKey,
@@ -1439,7 +1443,7 @@ impl<T: Decide> Body<T> {
     pub fn ring_move(&mut self, ring: LoopKey, to_face: FaceKey) -> Result<(), EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        self.ring_move_with(ring, to_face, None)?;
+        self.ring_move_with(ring, to_face, None, true)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move");
         Ok(())
@@ -1464,20 +1468,49 @@ impl<T: Decide> Body<T> {
     ) -> Result<(), EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-        self.ring_move_with(ring, to_face, Some(tol))?;
+        self.ring_move_with(ring, to_face, Some(tol), true)?;
         #[cfg(debug_assertions)]
         self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move_minting");
         Ok(())
     }
 
+    /// [`Body::ring_move_minting`] without the move's keys, as
+    /// [`Body::kef_minting`] is [`Body::kef`] without them: the ring
+    /// may land on a face on another chart with its edges still
+    /// described in the one it leaves. Its caller re-describes them:
+    /// the coplanar merge, whose ring drain moves an absorbed face's
+    /// rings onto its survivor before the kill and re-describes every
+    /// boundary edge of the kept face before it returns.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::ring_move_minting`], less the move's keys
+    /// ([`EulerOpError::RechartStrandsDescriptions`],
+    /// [`EulerOpError::RechartUnvouched`]).
+    pub(crate) fn ring_move_unasked(
+        &mut self,
+        ring: LoopKey,
+        to_face: FaceKey,
+        tol: Tol,
+    ) -> Result<(), EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        self.ring_move_with(ring, to_face, Some(tol), false)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move_unasked");
+        Ok(())
+    }
+
     /// [`Body::ring_move`]'s plan and surgery, with the band its site
-    /// mint runs at, or none for the keys-only door. The door that
-    /// calls it declares the postcondition.
+    /// mint runs at, or none for the keys-only door, asking the move's
+    /// keys where `ask_keys` is set. The door that calls it declares the
+    /// postcondition.
     fn ring_move_with(
         &mut self,
         ring: LoopKey,
         to_face: FaceKey,
         tol: Option<Tol>,
+        ask_keys: bool,
     ) -> Result<(), EulerOpError> {
         // ---- Preconditions. ----
         let ring_data = lookup(&self.loops, ring, EntityId::Loop, Arg("ring"))?;
@@ -1506,15 +1539,17 @@ impl<T: Decide> Body<T> {
             (Vec::new(), Vec::new())
         } else {
             let ring_halves = self.whole_cycle(ring);
-            self.vouch_move(
-                RechartDoor::RingMove,
-                to_face,
-                self.landing_on(from_surface, to_surface),
-                self.run_edges(&ring_halves),
-                |_, l, _| l == ring,
-                self.same_chart(from_surface, to_surface),
-                None,
-            )?;
+            if ask_keys {
+                self.vouch_move(
+                    RechartDoor::RingMove,
+                    to_face,
+                    self.landing_on(from_surface, to_surface),
+                    self.run_edges(&ring_halves),
+                    |_, l, _| l == ring,
+                    self.same_chart(from_surface, to_surface),
+                    None,
+                )?;
+            }
             let rows = self.plan_moved_rows(
                 &ring_halves,
                 self.same_chart(from_surface, to_surface),
@@ -1846,6 +1881,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(
+            crate::policy_lane::Origin::Callers,
             None,
             curve.spec(u == w, p_u, p_w),
             p_u,
@@ -1945,6 +1981,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(
+            crate::policy_lane::Origin::Callers,
             None,
             curve.spec(u == w, p_u, p_w),
             p_u,
@@ -2034,6 +2071,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(
+            crate::policy_lane::Origin::Callers,
             None,
             curve.spec(u == w, p_u, p_w),
             p_u,
@@ -2132,6 +2170,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(
+            crate::policy_lane::Origin::Callers,
             None,
             curve.spec(u == w, p_u, p_w),
             p_u,

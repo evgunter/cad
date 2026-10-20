@@ -32,27 +32,35 @@
 //!    the candidate (`nearer_end`) stands within ε of the other carrier
 //!    and definitely nearer that candidate than the carriers' other one
 //!    (`own_candidate`), so inside the candidate's own stretch;
-//!    otherwise the pair escalates.
+//!    otherwise the pair escalates. The pass reads where a loop meets
+//!    itself, never how far two adjacent segments run within ε of each
+//!    other past their joint: that neighbourhood is the joint's own,
+//!    and its extent is not a number any pass reads
+//!    (`[topology.census]`). An adjacent pair is read beyond the vertex
+//!    it shares — at a tangent cusp, by its far ends: within ε
+//!    touches, in band escalates, definite validates however long the
+//!    stretch before it. Whether a tangent cusp is a legal edge is the
+//!    sweep's second-order question, asked where it becomes one.
 //! 4. **Tangent joints** (D1's profile tangency) — every *joint*
 //!    (adjacent-segment junction at its shared vertex) is classified by
-//!    the same carrier predicates the simplicity pass uses — the
-//!    carrier clearance margins (`carrier_line_circle`, the
-//!    `carrier_circles_*` family) are bit-identical expressions;
-//!    line/line joints reuse `chord_side` in the same expression form
-//!    on the joint's far endpoint (a carrier-identity question — no
-//!    new ε anywhere). A joint classified Zero, tangent carriers or one
-//!    carrier continuing, is a tangent joint: identity is a fact about
-//!    carriers, tangency a fact about directions, and the directions
-//!    agree there (Ev, in-chat, 2026-09-02). The tangent-joint set is
+//!    [`seg::joint_tangency`]: carrier identity first (`chord_side` of
+//!    a line/line joint's far endpoint, `carrier_circles_identity` of
+//!    an arc/arc one), then the joint's turn levered by the shorter of
+//!    its two legs' arms (`path_junction_turn`, through
+//!    [`seg::junction_turn`], the one reading and the one arm the path
+//!    door asks of the same junction — no new ε). A joint whose turn reads Zero,
+//!    or whose carriers are one, is a tangent joint: identity is a fact
+//!    about carriers, tangency a fact about directions, and the
+//!    directions agree there (Ev, in-chat, 2026-09-02). The tangent-joint set is
 //!    derived here ([`ValidatedLoop::tangent_joints`]), from the
 //!    joints a [`ConstructedLoop`]'s constructors made and these
-//!    verdicts. A constructed joint the carriers definitely cross ⇒
+//!    verdicts. A constructed joint that definitely turns ⇒
 //!    [`ProfileError::TangencyContradicted`] (a construction is
 //!    verified, never trusted); a Zero joint no constructor made is
 //!    recorded as a tangency decided from values
 //!    ([`ValidatedLoop::decided_joints`]), for the
-//!    `unproven-coincidence` lint. In-band near-tangency escalates from
-//!    the simplicity pass as it always did.
+//!    `unproven-coincidence` lint. A turn in band escalates at the
+//!    joint's segment pair.
 //! 5. **Containment forest** — trilean point-in-loop by ray parity
 //!    (rays through arc segments included); a grazing ray is refused and
 //!    the next candidate ray tried deterministically (Mäntylä ch. 13's
@@ -117,6 +125,8 @@
 //! | `carrier_circles_identity` | d + |Δr| | direct |
 //! | `carrier_circles_external` | d − (r₁+r₂) | direct |
 //! | `carrier_circles_internal` | d − |Δr| | direct |
+//! | `path_junction_turn` | sin φ · arm | the shorter of the two legs' arms, each a line's length or an arc's min(radius, chord) |
+//! | `carrier_circles_chord` | the radical foot's mean depth inside both circles, or zero outside them | direct |
 //! | `arc_apex_identity` | apex distance | direct |
 //! | `collinear_overlap` | overlap length | direct |
 //! | `contact_at_shared_vertex` | contact-to-vertex distance | direct |
@@ -193,8 +203,9 @@ pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the ori
 /// declare the tangency, or spell the continuation, or move the
 /// geometry.
 pub(crate) const JUNCTION_TANGENT_LEVER: &str = "for tangency onto a new carrier use .tangent() \
-     (or the tangent-arc or seam-fillet close at the seam); for a straight continuation spell it \
-     line(len) off the directed point; otherwise move the geometry";
+     (.tangent().tangent_arc_to(p) for an arc; the tangent-arc or seam-fillet close at the \
+     seam); for a straight continuation spell it line(len) off the directed point; otherwise \
+     move the geometry";
 
 use crate::path::num;
 use crate::seg::{
@@ -606,18 +617,20 @@ pub const FILLET_FLATTENED_RECOURSE: &str = "turn the corner further, or use a L
 
 /// **The recourse for a fillet whose carrier the scene cannot resolve.**
 ///
-/// The stored form here IS an arc — the sagitta is metres — but the
-/// clearance a carrier predicate classifies is a DIFFERENCE of lengths
-/// at the scene's own magnitude (`r − |h|`, `d − |r₁ − r₂|`), and such a
-/// difference cancels first-order: at magnitude `M` it resolves only to
-/// about `M·2^-52`. When that floor is coarser than ε the joint cannot
-/// be classified at all, whatever the turn is.
+/// The stored form here IS an arc — the sagitta is metres — but a
+/// joint's turn is read off its legs' headings, each a DIFFERENCE of
+/// coordinates at the scene's own magnitude `M` (the larger of the
+/// coordinates and the radii) over the length it is taken across (an
+/// arc's radius `ρ`, a line's length), and such a difference cancels
+/// first-order: levered by the joint's arm, the turn resolves only to
+/// about `M·2⁻⁵²·arm/ρ`. The arm is the shorter leg's, never longer
+/// than the fillet's own `min(ρ, chord)`, so the floor is at most about
+/// `M·2⁻⁵²`, and when it is coarser than ε the joint cannot be
+/// classified at all, whatever the turn is.
 ///
-/// So this situation's levers run the OTHER way from
-/// [`FILLET_FLATTENED_RECOURSE`]'s: a larger radius makes it worse. What
-/// helps is shrinking the magnitude the difference is taken at — a
-/// smaller radius, or the geometry nearer the origin — or dropping the
-/// fillet.
+/// So the lever is the magnitude: the geometry nearer the origin, or a
+/// radius no larger than the scene's own distance from it (a radius
+/// below that changes nothing). Or drop the fillet.
 ///
 /// Followed at its own door by the row named
 /// `the_scene_resolution_recourse_is_followed_by_a_smaller_radius_and_a_nearer_scene`.
@@ -629,8 +642,8 @@ pub const FILLET_FLATTENED_RECOURSE: &str = "turn the corner further, or use a L
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "use a smaller radius (a LARGER one makes this worse), place the geometry nearer \
-     the origin, or drop the fillet and leave the corner sharp";
+pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "move the geometry nearer the origin, keep the radius no larger than its distance from the \
+     origin, or leave the corner sharp";
 
 /// **The recourse when the stored form's own classification is in
 /// band** — the undecided twin of the two above.
@@ -653,8 +666,8 @@ pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "use a smaller radius (a LARG
     )
 )]
 pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "the arc may be too shallow to store (turn the corner further, or use a larger \
-     radius) or too fine for the scene (use a smaller radius, or move nearer the \
-     origin); dropping the fillet, or lowering the tolerance, settles either";
+     radius) or too fine for the scene (move nearer the origin); dropping the fillet, \
+     or lowering the tolerance, settles either";
 
 /// The recourse for a fillet leg with no extent to round against.
 ///
@@ -797,6 +810,11 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
     // two circles' centre separation less the sum of their radii
     DecisionEnding {
         name: "carrier_circles_external",
+        kind: EndingKind::Sized,
+    },
+    // the depth of the chord two nearly internally tangent circles cut, at its midpoint
+    DecisionEnding {
+        name: "carrier_circles_chord",
         kind: EndingKind::Sized,
     },
     // two circles told apart by their centre separation plus their radius difference
@@ -968,10 +986,17 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_junction_side",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
     },
-    // the sine of a junction's turn, levered by the arriving arm; decided only by the path door
+    // the sine of a junction's turn at the shorter leg's arm: the path door's, and validation's
+    // joint pass's (`seg::joint_tangency`)
     DecisionEnding {
         name: "path_junction_turn",
         kind: EndingKind::Lever(JUNCTION_TANGENT_LEVER),
+    },
+    // the same turn read off a fillet's STORED joints by the door's stored-form re-read
+    // (`seg::joint_tangency` under this name): its levers are the stored form's, not `.tangent()`
+    DecisionEnding {
+        name: "path_fillet_joint_turn",
+        kind: EndingKind::Lever(FILLET_STORED_FORM_INBAND_RECOURSE),
     },
     // an authored leg's extent metered against zero
     DecisionEnding {
@@ -1096,6 +1121,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "full_turn_reach" => "whether a full turn reaches round its carrier",
         "full_turn_sense" => "which way a full turn runs",
         "canonical_order_y" => "which of two points comes first along y",
+        "carrier_circles_chord" => "whether two circles touching from inside cut a chord",
         "carrier_circles_external" => "whether two circles touch from outside",
         "carrier_circles_identity" => "whether two circles are one circle",
         "carrier_circles_internal" => "whether two circles touch from inside",
@@ -1134,6 +1160,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
             "whether the path carries straight on at this junction or doubles back into a cusp"
         }
         "path_junction_turn" => "whether the path turns at this junction",
+        "path_fillet_joint_turn" => "whether a fillet's stored joint turns",
         "path_leg_length" => "whether an authored leg has any length",
         "path_run_out_carrier" => "whether an emitted segment lands on a fillet's arrival carrier",
         "path_seam_arrival_lever" => "whether the seam arrival has a leg long enough to measure",
@@ -1426,7 +1453,7 @@ impl fmt::Display for ProfileError {
                 // carries the levers, and a name without a row names its
                 // hole there.
                 //
-                // The three names below ALSO carry a sentence at
+                // The four names below ALSO carry a sentence at
                 // `PathError::Escalated`'s stored-form arm, and the two
                 // deliberately differ: here the segment pair is one the
                 // CALLER authored, so the construct lever is theirs to
@@ -1443,6 +1470,7 @@ impl fmt::Display for ProfileError {
                             "carrier_line_circle"
                                 | "carrier_circles_external"
                                 | "carrier_circles_internal"
+                                | "carrier_circles_chord"
                         )
                     );
                 if near_tangency {
@@ -1800,6 +1828,14 @@ pub struct BlendArc<T: Real> {
 /// stated rather than hidden. It is **not** invariant under reordering
 /// the input's loop *list*: holes keep discovery (input) order, and D9
 /// recipes replay that order — see the crate docs.
+///
+/// **Its mints**, the one list of them: [`Profile::validate`],
+/// [`Profile::validate_recording`] and [`Profile::validate_guided`] from
+/// a raw profile; [`ConstructedProfile`]'s three validations from a
+/// replayed one; [`ValidatedProfile::lift_onto`] from an `f64` one;
+/// [`ValidatedProfile::value_channel`] from one at another scalar; and
+/// [`ValidatedProfile::on_plane`] from one at the same scalar. Nothing
+/// else mints one.
 #[derive(Debug, Clone)]
 pub struct ValidatedProfile<T: Real> {
     plane: crate::SketchPlane<T>,
@@ -1811,6 +1847,15 @@ impl<T: Real> ValidatedProfile<T> {
     /// 2-D; the plane is conventional data).
     pub fn plane(&self) -> &crate::SketchPlane<T> {
         &self.plane
+    }
+
+    /// **The same canonical form on `plane`**, at the same scalar:
+    /// validation is 2-D and reads nothing of the plane
+    /// ([`ValidatedProfile::plane`]), so every decision it made holds on
+    /// any plane. Nothing is computed, and no scalar is crossed.
+    #[must_use]
+    pub fn on_plane(self, plane: crate::SketchPlane<T>) -> Self {
+        Self { plane, ..self }
     }
 
     /// The canonicalized loops (outer first, then holes in input
@@ -1886,9 +1931,7 @@ impl<T: geom_core::spline::SpanLocate> ValidatedProfile<T> {
                 (Some(x), Some(y)) => Ok(Point2::new(x, y)),
                 _ => Err(site),
             };
-        let plane = self
-            .plane
-            .try_map(|x| x.point_value().ok_or(ValueNotAPoint::Plane))?;
+        let plane = self.plane.point_value().ok_or(ValueNotAPoint::Plane)?;
         let mut loops = Vec::with_capacity(self.loops.len());
         for (loop_index, lp) in self.loops.iter().enumerate() {
             let vertices = lp
@@ -1944,12 +1987,8 @@ impl ValidatedProfile<f64> {
     /// plane taken as given once it is finite (validation is 2-D and
     /// decides nothing of it — [`ValidatedProfile::plane`]); everything
     /// else carried. No
-    /// predicate runs and no verdict is logged. A `ValidatedProfile` is
-    /// minted by [`Profile::validate`] and [`Profile::validate_recording`]
-    /// from a raw profile, by [`ConstructedProfile`]'s three validations
-    /// from a replayed one, by this
-    /// from an `f64` one, and by [`ValidatedProfile::value_channel`]
-    /// from one at another scalar; nothing else mints one.
+    /// predicate runs and no verdict is logged. One of the mints
+    /// [`ValidatedProfile`] lists.
     ///
     /// # What is carried, and on whose authority
     ///
@@ -1965,17 +2004,18 @@ impl ValidatedProfile<f64> {
     /// tangency, the absence of contact — are the verdicts `validate`
     /// made at `f64`. They are carried AS THE `f64` DECISIONS, and that
     /// is the design of this door rather than a claim that a validation
-    /// at `U` would agree: under the evaluator's pinned lift, structure
-    /// is selected once, at `f64`, identically for every lane, and the
-    /// guided lift is the lane that re-verifies every decision at its
-    /// own scalar and refuses what that scalar cannot confirm
-    /// (`ProfileLift`'s doc in `editor-core`). What a validation at `U`
+    /// at `U` would agree: the door is for a build whose structure is the
+    /// `f64` one by construction (sweep's loft at an enclosure scalar,
+    /// which encloses the `f64` loft its sections' value channel
+    /// describes), while a profile elaborated at its own scalar
+    /// re-verifies every decision there through
+    /// [`ConstructedProfile::validate_guided`]. What a validation at `U`
     /// would say, for the record: at `Dual64` the value channel is bit
     /// for bit the `f64` computation, so every predicate would decide
     /// the same; at `Interval` every margin is an enclosure of the
     /// `f64` margin, so a predicate would decide the same or escalate
     /// as indeterminate — and that escalation is deliberately the
-    /// guided lift's job, not re-consulted here. The one bit the two
+    /// guided validation's job, not re-consulted here. The one bit the two
     /// forms can differ in is a `Dual64` derivative channel: constants
     /// embed with `+0.0` where a negated constant's derivative at `U`
     /// would be `-0.0` — equal as numbers, read by no predicate.
@@ -2009,8 +2049,8 @@ const N_RAYS: usize = 16;
 /// as an angle gets); the retry sequence is the same for every
 /// containment question.
 const RAY_BASE: f64 = 0.5;
-/// The golden angle, 2π·(1 − 1/φ).
-const RAY_STEP: f64 = 2.399_963_229_728_653;
+/// The golden angle ([`geom_core::GOLDEN_ANGLE`]).
+const RAY_STEP: f64 = geom_core::GOLDEN_ANGLE;
 
 impl<T: Decide> Profile<T> {
     /// Validates the profile and produces its canonical form — the gate
@@ -2138,7 +2178,11 @@ fn recording_loops<T: Decide, L: LoopInput<T>>(
 /// value it stands for ([`Real::is_bounded`]): validation is 2-D and
 /// decides nothing on the plane, but a validated profile carries it.
 fn plane_is_finite<T: Real>(plane: &SketchPlane<T>) -> bool {
-    plane.placement.components().iter().all(|c| c.is_bounded())
+    plane
+        .placement()
+        .components()
+        .iter()
+        .all(|c| c.is_bounded())
 }
 
 /// The validation of `loops` on `plane` ([`Profile::validate`]'s body),
@@ -2207,10 +2251,10 @@ fn validate_loops<T: Decide, L: LoopInput<T>>(
         // 3b: the tangent joints — classify every joint
         // (adjacent-segment junction), verify the constructed ones and
         // record the ones decided Zero that no constructor made. Runs
-        // after simplicity so in-band near-tangency escalates from the
-        // pair classification exactly as before this arm existed. Each
-        // tangent joint's heading is decided here too: which of them
-        // are cusps (INPUT indices; canonicalization remaps them).
+        // after simplicity, so a pair that meets away from its joint is
+        // refused as a contact first. Each tangent joint's heading is
+        // decided here too: which of them are cusps (INPUT indices;
+        // canonicalization remaps them).
         let mut input_joints: Vec<JointVerdicts> = Vec::with_capacity(loops_in.len());
         for (li, input) in loops_in.iter().enumerate() {
             input_joints.push(judge_joints(
@@ -2507,6 +2551,15 @@ impl<T: Decide> ConstructedProfile<T> {
     }
 }
 
+/// **The predicates a guided validation does not run**: the
+/// containment representative's lexicographic order and each loop's
+/// orientation, which guidance takes from the record rather than asking
+/// a lane scalar (`lex_min_index`, `loop_orientation`). Each is decided
+/// at that site and nowhere else, so where the guided pass decides what
+/// the recording one did, its log is the recording's less these.
+pub const PINNED_UNDER_GUIDANCE: [&str; 3] =
+    ["canonical_order_x", "canonical_order_y", "loop_orientation"];
+
 /// How a validation treats its own discrete decisions: selecting
 /// freely and writing them down, or consuming a prior pass's and
 /// re-verifying what can be re-verified.
@@ -2539,7 +2592,7 @@ impl CanonGuide {
 /// Arity check + segment construction for one input loop. One vertex
 /// is enough: D1's full turn is one segment at one vertex
 /// ([`seg::build_loop_seg`]).
-fn build_loop_segs<T: Decide>(
+pub(crate) fn build_loop_segs<T: Decide>(
     lp: &ProfileLoop<T>,
     loop_index: usize,
     consistency: Consistency,
@@ -2598,7 +2651,7 @@ fn seg_refusal<T: Real>(
 /// Judges one segment pair: classifies contacts and applies the
 /// adjacency discount (adjacent segments may touch exactly at their
 /// shared vertex/vertices; everything else is an error).
-fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
+pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
     loops: &[L],
     loop_segs: &[Vec<Seg<T>>],
     (li, si): (usize, usize),
@@ -2709,8 +2762,7 @@ struct JointVerdicts {
 /// The per-loop joint pass of D1's profile tangency: joint v is the
 /// junction between segment (v − 1 mod n) (arriving) and segment v
 /// (leaving) at vertex v. Each joint is classified by
-/// [`seg::joint_tangency`] (module docs list the reused carrier
-/// predicates):
+/// [`seg::joint_tangency`] (module docs, step 4):
 ///
 /// - `Transversal` and constructed ⇒
 ///   [`ProfileError::TangencyContradicted`] (a construction is
@@ -2759,7 +2811,8 @@ fn judge_joints<T: Decide>(
             site: EscalationSite::SegmentPair(first, second),
             source,
         };
-        let reading = seg::joint_tangency(&segs[prev], &segs[joint], band).map_err(escalated)?;
+        let reading = seg::joint_tangency(&segs[prev], &segs[joint], "path_junction_turn", band)
+            .map_err(escalated)?;
         let carriers = match reading.class {
             seg::JointClass::Transversal if constructed.contains(&joint) => {
                 return Err(ProfileError::TangencyContradicted {
@@ -2780,7 +2833,7 @@ fn judge_joints<T: Decide>(
             && seg::junction_reverses(
                 arriving.heading_at(arriving.b),
                 leaving.heading_at(leaving.a),
-                arriving.arm(),
+                arriving.arm().min(leaving.arm()),
                 band,
             )
             .map_err(escalated)?;

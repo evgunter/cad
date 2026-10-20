@@ -9,7 +9,16 @@
 #  - bit_identity.rs — the sanctioned seam itself;
 #  - interval.rs — Interval::repr_bits over its OWN storage:
 #    scalar plumbing (exact-representation access), never a
-#    coincidence comparison;
+#    coincidence comparison; and Interval::same_enclosure, repr_bits
+#    equality of two stored enclosures, which is a comparison and so
+#    is part of the channel this gate watches (its callers are
+#    scanned like any other use);
+#  - spline/blossom.rs — same_enclosure in split_restrict's de
+#    Casteljau step: equal neighbours (same bounds AND decoration)
+#    step to themselves. It picks between two sound enclosures of the
+#    same value and decides nothing, so it is not a coincidence
+#    decision (D10's clause governs whether cells coincide; reviewed
+#    on #5123);
 #  - eval/memo.rs — HASHES exact bits into content keys (spec D4
 #    "values AS BITS"): scalar plumbing, never a comparison;
 # The tripwire stays ARMED: any NEW file using the channel fails
@@ -32,6 +41,7 @@ NON_CONSUMER_HOMES=(
   crates/geom-core/src/bit_identity.rs
   crates/geom-core/src/interval.rs
   crates/editor-core/src/eval/memo.rs
+  crates/geom-core/src/spline/blossom.rs
 )
 
 gate() {
@@ -39,7 +49,7 @@ gate() {
   gate_require_homes "$NON_CONSUMER_SUBJECT" "${NON_CONSUMER_HOMES[@]}"
   local hits
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
-    | gate_grep -E 'bit_identity::|repr_bits|eq_bits' \
+    | gate_grep -E 'bit_identity::|repr_bits|eq_bits|same_enclosure' \
     | gate_grep -vE "$(gate_record_anchor_any "${NON_CONSUMER_HOMES[@]}")")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
@@ -82,6 +92,15 @@ plant() {
     > "$1/crates/planted/src/lib.rs"
 }
 
+# A caller of the stored-enclosure comparison: `same_enclosure` wraps
+# `repr_bits` inside interval.rs's exempt home, so a gate that matched
+# only the inner names could not see who compares.
+plant_same_enclosure() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn same(a: Interval, b: Interval) -> bool { a.same_enclosure(b) }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
 # A use hidden behind a block comment on one line: the leading-`//`
 # filter read the whole line as code and the matcher fired on the prose
 # beside it. Both halves of that are wrong and this case pins the fix.
@@ -115,10 +134,11 @@ gate_selftest() {
   gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_after_block_comment
+  gate_selftest_case "$want" plant_same_enclosure
   gate_selftest_case "$want" plant_colon_after_the_home_that_is_not_a_line_number
   gate_selftest_passes "prose, doc comments and a string literal naming the channel" plant_prose_only
   gate_selftest_homes --subject "$NON_CONSUMER_SUBJECT" "${NON_CONSUMER_HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying every non-consumer row, and prose/doc/string mentions of the channel; fires on a use, on a use hidden behind a block comment, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying every non-consumer row, and prose/doc/string mentions of the channel; fires on a use, on a `same_enclosure` caller, on a use hidden behind a block comment, and at the colon-carrying path a home skip that ends at `:` exempts; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

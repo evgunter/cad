@@ -3655,14 +3655,15 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     };
     let unproven = E::UnprovenCoincidence {
         row: Box::new(pncad::document::NamedCoincidence {
-            cells: [tool.clone(), tool],
+            cells: vec![tool.clone(), tool],
             relation: pncad::document::coincidence::Relation::OnCarrier,
             site: pncad::document::coincidence::DecisionSite::SplitOn,
             margin: pncad::geom_core::MarginDiag::value(0.0),
             discharge: pncad::document::coincidence::Discharge::Numeric,
+            origin: pncad::document::RowOrigin::Node,
         }),
         residual: Box::new(pncad::document::Residual {
-            constructions: [
+            constructions: vec![
                 Err(pncad::document::coincide::Unwalked::Absent(
                     RecipeNodeId::new(0, 3),
                 )),
@@ -3673,8 +3674,32 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             replay: pncad::document::coincide::Unreplayed::NotReplayed,
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
+        restated: Vec::new(),
     };
-    carries(&unproven, &["reason", "relation", "site"]);
+    // One fold row reported with it: the payload counts it.
+    let unproven = {
+        let E::UnprovenCoincidence {
+            row,
+            residual,
+            recourse,
+            ..
+        } = &unproven
+        else {
+            unreachable!("built as the unproven arm above")
+        };
+        let fold = pncad::document::NamedCoincidence {
+            origin: pncad::document::RowOrigin::Fold { step: 2 },
+            ..(**row).clone()
+        };
+        E::UnprovenCoincidence {
+            row: row.clone(),
+            residual: residual.clone(),
+            recourse: *recourse,
+            restated: vec![(fold, (**residual).clone(), *recourse)],
+        }
+    };
+    carries(&unproven, &["reason", "relation", "site", "restated"]);
+    assert_eq!(check_payload(&unproven).restated, Some(1));
     let words = check_payload(&unproven);
     assert_eq!(
         (words.relation, words.site),
@@ -4540,6 +4565,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "assembly_error_tag",
         values: &[
             "at_rest",
+            "carried_at_rest",
             "carried_mint_refusal",
             "own_space",
             "uncertified",
@@ -4644,6 +4670,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_carrier_unsupported",
             "join_desync",
             "join_undecided",
+            "line_wedges",
             "lineage_row",
             "merge",
             "mixed_seam",
@@ -4767,6 +4794,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "coaxial",
             "common_foot",
             "cusp",
+            "meet",
             "on_carrier",
             "same_opposite",
             "same_oriented",
@@ -5263,6 +5291,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "conventional_vertex",
             "duplicate",
             "emission",
+            "entity_named",
             "escalated",
             "kind_mismatch",
             "member_edge_tied",
@@ -5768,7 +5797,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "op",
             "pcurve",
             "pinned_run_station",
-            "placed_axis",
             "sliver_axis_clearance",
             "sliver_join",
             "sliver_radius",
@@ -5854,7 +5882,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "shell_classify_error_tag",
-        values: &["band", "escalated", "props", "straddles", "zero_volume"],
+        values: &[
+            "band",
+            "corner",
+            "escalated",
+            "props",
+            "ray",
+            "ray_in_band",
+            "sign_unresolved",
+            "straddles",
+            "zero_volume",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5890,15 +5928,19 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "arc_sweep_undecided",
             "bad_degree",
+            "band",
             "degenerate_section",
             "domain_not_unit",
             "fit",
             "knot_algebra",
             "no_parameter_step",
             "path_tangent_reversal",
+            "path_tangent_undecided",
+            "path_tangent_vanishes",
             "row_motion_undecided",
             "section_profile",
             "section_shape_mismatch",
+            "station_not_finite",
             "structure",
             "too_few_sections",
         ],
@@ -6255,6 +6297,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "null_face_at_rest",
             "null_scaffold_shared",
             "orbit_foreign_member",
+            "orientation_undecided",
             "orphan_entity",
             "orphan_geometry",
             "outer_listed_as_ring",
@@ -6377,7 +6420,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("anonymous_var_unread", 2),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
-    ("band", 16),
+    ("band", 17),
     ("body", 2),
     ("cap_plane", 3),
     ("certify", 2),
@@ -6455,6 +6498,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a constraint the per-mate
     // admission refuses, its fault carried whole.
     ("mate_refused", 2),
+    // Two vocabularies: a pose constructed where two others meet, and a
+    // coincidence row whose cells share one point.
+    ("meet", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
     // fact (`editor_core::refactor::Unmapped::Step`), one word.
     ("name_on_dropped_step", 2),

@@ -5,6 +5,8 @@
 //! fragment (with N2 qualifiers), seam, section, or merged. Nothing
 //! is matched; unresolvable descent is a typed error.
 
+use core::convert::Infallible;
+use core::ops::ControlFlow;
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::k_stats::decide;
@@ -14,6 +16,7 @@ use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::borders::Obstacles;
 use super::canonical;
+use super::chase;
 use super::defer::{TieRows, Upstream, mint_candidates, put, upstream_name};
 use super::discriminate::{
     CHORD_ON_RIM, Extent, ON_MEMBER_EDGE, ORDER_ALONG, band, extent_before, rank_by,
@@ -64,40 +67,22 @@ struct HalfNames {
 /// operand's own entities belong to earlier ops (a union's rim fragment
 /// must not chase past its own union-level name into its grand-parent).
 ///
-/// # Errors
-///
-/// A cycling lineage is a corrupt record, surfaced as an emission bug
-/// — [`NamingError::SplitLineage`], carrying the cycling edge, which
-/// is the only locator this failure has.
-///
-/// **The `SplitEdge` records alone cannot cycle, and the reason is
-/// WRITER ACCESS, not a survey of call sites.** `Body::edge_provenance`
-/// is `pub(crate)` to `topo`; the one door that writes a `SplitEdge`
-/// record is `Body::split_edge`, and it records the parent on the child
-/// it has just minted, so every record points at a key that already
-/// existed and a chain is strictly decreasing in age in the arena that
-/// wrote it. A graft does not keep that order — a dead-on-arrival key
-/// is minted after the grafted edges whose records name it — but it
-/// forwards injectively (each source key to its own result key), and an
-/// injective image of an acyclic chain is acyclic. `chase_b` below walks
-/// the same records and reads the caller's graft rows only to decide
-/// where to stop, so the argument covers it too.
-///
-/// **The kills' hops are copies of the same records.** `killed` comes
-/// from `BooleanNaming::discards`' boundary chains and
-/// `BooleanNaming::killed_lineage` ([`KilledSplits`]), which copy the
-/// clone's `SplitEdge` records before the kills drop them, so as the
-/// kernel writes them they are as acyclic as the records
-/// (`topo::Provenance::SplitEdge`). They are public fields a caller can
-/// also write, and nothing checks the records where `Body::split_edge`
-/// writes them, so this walk keeps its own bound and refusal
-/// (`work/origin/the-split-edge-lineage-walk-has-four-homes.md`).
-///
 /// Where the lineage stops at a key the table does not name and a kill
 /// took ([`KilledSplits`]), the walk steps to that key's parent and goes
 /// on: the boolean's kills drop birth records, and `killed` holds the
-/// hops they dropped. Each hop is taken at most once in an acyclic
-/// lineage, which bounds the walk.
+/// hops they dropped.
+///
+/// # Errors
+///
+/// [`NamingError::SplitLineage`], carrying the edge, where
+/// `Body::split_root` refuses a cycling lineage.
+///
+/// # Panics
+///
+/// Where the kills' hops cycle ([`chase::to_root`]). `killed` copies
+/// `SplitEdge` records, and a copy cycles only where the records do
+/// (`topo::Provenance::SplitEdge`); the boolean that wrote them is the
+/// only source of the rows this emitter reads.
 fn chase_edge_to_table<T: Decide>(
     body: &Body<T>,
     table: &NameTable,
@@ -105,18 +90,18 @@ fn chase_edge_to_table<T: Decide>(
     e: EdgeKey,
 ) -> Result<EdgeKey, NamingError> {
     let named = |k: EdgeKey| table.name_of(&ent(0, EntityKey::Edge(k))).is_some();
-    let mut k = e;
-    for _ in 0..=killed.len() {
-        k = body.split_root(k, named)?;
-        if named(k) {
-            return Ok(k);
-        }
-        match killed.get(&k) {
-            Some(&up) => k = up,
-            None => return Ok(k),
-        }
-    }
-    Err(topo::SplitLineageCycle { edge: e }.into())
+    chase::to_root(
+        e,
+        killed.len(),
+        "see `emit_topo::chase_edge_to_table`'s Panics",
+        |k| {
+            let k = body.split_root(k, named)?;
+            Ok(match killed.get(&k) {
+                Some(&up) if !named(k) => ControlFlow::Continue(up),
+                _ => ControlFlow::Break(k),
+            })
+        },
+    )
 }
 
 /// **The split hops a boolean's kills took out of the provenance**:
@@ -191,18 +176,14 @@ impl KilledSplits {
 /// piece on one side and the outer two on the other, so an outer
 /// piece's lineage can run through a key its own half does not hold.
 ///
-/// # Errors
+/// # Panics
 ///
-/// [`NamingError::SplitLineage`] on a cycling lineage; the halves'
-/// records are restrictions of one acyclic record set, so their union
-/// is acyclic by the same writer-access argument, and so is its union
-/// with the split's copy of the records its joins killed
-/// (`SplitNaming::joined_lineage`).
+/// As [`chase_split_lineage`].
 fn chase_split_edge_to_table<T: Decide>(
     sides: &[Side<'_, T>],
     table: &NameTable,
     e: EdgeKey,
-) -> Result<EdgeKey, NamingError> {
+) -> EdgeKey {
     chase_split_lineage(sides, table, &BTreeMap::new(), e)
 }
 
@@ -210,30 +191,43 @@ fn chase_split_edge_to_table<T: Decide>(
 /// records an edge its join killed with the edge it was split from
 /// (`SplitNaming::joined_lineage`), since the kill took the birth
 /// record the halves would otherwise hold.
+///
+/// # Panics
+///
+/// Where the lineage cycles ([`chase::to_root`]): the halves' records
+/// are restrictions of one body's records, and `lineage` copies records
+/// its joins killed, so the walk cycles only where the records do
+/// (`topo::Provenance::SplitEdge`).
 fn chase_split_lineage<T: Decide>(
     sides: &[Side<'_, T>],
     table: &NameTable,
     lineage: &BTreeMap<EdgeKey, EdgeKey>,
     e: EdgeKey,
-) -> Result<EdgeKey, NamingError> {
+) -> EdgeKey {
     let bound: usize = sides.iter().map(|s| s.body.edges().count()).sum::<usize>() + lineage.len();
-    let mut root = e;
-    for _ in 0..=bound {
-        if table.name_of(&ent(0, EntityKey::Edge(root))).is_some() {
-            return Ok(root);
-        }
-        let mut held = sides.iter().filter_map(|s| s.body.edge_provenance_of(root));
-        let record = held.next();
-        debug_assert!(
-            held.all(|other| Some(other) == record),
-            "split halves disagree on edge {root:?}'s birth record"
-        );
-        match (record, lineage.get(&root)) {
-            (Some(Provenance::SplitEdge { edge }), _) | (None, Some(edge)) => root = *edge,
-            _ => return Ok(root),
-        }
-    }
-    Err(topo::SplitLineageCycle { edge: e }.into())
+    let Ok(root) = chase::to_root::<_, Infallible>(
+        e,
+        bound,
+        "see `emit_topo::chase_split_lineage`'s Panics",
+        |k| {
+            if table.name_of(&ent(0, EntityKey::Edge(k))).is_some() {
+                return Ok(ControlFlow::Break(k));
+            }
+            let mut held = sides.iter().filter_map(|s| s.body.edge_provenance_of(k));
+            let record = held.next();
+            debug_assert!(
+                held.all(|other| Some(other) == record),
+                "split halves disagree on edge {k:?}'s birth record"
+            );
+            Ok(match (record, lineage.get(&k)) {
+                (Some(Provenance::SplitEdge { edge }), _) | (None, Some(edge)) => {
+                    ControlFlow::Continue(*edge)
+                }
+                _ => ControlFlow::Break(k),
+            })
+        },
+    );
+    root
 }
 
 /// Names both sides of a split (spec D2's split vocabulary + N2), each
@@ -271,22 +265,21 @@ pub(crate) fn name_split<T: Decide>(
         )?;
     }
 
-    // ---- Section faces: per-side completion-order index. ----
+    // ---- Section faces: per-side completion-order index, a section a
+    // merge absorbed numbered too, so no section is renumbered (N3). ----
+    let mut section_names: BTreeMap<FaceKey, StableName> = BTreeMap::new();
     let mut per_side_ix = [0u32; 2];
     for &(f, side) in &naming.sections {
-        let half = match side {
-            PlaneSide::Above => SplitHalf::Above,
-            PlaneSide::Below => SplitHalf::Below,
-            PlaneSide::On => {
-                return Err(NamingError::Emission {
-                    what: "section face classified On",
-                });
-            }
-        };
-        // The face is live in exactly the side that kept it.
+        let half = half_of(side, "section face classified On")?;
+        let absorbed = naming
+            .merge_groups
+            .iter()
+            .any(|(gs, g)| *gs == side && g.absorbed.contains(&f));
+        // The face is live in exactly the side that kept it, or was
+        // absorbed by that side's merge.
         let Some(s) = sides
             .iter()
-            .find(|s| s.half == half && s.body.get_face(f).is_some())
+            .find(|s| s.half == half && (absorbed || s.body.get_face(f).is_some()))
         else {
             return Err(NamingError::Emission {
                 what: "section face live in no matching side body",
@@ -294,20 +287,48 @@ pub(crate) fn name_split<T: Decide>(
         };
         let section = per_side_ix[s.slot()];
         per_side_ix[s.slot()] += 1;
-        halves[s.slot()].t.insert(
+        section_names.insert(
+            f,
             name1(EntityKind::Face, node, RoleSeg::SectionFace { section }),
-            ent(0, EntityKey::Face(f)),
-        )?;
+        );
     }
-
+    // Keys are unique across the two halves (restrictions of one
+    // arena), and each side's joins keep their order, so one chase
+    // over both sides' rows is each side's.
+    let joins: Vec<topo::EdgeJoin> = naming.edge_joins.iter().map(|&(_, j)| j).collect();
+    let covers = topo::join_covers(&joins);
+    let keeps = KeepsReading {
+        sides: &sides,
+        target_node,
+        target_table,
+        lineage: &naming.joined_lineage,
+        covers: &covers,
+    };
+    let merged = name_split_merges(
+        node,
+        &mut halves,
+        &sides,
+        naming,
+        &section_names,
+        &keeps,
+        target_body,
+    )?;
+    for &(f, _) in &naming.sections {
+        let live = sides.iter().find(|s| s.body.get_face(f).is_some());
+        if let Some(s) = live.filter(|_| !merged.held.contains_key(&f)) {
+            halves[s.slot()]
+                .t
+                .insert(section_names[&f].clone(), ent(0, EntityKey::Face(f)))?;
+        }
+    }
     name_split_faces(
         node,
         &mut halves,
         &sides,
         frag_rows,
         &section_keys,
-        target_node,
-        target_table,
+        &merged,
+        &keeps,
         target_body,
     )?;
     for h in &mut halves {
@@ -317,11 +338,11 @@ pub(crate) fn name_split<T: Decide>(
         node,
         &mut halves,
         &sides,
-        frag_rows,
-        &section_keys,
         naming,
-        target_node,
-        target_table,
+        &merged,
+        &joins,
+        &covers,
+        &keeps,
         target_body,
         b,
     )?;
@@ -334,6 +355,201 @@ pub(crate) fn name_split<T: Decide>(
     }
     let [above, below] = halves;
     Ok([above, below].map(|h| Emitted::new(h.t, h.rec)))
+}
+
+/// The half a split's record names by its side.
+fn half_of(side: PlaneSide, what: &'static str) -> Result<SplitHalf, NamingError> {
+    match side {
+        PlaneSide::Above => Ok(SplitHalf::Above),
+        PlaneSide::Below => Ok(SplitHalf::Below),
+        PlaneSide::On => Err(NamingError::Emission { what }),
+    }
+}
+
+/// The parent of faces a split's merge linked ([`SplitNaming::merge_groups`]):
+/// its `Merged` name, whether it descends from a tie, and the operand
+/// faces among its constituents.
+struct MergedFace {
+    name: NameRef,
+    tied: bool,
+    operand_faces: BTreeSet<FaceKey>,
+}
+
+/// What [`name_split_merges`] named: each face a merge kept, by its
+/// parent (`kept`), and every face of a merged parent, kept or a piece
+/// that never merged (`held`).
+#[derive(Default)]
+struct SplitMerges {
+    kept: BTreeMap<FaceKey, MergedFace>,
+    held: BTreeMap<FaceKey, (NameRef, bool)>,
+}
+
+impl SplitMerges {
+    /// The parent `face` is cited by, as a seam cites the face beside it
+    /// (N3): a merged parent's `Merged` set, else the operand face it
+    /// descends from; and whether that descends from a tie.
+    fn parent_of(
+        &self,
+        face: FaceKey,
+        naming: &SplitNaming,
+        target_node: RecipeNodeId,
+        target_table: &NameTable,
+    ) -> Result<(NameRef, bool), NamingError> {
+        if let Some(held) = self.held.get(&face) {
+            return Ok(held.clone());
+        }
+        let root = naming.face_fragments.root(face);
+        let up = upstream_name(target_table, target_node, ent(0, EntityKey::Face(root)))?;
+        Ok((up.name, up.tied))
+    }
+}
+
+/// Names the faces of each split half's merged parents as a boolean
+/// names its merged faces (N3). In each half, the faces one merge group
+/// holds are linked, transitively through the operand faces they
+/// descend from; a linked set is one parent, `Merged` of its
+/// constituents' names, flat and in name order: each section face by
+/// its `SectionFace { k }` (`section_names`), each operand face by its
+/// own name. Every face of that half descending from the parent, a
+/// merge's kept face or a piece of one of its operand faces, is a face
+/// of it: one is the parent's bare name, several are qualified by
+/// `Keeps` over the boundary edges of the parent's operand faces (N2).
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] where a merged name would nest, or a
+/// merge's kept face is live in no half its record names.
+fn name_split_merges<T: Decide>(
+    node: RecipeNodeId,
+    halves: &mut [HalfNames; 2],
+    sides: &[Side<'_, T>],
+    naming: &SplitNaming,
+    section_names: &BTreeMap<FaceKey, StableName>,
+    keeps: &KeepsReading<'_, '_, T>,
+    target_body: &Body<T>,
+) -> Result<SplitMerges, NamingError> {
+    let (target_node, target_table) = (keeps.target_node, keeps.target_table);
+    // A linked set: its operand faces, its section faces, its kept faces.
+    type Linked = (BTreeSet<FaceKey>, BTreeSet<FaceKey>, Vec<FaceKey>);
+    let bug = |what| NamingError::Emission { what };
+    let frag_rows = &naming.face_fragments;
+    let mut out = SplitMerges::default();
+    for s in sides {
+        let mut linked: Vec<Linked> = Vec::new();
+        for (side, g) in &naming.merge_groups {
+            if half_of(*side, "a split merge's record names no half")? != s.half {
+                continue;
+            }
+            if s.body.get_face(g.kept).is_none() {
+                return Err(bug("a split merge's kept face is live in no matching half"));
+            }
+            let mut set: Linked = (BTreeSet::new(), BTreeSet::new(), vec![g.kept]);
+            for &c in core::iter::once(&g.kept).chain(&g.absorbed) {
+                if section_names.contains_key(&c) {
+                    set.1.insert(c);
+                } else {
+                    set.0.insert(frag_rows.root(c));
+                }
+            }
+            let (meets, rest): (Vec<Linked>, Vec<Linked>) =
+                linked.into_iter().partition(|l| !l.0.is_disjoint(&set.0));
+            for (ops, secs, kept) in meets {
+                set.0.extend(ops);
+                set.1.extend(secs);
+                set.2.extend(kept);
+            }
+            linked = rest;
+            linked.push(set);
+        }
+        for (ops, secs, kept) in linked {
+            let mut constituents: Vec<StableName> =
+                secs.iter().map(|f| section_names[f].clone()).collect();
+            let mut tied = false;
+            let mut op_names = Vec::with_capacity(ops.len());
+            for &op in &ops {
+                let up = upstream_name(target_table, target_node, ent(0, EntityKey::Face(op)))?;
+                tied |= up.tied;
+                match merged::constituents_through_wrappers(&up.name) {
+                    Some(cs) => constituents.extend(cs),
+                    None => constituents.push((*up.name).clone()),
+                }
+                op_names.push(up.name);
+            }
+            if constituents
+                .iter()
+                .any(|c| merged::constituents_through_wrappers(c).is_some())
+            {
+                return Err(bug(NESTED_MERGED));
+            }
+            let name =
+                canonical::minted(name1(EntityKind::Face, node, RoleSeg::Merged(constituents)));
+            let held_by = |f: FaceKey| {
+                kept.contains(&f)
+                    || (!section_names.contains_key(&f)
+                        && !naming.merge_groups.iter().any(|(_, g)| g.kept == f)
+                        && ops.contains(&frag_rows.root(f)))
+            };
+            let members: Vec<FaceKey> = s
+                .body
+                .faces()
+                .map(|(f, _)| f)
+                .filter(|&f| held_by(f))
+                .collect();
+            let h = &mut halves[s.slot()];
+            let ents: Vec<_> = members
+                .iter()
+                .map(|&f| ent(0, EntityKey::Face(f)))
+                .collect();
+            h.rec.record(&name, ents.clone(), Parent::Elsewhere);
+            for op_name in &op_names {
+                h.rec.record(
+                    &split_base(node, op_name.clone()),
+                    ents.clone(),
+                    Parent::Elsewhere,
+                );
+            }
+            if let [f] = members.as_slice() {
+                put(
+                    &mut h.t,
+                    &mut h.tie,
+                    tied,
+                    name.clone(),
+                    ent(0, EntityKey::Face(*f)),
+                )?;
+            } else {
+                let boundary = operand_boundary(target_body, ops.iter().copied())?;
+                let mut pieces = Vec::with_capacity(members.len());
+                for &f in &members {
+                    let edges = face_half_edges(s.body, f)?
+                        .into_iter()
+                        .map(|he| {
+                            s.body
+                                .get_half_edge(he)
+                                .map(|h| h.edge)
+                                .ok_or_else(|| bug("a split piece's half-edge is dangling"))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    pieces.push((keeps.of(edges, &boundary)?, ent(0, EntityKey::Face(f))));
+                }
+                mint_qualified(&mut h.t, &mut h.tie, tied, &name, pieces)?;
+            }
+            let name = NameRef::new(name);
+            for &f in &members {
+                out.held.insert(f, (name.clone(), tied));
+            }
+            for f in kept {
+                out.kept.insert(
+                    f,
+                    MergedFace {
+                        name: name.clone(),
+                        tied,
+                        operand_faces: ops.clone(),
+                    },
+                );
+            }
+        }
+    }
+    Ok(out)
 }
 
 /// Chord edges: every boundary edge of `body`'s live section faces,
@@ -369,6 +585,71 @@ pub(super) fn chord_faces<T: geom_core::Real>(
     Ok(chord_faces)
 }
 
+/// The refusal for an edge between two faces the cut drew: each split
+/// half ends with maximal faces, so none survives.
+const BETWEEN_SECTIONS: &str = "an edge between two section faces";
+
+/// A split half's section chords: each edge of `body` bounding a face
+/// the cut drew (`SplitNaming::holds_section`), with the operand face
+/// across it. An edge along an operand edge lying in the plane is that
+/// edge, or a piece of it, and not a chord, where both its faces
+/// descend from that edge's two faces (N2); a face the merge kept
+/// descends from the operand faces among its constituents.
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] for an edge between two faces the cut
+/// drew: each half ends with maximal faces, so none survives.
+fn split_chords<T: Decide>(
+    body: &Body<T>,
+    naming: &SplitNaming,
+    merged: &SplitMerges,
+    root_of: &BTreeMap<EdgeKey, EdgeKey>,
+    target_table: &NameTable,
+    target_body: &Body<T>,
+) -> Result<BTreeMap<EdgeKey, FaceKey>, NamingError> {
+    let holders: Vec<(FaceKey, PlaneSide)> = body
+        .faces()
+        .map(|(f, _)| f)
+        .filter(|&f| naming.holds_section(f))
+        .map(|f| (f, PlaneSide::On))
+        .collect();
+    let keys: BTreeSet<FaceKey> = holders.iter().map(|&(f, _)| f).collect();
+    let descends = |g: FaceKey, from: FaceKey| match merged.kept.get(&g) {
+        Some(m) => m.operand_faces.contains(&from),
+        None => !keys.contains(&g) && naming.face_fragments.root(g) == from,
+    };
+    let mut out = BTreeMap::new();
+    for (e, other) in chord_faces(body, &holders, &keys)? {
+        if keys.contains(&other) {
+            return Err(NamingError::Emission {
+                what: BETWEEN_SECTIONS,
+            });
+        }
+        let root = root_of[&e];
+        if target_table
+            .name_of(&ent(0, EntityKey::Edge(root)))
+            .is_some()
+        {
+            let (g0, g1) = topo::readback::edge_sides(body, e)
+                .map_err(|_| NamingError::Emission {
+                    what: "a section chord's faces do not read",
+                })?
+                .faces();
+            let (fa, fb) = topo::readback::edge_sides(target_body, root)
+                .map_err(|_| NamingError::Emission {
+                    what: "an operand edge's faces do not read",
+                })?
+                .faces();
+            if (descends(g0, fa) && descends(g1, fb)) || (descends(g0, fb) && descends(g1, fa)) {
+                continue;
+            }
+        }
+        out.insert(e, other);
+    }
+    Ok(out)
+}
+
 /// How a split names an edge its closing join made, read off the join
 /// records (`SplitNaming::edge_joins`) by the input cells the edge's
 /// cover lies along (`topo::join_covers`, each covered edge chased to
@@ -382,6 +663,17 @@ enum Joined {
     /// The cover lies along several whole operand edges: the `Merged`
     /// set of their names.
     Set { name: StableName, tied: bool },
+    /// The cover lies along several operand edges, part of one or more
+    /// of them: a piece of their `Merged` set, qualified by its ends
+    /// where the half holds several.
+    SetPiece {
+        name: StableName,
+        tied: bool,
+        roots: Vec<EdgeKey>,
+    },
+    /// The cover lies along section chords and whole operand edges,
+    /// across a merged face: named from its two faces, as a seam is.
+    Seam { name: StableName, tied: bool },
 }
 
 /// The joined edges of both sides whose covers lie along whole operand
@@ -394,15 +686,14 @@ enum Joined {
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where a cover has no input-cell reading:
-/// a section chord joined to a piece of an operand edge, or pieces of
-/// several operand edges not one of which it holds whole. No `ci` row
-/// reaches either (`a-finished-body-holds-no-joinable-vertex` (a closed FUSE row; `docs/doc-ledger/fuse-leaves-the-tracker.md`),
-/// PR B); each is the ruling's stop case, refused rather than named.
+/// [`NamingError::Emission`] where a cover has no input-cell reading: a
+/// section chord joined to a piece of an operand edge.
+#[allow(clippy::too_many_arguments)]
 fn split_joined_readings<T: Decide>(
     node: RecipeNodeId,
     sides: &[Side<'_, T>],
     naming: &SplitNaming,
+    merged: &SplitMerges,
     root_of: &BTreeMap<EdgeKey, EdgeKey>,
     (joins, covers): (&[topo::EdgeJoin], &BTreeMap<EdgeKey, Vec<EdgeKey>>),
     target_node: RecipeNodeId,
@@ -435,7 +726,7 @@ fn split_joined_readings<T: Decide>(
         let mut roots = BTreeSet::new();
         let mut chords = 0usize;
         for &c in cover {
-            let root = chase_split_lineage(sides, target_table, lineage, c)?;
+            let root = chase_split_lineage(sides, target_table, lineage, c);
             if named(root) {
                 roots.insert(root);
             } else {
@@ -445,38 +736,102 @@ fn split_joined_readings<T: Decide>(
         if roots.is_empty() {
             continue; // chords alone: the chord pass names it
         }
-        if chords > 0 {
-            return Err(bug(
-                "a split joined a section chord to an operand edge's piece, which no input \
-                 cell reads",
-            ));
-        }
         // Whole: no other live edge of either side descends from the root.
         let whole = |r: EdgeKey| root_of.iter().all(|(&e, &er)| er != r || e == kept);
+        if chords > 0 {
+            let seam =
+                split_join_seam(node, sides, naming, merged, kept, target_node, target_table)?;
+            match seam {
+                Some((name, tied)) if roots.iter().all(|&r| whole(r)) => {
+                    out.insert(kept, Joined::Seam { name, tied });
+                    continue;
+                }
+                _ => {
+                    return Err(bug(
+                        "a split joined a section chord to an operand edge's piece, which no \
+                         input cell reads",
+                    ));
+                }
+            }
+        }
         match roots.into_iter().collect::<Vec<_>>().as_slice() {
             [r] if whole(*r) => {
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(*r)))?;
                 out.insert(kept, Joined::Whole(up));
             }
             [_] => {} // a piece: the fragment pass names it
-            several if several.iter().all(|&r| whole(r)) => {
+            several => {
                 let mut names = Vec::with_capacity(several.len());
                 for &r in several {
                     let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(r)))?;
                     names.push(((*up.name).clone(), up.tied));
                 }
                 let (name, tied) = super::join_names::joined_name(node, names);
-                out.insert(kept, Joined::Set { name, tied });
-            }
-            _ => {
-                return Err(bug(
-                    "a split joined pieces of several operand edges, holding none of them \
-                     whole, which no input cell reads",
-                ));
+                // Along part of an operand edge whose other parts live
+                // on: a piece of the set, told from its siblings by its
+                // ends, as a union's flush rim is.
+                let joined = if several.iter().all(|&r| whole(r)) {
+                    Joined::Set { name, tied }
+                } else {
+                    Joined::SetPiece {
+                        name,
+                        tied,
+                        roots: several.to_vec(),
+                    }
+                };
+                out.insert(kept, joined);
             }
         }
     }
     Ok(out)
+}
+
+/// The seam name of `kept`, a split's joined edge, where one of its two
+/// faces is a face the merge kept: `Seam` of its two faces' parents in
+/// name order (N3: a seam cites the merged face's `Merged` set and the
+/// other face's operand face), and whether either descends from a tie.
+/// `None` where neither face is a merged one.
+fn split_join_seam<T: Decide>(
+    node: RecipeNodeId,
+    sides: &[Side<'_, T>],
+    naming: &SplitNaming,
+    merged: &SplitMerges,
+    kept: EdgeKey,
+    target_node: RecipeNodeId,
+    target_table: &NameTable,
+) -> Result<Option<(StableName, bool)>, NamingError> {
+    let Some(body) = sides
+        .iter()
+        .map(|s| s.body)
+        .find(|b| b.get_edge(kept).is_some())
+    else {
+        return Err(NamingError::Emission {
+            what: "a split join's kept edge is in neither half",
+        });
+    };
+    let (f0, f1) = topo::readback::edge_sides(body, kept)
+        .map_err(|_| NamingError::Emission {
+            what: "a split joined edge's faces do not read",
+        })?
+        .faces();
+    let (m, other) = match (merged.kept.get(&f0), merged.kept.get(&f1)) {
+        (Some(m), None) => (m, f1),
+        (None, Some(m)) => (m, f0),
+        _ => return Ok(None),
+    };
+    if naming.holds_section(other) {
+        return Err(NamingError::Emission {
+            what: BETWEEN_SECTIONS,
+        });
+    }
+    let (parent, tied) = merged.parent_of(other, naming, target_node, target_table)?;
+    let (a, b) = if *parent <= *m.name {
+        (parent, m.name.clone())
+    } else {
+        (m.name.clone(), parent)
+    };
+    let name = canonical::minted(name1(EntityKind::Edge, node, RoleSeg::Seam { a, b }));
+    Ok(Some((name, tied || m.tied)))
 }
 
 /// Split edges + vertices: pass-through, `SectionEdge` (chords),
@@ -489,14 +844,15 @@ fn name_split_edges_vertices<T: Decide>(
     node: RecipeNodeId,
     halves: &mut [HalfNames; 2],
     sides: &[Side<'_, T>],
-    frag_rows: &topo::FaceDivisions,
-    section_keys: &BTreeSet<FaceKey>,
     naming: &SplitNaming,
-    target_node: RecipeNodeId,
-    target_table: &NameTable,
+    merged: &SplitMerges,
+    joins: &[topo::EdgeJoin],
+    covers: &BTreeMap<EdgeKey, Vec<EdgeKey>>,
+    keeps: &KeepsReading<'_, '_, T>,
     target_body: &Body<T>,
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
+    let (target_node, target_table) = (keeps.target_node, keeps.target_table);
     let bug = |what| NamingError::Emission { what };
     let copy_to_original: BTreeMap<VertexKey, VertexKey> =
         naming.vertex_pairs.iter().copied().collect();
@@ -506,7 +862,7 @@ fn name_split_edges_vertices<T: Decide>(
     let mut root_of: BTreeMap<EdgeKey, EdgeKey> = BTreeMap::new();
     for sb in sides {
         for (e, _) in sb.body.edges() {
-            root_of.insert(e, chase_split_edge_to_table(sides, target_table, e)?);
+            root_of.insert(e, chase_split_edge_to_table(sides, target_table, e));
         }
     }
     // A divided parent is collected across BOTH sides first: a
@@ -527,26 +883,21 @@ fn name_split_edges_vertices<T: Decide>(
         })
         .map(|e| root_of[&e])
         .collect();
-    // Keys are unique across the two halves (restrictions of one
-    // arena), and each side's joins keep their order, so one chase
-    // over both sides' rows is each side's.
-    let joins: Vec<topo::EdgeJoin> = naming.edge_joins.iter().map(|&(_, j)| j).collect();
-    let covers = topo::join_covers(&joins);
     let joined = split_joined_readings(
         node,
         sides,
         naming,
+        merged,
         &root_of,
-        (&joins, &covers),
+        (joins, covers),
         target_node,
         target_table,
     )?;
-    let lineage = &naming.joined_lineage;
     for s in sides {
         let slot = s.slot();
         let body = s.body;
         let HalfNames { t, tie, .. } = &mut halves[slot];
-        let chord_faces = chord_faces(body, &naming.sections, section_keys)?;
+        let chord_faces = split_chords(body, naming, merged, &root_of, target_table, target_body)?;
         // Chord edges named by the operand face their section boundary
         // runs across. A section line that re-enters ONE operand face
         // (an inner loop, or any non-convex face) cuts several chords
@@ -563,23 +914,21 @@ fn name_split_edges_vertices<T: Decide>(
                 // decide the reading whatever `chord_faces` holds.
                 continue;
             }
-            let root = frag_rows.root(other);
-            if section_keys.contains(&root) {
-                return Err(bug("section chord adjacent to a section face"));
-            }
-            let parent = upstream_name(target_table, target_node, ent(0, EntityKey::Face(root)))?;
+            let (parent, tied) = merged.parent_of(other, naming, target_node, target_table)?;
             let name = name1(
                 EntityKind::Edge,
                 node,
-                RoleSeg::SectionEdge { face: parent.name },
+                RoleSeg::SectionEdge { face: parent },
             );
             let group = edge_groups.entry((slot, name)).or_default();
-            group.0 |= parent.tied;
+            group.0 |= tied;
             group.1.push(e);
         }
         // The side's pieces of each operand edge, for the crossings'
         // senses.
-        let mut pieces_of: BTreeMap<EdgeKey, Vec<EdgeKey>> = BTreeMap::new();
+        // The side's pieces of each operand edge, each with whether it
+        // runs the operand edge's way, for the crossings' senses.
+        let mut pieces_of: BTreeMap<EdgeKey, Vec<(EdgeKey, bool)>> = BTreeMap::new();
         // Remaining edges: pass-through or crossing-cut fragments.
         for (e, _) in body.edges() {
             match joined.get(&e) {
@@ -593,13 +942,39 @@ fn name_split_edges_vertices<T: Decide>(
                     put(t, tie, *tied, name.clone(), ent(0, EntityKey::Edge(e)))?;
                     continue;
                 }
+                // Several seams of one pair of faces in the half are
+                // told apart by their ends, as a boolean's seam pieces
+                // are.
+                Some(Joined::Seam { name, tied }) => {
+                    let group = edge_groups.entry((slot, name.clone())).or_default();
+                    group.0 |= *tied;
+                    group.1.push(e);
+                    continue;
+                }
+                Some(Joined::SetPiece { name, tied, roots }) => {
+                    // It holds the crossings at its ends of the operand
+                    // edges it lies along, whichever way each runs.
+                    let joined = EdgeCarrier::of_edge(body, e)?;
+                    for &r in roots {
+                        let same = EdgeCarrier::of_edge(target_body, r)?
+                            .runs_with(&joined, ON_MEMBER_EDGE, bnd)?
+                            .ok_or_else(|| {
+                                bug("a split set piece lies off an operand edge it covers")
+                            })?;
+                        pieces_of.entry(r).or_default().push((e, same));
+                    }
+                    let group = edge_groups.entry((slot, name.clone())).or_default();
+                    group.0 |= *tied;
+                    group.1.push(e);
+                    continue;
+                }
                 None => {}
             }
             if chord_faces.contains_key(&e) {
                 continue;
             }
             let root = root_of[&e];
-            pieces_of.entry(root).or_default().push(e);
+            pieces_of.entry(root).or_default().push((e, true));
             if target_table.name_of(&ent(0, EntityKey::Edge(e))).is_some()
                 && !divided_edges.contains(&root)
             {
@@ -654,7 +1029,7 @@ fn name_split_edges_vertices<T: Decide>(
             // null-pair copy rows (a copy can be minted at an earlier
             // copy; the original's record lives in whichever side kept
             // it).
-            let src = pair_original(&copy_to_original, v)?;
+            let src = pair_original(&copy_to_original, v);
             let parent_edge = sides
                 .iter()
                 .find_map(|sb| match sb.body.vertex_provenance_of(src) {
@@ -662,8 +1037,7 @@ fn name_split_edges_vertices<T: Decide>(
                         Some(chase_split_edge_to_table(sides, target_table, *edge))
                     }
                     _ => None,
-                })
-                .transpose()?;
+                });
             if let Some(parent_edge) = parent_edge {
                 // Crossing vertex: minted where the plane crossed an
                 // operand edge's interior.
@@ -712,59 +1086,18 @@ fn name_split_edges_vertices<T: Decide>(
                 continue;
             }
             // Several copies in this half: each by the corner's own
-            // edges it is an end of a piece of here (N2's `Keeps`). A
-            // piece descends from its edge, or, where the edge lies in
-            // the tool plane, is a section chord along it from this
-            // copy to a copy of the edge's other end. A closed edge's
-            // other end is the corner itself, so its chord runs from
-            // this copy round to a copy of the corner (an in-plane
-            // circle swept by a revolved apex).
-            let mut own: Vec<(EdgeKey, VertexKey)> = Vec::new();
-            for o in target_body
+            // edges it is an end of a piece of here (N2's `Keeps`).
+            let own: BTreeSet<EdgeKey> = target_body
                 .edges_of_vertex(corner)
                 .ok_or_else(|| bug("an operand corner's orbit does not read"))?
-            {
-                let (a, b) = edge_ends(target_body, o)?;
-                own.push((o, if a == corner { b } else { a }));
-            }
+                .into_iter()
+                .collect();
             let mut pieces = Vec::with_capacity(copies.len());
             for v in copies {
-                let mut kept: BTreeSet<EdgeKey> = BTreeSet::new();
-                for e in body
+                let at = body
                     .edges_of_vertex(v)
-                    .ok_or_else(|| bug("a corner copy's orbit does not read"))?
-                {
-                    for c in covers.get(&e).cloned().unwrap_or_else(|| vec![e]) {
-                        let root = chase_split_lineage(sides, target_table, lineage, c)?;
-                        if own.iter().any(|&(o, _)| o == root) {
-                            kept.insert(root);
-                        }
-                    }
-                    if !chord_faces.contains_key(&e) {
-                        continue;
-                    }
-                    let (a, b) = edge_ends(body, e)?;
-                    let far = pair_original(&copy_to_original, if a == v { b } else { a })?;
-                    // The far-end match settles every case but two own
-                    // edges joining the corner to one vertex (a straight
-                    // edge and an arc between the same two points); the
-                    // chord lies along at most one of them, which
-                    // `chord_within` reads.
-                    for &(o, o_far) in &own {
-                        if o_far == far && chord_within(body, e, target_body, o, bnd)? {
-                            kept.insert(o);
-                        }
-                    }
-                }
-                let mut lines = BTreeSet::new();
-                for o in kept {
-                    let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(o)))?;
-                    lines.insert((*edge_line(&up.name)).clone());
-                }
-                pieces.push((
-                    Qualifier::Keeps(lines.into_iter().collect()),
-                    ent(0, EntityKey::Vertex(v)),
-                ));
+                    .ok_or_else(|| bug("a corner copy's orbit does not read"))?;
+                pieces.push((keeps.of(at, &own)?, ent(0, EntityKey::Vertex(v))));
             }
             mint_qualified(t, tie, of.tied, &base, pieces)?;
         }
@@ -812,7 +1145,9 @@ fn name_split_edges_vertices<T: Decide>(
         // A lone section chord is the whole of the section line across
         // its face; an operand edge's fragment is always a piece of it.
         let lone = match base.path.first() {
-            Some(RoleSeg::SectionEdge { .. }) => Lone::Whole,
+            Some(RoleSeg::SectionEdge { .. } | RoleSeg::Merged(_) | RoleSeg::Seam { .. }) => {
+                Lone::Whole
+            }
             _ => Lone::Piece,
         };
         name_edge_pieces(
@@ -832,33 +1167,35 @@ fn name_split_edges_vertices<T: Decide>(
 }
 
 /// The operand vertex a split's copy `v` stands for: `v` itself, or
-/// the end of its chain of null-pair rows (`copy_to_original`), each
-/// copy minted at an earlier one or at the operand vertex.
+/// the end of its chain of null-pair rows (`copy_to_original`).
 ///
-/// # Errors
+/// # Panics
 ///
-/// [`NamingError::Emission`] where the rows cycle.
-fn pair_original(
-    copy_to_original: &BTreeMap<VertexKey, VertexKey>,
-    v: VertexKey,
-) -> Result<VertexKey, NamingError> {
-    let mut at = v;
-    for _ in 0..=copy_to_original.len() {
-        match copy_to_original.get(&at) {
-            Some(&o) => at = o,
-            None => return Ok(at),
-        }
-    }
-    Err(NamingError::Emission {
-        what: "a split's null-pair rows cycle",
-    })
+/// Where the rows cycle ([`chase::to_root`]): each row is a copy
+/// `SplitNaming` records with the vertex the null edge that minted it
+/// was minted at, so it names an earlier key.
+fn pair_original(copy_to_original: &BTreeMap<VertexKey, VertexKey>, v: VertexKey) -> VertexKey {
+    let Ok(original) = chase::to_root::<_, Infallible>(
+        v,
+        copy_to_original.len(),
+        "see `emit_topo::pair_original`'s Panics",
+        |k| {
+            Ok(match copy_to_original.get(&k) {
+                Some(&o) => ControlFlow::Continue(o),
+                None => ControlFlow::Break(k),
+            })
+        },
+    );
+    original
 }
 
 /// **The sense of a Split's crossing at `v`** (N2) against the half
 /// whose body `body` holds it, along the crossed edge as it is stored:
 /// `Enters` where the one piece of the edge the half holds at `v`
-/// starts there, `Leaves` where it ends there. `pieces` are the half's
-/// pieces of the crossed edge.
+/// starts there along the edge, `Leaves` where it ends there. `pieces`
+/// are the half's pieces of the crossed edge, each with whether it runs
+/// the edge's way (a joined edge over several operand edges keeps one
+/// of their directions).
 ///
 /// # Errors
 ///
@@ -868,11 +1205,12 @@ fn pair_original(
 fn split_sense<T: geom_core::Real>(
     body: &Body<T>,
     v: VertexKey,
-    pieces: &[EdgeKey],
+    pieces: &[(EdgeKey, bool)],
 ) -> Result<Sense, NamingError> {
     let mut senses = Vec::with_capacity(1);
-    for &e in pieces {
+    for &(e, same) in pieces {
         let (start, end) = edge_ends(body, e)?;
+        let (start, end) = if same { (start, end) } else { (end, start) };
         if start == v {
             senses.push(Sense::Enters);
         }
@@ -3234,7 +3572,7 @@ pub(super) struct Cover<K> {
 /// A candidate for [`Track::cover`]: an edge's two end points, the
 /// point halfway along it, and whether it is closed (one vertex at
 /// both ends, structurally).
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(super) struct CarrierArc<T: Decide> {
     pub(super) p0: Point3<T>,
     pub(super) mid: Point3<T>,
@@ -3247,7 +3585,10 @@ pub(super) struct CarrierArc<T: Decide> {
 /// carrier (`names/README.md`, "Flush edges"). Positions are carrier
 /// parameters, as offsets from the edge's start in its direction;
 /// lengths between them are metered in metres through the carrier's
-/// speed at the edge's middle. A closed edge is its carrier's whole
+/// greatest speed over every parameter
+/// ([`geom::carrier_speed::speed_range`]), so no verdict depends on
+/// which edge of the carrier reads it, and a stretch decided zero is
+/// within the zero band in metres. A closed edge is its carrier's whole
 /// period: nothing [`Track::cover`] says of it depends on where its
 /// vertex sits, which has no identity of its own (`docs/DESIGN.md`,
 /// maximal edges).
@@ -3259,7 +3600,7 @@ pub(super) struct Track<T: Decide> {
     len: T,
     period: Option<T>,
     closed: bool,
-    speed: T,
+    rate: geom_core::SupSpeed<T>,
 }
 
 impl<T: Decide> Track<T> {
@@ -3267,16 +3608,24 @@ impl<T: Decide> Track<T> {
     /// `he_plus` start to its end.
     pub(super) fn of_edge(body: &Body<T>, e: EdgeKey) -> Result<Self, NamingError> {
         let curve = certified_curve(body, e)?;
-        let carrier = curve.carrier().clone();
-        let (t0, t1) = curve.params();
+        let (v0, v1) = edge_ends(body, e)?;
+        Self::on(e, curve.carrier().clone(), curve.params(), v0 == v1)
+    }
+
+    /// Edge `e` on `carrier` over `(t0, t1)`, `closed` when one vertex
+    /// ends it at both ends.
+    fn on(
+        e: EdgeKey,
+        carrier: geom::Curve3<T>,
+        (t0, t1): (T, T),
+        closed: bool,
+    ) -> Result<Self, NamingError> {
         let period = match carrier {
             geom::Curve3::Circle { .. }
             | geom::Curve3::Ellipse { .. }
             | geom::Curve3::Spiric { .. } => Some(T::from_f64(std::f64::consts::TAU)),
             _ => None,
         };
-        let (v0, v1) = edge_ends(body, e)?;
-        let closed = v0 == v1;
         let len = match (closed, period) {
             (true, Some(p)) => p,
             (true, None) => {
@@ -3288,7 +3637,7 @@ impl<T: Decide> Track<T> {
             (false, _) => t1 - t0,
         };
         let mid = geom::mid_param(t0, t1);
-        let speed = carrier.deriv(mid).norm();
+        let rate = geom::carrier_speed::speed_range(&carrier).1;
         Ok(Track {
             edge: e,
             carrier,
@@ -3297,17 +3646,19 @@ impl<T: Decide> Track<T> {
             len,
             period,
             closed,
-            speed,
+            rate,
         })
     }
 
+    /// The sign of the stretch `x` along the carrier, metered by its
+    /// greatest speed.
     fn sign(
         &self,
         x: T,
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<Sign, NamingError> {
-        decide(predicate, Margin::levered(x, self.speed), bnd)
+        decide(predicate, Margin::metered_sup(x, self.rate), bnd)
             .map_err(|source| NamingError::Escalated { predicate, source })
     }
 
@@ -3347,12 +3698,7 @@ impl<T: Decide> Track<T> {
             }
             None => self.mid,
         };
-        let Some(u) = self.carrier.param_near(p, anchor) else {
-            return Err(NamingError::CarrierUnplaced {
-                edge: self.edge,
-                carrier: self.carrier.kind(),
-            });
-        };
+        let u = self.place(p, anchor)?;
         if gap(self.carrier.eval(u))? != Sign::Zero {
             return Ok(None);
         }
@@ -3360,6 +3706,23 @@ impl<T: Decide> Track<T> {
         // `u − t0` lies in `(0, period]`, and the reduction moves only
         // the start's own reading, which is decided above.
         Ok(Some(self.forward(u - self.t0)))
+    }
+
+    /// **Where `p` lies along the carrier**: its parameter within half
+    /// a period of `anchor` ([`geom::Curve3::param_near`]), the one
+    /// placement every reading along a curved edge takes.
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::CarrierUnplaced`] on a carrier that recovers no
+    /// parameter for a point (a spline).
+    fn place(&self, p: Point3<T>, anchor: T) -> Result<T, NamingError> {
+        self.carrier
+            .param_near(p, anchor)
+            .ok_or(NamingError::CarrierUnplaced {
+                edge: self.edge,
+                carrier: self.carrier.kind(),
+            })
     }
 
     /// `x` reduced into `[0, period)` on a periodic carrier, unchanged
@@ -3371,17 +3734,18 @@ impl<T: Decide> Track<T> {
         }
     }
 
-    /// The stretches of offsets `arc` holds: one on an open carrier;
-    /// on a periodic one the arc from the end it starts at through its
-    /// middle, and that arc a period back, so a stretch through the
-    /// start reads whole on one side or the other. `None` where the arc
-    /// is off the carrier.
-    fn stretches(
+    /// **Where `arc` lies along the carrier**: the offsets of the end
+    /// it starts at and of its other end, in the carrier's direction
+    /// and the second past the first, and whether it starts at
+    /// `arc.p1`. On a periodic carrier the arc runs from the end it
+    /// starts at through its middle. `None` where the arc is off the
+    /// carrier.
+    fn span(
         &self,
         arc: &CarrierArc<T>,
         predicate: &'static str,
         bnd: geom_core::Band,
-    ) -> Result<Option<Vec<(T, T)>>, NamingError> {
+    ) -> Result<Option<(T, T, bool)>, NamingError> {
         let (Some(a0), Some(am), Some(a1)) = (
             self.offset(arc.p0, predicate, bnd)?,
             self.offset(arc.mid, predicate, bnd)?,
@@ -3390,22 +3754,39 @@ impl<T: Decide> Track<T> {
             return Ok(None);
         };
         let Some(per) = self.period else {
-            return Ok(Some(vec![match self.sign(a1 - a0, predicate, bnd)? {
-                Sign::Negative => (a1, a0),
-                _ => (a0, a1),
-            }]));
+            return Ok(Some(match self.sign(a1 - a0, predicate, bnd)? {
+                Sign::Negative => (a1, a0, true),
+                _ => (a0, a1, false),
+            }));
         };
-        if arc.closed {
-            return Ok(Some(vec![(T::zero(), per), (T::zero() - per, T::zero())]));
-        }
         let (d1, dm) = (self.forward(a1 - a0), self.forward(am - a0));
         // The middle is half the arc from either end, so this verdict
         // is never near its band.
-        let (lo, n) = match self.sign(d1 - dm, predicate, bnd)? {
-            Sign::Positive => (a0, d1),
-            _ => (a1, per - d1),
+        Ok(Some(match self.sign(d1 - dm, predicate, bnd)? {
+            Sign::Positive => (a0, a0 + d1, false),
+            _ => (a1, a1 + per - d1, true),
+        }))
+    }
+
+    /// The stretches of offsets `arc` holds ([`Track::span`]): one on
+    /// an open carrier; on a periodic one the arc and that arc a period
+    /// back, so a stretch through the start reads whole on one side or
+    /// the other, and a closed arc's whole period. `None` where the arc
+    /// is off the carrier.
+    fn stretches(
+        &self,
+        arc: &CarrierArc<T>,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Option<Vec<(T, T)>>, NamingError> {
+        let Some((lo, hi, _)) = self.span(arc, predicate, bnd)? else {
+            return Ok(None);
         };
-        Ok(Some(vec![(lo, lo + n), (lo - per, lo + n - per)]))
+        Ok(Some(match self.period {
+            None => vec![(lo, hi)],
+            Some(per) if arc.closed => vec![(T::zero(), per), (T::zero() - per, T::zero())],
+            Some(per) => vec![(lo, hi), (lo - per, hi - per)],
+        }))
     }
 
     /// Whether `p` lies on this edge: on its carrier at an offset within
@@ -3454,6 +3835,156 @@ impl<T: Decide> Track<T> {
             Ok(self.sign(p - q, predicate, bnd)? == Sign::Positive)
         })
     }
+
+    /// **Where `points` lie along a seam whose `pieces` lie on this
+    /// edge's carrier** (N2): each point's offset along the carrier in
+    /// its direction, from where the seam starts. On an open carrier
+    /// that is this edge's start. On a periodic one it is the end of the
+    /// gap the pieces leave in the period: their one gap, or, where they
+    /// leave several, the one no vertex of `group` bounds, which is
+    /// where the seam's arc ran before the cuts that made the group's
+    /// vertices. Each piece is its arc and the vertices at its two
+    /// ends, `[at p0, at p1]`, and a vertex bounds a gap when it is the
+    /// end of a piece beside it: an identity, never a place.
+    ///
+    /// The tie, with its reason ([`NoStart`]), where a piece or a point
+    /// lies off the carrier, where the pieces cover the whole period,
+    /// and where they leave several gaps of which none, or more than
+    /// one, is free of the group's vertices.
+    pub(super) fn open_offsets<V: Copy + PartialEq>(
+        &self,
+        pieces: &[(CarrierArc<T>, [V; 2])],
+        group: &[V],
+        points: &[Point3<T>],
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Result<Vec<T>, NoStart>, NamingError> {
+        let mut spans = Vec::with_capacity(pieces.len());
+        for (arc, [v0, v1]) in pieces {
+            let Some((lo, hi, from_p1)) = self.span(arc, predicate, bnd)? else {
+                return Ok(Err(NoStart::OffCarrier));
+            };
+            if self.period.is_some() && arc.closed {
+                return Ok(Err(NoStart::WholePeriod));
+            }
+            spans.push(if from_p1 {
+                (lo, hi, *v1, *v0)
+            } else {
+                (lo, hi, *v0, *v1)
+            });
+        }
+        let start = match self.period {
+            None => T::zero(),
+            Some(per) => match self.seam_start(&spans, group, per, predicate, bnd)? {
+                Ok(start) => start,
+                Err(why) => return Ok(Err(why)),
+            },
+        };
+        let mut out = Vec::with_capacity(points.len());
+        for &p in points {
+            let Some(u) = self.offset(p, predicate, bnd)? else {
+                return Ok(Err(NoStart::OffCarrier));
+            };
+            let at = self.forward(u - start);
+            out.push(match self.period {
+                Some(per) if self.sign(per - at, predicate, bnd)? == Sign::Zero => T::zero(),
+                _ => at,
+            });
+        }
+        Ok(Ok(out))
+    }
+
+    /// **Where a seam starts along a periodic carrier**
+    /// ([`Track::open_offsets`]), from its pieces' `spans`, each
+    /// `(lo, hi, vertex at lo, vertex at hi)` with `lo` in one period.
+    /// A span's start is free, the end of a gap, where no other span,
+    /// nor its copy a period either way, runs from before it to it; its
+    /// end is free, the start of a gap, where none runs from it to past
+    /// it. Each free end begins the gap the next free start along the
+    /// carrier ends.
+    fn seam_start<V: Copy + PartialEq>(
+        &self,
+        spans: &[(T, T, V, V)],
+        group: &[V],
+        per: T,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Result<T, NoStart>, NamingError> {
+        let sign = |x: T| self.sign(x, predicate, bnd);
+        let copies = |j: usize| {
+            let (lo, hi, _, _) = spans[j];
+            [T::zero() - per, T::zero(), per].map(|s| (lo + s, hi + s))
+        };
+        let mut starts = Vec::new();
+        let mut ends = Vec::new();
+        for (i, &(lo, hi, at_lo, at_hi)) in spans.iter().enumerate() {
+            let (mut lo_free, mut hi_free) = (true, true);
+            for j in (0..spans.len()).filter(|&j| j != i) {
+                for (lo_j, hi_j) in copies(j) {
+                    if sign(lo - lo_j)? == Sign::Positive && sign(hi_j - lo)? != Sign::Negative {
+                        lo_free = false;
+                    }
+                    if sign(hi - lo_j)? != Sign::Negative && sign(hi_j - hi)? == Sign::Positive {
+                        hi_free = false;
+                    }
+                }
+            }
+            if lo_free {
+                starts.push((lo, at_lo));
+            }
+            if hi_free {
+                ends.push((hi, at_hi));
+            }
+        }
+        match starts.as_slice() {
+            [] => return Ok(Err(NoStart::WholePeriod)),
+            [(start, _)] => return Ok(Ok(*start)),
+            _ => {}
+        }
+        let mut free = Vec::new();
+        for &(end, at_end) in &ends {
+            let mut next: Option<(T, T, V)> = None;
+            for &(start, at_start) in &starts {
+                let reach = self.forward(start - end);
+                let nearer = match next {
+                    Some((best, _, _)) => sign(reach - best)? == Sign::Negative,
+                    None => true,
+                };
+                if nearer {
+                    next = Some((reach, start, at_start));
+                }
+            }
+            if let Some((_, start, at_start)) = next
+                && !group.contains(&at_end)
+                && !group.contains(&at_start)
+            {
+                free.push(start);
+            }
+        }
+        Ok(match free.as_slice() {
+            [start] => Ok(*start),
+            [] => Err(NoStart::EveryGapBounded),
+            _ => Err(NoStart::SeveralFreeGaps),
+        })
+    }
+}
+
+/// **Why a seam gives the vertices along it no offsets**
+/// ([`Track::open_offsets`]): N2's tie, for one of these reasons.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum NoStart {
+    /// A piece or a vertex lies off the carrier: the seam runs on
+    /// several.
+    OffCarrier,
+    /// The pieces cover the carrier's whole period: a closed carrier,
+    /// whose one start is where the kernel cut it.
+    WholePeriod,
+    /// The pieces leave several gaps, and a vertex of the group bounds
+    /// each.
+    EveryGapBounded,
+    /// The pieces leave several gaps that no vertex of the group
+    /// bounds.
+    SeveralFreeGaps,
 }
 
 /// **An edge's line for the flush readings**: its [`Segment`] where it
@@ -3470,7 +4001,7 @@ pub(super) enum EdgeCarrier<T: Decide> {
     /// on it covers nothing (`emit_union::Flush::edge_cover`): the
     /// readings refuse nothing they would not refuse on a straight
     /// edge, at the cost of not counting such edges flush
-    /// (`work/emit/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
+    /// (`work/seamrank/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
     Unread,
 }
 
@@ -3480,9 +4011,7 @@ impl<T: Decide> EdgeCarrier<T> {
         if is_straight(body, e) {
             return Ok(EdgeCarrier::Straight(Segment::of_edge(body, e)?));
         }
-        let carrier = certified_curve(body, e)?.carrier();
-        let origin = Point3::new(T::zero(), T::zero(), T::zero());
-        if carrier.param_near(origin, T::zero()).is_none() {
+        if !places_points(certified_curve(body, e)?.carrier()) {
             return Ok(EdgeCarrier::Unread);
         }
         Ok(EdgeCarrier::Curved(Track::of_edge(body, e)?))
@@ -3508,6 +4037,13 @@ impl<T: Decide> EdgeCarrier<T> {
             | (EdgeCarrier::Curved(_), EdgeCarrier::Straight(_)) => Ok(None),
         }
     }
+}
+
+/// Whether `carrier` recovers a parameter for a point
+/// ([`geom::Curve3::param_near`]): every kind but a spline.
+fn places_points<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
+    let origin = Point3::new(T::zero(), T::zero(), T::zero());
+    carrier.param_near(origin, T::zero()).is_some()
 }
 
 /// Edge `e`'s certified curve.
@@ -3903,7 +4439,10 @@ pub(super) fn edges_holding<'b, T: Decide + 'b, K>(
 /// Edge `e` of `body` as a cover candidate: its ends and, on a curved
 /// edge, the point halfway along its certified carrier. A segment is
 /// read by its ends alone, so its middle is its start.
-fn carrier_arc<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<CarrierArc<T>, NamingError> {
+pub(super) fn carrier_arc<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+) -> Result<CarrierArc<T>, NamingError> {
     let (v0, v1) = edge_ends(body, e)?;
     let mid = if is_straight(body, e) {
         vertex_point(body, v0)?
@@ -4098,11 +4637,12 @@ fn crossed_curve<T: Decide>(
 }
 
 /// Where `p`, a point on edge `e` of `body`, lies along it: the edge's
-/// carrier's own parameter, increasing as the edge runs as stored.
-/// `None` for a carrier with no closed-form parameter here (a NURBS
-/// curve). The parameter is read near the middle of the edge's
-/// certified interval, so a closed edge's crossings, which lie inside
-/// it, are read without the period's cut between them.
+/// carrier's own parameter, increasing as the edge runs as stored,
+/// placed as every reading along an edge places a point
+/// ([`Track::place`]), near the middle of the edge's certified
+/// interval, so a closed edge's crossings, which lie inside it, are
+/// read without the period's cut between them. `None` on a carrier
+/// that places no point (a NURBS curve, [`EdgeCarrier::Unread`]).
 ///
 /// `p` lies within ε of the carrier, so two readings the band decides
 /// apart, by at least Kε, order the points' feet only where Kε > 2ε:
@@ -4112,25 +4652,11 @@ pub(super) fn param_along<T: Decide>(
     e: EdgeKey,
     p: Point3<T>,
 ) -> Result<Option<T>, NamingError> {
-    use geom::Curve3;
-    let curve = crossed_curve(body, e)?;
-    let (t0, t1) = curve.params();
-    let near = (t0 + t1) * T::from_f64(0.5);
-    Ok(match curve.carrier() {
-        Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-        } => {
-            let w = p - *center;
-            let (x, y) = (w.dot(*u_ref) / *semi_u, w.dot(axis.cross(*u_ref)) / *semi_v);
-            let (s, c) = near.sin_cos();
-            Some(near + (y * c - x * s).atan2(x * c + y * s))
-        }
-        carrier => carrier.param_near(p, near),
-    })
+    if !places_points(crossed_curve(body, e)?.carrier()) {
+        return Ok(None);
+    }
+    let track = Track::of_edge(body, e)?;
+    track.place(p, track.mid).map(Some)
 }
 
 /// The edge a crossing is read along: edge `edge` of `body`, named
@@ -4198,29 +4724,97 @@ pub(super) fn rank_crossings<T: Decide>(
             _ => return Ok(mint_candidates(t, tie, from_tie, base.clone(), keys)?),
         };
         way = Some(forward);
-        let ((lo, hi), unread) = match param_along(body, edge, p)? {
-            Some(at) => ((at, at), None),
-            None => (param_span(body, edge)?, Some((body, edge))),
-        };
-        let extent = if forward {
+        reads.push(match param_along(body, edge, p)? {
+            Some(at) => Read::At(at),
+            None => Read::Unread(param_span(body, edge)?, p, body, edge),
+        });
+    }
+    rank_reads(
+        t,
+        tie,
+        from_tie,
+        base,
+        &keys,
+        &reads,
+        way.unwrap_or(true),
+        bnd,
+    )
+}
+
+/// **Ranks the crossings of a union seam by their `offsets` along its
+/// carrier** ([`Track::open_offsets`]), as [`rank_crossings`] ranks a
+/// line's ([`rank_reads`]): oriented as `seam`, one of its pieces, runs
+/// ([`crossed_edge_orientation`]), and tied where it has no orientation.
+pub(super) fn rank_along_track<T: Decide>(
+    t: &mut NameTable,
+    tie: &mut TieRows,
+    base: &StableName,
+    keys: Vec<super::table::EntityRef>,
+    offsets: &[T],
+    seam: CrossedEdge<'_, T>,
+    bnd: geom_core::Band,
+) -> Result<(), NamingError> {
+    let CrossedEdge {
+        body,
+        table,
+        edge,
+        name,
+    } = seam;
+    let Some(forward) = crossed_edge_orientation(body, table, edge, name)? else {
+        return Ok(mint_candidates(t, tie, false, base.clone(), keys)?);
+    };
+    let reads: Vec<Read<'_, T>> = offsets.iter().map(|&x| Read::At(x)).collect();
+    rank_reads(t, tie, false, base, &keys, &reads, forward, bnd)
+}
+
+/// Where one crossing lies along the carrier [`rank_reads`] ranks on.
+enum Read<'a, T: Decide> {
+    /// At this parameter.
+    At(T),
+    /// Somewhere in this parameter interval of a piece whose carrier
+    /// places no point: the crossing's point, and that piece.
+    Unread((T, T), Point3<T>, &'a Body<T>, EdgeKey),
+}
+
+/// **Ranks `keys` by their `reads` along one carrier**, run `forward`
+/// or against it: crossings on different pieces of an unread carrier
+/// order by their pieces, and two on one piece order by where they lie
+/// along its chord when [`chord_along`] certifies that this is the
+/// order of their parameters, asked for only for such a pair. Each is
+/// put ranked, or all tied ([`insert_ranked_or_tied`]).
+#[allow(clippy::too_many_arguments)]
+fn rank_reads<T: Decide>(
+    t: &mut NameTable,
+    tie: &mut TieRows,
+    from_tie: bool,
+    base: &StableName,
+    keys: &[super::table::EntityRef],
+    reads: &[Read<'_, T>],
+    forward: bool,
+    bnd: geom_core::Band,
+) -> Result<(), NamingError> {
+    let oriented = |(lo, hi): (T, T)| {
+        if forward {
             Extent { min: lo, max: hi }
         } else {
             Extent { min: -hi, max: -lo }
-        };
-        reads.push((extent, p, unread));
-    }
-    let forward = way.unwrap_or(true);
+        }
+    };
+    let extent = |r: &Read<'_, T>| match *r {
+        Read::At(at) => oriented((at, at)),
+        Read::Unread(span, ..) => oriented(span),
+    };
     type PieceKey<T> = (*const Body<T>, EdgeKey);
     let mut chords: Vec<(PieceKey<T>, Option<Chord<T>>)> = Vec::new();
     let ranks = rank_by(reads.len(), |i, j| match (&reads[i], &reads[j]) {
-        ((_, pi, Some((bi, ei))), (_, pj, Some((bj, ej))))
-            if std::ptr::eq(*bi, *bj) && ei == ej =>
+        (&Read::Unread(_, pi, bi, ei), &Read::Unread(_, pj, bj, ej))
+            if std::ptr::eq(bi, bj) && ei == ej =>
         {
-            let piece = (std::ptr::from_ref(*bi), *ei);
+            let piece = (std::ptr::from_ref(bi), ei);
             let chord = match chords.iter().find(|(k, _)| *k == piece) {
                 Some(&(_, chord)) => chord,
                 None => {
-                    let chord = chord_along(bi, *ei, bnd)?;
+                    let chord = chord_along(bi, ei, bnd)?;
                     chords.push((piece, chord));
                     chord
                 }
@@ -4230,14 +4824,13 @@ pub(super) fn rank_crossings<T: Decide>(
             };
             let at = |p: Point3<T>| {
                 let c = chord.along(p);
-                let c = if forward { c } else { -c };
-                Extent { min: c, max: c }
+                oriented((c, c))
             };
-            extent_before(&at(*pi), &at(*pj), bnd)
+            extent_before(&at(pi), &at(pj), bnd)
         }
-        ((xi, _, _), (xj, _, _)) => extent_before(xi, xj, bnd),
+        (ri, rj) => extent_before(&extent(ri), &extent(rj), bnd),
     })?;
-    insert_ranked_or_tied(t, tie, from_tie, base, &keys, ranks, |e| *e)
+    insert_ranked_or_tied(t, tie, from_tie, base, keys, ranks, |e| *e)
 }
 
 /// A NURBS piece's chord, certified to order the piece's points as its
@@ -4365,6 +4958,64 @@ fn insert_ranked_or_tied<K: Copy>(
     Ok(())
 }
 
+/// The boundary edges of operand faces `faces`: the parent edges a
+/// split piece's `Keeps` cites from (N2).
+fn operand_boundary<T: Decide>(
+    target_body: &Body<T>,
+    faces: impl IntoIterator<Item = FaceKey>,
+) -> Result<BTreeSet<EdgeKey>, NamingError> {
+    let mut boundary = BTreeSet::new();
+    for f in faces {
+        for he in face_half_edges(target_body, f)? {
+            let h = target_body.get_half_edge(he).ok_or(NamingError::Emission {
+                what: "a split parent's half-edge is dangling",
+            })?;
+            boundary.insert(h.edge);
+        }
+    }
+    Ok(boundary)
+}
+
+/// N2's `Keeps`, one reading for a split's face pieces and corner
+/// copies: the parent's edges an entity holds a stretch of, by descent
+/// alone. An edge of the half holds a stretch of the operand edge it
+/// descends from, through the split's `SplitEdge` records and, for an
+/// edge a join made, through each edge its cover lies along
+/// (`SplitNaming::joined_lineage`).
+struct KeepsReading<'r, 's, T: Decide> {
+    sides: &'r [Side<'s, T>],
+    target_node: RecipeNodeId,
+    target_table: &'r NameTable,
+    lineage: &'r BTreeMap<EdgeKey, EdgeKey>,
+    covers: &'r BTreeMap<EdgeKey, Vec<EdgeKey>>,
+}
+
+impl<T: Decide> KeepsReading<'_, '_, T> {
+    /// `Keeps` over the lines of the `parents` the half's `edges`
+    /// descend from, in name order.
+    fn of(
+        &self,
+        edges: impl IntoIterator<Item = EdgeKey>,
+        parents: &BTreeSet<EdgeKey>,
+    ) -> Result<Qualifier, NamingError> {
+        let mut lines = BTreeSet::new();
+        for e in edges {
+            for c in self.covers.get(&e).cloned().unwrap_or_else(|| vec![e]) {
+                let root = chase_split_lineage(self.sides, self.target_table, self.lineage, c);
+                if parents.contains(&root) {
+                    let up = upstream_name(
+                        self.target_table,
+                        self.target_node,
+                        ent(0, EntityKey::Edge(root)),
+                    )?;
+                    lines.insert((*edge_line(&up.name)).clone());
+                }
+            }
+        }
+        Ok(Qualifier::Keeps(lines.into_iter().collect()))
+    }
+}
+
 /// Split faces: pass-through for uncut operand faces; `SplitFragment`
 /// (side-discriminated, same-side multiplicity by `Keeps`) for cut
 /// ones.
@@ -4375,10 +5026,11 @@ fn name_split_faces<T: Decide>(
     sides: &[Side<'_, T>],
     frag_rows: &topo::FaceDivisions,
     section_keys: &BTreeSet<FaceKey>,
-    target_node: RecipeNodeId,
-    target_table: &NameTable,
+    merged: &SplitMerges,
+    keeps: &KeepsReading<'_, '_, T>,
     target_body: &Body<T>,
 ) -> Result<(), NamingError> {
+    let (target_node, target_table) = (keeps.target_node, keeps.target_table);
     // Every root that was ever divided: fragments cover it.
     let divided: BTreeSet<FaceKey> = frag_rows
         .rows()
@@ -4389,7 +5041,7 @@ fn name_split_faces<T: Decide>(
     let mut groups: BTreeMap<(FaceKey, usize), Vec<FaceKey>> = BTreeMap::new();
     for s in sides {
         for (f, _) in s.body.faces() {
-            if section_keys.contains(&f) {
+            if section_keys.contains(&f) || merged.held.contains_key(&f) {
                 continue;
             }
             let root = frag_rows.root(f);
@@ -4442,44 +5094,21 @@ fn name_split_faces<T: Decide>(
             continue;
         }
         // Same-side multiplicity: each piece by the parent's boundary
-        // edges it holds a stretch of (N2's `Keeps`), cited by their
-        // lines. A piece's edge is one of them when it descends from
-        // one: whole, or as a piece the plane cut.
-        let boundary: BTreeSet<EdgeKey> = face_half_edges(target_body, root)?
-            .into_iter()
-            .map(|he| {
-                target_body
-                    .get_half_edge(he)
-                    .map(|h| h.edge)
-                    .ok_or(NamingError::Emission {
-                        what: "a split parent's half-edge is dangling",
-                    })
-            })
-            .collect::<Result<_, _>>()?;
+        // edges it holds a stretch of (N2's `Keeps`).
+        let boundary = operand_boundary(target_body, [root])?;
         let mut pieces = Vec::with_capacity(members.len());
         for &f in &members {
-            let mut kept: BTreeSet<StableName> = BTreeSet::new();
-            for he in face_half_edges(body, f)? {
-                let e = body
-                    .get_half_edge(he)
-                    .ok_or(NamingError::Emission {
-                        what: "a split piece's half-edge is dangling",
-                    })?
-                    .edge;
-                let root_edge = chase_split_edge_to_table(sides, target_table, e)?;
-                if boundary.contains(&root_edge) {
-                    let up = upstream_name(
-                        target_table,
-                        target_node,
-                        ent(0, EntityKey::Edge(root_edge)),
-                    )?;
-                    kept.insert((*edge_line(&up.name)).clone());
-                }
-            }
-            pieces.push((
-                Qualifier::Keeps(kept.into_iter().collect()),
-                ent(0, EntityKey::Face(f)),
-            ));
+            let edges = face_half_edges(body, f)?
+                .into_iter()
+                .map(|he| {
+                    body.get_half_edge(he)
+                        .map(|h| h.edge)
+                        .ok_or(NamingError::Emission {
+                            what: "a split piece's half-edge is dangling",
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            pieces.push((keeps.of(edges, &boundary)?, ent(0, EntityKey::Face(f))));
         }
         mint_qualified(&mut h.t, &mut h.tie, from_tie, &base_name, pieces)?;
     }
@@ -4593,6 +5222,27 @@ mod tests {
             .expect("mev on an empty loop grows it by one edge")
             .edge;
         (body, edge)
+    }
+
+    /// **A crossing's sense reads the crossed edge's direction, not the
+    /// piece's.** One edge from `p` to `q`: as a piece running the
+    /// crossed edge's way it enters at `p` and leaves at `q`; as a
+    /// joined edge running against it, the senses swap.
+    #[test]
+    fn a_split_sense_follows_the_crossed_edge_through_a_reversed_piece() {
+        let (body, e) = segment([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        let (p, q) = super::edge_ends(&body, e).unwrap();
+        let sense = |v, same| super::split_sense(&body, v, &[(e, same)]).unwrap();
+        assert_eq!(
+            [sense(p, true), sense(q, true)],
+            [Sense::Enters, Sense::Leaves],
+            "a piece the edge's way"
+        );
+        assert_eq!(
+            [sense(p, false), sense(q, false)],
+            [Sense::Leaves, Sense::Enters],
+            "a piece against it"
+        );
     }
 
     /// `chord_on_rim` for a chord `p`–`q` against the rim (0,0,0)–(1,0,0).
@@ -5862,7 +6512,7 @@ mod split_edge_lineage {
                     continue;
                 }
                 fresh += 1;
-                let root = chase_split_edge_to_table(&sides, table, e).expect("acyclic");
+                let root = chase_split_edge_to_table(&sides, table, e);
                 assert!(
                     named(root),
                     "{:?} edge {e:?} chases to {root:?}, which the extrude never named",
@@ -6635,7 +7285,8 @@ mod edge_pieces_of_one_line_tie {
 
 #[cfg(test)]
 mod track_cover {
-    //! **The flush rule along a curved carrier** ([`Track::cover`]).
+    //! **The flush rule along a curved carrier** ([`Track::cover`]),
+    //! and the seam reading N2 ranks along ([`Track::open_offsets`]).
     //! A closed edge's vertex is conventional and has no identity of
     //! its own (`docs/DESIGN.md`, maximal edges), so the same circle
     //! with its vertex anywhere, its candidates in either order, reads
@@ -6647,8 +7298,8 @@ mod track_cover {
     use geom_core::{Band, Point3, Tol, Vec3};
     use topo::Body;
 
-    use super::{CarrierArc, Cover, Track};
-    use crate::names::discriminate::ON_MEMBER_EDGE;
+    use super::{CarrierArc, Cover, NoStart, Track};
+    use crate::names::discriminate::{ON_MEMBER_EDGE, ON_SEAM_LINE};
 
     fn circle() -> geom::Curve3<f64> {
         geom::Curve3::Circle {
@@ -6768,6 +7419,230 @@ mod track_cover {
             (vec![], vec![0, 1], true)
         );
         assert_eq!(read(&t, vec![(0, arc(2.0, 3.0))]), (vec![], vec![], false));
+    }
+
+    /// A seam piece: the arc of `circle()` from `t0` to `t1` and the
+    /// vertices `v0`, `v1` at its ends.
+    fn piece(t0: f64, t1: f64, v0: u8, v1: u8) -> (CarrierArc<f64>, [u8; 2]) {
+        (arc(t0, t1), [v0, v1])
+    }
+
+    /// Where `at` (carrier parameters) lie along a seam of `pieces`
+    /// whose group is the vertices `group`, read on the track of the
+    /// arc from `t0` to `t1` ([`Track::open_offsets`]).
+    fn offsets(
+        t0: f64,
+        t1: f64,
+        pieces: &[(CarrierArc<f64>, [u8; 2])],
+        group: &[u8],
+        at: &[f64],
+    ) -> Result<Vec<f64>, NoStart> {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let points: Vec<_> = at.iter().map(|&a| circle().eval(a)).collect();
+        track(t0, t1)
+            .open_offsets(pieces, group, &points, ON_SEAM_LINE, band)
+            .unwrap()
+    }
+
+    fn assert_offsets(read: &[f64], want: &[f64], at: &str) {
+        assert_eq!(read.len(), want.len(), "{at}: {read:?}, want {want:?}");
+        for (got, want_one) in read.iter().zip(want) {
+            assert!(
+                (got - want_one).abs() < 1e-9,
+                "{at}: {read:?}, want {want:?}"
+            );
+        }
+    }
+
+    /// **A seam of arcs that leave one gap in the circle is read from
+    /// where it starts**, whichever piece the reading stands on and
+    /// whichever turn of the carrier's parameter it is read in: two pieces from 5.5 to
+    /// 6.0 and on to 7.0, across the cut at τ, read the points at 5.8,
+    /// τ and 6.5 in that order, from the start at 5.5.
+    #[test]
+    fn a_seam_with_one_gap_reads_from_its_start() {
+        let pieces = [piece(5.5, 6.0, 0, 1), piece(6.0, 7.0, 1, 2)];
+        for (t0, t1) in [(5.5, 6.0), (6.0, 7.0), (5.5 - TAU, 6.0 - TAU)] {
+            let read = offsets(t0, t1, &pieces, &[], &[5.8, TAU, 6.5])
+                .unwrap_or_else(|why| panic!("on the arc from {t0}: one stretch, got {why:?}"));
+            assert_offsets(
+                &read,
+                &[0.3, TAU - 5.5, 1.0],
+                &format!("on the arc from {t0}"),
+            );
+        }
+    }
+
+    /// **A seam whose arcs leave two gaps reads from the end of the one
+    /// no vertex of its group bounds**: the arc from 5.0 to 7.5, across
+    /// the cut at τ, with its stretch from 6.0 to 6.5 swallowed between
+    /// the group's two vertices, reads them at 1.0 and 1.5 from 5.0,
+    /// whichever piece reads, in either order, and either way round.
+    #[test]
+    fn a_seam_with_two_gaps_reads_from_the_one_its_group_leaves_free() {
+        let (head, tail) = (piece(5.0, 6.0, 0, 1), piece(6.5, 7.5, 2, 3));
+        let flip = |(a, [v0, v1]): (CarrierArc<f64>, [u8; 2])| {
+            let CarrierArc {
+                p0,
+                mid,
+                p1,
+                closed,
+            } = a;
+            (
+                CarrierArc {
+                    p0: p1,
+                    mid,
+                    p1: p0,
+                    closed,
+                },
+                [v1, v0],
+            )
+        };
+        let orders = [
+            vec![head.clone(), tail.clone()],
+            vec![tail.clone(), head.clone()],
+            vec![flip(head.clone()), flip(tail.clone())],
+        ];
+        for pieces in &orders {
+            for (t0, t1) in [(5.0, 6.0), (6.5, 7.5), (6.5 - TAU, 7.5 - TAU)] {
+                let at = format!("on the arc from {t0}, pieces {pieces:?}");
+                let read = offsets(t0, t1, pieces, &[1, 2], &[6.0, 6.5])
+                    .unwrap_or_else(|why| panic!("{at}: one free gap, got {why:?}"));
+                assert_offsets(&read, &[1.0, 1.5], &at);
+            }
+        }
+    }
+
+    /// **A closed carrier ties**: pieces that cover the whole circle, or
+    /// one closed piece, leave no gap to start from. Pieces that leave
+    /// two gaps tie where the group bounds both, or neither.
+    #[test]
+    fn a_seam_round_the_whole_circle_or_with_no_one_free_gap_has_no_start() {
+        let whole = [piece(1.0, 4.0, 0, 1), piece(4.0, 1.0 + TAU, 1, 0)];
+        assert_eq!(
+            offsets(1.0, 4.0, &whole, &[], &[2.0, 3.0]),
+            Err(NoStart::WholePeriod),
+            "two pieces round it"
+        );
+        assert_eq!(
+            offsets(1.0, 4.0, &[piece(1.0, 1.0 + TAU, 0, 0)], &[], &[2.0, 3.0]),
+            Err(NoStart::WholePeriod),
+            "one closed piece"
+        );
+        let holed = [piece(1.0, 2.0, 0, 1), piece(3.0, 4.0, 2, 3)];
+        let at = [1.5, 3.5];
+        assert_eq!(
+            offsets(1.0, 2.0, &holed, &[], &at),
+            Err(NoStart::SeveralFreeGaps),
+            "two gaps, the group bounding neither"
+        );
+        assert_eq!(
+            offsets(1.0, 2.0, &holed, &[1, 3], &at),
+            Err(NoStart::EveryGapBounded),
+            "two gaps, the group bounding both"
+        );
+        assert_offsets(
+            &offsets(3.0, 4.0, &holed, &[1, 2], &at).unwrap(),
+            &[0.5, 2.5],
+            "two gaps, the group bounding the one between them",
+        );
+        assert!(
+            offsets(1.0, 2.0, &holed[..1], &[], &[1.2, 1.5]).is_ok(),
+            "one piece of them, one gap"
+        );
+    }
+
+    /// **Pieces on two carriers tie**: an arc of the circle of radius 2
+    /// is no stretch of the unit circle, nor is a point off it.
+    #[test]
+    fn pieces_or_points_off_the_carrier_have_no_offset() {
+        let other = CarrierArc {
+            p0: Point3::new(2.0, 0.0, 0.0),
+            mid: Point3::new(0.0, 2.0, 0.0),
+            p1: Point3::new(-2.0, 0.0, 0.0),
+            closed: false,
+        };
+        assert_eq!(
+            offsets(
+                1.0,
+                2.0,
+                &[piece(1.0, 2.0, 0, 1), (other, [2, 3])],
+                &[],
+                &[1.5]
+            ),
+            Err(NoStart::OffCarrier),
+            "two carriers"
+        );
+        let band = Band::linear(Tol::witness()).unwrap();
+        let off = [Point3::new(0.0, 0.0, 1.0)];
+        assert_eq!(
+            track(1.0, 2.0)
+                .open_offsets(&[piece(1.0, 2.0, 0, 1)], &[], &off, ON_SEAM_LINE, band)
+                .unwrap(),
+            Err(NoStart::OffCarrier),
+            "a point off the circle"
+        );
+    }
+
+    /// **Which piece reads a seam on an ellipse changes no verdict**:
+    /// on the ellipse of semi-axes 3 and 0.5, three pieces leave one gap
+    /// of parameter width `g` at the fast end (θ = π/2, speed 3), and
+    /// each piece reads the gap and two points, its middle at speed 0.5,
+    /// 1.8 and 2.4. At every `g`, from well inside the zero band to well
+    /// past the escalate band, all three read alike: the same offsets,
+    /// the same tie, or the same escalation.
+    #[test]
+    fn every_piece_of_an_ellipse_seam_reads_its_gap_alike() {
+        use std::f64::consts::{FRAC_PI_2, PI};
+        let ellipse = geom::Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            semi_u: 3.0,
+            semi_v: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let on = |t0: f64, t1: f64| CarrierArc {
+            p0: ellipse.eval(t0),
+            mid: ellipse.eval(0.5 * (t0 + t1)),
+            p1: ellipse.eval(t1),
+            closed: false,
+        };
+        let band = Band::linear(Tol::witness()).unwrap();
+        let points = [ellipse.eval(PI), ellipse.eval(TAU)];
+        for g in [1e-10, 5e-10, 1e-9, 2e-9, 5e-9, 1e-8, 2e-8, 1e-7] {
+            let ends = [
+                FRAC_PI_2 + g / 2.0,
+                1.5 * PI,
+                TAU + 0.3,
+                TAU + FRAC_PI_2 - g / 2.0,
+            ];
+            let pieces: Vec<_> = (0..3)
+                .map(|i| (on(ends[i], ends[i + 1]), [i, i + 1]))
+                .collect();
+            let reads: Vec<String> = (0..3)
+                .map(|i| {
+                    let track = Track::on(
+                        topo::EdgeKey::default(),
+                        ellipse.clone(),
+                        (ends[i], ends[i + 1]),
+                        false,
+                    )
+                    .unwrap();
+                    match track.open_offsets(&pieces, &[], &points, ON_SEAM_LINE, band) {
+                        Ok(Ok(at)) => format!("{at:.9?}"),
+                        Ok(Err(why)) => format!("{why:?}"),
+                        Err(crate::names::emit::NamingError::Escalated { .. }) => {
+                            "escalated".to_owned()
+                        }
+                        Err(other) => panic!("gap {g}, piece {i}: {other:?}"),
+                    }
+                })
+                .collect();
+            assert!(
+                reads.iter().all(|r| *r == reads[0]),
+                "gap {g}: the three pieces read {reads:?}"
+            );
+        }
     }
 }
 

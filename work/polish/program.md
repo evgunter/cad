@@ -10,7 +10,6 @@ tag: (POLISH orchestrator)
 ab_band: 10200-10299
 paths: [crates/viewer/src/*, crates/viewer/tests/*, crates/viewer/README.md]
 keep_out: [opened by CHROME's 2026-10-01 cut on Ev's guideline (in chat) - CHROME keeps the rows that change WHAT the chrome shows and this program holds the rows that change only HOW it shows information the reader already has - it SHARES crates/viewer with CHROME and the VIEW successors by design, shared ground is legitimate per work/README.md's 2026-09-20 rule and what is owed is awareness while a lane is live, so run scripts/work.py territory on your branch]
-priority: P4
 ---
 
 **Rows that change how the chrome shows information, not what it

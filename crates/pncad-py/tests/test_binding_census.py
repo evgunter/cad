@@ -616,6 +616,8 @@ BOUND_AS = {
     "Proof": "Coincidence.rung",
     "Rung": "Coincidence.rung",
     "Residual": "Coincidence.residual",
+    # Which of the node's decisions a row is crosses as a tuple tag.
+    "RowOrigin": "Coincidence.origin",
     # The verify door's two-plane verdict crosses as the row's word:
     # `same_oriented` / `same_opposite` on `Coincidence.relation`.
     "PlaneRelation": "Coincidence.relation",
@@ -1141,7 +1143,9 @@ BOUND_AS = {
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its
     # discriminant is the word those arms publish: `band`, `props`,
-    # `escalated`, `zero_volume` or `straddles`. `CheckEvidence.reason`
+    # `escalated`, `zero_volume`, `straddles`, `ray_in_band`, `corner`, `ray`
+    # or `sign_unresolved`.
+    # `CheckEvidence.reason`
     # is the same refusal's sentence — the kernel's own prose — and
     # this is the branchable half beside it, so a caller stops
     # substring-matching the sentence to learn which shell refusal
@@ -1757,7 +1761,7 @@ FAMILIES: dict[str, str] = {
 #:   that changes an ANSWER, bound at LIB-G18a — which is also when
 #:   its memo residue left the `gap` roster, and note the memo was
 #:   never a field of it (`prior` is `evaluate`'s own second argument,
-#:   bound as `prior=`). Its other six fields are stated rather than
+#:   bound as `prior=`). Its other five fields are stated rather than
 #:   waved, each with its reason in the Rust roster: `epoch` is minted
 #:   per run and is not a caller's choice; `parallel` and
 #:   `boolean_sweep` are runtime switches the kernel documents as
@@ -1765,8 +1769,8 @@ FAMILIES: dict[str, str] = {
 #:   determinism cross-check can compare both schedules in one run,
 #:   `boolean_sweep`'s two paths are bit-identical by the BVH
 #:   differential suite's own pin), so no ANSWER is unreachable
-#:   through them. The last three are unreachable for a different
-#:   argument each, and none of the three is "f64 cannot do it":
+#:   through them. The last two are unreachable for a different
+#:   argument each, and neither is "f64 cannot do it":
 #:
 #:   `param_box` (E6) IS reachable at `f64` and from Python — the MC
 #:   lane evaluates under a box and `monte_carlo` is its door — but
@@ -1774,11 +1778,7 @@ FAMILIES: dict[str, str] = {
 #:   admits. What `evaluate` cannot ask for is a box with WIDTH, which
 #:   needs a scalar carrying a bracket. `seed` (E4) is its twin with no
 #:   degenerate form at all: a tangent needs a scalar that carries one,
-#:   and `f64` does not. The profile lift (M10-P) is no option: the
-#:   evaluator reads it off the environment
-#:   (`EvalOptions::profile_lift`), guided exactly when a box varies an
-#:   axis, a seed is set, or every variable is a symbol, so it arrives
-#:   with whichever of those a door gains.
+#:   and `f64` does not.
 #:
 #:   Both gain spellings alongside an evaluation door that can
 #:   carry a box with width; no row schedules one, and
@@ -1813,8 +1813,8 @@ FAMILIES: dict[str, str] = {
 #:   pair to name. `PartialPath` is the Rust lattice's one type where
 #:   Python has one CLASS PER STATE (`PathOpen`, `PathPoint`,
 #:   `PathDirectedPoint`, …), which is §L4's typestate translation.
-#:   `LineTarget`, `ContinueTarget` and `TangentArcTarget` are absorbed
-#:   into the verbs that take them, and
+#:   `LineTarget`, `ContinueTarget`, `TangentArcTarget` and `OntoTarget`
+#:   are absorbed into the verbs that take them, and
 #:   `bulge_from_center`/`bulge_from_via` into the
 #:   `Center`/`Via` spec modes that are bound. `Dimension` is what
 #:   `FreeVar.length`/`angle`/`count`/`scalar` choose between;
@@ -1849,7 +1849,7 @@ FAMILIES: dict[str, str] = {
 #: hands `Node.profile` a `ClosedLoop` and the program is built inside
 #: Rust, so no Python value is ever one of these. The naming table and
 #: its provenance payloads (`NameTable`, `SeatingRefusal`,
-#: `DuplicateName`, `KindMismatch`, `ShortTie`,
+#: `DuplicateName`, `EntityNamed`, `KindMismatch`, `ShortTie`,
 #: `ProfileEdgeRef`, `ProfileVertexRef`, `edge_name`, `face_name` —
 #: key-to-name inversions with no key to invert), the declared-contact
 #: interior (`DeclaredContact`, `ContactVerdict`, `ContactRefusal`,
@@ -2631,7 +2631,6 @@ NOT_BOUND = {
     "Point2": SHAPE,
     "Point3": SHAPE,
     "ProfileDoc": SHAPE,
-    "ProfileLift": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
     # A refusal's rendering machinery: Python reads a refusal through
     # `str()`, and the stripped sentence is what a Rust carrier renders
@@ -2666,6 +2665,9 @@ NOT_BOUND = {
     "SurfaceKindSet": SHAPE,
     "TagPat": SHAPE,
     "TangentArcTarget": SHAPE,
+    # `arc_onto`'s target trait, absorbed into the verb as
+    # `TangentArcTarget` is.
+    "OntoTarget": SHAPE,
     "Tol": SHAPE,
     "Tolerance": SHAPE,
     "Vec2": SHAPE,
@@ -2851,6 +2853,7 @@ NOT_BOUND = {
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
+    "EntityNamed": INTERIOR,
     "KindMismatch": INTERIOR,
     "SeatingRefusal": INTERIOR,
     "ShortTie": INTERIOR,
@@ -3623,6 +3626,7 @@ MEMBERS_BOUND_AS = {
     "AssemblyError::Space": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
+    "AssemblyError::CarriedAtRest": "AssemblyError.variant",
     "AssemblyError::AtRest": "AssemblyError.variant",
     "AssemblyError::Uncertified": "AssemblyError.variant",
     # The two mint arms answer with a LIST, so the word a caller
@@ -3637,6 +3641,11 @@ MEMBERS_BOUND_AS = {
     # The refusal's nodes as the document below holds them: what the
     # row's `refusal` says them from (`str(row.refusal)`).
     "CarriedRefusal::held": "CarriedRefusal.refusal",
+    # A part's own census findings, carried: the same route spelling,
+    # and the finding's nodes said from the part's (`str(row.finding)`).
+    "CarriedAtRestFinding::route": "CarriedAtRestFinding.of",
+    "CarriedAtRestFinding::held": "CarriedAtRestFinding.finding",
+    "CarriedInterference::route": "CarriedInterference.of",
     # A VALUE's arms, not a refusal's, and the word is `relation` because
     # what the walk answers is how a declaration stands to the document
     # it was gathered from.
@@ -4028,6 +4037,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::SliverInsideOut": "ValidationFinding.variant",
     "ValidationError::VolumeUncomputable": "ValidationFinding.variant",
     "ValidationError::VolumeSignUnresolved": "ValidationFinding.variant",
+    "ValidationError::OrientationUndecided": "ValidationFinding.variant",
     "ValidationError::Pcurve": "ValidationFinding.variant",
     "ValidationError::RingMeetsOuter": "ValidationFinding.variant",
     "ValidationError::RingContactEscalated": "ValidationFinding.variant",
@@ -4177,10 +4187,6 @@ MEMBERS_BOUND_AS = {
     "SegPat::args": "SegPat.of",
     # The alternatives, named for the door that takes them.
     "Selector::alts": "Selector.any_of",
-    # The frame crosses as its four readers rather than as an `Affine3`,
-    # which is `different-shape` in `NOT_BOUND`; this points at the
-    # first of them.
-    "SketchPlane::placement": "SketchPlane.origin",
     # As `InlineOutcome` below: the maintenance rides the document each
     # half is handed back on.
     "SplitOutcome::remainder_maintenance": "Doc.last_maintenance",

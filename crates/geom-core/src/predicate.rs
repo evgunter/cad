@@ -139,6 +139,7 @@
 
 use core::fmt;
 
+use crate::Readable;
 use crate::spline::SpanLocate;
 use crate::tolerance::{EPS_MIN, Tol};
 
@@ -402,6 +403,23 @@ impl Band {
             return Err(BandError::Empty { zero, escalate });
         }
         Ok(Self { zero, escalate })
+    }
+
+    /// **The band a certified enclosure's sign alone is read against**:
+    /// zero at the smallest normal `f64` and escalation at twice it, so
+    /// an [`Interval`](crate::interval::Interval) wholly on one side of
+    /// zero decides that side, one holding zero is indeterminate, and
+    /// nothing in between is held against a tolerance. For a sign the
+    /// design certifies by its enclosure alone, never against the run's
+    /// band (D10: a shell's role and a solid's orientation off the sign
+    /// of its volume, where no ray reads). Not a tolerance: no recourse
+    /// offers to tighten below a margin read against it.
+    #[must_use]
+    pub const fn enclosure_sign() -> Self {
+        Self {
+            zero: f64::MIN_POSITIVE,
+            escalate: 2.0 * f64::MIN_POSITIVE,
+        }
     }
 
     /// **The tolerance below which `margin` is decided**, `|m|/K`: below
@@ -761,6 +779,17 @@ impl<T: crate::real::Real> Margin<T> {
     /// kernel-invariant (Corrupt-class) error, not a validity refusal.
     pub fn over_lever(measure: T, lever: T) -> Self {
         Self(measure / lever)
+    }
+
+    /// Door: a quantity **read for its sign alone**, against
+    /// [`Band::enclosure_sign`] and no tolerance — a certified volume's
+    /// enclosure, whose side of zero is a shell's role (D10: certified by
+    /// its enclosure alone, never held against the band). No length is
+    /// claimed, because no band in metres is held against it, and none
+    /// may be: a margin from this door is decided under
+    /// [`Band::enclosure_sign`] only. One operation, the identity.
+    pub fn sign_of(measure: T) -> Self {
+        Self(measure)
     }
 
     /// The wrapped margin, for the classify seam and for diagnostics
@@ -1279,7 +1308,8 @@ enum Shows {
     /// No size: an exact zero, a reading in band reaching no side the
     /// decision passes, or a zero the symbolic tier proved. What a
     /// decision's note on a zero verdict asserts is established here and
-    /// in [`Shows::Refused`], and nowhere else.
+    /// in [`Shows::Refused`], and nowhere else; the two classes read
+    /// [`SizedWords::refused`], and no other does.
     NoSize,
     /// A nonzero size wholly on a side the decision passes, its nearer
     /// end away from zero, that only a tolerance at or below [`EPS_MIN`]
@@ -1293,9 +1323,7 @@ enum Shows {
     Past,
     /// Past the band wholly on sides the decision refuses: a decided sign
     /// it cannot use, which shows no size as [`Shows::NoSize`] does and
-    /// ends as it does, save where the caller's words say it contradicts
-    /// stored data ([`RefusedReading::ContradictsStoredData`]); the only
-    /// class that reads [`SizedWords::refused`].
+    /// ends as it does, by [`SizedWords::refused`].
     Refused,
     /// Poisoned.
     Unreadable,
@@ -1366,35 +1394,39 @@ pub struct SizedWords<'a> {
     /// What the decision passes on.
     pub passes: SizedPass,
     /// Appended to the lever as "; {note}" where the margin shows no
-    /// size: an exact zero, a reading wholly on zero or the refused side,
-    /// or a proved zero ([`MarginDiag::sized_recourse`]).
+    /// size — an exact zero, a reading wholly on zero or the refused side,
+    /// or a proved zero ([`MarginDiag::sized_recourse`]) — and
+    /// [`SizedWords::refused`] is [`RefusedReading::AsShown`].
     pub no_size: Option<&'a str>,
     /// Appended to the lever as "; {note}" instead where the margin is
     /// poisoned: the unreadable-margin note of the door reading it
     /// ([`UNREADABLE_MARGIN_NOTE`] at a build,
     /// [`UNREADABLE_STORED_MARGIN_NOTE`] over stored geometry).
     pub unreadable: &'a str,
-    /// What a decided sign the decision refuses means to the caller
-    /// ([`RefusedReading`]): read only where the reading shows one
-    /// ([`MarginDiag::sized_recourse`] past the band, and
+    /// What a reading certainly on the refused side means to the caller
+    /// ([`RefusedReading`]): read only where the reading shows no size,
+    /// in band or past it ([`MarginDiag::sized_recourse`], and
     /// [`SizedWords::sign_certain_recourse`]).
     pub refused: RefusedReading,
 }
 
-/// **What a decided sign its decision refuses means to the caller**
-/// ([`SizedWords::refused`]): the one choice a caller makes about such a
-/// reading's ending. The ending's words are geom-core's either way.
+/// **What a reading certainly on its decision's refused side means to
+/// the caller** ([`SizedWords::refused`]), whether the band, a number or
+/// a proof decided it: the one choice a caller makes about such a
+/// reading's ending (D4 ¶1 (iv)). The ending's words are geom-core's
+/// whichever it makes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RefusedReading {
-    /// Nothing more than its class shows: no size, so it ends as a
-    /// reading that shows none does, in the lever and
-    /// [`SizedWords::no_size`].
+    /// Nothing more than its class shows: no size, so it ends in the
+    /// lever and [`SizedWords::no_size`].
     AsShown,
-    /// The caller knows the decision's inputs are data it holds stored,
-    /// which no decided refused sign agrees with: the reading contradicts
-    /// that data, and it ends in [`KERNEL_OR_FILE_DEFECT_ENDING`]
-    /// (D4 ¶1 (iv)).
+    /// The decision's inputs are a stored body's, which no reading on
+    /// the refused side agrees with: the reading contradicts that data,
+    /// and it ends in [`KERNEL_OR_FILE_DEFECT_ENDING`].
     ContradictsStoredData,
+    /// The decision's inputs are a file's, read at the import door: the
+    /// reading names the file as damaged ([`DAMAGED_FILE_ENDING`]).
+    DamagedFile,
 }
 
 impl SizedWords<'_> {
@@ -1423,13 +1455,14 @@ impl Shows {
         match self {
             Self::Offer(v) => format!(
                 "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
-                 {v:e} m"
+                 {} m",
+                Readable(v)
             ),
-            Self::Refused => match refused {
+            Self::NoSize | Self::Refused => match refused {
                 RefusedReading::AsShown => lever_recourse(lever, no_size),
                 RefusedReading::ContradictsStoredData => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
+                RefusedReading::DamagedFile => DAMAGED_FILE_ENDING.to_owned(),
             },
-            Self::NoSize => lever_recourse(lever, no_size),
             Self::Floor => lever_recourse(lever, Some(&floor_note(size))),
             Self::Unresolved | Self::Past => lever_recourse(lever, None),
             Self::Unreadable => lever_recourse(lever, Some(unreadable)),
@@ -1494,9 +1527,10 @@ impl FileCoincidence {
         otherwise: &str,
     ) -> String {
         let eps_in = self.eps_in;
+        let eps_shown = Readable(eps_in);
         let stopgap = format!(
             "Recourse: re-export the file more precisely, or, as a stopgap, set the tolerance to \
-             ε_in = {eps_in:e} m"
+             ε_in = {eps_shown} m"
         );
         let within = match miss {
             MissReading::Banded(margin, band) => match margin.magnitudes() {
@@ -1508,7 +1542,7 @@ impl FileCoincidence {
                 return match bound.within(eps_in) {
                     Some(Within::Wholly) => format!(
                         "The certificate's bound on this miss lies within the file's declared \
-                         coincidence distance ε_in = {eps_in:e} m. {stopgap}; this refusal may \
+                         coincidence distance ε_in = {eps_shown} m. {stopgap}; this refusal may \
                          indicate a kernel bug worth reporting"
                     ),
                     Some(Within::Partly) | None => otherwise.to_owned(),
@@ -1524,7 +1558,7 @@ impl FileCoincidence {
         };
         let head = format!(
             "This miss lies beyond the tolerance and {lies} the file's declared coincidence \
-             distance ε_in = {eps_in:e} m"
+             distance ε_in = {eps_shown} m"
         );
         match (source, within) {
             (MissSource::File, Within::Wholly) => {
@@ -1835,9 +1869,10 @@ impl MarginDiag {
     /// - where a tolerance a run admits decides the margin passing, "or,
     ///   if this {size} is intended, tighten the tolerance below `|m|/K`",
     ///   `K` the band's multiplier, `m` the end nearer zero;
-    /// - where the margin shows no size — in band or past it, wholly on
-    ///   a side the decision refuses — [`SizedWords::no_size`]; past it,
-    ///   as [`SizedWords::refused`] says;
+    /// - where the margin shows no size — an exact or proved zero, or a
+    ///   reading in band or past it wholly on a side the decision
+    ///   refuses — [`SizedWords::no_size`], or the ending
+    ///   [`SizedWords::refused`] names in its place;
     /// - where only a tolerance at or below [`EPS_MIN`] decides it,
     ///   [`floor_note`];
     /// - where it is poisoned, [`SizedWords::unreadable`]
@@ -1854,6 +1889,18 @@ impl MarginDiag {
     #[must_use]
     pub fn sized_recourse(self, band: Band, words: SizedWords<'_>) -> String {
         self.shows(band, words.passes).ending(words)
+    }
+
+    /// **Whether this reading is certainly on the refused side** of a
+    /// decision passing `passes`: it shows no size — an exact or proved
+    /// zero, or a reading in band or past it wholly on a side the
+    /// decision refuses — so [`MarginDiag::sized_recourse`] ends it as
+    /// [`SizedWords::refused`] says. A class, never the number; like the
+    /// sentence it reads the margin's side, so its production callers are
+    /// counted by `scripts/gates/reporting-margin-door.sh`.
+    #[must_use]
+    pub fn shows_no_size(self, band: Band, passes: SizedPass) -> bool {
+        matches!(self.shows(band, passes), Shows::NoSize | Shows::Refused)
     }
 
     /// **The sized recourse read at the import door** (D4 ¶1, D7): a size
@@ -1893,24 +1940,27 @@ impl MarginDiag {
             ..
         } = words;
         let eps_in = file.eps_in;
+        let eps_shown = Readable(eps_in);
         let (Some((near, _)), Some(within)) = (self.magnitudes(), self.within(eps_in)) else {
             return self.sized_recourse(band, words);
         };
         let untold = match within {
             Within::Wholly => format!(
                 "This {size} is within the file's declared coincidence distance ε_in = \
-                 {eps_in:e} m, so the file cannot tell it from zero."
+                 {eps_shown} m, so the file cannot tell it from zero."
             ),
             Within::Partly => format!(
                 "This {size} may lie within the file's declared coincidence distance ε_in = \
-                 {eps_in:e} m, so the file might not tell it from zero."
+                 {eps_shown} m, so the file might not tell it from zero."
             ),
         };
         match self.shows(band, passes) {
             Shows::Offer(below) => format!(
                 "{untold} Recourse: {lever}, or, if this {size} is intended, re-export the file \
-                 with its uncertainty declared below {near:e} m and tighten the tolerance below \
-                 {below:e} m"
+                 with its uncertainty declared below {} m and tighten the tolerance below \
+                 {} m",
+                Readable(near),
+                Readable(below)
             ),
             Shows::Floor => format!("{untold} Recourse: {lever}; {}", floor_note(size)),
             // Decided at this tolerance already, yet a size the file cannot
@@ -1953,6 +2003,32 @@ impl MarginDiag {
         }
     }
 
+    /// The reading as a sentence carries it: each number as
+    /// [`Readable`] renders it, so a round `2` reads `2` and `5e-10`
+    /// reads `5e-10`, and a zero of either sign reads `0`.
+    #[must_use]
+    pub fn readable(self) -> impl fmt::Display {
+        fmt::from_fn(move |f| self.render(f, |x, f| readable_number(*x, f)))
+    }
+
+    /// [`Self::readable`] of how far the reading lies below zero, for a
+    /// payload that states a decided negative as a positive amount: `-m`,
+    /// or `[-hi, -lo]` for an enclosure.
+    #[must_use]
+    pub fn readable_below_zero(self) -> impl fmt::Display {
+        fmt::from_fn(move |f| match self.0 {
+            Reading::Value(m, ..) => readable_number(-m, f),
+            Reading::Enclosure { lo, hi, .. } => {
+                f.write_str("[")?;
+                readable_number(-hi, f)?;
+                f.write_str(", ")?;
+                readable_number(-lo, f)?;
+                f.write_str("]")
+            }
+            Reading::Invalid => self.render(f, |x, f| readable_number(*x, f)),
+        })
+    }
+
     /// Writes the reading with `f`'s own number format applied to each
     /// number: `m`, `[lo, hi]`, or words for poison.
     fn render(
@@ -1972,6 +2048,12 @@ impl MarginDiag {
             Reading::Invalid => f.write_str("invalid (NaN or a refused enclosure)"),
         }
     }
+}
+
+/// One number of a reading as [`Readable`] renders it, a zero of
+/// either sign as `0`.
+fn readable_number(x: f64, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fmt::Display::fmt(&Readable(if x == 0.0 { 0.0 } else { x }), f)
 }
 
 /// The reading as text: `m`, `[lo, hi]`, or
@@ -2130,6 +2212,13 @@ pub const KERNEL_DEFECT_ENDING: &str = crate::kernel_defect_ending!();
 /// [`KERNEL_DEFECT_ENDING`], since no file stands between them.
 pub const KERNEL_OR_FILE_DEFECT_ENDING: &str = crate::kernel_or_file_defect_ending!();
 
+/// The ending of a refusal the import door reads past the file's
+/// declared coincidence distance, where the file's own data contradicts
+/// itself or states what no construction produces: nothing the user
+/// changes in the model is a way through, and the file, not the kernel,
+/// is what the report is about.
+pub const DAMAGED_FILE_ENDING: &str = crate::damaged_file_ending!();
+
 /// The subject a door states for an escalation whose decision it has no
 /// words for — a name its table does not carry, or no name at all. One
 /// phrase for every door, so the refusal-shape guard can read it as no
@@ -2209,6 +2298,16 @@ macro_rules! kernel_limit_last_resort {
 macro_rules! kernel_or_file_defect_ending {
     () => {
         "There is no way through: this is a kernel defect or a damaged file; report it"
+    };
+}
+
+/// [`DAMAGED_FILE_ENDING`] as a literal, for `concat!`; see
+/// `kernel_defect_ending!`.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! damaged_file_ending {
+    () => {
+        "There is no way through: the file is damaged; report it to the program that wrote it"
     };
 }
 
@@ -2986,15 +3085,15 @@ mod tests {
         }
     }
 
-    /// **Only a refused reading reads [`SizedWords::refused`]**: over a
-    /// reading of every class, the words that say it contradicts stored
-    /// data change the ending of [`Shows::Refused`] alone, to
-    /// [`KERNEL_OR_FILE_DEFECT_ENDING`], and of the sign-certain arm
-    /// that is that class; every other class ends as it does without
-    /// them. Red if another class reads the choice, or the refused one
-    /// ignores it.
+    /// **Only a reading that shows no size reads [`SizedWords::refused`]**:
+    /// over a reading of every class, each choice other than
+    /// [`RefusedReading::AsShown`] changes the ending of
+    /// [`Shows::NoSize`] and [`Shows::Refused`] alone, to its own
+    /// ending, and of the sign-certain arm that is the refused class;
+    /// every other class ends as it does without it. Red if another
+    /// class reads the choice, or a no-size one ignores it.
     #[test]
-    fn only_a_refused_reading_reads_what_the_caller_knows_of_it() {
+    fn only_a_reading_with_no_size_reads_what_the_caller_knows_of_it() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let words = |refused| SizedWords {
             lever: "L",
@@ -3004,10 +3103,7 @@ mod tests {
             unreadable: "U",
             refused,
         };
-        let (plain, stored) = (
-            words(RefusedReading::AsShown),
-            words(RefusedReading::ContradictsStoredData),
-        );
+        let plain = words(RefusedReading::AsShown);
         let margins = [
             MarginDiag::value(5e-9),
             MarginDiag::value(-5e-10),
@@ -3019,18 +3115,27 @@ mod tests {
             MarginDiag::INVALID,
         ];
         let mut seen = Vec::new();
-        for margin in margins {
-            let shows = margin.shows(band, SizedPass::Positive);
-            seen.push(std::mem::discriminant(&shows));
-            let want = match shows {
-                Shows::Refused => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
-                _ => margin.sized_recourse(band, plain),
-            };
-            assert_eq!(
-                margin.sized_recourse(band, stored),
-                want,
-                "{shows:?} over {margin:e}"
-            );
+        for (refused, ending) in [
+            (
+                RefusedReading::ContradictsStoredData,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (RefusedReading::DamagedFile, DAMAGED_FILE_ENDING),
+        ] {
+            for margin in margins {
+                let shows = margin.shows(band, SizedPass::Positive);
+                seen.push(std::mem::discriminant(&shows));
+                let want = match shows {
+                    Shows::NoSize | Shows::Refused => ending.to_owned(),
+                    _ => margin.sized_recourse(band, plain),
+                };
+                assert_eq!(
+                    margin.sized_recourse(band, words(refused)),
+                    want,
+                    "{refused:?}: {shows:?} over {margin:e}"
+                );
+            }
+            assert_eq!(words(refused).sign_certain_recourse(), ending);
         }
         for class in [
             Shows::Offer(0.0),
@@ -3047,13 +3152,12 @@ mod tests {
             );
         }
         assert_eq!(plain.sign_certain_recourse(), "Recourse: L; N");
-        assert_eq!(stored.sign_certain_recourse(), KERNEL_OR_FILE_DEFECT_ENDING);
     }
 
     /// **Within ε_in the import door ignores what the caller knows of a
     /// refused reading** ([`MarginDiag::sized_recourse_in_file`]): a
     /// reading whose every point lies within the file's coincidence
-    /// distance ends in the door's sentence and the lever, under either
+    /// distance ends in the door's sentence and the lever, under every
     /// [`RefusedReading`], with no note and no defect ending, whether it
     /// is refused past the band, in band showing no size, or past the
     /// band on the passing side; past ε_in the refused reading reads the
@@ -3076,6 +3180,7 @@ mod tests {
         for refused in [
             RefusedReading::AsShown,
             RefusedReading::ContradictsStoredData,
+            RefusedReading::DamagedFile,
         ] {
             for margin in [
                 MarginDiag::value(-5e-8),
@@ -3096,8 +3201,8 @@ mod tests {
             "Recourse: L; N"
         );
         assert_eq!(
-            past.sized_recourse_in_file(band, words(RefusedReading::ContradictsStoredData), file),
-            KERNEL_OR_FILE_DEFECT_ENDING
+            past.sized_recourse_in_file(band, words(RefusedReading::DamagedFile), file),
+            DAMAGED_FILE_ENDING
         );
     }
 
@@ -3444,16 +3549,18 @@ mod tests {
                 ("is within", "cannot tell")
             };
             format!(
-                "This length {lies} the file's declared coincidence distance ε_in = {eps_in:e} m, \
-                 so the file {tells} it from zero. Recourse: L"
+                "This length {lies} the file's declared coincidence distance ε_in = {} m, so \
+                 the file {tells} it from zero. Recourse: L",
+                Readable(eps_in)
             )
         };
         let offer = |eps_in: f64, near: f64, partly: bool| {
             format!(
                 "{}, or, if this length is intended, re-export the file with its uncertainty \
-                 declared below {near:e} m and tighten the tolerance below {:e} m",
+                 declared below {} m and tighten the tolerance below {} m",
                 head(eps_in, partly),
-                band.tolerance_deciding(near)
+                Readable(near),
+                Readable(band.tolerance_deciding(near))
             )
         };
         let both = |eps_in: f64, near: f64| offer(eps_in, near, false);
@@ -3611,6 +3718,22 @@ mod tests {
         let e = MarginDiag::enclosure(-2e-9, 3e-9);
         assert_eq!(format!("{e:e}"), "[-2e-9, 3e-9]");
         assert_eq!(format!("{}", MarginDiag::value(0.5)), "0.5");
+        assert_eq!(
+            MarginDiag::enclosure(0.0, 2e-9).readable().to_string(),
+            "[0, 2e-9]"
+        );
+        assert_eq!(MarginDiag::value(2.0).readable().to_string(), "2");
+        assert_eq!(MarginDiag::value(-0.0).readable().to_string(), "0");
+        assert_eq!(
+            MarginDiag::enclosure(-3e-9, -2e-9)
+                .readable_below_zero()
+                .to_string(),
+            "[2e-9, 3e-9]"
+        );
+        assert_eq!(
+            MarginDiag::value(-0.5).readable_below_zero().to_string(),
+            "0.5"
+        );
         assert_eq!(
             MarginDiag::INVALID.to_string(),
             "invalid (NaN or a refused enclosure)"

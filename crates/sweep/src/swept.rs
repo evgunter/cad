@@ -822,14 +822,11 @@ impl std::error::Error for CapPlaneError {}
 ///
 /// `forward` is `cap_points` of the swept chain at this cap's station.
 ///
-/// **Precondition: `place` is a rigid, right-handed frame**
-/// (`c2 = c0 × c1`, unit and orthogonal), so that "counterclockwise in
-/// the sketch" means "counterclockwise about `c2`". Nothing enforces it
-/// at the public doors yet — `profile::SketchPlane::new` and the loft's
-/// placements admit a reflected or skewed map, which reaches the
-/// orientation decision's refusals with a kernel-defect ending when the
-/// cause is the caller's frame
-/// (`work/paths/sketch-plane-holds-the-affine-and-the-witness-dies-at-the-read-boundary.md`).
+/// `place` is a sketch plane's placement, or one a rigid motion carried
+/// (a revolve's end station), so its columns are a rigid, right-handed
+/// frame (`profile::SketchPlane` holds the witness) and
+/// "counterclockwise in the sketch" means "counterclockwise about
+/// `c2`".
 pub(crate) fn cap_plane<T: Decide>(
     forward: &[Point3<T>],
     place: Affine3<T>,
@@ -1031,36 +1028,20 @@ where
 
 /// Re-describes `edge`, both of whose halves bound one face on `wall`,
 /// as that face's wrap edge (D1, `EdgeDescriptionSpec::wrap`): the
-/// certified carrier and interval kept verbatim. A one-segment loop's
-/// strut — extrude's and a revolve's — and a full revolve's periodic
-/// meridian all go through here.
+/// stored carrier and interval restated ([`Body::restate_stored_edge`]).
+/// A one-segment loop's strut — extrude's and a revolve's — and a full
+/// revolve's periodic meridian all go through here.
+///
+/// # Panics
+///
+/// As [`Body::restate_stored_edge`], on a kernel bug.
 pub(crate) fn describe_wrap_edge<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     wall: SurfaceKey,
     tol: Tol,
 ) -> Result<(), EulerOpError> {
-    let curve_key = body
-        .get_edge(edge)
-        .unwrap_or_else(|| unreachable!("edge {edge:?} was minted by this sweep and is live"))
-        .curve;
-    let curve = body
-        .get_curve_geom(curve_key)
-        .unwrap_or_else(|| unreachable!("curve {curve_key:?} is held by live edge {edge:?}"))
-        .certified()
-        .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
-    let carrier = curve.carrier().clone();
-    let (param_start, param_end) = curve.params();
-    body.set_edge_curve(
-        edge,
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::wrap(wall),
-            carrier,
-            param_start,
-            param_end,
-        },
-        tol,
-    )?;
+    body.restate_stored_edge(edge, EdgeDescriptionSpec::wrap(wall), tol)?;
     Ok(())
 }
 
@@ -1400,6 +1381,10 @@ pub(crate) fn face_surface_key<T: Real>(body: &Body<T>, face: FaceKey) -> Surfac
 /// every edge is a cap–wall rim between a plane and a `Surface::Nurbs`
 /// wall; D2 exempts NURBS-adjacent edges from the must-carry demand,
 /// and loft's module doc says these rims are never classified.
+///
+/// # Panics
+///
+/// As [`Body::restate_stored_edge`], on a kernel bug.
 pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
@@ -1457,14 +1442,15 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
         // exists at the interval or dual scalars; a door does not pick
         // its description by what the lane can certify, so every rim
         // stays in the cap's chart until the pair certifies them all
-        // (`work/tang/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
-        let spec = body
+        // (`work/select/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
+        let description = body
             .get_curve_geom(curve_key)
             .and_then(topo::CurveGeom::certified)
             .unwrap_or_else(|| unreachable!("{edge:?} was read scaffolded just above"))
             .restated_spec()
-            .at_rest_in_chart(chart, false);
-        body.set_edge_curve(edge, spec, tol)?;
+            .at_rest_in_chart(chart, false)
+            .description;
+        body.restate_stored_edge(edge, description, tol)?;
     }
     Ok(())
 }

@@ -102,3 +102,14 @@ owes it the arm's own decision.
 carries a `geom_brep::MustCarryEscalation`); what remains of it for the
 sweep callers is recorded in
 `work/encl/must-carry-in-band-verdict-does-not-say-which-decision-escalated.md`.
+
+## Since (GERM, `germ/pt-degenerate-torus-ending`)
+
+The plane × torus ring convention is typed now: both halves, in band
+and decided, are `SectionError::DegenerateTorus(geom_brep::TorusRefusal)`,
+and `topo::replace_face` carries it as `ReplaceFaceError::DegenerateTorus`.
+What remains here is the cone aperture guards, and
+`replace_face`'s two `route_pose` sites still fold
+`SectionError::RadiusEscalated` into `ReplaceFaceError::Escalated`
+(`crates/topo/src/replace_face.rs`, `neighbour_section` and the corner
+plan), dropping its `SectionRadius`.

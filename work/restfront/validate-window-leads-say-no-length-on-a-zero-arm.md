@@ -27,3 +27,7 @@ Since that unit, geom-brep's Zero-arm payloads print their margin and claim no s
 ## Repair shape
 
 Say "not shown …" of the reading and print `(margin … m)`, as `CertifyError`'s and `MeterError`'s Displays do; leave any no-size claim to the ending. Pins: the `validate.rs` tests asserting `text.starts_with("an edge is not long enough")`, and the row at "an edge is not long enough, for how its faces curve".
+
+## Evidence added 2026-10-19 (ENCL, PR 5157)
+
+PR 5157 merged the geom-brep side: zero-arm payloads now read "not shown …" with `(margin 0 m)`. TANG's U-lever also reworded `DIHEDRAL_ARM_CLAUSE` to "between faces wide enough, for how they curve, to measure their angle". So `classify_certify`'s `ArmCollapsed` lead, "it is not long enough, for how its faces curve", now names the edge's length, which is no longer the decision's noun. It disagrees with the payload it leads as well as hedging less than it should. Compose the clause rather than re-spelling it. (ENCL orchestrator)

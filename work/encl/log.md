@@ -1586,3 +1586,82 @@ coincidence is now a margined verdict (no declarations), checked by the
   - The orchestrator's review pass restored a closed row's quote and the proven-zero row's quote, and corrected the filed dihedral row's mechanism (the arm is the stored radius clamped by the extent). It also noted that the dihedral row depends on `[ev]` PR 5134.
   - If 5134 lands, ParamSpan's build pins move again.
   (ENCL orchestrator)
+- 2026-10-19 — **Merged `[ev]` PR 5134.** Ev re-asked "aren't stored contradictions kernel bugs?". Answered yes past the import door (`[import]`/`[tolerance.boundary]`: no state is reachable only through import), and revised (iv) to say so; Ev approved ("looks good!").
+  - Under the revised `[tolerance.recourse]` (iv), each decision says what its refused side is:
+    - **lever:** the lever everywhere;
+    - **stored contradiction:** the lever at a build, typed and naming the file at the import door, and a panic past it;
+    - **unminted:** a panic at a build and past import, the file's at the door.
+  - Fork-log row 170, with A/B 252: Opus = A.
+  - Implementation is the open row `a-proven-zero-is-definite-yet-ends-as-no-size-at-rest`. Its panic arms wait on EXCH closing the import gaps; a seam note is on the EXCH row.
+  - The rows that waited on 5134 are unblocked as far as the design goes.
+  (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5157** (`zero-arm-payload-wording-doubles-words-and-hedges-a-definite-verdict`, closed): zero-arm payloads no longer double words or hedge a definite verdict, and margins print through `MarginDiag::readable` ("0 m", not "0e0 m").
+  - A lane merged main in. Under TANG's U-lever nouns ("faces wide enough"), the step-import `TANGENT_SECOND_ORDER_ZERO` pin was retired on main. Local: 8375/8375. `gate ok` passed on 745a2bfbaf.
+  - **Filed:**
+    - encl `the-dihedral-arm-noun-is-spelled-twice-and-its-docs-still-say-edge-length`
+    - encl `zero-and-negative-payloads-of-one-decision-use-different-nouns`
+    - scalar `readable-below-zero-restates-the-bracket-layout`
+  - **Evidence added to:**
+    - restfront `validate-window-leads-say-no-length-on-a-zero-arm`
+    - scalar `user-facing-number-format-is-not-one-across-payloads-endings-and-escalations`
+  - **Seam:** the payload text changed in geom-brep `certify.rs` (select's territory). The exch, tcost and offset tests that pin those payloads were re-baselined in the PR.
+  (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5349.** It implements Ev's (iv) ruling (PR 5134). `RefusedSide { Lever, StoredContradiction, Unminted }` replaces `StoredDefinite`, and both the no-size class and the past-band class read it. A proved zero now ends as its exact and in-band siblings do. The import door past ε_in gives `DAMAGED_FILE_ENDING`.
+  - **Review.** One MAJOR: a plane×NURBS tube straddle was encoded as `Zero(0.0)` and ended as a defect at rest. Fixed by a `CertCheck::TransversalityTube` decision on the `Lever` side, like `TangentTube`; a test covers every door. The orchestrator gave both transversality decisions one lever constant.
+  - **Closed:** the unit row, and `dihedral-arm-lever-says-curves-tightly-of-a-radius-below-zero`.
+  - **Open, not landed:**
+    - `param-span-unminted-side-is-reached-at-a-build-by-public-euler-doors`. Public Euler doors reach a non-forward span. Adjudicated as option 1 (the doors refuse it typed, then the build panic lands); not an Ev question. It is the next unit.
+    - `at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything`, parked on EXCH's import row.
+  - **Filed:** `import-door-residual-and-unsized-endings-past-eps-in-name-kernel-or-file`, `a-defect-endings-culprit-has-two-choosers`.
+  (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5365** (`param-span-unminted-side-is-reached-at-a-build-by-public-euler-doors`, closed). Every public geom-brep door (`certify*`, `recertify*`) now maps a certainly-refused span or winding to a typed `CertifyError::StatedInterval`, which ends by its door:
+  - at a build: the lever;
+  - at the import door within ε_in: the door's sentence plus the lever;
+  - at the import door past ε_in: `DAMAGED_FILE_ENDING`;
+  - at rest: the defect ending.
+
+  `ParamSpan` and `ParamWinding` (`Unminted`) panic only at topo's kernel re-mints, through `policy_lane::kernels_own`: `transform_rigid`, split children, graft, `vouch_described_move` and `certify_rebased_run`.
+  - **Rulings during review:**
+    - The panic lives where the span or band comes from: caller-supplied is typed at the door; an operation computing it from user parameters refuses in its own words; a kernel re-mint panics.
+    - `#[doc(hidden)] pub` is still input.
+    - Wording keys on the verdict, never on the raw number.
+  - **Review:** four rounds. The first full review found two MAJORs: `recertify` at a finer band reached the panic, and the import door ignored `ReadAt`. The first delta review found one more: the hidden `pub` doors.
+  - **Filed:**
+    - `kernels-own-span-panic-has-one-row-in-five-sites-and-no-type`
+    - `a-hand-built-unminted-refusal-panics-through-pub-render`
+    - tcost `panic-hook-copies-swap-the-process-hook-around-each-capture`
+    - topo `the-re-basing-gate-reads-a-derived-image-where-the-mint-read-the-stored-one`
+  - **Evidence added to** `zero-and-negative-payloads-of-one-decision-use-different-nouns`.
+  (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5393** (`a-hand-built-unminted-refusal-panics-through-pub-render`, closed). Rendering a refusal never panics: the `unreachable!` in geom-brep `SizedDecision::recourse` is gone. A hand-built `Unminted` refusal now ends as a stored contradiction does at every door, which at a build is the lever and the note. That matches what the public doors' `StatedInterval` says. The kernel-bug panic for these readings is topo's `kernels_own` alone. The README reads (iv)'s "panics at a build" as applying where the kernel constructs.
+  - **Review:** mergeable, no MAJOR. A 69,696-call probe found no render panics. Putting the guard back turns six rows red.
+  - **Orchestrator follow-ups:** the README reading; the `Unminted` doc; stale premises noted on the pcurve-span, pctail and tcost rows; `sample_param`'s sibling doors added to SELECT's row.
+  - **Filed by the lane:** scalar `k-stats-pub-doors-panic-on-a-callers-verdict`, select `schedule-param-panics-on-a-callers-sample-index`, and evidence on topo `euler-driver-lift-is-held-by-convention`.
+  - **Noted, not filed:**
+    - `ReadProfile::render` overflows on a caller-built `select: u64::MAX`. It is behind the `sym-profile-testing` feature only.
+    - topo arms on `IntervalNotForward`/`WindingExceeded` look dead (replace_face, validate). This belongs to the census in `kernels-own-span-panic-has-one-row-in-five-sites-and-no-type`.
+  (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5401** (`kernels-own-span-panic-has-one-row-in-five-sites-and-no-type`, closed). Every topo `policy_lane` entry now takes a required `Origin::Callers | Origin::Kernels(KernelSite)`. A `Kernels` site panics on a `StatedInterval` refusal, and all five sites (rigid transform, split child, graft, re-description, re-based run) have panic rows, each red when switched to `Callers`. Graft and the tier-3 validator route through `policy_lane`. The source census `policy_lane::origin_census` (selftested) bans direct door calls in topo production code.
+  - **Review:** no MAJOR; every origin classification holds. The census's blanker over-ran gated fields, variants and arms and blanked the next impl; this was reproduced, then fixed through a shared `test_utils::source::attributed_extent`, with selftests.
+  - **Filed:**
+    - encl `kernel-computed-specs-at-callers-sites-return-a-kernel-bug-typed` (D2's must-panic half at booleans driving mev, mef and set_edge_curve);
+    - tint `production-view-blankers-four-copies-with-four-rules`;
+    - ciw `a-declared-module-name-marks-unrelated-tests-new`.
+  (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5413** (`kernel-computed-specs-at-callers-sites-return-a-kernel-bug-typed`, closed). The row's premise was half right: the boolean join drivers it named are input-reachable (class b) and stay `Callers`.
+  - **What is kernel-only:** restating a stored edge, copying its carrier and interval bitwise and changing only the description. Nine sites now panic as `Kernels`:
+    - SeamIntersection, SeamTangency, SeamAtRest;
+    - SectionIntersection, SectionSmooth, SectionRechart;
+    - RimRechart, AtRest, PartedWrap.
+  - **The restatement doors** (`pub(crate)` `Body::restate_edge` and `rechart_restating`) take a description only, and read the carrier and interval off the stored curve. geom-brep's `DraftedIntersection { Kept(desc) | Chord(spec) }` makes the kept-vs-chord branch a type.
+  - **Rows:** every site has a panic row that asserts its own arm. The chord arm is pinned typed. A mutation check showed each site's row going red alone. `# Panics` docs were added to the public doors that reach a site directly.
+  - **Review:** no MAJOR. The fix pass followed the orchestrator's adjudication (doors enforce restatement by their shape, rows guard both directions).
+  - **Next:** `cross-crate-restatements-of-stored-edges-certify-as-callers` (sweep, including `extrude.rs` struts).
+  (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5418** (`cross-crate-restatements-of-stored-edges-certify-as-callers`, closed).
+  - **New door:** `pub` `topo::Body::restate_stored_edge(edge, description, tol)` takes only a description, names `Kernels(StoredRestatement)` itself, and panics only when a stored edge's own span or winding reads certainly refused.
+  - **Sweep:** its seven restatements route through the door: swept wrap and rim, extrude rim and struts (now read from the stored strut, bitwise as before), and revolve. A sweep source census pins `set_edge_curve` to computed-carrier callers (loft, blend). Loft, blend and step-import stay `Callers`.
+  - **Review:** no MAJOR. Input cannot reach the door's panic: a stale key is a typed error, the description never changes check 2, and `Tol` has one inhabitant. The orchestrator fixed loft's `# Panics` and the stale sweep module docs.
+  - **Filed:** `the-stored-curve-read-ladder-is-written-three-times`.
+  - **Seam:** CARVE/STRUT files were touched (call-site swaps, `stored_carrier`, docs).
+  (ENCL orchestrator)

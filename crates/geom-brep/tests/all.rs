@@ -83,6 +83,8 @@ mod chart_box_span;
 mod axis_rows_read_as_one_sum;
 #[path = "computed_values_enter_as_unknowns.rs"]
 mod computed_values_enter_as_unknowns;
+#[path = "coplanar_ellipses_one_locus.rs"]
+mod coplanar_ellipses_one_locus;
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;
 #[path = "cylinder_green_conditioning.rs"]
@@ -97,6 +99,8 @@ mod ellipse_signed_semi_axis_gate;
 mod end_samples_read_the_carrier;
 #[path = "exhaust_lane_meters.rs"]
 mod exhaust_lane_meters;
+#[path = "flat_cone_harmonic_images.rs"]
+mod flat_cone_harmonic_images;
 #[path = "flat_cone_tilted_ellipse.rs"]
 mod flat_cone_tilted_ellipse;
 #[path = "germ_pose_gate.rs"]

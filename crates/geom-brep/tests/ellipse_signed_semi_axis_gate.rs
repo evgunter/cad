@@ -17,8 +17,9 @@ use slotmap::SlotMap;
 /// 0.5 rad in xz in the ellipse `a = 1/cos 0.5`, `b = 1` about the
 /// origin. Stored as `(a, b)` or swapped as `(b, a)` with `u_ref` along
 /// the minor axis, its quarter arc certifies; stored with `minor = −1`
-/// (the same locus, traversed the other way) it is refused
-/// `IntervalNotForward`, as the gate refused it before the span meter
+/// (the same locus, traversed the other way) it is refused as a span
+/// that does not run forward (`StatedInterval`, at this minting door), as
+/// the gate refused it before the span meter
 /// read semi-axis magnitudes — read at `min(|a|, |b|)` it certified,
 /// which widened the gate. A negative `major` certifies as it always
 /// has (`tier3_tests` mints one so check 1 can refuse it).
@@ -72,7 +73,12 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
     assert!(certify(b, a, y).is_ok(), "the swapped frame certifies");
     let got = certify(a, -b, x);
     assert!(
-        matches!(got, Err(CertifyError::IntervalNotForward { .. })),
+        matches!(
+            got,
+            Err(CertifyError::StatedInterval {
+                refused: geom_brep::StatedSpan::Forward(_),
+            })
+        ),
         "a negative minor: {:?}",
         got.map(|_| "certified")
     );

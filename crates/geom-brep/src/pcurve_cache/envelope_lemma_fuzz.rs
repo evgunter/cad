@@ -36,9 +36,10 @@ use super::{
     incidence, orthonormal_chart, periodic_envelope,
 };
 use geom::{Curve3, Surface};
+use geom_core::k_stats::decide;
 use geom_core::predicate::Band;
 use geom_core::tolerance::Tol;
-use geom_core::{Bounds, Interval, Point3, Real, Vec3};
+use geom_core::{Bounds, Interval, Margin, Point3, Real, Sign, Vec3};
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use test_utils::fuzz;
 
@@ -793,8 +794,8 @@ struct Row {
 fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     let (chart, exact) = on_chart(s, class);
     // 0: the carrier moves; 1: the image moves; 2: both; 3: neither,
-    // the image only renamed (a whole period, the twin); 4: the chart's
-    // frame moves.
+    // the image only renamed (its sphere twin, or a whole period over,
+    // which is no row); 4: the chart's frame moves.
     let mode = s.below(5);
     let delta = magnitude(s);
     let surface = if mode == 4 {
@@ -844,13 +845,8 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
         }
     };
     let mut stored = jittered(&derived, jitter);
-    // A whole turn of the window either way, or none: one draw, read
-    // as its sign.
-    let k = match s.range(-1.5, 1.5).round() {
-        r if r < 0.0 => -1,
-        r if r > 0.0 => 1,
-        _ => 0,
-    };
+    // A whole turn of the window either way, or none.
+    let k = [-1, 0, 1][s.below(3)];
     stored = stored.shift_branch(k, Period::new(TAU));
     if matches!(surface, Surface::Sphere { .. }) && s.below(2) == 0 {
         stored = twin(&stored, 0.0);
@@ -890,11 +886,27 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
             .collect::<Vec<_>>(),
         fuzz::replay()
     );
-    // An exact image renamed by its sphere's twin costs nothing; one
-    // renamed by a whole period is a lifted copy, no row (C4), and its
-    // envelope reads the period as its offset, which the bound above
-    // still dominates.
-    if mode == 3 && images_exactly(class) && k == 0 {
+    // A row renamed by a whole period is a lifted copy, no row (C4): its
+    // azimuth's fidelity term reads the period as its offset and refuses
+    // alone, whatever else the draw moved. An exact image renamed by its
+    // sphere's twin costs nothing.
+    if k != 0 {
+        assert!(
+            !matches!(
+                decide(
+                    "pcurve_envelope_term",
+                    Margin::of(terms.0[EnvelopeTerm::FidelityU.slot()]),
+                    band()
+                ),
+                Ok(Sign::Zero)
+            ),
+            "{}: a row a whole period off is no row, yet its FidelityU term {:e} is in the \
+             band — {}",
+            context(),
+            terms.0[EnvelopeTerm::FidelityU.slot()],
+            fuzz::replay()
+        );
+    } else if mode == 3 && images_exactly(class) {
         assert!(
             envelope <= noise,
             "{}: a renamed exact image costs {envelope:e}; terms {:?} — {}",
@@ -937,10 +949,11 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
 
 /// **The lemma, swept** (a counterexample search: the seed varies). For
 /// a carrier moved off its chart, a stored image moved off the one
-/// derived from it (by a whole period, or onto a sphere's involution
-/// twin, as well as by drift), and a chart whose frame is off its
-/// convention, check 4's envelope is never below the sampled sup of the
-/// stored image's residual, at `f64` or at `Interval`. Each row moves
+/// derived from it (by drift, onto a sphere's involution twin, or a
+/// whole period over, which its azimuth term refuses alone), and a
+/// chart whose frame is off its convention, check 4's envelope is never
+/// below the sampled sup of the stored image's residual, at `f64` or at
+/// `Interval`. Each row moves
 /// one of the four alone, or two, so a term is met with nothing else to
 /// cover for it. The failure prints the terms.
 #[test]
@@ -1297,10 +1310,10 @@ fn axis_charts() -> [(Surface<f64>, &'static str); 2] {
 /// **A corrupted stored image refuses at `Interval` as at `f64`**
 /// (PR 3812's review R1, P3; static rows). Check 3 does not run over a
 /// box, so fidelity is what refuses a stored image that is not the
-/// carrier's; every corruption here refuses, at both scalars, and every
-/// legitimate renaming (a whole period, a sphere's involution twin)
-/// certifies at both, however many periods out: check 4 decides the
-/// branch by the period's marks from zero, with no cap.
+/// carrier's; every corruption here refuses, at both scalars, and so
+/// does every whole-period renaming, a lifted copy and no row (C4),
+/// however many periods out; a sphere's involution twin, the same placed
+/// image's other name, certifies at both.
 #[test]
 fn a_corrupted_stored_image_refuses_at_interval_as_at_f64() {
     let fixtures: Vec<(Surface<f64>, Curve3<f64>, &str)> = vec![

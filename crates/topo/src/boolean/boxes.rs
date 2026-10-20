@@ -30,8 +30,8 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **four** of the twelve doors that read a box from
-//! here; at four of the other eight, box NON-overlap is the answer being
+//! PRUNES. That is **four** of the thirteen doors that read a box from
+//! here; at five of the other nine, box NON-overlap is the answer being
 //! sought, so a bigger box is a REFUSAL, and at the other four it is
 //! more exact work AND can be a refusal:
 //!
@@ -102,10 +102,22 @@
 //!   definitely negative margin against a CONTAINING box and sends
 //!   every other pair to the material test, so over-width would cost
 //!   a genuinely-outside instance a point-in-solid probe of its
-//!   vertices. Measured, not reached: on planar-only pairs the reach
-//!   box IS the vertex hull, and a reach box a curved face inflates
-//!   belongs to a pair arm 1 refuses first
-//!   (`bool4r1_probes::probe_d`).
+//!   vertices. On planar-only pairs the reach box IS the vertex hull,
+//!   so the cost is not reached there; a reach box a curved face
+//!   inflates reaches it once arm 1 has proved that face's pairs apart
+//!   (a box, direction or depth gap), and costs probes, never a wrong
+//!   clear (`bool4r1_probes::probe_d`).
+//! - `census::depth_gap`, arm 1's clear on a gap in depth, GRANTS: it
+//!   reads [`face_box_rule`]'s and [`edge_box_rule`]'s construction and
+//!   carrier, never an extent, and covers each boundary edge with the
+//!   piece the rule names (a chord, the ellipse's ring, the spiric's torus). A cover
+//!   that holds more than its edge — `NoSoundBox` where a claim
+//!   exists, a ring wider than the arc — can only raise a face's
+//!   greatest depth and lower its least, so a looser reading REFUSES
+//!   a pair that is apart and can never clear one that meets. A cover
+//!   that holds LESS than its edge (a chord named for a curved
+//!   carrier) is the unsound direction: it could clear a pair that
+//!   meets.
 //! - `pieces`'s screen (`pieces::Screen`, its face boxes built by the
 //!   boolean's exit in `boolean/ops.rs` and passed in) PRUNES: two
 //!   shells of one result whose hulled boxes clear are never probed
@@ -129,7 +141,7 @@
 //!   (`HeldPierceUnbuilt`) a point the face stays clear of.
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The twelve are not
+//! about a door, and the door has to be named. The thirteen are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
 //! a new door cannot land unargued. **It pins WHERE the doors are
@@ -1472,7 +1484,12 @@ pub(crate) enum FaceBoxRule<'a, T: Real> {
     },
     /// The face's chart rectangle or latitude zone, or the whole ball
     /// — see the type docs.
-    SphereWindow,
+    SphereWindow {
+        /// The sphere's centre.
+        center: Point3<T>,
+        /// Its radius.
+        radius: T,
+    },
     /// The boundary's chart rectangle, sampled, meeting the whole
     /// tube — see the type docs.
     TorusWindow {
@@ -1556,7 +1573,10 @@ pub(crate) fn face_box_rule<T: Decide>(
                 }
             }
         }
-        Surface::Sphere { .. } => FaceBoxRule::SphereWindow,
+        Surface::Sphere { center, radius, .. } => FaceBoxRule::SphereWindow {
+            center: *center,
+            radius: *radius,
+        },
         Surface::Nurbs(patch) => FaceBoxRule::ControlNet(patch),
         // The fit IS the face's locus, so the fit's control hull is a
         // genuine superset of it — the same rule, on the same net. The
@@ -2011,7 +2031,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
         FaceBoxRule::ControlNet(patch) => geom::surfaces::boxes::nurbs_surface_aabb(patch),
         // The reach is read at the body's scalar and bracketed out, end
         // by end, as the torus window is.
-        FaceBoxRule::SphereWindow => {
+        FaceBoxRule::SphereWindow { .. } => {
             let (lo, hi) = sphere_reach(body, face, band, &BoxFrame::World);
             Aabb {
                 min_x: lo.x.lo(),
@@ -3789,14 +3809,17 @@ pub(crate) mod tests {
     ///   against a CONTAINING box, so over-width would send a separated
     ///   pair to the material test instead of clearing it — a case the
     ///   planar-only corpus does not reach (the hull is the box) and a
-    ///   curved reach box hands to arm 1 first.
-    /// - `boolean/reduce.rs`'s sliver gate, through
-    ///   `census::boundary_unclaimable` (a helper, so this walk counts it
-    ///   under `census.rs`): it reads whether [`axial_carrier`] claims a
-    ///   cylinder or cone face's boundary at all, to type the refusal of
-    ///   a face with no reach. **Types only**: no extent reaches it, so
-    ///   looseness cannot; a rule that claimed where it should not would
-    ///   give that face a reach, and so a different refusal or none.
+    ///   curved reach box reaches once arm 1 has proved its face's
+    ///   pairs apart, where it costs probes, never a wrong clear.
+    /// - `census/depth_gap.rs` — arm 1's depth-gap clear: one
+    ///   [`face_box_rule`] read, which picks a face's cover and its
+    ///   carrier's depth, and one [`edge_box_rule`] read per boundary
+    ///   edge, which covers the edge and proposes a conic's axis as a
+    ///   depth. **Refuses**: it grants on a gap, and every cover it
+    ///   builds from the rules only holds MORE than its face or edge
+    ///   when loose, which narrows the gap. A rule that named a cover
+    ///   holding less would be the unsound direction. A looser
+    ///   proposal (an axis not offered) only withholds a depth.
     ///
     /// `boolean/boxes.rs` is excluded by path: it is the definition
     /// site, every call in it is this suite's own or one arm calling
@@ -3859,7 +3882,7 @@ pub(crate) mod tests {
         // hands it. `boolean/torn_hop_rows.rs`' four are not
         // doors either: its torn-body witnesses call `face_box` and
         // `edge_box` to show a torn link panics.
-        const PINNED: [(&str, usize); 11] = [
+        const PINNED: [(&str, usize); 12] = [
             ("boolean/carrier_touch.rs", 1),
             ("boolean/glue.rs", 2),
             ("boolean/mod.rs", 1),
@@ -3867,6 +3890,7 @@ pub(crate) mod tests {
             ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
             ("census.rs", 10),
+            ("census/depth_gap.rs", 2),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
             ("separation.rs", 2),

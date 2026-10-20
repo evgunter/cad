@@ -164,8 +164,8 @@ pub fn quarter_bulge() -> f64 {
 /// Lifts an `f64` profile to any scalar (exact embedding per
 /// `Real::from_f64`).
 ///
-/// `Profile::map_scalar` except for the plane: this mints `xy` at `T`
-/// rather than lifting `p`'s, and every caller's profile is on `xy`.
+/// The plane is minted `xy` at `T`, not carried from `p`'s: every
+/// caller's profile is on `xy`.
 pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
     Profile::new(
         SketchPlane::xy(),
@@ -210,8 +210,19 @@ pub fn replayed<T: profile::ArcCarrierScalar>(
     }
     (
         profile::ConstructedProfile::new(p.plane, recorded),
-        profile::ConstructedProfile::new(p.plane.map(T::from_f64), guided),
+        profile::ConstructedProfile::new(plane_at(p.plane), guided),
     )
+}
+
+/// **An `f64` fixture plane minted at `T`**: its placement's twelve
+/// entries, as point values at `T`, admitted at the decided door
+/// ([`geom_core::RigidMotion::check_rigid`]). A frame crosses no
+/// scalar upward; a fixture holding one as numbers mints it again.
+pub fn plane_at<T: geom_core::Decide>(plane: SketchPlane<f64>) -> SketchPlane<T> {
+    let band = geom_core::Band::linear(tol()).expect("the suite tolerance forms a band");
+    let frame = geom_core::RigidMotion::check_rigid(&plane.placement().map(T::from_f64), band)
+        .unwrap_or_else(|e| panic!("the fixture plane is rigid at the lane scalar: {e}"));
+    SketchPlane::from_frame(frame)
 }
 
 /// Replays a recorded `f64` program at `T`, at the suite tolerance: each
@@ -1044,6 +1055,38 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .line_to(Start, Tol::witness())
         .unwrap();
 
+    // 17. The arc known by how it ARRIVES (`arc_onto`): Ev's `B`,
+    //     entered at the spine's foot. The upper bump's departure is
+    //     known; the lower bump's arrival is, and it closes at the
+    //     sharp seam with no departure angle written.
+    let b_shape = Open
+        .at(Point2::new(0.0, 0.0))
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .toward(1.0, 0.0, Tol::witness())
+        .unwrap()
+        .tangent_arc_to(Point2::new(0.25, 1.0), Tol::witness())
+        .unwrap()
+        .arc_onto(Start, Tol::witness())
+        .unwrap()
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap();
+
+    // 18. The tangent closer the token SUPPLIES: a `D` whose cap leaves
+    //     a corner and arrives along the entry's own direction.
+    let d_cap = Open
+        .at(Point2::new(0.0, 0.0))
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .line_to(Point2::new(1.0, 2.0), Tol::witness())
+        .unwrap()
+        .arc_onto(Start.arrives_tangent(), Tol::witness())
+        .unwrap();
+
     // 10/11. The complete-loop program forms.
     let circle = profile::circle(Point2::new(1.0, 2.0), 0.75, Tol::witness()).unwrap();
     let split = profile::circle_split(Point2::new(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
@@ -1063,6 +1106,8 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         d_shape,
         stadium,
         radius_arrival,
+        b_shape,
+        d_cap,
         circle,
         split,
     ]
@@ -1156,6 +1201,46 @@ pub fn grid_a(
         }
     }
     n
+}
+
+/// **What answers once a grid-A corner's anchor fit is satisfied and
+/// the loop still does not build**, by name; `None` for any other
+/// refusal. Two reads come after the fit:
+///
+/// - the CLOSER (`line_to(Start)`): at a wide ε its junction can
+///   classify in-band or tangent, a fact about the closing junction;
+/// - the fillet's own stored joint, where the arc leg's remnant past
+///   the fillet is short enough to be stored as its chord. That chord
+///   turns from the fillet by half its sweep over its own length, about
+///   four times its sagitta, and where that reads in band the door
+///   escalates on `path_fillet_joint_turn`.
+///
+/// Neither is the fillet corner's fit, whose gates classify on the
+/// exact band.
+pub fn past_the_corner(e: &PathError<f64>) -> Option<&'static str> {
+    match e {
+        PathError::Escalated { source }
+            if source.predicate.is_some_and(|p| {
+                p.starts_with("path_junction_") || p == "path_fillet_joint_turn"
+            }) =>
+        {
+            Some(source.predicate.unwrap_or("<unnamed>"))
+        }
+        PathError::JunctionTangent { .. } => Some("JunctionTangent"),
+        _ => None,
+    }
+}
+
+/// How many grid-A recourse entries [`past_the_corner`] answers at the
+/// run's ε row, pinned per row so a fillet answer cannot slide into
+/// that bucket unnoticed. A row CI does not gate has no pin.
+pub fn past_the_corner_pin() -> Option<usize> {
+    match format!("{:e}", tol().eps()).as_str() {
+        "1e-6" => Some(16),
+        "1e-9" => Some(4),
+        "1e-12" => Some(0),
+        _ => None,
+    }
 }
 
 /// **The line×arc authoring**: a ray from `(sx·R/2, 0)` east onto the

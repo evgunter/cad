@@ -64,13 +64,17 @@ fn point_at_and_path_start_frame_are_the_retired_recipe_bit_for_bit() {
         let reference = Vec3::new(0.3 * t.cos(), 1.0, 0.2 * t.sin());
         let got = point_at(eye, target, reference, Tol::witness()).unwrap();
         let want = old_recipe(eye, target - eye, reference);
-        assert_eq!(bits12(&got), bits12(&want), "point_at at k={k}");
+        assert_eq!(bits12(&got.to_affine()), bits12(&want), "point_at at k={k}");
         let tangent = Vec3::new(t.cos(), t.sin(), 0.3 * t);
         let got = path_start_frame(eye, tangent, Tol::witness()).unwrap();
         // The ladder's first rung is world +Z; for these tangents it
         // is always off the tangent line.
         let want = old_recipe(eye, tangent, Vec3::unit_z());
-        assert_eq!(bits12(&got), bits12(&want), "path_start_frame at k={k}");
+        assert_eq!(
+            bits12(&got.to_affine()),
+            bits12(&want),
+            "path_start_frame at k={k}"
+        );
     }
 }
 
@@ -152,7 +156,7 @@ fn a_tube_from_a_minted_frame_stores_the_frames_axes_verbatim() {
 #[test]
 fn a_skewed_pair_is_repaired_at_the_sketch_plane_door() {
     let exact = SketchPlane::from_frame(RigidMotion::axes_zx(Point3::new(1.0, 2.0, 3.0)));
-    assert_eq!(bits3(exact.normal()), bits3(Vec3::unit_y()));
+    assert_eq!(bits3(exact.normal().get()), bits3(Vec3::unit_y()));
     let skewed = RigidMotion::gram_schmidt(
         Point3::origin(),
         Vec3::new(2.0, 0.0, 0.0),
@@ -164,7 +168,7 @@ fn a_skewed_pair_is_repaired_at_the_sketch_plane_door() {
     assert_eq!(bits3(skewed.u().get()), bits3(Vec3::unit_x()));
     assert_eq!(bits3(skewed.v().get()), bits3(Vec3::unit_y()));
     let plane = SketchPlane::from_frame(skewed);
-    assert_eq!(bits3(plane.normal()), bits3(Vec3::unit_z()));
+    assert_eq!(bits3(plane.normal().get()), bits3(Vec3::unit_z()));
 }
 
 // ---------------------------------------------------------------
@@ -199,7 +203,7 @@ fn a_datum_frame_node_evaluates_to_the_witness_and_the_fixture_plane_agrees() {
     assert_eq!(bits3(f.w().get()), bits3(Vec3::unit_z()));
     let fixture_plane = fixture::plane_of(&doc, plane);
     assert_eq!(
-        bits12(&fixture_plane.placement),
-        bits12(&SketchPlane::from_frame(*f).placement)
+        bits12(&fixture_plane.placement()),
+        bits12(&SketchPlane::from_frame(*f).placement())
     );
 }

@@ -25,7 +25,7 @@
 //! Serves ch. 14 `splitgenerate` edge splitting and ch. 15's edge×face
 //! reduction sweep (M3 PRs 2 and 4).
 
-use geom_brep::recourse::{Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
+use geom_brep::recourse::{Reading, Refused, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_brep::{CertifyError, EdgeCurveSpec};
 use geom_core::{Band, Decide, InfSpeed, Margin, Point3, Tol};
 
@@ -62,7 +62,7 @@ pub(crate) const SPLIT_PARAM_INTERIOR: SizedDecision = SizedDecision {
     lever: CROSSING_LEVER,
     size: CROSSING_SIZE,
     passes: SizedPass::Positive,
-    stored: StoredDefinite::Lever,
+    side: RefusedSide::Lever,
     no_size: None,
 };
 
@@ -215,6 +215,12 @@ impl<T: Decide> Body<T> {
     /// split knocks the body out of the props inventory until the
     /// patch machinery generalizes (pinned in
     /// `review_m3_pr1_sweep.rs::split_circle_carrier_intersection_edge`).
+    ///
+    /// # Panics
+    ///
+    /// On a kernel bug: an edge the body stores, re-minted or restated on its
+    /// own carrier and interval, whose span or winding reads certainly
+    /// refused at the run's band.
     ///
     /// # Errors
     ///
@@ -490,8 +496,13 @@ impl<T: Decide> Body<T> {
         let spec1 = self.tangent_piece(edge, spec1, band)?;
         let spec2 = self.tangent_piece(edge, spec2, band)?;
         let faces = crate::edge_faces(self, edge);
-        let cert1 = self.certify_edge_spec(Some(edge), spec1, p_u, p_new, faces, tol)?;
-        let cert2 = self.certify_edge_spec(Some(edge), spec2, p_new, p_v, faces, tol)?;
+        let origin =
+            crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::SplitChild);
+        let child = |spec, start, end| {
+            self.certify_edge_spec(origin, Some(edge), spec, start, end, faces, tol)
+        };
+        let cert1 = child(spec1, p_u, p_new)?;
+        let cert2 = child(spec2, p_new, p_v)?;
         // ---- Pcurve gate (still no mutation): each parent half-edge's
         // stored chart row, stated over the two children's sub-intervals
         // (placed again where it is closed-form or projected) and

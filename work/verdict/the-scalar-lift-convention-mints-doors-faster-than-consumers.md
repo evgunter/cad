@@ -247,3 +247,63 @@ reading its sections' planes at the lane scalar. Both are now the
 same verdict as `Vec3::try_map` and `Mat3::try_map`: no production
 consumer. Re-run the census before deciding on them.
 
+
+## `SketchPlane::map` and `try_map` retired (2026-10-14, PATHS' `the-sketch-plane-is-its-frame`)
+
+The sketch plane now holds a `RigidMotion` and crosses scalars only
+through closure-free doors, so both closure doors are gone:
+
+- `SketchPlane::map`'s consumers are re-homed onto
+  `SketchPlane::embed` (`RigidMotion::embed`, every component through
+  `Real::from_f64`): `editor-core`'s `Pinned` lift (`eval/wire.rs`),
+  `sweep`'s loft at an enclosure scalar (`loft.rs`, the channel planes,
+  which were lifted with `from_computed` and now enter as `from_f64`,
+  as the canonical forms beside them already did), the test fixtures,
+  and the demos. A frame the kernel COMPUTED (a path's start frame)
+  crosses through `embed_computed` (`Real::from_computed`), mirroring
+  `ConstructedLoop::lift_computed`.
+- The value-channel reads `p.map(T::value_channel)` (loft and sweep
+  placements at a lane scalar) are re-homed onto
+  `SketchPlane::point_value` (`RigidMotion::point_value`), which
+  refuses (`None`) where a component has no single finite `f64`
+  instead of carrying NaN.
+- `Profile::map_scalar` is now `Profile::embed` (`Profile<f64>` only,
+  through `SketchPlane::embed` and `ProfileLoop::map_scalar(U::from_f64)`);
+  its consumers are tests, as before.
+
+What this leaves for this row: `Affine3::try_map` lost the last caller
+it had (`SketchPlane::try_map`), so `Vec3::try_map`, `Mat3::try_map`
+and `Affine3::try_map` are now one ladder with no consumer outside its
+own tests. `Affine3::map` keeps `editor-core`'s `Frame::affine` (filed
+as `work/wire/a-literal-placement-frame-crosses-scalars-by-closure-and-is-decided-again-at-the-lane.md`)
+and its in-crate callers.
+
+## The frame's up doors and `Profile::embed` retired (2026-10-14, Ev's ruling A on #5068)
+
+Ev ruled that a frame crosses no scalar upward: a frame exists at a
+scalar only by being minted there, and `RigidMotion::point_value` is
+the one crossing. Retired with it, on PATHS' `the-sketch-plane-is-its-frame`:
+
+- `RigidMotion::embed` and `embed_computed`, `UnitVec3`'s crate-private
+  `embed_by`, and `SketchPlane::embed` / `embed_computed`. Their
+  consumers re-homed: editor-core's pinned lift is gone (below); the
+  demos (klein, lily, projectbox) mint their frames at their scalar
+  from inputs entered through `S::from_computed`; fixtures mint at `T`
+  through the exact world mints or `RigidMotion::check_rigid`
+  (`sweep::test_support::lift_places`, profile's `common::plane_at`).
+- `Profile::embed`, the raw profile's top rung, which had no
+  production consumer; its suite (`scalar_lift_door.rs`) keeps the
+  loop rung alone.
+- editor-core's `ProfileLift` and `EvalOptions::profile_lift`: every
+  evaluation elaborates profile geometry at its scalar, and the `f64`
+  lane takes the first pass's form through a sealed per-scalar fact
+  (`editor_core::ProfileLane`), not a door.
+
+Added: `ValidatedProfile::on_plane`, the same canonical form on
+another plane at the same scalar (no crossing). Its one consumer is
+editor-core's `f64` lane.
+
+What this leaves: `ValidatedProfile::lift_onto` keeps one production
+consumer, `sweep`'s loft at an enclosure scalar (`loft.rs`, the
+enclosure arm), which INLANE's `the-pinned-profile-lift-launders-at-sym`
+now tracks alone; `ProfileLoop::map_scalar` keeps its consumers.

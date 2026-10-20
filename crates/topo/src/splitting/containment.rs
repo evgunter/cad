@@ -24,8 +24,9 @@
 //! count proper crossings; odd ⇒ In. Grazing configurations (an
 //! endpoint on the ray line, a crossing at the query point) are not
 //! errors of the geometry but of the *ray choice*: retry with the next
-//! direction of a fixed schedule (profile's golden-angle device,
-//! promoted to 3-D). The schedule directions are built from a fixed
+//! direction of a fixed schedule (profile's device of a fixed ray
+//! schedule, promoted to 3-D; profile steps by the golden angle, this
+//! table is dyadic). The schedule directions are built from a fixed
 //! table of space directions projected into the plane — no basis
 //! choice by coordinate comparison anywhere (a comparison-picked basis
 //! could diverge between the f64 and interval lanes; a fixed schedule
@@ -119,9 +120,7 @@
 //! ellipse's two decided bounds on its span's overlap straddling the
 //! whole band ([`geom_core::k_stats::straddle`]).
 
-use geom_brep::recourse::{
-    LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
-};
+use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use geom_core::k_stats::decide_reported;
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, MarginDiag, Point3, Sign, Vec3};
 
@@ -247,7 +246,7 @@ pub(crate) const fn placement_sized(
         lever,
         size,
         passes,
-        stored: StoredDefinite::Lever,
+        side: RefusedSide::Lever,
         no_size: None,
     }
 }
@@ -440,6 +439,63 @@ impl core::fmt::Display for Uncrossable {
     }
 }
 
+impl PointInLoopError {
+    /// This refusal as a consumer's own: `doing` names the walk's use
+    /// ("re-homing a hole loop"), `subject` the question it answers
+    /// ("which piece holds a hole loop"), and `recourse` the consumer's
+    /// lever for a loop off the plane it was handed. One rendering for
+    /// every consumer, so the endings cannot drift:
+    ///
+    /// - an escalation ends in its decision's lever;
+    /// - an exhausted ray schedule names the walk's own levers;
+    /// - an uncrossable spiric or spline edge is a limit of the walk, which
+    ///   no move of the geometry lifts: `NOT_YET_ENDING`;
+    /// - a loop the walk cannot walk is a torn body: `KERNEL_DEFECT_ENDING`;
+    /// - a loop or point off the plane is the consumer's geometry, so
+    ///   `recourse`.
+    pub(crate) fn render_as(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        doing: &str,
+        subject: &str,
+        recourse: &str,
+    ) -> core::fmt::Result {
+        match self {
+            Self::Escalated {
+                decision,
+                escalation,
+                diag,
+                ..
+            } => write!(
+                f,
+                "{doing}: {}",
+                diag.undecided(
+                    decision.subject(),
+                    crate::boolean::ContainDecision::Loop(*decision)
+                        .lever_ending(*escalation, diag),
+                )
+            ),
+            Self::RayExhausted { .. } => write!(
+                f,
+                "{subject}{}: {}",
+                geom_core::undecided!(),
+                ray_walk::NoRaySettled
+            ),
+            Self::Uncrossable(u) => write!(
+                f,
+                "{subject} cannot be read: {u}. {}",
+                geom_core::NOT_YET_ENDING
+            ),
+            Self::CorruptLoop { .. } => write!(
+                f,
+                "{subject} cannot be read: {self}. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
+            Self::OffPlane(o) => write!(f, "{subject} cannot be read: {o}. Recourse: {recourse}"),
+        }
+    }
+}
+
 impl core::fmt::Display for PointInLoopError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -493,7 +549,7 @@ impl PointInLoopError {
 }
 
 /// The fixed schedule of space directions (module docs). 16 entries:
-/// three axes plus golden-angle-spread oblique members — for any unit
+/// three axes plus oblique members of dyadic components — for any unit
 /// plane normal, most members project to a definitely-nonzero in-plane
 /// direction (an all-graze outcome is the typed exhaustion error).
 ///

@@ -862,6 +862,29 @@ Dimensions and dispositions: `docs/predicate-dimension-audit.md`'s
 still decides under `point_in_loop_*`, so the polygon population is
 unchanged by this walk.
 
+**Roster change (RESTREAD link reading): the census's touch analysis
+reads two links.** The touch analysis no longer certifies a plane or a
+complement; it reads each solid's whole link at the touch point and
+decides two polygonal cones by one test (`census.rs`, `rest::judge`).
+`census_touch_side`, `census_touch_dihedral`, `census_touch_fold` and
+`census_touch_span` retire with the star, the edge convexity and the
+candidate search; their samples end there. `census_touch_piece_side`,
+`census_touch_piece_turn` and `census_touch_piece_front` fold into
+`census_touch_wedge` and `census_touch_ahead`, the same quantities now
+read with the point drawn in to the ray's own point; they do not pool
+with their CONTACT-7 samples. A link reading of a definite sign is
+taken twice under its one name (the value, and the value moved by the
+links' tie toward zero), so those rows sample at up to twice the rate
+of the readings they decide.
+
+| name | carrier | what it is |
+|---|---|---|
+| `census_touch_plane` | a named `const` (`TOUCH_PLANE`) | new: a point's distance from a link face's plane through the touch point |
+| `census_touch_wedge` | a named `const` (`TOUCH_WEDGE`) | new: a point's distance from the plane through a ray from the touch point, normal to its face (also building a face's piece) |
+| `census_touch_ahead` | a named `const` (`TOUCH_AHEAD`) | new: a point on a ray's line read along it (also building a face's piece) |
+| `census_touch_arc` | a named `const` (`TOUCH_ARC`) | new: a parity arc's ends against the plane normal to their bisector |
+| `census_touch_normal` | unchanged name | now two coplanar faces of the two links, not a face against a candidate plane; does not pool with its CONTACT-7 samples |
+
 **Roster change (CONTACT-7): the census's touch analysis decides in
 metres.** `topo/src/census.rs`'s touch analysis (the census backstop's
 arm 2) used to decide every sign as a levered reading of unit directions.
@@ -3131,6 +3154,41 @@ with `symbolic_zero` read as `symbolic` (37,420 of them; 19,620
 positive, 52 negative and 32 zero classified on both sides). The
 decision read, which now declines at a point scalar such as the
 replay's `Sym<Probe>`, answered none of them.
+
+## The sketch plane is its frame (PATHS, 2026-10-14)
+
+Three names move, all by construction; the driver dump was not re-taken
+for this addendum, so no population count is claimed.
+
+- **`revolve_placed_axis` retires.** The sketch plane holds a
+  `RigidMotion`, so the revolve's placed axis is the frame turning the
+  sketch axis's witness (`RigidMotion::turn`), unit by construction;
+  the decision above has nothing left to decide. `revolve_axis_direction`
+  now decides the sketch axis as `(x, y, 0)` through `UnitVec3::new`
+  (`Margin::norm3` of a vector whose third component is an exact zero,
+  so the margin is the old `norm2` length bit for bit).
+- **`sweep_path_tangent` is added** (`sweep`'s `skin.rs`,
+  `sweep_places`): each station's path derivative decided into a
+  direction witness through `UnitVec3::new`, a length against the
+  linear band. It replaces an exact `!(n > 0.0)` test that sampled
+  nothing.
+- **`sweep_path_turn` is added**, decided inside
+  `RigidMotion::turned_between` through `decide_flagged` under ledger
+  row F22 (`docs/predicate-dimension-audit.md`): the divisor
+  `1 + t₀·tᵢ` of the minimal rotation carrying the start tangent onto
+  station `i`'s, dimensionless against the linear band, evaluated as
+  `|t₀ + tᵢ|²/2` so that it holds to a few ulps relative to its own
+  size as it nears zero. It replaces an exact `sin > 0.0` structure
+  comparison. At station 0 and on a straight path the margin is 2 to
+  within an ulp (`|t₀|²` is 1 only to rounding), and the turn is still
+  the identity bit for bit there, because `t₀ × (t₀ + t₀)` is exactly
+  zero; the margin approaches zero only where the path doubles back,
+  which is where it refuses.
+
+The evaluation layer's `datum_unit_norm` under `DATUM_AXIS_ROLE`
+(`editor-core`'s axis port, `eval/wire/pose.rs`) is asked once per
+axis read instead of twice: the sketch direction is decided, and the
+placed one is the frame's turn of it.
 
 ## RESTREAD addendum (2026-10-18): the crossing lane's two-bound readings
 

@@ -61,6 +61,7 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Finish/TornComponent",
     "Split/Finish/UnclassifiableComponent",
     "Split/Finish/NestingContradiction",
+    "Split/Finish/SlitUnplaced",
     "Split/Finish/ResultInvalid",
     "Split/Pcurves",
     "Transform/Pcurve",
@@ -200,6 +201,9 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
+    // work/wire/two-refusals-the-widened-census-finds-state-no-recourse.md
+    "ParamBox/SymbolsOverABox",
+    "UnresolvedRead",
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
     "BlendSelectionEmpty",
@@ -689,37 +693,276 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
-/// **Every `NamingError` arm has a row.** The roster is
-/// `display_contract`'s `NAMING_ERROR` census, whose `match` rustc holds
-/// exhaustive, and each `Naming/` row is named by its own payload's
-/// variant, so an arm added to the enum or a row taken out reds here.
-#[test]
-fn every_naming_arm_has_a_row() {
-    let rendered: Vec<String> = editor_payloads()
-        .into_iter()
-        .filter_map(|(name, kind)| {
-            let NodeErrorKind::Naming(e) = kind else {
-                return None;
-            };
-            let arm = test_utils::f6::variant_identifier(&e);
-            assert_eq!(
-                name,
-                format!("Naming/{arm}"),
-                "a naming row is named by its arm"
-            );
-            Some(arm)
-        })
-        .collect();
-    let rendered: Vec<&str> = rendered.iter().map(String::as_str).collect();
-    if let Some(report) = test_utils::census::set_difference(
-        crate::display_contract::NAMING_ERROR.identifiers(),
-        &rendered,
-        "NamingError's arms and the feature tree's naming rows disagree",
-        "rendered by a row and not an arm of the census",
-        "an arm with no feature-tree row: give it one in `editor_payloads`",
-    ) {
-        panic!("{report}");
+use editor_core::{
+    EvalError, ParamBoxError, PiecesFault, PlacementRuleFault, ResolveError, SeedError,
+};
+
+test_utils::f6_variants! {
+    /// `EvalError`'s arms, for the `Expr/`, `PoseScalar/`,
+    /// `MeasureNonFinite/` and `PayloadExpr/` rows.
+    const EVAL_ERROR: EvalError = [
+        UnresolvedVar,
+        OutputRead,
+        DefinitionRefused,
+        VarKindMismatch,
+        CountExprInContinuousEval,
+        ContinuousExprInCountEval,
+        CountOverflow,
+        CountToScalarOutOfRange,
+        NonFiniteResult,
+        Unlowered,
+    ];
+}
+
+test_utils::f6_variants! {
+    /// `ParamBoxError`'s arms, for the `ParamBox/` rows.
+    const PARAM_BOX_ERROR: ParamBoxError = [UnknownParam, AxisUnrepresentable, SymbolsOverABox];
+}
+
+test_utils::f6_variants! {
+    /// `SeedError`'s arms, for the `Seed/` rows.
+    const SEED_ERROR: SeedError = [UnknownVar, CountVar, SeedOnNonFreeVar, TangentUnrepresentable];
+}
+
+test_utils::f6_variants! {
+    /// `PlacementRuleFault`'s arms, for the `PlacementRule/` rows.
+    const PLACEMENT_RULE_FAULT: PlacementRuleFault = [
+        CountSpelling,
+        NoPlacements,
+        NonFiniteFrame,
+        ImproperFrame,
+        NonRigidFrame,
+    ];
+}
+
+test_utils::f6_variants! {
+    /// `PiecesFault`'s arms, for the `ProfilePieces/` rows.
+    const PIECES_FAULT: PiecesFault = [NoRecord, NoIds, Length, NoStepId];
+}
+
+test_utils::f6_variants! {
+    /// `ResolveError`'s arms, for the `SelectResolve/` rows.
+    const RESOLVE_ERROR: ResolveError = [Vanished, Ambiguous, ReadGone, NodeGone];
+}
+
+test_utils::f6_variants! {
+    /// `NodeErrorKind`'s arms: the roster [`forward`] classifies and the
+    /// census rows are checked against, so an arm with no row reds and
+    /// an arm added to the enum stops this compiling until it is here.
+    const NODE_ERROR_KIND: NodeErrorKind = [
+        Expr, Profile, ProfileReplay, ProfileLaneReplay, ProfileAnchor, ProfilePieces,
+        ProfileRecordMissing, Extrude, Revolve, Tube, Split, Blend, Boolean, Transform, Motion,
+        Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
+        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, ProductOperand,
+        UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchCopy, CopiesShareAKey, CopyShape,
+        DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
+        VerbArity, Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
+        PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, NegativeSpacing, DegenerateSpacing,
+        DegenerateStep, FullRangeStep, PlacementsUncertified, PlacementRule, UnschedulableCycle,
+        Naming, UnionFoldStep, BlendSelectionEmpty, Shell, ShellLaneUnsupported,
+        FaceFrameNotPlanar, FaceFrameReadback, FrameDirection, WitnessBifurcation, Part, Mate,
+        SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
+        MeasureNotParallel, MeasureUnsupported, PayloadExpr, MeasureClearanceRefused,
+        AssertionDimension,
+    ];
+}
+
+/// What the census does with one `NodeErrorKind` arm's payload.
+enum Forward {
+    /// An editor-core refusal enum every arm of which has a row,
+    /// labelled `{family}/{arm}` (or `{arm}(…)`) when `labelled`.
+    Welded {
+        census: &'static [&'static str],
+        arm: String,
+        labelled: bool,
+    },
+    /// A refusal the weld does not cover — an editor-core one, or a
+    /// kernel crate's — and the row that files it.
+    Unwelded(&'static str),
+    /// No forwarded refusal: the arm writes its own sentence over plain
+    /// values, or carries one struct whose shape has no arms.
+    Own,
+}
+
+const UNWELDED: &str = "work/wire/editor-core-forwarders-the-census-does-not-weld.md";
+const UNWELDED_HELD: &str = "work/wirehold/mate-and-pose-forwarders-the-census-does-not-weld.md";
+const UNWELDED_KERNEL: &str =
+    "work/wire/kernel-payload-lists-in-the-concision-census-are-kept-by-hand.md";
+
+/// The one classification of every `NodeErrorKind` arm: a `match` with
+/// no wildcard, so a new arm is a decision here before it compiles.
+fn forward(kind: &NodeErrorKind) -> Forward {
+    use test_utils::f6::variant_identifier as arm;
+    let welded = |census, arm| Forward::Welded {
+        census,
+        arm,
+        labelled: true,
+    };
+    match kind {
+        NodeErrorKind::Expr { source, .. }
+        | NodeErrorKind::PoseScalar { source, .. }
+        | NodeErrorKind::MeasureNonFinite { source }
+        | NodeErrorKind::PayloadExpr { source, .. } => {
+            welded(EVAL_ERROR.identifiers(), arm(source))
+        }
+        NodeErrorKind::ParamBox { source } => welded(PARAM_BOX_ERROR.identifiers(), arm(source)),
+        NodeErrorKind::Seed { source } => welded(SEED_ERROR.identifiers(), arm(source)),
+        NodeErrorKind::PlacementRule(e) => welded(PLACEMENT_RULE_FAULT.identifiers(), arm(e)),
+        NodeErrorKind::Naming(e) => {
+            welded(crate::display_contract::NAMING_ERROR.identifiers(), arm(e))
+        }
+        NodeErrorKind::SelectResolve { error, .. } => {
+            welded(RESOLVE_ERROR.identifiers(), arm(error))
+        }
+        NodeErrorKind::ProfilePieces { fault } => welded(PIECES_FAULT.identifiers(), arm(fault)),
+        // Labelled by the standing each carries, the names the filed
+        // rows cite them by.
+        NodeErrorKind::MeasureRefUnreadable { error, .. } => Forward::Welded {
+            census: crate::display_contract::INTERROGATE_ERROR.identifiers(),
+            arm: arm(error),
+            labelled: false,
+        },
+        NodeErrorKind::WitnessBifurcation(_)
+        | NodeErrorKind::Part { .. }
+        | NodeErrorKind::MeasureClearanceRefused(_) => Forward::Unwelded(UNWELDED),
+        NodeErrorKind::PoseRead { .. }
+        | NodeErrorKind::Mate(_)
+        | NodeErrorKind::SpaceMismatch { .. } => Forward::Unwelded(UNWELDED_HELD),
+        NodeErrorKind::Profile(_)
+        | NodeErrorKind::ProfileReplay { .. }
+        | NodeErrorKind::ProfileLaneReplay { .. }
+        | NodeErrorKind::Extrude(_)
+        | NodeErrorKind::Revolve(_)
+        | NodeErrorKind::Tube(_)
+        | NodeErrorKind::Split(_)
+        | NodeErrorKind::Blend { .. }
+        | NodeErrorKind::Boolean(_)
+        | NodeErrorKind::Transform(_)
+        | NodeErrorKind::Motion(_)
+        | NodeErrorKind::Skin(_)
+        | NodeErrorKind::Loft(_)
+        | NodeErrorKind::UnfinishedOperand { .. }
+        | NodeErrorKind::Band(_)
+        | NodeErrorKind::VerbArity { .. }
+        | NodeErrorKind::Shell(_)
+        | NodeErrorKind::FaceFrameReadback { .. }
+        | NodeErrorKind::FrameDirection { .. } => Forward::Unwelded(UNWELDED_KERNEL),
+        NodeErrorKind::ProfileAnchor
+        | NodeErrorKind::ProfileRecordMissing { .. }
+        | NodeErrorKind::CurvedSolidFrontier { .. }
+        | NodeErrorKind::MissingInput { .. }
+        | NodeErrorKind::UnresolvedRead { .. }
+        | NodeErrorKind::ToleranceConflict { .. }
+        | NodeErrorKind::WrongOperand { .. }
+        | NodeErrorKind::EmptyOperand { .. }
+        | NodeErrorKind::ProductOperand { .. }
+        | NodeErrorKind::EmptyHalf { .. }
+        | NodeErrorKind::InstanceOutOfRange { .. }
+        | NodeErrorKind::NoSuchCopy { .. }
+        | NodeErrorKind::CopiesShareAKey { .. }
+        | NodeErrorKind::CopyShape { .. }
+        | NodeErrorKind::DegenerateDirection { .. }
+        | NodeErrorKind::NonFiniteDirection { .. }
+        | NodeErrorKind::UnderflowedDirection { .. }
+        | NodeErrorKind::MissingSlot { .. }
+        | NodeErrorKind::Escalated { .. }
+        | NodeErrorKind::MeasureEscalated { .. }
+        | NodeErrorKind::PlacementAxisEscalated { .. }
+        | NodeErrorKind::PoseDirectionEscalated { .. }
+        | NodeErrorKind::PoseDegenerate { .. }
+        | NodeErrorKind::CountOutOfRange { .. }
+        | NodeErrorKind::NegativeSpacing { .. }
+        | NodeErrorKind::DegenerateSpacing
+        | NodeErrorKind::DegenerateStep
+        | NodeErrorKind::FullRangeStep { .. }
+        | NodeErrorKind::PlacementsUncertified { .. }
+        | NodeErrorKind::UnschedulableCycle
+        | NodeErrorKind::UnionFoldStep { .. }
+        | NodeErrorKind::BlendSelectionEmpty { .. }
+        | NodeErrorKind::ShellLaneUnsupported { .. }
+        | NodeErrorKind::FaceFrameNotPlanar { .. }
+        | NodeErrorKind::CrossingUnverified { .. }
+        | NodeErrorKind::MeasureNotParallel { .. }
+        | NodeErrorKind::MeasureUnsupported(_)
+        | NodeErrorKind::AssertionDimension { .. } => Forward::Own,
     }
+}
+
+/// **Every `NodeErrorKind` arm has a row, and so does every arm of
+/// each editor-core refusal it forwards.**
+///
+/// Each roster is an `f6_variants!` census, whose `match` rustc holds
+/// exhaustive (`NamingError`'s and `InterrogateError`'s are
+/// `display_contract`'s), and [`forward`] ties each forwarding arm to
+/// its census with no wildcard. The family a payload is checked under
+/// is its row's own `NodeErrorKind` arm, so a family cannot drop out of
+/// the check while its arm has a row, and the first census makes every
+/// arm have one.
+///
+/// Each set difference guards one direction that can fire: an arm with
+/// no row. The other — a row whose arm is not in the census — cannot,
+/// since the census's `match` names every arm; it is left in place for
+/// a `Debug` written by hand, which `variant_identifier` would misread.
+#[test]
+fn every_forwarded_editor_arm_has_a_row() {
+    use test_utils::f6::variant_identifier;
+    let rows = node_refusals();
+    let kinds: Vec<String> = rows.iter().map(|(_, k)| variant_identifier(k)).collect();
+    let kinds: Vec<&str> = kinds.iter().map(String::as_str).collect();
+    let mut reports: Vec<String> = test_utils::census::set_difference(
+        NODE_ERROR_KIND.identifiers(),
+        &kinds,
+        "NodeErrorKind's arms and the census rows disagree",
+        "rendered by a row and not an arm of the census",
+        "an arm with no row: give it one in `node_refusals`",
+    )
+    .into_iter()
+    .collect();
+    let mut families: std::collections::BTreeMap<String, (&[&str], Vec<String>)> =
+        std::collections::BTreeMap::new();
+    for ((name, kind), family) in rows.iter().zip(&kinds) {
+        let (census, arm, labelled) = match forward(kind) {
+            Forward::Welded {
+                census,
+                arm,
+                labelled,
+            } => (census, arm, labelled),
+            Forward::Unwelded(filed) => {
+                let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("../..")
+                    .join(filed);
+                assert!(
+                    path.is_file(),
+                    "{name}: its unwelded payload cites {filed}, which is gone"
+                );
+                continue;
+            }
+            Forward::Own => continue,
+        };
+        let label = name
+            .strip_prefix(&format!("{family}/"))
+            .unwrap_or_else(|| panic!("{name}: a {family} row opens with {family}/"));
+        assert!(
+            !labelled || label == arm || label.starts_with(&format!("{arm}(")),
+            "{name}: a row is named by its payload's arm, {arm}"
+        );
+        families
+            .entry((*family).to_owned())
+            .or_insert((census, Vec::new()))
+            .1
+            .push(arm);
+    }
+    for (family, (census, arms)) in &families {
+        let arms: Vec<&str> = arms.iter().map(String::as_str).collect();
+        reports.extend(test_utils::census::set_difference(
+            census,
+            &arms,
+            &format!("the {family}/ rows and their payload's arms disagree"),
+            "rendered by a row and not an arm of the census",
+            "an arm with no row: give it one in `editor_payloads`",
+        ));
+    }
+    assert!(reports.is_empty(), "{}", reports.join("\n"));
 }
 
 /// A failure as the feature tree draws it: the failed node's own line,
@@ -978,18 +1221,9 @@ fn row(name: &str, kind: NodeErrorKind) -> (String, NodeErrorKind) {
 /// The arms whose sentence `NodeErrorKind` writes itself, each on a
 /// representative payload where it forwards.
 fn own_arms() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::{Dimension, EvalError, SlotId};
+    use editor_core::{Dimension, SlotId};
     use payloads::*;
     vec![
-        row(
-            "Expr",
-            NodeErrorKind::Expr {
-                slot: SlotId::Distance,
-                source: EvalError::UnresolvedVar {
-                    var: editor_core::VarId::new(0, tagged(7)),
-                },
-            },
-        ),
         row(
             "ProfileLaneReplay(None)",
             NodeErrorKind::ProfileLaneReplay {
@@ -1000,22 +1234,8 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         ),
         row("ProfileAnchor", NodeErrorKind::ProfileAnchor),
         row(
-            "ProfileRecordMissing(None)",
-            NodeErrorKind::ProfileRecordMissing { loop_: None },
-        ),
-        row(
-            "ProfileRecordMissing(Some)",
-            NodeErrorKind::ProfileRecordMissing { loop_: Some(1) },
-        ),
-        row(
-            "ProfilePieces",
-            NodeErrorKind::ProfilePieces {
-                fault: editor_core::PiecesFault::Length {
-                    loop_: 0,
-                    recorded: 4,
-                    anchored: 5,
-                },
-            },
+            "ProfileRecordMissing",
+            NodeErrorKind::ProfileRecordMissing { loop_: 1 },
         ),
         row(
             "CurvedSolidFrontier",
@@ -1194,6 +1414,41 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
+            "MeasureEscalated",
+            NodeErrorKind::MeasureEscalated {
+                predicate: "bool_plane_parallel",
+                source: named("bool_plane_parallel"),
+            },
+        ),
+        row(
+            "PlacementAxisEscalated",
+            NodeErrorKind::PlacementAxisEscalated {
+                predicate: "eval_direction_norm",
+                source: named("eval_direction_norm"),
+            },
+        ),
+        row(
+            "PoseDirectionEscalated",
+            NodeErrorKind::PoseDirectionEscalated {
+                predicate: topo::DATUM_UNIT_NORM,
+                source: named(topo::DATUM_UNIT_NORM),
+            },
+        ),
+        row(
+            "UnresolvedRead",
+            NodeErrorKind::UnresolvedRead {
+                slot: editor_core::OperandSlot::Selection,
+                var: editor_core::VarId::new(0, tagged(4)),
+            },
+        ),
+        row(
+            "ProductOperand",
+            NodeErrorKind::ProductOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                parts: 2,
+            },
+        ),
+        row(
             "PoseRead",
             NodeErrorKind::PoseRead {
                 pose: editor_core::VarKind::Axis,
@@ -1206,13 +1461,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "PoseDegenerate",
             NodeErrorKind::PoseDegenerate {
                 construction: editor_core::pose::PoseConstruction::Meet,
-            },
-        ),
-        row(
-            "PoseScalar",
-            NodeErrorKind::PoseScalar {
-                var: editor_core::VarId::new(0, tagged(4)),
-                source: editor_core::EvalError::NonFiniteResult,
             },
         ),
         row(
@@ -1300,20 +1548,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 a: "plane",
                 b: "plane",
                 predicate: "measure_parallel",
-            },
-        ),
-        row(
-            "MeasureNonFinite",
-            NodeErrorKind::MeasureNonFinite {
-                source: EvalError::NonFiniteResult,
-            },
-        ),
-        row(
-            "PayloadExpr",
-            NodeErrorKind::PayloadExpr {
-                what: "placement",
-                index: 2,
-                source: EvalError::NonFiniteResult,
             },
         ),
         row(
@@ -1766,6 +2000,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             ("OrderEscalated", J::OrderEscalated { diag: diag() }),
             ("Escalated", J::Escalated { face, diag: diag() }),
             ("DegenerateSection", J::DegenerateSection { face }),
+            ("CurvedSlitTrace", J::CurvedSlitTrace { face }),
             (
                 "RingHoming",
                 J::RingHoming(topo::PointInLoopError::RayExhausted {
@@ -1989,6 +2224,22 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::NestingContradiction { hole: face },
         ),
         (
+            "SlitUnplaced",
+            F::SlitUnplaced {
+                slit: face,
+                in_hole: true,
+            },
+        ),
+        (
+            "SlitHoming",
+            F::SlitHoming {
+                slit: face,
+                error: topo::PointInLoopError::RayExhausted {
+                    r#loop: LoopKey::default(),
+                },
+            },
+        ),
+        (
             "EdgeJoin",
             F::EdgeJoin {
                 side: topo::PlaneSide::Above,
@@ -2032,10 +2283,12 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             "Certify",
             E::Certify {
                 edge: topo::EdgeKey::default(),
-                source: geom_brep::CertifyError::IntervalNotForward {
-                    verdict: geom_brep::recourse::Refused::Negative {
-                        margin: geom_core::MarginDiag::value(-1.0),
-                    },
+                source: geom_brep::CertifyError::StatedInterval {
+                    refused: geom_brep::StatedSpan::Forward(geom_brep::ForwardReading::Decided(
+                        geom_brep::recourse::Refused::Negative {
+                            margin: geom_core::MarginDiag::value(-1.0),
+                        },
+                    )),
                 },
             },
         ),
@@ -2211,8 +2464,18 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                 }),
             },
             "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
-             tightly there; faces of no extent or a cone's point leave no angle to measure; \
-             a radius below zero is a defect",
+             tightly there; faces of no extent or a cone's point leave no angle to measure",
+        ),
+        (
+            "negative lever arm",
+            CertifyError::ArmCollapsed {
+                sample: 4,
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-1e-3),
+                },
+            },
+            "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
+             tightly there; faces of no extent or a cone's point leave no angle to measure",
         ),
         (
             "spline meter turns back",
@@ -2577,6 +2840,7 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             },
         ),
         ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
+        ("PathTangentVanishes", E::PathTangentVanishes { station: 4 }),
         ("RowMotionUndecided", E::RowMotionUndecided { row: 1 }),
         (
             "ArcSweepUndecided",
@@ -3473,7 +3737,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
 /// analysis seeds, placement rules, naming, the name ladder.
 fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError,
+        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError, PiecesFault,
         PlacementRuleFault, RecipeEditRef, ResolveError, RimShare, SeedError, SlotId, StableName,
         TieWitness, VarName,
     };
@@ -3484,59 +3748,81 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         node: RecipeNodeId::new(0, tagged(3)),
         path: Vec::new(),
     };
-    let eval: Vec<(&str, EvalError)> = vec![
+    let eval = || -> Vec<(&str, EvalError)> {
+        vec![
+            (
+                "UnresolvedVar",
+                EvalError::UnresolvedVar {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                },
+            ),
+            (
+                "OutputRead",
+                EvalError::OutputRead {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                },
+            ),
+            (
+                "DefinitionRefused",
+                EvalError::DefinitionRefused {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                    source: Box::new(EvalError::NonFiniteResult),
+                },
+            ),
+            (
+                "VarKindMismatch",
+                EvalError::VarKindMismatch {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                    bound: Dimension::Angle,
+                    read: Dimension::Length,
+                },
+            ),
+            (
+                "CountExprInContinuousEval",
+                EvalError::CountExprInContinuousEval,
+            ),
+            (
+                "ContinuousExprInCountEval",
+                EvalError::ContinuousExprInCountEval {
+                    found: Dimension::Length,
+                },
+            ),
+            ("CountOverflow", EvalError::CountOverflow),
+            (
+                "CountToScalarOutOfRange",
+                EvalError::CountToScalarOutOfRange(1 << 60),
+            ),
+            ("NonFiniteResult", EvalError::NonFiniteResult),
+            // No node raises it — a lowered document holds no authored
+            // leaf, so a node's expression never reaches it — but a formula
+            // evaluated outside a document does, and it renders through the
+            // same `Display` within the same budget.
+            (
+                "Unlowered",
+                EvalError::Unlowered(editor_core::LowerFault::Quantity {
+                    dim: Dimension::Length,
+                }),
+            ),
+        ]
+    };
+    let pieces = [
+        ("NoRecord", PiecesFault::NoRecord { loop_: 0 }),
+        ("NoIds", PiecesFault::NoIds { loop_: 0 }),
         (
-            "UnresolvedVar",
-            EvalError::UnresolvedVar {
-                var: editor_core::VarId::new(0, tagged(7)),
+            "Length",
+            PiecesFault::Length {
+                loop_: 0,
+                recorded: 4,
+                anchored: 5,
             },
         ),
         (
-            "OutputRead",
-            EvalError::OutputRead {
-                var: editor_core::VarId::new(0, tagged(7)),
+            "NoStepId",
+            PiecesFault::NoStepId {
+                loop_: 0,
+                step: 6,
+                ids: 5,
             },
-        ),
-        (
-            "DefinitionRefused",
-            EvalError::DefinitionRefused {
-                var: editor_core::VarId::new(0, tagged(7)),
-                source: Box::new(EvalError::NonFiniteResult),
-            },
-        ),
-        (
-            "VarKindMismatch",
-            EvalError::VarKindMismatch {
-                var: editor_core::VarId::new(0, tagged(7)),
-                bound: Dimension::Angle,
-                read: Dimension::Length,
-            },
-        ),
-        (
-            "CountExprInContinuousEval",
-            EvalError::CountExprInContinuousEval,
-        ),
-        (
-            "ContinuousExprInCountEval",
-            EvalError::ContinuousExprInCountEval {
-                found: Dimension::Length,
-            },
-        ),
-        ("CountOverflow", EvalError::CountOverflow),
-        (
-            "CountToScalarOutOfRange",
-            EvalError::CountToScalarOutOfRange(1 << 60),
-        ),
-        ("NonFiniteResult", EvalError::NonFiniteResult),
-        // No node raises it — a lowered document holds no authored
-        // leaf, so a node's expression never reaches it — but a formula
-        // evaluated outside a document does, and it renders through the
-        // same `Display` within the same budget.
-        (
-            "Unlowered",
-            EvalError::Unlowered(editor_core::LowerFault::Quantity {
-                dim: Dimension::Length,
-            }),
         ),
     ];
     let param_box = [
@@ -3560,6 +3846,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 hi: 0.0,
             },
         ),
+        ("SymbolsOverABox", ParamBoxError::SymbolsOverABox),
     ];
     let seed = [
         (
@@ -3631,6 +3918,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "Duplicate",
             NamingError::Duplicate {
                 name: Box::new(name()),
+            },
+        ),
+        (
+            "EntityNamed",
+            NamingError::EntityNamed {
+                name: Box::new(name()),
+                held: Box::new(stable(EntityKind::Face, 4)),
             },
         ),
         (
@@ -3841,13 +4135,34 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         ]
     };
     let mut rows: Vec<(String, NodeErrorKind)> = Vec::new();
-    for (n, e) in eval {
+    type EvalWrap = fn(EvalError) -> NodeErrorKind;
+    let eval_wraps: [(&str, EvalWrap); 4] = [
+        ("Expr", |source| NodeErrorKind::Expr {
+            slot: SlotId::Distance,
+            source,
+        }),
+        ("PoseScalar", |source| NodeErrorKind::PoseScalar {
+            var: editor_core::VarId::new(0, tagged(4)),
+            source,
+        }),
+        ("MeasureNonFinite", |source| {
+            NodeErrorKind::MeasureNonFinite { source }
+        }),
+        ("PayloadExpr", |source| NodeErrorKind::PayloadExpr {
+            what: "placement",
+            index: 2,
+            source,
+        }),
+    ];
+    for (wrap, build) in eval_wraps {
+        for (n, e) in eval() {
+            rows.push(row(&format!("{wrap}/{n}"), build(e)));
+        }
+    }
+    for (n, fault) in pieces {
         rows.push(row(
-            &format!("Expr/{n}"),
-            NodeErrorKind::Expr {
-                slot: SlotId::Distance,
-                source: e,
-            },
+            &format!("ProfilePieces/{n}"),
+            NodeErrorKind::ProfilePieces { fault },
         ));
     }
     for (n, source) in param_box {
@@ -4789,6 +5104,31 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                            nothing, not two ovals",
                 },
             ),
+            (
+                "DegenerateTorus/Undecided",
+                R::DegenerateTorus {
+                    edge,
+                    refusal: geom_brep::TorusRefusal {
+                        convention: geom_brep::TorusConvention::Ring,
+                        verdict: geom_brep::TorusVerdict::Undecided(named("ring_torus_convention")),
+                    },
+                },
+            ),
+            (
+                "DegenerateTorus/Refused",
+                R::DegenerateTorus {
+                    edge,
+                    refusal: geom_brep::TorusRefusal {
+                        convention: geom_brep::TorusConvention::Tube,
+                        verdict: geom_brep::TorusVerdict::Refused(
+                            geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
+                                margin: geom_core::MarginDiag::value(5.0e-10),
+                                band: band(),
+                            }),
+                        ),
+                    },
+                },
+            ),
             ("Escalated", R::Escalated { source: diag() }),
             (
                 "Op",
@@ -4873,6 +5213,7 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
         R::TogetherNotAxial { .. } => "TogetherNotAxial",
         R::TogetherAxialCorner { .. } => "TogetherAxialCorner",
         R::TogetherAxialEdge { .. } => "TogetherAxialEdge",
+        R::DegenerateTorus { .. } => "DegenerateTorus",
         R::Escalated { .. } => "Escalated",
         R::Op { .. } => "Op",
         R::Pcurve { .. } => "Pcurve",
@@ -4883,7 +5224,7 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
 
 /// Every `ReplaceFaceError` variant, in declaration order: the names
 /// [`replace_face_arm`] answers.
-const REPLACE_FACE_ARMS: [&str; 42] = [
+const REPLACE_FACE_ARMS: [&str; 43] = [
     "Band",
     "StaleFace",
     "Offset",
@@ -4921,6 +5262,7 @@ const REPLACE_FACE_ARMS: [&str; 42] = [
     "TogetherNotAxial",
     "TogetherAxialCorner",
     "TogetherAxialEdge",
+    "DegenerateTorus",
     "Escalated",
     "Op",
     "Pcurve",
@@ -4953,141 +5295,93 @@ fn every_check_finding_renders_within_the_budget() {
     }
 }
 
-/// **The checks window's escalated evidence ends in the decision that
-/// escalated** (D4 ¶1 (i)). The shell-role sign passes on either
-/// definite sign and its margin is a thickness, so every band-decided
-/// arm ends in its lever plus the tolerance that decides it, valued at
-/// `|m|/K` where the verdict carries a margin and without a value where
-/// it does not (a zero, a straddle); an enclosure across zero is passed
-/// by no tolerance and names the lever alone. A source that is not that decision's
-/// ends in its own payload's recourse and no invented lever. No row the
-/// window writes itself advises lowering the tolerance.
+/// **The checks window's shell-role evidence ends in the reading that
+/// refused it** (D4 ¶1 (i)), on refusals real bodies make through the
+/// real doors.
+///
+/// A shell's role off its volume is the sign of the volume's enclosure
+/// alone (D10). At ε 1e-9 a brick less a needle `1 × 10.5ε × 10.5ε` holds
+/// the needle as a cavity no aimed ray reads; read through the structural
+/// door, which holds no interval lane, its volume lies within its sums'
+/// rounding, so its role is unresolved in that scalar: a capability limit
+/// of the measurement, with no tolerance offered and no defect claimed.
+/// Read through the certifying door, its enclosure decides it a void. A
+/// certified enclosure that holds zero is the kernel's or the file's, and
+/// the one real body that reaches it, a cube whose planes are NaN, is
+/// pinned at topo's own door (`pieces::tests::a_poisoned_role_beside_two_pieces_offers_no_tolerance`).
+/// No row the window writes itself advises lowering the tolerance.
 #[test]
 fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     use editor_core::{CheckEvidence, CheckFinding, CheckId};
-    use geom_core::{Band, Indeterminate, MarginDiag};
-    use topo::{ShellClassifyError as S, ShellKey};
-    const LEVER: &str = "Recourse: thicken or remove the degenerate geometry";
-    let shell = ShellKey::default();
-    // `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
-    let band = Band::new(1e-9, 1e-8).expect("a band");
-    let escalated = |margin| S::Escalated {
-        shell,
-        source: Indeterminate {
-            margin,
-            band,
-            predicate: Some("chk_shell_volume_sign"),
-            terminal_sliver: false,
-        },
-    };
-    let render = |source| {
+    use geom_core::Tol;
+    let tol = Tol::witness();
+    let render = |evidence| {
         CheckFinding {
             check: CheckId::Connectedness,
             subject: editor_core::FindingSubject::Output {
                 root: RecipeNodeId::new(0, tagged(4)),
                 output_ix: 0,
             },
-            evidence: CheckEvidence::Escalated { source },
+            evidence,
         }
         .to_string()
     };
-    let head =
-        "check connectedness: placement 000000000004 output 0: the component count is unknowable: ";
-    let sign = "the sign of a shell's volume is undecided: ";
-    let in_band =
-        |m: &str| format!("{head}{sign}margin {m} lies inside the ambiguity band (1e-9, 1e-8). ");
-    let pinned = [
-        (
-            "in band, outer side",
-            escalated(MarginDiag::value(5e-9)),
-            format!(
-                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 5e-10 m",
-                in_band("5e-9")
+    let head = "check connectedness: placement 000000000004 output 0: ";
+    if (tol.eps() - 1e-9).abs() < 1e-15 {
+        let at_rest = |b| topo::AtRestBody::validate(b, tol).expect("the brick is at rest");
+        let outer = at_rest(topo::test_support::brick::<f64>(
+            (-1.0, 2.0),
+            (-1.0, 2.0),
+            (-1.0, 2.0),
+            tol,
+        ));
+        let w = 10.5 * tol.eps();
+        let needle = at_rest(topo::test_support::brick::<f64>(
+            (0.0, 1.0),
+            (0.0, w),
+            (0.0, w),
+            tol,
+        ));
+        let cut = topo::subtract(&outer, &needle, tol).expect("the needle cavity builds");
+        let body: &topo::Body<f64> = &cut.body().expect("a body").body;
+        let source = topo::classify_shells_structural(body, tol)
+            .expect_err("the lane-free door reads no role for the needle cavity");
+        assert!(
+            matches!(
+                source,
+                topo::ShellClassifyError::SignUnresolved {
+                    limit: topo::SignLimit::Scalar,
+                    ..
+                }
             ),
-        ),
-        (
-            "in band, void side",
-            escalated(MarginDiag::value(-2e-9)),
-            format!(
-                "{}{LEVER}, or, if this thickness is intended, tighten the tolerance below 2e-10 m",
-                in_band("-2e-9")
-            ),
-        ),
-        (
-            "in band, bracket across zero",
-            escalated(MarginDiag::enclosure(-2e-9, 3e-9)),
-            format!(
-                "{head}{sign}enclosure [-2e-9, 3e-9] cannot be classified against the ambiguity band (1e-9, 1e-8). {LEVER}"
-            ),
-        ),
-        (
-            "invalid margin",
-            escalated(MarginDiag::INVALID),
-            format!(
-                "{head}{sign}margin is invalid (NaN or a refused enclosure) against the ambiguity \
-                 band (1e-9, 1e-8). {LEVER}; an unreadable margin may indicate a kernel or file \
-                 defect worth reporting"
-            ),
-        ),
-        (
-            "zero",
-            S::ZeroVolume {
-                shell,
-                verdict: geom_brep::recourse::Classified {
-                    margin: MarginDiag::value(-5.0e-10),
-                    band,
-                },
-            },
-            format!(
-                "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
-                 this tolerance. {LEVER}, or, if this thickness is intended, tighten the \
-                 tolerance below 5e-11 m"
-            ),
-        ),
-        (
-            "zero, of no size",
-            S::ZeroVolume {
-                shell,
-                verdict: geom_brep::recourse::Classified {
-                    margin: MarginDiag::value(0.0),
-                    band,
-                },
-            },
-            format!(
-                "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
-                 this tolerance. {LEVER}"
-            ),
-        ),
-        (
-            "straddle",
-            S::Straddles { shell },
-            format!(
-                "{head}a shell's certified volume bracket straddles zero at this tolerance. \
-                 {LEVER}"
-            ),
-        ),
-    ];
-    for (name, source, want) in pinned {
-        let text = render(source.clone());
-        assert_eq!(text, want, "{name}");
-        // The finding ends in the shell-role decision's ending read at
-        // rest; the shell door's own Display reads it at a build.
-        let arm = source.arm().expect("the shell-role decision's refusal");
-        let ending = topo::props::SHELL_ROLE.recourse(arm, geom_brep::recourse::Reading::AtRest);
-        assert!(text.ends_with(&ending), "{name}: {text}");
-        let built = source.ending().expect("the shell-role decision's refusal");
-        let whole = source.to_string();
-        assert!(whole.ends_with(&format!(". {built}")), "{name}: {whole}");
-        assert_eq!(
-            test_utils::refusal::recourse_markers(&whole),
-            1,
-            "{name}: {whole}"
+            "{source:?}"
         );
+        let words = "the sign of a shell's volume cannot be read: this scalar carries no \
+                     interval to certify its sums, and the volume lies within their rounding";
+        let ending = geom_core::NOT_YET_ENDING;
+        assert_eq!(source.to_string(), format!("{words}. {ending}"));
+        let text = render(CheckEvidence::Unsupported {
+            source: source.clone(),
+        });
+        assert!(text.starts_with(head), "{text}");
+        assert!(text.ends_with(&format!("{words}. {ending}")), "{text}");
+        assert!(
+            !text.contains("tolerance") && !text.contains("defect"),
+            "{text}"
+        );
+        let roles: Vec<topo::ShellRole> = topo::classify_shells(body, tol)
+            .expect("the certifying door reads the cavity")
+            .iter()
+            .map(|c| c.role)
+            .collect();
+        assert_eq!(roles, [topo::ShellRole::Outer, topo::ShellRole::Void]);
     }
     // A band failure is the run's configuration, not the shell-role
     // decision: the finding forwards its payload and adds no lever.
     let error = payloads::band_error();
-    let unowned = render(S::Band { error });
+    let unowned = render(CheckEvidence::Escalated {
+        source: topo::ShellClassifyError::Band { error },
+    });
     assert!(unowned.ends_with(&error.to_string()), "{unowned}");
     assert!(!unowned.contains("thicken"), "{unowned}");
     for (name, finding) in &check_findings() {
@@ -5171,7 +5465,11 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             finding(
                 CheckId::Connectedness,
                 E::Escalated {
-                    source: ShellClassifyError::Straddles { shell },
+                    source: ShellClassifyError::Straddles {
+                        shell,
+                        low: MarginDiag::value(-1e-18),
+                        high: MarginDiag::value(1e-18),
+                    },
                 },
             ),
         ),

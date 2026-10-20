@@ -68,7 +68,35 @@ struct Tally {
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
 ///
-/// Last moved when every corpus placement came to be written by the
+/// Last moved when a chord's director came to be its components (PR
+/// 5370, `profile`'s `path::chord_director`): from
+/// `(441198, 141805, 13524, 6936)`, through `declared_tangency` alone,
+/// 15 fewer rays answered at the aimed vertex at each of its two
+/// landings. Its bracket's tangent arc now leaves the exact ray
+/// `(−1, 0)`, so the bracket's vertices land on the nominal bits (the
+/// leg's top at `(1.0, 3.0)`, not `(0.9999999999999997, 3.0)`), and
+/// the lost rays — eleven along −z through vertices under the arc and
+/// the leg's top, four along
+/// −y through `(1, 1.5)` at the bracket's two planes — run along the
+/// bracket's boundary and now touch it first (at `t` = 13.25, 1.5 and
+/// 15.5) where they slipped past it by an ulp. The rays and the
+/// refusals are unchanged.
+///
+/// No genuine crossing is refused either way.
+///
+/// Before that, it moved when the sketch plane came to be its frame (PR 5068: a
+/// placed profile's plane is a rigid motion minted at the lane, a
+/// revolve's placed axis the frame's turn of the sketch axis, a path's
+/// stations turned by the quaternion) and was merged with the world pin
+/// below: from `(441198, 141763, 12306, 6534)`. The rays are unchanged;
+/// 42 more are answered at the aimed vertex, and 1218 more candidates
+/// over 402 more rays refuse at the determinant. The placements re-round
+/// at the ulp, which moves only which near-degenerate candidates the
+/// certification refuses.
+///
+/// No genuine crossing is refused either way.
+///
+/// Before that, it moved when every corpus placement came to be written by the
 /// named interim's world pin (INTENT stage 3 C), from the gesture's
 /// mates' `(441198, 141310, 13536, 7224)`, which had moved from
 /// `(441198, 141261, 14088, 7230)`. The rays are unchanged; against the
@@ -127,7 +155,7 @@ struct Tally {
 /// unchanged.
 ///
 /// No genuine crossing is refused either way.
-const PINNED: (usize, usize, usize, usize) = (441_198, 141_763, 12_306, 6_534);
+const PINNED: (usize, usize, usize, usize) = (441_198, 141_775, 13_524, 6_936);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

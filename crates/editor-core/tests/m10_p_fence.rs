@@ -2,9 +2,9 @@
 //!
 //! The profile lift is additive machinery beside an unchanged build
 //! path, and the fence is what makes "unchanged" a measurement rather
-//! than an intention. With the lift OFF — the default, and the only
-//! setting the build path ever uses — evaluating the whole Band 4
-//! corpus must produce exactly the bits it produced before the lift
+//! than an intention. At `f64` the lane IS the profile's first pass
+//! (`editor_core::ProfileLane`), so evaluating the whole Band 4 corpus
+//! at `f64` must produce exactly the bits it produced before the lift
 //! existed.
 //!
 //! The digest below is that measurement, and it is deliberately
@@ -169,6 +169,17 @@
 //! three numbers by `kitchen_sink`'s ids: the merged values are
 //! neither tree's, and the id-masked fence held across the merge.
 //!
+//! **ALL FOUR NUMBERS MOVED WHEN A CHORD'S DIRECTOR BECAME ITS
+//! COMPONENTS** (`path::chord_director`, not `atan2`), through
+//! `declared_tangency` alone, measured by dumping every node's outcome
+//! and every point at `f64` and at `Interval` before and after. At
+//! `f64` four of its points moved, by at most `3.3e-16`: the tangent arc
+//! that leaves the `LineTo` along −x now starts on the exact ray
+//! `(−1, 0)` rather than `(−1, 1.2e-16)`. At `Interval` its profile no
+//! longer refuses its junction, so the profile, the extrude and the
+//! placement evaluate where they were failed and poisoned. Nothing else
+//! moved, fixture included.
+//!
 //! A whole-corpus scalar is a blunt instrument for "did an existing
 //! document move", and there is now a SECOND, finer measurement to
 //! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
@@ -196,9 +207,8 @@
 //! every eps, which is itself a claim this file makes and a reason for
 //! a reader to be suspicious if one ever needs a second number.
 //!
-//! WHAT THE INTERVAL ROW IS NOT. It pins that the lift OFF changes
-//! nothing at `Interval` — a fence around the BUILD path, which binds
-//! its parameters at their nominals. It is not evidence about a WIDE
+//! WHAT THE INTERVAL ROW IS NOT. It pins the `Interval` build at the
+//! nominals — a fence around the BUILD path's bindings. It is not evidence about a WIDE
 //! interval parameter, which is a different door: an evaluation
 //! carrying an `EvalOptions::param_box` binds `nominal + [lo, hi]`
 //! instead, and `m10_3_driver_interval`'s rows are what drive that.
@@ -921,14 +931,18 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x2e03_527c_cebb_fff7, 0x6672_c1c3_d4af_bf7b),
+        (0x63cb_9654_8918_588f, 0x3bbf_ca21_e4a7_b7b3),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
 }
 
-/// The same fence at `Interval`, where the lift's second pass would
-/// otherwise be tempting to leave on.
+/// The same fence at `Interval`, where every profile is elaborated at
+/// the lane (its second pass).
+///
+/// **RE-BLESSED WHEN THE PINNED LIFT RETIRED** (Ev's ruling A on
+/// #5068): the profiles' loops are the lane's own elaboration, not the
+/// `f64` elaboration lifted. The `f64` row did not move.
 #[test]
 fn the_corpus_evaluation_is_bit_identical_at_interval() {
     use geom_core::{Bounds, Interval};
@@ -947,7 +961,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xbf0f_56b7_f284_574a, 0xec82_7d10_2242_66be),
+        (0x385b_7814_3b4b_6c16, 0x0f94_3dcb_8b3c_15ca),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -971,7 +985,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x2e03_527c_cebb_fff7, 0x6672_c1c3_d4af_bf7b),
+        (0x63cb_9654_8918_588f, 0x3bbf_ca21_e4a7_b7b3),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -1049,7 +1063,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0x11fd_f174_84df_1e57, 0x5313_d5ea_f44e_df93),
+        (0x27f7_a941_3d23_2dd7, 0xf0a8_b0a4_3724_cd63),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

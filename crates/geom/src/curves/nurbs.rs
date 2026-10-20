@@ -709,7 +709,7 @@ macro_rules! nurbs_curve {
 
         }
 
-        /// [`$Curve::apply_plans`]'s two halves: the projective
+        /// The two halves of the curve's `apply_plans`: the projective
         /// applier at an evaluation scalar, the homogeneous one at an
         /// enclosure scalar (C6 S4).
         impl<T: SpanLocate> spline::ProjectiveSplit<T> for PlanChain<'_, $Curve<T>, T> {
@@ -1220,15 +1220,15 @@ macro_rules! nurbs_curve {
             /// A certified **upper** bound on `‖C″(t)‖` over the whole
             /// domain, in m/param²: the max over the second-order
             /// pieces ([`spline::accel_pieces`], `C″ = M/W³` on
-            /// [`SPEED_PIECE_SPLITS`] exact pieces per nonempty span) of
+            /// [`SPEED_PIECE_SPLITS`] pieces per nonempty span) of
             /// [`spline::QuotientPiece::sup_norm`] (the
             /// `geom_core::spline::derivative` module docs, "The second
             /// order"). At `Interval` it is certified; at `f64` it is the
             /// same expression in round-to-nearest. Poison where the
             /// statement refuses (a degree above 18, where `3p` passes
-            /// the ceiling); at `Interval`, uncertified where a degree of
-            /// 17 or more meets a weight spread near `1e6` (the module
-            /// docs' practical ceiling).
+            /// the ceiling); at `Interval`, uncertified where a high
+            /// degree meets a wide weight spread (the module docs'
+            /// practical ceiling).
             pub fn accel_upper_bound(&self) -> T {
                 let points: Vec<[T; $dim]> = self.control.iter().map(|p| [$(p.$c),+]).collect();
                 spline::accel_pieces(&self.knots, &points, self.weights.values(), SPEED_PIECE_SPLITS)

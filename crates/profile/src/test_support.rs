@@ -72,6 +72,8 @@ pub fn way_in(state: TipState) -> Option<Vec<Step<f64>>> {
         TipState::RadiusArrivalDir => vec![arrival(radius), Step::Angle(1.5)],
         TipState::ViaArrival => vec![arrival(via(Target::Point(Point2::new(10.0, 10.0))))],
         TipState::ViaArrivalStart => vec![arrival(via(Target::Start))],
+        TipState::ArcOnto => vec![Step::ArcOnto(Target::Point(Point2::new(20.0, 10.0)))],
+        TipState::ArcOntoStart => vec![Step::ArcOnto(Target::Start)],
         TipState::Closed => vec![
             Step::LineTo(Target::Point(Point2::new(0.0, 10.0))),
             Step::LineTo(Target::Start),
@@ -82,8 +84,8 @@ pub fn way_in(state: TipState) -> Option<Vec<Step<f64>>> {
 /// **A program that leaves the tip in `state`**: the shortest lead
 /// that takes each state, then [`way_in`]. The fused and fillet ways
 /// in follow `at, angle 0`, which puts the tip at the origin heading
-/// `+x`; `turn` and the closing legs need a leg end, `at` then a leg to
-/// `(10, 0)`.
+/// `+x`; `turn`, `arc_onto` and the closing legs need a leg end, `at`
+/// then a leg to `(10, 0)`.
 #[must_use]
 pub fn prefix(state: TipState) -> Vec<Step<f64>> {
     let at = Step::At(Point2::new(0.0, 0.0));
@@ -91,10 +93,64 @@ pub fn prefix(state: TipState) -> Vec<Step<f64>> {
         TipState::Entry => return Vec::new(),
         TipState::PlainPoint => return vec![at],
         TipState::DirectedPlain => return vec![at, Step::Angle(0.0)],
-        TipState::DirectedPoint | TipState::DirectedIncoming | TipState::Closed => {
+        TipState::DirectedPoint
+        | TipState::DirectedIncoming
+        | TipState::ArcOnto
+        | TipState::ArcOntoStart
+        | TipState::Closed => {
             vec![at, Step::LineTo(Target::Point(Point2::new(10.0, 0.0)))]
         }
         _ => prefix(TipState::DirectedPlain),
     };
     [lead, way_in(state).unwrap_or_default()].concat()
+}
+
+/// **Every scalar a validated profile stores**, in one fixed order: the
+/// plane's twelve placement components, then per loop each vertex, each
+/// segment's ends, and an arc's centre, radius and sweep. The walk the
+/// rows that hold one canonical form against another read bits off.
+#[must_use]
+pub fn stored_scalars<T: Real>(vp: &crate::ValidatedProfile<T>) -> Vec<T> {
+    let mut out = vp.plane().placement().components().to_vec();
+    for lp in vp.loops() {
+        for v in lp.vertices() {
+            out.extend(v.to_array());
+        }
+        for s in lp.segments() {
+            out.extend([s.start.x, s.start.y, s.end.x, s.end.y]);
+            if let crate::SegmentKind::Arc { arc, .. } = s.kind {
+                out.extend([arc.centre.x, arc.centre.y, arc.radius, arc.sweep]);
+            }
+        }
+    }
+    out
+}
+
+/// **Every fact a validated profile decided**, rendered per loop: its
+/// role, its tangent, cusp and decided joints, and each segment's kind
+/// and turn.
+#[must_use]
+pub fn decided_facts<T: Real>(vp: &crate::ValidatedProfile<T>) -> String {
+    use core::fmt::Write as _;
+    let mut out = String::new();
+    for lp in vp.loops() {
+        let _ = write!(
+            out,
+            "{:?} {:?} {:?} {:?}:",
+            lp.role(),
+            lp.tangent_joints(),
+            lp.cusp_joints(),
+            lp.decided_joints()
+        );
+        for s in lp.segments() {
+            match s.kind {
+                crate::SegmentKind::Line => out.push_str(" L"),
+                crate::SegmentKind::Arc { turn, .. } => {
+                    let _ = write!(out, " {turn:?}");
+                }
+            }
+        }
+        out.push('\n');
+    }
+    out
 }

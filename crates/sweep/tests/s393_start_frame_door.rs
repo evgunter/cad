@@ -30,6 +30,7 @@ use core::f64::consts::FRAC_PI_2;
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
+use profile::SketchPlane;
 use sweep::skin::{segment_curve, sweep_places};
 use sweep::test_support::bulge_arc;
 use sweep::{Lofted, sweep_body};
@@ -163,7 +164,7 @@ fn fixtures() -> Vec<(&'static str, NurbsCurve3<f64>)> {
     ]
 }
 
-fn swept_square(path: &NurbsCurve3<f64>, place: Affine3<f64>, stations: usize) -> Lofted<f64> {
+fn swept_square(path: &NurbsCurve3<f64>, place: SketchPlane<f64>, stations: usize) -> Lofted<f64> {
     let profile = quad([(-H, -H), (H, -H), (H, H), (-H, H)]);
     sweep_body::<f64>(&profile, place, path, stations, 3, Tol::witness()).unwrap()
 }
@@ -197,11 +198,11 @@ fn the_door_is_the_retired_cone_recipe_outside_the_cone_and_not_inside() {
         let n = d / d.norm();
         let door = normal_start_place(&path);
         assert_eq!(
-            bits12(&door),
-            bits12(&path_start_frame(path.eval(lo), d, tol).unwrap()),
+            bits12(&door.placement()),
+            bits12(&path_start_frame(path.eval(lo), d, tol).unwrap().to_affine()),
             "{name}: the corpus helper must BE the door, not a second spelling of it"
         );
-        let same = bits12(&cone_place(&path)) == bits12(&door);
+        let same = bits12(&cone_place(&path)) == bits12(&door.placement());
         println!(
             "{name:34} |n.z| = {:.9}  |Z x n| = {:.3e}  door == retired cone: {same}",
             n.z.abs(),
@@ -248,18 +249,18 @@ fn the_ducts_two_frames_place_the_same_rings() {
     assert_eq!(
         bits12(&cone),
         bits12(&Affine3::from_parts(
-            door.linear * rz_minus_90,
-            door.translation
+            door.placement().linear * rz_minus_90,
+            door.placement().translation
         )),
         "the retired frame is the door's quarter-turned about the tangent, exactly"
     );
 
     let stations = 13;
     let corners = [(-H, -H), (H, -H), (H, H), (-H, H)];
-    let ring = |p: &Affine3<f64>| corners.map(|(x, y)| p.transform_point(Point3::new(x, y, 0.0)));
+    let ring = |p: &SketchPlane<f64>| corners.map(|(x, y)| p.to_world(Point2::new(x, y)));
     let (pc, pd) = (
-        sweep_places(cone, &path, stations).unwrap(),
-        sweep_places(door, &path, stations).unwrap(),
+        sweep_places(common::plane_of(&cone), &path, stations, Tol::witness()).unwrap(),
+        sweep_places(door, &path, stations, Tol::witness()).unwrap(),
     );
     let mut worst = 0.0f64;
     for (a, b) in pc.iter().zip(&pd) {
@@ -307,7 +308,7 @@ fn an_identity_start_placement_is_not_the_normal_plane_of_the_s_path() {
     );
 
     let (vi, vd) = (
-        volume(&swept_square(&path, Affine3::identity(), 13)),
+        volume(&swept_square(&path, SketchPlane::xy(), 13)),
         volume(&swept_square(&path, normal_start_place(&path), 13)),
     );
     println!("s_duct volume: identity {vi:.15}  door {vd:.15}");

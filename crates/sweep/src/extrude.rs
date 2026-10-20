@@ -37,7 +37,7 @@
 //! 4. **Joins.** Per strut: identical side-surface keys (cosurface
 //!    sharing) keep the conventional description structurally;
 //!    otherwise `classify_dihedral` at the strut midpoint decides —
-//!    Transverse upgrades to `Intersection` via `set_edge_curve`,
+//!    Transverse upgrades to `Intersection` via `restate_stored_edge`,
 //!    Smooth descends one order through the must-carry rule over the
 //!    edge ([`geom_brep::must_carry_over_edge`] — the lane gate and
 //!    the certification schedule's interior stations, in its one home:
@@ -52,7 +52,7 @@
 //! 6. **Rim upgrades.** With both cap planes in place, every cap–wall
 //!    rim edge (bottom and top, outer and ring loops) upgrades to
 //!    `Intersection { cap plane, side surface, witness }` through the
-//!    same `classify_dihedral` → `set_edge_curve` pattern as the corner
+//!    same `classify_dihedral` → `restate_stored_edge` pattern as the corner
 //!    joins (the ratified rim decision — M2-LOG, 2026-07-19). The
 //!    witness is the **carrier's mid-parameter point** (the S2 witness
 //!    contract: for arc rims the chord midpoint lies off the carrier by
@@ -434,7 +434,7 @@ pub enum ExtrudeError {
     /// which the direction gate decides past `K·ε`
     /// (`review_fillet_h6_r1_probes` and `review_blend_k_rk_probes`
     /// pin the worst admitted tilt on the shortest admitted rim). Kept
-    /// or retired by `work/tang/the-arms-the-faces-lever-left-without-a-row.md`.
+    /// or retired by `work/lever/the-arms-the-faces-lever-left-without-a-row.md`.
     SliverRim {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -685,14 +685,13 @@ impl<T: Real> SweptChord<T> for WallSeg<T> {
 /// **The strut's carrier, in one expression.** A strut is the ruling
 /// of the sweep through its seed vertex: the line from the vertex's
 /// bottom image along the extrusion direction, arc-length
-/// parameterized over `0..w_norm`. The mint writes it and the join
-/// pass RESTATES it when it re-describes the same edge — restating,
-/// never re-deriving, because `Curve3::line_between(q, q + w)`
+/// parameterized over `0..w_norm`. The mint writes it; the join pass
+/// re-describes the stored edge ([`Body::restate_stored_edge`]) and
+/// never re-derives it, because `Curve3::line_between(q, q + w)`
 /// recomputes the direction and the interval from endpoints that need
 /// not be bitwise the ones the edge was minted with, which moves
 /// geometry in a pass whose whole contract is that only the
-/// DESCRIPTION moves. One expression is what makes "the same bits"
-/// a fact rather than three copies that agree today.
+/// DESCRIPTION moves.
 fn strut_carrier<T: Real>(q_bottom: Point3<T>, w: Vec3<T>) -> Curve3<T> {
     Curve3::Line {
         origin: q_bottom,
@@ -761,14 +760,21 @@ struct LoopBase {
 /// decisions, Newell failures, and every operator/certification
 /// refusal (D4 ¶2 reports surface inside
 /// [`EulerOpError::Certification`]).
+///
+/// # Panics
+///
+/// On a kernel bug: an edge the operation stored whose own span or
+/// winding reads certainly refused at the run's band where it is
+/// re-described ([`topo::Body::restate_stored_edge`],
+/// [`topo::Body::describe_at_rest`]).
 pub fn extrude<T: Decide + topo::AtRestPolicy>(
     profile: &ValidatedProfile<T>,
     extrusion: Extrusion<T>,
     tol: Tol,
 ) -> Result<Extruded<T>, ExtrudeError> {
     let band = Band::linear(tol).map_err(ExtrudeError::Band)?;
-    let place = profile.plane().placement;
-    let normal = place.linear.c2;
+    let place = profile.plane().placement();
+    let normal = profile.plane().normal().get();
 
     // ---- Direction classification (crate docs; named predicates). ----
     let (w, reverse) = match extrusion {
@@ -1246,17 +1252,15 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
             Ok(DihedralClass::Transverse) => {
                 // The prefer-intrinsic upgrade: mint-time Intersection
                 // was impossible (the side surfaces did not exist);
-                // re-describe through the certified setter.
-                let spec = EdgeCurveSpec {
-                    description: EdgeDescriptionSpec::Intersection {
+                // the stored strut is re-described.
+                body.restate_stored_edge(
+                    strut.edge,
+                    EdgeDescriptionSpec::Intersection {
                         pair: SurfacePair::new(k_prev, k_next),
                         witness: mid,
                     },
-                    carrier: strut_carrier(qs[j], w),
-                    param_start: T::zero(),
-                    param_end: w_norm,
-                };
-                body.set_edge_curve(strut.edge, spec, tol)?;
+                    tol,
+                )?;
             }
             Ok(DihedralClass::Smooth) => {
                 // OQ7's must-carry, applied at construction over the
@@ -1271,7 +1275,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                 // the stations and the verdict policy are the
                 // rule's, not this arm's
                 // ([`geom_brep::must_carry_over_edge`]).
-                let carrier = strut_carrier(qs[j], w);
+                let (carrier, t0, t1) = stored_carrier(body, strut.edge)?;
                 // In-band escalates as the typed sliver; a station that
                 // reads the join a corner where the midpoint read it
                 // smooth refutes this arm's premise, and the strut
@@ -1288,7 +1292,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                     geom_brep::SmoothJoin {
                         surfaces: [(k_prev, &s_prev), (k_next, &s_next)],
                         carrier: &carrier,
-                        interval: (T::zero(), w_norm),
+                        interval: (t0, t1),
                         reach,
                         witness: mid,
                     },
@@ -1301,13 +1305,7 @@ fn sweep_loop<T: Decide + topo::AtRestPolicy>(
                     },
                 )? {
                     geom_brep::MustCarryDescription::Intrinsic(description) => {
-                        let spec = EdgeCurveSpec {
-                            description,
-                            carrier,
-                            param_start: T::zero(),
-                            param_end: w_norm,
-                        };
-                        body.set_edge_curve(strut.edge, spec, tol)?;
+                        body.restate_stored_edge(strut.edge, description, tol)?;
                     }
                     geom_brep::MustCarryDescription::Conventional => {
                         // No intrinsic tangency is demanded: a station
@@ -1538,6 +1536,25 @@ fn side_surface<T: Decide>(
     }
 }
 
+/// `edge`'s stored carrier and interval: what its re-description
+/// keeps, and so what the join and rim classifications read.
+fn stored_carrier<T: Real>(
+    body: &Body<T>,
+    edge: EdgeKey,
+) -> Result<(Curve3<T>, T, T), EulerOpError> {
+    let curve_key = body
+        .get_edge(edge)
+        .unwrap_or_else(|| unreachable!("edge {edge:?} was minted by this extrude and is live"))
+        .curve;
+    let curve = body
+        .get_curve_geom(curve_key)
+        .unwrap_or_else(|| unreachable!("curve {curve_key:?} is held by live edge {edge:?}"))
+        .certified()
+        .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
+    let (t0, t1) = curve.params();
+    Ok((curve.carrier().clone(), t0, t1))
+}
+
 /// Upgrades one cap–wall rim edge to `Intersection { cap, wall,
 /// witness }` (module docs, step 6 — the ratified rim decision). The
 /// witness is minted as the **carrier's mid-parameter point** — the S2
@@ -1545,8 +1562,8 @@ fn side_surface<T: Decide>(
 /// midpoint lies off the carrier by the sagitta, so `carrier(mid)`
 /// is the only honest mint (for line rims it coincides with the chord
 /// midpoint to rounding). The certified carrier and parameter interval
-/// are kept verbatim; the re-description goes through `topo`'s
-/// certified `set_edge_curve` door. `classify_dihedral` at the witness
+/// are kept verbatim: the stored edge is re-described
+/// ([`Body::restate_stored_edge`]). `classify_dihedral` at the witness
 /// decides, levered at the cap's and wall's extent
 /// ([`topo::wedge_reach`]): Transverse upgrades; Smooth
 /// descends through [`geom_brep::must_carry_over_edge`] (the arm
@@ -1564,19 +1581,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), ExtrudeError> {
-    let curve_key = body
-        .get_edge(edge)
-        .unwrap_or_else(|| {
-            unreachable!("rim edge {edge:?} was read off a live half-edge this driver minted")
-        })
-        .curve;
-    let curve = body
-        .get_curve_geom(curve_key)
-        .unwrap_or_else(|| unreachable!("curve {curve_key:?} is held by live edge {edge:?}"))
-        .certified()
-        .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
-    let carrier = curve.carrier().clone();
-    let (t0, t1) = curve.params();
+    let (carrier, t0, t1) = stored_carrier(body, edge)?;
     let witness = carrier.mid_point(t0, t1);
     let reach = topo::wedge_reach(body, topo::edge_faces(body, edge), &carrier, (t0, t1));
     let s_cap = body.get_surface(cap).cloned().unwrap_or_else(|| {
@@ -1587,22 +1592,20 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
     });
     match classify_dihedral(&s_cap, &s_wall, witness, reach, band) {
         Ok(DihedralClass::Transverse) => {
-            let spec = EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
+            body.restate_stored_edge(
+                edge,
+                EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(cap, wall),
                     witness,
                 },
-                carrier,
-                param_start: t0,
-                param_end: t1,
-            };
-            body.set_edge_curve(edge, spec, tol)?;
+                tol,
+            )?;
             Ok(())
         }
         // The must-carry rule decides what a definitely-smooth rim
         // stores (module docs, step 6). No admitted input is known to
         // reach this arm (kept or retired by
-        // `work/tang/the-arms-the-faces-lever-left-without-a-row.md`). The direction gates admit a tilt of `w` off
+        // `work/lever/the-arms-the-faces-lever-left-without-a-row.md`). The direction gates admit a tilt of `w` off
         // the sketch normal of up to `1/K`; a LINE leg's wall is the
         // plane through the quad swept along `w`, so it leans against
         // the cap's `±n` by that tilt, and the wedge is levered at the
@@ -1641,13 +1644,7 @@ fn upgrade_rim<T: Decide + topo::AtRestPolicy>(
                 |mixed| ExtrudeError::SmoothJoinRefuted { edge, mixed },
             )? {
                 geom_brep::MustCarryDescription::Intrinsic(description) => {
-                    let spec = EdgeCurveSpec {
-                        description,
-                        carrier,
-                        param_start: t0,
-                        param_end: t1,
-                    };
-                    body.set_edge_curve(edge, spec, tol)?;
+                    body.restate_stored_edge(edge, description, tol)?;
                 }
                 geom_brep::MustCarryDescription::Conventional => {
                     body.describe_at_rest(edge, tol)?;

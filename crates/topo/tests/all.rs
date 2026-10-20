@@ -63,10 +63,14 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "a_callers_interval_is_refused_at_its_door.rs"]
+mod a_callers_interval_is_refused_at_its_door;
 #[path = "a_doubled_line_does_not_revert.rs"]
 mod a_doubled_line_does_not_revert;
 #[path = "a_given_pair_is_made_from_a_kernel_verdict.rs"]
 mod a_given_pair_is_made_from_a_kernel_verdict;
+#[path = "a_keel_wrapped_at_both_ends_splits_as_a_ring.rs"]
+mod a_keel_wrapped_at_both_ends_splits_as_a_ring;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
 #[path = "analytic_rung3_at_rest.rs"]
@@ -131,6 +135,8 @@ mod display_contract;
 mod euler_site_pcurve_rows;
 #[path = "fused_into_live_cells.rs"]
 mod fused_into_live_cells;
+#[path = "gate_reads_coincident_wedges.rs"]
+mod gate_reads_coincident_wedges;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]
@@ -245,6 +251,10 @@ mod readback_sense_kind;
 mod records_cite_their_decision;
 #[path = "result_gate_sites.rs"]
 mod result_gate_sites;
+#[path = "review_4996_carry_probes.rs"]
+mod review_4996_carry_probes;
+#[path = "review_4996_r2_probes.rs"]
+mod review_4996_r2_probes;
 #[path = "review_cleave_farplane.rs"]
 mod review_cleave_farplane;
 #[path = "review_cleave_nurbs_lane.rs"]
@@ -311,6 +321,8 @@ mod rim_dim_boolean_twins;
 mod rim_dim_review_probes;
 #[path = "shell_operand_gate.rs"]
 mod shell_operand_gate;
+#[path = "shell_role_reader.rs"]
+mod shell_role_reader;
 #[path = "shell_roles.rs"]
 mod shell_roles;
 #[path = "shell_tolerance_chain.rs"]

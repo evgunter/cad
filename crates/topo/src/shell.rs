@@ -426,9 +426,9 @@ pub enum ShellError<T: Real> {
     NoSolid,
     /// A solid's shells could not be told apart into one outer
     /// boundary and its voids: a solid stores no such designation, so
-    /// the roles are the decided signs of the shells' signed volumes,
-    /// and that decision refused. Read once per HOLLOW solid, over
-    /// that solid's own shells only.
+    /// the roles are read off the shells' faces
+    /// ([`crate::props::shell_role`]), and that reading refused. Read
+    /// once per HOLLOW solid, over that solid's own shells only.
     Roles {
         /// The classifier's typed refusal, verbatim.
         error: crate::props::ShellClassifyError,
@@ -952,7 +952,9 @@ impl<T: Real> Shelled<T> {
     /// ([`ShellNaming::dead`]) into the rims, the rest removed. On a
     /// void, the designated faces are removed, the rim being their
     /// cavity twin's. The cavity twins are new cells and no operand
-    /// record names one.
+    /// record names one. Any other operand cell whose geometry the shell
+    /// changed under its key is read, not kept: the lineage carries the
+    /// operand's geometry ([`crate::Lineage::from_source`]).
     #[must_use]
     pub fn lineage(&self) -> crate::Lineage {
         use crate::boolean::Cell;
@@ -1046,7 +1048,7 @@ impl<T: Real> Shelled<T> {
                 );
             }
         }
-        lineage
+        lineage.from_source(naming.source.clone())
     }
 }
 
@@ -1104,6 +1106,11 @@ pub struct ShellNaming {
     /// but listed here, not there, and its `kept` covers what `gone` did
     /// besides its own ([`crate::join_covers`]).
     pub edge_joins: Vec<crate::EdgeJoin>,
+    /// The operand's geometry before the shell wrote
+    /// ([`crate::SourceGeometry`]): a record lands unread only on images
+    /// that hold it. Empty on a naming no shell made, and every record is
+    /// then read.
+    pub source: crate::SourceGeometry,
 }
 
 impl ShellNaming {
@@ -1359,6 +1366,12 @@ pub fn shell<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy
 /// The result is a CLOSED thin solid in every case — the designated
 /// faces do not become holes, they become rims.
 ///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
+///
 /// # Errors
 ///
 /// [`ShellError::Band`] when the committed tolerance admits no
@@ -1403,50 +1416,49 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // ---- Decide: which operand shells are VOIDS, per solid. ----
     //
     // A solid stores no outer designation (`ShellRole`'s docs): a
-    // shell's role is the decided sign of its signed volume, and it is
-    // read here, once, off the operand — the one flux read this verb
-    // makes, and only where some solid is hollow. A single-shell solid's
-    // shell is its boundary by arity, so a body of only those reads
-    // nothing and its verdict log is untouched. Everything downstream
+    // shell's role is the side at infinity of its faces, read here,
+    // once, off the operand by the one reader of it
+    // (`props::shell_role`). A single-shell solid's shell is its
+    // boundary by arity, so a body of only those reads nothing. A
+    // solid's roles are its own: one outer boundary each, read over its
+    // own shells and never over another solid's. Everything downstream
     // that tells a void from the outer shell reads THIS list, never the
     // result's geometry.
-    // The whole body's voids, gathered from the PER-SOLID reads. A
-    // solid's roles are its own: one outer boundary each, decided over
-    // its own shells and never over another solid's — so a plain
-    // neighbour's shell is never classified at all, and a
-    // classification that escalated on one could not refuse a solid
-    // this verb can answer for.
     let mut voids: Vec<ShellKey> = Vec::new();
     for &solid in &solids {
         let shells = &proven(&body.solids, solid, EntityId::Solid).shells;
-        // A single-shell solid's shell is its boundary by arity, so
-        // that solid reads nothing and its verdict log is untouched.
         if shells.len() == 1 {
             continue;
         }
-        let roles = crate::props::classify_shells_through(body, shells, tol, T::quad_lane())
-            .map_err(|error| ShellError::Roles { error })?;
-        // The gate read these roles through the same sign walk at the
-        // same band: check 10 finished the operand only with every one
-        // decided and at most one `Outer` (two is its
-        // `SolidOuterShells`), and check 7 only with the solid's volume
-        // positive, which shells each decided negative cannot sum to.
-        // The classification reads a role only where that walk read the
-        // same one (`props::role_at_target`), so it cannot count
-        // otherwise.
-        let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
-        if outer != 1 {
+        let mut outer = 0;
+        for &shell in shells {
+            match crate::props::shell_role(body, shell, band, tol, T::quad_lane())
+                .map_err(|error| ShellError::Roles { error })?
+            {
+                ShellRole::Outer => outer += 1,
+                ShellRole::Void => voids.push(shell),
+            }
+        }
+        // The gate read these roles with the same reader at the same
+        // band. Two or more `Outer` is check 10's `SolidOuterShells`,
+        // which it raises once every role reads. None is check 7's: a
+        // solid every one of whose shells reads `Void` is wound inside
+        // out on the shell a ray from infinity crosses first, so its own
+        // side at infinity reads `In` (`NegativeVolume`), and a volume
+        // that sums its shells' negative ones says the same. (Check 10's
+        // `ShellWinding` would catch it only where its witnesses read.)
+        if outer > 1 {
             unreachable!(
-                "{outer} decided outer shells under one solid of a finished operand, whose \
-                 checks 7 and 10 read every role the classification reads"
+                "{outer} outer shells under one solid of a finished operand, whose check 10 \
+                 refuses two (SolidOuterShells)"
             );
         }
-        voids.extend(
-            roles
-                .iter()
-                .filter(|c| c.role == ShellRole::Void)
-                .map(|c| c.shell),
-        );
+        if outer == 0 {
+            unreachable!(
+                "no outer shell under one solid of a finished operand, whose check 7 refuses a \
+                 solid every shell of which is a void (NegativeVolume)"
+            );
+        }
     }
 
     // ---- Decide: each solid's charts, each with ONE orientation. ----
@@ -2038,14 +2050,11 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             let made = out
                 .mfkrh(guest_ring, crate::euler::FaceSurface::Inherit)
                 .map_err(rim_error)?;
-            let specs = loop_rekeyed(&out, guest_ring, guest_surface, host_surface);
-            out.set_face_surfaces_describing(
-                vec![crate::attach::Rechart::shared(
-                    host_surface,
-                    made.face,
-                    host_sense,
-                )],
-                &specs,
+            rechart_rekeyed(
+                &mut out,
+                (made.face, guest_ring),
+                (guest_surface, host_surface),
+                host_sense,
                 tol,
             )
             .map_err(rim_error)?;
@@ -2179,6 +2188,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             refusal: crate::boolean::JoinRefusal::of(&refusal),
         })?;
     validate_geometric(&out_body, tol).map_err(|errors| ShellError::NotValid { errors })?;
+    naming.source = crate::SourceGeometry::of(body);
     Ok(Shelled {
         body: out_body,
         naming,
@@ -3115,9 +3125,9 @@ fn glue_ring<T: Decide + crate::props::AtRestPolicy>(
     let (guest_outer, guest_surface) = (guest_data.outer, guest_data.surface);
     let host_surface = proven(&body.faces, host, EntityId::Face).surface;
     let mut carried: Vec<_> = Vec::new();
-    for (edge, spec) in loop_rekeyed(body, guest_outer, guest_surface, host_surface) {
+    for (edge, description) in loop_rekeyed(body, guest_outer, guest_surface, host_surface) {
         if carried.iter().all(|&(e, _)| e != edge) {
-            carried.push((edge, spec.description));
+            carried.push((edge, description));
         }
     }
     let fused = body
@@ -3776,6 +3786,7 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::ReanchorInconclusive { edge, .. }
         | ReplaceFaceError::NurbsLaneUnsupported { edge, .. }
         | ReplaceFaceError::NeighborPoseUnroutable { edge, .. }
+        | ReplaceFaceError::DegenerateTorus { edge, .. }
         | ReplaceFaceError::NeighborPairUnroutable { edge, .. }
         | ReplaceFaceError::FittedBoundaryUnsupported { edge, .. }
         | ReplaceFaceError::CarrierLaneUnsupported { edge, .. }
@@ -3843,8 +3854,7 @@ fn lift_to<T: Decide>(
 }
 
 /// Every edge on `r#loop`, in cycle order, with its stored description
-/// restated naming `live` wherever it names `dead`, carrier and
-/// interval verbatim. `r#loop` is one an Euler door just returned; its
+/// restated naming `live` wherever it names `dead`. `r#loop` is one an Euler door just returned; its
 /// walk and its edges are links, so a miss panics naming the record.
 #[track_caller]
 fn loop_rekeyed<T: Decide>(
@@ -3852,11 +3862,11 @@ fn loop_rekeyed<T: Decide>(
     r#loop: crate::entity::LoopKey,
     dead: crate::geometry::SurfaceKey,
     live: crate::geometry::SurfaceKey,
-) -> Vec<(crate::entity::EdgeKey, geom_brep::EdgeCurveSpec<T>)> {
+) -> Vec<(crate::entity::EdgeKey, geom_brep::EdgeDescriptionSpec<T>)> {
     let LoopBoundary::Cycle { first } = proven(&body.loops, r#loop, EntityId::Loop).boundary else {
         return Vec::new();
     };
-    let mut specs = Vec::new();
+    let mut descriptions = Vec::new();
     for he in body.loop_walk(first).closed("loop", first) {
         let edge = proven(&body.half_edges, he, EntityId::HalfEdge).edge;
         let data = linked(
@@ -3872,22 +3882,32 @@ fn loop_rekeyed<T: Decide>(
                  surgery mints no null edge"
             )
         };
-        let (param_start, param_end) = curve.params();
-        specs.push((
+        descriptions.push((
             edge,
-            geom_brep::EdgeCurveSpec {
-                description: crate::replace_face::remap_description(
-                    curve.restated_description(),
-                    dead,
-                    live,
-                ),
-                carrier: curve.carrier().clone(),
-                param_start,
-                param_end,
-            },
+            crate::replace_face::remap_description(curve.restated_description(), dead, live),
         ));
     }
-    specs
+    descriptions
+}
+
+/// Moves `face` onto the shared chart `live` with `sense`, each edge of
+/// its loop `r#loop` re-keyed from `dead` to `live` ([`loop_rekeyed`]):
+/// a restatement of stored edges, so a span refusal is the kernel's.
+pub(crate) fn rechart_rekeyed<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    (face, r#loop): (FaceKey, crate::entity::LoopKey),
+    (dead, live): (crate::geometry::SurfaceKey, crate::geometry::SurfaceKey),
+    sense: bool,
+    tol: Tol,
+) -> Result<(), EulerOpError> {
+    let descriptions = loop_rekeyed(body, r#loop, dead, live);
+    body.rechart_restating(
+        crate::policy_lane::KernelSite::RimRechart,
+        vec![crate::attach::Rechart::shared(live, face, sense)],
+        &descriptions,
+        tol,
+    )
+    .map(drop)
 }
 
 /// **The closed-form wall-clearance gate** (module docs). Every pair of
