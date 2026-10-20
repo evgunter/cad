@@ -57,6 +57,12 @@ impl DoorService for Held {
     }
 }
 
+/// The composed die's unproven rows: its one unproven joint, and the
+/// two vertex identities its booleans decide at a point minted on an
+/// edge, each a `Meet` the door leaves unproven
+/// (`coincidence_door::the_door_proves_half_the_composed_dies_joints`).
+const DIE_UNPROVEN: usize = 3;
+
 /// The `unproven-coincidence` findings of the landed report.
 fn unproven(session: &DocSession) -> usize {
     session
@@ -155,8 +161,8 @@ fn a_landings_door_reads_pending_until_its_own_answer_settles() {
     assert!(report.pending.is_empty(), "{report}");
     assert_eq!(
         unproven(&session),
-        1,
-        "the composed die's one unproven row: {report}"
+        DIE_UNPROVEN,
+        "the composed die's unproven rows: {report}"
     );
     assert!(pending_line(report).is_none());
 
@@ -171,7 +177,7 @@ fn a_landings_door_reads_pending_until_its_own_answer_settles() {
         findings: Ok(again),
     });
     session.pump();
-    assert_eq!(unproven(&session), 1, "settled once");
+    assert_eq!(unproven(&session), DIE_UNPROVEN, "settled once");
 }
 
 /// **The threaded door seam answers the newest landing only.** Two jobs
@@ -254,7 +260,7 @@ fn the_threaded_door_seam_answers_the_newest_landing() {
             .iter()
             .filter(|f| f.check == CheckId::UnprovenCoincidence)
             .count(),
-        1,
+        DIE_UNPROVEN,
         "{report}"
     );
     drop(seam);

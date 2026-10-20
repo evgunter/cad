@@ -957,8 +957,9 @@ pub struct PickIndex {
 }
 
 impl PickIndex {
-    /// Build the index for `generation` from the document's world
-    /// placements, one drawn part per copy (A10).
+    /// Build the index for `generation` from the document's drawn
+    /// placements — the world's and each loose copy's — one drawn part
+    /// per copy (A10).
     ///
     /// Every refusal is returned — a placement that failed or
     /// would not tessellate is a picture the viewport cannot draw
@@ -1020,12 +1021,17 @@ impl PickIndex {
     ) -> Result<Self, PickIndexError> {
         let mut parts: Vec<NodePick> = Vec::new();
         // The drawn copies: the placements the world's space holds, as
-        // the product gathers them; a placement joining a body's space
-        // is read through the world copy that places it.
+        // the product gathers them, and those of each loose copy's space,
+        // which the display draws where its frame puts it. A placement
+        // joining a construction's space is read through the copy that
+        // places the construction.
         let drawn = doc
             .placements()
             .into_iter()
-            .filter(|&node| eval.space(node) == pncad::document::Space::World);
+            .filter(|&node| match eval.space(node) {
+                pncad::document::Space::World => true,
+                pncad::document::Space::Loose { root } => eval.loose_copies.contains(&root),
+            });
         for node in drawn {
             match build_parts(node) {
                 Ok(built) => parts.extend(built),
