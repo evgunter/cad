@@ -1651,3 +1651,8 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - a new `reader_census` red, filed on ENCL;
     - ENCL's tier-1 roster red.
   - **Friction (build C):** one `CARGO_TARGET_DIR` shared across worktrees silently reuses another worktree's build of a workspace package, because cargo's fingerprint checks the source paths of the last build. It made a red-on-main check pass on fixed code twice today, until `cargo clean -p <pkg>`. Lanes taking red-on-main or timing measurements use one target directory per worktree, or clean the switched packages. Raise it as an `[ev]` memory candidate if it recurs.
+- 2026-10-20 08:05Z — **#5440 merged** (a6aa5d45; the cut-side quotients halve the shared `W²` once, via `shared_pieces`).
+  - **STANDARD review MERGEABLE:** 1450 pieces bit-identical; M2–M7 red; 3113/3113 at both ε; 267 decisions identical.
+  - The conflict that my aafaa9b2 caused is resolved on the item, which stays closed; its two `split_restrict` lines moved to #5461. CI is green on 5ca3b5e9, and the code diff is identical to the reviewed head.
+  - **#5439 merged** (ac8a2e40), keeping two Bernstein product homes for precision.
+  - **#5461** (binomial item PR 3, closing the item) and **#5459** (degree-elevation fix) are in review.
