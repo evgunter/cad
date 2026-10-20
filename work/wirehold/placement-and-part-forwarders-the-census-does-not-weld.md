@@ -1,0 +1,49 @@
+---
+id: placement-and-part-forwarders-the-census-does-not-weld
+kind: issue
+title: The part, transform, motion and face-frame refusals NodeErrorKind forwards are not welded to their arms in the feature-tree census
+status: parked
+opened: 2026-10-20
+priority: P4
+cost: E
+blocked_on: [transform-retires-into-a-placement]
+---
+
+
+Found by `wire-census2`, whose PR welds the feature-tree census
+(`every_forwarded_arm_has_a_row` in
+`crates/editor-core/tests/refusal_concision_chains.rs`) to the kernel
+and editor-core refusals `NodeErrorKind` forwards. `forward` cites this
+row (`UNWELDED_PLACEMENT`) for five arms on placement, datum and part
+ground:
+
+- `Part` forwards `parts::PartFault` (nine arms,
+  `crates/editor-core/src/eval/parts.rs`). `document_arms`' `parts`
+  list renders seven; `PartProduct` is in `part_products`, and
+  `Unresolved` is in the viewer's `instance_authoring.rs`, as the
+  comment above the list says. The arms are covered across three
+  lists that no roster ties.
+- `Transform` forwards `topo::TransformError` (nine arms), rendered by
+  `transform()`, with `ApproxRecertify` through `offset_fit_routes`.
+- `Motion` forwards `geom_core::RigidMotionError` (three arms),
+  rendered by `motion()`.
+- `FaceFrameReadback` forwards `topo::readback::ReadbackError` (three
+  arms, each with a row).
+- `FrameDirection` forwards `DirectionRefusal`.
+
+## Parked on the D10 hold (2026-10-20, WIRE)
+
+Transform, motion and face frames are placement and datum ground, and
+`eval/parts.rs` the instance seam D10 stage 3 rebuilds, so
+`wire-census2` listed these in `forward` and did not weld them. Parked
+on `transform-retires-into-a-placement`, the row whose landing releases
+that ground; re-read the arms against the tree when it fires, since
+the transform arm is expected to be moot.
+
+## Repair shape
+
+Give each refusal an `f6_variants!` roster in the census's `kernel`
+module (or beside the editor-core ones), a row per arm labelled
+`{family}/{arm}`, and move its `forward` arm to a welded level. For
+`PartFault`, weld over every list that renders it, or name in-file the
+arms that render only in the viewer.

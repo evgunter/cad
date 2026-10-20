@@ -875,7 +875,8 @@ impl core::fmt::Display for ParamBoxError {
             ),
             Self::SymbolsOverABox => f.write_str(
                 "the evaluation was asked to bind every variable a symbol and to widen some over \
-                 a box, and a run has one environment",
+                 a box, and a run has one environment. Recourse: evaluate symbolically and over \
+                 the box in two runs",
             ),
         }
     }
