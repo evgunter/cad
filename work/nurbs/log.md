@@ -1588,3 +1588,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **STANDARD review MERGEABLE:** a probe of 296k real weight pairs (~1.19M steps) found 0 differences, and no weight read `lo < 0`. Suites are green at both ε on head and main; r1 is −8% at opt-level 0.
   - The MINOR (the "[0,1]" comment is inexact; `s.hi` reaches 1+2⁻⁵²) and the row's missing wide/tiny-t draws ride C's next `split_restrict` PR.
   - The lever is marked done in `cheapen-the-restriction-cut-steps-2-to-4` and the slow-rows item. Reviewer archived.
+- 2026-10-20 03:16Z — **#5419 partial review** (FULL, at c75c3a2c):
+  - the `limb_three` probe is byte-identical on 4 rows;
+  - geom-brep and mesh are green at default and 1e-6 on both trees;
+  - C's latency fix is test-only, and the swap mutant stays red.
+  - **Ruled into this PR:** the chart/surface pairing check on the `pub` `of_charted` doors was debug-only, and with it stripped a wrong-held-key mutant passed 6 of 8 rows silently. The reviewer graded it MINOR; ruled in because it is a fail-loud gap on a public door, closed by a pointer compare. C makes it a release check and adds a mismatched-chart row.
+  - Two 1e-6 head reds (`cone_operand_rows::an_oblique_rod…`, `r1_lane0_e2e::the_f64_seam…`) await attribution against main's 1e-6 run. The full matrix ETA is 3–4 h.
