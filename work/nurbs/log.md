@@ -1611,3 +1611,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Re-ruled:** #5439 does the fold, now at FULL, with the golden re-baselined and the old bit rows retired. The same reviewer re-reviews.
   - **Friction:** I ruled on a design-shaped question ("two homes, or one?") without re-reading the memory index for a rule that applies. The orchestrator's adjudication docs bind my own judgement too (CLAUDE.md). Before approving any "keep both" resolution, check it against this memory.
   - PR 3's three homes rest on width and cost, which is allowed. Build A will audit its docs for the "kept because bits would move" tell.
+- 2026-10-20 05:10Z — **Degree elevation: P4 → P3, fix ruled** (build C measured it on main 43b23583).
+  - **The item's 1/g law holds only for p = 3–5.** p = 6–7 is 1/g², p = 8–9 about 1/g³, and the error is silent: p=8 with a 1e-5 interior gap is 1.7 m off after one `elevate_degree(1)`. It depends on a gap's ratio to neighbouring spans, not the absolute gap; uniform knots are clean at every degree. Double elevation compounds (p=5, `elevate_degree(2)`, g=1e-8 → 2.2).
+  - **Callers:**
+    - `skin` and `compose_chain` raise user sections to the maximum degree, so they carry it silently;
+    - `approximate` elevates only from p ≤ 2 (exact);
+    - `review_m5_pr3_attack::f5_*` is a latent ~4e-6 flake with the wrong law in its comment.
+  - **Ruled:** fix, at FULL. A conditioning-aware forward/backward split in elevation's recomposition only. If that doesn't reach ε·scale at p ≥ 6, report; the fallback is a typed refusal, never silent drift. Rows red on main; goldens over elevated geometry re-cut, with what moved stated; SWEEP and curves seam notes if their goldens move.
