@@ -411,10 +411,11 @@ mod tests {
         );
     }
 
-    /// Review 2 probe: the same circle with its axis stored reversed
+    /// **A circle facing away from the plane is touched where it
+    /// touches**: the same circle with its axis stored reversed
     /// (`a·n < 0`, the `n + a` arm), read to the same few ulps.
     #[test]
-    fn review2_a_circle_facing_away_is_touched_where_it_touches() {
+    fn a_circle_facing_away_from_a_plane_is_touched_where_it_touches() {
         let n = Vec3::new(0.347_008_881_792_054_3, -0.937_861_842_681_227_9, 0.0);
         let a = -Vec3::new(
             0.347_008_881_788_918_5,

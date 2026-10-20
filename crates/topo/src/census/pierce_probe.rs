@@ -1,88 +1,7 @@
-//! Printing probes of the pierce lane over far origins, tilted edges
-//! and edges in the plane (ignored), and the tilted-edge fixtures the
-//! in-plane row reads.
+//! Printing probes of the pierce lane, ignored: far origins, tilted
+//! edges and edges in the plane, and a thin notch or strip.
+use super::rows::{notch_read, read_ends, strip_read, tilted_ends};
 use super::*;
-
-pub(super) fn tilted_ends(pose: &Pose, normal: Vec3<f64>, tilt: f64) -> [Point3<f64>; 2] {
-    let [(x0, y0), (x1, y1)] = [PROFILE[0], PROFILE[1]];
-    let along = normal.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
-    let aim = Point3::new(
-        x0 + (x1 - x0) * pose.across,
-        y0 + (y1 - y0) * pose.across,
-        1.0 - pose.depth,
-    );
-    let half = Vec3::new(0.0, 0.0, 0.5) + along * (0.5 * tilt);
-    [
-        aim - half + normal * pose.off,
-        aim + half - normal * pose.off,
-    ]
-}
-
-fn exact_depth_ends(o: Point3<f64>, n: Vec3<f64>, [p0, p1]: [Point3<f64>; 2]) -> f64 {
-    let n = [n.x, n.y, n.z].map(big);
-    let r = |p: Point3<f64>| {
-        big_dot(&[p.x, p.y, p.z].map(big), &n) - big_dot(&[o.x, o.y, o.z].map(big), &n)
-    };
-    let (r0, r1) = (r(p0), r(p1));
-    let lever = &r0 - &r1;
-    if lever == BigInt::from(0) {
-        return f64::NAN;
-    }
-    let num = (big(1.0) - big(p0.z)) * &lever - (big(p1.z) - big(p0.z)) * &r0;
-    let den = lever << 1074_usize;
-    let (num, den) = if den < BigInt::from(0) {
-        (-num, -den)
-    } else {
-        (num, den)
-    };
-    let head = |x: &BigInt| {
-        let shift = x.bits().saturating_sub(62);
-        (i64::try_from(x >> shift).unwrap() as f64, shift as i32)
-    };
-    let ((n, sn), (d, sd)) = (head(&num), head(&den));
-    n / d * 2f64.powi(sn - sd)
-}
-
-pub(super) fn read_ends<T: Decide + crate::props::AtRestPolicy>(
-    o: Point3<f64>,
-    ends: [Point3<f64>; 2],
-    band: Band,
-) -> Result<Found, String> {
-    std::panic::catch_unwind(|| {
-        let mut prism =
-            crate::test_support_fixtures::prism_z::<T>(&PROFILE, 0.0, 1.0, Tol::witness());
-        let face = prism.side_faces[0];
-        let s = prism.body.get_face(face).unwrap().surface;
-        let lift = |p: Point3<f64>| p.map(T::from_f64);
-        match prism.body.surfaces.get_mut(s).unwrap() {
-            geom::Surface::Plane { origin, .. } => *origin = lift(o),
-            _ => panic!(),
-        }
-        let geo = snapshot(&prism.body);
-        let f = geo.faces.iter().find(|f| f.key == face).unwrap();
-        let e = segment((lift(ends[0]), lift(ends[1])));
-        let declared = Declared::index(&geo, &ContactRecords::default());
-        let mut errors = Vec::new();
-        pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
-        classify(&errors)
-    })
-    .map_err(|_| "panicked (its message is on stderr)".to_string())
-}
-
-fn classify(errors: &[ValidationError]) -> Found {
-    if errors.iter().any(|e| {
-        matches!(
-            e,
-            ValidationError::CensusEscalated { .. } | ValidationError::CensusUnsupported { .. }
-        )
-    }) {
-        Found::Refused
-    } else if errors.is_empty() {
-        Found::Nothing
-    } else {
-        Found::Pierce
-    }
-}
 
 /// Poses per grid cell.
 const PROBE_N: usize = 200;
@@ -110,7 +29,7 @@ fn probe_grid() {
                 let tilt = r.range(-0.4, 0.4);
                 let (o, nrm) = plane(&pose);
                 let ends = tilted_ends(&pose, nrm, tilt);
-                let depth = exact_depth_ends(o, nrm, ends);
+                let depth = depth_below_top(o, nrm, ends).unwrap_or(f64::NAN);
                 let m = 2.0 * band.escalate();
                 let truth = if depth >= m {
                     Found::Pierce
@@ -202,6 +121,53 @@ fn probe_lever_atmost() {
             for x in ex.iter().take(3) {
                 println!("   {x}");
             }
+        }
+    }
+}
+
+#[test]
+#[ignore = "review probe, prints only: cargo nextest run -p topo --run-ignored all --no-capture -E 'test(/probe_/)'"]
+fn probe_notch() {
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    for (w, far) in [
+        (2e-2, (30.0, 30.0)),
+        (2e-3, (30.0, 30.0)),
+        (2e-4, (30.0, 30.0)),
+        (2e-5, (30.0, 30.0)),
+        (1e-4, (0.0, 0.0)),
+        (1e-5, (0.0, 0.0)),
+    ] {
+        for off in [1.5e-11, 1e-10] {
+            let f = notch_read::<f64>(w, far, off, band);
+            let i = notch_read::<Interval>(w, far, off, band);
+            println!(
+                "[probe] notch w {w:e} (half-width {:e}) far {far:?} off {off:e}: f64 {:?}  Interval {:?}",
+                0.1 * w,
+                f.as_ref().map(|x| x.0),
+                i.as_ref().map(|x| x.0)
+            );
+            if let Ok((_, errs)) = &f {
+                for e in errs {
+                    println!("     {e}");
+                }
+            }
+        }
+    }
+    for (h, far) in [
+        (2e-2, (30.0, 30.0)),
+        (2e-4, (30.0, 30.0)),
+        (2e-5, (30.0, 30.0)),
+        (1e-5, (0.0, 0.0)),
+        (1e-6, (0.0, 0.0)),
+    ] {
+        for off in [1.5e-11, 1e-10] {
+            let f = strip_read::<f64>(h, far, off, band);
+            let i = strip_read::<Interval>(h, far, off, band);
+            println!(
+                "[probe] strip h {h:e} far {far:?} off {off:e}: f64 {:?}  Interval {:?}",
+                f.as_ref().map(|x| x.0),
+                i.as_ref().map(|x| x.0)
+            );
         }
     }
 }

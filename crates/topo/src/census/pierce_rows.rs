@@ -1,26 +1,13 @@
-//! A grazing edge across a thin notch or strip of a cap face: its rows,
-//! and a printing probe (ignored).
+//! The pierce lane's pinned rows: a grazing edge across a thin notch,
+//! strip, slot, hole or disc of a cap face, or through a boundary
+//! vertex; an edge in a far-origined plane; and the span's height.
 use super::*;
-
-fn classify(errors: &[ValidationError]) -> Found {
-    if errors.iter().any(|e| {
-        matches!(
-            e,
-            ValidationError::CensusEscalated { .. } | ValidationError::CensusUnsupported { .. }
-        )
-    }) {
-        Found::Refused
-    } else if errors.is_empty() {
-        Found::Nothing
-    } else {
-        Found::Pierce
-    }
-}
+use geom_core::Interval;
 
 /// The edge grazes the cap plane `z = 1` and crosses it at `x = 0.5`,
 /// `y = 0.45`, inside a V notch of half-width `0.1·w` there (outside
 /// the face), its ends at `x = 0.2` and `0.8`.
-fn notch_read<T: Decide + crate::props::AtRestPolicy>(
+pub(super) fn notch_read<T: Decide + crate::props::AtRestPolicy>(
     w: f64,
     far: (f64, f64),
     off: f64,
@@ -40,7 +27,7 @@ fn notch_read<T: Decide + crate::props::AtRestPolicy>(
 
 /// The same edge over a cap strip `|x − 0.5| < h`: the crossing at its
 /// middle, `h` inside it.
-fn strip_read<T: Decide + crate::props::AtRestPolicy>(
+pub(super) fn strip_read<T: Decide + crate::props::AtRestPolicy>(
     h: f64,
     far: (f64, f64),
     off: f64,
@@ -82,7 +69,7 @@ fn cap_read<T: Decide + crate::props::AtRestPolicy>(
         let mut errors = Vec::new();
         pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
         (
-            classify(&errors),
+            found(&errors),
             errors
                 .iter()
                 .map(|e| format!("{e:?}").chars().take(200).collect())
@@ -90,53 +77,6 @@ fn cap_read<T: Decide + crate::props::AtRestPolicy>(
         )
     })
     .map_err(|_| "panicked (its message is on stderr)".to_string())
-}
-
-#[test]
-#[ignore = "review probe, prints only: cargo nextest run -p topo --run-ignored all --no-capture -E 'test(/probe_/)'"]
-fn probe_notch() {
-    let band = Band::new(1e-12, 1e-11).unwrap();
-    for (w, far) in [
-        (2e-2, (30.0, 30.0)),
-        (2e-3, (30.0, 30.0)),
-        (2e-4, (30.0, 30.0)),
-        (2e-5, (30.0, 30.0)),
-        (1e-4, (0.0, 0.0)),
-        (1e-5, (0.0, 0.0)),
-    ] {
-        for off in [1.5e-11, 1e-10] {
-            let f = notch_read::<f64>(w, far, off, band);
-            let i = notch_read::<Interval>(w, far, off, band);
-            println!(
-                "[probe] notch w {w:e} (half-width {:e}) far {far:?} off {off:e}: f64 {:?}  Interval {:?}",
-                0.1 * w,
-                f.as_ref().map(|x| x.0),
-                i.as_ref().map(|x| x.0)
-            );
-            if let Ok((_, errs)) = &f {
-                for e in errs {
-                    println!("     {e}");
-                }
-            }
-        }
-    }
-    for (h, far) in [
-        (2e-2, (30.0, 30.0)),
-        (2e-4, (30.0, 30.0)),
-        (2e-5, (30.0, 30.0)),
-        (1e-5, (0.0, 0.0)),
-        (1e-6, (0.0, 0.0)),
-    ] {
-        for off in [1.5e-11, 1e-10] {
-            let f = strip_read::<f64>(h, far, off, band);
-            let i = strip_read::<Interval>(h, far, off, band);
-            println!(
-                "[probe] strip h {h:e} far {far:?} off {off:e}: f64 {:?}  Interval {:?}",
-                f.as_ref().map(|x| x.0),
-                i.as_ref().map(|x| x.0)
-            );
-        }
-    }
 }
 
 /// **A grazing edge crossing a face's plane inside a thin notch is no
@@ -201,8 +141,8 @@ fn an_edge_in_a_far_origined_plane_does_not_panic_at_interval() {
         across: 0.234_866_643_068_815_6,
     };
     let (o, n) = plane(&pose);
-    let ends = super::probe::tilted_ends(&pose, n, -0.063_050_604_584_334_09);
-    let got = super::probe::read_ends::<Interval>(o, ends, band);
+    let ends = tilted_ends(&pose, n, -0.063_050_604_584_334_09);
+    let got = read_ends::<Interval>(o, ends, band);
     assert!(got.is_ok(), "{got:?}");
 }
 
@@ -232,7 +172,7 @@ fn far_read(mut body: Body<f64>, face: FaceKey, ends: [Point3<f64>; 2]) -> Found
     let declared = Declared::index(&geo, &ContactRecords::default());
     let mut errors = Vec::new();
     pair_edge_face(&body, &geo, &declared, band, None, &e, f, &mut errors);
-    classify(&errors)
+    found(&errors)
 }
 
 /// **A crossing on a boundary vertex the span passes through is no
@@ -372,7 +312,7 @@ fn a_span_standing_off_the_plane_past_the_band_is_not_read_clear() {
         let declared = Declared::index(&geo, &ContactRecords::default());
         let mut errors = Vec::new();
         pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
-        classify(&errors)
+        found(&errors)
     }
     for (scalar, got) in [("f64", read::<f64>()), ("Interval", read::<Interval>())] {
         assert!(
@@ -380,4 +320,173 @@ fn a_span_standing_off_the_plane_past_the_band_is_not_read_clear() {
             "{scalar}: a pierce read at the slot's middle: {got:?}"
         );
     }
+}
+
+/// The edge's ends, tilted along the plane by `tilt` of its length.
+pub(super) fn tilted_ends(pose: &Pose, normal: Vec3<f64>, tilt: f64) -> [Point3<f64>; 2] {
+    let [(x0, y0), (x1, y1)] = [PROFILE[0], PROFILE[1]];
+    let along = normal.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
+    let aim = Point3::new(
+        x0 + (x1 - x0) * pose.across,
+        y0 + (y1 - y0) * pose.across,
+        1.0 - pose.depth,
+    );
+    let half = Vec3::new(0.0, 0.0, 0.5) + along * (0.5 * tilt);
+    [
+        aim - half + normal * pose.off,
+        aim + half - normal * pose.off,
+    ]
+}
+
+/// The pair read at `T` on side face 0, its stored origin at `o`, a
+/// panic caught.
+pub(super) fn read_ends<T: Decide + crate::props::AtRestPolicy>(
+    o: Point3<f64>,
+    ends: [Point3<f64>; 2],
+    band: Band,
+) -> Result<Found, String> {
+    std::panic::catch_unwind(|| {
+        let mut prism =
+            crate::test_support_fixtures::prism_z::<T>(&PROFILE, 0.0, 1.0, Tol::witness());
+        let face = prism.side_faces[0];
+        let s = prism.body.get_face(face).unwrap().surface;
+        let lift = |p: Point3<f64>| p.map(T::from_f64);
+        match prism.body.surfaces.get_mut(s).unwrap() {
+            geom::Surface::Plane { origin, .. } => *origin = lift(o),
+            _ => panic!(),
+        }
+        let geo = snapshot(&prism.body);
+        let f = geo.faces.iter().find(|f| f.key == face).unwrap();
+        let e = segment((lift(ends[0]), lift(ends[1])));
+        let declared = Declared::index(&geo, &ContactRecords::default());
+        let mut errors = Vec::new();
+        pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
+        found(&errors)
+    })
+    .map_err(|_| "panicked (its message is on stderr)".to_string())
+}
+
+/// **A hole narrower than the span is no pierce**: the block
+/// `[0, 3] × [0, 2] × [0, 2]` holed at `x ∈ [1, 2]`, `y ∈ [0.5, 1.5]`,
+/// its top's stored origin 140 m off, an 80 m edge grazing the top
+/// along `y = 1` and crossing it at the hole's centre. The span holds
+/// the hole, both its ends on material (`In`), and stands within ε of
+/// the plane; only the hole's ring keeps the ends from answering for a
+/// crossing that is in the hole.
+#[test]
+fn a_hole_narrower_than_the_span_is_no_pierce() {
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let top = |body: &Body<f64>| {
+        body.faces()
+            .find(|(_, f)| {
+                matches!(body.get_surface(f.surface),
+                    Some(geom::Surface::Plane { origin, normal, .. })
+                        if normal.z.abs() > 0.5 && origin.z == 2.0)
+            })
+            .map(|(k, _)| k)
+            .unwrap()
+    };
+    let top = top(&crate::test_support_fixtures::holed_block::<f64>(
+        3.0,
+        &[1.5],
+        Tol::witness(),
+    ));
+    fn go<T: Decide + crate::props::AtRestPolicy>(
+        top: FaceKey,
+        off: f64,
+        band: Band,
+    ) -> (Found, Option<PierceSpan<T>>, [Point3<T>; 2]) {
+        let mut body =
+            crate::test_support_fixtures::holed_block::<T>(3.0, &[1.5], Tol::witness());
+        let s = body.get_face(top).unwrap().surface;
+        match body.surfaces.get_mut(s).unwrap() {
+            geom::Surface::Plane { origin, .. } => {
+                *origin = Point3::new(100.0, -100.0, 2.0).map(T::from_f64);
+            }
+            _ => panic!("a planar top"),
+        }
+        let geo = snapshot(&body);
+        let f = geo.faces.iter().find(|f| f.key == top).unwrap();
+        assert!(f.polygon && f.loops.len() == 2, "a polygon with one ring");
+        let ends = [
+            Point3::new(-38.5, 1.0, 2.0 + off).map(T::from_f64),
+            Point3::new(41.5, 1.0, 2.0 - off).map(T::from_f64),
+        ];
+        let e = segment((ends[0], ends[1]));
+        let r = [e.p0, e.p1].map(|p| (p - f.origin).dot(f.normal));
+        let span = pierce_span(&e, f, r, band, &mut Vec::new());
+        let declared = Declared::index(&geo, &ContactRecords::default());
+        let mut errors = Vec::new();
+        pair_edge_face(&body, &geo, &declared, band, None, &e, f, &mut errors);
+        (found(&errors), span, ends)
+    }
+    for off in [1.2e-11, 1.5e-11] {
+        let (f64_read, span, [p0, p1]) = go::<f64>(top, off, band);
+        let PierceSpan { t: [lo, hi], lever } = span.expect("a placed crossing");
+        let x = |t: f64| p0.x + (p1.x - p0.x) * t;
+        assert!(
+            (0.1..0.9).contains(&x(lo)) && (2.1..2.9).contains(&x(hi)),
+            "off {off:e}: the span [{:.3}, {:.3}] holds the hole, its ends on material",
+            x(lo),
+            x(hi)
+        );
+        let height = lever * (hi - lo);
+        assert!(height < 0.8 * band.zero(), "off {off:e}: the span stands {height:e} off");
+        let (iv_read, ..) = go::<Interval>(top, off, band);
+        for (scalar, got) in [("f64", f64_read), ("Interval", iv_read)] {
+            assert_ne!(got, Found::Pierce, "off {off:e}, {scalar}: a pierce in the hole");
+        }
+    }
+}
+
+/// **A span standing between ε and 2ε off the plane is refused by its
+/// height, and one well within ε is read**: an edge grazing the unit
+/// square cap `z = 1` at its middle, its plane's stored origin moved
+/// off along the plane, at ε = 1e-12. At 420 m the residuals' charges
+/// lift the span's ends about `1.7ε` off the plane, so the height reads
+/// in the band and refuses; at 30 m they lift it under `0.2ε`, and the
+/// crossing, half a metre inside, is read a pierce.
+#[test]
+fn a_span_standing_past_epsilon_off_the_plane_is_refused_by_its_height() {
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+    let read = |far: f64| {
+        let mut prism =
+            crate::test_support_fixtures::prism_z::<f64>(&square, 0.0, 1.0, Tol::witness());
+        let s = prism.body.get_face(prism.top_face).unwrap().surface;
+        match prism.body.surfaces.get_mut(s).unwrap() {
+            geom::Surface::Plane { origin, .. } => *origin = Point3::new(far, -far, 1.0),
+            _ => panic!("a planar cap"),
+        }
+        let geo = snapshot(&prism.body);
+        let f = geo.faces.iter().find(|f| f.key == prism.top_face).unwrap();
+        let [p0, p1] = level_ends((0.25, 0.75), 0.5);
+        let e = segment((p0, p1));
+        let r = [e.p0, e.p1].map(|p| (p - f.origin).dot(f.normal));
+        let PierceSpan { t: [lo, hi], lever } =
+            pierce_span(&e, f, r, band, &mut Vec::new()).expect("a placed crossing");
+        let declared = Declared::index(&geo, &ContactRecords::default());
+        let mut errors = Vec::new();
+        pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
+        let rows: Vec<_> = errors
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::CensusEscalated { cause } => cause.predicate,
+                _ => None,
+            })
+            .collect();
+        (lever * (hi - lo) / band.zero(), found(&errors), rows)
+    };
+    let (height, got, rows) = read(300.0);
+    assert!(
+        (1.2..1.8).contains(&height),
+        "the far span stands {height}ε off, not between 1.2ε and 1.8ε"
+    );
+    assert!(
+        got == Found::Refused && rows == ["pm_census_ef_pierce_height"],
+        "a span {height}ε off read {got:?}, refused by {rows:?}"
+    );
+    let (height, got, _) = read(21.0);
+    assert!(height < 0.2, "the near span stands {height}ε off");
+    assert_eq!(got, Found::Pierce, "a span {height}ε off");
 }

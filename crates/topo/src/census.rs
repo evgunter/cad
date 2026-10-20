@@ -2674,43 +2674,32 @@ impl<T: Decide> EfPair<'_, T> {
 /// placed: a lever at most ε, or one undecided (pushed).
 ///
 /// The fraction is `t = r₀/ℓ`, `ℓ = r₀ − r₁`, the residuals
-/// `rᵢ = (pᵢ − o)·n` read off the plane's stored origin `o`. Each is
-/// charged `cᵢ`, [`geom_brep::rounding_charge`] of `|pᵢ − o|`, four times
-/// its first-order rounding (`p − o`, then the dot, each `u`-relative,
-/// against a unit normal). `o` can stand metres from the edge while a
-/// grazing edge's lever is a few `Kε`. No point of the face reads
-/// better: one computed on the plane near the edge is off it by the same
-/// rounding, and a vertex of the face by up to the band's zero, which
-/// the lever divides alike.
+/// `rᵢ = (pᵢ − o)·n` read off the plane's stored origin `o`, each
+/// charged `cᵢ` ([`residual_charge`]). `o` can stand metres from the
+/// edge while a grazing edge's lever is a few `Kε`. No point of the face
+/// reads better: one computed on the plane near the edge is off it by
+/// the same rounding, and a vertex of the face by up to the band's zero.
 ///
 /// The lever is read on its enclosure `|ℓ| ∓ (c₀ + c₁)` through the
 /// magnitude door (`pm_census_ef_pierce_lever`, its straddle
-/// `…_lever_straddle`). Past the band, moving the residuals by `α`, `β`
-/// within their charges moves the fraction by exactly
-/// `|r₀β − r₁α| / (|ℓ|·|ℓ + α − β|)`, at most
-/// `δ = (c₀|r₁| + c₁|r₀|) / (|ℓ|·(|ℓ| − c₀ − c₁))`, the one divisor the
-/// lever's lower bound keeps clear of zero. The enclosure is `t ± δ`,
-/// the quotient's own rounding charged beside it.
+/// `…_lever_straddle`). Past the band, moving the residuals within their
+/// charges moves the fraction by at most
+/// `δ = (c₀|r₁| + c₁|r₀|) / (|ℓ|·(|ℓ| − c₀ − c₁))`. The enclosure is
+/// `t ± δ`, the quotient's own rounding charged beside it.
 ///
-/// Charged are the residuals and the quotient. Not charged are the
-/// operations that form the lever (`r₀ − r₁`), its bounds `|ℓ| ∓
-/// (c₀ + c₁)`, and `δ`. Each of those rounds `u`-relative to what it
-/// forms, so it moves `δ` and the lever by a few `u` of themselves:
-/// - the residuals round within a quarter of their charge, so `δ`
-///   bounds three times the displacement those few `u` add;
-/// - the lever's bounds are read past `Kε` or at most ε, a gap no
-///   `u`-relative move closes.
+/// `r₀ − r₁`, the lever's bounds and `δ` are formed uncharged. The
+/// lever's lower bound, read past `Kε`, stays positive, so `δ`'s divisor
+/// cancels nothing and every one of them is off by a few `u` of itself.
+/// The residuals round within a quarter of their charge, and that
+/// headroom covers those few `u`. At [`Interval`](geom_core::Interval)
+/// every operation encloses its own rounding.
 ///
-/// At [`Interval`](geom_core::Interval) every operation encloses its own
-/// rounding.
-///
-/// Two ends decided on opposite sides stand past the band's escalation
-/// either side of the plane, so their lever reads past it. Under signs
-/// an undecided residual can take ([`undecided_signs`]) the lever can
-/// read at most ε. Its ends' enclosures then overlap across the plane,
-/// and their difference is no divisor. That pair of signs places
+/// Ends decided on opposite sides never read at most ε: their lever is
+/// past `2Kε`, so it reads past the band, or refuses (pushed) where the
+/// charges reach into it. Under signs an undecided residual takes
+/// ([`undecided_signs`]) the lever can read at most ε. Those signs place
 /// nothing, and the edge's reach along the plane is the `[Zero, Zero]`
-/// branch's, which the same undecided residuals also take.
+/// branch's, which the same residuals also take.
 fn pierce_span<T: Decide>(
     e: &EdgeGeo<T>,
     f: &FaceGeo<T>,
@@ -2768,38 +2757,24 @@ fn residual_charge<T: Real>(f: &FaceGeo<T>, p: Point3<T>) -> T {
 ///   no boundary of the face meets `S`:
 ///   - `L/2` at most ε ([`enclosure_reading`] of `[0, L/2]` through the
 ///     magnitude door, `pm_census_ef_pierce_span`): every point of `S`
-///     lies within ε of an end, so no boundary point does, and the
-///     crossing stands on the ends' side more than `(K − 1)ε` off the
-///     boundary — not on it, though an exact reading there could still
-///     escalate;
-///   - else, on a polygon face, `S` read within `(K − 1)ε` of the plane
-///     and clear ([`span_clear`]). The height is `lever·(hi − lo)`,
-///     read over `K − 1` through the magnitude door
-///     (`pm_census_ef_pierce_height`) and refused past it. Clear means
-///     no boundary edge's interior meets `S`'s, and no boundary vertex
-///     lies on `S`'s. Both readings are of 3D gaps. A boundary edge or
-///     vertex, itself within ε of the plane, whose projection met `S`
-///     would stand within `Kε` of it, so it would not read apart. So
-///     all of `S` lies on the ends' side, past `Kε` off the boundary;
-///   - else the half-span's reading refuses (`pm_census_ef_pierce_span`
-///     in the band, its straddle past it): a face with a curved edge is
-///     not read for a boundary inside a span longer than `2ε`.
+///     lies within ε of an end, so no boundary point does;
+///   - else, on a polygon face, [`span_clear`].
 ///
-///   Where a boundary meets `S`, the crossing lies within `L` of it,
-///   refused below.
+///   Otherwise the crossing may lie within `L` of the boundary, refused
+///   below.
 /// - **Both on boundary cells**: on one cell, or within ε of each other
 ///   (the half-span read at most ε), the crossing is within `ε + L/2` of
 ///   the cells the ends read, those cells' passes' (an `OnEdge` the
 ///   edge–edge pass's crossing, an `OnVertex` the vertex–edge pass's).
 ///   Two cells across a longer span are refused below.
-/// - **Refused**: the boundary lies between the ends or meets `S`, so
+/// - **Refused**: the boundary lies between the ends or may meet `S`, so
 ///   the crossing is within `L` of it, and the band's zero more where an
 ///   end read on it. That distance, enclosed by `[0, L + ε]`, is read
 ///   through the magnitude door: past the band it straddles
 ///   (`pm_census_ef_pierce_straddle`), in it escalates
-///   (`pm_census_ef_pierce_place`), either pushed. Read at most ε, which
-///   only `L = 0` reaches, the crossing is on the boundary and nothing
-///   is pushed, as for the boundary cells above.
+///   (`pm_census_ef_pierce_place`), either pushed. It reads at most ε
+///   only below ε's rounding of `L`, where the ends coincide and an arm
+///   above has answered.
 fn pierce_inside<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -2815,40 +2790,23 @@ fn pierce_inside<T: Decide>(
     let at_lo = contain(body, f, q_lo, band, errors)?;
     let at_hi = contain(body, f, q_hi, band, errors)?;
     let length = (q_hi - q_lo).norm();
-    let half = || {
-        enclosure_reading(
-            [T::zero(), length * T::from_f64(0.5)],
-            "pm_census_ef_pierce_span_straddle",
-            band,
-            magnitude_door("pm_census_ef_pierce_span", band),
-        )
+    let short = || {
+        let half = [T::zero(), length * T::from_f64(0.5)];
+        let decide = magnitude_door("pm_census_ef_pierce_span", band);
+        match enclosure_reading(half, "pm_census_ef_pierce_span_straddle", band, decide) {
+            Ok(Enclosed::AtMost(_)) => true,
+            Ok(Enclosed::Above) | Err(_) => false,
+        }
     };
     let on = |at| matches!(at, OnEdge(_) | OnVertex(_));
     match (at_lo, at_hi) {
         (In, In) | (Out, Out) => {
-            let clear = match half() {
-                Ok(_) => true,
-                Err(_) if f.polygon => {
-                    let per_gap = band.zero() / (band.escalate() - band.zero());
-                    let height = [T::zero(), lever * (hi - lo) * T::from_f64(per_gap)];
-                    let decide = magnitude_door("pm_census_ef_pierce_height", band);
-                    let straddle = "pm_census_ef_pierce_height_straddle";
-                    if let Err(cause) = enclosure_reading(height, straddle, band, decide) {
-                        errors.push(ValidationError::CensusEscalated { cause });
-                        return None;
-                    }
-                    span_clear(geo, f, (q_lo, q_hi), band, errors)?
-                }
-                Err(cause) => {
-                    errors.push(ValidationError::CensusEscalated { cause });
-                    return None;
-                }
-            };
-            if clear {
+            let height = lever * (hi - lo);
+            if short() || span_clear(geo, f, (q_lo, q_hi), height, band, errors)? {
                 return (at_lo == In).then(|| e.p0 + chord * geom::mid_param(lo, hi));
             }
         }
-        (a, b) if on(a) && on(b) && (a == b || half().is_ok()) => return None,
+        (a, b) if on(a) && on(b) && (a == b || short()) => return None,
         _ => {}
     }
     let decide = magnitude_door("pm_census_ef_pierce_place", band);
@@ -2864,18 +2822,57 @@ fn pierce_inside<T: Decide>(
     None
 }
 
-/// Whether no boundary of the polygon face `f` meets the span `S`
-/// (`q_lo`–`q_hi`) inside it: no boundary edge's interior meets `S`'s
-/// ([`interiors_meet`]) and no boundary vertex lies on `S`'s interior
-/// ([`on_edge_interior_reading`]). `None` where a reading escalated
-/// (pushed). The ends of `S` are the caller's, read off the boundary.
+/// **Whether no boundary of the face `f` meets the span `S`**
+/// (`q_lo`–`q_hi`, longer than `2ε`, its ends read past `Kε` on one side
+/// of the boundary): `Some(false)` where it may, or where `f` is not a
+/// polygon or the band's `K` is 3 or less; `None` where a reading
+/// refused (pushed).
+///
+/// `S` must first read within ε of the plane: `height`, an upper bound
+/// on how far its ends stand off it ([`pierce_span`]'s lever over the
+/// fraction's enclosure), through the magnitude door
+/// (`pm_census_ef_pierce_height`, its straddle `…_height_straddle`). Then
+/// no boundary edge's interior meets `S`'s ([`interiors_meet`]) and no
+/// boundary vertex lies on `S`'s interior ([`on_edge_interior_reading`]).
+///
+/// Those readings are of 3D distances, and each that calls a boundary
+/// apart from `S` does so only past `Kε`, or at an end of `S` or of the
+/// side. A boundary point `b`, within ε of the plane, over a point `s`
+/// of `S`, stands within `2ε` of `s`. `S` slopes off the plane by
+/// `σ ≤ height/L < 1/2`. So:
+/// - the lines' gap is at most `2ε`;
+/// - a vertex `v` over `S` is within `2ε` of its line, its foot within
+///   `σ·2ε < ε` of `s`, so within `3ε` of `S` or of its end;
+/// - a reach at most ε from `S`'s end `q` leaves `q` within `√5·ε` of
+///   the side's line, so of the side, or of the vertex where it ends,
+///   which is within that of `S`'s line, as above;
+/// - a reach at most ε from the side's vertex leaves that vertex within
+///   `√5·ε` of `S`'s line, as above.
+///
+/// Within `3ε` is within `Kε` for `K > 3`. So no reading calls `b`
+/// apart, or an end of `S` stands within `Kε` of the boundary, against
+/// its own reading.
 fn span_clear<T: Decide>(
     geo: &Geo<T>,
     f: &FaceGeo<T>,
     span: (Point3<T>, Point3<T>),
+    height: T,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
+    if !(f.polygon && band.escalate() > 3.0 * band.zero()) {
+        return Some(false);
+    }
+    let decide = magnitude_door("pm_census_ef_pierce_height", band);
+    let straddle = "pm_census_ef_pierce_height_straddle";
+    match enclosure_reading([T::zero(), height], straddle, band, decide) {
+        Ok(Enclosed::AtMost(_)) => {}
+        Ok(Enclosed::Above) => return Some(false),
+        Err(cause) => {
+            errors.push(ValidationError::CensusEscalated { cause });
+            return None;
+        }
+    }
     let s = segment(span);
     for ring in &f.loops {
         let at: Vec<Point3<T>> = ring
@@ -11368,28 +11365,19 @@ mod tests {
         assert!(errors.is_empty(), "off the line: {errors:?}");
     }
 
-    /// Review 2 (PR 5261): one edge-face pair read alone against the unit
-    /// cube's top, its escalated predicates.
-    fn review2_pair_reads(p0: [f64; 3], p1: [f64; 3], backed: bool) -> Vec<&'static str> {
+    /// One edge–face pair read alone against the unit cube's top: its
+    /// escalated predicates.
+    fn pair_reads(p0: [f64; 3], p1: [f64; 3], backed: bool) -> Vec<&'static str> {
         escalated(&top_pair(p0, p1, backed))
     }
 
-    /// Review 2: tilted through the top from `+4e-9` to `-4e-9`, the
-    /// residuals' difference `8e-9` is in the band's edge, so the lever
-    /// escalates. Pins the lever's `Err` arm (green at the head; red
-    /// under a mutant that returns silently there).
+    /// **An undecided lever escalates, once.** Tilted through the top
+    /// from `+4e-9` to `-4e-9`, the residuals' difference `8e-9` is in
+    /// the band, so the lever's reading refuses; `[P, N]` and `[N, P]`
+    /// read the one lever, and the refusal carries it once.
     #[test]
-    fn review2_an_undecided_lever_escalates() {
-        let found = review2_pair_reads([0.3, 0.5, 1.0 + 4e-9], [0.7, 0.5, 1.0 - 4e-9], true);
-        assert!(found.contains(&"pm_census_ef_pierce_lever"), "{found:?}");
-    }
-
-    /// Review 2: the same pair, counting. `[P, N]` and `[N, P]` decide
-    /// the one lever twice and push its escalation twice (red at the
-    /// head: the refusal carries one cause two times).
-    #[test]
-    fn review2_an_undecided_lever_escalates_once() {
-        let found = review2_pair_reads([0.3, 0.5, 1.0 + 4e-9], [0.7, 0.5, 1.0 - 4e-9], true);
+    fn an_undecided_lever_escalates_once() {
+        let found = pair_reads([0.3, 0.5, 1.0 + 4e-9], [0.7, 0.5, 1.0 - 4e-9], true);
         let lever = found
             .iter()
             .filter(|p| **p == "pm_census_ef_pierce_lever")
@@ -11397,17 +11385,16 @@ mod tests {
         assert_eq!(lever, 1, "{found:?}");
     }
 
-    /// Review 2: an edge descending toward the top's plane from `3e-8`
-    /// above at `x = -1` to `5e-9` above at `x = -0.1`, wholly outside the
-    /// face. No reading of the undecided end touches the face: read
-    /// `Zero` it is a vertex outside the face (pass 3), read on its
-    /// computed side nothing crosses. Only the hypothetical `[P, N]`,
-    /// whose pierce point is placed from the computed residuals at
-    /// `r0 / (r0 - r1) = 1.2`, lands at `x = 0.08`, inside the face, and
-    /// escalates the residual (red at the head).
+    /// **A crossing placed past the edge's end escalates nothing**: an
+    /// edge descending toward the top's plane from `3e-8` above at
+    /// `x = -1` to `5e-9` above at `x = -0.1`, wholly outside the face.
+    /// Under the undecided end's `[P, N]`, the line meets the plane at
+    /// `r₀/(r₀ − r₁) = 1.2`, `x = 0.08`, inside the face, but off the
+    /// edge; read `Zero` the end is a vertex outside the face, and read
+    /// on its own side nothing crosses. The pair reads nothing.
     #[test]
-    fn review2_an_extrapolated_pierce_escalates_no_residual() {
-        let found = review2_pair_reads([-1.0, 0.5, 1.0 + 3e-8], [-0.1, 0.5, 1.0 + 5e-9], false);
+    fn an_extrapolated_pierce_escalates_no_residual() {
+        let found = pair_reads([-1.0, 0.5, 1.0 + 3e-8], [-0.1, 0.5, 1.0 + 5e-9], false);
         assert!(found.is_empty(), "{found:?}");
     }
 

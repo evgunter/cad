@@ -1,29 +1,28 @@
-//! Review 2 probes of the edge–face pierce: tilted non-convex caps
-//! (notch tips, spikes, slots, a vertex on the span) read at `f64`
-//! against the exact crossing, and a panic sweep at both scalars with
-//! origins out to 100 km. Run with
-//! `cargo nextest run -p topo review2 --run-ignored all --no-capture`.
+//! **A tilted non-convex cap is pierced where it pierces**: a prism's
+//! cap with a V notch, a spike, a slot or a shallow reflex vertex,
+//! turned about a random axis, its stored origin moved along its plane,
+//! crossed by a grazing edge aimed near the feature's tip. Each crossing
+//! is measured exactly and read against the profile; beside it, a sweep
+//! that reads every slope at origins out to 100 km for panics.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+// Gated to the readings it checks, as the grazing fuzzer is.
+test_utils::gated_to![
+    "crates/topo/src/census.rs",
+    "crates/topo/src/boolean/contain.rs",
+    "crates/geom-core/src/predicate.rs",
+    "crates/geom-core/src/interval.rs",
+    "crates/geom-core/src/k_stats.rs",
+    "crates/geom-brep/src/implicit.rs",
+];
+
 use super::*;
 use geom_core::{Interval, RigidMotion, Tol, UnitVec3};
 use num_bigint::BigInt;
 use test_utils::fuzz::Rng;
 
 use super::super::segment_fuzz::{big, big_dot, ratio};
-
-fn classify(errors: &[ValidationError]) -> Found {
-    if errors.iter().any(|e| {
-        matches!(
-            e,
-            ValidationError::CensusEscalated { .. } | ValidationError::CensusUnsupported { .. }
-        )
-    }) {
-        Found::Refused
-    } else if errors.is_empty() {
-        Found::Nothing
-    } else {
-        Found::Pierce
-    }
-}
 
 /// A profile with a feature point to aim at.
 fn profile(kind: usize, w: f64) -> (Vec<(f64, f64)>, (f64, f64)) {
@@ -122,12 +121,12 @@ fn local_ends(p: &Pose) -> [Point3<f64>; 2] {
 fn motion<T: Decide>(p: &Pose) -> RigidMotion<T> {
     let band = Band::new(1e-9, 1e-8).unwrap();
     let ax = Vec3::new(p.axis[0], p.axis[1], p.axis[2]).map(T::from_f64);
-    let ax = UnitVec3::new(ax, "review2", band).unwrap();
+    let ax = UnitVec3::new(ax, "tilted cap", band).unwrap();
     RigidMotion::rotation(ax, T::from_f64(p.angle)).unwrap()
 }
 
 /// The pair read at `T`, the world ends, and the stored plane (at `f64`).
-fn read<T: Decide + crate::props::AtRestPolicy>(
+fn read_pose<T: Decide + crate::props::AtRestPolicy>(
     p: &Pose,
     band: Band,
 ) -> (Found, [Point3<T>; 2], Point3<T>, Vec3<T>) {
@@ -151,7 +150,7 @@ fn read<T: Decide + crate::props::AtRestPolicy>(
     let declared = Declared::index(&geo, &ContactRecords::default());
     let mut errors = Vec::new();
     pair_edge_face(&body, &geo, &declared, band, None, &e, f, &mut errors);
-    (classify(&errors), ends, o, n)
+    (found(&errors), ends, o, n)
 }
 
 /// The exact crossing of the stored plane with the stored ends, in the
@@ -209,57 +208,64 @@ fn draw(r: &mut Rng, eps: f64, far_max: f64) -> Pose {
     }
 }
 
-/// Verdicts at `f64` on tilted non-convex caps, against the exact crossing.
+/// **A grazing edge across a tilted non-convex cap is pierced where it
+/// pierces**: every pose drawn, at each ε, read right or refused at
+/// `f64` and at [`Interval`]. A pose within `2Kε` of the profile's
+/// boundary is not read.
 #[test]
-#[ignore = "review 2 probe"]
-fn review2_tilted_nonconvex_caps_read_right_at_f64() {
-    let label = "review2_tilted";
+fn a_grazing_edge_across_a_tilted_non_convex_cap_is_read_pierced_where_it_pierces() {
+    let label = "census_tilted_cap_pierce";
     let mut r = test_utils::fuzz::start(label);
     let mut bad = Vec::new();
-    let k: f64 = std::env::var("REVIEW2_K").ok().and_then(|v| v.parse().ok()).unwrap_or(10.0);
-    for eps in [1e-6, 1e-9, 1e-12] {
-        let band = Band::new(eps, k * eps).unwrap();
-        let (mut n, mut held, mut skip, mut iv_bad) = (0, 0, 0, 0);
-        for _ in 0..test_utils::fuzz::scaled(200) {
+    for eps in EPS {
+        let band = Band::new(eps, K * eps).unwrap();
+        let (mut read, mut held, mut held_iv) = (0usize, 0usize, 0usize);
+        for _ in 0..test_utils::fuzz::scaled(COUNT / 2) {
             let pose = draw(&mut r, eps, 40.0);
-            let (got, ends, o, nn) = read::<f64>(&pose, band);
-            let inside = truth(&pose, ends, o, nn);
-            let margin = 2.0 * band.escalate() + 1e-13;
+            let (f, ends, o, n) = read_pose::<f64>(&pose, band);
+            let inside = truth(&pose, ends, o, n);
+            let margin = 2.0 * band.escalate();
             let want = if inside >= margin {
                 Found::Pierce
             } else if inside <= -margin {
                 Found::Nothing
             } else {
-                skip += 1;
                 continue;
             };
-            n += 1;
-            held += usize::from(got == Found::Refused);
-            if got != Found::Refused && got != want {
-                bad.push(format!("ε {eps:e} {pose:?}: {inside:e} inside, f64 {got:?}"));
-            }
-            let (iv, ..) = read::<Interval>(&pose, band);
-            if iv != Found::Refused && iv != want {
-                iv_bad += 1;
+            let (iv, ..) = read_pose::<Interval>(&pose, band);
+            read += 1;
+            held += usize::from(f == Found::Refused);
+            held_iv += usize::from(iv == Found::Refused);
+            let wrong = |got: Found| got != Found::Refused && got != want;
+            if wrong(f) || wrong(iv) {
+                bad.push(format!(
+                    "ε {eps:e} {pose:?}: {inside:e} inside, f64 {f:?}, Interval {iv:?}"
+                ));
             }
         }
-        println!("[review2] ε {eps:e}: {n} read, {held} refused, {skip} near, Interval disagreeing with truth {iv_bad}");
+        println!(
+            "[fuzz] {label} at ε {eps:e}: {read} poses read, {held} refused at f64, {held_iv} at Interval"
+        );
     }
-    assert!(bad.is_empty(), "{} wrong; {}:\n{}", bad.len(), test_utils::fuzz::replay(), bad.join("\n"));
+    assert!(
+        bad.is_empty(),
+        "{label}: {} readings wrong; {}:\n{}",
+        bad.len(),
+        test_utils::fuzz::replay(),
+        bad[..bad.len().min(8)].join("\n")
+    );
 }
 
-/// No panic at either scalar: origins to 100 km, edges in the plane,
-/// at every grazing slope, steep, and at all three ε.
+/// **No pose panics either scalar**: the same caps, origins out to
+/// 100 km, the edge in the plane, within the band of it, grazing,
+/// steep, or near-normal, at every ε.
 #[test]
-#[ignore = "review 2 probe"]
-fn review2_no_panic_far_origins_any_slope() {
-    let label = "review2_panic";
+fn a_tilted_cap_read_at_any_slope_and_origin_does_not_panic() {
+    let label = "census_tilted_cap_no_panic";
     let mut r = test_utils::fuzz::start(label);
-    let mut panics = Vec::new();
-    let mut tally = std::collections::BTreeMap::new();
-    for eps in [1e-6, 1e-9, 1e-12] {
-        let band = Band::new(eps, 10.0 * eps).unwrap();
-        for _ in 0..test_utils::fuzz::scaled(150) {
+    for eps in EPS {
+        let band = Band::new(eps, K * eps).unwrap();
+        for _ in 0..test_utils::fuzz::scaled(COUNT / 4) {
             let mut pose = draw(&mut r, eps, 1e5);
             pose.off = match r.below(5) {
                 0 => 0.0,
@@ -268,69 +274,10 @@ fn review2_no_panic_far_origins_any_slope() {
                 3 => r.log_uniform(1e-6, 0.3),
                 _ => r.log_uniform(0.3, 1e3),
             } * if r.below(2) == 0 { 1.0 } else { -1.0 };
-            for scalar in 0..2 {
-                let got = std::panic::catch_unwind(|| {
-                    if scalar == 0 {
-                        read::<f64>(&pose, band).0
-                    } else {
-                        read::<Interval>(&pose, band).0
-                    }
-                });
-                match got {
-                    Ok(f) => *tally.entry((scalar, format!("{f:?}"))).or_insert(0) += 1,
-                    Err(_) => panics.push(format!("ε {eps:e} scalar {scalar} {pose:?}")),
-                }
-            }
+            // A panic fails the row; the seed is in the log above.
+            read_pose::<f64>(&pose, band);
+            read_pose::<Interval>(&pose, band);
         }
     }
-    println!("[review2] tally {tally:?}");
-    assert!(panics.is_empty(), "{} panics; {}:\n{}", panics.len(), test_utils::fuzz::replay(), panics.join("\n"));
-}
-
-/// A square hole narrower than the span: the block `[0, 3] × [0, 2] ×
-/// [0, 2]` holed at `x ∈ [1, 2]`, `y ∈ [0.5, 1.5]`, its top's stored
-/// origin 1 km off, an 8 m edge grazing the top across the hole and
-/// crossing it at the hole's centre. Both span ends stand on material
-/// (`In`); the crossing is in the hole, so no pierce.
-#[test]
-fn review2_a_hole_narrower_than_the_span_is_no_pierce() {
-    let probe = crate::test_support_fixtures::holed_block::<f64>(3.0, &[1.5], Tol::witness());
-    let top = probe
-        .faces()
-        .find(|(_, f)| {
-            matches!(probe.get_surface(f.surface),
-                Some(geom::Surface::Plane { origin, normal, .. })
-                    if normal.z.abs() > 0.5 && origin.z == 2.0)
-        })
-        .map(|(k, _)| k)
-        .unwrap();
-    fn go<T: Decide + crate::props::AtRestPolicy>(top: FaceKey, off: f64) -> (Found, Vec<String>) {
-        let band = Band::new(1e-12, 1e-11).unwrap();
-        let mut body = crate::test_support_fixtures::holed_block::<T>(3.0, &[1.5], Tol::witness());
-        let s = body.get_face(top).unwrap().surface;
-        match body.surfaces.get_mut(s).unwrap() {
-            geom::Surface::Plane { origin, .. } => {
-                *origin = Point3::new(700.0, -700.0, 2.0).map(T::from_f64);
-            }
-            _ => panic!(),
-        }
-        let geo = snapshot(&body);
-        let f = geo.faces.iter().find(|f| f.key == top).unwrap();
-        assert!(f.polygon && f.loops.len() == 2, "a polygon with one ring");
-        let e = segment((
-            Point3::new(-2.5, 1.0, 2.0 + off).map(T::from_f64),
-            Point3::new(5.5, 1.0, 2.0 - off).map(T::from_f64),
-        ));
-        let declared = Declared::index(&geo, &ContactRecords::default());
-        let mut errors = Vec::new();
-        pair_edge_face(&body, &geo, &declared, band, None, &e, f, &mut errors);
-        let said = errors.iter().map(|e| format!("{e:?}").chars().take(160).collect()).collect();
-        (classify(&errors), said)
-    }
-    for off in [1.2e-11, 1.5e-11, 2e-11, 3e-11] {
-        let (a, ea) = go::<f64>(top, off);
-        let (b, eb) = go::<Interval>(top, off);
-        println!("[review2-hole] off {off:e}: f64 {a:?} {ea:?}\n   Interval {b:?} {eb:?}");
-        assert!(a != Found::Pierce && b != Found::Pierce, "a pierce read inside the hole at off {off:e}");
-    }
+    println!("[fuzz] {label}: no panic; {}", test_utils::fuzz::replay());
 }

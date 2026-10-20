@@ -132,7 +132,6 @@ crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction o
 crates/topo/src/boolean/sphere_region.rs	1	constant	share	a fixed split fraction
 crates/topo/src/boolean/torus_region.rs	1	constant	share	a fixed split fraction
 crates/topo/src/census.rs	1	constant	band.zero()	the band's zero width, a tolerance
-crates/topo/src/census.rs	1	constant	per_gap	the band's 1/(K − 1), a ratio of its two tolerances
 crates/topo/src/census/depth_gap.rs	1	constant	2.0 * sweep_pad(band)	both faces' sweep pads, a tolerance
 crates/topo/src/chart_bound.rs	1	constant	<fn>	a fixed direction of the 2-D ray schedule (SCHEDULE_2D)
 crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
