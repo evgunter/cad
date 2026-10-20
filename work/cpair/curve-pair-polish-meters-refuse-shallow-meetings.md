@@ -46,7 +46,7 @@ red pass. At `ε = 1e-12` the touch's run within the zero band
 out of pieces. The needle and `leaning_prisms` ("lean -2 scale 100
 r 0.05") went red in the nightlies, bisected to PR 5227. The on reading
 carried along the other conic (`window` module docs, "On, along `b`";
-PR on `nurbs/cpair-shallow-meetings`) reads that run in a few pieces,
+PR 5477) reads that run in a few pieces,
 and both pass at 1e-12.
 
 The `Interval` reds of the same nightlies are not this meter's. They
