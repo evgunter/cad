@@ -168,7 +168,7 @@ or outside the band. What newly refuses (correct answers before):
 The `Interval` lane's cost is the meter reading `F` over the root's
 whole enclosure, where the dependency problem widens it by `|∇F|·ρ`
 rather than the slope along the carrier; filed as
-`work/germ/root-slack-meter-reads-an-interval-root-at-its-whole-width.md`.
+`work/germcert/root-slack-meter-reads-an-interval-root-at-its-whole-width.md`.
 
 Rows: `circle_torus::tests::a_shallow_crossings_root_is_within_the_band_or_refused`
 (the three poses below, pinned truths), the gated sweep

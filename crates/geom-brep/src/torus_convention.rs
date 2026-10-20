@@ -88,10 +88,7 @@ impl TorusConvention {
                 "{whose} tube radius is not shown smaller than its ring's (margin {margin} m)"
             ),
             (Self::Ring, Refused::Negative { .. }) => {
-                format!(
-                    "{whose} tube radius is larger than its ring's (margin {margin} m), so the \
-                     surface is a spindle"
-                )
+                format!("{whose} tube radius is larger than its ring's (margin {margin} m)")
             }
         }
     }
@@ -228,8 +225,7 @@ mod tests {
             ),
             (
                 TorusConvention::Ring.refused(whose, negative),
-                "a torus face's tube radius is larger than its ring's (margin -0.5 m), so the \
-                 surface is a spindle",
+                "a torus face's tube radius is larger than its ring's (margin -0.5 m)",
             ),
         ];
         for (got, want) in rows {

@@ -2,8 +2,10 @@
 id: main-red-the-copysign-census-since-the-apex-tangent-generator
 kind: issue
 title: Main red: the copysign census row since PR 5152's apex tangent generator added an unregistered site in intersect.rs
-status: open
+status: closed
+pr: 5180
 opened: 2026-10-14
+closed: 2026-10-15
 priority: P1
 cost: E
 ---
@@ -41,3 +43,5 @@ rather than a `copysign` is GERM's judgement. Until it lands, every PR's
 **Proposed patch** (NURBS build A), to apply only after the census is re-asked:
 - add `("crates/geom-brep/src/intersect.rs", 1)` to the expected table at `sym_rule_f_rows.rs:705-715`;
 - add a line naming "`geom-brep/src/intersect.rs`'s plane×cone apex tangent generator (the side `c` leans)" to `sym/manifest.rs`'s site list (around l.71-84).
+
+**Closed** by PR 5180 (`22b6266807`, by another track): the site is registered in the census table and the manifest, and the census re-asked finds no copysign atom at a decision. `sym_rule_f_rows` is 9/9 green on main `bc39253aa1`.
