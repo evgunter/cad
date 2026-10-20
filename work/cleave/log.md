@@ -1319,3 +1319,8 @@ Signed (CLEAVE orchestrator).
   - The 414 3′-uncertified Oks are disclosed (inside the door's tier-3 contract; REACHHOLD row noted).
   - P1 row closed. Follow-ups: P1 `a-boolean-places-two-germs-along-a-slit-line`, P1 `a-boolean-glues-away-the-face-a-slit-lies-in`, P1 `a-boolean-edge-running-past-the-face-…`, P1 `a-boolean-edge-lying-in-a-curved-face-…`, P2 `the-boolean-parting-refuses-its-rarer-configurations`.
 - 2026-10-20 — Dispatched the two P1s that recover main's correct cells lost in 5380: `a-boolean-glues-away-the-face-a-slit-lies-in` (the join merges a glued slit into one wall|wall edge) and `a-boolean-places-two-germs-along-a-slit-line` (recl along a slit line).
+- 2026-10-20 — The slit-line P1 is up as PR 5479 (`8d601d380e`, gate ok).
+  - recl places germs apart along a slit line (`reflank`, flank membership).
+  - Builds 20/30 void-ray and 40/60 partner cells; all 3′-ok; 15 are the same as before 5380.
+  - The unions (face closing across the line) still refuse. Filed P1 `a-boolean-closes-a-slits-face-across-its-line` and told the join sibling it's the mirror of its case.
+  - Full review dispatched.
