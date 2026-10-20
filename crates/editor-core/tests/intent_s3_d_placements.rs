@@ -791,7 +791,6 @@ fn vertex_bounds<T: editor_core::EvalScalar>(
     doc: &ProfileDoc,
     node: RecipeNodeId,
 ) -> Vec<[(f64, f64); 3]> {
-    use geom_core::Bounds;
     let ev = editor_core::evaluate::<T>(
         doc,
         None,

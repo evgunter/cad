@@ -970,7 +970,8 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     // A tool plane above the block, read off its own geometry: the
     // split's above side is empty, and a pattern reading it refuses
     // `EmptyHalf`.
-    let tool = editor_core::test_support::plane_on(&doc, near, [0.0, 0.0, 0.05], [0.0, 0.0, 1.0]);
+    let tool =
+        editor_core::test_support::plane_on(&doc, near, [0.0, 0.0, 0.05], [0.0, 0.0, 1.0], tol);
     let (doc, split) = common::inserted(
         &doc,
         Node::Split {
@@ -995,7 +996,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         tol,
     );
     let through =
-        editor_core::test_support::plane_on(&doc, near, [0.0, 0.0, 0.01], [0.0, 0.0, 1.0]);
+        editor_core::test_support::plane_on(&doc, near, [0.0, 0.0, 0.01], [0.0, 0.0, 1.0], tol);
     let (doc, halved) = common::inserted(
         &doc,
         Node::Split {

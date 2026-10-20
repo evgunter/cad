@@ -237,8 +237,12 @@ pub fn stored_loop(doc: &mut ProfileDoc, program: &LoopProgram<Formula>) -> Loop
 /// # Panics
 ///
 /// If a door refuses one.
-fn constrained(doc: ProfileDoc, placement: RecipeNodeId, placed: crate::Placed) -> ProfileDoc {
-    let tol = geom_core::Tol::witness();
+fn constrained(
+    doc: ProfileDoc,
+    placement: RecipeNodeId,
+    placed: crate::Placed,
+    tol: geom_core::Tol,
+) -> ProfileDoc {
     let mut doc = doc;
     placed
         .write(placement, |edit| {
@@ -251,8 +255,11 @@ fn constrained(doc: ProfileDoc, placement: RecipeNodeId, placed: crate::Placed) 
 }
 
 /// **A placement of `body`**, inserted with no constraint yet.
-fn place_of(doc: ProfileDoc, body: crate::Operand) -> (ProfileDoc, RecipeNodeId) {
-    let tol = geom_core::Tol::witness();
+fn place_of(
+    doc: ProfileDoc,
+    body: crate::Operand,
+    tol: geom_core::Tol,
+) -> (ProfileDoc, RecipeNodeId) {
     let applied = crate::apply(
         &doc,
         &DocEdit::InsertNode {
@@ -289,8 +296,8 @@ pub fn in_world(
     doc: ProfileDoc,
     body: impl Into<crate::Operand>,
     at: &crate::Frame,
+    tol: geom_core::Tol,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let tol = geom_core::Tol::witness();
     let body = body.into();
     let opts = crate::EvalOptions::default();
     let placed = if *at == crate::Frame::IDENTITY {
@@ -299,8 +306,8 @@ pub fn in_world(
         crate::place_at(&doc, &body, at, &opts, tol)
     }
     .expect("the copy places over its geometry");
-    let (doc, placement) = place_of(doc, body);
-    (constrained(doc, placement, placed), placement)
+    let (doc, placement) = place_of(doc, body, tol);
+    (constrained(doc, placement, placed, tol), placement)
 }
 
 /// **A copy of `body` placed against `target`'s geometry at `at`** —
@@ -317,8 +324,8 @@ pub fn against(
     target: impl Into<crate::Operand>,
     body: impl Into<crate::Operand>,
     at: &crate::Frame,
+    tol: geom_core::Tol,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let tol = geom_core::Tol::witness();
     let (target, body) = (target.into(), body.into());
     let placed = crate::place_against(
         &doc,
@@ -329,8 +336,8 @@ pub fn against(
         tol,
     )
     .expect("the copy places against its target's geometry");
-    let (doc, placement) = place_of(doc, body);
-    (constrained(doc, placement, placed), placement)
+    let (doc, placement) = place_of(doc, body, tol);
+    (constrained(doc, placement, placed, tol), placement)
 }
 
 /// **The frame at `origin` with axes `u` and `v`** (`v` made orthogonal
@@ -356,20 +363,108 @@ pub fn frame_at(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::Frame {
     }
 }
 
-/// **The plane through `origin` with normal `normal`, read off `body`'s
-/// own geometry** ([`crate::frame_at`] through its `xy`): a split's tool
-/// or a plane target where a test writes one in the body's own
-/// coordinates.
+/// **The plane through `origin` with normal `normal`, read off a face of
+/// `body` that has that normal** (both in `body`'s own coordinates): the
+/// plane of the body's planar face whose outward normal is `normal`'s
+/// direction, or its opposite flipped, slid along it onto `origin` — a
+/// split's tool or a plane target parallel to a face of the body,
+/// written with no turn, so it stands exactly where it is meant. A
+/// placed copy is read where its placement put it, `origin` and
+/// `normal` carried there with it.
 ///
 /// # Panics
 ///
-/// If `normal` is zero or `body` offers no frame to read.
+/// If `body` has no planar face with that normal, either way, or no
+/// value; a plane no face of the body is parallel to is
+/// [`tilted_plane_on`]'s.
 #[must_use]
 pub fn plane_on(
     doc: &ProfileDoc,
     body: impl Into<crate::Operand>,
     origin: [f64; 3],
     normal: [f64; 3],
+    tol: geom_core::Tol,
+) -> crate::pose::RoleRead<crate::Operand> {
+    use crate::pose::{PoseDef, PoseRole, RoleRead};
+    use geom_core::linalg::{Point3, Vec3 as V};
+    let body = body.into();
+    let ev: crate::Evaluation<f64> = crate::evaluate(
+        doc,
+        None,
+        &crate::CancelToken::new(),
+        &crate::EvalOptions::default(),
+        tol,
+    );
+    let (node, solid, table, motion) =
+        crate::mate::pin::read_of(doc, &ev, &body).expect("the body has a value");
+    let motion = motion.map(|m| m.to_affine());
+    let n = V::new(normal[0], normal[1], normal[2]);
+    let n = n * (1.0 / n.norm());
+    let o = Point3::new(origin[0], origin[1], origin[2]);
+    let (n, o) = match motion {
+        None => (n, o),
+        Some(m) => (m.linear * n, m.transform_point(o)),
+    };
+    let (face, sense, at) = solid
+        .faces()
+        .find_map(|(face, _)| {
+            let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+            (kind == geom::SurfaceKind::Plane).then_some(())?;
+            let pose = topo::readback::face_pose(&solid, face).ok()?;
+            let out = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
+            let sense = if out.to_array() == n.to_array() {
+                1.0
+            } else if (-out).to_array() == n.to_array() {
+                -1.0
+            } else {
+                return None;
+            };
+            Some((face, sense, pose.origin))
+        })
+        .unwrap_or_else(|| panic!("{node} has a planar face with normal {normal:?}"));
+    let name = table
+        .name_of(&crate::names::EntityRef {
+            body: 0,
+            key: crate::names::EntityKey::Face(face),
+        })
+        .expect("a face of the body is named")
+        .clone();
+    let read = |def| RoleRead::plain(crate::Operand::Pose(Box::new(def)));
+    let plane = read(PoseDef::Plane {
+        face: crate::Operand::select(body, vec![name]),
+    });
+    let plane = if sense > 0.0 {
+        plane
+    } else {
+        read(PoseDef::Flip { pose: plane })
+    };
+    let by = (o - at).dot(n);
+    if by == 0.0 {
+        return plane;
+    }
+    let along = RoleRead::through(plane.read.clone(), PoseRole::Normal);
+    read(PoseDef::Slide {
+        pose: plane,
+        along,
+        by: crate::Formula::literal(by, Dimension::Length).expect("a finite slide"),
+    })
+}
+
+/// **The plane through `origin` with normal `normal`, read off a frame
+/// on `body`'s own geometry** ([`crate::frame_at`] through its `xy`):
+/// a plane no face of the body is parallel to, its turns read once off
+/// the frame and written as numbers.
+///
+/// # Panics
+///
+/// If `normal` is zero or `body` offers no frame to read.
+#[must_use]
+pub fn tilted_plane_on(
+    doc: &ProfileDoc,
+    body: impl Into<crate::Operand>,
+    origin: [f64; 3],
+    normal: [f64; 3],
+    tol: geom_core::Tol,
 ) -> crate::pose::RoleRead<crate::Operand> {
     use geom_core::linalg::Vec3 as V;
     let n = V::new(normal[0], normal[1], normal[2]);
@@ -382,34 +477,43 @@ pub fn plane_on(
     let u = seed - n * (seed.dot(n) / n.dot(n));
     let v = n.cross(u);
     let at = frame_at(origin, [u.x, u.y, u.z], [v.x, v.y, v.z]);
-    let frame = crate::frame_at(
-        doc,
-        &body.into(),
-        &at,
-        &crate::EvalOptions::default(),
-        geom_core::Tol::witness(),
-    )
-    .expect("the body offers a frame to read the plane off");
+    let frame = crate::frame_at(doc, &body.into(), &at, &crate::EvalOptions::default(), tol)
+        .expect("the body offers a frame to read the plane off");
     crate::pose::RoleRead::through(frame, crate::pose::PoseRole::Xy)
 }
 
-/// **The axis through `origin` along `dir`, read off `body`'s own
-/// geometry** ([`crate::frame_at`] through its `z`): a pattern's axis or
-/// an axis target where a test writes one in the body's own
-/// coordinates.
+/// **The axis through `origin` along `dir`, read off two faces of
+/// `body`** (both in `body`'s own coordinates): the meet of the planes
+/// through `origin` across `dir` along the two coordinate axes it is
+/// not ([`plane_on`]), so a coordinate axis of the body is written
+/// with no turn. A pattern's axis or an axis target where a test
+/// writes one in the body's own coordinates.
 ///
 /// # Panics
 ///
-/// If `dir` is zero or `body` offers no frame to read.
+/// If `dir` is not a coordinate axis, either way, or `body` lacks a
+/// planar face across either of the other two.
 #[must_use]
 pub fn axis_on(
     doc: &ProfileDoc,
     body: impl Into<crate::Operand>,
     origin: [f64; 3],
     dir: [f64; 3],
+    tol: geom_core::Tol,
 ) -> crate::pose::RoleRead<crate::Operand> {
-    let plane = plane_on(doc, body, origin, dir);
-    crate::pose::RoleRead::through(plane.read, crate::pose::PoseRole::Z)
+    use crate::pose::{PoseDef, RoleRead};
+    let body = body.into();
+    // The two coordinate axes across `dir`, in the order whose cross
+    // product is `dir`.
+    let (a, b) = match dir {
+        [0.0, 0.0, z] if z != 0.0 => ([1.0, 0.0, 0.0], [0.0, z.signum(), 0.0]),
+        [x, 0.0, 0.0] if x != 0.0 => ([0.0, 1.0, 0.0], [0.0, 0.0, x.signum()]),
+        [0.0, y, 0.0] if y != 0.0 => ([0.0, 0.0, 1.0], [y.signum(), 0.0, 0.0]),
+        _ => panic!("{dir:?} is a coordinate axis"),
+    };
+    let a = plane_on(doc, body.clone(), origin, a, tol);
+    let b = plane_on(doc, body, origin, b, tol);
+    RoleRead::plain(crate::Operand::Pose(Box::new(PoseDef::Meet { a, b })))
 }
 
 // --- recipes ---------------------------------------------------------
@@ -453,7 +557,7 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 2]) 
             distance: len(1.0),
         },
     );
-    let tool = plane_on(&doc, ext, [0.0, 0.2, 0.0], [0.0, 1.0, -1.0]);
+    let tool = tilted_plane_on(&doc, ext, [0.0, 0.2, 0.0], [0.0, 1.0, -1.0], tol);
     let (doc, split) = ins(
         doc,
         Node::Split {

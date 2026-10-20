@@ -44,7 +44,9 @@
 // is exactly the shape a GUI form has, where the draft is canonical
 // whatever the picker shows.
 
-use pncad::document::{Bodies, BooleanValue, Frame, Operand, save};
+use pncad::document::{
+    Bodies, BooleanValue, FrameMove, Operand, TargetAxis, corner_frame, moved_frame, save,
+};
 use pncad::prelude::AuthoredNode;
 use pncad::prelude::{
     CancelToken, CurveKind, CurveKindSet, DEG, Dimension, Doc, DocEdit, EntityKind, EvalOptions,
@@ -56,7 +58,7 @@ use pncad::topo::Body;
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::geom_core::{Band, Tol};
+use pncad::geom_core::Tol;
 
 /// The die's side, shared by both dice (`diechamfer` closes its volume
 /// form over it).
@@ -99,29 +101,43 @@ fn layout(n: u32) -> Vec<(f64, f64)> {
     }
 }
 
-/// One pip's placement: where its centre goes, and the EXACT rotation
-/// carrying the ball's pole (once [`POLE_UP`] stands it along `+Z`)
-/// onto the face normal it is cut by (the chart discipline the
-/// plane×sphere section needs).
+/// One pip's placement: where its centre goes, and the EXACT turn
+/// carrying the cube's `+Z` onto the face normal it is cut by, the
+/// ball's pole stood along it (the chart discipline the plane×sphere
+/// section needs).
 ///
-/// The six rotations are AUTHORED, one per face, rather than derived
-/// by a runtime `cross`/`acos` branch, so the placement is data. Every
-/// angle here is `0`, `±π/2` or `π` about a coordinate axis.
+/// The six turns are AUTHORED, one per face, rather than derived by a
+/// runtime `cross`/`acos` branch, so the placement is data. Every turn
+/// here is a whole number of quarter turns about a coordinate axis,
+/// written as the fraction of a turn it is, so it turns exactly.
 struct Placement {
     centre: [f64; 3],
-    axis: [f64; 3],
-    /// The rotation carrying +Z onto the face's normal, in DEGREES —
-    /// the unit the face table states and the recipe records.
-    angle: f64,
+    axis: TargetAxis,
+    /// The turn carrying +Z onto the face's normal, as `(num, den)` of
+    /// a turn.
+    turn: (i64, u64),
 }
 
-/// The ball's own frame stood with its pole up: the meridian is drawn
-/// on the ball's own `xy` with the pole along its `y`, so its `x` stays
-/// `+X`, its `y` goes to `+Z` and its normal to `−Y`.
-const POLE_UP: Frame = Frame {
-    columns: [[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]],
-    translation: [0.0; 3],
-};
+impl Placement {
+    /// The pole's line in the cube's own frame: turned about `axis`,
+    /// then slid to `centre`.
+    fn moves(&self) -> Vec<FrameMove> {
+        let (num, den) = self.turn;
+        let spin = (num != 0).then(|| {
+            let by = Formula::mul(
+                Formula::ratio(num, den).expect("a fraction of a turn"),
+                Formula::turn(),
+            )
+            .expect("a fraction times a turn is an angle");
+            FrameMove::Spin(self.axis, by)
+        });
+        let slides = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
+            .into_iter()
+            .zip(self.centre)
+            .map(|(axis, at)| FrameMove::Slide(axis, len(at)));
+        spin.into_iter().chain(slides).collect()
+    }
+}
 
 const X: [f64; 3] = [1.0, 0.0, 0.0];
 const Y: [f64; 3] = [0.0, 1.0, 0.0];
@@ -133,20 +149,19 @@ const NEG_Z: [f64; 3] = [0.0, 0.0, -1.0];
 fn placements() -> Vec<Placement> {
     let h = L / 2.0;
     // pip count, outward normal, the two in-plane axes the layout
-    // offsets ride, then the axis and angle carrying +Z onto that
-    // normal. The angle column is DEGREES — these are quarter and half
-    // turns, and a table of `90`s and `180`s is the table a reader can
-    // check against the die in their hand.
+    // offsets ride, then the axis and the turn carrying +Z onto that
+    // normal, as a fraction of a turn: quarter and half turns, the
+    // table a reader can check against the die in their hand.
     let faces = [
-        (1u32, Z, X, Y, Z, 0.0),
-        (6, NEG_Z, X, Y, X, 180.0),
-        (2, X, Y, Z, Y, 90.0),
-        (5, NEG_X, Y, Z, Y, -90.0),
-        (3, Y, Z, X, X, -90.0),
-        (4, NEG_Y, Z, X, X, 90.0),
+        (1u32, Z, X, Y, TargetAxis::Z, (0, 1)),
+        (6, NEG_Z, X, Y, TargetAxis::X, (1, 2)),
+        (2, X, Y, Z, TargetAxis::Y, (1, 4)),
+        (5, NEG_X, Y, Z, TargetAxis::Y, (-1, 4)),
+        (3, Y, Z, X, TargetAxis::X, (-1, 4)),
+        (4, NEG_Y, Z, X, TargetAxis::X, (1, 4)),
     ];
     let mut out = Vec::new();
-    for (n, normal, ex, ey, axis, angle) in faces {
+    for (n, normal, ex, ey, axis, turn) in faces {
         // The centre stands `PIP_R - PIP_H` OUTSIDE the face plane, so
         // the cavity it cuts is exactly a cap of height `PIP_H`.
         let d = h + (PIP_R - PIP_H);
@@ -154,11 +169,7 @@ fn placements() -> Vec<Placement> {
             let centre = core::array::from_fn(|i| {
                 h + normal[i] * d + ex[i] * (u * PIP_D) + ey[i] * (w * PIP_D)
             });
-            out.push(Placement {
-                centre,
-                axis,
-                angle,
-            });
+            out.push(Placement { centre, axis, turn });
         }
     }
     out
@@ -299,14 +310,24 @@ fn pipped_node(a: &mut Author, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     // face is served through the sphere chart's own [azimuth] ×
     // [latitude] window, and the closed-group certificate is asked only
     // where it is used.
-    let band = Band::linear(tol).expect("the witnessed band");
+    // Each pip's pole stands on a line stated in the cube's own frame,
+    // read off its corner at the origin: the edge up its `z` and the
+    // corner along its `x`.
+    let own = corner_frame(
+        &a.doc,
+        &Operand::from(cube),
+        [0.0; 3],
+        [0.0, 0.0, L],
+        [L, 0.0, 0.0],
+        &EvalOptions::default(),
+        tol,
+    )
+    .expect("the cube has its corner at its own origin");
     let members: Vec<RecipeNodeId> = placements()
         .into_iter()
         .map(|p| {
-            let at = Frame::rotate_then_translate(p.axis, p.angle.to_radians(), p.centre, band)
-                .expect("a coordinate axis has a direction")
-                .compose(&POLE_UP);
-            let placed = crate::world::against(&a.doc, cube, Operand::output(ball, 0), &at, tol);
+            let frame = moved_frame(own.clone(), &p.moves());
+            let placed = crate::world::on_axis(&a.doc, ball, frame, tol);
             a.placed(placed)
         })
         .collect();

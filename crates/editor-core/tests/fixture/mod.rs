@@ -715,9 +715,57 @@ pub fn band() -> geom_core::Band {
 /// imports them from here beside the rest of its authoring doors.
 // Not every suite that mounts the fixture reads each one.
 #[allow(unused_imports)]
-pub use editor_core::test_support::{
-    against, ang, axis_on, frame_at, in_world, len, len2, plane_on, scl,
-};
+pub use editor_core::test_support::{ang, frame_at, len, len2, scl};
+
+/// [`editor_core::test_support::in_world`] at the witness tolerance.
+pub fn in_world(
+    doc: ProfileDoc,
+    body: impl Into<editor_core::Operand>,
+    at: &editor_core::Frame,
+) -> (ProfileDoc, RecipeNodeId) {
+    editor_core::test_support::in_world(doc, body, at, Tol::witness())
+}
+
+/// [`editor_core::test_support::against`] at the witness tolerance.
+pub fn against(
+    doc: ProfileDoc,
+    target: impl Into<editor_core::Operand>,
+    body: impl Into<editor_core::Operand>,
+    at: &editor_core::Frame,
+) -> (ProfileDoc, RecipeNodeId) {
+    editor_core::test_support::against(doc, target, body, at, Tol::witness())
+}
+
+/// [`editor_core::test_support::plane_on`] at the witness tolerance.
+pub fn plane_on(
+    doc: &ProfileDoc,
+    body: impl Into<editor_core::Operand>,
+    origin: [f64; 3],
+    normal: [f64; 3],
+) -> editor_core::pose::RoleRead<editor_core::Operand> {
+    editor_core::test_support::plane_on(doc, body, origin, normal, Tol::witness())
+}
+
+/// [`editor_core::test_support::tilted_plane_on`] at the witness
+/// tolerance.
+pub fn tilted_plane_on(
+    doc: &ProfileDoc,
+    body: impl Into<editor_core::Operand>,
+    origin: [f64; 3],
+    normal: [f64; 3],
+) -> editor_core::pose::RoleRead<editor_core::Operand> {
+    editor_core::test_support::tilted_plane_on(doc, body, origin, normal, Tol::witness())
+}
+
+/// [`editor_core::test_support::axis_on`] at the witness tolerance.
+pub fn axis_on(
+    doc: &ProfileDoc,
+    body: impl Into<editor_core::Operand>,
+    origin: [f64; 3],
+    dir: [f64; 3],
+) -> editor_core::pose::RoleRead<editor_core::Operand> {
+    editor_core::test_support::axis_on(doc, body, origin, dir, Tol::witness())
+}
 
 /// Whether two placements are pinned to the world by the same world
 /// read, bit for bit as written (or neither is one world pin).
@@ -1733,6 +1781,81 @@ impl Recorder {
         placement
     }
 
+    /// **One copy of `body` in the world, its whole motion stated by
+    /// `values`** — a bundle with no mate (D10 `[placement.values]`):
+    /// the spins about the world's axes in the order written, a quarter
+    /// turn as `turn/4`, and the three slides. Returns the placement.
+    pub fn in_world_by(
+        &mut self,
+        body: impl Into<editor_core::Operand>,
+        values: Vec<(editor_core::Coord, Formula)>,
+    ) -> RecipeNodeId {
+        let read = body_read(&self.doc, body.into());
+        let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
+        self.push(DocEdit::unmated(placement, values));
+        placement
+    }
+
+    /// **`target`'s own frame at a corner it has**
+    /// ([`editor_core::corner_frame_in`]): `Through` its line edge from
+    /// `corner` to `up` and its vertex at `toward`.
+    pub fn corner_frame(
+        &mut self,
+        target: impl Into<editor_core::Operand>,
+        corner: [f64; 3],
+        up: [f64; 3],
+        toward: [f64; 3],
+    ) -> editor_core::Operand {
+        let target = body_read(&self.doc, target.into());
+        self.evaluated();
+        let ev = self.last.as_ref().expect("just evaluated");
+        editor_core::corner_frame_in(&self.doc, ev, &target, corner, up, toward)
+            .unwrap_or_else(|refusal| panic!("the target has the corner: {refusal}"))
+    }
+
+    /// **A copy of the full revolve `revolve` standing on the `z` of
+    /// `frame`** (a frame read off the body the copy joins, stated by
+    /// exact moves, [`editor_core::moved_frame`]): an `Axis` mate from
+    /// the revolve's own axis, slid `along` it, its spin about it the
+    /// constant `0`. Returns the placement.
+    pub fn on_axis(
+        &mut self,
+        revolve: RecipeNodeId,
+        frame: editor_core::Operand,
+        along: Formula,
+    ) -> RecipeNodeId {
+        use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+        let read = body_read(&self.doc, editor_core::Operand::output(revolve, 0));
+        let placement = self.insert(Node::place(vec![editor_core::BodyRead::plain(read)]));
+        let to = editor_core::Operand::Pose(Box::new(PoseDef::Slide {
+            pose: RoleRead::through(frame.clone(), PoseRole::Z),
+            along: RoleRead::through(frame, PoseRole::Z),
+            by: Formula::zero(editor_core::Dimension::Length),
+        }));
+        self.write(
+            placement,
+            editor_core::Placed {
+                mate: Some(editor_core::Mate {
+                    on: editor_core::Operand::Output {
+                        node: revolve,
+                        port: 1,
+                    },
+                    to: editor_core::Target::Pose(to),
+                    class: editor_core::ContactClass::Rest,
+                }),
+                values: vec![
+                    (editor_core::Coord::Slide(editor_core::TargetAxis::Z), along),
+                    (
+                        editor_core::Coord::Spin,
+                        Formula::zero(editor_core::Dimension::Angle),
+                    ),
+                ],
+                by: editor_core::PlacedBy::Axis,
+            },
+        );
+        placement
+    }
+
     /// **A profile**, returning its id — [`on_frame`]'s shape for a
     /// recorder: the frame is the profile's own `xy`.
     ///
@@ -1749,6 +1872,34 @@ impl Recorder {
         own_frame(origin, u, v);
         self.insert(Node::Profile(desc(loops)))
     }
+}
+
+/// **The world's motion standing a construction's own `y` along the
+/// world's `z`, its origin at `origin`**: a quarter turn about `x`,
+/// written `turn/4`, and the three slides — the values of a bundle with
+/// no mate ([`Recorder::in_world_by`]).
+pub fn upright_at(origin: [f64; 3]) -> Vec<(editor_core::Coord, Formula)> {
+    use editor_core::{Coord, Dimension, TargetAxis};
+    let axes = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z];
+    let slides = axes.into_iter().zip(origin).map(|(axis, at)| {
+        let by = if at == 0.0 {
+            Formula::zero(Dimension::Length)
+        } else {
+            len(at)
+        };
+        (Coord::Slide(axis), by)
+    });
+    let spins = [
+        (
+            TargetAxis::X,
+            Formula::turn_over(4).expect("a quarter turn"),
+        ),
+        (TargetAxis::Y, Formula::zero(Dimension::Angle)),
+        (TargetAxis::Z, Formula::zero(Dimension::Angle)),
+    ]
+    .into_iter()
+    .map(|(axis, by)| (Coord::SpinAbout(axis), by));
+    slides.chain(spins).collect()
 }
 
 /// The authored die and the ids the tests address.

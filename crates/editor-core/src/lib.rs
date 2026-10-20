@@ -159,14 +159,15 @@ pub use formula::{Formula, FreshFault, LowerFault, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
-    CLASS_DEFERRAL, ClassAdmission, Constraint, ConstraintKind, Coord, Coset, FreedomRefusal,
-    LeverRefusal, MAX_WORLD_READ_DEPTH, Mate, MateFault, MateRef, MateSide, Member,
+    CLASS_DEFERRAL, ClassAdmission, Constraint, ConstraintKind, Coord, Coset, FrameMove,
+    FreedomRefusal, LeverRefusal, MAX_WORLD_READ_DEPTH, Mate, MateFault, MateRef, MateSide, Member,
     NO_AT_REST_RECORD_RECOURSE, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, PlacedBy,
     Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Space, Subgroup, SubgroupFamily,
     Target, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead, WorldReadFault,
-    class_admission, frame_at, frame_at_in, head_face, head_of, member_of, member_reading, pin_at,
-    pin_at_in, place_against, place_against_in, place_at, place_at_in, reference_about,
-    relative_freedom_components, solve_document, stand, stand_in, unobservable,
+    class_admission, corner_frame, corner_frame_in, frame_at, frame_at_in, head_face, head_of,
+    member_of, member_reading, moved_frame, pin_at, pin_at_in, place_against, place_against_in,
+    place_at, place_at_in, reference_about, relative_freedom_components, solve_document, stand,
+    stand_in, unobservable,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,

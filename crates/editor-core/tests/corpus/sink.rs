@@ -42,7 +42,7 @@ use editor_core::{
 use geom_core::Tol;
 use geom_core::predicate::Band;
 
-use crate::fixture::{ang, axis_on, frame_at, len, plane_on, revolve_about, scl, value_slot};
+use crate::fixture::{ang, axis_on, len, plane_on, revolve_about, scl, value_slot};
 
 use super::{CorpusDoc, Recorder};
 
@@ -329,10 +329,7 @@ pub fn document() -> CorpusDoc {
     super::place_instances_at(&mut r, circular, 2, &Frame::translation([0.0, 0.0, -0.375]));
     super::place_halves(&mut r, split);
     super::place_instances(&mut r, linear, 3);
-    r.in_world(
-        revolve,
-        &frame_at([-2.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
-    );
+    r.in_world_by(revolve, crate::fixture::upright_at([-2.0, 0.0, 0.0]));
 
     let bump = value_slot(&r.doc, moved, Coord::Slide(TargetAxis::Y));
     CorpusDoc {

@@ -77,11 +77,11 @@
 use super::PlacePart;
 use editor_core::Formula;
 use editor_core::{
-    Coord, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    TargetAxis,
+    Coord, FrameMove, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, TargetAxis,
 };
 
-use crate::fixture::{ang, frame_at, len, len2, revolve_about, scl, value_bump};
+use crate::fixture::{ang, len, len2, revolve_about, scl, value_bump};
 
 use super::{CorpusDoc, Recorder};
 
@@ -138,11 +138,15 @@ pub fn document() -> CorpusDoc {
     // Placed against the cube on its own pole axis, the meridian's +y
     // along the cube's +Z (deviation (a): the chart is polar to the
     // plane that cuts it).
-    let pip = r.against(
-        cube,
-        editor_core::Operand::output(ball, 0),
-        &frame_at([h, h, PIP_C], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+    let own = r.corner_frame(cube, [0.0; 3], [0.0, 0.0, DIE_L], [DIE_L, 0.0, 0.0]);
+    let pole = editor_core::moved_frame(
+        own,
+        &[
+            FrameMove::Slide(TargetAxis::X, len(h)),
+            FrameMove::Slide(TargetAxis::Y, len(h)),
+        ],
     );
+    let pip = r.on_axis(ball, pole, len(PIP_C));
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),
         tool: pip.into(),

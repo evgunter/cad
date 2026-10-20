@@ -111,10 +111,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
         open,
     ));
     // In the world, the radius along +X and the axis along +Z.
-    r.in_world(
-        vessel,
-        &crate::fixture::frame_at([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
-    );
+    r.in_world_by(vessel, crate::fixture::upright_at([0.0; 3]));
 
     CorpusDoc {
         name: "vessel",

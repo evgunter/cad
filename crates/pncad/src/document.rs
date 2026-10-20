@@ -444,13 +444,14 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Constraint, ConstraintKind, Coord, FreedomRefusal, MAX_WORLD_READ_DEPTH, Mate, MateFault,
-    MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, PlacedBy,
-    Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Space, Subgroup, SubgroupFamily,
-    Target, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead, WorldReadFault,
-    frame_at, frame_at_in, head_face, head_of, member_of, member_reading, pin_at, pin_at_in,
-    place_against, place_against_in, place_at, place_at_in, reference_about,
-    relative_freedom_components, solve_document, stand, stand_in, unobservable,
+    Constraint, ConstraintKind, Coord, FrameMove, FreedomRefusal, MAX_WORLD_READ_DEPTH, Mate,
+    MateFault, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed,
+    PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Space, Subgroup,
+    SubgroupFamily, Target, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead,
+    WorldReadFault, corner_frame, corner_frame_in, frame_at, frame_at_in, head_face, head_of,
+    member_of, member_reading, moved_frame, pin_at, pin_at_in, place_against, place_against_in,
+    place_at, place_at_in, reference_about, relative_freedom_components, solve_document, stand,
+    stand_in, unobservable,
 };
 
 // The class-admission table (`ClassAdmission`, read through

@@ -620,7 +620,14 @@ fn a_spins_angle_is_offered_only_free_values() {
     );
     let tilt = 15.0_f64.to_radians();
     // The block's own xy frame, read off its geometry.
-    let frame = editor_core::test_support::plane_on(&doc, block, [0.0; 3], [0.0, 0.0, 1.0]).read;
+    let frame = pncad::document::frame_at(
+        &doc,
+        &Operand::from(block),
+        &pncad::document::Frame::IDENTITY,
+        &pncad::document::EvalOptions::default(),
+        tol,
+    )
+    .expect("the block offers a frame");
     let through = |role| RoleRead::through(frame.clone(), role);
     let (mut doc, split) = common::inserted(
         &doc,

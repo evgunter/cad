@@ -113,7 +113,7 @@ fn copy_of(
 
 /// What [`read_of`] reads: the node, its first solid, its name table and
 /// the motion its placement moved it by.
-type ReadBody = (
+pub(crate) type ReadBody = (
     RecipeNodeId,
     std::sync::Arc<topo::Body<f64>>,
     crate::names::NameTable,
@@ -125,7 +125,7 @@ type ReadBody = (
 /// body that stands where its construction put it). A frame read off a
 /// placed copy is read in the copy's space, and the motion carries a
 /// frame given in the copy's own coordinates there.
-fn read_of(
+pub(crate) fn read_of(
     doc: &crate::ProfileDoc,
     evaluation: &Evaluation<f64>,
     body: &Operand,
@@ -966,47 +966,175 @@ pub fn frame_at_in(
     Ok(moved_pose(base, rel.linear, rel.translation))
 }
 
+/// **A frame read off `body`'s own geometry at a corner it has**: the
+/// frame `Through` the line edge from `corner` to `up` (its `z`, that
+/// way) and the vertex at `toward` (its `x` the way to it), each picked
+/// where the evaluation puts it exactly, in the body's own coordinates.
+/// Where a box's edges run along its own axes this is its own frame,
+/// read with no number, so a frame stated from it by exact moves
+/// ([`moved_frame`]) stands exactly where it is meant — a frame a
+/// caller means as axis-aligned, written as one.
+///
+/// # Errors
+///
+/// [`PinRefusal`]: the body has no value or is placed already, or it
+/// has no line edge from `corner` to `up` or no vertex at `toward`
+/// ([`PinRefusal::NoFrame`]).
+pub fn corner_frame_in(
+    doc: &crate::ProfileDoc,
+    ev: &Evaluation<f64>,
+    body: &Operand,
+    corner: [f64; 3],
+    up: [f64; 3],
+    toward: [f64; 3],
+) -> Result<Operand, PinRefusal> {
+    use geom_core::linalg::Point3;
+    let (node, solid, table) = copy_of(doc, ev, body)?;
+    let no_frame = || PinRefusal::NoFrame { node };
+    let at = |p: [f64; 3]| Point3::new(p[0], p[1], p[2]);
+    let (corner, up, toward) = (at(corner), at(up), at(toward));
+    let name = |key| {
+        table
+            .name_of(&EntityRef { body: 0, key })
+            .cloned()
+            .ok_or_else(no_frame)
+    };
+    let vertex_at = |p: Point3<f64>| {
+        solid
+            .vertices()
+            .find(|(v, _)| {
+                topo::readback::vertex_point(&solid, *v)
+                    .is_ok_and(|q| [q.x, q.y, q.z] == [p.x, p.y, p.z])
+            })
+            .map(|(v, _)| v)
+    };
+    let (from, to) = (
+        vertex_at(corner).ok_or_else(no_frame)?,
+        vertex_at(up).ok_or_else(no_frame)?,
+    );
+    let edge = solid
+        .edges()
+        .find(|(e, _)| {
+            topo::readback::edge_carrier_kind(&solid, *e) == Ok(geom::CurveKind::Line)
+                && solid.get_edge(*e).is_some_and(|edge| {
+                    let start = solid.get_half_edge(edge.he_plus).map(|h| h.start);
+                    let end = solid.half_edge_end(edge.he_plus);
+                    matches!((start, end), (Some(a), Some(b))
+                        if (a == from && b == to) || (a == to && b == from))
+                })
+        })
+        .map(|(e, _)| e)
+        .ok_or_else(no_frame)?;
+    let line = topo::readback::edge_pose(&solid, edge).map_err(|_| no_frame())?;
+    let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
+    let axis = read(PoseDef::Axis {
+        of: Operand::select(body.clone(), vec![name(EntityKey::Edge(edge))?]),
+    });
+    // The edge's axis reads its carrier's sense; the frame's `z` runs
+    // from `corner` to `up`.
+    let axis = if line.axis.dot(up - corner) < 0.0 {
+        read(PoseDef::Flip { pose: axis })
+    } else {
+        axis
+    };
+    let point = read(PoseDef::Point {
+        of: Operand::select(
+            body.clone(),
+            vec![name(EntityKey::Vertex(
+                vertex_at(toward).ok_or_else(no_frame)?,
+            ))?],
+        ),
+    });
+    Ok(Operand::Pose(Box::new(PoseDef::Through { axis, point })))
+}
+
+/// [`corner_frame_in`], over an evaluation of `doc` under `opts` made
+/// here.
+///
+/// # Errors
+///
+/// As [`corner_frame_in`]'s.
+pub fn corner_frame(
+    doc: &crate::ProfileDoc,
+    body: &Operand,
+    corner: [f64; 3],
+    up: [f64; 3],
+    toward: [f64; 3],
+    opts: &EvalOptions,
+    tol: Tol,
+) -> Result<Operand, PinRefusal> {
+    let ev: Evaluation<f64> = crate::eval::evaluate(doc, None, &CancelToken::new(), opts, tol);
+    corner_frame_in(doc, &ev, body, corner, up, toward)
+}
+
 /// **`base`, a frame read, moved by the rigid motion `(linear,
 /// translation)` written in its own axes**: spun about its x, then y,
-/// then z — `linear = Rz(γ)·Ry(β)·Rx(α)` — and slid along them, each
-/// move about the base frame's own fixed axes, so the moves compose as
-/// [`moved_by`]'s about the world's. A move by exactly zero is no move
-/// written.
+/// then z — `linear = Rz(γ)·Ry(β)·Rx(α)`, the angles taken once by
+/// `atan2` — and slid along them ([`moved_frame`]), so the moves
+/// compose as [`moved_by`]'s about the world's. A move by exactly zero
+/// is no move written.
 fn moved_pose(
     base: Operand,
     linear: Mat3<f64>,
     translation: geom_core::linalg::Vec3<f64>,
 ) -> Operand {
+    use super::TargetAxis::{X, Y, Z};
     let (alpha, beta, gamma) = turns(linear);
-    let axis = |role| RoleRead::through(base.clone(), role);
-    let mut pose = base.clone();
-    for (role, angle) in [
-        (PoseRole::X, alpha),
-        (PoseRole::Y, beta),
-        (PoseRole::Z, gamma),
-    ] {
-        if angle != 0.0 {
-            pose = Operand::Pose(Box::new(PoseDef::Spin {
+    let spins = [(X, alpha), (Y, beta), (Z, gamma)]
+        .into_iter()
+        .filter(|(_, angle)| *angle != 0.0)
+        .map(|(axis, angle)| FrameMove::Spin(axis, written(angle, Dimension::Angle)));
+    let slides = [(X, translation.x), (Y, translation.y), (Z, translation.z)]
+        .into_iter()
+        .filter(|(_, length)| *length != 0.0)
+        .map(|(axis, length)| FrameMove::Slide(axis, written(length, Dimension::Length)));
+    moved_frame(base, &spins.chain(slides).collect::<Vec<_>>())
+}
+
+/// **A move a caller states** about or along one of a frame's own
+/// axes, by an angle or a length as written: how a frame meant exactly
+/// is written, a quarter turn as `turn/4` (D10 `[variables.literals]`),
+/// which a rotation reads exactly.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FrameMove {
+    /// A spin about the axis by the angle, right-handed.
+    Spin(super::TargetAxis, Formula),
+    /// A slide along the axis by the length.
+    Slide(super::TargetAxis, Formula),
+}
+
+/// **`base`, a frame read, moved by `moves` as written**, in order,
+/// each about or along `base`'s own axes where `base` stands (not the
+/// moved frame's), so a chain of spins composes on the left as
+/// [`moved_by`]'s about the world's. The caller states each number; a
+/// frame read off geometry at a known pose and moved by exact turns is
+/// a frame exactly where the caller means it.
+#[must_use]
+pub fn moved_frame(base: Operand, moves: &[FrameMove]) -> Operand {
+    let axis = |along: super::TargetAxis| {
+        RoleRead::through(
+            base.clone(),
+            match along {
+                super::TargetAxis::X => PoseRole::X,
+                super::TargetAxis::Y => PoseRole::Y,
+                super::TargetAxis::Z => PoseRole::Z,
+            },
+        )
+    };
+    moves.iter().fold(base.clone(), |pose, m| {
+        Operand::Pose(Box::new(match m {
+            FrameMove::Spin(about, by) => PoseDef::Spin {
                 pose: RoleRead::plain(pose),
-                about: axis(role),
-                by: written(angle, Dimension::Angle),
-            }));
-        }
-    }
-    for (role, length) in [
-        (PoseRole::X, translation.x),
-        (PoseRole::Y, translation.y),
-        (PoseRole::Z, translation.z),
-    ] {
-        if length != 0.0 {
-            pose = Operand::Pose(Box::new(PoseDef::Slide {
+                about: axis(*about),
+                by: by.clone(),
+            },
+            FrameMove::Slide(along, by) => PoseDef::Slide {
                 pose: RoleRead::plain(pose),
-                along: axis(role),
-                by: written(length, Dimension::Length),
-            }));
-        }
-    }
-    pose
+                along: axis(*along),
+                by: by.clone(),
+            },
+        }))
+    })
 }
 
 /// **`target`'s planar face on its own `xy`, reading no variable in its

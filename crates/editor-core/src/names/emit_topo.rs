@@ -6327,6 +6327,7 @@ mod split_carries_candidates {
             a,
             b,
             &frame_at([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            Tol::witness(),
         );
         let (doc, sub) = ins(
             doc,
@@ -6335,7 +6336,7 @@ mod split_carries_candidates {
                 tool: crate::BodyRead::plain(crate::Operand::output(cutter, 0)),
             },
         );
-        let tool = plane_on(&doc, a, [0.0, y, 0.0], [0.0, ny, 0.0]);
+        let tool = plane_on(&doc, a, [0.0, y, 0.0], [0.0, ny, 0.0], Tol::witness());
         let (doc, split) = ins(
             doc,
             Node::Split {
@@ -6603,6 +6604,7 @@ mod crossings_rank_along_the_line {
             from,
             tool,
             &crate::test_support::frame_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            Tol::witness(),
         );
         ins(
             doc,
@@ -7193,6 +7195,7 @@ mod edge_pieces_of_one_line_tie {
             from,
             tool,
             &crate::test_support::frame_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            Tol::witness(),
         );
         ins(
             doc,

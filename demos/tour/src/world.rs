@@ -208,6 +208,50 @@ pub fn axis_on(
     RoleRead::through(plane_on(doc, body, origin, dir, tol).read, PoseRole::Z)
 }
 
+/// **A copy of the full revolve `revolve` standing on the `z` of
+/// `frame`** — a frame read off the body it joins and stated by exact
+/// moves ([`pncad::document::moved_frame`]), so a quarter turn is
+/// `turn/4` and the axis is exactly where it is meant: an `Axis` mate
+/// from the revolve's own axis, the slide along it and the spin about
+/// it the constant `0`.
+///
+/// # Panics
+///
+/// If an edit refuses.
+pub fn on_axis(
+    doc: &Doc<ProfileProgram>,
+    revolve: RecipeNodeId,
+    frame: Operand,
+    tol: Tol,
+) -> Placed {
+    use pncad::document::{PlacedBy, TargetAxis};
+    use pncad::prelude::{ContactClass, Dimension};
+    let to = Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::through(frame.clone(), PoseRole::Z),
+        along: RoleRead::through(frame, PoseRole::Z),
+        by: Formula::zero(Dimension::Length),
+    }));
+    let placed = Answer {
+        mate: Some(Mate {
+            on: Operand::Output {
+                node: revolve,
+                port: 1,
+            },
+            to: Target::Pose(to),
+            class: ContactClass::Rest,
+        }),
+        values: vec![
+            (
+                Coord::Slide(TargetAxis::Z),
+                Formula::zero(Dimension::Length),
+            ),
+            (Coord::Spin, Formula::zero(Dimension::Angle)),
+        ],
+        by: PlacedBy::Axis,
+    };
+    written(doc, Operand::output(revolve, 0), placed, tol)
+}
+
 /// **A copy of `body` placed against `target` by its own axis**, the
 /// axis of `body`'s face `face` (a tube's torus, whose axis is the
 /// tube's own `z`), mated to the `z` of a frame read off `target`

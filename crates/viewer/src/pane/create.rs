@@ -1755,8 +1755,13 @@ mod tests {
         use crate::test_support::inserted;
         let tol = Tol::witness();
         let (doc, block, _) = crate::test_support::boss_on_block("seats-half", tol);
-        let tool =
-            editor_core::test_support::plane_on(&doc, block, [0.0, 0.0, 0.001], [0.0, 0.0, 1.0]);
+        let tool = editor_core::test_support::plane_on(
+            &doc,
+            block,
+            [0.0, 0.0, 0.001],
+            [0.0, 0.0, 1.0],
+            Tol::witness(),
+        );
         let (doc, split) = inserted(
             &doc,
             pncad::document::Node::Split {
