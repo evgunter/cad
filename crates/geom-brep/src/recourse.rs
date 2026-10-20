@@ -14,9 +14,9 @@
 //! ([`LeverOnly`]).
 
 use geom_core::{
-    Band, Decided, FileCoincidence, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
-    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource, NOT_YET_ENDING,
-    RefusedReading, Sign, SizedWords, lever_recourse, noted,
+    Band, Culprit, Decided, FileCoincidence, Indeterminate, KERNEL_LIMIT_RECOURSE, MarginDiag,
+    MissReading, MissSource, NOT_YET_ENDING, RefusedReading, Sign, SizedWords, StoredCulprit,
+    lever_recourse, noted,
 };
 pub use geom_core::{SizedPass, UNREADABLE_MARGIN_NOTE, UNREADABLE_STORED_MARGIN_NOTE};
 
@@ -50,8 +50,8 @@ pub enum ReadAt {
 impl ReadAt {
     /// The reading an ending that does not tell the import door apart
     /// takes there: [`Reading::AtRest`], which names the kernel or the
-    /// file. A sized decision's refused side reads the door itself
-    /// ([`SizedDecision::recourse`]).
+    /// file. A defect ending that does reads the door itself
+    /// ([`culprit`]).
     #[must_use]
     pub const fn reading(self) -> Reading {
         match self {
@@ -73,24 +73,71 @@ impl From<FileCoincidence> for ReadAt {
     }
 }
 
-/// The defect ending at `reading`: a build's is the kernel's alone; over
-/// stored geometry a damaged file reaches it as surely.
-#[must_use]
-pub fn defect_ending(reading: Reading) -> &'static str {
-    match reading {
-        Reading::Build => KERNEL_DEFECT_ENDING,
-        Reading::AtRest => KERNEL_OR_FILE_DEFECT_ENDING,
+/// **Whose data a contradiction read at the import door is about**,
+/// which [`culprit`] reads there and no other door does.
+///
+/// A sized decision's stored contradiction and unminted side read
+/// [`Provenance::Stored`] ([`SizedDecision`]), for every decision alike.
+/// A decision with no size reads [`Provenance::Derived`]
+/// ([`Unsized::recourse`]): at the import door each compares a value the
+/// kernel derives at adoption — an edge's parameters (an ellipse's
+/// scaled angle, a B-spline's domain ends), a carrier the import mints
+/// (a seam generator), the witness at the carrier's mid-parameter, a
+/// chart image, a fit — so none reads the file's data alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Provenance {
+    /// The file stored what the reading compares: past ε_in the
+    /// contradiction is the file's.
+    Stored,
+    /// A side is a value the kernel derives at adoption, which the file
+    /// did not store: the contradiction may be that derivation's, so it
+    /// names the kernel beside the file.
+    Derived,
+}
+
+impl Reading {
+    /// **The culprit a defect ending names at this door**: a build's is
+    /// the kernel alone; over a body at rest a damaged file reaches it as
+    /// surely. Whose data it is does not move it.
+    #[must_use]
+    pub const fn culprit(self) -> Culprit {
+        match self {
+            Self::Build => Culprit::Kernel,
+            Self::AtRest => Culprit::Stored(StoredCulprit::KernelOrFile),
+        }
     }
 }
 
-/// The unreadable-margin note at `reading`, by [`defect_ending`]'s rule:
-/// a build's names the kernel alone; over stored geometry, the file too.
-/// A poisoned margin's ending takes it ([`MarginDiag::unreadable_note`]).
+/// **The culprit a defect ending names** at `at`, for a contradiction of
+/// `provenance` (D4 ¶1 (iv)): the one chooser every defect ending read
+/// through this module takes, sized or not. A run door names its own
+/// ([`Reading::culprit`]); at the import door, past ε_in, a
+/// contradiction of the file's own data is the file's, and one over a
+/// value the kernel derives names both.
+#[must_use]
+pub const fn culprit(at: ReadAt, provenance: Provenance) -> Culprit {
+    match (at, provenance) {
+        (ReadAt::Run(reading), _) => reading.culprit(),
+        (ReadAt::File(_), Provenance::Stored) => Culprit::Stored(StoredCulprit::File),
+        (ReadAt::File(_), Provenance::Derived) => Culprit::Stored(StoredCulprit::KernelOrFile),
+    }
+}
+
+/// The defect ending at `reading` ([`Reading::culprit`]).
+#[must_use]
+pub const fn defect_ending(reading: Reading) -> &'static str {
+    reading.culprit().ending()
+}
+
+/// The unreadable-margin note at `reading`, by its culprit
+/// ([`Reading::culprit`]): the kernel's alone at a build; over stored
+/// geometry the file's too. A poisoned margin's ending takes it
+/// ([`MarginDiag::unreadable_note`]).
 #[must_use]
 pub fn unreadable_margin_note(reading: Reading) -> &'static str {
-    match reading {
-        Reading::Build => UNREADABLE_MARGIN_NOTE,
-        Reading::AtRest => UNREADABLE_STORED_MARGIN_NOTE,
+    match reading.culprit() {
+        Culprit::Kernel => UNREADABLE_MARGIN_NOTE,
+        Culprit::Stored(_) => UNREADABLE_STORED_MARGIN_NOTE,
     }
 }
 
@@ -120,10 +167,8 @@ pub enum Unsized {
     /// spent budget), so a miss may be the approximation's limit (D4 ¶1
     /// (i)'s last resort): at a build on every arm, and at rest on an
     /// undecided one. A definite miss read at rest, or at the import
-    /// door past ε_in, is a stored contradiction, which ends in
-    /// [`KERNEL_OR_FILE_DEFECT_ENDING`] at both: unlike a sized
-    /// decision's ([`RefusedSide::StoredContradiction`]), it does not yet
-    /// name the file alone at the import door.
+    /// door past ε_in, is a stored contradiction, which ends in the
+    /// defect ending ([`Unsized::recourse`]).
     Fit,
     /// The refused margin is a certified upper bound on the miss, not
     /// the miss: a loose bound is the certificate's own limit, and
@@ -133,50 +178,51 @@ pub enum Unsized {
 
 impl Unsized {
     /// The one ending a refusal of this decision carries on `arm`, read
-    /// at `reading`.
+    /// at `at`.
     ///
-    /// Every arm of an exact decision ends in the defect ending. Where
-    /// the kernel approximated, an arm read at a build, and an undecided
-    /// arm read at rest, end in the last resort; a definite arm at rest
-    /// ends in the file's defect ending, since no loosening repairs a
-    /// stored contradiction. A bound ends in the last resort on every
-    /// arm at every reading. An arm whose margin could not be read ends
-    /// in the defect ending, whatever the decision: no tolerance makes it
-    /// readable.
+    /// Every arm of an exact decision ends in the defect ending, naming
+    /// the culprit [`culprit`] gives a value the kernel derives
+    /// ([`Provenance::Derived`]; [`Provenance`] says why every decision
+    /// here reads it). Where the kernel approximated, an arm read at a
+    /// build, and an undecided arm read anywhere else, end in the last
+    /// resort; a definite arm read past a build ends in the defect
+    /// ending, since no loosening repairs a stored contradiction. A bound
+    /// ends in the last resort on every arm at every door. An arm whose
+    /// margin could not be read ends in the defect ending, whatever the
+    /// decision: no tolerance makes it readable.
     #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
-        let defect = defect_ending(reading);
+    pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+        let at = at.into();
+        let defect = culprit(at, Provenance::Derived).ending();
         match self {
             Self::Defect => defect.to_owned(),
             Self::Fit | Self::Bound if arm.unreadable() => defect.to_owned(),
             Self::Bound => KERNEL_LIMIT_RECOURSE.to_owned(),
-            Self::Fit => match (reading, arm) {
-                (Reading::Build, _)
-                | (Reading::AtRest, RefusedArm::Undecided(_) | RefusedArm::Straddle) => {
+            Self::Fit => match (at, arm) {
+                (ReadAt::Run(Reading::Build), _)
+                | (_, RefusedArm::Undecided(_) | RefusedArm::Straddle) => {
                     KERNEL_LIMIT_RECOURSE.to_owned()
                 }
-                (Reading::AtRest, RefusedArm::Zero(_) | RefusedArm::SignCertain(_)) => {
-                    defect.to_owned()
-                }
+                (_, RefusedArm::Zero(_) | RefusedArm::SignCertain(_)) => defect.to_owned(),
             },
         }
     }
 
     /// The ending a residual's refusal carries on `arm` at the import
-    /// door (D4 ¶1): read at rest, except that a miss within the file's
-    /// declared coincidence distance but beyond ε names setting ε to ε_in
-    /// as a stopgap, beside re-exporting the file more precisely
-    /// ([`FileCoincidence::miss_recourse_in_file`]). A residual passes
+    /// door (D4 ¶1): a miss within the file's declared coincidence
+    /// distance but beyond ε names setting ε to ε_in as a stopgap, beside
+    /// re-exporting the file more precisely
+    /// ([`FileCoincidence::miss_recourse_in_file`]); any other reading
+    /// ends as the door ends it ([`Unsized::recourse`]). A residual passes
     /// only at zero, so its refused margin is a miss, on the sign-certain
     /// arm too, which every residual refusal carries its reading on; a
     /// bound's is a bound on the miss, on its undecided and sign-certain
     /// arms alike.
     #[must_use]
     pub fn residual_in_file(self, arm: RefusedArm<'_>, file: FileCoincidence) -> String {
-        let reading = ReadAt::File(file).reading();
         let miss = match (self, arm) {
             // A bound at zero refuses nothing a residual would.
-            (Self::Bound, RefusedArm::Zero(_)) => return self.recourse(arm, reading),
+            (Self::Bound, RefusedArm::Zero(_)) => return self.recourse(arm, file),
             (Self::Bound, RefusedArm::Undecided(cause)) => MissReading::Bound(cause.margin),
             (Self::Bound, RefusedArm::SignCertain(Some(margin))) => MissReading::Bound(margin),
             (_, RefusedArm::Undecided(cause)) => MissReading::Banded(cause.margin, cause.band),
@@ -184,16 +230,16 @@ impl Unsized {
             (_, RefusedArm::SignCertain(Some(margin))) => MissReading::Definite(margin),
             // A straddle, or a sign-certain arm without its reading,
             // carries no single reading of the miss to compare with the
-            // file's coincidence distance: it ends at rest.
+            // file's coincidence distance: it ends as the door ends it.
             (_, RefusedArm::SignCertain(None) | RefusedArm::Straddle) => {
-                return self.recourse(arm, reading);
+                return self.recourse(arm, file);
             }
         };
         let source = match self {
             Self::Defect => MissSource::File,
             Self::Fit | Self::Bound => MissSource::Fit,
         };
-        file.miss_recourse_in_file(miss, source, &self.recourse(arm, reading))
+        file.miss_recourse_in_file(miss, source, &self.recourse(arm, file))
     }
 }
 
@@ -357,11 +403,12 @@ pub enum RefusedSide {
     Lever,
     /// A contradiction between a stored description and its stored
     /// geometry. At a build it is the user's geometry, which the lever
-    /// moves: the lever and the note. At the import door past ε_in it is
-    /// the file's ([`geom_core::DAMAGED_FILE_ENDING`]); over a body at
-    /// rest it ends in [`KERNEL_OR_FILE_DEFECT_ENDING`]. A residual's
-    /// stored contradiction ([`Unsized::Fit`]) ends in the latter at the
-    /// import door too.
+    /// moves: the lever and the note. Past a build it ends in the defect
+    /// ending [`culprit`] names for stored data
+    /// ([`Provenance::Stored`], which every sized decision reads): at the
+    /// import door past ε_in the file's
+    /// ([`geom_core::DAMAGED_FILE_ENDING`]), over a body at rest
+    /// [`geom_core::KERNEL_OR_FILE_DEFECT_ENDING`].
     StoredContradiction,
     /// A side no kernel construction produces. Every public door that
     /// runs the decision reports a reading certainly on this side as its
@@ -402,15 +449,25 @@ impl SpanDecision {
         }
     }
 
+    /// The size its ending names ("if this {size} is intended"), which its
+    /// lever moves and its check's word names.
+    #[must_use]
+    pub const fn size(self) -> &'static str {
+        match self {
+            Self::Forward => crate::certify::length_noun!(),
+            Self::Winding => crate::certify::arc_noun!(),
+        }
+    }
+
     /// The decision, read with `side` as its refused side.
     pub(crate) const fn on(self, side: RefusedSide) -> SizedDecision {
-        let (size, passes) = match self {
-            Self::Forward => ("length", SizedPass::Positive),
-            Self::Winding => ("arc", SizedPass::NonNegative),
+        let passes = match self {
+            Self::Forward => SizedPass::Positive,
+            Self::Winding => SizedPass::NonNegative,
         };
         SizedDecision {
             lever: self.lever(),
-            size,
+            size: self.size(),
             passes,
             side,
             no_size: None,
@@ -505,19 +562,16 @@ impl SizedDecision {
     /// its ending chosen, so every arm that carries one ends alike.
     fn words(self, at: ReadAt) -> SizedWords<'static> {
         let reading = at.reading();
-        let refused = match (self.side, at) {
-            (RefusedSide::Lever, _)
-            | (
-                RefusedSide::StoredContradiction | RefusedSide::Unminted,
-                ReadAt::Run(Reading::Build),
-            ) => RefusedReading::AsShown,
-            (RefusedSide::StoredContradiction | RefusedSide::Unminted, ReadAt::File(_)) => {
-                RefusedReading::DamagedFile
+        let refused = match self.side {
+            RefusedSide::Lever => RefusedReading::AsShown,
+            RefusedSide::StoredContradiction | RefusedSide::Unminted => {
+                match culprit(at, Provenance::Stored) {
+                    // At a build the refused side is the user's geometry,
+                    // which the lever moves.
+                    Culprit::Kernel => RefusedReading::AsShown,
+                    Culprit::Stored(stored) => RefusedReading::Defect(stored),
+                }
             }
-            (
-                RefusedSide::StoredContradiction | RefusedSide::Unminted,
-                ReadAt::Run(Reading::AtRest),
-            ) => RefusedReading::ContradictsStoredData,
         };
         SizedWords {
             lever: self.lever,
@@ -556,6 +610,8 @@ pub(crate) fn repeated_words(text: &str) -> Vec<String> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+    use geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
+
     use super::*;
 
     /// `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
@@ -796,6 +852,36 @@ mod tests {
             offer,
             "a size past ε_in reads as at rest"
         );
+    }
+
+    /// **An approximation's gate rejection ends in the last resort at
+    /// every door** (`Unsized::Fit`): a fit's meter that a gate rejects,
+    /// zero or past the band, is the approximation's limit, not a stored
+    /// contradiction, so carried as `RefusedArm::Undecided` it ends as the
+    /// undecided arm does, at a build, at rest and at the import door.
+    /// Red if the table converts a gate's tagged reading into its
+    /// definite arm.
+    #[test]
+    fn a_fits_gate_rejection_ends_in_the_last_resort_at_every_door() {
+        use geom_core::{Margin, k_stats::decide_positive};
+        let rejected = |m: f64| decide_positive("p", Margin::of(m), band()).unwrap_err();
+        for cause in [rejected(5e-10), rejected(-1.0)] {
+            let arm = RefusedArm::Undecided(&cause);
+            let label = cause.margin;
+            assert!(cause.margin.rejected_sign().is_some(), "tagged: {label}");
+            for reading in [Reading::Build, Reading::AtRest] {
+                assert_eq!(
+                    Unsized::Fit.recourse(arm, reading),
+                    KERNEL_LIMIT_RECOURSE,
+                    "{label}, {reading:?}"
+                );
+            }
+            assert_eq!(
+                Unsized::Fit.residual_in_file(arm, FileCoincidence::new(1e-12)),
+                KERNEL_LIMIT_RECOURSE,
+                "{label}, at the import door"
+            );
+        }
     }
 
     /// **Either route ends a reading alike** (`SizedDecision::recourse`):
@@ -1301,8 +1387,13 @@ mod tests {
                 }
                 assert_eq!(
                     residual.residual_in_file(arm, file),
-                    defect_ending(Reading::AtRest),
+                    KERNEL_OR_FILE_DEFECT_ENDING,
                     "{residual:?} at the import door on {arm:?}"
+                );
+                assert_eq!(
+                    residual.recourse(arm, file),
+                    KERNEL_OR_FILE_DEFECT_ENDING,
+                    "{residual:?} unsized at the import door on {arm:?}"
                 );
             }
             for decision in &sized {

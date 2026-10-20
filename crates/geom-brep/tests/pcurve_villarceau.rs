@@ -741,3 +741,59 @@ fn a_plane_gate_in_band_near_the_horn_escalates_on_it() {
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// **A gate's rejected zero on a Villarceau tangent part, as it renders
+/// today.** On `R = 2`, `r = 1.8e-9`, band `(1e-9, 2e-9)`, the radius-2
+/// circle centred `2.5e-9` along `x`, its normal tilted `0.9e-9/2`
+/// toward `y`, reaches `torus_oblique_circle` on the parallel arm, where
+/// `decide_positive` rejects the tube-rate part's magnitude as a decided
+/// Zero. The payload places it in the zero band and carries no decided
+/// sign's word: a magnitude cannot fall past the band on the side the
+/// gate rejects. `ChartIncidence` ends it in the kernel-defect ending;
+/// whether that ending is true of a valid band-scale torus is the open
+/// D2 question of `work/pcert/band-scale-torus-geometry-ends-as-a-kernel-defect.md`,
+/// so this pins the text only so that a change to it shows.
+#[test]
+fn a_tube_rate_gates_rejected_zero_renders_its_current_ending() {
+    let band = geom_core::Band::new(1e-9, 2e-9).unwrap();
+    let surface = Surface::Torus {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: 2.0,
+        minor_radius: 1.8e-9,
+        u_ref: Vec3::unit_x(),
+    };
+    let axis = Vec3::new(0.0, 0.9e-9 / 2.0, 1.0).normalize();
+    let seed = Vec3::unit_x();
+    let carrier = Curve3::Circle {
+        center: Point3::new(2.5e-9, 0.0, 0.0),
+        axis,
+        radius: 2.0,
+        u_ref: (seed - axis * seed.dot(axis)).normalize(),
+    };
+    let got = chart_pcurve(&carrier, &surface, band);
+    let Err(
+        refusal @ PcurveCertifyError::Escalated {
+            check: PcurveCheck::ChartIncidence,
+            cause,
+            ..
+        },
+    ) = &got
+    else {
+        panic!("the tube-rate gate's rejection: {got:?}");
+    };
+    assert_eq!(
+        (cause.predicate, cause.margin.rejected_sign()),
+        (
+            Some("pcurve_torus_villarceau_tube_rate"),
+            Some(geom_core::Sign::Zero)
+        ),
+        "the gate that rejected: {cause:?}"
+    );
+    assert_eq!(
+        refusal.to_string(),
+        "pcurve certification: ChartIncidence at sample 0 escalated: margin 9e-10 lies within \
+         the zero band (±1e-9). There is no way through: this is a kernel defect; report it",
+        "the rendered refusal"
+    );
+}

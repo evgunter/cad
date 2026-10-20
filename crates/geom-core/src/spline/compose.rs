@@ -349,10 +349,9 @@ fn to_bezier_spans_extra(pair: SplineCoeffs<'_, Interval>, extra: &[f64]) -> Ber
 
 /// The largest row degree [`binom_row`] serves exactly. The rows are
 /// formed in integers ([`super::pieces::binomial`]), so the cap is the
-/// values' own: every `C(n, k)` with `n ≤ 56` is at most `2⁵³`, and
-/// `C(57, 25)` is the first that is not representable
-/// (differentially pinned against `u128` arithmetic in the tests).
-const BINOM_EXACT_MAX: usize = 56;
+/// values' own, [`super::pieces::BINOMIAL_EXACT_MAX`] (differentially
+/// pinned against `u128` arithmetic in the tests).
+const BINOM_EXACT_MAX: usize = super::pieces::BINOMIAL_EXACT_MAX;
 
 /// Binomial row `C(n, 0..=n)` at `f64` — exact for `n ≤`
 /// [`BINOM_EXACT_MAX`], which covers every degree this module can
@@ -394,7 +393,23 @@ fn binom_table() -> &'static [Vec<f64>] {
 /// whenever the output row is served at all: by Vandermonde,
 /// `C(da,i)·C(db,j) ≤ C(da+db, i+j)`, and `da + db >`
 /// [`BINOM_EXACT_MAX`] is already refused through `binom_row`.
-fn bern_mul_row(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
+///
+/// **`derivative`'s `product` states the same product with the other
+/// association**: exact integer numerators, a division after each
+/// coefficient's sum (by `C(ma+mb, k)`, then `C(na+nb, l)`), at any
+/// `Real` on bivariate grids. Each association is the tighter one for
+/// its own callers, so neither is folded into the other. Here, a
+/// memoized outward quotient weight per term keeps the tensor powers'
+/// exact points exact and their coefficients tightest: taking the
+/// other association widens coefficients by up to 6× at the tensor
+/// path, the curve product and the patch block, and widens exact points
+/// at the tensor powers. Taking this one in `product` widens its area
+/// and cross terms by up to 1470×. Both enclose the exact rational
+/// product (`derivative`'s
+/// `both_bernstein_products_enclose_the_exact_rational_product`); the
+/// measurement is in
+/// `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
+pub(super) fn bern_mul_row(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
     let w = bern_weights(a.len() - 1, b.len() - 1);
     bern_mul_row_with(a, b, &w)
 }
@@ -482,7 +497,7 @@ fn build_bern_weights(da: usize, db: usize) -> BernWeights {
 ///
 /// **A refused table is not what the grid excludes.** Every pair with
 /// `da + db >` [`BINOM_EXACT_MAX`] has an all-refused table, and plenty
-/// of those pairs are INSIDE the grid — `(27, 27)` is a slotted pair
+/// of those pairs are INSIDE the grid — `(28, 29)` is a slotted pair
 /// whose every entry is `NaN`. That is the correct answer for the pair
 /// and it is memoized like any other. What is served fresh rather than
 /// given a slot is a pair with a SINGLE degree past the cap, and that
@@ -1122,10 +1137,10 @@ pub fn canonical_composite(
 }
 
 /// The exact-rational oracle the containment rows below compare against,
-/// shared with this crate's integration suites.
+/// shared with this crate's integration suites and `derivative`'s tests.
 #[cfg(test)]
 #[path = "../../tests/exact_q/mod.rs"]
-mod exact_q;
+pub(super) mod exact_q;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -1941,8 +1956,8 @@ mod tests {
 
     /// **The production weights, read two corners, are the general
     /// product.** Every weight [`bern_weights`] serves for degrees
-    /// `0 ..= 27` each (the square whose every pair has exact rows,
-    /// `da + db <=` [`BINOM_EXACT_MAX`]) times operands drawn to provoke ties —
+    /// `0 ..= BINOM_EXACT_MAX / 2` each (the square whose every pair
+    /// has exact rows, `da + db <=` [`BINOM_EXACT_MAX`]) times operands drawn to provoke ties —
     /// intervals over dyadic values with few significant bits (whose
     /// products are often exact), random doubles, values near the
     /// 2Prod floor and zeros, both signs — [`Interval::mul_nonneg`]
@@ -2170,11 +2185,6 @@ mod tests {
         }
         assert!(binom_row(BINOM_EXACT_MAX + 1).iter().all(|v| v.is_nan()));
         assert!(binom_row(80).iter().all(|v| v.is_nan()));
-        // The cap is the values' own: `C(57, 25)` has no `f64`.
-        let c57_25 = (1u128..=25).fold(1u128, |b, j| b * (57 - j + 1) / j);
-        #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
-        let rounded = c57_25 as f64 as u128;
-        assert_ne!(rounded, c57_25, "C(57, 25) is representable");
     }
 
     /// **The rows the bounds were pinned on did not move.** Through

@@ -23,7 +23,9 @@ use crate::provenance::Provenance;
 
 use super::{BooleanError, Operand};
 
-/// One face a boolean discarded (`BooleanNaming::discards`).
+/// One face a boolean discarded (`BooleanNaming::discards`), or a face
+/// it divided along an edge lying in it, whose lost region is that line
+/// (`boolean::slit`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiscardRow {
     /// The operand the face belonged to.

@@ -1013,8 +1013,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::UnschedulableCycle => "unschedulable_cycle",
         C::Naming => "naming",
         C::UnionFoldStep => "union_fold_step",
-        C::FilletSelectionEmpty => "fillet_selection_empty",
-        C::ChamferSelectionEmpty => "chamfer_selection_empty",
         // The shell: ONE tag for the op's refusal family (the
         // `revolve`/`tube` treatment — the kernel's `ShellError` arms
         // are prose in the message), and the lane refusal.
@@ -1190,7 +1188,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Naming(inner) => Some(naming_error_tag(inner)),
         // The step's own refusal crosses in the message.
         NodeErrorKind::UnionFoldStep { .. } => None,
-        NodeErrorKind::BlendSelectionEmpty { .. } => None,
         NodeErrorKind::Shell(inner) => Some(shell_error_tag(inner)),
         NodeErrorKind::ShellLaneUnsupported { .. } => None,
         NodeErrorKind::FaceFrameNotPlanar { .. } => None,
@@ -1663,6 +1660,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::GraftRecertify => "graft_recertify",
         BooleanErrorKind::Pieces => "pieces",
         BooleanErrorKind::Revert => "revert",
+        BooleanErrorKind::EdgeInFace => "edge_in_face",
+        BooleanErrorKind::SlitLineCrossed => "slit_line_crossed",
+        BooleanErrorKind::SlitFaceGlued => "slit_face_glued",
         BooleanErrorKind::LineWedges => "line_wedges",
     }
 }
@@ -3490,7 +3490,7 @@ pub fn selection_fault_tag(fault: &pncad::document::SelectionFault) -> &'static 
     match fault {
         F::NotASelection { .. } => "not_a_selection",
         F::Seat { .. } => "seat",
-        F::Singleton { .. } => "singleton",
+        F::Count { .. } => "name_count",
         F::NotCanonical { .. } => "not_canonical",
         // Not `kind`: that word is `pose_fault_tag`'s (a pose read
         // through a role of another kind), an unrelated fact, and the
