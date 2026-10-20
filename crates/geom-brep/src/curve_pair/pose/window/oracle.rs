@@ -105,8 +105,11 @@ fn rot(v: Vec3<f64>, k: Vec3<f64>, t: f64) -> Vec3<f64> {
 /// The pair of a draw: an ellipse `b` about the origin in `z = 0`, its
 /// semi-axes, and a circle or an ellipse `a` through a point `J` of `b`
 /// at a tangent `ψ` from `b`'s, its plane turned `α` about a line through
-/// `J` and lifted within the zero band.
-fn pair(rng: &mut fuzz::Rng, z: f64) -> (Curve3<f64>, Curve3<f64>, (f64, f64), f64) {
+/// `J` and lifted within the zero band. A `touch` is tangent to `b` at `J`
+/// (`ψ = 0`), its plane turned about that tangent by `α` up to a right
+/// angle: it touches `b`'s plane there, so it stays within the zero band
+/// of `b` over a run far past the ring (module docs, "On, along `b`").
+fn pair(rng: &mut fuzz::Rng, z: f64, touch: bool) -> (Curve3<f64>, Curve3<f64>, (f64, f64), f64) {
     let scale = rng.log_uniform(0.1, 100.0);
     let big_a = scale * rng.range(0.5, 2.0);
     let ratio = if rng.unit() < 0.3 {
@@ -125,7 +128,7 @@ fn pair(rng: &mut fuzz::Rng, z: f64) -> (Curve3<f64>, Curve3<f64>, (f64, f64), f
     let phi = rng.range(0.0, core::f64::consts::TAU);
     let j = Point3::new(big_a * phi.cos(), big_b * phi.sin(), 0.0);
     let tb = Vec3::new(-big_a * phi.sin(), big_b * phi.cos(), 0.0).normalize();
-    let psi = if rng.unit() < 0.3 {
+    let psi = if touch || rng.unit() < 0.3 {
         0.0
     } else {
         rng.log_uniform(1e-7, 1.0) * if rng.unit() < 0.5 { -1.0 } else { 1.0 }
@@ -136,8 +139,14 @@ fn pair(rng: &mut fuzz::Rng, z: f64) -> (Curve3<f64>, Curve3<f64>, (f64, f64), f
     let side = if rng.unit() < 0.5 { 1.0 } else { -1.0 };
     let inward = zhat.cross(ta) * side;
     let kang = rng.range(0.0, core::f64::consts::PI);
-    let k = Vec3::new(kang.cos(), kang.sin(), 0.0);
-    let alpha = rng.log_uniform(1e-12, 1e-6);
+    let (k, alpha) = if touch {
+        (ta, rng.log_uniform(1e-3, 1.5))
+    } else {
+        (
+            Vec3::new(kang.cos(), kang.sin(), 0.0),
+            rng.log_uniform(1e-12, 1e-6),
+        )
+    };
     let lift = rng.range(-1.0, 1.0) * z * 0.9;
     let centre = j + inward * r;
     let a_centre = j + rot(centre - j, k, alpha) + zhat * lift;
@@ -264,7 +273,7 @@ fn each_window_reading_holds_on_a_dense_distance() {
     let draws = fuzz::scaled(60);
     let (mut counts, mut bad) = ([0usize; 3], Vec::new());
     for draw in 0..draws {
-        let (a, b, axes, scale) = pair(&mut rng, band.zero());
+        let (a, b, axes, scale) = pair(&mut rng, band.zero(), false);
         for _ in 0..20 {
             let side = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
             let (m, half) = if rng.unit() < 0.5 {
@@ -298,6 +307,61 @@ fn each_window_reading_holds_on_a_dense_distance() {
         "every reading drawn ({}): {counts:?}",
         fuzz::replay()
     );
+}
+
+/// **No reading contradicts the dense distance at a touch.** Each draw
+/// a conic tangent to `b` at `J` whose plane turns about that tangent
+/// (`pair`'s `touch`), at the default band and at `ε = 10⁻¹²`, where a
+/// touch's run outlasts the first-order on readings, its pieces drawn as
+/// above, at every scale about the joint and wide. Red where the on
+/// reading along `b` drops its bend term, whose pieces then read on past
+/// the zero band.
+#[test]
+fn each_window_reading_holds_on_a_dense_distance_at_a_touch() {
+    let mut rng = fuzz::start("curve_pair::pose::window::oracle::touch");
+    for band in [
+        Band::new(1e-9, 1e-8).unwrap(),
+        Band::new(1e-12, 1e-11).unwrap(),
+    ] {
+        let (mut counts, mut bad) = ([0usize; 3], Vec::new());
+        for draw in 0..fuzz::scaled(60) {
+            let (a, b, axes, scale) = pair(&mut rng, band.zero(), true);
+            for _ in 0..20 {
+                let side = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+                let (m, half) = if rng.unit() < 0.5 {
+                    let m = rng.log_uniform(1e-10, 1e-1) * side;
+                    (m, m.abs() * rng.log_uniform(1e-4, 1.0))
+                } else {
+                    let m = rng.log_uniform(1e-6, 1.0) * side;
+                    (m, m.abs() * rng.log_uniform(0.3, 1.0))
+                };
+                let away = if rng.unit() < 0.85 { m > 0.0 } else { m < 0.0 };
+                match check(&a, &b, (axes, scale), (m - half, m + half), away, band) {
+                    Ok(made) => {
+                        for read in made {
+                            counts[read as usize] += 1;
+                        }
+                    }
+                    Err(why) => bad.push(format!("draw {draw} {why}: a {a:?} b {axes:?}")),
+                }
+            }
+        }
+        println!("ε {}: off, on, recedes: {counts:?}", band.zero());
+        assert!(
+            bad.is_empty(),
+            "ε {}: {} readings contradicted ({}): {:#?}",
+            band.zero(),
+            bad.len(),
+            fuzz::replay(),
+            &bad[..bad.len().min(8)]
+        );
+        assert!(
+            counts[Read::On as usize] > 0,
+            "ε {}: touches read on ({}): {counts:?}",
+            band.zero(),
+            fuzz::replay()
+        );
+    }
 }
 
 /// **A circle receding from a circle at its joint by the level alone**

@@ -817,4 +817,155 @@ mod rows {
             b.lo
         );
     }
+
+    /// The fine band, `ε = 10⁻¹²`, where a touch's run outlasts the
+    /// first-order on readings.
+    fn fine() -> Band {
+        Band::new(1e-12, 1e-11).unwrap()
+    }
+
+    /// The rim of a rod of radius `0.1` about `z`, cut by the plane through
+    /// `J = (0.1, 0, 0)` that holds `ŷ` and leans `acos(0.1/6.406)` off
+    /// `z = 0`: an ellipse of semi-axes `6.406` and `0.1` whose major
+    /// vertex is `J`, tangent to `ŷ` there and touching `z = 0` there
+    /// alone (the needle's rim).
+    fn needle_rim() -> Curve3<f64> {
+        let big = 6.406_f64;
+        let (c, s) = (0.1 / big, (1.0 - (0.1 / big) * (0.1 / big)).sqrt());
+        let u = Vec3::new(c, 0.0, s);
+        Curve3::Ellipse {
+            center: Point3::new(0.1, 0.0, 0.0) - u * big,
+            axis: u.cross(Vec3::new(0.0, 1.0, 0.0)),
+            semi_u: big,
+            semi_v: 0.1,
+            u_ref: u,
+        }
+    }
+
+    /// A circle of `radius` in `z = 0` through `J = (0.1, 0, 0)`, tangent
+    /// to `ŷ` there, its centre on the `x` axis, `J` at its angle `0`.
+    fn rim_circle(radius: f64) -> Curve3<f64> {
+        Curve3::Circle {
+            center: Point3::new(0.1 - radius, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// `a`'s window `(-reach, reach)` about `J` at `θ = 0` against `b` at
+    /// the fine band: whether it holds `J` alone, and the pieces the arc
+    /// past `J`'s ring reads in, outward.
+    fn touch(a: &Curve3<f64>, b: &Curve3<f64>, reach: f64) -> (bool, Option<usize>) {
+        let (ka, kb) = (Conic::of(a).unwrap(), Conic::of(b).unwrap());
+        let lever = ka.speed_hi().max(kb.speed_hi());
+        let o = Point3::origin();
+        let noise =
+            crate::rounding_charge((ka.center - o).norm() + (kb.center - o).norm() + lever + lever);
+        let w = Window {
+            a: &ka,
+            span_a: (-0.5, 0.5),
+            b: &kb,
+            carrier_b: b,
+            height: super::super::height(&ka, kb.center, kb.axis),
+            noise,
+        };
+        let j = Joint {
+            point: a.eval(0.0),
+            ta: 0.0,
+        };
+        let ring = w.ring(&j, 0.0, fine()).unwrap();
+        let level = super::level_on(&ka, &kb);
+        let past = w
+            .pieces((ring, reach), true, &level, fine())
+            .map(|r| r.len());
+        (w.holds_only((-reach, reach), &[j], fine()), past)
+    }
+
+    /// **(on, along `b`) A touch's run reads on in a few pieces.** The
+    /// needle's rim on its fillet's circle of radius `0.1`, and on one of
+    /// radius `0.2`, tangent inside it at `J`. The rim touches the
+    /// circle's plane at `J`, so at `ε = 10⁻¹²` it stays within the zero
+    /// band over about `±5·10⁻⁷` rad on the first and `±4·10⁻⁶` on the
+    /// second, against a ring of `8·10⁻¹³`. The first-order on reading
+    /// needs pieces of reach under `10⁻¹²` across that run, and the
+    /// level's is floored by its harmonics' rounding (`L` times their
+    /// charge, about `3·10⁻¹²`): main ran out of pieces, and the root went
+    /// to the polish against parallel tangents. Carried along the circle
+    /// it reads in at most 16. Red where that reading is dropped, and on
+    /// the second circle, whose speed at `J` is twice the rim's, where it
+    /// follows `b` at the rim's own rate (`k = 1`) rather than the
+    /// tangents' match.
+    #[test]
+    fn a_touchs_run_reads_on_along_the_other_in_a_few_pieces() {
+        for (radius, reach) in [(0.1, 2e-6), (0.2, 1e-5)] {
+            let (holds, past) = touch(&needle_rim(), &rim_circle(radius), reach);
+            assert!(holds, "radius {radius}: the window holds the joint alone");
+            assert!(
+                past.is_some_and(|n| n <= 16),
+                "radius {radius}: the arc past the ring reads in {past:?} pieces"
+            );
+        }
+    }
+
+    /// **A piece past a touch's run does not read on along `b`.** On the
+    /// needle's rim against its circle, the piece `θ ∈ [0, 10⁻⁵]` from the
+    /// joint: the rim's projection is the circle, so the gap at the
+    /// middle's foot and the tangents' skew both read about zero, yet the
+    /// far end lies `6.406·sin β·(1 − cos 10⁻⁵) ≈ 3·10⁻¹⁰` above the
+    /// circle's plane, past the fine band's `10⁻¹²`. Only the bend term
+    /// keeps the piece from reading on. Red where it is dropped.
+    #[test]
+    fn a_piece_past_a_touchs_run_does_not_read_on_along_the_other() {
+        let (a, b) = (needle_rim(), rim_circle(0.1));
+        // The rim's projection is the circle: its distance is its height.
+        let far = a.eval(1e-5).z.abs();
+        assert!(far > 1e-10, "the far end lies {far:e} off");
+        let (ka, kb) = (Conic::of(&a).unwrap(), Conic::of(&b).unwrap());
+        let w = Window {
+            a: &ka,
+            span_a: (-0.5, 0.5),
+            b: &kb,
+            carrier_b: &b,
+            height: super::super::height(&ka, kb.center, kb.axis),
+            noise: 0.0,
+        };
+        let foot = b.foot(a.eval(5e-6), 0.0);
+        let along = w.along_b(5e-6, 5e-6, &foot);
+        assert!(
+            along >= far,
+            "the reading along b, {along:e}, is under the far end's distance {far:e}"
+        );
+        let level = super::level_on(&ka, &kb);
+        assert_ne!(
+            w.read((0.0, 1e-5), true, &level, fine()),
+            Some(super::Read::On),
+            "the piece reads on"
+        );
+    }
+
+    /// **The bend term is an upper bound on its real value.** Against
+    /// `(A + k²·B)·w²/2` read exactly over drawn semi-axes, slopes and
+    /// widths, [`super::bent`] is never below it. Red where the term is
+    /// left at its rounding to nearest: about half the draws round low.
+    #[test]
+    fn the_bend_term_bounds_its_real_value() {
+        use crate::exact_q::Q;
+        let mut rng = test_utils::fuzz::start("window-bend-term");
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let (a, b) = (rng.range(1e-3, 10.0), rng.range(1e-3, 10.0));
+            let k = rng.range(-4.0, 4.0);
+            let w = rng.range(0.0, 1.0) * 10f64.powf(rng.range(-14.0, -2.0));
+            let exact = Q::of(a)
+                .add(&Q::of(k).mul(&Q::of(k)).mul(&Q::of(b)))
+                .mul(&Q::of(w).mul(&Q::of(w)))
+                .mul(&Q::of(0.5));
+            let got = super::bent(a, b, k, w);
+            assert!(
+                exact.within(-f64::MAX, got),
+                "A {a}, B {b}, k {k}, w {w}: {got} under the real value — {}",
+                test_utils::fuzz::replay()
+            );
+        }
+    }
 }
