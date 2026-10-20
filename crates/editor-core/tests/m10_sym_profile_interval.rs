@@ -689,12 +689,25 @@ const PLATE_MAX_TERMS: usize = 28;
 /// and #5377's fix pass): `Plain/Assertion` and `Early/Assertion` +7
 /// calls (686 → 693) and +30 forms, with their digests; the
 /// `*/Decision` lines, the freezes and the largest form hold.
+///
+/// Check 4 deciding no whole period (PCERT B2b): fidelity's 32 branch
+/// decisions are gone, each a numeric decision checked against the
+/// tier, so `Plain/Assertion` and `Early/Assertion` 693 → 661 calls and
+/// `Door/Decision` 428 → 396; forms and digests move with them, and
+/// `Plain/Decision`'s calls, every freeze and the largest form hold.
+/// Measured on the tree with every move above.
+///
+/// The arc's diameter clearance spelled `2r·cos²(|Δθ|/4)/(1 + sin(|Δθ|/4))`
+/// (`profile`'s `seg::classify`), where `1 − sin(|Δθ|/4)` cancelled near
+/// a full turn: forms `Plain/Assertion` 7013 → 7017, `Early/Assertion`
+/// 8175 → 8179 and `Door/Decision` 9465 → 9471, with their digests;
+/// every call, every freeze and the largest form hold.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 939 forms 15836 frozen 324 digest ac360a3480da30b765ada11e3a3550c7\n\
-     Plain/Assertion calls 693 forms 7073 frozen 405 digest ac98c9fa756d2ff62148806efb245556\n\
-     Early/Decision calls 352 forms 8892 frozen 0 digest 61a2facb711fb0a70f13d4cfa3ece435\n\
-     Early/Assertion calls 693 forms 8235 frozen 0 digest c6b94455a9fdd240760bec7120a63c11\n\
-     Door/Decision calls 428 forms 9525 frozen 0 digest c92c1df17252cd30da849fc47ba1a121";
+     Plain/Decision calls 939 forms 15828 frozen 324 digest 106c6e8f656834241d3861faf20e7799\n\
+     Plain/Assertion calls 661 forms 7017 frozen 405 digest 78df422333f47d94fcc9b8c4d9443ef4\n\
+     Early/Decision calls 352 forms 8884 frozen 0 digest 77472cc4b2b651d309e31f2086d5b20a\n\
+     Early/Assertion calls 661 forms 8179 frozen 0 digest 9a026d53f7a4f0d2c104a546dd079bef\n\
+     Door/Decision calls 396 forms 9471 frozen 0 digest d01b50cdac523fae6c64c2899501312b";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

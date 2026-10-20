@@ -534,8 +534,8 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
 /// departure is the ellipse, `r / cos φ` along the tilt's trace; an
 /// in-band departure escalates naming the predicate; and a departure
 /// definite only at a long lever, whose ellipse's axes differ by the
-/// tilt SQUARED, escalates as `CapEllipse` on the ellipse door's own
-/// verdict — the near-perpendicular sliver band.
+/// tilt SQUARED, far inside the band, is still the exact ellipse, with
+/// the tilt's trace for its major direction.
 #[test]
 fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let band = Band::linear(tol()).expect("a band");
@@ -574,16 +574,26 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
         panic!("the in-band row must escalate, got {escalated:?}");
     };
     assert_eq!(source.predicate, Some("fillet3_cap_transverse"));
-    let sliver = cap_transverse(v, Vec3::new(t, 0.0, 1.0), tau, R, 1e3, band)
-        .expect_err("levered up, the departure is definite and the axes are not");
-    let BlendError::Escalated {
-        source, decision, ..
-    } = &sliver
+    let n = Vec3::new(t, 0.0, 1.0);
+    let sliver = cap_transverse(v, n, tau, R, 1e3, band)
+        .expect("levered up, the departure is definite: the ellipse");
+    let EndSection::Ellipse(Curve3::Ellipse {
+        semi_u,
+        semi_v,
+        u_ref: u_major,
+        ..
+    }) = sliver
     else {
-        panic!("the sliver band escalates, got {sliver:?}");
+        panic!("the sliver band picks the ellipse, got {sliver:?}");
     };
-    assert_eq!(source.predicate, Some("ellipse_axes_distinct"));
-    assert_eq!(*decision, BlendDecision::CapEllipse);
+    assert!(
+        semi_u - semi_v < band.zero(),
+        "the axes {semi_u}, {semi_v} are within the zero band"
+    );
+    assert!(
+        (u_major - Vec3::new(1.0, 0.0, -t).normalize()).norm() < 1e-15,
+        "the major direction is the tilt's trace, got {u_major:?}"
+    );
 }
 
 /// **The vocabulary is the ratified one and the tag maps its policy.**
@@ -728,28 +738,23 @@ fn the_parallel_cylinder_union_builds_and_a_box_edge_is_cut_off() {
 /// tilted 1e-2 rad at two lengths. The tilt is the smallest the split
 /// door builds at EVERY eps row: its own near-parallel margin grows as
 /// the tilt squared (1e-4 escalates at the join's carrier lane at
-/// eps 1e-9, 1e-3 falls under the 1e-6 row's band, 1e-5 refuses
-/// `CircularAxes`). The lever is the crease's extent, `0.6·L` (the cut
-/// sits at six tenths of the rod), so the margins are `1.8e-3` and
-/// `1.5e-2`. `run_battery` takes its band as an argument — explicit,
-/// so the same at every eps row — and under `Band::new(1.2e-3,
-/// 1.2e-2)` the same angle is IN BAND at `L = 0.3` (escalates naming
-/// the predicate) and DEFINITE at `L = 2.5`, where the picker reaches
-/// the ellipse and the ellipse's axes, `r·(1/cos φ − 1) = 5e-6` apart,
-/// are one circle under that band: it escalates under the same
-/// decision through `ellipse_axes_distinct`. A lever of `T::one()` in
-/// place of the extent would put both at `1e-2` — in band — and red the
-/// long rod's arm. At the fillet door's own band the departure is
-/// definite at either length, and the door builds the ellipse wherever
-/// its axes clear the band's escalate edge and escalates where they do
-/// not.
+/// eps 1e-9, 1e-3 falls under the 1e-6 row's band). The lever is the
+/// crease's extent, `0.6·L` (the cut sits at six tenths of the rod), so
+/// the margins are `1.8e-3` and `1.5e-2`. `run_battery` takes its band
+/// as an argument — explicit, so the same at every eps row — and under
+/// `Band::new(1.2e-3, 1.2e-2)` the same angle is IN BAND at `L = 0.3`
+/// (escalates naming the predicate) and DEFINITE at `L = 2.5`, where
+/// the picker reaches the ellipse, though its axes, `r·(1/cos φ − 1) =
+/// 5e-6` apart, are within that band, and the battery passes. A lever
+/// of `T::one()` in place of the extent would put both at `1e-2` — in
+/// band — and red the long rod's arm. At the fillet door's own band the
+/// departure is definite at either length, and the door builds the
+/// ellipse.
 #[test]
 fn the_cap_lever_is_the_links_extent() {
     let phi = 1e-2_f64;
     // Pinned on BOTH edges, so the row is the same at every eps row.
     let band = Band::new(1.2e-3, 1.2e-2).expect("the row's own band, ten wide");
-    let axes_apart = R * (1.0 / phi.cos() - 1.0);
-    let door = Band::linear(tol()).expect("the door's band");
     for (len, in_band) in [(0.3, true), (2.5, false)] {
         let rod = rod_d_profile_of_length_at::<f64>(len, tol());
         let rod = sweep::test_support::finished("the rod", rod, tol());
@@ -764,32 +769,36 @@ fn the_cap_lever_is_the_links_extent() {
         };
         let creases = rod_creases(below);
         assert_eq!(creases.len(), 2, "L = {len}: two creases");
+        // The oblique cap's centroid closed form
+        // ([`an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse`]):
+        // the tilt is about `y`, so only the `x` moment enters.
+        let n = Vec3::new(phi.sin(), 0.0, phi.cos());
+        let removed = rod_section_cut(ROD_R, ROD_FLAT, R) * 0.6 * len
+            - n.x * rod_section_moment(ROD_R, ROD_FLAT, R, (1.0, 0.0)) / n.z;
+        let enclosure = |body: &Body<f64>| {
+            let p = mass_properties(body, tol())
+                .unwrap_or_else(|e| panic!("L = {len}: certified props, got {e:?}"));
+            (p.volume, p.volume_pad)
+        };
+        let (vol0, pad0) = enclosure(below);
         for e in creases {
-            match fillet_edges(
+            let out = fillet_edges(
                 &sweep::test_support::at_rest(below, tol()),
                 &[e],
                 ROD_FILLET,
                 tol(),
-            ) {
-                Ok(out) if axes_apart > door.escalate() => {
-                    validate_geometric(&out.body, tol()).expect("tier 3");
-                }
-                Err(err) if axes_apart <= door.escalate() => {
-                    let BlendError::Escalated { source, .. } = err.error else {
-                        panic!(
-                            "L = {len}: the door's sliver escalates, got {:?}",
-                            err.error
-                        );
-                    };
-                    assert_eq!(source.predicate, Some("ellipse_axes_distinct"));
-                }
-                other => panic!(
-                    "L = {len}: axes {axes_apart} apart against the door's escalate edge {}: \
-                     got {:?}",
-                    door.escalate(),
-                    other.map(|_| ()).map_err(|e| e.error)
-                ),
-            }
+            )
+            .unwrap_or_else(|err| panic!("L = {len}: the door builds, got {:?}", err.error));
+            validate_geometric(&out.body, tol()).expect("tier 3");
+            let (vol1, pad1) = enclosure(&out.body);
+            let (dv, pad) = (vol0 - vol1, pad0 + pad1);
+            // The long rod's enclosure runs a hair past the ceiling the
+            // carve rows hold, so its midpoint is what is held.
+            assert!(
+                (dv - removed).abs() < 1e-12 + pad
+                    && (dv - removed).abs() < crate::band_planar_cut_off::midpoint_tol(),
+                "L = {len}: ΔV {dv} ± {pad} vs the closed form {removed}"
+            );
             let verdict = run_battery(
                 &BlendRequest {
                     body: below,
@@ -797,21 +806,24 @@ fn the_cap_lever_is_the_links_extent() {
                     size: ROD_FILLET,
                 },
                 band,
-            )
-            .expect_err("the tilt is in band, or its axes are");
-            let BlendError::Escalated {
-                source, decision, ..
-            } = verdict
-            else {
-                panic!("L = {len}: the verdict escalates, got {verdict:?}");
-            };
-            let (want, predicate) = if in_band {
-                (BlendDecision::CapTransverse, "fillet3_cap_transverse")
-            } else {
-                (BlendDecision::CapEllipse, "ellipse_axes_distinct")
-            };
-            assert_eq!(decision, want, "L = {len}");
-            assert_eq!(source.predicate, Some(predicate), "L = {len}");
+            );
+            match (in_band, verdict) {
+                (
+                    true,
+                    Err(BlendError::Escalated {
+                        source, decision, ..
+                    }),
+                ) => {
+                    assert_eq!(decision, BlendDecision::CapTransverse, "L = {len}");
+                    assert_eq!(
+                        source.predicate,
+                        Some("fillet3_cap_transverse"),
+                        "L = {len}"
+                    );
+                }
+                (false, Ok(_)) => {}
+                (_, other) => panic!("L = {len}: in band {in_band}, got {:?}", other.map(|_| ())),
+            }
         }
     }
 }

@@ -9,7 +9,9 @@ use crate::shared::surf::{at_apex, off_cone};
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
 use geom_brep::intersect::{PlaneConeSection, plane_cone_section};
-use geom_brep::{EnvelopeStatement, FocalImage, Pcurve, PcurveCache, chart_pcurve};
+use geom_brep::{
+    EnvelopeStatement, FocalImage, Pcurve, PcurveCache, chart_pcurve, chart_pcurve_over,
+};
 use geom_core::{Affine3, Bounds, Interval, Point3, Real, Vec3};
 
 /// A cone off the origin about a skew axis, given with either axis
@@ -140,7 +142,10 @@ fn the_image_is_exact_on_both_nappes_and_both_traversals() {
                 let d = surface.eval(uv.x, uv.y).distance(carrier.eval(t));
                 assert!(d < 1e-12, "{what}: t {t}: {d:e}");
             }
-            let cache = PcurveCache::certify(image, 0.3, 4.0, &carrier, &surface, band())
+            // The row is the image placed over the span it certifies on
+            // (C4).
+            let row = chart_pcurve_over(&carrier, 0.3, 4.0, &surface, band()).unwrap();
+            let cache = PcurveCache::certify(row, 0.3, 4.0, &carrier, &surface, band())
                 .unwrap_or_else(|e| panic!("{what}: {e}"));
             let cert = cache.certificate();
             assert!(
@@ -778,13 +783,13 @@ const FLAT_IMAGE_ULPS: f64 = 48.0;
 ///
 /// The ceiling binds at every pose: the band's zero is 700 `u` of the
 /// largest `size` here and more of the others, so the ceiling, not the
-/// band, decides. Today's envelopes read 27, 8 and 31 `u`. What reds the
+/// band, decides. Today's envelopes read 37, 27 and 31 `u`. What reds the
 /// row:
 /// - the arm's old `K = c² − sin²α`, at every pose;
 /// - the arm's old centre `apex − (c·a − sin²α·n)·δ/K`, at every pose
 ///   (465 `u` at `f = 0.8`, a refusal at the others);
 /// - the centre moved 30 `u` of the semi-axis back along the major axis,
-///   which reads 64, 86 and 70 `u`.
+///   which reads 54, 63 and 70 `u`.
 #[test]
 fn a_flat_cones_section_images_and_certifies_at_its_own_resolution() {
     let band = geom_core::Band::new(1e-12, 1e-11).unwrap();
