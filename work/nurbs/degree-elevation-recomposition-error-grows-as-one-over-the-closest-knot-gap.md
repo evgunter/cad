@@ -2,10 +2,11 @@
 id: degree-elevation-recomposition-error-grows-as-one-over-the-closest-knot-gap
 kind: issue
 title: degree elevation's recomposition removals amplify rounding by about one over the closest distinct-knot gap, so evaluation invariance is conditioned, not absolute
-status: open
-priority: P4
+status: closed
+priority: P3
 cost: M
 opened: 2026-09-24
+closed: 2026-10-20
 ---
 
 ## Finding
@@ -57,3 +58,55 @@ meet-in-the-middle. Such a split should apply to elevation only: in a
 lossy `remove_knot_plan` the split decides where the error lands and what
 the bound reports. It moves elevation's floating-point bits, so any
 digest over elevated geometry is re-cut with it.
+
+## Measured again (2026-10-20): the law grows with degree
+
+Measured on `main` 43b23583 with coordinates in ±10, weights 0.2–5
+or all 1, the sup over nine points per span, and the worst of 60
+curves. Each curve has one close interior pair `(a, a + g)` on
+`[0, 1]` and is elevated once (`elevate_degree(1)`):
+
+| source degree | g = 1e-3 | 1e-4 | 1e-5 | 1e-6 | law |
+|---|---|---|---|---|---|
+| 1–2 | 4e-15 | 4e-15 | 5e-15 | 5e-15 | none |
+| 3–4 | 4e-13 | 4e-12 | 5e-11 | 4e-10 | `1/g` |
+| 5 | 2e-12 | 3e-11 | 4e-10 | 3e-9 | `1/g` |
+| 6 | 2e-9 | 2e-7 | 1e-5 | 2e-3 | `1/g²` |
+| 7 | 4e-9 | 6e-7 | 3e-5 | 6e-3 | `1/g²` |
+| 8 | 3e-6 | 2e-3 | 1.7 | 7e2 | about `1/g³` |
+| 9 | 2e-5 | 1e-2 | 3.2 | 2e3 | about `1/g³` |
+
+- **Refusals.** At degree ≥ 8 with drawn weights, 5% (`g = 1e-5`) to
+  75% (`g = 1e-6`) of curves refused with `WeightCollapse`.
+- **Compounding.** Elevating by two compounds by the second step's
+  degree: degree 5, `elevate_degree(2)`, `g = 1e-8` is off by 2.2.
+- **The gap is relative.** What matters is a gap's ratio to the spans
+  around it, not its size. Uniform interior knots are clean at every
+  degree: degree 10 with 50 knots reads 7e-13, and degree 3 with
+  1000 knots 1e-3 apart reads 5e-15.
+
+**Callers.**
+- **`NurbsCurve*::approximate`** (`crates/geom/src/curves/fit.rs`)
+  elevates from degree 1 and 2 only, so it is exact. That holds for
+  fit-like chord knots too, with gap ratios down to 1e-5 at 2000
+  samples.
+- **`compose_chain`** (`crates/geom/src/curves/compose.rs`) and
+  **`skin`** (`crates/sweep/src/skin.rs`) raise user geometry to the
+  largest degree among it. They read a degree-≥3 close pair `1/g` to
+  `1/g³` off, silently.
+- **Raised to P3** for that reason (silent, metre-scale, on user
+  geometry), whatever the consumer count.
+
+## Closed (2026-10-20)
+
+`elevate_plan`'s recomposition now picks each removal's
+forward/backward split by tracked first-order error.
+`remove_knot_plan` keeps Piegl–Tiller's midpoint.
+
+- **The plain `α ≥ ½` split was not enough.** On uniform knots `α` ties
+  at exactly ½, so it chained errors from knot to knot and failed at
+  degree ≥ 6 with 50 knots.
+- **After the fix:** every degree ≤ 10 and every gap ≥ 1e-9 agrees to
+  ≤ 3e-15 of the largest coordinate, and uniform knots read what the
+  midpoint split read.
+- **Refusals:** the `WeightCollapse` refusals at degree ≥ 8 are gone.

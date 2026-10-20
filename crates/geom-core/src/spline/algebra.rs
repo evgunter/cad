@@ -1231,7 +1231,7 @@ pub fn remove_knot_plan(
     let mut cur_kv = kv.clone();
     let mut cur_w = weights.to_vec();
     for _ in 0..times {
-        let plan = remove_once(&cur_kv, &cur_w, u)?;
+        let plan = remove_once(&cur_kv, &cur_w, u, ChainSplit::Midpoint)?;
         let mut re = insert_knot_plan(&plan.knots, &plan.weights, u, 1)?;
         cur_kv = plan.knots.clone();
         cur_w = plan.weights.clone();
@@ -1243,9 +1243,33 @@ pub fn remove_knot_plan(
     Ok(steps)
 }
 
+/// Where a removal pass hands its unknowns from the forward chain to
+/// the backward one ([`remove_knot_plan`] for the chains). Both solve
+/// the same equations; they differ in which one equation goes unused
+/// and in what each step divides by.
+enum ChainSplit<'e> {
+    /// Piegl–Tiller's meet in the middle: the first `⌈(p−s)/2⌉`
+    /// unknowns forward. A lossy removal's residual lands on the middle
+    /// equation, which is the one its bound is built around.
+    Midpoint,
+    /// The split whose worst written point carries the least
+    /// first-order rounding error, the midpoint on a tie. The vector
+    /// holds one estimate per control point, in units of one rounding
+    /// of the point's scale, and is rewritten to the removed curve's
+    /// layout. Sound only for a removal exact in ℝ, where every
+    /// equation holds and which one goes unused is free: the elevation
+    /// recomposition.
+    Conditioned(&'e mut Vec<f64>),
+}
+
 /// One removal pass (fn docs on [`remove_knot_plan`] for the chain
 /// derivation; preconditions established there).
-fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, KnotAlgebraError> {
+fn remove_once(
+    kv: &KnotVector,
+    weights: &[f64],
+    u: f64,
+    split: ChainSplit<'_>,
+) -> Result<CurvePlan, KnotAlgebraError> {
     let p = kv.degree();
     let knots = kv.knots();
     // Present with multiplicity s, last copy at index r (caller
@@ -1285,7 +1309,56 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
         new_w[j] = weights[j];
     }
     let n_unknown = last - first; // = p − s
-    let nf = n_unknown.div_ceil(2);
+    let nf = match split {
+        ChainSplit::Midpoint => n_unknown.div_ceil(2),
+        ChainSplit::Conditioned(err) => {
+            // Each step's error: its own rounding, plus what its two
+            // inputs carry, scaled by what it multiplies them by.
+            // Forward `Â_i = (A_i − (1−α_i)·Â_{i−1})/α_i` from the
+            // carried point below, backward
+            // `Â_i = (A_{i+1} − α_{i+1}·Â_{i+1})/(1−α_{i+1})` from the
+            // one above. Neither chain's values depend on where the
+            // other starts, so each is read once.
+            let mut fwd = Vec::with_capacity(n_unknown);
+            let mut e = err[first - 1];
+            for (i, carried) in err.iter().enumerate().take(last).skip(first) {
+                let a = alpha(i);
+                e = (1.0 + carried + (1.0 - a) * e) / a;
+                fwd.push(e);
+            }
+            let mut bwd = vec![0.0f64; n_unknown];
+            let mut e = err[last + 1];
+            for i in (first..last).rev() {
+                let a = alpha(i + 1);
+                e = (1.0 + err[i + 1] + a * e) / (1.0 - a);
+                bwd[i - first] = e;
+            }
+            let worst = |k: usize| {
+                fwd[..k]
+                    .iter()
+                    .chain(&bwd[k..])
+                    .copied()
+                    .fold(0.0f64, f64::max)
+            };
+            let mid = n_unknown.div_ceil(2);
+            let nf = (0..=n_unknown)
+                .min_by(|&x, &y| {
+                    worst(x)
+                        .total_cmp(&worst(y))
+                        .then(x.abs_diff(mid).cmp(&y.abs_diff(mid)))
+                })
+                .unwrap_or(mid);
+            // The removed curve's layout: prefix carried, the chains'
+            // unknowns, the suffix shifted down past the dropped slot.
+            let mut next = Vec::with_capacity(n_new);
+            next.extend_from_slice(&err[..first]);
+            next.extend_from_slice(&fwd[..nf]);
+            next.extend_from_slice(&bwd[nf..]);
+            next.extend_from_slice(&err[last + 1..]);
+            *err = next;
+            nf
+        }
+    };
     // Forward chain: Â_i = (A_i − (1−α_i)·Â_{i−1}) / α_i.
     for i in first..first + nf {
         let a = alpha(i);
@@ -1359,8 +1432,19 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
 /// projective form per the module docs), (3) remove each interior
 /// breakpoint back down to its original multiplicity plus one. The
 /// recomposition removals are **exact in ℝ** (the elevated curve has
-/// full continuity there), so no bound is surfaced; the
-/// evaluation-invariance tests pin the floating-point agreement.
+/// full continuity there), so no bound is surfaced.
+///
+/// Being exact, a removal may leave any one of its equations unused,
+/// and the choice decides its rounding. Piegl–Tiller's midpoint split
+/// divides by `α ≈ g/span` next to a breakpoint a gap `g` from another,
+/// and each removal pass feeds the next its error, so a close pair
+/// amplified rounding by about `(span/g)^k` with `k` growing with
+/// degree: from degree 8, a pair `1e-5` apart moved the curve by the
+/// size of its coordinates. Each pass here takes the split whose worst
+/// point carries the least first-order error, given what its inputs
+/// already carry, and agreement holds at about `1e-14` of the largest
+/// coordinate for every gap and degree the rows draw. Any split is
+/// exact in ℝ, so the choice moves only rounding.
 ///
 /// # Errors
 ///
@@ -1393,16 +1477,17 @@ pub fn elevate_plan(kv: &KnotVector, weights: &[f64]) -> Result<Vec<CurvePlan>, 
     cur_kv = stage.knots.clone();
     cur_w = stage.weights.clone();
     plans.push(stage);
+    // One rounding per point written so far (the decomposition is
+    // convex and the stage blends once).
+    let mut err = vec![1.0f64; cur_w.len()];
     // (3) Recomposition: interior breakpoints from multiplicity p+1
     // down to original + 1.
     for (v, m) in &interior {
-        let excess = p - m;
-        if excess > 0 {
-            for step in remove_knot_plan(&cur_kv, &cur_w, *v, excess)? {
-                cur_kv = step.plan.knots.clone();
-                cur_w = step.plan.weights.clone();
-                plans.push(step.plan);
-            }
+        for _ in 0..p - m {
+            let plan = remove_once(&cur_kv, &cur_w, *v, ChainSplit::Conditioned(&mut err))?;
+            cur_kv = plan.knots.clone();
+            cur_w = plan.weights.clone();
+            plans.push(plan);
         }
     }
     Ok(plans)

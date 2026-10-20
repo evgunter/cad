@@ -345,36 +345,16 @@ fn f5_insert_refine_elevate_are_evaluation_invariant_fuzzed() {
         let e2 = c.elevate_degree(2).unwrap();
         assert_eq!(e2.degree(), p + 2);
         variants.push(("elevate2".into(), e2));
-        // Elevation's floating-point agreement is CONDITIONED by the
-        // closest pair of distinct knots, so its tolerance is too.
-        // Recomposition removes each breakpoint back down through
-        // `remove_once`, whose chains divide by `α` or `1 − α`, and next
-        // to a knot a gap `g` away that divisor is about `g` over the
-        // span — rounding is amplified by ~`1/g`. Measured over 20,000
-        // curves of this generator (degrees 1-5, up to two interior
-        // knots, coordinates in ±10, weights 0.2-5), the elevate-by-2
-        // disagreement times the smallest distinct-knot gap never
-        // exceeded 5.9e-13, and was at most 6.1e-13 outright wherever
-        // that gap exceeded 0.05. Two interior knots drawn 3.8e-4 apart
-        // (`CAD_FUZZ_SEED=0x827507a3dc90eac7`) disagree by 2.0e-9, which
-        // the fixed 1e-9 read as a broken invariant. The floor keeps
-        // 1e-9 wherever the knots are not that close; below a gap of
-        // 1e-2 the cap grows as `1e-11 / g`, 17 times the measured law.
-        let gap = {
-            let mut distinct: Vec<f64> = c.knots_f64_interim().knots().to_vec();
-            distinct.dedup();
-            distinct
-                .windows(2)
-                .map(|w| w[1] - w[0])
-                .fold(f64::INFINITY, f64::min)
-        };
-        let elevate_tol = tol.max(1e-11 / gap);
+        // Elevation is held to the same 1e-9 as insertion and
+        // refinement. It once needed `max(1e-9, 1e-11 / g)` for the
+        // closest distinct-knot gap `g`: its recomposition's midpoint
+        // split amplified rounding by about `(span/g)^k`, `k` growing
+        // with degree (1 at degree 3-5, 2 at 6-7), and two knots drawn
+        // 3.8e-4 apart (`CAD_FUZZ_SEED=0x827507a3dc90eac7`) disagreed
+        // by 2.0e-9. The recomposition now picks each removal's split
+        // by its rounding (`elevate_plan`), and agrees to about 1e-14
+        // at every gap (`elevation_conditioning.rs`).
         for (name, v) in &variants {
-            let tol = if name.starts_with("elevate") {
-                elevate_tol
-            } else {
-                tol
-            };
             // End conditions stay clamped/interpolating.
             assert!(
                 supp(v.eval(0.0), c.eval(0.0)) < tol,
