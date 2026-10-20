@@ -213,15 +213,23 @@ pub(crate) fn bernstein_restriction_as_retired(
 ///
 /// **The restriction door for a row that is read as it comes**: the
 /// SSI section's cuts and halves and the trim bisection's halves.
-/// Restriction has two other homes, each kept for its width: this
-/// pyramid is the tightest of the three on those callers. Measured on
-/// the section's and props' real inputs (2026-10-20), [`split_restrict`]
-/// is up to 98× wider than it on the section's general cuts and 14× at
-/// its cut-and-derivative step, and `super::derivative`'s `Grid::halved`
-/// arithmetic (unscaled sums and one exact `2⁻ʳ` per output, its
-/// generic halving at ½) is up to 2× wider at the section's exact-half
-/// cuts. On the halves of a `[0, 1]` row (the trim bisection) all three
-/// agree to the bit. The table is in
+/// It is the door for them by width: of restriction's three homes it is
+/// the tightest on those callers. Measured on the section's and props'
+/// real inputs (2026-10-20), [`split_restrict`] is up to 98× wider than
+/// it on the section's general cuts and 14× at its cut-and-derivative
+/// step, and `super::derivative`'s `Grid::halved` arithmetic (unscaled
+/// sums and one exact `2⁻ʳ` per output, its generic halving at ½) is up
+/// to 2× wider at the section's exact-half cuts. At the section's own
+/// halves of a `[0, 1]` row the other two are wider on 0.01% of
+/// coefficients, by at most 1.6× (3 ulp); at the trim bisection's
+/// halves all three agree to the bit. The other two are kept for what
+/// this one is not: `split_restrict` is the cut's fast form, `O(p²)`
+/// against `O(p³)`, sound beside it because its reader meets every cut
+/// with the whole cell's; `Grid::halved` is `super::derivative`'s
+/// halving, generic over `T: Real` with exact `2⁻ʳ` steps, where this
+/// reads certification scalars only. The numbers are a dated
+/// measurement nothing computes with, so no row guards them; the table
+/// and how it was taken are in
 /// `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
 ///
 /// [`KnotVector::bezier`]: super::KnotVector::bezier
@@ -285,7 +293,8 @@ fn step(x: Interval, y: Interval, (t, s): (Interval, Interval)) -> Interval {
         x
     } else {
         // Both weights' lower ends are non-negative (`t` is clamped to
-        // `[0, 1]`; `s = 1 − t` reaches `1 + 2⁻⁵²` above at a tiny `t`),
+        // `[0, 1]`; `s = 1 − t` reaches `1 + 2⁻⁵²` above at a tiny
+        // positive `t.lo`),
         // which is all `Interval::mul_nonneg` reads two corners on, bit
         // for bit the general product.
         x.mul_nonneg(s) + y.mul_nonneg(t)
@@ -897,6 +906,7 @@ mod tests {
             };
             Interval::from_bounds(c, c + w)
         };
+        let mut above = 0usize;
         for _ in 0..test_utils::fuzz::scaled(20_000) {
             let (x, y) = (coefficient(&mut rng), coefficient(&mut rng));
             let ratio = match rng.below(6) {
@@ -907,8 +917,13 @@ mod tests {
                     let (r0, r1) = (rng.range(0.0, 1.0), rng.range(0.0, 1.0));
                     Interval::from_bounds(r0.min(r1), r0.max(r1))
                 }
-                // A tiny `t`, whose `1 − t` reads above one.
-                3 => Interval::from_bounds(0.0, rng.range(0.0, 1e-300)),
+                // A tiny positive `t.lo`, at most `2⁻⁵⁴`: `1 − t` reads
+                // `1 + 2⁻⁵²` above.
+                3 => {
+                    let tiny = 2f64.powi(-54);
+                    let lo = rng.range(0.0, tiny).max(f64::from_bits(1));
+                    Interval::from_bounds(lo, lo + rng.range(0.0, tiny))
+                }
                 _ => {
                     let (s0, s1) = (rng.range(-2.0, 1.0), rng.range(1.0, 3.0));
                     let a = rng.range(s0, s1);
@@ -917,6 +932,7 @@ mod tests {
                 }
             };
             let (t, s) = convex(ratio);
+            above += usize::from(s.hi() > 1.0);
             let general = x * s + y * t;
             let got = step(x, y, (t, s));
             if x.same_enclosure(y) {
@@ -927,6 +943,7 @@ mod tests {
                 "x {x:?}, y {y:?}, t {t:?}: {got:?} against {general:?}"
             );
         }
+        assert!(above > 0, "no draw read `1 − t` above one");
     }
 
     /// **A refused neighbour is not laundered by the equal arm.** A

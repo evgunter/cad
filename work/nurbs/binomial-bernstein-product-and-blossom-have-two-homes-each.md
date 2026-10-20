@@ -120,8 +120,8 @@ take all three: one restriction door with a halving fast path.
     widest excess is about 1e-15 to 1e-11 of the coefficient's
     magnitude. The ruling (2026-10-20): no fold direction may widen a
     real caller past about 2×, so both homes stay.
-- **Restriction: three homes, by width, and one fold** (PR 3 of this
-  item). Measured (2026-10-20) at every real call during the geom-brep
+- **Restriction: three homes, one door by width, and one fold** (#5461).
+  Measured (2026-10-20) at every real call during the geom-brep
   slow set and sweep's shelling, r1 and shell rows, each other home on
   the same inputs against the pyramid (`restrict_segment`):
 
@@ -149,5 +149,5 @@ take all three: one restriction door with a halving fast path.
 Each primitive is resolved: the binomials folded to `pieces::binomial`
 (PRs 5414, 5433); the Bernstein product keeps two homes by precision
 (PR 5439); restriction keeps three by width, with
-`restrict_bernstein` folded onto `restrict_segment` (PR 3). The
+`restrict_bernstein` folded onto `restrict_segment` (#5461). The
 measurements above are the evidence.

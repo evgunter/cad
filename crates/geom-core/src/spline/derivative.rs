@@ -506,6 +506,12 @@ impl<T: Real, const D: usize> Grid<T, D> {
     /// by its exact power `2⁻ʳ`, which reads every halving step's sums
     /// to the bit wherever no step leaves the normal range: a sum's
     /// rounding commutes with a power-of-two scale.
+    ///
+    /// One of restriction's three homes, kept as this module's halving:
+    /// it is generic over `T: Real` on `Vector<T, D>` grids, where
+    /// [`super::blossom::restrict_segment`], the door for a row read as
+    /// it comes and the tightest of the three, reads certification
+    /// scalars only.
     fn halved(&self, along_u: bool) -> Option<(Self, Self)> {
         let (nu, nv) = (self.nu(), self.nv);
         let (n, lines) = if along_u { (nu, nv) } else { (nv, nu) };

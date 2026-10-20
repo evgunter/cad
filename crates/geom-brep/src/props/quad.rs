@@ -7595,8 +7595,9 @@ mod tests {
     }
 
     /// **The bisection's halves are the retired door's to the bit.**
-    /// Every block the Q5 and Q5b fixtures bisect, at every depth (the
-    /// four blocks are every one the props suite bisects), is
+    /// Every block the Q5 and Q5b fixtures bisect, at every depth (four
+    /// blocks; on 2026-10-20 they were every block the props suite
+    /// bisected), is
     /// halved by [`restrict_segment`] on `[0, 1]`; each channel's halves
     /// are those of the arithmetic `restrict_bernstein` ran
     /// (`geom_core::test_support::bernstein_restriction_as_retired`),
@@ -7626,11 +7627,7 @@ mod tests {
             RoundWindow::SCHEDULE,
         );
         let blocks = BISECTED.with(|b| b.borrow().clone());
-        assert!(
-            blocks.len() >= 4,
-            "the fixtures bisect: {} blocks",
-            blocks.len()
-        );
+        assert_eq!(blocks.len(), 4, "the fixtures bisect four blocks");
         let bits = |row: &[Interval]| -> Vec<(u64, u64, bool)> {
             row.iter()
                 .map(|x| (x.lo().to_bits(), x.hi().to_bits(), x.is_certified()))
