@@ -6,7 +6,7 @@
 //!
 //! # 1. Nothing observable moved (the SEAT-4/5 method)
 //!
-//! `Node::Extrude` and `Node::Revolve` build a `verbs::Verb`, run it
+//! `Node::Extrude` and `Node::Revolve` build a `verbs::Sweep`, run it
 //! through the profile door and read their birth record out of the
 //! closed record channel. The wire format is pinned by a byte-identical
 //! round trip over a document carrying both sweeps, and each
@@ -408,10 +408,16 @@ fn both_sweeps_evaluate_in_one_document() {
 /// digest hashes. Every edge description's `Debug` is unchanged, and no
 /// point moved (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held).
+///
+/// RE-BLESSED, `die` only, for a seam's sides and a crossing's lines
+/// named in the subtract's own table, in name order (N3): the die's pip
+/// subtracts' names moved, and the digest hashes the name table. No
+/// point moved (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held).
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xb0ac_b6ff_5b86_687f),
+        ("die", 0xee36_9963_09a7_5ff5),
         ("corner_table", 0x4d24_cb55_a481_538d),
         ("cut_cylinder", 0x615f_38e4_0bb7_2148),
         ("boss_union", 0xc33a_d792_0586_087c),

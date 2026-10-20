@@ -731,6 +731,10 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             half_edge,
             cause: diag(),
         },
+        PcurveMintError::NetStretchUndecided {
+            half_edge,
+            cause: diag(),
+        },
     ];
     v.extend(band_errors().into_iter().map(PcurveMintError::Band));
     v.extend(
@@ -962,6 +966,16 @@ fn census_contacts() -> Vec<CensusContact> {
         },
         CensusContact::EdgeEdgeOverlap { a: edge, b: edge },
         CensusContact::EdgeFaceOverlap { edge, face },
+        CensusContact::FaceFaceTangent {
+            finding: ContactFinding {
+                pair: DeclaredContact {
+                    a: face,
+                    b: face,
+                    class: ContactClass::Tangent,
+                },
+                verdict: ContactVerdict::Definite,
+            },
+        },
         CensusContact::ConformalPatch {
             finding: ContactFinding {
                 pair: DeclaredContact {
@@ -1310,6 +1324,11 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             inner: solid,
             witness: vertex,
         },
+        ValidationError::CuspEdgesMissing {
+            a: face,
+            b: face,
+            witness: "(0.0, 2.0, 0.5)".to_owned(),
+        },
     ] {
         s.push((label("", &e).trim_start_matches('/').to_owned(), e));
     }
@@ -1654,6 +1673,25 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
+    s.push((
+        "FaceThroughEdgeWedge".to_owned(),
+        ValidationError::FaceThroughEdgeWedge {
+            edge: EdgeKey::default(),
+            face,
+            witness: "(0.0, 0.0, 0.0)".to_owned(),
+        },
+    ));
+    for why in crate::census::TouchUnread::iter() {
+        s.push((
+            format!("FaceThroughEdgeWedgeUndecided/{why:?}"),
+            ValidationError::FaceThroughEdgeWedgeUndecided {
+                edge: EdgeKey::default(),
+                face,
+                witness: "(0.0, 0.0, 0.0)".to_owned(),
+                why,
+            },
+        ));
+    }
     let ContainError::ArcEndClearOfCorners(gaps) = arc_end_clear_of_corners(true) else {
         unreachable!("the sample builds the arc-end finding")
     };
@@ -1801,8 +1839,9 @@ mod tests {
     /// door but for the file's ε_in and the file's damage** (D4 ¶1: one
     /// recourse per decision, wherever it is read): the door's ending
     /// departs from the at-rest one only through its ε_in sentences, which
-    /// name ε_in, and where a sized decision's defect ending at rest is
-    /// the file's at the door ([`geom_core::DAMAGED_FILE_ENDING`]). The
+    /// name ε_in, and where a defect ending at rest is the file's at the
+    /// door ([`geom_core::DAMAGED_FILE_ENDING`]): a sized decision's
+    /// stored contradiction, or a miss over the file's own data. The
     /// roster is [`super::certify_errors`], which `nested_coverage_gaps`
     /// holds to every `CertifyError`, `PlaneNurbsRefusal` and
     /// `AnalyticRung3Refusal` variant. Red where the door's ending departs

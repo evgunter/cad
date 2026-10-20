@@ -624,11 +624,32 @@ pub(crate) fn torus_boundary_step(
 /// `ceil(span/step)` as a chord/grid count, with the `MAX_COUNT` (2^24)
 /// sanity cap surfaced as a typed error and a floor of 1.
 ///
+/// Four steps are not ordinary positive lengths, and each reads as
+/// follows:
+/// - **sign bit set** (`−0.0` and every negative, `−∞` included) or
+///   **NaN**: not a length. Every caller's step is derived (`sqrt` of a
+///   non-negative ratio, or capped by [`cap_angular`]), so this is a
+///   kernel defect, refused as [`TessellateError::StepNotPositive`]
+///   rather than floored to one chord.
+/// - **`+0.0`**: the underflow end of a positive step, from a δ so fine
+///   its step rounds to zero. The count is unbounded, so it refuses as
+///   [`TessellateError::ResolutionOverflow`], as any count past the cap
+///   does.
+/// - **`+∞`**: the zero-curvature reading, "nothing constrains this
+///   direction". A straight NURBS direction's grid step is `+∞`
+///   (`nurbs_cert`'s `grid_steps`, as is [`curvature_step`] with a
+///   bound of 0), and `span/∞ = 0` floors to the one cell such a span
+///   needs. This is not a missed refusal.
+///
 /// # Errors
 ///
-/// [`TessellateError::ResolutionOverflow`] when the count is
+/// [`TessellateError::StepNotPositive`] for a step with its sign bit set
+/// or NaN; [`TessellateError::ResolutionOverflow`] when the count is
 /// non-finite or at/above the cap.
 pub(crate) fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
+    if step.is_nan() || step.is_sign_negative() {
+        return Err(TessellateError::StepNotPositive { span, step });
+    }
     let raw = (span / step).ceil();
     if !(raw.is_finite() && raw < MAX_COUNT) {
         return Err(TessellateError::ResolutionOverflow { count: raw });
@@ -988,9 +1009,31 @@ mod tests {
             ceil_count(MAX_COUNT, 1.0),
             Err(TessellateError::ResolutionOverflow { .. })
         ));
+    }
+
+    /// **A step that is not a length refuses as a kernel defect, never
+    /// as a count** (D303). A step with its sign bit set, or NaN, used to
+    /// floor to one chord: `span/step` is negative and finite, and
+    /// `ceil` of it is below 1. `+0.0` stays the overflow it is (the
+    /// underflow end of a positive step), and `+∞` stays the one cell of
+    /// the zero-curvature reading.
+    #[test]
+    fn a_step_that_is_not_a_length_refuses_before_any_count() {
+        for step in [-1.0, -0.0, -1e-300, f64::NEG_INFINITY, f64::NAN] {
+            assert!(
+                matches!(
+                    ceil_count(1.0, step),
+                    Err(TessellateError::StepNotPositive { .. })
+                ),
+                "step {step}: {:?}",
+                ceil_count(1.0, step)
+            );
+        }
         assert!(matches!(
-            ceil_count(1.0, f64::NAN),
+            ceil_count(1.0, 0.0),
             Err(TessellateError::ResolutionOverflow { .. })
         ));
+        assert!(ceil_count(1.0, f64::INFINITY) == Ok(1));
+        assert!(ceil_count(core::f64::consts::PI, 0.5) == Ok(7));
     }
 }

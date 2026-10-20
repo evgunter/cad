@@ -1231,7 +1231,7 @@ pub fn remove_knot_plan(
     let mut cur_kv = kv.clone();
     let mut cur_w = weights.to_vec();
     for _ in 0..times {
-        let plan = remove_once(&cur_kv, &cur_w, u)?;
+        let plan = remove_once(&cur_kv, &cur_w, u, ChainSplit::Midpoint)?;
         let mut re = insert_knot_plan(&plan.knots, &plan.weights, u, 1)?;
         cur_kv = plan.knots.clone();
         cur_w = plan.weights.clone();
@@ -1243,16 +1243,132 @@ pub fn remove_knot_plan(
     Ok(steps)
 }
 
+/// Where a removal pass hands its unknowns from the forward chain to
+/// the backward one ([`remove_knot_plan`] for the chains). Both solve
+/// the same equations; they differ in which one equation goes unused
+/// and in what each step divides by.
+#[derive(Clone, Copy)]
+enum ChainSplit {
+    /// Piegl–Tiller's meet in the middle ([`midpoint_split`]). A lossy
+    /// removal's residual lands on the middle equation, which is the one
+    /// its bound is built around.
+    Midpoint,
+    /// The first `nf` unknowns forward. Sound only for a removal exact in
+    /// ℝ, where every equation holds and which one goes unused is free:
+    /// the elevation recomposition ([`conditioned_split`]).
+    At(usize),
+}
+
+/// Piegl–Tiller's split of `n_unknown` unknowns: the first `⌈n/2⌉`
+/// forward.
+fn midpoint_split(n_unknown: usize) -> usize {
+    n_unknown.div_ceil(2)
+}
+
+/// How much worse than the best split [`conditioned_split`] lets the
+/// midpoint's estimated error be before it leaves the midpoint. The
+/// estimate is first order, so a nearer split is no better on evidence
+/// and the midpoint keeps its bits.
+///
+/// **Empirical.** Fitted on held-out knot families (uniform, graded,
+/// geometric, jittered, with and without close pairs) at degrees 3–10;
+/// 2 was at or within 2× of the best median on every family. Rows pin
+/// both sides: 1 leaves the midpoint on uniform near-ties
+/// (`uniform_knots_keep_the_midpoint_split_at_every_pass`), and 4 or more
+/// keeps it on steeply graded knots where it is far worse
+/// (`elevation_conditioning.rs`, `steeply_graded_knots_leave_the_midpoint`).
+/// An exact tie at the margin goes to the midpoint (the product is
+/// exact), and among equally ranked splits the one nearest the midpoint
+/// wins. No row tells either tie rule from its inverse: inverting each
+/// reads no worse on any family measured.
+const MIDPOINT_MARGIN: f64 = 2.0;
+
+/// The pass removing one copy of `u` (multiplicity `s`, last copy at
+/// index `r`): the unknowns are `first..last` (`first = r − p`,
+/// `last = r − s`).
+fn removal_window(kv: &KnotVector, u: f64) -> (usize, usize, usize, usize) {
+    let p = kv.degree();
+    // Present with multiplicity s, last copy at index r (callers
+    // establish presence; map_or keeps this total anyway).
+    let (s, r) = kv.multiplicity_of(u).map_or((1, p + 1), |sr| sr);
+    (s, r, r - p, r - s)
+}
+
+/// The split an exact removal of one copy of `u` should take, and the
+/// error estimate rewritten to the removed curve's layout.
+///
+/// `err` holds one first-order rounding estimate per control point, in
+/// units of one rounding of the point's scale. Each chain step's error
+/// is its own rounding plus what its two inputs carry, scaled by what it
+/// multiplies them by: forward `Â_i = (A_i − (1−α_i)·Â_{i−1})/α_i` from
+/// the carried point below, backward
+/// `Â_i = (A_{i+1} − α_{i+1}·Â_{i+1})/(1−α_{i+1})` from the one above.
+/// Neither chain's values depend on where the other starts, so each is
+/// read once. The split taken is the one whose worst point carries the
+/// least, unless the midpoint is within [`MIDPOINT_MARGIN`] of it. The
+/// estimate reads only the knots, so the choice is the same for every
+/// curve on them.
+fn conditioned_split(kv: &KnotVector, u: f64, err: &[f64]) -> (usize, Vec<f64>) {
+    let (p, knots) = (kv.degree(), kv.knots());
+    let (_, _, first, last) = removal_window(kv, u);
+    let alpha = |i: usize| (u - knots[i]) / (knots[i + p + 1] - knots[i]);
+    let n_unknown = last - first;
+    let mut fwd = Vec::with_capacity(n_unknown);
+    let mut e = err[first - 1];
+    for (i, carried) in err.iter().enumerate().take(last).skip(first) {
+        let a = alpha(i);
+        e = (1.0 + carried + (1.0 - a) * e) / a;
+        fwd.push(e);
+    }
+    let mut bwd = vec![0.0f64; n_unknown];
+    let mut e = err[last + 1];
+    for i in (first..last).rev() {
+        let a = alpha(i + 1);
+        e = (1.0 + err[i + 1] + a * e) / (1.0 - a);
+        bwd[i - first] = e;
+    }
+    let worst = |k: usize| {
+        fwd[..k]
+            .iter()
+            .chain(&bwd[k..])
+            .copied()
+            .fold(0.0f64, f64::max)
+    };
+    let mid = midpoint_split(n_unknown);
+    let best = (0..=n_unknown)
+        .min_by(|&x, &y| {
+            worst(x)
+                .total_cmp(&worst(y))
+                .then(x.abs_diff(mid).cmp(&y.abs_diff(mid)))
+        })
+        .unwrap_or(mid);
+    let nf = if worst(mid) <= MIDPOINT_MARGIN * worst(best) {
+        mid
+    } else {
+        best
+    };
+    // The removed curve's layout: prefix carried, the chains' unknowns,
+    // the suffix shifted down past the dropped slot.
+    let mut next = Vec::with_capacity(err.len() - 1);
+    next.extend_from_slice(&err[..first]);
+    next.extend_from_slice(&fwd[..nf]);
+    next.extend_from_slice(&bwd[nf..]);
+    next.extend_from_slice(&err[last + 1..]);
+    (nf, next)
+}
+
 /// One removal pass (fn docs on [`remove_knot_plan`] for the chain
-/// derivation; preconditions established there).
-fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, KnotAlgebraError> {
+/// derivation), its split as `split` names it. Its callers establish
+/// the preconditions: valid weights, and `u` an interior knot.
+fn remove_once(
+    kv: &KnotVector,
+    weights: &[f64],
+    u: f64,
+    split: ChainSplit,
+) -> Result<CurvePlan, KnotAlgebraError> {
     let p = kv.degree();
     let knots = kv.knots();
-    // Present with multiplicity s, last copy at index r (caller
-    // checked presence; map_or keeps this total anyway).
-    let (s, r) = kv.multiplicity_of(u).map_or((1, p + 1), |sr| sr);
-    let first = r - p;
-    let last = r - s;
+    let (_, r, first, last) = removal_window(kv, u);
     let n_old = kv.control_count();
     let n_new = n_old - 1;
 
@@ -1285,7 +1401,10 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
         new_w[j] = weights[j];
     }
     let n_unknown = last - first; // = p − s
-    let nf = n_unknown.div_ceil(2);
+    let nf = match split {
+        ChainSplit::Midpoint => midpoint_split(n_unknown),
+        ChainSplit::At(nf) => nf,
+    };
     // Forward chain: Â_i = (A_i − (1−α_i)·Â_{i−1}) / α_i.
     for i in first..first + nf {
         let a = alpha(i);
@@ -1359,8 +1478,26 @@ fn remove_once(kv: &KnotVector, weights: &[f64], u: f64) -> Result<CurvePlan, Kn
 /// projective form per the module docs), (3) remove each interior
 /// breakpoint back down to its original multiplicity plus one. The
 /// recomposition removals are **exact in ℝ** (the elevated curve has
-/// full continuity there), so no bound is surfaced; the
-/// evaluation-invariance tests pin the floating-point agreement.
+/// full continuity there), so no bound is surfaced.
+///
+/// Being exact, a removal may leave any one of its equations unused,
+/// and the choice decides its rounding. Piegl–Tiller's midpoint split
+/// divides by `α ≈ g/span` next to a breakpoint whose gap `g` is small
+/// beside its neighbours, and each removal pass feeds the next its
+/// error, so the midpoint amplifies rounding by about `(span/g)^k` with
+/// `k` growing with degree. Each pass here keeps the midpoint unless
+/// another split's worst point carries clearly less first-order error,
+/// given what its inputs already carry (`conditioned_split`). Any split
+/// is exact in ℝ, so the choice moves only rounding.
+///
+/// **Measured agreement**, sup over the curve relative to its largest
+/// control coordinate: within `1e-12` at degree ≤ 10 on every family the
+/// rows and their held-out checks draw (close pairs to `1e-9`, graded,
+/// geometric, jittered and uniform knots); about `1e-11` at degree 12 on
+/// long graded or jittered knot vectors; `5e-11` at degree 25 with a
+/// `1e-9` pair and wide weights. No bound is surfaced: past degree 10
+/// the disagreement is unmeasured by any row and silent
+/// (`work/nurbs/elevation-past-degree-ten-agrees-to-1e-11-with-no-bound`).
 ///
 /// # Errors
 ///
@@ -1393,16 +1530,21 @@ pub fn elevate_plan(kv: &KnotVector, weights: &[f64]) -> Result<Vec<CurvePlan>, 
     cur_kv = stage.knots.clone();
     cur_w = stage.weights.clone();
     plans.push(stage);
+    // The split estimate's seed: one rounding per point. The
+    // decomposition's insertions round each point a few times more, but
+    // alike across a pass's candidates, so a uniform seed ranks them as
+    // a counted one would.
+    let mut err = vec![1.0f64; cur_w.len()];
     // (3) Recomposition: interior breakpoints from multiplicity p+1
     // down to original + 1.
     for (v, m) in &interior {
-        let excess = p - m;
-        if excess > 0 {
-            for step in remove_knot_plan(&cur_kv, &cur_w, *v, excess)? {
-                cur_kv = step.plan.knots.clone();
-                cur_w = step.plan.weights.clone();
-                plans.push(step.plan);
-            }
+        for _ in 0..p - m {
+            let (nf, next) = conditioned_split(&cur_kv, *v, &err);
+            err = next;
+            let plan = remove_once(&cur_kv, &cur_w, *v, ChainSplit::At(nf))?;
+            cur_kv = plan.knots.clone();
+            cur_w = plan.weights.clone();
+            plans.push(plan);
         }
     }
     Ok(plans)
@@ -1479,6 +1621,45 @@ mod tests {
     use super::*;
     use crate::real::Bounds;
     use crate::spline::basis::basis_funs;
+
+    /// On uniform knots the margin keeps the midpoint: at degree 10
+    /// with 40 interior knots, every recomposition pass of the
+    /// elevation splits its unknowns `⌈n/2⌉` forward. The estimate
+    /// reads only the knots, so the choice is exact and the same for
+    /// every curve on them. Red at a margin of 1, which leaves the
+    /// midpoint on near-ties there and doubles the elevation's median
+    /// rounding.
+    #[test]
+    fn uniform_knots_keep_the_midpoint_split_at_every_pass() {
+        let p = 10;
+        let mut ks = vec![0.0; p + 1];
+        ks.extend((1..=40).map(|i| f64::from(i) / 41.0));
+        ks.extend(core::iter::repeat_n(1.0, p + 1));
+        let kv = KnotVector::from_algebra(ks, p);
+        let plans = elevate_plan(&kv, &vec![1.0; kv.control_count()]).unwrap();
+        let mut passes = 0;
+        // The removal passes: every plan after the Bézier stage.
+        let stage = plans
+            .iter()
+            .position(|pl| pl.knots.degree() == p + 1)
+            .unwrap();
+        for (k, plan) in plans[stage + 1..].iter().enumerate() {
+            let (mut forward, mut unknowns) = (0usize, 0usize);
+            for step in &plan.steps {
+                if let Step::Combo { form, .. } = step {
+                    unknowns += 1;
+                    forward += usize::from(matches!(form, Form::UnblendForward(_)));
+                }
+            }
+            assert_eq!(
+                forward,
+                unknowns.div_ceil(2),
+                "pass {k}: {forward} of {unknowns} forward"
+            );
+            passes += 1;
+        }
+        assert_eq!(passes, 40 * (p - 1), "every breakpoint from p down to 2");
+    }
 
     /// 1-D rational evaluation oracle: x(t) = Σ N w x / Σ N w — the
     /// plan machinery is dimension-agnostic, so scalar control points

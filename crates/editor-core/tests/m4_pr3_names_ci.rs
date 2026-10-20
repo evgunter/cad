@@ -93,8 +93,10 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// as payload, which moves every extrude's id and every id after it;
 /// and declaring the die's variables mints their ids on the chain,
 /// which moves every id minted after a declare (ids only: no name's
-/// wording moved).
-const DIE_TABLE_DIGEST: u64 = 0x9092497d33212b92;
+/// wording moved). Re-pinned for wording: the die's subtracts name a
+/// seam's sides and a crossing's edge and face as their own tables carry
+/// them in, each with its read, in name order (N3); no id moved.
+const DIE_TABLE_DIGEST: u64 = 0xaad5203d809fb4c4;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
@@ -114,7 +116,11 @@ const DIE_TABLE_DIGEST: u64 = 0x9092497d33212b92;
 /// subtracts name each carried entity `From { read, of }`, keyed by the
 /// seat's read, and their node ids re-minted with the node kind. The same
 /// fence held.
-const DIE_NAMES_DIGEST: u64 = 0x3f10_73cd_9fef_9d08;
+///
+/// **Re-pinned with `DIE_TABLE_DIGEST`** for a seam's sides and a
+/// crossing's lines named in the subtract's own table (N3): the names'
+/// wording moved, no id.
+const DIE_NAMES_DIGEST: u64 = 0xff9c_5d65_b162_3220;
 
 #[test]
 fn die_name_tables_are_golden() {

@@ -2,7 +2,7 @@
 //! moved with it** — the SEAT-4/5/7 method, for the first verb whose
 //! result is two-sided.
 //!
-//! `Node::Split` builds a `verbs::Verb`, runs it through the split
+//! `Node::Split` builds a `verbs::Split`, runs it through the split
 //! door, takes its birth record out of the closed record channel and
 //! its two sides out of the door's own out-type, and emits names from
 //! the record. A re-plumbing's failure mode is a difference nobody

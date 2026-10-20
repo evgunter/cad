@@ -661,7 +661,7 @@ fn waved_between_the_breaks(a: f64) -> NurbsCurve3<f64> {
         }
         c = next;
     }
-    let choose = |n: u32, k: u32| (1..=k).fold(1.0, |m, i| m * f64::from(n + 1 - i) / f64::from(i));
+    let choose = |n: u32, k: u32| geom_core::spline::pieces::binomial(n as usize, k as usize);
     let ctl: Vec<_> = (0..=9u32)
         .map(|i| {
             let z = (0..=i)

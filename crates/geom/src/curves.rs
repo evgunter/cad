@@ -2245,13 +2245,16 @@ mod tests {
         assert_eq!(mk(0.0, 2.0).unwrap_err(), EllipseInvalid::MinorNotPositive);
 
         // ellipse_minor_positive: zero and negative refuse, in-band
-        // escalates, poison escalates (total, never a panic).
+        // escalates; a non-finite semi-axis is refused before the
+        // predicate reads it (total, never a panic).
         assert_eq!(mk(2.0, 0.0).unwrap_err(), EllipseInvalid::MinorNotPositive);
         assert_eq!(mk(2.0, -1.0).unwrap_err(), EllipseInvalid::MinorNotPositive);
         let err = mk(2.0, 5e-9).unwrap_err();
         assert!(matches!(err, EllipseInvalid::Escalated(_)), "{err:?}");
-        let err = mk(2.0, f64::NAN).unwrap_err();
-        assert!(matches!(err, EllipseInvalid::Escalated(_)), "{err:?}");
+        assert_eq!(
+            mk(2.0, f64::NAN).unwrap_err(),
+            EllipseInvalid::SemiAxisNotFinite
+        );
 
         // The in-band refusal composes the shared two-tolerance
         // recourse (S6 / D4 ¶1 addendum), exactly once.

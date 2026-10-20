@@ -229,7 +229,7 @@ fn streams(decisions: &[Decision]) -> (Vec<Decision>, Vec<Decision>) {
 /// build may have aimed a ray the other did not, and nothing on the
 /// record says which ray a decision belongs to, so no later pair is known
 /// to be one decision
-/// (`work/flush/revalue-pairs-the-ray-casters-decisions-only-to-their-first-difference.md`).
+/// (`work/flushtail/revalue-pairs-the-ray-casters-decisions-only-to-their-first-difference.md`).
 fn compare_decisions(
     p0: &[Decision],
     p1: &[Decision],

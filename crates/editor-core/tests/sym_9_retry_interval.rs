@@ -701,7 +701,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// deciding no whole period (PCERT B2b) takes its 48 numeric branch
 /// decisions off both, measured: 1262/1278 → 1262/1230 with the ladder
 /// and 1224/1316 → 1224/1268 without it;
-/// `symbolic` and `retried` hold.
+/// `symbolic` and `retried` hold. The line×line fillet's half-angle
+/// tangent read by the home's select (`profile`'s `sugar::split_half_tan`)
+/// moves decisions from `numeric` to `symbolic`: 1262/1230 → 1264/1228
+/// with the ladder, which retries thirty-nine, and 1224/1268 →
+/// 1225/1267 without it.
 ///
 /// The row read the filleted bracket, then the link, then the pad as
 /// authored. Since the constructions store the carriers they build,
@@ -746,19 +750,19 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1262, 1230, 38],
+        [1264, 1228, 39],
         "the shipped ladder's leaf receipt"
     );
     assert!(
-        line.contains(" retried=38\n"),
+        line.contains(" retried=39\n"),
         "the goldening line carries `retried=` after the discharge columns: {line}"
     );
     assert!(
-        human.contains("; 38 of those discharges reached only by a second attempt"),
-        "the human form names the thirty-eight as the ladder's: {human}"
+        human.contains("; 39 of those discharges reached only by a second attempt"),
+        "the human form names the thirty-nine as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1224, 1268, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1225, 1267, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

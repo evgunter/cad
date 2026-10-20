@@ -137,9 +137,16 @@ fn a_cascades_through_line_resolved_on_its_own_reads_the_lines_inside_it() {
     let doc2 = slide(&doc, strip, Axis3::Y, -0.5);
     let ev1 = run(&doc, None);
     let ev2 = run(&doc2, Some(&ev1));
-    let (crossing, line) = crossings(&ev1, n)
+    // The crossing cites the line as N's table carries it in from M.
+    let (crossing, cited, line) = crossings(&ev1, n)
         .into_iter()
-        .find(|(_, line)| line.node == m)
+        .find_map(|(crossing, edge)| match edge.path.as_slice() {
+            [RoleSeg::From { of, .. }] if of.node == m => {
+                let line = (**of).clone();
+                Some((crossing, edge, line))
+            }
+            _ => None,
+        })
         .expect("the slot crosses the back top edge's line at M");
     let prior = RunCtx {
         doc: &doc,
@@ -156,10 +163,8 @@ fn a_cascades_through_line_resolved_on_its_own_reads_the_lines_inside_it() {
     };
     assert_eq!(
         *diagnosis,
-        Diagnosis::Cascade {
-            through: line.clone()
-        },
-        "the crossing vanished through the line at M"
+        Diagnosis::Cascade { through: cited },
+        "the crossing vanished through the line at M, as it cites it"
     );
     let res = crate::fixture::resolve_with_prior_at_mint(now, prior, &line);
     let f = failed(&res, "the line");
