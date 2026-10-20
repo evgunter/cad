@@ -825,12 +825,20 @@ fn bridged_rod(gap: f64, rod_first: bool, carry: bool) -> topo::BooleanBody<f64>
         tol(),
     );
     let rod = ext("rod", vec![circle(0.0, 2.5 + gap, 0.5, 0.0)], 0.25, 0.5);
-    let (x, y) = if rod_first { (&rod, &plate) } else { (&plate, &rod) };
+    let (x, y) = if rod_first {
+        (&rod, &plate)
+    } else {
+        (&plate, &rod)
+    };
     let u = match topo::union(x, y, tol()) {
         Ok(BooleanResult::Body(u)) => u,
         other => panic!("plate ∪ rod, gap {gap}: {:?}", other.map(|_| ())),
     };
-    assert_eq!(u.body.solids().count(), 2, "plate ∪ rod, gap {gap}: two solids");
+    assert_eq!(
+        u.body.solids().count(),
+        2,
+        "plate ∪ rod, gap {gap}: two solids"
+    );
     let bridge = finished(
         "bridge",
         brick::<f64>((-1.0, 1.0), (1.0, 2.5 + gap), (0.6, 1.6), tol()),
@@ -865,9 +873,17 @@ fn bridged_rod(gap: f64, rod_first: bool, carry: bool) -> topo::BooleanBody<f64>
 
 /// The two faces a finding pairs, as their carriers' kinds, plane first.
 fn pair_kinds(body: &Body<f64>, a: topo::FaceKey, b: topo::FaceKey) -> (SurfaceKind, SurfaceKind) {
-    let kind = |f: topo::FaceKey| body.get_surface(body.get_face(f).unwrap().surface).unwrap().kind();
+    let kind = |f: topo::FaceKey| {
+        body.get_surface(body.get_face(f).unwrap().surface)
+            .unwrap()
+            .kind()
+    };
     let (p, q) = (kind(a), kind(b));
-    if p == SurfaceKind::Plane { (p, q) } else { (q, p) }
+    if p == SurfaceKind::Plane {
+        (p, q)
+    } else {
+        (q, p)
+    }
 }
 
 /// One solid pinched along a tangent line through two of its own faces'
@@ -881,7 +897,11 @@ fn a_bridged_rods_unrecorded_tangent_line_refuses_and_its_carried_record_passes(
     for rod_first in [false, true] {
         let label = format!("rod first {rod_first}");
         let r = bridged_rod(0.0, rod_first, false);
-        assert_eq!(r.contacts.face_face().count(), 0, "{label}: no face–face record");
+        assert_eq!(
+            r.contacts.face_face().count(),
+            0,
+            "{label}: no face–face record"
+        );
         let errors = topo::validate_pseudomanifold(&r.body, &r.contacts, tol()).unwrap_err();
         let found: Vec<_> = errors
             .iter()
@@ -893,7 +913,11 @@ fn a_bridged_rods_unrecorded_tangent_line_refuses_and_its_carried_record_passes(
                 _ => None,
             })
             .collect();
-        assert_eq!(found.len(), 1, "{label}: one tangent-line touch found: {errors:?}");
+        assert_eq!(
+            found.len(),
+            1,
+            "{label}: one tangent-line touch found: {errors:?}"
+        );
         assert_eq!(
             pair_kinds(&r.body, found[0].pair.a, found[0].pair.b),
             (SurfaceKind::Plane, SurfaceKind::Cylinder),
@@ -952,7 +976,9 @@ fn a_bore_tangent_from_inside_with_no_edge_on_its_line_is_missing_its_cusp_edges
     let missing: Vec<_> = errors
         .iter()
         .filter_map(|e| match e {
-            topo::ValidationError::CuspEdgesMissing { a, b, .. } => Some(pair_kinds(&r.body, *a, *b)),
+            topo::ValidationError::CuspEdgesMissing { a, b, .. } => {
+                Some(pair_kinds(&r.body, *a, *b))
+            }
             _ => None,
         })
         .collect();
