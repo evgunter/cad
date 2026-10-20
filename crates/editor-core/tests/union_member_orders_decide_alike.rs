@@ -46,7 +46,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{Spans, block, block_of, failure, run};
 use crate::corpus::body_of;
 use crate::emit_boolean_vertex_keys::named_geometry;
 use crate::fixture::{insert, len, on_frame};
@@ -61,7 +61,7 @@ type Members = fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>);
 
 /// Three unit blocks in a row along x, each flush on the next: two
 /// rests and the continuations of their shared walls.
-fn three_in_a_row(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn three_in_a_row(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
@@ -70,7 +70,7 @@ fn three_in_a_row(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 
 /// Three plates stacked, each smaller than the one below: two rests,
 /// no continuation.
-fn stepped_stack(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn stepped_stack(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 2.5), (0.5, 2.5), 1.0, 1.0);
     let (doc, c) = block(doc, (1.0, 2.0), (1.0, 2.0), 2.0, 1.0);
@@ -79,7 +79,7 @@ fn stepped_stack(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 
 /// A table: a top resting on four legs at its corners, each leg flush
 /// with two of the top's walls — 120 orders, sampled.
-fn table(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn table(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, top) = block(doc, (0.0, 4.0), (0.0, 3.0), 2.0, 0.25);
     let (doc, l0) = block(doc, (0.0, 0.5), (0.0, 0.5), 0.0, 2.0);
     let (doc, l1) = block(doc, (3.5, 4.0), (0.0, 0.5), 0.0, 2.0);
@@ -119,7 +119,7 @@ const CORPUS: [(&str, Members); 5] = [
 
 /// Every order of `0..n`, or a seeded sample of [`SAMPLE`] of them
 /// where there are more, the identity first.
-fn orders(n: usize) -> Vec<Vec<usize>> {
+pub(crate) fn orders(n: usize) -> Vec<Vec<usize>> {
     fn all(n: usize) -> Vec<Vec<usize>> {
         if n == 0 {
             return vec![Vec::new()];
@@ -591,16 +591,37 @@ fn every_union_of_the_emit_corpus_decides_alike_in_every_member_order() {
 /// `records_cite_their_decision::a_pinch_records_the_vertex_identity_that_made_it`:
 /// the cube's bottom face passes through the L's reflex corner
 /// (1, 1, 1), and their union pinches there.
-fn prism_and_cube(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let ell = vec![
-        (0.0, 0.0),
-        (2.0, 0.0),
-        (2.0, 1.0),
-        (1.0, 1.0),
-        (1.0, 2.0),
-        (0.0, 2.0),
-    ];
-    let (doc, profile) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![ell]);
+pub(crate) fn prism_and_cube(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    prism_and_cube_along(doc, CUBE_NORMAL)
+}
+
+/// The L the prism of [`prism_and_cube`] is drawn over; its reflex
+/// corner is (1, 1).
+const ELL: [(f64, f64); 6] = [
+    (0.0, 0.0),
+    (2.0, 0.0),
+    (2.0, 1.0),
+    (1.0, 1.0),
+    (1.0, 2.0),
+    (0.0, 2.0),
+];
+
+/// The normal of [`prism_and_cube`]'s cube's bottom face, unnormalised.
+pub(crate) const CUBE_NORMAL: [f64; 3] = [1.0, 1.3, 0.7];
+
+/// [`prism_and_cube`] with the cube's bottom face on the plane through
+/// the L's reflex corner (1, 1, 1) whose normal is `normal`.
+pub(crate) fn prism_and_cube_along(
+    doc: ProfileDoc,
+    normal: [f64; 3],
+) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![ELL.to_vec()],
+    );
     let (doc, prism) = insert(
         doc,
         Node::Extrude {
@@ -609,13 +630,13 @@ fn prism_and_cube(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
             side: ExtrudeSide::Along,
         },
     );
-    // The frame through the corner whose normal is (1, 1.3, 0.7),
+    // The frame through the corner whose normal is `normal`,
     // normalised: `u` its tilt of +z, `v` = normal × `u`.
     let unit = |m: [f64; 3]| {
         let n = m.iter().map(|c| c * c).sum::<f64>().sqrt();
         m.map(|c| c / n)
     };
-    let m = unit([1.0, 1.3, 0.7]);
+    let m = unit(normal);
     let u = unit([-m[2] * m[0], -m[2] * m[1], 1.0 - m[2] * m[2]]);
     let v = [
         m[1] * u[2] - m[2] * u[1],
@@ -636,7 +657,7 @@ fn prism_and_cube(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 }
 
 /// [`prism_and_cube`] and a block far from both.
-fn pinch_and_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn pinch_and_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, mut m) = prism_and_cube(doc);
     let (doc, far) = block(doc, (6.0, 7.0), (6.0, 7.0), 0.0, 1.0);
     m.push(far);
@@ -645,7 +666,7 @@ fn pinch_and_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 
 /// [`prism_and_cube`] and a block over the corner, which fills the
 /// pinch.
-fn pinch_and_cap(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn pinch_and_cap(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, mut m) = prism_and_cube(doc);
     let (doc, cap) = block(doc, (0.8, 1.2), (0.8, 1.2), 0.8, 0.4);
     m.push(cap);
@@ -654,19 +675,26 @@ fn pinch_and_cap(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 
 /// Where a union holds a pinch an earlier fold step made, its end pass
 /// refuses naming the corner's copies.
-const CARRIED_PINCH: &str = "work/refs/a-pinch-carried-through-a-later-fold-step-refuses-naming.md";
+pub(crate) const CARRIED_PINCH: &str =
+    "work/refs/a-pinch-carried-through-a-later-fold-step-refuses-naming.md";
 
 /// Two unit blocks kissing at the corner (1, 1, 1): one vertex-vertex
 /// record, citing its `VertexFusion` row.
-fn kiss(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
+pub(crate) fn kiss(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
+    let (doc, a) = block_of(doc, KISS[0]);
+    let (doc, b) = block_of(doc, KISS[1]);
     (doc, [a, b])
 }
 
+/// [`kiss`]'s two blocks.
+pub(crate) const KISS: [Spans; 2] = [
+    ((0.0, 1.0), (0.0, 1.0), 0.0, 1.0),
+    ((1.0, 2.0), (1.0, 2.0), 1.0, 1.0),
+];
+
 /// [`kiss`] and a block far from both: the touch is a fold step's, its
 /// record the union's in the orders that fold it last.
-fn kiss_and_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn kiss_and_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, [a, b]) = kiss(doc);
     let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
     (doc, vec![a, b, far])
@@ -967,7 +995,7 @@ fn a_re_cited_record_cites_the_rows_its_steps_decided_in_every_member_order() {
 /// the flush rims are one `Merged` edge the fold mints, and the third
 /// block's touch on it is a row citing that edge
 /// (`union_flush_onto_edge_contact`).
-fn flush_onto_an_edge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn flush_onto_an_edge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (-1.0, 0.0), -1.0, 1.0);
