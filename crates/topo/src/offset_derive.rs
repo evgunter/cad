@@ -220,6 +220,20 @@ pub(crate) struct Wall<'w, 's, T: Real> {
     pub(crate) chart: Option<&'w OnceCell<ChartedNurbs<'s, f64>>>,
 }
 
+/// A `WrongLane` from a charted door, which this module builds every
+/// wall/chart pairing for: a kernel bug, not an input the operation
+/// can decline (`docs/DESIGN.md` `[loud-failure]`), so it panics here
+/// rather than reaching a refusal or a fallback. The `pub` doors keep
+/// the typed refusal for callers outside the kernel.
+///
+/// # Panics
+///
+/// Always.
+#[allow(clippy::panic)]
+fn mispaired(door: &str, wall: &str, e: &SsiError) -> ! {
+    panic!("kernel invariant: {door} refused {wall} as mispaired with their charts: {e}")
+}
+
 /// How a section has `wall`'s chart: from the operation's slot, minting
 /// into it the first time, or minted afresh where there is no slot.
 fn chart_of<'w, 's>(
@@ -873,6 +887,9 @@ fn plane_wall_section<'w, 's>(
                 band,
             ) {
                 Ok(s) => s,
+                Err(e @ SsiError::WrongLane { .. }) => {
+                    mispaired("PlaneSection::of_charted", "the plane's wall", &e)
+                }
                 Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
             };
             match section.branch_at(mid) {
@@ -975,6 +992,9 @@ fn pair_section<'w, 's>(
         band,
     ) {
         Ok(s) => s,
+        Err(e @ SsiError::WrongLane { .. }) => {
+            mispaired("Section::of_charted", "the pair's walls", &e)
+        }
         Err(e) => return Ok(Err(SectionVerdict::Ssi(e))),
     };
     let carrier = match section.branch_at(mid) {
