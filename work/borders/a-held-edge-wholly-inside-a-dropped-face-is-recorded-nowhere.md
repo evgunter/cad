@@ -202,3 +202,16 @@ Two consequences for this row:
 - **`HeldEdge` / `DiscardRow::held` and the `HeldInto` entry-vertex
   rule retire** when the imprint row lands. The pocket fixture is
   re-measured then, as above.
+
+## Another witness, possibly this class (WIRE lane `wire-mchord`, 2026-10-20)
+
+A three-member union refuses `Naming(Emission "a piece of a face held
+as several borders no recorded discard between them")` in 4 of 6
+member orders. The members are A, plus B split into a lower block and an
+upper step (blocks helpers; `prism(o, u, v, loop, d)` = `on_frame` +
+`Extrude Along`):
+- A: `prism([0,0,0], X, Y, [(0,-1),(2,-1),(2,0),(4,0),(4,2),(0,2)], 1)`
+- `prism([1,0,0], Y, Z, [(0,-1),(3,-1),(3,1),(0,1)], 2)`
+- `prism([1,0,0], Y, Z, [(0,0.5),(1,0.5),(1,2),(0,2)], 2)`
+
+Nobody has checked yet whether this is the held-edge gap or a sibling.

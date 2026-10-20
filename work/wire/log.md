@@ -6657,3 +6657,8 @@ Signed (WIRE orchestrator).
   - The fix pass widened the census over all 74 NodeErrorKind arms, so forward is wildcard-free; it found and added 5 arms with no row.
   - Demos tour 94/94 and wild 8 cells, run locally.
   - Both rows closed.
+
+- 2026-10-20 (WIRE orchestrator) wire-mchord reported.
+  - A plain two-prism Union, Subtract, folds and split-then-union all refuse MergedChord, every hit zip-listed. MergedChordOffRim has no witness.
+  - The chord row is raised to P2 with the witnesses, and it joins should-pair-seams-take-name-ordered-sides (also P2) in one fork, FORK-PAIRSEAM. The byte is drawn, unread; the designer pair is dispatched.
+  - A three-member fold's borders refusal goes on borders' held-edge row as a possible witness.

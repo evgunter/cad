@@ -2,9 +2,9 @@
 id: should-pair-seams-take-name-ordered-sides
 kind: issue
 title: Should a pair boolean's seams take name-ordered sides, as FORK-SPANCHORD leaned, rather than Sided with a Merged parent opposite the operand face?
-status: open
+status: dispatched
 opened: 2026-10-18
-priority: P3
+priority: P2
 cost: M
 design: true
 ---
