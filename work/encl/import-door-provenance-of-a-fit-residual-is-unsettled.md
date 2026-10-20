@@ -2,10 +2,11 @@
 id: import-door-provenance-of-a-fit-residual-is-unsettled
 kind: issue
 title: geom-brep: at the import door a fit residual's provenance is Unsettled, though the carrier and surfaces it compares are the file's
-status: review
+status: closed
 pr: 5454
 opened: 2026-10-20
 branch: encl/one-culprit-chooser
+closed: 2026-10-20
 ---
 
 

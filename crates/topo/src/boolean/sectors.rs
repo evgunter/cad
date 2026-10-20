@@ -58,10 +58,10 @@ use super::{
 };
 use crate::body::Body;
 use crate::chord_join::StaleSite;
-use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{SectorCarrier, SectorFaceError};
-use crate::sector_shape::{SectorFault, SectorShape, sector_shape};
+use crate::sector_shape::{SectorFault, SectorRung, SectorShape, sector_shape};
 use crate::validate::decide;
 use geom_brep::recourse::Refused;
 
@@ -258,11 +258,81 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
     pub normal: OutwardNormal<T>,
 }
 
+/// **The tips of an operand's slits and zero-area rings**, read from
+/// the operand at rest: each `(vertex, face)` where two distinct line
+/// edges on one segment by structure ([`crate::census::shared_segments`],
+/// the same two point keys) both end at `vertex` and both bound `face`.
+/// That is tier 3's two coincident distinct edges (`crates/topo/README.md`),
+/// and `face` carries them as a slit of one of its loops or as a ring:
+/// it wraps round the tip, so its corner there between the two edges is
+/// a full turn ([`build_sectors`]). The reduction may split the two
+/// edges apart from the tip, each at its own vertex, so the reading is
+/// taken before it.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct SlitTips(std::collections::BTreeSet<(VertexKey, FaceKey)>);
+
+impl SlitTips {
+    /// The tips of `body` at rest.
+    pub(super) fn of<T: geom_core::Real>(body: &Body<T>) -> Self {
+        let mut tips = std::collections::BTreeSet::new();
+        for pair in crate::census::shared_segments(body) {
+            let [a, b] = pair.edges;
+            let (ea, eb) = (
+                crate::query::edge_ends(body, a),
+                crate::query::edge_ends(body, b),
+            );
+            let faces = |e: EdgeKey| -> Vec<FaceKey> {
+                let plus = proven(&body.edges, e, EntityId::Edge).he_plus;
+                [Some(plus), body.mate(plus)]
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|h| body.face_of_half_edge(h))
+                    .collect()
+            };
+            let (fa, fb) = (faces(a), faces(b));
+            for v in [ea.0, ea.1] {
+                if v != eb.0 && v != eb.1 {
+                    continue;
+                }
+                for &f in fa.iter().filter(|f| fb.contains(f)) {
+                    tips.insert((v, f));
+                }
+            }
+        }
+        Self(tips)
+    }
+
+    /// Whether `face`'s corner at `vertex` lies between a slit's two
+    /// edges.
+    fn holds(&self, vertex: VertexKey, face: FaceKey) -> bool {
+        self.0.contains(&(vertex, face))
+    }
+
+    /// Tips named outright, for a unit row that has no body to read.
+    #[cfg(test)]
+    pub(super) fn of_pairs(pairs: impl IntoIterator<Item = (VertexKey, FaceKey)>) -> Self {
+        Self(pairs.into_iter().collect())
+    }
+
+    /// The face carrying a slit `vertex` is the tip of, if it is one.
+    pub(super) fn face_at(&self, vertex: VertexKey) -> Option<FaceKey> {
+        self.0.iter().find(|(v, _)| *v == vertex).map(|&(_, f)| f)
+    }
+}
+
 /// Builds the sector array of `vertex`'s neighborhood (module docs).
+///
+/// A corner between a slit's or ring's two coincident edges at its tip
+/// ([`SlitTips`], read off the operand at rest) is the carrying face's
+/// full turn round the tip: [`sector_shape`] decides its two bounds
+/// leave along one ray, which between two distinct edges it rejects as
+/// a spike, and here the structure says which of 0 and a full turn it
+/// is. The full turn is pushed as four quarter sectors, each convex.
 pub(super) fn build_sectors<T: Decide>(
     body: &Body<T>,
     operand: Operand,
     vertex: VertexKey,
+    tips: &SlitTips,
     band: Band,
 ) -> Result<Vec<BoolSector<T>>, BooleanError> {
     let corners = orbit_corners(body, operand, vertex, band);
@@ -290,19 +360,45 @@ pub(super) fn build_sectors<T: Decide>(
         // NOT restated: it is the contract of `sector_shape`'s `normal`
         // parameter, which is the one place a caller has to read it.
         // The value arrives typed, so it cannot be the wrong one.
+        let shape = match sector_shape(dir_end, dir_start, normal, alone, band) {
+            Ok(shape) => shape,
+            Err(SectorFault::Rung {
+                rung: SectorRung::Straight { .. },
+                diag,
+            }) if diag.margin.rejected_sign() == Some(Sign::Positive)
+                && tips.holds(vertex, face) =>
+            {
+                push_full_turn(
+                    &mut sectors,
+                    he,
+                    (dir_start, reach_start),
+                    (dir_end, reach_end),
+                    face,
+                    normal,
+                );
+                continue;
+            }
+            Err(fault) => {
+                return Err(match fault {
+                    SectorFault::NonFiniteChord => {
+                        BooleanError::NonFiniteSectorChord { vertex, face }
+                    }
+                    SectorFault::UnderflowedChord => {
+                        BooleanError::UnderflowedSectorChord { vertex, face }
+                    }
+                    SectorFault::Rung { rung, diag } => BooleanError::Escalated {
+                        decision: BooleanDecision::Corner(rung),
+                        diag,
+                    },
+                });
+            }
+        };
         let SectorShape {
             arm,
             unit_own: u_end,
             unit_next: u_start,
             bisector: bisec,
-        } = sector_shape(dir_end, dir_start, normal, alone, band).map_err(|fault| match fault {
-            SectorFault::NonFiniteChord => BooleanError::NonFiniteSectorChord { vertex, face },
-            SectorFault::UnderflowedChord => BooleanError::UnderflowedSectorChord { vertex, face },
-            SectorFault::Rung { rung, diag } => BooleanError::Escalated {
-                decision: BooleanDecision::Corner(rung),
-                diag,
-            },
-        })?;
+        } = shape;
         match bisec {
             None => sectors.push(BoolSector {
                 he,
@@ -341,6 +437,41 @@ pub(super) fn build_sectors<T: Decide>(
         }
     }
     Ok(sectors)
+}
+
+/// Pushes the full turn of `face` round a slit's tip ([`SlitTips`]),
+/// from the next orbit chord `start` CCW round to the corner's own
+/// chord `end` (the two leave along one ray), as four convex quarter
+/// sectors in the chained order [`build_sectors`] pushes a subdivided
+/// corner in: the end-sharing quarter first. The quarter bounds are
+/// `start` turned a quarter, a half and three quarters about the
+/// face's outward normal, bisectors levered at the shorter chord.
+fn push_full_turn<T: Decide>(
+    sectors: &mut Vec<BoolSector<T>>,
+    he: HalfEdgeKey,
+    (start, start_reach): (Vec3<T>, Reach<T>),
+    (end, end_reach): (Vec3<T>, Reach<T>),
+    face: FaceKey,
+    normal: OutwardNormal<T>,
+) {
+    let arm = start.norm().min(end.norm());
+    let (u_start, u_end) = (start.normalize(), end.normalize());
+    let quarter = normal.vec().cross(u_start);
+    let bounds = [u_start, quarter, -u_start, -quarter, u_end];
+    let inner = Reach::Bisector(arm);
+    let reaches = [start_reach, inner, inner, inner, end_reach];
+    for k in (0..4).rev() {
+        sectors.push(BoolSector {
+            he,
+            start: bounds[k],
+            end: bounds[k + 1],
+            start_reach: reaches[k],
+            end_reach: reaches[k + 1],
+            face,
+            normal,
+            arm,
+        });
+    }
 }
 
 /// The corners of `vertex`'s neighborhood, in orbit order

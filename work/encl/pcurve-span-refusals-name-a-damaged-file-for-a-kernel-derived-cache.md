@@ -2,8 +2,9 @@
 id: pcurve-span-refusals-name-a-damaged-file-for-a-kernel-derived-cache
 kind: issue
 title: geom-brep: a PcurveCheck span refusal at rest ends in KERNEL_OR_FILE_DEFECT_ENDING, naming a damaged file for a cache the kernel derives
-status: open
+status: dispatched
 opened: 2026-10-14
+branch: encl/sized-provenance
 ---
 
 
