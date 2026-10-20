@@ -75,11 +75,7 @@ fn misses(lp: &ConstructedLoop<f64>) -> [f64; 3] {
         let d = y - x;
         ((arc.centre - x).perp_dot(d).abs() / d.norm() - arc.radius).abs()
     };
-    [
-        (arc.landing(a) - b).norm(),
-        off_line(p, a),
-        off_line(b, q),
-    ]
+    [(arc.landing(a) - b).norm(), off_line(p, a), off_line(b, q)]
 }
 
 /// **A counterexample search over hairpins**: legs of 100 m and 1e4 m,
@@ -136,17 +132,17 @@ fn pins() -> [Pin; 2] {
             anchor: Point2::new(-10000.0, 0.0002),
             dir: (-1.0, 1e-8),
             r: 3e-5,
-            t1: Point2::new(4000.000_000_000_000_5, 0.0),
-            t2: Point2::new(4000.000_000_000_000_5, 6e-5),
-            centre: Point2::new(4000.000_000_000_000_5, 3e-5),
+            t1: Point2::new(4_000.000_000_000_000_5, 0.0),
+            t2: Point2::new(4_000.000_000_000_000_5, 6e-5),
+            centre: Point2::new(4_000.000_000_000_000_5, 3e-5),
         },
         Pin {
             anchor: Point2::new(0.0, 1.000_000_003_333_333_4),
             dir: (-0.999_999_995, 9.999_999_983_333_334e-5),
             r: 0.3,
-            t1: Point2::new(4000.000_005_000_000_3, 0.0),
-            t2: Point2::new(4000.000_035_000_000_5, 0.599_999_998_5),
-            centre: Point2::new(4000.000_005_000_000_3, 0.3),
+            t1: Point2::new(4_000.000_005_000_000_3, 0.0),
+            t2: Point2::new(4_000.000_035_000_000_5, 0.599_999_998_5),
+            centre: Point2::new(4_000.000_005_000_000_3, 0.3),
         },
     ]
 }

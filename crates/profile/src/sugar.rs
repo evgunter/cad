@@ -142,8 +142,8 @@ pub(crate) fn split_half_tan<T: Real>(across: T, along: T, len: T) -> T {
 }
 
 /// [`split_half_tan`]'s first arm alone, for a construction whose split
-/// stays clear of `along = −len`, where it cancels: a fillet, whose arc
-/// sweeps under a half turn. A select is one atom to the symbolic
+/// stays clear of `along = −len`, where it cancels: an arc fillet's
+/// centre split, whose arc sweeps under a half turn. A select is one atom to the symbolic
 /// tier's plain walk, so a construction that never needs the second arm
 /// keeps the algebraic form the tier reads through.
 pub(crate) fn split_half_tan_near<T: Real>(across: T, along: T, len: T) -> T {
