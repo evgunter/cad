@@ -99,24 +99,24 @@ use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_n
 use crate::recourse::{RefusedSide, SizedDecision, SizedPass};
 
 /// Whether the folded lever arm at a point of an edge is positive: the
-/// length the wedge between the edge's faces is metered over, the
+/// width the wedge between the edge's faces is metered over, the
 /// shorter of the faces' extent and their radii of curvature. It
 /// passes only on a definitely positive arm; a zero-band one is a size
 /// a smaller tolerance decides. Every door that reads the dihedral's
-/// [`crate::LeverRung::Arm`] ends it here, since the arm is a length and
+/// [`crate::LeverRung::Arm`] ends it here, since the arm is a width and
 /// the wedge an angle, save a door that refuses a nonzero wedge, which
 /// withholds the offer. Its margin is the wedge the arm meters,
 /// `sin θ · arm` (the arm's own where that wedge reads zero at the
 /// tolerance deciding the arm), so the tolerance it offers decides the
 /// arm and the wedge both. Its note names both ways the arm reaches no
-/// length: the faces' extent (faces of none) and a face's radius (a
+/// width: the faces' extent (faces of none) and a face's radius (a
 /// cone's point). Its refused side is one the lever reaches: a wedge below
 /// zero needs a stored radius below zero, which a profile refuses at a
 /// build and the at-rest representability check reports first.
 pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
     lever: "move the geometry so that edge's faces clearly run farther and none curves tightly \
             there",
-    size: "length or the gap its faces open",
+    size: "width or the gap its faces open",
     passes: SizedPass::Positive,
     side: RefusedSide::Lever,
     no_size: Some("faces of no extent or a cone's point leave no angle to measure"),
@@ -128,42 +128,19 @@ pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
 /// (D4 ¶1 (iv)).
 pub const DIHEDRAL_ARM_CLAUSE: &str = crate::dihedral_arm_clause!();
 
-/// The length [`DIHEDRAL_ARM`] decides, as a noun: the faces' width the
-/// clause asks for, for a door that names the quantity rather than the
-/// question. It and [`DIHEDRAL_ARM_CLAUSE`] read one spelling of what
-/// the width is for, so the noun and the question cannot drift apart.
-pub const DIHEDRAL_ARM_NOUN: &str = crate::dihedral_arm_noun!();
-
-/// What the dihedral arm's width is for: the one spelling
-/// [`DIHEDRAL_ARM_CLAUSE`] and [`DIHEDRAL_ARM_NOUN`] compose.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! dihedral_arm_measure {
-    () => {
-        "for how they curve, to measure their angle"
-    };
-}
-
 /// [`DIHEDRAL_ARM_CLAUSE`] as a literal, for `concat!`.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! dihedral_arm_clause {
     () => {
-        concat!(
-            "between faces wide enough, ",
-            $crate::dihedral_arm_measure!()
-        )
+        "between faces wide enough, for how they curve, to measure their angle"
     };
 }
 
-/// [`DIHEDRAL_ARM_NOUN`] as a literal, for `concat!`.
-#[doc(hidden)]
-#[macro_export]
-macro_rules! dihedral_arm_noun {
-    () => {
-        concat!("the faces' width, ", $crate::dihedral_arm_measure!())
-    };
-}
+/// The width [`DIHEDRAL_ARM`] decides, as a noun, for a door that names
+/// the quantity rather than the question: the same word as the
+/// decision's size and its clause's "faces wide enough".
+pub const DIHEDRAL_ARM_NOUN: &str = "the width the faces' angle is measured across";
 
 /// **The material pairing** ([`classify_material_pairing`]) as a
 /// decision a refusal ends: it passes on either definite sign and
@@ -1690,16 +1667,16 @@ mod tests {
                      curves tightly there";
         let noted =
             format!("{lever}; faces of no extent or a cone's point leave no angle to measure");
-        let untold = "This length or the gap its faces open is within the file's declared \
+        let untold = "This width or the gap its faces open is within the file's declared \
                         coincidence distance ε_in = 1e-8 m, so the file cannot tell it from \
                         zero. ";
         let offer = format!(
-            "{lever}, or, if this length or the gap its faces open is intended, tighten the \
+            "{lever}, or, if this width or the gap its faces open is intended, tighten the \
              tolerance below 5e-11 m"
         );
         let floor = format!(
             "{lever}; {}",
-            geom_core::floor_note("length or the gap its faces open")
+            geom_core::floor_note("width or the gap its faces open")
         );
         let file = FileCoincidence::new(1e-8);
         let rows: [(&str, &Indeterminate, [String; 3]); 6] = [
@@ -1725,7 +1702,7 @@ mod tests {
                     offer.clone(),
                     offer,
                     format!(
-                        "{untold}{lever}, or, if this length or the gap its faces open is \
+                        "{untold}{lever}, or, if this width or the gap its faces open is \
                          intended, re-export the file with its uncertainty declared below \
                          5e-10 m and tighten the tolerance below 5e-11 m"
                     ),
@@ -2513,7 +2490,7 @@ mod tests {
             assert_eq!(
                 DIHEDRAL_ARM.recourse(arm, file),
                 format!(
-                    "This length or the gap its faces open is within the file's declared \
+                    "This width or the gap its faces open is within the file's declared \
                      coincidence distance ε_in = 1e-6 m, so the file cannot tell it from \
                      zero. {lever}"
                 ),

@@ -1344,8 +1344,9 @@ pub enum ValidationError {
     },
     /// Tier 3 (check 4): at an interior sample of an edge, the folded
     /// lever arm the wedge between its faces is metered over was decided
-    /// not positive — the edge is too short, or a face curves too
-    /// tightly there (a cone at its apex), for an angle to be measured —
+    /// not positive — the faces' extent there, clamped by how tightly
+    /// they curve (a cone at its apex), leaves no width to measure an
+    /// angle between them over —
     /// the definite arm of [`WedgeCheck::Arm`], whose undecided arm is
     /// [`Self::SliverDihedral`] ([`geom_brep::DIHEDRAL_ARM`]).
     NoDihedralArm {
@@ -11969,7 +11970,7 @@ mod tests {
                 "whether an edge is between faces wide enough, for how they curve, to measure \
                  their angle is undecided. Recourse: move the geometry so \
                  that edge's faces clearly run farther and none curves tightly there, or, \
-                 if this length or the gap its faces open is intended, tighten the tolerance \
+                 if this width or the gap its faces open is intended, tighten the tolerance \
                  below 5e-10 m"
                     .to_owned(),
             ),
@@ -11977,7 +11978,7 @@ mod tests {
                 "wedge arm, zero band",
                 sliver(WedgeCheck::Arm, diag(MarginDiag::value(5e-10))),
                 "Recourse: move the geometry so that edge's faces clearly run farther and none \
-                 curves tightly there, or, if this length or the gap its faces open is \
+                 curves tightly there, or, if this width or the gap its faces open is \
                  intended, tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
@@ -11992,7 +11993,7 @@ mod tests {
                 },
                 "an edge is not between faces wide enough, for how they curve, to measure their \
                  angle. Recourse: move the geometry so that edge's faces clearly run farther \
-                 and none curves tightly there, or, if this length or the gap its faces \
+                 and none curves tightly there, or, if this width or the gap its faces \
                  open is intended, tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
@@ -12351,8 +12352,8 @@ mod tests {
     /// finding, the boolean seam's subject, and the merge door's
     /// kept-boundary arm. A definite arm names no tolerance before its
     /// recourse: the exact zero no tolerance decides reads it too.
-    /// Certify's [`CertCheck`] word is a noun naming the length, not the
-    /// question, so it is held to [`geom_brep::DIHEDRAL_ARM_NOUN`]. The pin reads rendered text,
+    /// Certify's [`CertCheck`] word is a noun naming the width, not the
+    /// question, so it is held to that noun. The pin reads rendered text,
     /// so a door that re-spells the clause identically rather than
     /// composing the const passes it; that copy goes unseen until the
     /// clause changes. The SSI march's question is
@@ -12425,8 +12426,8 @@ mod tests {
         );
         assert_eq!(
             CertCheck::TransversalityArm.to_string(),
-            geom_brep::DIHEDRAL_ARM_NOUN,
-            "certify's word is the arm's noun"
+            "the width the faces' angle is measured across",
+            "certify's word is a noun for the width"
         );
         let ssi = geom_brep::SsiError::Escalated {
             decision: geom_brep::TraceDecision::TransversalityArm,

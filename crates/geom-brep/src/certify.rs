@@ -461,9 +461,9 @@ pub enum CertifyError {
         /// The metered length's verdict, with its reporting margin.
         verdict: Refused,
     },
-    /// A circle carrier's stored interval spans definitely more than
-    /// one full period (arc length `(t₁ − t₀)·r > τ·r` beyond
-    /// tolerance). This closes the 9-sample winding alias (M2 PR 3
+    /// A periodic carrier's stored interval (a circle's, an ellipse's, a
+    /// spiric's) spans definitely more than one full period beyond
+    /// tolerance. This closes the 9-sample winding alias (M2 PR 3
     /// fix pass, S1): the uniform schedule `s = i/8` is aliased exactly
     /// by intervals wrong by `8kτ` (the per-sample discrepancy
     /// `(Δ − θ)·i/8` vanishes mod τ iff `Δ = θ + 8kτ`), and with
@@ -1072,9 +1072,13 @@ impl StatedSpan {
 /// [`CertifyError::WindingExceeded`]).
 const STORED_INTERVAL: &str = "the stored parameter interval";
 
+/// The subject a door's refusal of its input tells its span decision of
+/// ([`StatedSpan`]'s `Display`).
+const GIVEN_INTERVAL: &str = "this edge's parameter interval";
+
 impl StatedSpan {
     /// **The span decisions' one sentence**, told of `given`: a door's
-    /// input ([`StatedSpan`]'s `Display`) or the stored interval
+    /// input ([`GIVEN_INTERVAL`]) or the stored interval
     /// ([`STORED_INTERVAL`]). The words come from the verdict, never its
     /// number: only a decided negative runs backwards by an amount.
     fn tell(self, given: &str, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -1110,7 +1114,7 @@ impl StatedSpan {
 
 impl core::fmt::Display for StatedSpan {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.tell("this edge's parameter interval", f)
+        self.tell(GIVEN_INTERVAL, f)
     }
 }
 
@@ -7572,6 +7576,10 @@ mod tests {
                 "the stored parameter interval runs backwards by 5e-9 m",
             ),
             (
+                CertifyError::WindingExceeded,
+                "the stored parameter interval spans more than one full turn of its carrier",
+            ),
+            (
                 meter(zero(sized)),
                 "the spline carrier's knot domain, metered at its certified speed floor, is not \
                  shown above zero (margin 5e-10 m), so the stored interval has no proven metre \
@@ -7763,7 +7771,7 @@ mod tests {
         );
     }
 
-    /// **The transversality margin's lever arm ends as a length, not an
+    /// **The transversality margin's lever arm ends as a width, not an
     /// angle**: an escalation of the arm the wedge is metered over names
     /// that edge's faces' extent and their bend, and offers the tolerance
     /// the arm gives, in band and in the zero band alike; the wedge's own
@@ -7771,7 +7779,7 @@ mod tests {
     /// rendered the arm under `Transversality`: "if this angle is
     /// intended, tighten the tolerance below 5e-11 m".)
     #[test]
-    fn the_transversality_arm_ends_as_a_length_not_an_angle() {
+    fn the_transversality_arm_ends_as_a_width_not_an_angle() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         for (margin, below) in [(5e-9, "5e-10"), (5e-10, "5e-11")] {
             let cause = Indeterminate {
@@ -7790,12 +7798,13 @@ mod tests {
             };
             let arm = render(CertCheck::TransversalityArm);
             assert!(
-                arm.contains(crate::DIHEDRAL_ARM_NOUN)
-                    && arm.ends_with(&format!(
-                        "Recourse: move the geometry so that edge's faces clearly run farther and \
-                         none curves tightly there, or, if this length or the gap its faces \
+                arm.starts_with(
+                    "the width the faces' angle is measured across at sample 1 escalated: "
+                ) && arm.ends_with(&format!(
+                    "Recourse: move the geometry so that edge's faces clearly run farther and \
+                         none curves tightly there, or, if this width or the gap its faces \
                          open is intended, tighten the tolerance below {below} m"
-                    )),
+                )),
                 "{arm}"
             );
             assert!(

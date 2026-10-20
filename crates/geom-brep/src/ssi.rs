@@ -3214,7 +3214,7 @@ mod ending_tests {
         assert_eq!(
             escalated(TraceDecision::TransversalityArm).ending(Reading::Build),
             "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
-             tightly there, or, if this length or the gap its faces open is intended, \
+             tightly there, or, if this width or the gap its faces open is intended, \
              tighten the tolerance below 5e-10 m",
             "the arm gate ends as a length, not the angle it guards"
         );
