@@ -99,7 +99,11 @@ pub enum FilletLegShape<T: Real> {
 /// `via`→`b` (independent of where on the arc `via` sits); the bulge is
 /// tan(θ/4) = tan(Δ/2), [`split_half_tan`] of the split
 /// `(d₁ × d₂, d₁·d₂)` of hypotenuse `|d₁|·|d₂|` (fixed order, D9) — the
-/// `Via` leg's own lowering.
+/// `Via` leg's own lowering. The cross term is spelled `d₁ × (b − a)`,
+/// equal over the reals since `d₂ = (b − a) − d₁`: near a full turn
+/// `d₁` and `d₂` are long and nearly opposed, and their own cross
+/// product cancels to the short chord's scale, while the chord's does
+/// not.
 ///
 /// **Degenerate inputs, honestly:** `via` collinear between `a` and `b`
 /// gives bulge 0 (the line segment the three points describe); `via`
@@ -117,7 +121,7 @@ pub enum FilletLegShape<T: Real> {
 pub fn bulge_from_via<T: Real>(a: Point2<T>, via: Point2<T>, b: Point2<T>) -> T {
     let d1 = via - a;
     let d2 = b - via;
-    split_half_tan(d1.perp_dot(d2), d1.dot(d2), d1.norm() * d2.norm())
+    split_half_tan(d1.perp_dot(b - a), d1.dot(d2), d1.norm() * d2.norm())
 }
 
 /// **An arc's quarter-tangent, from a chord split — the one home.** A

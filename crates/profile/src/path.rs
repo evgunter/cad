@@ -7201,6 +7201,42 @@ mod stored_arc_landing {
         );
     }
 
+    /// **The `Via` arc near a full turn holds its `q`**: the read-back
+    /// sweep's (`tests/arc_read_back_sweep.rs`) first counterexample, an
+    /// arc 4.4e-5 rad short of the full turn at R = 1.4e4 m, which sat
+    /// 4.8e-8 m off its `q` while `bulge_from_via` read its turn's
+    /// cross term off the two long, nearly opposed chords at `q`. The
+    /// door's arc now holds `q` to 8 ulps of the read's magnitude, and
+    /// the read passes.
+    #[test]
+    fn the_sweeps_via_arc_near_a_full_turn_holds_its_through_point() {
+        let (centre, r) = (
+            Point2::new(1103.8818785097276, 1390.3359303537966),
+            1.4351494718012413e4,
+        );
+        let (start, turn, through) = (5.8899133812414, -6.283141957025729, 0.6992541876608326);
+        let at = |t: f64| {
+            let (s, c) = t.sin_cos();
+            Point2::new(centre.x + r * c, centre.y + r * s)
+        };
+        let (a, b, q) = (at(start), at(start + turn), at(start + through * turn));
+        let door = via_arc(a, q, b).unwrap();
+        let scale = door
+            .arc
+            .radius
+            .max(seg::reach(door.arc.centre))
+            .max(seg::reach(q));
+        let off = (door.arc.rim(q) - door.arc.radius).abs();
+        assert!(
+            off <= 8.0 * scale * f64::EPSILON,
+            "the Via arc is {off:e} m off its q, past 8 ulps of {scale:e}"
+        );
+        assert!(
+            read(door, a, b, program::Verb::ArcTo).is_ok(),
+            "the door's Via arc passes its read-back"
+        );
+    }
+
     /// At `Interval` the cancelling arcs are wide, not wrong: each
     /// stored enclosure lands around the end vertex, so the read, which
     /// an exact scalar does not run, has no miss to find there.

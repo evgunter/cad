@@ -115,14 +115,22 @@ fn programs(arc: &Drawn, rng: &mut Rng) -> Vec<(&'static str, Vec<Step<f64>>)> {
     let (a, b, q) = (arc.a(), arc.b(), arc.q());
     let (ux, uy) = arc.tangent(arc.start);
     let (vx, vy) = arc.tangent(arc.start + arc.turn);
+    // Home by way of a vertex a chord's length from the chord's midpoint
+    // towards the centre, so the arc's ends turn a clear corner at every
+    // turn the draw takes, from tiny to near full.
+    let mid = Point2::new(0.5 * (a.x + b.x), 0.5 * (a.y + b.y));
+    let inward = arc.centre - mid;
+    let reach = (b - a).norm().max(1e-3 * arc.radius) / inward.norm();
+    let home = Point2::new(mid.x + inward.x * reach, mid.y + inward.y * reach);
     let close = |head: Vec<Step<f64>>| {
         let mut steps = head;
+        steps.push(Step::LineTo(Target::Point(home)));
         steps.push(Step::LineTo(Target::Start));
         steps
     };
     // A ray through `a` crossing the carrier at a corner, for the arrival
     // forms: the tangent at `a` turned by a third of a radian.
-    let corner = if rng.below(2) == 0 { 0.33 } else { -0.33 };
+    let corner: f64 = if rng.below(2) == 0 { 0.33 } else { -0.33 };
     let (cs, cc) = corner.sin_cos();
     let (dx, dy) = (ux * cc - uy * cs, ux * cs + uy * cc);
     let lead = arc.radius.min(1.0);
@@ -220,7 +228,11 @@ fn programs(arc: &Drawn, rng: &mut Rng) -> Vec<(&'static str, Vec<Step<f64>>)> {
                     },
                     radius: fillet,
                 },
-                Step::LineTo(Target::Point(outward)),
+                Step::Toward {
+                    dx: outward.x - b.x,
+                    dy: outward.y - b.y,
+                },
+                Step::FarEndTo(outward),
             ]),
         ),
         (
@@ -279,20 +291,23 @@ fn read_back(kind: &ReplayErrorKind<f64>) -> Option<bool> {
 /// scene resolves it**: drawn arcs up to four times the magnitude at
 /// which a landing read's 16 ulps reach ε, by every mode. A defect
 /// refusal anywhere, or any read-back refusal at a magnitude whose 16
-/// ulps stay under ε, is a counterexample. Every draw also counts what
-/// the door answered, so the log shows how much of the space built.
+/// ulps stay under ε, is a counterexample, and all of them are reported
+/// together. Every draw also counts, per mode, what the door answered,
+/// so the log shows how much of the space built.
 #[test]
 fn the_read_back_refuses_no_sound_arc_the_scene_resolves() {
     let mut rng = test_utils::fuzz::start("arc_read_back_sweep");
     let eps = tol().get().eps;
     let resolved = eps / (16.0 * ULP);
-    let (mut built, mut past, mut other) = (0usize, 0usize, 0usize);
+    let mut tally: std::collections::BTreeMap<&str, [usize; 3]> = Default::default();
+    let mut found: Vec<String> = Vec::new();
     for _ in 0..test_utils::fuzz::scaled(40) {
         let arc = draw(&mut rng, 4.0 * resolved);
         for (mode, steps) in programs(&arc, &mut rng) {
+            let row = tally.entry(mode).or_default();
             let refusal = match try_replay_at::<f64>(&steps) {
                 Ok(_) => {
-                    built += 1;
+                    row[0] += 1;
                     continue;
                 }
                 Err(e) => e,
@@ -309,22 +324,25 @@ fn the_read_back_refuses_no_sound_arc_the_scene_resolves() {
                 )
             };
             match read_back(&refusal.kind) {
-                None => other += 1,
-                Some(true) => panic!("{}: the read-back found a defect: {refusal}", what()),
-                Some(false) => {
-                    assert!(
-                        16.0 * arc.magnitude() * ULP > eps,
-                        "{}: a scene that resolves the read (magnitude {:e}) refused: {refusal}",
-                        what(),
-                        arc.magnitude()
-                    );
-                    past += 1;
-                }
+                None => row[2] += 1,
+                Some(true) => found.push(format!(
+                    "{}: the read-back found a defect: {refusal}",
+                    what()
+                )),
+                Some(false) if 16.0 * arc.magnitude() * ULP <= eps => found.push(format!(
+                    "{}: a scene that resolves the read (magnitude {:e}) refused: {refusal}",
+                    what(),
+                    arc.magnitude()
+                )),
+                Some(false) => row[1] += 1,
             }
         }
     }
-    eprintln!(
-        "arc_read_back_sweep: {built} built, {past} refused past the scene's resolution, \
-         {other} refused by another gate"
-    );
+    for (mode, [built, past, other]) in &tally {
+        eprintln!(
+            "arc_read_back_sweep: {mode}: {built} built, {past} refused past the scene's \
+             resolution, {other} refused by another gate"
+        );
+    }
+    assert!(found.is_empty(), "{}", found.join("\n"));
 }
