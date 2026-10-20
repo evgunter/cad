@@ -5532,7 +5532,7 @@ fn poly_mul(a: &Poly2, b: &Poly2) -> Poly2 {
 /// of `c`, of at most those degrees: `b[i][j] = Σ C(i,k)C(j,l) /
 /// (C(p,k)C(q,l)) · c[k][l]`.
 fn poly_bernstein(c: &Poly2, p: usize, q: usize) -> Vec<Vec<f64>> {
-    let binom = |n: usize, k: usize| (0..k).fold(1.0, |r, i| r * (n - i) as f64 / (i + 1) as f64);
+    let binom = geom_core::spline::pieces::binomial;
     let at = |k: usize, l: usize| c.get(k).and_then(|r| r.get(l)).copied().unwrap_or(0.0);
     for (k, row) in c.iter().enumerate() {
         for (l, x) in row.iter().enumerate() {

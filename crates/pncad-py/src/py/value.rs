@@ -1434,7 +1434,7 @@ impl Evaluation {
     /// answer in the same alphabet.
     ///
     /// Empty when the node has no value, no name table, or no edges.
-    /// The fillet node is what refuses an EMPTY selection, so the
+    /// The fillet's insert is what refuses an EMPTY selection, so the
     /// emptiness surfaces there rather than here.
     fn all_edges(&self, py: Python<'_>, node: super::doc::AtArg) -> PyResult<Vec<String>> {
         names(py, pncad::select::all_edges(&self.inner, node.at()))
@@ -2609,13 +2609,19 @@ pub(crate) fn evaluate(
 /// **One coincidence a node decided from values** (D10), with what the
 /// coincidence door decided about it.
 ///
-/// Its two cells cross as pairs: an entity cell as `(read, name)`,
+/// Its cells cross as pairs, two of them, or two or more that share
+/// one point for a `meet`: an entity cell as `(read, name)`,
 /// the `Var` the deciding node took the entity in through, whose table
 /// names it, and the name there, the same opaque text the materializers
 /// answer with; a tool cell (the plane a split cuts with) has no name
 /// and crosses as `(read, None)`; and a profile's own piece crosses as
 /// `(profile, piece)`, the profile's `NodeId` and the piece's text as a
-/// step's pieces spell it. `rung` names the door's
+/// step's pieces spell it. `origin` says which of the node's
+/// decisions it is: `None` for the node's own operation, `("judged",
+/// p, q)` for a union's or an intersect's judgement of the members at
+/// places `p < q` in its list, one of its order-free rows, and
+/// `("fold", k)` for the fold step that folds in the member at place
+/// `k`. `rung` names the door's
 /// rung that proved the row structural, `None` where none did, and then
 /// `residual` says what separates the two constructions, or why a
 /// cell's could not be read (`coincide::Unwalked`, said by its sentence
@@ -2625,6 +2631,7 @@ pub(crate) fn evaluate(
 #[derive(Clone)]
 pub(crate) struct Coincidence {
     cells: Vec<(Cell, Option<String>)>,
+    origin: Option<Origin>,
     relation: &'static str,
     site: &'static str,
     rung: Option<&'static str>,
@@ -2658,14 +2665,29 @@ impl Coincidence {
             d::Proof::Structural(rung) => (Some(crate::tags::coincidence_rung_tag(*rung)), None),
             d::Proof::Unproven { residual, .. } => (None, Some(residual.to_string())),
         };
+        let origin = match row.origin {
+            d::RowOrigin::Node => None,
+            d::RowOrigin::Judged { pair: [p, q] } => Some(Origin::Judged("judged", p, q)),
+            d::RowOrigin::Fold { step } => Some(Origin::Fold("fold", step)),
+        };
         Ok(Self {
             cells,
+            origin,
             relation: crate::tags::coincidence_relation_tag(row.relation),
             site: crate::tags::decision_site_tag(row.site),
             rung,
             residual,
         })
     }
+}
+
+/// Which of a node's decisions a [`Coincidence`] is, as it crosses.
+#[derive(Clone, IntoPyObject)]
+pub(crate) enum Origin {
+    /// `("judged", p, q)`: the judgement of the members at `p < q`.
+    Judged(&'static str, u32, u32),
+    /// `("fold", k)`: the fold step folding in the member at `k`.
+    Fold(&'static str, u32),
 }
 
 /// One cell of a [`Coincidence`] as it crosses: the read an entity or
@@ -2680,7 +2702,8 @@ pub(crate) enum Cell {
 
 #[pymethods]
 impl Coincidence {
-    /// The two cells decided one: `(read, name)` for an entity, the
+    /// The cells decided: two, or for a `meet` the two or more that
+    /// share one point, sorted. `(read, name)` for an entity, the
     /// `Var` whose table names it; `(read, None)` for a tool plane;
     /// `(profile, piece)` for a profile's own piece.
     #[getter]
@@ -2688,10 +2711,19 @@ impl Coincidence {
         self.cells.clone()
     }
 
+    /// Which of the node's decisions it is: `None` for the node's own
+    /// operation, `("judged", p, q)` for a union's or an intersect's
+    /// judgement of its members at places `p < q`, and `("fold", k)`
+    /// for the fold step folding in the member at place `k`.
+    #[getter]
+    fn origin(&self) -> Option<Origin> {
+        self.origin.clone()
+    }
+
     /// What was decided between them: `same_oriented`,
     /// `same_opposite`, `on_carrier`, `common_foot`, `tangent`, `cusp`,
-    /// `surface_tangent`, `coaxial`, `same_radius`, `axes_meet` or
-    /// `co_ruled`. A
+    /// `surface_tangent`, `coaxial`, `same_radius`, `axes_meet`,
+    /// `co_ruled`, or `meet`, the cells sharing one point. A
     /// `profile_junction` row is `tangent` or `cusp` between two carriers
     /// and `same_oriented` where its pieces continue one; a
     /// `tangent_witness` row is `surface_tangent`, claiming nothing of

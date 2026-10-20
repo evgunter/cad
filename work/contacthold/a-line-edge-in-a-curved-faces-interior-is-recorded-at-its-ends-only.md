@@ -56,3 +56,11 @@ curved face by design: a line between two points of a curved face need
 not lie in it. When the curve-touch lane lands, this row's step is that
 function's face test widened to a curved face whose carrier holds the
 line, not a new producer.
+
+## 2026-10-19 — two tubes tangent along a seam (CONTACTHOLD)
+
+`sweep/tests/two_tubes_in_the_zero_band.rs`: a tube's seam ruling lies
+in the other tube's wall along their tangent line. ∪ records the two
+rim circles' touches on the seam as vertex–edge records and nothing for
+the seam's span in the wall, alike in both operand orders; the rows pin
+the count at two.

@@ -141,6 +141,7 @@ fn torus_walk<T: Decide>(
             f_per_metre: h.f_per_metre_lo,
             f_per_metre_hi: h.f_per_metre_surface,
             residual_reach: Some(minor_radius / T::from_f64(2.0)),
+            jet: None,
         },
         &TORUS_ROWS,
         meter.as_ref(),

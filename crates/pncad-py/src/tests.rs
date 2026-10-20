@@ -2171,8 +2171,6 @@ fn node_error_tags_are_the_published_words() {
         UnschedulableCycle => "unschedulable_cycle",
         Naming => "naming",
         UnionFoldStep => "union_fold_step",
-        FilletSelectionEmpty => "fillet_selection_empty",
-        ChamferSelectionEmpty => "chamfer_selection_empty",
         Shell => "shell",
         ShellLaneUnsupported => "shell_lane_unsupported",
         FaceFrameNotPlanar => "face_frame_not_planar",
@@ -3655,14 +3653,15 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     };
     let unproven = E::UnprovenCoincidence {
         row: Box::new(pncad::document::NamedCoincidence {
-            cells: [tool.clone(), tool],
+            cells: vec![tool.clone(), tool],
             relation: pncad::document::coincidence::Relation::OnCarrier,
             site: pncad::document::coincidence::DecisionSite::SplitOn,
             margin: pncad::geom_core::MarginDiag::value(0.0),
             discharge: pncad::document::coincidence::Discharge::Numeric,
+            origin: pncad::document::RowOrigin::Node,
         }),
         residual: Box::new(pncad::document::Residual {
-            constructions: [
+            constructions: vec![
                 Err(pncad::document::coincide::Unwalked::Absent(
                     RecipeNodeId::new(0, 3),
                 )),
@@ -3673,8 +3672,32 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             replay: pncad::document::coincide::Unreplayed::NotReplayed,
         }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
+        restated: Vec::new(),
     };
-    carries(&unproven, &["reason", "relation", "site"]);
+    // One fold row reported with it: the payload counts it.
+    let unproven = {
+        let E::UnprovenCoincidence {
+            row,
+            residual,
+            recourse,
+            ..
+        } = &unproven
+        else {
+            unreachable!("built as the unproven arm above")
+        };
+        let fold = pncad::document::NamedCoincidence {
+            origin: pncad::document::RowOrigin::Fold { step: 2 },
+            ..(**row).clone()
+        };
+        E::UnprovenCoincidence {
+            row: row.clone(),
+            residual: residual.clone(),
+            recourse: *recourse,
+            restated: vec![(fold, (**residual).clone(), *recourse)],
+        }
+    };
+    carries(&unproven, &["reason", "relation", "site", "restated"]);
+    assert_eq!(check_payload(&unproven).restated, Some(1));
     let words = check_payload(&unproven);
     assert_eq!(
         (words.relation, words.site),
@@ -4645,6 +4668,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_carrier_unsupported",
             "join_desync",
             "join_undecided",
+            "line_wedges",
             "lineage_row",
             "merge",
             "mixed_seam",
@@ -4768,6 +4792,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "coaxial",
             "common_foot",
             "cusp",
+            "meet",
             "on_carrier",
             "same_opposite",
             "same_oriented",
@@ -5264,6 +5289,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "conventional_vertex",
             "duplicate",
             "emission",
+            "entity_named",
             "escalated",
             "kind_mismatch",
             "member_edge_tied",
@@ -5292,7 +5318,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "boolean",
             "chamfer",
-            "chamfer_selection_empty",
             "copies_share_a_key",
             "copy_shape",
             "count_out_of_range",
@@ -5310,7 +5335,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "face_frame_not_planar",
             "face_frame_readback",
             "fillet",
-            "fillet_selection_empty",
             "full_range_step",
             "improper_placement",
             "instance_out_of_range",
@@ -5842,13 +5866,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "selection_fault_tag",
         values: &[
+            "name_count",
             "name_kind",
             "not_a_selection",
             "not_canonical",
             "other_body",
             "repeated",
             "seat",
-            "singleton",
         ],
         delegates: &[],
     },
@@ -6470,6 +6494,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a constraint the per-mate
     // admission refuses, its fault carried whole.
     ("mate_refused", 2),
+    // Two vocabularies: a pose constructed where two others meet, and a
+    // coincidence row whose cells share one point.
+    ("meet", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
     // fact (`editor_core::refactor::Unmapped::Step`), one word.
     ("name_on_dropped_step", 2),

@@ -798,6 +798,36 @@ mod tests {
         );
     }
 
+    /// **An approximation's gate rejection ends in the last resort at
+    /// every door** (`Unsized::Fit`): a fit's meter that a gate rejects,
+    /// zero or past the band, is the approximation's limit, not a stored
+    /// contradiction, so carried as `RefusedArm::Undecided` it ends as the
+    /// undecided arm does, at a build, at rest and at the import door.
+    /// Red if the table converts a gate's tagged reading into its
+    /// definite arm.
+    #[test]
+    fn a_fits_gate_rejection_ends_in_the_last_resort_at_every_door() {
+        use geom_core::{Margin, k_stats::decide_positive};
+        let rejected = |m: f64| decide_positive("p", Margin::of(m), band()).unwrap_err();
+        for cause in [rejected(5e-10), rejected(-1.0)] {
+            let arm = RefusedArm::Undecided(&cause);
+            let label = cause.margin;
+            assert!(cause.margin.rejected_sign().is_some(), "tagged: {label}");
+            for reading in [Reading::Build, Reading::AtRest] {
+                assert_eq!(
+                    Unsized::Fit.recourse(arm, reading),
+                    KERNEL_LIMIT_RECOURSE,
+                    "{label}, {reading:?}"
+                );
+            }
+            assert_eq!(
+                Unsized::Fit.residual_in_file(arm, FileCoincidence::new(1e-12)),
+                KERNEL_LIMIT_RECOURSE,
+                "{label}, at the import door"
+            );
+        }
+    }
+
     /// **Either route ends a reading alike** (`SizedDecision::recourse`):
     /// what the ending adds is read from the number, so a gate's rejected
     /// Zero routed as `RefusedArm::Undecided`, the same reading untagged
