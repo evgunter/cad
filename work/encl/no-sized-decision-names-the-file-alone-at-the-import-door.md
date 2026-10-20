@@ -32,6 +32,6 @@ Ev's call: should (iv) say the import door names the file only where the file's 
 
 2026-10-20, PR 5464. Ev answered on the PR: "if it's reachable by a bad file then we don't need to posit that it's a bug", and, asked whether PR 5454's unsized import-door checks go back too, "yeah those should all blame the file i think".
 
-- **Clause (iv)** keeps its ratified wording and adds the ruling: every refusal a bad file reaches at the import door past ε_in names the file, whether the reading compares a value the file stored or one adoption derived from it; a sound file such a refusal reaches is a kernel bug to fix.
+- **Clause (iv)** keeps its ratified wording and adds the ruling: every defect ending a bad file reaches at the import door past ε_in names the file, whether the reading compares a value the file stored or one adoption derived from it; a sound file such a refusal reaches is a kernel bug to fix.
 - **Code.** `Provenance` is gone. The chooser is `ReadAt::culprit`, a function of the door alone: the kernel at a build, the kernel or the file at rest, the file at the import door. Every sized defect side and every unsized decision now ends past ε_in at the import door in `DAMAGED_FILE_ENDING`.
 - The question this row asked, whether any decision reads the file's own values alone, no longer decides the wording, so it needs no answer.

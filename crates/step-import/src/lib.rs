@@ -781,8 +781,8 @@ pub fn import_step(
             let mut joined = std::collections::BTreeSet::new();
             for (index, instance) in model.instances.iter().enumerate() {
                 let spec = &solids[instance.solid];
-                let (one, joins) =
-                    assemble::build_one_solid(spec, tol, geom_core::FileCoincidence::new(eps_in))?;
+                let file = geom_core::FileCoincidence::new(eps_in);
+                let (one, joins) = assemble::build_one_solid(spec, tol, file)?;
                 if joined.insert(instance.solid) {
                     normalizations.extend(joins);
                 }
@@ -796,14 +796,20 @@ pub fn import_step(
                             StepImportError::Placement {
                                 transform,
                                 source: topo::TransformError::Band(source),
+                                file,
                             }
                         })?;
                         let motion =
                             geom_core::RigidMotion::check_rigid(&map, band).map_err(|source| {
                                 StepImportError::PlacementMap { transform, source }
                             })?;
-                        topo::transform_rigid(&one, &motion, tol)
-                            .map_err(|source| StepImportError::Placement { transform, source })?
+                        topo::transform_rigid(&one, &motion, tol).map_err(|source| {
+                            StepImportError::Placement {
+                                transform,
+                                source,
+                                file,
+                            }
+                        })?
                     }
                     _ => one,
                 };

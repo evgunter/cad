@@ -187,7 +187,8 @@ use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::ladder::{IdentityLadder, read_identity};
 use crate::recourse::{
-    Reading, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision, Unsized,
+    ReadAt, Reading, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision,
+    Unsized,
 };
 use crate::ssi::{SsiDecision, SsiLimb};
 
@@ -2229,13 +2230,11 @@ impl core::fmt::Display for PcurveCertifyError {
                  {refusal}"
             ),
             // Each escalation ends in its decision's own labelled
-            // ending, read at a build: the door that reads it at rest
-            // asks `ending` instead of rendering this.
-            Self::FittedEscalated { decision, cause } => write!(
-                f,
-                "pcurve certification: the fitted lane's certificate escalated — {}",
-                cause.undecided(decision, decision.ending(cause, Reading::Build))
-            ),
+            // ending, read at a build: a door over stored geometry
+            // renders it at its own door ([`PcurveCertifyError::render`]).
+            Self::FittedEscalated { .. } | Self::Escalated { .. } => {
+                f.write_str(&self.render(Reading::Build))
+            }
             Self::IntervalNotForward => write!(
                 f,
                 "pcurve certification: the carrier-parameter interval is not forward — a \
@@ -2300,16 +2299,6 @@ impl core::fmt::Display for PcurveCertifyError {
                      metres)"
                 )
             }
-            Self::Escalated {
-                check,
-                sample,
-                cause,
-            } => write!(
-                f,
-                "pcurve certification: {check:?} at sample {sample} escalated: {}. {}",
-                cause.payload(),
-                check.recourse(RefusedArm::Undecided(cause), Reading::Build)
-            ),
             Self::Band(e) => write!(f, "pcurve certification: {e}"),
         }
     }
@@ -2366,18 +2355,42 @@ impl PcurveCertifyError {
         })
     }
 
-    /// The ending this refusal's decision gives it, read at `reading`
+    /// The ending this refusal's decision gives it, read at `at`
     /// ([`PcurveCheck::recourse`], or the SSI decision an escalation
     /// there names), or `None` for a refusal that is no decision's
     /// refused arm (an unsupported class, a missing operand, a band the
     /// tolerance cannot form, a fitted certificate's structural refusal).
     #[must_use]
-    pub fn ending(&self, reading: Reading) -> Option<String> {
+    pub fn ending(&self, at: impl Into<ReadAt>) -> Option<String> {
+        let at = at.into();
         if let Self::FittedEscalated { decision, cause } = self {
-            return Some(decision.ending(cause, reading));
+            return Some(decision.ending(cause, at));
         }
-        self.decided()
-            .map(|(check, arm)| check.recourse(arm, reading))
+        self.decided().map(|(check, arm)| check.recourse(arm, at))
+    }
+
+    /// This refusal's text read at `at`: an escalation, whose text
+    /// carries its ending, ends as its decision does there; every other
+    /// refusal is its `Display`, the payload alone.
+    #[must_use]
+    pub fn render(&self, at: impl Into<ReadAt>) -> String {
+        let at = at.into();
+        match self {
+            Self::FittedEscalated { decision, cause } => format!(
+                "pcurve certification: the fitted lane's certificate escalated — {}",
+                cause.undecided(decision, decision.ending(cause, at))
+            ),
+            Self::Escalated {
+                check,
+                sample,
+                cause,
+            } => format!(
+                "pcurve certification: {check:?} at sample {sample} escalated: {}. {}",
+                cause.payload(),
+                check.recourse(RefusedArm::Undecided(cause), at)
+            ),
+            _ => self.to_string(),
+        }
     }
 
     /// Whether this is a definite refusal on a certified upper bound on
@@ -2435,12 +2448,13 @@ impl PcurveCheck {
     }
 
     /// The one ending a refusal of this check carries on `arm`, read at
-    /// `reading` (D4 ¶1 (i)).
+    /// `at` (D4 ¶1 (i)).
     #[must_use]
-    pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
+    pub fn recourse(self, arm: RefusedArm<'_>, at: impl Into<ReadAt>) -> String {
+        let at = at.into();
         match self.routing() {
-            Routing::Sized(decision) => decision.recourse(arm, reading),
-            Routing::Unsized(decision) => decision.recourse(arm, reading),
+            Routing::Sized(decision) => decision.recourse(arm, at),
+            Routing::Unsized(decision) => decision.recourse(arm, at),
         }
     }
 
@@ -10217,6 +10231,42 @@ mod tests {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// **A pcurve escalation renders at the door it is read at**
+    /// ([`PcurveCertifyError::render`]): its defect ending names the
+    /// kernel at a build, as its `Display` does, the kernel or the file at
+    /// rest, and the file at the import door. Red if a door's render
+    /// reads a build.
+    #[test]
+    fn a_pcurve_escalation_renders_at_its_door() {
+        use geom_core::{
+            DAMAGED_FILE_ENDING, FileCoincidence, KERNEL_DEFECT_ENDING,
+            KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag,
+        };
+
+        let error = PcurveCertifyError::Escalated {
+            check: PcurveCheck::ChartWinding,
+            sample: 0,
+            cause: Indeterminate {
+                margin: MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: None,
+                terminal_sliver: false,
+            },
+        };
+        assert!(error.to_string().ends_with(KERNEL_DEFECT_ENDING), "{error}");
+        for (at, want) in [
+            (ReadAt::Run(Reading::Build), KERNEL_DEFECT_ENDING),
+            (ReadAt::Run(Reading::AtRest), KERNEL_OR_FILE_DEFECT_ENDING),
+            (
+                ReadAt::File(FileCoincidence::new(1e-6)),
+                DAMAGED_FILE_ENDING,
+            ),
+        ] {
+            let text = error.render(at);
+            assert!(text.ends_with(want), "{at:?}: {text}");
+        }
     }
 
     /// **Each pcurve check's sized decision names its refused side**

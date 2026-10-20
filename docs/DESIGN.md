@@ -533,14 +533,14 @@ by that at each door. A side the lever reaches tells the lever story
 everywhere. A contradiction between a stored description and its
 stored geometry tells the lever story at a build. At the import door
 it is the file's: the import refuses typed, naming the file. Every
-refusal a bad file reaches there past ε_in names the file, whether the
-reading compares a value the file stored or one adoption derived from
-it; a sound file such a refusal reaches is a kernel bug to fix. Past the
-import door no state is reachable only through import ([import]), so
-only a kernel bug reaches it, and it panics ([failure]). A side no
-kernel construction produces panics at a build and past the import
-door, and at the import door is the file's like any other. No refusal
-names a lever the decision does not.
+defect ending a bad file reaches there past ε_in names the file,
+whether the reading compares a value the file stored or one adoption
+derived from it; a sound file such a refusal reaches is a kernel bug to
+fix. Past the import door no state is reachable only through import
+([import]), so only a kernel bug reaches it, and it panics ([failure]).
+A side no kernel construction produces panics at a build and past the
+import door, and at the import door is the file's like any other. No
+refusal names a lever the decision does not.
 
 How each door applies these (the import door's ε_in sentences and its
 stopgap, `Indeterminate`'s rendering, `COINCIDENCE_RECOURSE`, the review

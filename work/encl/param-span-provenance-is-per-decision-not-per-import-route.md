@@ -26,4 +26,4 @@ If `TRIMMED_CURVE` / `SURFACE_CURVE` support lands, the file states the trim par
 
 ## Closed
 
-2026-10-20, PR 5464: moot. Ev ruled on that PR that the import door names the file for every refusal a bad file reaches, whether the comparand is stored or derived. `Provenance` is removed, so no per-decision provenance is left to be wrong per route. A `TRIMMED_CURVE` / `SURFACE_CURVE` route needs nothing extra: a reversed or zero trim it states already ends in `DAMAGED_FILE_ENDING` at the import door (`ReadAt::culprit`, `crates/geom-brep/src/recourse.rs`).
+2026-10-20, PR 5464: moot. Ev ruled on that PR that the import door names the file for every defect ending a bad file reaches, whether the comparand is stored or derived. `Provenance` is removed, so no per-decision provenance is left to be wrong per route. A `TRIMMED_CURVE` / `SURFACE_CURVE` route needs nothing extra: a reversed or zero trim it states already ends in `DAMAGED_FILE_ENDING` at the import door (`ReadAt::culprit`, `crates/geom-brep/src/recourse.rs`).

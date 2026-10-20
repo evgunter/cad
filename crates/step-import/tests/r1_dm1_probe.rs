@@ -125,7 +125,7 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
         // certifies a SIGN (the at-rest gate admits every component's
         // enclosure at round 0) AND `#389` adopts (#388): the two
         // former frontiers each stood in front of this one.
-        Err(StepImportError::Pcurves { source }) => {
+        Err(StepImportError::Pcurves { source, .. }) => {
             let shown = source.to_string();
             assert!(
                 shown.contains("MapResidual"),
@@ -318,7 +318,7 @@ fn the_l_bracket_alone_adopts_its_reversed_slit() {
             "the polyline gap must stay retired: edge #{id} refused with {} candidate(s)",
             attempts.len()
         ),
-        Err(StepImportError::Pcurves { source }) => {
+        Err(StepImportError::Pcurves { source, .. }) => {
             let shown = source.to_string();
             assert!(
                 shown.contains("MapResidual"),

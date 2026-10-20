@@ -625,6 +625,22 @@ pub enum PcurveMintError {
     },
 }
 
+impl PcurveMintError {
+    /// This refusal's text read at `at`: a certification refusal nested
+    /// whole renders at that door ([`PcurveCertifyError::render`]); every
+    /// other arm is its `Display`.
+    #[must_use]
+    pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
+        match self {
+            Self::Certify { half_edge, error } => format!(
+                "the pcurve of half-edge {half_edge:?} failed certification: {}",
+                error.render(at)
+            ),
+            _ => self.to_string(),
+        }
+    }
+}
+
 impl core::fmt::Display for PcurveMintError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -643,10 +659,7 @@ impl core::fmt::Display for PcurveMintError {
                 "the outer loop of face {face:?} is a lone vertex, so it bounds no region of \
                  the chart. {EMPTY_OUTER_RECOURSE}"
             ),
-            Self::Certify { half_edge, error } => write!(
-                f,
-                "the pcurve of half-edge {half_edge:?} failed certification: {error}"
-            ),
+            Self::Certify { .. } => f.write_str(&self.render(geom_brep::recourse::Reading::Build)),
             Self::LoopDiscontinuity { half_edge } => write!(
                 f,
                 "the pcurve of half-edge {half_edge:?} does not meet its predecessor's in \

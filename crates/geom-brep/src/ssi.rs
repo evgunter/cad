@@ -3122,6 +3122,38 @@ mod ending_tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
+    /// **A trace escalation's defect ending reads the door it is given**
+    /// ([`TraceDecision::ending`] through [`super::SsiDecision::ending`]):
+    /// the boundary section's defect names the kernel at a build, the
+    /// kernel or the file at rest, and the file at the import door. Red
+    /// if the trace reads the import door as at rest.
+    #[test]
+    fn a_trace_defect_reads_its_door() {
+        let cause = Indeterminate {
+            margin: MarginDiag::INVALID,
+            band: band(),
+            predicate: None,
+            terminal_sliver: false,
+        };
+        let decision = super::SsiDecision::Trace(TraceDecision::BoundarySection);
+        for (at, want) in [
+            (
+                crate::recourse::ReadAt::Run(Reading::Build),
+                KERNEL_DEFECT_ENDING,
+            ),
+            (
+                crate::recourse::ReadAt::Run(Reading::AtRest),
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                crate::recourse::ReadAt::File(geom_core::FileCoincidence::new(1e-6)),
+                geom_core::DAMAGED_FILE_ENDING,
+            ),
+        ] {
+            assert_eq!(decision.ending(&cause, at), want, "{at:?}");
+        }
+    }
+
     /// An escalation of `margin` against [`band`].
     fn cause(margin: MarginDiag) -> Indeterminate {
         Indeterminate {

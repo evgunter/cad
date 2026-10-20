@@ -184,52 +184,65 @@ pub enum TransformError {
     },
 }
 
-impl core::fmt::Display for TransformError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl TransformError {
+    /// This refusal's text read at `at`: a nested certification or
+    /// pcurve refusal renders at that door, and a defect ends in the
+    /// door's defect ending ([`geom_brep::recourse::defect_ending`]).
+    /// `Display` reads the nested refusals at a build, the map that
+    /// moved them, and a defect at rest.
+    #[must_use]
+    pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
+        let at = at.into();
+        self.text(at, geom_brep::recourse::defect_ending(at))
+    }
+
+    fn text(&self, at: geom_brep::recourse::ReadAt, defect: &str) -> String {
         match self {
-            Self::Pcurve { source } => write!(f, "{source}"),
-            Self::Band(e) => write!(f, "{e}"),
-            Self::Certify { source, .. } => write!(
-                f,
+            Self::Pcurve { source } => source.render(at),
+            Self::Band(e) => e.to_string(),
+            Self::Certify { source, .. } => format!(
                 "an edge the map moved failed re-certification: {}",
-                source.render(geom_brep::recourse::Reading::Build)
+                source.render(at)
             ),
-            Self::NullScaffold { edge } => write!(
-                f,
+            Self::NullScaffold { edge } => format!(
                 "edge {edge:?} carries a transient null-scaffold curve, which a body at rest \
                  never does. {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                defect
             ),
-            Self::ApproxLaneUnsupported { scalar } => write!(
-                f,
+            Self::ApproxLaneUnsupported { scalar } => format!(
                 "an approximating surface cannot be moved at the {scalar} scalar with no \
                  offset-fit door in hand: its certificate is re-derived on the moved pair, and \
                  only {holders} holds that door (the fit is derived there alone). Recourse: \
                  move the body at {holders}",
                 holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
             ),
-            Self::NurbsLaneUnsupported { scalar, .. } => write!(
-                f,
+            Self::NurbsLaneUnsupported { scalar, .. } => format!(
                 "an edge whose certificate needs the NURBS lane cannot be moved at the \
                  {scalar} scalar: its certificate is re-derived on the moved pair through that \
                  lane, and only a scalar with certification rights holds it. Recourse: move \
                  the body at a certifying scalar"
             ),
-            Self::ApproxRecertify { source } => write!(
-                f,
+            Self::ApproxRecertify { source } => format!(
                 "a moved approximating surface could not be re-certified or re-fitted: {source}"
             ),
-            Self::NurbsPlaceholder => write!(
-                f,
+            Self::NurbsPlaceholder => format!(
                 "a spline (NURBS) surface or carrier cannot be transformed yet. {}",
                 geom_core::NOT_YET_ENDING
             ),
-            Self::Corrupt { what } => write!(
-                f,
+            Self::Corrupt { what } => format!(
                 "the body references a missing {what} (a corrupt body). {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                defect
             ),
         }
+    }
+}
+
+impl core::fmt::Display for TransformError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.text(
+            geom_brep::recourse::Reading::Build.into(),
+            geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+        ))
     }
 }
 

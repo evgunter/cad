@@ -1852,32 +1852,63 @@ mod tests {
         use geom_core::{DAMAGED_FILE_ENDING, KERNEL_OR_FILE_DEFECT_ENDING};
 
         let file = FileCoincidence::new(1e-6);
-        let mut damaged = 0;
-        let split: Vec<String> = super::certify_errors()
+        // Each refusal's ending at rest, and at the door where it is
+        // read past ε_in (`None` where the door reads it within).
+        let errors = super::certify_errors();
+        let endings: Vec<_> = errors
             .iter()
-            .filter(|e| {
-                let (rest, door) = (e.ending(Reading::AtRest), e.ending(file));
-                if door.as_deref().is_some_and(|d| d.contains("ε_in")) {
-                    return false;
-                }
-                let want = match rest.as_deref() {
-                    Some(KERNEL_OR_FILE_DEFECT_ENDING) => {
-                        damaged += 1;
-                        Some(DAMAGED_FILE_ENDING.to_owned())
-                    }
-                    _ => rest,
-                };
-                door != want
+            .filter_map(|e| {
+                let door = e.ending(file);
+                let within = door.as_deref().is_some_and(|d| d.contains("ε_in"));
+                (!within).then(|| (e, e.ending(Reading::AtRest), door))
             })
-            .map(|e| format!("{e:?}"))
+            .collect();
+        let split: Vec<String> = endings
+            .iter()
+            .filter(|(_, rest, door)| {
+                let want = match rest.as_deref() {
+                    Some(KERNEL_OR_FILE_DEFECT_ENDING) => Some(DAMAGED_FILE_ENDING.to_owned()),
+                    _ => rest.clone(),
+                };
+                *door != want
+            })
+            .map(|(e, ..)| format!("{e:?}"))
             .collect();
         assert!(
             split.is_empty(),
             "the doors end apart, beyond the file's ε_in and its culprit: {split:#?}"
         );
         assert!(
-            damaged > 0,
+            endings
+                .iter()
+                .any(|(_, rest, _)| rest.as_deref() == Some(KERNEL_OR_FILE_DEFECT_ENDING)),
             "no refusal in the roster reads a defect at rest"
+        );
+    }
+
+    /// **A shell-classify defect read at the import door names the file**
+    /// ([`crate::ShellClassifyError::recourse`]): the door it is given is
+    /// the door its defect ending reads, at rest the kernel or the file
+    /// and at the import door the file. Red if the classifier reads the
+    /// import door as at rest.
+    #[test]
+    fn a_shell_classify_defect_names_the_file_at_the_import_door() {
+        use geom_core::{DAMAGED_FILE_ENDING, KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag};
+
+        let refusal = crate::ShellClassifyError::Straddles {
+            shell: crate::ShellKey::default(),
+            low: MarginDiag::value(-1.0),
+            high: MarginDiag::value(1.0),
+        };
+        assert_eq!(
+            refusal.recourse(Reading::AtRest).as_deref(),
+            Some(KERNEL_OR_FILE_DEFECT_ENDING),
+            "at rest"
+        );
+        assert_eq!(
+            refusal.recourse(FileCoincidence::new(1e-6)).as_deref(),
+            Some(DAMAGED_FILE_ENDING),
+            "at the import door"
         );
     }
 }

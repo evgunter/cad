@@ -1350,6 +1350,12 @@ pub const UNREADABLE_MARGIN_NOTE: &str =
 pub const UNREADABLE_STORED_MARGIN_NOTE: &str =
     "an unreadable margin may indicate a kernel or file defect worth reporting";
 
+/// What an unreadable margin may mean at the STEP import door, which a
+/// damaged file reaches (a Part 21 real that overflows to ±inf among
+/// them): [`UNREADABLE_MARGIN_NOTE`]'s twin there.
+pub const UNREADABLE_FILE_MARGIN_NOTE: &str =
+    "an unreadable margin may indicate a damaged file worth reporting to the program that wrote it";
+
 /// **The recourse, labelled**: `Recourse: {action}`, the one spelling
 /// of the label a refusal's way through opens with.
 #[derive(Clone, Copy, Debug)]

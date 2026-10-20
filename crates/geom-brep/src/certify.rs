@@ -7386,11 +7386,15 @@ mod tests {
             for (arm, miss) in arms {
                 let at_rest = recourse(check, arm, Reading::AtRest);
                 // Past ε_in the door reads as rest does, but names the
-                // file where rest names the kernel or the file.
+                // file where rest names the kernel or the file: in the
+                // defect ending, and in an unreadable margin's note.
                 let past_eps_in = if at_rest == KERNEL_OR_FILE_DEFECT_ENDING {
                     DAMAGED_FILE_ENDING.to_owned()
                 } else {
-                    at_rest.clone()
+                    at_rest.replace(
+                        geom_core::UNREADABLE_STORED_MARGIN_NOTE,
+                        geom_core::UNREADABLE_FILE_MARGIN_NOTE,
+                    )
                 };
                 let banded = match arm {
                     RefusedArm::Undecided(cause) => Some(cause.margin),
@@ -7708,10 +7712,11 @@ mod tests {
     /// own refused side** (D4 ¶1 (iv)): a reading in band wholly on the
     /// refused side, its size past the file's ε_in, ends in the lever
     /// where the lever reaches that side, and in the damaged file's
-    /// ending where it does not, each written out here; a door's refusal
-    /// of its stated interval ends as its check does. Red if a side is
-    /// flipped, if the door names the kernel, or if a sized check is
-    /// added without a row.
+    /// ending where it does not. The side is the class table's
+    /// ([`class_table`]); each lever is written out here. A door's
+    /// refusal of its stated interval ends as its check does. Red if the
+    /// door names the kernel, or if a lever-side check is added without
+    /// its lever.
     #[test]
     fn each_sized_decision_ends_past_eps_in_by_its_refused_side() {
         let file = FileCoincidence::new(1e-6);
@@ -7724,17 +7729,13 @@ mod tests {
         };
         let past = RefusedArm::Undecided(&in_band);
         let f = DAMAGED_FILE_ENDING;
-        let rows = [
-            (CertCheck::ParamSpan, f),
+        let levers = [
             (
                 CertCheck::ParamSpanMeter,
                 "Recourse: move the geometry so this spline edge runs steadily forward, never \
                  stalling or turning back; if it does neither, the speed floor has reached its \
                  limit, which is worth reporting",
             ),
-            (CertCheck::ParamWinding, f),
-            (CertCheck::ImageSpan, f),
-            (CertCheck::Transversality, f),
             (
                 CertCheck::TransversalityTube,
                 "Recourse: move the geometry so the surfaces cross at a clearer angle",
@@ -7745,7 +7746,6 @@ mod tests {
                  curves tightly there; faces of no extent or a cone's point leave no angle to \
                  measure",
             ),
-            (CertCheck::TangentSecondOrder, f),
             (
                 CertCheck::TangentTube,
                 "Recourse: move the geometry so the faces curve apart more clearly where they \
@@ -7762,18 +7762,33 @@ mod tests {
                  stay well inside the range of finite numbers",
             ),
         ];
-        let sized: Vec<CertCheck> = all_checks()
-            .into_iter()
-            .filter(|check| matches!(check.ending(), Ending::Sized(_)))
-            .collect();
-        assert_eq!(
-            rows.map(|(check, _)| check).to_vec(),
-            sized,
-            "one row per sized check, in taxonomy order"
-        );
-        for (check, want) in rows {
+        let (mut on_lever, mut on_defect) = (0, 0);
+        for (check, class) in class_table() {
+            let Class::Sized(_, side) = class else {
+                continue;
+            };
+            let want = match side {
+                RefusedSide::Lever => {
+                    on_lever += 1;
+                    levers
+                        .iter()
+                        .find(|(c, _)| *c == check)
+                        .unwrap_or_else(|| panic!("{check:?}: its lever is written out here"))
+                        .1
+                }
+                RefusedSide::StoredContradiction | RefusedSide::Unminted => {
+                    on_defect += 1;
+                    f
+                }
+            };
             assert_eq!(recourse(check, past, file), want, "{check:?} past ε_in");
         }
+        assert_eq!(
+            on_lever,
+            levers.len(),
+            "every lever written out is a lever side's"
+        );
+        assert!(on_defect > 0, "the table has a defect side to read");
         for refused in [
             StatedSpan::Forward(ForwardReading::InBand(in_band)),
             StatedSpan::Winding(WindingReading::InBand(in_band)),
@@ -8338,26 +8353,24 @@ mod tests {
         }
     }
 
-    /// Every decision's class, pinned against a table written out by
-    /// hand (D4 ¶1 (i)): a decision that passes on a nonzero sign is
-    /// sized, with its pass set and its refused side; an exact
-    /// construction ends as a defect, an approximation as a fit and a
-    /// certified bound on the miss as a bound; a residual, whose refused
-    /// margin is a miss, is marked so as any of them. The table is the
-    /// independent side, so a decision `ending()` misfiles fails here.
-    #[test]
-    fn each_decision_is_classified_as_the_table_says() {
-        #[derive(Debug, PartialEq, Eq)]
-        enum Class {
-            Sized(SizedPass, RefusedSide),
-            NoSize(Unsized),
-            Miss(Unsized),
-            Undefined,
-        }
+    /// A decision's class, as the hand-written table states it
+    /// ([`class_table`]).
+    #[derive(Debug, PartialEq, Eq)]
+    enum Class {
+        Sized(SizedPass, RefusedSide),
+        NoSize(Unsized),
+        Miss(Unsized),
+        Undefined,
+    }
+
+    /// **Every decision's class, written out by hand** in taxonomy
+    /// order: the one place a check's refused side is spelled for the
+    /// tests, so they read it here rather than restate it.
+    fn class_table() -> Vec<(CertCheck, Class)> {
         use Class::{Miss, NoSize, Undefined};
         use RefusedSide::{Lever, StoredContradiction, Unminted};
         use SizedPass::{NonNegative, Positive};
-        let table = [
+        vec![
             (CertCheck::EndpointStart, Miss(Unsized::Defect)),
             (CertCheck::EndpointEnd, Miss(Unsized::Defect)),
             (CertCheck::ParamSpan, Class::Sized(Positive, Unminted)),
@@ -8415,7 +8428,20 @@ mod tests {
                 CertCheck::PlaneNurbsChartSpeedBound,
                 Class::Sized(Positive, Lever),
             ),
-        ];
+        ]
+    }
+
+    /// Every decision's class, pinned against [`class_table`] (D4 ¶1
+    /// (i)): a decision that passes on a nonzero sign is sized, with its
+    /// pass set and its refused side; an exact construction ends as a
+    /// defect, an approximation as a fit and a certified bound on the
+    /// miss as a bound; a residual, whose refused margin is a miss, is
+    /// marked so as any of them. The table is the independent side, so a
+    /// decision `ending()` misfiles fails here.
+    #[test]
+    fn each_decision_is_classified_as_the_table_says() {
+        use Class::{Miss, NoSize, Undefined};
+        let table = class_table();
         assert_eq!(table.len(), all_checks().len());
         for check in all_checks() {
             let (_, want) = table

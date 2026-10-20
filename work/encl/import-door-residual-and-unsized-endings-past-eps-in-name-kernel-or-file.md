@@ -45,3 +45,5 @@ The split finds no unsized check that reads the file's data alone at the import 
 - The witness is the carrier's mid-parameter point (`adopt.rs`), on such a carrier and at such parameters.
 
 Only a sized decision's stored side names the file there (`SizedDecision::words`, `Provenance::Stored`).
+
+Note (PR 5464, 2026-10-20): reversed. Ev ruled on PR 5464 that the import door names the file for every defect ending a bad file reaches, so these unsized endings past ε_in now end in `DAMAGED_FILE_ENDING` and `recourse::Provenance` is gone. (ENCL implementer)

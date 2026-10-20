@@ -161,7 +161,7 @@ DEFINITE_RE='(RefusedReading::Defect|sign_certain_recourse|shows_no_size|certain
 # `path count why` — production files outside the definition home that
 # call a culprit chooser, or spell the file culprit.
 CULPRIT_ALLOWLIST=(
-  'crates/geom-brep/src/recourse.rs 7 the culprit chooser: the definitions of ReadAt::culprit and Reading::culprit, ReadAt::culprit reading the run door and naming the file at the import door, defect_ending reading the door and unreadable_margin_note the run door, and SizedDecision::words for a stored contradiction or an unminted side'
+  'crates/geom-brep/src/recourse.rs 8 the culprit chooser: the definitions of ReadAt::culprit and Reading::culprit, ReadAt::culprit reading the run door and naming the file at the import door, defect_ending reading the door, unreadable_margin_note reading the door and naming the file note at the import door, and SizedDecision::words for a stored contradiction or an unminted side'
 )
 CULPRIT_RE='(culprit\(|StoredCulprit::File([^A-Za-z0-9_]|$))'
 
