@@ -172,6 +172,18 @@ fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u6
 /// vertex folds onto it with no registration. `symbolic` does not fall
 /// anywhere: the plain form is asked first, so the algebra can only
 /// add.
+///
+/// **FORK-REST** (only the identity bundle as written places by no
+/// map): the plate's two holes are placed by plane mates, so they run
+/// their maps at the nominal and over the box, where they snapped while
+/// the narrowing's walk called their start caps fixed. Each hole's copy
+/// is re-certified after its transform beside its construction, so
+/// every row that reads the hole's rims doubled: `carrier_on_surface`
+/// 288/72 -> 360/144 (504/0 with the algebra), `witness_on_surface`
+/// 32/8 -> 40/16 (56/0), `pcurve_map_residual` 0/36 -> 0/72 (72/0), and
+/// `carrier_matches_mapped_source` gained the copies' 36 (196/56 ->
+/// 232/56, 288/0 with the algebra). `line_span`, a profile's, held.
+/// Every one the algebra took before it still takes.
 #[test]
 fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     let tol = Tol::witness();
@@ -189,32 +201,32 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
         core::array::from_fn::<u64, 2, _>(|i| a[i] + b[i])
     };
     // The split with the algebra off.
-    assert_eq!(row(&off, "carrier_matches_mapped_source"), [196, 56]);
-    assert_eq!(pair(&off, "carrier_on_surface"), [288, 72]);
-    assert_eq!(pair(&off, "witness_on_surface"), [32, 8]);
-    assert_eq!(row(&off, "pcurve_map_residual"), [0, 36]);
+    assert_eq!(row(&off, "carrier_matches_mapped_source"), [232, 56]);
+    assert_eq!(pair(&off, "carrier_on_surface"), [360, 144]);
+    assert_eq!(pair(&off, "witness_on_surface"), [40, 16]);
+    assert_eq!(row(&off, "pcurve_map_residual"), [0, 72]);
     // The algebra on.
     assert_eq!(
         row(&on, "carrier_matches_mapped_source"),
-        [252, 0],
+        [288, 0],
         "rule D meets the pushforward and the carrier at every sample, and the rim at a \
-         vertex folds onto the authored |r|, so every one of the 72 is a THEOREM"
+         vertex folds onto the authored |r|, so every one is a THEOREM"
     );
     assert_eq!(
         pair(&on, "carrier_on_surface"),
-        [360, 0],
+        [504, 0],
         "both residuals at the carrier's samples, the cylinder's by rule D with A/B: THEOREMS"
     );
     assert_eq!(
         pair(&on, "witness_on_surface"),
-        [40, 0],
+        [56, 0],
         "both residuals at the strut witness, the cylinder's by rule D with A/B: THEOREMS"
     );
     assert_eq!(
         row(&on, "pcurve_map_residual"),
-        [36, 0],
+        [72, 0],
         "the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form (A1) and `cos π` \
-         on the negative frame to −1; the rim folds onto |r|, so every one of the 36 is a \
+         on the negative frame to −1; the rim folds onto |r|, so every one of the 72 is a \
          THEOREM"
     );
     assert_eq!(
@@ -335,6 +347,11 @@ fn m10_10_the_plates_ceiling_is_the_flip() {
 /// of the real study, where the plate certifies whole. While `k` was a
 /// `floor` atom the twelve walked rows' azimuth fidelity was numeric,
 /// and bounded the plate at `4.8077e2·ε`.
+///
+/// **FORK-REST**: the holes' copies run their maps over the box, so
+/// their walked rows are derived again on the copies: `pcurve_envelope`
+/// 16 -> 32, still every one a theorem, and the branches 32 -> 64 and
+/// 34 -> 68.
 #[test]
 fn m10_10_the_walked_rows_envelope_is_a_theorem_over_the_box() {
     let tol = Tol::witness();
@@ -342,10 +359,10 @@ fn m10_10_the_walked_rows_envelope_is_a_theorem_over_the_box() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let (shapes, _, _) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
     let split = crate::m10_8_harness::split(&shapes);
-    assert_eq!(split.get("pcurve_envelope"), Some(&[16, 0]));
+    assert_eq!(split.get("pcurve_envelope"), Some(&[32, 0]));
     // The branches themselves are definite sign decisions read off the
-    // value: 32 for check 4's fidelity, 34 for the walk, which decides
+    // value: 64 for check 4's fidelity, 68 for the walk, which decides
     // each loop's closure joint as it does every other.
-    assert_eq!(split.get("pcurve_fidelity_branch"), Some(&[0, 32]));
-    assert_eq!(split.get("pcurve_loop_branch"), Some(&[0, 34]));
+    assert_eq!(split.get("pcurve_fidelity_branch"), Some(&[0, 64]));
+    assert_eq!(split.get("pcurve_loop_branch"), Some(&[0, 68]));
 }

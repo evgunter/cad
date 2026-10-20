@@ -927,10 +927,20 @@ fn run_at<T: editor_core::EvalScalar>(
 /// `Chart::turned`, Sym's at-rest snap) move no bit of this digest at
 /// any of the three ε, read on the tree that introduced them with each
 /// fix switched off and on, and after their switches were removed.
+///
+/// And for the identity bundle (FORK-REST, all three rows): every copy
+/// the fixtures place where it stands is stood by `mate::stand`'s
+/// identity bundle, no mate and the constant `0` on every freedom,
+/// which the fold places by no map and which solves no mate; it is
+/// written as one `AddValues`, which mints a different number of ids
+/// from the plane mate and three values it replaces, so the ids minted
+/// after it moved too. Every other bundle of the corpus is mated and
+/// places by its map as before. Measured on D's head before the change
+/// (`434139ef1c`), where this row was green.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x9fa4_a153_bf58_a0b5),
-    (1e-6, 0x1270_53ae_46cb_0d3f),
-    (1e-12, 0x099e_19b5_dcf1_6bda),
+    (1e-9, 0x50ba_de3b_c4f0_f611),
+    (1e-6, 0xf42e_66dd_c86c_07c1),
+    (1e-12, 0x15ba_8118_16f3_9d28),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and

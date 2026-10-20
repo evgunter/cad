@@ -207,7 +207,13 @@ So running the map at the nominal does not by itself make the lanes' decision li
 **Lane of 2026-10-20 (FORK-REST and the identity bundle; rulings 1 and 2 of the orchestrator's brief)**
 - The previous lane's work is d1f57659dd..851c56a3a7: FORK-REST (only the identity bundle as written places by no map; `rest_verdict`, `solve_copy_at_identity`, the `SolveScalar` rest hooks, `marked`, `bundle_reads_a_variable` and `Composed`'s at-rest parts deleted), the mateless bundle (`Value.mate` optional, `Coord::SpinAbout`, `DocEdit::AddValues`, `MateFault::Unpinned`), `stand` writing the identity bundle, the façades (`Placed::write`/`identity`, pncad-py `MateValue(None, ..)`), the viewer's gesture by `stand`, `RemoveConstraints`, golden.cad/die_tool.pncad/slot_tables re-blessed.
 - **Its restart WIP commit ff37f08174 carried 434139ef1c's tree** and undid all four commits; 6287cf64fd reverts it. The untracked probe `zz_dlane_probe.rs` (per-node body digests over the corpus) is deleted.
-- Status: editor-core tests build. Suites running.
+- First full editor-core run on the restored head: 2562/2591, 29 red. Mechanisms measured with a lane probe (not committed):
+  - every identity-bundle copy in the corpus is bit-identical to its source (`body_digest`);
+  - the identity bundle's one `AddValues` mints a different number of ids from the plane mate and three values it replaces, so every node minted after a stand moved its id: exactly heat_sink, declared_tangency, kitchen_sink, cut_cylinder (second half) and part_select. That is all of seat4 (heat_sink), seat7, seat8, lib_g16, perf2, edit_placement, name_words and perf12 (perf12 is byte-identical with every `digest:` masked, all three ε). Re-blessed in cf7bec44b4.
+  - seat4's empty boolean: a plane-mated copy at the exact identity now runs its map (FORK-REST).
+- `demo-tour certified` (release) exits 0: plate study 211/512 (1557 forms frozen), 1-link drive 1 certified, 4-link drive certified; chaintol 3/3.
+- m10_bulge: one D-tab table for both spellings (the overlay retired: the literal runs its map too); the boss's pcurve rows are main's (×5/3). m10_10: the plate's holes run their maps (carrier_matches_mapped_source 196→232, envelope 16→32). In flight.
+- FORK-REST moved only the plate among the sym/m10_9 documents (sym11 receipts equal the 434139ef1c measurements on annulus, link, bracket, pad); the plate's holes, which the narrowing's gap (b) kept snapping, run their maps.
 
 **Next, for a fresh lane**
 1. `git fetch origin && git checkout intent/s3-d-transform-retires-into-a-placement && git pull`, then `export CARGO_TARGET_DIR=<one target dir> CARGO_INCREMENTAL=0`, then `cargo nextest run -p editor-core --test all --no-fail-fast` and `cargo nextest run -p viewer --features app,test-support --test all --no-fail-fast`. Settle each red per the three lane logs. The logs live in `/home/user` and do not survive the container, so this section names what each said.

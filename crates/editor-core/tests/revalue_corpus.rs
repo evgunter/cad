@@ -511,19 +511,18 @@ fn revalue_plate_param_apart_to_its_parting() {
     );
 }
 
-/// `boss_union` under the apart move, to where it parts. Its two
-/// `bool_pair_gap` margins read as laundered are an order swap the
-/// instrument pairs by index (the owed item), and the builds part after
-/// it.
+/// `boss_union` under the apart move, to where it parts. Nothing is
+/// read as laundered before the parting: the boss's copy is placed by a
+/// mate, not the identity bundle, so it runs its map at `p0` as at `p1`
+/// (FORK-REST), and the two builds visit the separating axes in one
+/// order where `p0`'s exactly axis-aligned faces used to merge them
+/// (the owed item's `bool_pair_gap` swap).
 #[test]
 fn revalue_boss_union_apart_to_its_parting() {
     holds_until_parting(
         "boss_union",
         1619,
-        &[(
-            "bool_pair_gap",
-            "work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md",
-        )],
+        &[],
         "pcurve_chart_radial_moving",
         "work/inlane/under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move.md",
     );

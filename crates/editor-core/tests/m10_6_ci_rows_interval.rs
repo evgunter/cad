@@ -808,6 +808,15 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// narrowed, the orchestrator's ruling): the neck's placed copy is no
 /// longer snapped at rest, so its transform's decisions join the
 /// vector's contents.
+///
+/// All four keys moved, and not the filter (`dropped=1` held on both),
+/// on D's lane of 2026-10-19/20, which merged main at `0a1d95321e`: the
+/// keys this file holds are the ones D's head read before FORK-REST
+/// (`434139ef1c`, re-blessed there in a worktree), and its head reads
+/// them again after it. `plain_distance` holds no placement, so no
+/// ruling about placements can reach it; its verdict rows moved with
+/// main's. The neck's copy reads `place` and ran its map before
+/// FORK-REST as after.
 #[test]
 fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();

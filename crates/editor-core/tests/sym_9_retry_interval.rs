@@ -617,6 +617,24 @@ fn sym_9_what_each_retry_recovers() {
 /// `retried` does not move. The plate's holes, placed by their start
 /// caps and written numbers alone, read no variable and still snap.
 ///
+/// Re-taken on INTENT stage 3 D under FORK-REST (only the identity
+/// bundle as written places by no map). The plate moved by FORK-REST
+/// alone, [945, 701] -> [1253, 1043] with the ladder and without it:
+/// its two holes are placed by plane mates, which the narrowing's walk
+/// let snap, and now run their maps, so their transforms and their
+/// copies' re-certification decide at the nominal. The other four read
+/// on D before FORK-REST what they read now, measured on its head
+/// (`434139ef1c`): their placements read a declared or toleranced
+/// variable and already ran their maps. They moved from the narrowing's
+/// receipts above with main's merge at `0a1d95321e` (annulus [728, 561]
+/// -> [632, 605], boss [705, 538] -> [625, 573], bracket [1765, 1330]
+/// -> [1625, 1397], link [1016, 825] -> [924, 861]); on the plate the
+/// same merge read [1009, 662] -> [945, 701]. `retried` holds at 0
+/// everywhere, and with the ladder and without it read alike: no retry
+/// takes a decision away. The rows that fell fell with main's merge,
+/// between two trees, not between the ladder's two dials, which is what
+/// the paragraph below constrains.
+///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
@@ -626,11 +644,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1009, 662], [1009, 662], 0),
-        ("r1_annulus", [728, 561], [728, 561], 0),
-        ("r1_segment_boss", [705, 538], [705, 538], 0),
-        ("r2_filleted_bracket", [1765, 1330], [1765, 1330], 0),
-        ("r2_link", [1016, 825], [1016, 825], 0),
+        ("two_hole_plate", [1253, 1043], [1253, 1043], 0),
+        ("r1_annulus", [632, 605], [632, 605], 0),
+        ("r1_segment_boss", [625, 573], [625, 573], 0),
+        ("r2_filleted_bracket", [1625, 1397], [1625, 1397], 0),
+        ("r2_link", [924, 861], [924, 861], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {

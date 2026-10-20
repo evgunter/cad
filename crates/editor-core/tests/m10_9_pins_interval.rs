@@ -155,6 +155,25 @@ pub(crate) struct Study {
 /// whole. With the door shut the
 /// bracket reads 1708/1387 and the pad 1438/1508; the link's still
 /// refuses at `pcurve_envelope`, its receipt 782/710 unmoved.
+///
+/// Re-taken on INTENT stage 3 D under FORK-REST (only the identity
+/// bundle as written places by no map), identical at all three ε rows.
+/// The plate moved by FORK-REST alone: its two holes are placed by
+/// plane mates, which the narrowing's walk let snap (their start caps
+/// called fixed), and now run their maps, so their transforms and their
+/// copies' re-certification decide over the box: 1253 symbolic (it read
+/// 945 on D before FORK-REST). The other four read what D measured
+/// before FORK-REST, after merging main at `0a1d95321e` (annulus 632;
+/// the bracket 1566/1456 and the pad 1546/1324/3024 with the door
+/// shut): their placements read a declared or toleranced variable and
+/// already ran their maps, so FORK-REST moves none of them. Against the
+/// narrowing's receipts above, main's merge took decisions off the
+/// annulus (728 -> 632), the link (1016 -> 924) and the bracket (1765
+/// -> 1625) and added to the pad (1500 -> 1546); with the door shut the
+/// link reads 722/734, still refusing at `pcurve_envelope`, the bracket
+/// 1566/1456 and the pad 1546/1324. All five still certify whole and
+/// the door still moves decisions between columns and decides no
+/// others.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -168,7 +187,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [1009, 1009, 1009],
+            symbolic: [1253, 1253, 1253],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -179,7 +198,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             without_the_registry: None,
-            symbolic: [728, 728, 728],
+            symbolic: [632, 632, 632],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -200,8 +219,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // decides 3 of the envelope's 9 terms on each of its two
             // reads. Under INTENT stage 3 D's placement it decides two
             // fewer numeric comparisons on the way (712 -> 710).
-            without_the_registry: Some(((782, 710), Some("pcurve_envelope"))),
-            symbolic: [1016, 1016, 1016],
+            without_the_registry: Some(((722, 734), Some("pcurve_envelope"))),
+            symbolic: [924, 924, 924],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -215,13 +234,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1708, 1387), None)),
+            without_the_registry: Some(((1566, 1456), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1765, 1765, 1765],
+            symbolic: [1625, 1625, 1625],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -239,11 +258,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // exact components, the tier proves what the door used to
             // discharge (64 decisions, `(1147, 1392)` shut against
             // `(1211, 1328)` shipped, when they were angles).
-            without_the_registry: Some(((1438, 1508), None)),
+            without_the_registry: Some(((1546, 1324), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1500, 1500, 1500],
+            symbolic: [1546, 1546, 1546],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -699,6 +718,12 @@ fn m10_9_what_the_registry_buys() {
 /// default ε on every PR whose diff seeds `editor-core`, and every night
 /// at every ε row. It is two whole-box pad replays on top of the gating
 /// row's, which keeps it off the per-PR fast set.
+///
+/// Re-taken on D under FORK-REST: (1546, 1324, 3024) at both dials,
+/// which D measured before FORK-REST too (the pad's one placement reads
+/// a declared variable and already ran its map). It moved from (1500,
+/// 1446, 1406) with main's merge at `0a1d95321e`: `symbolic` 1500 ->
+/// 1546, `numeric` 1446 -> 1324 and `frozen` 1406 -> 3024.
 #[test]
 fn m10_9_the_pad_at_both_rule_f_dials() {
     let tol = Tol::witness();
@@ -727,7 +752,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1500, 1446, 1406), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1546, 1324, 3024), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"
