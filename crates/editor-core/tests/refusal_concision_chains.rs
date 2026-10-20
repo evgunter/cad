@@ -1602,8 +1602,9 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
 /// repair, so a wrapper that added one of its own would read here as
 /// two. The interpolation's carriers (`Fit/`, `Structure/`) are NOT
 /// forwarded: the kernel chose their samples and knots, so a builder's
-/// repair would name nothing the user supplied, and those rows end in
-/// the kernel-defect ending instead.
+/// repair would name nothing the user supplied. A seed that ran short
+/// (`Fit/TooFewPoints`) ends in the narrow knot span's lever; the
+/// structure's arm and the mint's limb end in the last resort.
 ///
 /// Every meter refusal ends in its decision's one recourse for its
 /// verdict ([`meter_escalations`], [`meter_verdicts`]), never the
@@ -1661,9 +1662,14 @@ fn every_offset_fit_refusal_ends_exactly_once() {
                 "{name}: a shell user sets a wall, not a distance or a side: {text}"
             );
         }
-        if arm.starts_with("Fit/") || arm.starts_with("Structure/") || arm.starts_with("MintLimb") {
+        if arm.starts_with("Fit/TooFewPoints") {
             assert!(
-                text.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                text.ends_with(geom_brep::patch_bound::NARROW_SPAN_RECOURSE),
+                "{name}: {text}"
+            );
+        } else if arm.starts_with("Structure/") || arm.starts_with("MintLimb") {
+            assert!(
+                text.ends_with(geom_core::KERNEL_LIMIT_RECOURSE),
                 "{name}: {text}"
             );
         }
@@ -1671,10 +1677,7 @@ fn every_offset_fit_refusal_ends_exactly_once() {
         // is the call that refused, and nothing is stored.
         if arm.starts_with("MintLimb") {
             mint_limbs += 1;
-            assert!(
-                !text.contains("stored") && !text.contains("Recourse"),
-                "{name}: {text}"
-            );
+            assert!(!text.contains("stored"), "{name}: {text}");
         } else if arm.starts_with("Limb") {
             at_rest_limbs += 1;
             assert!(
@@ -3333,7 +3336,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         ("Meter/NormalFloor", 2),
         ("Meter/CurvatureHeadroom", 2),
         ("Meter/Escalated", 1),
-        ("PatchBound/", 7),
+        ("PatchBound/", 6),
         ("Fit/", 1),
         ("Structure/", 1),
         ("InvalidRequest", 1),

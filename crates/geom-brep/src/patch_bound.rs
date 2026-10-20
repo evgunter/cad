@@ -121,6 +121,32 @@ use geom_core::spline::{
 /// each piece's spread of coefficient ratios.
 pub const RATIONAL_CERT_SPLITS: usize = 16;
 
+/// The narrow-span decision's subject, as a literal for `concat!`: a
+/// knot span whose parameter values are so large against its width that
+/// floating point cannot cut it into the pieces a reading needs.
+macro_rules! narrow_span {
+    () => {
+        "a knot span too narrow, for the size of its parameter values, to be subdivided"
+    };
+}
+
+/// The narrow-span decision's one recourse, as a literal for `concat!`:
+/// the span is the lever.
+macro_rules! narrow_span_recourse {
+    () => {
+        "Recourse: widen that knot span or merge it into a neighbouring one"
+    };
+}
+
+/// **The narrow-span decision's subject**: what [`PatchBoundError::RefinementFailed`],
+/// [`PatchBoundError::DerivedKnots`] and the offset fit's crowded seed
+/// (`OffsetFitError::Fit`) refuse on.
+pub const NARROW_SPAN: &str = narrow_span!();
+
+/// **The narrow-span decision's one recourse** (D4 ¶1 (i)): every
+/// refusal of [`NARROW_SPAN`] ends in it.
+pub const NARROW_SPAN_RECOURSE: &str = narrow_span_recourse!();
+
 /// A typed refusal of the patch-bound assembly (fail-loud). Each
 /// carries the prose its consumers print, so a lifted consumer's
 /// message is this module's message.
@@ -147,30 +173,24 @@ pub enum PatchBoundError {
     /// surface refuses these already, so a face reaching this bound
     /// carrying one is also a finding.
     NonPositiveWeight,
-    /// A refinement's knot-insertion chain failed to materialise.
-    /// Outside the certified inventory: the schedule inserts knots into
-    /// a direction that already passed the C¹ gate, and insertion into a
-    /// valid clamped vector is total, so the description that reached
-    /// this is reported rather than repaired.
+    /// A refinement's knot-insertion chain refused, on a valid face:
+    /// the equal-split points of a knot span a few ulps wide round onto
+    /// one another, and inserting one value past the direction's degree
+    /// is refused. The narrow-span decision ([`NARROW_SPAN`]), as
+    /// [`Self::DerivedKnots`] is; its lever is the span.
     RefinementFailed,
     /// A rational direction of degree above 18: the rational arm reads
     /// the second partials as quotients of degree `3p`, past the
     /// [`QUOTIENT_MAX_DEGREE`] of `56` its exact Bernstein products
     /// reach (module docs, "Refusal").
     DegreeAboveCeiling,
-    /// The quotient statement refused a block under its degree ceiling,
-    /// on either arm (the rational cells, or the integral area floor).
-    /// Outside the certified inventory: a block of a C¹-gated direction
-    /// with proven-positive weights and a degree under the ceiling is
-    /// one the statement always forms.
-    QuotientRefused,
-    /// A direction whose differenced knot vector failed to
-    /// materialise. In the patch lanes a valid face reaches this when a
-    /// span only a few ulps wide is cut by the equal-split schedule:
-    /// its split points collide with the span's ends, the refined
-    /// vector carries a knot of full multiplicity, and its
-    /// twice-differenced vector is not clamped. The answer is a typed
-    /// refusal, never a second partial read as zero.
+    /// A refined direction whose first derivative is discontinuous, on
+    /// a valid face: the equal-split points of a knot span a few ulps
+    /// wide collide up to the direction's degree, so the refined vector
+    /// carries a knot of full multiplicity, which the C¹ gate never saw.
+    /// The narrow-span decision ([`NARROW_SPAN`]), as
+    /// [`Self::RefinementFailed`] is. The answer is a typed refusal,
+    /// never a second partial read as zero.
     DerivedKnots,
 }
 
@@ -195,26 +215,17 @@ impl PatchBoundError {
                 "rational NURBS face with a non-positive or non-finite weight, which \
                  describes no valid surface. Recourse: supply strictly positive, finite weights"
             }
-            Self::RefinementFailed => concat!(
-                "NURBS face that could not be subdivided for bounding, which a valid face \
-                 always allows. ",
-                geom_core::kernel_defect_ending!()
+            Self::RefinementFailed | Self::DerivedKnots => concat!(
+                "NURBS face with ",
+                narrow_span!(),
+                " for bounding. ",
+                narrow_span_recourse!()
             ),
             Self::DegreeAboveCeiling => {
                 "rational NURBS face of degree above 18 in a direction, past the degree its \
                  second-derivative bound reaches (three times the degree, at most 56). \
                  Recourse: describe the face at degree 18 or below in each direction"
             }
-            Self::QuotientRefused => concat!(
-                "NURBS face whose derivative bound could not be formed under its degree \
-                 ceiling, which a valid face always allows. ",
-                geom_core::kernel_defect_ending!()
-            ),
-            Self::DerivedKnots => concat!(
-                "NURBS face whose derivative could not be formed for bounding (a knot span \
-                 a few ulps wide, cut by the fixed subdivision, reaches this). ",
-                geom_core::kernel_defect_ending!()
-            ),
         }
     }
 }
@@ -347,8 +358,7 @@ pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface
 ///
 /// [`PatchBoundError`] — a C⁰-creased or degree-0 direction, an
 /// illegal rational description, a rational direction of degree above
-/// 18 ([`PatchBoundError::DegreeAboveCeiling`], module docs "Refusal"),
-/// or a derived-knot construction that fails to materialise.
+/// 18 ([`PatchBoundError::DegreeAboveCeiling`], module docs "Refusal").
 pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
     check_direction(n.knots_u_f64_interim())?;
     check_direction(n.knots_v_f64_interim())?;
@@ -383,8 +393,10 @@ pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundEr
 ///
 /// # Errors
 ///
-/// As [`patch_cells`], plus [`PatchBoundError::RefinementFailed`] (the
-/// integral arm's insertion chain).
+/// As [`patch_cells`], plus the narrow-span refusals on the integral
+/// arm's refinement: [`PatchBoundError::RefinementFailed`] (its
+/// insertion chain) and [`PatchBoundError::DerivedKnots`] (its refined
+/// vector).
 pub fn patch_cells_refined(
     n: &NurbsSurface<f64>,
     splits: usize,
@@ -409,7 +421,9 @@ pub fn patch_cells_refined(
 ///
 /// # Errors
 ///
-/// [`PatchBoundError::RefinementFailed`] — a refused insertion chain.
+/// [`PatchBoundError::RefinementFailed`] — a refused insertion chain,
+/// which only colliding split points on a narrow span reach: the points
+/// lie strictly inside their spans and the weights are unit.
 fn refine_split<'s, const C: usize>(
     nets: &'s TensorChannels<'_, C>,
     splits: usize,
@@ -696,7 +710,8 @@ fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundErr
 ///
 /// # Errors
 ///
-/// As [`integral_cells`], plus [`PatchBoundError::RefinementFailed`].
+/// As [`integral_cells`], plus [`PatchBoundError::RefinementFailed`];
+/// [`PatchBoundError::DerivedKnots`] is reachable only here.
 fn integral_cells_refined(
     n: &NurbsSurface<f64>,
     splits: usize,
@@ -773,7 +788,7 @@ fn integral_cells_on(base_nets: &TensorChannels<'_, 3>) -> Result<Vec<PatchCell>
                 &window_vectors(&w.u_d1, &w.v_val, |c, i, j| nets[c].d10.get(i, j)),
                 &window_vectors(&w.u_val, &w.v_d1, |c, i, j| nets[c].d01.get(i, j)),
             );
-            let m_inf = integral_area_floor(base_nets, (&held_u, &held_v), span_u, span_v)?;
+            let m_inf = integral_area_floor(base_nets, (&held_u, &held_v), span_u, span_v);
             cells.push(cell_from(
                 (span_extent(kv_u, su), span_extent(kv_v, sv)),
                 [s_u, s_v, s_uu, s_uv, s_vv],
@@ -825,7 +840,16 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 },
                 (splits, splits),
             )
-            .ok_or(PatchBoundError::QuotientRefused)?;
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "the quotient statement refuses only a degree-0 axis, a block not \
+                     (p + 1)(q + 1) long, or a degree past {QUOTIENT_MAX_DEGREE}; the C¹ gate \
+                     admitted degrees ({}, {}) ≥ 1, the block is the span window's, and \
+                     3·max(p, q) passed the ceiling above",
+                    kv_u.degree(),
+                    kv_v.degree()
+                )
+            });
             let (eu, ev) = (span_extent(kv_u, su.index()), span_extent(kv_v, sv.index()));
             for (k, (first, second)) in pieces.iter().enumerate() {
                 let (iu, iv) = (k / counts.1, k % counts.1);
@@ -904,24 +928,19 @@ fn certified_inf(q: &QuotientPiece<Interval, 3>) -> f64 {
 /// the floor is the conservative `0.0`: the cell's sup-side readings do
 /// not need it, so the arm still certifies, and an inf-side consumer
 /// reads a floor that separates nothing.
-///
-/// # Errors
-///
-/// [`PatchBoundError::QuotientRefused`] when the statement refuses a
-/// block under its ceiling.
 fn integral_area_floor(
     nets: &TensorChannels<'_, 3>,
     (held_u, held_v): (&[Interval], &[Interval]),
     span_u: Span<'_>,
     span_v: Span<'_>,
-) -> Result<f64, PatchBoundError> {
+) -> f64 {
     let over = |sp: &Span<'_>| 2 * sp.degree() - 1 > QUOTIENT_MAX_DEGREE;
     if over(&span_u) || over(&span_v) {
         // The conservative floor: `A_u × A_v` is past the statement's
         // degree ceiling, so no floor can be formed, and `0.0` separates
         // nothing from zero. The sups need no quotient, so the cell still
         // certifies (`the_integral_floor_is_zero_past_degree_28`).
-        return Ok(0.0);
+        return 0.0;
     }
     let channels = nets.channels();
     let points = on_window(span_u, span_v, |iu, iv| {
@@ -935,11 +954,19 @@ fn integral_area_floor(
         &points,
         (1, 1),
     )
-    .ok_or(PatchBoundError::QuotientRefused)?;
-    Ok(pieces
+    .unwrap_or_else(|| {
+        unreachable!(
+            "the area statement refuses only a degree-0 axis, a block not (p + 1)(q + 1) \
+             long, or a degree past {QUOTIENT_MAX_DEGREE}; the C¹ gate admitted degrees \
+             ({}, {}) ≥ 1, the block is the span window's, and 2p − 1 passed the ceiling above",
+            span_u.degree(),
+            span_v.degree()
+        )
+    });
+    pieces
         .iter()
         .map(certified_inf)
-        .fold(f64::INFINITY, f64::min))
+        .fold(f64::INFINITY, f64::min)
 }
 
 /// A knot vector's knots held as certification points.
@@ -1110,7 +1137,7 @@ pub(crate) mod tests {
         // A vocabulary, not a part-of-speech test: an arm that names
         // the thing a caller supplies satisfies the claim the same way
         // an imperative does.
-        const RECOURSE_WORDS: &[&str] = &["describe", "supply", "report", "split"];
+        const RECOURSE_WORDS: &[&str] = &["describe", "supply", "widen", "split"];
         let arms = [
             PatchBoundError::DegreeZero,
             PatchBoundError::Degree1Crease,
@@ -1118,30 +1145,32 @@ pub(crate) mod tests {
             PatchBoundError::NonPositiveWeight,
             PatchBoundError::RefinementFailed,
             PatchBoundError::DegreeAboveCeiling,
-            PatchBoundError::QuotientRefused,
             PatchBoundError::DerivedKnots,
         ];
-        assert_eq!(arms.len(), 8, "an arm was added without a row here");
+        assert_eq!(arms.len(), 7, "an arm was added without a row here");
         for arm in arms {
             let msg = arm.to_string();
             assert_eq!(msg, arm.note(), "Display is the shared note");
-            // One ending: a labelled repair, or on the three arms only a
-            // kernel defect reaches, the shared dead end.
+            // One ending, a labelled repair: a valid face reaches every
+            // arm, so none ends on the kernel-defect dead end.
             assert_eq!(
                 test_utils::refusal::recourse_markers(&msg),
                 1,
                 "not exactly one ending: {msg}"
             );
-            let defect = matches!(
+            assert!(
+                !msg.contains(geom_core::KERNEL_DEFECT_ENDING),
+                "a refusal input reaches ends on the dead end: {msg}"
+            );
+            // The narrow-span decision tells one story on both arms.
+            let narrow = matches!(
                 arm,
-                PatchBoundError::RefinementFailed
-                    | PatchBoundError::QuotientRefused
-                    | PatchBoundError::DerivedKnots
+                PatchBoundError::RefinementFailed | PatchBoundError::DerivedKnots
             );
             assert_eq!(
-                msg.ends_with(geom_core::KERNEL_DEFECT_ENDING),
-                defect,
-                "only a kernel defect ends on the dead end: {msg}"
+                msg.contains(NARROW_SPAN) && msg.ends_with(NARROW_SPAN_RECOURSE),
+                narrow,
+                "the narrow span's story on the wrong arms: {msg}"
             );
             let lower = msg.to_lowercase();
             assert!(
@@ -1183,16 +1212,23 @@ pub(crate) mod tests {
                 match patch_cells_refined(&n, splits) {
                     // A typed refusal is an honest answer: `DerivedKnots`
                     // at 8 splits; at 12 the insertion chain itself
-                    // refuses, `RefinementFailed`.
-                    Err(e) => assert_eq!(
-                        e,
-                        if splits == 8 {
-                            PatchBoundError::DerivedKnots
-                        } else {
-                            PatchBoundError::RefinementFailed
-                        },
-                        "{arm} @ {splits}"
-                    ),
+                    // refuses, `RefinementFailed`. Either names the span
+                    // as the lever.
+                    Err(e) => {
+                        assert_eq!(
+                            e,
+                            if splits == 8 {
+                                PatchBoundError::DerivedKnots
+                            } else {
+                                PatchBoundError::RefinementFailed
+                            },
+                            "{arm} @ {splits}"
+                        );
+                        assert!(
+                            e.to_string().ends_with(NARROW_SPAN_RECOURSE),
+                            "{arm} @ {splits}: {e}"
+                        );
+                    }
                     Ok(cells) => assert!(
                         cells.iter().any(|c| c.s_uu[0].hi() > 0.0),
                         "{arm} @ {splits}: x = Σ i³·N_i(u) has S_uu ≠ 0, but every cell's \
