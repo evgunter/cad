@@ -41,6 +41,7 @@ Export one home (geom-brep's `angle_periods`, or a `Surface` method in
 `geom`) for "is `S` periodic in this channel, and with what period", and
 route topo's copies through it; and name `v_periodic`'s question as the
 other one (the domain wraps) so the two cannot be read for each other.
-PCERT unit C (unlanded at filing) adds a net's `v` period beside
-`chart_u_period`, a sixth reader of the same question for spline
-charts.
+PCERT unit C adds two more readers for spline charts:
+`topo::pcurves::chart_v_period` (a net's `v` knot length when decided
+closed, beside `chart_u_period`) and `topo::joint::v_period` (`v`'s
+period as a deck element applies it, band-free, beside `u_period`).
