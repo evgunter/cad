@@ -233,6 +233,7 @@ use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, SolidKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::geometry::SurfaceKey;
 use crate::live::{dangling_link, linked, proven};
+use crate::offset_derive::WallSlot;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::validate::{ValidationError, validate_closed};
 
@@ -1546,6 +1547,16 @@ fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
             }
         })
         .collect();
+    // The door's `SharedSurfaceKey` gate, which this hook does not run:
+    // a moved chart's slot is found by its `old_key`
+    // ([`moved_of`]), so two moves on one key would leave the second
+    // unread.
+    for (i, chart) in charts.iter().enumerate() {
+        assert!(
+            charts[..i].iter().all(|c| c.old_key != chart.old_key),
+            "two moves on one surface key: the door refuses them (SharedSurfaceKey)"
+        );
+    }
     let mut boundary: Vec<EdgeKey> = Vec::new();
     for chart in &charts {
         for edge in group_boundary(body, chart.faces) {
@@ -2096,7 +2107,7 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     // re-certifies it against an edge that ends elsewhere and refuses.
     // A vertex in `moved` that lands within the band of where it was
     // keeps a carryable row that this drop loses
-    // (`work/shell/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`).
+    // (`work/shelf/replace-faces-offset-drops-rows-at-a-vertex-the-move-leaves-in-place`).
     let staled: Vec<_> = work
         .half_edges
         .values()
@@ -2927,7 +2938,6 @@ fn edge_side_keys<T: Real>(
 /// surfaces, so it is their section. Anywhere else the edge is the
 /// section of the two MOVED surfaces through C5, seeded by the old
 /// carrier for branch and sense ([`derive_edge`]).
-#[allow(clippy::type_complexity)]
 fn plan_between_moved<'w, 's, T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
     curve: &geom_brep::EdgeCurve<T>,
@@ -2937,10 +2947,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
     tol: Tol,
     (section_lane, slots): (
         Option<crate::offset_derive::SectionLane<T>>,
-        (
-            Option<&'w core::cell::OnceCell<geom_brep::ChartedNurbs<'s, f64>>>,
-            Option<&'w core::cell::OnceCell<geom_brep::ChartedNurbs<'s, f64>>>,
-        ),
+        (WallSlot<'w, 's>, WallSlot<'w, 's>),
     ),
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
     let (t0, t1) = curve.params();
@@ -3094,7 +3101,6 @@ fn untilted<T: Real>(
 /// drew — or, for a pair that under-determined the old edge, as the
 /// must-carry rule reads the section ([`crate::offset_restate::re_ask_on_pair`]).
 /// Its ends are its corners', read once those are solved.
-#[allow(clippy::type_complexity)]
 fn derive_edge<'w, 's, T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
     (curve, description, (t0, t1)): (&geom_brep::EdgeCurve<T>, &EdgeDescription<T>, (T, T)),
@@ -3109,10 +3115,7 @@ fn derive_edge<'w, 's, T: Decide>(
     band: Band,
     (section_lane, (new_slot, neighbour_slot)): (
         Option<crate::offset_derive::SectionLane<T>>,
-        (
-            Option<&'w core::cell::OnceCell<geom_brep::ChartedNurbs<'s, f64>>>,
-            Option<&'w core::cell::OnceCell<geom_brep::ChartedNurbs<'s, f64>>>,
-        ),
+        (WallSlot<'w, 's>, WallSlot<'w, 's>),
     ),
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
     use crate::offset_derive::SectionVerdict;
@@ -3679,7 +3682,7 @@ fn plan_reanchors<T: Decide>(
             // measures, so it refuses rather than storing a wrong span
             // unless the carrier passes within ε of itself; a CLOSED
             // spline is where that read misnames its refusal
-            // (`work/shell/reanchor-reads-a-closed-spline-carrier-from-the-seed-side-only.md`),
+            // (`work/shelf/reanchor-reads-a-closed-spline-carrier-from-the-seed-side-only.md`),
             // and `geom_brep`'s `foot_rows` pins that the seed is what
             // picks the foot.
             //
