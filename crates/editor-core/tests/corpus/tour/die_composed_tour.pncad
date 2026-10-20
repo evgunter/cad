@@ -5983,8 +5983,179 @@ id: a8d79f40ddb79de569d778f1c0b832f9
       }
     },
     {
-      "PinWhereItStands": {
-        "placement": "263:d83c563641edb528"
+      "AddConstraint": {
+        "placement": "263:d83c563641edb528",
+        "mate": {
+          "on": {
+            "Pose": {
+              "Plane": {
+                "face": {
+                  "Select": {
+                    "body": {
+                      "Var": "262:6a4a4b999512c4bf"
+                    },
+                    "names": [
+                      {
+                        "kind": "Face",
+                        "node": "261:2380247c61d61d01",
+                        "path": [
+                          {
+                            "From": {
+                              "read": "258:23b1ad85ae6aeda4",
+                              "of": {
+                                "kind": "Face",
+                                "node": "257:8696b14d225dd58c",
+                                "path": [
+                                  {
+                                    "From": {
+                                      "read": "254:185609c8a4cf239f",
+                                      "of": {
+                                        "kind": "Face",
+                                        "node": "253:a9a9e49fc7cb4d18",
+                                        "path": [
+                                          {
+                                            "From": {
+                                              "read": "29:9117322ce802f579",
+                                              "of": {
+                                                "kind": "Face",
+                                                "node": "28:065cfa8f90376363",
+                                                "path": [
+                                                  {
+                                                    "Cap": "End"
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "to": {
+            "world": {
+              "role": {
+                "pose": {
+                  "slide": {
+                    "pose": {
+                      "slide": {
+                        "pose": {
+                          "slide": {
+                            "pose": "frame",
+                            "along": {
+                              "role": {
+                                "pose": "frame",
+                                "role": "X"
+                              }
+                            },
+                            "by": {
+                              "Quantity": {
+                                "value": 0.5,
+                                "dim": "Length",
+                                "unit": "m"
+                              }
+                            }
+                          }
+                        },
+                        "along": {
+                          "role": {
+                            "pose": "frame",
+                            "role": "Y"
+                          }
+                        },
+                        "by": {
+                          "Quantity": {
+                            "value": 0.5,
+                            "dim": "Length",
+                            "unit": "m"
+                          }
+                        }
+                      }
+                    },
+                    "along": {
+                      "role": {
+                        "pose": "frame",
+                        "role": "Z"
+                      }
+                    },
+                    "by": {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  }
+                },
+                "role": "Xy"
+              }
+            }
+          },
+          "class": "rest"
+        }
+      }
+    },
+    {
+      "AddValue": {
+        "placement": "263:d83c563641edb528",
+        "value": {
+          "mate": "270:f2ccde617934a0cc",
+          "coord": {
+            "slide": "x"
+          },
+          "by": {
+            "Quantity": {
+              "value": 0.0,
+              "dim": "Length",
+              "unit": "m"
+            }
+          }
+        }
+      }
+    },
+    {
+      "AddValue": {
+        "placement": "263:d83c563641edb528",
+        "value": {
+          "mate": "270:f2ccde617934a0cc",
+          "coord": {
+            "slide": "y"
+          },
+          "by": {
+            "Quantity": {
+              "value": 0.0,
+              "dim": "Length",
+              "unit": "m"
+            }
+          }
+        }
+      }
+    },
+    {
+      "AddValue": {
+        "placement": "263:d83c563641edb528",
+        "value": {
+          "mate": "270:f2ccde617934a0cc",
+          "coord": "spin",
+          "by": {
+            "Quantity": {
+              "value": 0.0,
+              "dim": "Angle",
+              "unit": "rad"
+            }
+          }
+        }
       }
     }
   ]

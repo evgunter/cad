@@ -239,6 +239,14 @@ fn sans_epsilon(t: &str) -> String {
 /// **Re-pinned for a seam citing the parent face** (N3): `crossing_slots`'
 /// table only, whose two seams beside the merged floor cite its
 /// `Merged` parent where they cited one floor; its persisted text held.
+///
+/// **Re-pinned for a seam's sides and a crossing's lines named in the
+/// boolean's own table, in name order** (N3): the tables of the nine
+/// documents holding a subtract; the persisted text of `die_composed`
+/// and `die_composed_tour`, whose stored selections name their pip rims
+/// by the subtract's seams, and the tour's ids after its fillets with
+/// them. No point moved
+/// (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`).
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xfff9d96b416b369c, 0x7134dab9e0a2c309),
     ("corner_table", 0xfe4524cd4290cd89, 0x4e4c3ddbafffeae6),
@@ -269,7 +277,7 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("part_select", 0x37c21b8ec7d5133b, 0xacbfa3bfb57ed085),
     ("loft_prism", 0x3226abdd88349262, 0x506986cb31940d2e),
     ("die_composed", 0xd05ef1dd4f687696, 0xb2bcbc07b8eb831b),
-    ("die_composed_tour", 0x7badfb1ed751956d, 0xb4267fc05eb2baab),
+    ("die_composed_tour", 0x7badfb1ed751956d, 0xc494d981f06964b6),
     ("plate_param", 0x4d4af4940bbcf6b4, 0x43cc904beefda406),
     ("kiss_carry", 0xeb5729ade9d7fcc7, 0xd53e88f7a7d82914),
     ("tube_ring", 0xc6c0297620ada5aa, 0x53a256dbdf51810c),
