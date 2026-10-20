@@ -2,10 +2,11 @@
 id: a-pinch-where-two-legs-cross-one-face-is-named-by-the-leg-minted-first
 kind: issue
 title: A pinch where two members' legs cross one face is named the crossing of the leg minted first, so the authoring order picks the name
-status: review
+status: closed
 priority: P2
 cost: M
 opened: 2026-10-20
+closed: 2026-10-20
 pr: 5488
 branch: wire/union-reads-not-mint-order
 ---

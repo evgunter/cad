@@ -2,10 +2,11 @@
 id: a-boolean-of-a-body-and-its-copy-names-its-entities-from-the-copy-minted-first
 kind: issue
 title: A boolean of a body and its exact copy names each entity of the result from the copy minted first
-status: review
+status: closed
 priority: P2
 cost: M
 opened: 2026-10-20
+closed: 2026-10-20
 pr: 5488
 branch: wire/union-reads-not-mint-order
 ---

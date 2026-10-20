@@ -6898,3 +6898,9 @@ Signed (WIRE orchestrator).
 - 2026-10-20 (WIRE orchestrator) PR 5457 merged (8428fbb043) as option (a). Verb<T>, Arity and VerbKind::arity are gone, VerbKind stays closed, and V1 is reworded per Ev.
   - The fix-pass items are in: DoorScalar (pin 2), profile_edges_of's caller-reachable assert gone, derive_naming typed or row 4, stale citers fixed.
   - Eval-arms row closed. MissingSlot stays typed on the D10 readers (parked row).
+
+- 2026-10-20 (WIRE orchestrator) PR 5488 merged (59c00412db) and its two mint-order rows closed.
+  - Fix pass: the least-edge sentence is narrowed to 'which edge orients it is open', and the orientation row is raised to P2 and measured (18 names, admitted as LINE_ORIENTED_BY_LEAST). Ev was told before the merge.
+  - line_head now checks it is a flush line; cites_both checks the head reads; a locality assert added; tied flag pinned.
+  - Rows: doctail N5 two-hop offers; one flush-grouping helper; pair-seam seat trace (no cross-seat least).
+  - [ev] taken off the title.
