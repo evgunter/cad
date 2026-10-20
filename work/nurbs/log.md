@@ -1604,3 +1604,10 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - `cut_pieces`, split: up to 417× (absorbed by the cut's meet with the whole cell, #5123).
   - The pyramid is never meaningfully wider.
   - **Ruled:** three homes stay, each with its reason stated. The pyramid is section and props' door, `split_restrict` the cut's meet-protected fast form, `Grid::halved` derivative's halving. The one fold: `restrict_bernstein` (sole caller `props/quad.rs:4376`) reroutes to `restrict_segment`, bit-identical, and retires. STANDARD. The table goes into the item's record. Seam note on flux's log.
+- 2026-10-20 04:20Z — **Correction: the #5439 ruling was wrong.**
+  - **What happened:** at ~03:50Z I approved resolving the Bernstein-product half of the binomial item by a stated reason. The reason was that folding would move one side's pinned bits.
+  - **Why it was wrong:** `memories/output-stability-as-justification.md` forbids exactly that: bit-preservation "may never justify keeping a thing: not a second implementation".
+  - **How it was caught:** #5439's STANDARD review raised it as MAJOR and tried the fold. compose's memo holds exact integer numerators, read through `mul_nonneg`. Only the old-association bit rows and the rehearsal golden moved, and that golden's bound got tighter (1.865e-14 → 1.465e-14). Wall time was unchanged.
+  - **Re-ruled:** #5439 does the fold, now at FULL, with the golden re-baselined and the old bit rows retired. The same reviewer re-reviews.
+  - **Friction:** I ruled on a design-shaped question ("two homes, or one?") without re-reading the memory index for a rule that applies. The orchestrator's adjudication docs bind my own judgement too (CLAUDE.md). Before approving any "keep both" resolution, check it against this memory.
+  - PR 3's three homes rest on width and cost, which is allowed. Build A will audit its docs for the "kept because bits would move" tell.
