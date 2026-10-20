@@ -578,7 +578,6 @@ fn name_split_merges<T: Decide>(
                 let mut pieces = Vec::with_capacity(members.len());
                 for &f in &members {
                     let edges = face_edges(s.body, f)?;
-
                     pieces.push((keeps.of(edges, &boundary)?, ent(0, EntityKey::Face(f))));
                 }
                 mint_qualified(&mut h.t, &mut h.tie, tied, &name, pieces)?;
@@ -826,7 +825,6 @@ fn split_chords<T: Decide>(
                 root,
                 "the target table names it, and a table names its own body's live entities",
             );
-
             if (descends(g0, fa) && descends(g1, fb)) || (descends(g0, fb) && descends(g1, fa)) {
                 continue;
             }
@@ -913,7 +911,6 @@ fn split_joined_readings<T: Decide>(
                  leave that edge live in its half"
             );
         }
-
         let mut roots = BTreeSet::new();
         let mut chords = 0usize;
         for &c in cover {
@@ -1019,7 +1016,6 @@ fn split_join_seam<T: Decide>(
                    edges, which no rule names",
         });
     }
-
     let (parent, tied) = merged.parent_of(other, naming, target_node, target_table)?;
     let (a, b) = if *parent <= *m.name {
         (parent, m.name.clone())
@@ -1366,7 +1362,6 @@ fn name_split_edges_vertices<T: Decide>(
             )?;
         }
     }
-
     for (h, pieces) in halves.iter_mut().zip(pieces) {
         pieces.mint(&mut h.t, &mut h.tie)?;
     }
@@ -1928,7 +1923,6 @@ pub(crate) fn name_boolean<T: Decide>(
                      and a table names its own body's live entities"
                 )
             });
-
             parent.extend(faces.into_iter().map(|f| side.with(f)));
         }
         let pieces: BTreeSet<FaceKey> = parent.iter().flat_map(&held_by).collect();
@@ -2249,7 +2243,6 @@ fn name_boolean_edges<T: Decide>(
             return Ok(seam(plain(d0)?, plain(d1)?, None));
         };
         let side = d0.operand();
-
         let ctx = d0.of(a, b).0;
         let pick = rim_among(body, e, ctx, &[(f0, f1)], bnd)?;
         Ok(
@@ -2962,7 +2955,6 @@ fn name_boolean_vertices<T: Decide>(
                 )
             };
             let along = along.clone();
-
             Ok((
                 RoleSeg::EdgeCrossing(run.into_iter().map(|(l, _)| l).collect()),
                 along,
@@ -3378,7 +3370,6 @@ struct EdgeSense {
 ///
 /// Where a side holds no classified piece ([`UNCLASSIFIED_SIDE`]), or a
 /// classified edge is one its operand's table does not name.
-
 fn senses_at<T: Decide>(
     naming: &topo::BooleanNaming,
     v: VertexKey,
@@ -3712,6 +3703,13 @@ impl<T: Decide> Segment<T> {
     /// this one's line (`Some(true)`), the other way (`Some(false)`), or
     /// does not lie on it (`None`): its two ends on the line, then the
     /// sign of the two directions' dot, each through `predicate`.
+    ///
+    /// # Panics
+    ///
+    /// Where the dot decides zero, which two certified edges cannot
+    /// reach: with both of `other`'s ends on this line the dot is its
+    /// length to within the zero band, and certification refuses an edge
+    /// whose span is under the escalate band.
     pub(super) fn runs_with(
         &self,
         other: &Self,
@@ -4416,9 +4414,11 @@ impl<T: Decide> Track<T> {
     /// # Errors
     ///
     /// As [`Track::offset`]; [`NamingError::Escalated`] where the band
-    /// cannot decide the two stretches; and [`NamingError::Emission`]
-    /// where it decides them equal, which a certified edge cannot
-    /// reach.
+    /// cannot decide the two stretches.
+    ///
+    /// # Panics
+    ///
+    /// Where it decides them equal, which a certified edge cannot reach.
     pub(super) fn runs_with(
         &self,
         other: &Self,
@@ -4893,7 +4893,6 @@ pub(super) fn carrier_arc<T: Decide>(
         let (r0, r1) = c.params();
         c.carrier().mid_point(r0, r1)
     };
-
     Ok(CarrierArc {
         p0: vertex_point(body, v0)?,
         mid,
@@ -4957,7 +4956,6 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
             };
             ends.push(end.clone());
         }
-
         ends.sort();
         let mut name = (*line).clone();
         name.path.push(RoleSeg::Fragment(Qualifier::Ends(ends)));
@@ -5409,7 +5407,6 @@ fn live_vertex_edges<T: geom_core::Real>(
 }
 
 /// The two faces edge `e` of `body` bounds, its `he_plus` side first.
-
 ///
 /// # Panics
 ///
@@ -5428,7 +5425,6 @@ fn live_edge_sides<T: geom_core::Real>(
 }
 
 /// The boundary edges of operand faces `faces`: the parent edges a
-
 /// split piece's `Keeps` cites from (N2).
 fn operand_boundary<T: Decide>(
     target_body: &Body<T>,
@@ -5529,7 +5525,8 @@ fn name_split_faces<T: Decide>(
         .map(|&(_, p)| frag_rows.root(p))
         .collect();
     // (root, side) → the side's body and the members.
-    let mut groups: BTreeMap<(FaceKey, usize), (&Body<T>, Vec<FaceKey>)> = BTreeMap::new();
+    type Group<'b, T> = (&'b Body<T>, Vec<FaceKey>);
+    let mut groups: BTreeMap<(FaceKey, usize), Group<'_, T>> = BTreeMap::new();
     for s in sides {
         for (f, _) in s.body.faces() {
             if section_keys.contains(&f) || merged.held.contains_key(&f) {
