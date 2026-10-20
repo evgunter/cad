@@ -112,6 +112,8 @@ mod fillet_stored_tangency;
 mod generic_replay;
 #[path = "guided_replay.rs"]
 mod guided_replay;
+#[path = "hairpin_fillet_radius.rs"]
+mod hairpin_fillet_radius;
 #[path = "interval_lane.rs"]
 mod interval_lane;
 #[path = "lift_census.rs"]

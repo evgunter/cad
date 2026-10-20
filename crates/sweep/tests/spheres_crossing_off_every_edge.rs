@@ -620,7 +620,10 @@ fn a_large_ball_near_external_tangency_is_pinned() {
     // `outcome`'s volume test is absolute (`1e-7`), which a lens of
     // `1.2e-11` passes whatever it reads, so the sliver's volume is held
     // here RELATIVE to the exact lens, per order and per gap. Measured at
-    // most `2.9e-9`. The `b ∩ a` sliver at a `1e-5` gap reads `2.5e-3`
+    // most `4.0e-9` (`a ∩ b` at a `3e-6` gap, an error of 1.1e-19 m³),
+    // with each face read about its shell's own vertex; `2.9e-9` when
+    // every face was read about the world origin, the unit ball's
+    // centre, where its cap's flux has no lever to cancel. The `b ∩ a` sliver at a `1e-5` gap reads `2.5e-3`
     // off: that is the flux's own `R·Area` against `c·A⃗` cancellation,
     // FLUXTAIL's `a-sphere-faces-flux-cancels-r-times-its-area-against-its-vector-area`
     // (`work/cleave/a-built-sliver-is-not-a-legal-operand.md` has the
@@ -642,7 +645,7 @@ fn a_large_ball_near_external_tangency_is_pinned() {
             let bound = if gap == 1e-5 && op == "b ∩ a" {
                 3e-3
             } else {
-                4e-9
+                5e-9
             };
             assert!(
                 rel <= bound,
