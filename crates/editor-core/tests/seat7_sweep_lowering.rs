@@ -6,7 +6,7 @@
 //!
 //! # 1. Nothing observable moved (the SEAT-4/5 method)
 //!
-//! `Node::Extrude` and `Node::Revolve` build a `verbs::Verb`, run it
+//! `Node::Extrude` and `Node::Revolve` build a `verbs::Sweep`, run it
 //! through the profile door and read their birth record out of the
 //! closed record channel. The wire format is pinned by a byte-identical
 //! round trip over a document carrying both sweeps, and each

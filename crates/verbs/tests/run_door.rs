@@ -21,9 +21,7 @@ use topo::{
     AtRestBody, Body, BooleanInputs, BooleanOp, BooleanResult, SplitPart, SweepStrategy,
     boolean_op_with, split,
 };
-use verbs::{
-    Arity, Blend, Boolean, PairOut, Shell, Split, Sweep, Verb, VerbError, VerbKind, VerbRecord,
-};
+use verbs::{Blend, Boolean, PairOut, Shell, Split, Sweep, VerbError, VerbRecord};
 
 use crate::fixture::{disc, offset_disc, pinch_plane, pinch_prism, tol, x_axis, z_plane};
 use sweep::test_support::finished;
@@ -281,66 +279,6 @@ fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
     };
     assert_eq!(format!("{door:?}"), format!("{carried:?}"));
     assert_eq!(door.to_string(), carried.to_string());
-}
-
-/// One representative verb per vocabulary row, payload minimal.
-fn sample(kind: VerbKind) -> Verb<f64> {
-    match kind {
-        VerbKind::Fillet => Verb::Blend(Blend::Fillet {
-            edges: Vec::new(),
-            radius: 0.1,
-        }),
-        VerbKind::Chamfer => Verb::Blend(Blend::Chamfer {
-            edges: Vec::new(),
-            distance: 0.1,
-        }),
-        VerbKind::Extrude => Verb::Sweep(Sweep::Extrude {
-            distance: 1.0,
-            side: ExtrudeSide::Along,
-        }),
-        VerbKind::Revolve => Verb::Sweep(Sweep::Revolve {
-            axis: x_axis(),
-            revolution: Revolution::Full,
-        }),
-        VerbKind::Boolean(op) => Verb::Boolean(Boolean {
-            op,
-            inputs: Box::new(BooleanInputs::default()),
-        }),
-        VerbKind::Split => Verb::Split(Split {
-            plane: z_plane(0.5),
-        }),
-        VerbKind::Shell => Verb::Shell(Shell {
-            thickness: 0.1,
-            open: Vec::new(),
-        }),
-    }
-}
-
-/// **The two projections of a verb agree, and every door row is a
-/// verb's.** A verb's door is its [`Verb`] variant ([`Verb::arity`]),
-/// and its name declares one ([`VerbKind::arity`]); a name mapped to
-/// the wrong row reds here by name, and so does a row of
-/// [`Arity::ALL`] no verb answers.
-#[test]
-fn every_verb_is_built_at_the_door_its_name_declares() {
-    let mut answered = std::collections::BTreeSet::new();
-    for kind in VerbKind::ALL {
-        let verb = sample(*kind);
-        assert_eq!(verb.kind(), *kind, "the sample for {kind:?} built {verb:?}");
-        assert_eq!(
-            verb.arity(),
-            kind.arity(),
-            "{kind:?} declares the {:?} door and is built at the {:?} one",
-            kind.arity(),
-            verb.arity()
-        );
-        answered.insert(verb.arity());
-    }
-    let rows: std::collections::BTreeSet<Arity> = Arity::ALL.iter().copied().collect();
-    assert_eq!(
-        answered, rows,
-        "a door row no verb answers, or a verb at no row"
-    );
 }
 
 /// The two sides' dumps, in order, with an empty side as its own

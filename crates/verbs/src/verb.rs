@@ -1,66 +1,50 @@
-//! The verb enum itself and its fieldless projection.
+//! **The kernel's verbs, one payload type per run door, and the closed
+//! vocabulary they project onto** ([`VerbKind`]).
+//!
+//! Each payload holds one operation's parameters as data. Scalars sit
+//! at `T`; entity references are arena keys, resolved by whoever built
+//! the value. The OPERANDs are not here — they are borrowed at the run
+//! doors ([`Blend::run`], [`Boolean::run_pair`], [`Sweep::run_profile`],
+//! [`Split::run_split`], [`Shell::run_shell`]), because an operand is
+//! not a parameter of the operation, it is the thing operated on, and
+//! putting it in the payload would make every declaration own a clone
+//! of it. That holds for the sweeps' validated PROFILE exactly as it
+//! holds for a body: it is borrowed at the door and never stored.
+//!
+//! **Each door is a method of its own payload type**, so a verb cannot
+//! be handed to a door that does not answer it: there is no mismatch to
+//! refuse. What an operand IS, and how many, is the door's signature,
+//! so the payload never smuggles an operand count either.
+//!
+//! **Closed, through [`VerbKind`]**: every payload type's `kind` is an
+//! exhaustive match onto it, and every commitment keyed on the
+//! vocabulary matches `VerbKind` with no wildcard arm (D3), so a verb
+//! added to it breaks every commitment site at compile time rather than
+//! silently defaulting.
+//!
+//! **`T: Real`**: the revolve's axis is a point and a direction in the
+//! sketch plane, and `geom-core`'s vectors are defined for a lane
+//! scalar only. Every lane this workspace runs is one, so the bound
+//! narrows nothing a caller could have wanted.
+//!
+//! **No equality of any kind**, and the reason is the payload rather
+//! than a preference. A verb's payload holds the operation's own
+//! values, and once one of those is GEOMETRY — the revolve's axis, a
+//! point and a direction in sketch coordinates — the declaration
+//! inherits `geom-core`'s stance on comparing geometry: `Point2` and
+//! `Vec2` carry no `PartialEq` at all, deliberately, because deciding
+//! whether two coordinates are the same is what the classification
+//! band is for and never what `==` is for. Synthesising one here
+//! (component-wise, at `T: PartialEq`) would put exactly that
+//! comparison in the kernel's verb vocabulary, so these types do
+//! without: nothing in the tree compares verbs, and the day something
+//! must, what it wants is a decided predicate at a band, not a derive.
 
 use core::fmt;
 
 use geom_core::Real;
 use sweep::{Revolution, RevolveAxis};
 use topo::{BooleanInputs, BooleanOp, EdgeKey, FaceKey, SplitPlane};
-
-/// **One kernel operation, with its parameters as data, by the door
-/// that runs it.**
-///
-/// Scalars sit at `T`; entity references are arena keys, resolved by
-/// whoever built the value. The OPERANDs are not here — they are
-/// borrowed at the run doors ([`Blend::run`], [`Boolean::run_pair`],
-/// [`Sweep::run_profile`], [`Split::run_split`], [`Shell::run_shell`]),
-/// because an operand is not a parameter of the operation, it is the
-/// thing operated on, and putting it in the payload would make every
-/// declaration own a clone of it. That holds for the sweeps' validated
-/// PROFILE exactly as it holds for a body: it is borrowed at the door
-/// and never stored.
-///
-/// **Each variant is a door** ([`Arity`]), and its payload is a type
-/// whose only run method is that door, so a verb cannot be handed to a
-/// door that does not answer it: there is no mismatch to refuse. What
-/// an operand IS, and how many, is the door's signature, so the payload
-/// never smuggles an operand count either.
-///
-/// Closed, with no wildcard arm anywhere that matches on it (D3), so a
-/// variant added here breaks every commitment site at compile time
-/// rather than silently defaulting.
-///
-/// **`T: Real`**: the revolve's axis is a point and a direction in the
-/// sketch plane, and `geom-core`'s vectors are defined for a lane
-/// scalar only. Every lane this workspace runs is one, so the bound
-/// narrows nothing a caller could have wanted.
-///
-/// **No equality of any kind**, and the reason is the payload rather
-/// than a preference. A verb's payload holds the operation's own
-/// values, and once one of those is GEOMETRY — the revolve's axis, a
-/// point and a direction in sketch coordinates — the declaration
-/// inherits `geom-core`'s stance on comparing geometry: `Point2` and
-/// `Vec2` carry no `PartialEq` at all, deliberately, because deciding
-/// whether two coordinates are the same is what the classification
-/// band is for and never what `==` is for. Synthesising one here
-/// (component-wise, at `T: PartialEq`) would put exactly that
-/// comparison in the kernel's verb vocabulary, so this type does
-/// without: nothing in the tree compares verbs, and the day something
-/// must, what it wants is a decided predicate at a band, not a derive.
-#[derive(Clone, Debug)]
-pub enum Verb<T: Real> {
-    /// The blend pair: one operand body in, one body and its record
-    /// out ([`Arity::One`]).
-    Blend(Blend<T>),
-    /// A regularized boolean over two operand bodies ([`Arity::Two`]).
-    Boolean(Boolean<T>),
-    /// A sweep of one validated profile ([`Arity::Profile`]).
-    Sweep(Sweep<T>),
-    /// A parting of one body into two sides ([`Arity::Split`]).
-    Split(Split<T>),
-    /// A hollowing of one body, at a scalar that can certify
-    /// ([`Arity::Shell`]).
-    Shell(Shell<T>),
-}
 
 /// **The blend pair** — the verbs [`Blend::run`] answers.
 #[derive(Clone, Debug)]
@@ -151,7 +135,7 @@ pub enum Sweep<T: Real> {
 /// operand and stays out of the payload like every other. What sets
 /// this verb apart is not what it takes but what it gives back — two
 /// sides, each a body or the typed empty — which is why it answers its
-/// own door ([`Arity::Split`]).
+/// own door.
 #[derive(Clone, Debug)]
 pub struct Split<T: Real> {
     /// The parting plane; the side its normal points to is ABOVE.
@@ -184,7 +168,7 @@ pub struct Shell<T: Real> {
 
 /// **The kernel's verb vocabulary with the scalar and reference payload
 /// dropped** — the closed set of operation names, addressable where no
-/// [`Verb`] value exists yet.
+/// verb value exists yet.
 ///
 /// It exists because the commitments V2 hangs off the vocabulary are
 /// not all reachable from a built verb. A content key, in particular,
@@ -201,9 +185,8 @@ pub struct Shell<T: Real> {
 /// scalars and the entity references, the halves of a payload no
 /// commitment is a function of.
 ///
-/// This is a projection, not a twin: each payload type's `kind` (and
-/// [`Verb::kind`] over them) is where the mapping is written, each is
-/// exhaustive, and a new verb therefore cannot compile until it has a
+/// This is a projection, not a twin: each payload type's `kind` is
+/// where the mapping is written, each is exhaustive, and a new verb therefore cannot compile until it has a
 /// `VerbKind` and every match over `VerbKind` has been visited.
 ///
 /// `sweep::blend::BlendKind` is a different thing that looks like this
@@ -233,67 +216,6 @@ pub enum VerbKind {
     Shell,
 }
 
-/// **The run doors, as data** — one row per door, which is one
-/// [`Verb`] variant: every verb names the row that answers it
-/// ([`VerbKind::arity`], [`Verb::arity`]).
-///
-/// A door is its signature at BOTH ends: the operand it takes and the
-/// out-type it hands back. Two doors that take the same operand and
-/// hand back different things are two rows — `One` and `Split` both
-/// take one body — so a row is never, on its own, a claim about an
-/// operand count.
-///
-/// **And at a third place: the SCALAR the door can run at.** `One` and
-/// `Shell` agree at both ends — one body in, one body and a record
-/// out — and are still two doors, because the shell's op door demands
-/// certification rights (`Decide + CertifiedBounds + AtRestPolicy`)
-/// that the blend doors do not, and no `Dual` scalar has them. A
-/// [`Blend`] at `Dual<f64>` runs, and a [`Shell`] at `Dual<f64>` has no
-/// [`topo::ShellDoor`] to run through: a signature the caller either
-/// satisfies or does not compile against, and a door with its own
-/// bound is a door.
-///
-/// **The name is historical and the type is not what it says.** These
-/// rows were operand counts once; they are now a DOOR vocabulary with
-/// three axes — the operand, the out-type, and the bound the door can
-/// run at — and no row is a claim about any one of them alone. Read it
-/// as the door vocabulary and nothing narrower; the rename is a
-/// decision someone makes, not a defect here.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Arity {
-    /// [`Blend::run`]: one operand body in, one result body and its
-    /// record out ([`crate::VerbOut`]).
-    One,
-    /// [`Boolean::run_pair`]: two operand bodies in, a result body with
-    /// its record or the typed empty out ([`crate::PairOut`]).
-    Two,
-    /// [`Sweep::run_profile`]: one validated profile in — borrowed at
-    /// the door, never a body, never in the payload — and the door's
-    /// own bundle out, as the record ([`crate::VerbRecord`]).
-    Profile,
-    /// [`Split::run_split`]: one operand body in, exactly `One`'s, and
-    /// TWO sides out under one record ([`crate::SplitOut`]). The door
-    /// is its own because its out-type is.
-    Split,
-    /// [`Shell::run_shell`]: one operand body in and one out with its
-    /// record, exactly [`Arity::One`]'s two ends — and a separate row
-    /// because the third half of a door's signature differs (see this
-    /// enum's docs on the scalar).
-    Shell,
-}
-
-impl Arity {
-    /// Every door row, for censuses that must be total over the
-    /// doors.
-    pub const ALL: &'static [Self] = &[
-        Self::One,
-        Self::Two,
-        Self::Profile,
-        Self::Split,
-        Self::Shell,
-    ];
-}
-
 impl VerbKind {
     /// Every verb in the vocabulary, for censuses that must be total
     /// over it.
@@ -308,18 +230,6 @@ impl VerbKind {
         Self::Split,
         Self::Shell,
     ];
-
-    /// The verb's declared door: which run door answers it.
-    #[must_use]
-    pub fn arity(self) -> Arity {
-        match self {
-            Self::Fillet | Self::Chamfer => Arity::One,
-            Self::Boolean(_) => Arity::Two,
-            Self::Extrude | Self::Revolve => Arity::Profile,
-            Self::Split => Arity::Split,
-            Self::Shell => Arity::Shell,
-        }
-    }
 }
 
 /// The verb's own name, which is the word a sentence about a verb
@@ -363,32 +273,6 @@ impl VerbKind {
             Self::Boolean(BooleanOp::Subtract) => "Subtract",
             Self::Split => "Split",
             Self::Shell => "Shell",
-        }
-    }
-}
-
-impl<T: Real> Verb<T> {
-    /// Which verb this is, scalar and reference payload dropped.
-    #[must_use]
-    pub fn kind(&self) -> VerbKind {
-        match self {
-            Self::Blend(verb) => verb.kind(),
-            Self::Boolean(verb) => verb.kind(),
-            Self::Sweep(verb) => verb.kind(),
-            Self::Split(verb) => verb.kind(),
-            Self::Shell(verb) => verb.kind(),
-        }
-    }
-
-    /// The door that answers this verb: its variant, as a row.
-    #[must_use]
-    pub fn arity(&self) -> Arity {
-        match self {
-            Self::Blend(_) => Arity::One,
-            Self::Boolean(_) => Arity::Two,
-            Self::Sweep(_) => Arity::Profile,
-            Self::Split(_) => Arity::Split,
-            Self::Shell(_) => Arity::Shell,
         }
     }
 }
@@ -443,45 +327,13 @@ impl<T: Real> Shell<T> {
 mod all_census {
     use topo::BooleanOp;
 
-    use super::{Arity, VerbKind};
-
-    /// **[`Arity::ALL`] is every door row**, by the same construction
-    /// as the vocabulary's census: the match is exhaustive, so a row
-    /// added to the enum fails this file to compile until it is
-    /// visited here, and visiting it means writing the new count,
-    /// which reds until `ALL` has grown too. The other half — that
-    /// every row in `ALL` has a DOOR — is `tests/run_door.rs`'s, where
-    /// the doors are.
-    #[test]
-    fn all_is_every_door_row() {
-        let rows = match Arity::One {
-            Arity::One => 5,
-            Arity::Two => 5,
-            Arity::Profile => 5,
-            Arity::Split => 5,
-            Arity::Shell => 5,
-        };
-        for (i, row) in Arity::ALL.iter().enumerate() {
-            assert!(
-                !Arity::ALL[..i].contains(row),
-                "{row:?} appears twice in Arity::ALL"
-            );
-        }
-        assert_eq!(
-            Arity::ALL.len(),
-            rows,
-            "Arity::ALL has drifted from the door rows — it holds {} rows, the enum has {rows}",
-            Arity::ALL.len()
-        );
-    }
+    use super::VerbKind;
 
     /// **[`VerbKind::ALL`] is the WHOLE vocabulary**, pinned against a
     /// compile-time visit rather than reviewed.
     ///
     /// The precedent this list cites, `profile::Verb::ALL`, is the
-    /// SKETCH program's `Verb` — spelled with its crate, as every
-    /// reader of either `Verb` spells it (the crate doc's convention)
-    /// — and is macro-generated, so it cannot drift; this one is
+    /// SKETCH program's `Verb` — and is macro-generated, so it cannot drift; this one is
     /// hand-written, so it needs the guard the macro would otherwise
     /// have been. The match
     /// below is EXHAUSTIVE — over the vocabulary AND over the boolean's

@@ -4926,8 +4926,8 @@ mod tag {
 /// EXISTING tag must never be reused for a new meaning, which is the
 /// rule every vocabulary in the key runs on ([`tag`]).
 ///
-/// It takes the payload-free [`verbs::VerbKind`] rather than a
-/// `&verbs::Verb<T>` because a content key is computed BEFORE the node's
+/// It takes the payload-free [`verbs::VerbKind`] rather than a verb
+/// payload because a content key is computed BEFORE the node's
 /// selection has resolved to arena keys or its slot to a scalar: at
 /// this point in evaluation there is no verb value to match on, only
 /// the verb's name — which is exactly what the tag is a function of.

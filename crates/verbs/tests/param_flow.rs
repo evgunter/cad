@@ -40,8 +40,8 @@ use sweep::Revolution;
 use sweep::blend::naming::BlendNaming;
 use topo::{Body, BooleanInputs, BooleanOp, SweepStrategy};
 use verbs::{
-    Arity, Blend, Boolean, EdgeScalar, FlowSource, PairOut, RoleFamily, ScalarParam, Shell, Split,
-    Sweep, Verb, VerbKind, VerbRecord,
+    Blend, Boolean, EdgeScalar, FlowSource, PairOut, RoleFamily, ScalarParam, Shell, Split, Sweep,
+    VerbKind, VerbRecord,
 };
 
 use crate::fixture::{disc, offset_disc, tol, x_axis, z_plane};
@@ -366,7 +366,20 @@ fn the_shells_flow_is_empty_beside_a_real_record() {
 /// spelling enters a profile node's content key. Every profile in every
 /// document would key differently for a row that reaches no field
 /// anywhere. So the census is the guard: the source kind names the
-/// operand, and the operand is the arity.
+/// operand, and the operand is the verb's door.
+/// Whether `kind`'s door takes a profile (`Sweep::run_profile`), by an
+/// exhaustive match, so a verb the vocabulary gains is placed here.
+fn sweeps_a_profile(kind: VerbKind) -> bool {
+    match kind {
+        VerbKind::Extrude | VerbKind::Revolve => true,
+        VerbKind::Fillet
+        | VerbKind::Chamfer
+        | VerbKind::Boolean(_)
+        | VerbKind::Split
+        | VerbKind::Shell => false,
+    }
+}
+
 #[test]
 fn only_profile_operand_verbs_declare_a_profile_edge_source() {
     for kind in VerbKind::ALL {
@@ -374,12 +387,10 @@ fn only_profile_operand_verbs_declare_a_profile_edge_source() {
             let FlowSource::ProfileEdge(scalar) = flow.source else {
                 continue;
             };
-            assert_eq!(
-                kind.arity(),
-                Arity::Profile,
-                "{kind:?} declares the operand-carried {scalar:?} but its operand is \
-                 {:?}, so nothing would ever attach it — and the key feed would widen anyway",
-                kind.arity()
+            assert!(
+                sweeps_a_profile(*kind),
+                "{kind:?} declares the operand-carried {scalar:?} but its operand is not a \
+                 profile, so nothing would ever attach it — and the key feed would widen anyway"
             );
         }
     }
@@ -464,19 +475,4 @@ fn the_sweep_extents_reach_no_field() {
             "{kind:?} declares the profile edge's radius and lands it nowhere"
         );
     }
-}
-
-/// A built verb's flow is its kind's — the payload does not enter it.
-#[test]
-fn the_flow_is_a_function_of_the_verb_name_only() {
-    let a = Verb::Blend(Blend::Fillet {
-        edges: Vec::new(),
-        radius: 1.0_f64,
-    });
-    let b = Verb::Blend(Blend::Fillet {
-        edges: Vec::new(),
-        radius: 2.0_f64,
-    });
-    assert_eq!(a.param_flow(), b.param_flow());
-    assert_eq!(a.param_flow(), VerbKind::Fillet.param_flow());
 }

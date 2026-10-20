@@ -44,7 +44,7 @@
 //! this declaration's scope; widening it is a change to what the
 //! consumer keys on, not a change here alone.
 
-use crate::verb::{Verb, VerbKind};
+use crate::verb::VerbKind;
 
 /// **A verb's scalar parameter, named.**
 ///
@@ -377,15 +377,6 @@ impl VerbKind {
             Self::Split => SPLIT_FLOW,
             Self::Shell => SHELL_FLOW,
         }
-    }
-}
-
-impl<T: geom_core::Real> Verb<T> {
-    /// This verb's parameter→field flow ([`VerbKind::param_flow`]) —
-    /// a function of the verb's NAME, not of its payload.
-    #[must_use]
-    pub fn param_flow(&self) -> &'static [ParamFlow] {
-        self.kind().param_flow()
     }
 }
 

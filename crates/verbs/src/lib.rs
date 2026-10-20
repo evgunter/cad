@@ -1,6 +1,7 @@
-//! **The kernel's verb vocabulary** — one closed enum naming the
-//! operations that have been migrated onto it, with the run dispatch and
-//! the parameter→field flow that only the operation itself knows.
+//! **The kernel's verb vocabulary** — one payload type per run door and
+//! the closed [`VerbKind`] naming the operations that have been migrated
+//! onto it, with the run dispatch and the parameter→field flow that only
+//! the operation itself knows.
 //!
 //! # What it is NOT, yet
 //!
@@ -29,15 +30,15 @@
 //!
 //! # What lives here, and what may never
 //!
-//! A [`Verb`] is the operation's parameters reified as plain data:
+//! A verb's payload ([`Blend`], [`Boolean`], [`Sweep`], [`Split`],
+//! [`Shell`]) is the operation's parameters reified as plain data:
 //! scalars at `T`, entity references as arena keys. Operand bodies are
-//! NOT in the payload — they are borrowed at run time, and the verb's
-//! variant is the door that answers it instead
-//! ([`Verb::arity`]: one body in and one out for the blends, two
-//! bodies for the boolean, one validated PROFILE for the sweeps, one
-//! body in and TWO sides out for the split, and the shell's own row —
-//! the blends' two ends at a scalar that can certify — each behind its
-//! own typed door). Everything else a verb is committed to belongs to
+//! NOT in the payload — they are borrowed at run time, and the payload's
+//! type is the door that answers it instead (one body in and one out
+//! for the blends, two bodies for the boolean, one validated PROFILE for
+//! the sweeps, one body in and TWO sides out for the split, and the
+//! shell's own door — the blends' two ends at a scalar that can certify
+//! — each a method of its payload type). Everything else a verb is committed to belongs to
 //! whoever owns that commitment, not here: the content-key tag beside
 //! `editor-core`'s memo machinery, the wire spelling on `Node`'s serde
 //! derives, the Python constructor, the viewer's tree label. This
@@ -63,22 +64,18 @@
 //! the body, in the record channel for the verb's family
 //! ([`VerbRecord`]); [`SplitOut`] carries the split's beside its two
 //! sides. A verb without a birth channel cannot join this
-//! enum: the record is what lets the document layer mint
+//! vocabulary: the record is what lets the document layer mint
 //! derivation-path names for what the operation created, and an
 //! operation whose output cannot be named is one no recipe can build
 //! on.
 //!
 //! # The name
 //!
-//! **`Verb` here is the KERNEL's verb — an operation on a body.**
-//! [`profile::Verb`] is the sketch program's — which transition a
-//! [`profile::Step`] takes; `editor-core`'s content-key prose calls it
-//! the profile vocabulary. No signature takes both. The rule for
-//! readers outside the crate that owns one: prose spells the crate
-//! (`verbs::Verb`, `profile::Verb`), and code imports at most one of
-//! the two per file, so a bare `Verb` in a file is never ambiguous.
-//! `editor-core` — the one crate that reads both — holds that rule as
-//! a test in its `verbs` module.
+//! **A verb here is the KERNEL's — an operation on a body**, named by
+//! [`VerbKind`]. [`profile::Verb`] is the sketch program's — which
+//! transition a [`profile::Step`] takes; `editor-core`'s content-key
+//! prose calls it the profile vocabulary. This crate has no type of
+//! that name, so a bare `Verb` anywhere is the sketch program's.
 
 pub mod flow;
 mod run;
@@ -86,4 +83,4 @@ mod verb;
 
 pub use flow::{EdgeScalar, FieldRole, FlowSource, ParamFlow, RoleFamily, ScalarParam};
 pub use run::{DoorScalar, PairOut, SplitOut, VerbError, VerbOut, VerbRecord};
-pub use verb::{Arity, Blend, Boolean, Shell, Split, Sweep, Verb, VerbKind};
+pub use verb::{Blend, Boolean, Shell, Split, Sweep, VerbKind};

@@ -1,5 +1,5 @@
 //! The dispatch sites over the kernel's op doors, one per declared
-//! door ([`crate::Arity`]), and what comes back out of them.
+//! door, and what comes back out of them.
 
 use core::fmt;
 

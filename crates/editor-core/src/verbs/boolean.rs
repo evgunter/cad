@@ -9,7 +9,7 @@
 //!
 //! - **Two operand inputs** (`a`, `b`), each a node whose evaluated
 //!   body AND name table the lowering reads — the arity the kernel
-//!   declaration states (`verbs::VerbKind::arity`).
+//!   kernel door takes (`verbs::Boolean::run_pair`).
 //! - **The kernel inputs** (`BooleanInputs`): each operand's own
 //!   contact records and, at a union's fold step, the verdicts its
 //!   pairwise judgement decided, already in arena keys.
