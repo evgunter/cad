@@ -6924,3 +6924,4 @@ Signed (WIRE orchestrator).
   - It filed two rows: ten survivors have no row-1/2 variant, and a tied-set defect.
   - PR CI ran only a narrow change-filter set; the lane's wide suites were local. A FULL review (`wire-emis-topo-rev`) re-runs the slow set and corrupt-input, and samples the row-4 claims for reach.
   - Its emit.rs edits overlap `wire-emis-rest`'s file; that lane was told.
+- 2026-10-20 (WIRE orchestrator) `wire-emis-rest` opened PR 5502 (head b4ed55a10e). Of its raises, 57 went to row 4, 2 stay typed as reached, and 2 survive filed (coincide MEET_OF_ONE; union verdicts disagreeing). The rest wait elsewhere: 3 on the verbs row, 4 on D10 ground, and 12 in emit.rs's shared helpers, left because emit_topo, emit_union and others also call them. A FULL review (`wire-emis-rest-rev`) is dispatched; it also merges the 5503 head to check the two together. A follow-up for the 12 helpers is owed once all three lanes land.
