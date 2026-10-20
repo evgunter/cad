@@ -584,6 +584,43 @@ impl SizedDecision {
     }
 }
 
+/// [`NARROW_SPAN`] as a literal, for `concat!`.
+macro_rules! narrow_span {
+    () => {
+        "a knot span too narrow, for the size of its parameter values, to be subdivided"
+    };
+}
+pub(crate) use narrow_span;
+
+/// [`NARROW_SPAN_RECOURSE`] as a literal, for `concat!`.
+macro_rules! narrow_span_recourse {
+    () => {
+        "Recourse: widen the face's narrow knot spans, or move its parameter range nearer zero"
+    };
+}
+pub(crate) use narrow_span_recourse;
+
+/// **The narrow-span decision's subject**: a knot span so narrow against
+/// the size of its parameter values that `f64` holds only a few values
+/// inside it. Whatever cuts it into pieces then rounds its cut points
+/// onto one another or onto the span's ends: the patch bound's
+/// equal-split refinement inserts one value past the direction's degree
+/// ([`crate::patch_bound::PatchBoundError::RefinementFailed`]) or up to
+/// it, leaving a refined knot of full multiplicity
+/// ([`crate::patch_bound::PatchBoundError::DerivedKnots`]), and the
+/// offset fit seeds repeated parameters or too few distinct ones
+/// ([`crate::offset_fit::OffsetFitError::Fit`]). A valid face reaches
+/// each; `tests/offset_fit.rs` `a_knot_span_a_few_ulps_wide_refuses_on_its_span`
+/// drives them through the fit door.
+pub const NARROW_SPAN: &str = narrow_span!();
+
+/// **The narrow-span decision's one recourse** (D4 ¶1 (i)): every
+/// refusal of [`NARROW_SPAN`] ends in it. The span's width against its
+/// parameter values is the lever, so it names both ways to change that
+/// ratio. Which span is not carried yet
+/// (`encl/narrow-span-refusals-do-not-say-which-span`).
+pub const NARROW_SPAN_RECOURSE: &str = narrow_span_recourse!();
+
 /// The content words `text` says more than once, for the payload pins:
 /// a payload says each thing once. Possessives fold into their noun
 /// (`edge's` is `edge`), and function words and pronouns are not

@@ -9,7 +9,7 @@
 //!
 //! - **Two operand inputs** (`a`, `b`), each a node whose evaluated
 //!   body AND name table the lowering reads — the arity the kernel
-//!   declaration states (`verbs::VerbKind::arity`).
+//!   kernel door takes (`verbs::Boolean::run_pair`).
 //! - **The kernel inputs** (`BooleanInputs`): each operand's own
 //!   contact records and, at a union's fold step, the verdicts its
 //!   pairwise judgement decided, already in arena keys.
@@ -32,7 +32,7 @@
 
 use geom_core::{Decide, Tol};
 use topo::{Body, BooleanInputs, BooleanNaming, BooleanOp, BooleanResultKind, ContactRecords};
-use verbs::{Verb, VerbRecord};
+use verbs::{Boolean, VerbRecord};
 
 use crate::names::{self, NamingError};
 use crate::node::RecipeNodeId;
@@ -52,13 +52,13 @@ pub(crate) type PairEmitter<T> = fn(
 
 /// **The boolean's correspondence**, as data — everything the
 /// two-operand lowering needs to turn a `Node::Boolean` into a
-/// [`verbs::Verb`] and its result into a name table. Adding a field here is
+/// [`verbs::Boolean`] and its result into a name table. Adding a field here is
 /// how a pair verb declares something the lowering must know.
 pub(crate) struct PairVerb<T: Decide> {
     /// **Op selector + kernel inputs → the kernel verb.** The one
     /// place a document's op selector and its lowered inputs become a
-    /// [`verbs::Verb`] payload, per instance.
-    pub(crate) build: fn(BooleanOp, BooleanInputs<T>) -> Verb<T>,
+    /// [`verbs::Boolean`] payload, per instance.
+    pub(crate) build: fn(BooleanOp, BooleanInputs<T>) -> Boolean<T>,
     /// This verb's naming emitter.
     pub(crate) emitter: PairEmitter<T>,
     /// **This family's arm of the closed record channel**, as a
@@ -87,8 +87,8 @@ pub(crate) struct BooleanRecord {
 
 /// The boolean's kernel payload. A named function rather than a
 /// closure so it can be a plain `fn` pointer in the struct above.
-fn build_boolean<T: geom_core::Real>(op: BooleanOp, inputs: BooleanInputs<T>) -> Verb<T> {
-    Verb::Boolean {
+fn build_boolean<T: geom_core::Real>(op: BooleanOp, inputs: BooleanInputs<T>) -> Boolean<T> {
+    Boolean {
         op,
         inputs: Box::new(inputs),
     }
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn the_correspondence_builds_the_boolean() {
         for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-            let v: Verb<f64> = (boolean::<f64>().build)(op, BooleanInputs::default());
+            let v: Boolean<f64> = (boolean::<f64>().build)(op, BooleanInputs::default());
             assert_eq!(
                 v.kind(),
                 VerbKind::Boolean(op),
