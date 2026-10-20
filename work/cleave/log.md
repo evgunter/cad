@@ -1331,3 +1331,12 @@ Signed (CLEAVE orchestrator).
 - 2026-10-20 — PR 5505 review: APPROVE-WITH-FIXES, no MAJOR.
   - Families correct at 3 ε, including partly glued; the 34 `union_flush` re-pins are correct, not hidden overlaps; the FLUSH regression is confirmed.
   - Fixes: the sliver-Out rule must not override `Ranked::Blocked`; rename and re-doc the merge to its true scope (zero-area two-edge faces alone on a line); the FLUSH row quote; one predicate helper; small Q7s.
+- 2026-10-20 — PR 5479 review: APPROVE-WITH-FIXES, no MAJOR.
+  - All 120 new cells are correct at 3 ε (every cell checked against an analytic oracle). The slow sets never reach the branch.
+  - Fixes:
+    - MINOR: a flank reading Along now gives `ClassificationInvariant` where main refused `SlitLineCrossed` truthfully; refuse typed before placing germs.
+    - Stale docs.
+    - `reflank` made absolute.
+    - `SlitLineCrossed` split by gap.
+    - Q1/Q7.
+  - Confirm and file four unlisted 1e-12 reds and a 1e-6 cone red on main.
