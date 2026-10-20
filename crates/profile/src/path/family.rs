@@ -1169,7 +1169,7 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Center<T, Point2<T>> {
         verbs::gate_positive("path_arc_chord", chord, band, |c| {
             PathError::DegenerateArcChord { chord: c }
         })?;
-        let theta = super::center_sweep(at, self.p, self.c, self.winding);
+        let theta = super::center_sweep(at, self.p, self.c, r_tip, self.winding);
         let (start, _) = super::chord_tangents(self.p - at, theta);
         // The AUTHORED centre is the carrier (never the re-derived one).
         Ok((self.c, self.winding, start, self.p))

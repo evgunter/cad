@@ -95,8 +95,8 @@ pub enum FilletLegShape<T: Real> {
 /// By the inscribed-angle theorem the arc's included angle is
 /// θ = 2·Δ, where Δ is the signed turn from chord `a`→`via` to chord
 /// `via`→`b` (independent of where on the arc `via` sits); the bulge is
-/// tan(θ/4) = tan(Δ/2), read off the split `(d₁·d₂, d₁ × d₂)` by
-/// [`split_quarter_tan`] (fixed order, D9).
+/// tan(θ/4) = tan(Δ/2). Computed exactly in that form (fixed order,
+/// D9): Δ = atan2(perp_dot(d₁, d₂), d₁·d₂), result = tan(Δ/2).
 ///
 /// **Degenerate inputs, honestly:** `via` collinear between `a` and `b`
 /// gives Δ = 0 ⇒ bulge 0 (the line segment the three points describe);
@@ -115,50 +115,8 @@ pub enum FilletLegShape<T: Real> {
 pub fn bulge_from_via<T: Real>(a: Point2<T>, via: Point2<T>, b: Point2<T>) -> T {
     let d1 = via - a;
     let d2 = b - via;
-    split_quarter_tan(d1.perp_dot(d2), d1.dot(d2), d1.norm() * d2.norm())
-}
-
-/// **An arc's sweep from a chord split — the one spelling.** For the arc
-/// leaving a point along a direction `t` and ending across the chord `d`
-/// from it, `along = t·d` and `across = t × d` (any scale of `t`): the
-/// tangent-chord angle is `atan2(across, along)` and the arc turns twice
-/// it, so Δθ = `2·atan2(across, along)`, in (−2π, 2π]. The same holds of
-/// the turn at a through-point (inscribed angle): `t = q − a`, `d = b − q`.
-///
-/// `atan2` is accurate in every quadrant, so neither a short arc
-/// (`along → |d|`) nor a near full turn (`along → −|d|`) loses digits to
-/// the half-angle quotients `across/(|d| + along)` and
-/// `(|d| − along)/across`, each of which cancels at one end. Its branch
-/// cut is a target ON the departure line behind it (`across = 0`,
-/// `along < 0`), which every caller's own gate refuses first. A caller
-/// that lowers a carrier from tan(θ/4) reads [`split_quarter_tan`]
-/// instead.
-pub(crate) fn split_sweep<T: Real>(across: T, along: T) -> T {
-    T::from_f64(2.0) * split_turn(across, along)
-}
-
-/// The signed angle of a split, `atan2(across, along)`: the tangent-chord
-/// angle [`split_sweep`] doubles, and the turn between two legs `v₁`,
-/// `v₂` read off theirs (`v₁ × v₂`, `v₁·v₂`) — the turn a line×line
-/// fillet's arc sweeps.
-pub(crate) fn split_turn<T: Real>(across: T, along: T) -> T {
-    across.atan2(along)
-}
-
-/// **tan(θ/4) of [`split_sweep`]'s arc, from the same split** — the
-/// reading for a caller that lowers a carrier from it
-/// ([`crate::bulge_leg`]): `across / (len + along)` up to a half turn
-/// and `(len − along) / across` past it, chosen with
-/// [`Real::select_le_zero`] on `along` (`len = |(along, across)|`).
-/// Equal over the reals; on its own side each sum has terms of one
-/// sign, so neither cancels, and an enclosure of `along` that straddles
-/// zero takes the hull of two accurate arms.
-///
-/// Not `tan(split_sweep/4)`: near a full turn that is tan at its pole,
-/// where the sweep's own rounding, an ulp of 2π, is a relative error of
-/// `ulp/(2π − θ)` in X and so in the carrier lowered from it.
-pub(crate) fn split_quarter_tan<T: Real>(across: T, along: T, len: T) -> T {
-    (-along).select_le_zero(across / (len + along), (len - along) / across)
+    let turn = d1.perp_dot(d2).atan2(d1.dot(d2));
+    (turn / T::from_f64(2.0)).tan()
 }
 
 /// The bulge of the arc from `a` to `b` about `center`, sweeping in the
@@ -232,11 +190,9 @@ pub(crate) struct LineFilletTrims<T: Real> {
     /// The outgoing tangent point `corner + setback·v̂₂` — always the
     /// fillet arc's end.
     pub t2: Point2<T>,
-    /// The fillet arc's sweep: the corner's turn, [`split_turn`] of the
-    /// two legs. Read off the legs rather than the chord `t2 − t1`, whose
-    /// direction carries the tangent points' rounding over its own
-    /// length, which a shallow fillet makes short.
-    pub sweep: T,
+    /// The fillet arc's bulge tan(φ/4), by the quarter-angle identity on
+    /// tan(φ/2) (see [`line_line_fillet_trims`]'s docs).
+    pub bulge: T,
     /// The incoming leg's fit classification (`fillet_leg_fit`,
     /// exact-order band): `Positive` emits the straight piece + declared
     /// joint, `Zero` suppresses both (exact fit).
@@ -269,9 +225,9 @@ pub(crate) enum TrimRefusal<T: Real> {
 /// The ratified line×line fillet closed form (#101 review MAJOR-1;
 /// docs on the fillet constructor), extracted verbatim so the algebra
 /// lowering and the builder door share one code path: with legs
-/// v₁ = corner − head, v₂ = next − corner, computes tan(φ/2), the
-/// setback, the arc's sweep φ, both `fillet_leg_fit` gates (exact-order
-/// band), and the tangent points.
+/// v₁ = corner − head, v₂ = next − corner, computes tan(φ/2), the arc
+/// bulge, the setback, both `fillet_leg_fit` gates (exact-order band),
+/// and the tangent points.
 ///
 /// # Errors
 ///
@@ -289,6 +245,7 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     // "interval-square powi(2) allowlist"); norm_squared is powi inside.
     let m = (v1.norm_squared() * v2.norm_squared()).sqrt();
     let half_tan = v1.perp_dot(v2) / (m + v1.dot(v2));
+    let bulge = half_tan / (T::one() + (T::one() + half_tan.powi(2)).sqrt());
     let setback = radius * half_tan.abs();
     let len1 = v1.norm_squared().sqrt();
     let len2 = v2.norm_squared().sqrt();
@@ -316,7 +273,7 @@ pub(crate) fn line_line_fillet_trims<T: Decide>(
     Ok(LineFilletTrims {
         t1,
         t2,
-        sweep: split_turn(v1.perp_dot(v2), v1.dot(v2)),
+        bulge,
         fit_in,
         fit_out,
     })
@@ -335,8 +292,8 @@ pub(crate) struct ArcFilletCandidate<T: Real> {
     pub t1: Point2<T>,
     /// The tangent point on the outgoing leg.
     pub t2: Point2<T>,
-    /// The fillet arc's sweep Δθ from `t1` to `t2` ([`sweep_about`]).
-    pub sweep: T,
+    /// The fillet arc's bulge tan(θ/4).
+    pub bulge: T,
     /// The fillet arc's own centre — the offset-carrier intersection
     /// this candidate IS. Carried for the algebra door's §4 item 4
     /// carrier-identity checks; no emitted coordinate reads it, and the
@@ -701,7 +658,7 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
             survivors.push(ArcFilletCandidate {
                 t1,
                 t2,
-                sweep: sweep_about(t1, t2, center, sgn),
+                bulge: quarter_tan_about(t1, t2, center, radius, sgn),
                 center,
                 centre_facts,
                 fit_in,
@@ -1506,22 +1463,33 @@ impl<T: Real> OffsetCentres<T> {
     }
 }
 
-/// **The sweep of an arc about a known centre**: Δθ from `a` to `b`
-/// about `centre`, turning in the sense `sgn` (±1) — the angle between
-/// the two radii, wound into the sense: `π + atan2(−sgn·(va × vb),
-/// −va·vb)`, in (0, 2π], signed by `sgn`. Accurate at every turn, and no
-/// radius is read.
+/// **The quarter-tangent of an arc about a known centre**: X =
+/// tan(Δθ/4) of the arc from `a` to `b` about `centre` on the carrier
+/// of `radius`, turning in the sense `sgn` (±1), spelled
+/// `σ·h / (r + σ·p)` — `h` the half-chord, `p` the centre's signed
+/// offset from the chord along its left normal. Algebraic in its
+/// inputs: no angle is read off an endpoint, and no sign is chosen.
 ///
-/// The `π +` form puts `atan2`'s cut at a zero turn (`b` at `a`), which
-/// every caller's chord gate refuses first, rather than at a half turn,
-/// which a semicircle about its centre reaches. Not [`split_sweep`] at
-/// `a`: an end off the carrier by `δ` moves the tangent-chord angle by
-/// about `δ/|b − a|`, against `δ/r` about the centre, and near a full
-/// turn the chord is the short one. Ends off the carrier give the angle
-/// between their radii; what that proves is the caller's to say.
-pub(crate) fn sweep_about<T: Real>(a: Point2<T>, b: Point2<T>, centre: Point2<T>, sgn: T) -> T {
-    let (va, vb) = (a - centre, b - centre);
-    sgn * (T::pi() + (-(sgn * va.perp_dot(vb))).atan2(-va.dot(vb)))
+/// Over the reals, with both ends on the carrier (`r² = p² + h²`), half
+/// the included angle θ has `sin = h/r` and `cos = σ·p/r`, so X is
+/// `σ·sin/(1 + cos)` = tan(θ/4), and the sense picks θ in (0, 2π) or
+/// (−2π, 0) — past a half turn the centre is on the chord's other
+/// side, `σ·p` is negative, and the same expression reads the major
+/// arc. `r + σ·p` is the sum the half-angle form takes, so a short arc
+/// carries no cancellation; it vanishes only at a full turn. Ends off
+/// the carrier give the quarter-tangent the same expression reads off
+/// them; what that proves is the caller's to say.
+pub(crate) fn quarter_tan_about<T: Real>(
+    a: Point2<T>,
+    b: Point2<T>,
+    centre: Point2<T>,
+    radius: T,
+    sgn: T,
+) -> T {
+    let chord = b - a;
+    let len = chord.norm();
+    let offset = (centre - a.lerp(b, T::from_f64(0.5))).dot(Vec2::new(-chord.y, chord.x)) / len;
+    sgn * (len * T::from_f64(0.5)) / (radius + sgn * offset)
 }
 
 #[cfg(test)]
@@ -1543,27 +1511,37 @@ mod tests {
         assert!((b - (core::f64::consts::FRAC_PI_8).tan()).abs() < 1e-15);
     }
 
-    /// [`sweep_about`] from a short arc through both sides of a half
-    /// turn to a near full turn, in both senses, against θ: one
-    /// expression reads the minor and the major arc.
+    /// [`quarter_tan_about`] on both sides of a half turn, in both
+    /// senses, against `tan(θ/4)`: past π the centre's signed offset
+    /// changes side and the one expression reads the major arc.
     #[test]
-    fn sweep_about_reads_every_turn_in_both_senses() {
+    fn quarter_tan_about_reads_both_sides_of_a_half_turn() {
         let radius = 1.5;
         let center = Point2::new(-0.25, 0.75);
-        let on = |rad: f64| {
-            let (s, c) = rad.sin_cos();
+        let on = |deg: f64| {
+            let (s, c) = f64::to_radians(deg).sin_cos();
             Point2::new(center.x + radius * c, center.y + radius * s)
         };
-        let start = f64::to_radians(17.0);
-        for theta in [1e-6, 1.0, 3.1, 3.2, 4.7, 6.2, 6.27] {
-            for sgn in [1.0, -1.0] {
-                let (a, b) = (on(start), on(start + sgn * theta));
-                let got = sweep_about(a, b, center, sgn);
-                // The endpoints' own rounding moves the angle by about
-                // 2⁻⁵³ over the chord: compare at chord scale.
+        // θ swept from t1 to t2 in the `sgn` sense; the pairs straddle π
+        // so the centre is on both sides of the chord.
+        for &theta in &[60.0, 179.0, 181.0, 270.0, 359.0] {
+            for &sgn in &[1.0, -1.0] {
+                let start = 17.0;
+                let t1 = on(start);
+                let t2 = on(start + sgn * theta);
+                let b = quarter_tan_about(t1, t2, center, radius, sgn);
+                let want = sgn * f64::tan(f64::to_radians(theta) / 4.0);
+                // Relative: tan(θ/4) blows up as θ → 2π (229 at 359°).
                 assert!(
-                    (got - sgn * theta).abs() * a.distance(b) <= 4e-15,
-                    "theta {theta} sgn {sgn}: sweep {got}"
+                    (b - want).abs() <= 1e-11 * want.abs().max(1.0),
+                    "theta {theta} sgn {sgn}: bulge {b} vs tan(theta/4) {want}"
+                );
+                // Above π, exactly, |X| exceeds tan(π/4) = 1.
+                assert_eq!(
+                    b.abs() > 1.0,
+                    theta > 180.0,
+                    "theta {theta}: |bulge| {} on the wrong side of 1",
+                    b.abs()
                 );
             }
         }

@@ -739,20 +739,14 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 /// 1e-6, where `c = 0.1, r = 0.05` still refuses) joined the corpus,
 /// validating with joints `[1, 2]` constructed, and at 1e-6 `arc x arc
 /// c=2` at r = 0.05 and 0.2 joined it refused by the pair pass; no other
-/// row moved. Then every sweep came to be read as an angle — a fillet's
-/// as the corner's turn or the angle between its radii, a tangent arc's
-/// as twice its tangent-chord angle (`sugar::split_sweep`,
-/// `split_turn`, `sweep_about`) — rather than as `4·atan` of a
-/// quarter-tangent: the stored sweep of 43 of the 63 rows moved (56 of
-/// 72 at 1e-6, 38 of 55 at 1e-12), by at most 1e-11 relative and 1e-14
-/// rad; no vertex, centre, radius, verdict or joint list moved.
-const GOLDEN_DEFAULT: u64 = 0x0944_2c12_0d8f_cc7b;
+/// row moved.
+const GOLDEN_DEFAULT: u64 = 0x43a9_1ebe_c4d5_d404;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`, where `arc x arc c=0.3
 /// r=0.05` validates: its legs stand ≈ 1.5Kε apart across the carriers'
 /// shallow crossing, which their ends settle.
-const GOLDEN_1E6: u64 = 0x24cf_d7ad_4951_142d;
+const GOLDEN_1E6: u64 = 0xb9e8_b31b_34e9_4d0a;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0x2321_bceb_7d97_3db3;
+const GOLDEN_1E12: u64 = 0xc6d0_a757_d28d_fd72;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the

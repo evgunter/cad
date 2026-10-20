@@ -690,18 +690,18 @@ const PLATE_MAX_TERMS: usize = 28;
 /// calls (686 → 693) and +30 forms, with their digests; the
 /// `*/Decision` lines, the freezes and the largest form hold.
 ///
-/// An arc's diameter clearance spelled `2r·cos²(|Δθ|/4)/(1 + sin(|Δθ|/4))`
-/// (`profile::seg`, cancellation-free near a full turn) where it was
-/// `2r·(1 − sin(|Δθ|/4))`: forms `Plain/Assertion` 7073 → 7077,
-/// `Early/Assertion` 8235 → 8239 and `Door/Decision` 9525 → 9531, and
-/// their digests; every call, frozen count, the other two lines and the
-/// largest form hold.
+/// Check 4 deciding no whole period (PCERT B2b): fidelity's 32 branch
+/// decisions are gone, each a numeric decision checked against the
+/// tier, so `Plain/Assertion` and `Early/Assertion` 693 → 661 calls and
+/// `Door/Decision` 428 → 396; forms and digests move with them, and
+/// `Plain/Decision`'s calls, every freeze and the largest form hold.
+/// Measured on the tree with every move above.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 939 forms 15836 frozen 324 digest ac360a3480da30b765ada11e3a3550c7\n\
-     Plain/Assertion calls 693 forms 7077 frozen 405 digest c617a6b2b2d7bdc6ee4b07ca4af6227b\n\
-     Early/Decision calls 352 forms 8892 frozen 0 digest 61a2facb711fb0a70f13d4cfa3ece435\n\
-     Early/Assertion calls 693 forms 8239 frozen 0 digest e9745705d732b2cd16f82f49d6e977da\n\
-     Door/Decision calls 428 forms 9531 frozen 0 digest c96c57c5ee4e878c71b2a5bcf6386b4c";
+     Plain/Decision calls 939 forms 15828 frozen 324 digest 106c6e8f656834241d3861faf20e7799\n\
+     Plain/Assertion calls 661 forms 7013 frozen 405 digest 1a76fa82f0b30a56afad775d19795ee4\n\
+     Early/Decision calls 352 forms 8884 frozen 0 digest 77472cc4b2b651d309e31f2086d5b20a\n\
+     Early/Assertion calls 661 forms 8175 frozen 0 digest f70c798210d8be477658168802101352\n\
+     Door/Decision calls 396 forms 9465 frozen 0 digest c689a400e4425e2426a805dc6619c228";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

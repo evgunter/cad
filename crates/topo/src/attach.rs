@@ -1336,6 +1336,46 @@ impl<T: Decide> Body<T> {
         self.set_edge_curve_certifying(crate::policy_lane::Origin::Kernels(site), edge, spec, tol)
     }
 
+    /// **A stored edge restated under a new description**: `edge` keeps
+    /// its own stored carrier and interval, verbatim, and only its
+    /// description becomes `description`. The re-description an
+    /// operation outside `topo` makes of an edge it minted, once the
+    /// surfaces that describe it exist, goes through here rather than
+    /// [`Body::set_edge_curve`]: the caller hands no carrier, interval
+    /// or origin, and the door certifies the stored edge as the kernel's.
+    ///
+    /// # Errors
+    ///
+    /// [`BadArgument::Stale`](crate::euler::BadArgument::Stale) if `edge`
+    /// does not resolve; [`EulerOpError::NullScaffoldCurve`] on an edge
+    /// with no certified curve; then [`Body::set_edge_curve`]'s.
+    ///
+    /// # Panics
+    ///
+    /// On a kernel bug: a stored edge whose own span or winding reads
+    /// certainly refused at the run's band. That check reads the carrier,
+    /// the interval and the band, never the description. The carrier and
+    /// interval are the stored edge's, which `topo` certified when it
+    /// stored them at `Band::linear(tol)` of the run's one [`Tol`], so
+    /// they read certainly refused here only where the kernel stored an
+    /// edge its own gate refuses, whatever `description` says.
+    pub fn restate_stored_edge(
+        &mut self,
+        edge: EdgeKey,
+        description: EdgeDescriptionSpec<T>,
+        tol: Tol,
+    ) -> Result<CurveKey, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        self.restate_edge(
+            crate::policy_lane::KernelSite::StoredRestatement,
+            edge,
+            description,
+            tol,
+        )
+    }
+
     /// **A transverse edge described as its faces' `Intersection`**: a
     /// draft that kept the edge's own carrier restates it
     /// ([`Body::restate_edge`] at `site`); a chord is a spec of the

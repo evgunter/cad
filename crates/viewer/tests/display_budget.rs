@@ -541,12 +541,7 @@ struct Answer {
 /// step is capped at `π/4`, `ceil(sweep / step)` reads three chords
 /// where it read two — one more chord on one arc, four more triangles
 /// (`probe_triangles` 388 → 392 and 732 → 736). The δ, the prediction
-/// and the largest rung hold. Then every arc's sweep came to be read as
-/// an angle (`profile`'s `sugar::split_sweep`, `split_turn`,
-/// `sweep_about`): its tangent arc's sweep is `2·atan2(1, 1)`, `FRAC_PI_2`
-/// to the bit where it stood an ulp above, and the coarse rungs read two
-/// chords fewer, eight triangles (`probe_triangles` 392 → 384 and
-/// 736 → 728). The δ, the prediction and the largest rung hold.
+/// and the largest rung hold.
 const ANSWERS: &[Answer] = &[
     Answer {
         document: "die",
@@ -695,7 +690,7 @@ const ANSWERS: &[Answer] = &[
         predicted: 1600,
         requested_cost: None,
         largest_probe: 200,
-        probe_triangles: 384,
+        probe_triangles: 392,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -705,7 +700,7 @@ const ANSWERS: &[Answer] = &[
         predicted: 4352,
         requested_cost: None,
         largest_probe: 544,
-        probe_triangles: 728,
+        probe_triangles: 736,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {

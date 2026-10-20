@@ -114,7 +114,7 @@ static FIXTURES: &[(&str, &[[f64; 6]], &[usize])] = &[
     (
         "arc_center_ccw",
         &[
-            [1.0, 0.0, 0.0, 0.0, 1.0, 1.5707963267948966],
+            [1.0, 0.0, 0.0, 0.0, 1.0, 1.5707963267948968],
             [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         ],
@@ -163,7 +163,7 @@ static FIXTURES: &[(&str, &[[f64; 6]], &[usize])] = &[
         "arrival_bound_by_line_to_matches_loopbuilder",
         &[
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [5.5, 0.0, 5.5, 0.5, 0.5, 1.5707963267948966],
+            [5.5, 0.0, 5.5, 0.5, 0.5, 1.5707963267948968],
             [6.0, 0.5, 0.0, 0.0, 0.0, 0.0],
             [6.0, 3.0, 0.0, 0.0, 0.0, 0.0],
             [0.0, 3.0, 0.0, 0.0, 0.0, 0.0],
@@ -176,7 +176,7 @@ static FIXTURES: &[(&str, &[[f64; 6]], &[usize])] = &[
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             [3.0, 0.0, 0.0, 0.0, 0.0, 0.0],
             [3.0, 1.0, 0.0, 0.0, 0.0, 0.0],
-            [1.5, 1.0, 1.5, 1.5, 0.5, -1.5707963267948966],
+            [1.5, 1.0, 1.5, 1.5, 0.5, -1.5707963267948968],
             [1.0, 1.5, 0.0, 0.0, 0.0, 0.0],
             [1.0, 3.0, 0.0, 0.0, 0.0, 0.0],
             [0.0, 3.0, 0.0, 0.0, 0.0, 0.0],
@@ -200,7 +200,7 @@ static FIXTURES: &[(&str, &[[f64; 6]], &[usize])] = &[
                 0.0,
                 0.5590169943749473,
                 0.25,
-                1.4594553124539325,
+                1.4594553124539331,
             ],
             [
                 -0.16666666666666674,
@@ -223,7 +223,7 @@ static FIXTURES: &[(&str, &[[f64; 6]], &[usize])] = &[
                 3.0502112764355034,
                 0.2999999999999998,
                 0.3,
-                2.713252486800307,
+                2.7132524868003074,
             ],
             [
                 3.174819725635825,
@@ -231,7 +231,7 @@ static FIXTURES: &[(&str, &[[f64; 6]], &[usize])] = &[
                 2.0,
                 -2.0,
                 2.8284271247461903,
-                1.2137383301869344,
+                1.2137383301869349,
             ],
         ],
         &[1, 2],
@@ -300,7 +300,7 @@ static FIXTURES: &[(&str, &[[f64; 6]], &[usize])] = &[
         "single_fillet_after_leg_matches_loopbuilder_fillet",
         &[
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [5.5, 0.0, 5.5, 0.5, 0.5, 1.5707963267948966],
+            [5.5, 0.0, 5.5, 0.5, 0.5, 1.5707963267948968],
             [6.0, 0.5, 0.0, 0.0, 0.0, 0.0],
             [6.0, 3.0, 0.0, 0.0, 0.0, 0.0],
             [0.0, 3.0, 0.0, 0.0, 0.0, 0.0],
@@ -310,14 +310,14 @@ static FIXTURES: &[(&str, &[[f64; 6]], &[usize])] = &[
     (
         "straight_arrival_off_an_arc_departure_matches_loopbuilder_fillet_corner",
         &[
-            [5.0, 0.0, 0.0, 0.0, 5.0, 0.5890309702162737],
+            [5.0, 0.0, 0.0, 0.0, 5.0, 0.5890309702162738],
             [
                 4.15739709641549,
                 2.7777777777777777,
                 3.7416573867739413,
                 2.5,
                 0.5,
-                0.9817653565786228,
+                0.9817653565786227,
             ],
             [3.7416573867739413, 3.0, 0.0, 0.0, 0.0, 0.0],
             [-3.0, 3.0, 0.0, 0.0, 0.0, 0.0],
@@ -328,7 +328,7 @@ static FIXTURES: &[(&str, &[[f64; 6]], &[usize])] = &[
         "tangent_arc_leg_matches_loopbuilder",
         &[
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [2.0, 0.0, 2.0, 1.0, 1.0, 1.5707963267948966],
+            [2.0, 0.0, 2.0, 1.0, 1.0, 1.5707963267948968],
             [3.0, 1.0, 0.0, 0.0, 0.0, 0.0],
         ],
         &[1],
@@ -457,9 +457,9 @@ fn sharp_arc_chain_matches_loopbuilder() {
 
 /// D3 — constructed tangent leg: `.tangent().tangent_arc_to(p)` lowers to
 /// a joint constructed tangent plus the arc whose sweep is 4·atan(X), X =
-/// tan(Δ/2) of the tangent-chord angle Δ, read as `2·atan2(across,
-/// along)` — bit-identical to that closed form evaluated directly on the
-/// same inputs (the oracle below).
+/// tan(Δ/2) of the tangent-chord angle Δ spelled algebraically,
+/// `across / (|d| + along)` — bit-identical to that closed form
+/// evaluated directly on the same inputs (the oracle below).
 #[test]
 fn tangent_arc_leg_matches_loopbuilder() {
     let (a, b, c) = (
@@ -468,8 +468,8 @@ fn tangent_arc_leg_matches_loopbuilder() {
         Point2::new(3.0, 1.0),
     );
     // The unique tangent arc departing east from b to c: d = (1, 1),
-    // along = across = 1, Δθ = 2·atan2(1, 1) (the documented form).
-    let expected_sweep = 2.0 * 1.0_f64.atan2(1.0);
+    // along = across = 1, X = 1 / (√2 + 1) (the documented form).
+    let expected_bulge = 1.0 / (2.0_f64.sqrt() + 1.0);
     let algebra = Open
         .at(a)
         .line_to(b, Tol::witness())
@@ -481,16 +481,18 @@ fn tangent_arc_leg_matches_loopbuilder() {
         .unwrap();
     let algebra = pinned_constructed(algebra);
     // The INDEPENDENT oracle (it used to be the hand chain's argument;
-    // now it is asserted directly): vertex 1's arc stores the documented
-    // closed form's sweep, bit for bit.
+    // now it is asserted directly): vertex 1's arc is lowered from the
+    // X of the documented closed form, bit for bit, so its sweep is
+    // that X's 4·atan.
     let profile::Segment::Arc(arc) = algebra.segments()[1] else {
         panic!("vertex 1 leaves on an arc: {:?}", algebra.segments()[1]);
     };
     assert_eq!(
         arc.sweep.to_bits(),
-        expected_sweep.to_bits(),
-        "tangent-arc sweep: {} vs the closed form's {expected_sweep}",
+        (4.0 * expected_bulge.atan()).to_bits(),
+        "tangent-arc sweep: {} vs the closed form's {}",
         arc.sweep,
+        4.0 * expected_bulge.atan()
     );
     let hand = recorded("tangent_arc_leg_matches_loopbuilder", &algebra);
     assert_loops_identical(&algebra, &hand);
