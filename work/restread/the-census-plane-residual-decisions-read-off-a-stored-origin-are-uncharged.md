@@ -20,7 +20,7 @@ stored origin, through the funnel as it stands, with no charge for its
 rounding. `p − o` and the dot round to about `4u·|p − o|` (`u` the unit
 roundoff), so the residual's error passes ε where `|p − o|` passes about
 `ε/(4u)`: 2.3 km at ε = 1e-12 under the first-order bound, 560 m
-under `geom_brep::rounding_charge`'s `16u`. D4's session box is 1 km,
+under `geom_core::rounding_charge`'s `16u`. D4's session box is 1 km,
 so at ε = 1e-12 a residual read across it is off by up to about half
 of ε, uncharged, and a margin read within that of the band's edge
 reads its side off the rounding. Suspected, not measured.

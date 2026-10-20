@@ -16,7 +16,7 @@ fix pass.
 `crates/topo/src/census.rs` `pierce_span` places the crossing of a
 face's plane with an edge's line at `t = r₀/(r₀ − r₁)`, each residual
 `rᵢ = (pᵢ − o)·n` read off the plane's stored origin `o` and charged
-`geom_brep::rounding_charge(|pᵢ − o|)` (16u). The enclosure's
+`geom_core::rounding_charge(|pᵢ − o|)` (16u). The enclosure's
 half-width is about `c/|ℓ|` of the edge, so an origin tens of metres
 off and a lever of a few `Kε` give a span of millimetres.
 `pierce_inside` refuses wherever the face's boundary meets that span.

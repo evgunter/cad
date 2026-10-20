@@ -2747,7 +2747,7 @@ fn pierce_span<T: Decide>(
     }
     let t = r0 / lever;
     let moved = (c0 * r1.abs() + c1 * r0.abs()) / (size * (size - slack));
-    let reach = moved + geom_brep::rounding_charge(t.abs());
+    let reach = moved + geom_core::rounding_charge(t.abs());
     Some(PierceSpan {
         t: [t - reach, t + reach],
         lever: size + slack,
@@ -2764,11 +2764,11 @@ struct PierceSpan<T> {
 }
 
 /// The rounding charged to the residual `(p − o)·n` of `p` off `f`'s
-/// plane, [`geom_brep::rounding_charge`] of `|p − o|`: `p − o` rounds
+/// plane, [`geom_core::rounding_charge`] of `|p − o|`: `p − o` rounds
 /// each coordinate `u`-relative and the dot against the unit normal
 /// adds a few `u` of `|p − o|` more, four times under the charge.
 fn residual_charge<T: Real>(f: &FaceGeo<T>, p: Point3<T>) -> T {
-    geom_brep::rounding_charge((p - f.origin).norm())
+    geom_core::rounding_charge((p - f.origin).norm())
 }
 
 /// **Whether the crossing [`pierce_span`] places is inside the face**:

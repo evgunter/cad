@@ -330,7 +330,7 @@ fn each_residual_stays_inside_its_charge_and_the_span_holds_the_crossing() {
                 big_dot(&[p.x, p.y, p.z].map(big), &bn) - big_dot(&[o.x, o.y, o.z].map(big), &bn)
             });
             for i in 0..2 {
-                let charge = geom_brep::rounding_charge(([p0, p1][i] - o).norm());
+                let charge = geom_core::rounding_charge(([p0, p1][i] - o).norm());
                 let off = (big(read[i]) << 1074_usize) - &exact[i];
                 let room = big(charge / 2.0) << 1074_usize;
                 if off.magnitude() > room.magnitude() {

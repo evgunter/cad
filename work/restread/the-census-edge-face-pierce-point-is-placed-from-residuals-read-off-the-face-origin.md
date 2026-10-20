@@ -50,7 +50,7 @@ Reading the residuals from a point of the face near the edge does not
 help: a point computed on the plane is off it by the same rounding, and
 a vertex of the face is off it by up to the band's zero, which the lever
 divides alike. So the placement is charged instead, by the prior art's
-machinery (`geom_brep::rounding_charge`, `both_enclose`,
+machinery (`geom_core::rounding_charge`, `both_enclose`,
 `enclosure_reading` through the magnitude door). `pierce_span` reads
 each residual as an enclosure charged `|pᵢ − o|`. It reads the lever
 both as the residuals' difference and off the chord, and the fraction

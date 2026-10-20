@@ -56,7 +56,7 @@ the fuzzer's rounding excuse; it is this row's test.
 `ee_lines_closest` now reads, for a pair sharing no point key, every
 reach and the gap as an enclosure `[lower, upper]`. Each is read from
 every pair of ends it allows (a reach from both ends of the other edge,
-the gap from all four), charged `geom_brep::rounding_charge` of
+the gap from all four), charged `geom_core::rounding_charge` of
 `|e|·(1 + s)/s` (gap) or `(|e| + |reach| + gap_hi/s)/s` (reach), and the
 enclosures are intersected. `crossing_reading` decides both bounds
 (`span_reading`, `gap_reading`): a definite answer only off the bound
