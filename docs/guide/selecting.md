@@ -39,14 +39,15 @@ The atoms split, and the split is the whole design:
   these are total and trivially equivariant. Dressing a
   tag match as a decided predicate would be dimension-laundering in
   the other direction.
-- **DECIDED** — `GeomPred::DatumDistance` is a real length
+- **DECIDED** — `GeomPred::PlaneDistance` is a real length
   comparison, so it is a `k_stats` funnel site
   (`SEL_DATUM_DISTANCE`) with an honest margin, and an in-band
   candidate REFUSES rather than being silently included or dropped.
 
-Position is datum-RELATIVE, never world-frame: the datum is
-a node reference like any other input, so the rule commutes with
-rigid motions — move the datum with the part and the selection is
+Position is relative to the body's own geometry, never world-frame:
+the distance is measured from the plane of one of the body's own
+planar faces, named like any other entity, so the rule commutes with
+rigid motions — the face moves with the body and the selection is
 unchanged. Convexity is reserved and unbuilt.
 
 ```
@@ -63,41 +64,26 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     (applied.doc, id)
 };
 let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 
-// The frame the square is drawn on. A profile names a frame
-// NODE, so the plane is an authoring step of its own.
-let (next, frame) = insert(
-    &doc,
-    Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }),
-);
-doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
-let (next, cube) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(1.0), side: ExtrudeSide::Along });
-doc = next;
-// The datum the position rule is written against — one argument,
-// and the rule now moves WITH the part.
-let (next, ground) = insert(
-    &doc,
-    Node::Datum(Datum::Plane {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        normal: [scl(0.0), scl(0.0), scl(1.0)],
-    }),
-);
+let (next, cube) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(1.0) });
 doc = next;
 
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 let params = doc.var_env::<f64>();
 let edges = Selector::of(NamePat::of_kind(EntityKind::Edge));
 let faces = Selector::of(NamePat::of_kind(EntityKind::Face));
+let cap = |end| Selector::of(
+    NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)),
+);
+// The face the position rule is written against: the cube's own
+// bottom cap, the plane z = 0 with its outward normal along -z. It is
+// a name like any other, so the rule moves WITH the part.
+let [floor] = select(&ev, cube, &cap(CapEnd::Start)).try_into().expect("one bottom cap");
 
 // EXACT: every edge of a box is a line. Exact atoms are TOTAL, so
 // this can never refuse — and an empty conjunction is plain
@@ -122,34 +108,32 @@ assert!(select_where(
     tol,
 ).expect("total").is_empty());
 
-// DECIDED: the one face a metre above the datum, found by
-// POSITION — and it is the same face the role path names.
+// DECIDED: the one face a metre inside the floor's plane (a signed
+// distance along its outward normal), found by POSITION — and it is
+// the same face the role path names.
 let top = select_where(
     &ev, cube, &faces,
     // The comparand is a query's, not a slot's: a formula, evaluated
     // with no document in scope, so it reads no name.
-    &[GeomPred::DatumDistance {
-        datum: ground,
+    &[GeomPred::PlaneDistance {
+        face: floor.clone(),
         cmp: Cmp::Approx,
-        value: len(1.0),
+        value: len(-1.0),
     }],
     &params,
     tol,
 ).expect("no candidate is in-band here");
 assert_eq!(
     top,
-    select(&ev, cube, &Selector::of(
-        NamePat::of_kind(EntityKind::Face)
-            .seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
-    )),
+    select(&ev, cube, &cap(CapEnd::End)),
 );
 
 // The comparand of a distance must BE a distance.
 assert!(matches!(
     select_where(
         &ev, cube, &faces,
-        &[GeomPred::DatumDistance {
-            datum: ground,
+        &[GeomPred::PlaneDistance {
+            face: floor,
             cmp: Cmp::Approx,
             value: Formula::literal(1.0, Dimension::Angle).expect("an angle"),
         }],
@@ -180,21 +164,9 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     (applied.doc, id)
 };
 let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
-// The frame the square is drawn on. A profile names a frame
-// NODE, so the plane is an authoring step of its own.
-let (next, frame) = insert(
-    &doc,
-    Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }),
-);
-doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -202,7 +174,6 @@ let (next, cube) = insert(
     Node::Extrude {
         profile: profile.into(),
         distance: Formula::literal(1.0, Dimension::Length).expect("a length"),
-        side: ExtrudeSide::Along,
     },
 );
 doc = next;
@@ -350,21 +321,9 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     (applied.doc, id)
 };
 let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
-// The frame the square is drawn on. A profile names a frame
-// NODE, so the plane is an authoring step of its own.
-let (next, frame) = insert(
-    &doc,
-    Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }),
-);
-doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new() }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -372,7 +331,6 @@ let (next, cube) = insert(
     Node::Extrude {
         profile: profile.into(),
         distance: Formula::literal(1.0, Dimension::Length).expect("a length"),
-        side: ExtrudeSide::Along,
     },
 );
 doc = next;
@@ -428,7 +386,7 @@ recourse is the geometry.
 
 ```
 use pncad::prelude::*;
-use pncad::document::{Bodies, BooleanValue};
+use pncad::document::{Bodies, BodyRead, BooleanValue, Frame, Operand, place_against};
 
 let tol = Tol::witness();
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -436,18 +394,8 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
-// The frame a footprint is drawn on: the xy directions, at height z.
-let frame_at = |z: f64| {
-    Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(z)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })
-};
-// v4: the profile payload is its PROGRAM, drawn on a frame NODE.
-let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane: RecipeNodeId| ProfileProgram {
-    frame: plane.into(),
+// v4: the profile payload is its PROGRAM, drawn in its own plane.
+let footprint = |x0: f64, y0: f64, x1: f64, y1: f64| ProfileProgram {
     loops: vec![
         LoopProgram::polygon([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
             .expect("finite corners"),
@@ -455,21 +403,38 @@ let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane: RecipeNodeId| Profil
     ids: Vec::new(),
 };
 
-// A unit box, and a smaller box RESTING on its top cap. The second
-// frame IS that cap's height, so the resting relation is visible in
-// the tree before anything is evaluated.
+// A unit box, and a smaller box RESTING on its top cap. Each is a
+// construction in its own coordinates; the block joins the box's space
+// by a placement against it, a metre up the box's own z, so the
+// resting relation is visible in the tree before anything is
+// evaluated.
 let doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
-let (doc, ground) = insert(&doc, frame_at(0.0));
-let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, ground)));
-let (doc, base) = insert(&doc, Node::Extrude { profile: pf1.into(), distance: len(1.0), side: ExtrudeSide::Along });
-let (doc, cap) = insert(&doc, frame_at(1.0));
-let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, cap)));
-let (doc, block) = insert(&doc, Node::Extrude { profile: pf2.into(), distance: len(0.5), side: ExtrudeSide::Along });
+let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0)));
+let (doc, base) = insert(&doc, Node::Extrude { profile: pf1.into(), distance: len(1.0) });
+let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75)));
+let (doc, block) = insert(&doc, Node::Extrude { profile: pf2.into(), distance: len(0.5) });
+let placed = place_against(
+    &doc,
+    &base.into(),
+    &block.into(),
+    &Frame::translation([0.0, 0.0, 1.0]),
+    &EvalOptions::default(),
+    tol,
+)
+.expect("the block places against the box");
+let (mut doc, resting) = insert(&doc, Node::place(vec![BodyRead::plain(Operand::from(block))]));
+placed
+    .write(resting, |edit| {
+        let applied = apply(&doc, &edit, tol)?;
+        doc = applied.doc;
+        Ok::<_, pncad::document::EditError>(applied.record.minted_constraints)
+    })
+    .expect("the placement's constraints apply");
 
 // The union glues the rest its margin decides, and records it.
 let (doc, uni) = insert(
     &doc,
-    Node::Union { members: Bodies::Spelled(vec![base.into(), block.into()]) },
+    Node::Union { members: Bodies::Spelled(vec![base.into(), resting.into()]) },
 );
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 let value = ev.value(uni).expect("the union evaluates");

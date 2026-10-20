@@ -5208,6 +5208,34 @@ mod properties_pane_tests {
         (dir, part, file)
     }
 
+    /// **The address whose removal leaves `instance` loose.** The place
+    /// gesture stands a copy by the identity bundle, values and no mate
+    /// (`pncad::document::stand`), and removing one of its values takes
+    /// the bundle whole (`DocEdit::removing`).
+    ///
+    /// # Panics
+    ///
+    /// Unless `instance` is an instance standing by a bundle of values
+    /// with no mate.
+    fn placement_of(
+        doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+        instance: RecipeNodeId,
+    ) -> pncad::document::MateRef {
+        let Some(Node::InstantiatePart { constraints, .. }) = doc.node(instance) else {
+            panic!("not an instance: {:?}", doc.node(instance))
+        };
+        let [first, ..] = constraints.as_slice() else {
+            panic!("the instance stands by a bundle: {constraints:?}")
+        };
+        assert!(
+            constraints
+                .iter()
+                .all(|c| c.value().is_some_and(|v| v.mate.is_none())),
+            "the instance stands by the identity bundle, values and no mate: {constraints:?}"
+        );
+        pncad::document::MateRef::new(instance, first.id)
+    }
+
     /// **A landing's withdrawal reaches the status line** (DI5): a
     /// free-move's space is known only once its solve lands, so the
     /// frame an undo pins goes at the LANDING. `sync_scene` takes it
@@ -5241,19 +5269,7 @@ mod properties_pane_tests {
             })
             .expect("the instance went in");
         // Its placement off, the copy is a loose space the probe moves.
-        let mate = match doc.node(instance) {
-            Some(pncad::document::Node::InstantiatePart { constraints, .. }) => {
-                let mates: Vec<_> = constraints
-                    .iter()
-                    .filter(|constraint| constraint.mate().is_some())
-                    .collect();
-                let [placed] = mates.as_slice() else {
-                    panic!("the instance is placed by one mate: {constraints:?}")
-                };
-                pncad::document::MateRef::new(instance, placed.id)
-            }
-            other => panic!("not an instance: {other:?}"),
-        };
+        let mate = placement_of(doc, instance);
         driven
             .app
             .perform_batch(vec![SessionOp::RemoveConstraint { mate }]);
@@ -5344,19 +5360,7 @@ mod properties_pane_tests {
                 )
             })
             .expect("the instance went in");
-        let mate = match doc.node(instance) {
-            Some(pncad::document::Node::InstantiatePart { constraints, .. }) => {
-                let mates: Vec<_> = constraints
-                    .iter()
-                    .filter(|constraint| constraint.mate().is_some())
-                    .collect();
-                let [placed] = mates.as_slice() else {
-                    panic!("the instance is placed by one mate: {constraints:?}")
-                };
-                pncad::document::MateRef::new(instance, placed.id)
-            }
-            other => panic!("not an instance: {other:?}"),
-        };
+        let mate = placement_of(doc, instance);
         driven.perform(SessionOp::RemoveConstraint { mate });
         driven.select(Selection::Node(instance));
         let painted = driven.quiet();

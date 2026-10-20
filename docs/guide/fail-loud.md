@@ -200,39 +200,29 @@ use pncad::document::EditError;
 
 let tol = Tol::witness();
 let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
-let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("a scalar");
 let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
     .expect("finite corners");
 
 let doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
-// The frame the square is drawn on — a dependency of the profile
-// exactly as the profile is a dependency of the extrude.
+// The profile is a dependency of the extrude: the square in the
+// profile's own plane, and the extrude up its own +z.
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Box::new(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })),
-    fresh: Vec::new(),
-}, tol)?;
-let (doc, frame) = (applied.doc, applied.record.minted.expect("minted"));
-let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Box::new(Node::Profile(ProfileProgram { frame: frame.into(), loops: vec![square], ids: Vec::new() })),
+    node: Box::new(Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new() })),
     fresh: Vec::new(),
 }, tol)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Box::new(Node::Extrude { profile: profile.into(), distance: len(1.0), side: ExtrudeSide::Along }),
+    node: Box::new(Node::Extrude { profile: profile.into(), distance: len(1.0) }),
     fresh: Vec::new(),
 }, tol)?;
 let (doc, body) = (applied.doc, applied.record.minted.expect("minted"));
 
 let refused = apply(&doc, &DocEdit::InsertNode {
-    node: Box::new(Node::Extrude { profile: body.into(), distance: len(1.0), side: ExtrudeSide::Along }),
+    node: Box::new(Node::Extrude { profile: body.into(), distance: len(1.0) }),
     fresh: Vec::new(),
 }, tol);
 assert!(matches!(refused, Err(EditError::SlotVarKind { .. })));
-assert_eq!(doc.len(), 3, "the refused edit changed nothing");
+assert_eq!(doc.len(), 2, "the refused edit changed nothing");
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 

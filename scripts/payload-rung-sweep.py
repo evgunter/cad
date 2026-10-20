@@ -735,7 +735,7 @@ def use_items(stmt: str) -> list[tuple[str, tuple[str, ...]]]:
             for item in _split_top(tree[brace + 1 : -1]):
                 walk(item, prefix + head)
             return
-        target, alias = (re.split(r"\s+as\s+", tree, maxsplit=1) + [""])[:2]
+        target, alias = [*re.split(r"\s+as\s+", tree, maxsplit=1), ""][:2]
         alias = alias.strip()
         path = prefix + tuple(p.strip() for p in target.split("::") if p.strip())
         if path and path[-1] == "self":
@@ -825,7 +825,7 @@ class Resolver:
         if not segments:
             return crate, module
         first, rest = segments[0], list(segments[1:])
-        child = (crate, module + (first,)) in self.uses
+        child = (crate, (*module, first)) in self.uses
         if absolute or (first in self.crates and not child and first != crate):
             if first not in self.crates:
                 return None
@@ -839,7 +839,7 @@ class Resolver:
             while rest and rest[0] == "super":
                 rest, module = rest[1:], module[:-1]
         else:
-            rest = [first] + rest
+            rest = [first, *rest]
         return crate, module + tuple(rest)
 
     def resolve(self, crate, module, path, absolute=False, seen=None) -> list[Decl]:
@@ -859,7 +859,7 @@ class Resolver:
             if leaf == name and (found := self.resolve(*at, target, abs_, seen)):
                 return found
         for leaf, target, abs_ in uses:
-            if leaf == "*" and (found := self.resolve(*at, target[:-1] + (name,), abs_, seen)):
+            if leaf == "*" and (found := self.resolve(*at, (*target[:-1], name), abs_, seen)):
                 return found
         return []
 
@@ -979,7 +979,7 @@ def sweep(root: Path, lists: tuple[str, ...]) -> dict:
     # `type` arm is mechanically closable and the associated-type arm is not.
     on: dict[int, set[str]] = {}
     carriers: list[tuple[Decl, set[str]]] = []
-    for name, where in sorted(resolved.items()):
+    for _name, where in sorted(resolved.items()):
         for stem, decls in sorted(where.items()):
             for decl in decls:
                 if id(decl) not in on:
