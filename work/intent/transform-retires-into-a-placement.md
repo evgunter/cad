@@ -278,6 +278,13 @@ Each has an `_in` form over an evaluation the caller holds. C's interim report m
 
 **Names.** Unchanged from B: a copy's names are qualified `Placed { of }`, once per copy by construction. Spec §5's "pass through, as `Transform`'s did" predates B's qualification and is re-worded. This follows from B and is not a new decision.
 
+**A turn by a rational fraction of a turn is exact** (D10 `[variables.literals]`, D8 `[recipe.forms]`; this lane closes `a-turn-by-the-nearest-quarter-turn-rounds` and SYM's `sin-and-cos-of-rational-turns-fold-exactly`). D's spins were built by Rodrigues from `sin_cos` of the f64 nearest a quarter turn, so a frame a `Datum` used to give exactly left the axes by `6.1e-17`; that was `m10_di_dual_corpus`'s 16 escalations at `Interval` and the 1e-12 fillet refusals.
+- `geom_core::Angle`/`Turns`: an angle carries the fraction of a turn it was written as, and its sine and cosine are read from it (exact `0`, `±1/2`, `±1`; the octant's otherwise); `I − R` reads `(sin, 1 − cos)` exactly for whole quarter turns. The rotation constructors take an `Angle` (`Mat3::rotation_about_unit_by`, `Affine3::rotation_about_unit_axis_by`, `RigidMotion::rotation_by`, `rotation_about_axis_by`); the radian forms are the same body.
+- The form crosses at one door: `Expr::constant_turns` reads a definition's form, and `Doc::bind_definition` (every environment ends there) records it in `VarEnv::turns`; `expr::eval_angle` and `eval::slots::angle` hand it to every rotation fed by an angle: pose and world-read spins, loft station spins, a revolve's heading, circular pattern steps, mated (`settle`'s `turn_to`, `Chart::turned`, `head_at`) and unmated placement spins. Decided from the recipe's form, never from a value.
+- Sym folds sin, cos and tan of `q·π` where the value is rational (`trig_at_rational_pi`, beside `unary_at_zero`).
+- Writers that mean an axis-aligned frame state it: `editor_core::moved_frame`/`FrameMove` and `corner_frame` (façade too); the corpus pips (`die_pips`, `die_composed`) and the tour die stand on lines stated from the cube's corner (`demo-tour die-corpus` regenerated `die_composed_tour.pncad`); the kitchen sink's revolve and the vessel stand upright by a bundle with no mate spun `turn/4`; `test_support::plane_on` reads a face with the stated normal, `axis_on` the meet of two, and `plane_on_frame` keeps the frame read for a normal no face carries. `test_support`'s placement helpers take the caller's `tol` (the witness gate).
+- Row: `intent_s3_d_placements::a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes` (`f64`, `Interval`, `Dual64`, `Sym`; a bundle with no mate, a mated spin, a world read spun by `turn/4`).
+
 #### Fixed in passing (each with a row)
 
 - `place_against` slid a down-facing target the wrong way (`a_copy_slid_up_its_target_stands_up_it`).
@@ -352,6 +359,10 @@ The lane of 2026-10-20 (rulings 1 and 2), each with its reason in its file, attr
 - **review_pick_r2's tally:** one landing moved, `tube_arc` after its first edit, whose copy stood by a mate read off its own geometry and now stands by the identity bundle (measured landing by landing against `434139ef1c`).
 - **Restated:** `revalue_boss_union` owes no laundering (FORK-REST removes its `bool_pair_gap` swap; evidence on its inlane item); sym11's `frozen` column explained in its file (Degree freezes on products of a datum frame's forms before D; low-degree forms in a construction's own coordinates in D; Degree freezes back on the plate where its holes' maps run).
 
+The exact-turn lane (2026-10-20), each with its reason in its file:
+- **main's merge at `557e581a64`, measured identical with the turn form off:** m10_10 (fidelity's branches gone), m10_9 (door-shut receipts; the pad's rule-F row), m10_bulge ×3 (`pcurve_fidelity_branch` gone), sym11, sym_9 ×2, and m10_sym_profile's counts (PCERT B2b; `select_le_zero`'s tangents in `frozen`).
+- **exact turns:** m10_sym_profile's two `Plain` digests; m10_5_r1's receipt (621 splits, 224 outside); m10_6_r1's straddle row restated (the web no longer straddles 2, so the bound sits ε/4 above it, inside the band); `die_tool.pncad` (`PNCAD_BLESS`: its ball's spin is the constant `0`, where it was a typed `6.1e-17 rad`); and, in the five documents that carry a written turn or a re-spelled writer (`kitchen_sink`, `die_pips`, `die_tool`, `die_composed`, the tour die): edit_placement_corpus_bits, lib_g16, perf2, name_words' digest, intent_s2_c_world, seat7 and seat8 (`kitchen_sink`; seat8's empty side, its tool read off the end cap), perf12 at all three ε (only `kitchen_sink`: its contacts read `0.0` where they read `1e-33`, and its curved pair is back in reach, 28 → 29 findings), and m10_p_fence's four numbers (the `Interval` one now one number at every ε).
+
 #### Items filed
 
 - `a-value-charted-on-the-target-reads-frame-carries-the-datum-chain` (P2): the (B) lever.
@@ -361,6 +372,8 @@ The lane of 2026-10-20 (rulings 1 and 2), each with its reason in its file, attr
 - Closed by FORK-REST: `a-placed-copy-rests-at-the-identity-only-at-the-nominal`, `a-symbolic-runs-copy-decided-at-rest-keeps-its-map`.
 - Evidence added: `a-turn-by-the-nearest-quarter-turn-rounds` (m10_di_dual's 16 escalations still occur; die_composed's fillet refuses on the Interval lane at ε = 1e-12, so m10_p_fence's Interval fence reads another number on the nightly's 1e-12 row), `under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move` (the swap is gone; the parting stays).
 - TODO: from lanes.
+
+- The exact-turn lane: filed `work/carve/a-partial-revolve-by-a-fraction-of-a-turn-ends-off-its-axes.md` (P3) and `work/msolve/an-axis-mated-spin-at-interval-widens-the-copys-translation-by-the-measured-spins-dust.md` (P3); closed `a-turn-by-the-nearest-quarter-turn-rounds` and SYM's `sin-and-cos-of-rational-turns-fold-exactly`; recorded the helpers' `atan2` residue on D′'s item.
 
 #### The anchor census (for the record)
 
