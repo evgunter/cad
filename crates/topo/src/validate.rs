@@ -2913,6 +2913,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::WrapOnNonPeriodic
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
+        CertifyError::GeneralLaneUnwritten { .. } => {
+            "it is on its face but is none of the face's own curves, and the kernel cannot yet \
+             write where such a curve sits on that face"
+        }
         CertifyError::ResidualExceeded { check, .. } => {
             if check.bounds_a_miss() {
                 BOUND
@@ -3054,6 +3058,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                  at a certifying scalar"
             }
             CertifyError::ChartImageUnavailable { .. }
+            | CertifyError::GeneralLaneUnwritten { .. }
             | CertifyError::ResidualExceeded { .. }
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
@@ -3117,6 +3122,9 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::TangentGap => geom_core::undecided!("whether its faces touch along it"),
         CertCheck::ChartImage => {
             geom_core::undecided!("where it sits on its face's parameter chart")
+        }
+        CertCheck::ChartClass => {
+            geom_core::undecided!("which of its face's own curves it is")
         }
         CertCheck::EndpointStart
         | CertCheck::EndpointEnd

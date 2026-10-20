@@ -45,6 +45,29 @@ question's outcome, not before it.
 mint's leave-behind nor the at-rest pass, and run in parallel with the
 weighing.
 
+## The D3 lane-choice units (E)
+
+D3's `[verdicts.consumers]` clause says a lane choice ends as a lane and
+never as a defect. These units carry it through the pcurve layer, in
+this order:
+
+- **E1** (`pcert/lane-choices`): the class readings become lane choices.
+  `PcurveCheck::ChartClass` routes to lever-only "not yet". Check 4's
+  copy readings split out as `ImageIdentity`. The grazer reading goes.
+  The cylinder arm is left to E2.
+- **E1b**: incidence ends by `EdgeAuthority`. It threads the authority
+  into topo's ending function and the mint's routes. E1 keeps today's
+  `CarrierOffChart` / `ChartIncidence` endings.
+- **E2**: a cylinder line gets a projected lane, together with the
+  cylinder `pcurve_chart_radial_moving` tie-break and
+  `chart_iso_family`'s re-read. D3's "own envelope carries the miss"
+  clause comes out of the doc.
+- **E3**: `edge_join` records its class Zeros.
+- **E4**: a circle's general lane on a cone, torus and cylinder
+  (`a-circles-general-lane-is-written-only-on-the-sphere`). Until it
+  lands, such a circle refuses `GeneralLaneUnwritten` "not yet", and
+  D3's "every class has one" is still owed.
+
 ## Review posture
 
 Per unit, at dispatch, by the review tiers of

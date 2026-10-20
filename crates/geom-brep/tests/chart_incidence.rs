@@ -563,3 +563,64 @@ fn a_closed_form_re_read_with_its_class_in_band_is_undecided() {
         "Interval: undecided, typed: {got:?}"
     );
 }
+
+/// **An edge described on a chart whose general lane is unwritten for
+/// its carrier ends lever-only "not yet" at the edge certificate, never
+/// as the description's defect** (D3). The carrier is the on-cone
+/// circle that is no rim (`a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone`'s
+/// wide cone): the mint refuses `GeneralLaneUnwritten`, and the edge
+/// certificate carries it as its own `GeneralLaneUnwritten` under the
+/// class check, not folded into `ChartImageUnavailable`'s defect. Read
+/// at a build and at rest.
+#[test]
+fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::{CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+    let e = eps();
+    let alpha = 1.55_f64;
+    let h = 1.0;
+    let theta = 0.5 * e / (h * alpha.tan());
+    let (centre, axis, u_ref, major, minor) = section(alpha, h, theta);
+    let circle = Curve3::Circle {
+        center: centre,
+        axis,
+        radius: (major * minor).sqrt(),
+        u_ref,
+    };
+    let (keys, lookup) = crate::shared::surf::table(vec![cone(alpha)]);
+    let (t0, t1) = (0.0, 1.0);
+    let err = EdgeCurve::certify(
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::chart(keys[0]),
+            carrier: circle.clone(),
+            param_start: t0,
+            param_end: t1,
+        },
+        circle.eval(t0),
+        circle.eval(t1),
+        &lookup,
+        1.0,
+        band(),
+    )
+    .expect_err("an on-cone circle that is no rim has no image yet");
+    assert!(
+        matches!(err, CertifyError::GeneralLaneUnwritten { .. }),
+        "{err:?}"
+    );
+    assert_eq!(
+        err.decision().map(|(check, _)| check),
+        Some(CertCheck::ChartClass)
+    );
+    for reading in [Reading::Build, Reading::AtRest] {
+        let ending = err
+            .ending(reading)
+            .expect("a decision's refusal has an ending");
+        assert!(
+            ending.starts_with(geom_core::NOT_YET_ENDING),
+            "{reading:?}: {ending}"
+        );
+        for word in ["defect", "tolerance", "Recourse:"] {
+            assert!(!ending.contains(word), "{reading:?}: {word}: {ending}");
+        }
+    }
+}

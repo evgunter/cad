@@ -476,6 +476,19 @@ pub enum SplitJoinError {
         /// The curved kind whose section has no arm.
         wall: geom::SurfaceKind,
     },
+    /// A run edge of a curved face whose image on the face's chart is
+    /// none of the chart's own curves: its class reading took the
+    /// general lane, read in band or definite, or found none written
+    /// for the pair ([`geom_brep::PcurveCertifyError::GeneralLaneUnwritten`]).
+    /// The window walk reads a closed-form azimuth, so a general image
+    /// is a lane it does not read yet: a lane choice (D3), refused
+    /// lever-only "not yet", never an invariant break or a tolerance.
+    RunImageNotYet {
+        /// The face being divided.
+        face: FaceKey,
+        /// Its surface kind.
+        kind: geom::SurfaceKind,
+    },
     /// A ring whose island the ring lane does not read: on a curved face
     /// it winds an island, and re-homes a ring, on a cylinder wall's
     /// chart and on a sphere, a cone or a torus by a path's parity; on a
@@ -766,6 +779,13 @@ impl core::fmt::Display for SplitJoinError {
                     crate::boolean::meeting_recourse(wall),
                 )
             }
+            Self::RunImageNotYet { kind, .. } => write!(
+                f,
+                "an edge of a {} face sits on the face as none of its own curves, and the \
+                 join does not yet read such an edge's reach around the face. {}",
+                crate::boolean::kind_word(*kind),
+                geom_core::NOT_YET_ENDING
+            ),
             Self::RingIslandUnread { kind, .. } => write!(
                 f,
                 "a cut passes through a {kind:?} face without reaching its boundary, leaving \
@@ -3092,6 +3112,18 @@ fn run_azimuth_images<T: Decide>(
         let (t0, t1) = curve.params();
         let base =
             chart_pcurve_over(curve.carrier(), t0, t1, surface, band).map_err(|e| match e {
+                // The class reading is a lane choice (D3): in band, and
+                // with no general lane written, it ends "not yet".
+                geom_brep::PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::ChartClass,
+                    ..
+                }
+                | geom_brep::PcurveCertifyError::GeneralLaneUnwritten { .. } => {
+                    SplitJoinError::RunImageNotYet {
+                        face,
+                        kind: surface.kind(),
+                    }
+                }
                 geom_brep::PcurveCertifyError::Escalated { cause, .. } => {
                     SplitJoinError::Escalated { face, diag: cause }
                 }
@@ -3210,11 +3242,13 @@ fn run_azimuth_images<T: Decide>(
                 base.shift_branch(k, geom_brep::Period::new(tau))
             }
         };
+        // A general image (the class read in band on a sphere takes the
+        // projected lane) has no closed-form azimuth box: the walk's lane
+        // for it is not written, which is no invariant break.
         let (lo, hi) =
-            chart_azimuth_range(&pcurve, t0, t1).ok_or(SplitJoinError::SectionInvariant {
+            chart_azimuth_range(&pcurve, t0, t1).ok_or(SplitJoinError::RunImageNotYet {
                 face,
-                what: "a boundary edge's chart image is FITTED — the window walk reads a \
-                       closed-form azimuth",
+                kind: surface.kind(),
             })?;
         let exit = pcurve.eval(exit_t).x;
         images.push(AzimuthImage {

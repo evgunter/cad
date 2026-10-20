@@ -465,6 +465,10 @@ fn certify_errors() -> Vec<CertifyError> {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Ellipse,
         },
+        CertifyError::GeneralLaneUnwritten {
+            chart: geom::SurfaceKind::Torus,
+            carrier: geom::CurveKind::Circle,
+        },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
         CertifyError::NurbsLaneNotSupplied,
