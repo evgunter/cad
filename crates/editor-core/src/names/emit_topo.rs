@@ -27,6 +27,7 @@ use super::emit::{
 };
 use super::groups::{Emitted, GroupRecord, Parent};
 use super::merged::{self, NESTED_MERGED};
+use super::plane_pieces;
 use super::role::{
     EntityKind, NameRef, Qualifier, RoleSeg, RunLine, Sense, SplitHalf, StableName, edge_line,
 };
@@ -265,32 +266,20 @@ pub(crate) fn name_split<T: Decide>(
         )?;
     }
 
-    // ---- Section faces: per-side completion-order index, a section a
-    // merge absorbed numbered too, so no section is renumbered (N3). ----
-    let mut section_names: BTreeMap<FaceKey, StableName> = BTreeMap::new();
-    let mut per_side_ix = [0u32; 2];
     for &(f, side) in &naming.sections {
         let half = half_of(side, "section face classified On")?;
         let absorbed = naming
             .merge_groups
             .iter()
             .any(|(gs, g)| *gs == side && g.absorbed.contains(&f));
-        // The face is live in exactly the side that kept it, or was
-        // absorbed by that side's merge.
-        let Some(s) = sides
+        if !sides
             .iter()
-            .find(|s| s.half == half && (absorbed || s.body.get_face(f).is_some()))
-        else {
+            .any(|s| s.half == half && (absorbed || s.body.get_face(f).is_some()))
+        {
             return Err(NamingError::Emission {
                 what: "section face live in no matching side body",
             });
-        };
-        let section = per_side_ix[s.slot()];
-        per_side_ix[s.slot()] += 1;
-        section_names.insert(
-            f,
-            name1(EntityKind::Face, node, RoleSeg::SectionFace { section }),
-        );
+        }
     }
     // Keys are unique across the two halves (restrictions of one
     // arena), and each side's joins keep their order, so one chase
@@ -304,23 +293,24 @@ pub(crate) fn name_split<T: Decide>(
         lineage: &naming.joined_lineage,
         covers: &covers,
     };
-    let merged = name_split_merges(
+    let mut merged = name_split_merges(
         node,
         &mut halves,
         &sides,
         naming,
-        &section_names,
+        &section_keys,
         &keeps,
         target_body,
     )?;
-    for &(f, _) in &naming.sections {
-        let live = sides.iter().find(|s| s.body.get_face(f).is_some());
-        if let Some(s) = live.filter(|_| !merged.held.contains_key(&f)) {
-            halves[s.slot()]
-                .t
-                .insert(section_names[&f].clone(), ent(0, EntityKey::Face(f)))?;
-        }
-    }
+    name_split_planes(
+        node,
+        &mut halves,
+        &sides,
+        naming,
+        &section_keys,
+        &mut merged,
+        &keeps,
+    )?;
     name_split_faces(
         node,
         &mut halves,
@@ -377,11 +367,22 @@ struct MergedFace {
 
 /// What [`name_split_merges`] named: each face a merge kept, by its
 /// parent (`kept`), and every face of a merged parent, kept or a piece
-/// that never merged (`held`).
+/// that never merged (`held`); and in each half, the parent that holds
+/// the plane where a merge linked it (`plane`), whose faces
+/// [`name_split_planes`] names.
 #[derive(Default)]
 struct SplitMerges {
     kept: BTreeMap<FaceKey, MergedFace>,
     held: BTreeMap<FaceKey, (NameRef, bool)>,
+    plane: [Option<PlaneParent>; 2],
+}
+
+/// A half's parent that holds the tool plane: its name, whether it
+/// descends from a tie, and its faces in the half.
+struct PlaneParent {
+    name: StableName,
+    tied: bool,
+    members: Vec<FaceKey>,
 }
 
 impl SplitMerges {
@@ -407,13 +408,17 @@ impl SplitMerges {
 /// Names the faces of each split half's merged parents as a boolean
 /// names its merged faces (N3). In each half, the faces one merge group
 /// holds are linked, transitively through the operand faces they
-/// descend from; a linked set is one parent, `Merged` of its
-/// constituents' names, flat and in name order: each section face by
-/// its `SectionFace { k }` (`section_names`), each operand face by its
+/// descend from and through the plane, which a section face links as
+/// an operand face links its pieces; a linked set is one parent,
+/// `Merged` of its constituents' names, flat and in name order: the
+/// plane by the bare `SectionFace`, once, and each operand face by its
 /// own name. Every face of that half descending from the parent, a
-/// merge's kept face or a piece of one of its operand faces, is a face
-/// of it: one is the parent's bare name, several are qualified by
-/// `Keeps` over the boundary edges of the parent's operand faces (N2).
+/// merge's kept face, a piece of one of its operand faces or, for the
+/// parent holding the plane, every face the cut drew, is a face of it.
+/// One is the parent's bare name; several of a parent that holds no
+/// plane are qualified by `Keeps` over the boundary edges of its
+/// operand faces (N2), and the parent that holds it is left to
+/// [`name_split_planes`].
 ///
 /// # Errors
 ///
@@ -424,13 +429,14 @@ fn name_split_merges<T: Decide>(
     halves: &mut [HalfNames; 2],
     sides: &[Side<'_, T>],
     naming: &SplitNaming,
-    section_names: &BTreeMap<FaceKey, StableName>,
+    section_keys: &BTreeSet<FaceKey>,
     keeps: &KeepsReading<'_, '_, T>,
     target_body: &Body<T>,
 ) -> Result<SplitMerges, NamingError> {
     let (target_node, target_table) = (keeps.target_node, keeps.target_table);
-    // A linked set: its operand faces, its section faces, its kept faces.
-    type Linked = (BTreeSet<FaceKey>, BTreeSet<FaceKey>, Vec<FaceKey>);
+    // A linked set: its operand faces, whether it holds the plane, its
+    // kept faces.
+    type Linked = (BTreeSet<FaceKey>, bool, Vec<FaceKey>);
     let bug = |what| NamingError::Emission { what };
     let frag_rows = &naming.face_fragments;
     let mut out = SplitMerges::default();
@@ -443,27 +449,31 @@ fn name_split_merges<T: Decide>(
             if s.body.get_face(g.kept).is_none() {
                 return Err(bug("a split merge's kept face is live in no matching half"));
             }
-            let mut set: Linked = (BTreeSet::new(), BTreeSet::new(), vec![g.kept]);
+            let mut set: Linked = (BTreeSet::new(), false, vec![g.kept]);
             for &c in core::iter::once(&g.kept).chain(&g.absorbed) {
-                if section_names.contains_key(&c) {
-                    set.1.insert(c);
+                if section_keys.contains(&c) {
+                    set.1 = true;
                 } else {
                     set.0.insert(frag_rows.root(c));
                 }
             }
-            let (meets, rest): (Vec<Linked>, Vec<Linked>) =
-                linked.into_iter().partition(|l| !l.0.is_disjoint(&set.0));
-            for (ops, secs, kept) in meets {
+            let (meets, rest): (Vec<Linked>, Vec<Linked>) = linked
+                .into_iter()
+                .partition(|l| !l.0.is_disjoint(&set.0) || (l.1 && set.1));
+            for (ops, plane, kept) in meets {
                 set.0.extend(ops);
-                set.1.extend(secs);
+                set.1 |= plane;
                 set.2.extend(kept);
             }
             linked = rest;
             linked.push(set);
         }
-        for (ops, secs, kept) in linked {
-            let mut constituents: Vec<StableName> =
-                secs.iter().map(|f| section_names[f].clone()).collect();
+        for (ops, plane, kept) in linked {
+            let plane_name = name1(EntityKind::Face, node, RoleSeg::SectionFace);
+            let mut constituents: Vec<StableName> = Vec::new();
+            if plane {
+                constituents.push(plane_name.clone());
+            }
             let mut tied = false;
             let mut op_names = Vec::with_capacity(ops.len());
             for &op in &ops {
@@ -485,7 +495,8 @@ fn name_split_merges<T: Decide>(
                 canonical::minted(name1(EntityKind::Face, node, RoleSeg::Merged(constituents)));
             let held_by = |f: FaceKey| {
                 kept.contains(&f)
-                    || (!section_names.contains_key(&f)
+                    || (plane && section_keys.contains(&f))
+                    || (!section_keys.contains(&f)
                         && !naming.merge_groups.iter().any(|(_, g)| g.kept == f)
                         && ops.contains(&frag_rows.root(f)))
             };
@@ -508,7 +519,14 @@ fn name_split_merges<T: Decide>(
                     Parent::Elsewhere,
                 );
             }
-            if let [f] = members.as_slice() {
+            if plane {
+                h.rec.record(&plane_name, ents.clone(), Parent::Elsewhere);
+                out.plane[s.slot()] = Some(PlaneParent {
+                    name: name.clone(),
+                    tied,
+                    members: members.clone(),
+                });
+            } else if let [f] = members.as_slice() {
                 put(
                     &mut h.t,
                     &mut h.tie,
@@ -550,6 +568,106 @@ fn name_split_merges<T: Decide>(
         }
     }
     Ok(out)
+}
+
+/// Names each split half's pieces of the tool plane (N2, a Split's
+/// section faces): the faces of the parent that holds the plane, the
+/// merged one [`name_split_merges`] left in `merged.plane`, or else the
+/// plane itself, the bare `SectionFace`, over the faces the cut drew.
+/// One piece is the parent's bare name; several are each qualified by
+/// `Borders` over their walls ([`plane_pieces::plane_walls`]), each wall
+/// cited by its parent as a section chord cites the face it crosses.
+/// The half's plane-piece group is recorded under the bare plane.
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] from the walls' reading, and the table's
+/// refusals.
+fn name_split_planes<T: Decide>(
+    node: RecipeNodeId,
+    halves: &mut [HalfNames; 2],
+    sides: &[Side<'_, T>],
+    naming: &SplitNaming,
+    section_keys: &BTreeSet<FaceKey>,
+    merged: &mut SplitMerges,
+    keeps: &KeepsReading<'_, '_, T>,
+) -> Result<(), NamingError> {
+    let (target_node, target_table) = (keeps.target_node, keeps.target_table);
+    for s in sides {
+        let slot = s.slot();
+        let parent = match merged.plane[slot].take() {
+            Some(p) => p,
+            None => {
+                let members: Vec<FaceKey> = s
+                    .body
+                    .faces()
+                    .map(|(f, _)| f)
+                    .filter(|f| section_keys.contains(f))
+                    .collect();
+                let name = name1(EntityKind::Face, node, RoleSeg::SectionFace);
+                let ents = members
+                    .iter()
+                    .map(|&f| ent(0, EntityKey::Face(f)))
+                    .collect();
+                halves[slot].rec.record(&name, ents, Parent::Elsewhere);
+                PlaneParent {
+                    name,
+                    tied: false,
+                    members,
+                }
+            }
+        };
+        let h = &mut halves[slot];
+        match parent.members.as_slice() {
+            [] => {}
+            [one] => put(
+                &mut h.t,
+                &mut h.tie,
+                parent.tied,
+                parent.name,
+                ent(0, EntityKey::Face(*one)),
+            )?,
+            pieces => {
+                let piece_of = |island: FaceKey| {
+                    if s.body.get_face(island).is_some() {
+                        return Some(island);
+                    }
+                    naming
+                        .merge_groups
+                        .iter()
+                        .find(|(_, g)| g.absorbed.contains(&island))
+                        .map(|(_, g)| g.kept)
+                };
+                let mut tied = parent.tied;
+                let walls = plane_pieces::plane_walls(
+                    s.body,
+                    pieces,
+                    &naming.islands,
+                    piece_of,
+                    |across| {
+                        let (name, t) =
+                            merged.parent_of(across, naming, target_node, target_table)?;
+                        tied |= t;
+                        Ok((*name).clone())
+                    },
+                )?;
+                let mut by_walls: BTreeMap<Vec<StableName>, Vec<FaceKey>> = BTreeMap::new();
+                for (set, &f) in walls.into_iter().zip(pieces) {
+                    by_walls
+                        .entry(set.into_iter().collect())
+                        .or_default()
+                        .push(f);
+                }
+                for (walls, faces) in by_walls {
+                    let mut name = parent.name.clone();
+                    name.path.push(RoleSeg::Fragment(Qualifier::Borders(walls)));
+                    let ents = faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect();
+                    mint_candidates(&mut h.t, &mut h.tie, tied, canonical::minted(name), ents)?;
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Chord edges: every boundary edge of `body`'s live section faces,

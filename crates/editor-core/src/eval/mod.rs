@@ -6664,9 +6664,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             qual(h, q);
         }
         RoleSeg::SplitBody => {}
-        RoleSeg::SectionFace { section } => {
-            h.write_u64(u64::from(*section));
-        }
+        RoleSeg::SectionFace => {}
         RoleSeg::SectionEdge { face } => {
             h.name(face);
         }

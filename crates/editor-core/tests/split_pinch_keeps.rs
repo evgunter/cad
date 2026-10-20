@@ -69,6 +69,31 @@ fn split_at_y1(
     solid: Solid,
     ny: f64,
 ) -> (Evaluation<f64>, RecipeNodeId, RecipeNodeId) {
+    let (doc, target, _, sp) = split_doc(outline, solid, [0.0, 1.0, 0.0], [0.0, ny, 0.0]);
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    assert!(
+        ev.value(sp).is_some(),
+        "the split names with no refusal: {:?}",
+        ev.node_error(sp)
+    );
+    (ev, target, sp)
+}
+
+/// A split of `outline` made `solid` by the plane through `origin` with
+/// `normal`: the document, the operand's node, the plane's and the
+/// split's.
+fn split_doc(
+    outline: &[(f64, f64)],
+    solid: Solid,
+    origin: [f64; 3],
+    normal: [f64; 3],
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("split_pinch_keeps", Tol::witness());
     let (doc, p) = on_frame(
         doc,
@@ -94,8 +119,8 @@ fn split_at_y1(
     let (doc, plane) = insert(
         doc,
         Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(1.0), len(0.0)],
-            normal: [scl(0.0), scl(ny), scl(0.0)],
+            origin: origin.map(len),
+            normal: normal.map(scl),
         }),
     );
     let (doc, sp) = insert(
@@ -105,19 +130,7 @@ fn split_at_y1(
             tool: plane.into(),
         },
     );
-    let ev = evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
-    );
-    assert!(
-        ev.value(sp).is_some(),
-        "the split names with no refusal: {:?}",
-        ev.node_error(sp)
-    );
-    (ev, target, sp)
+    (doc, target, plane, sp)
 }
 
 /// `side`'s names, each spelled with the split's node read as `as_node`
@@ -374,32 +387,30 @@ fn operand_floor(ev: &Evaluation<f64>, target: RecipeNodeId) -> StableName {
 }
 
 /// The face the lower half of `outline` made `solid`, split at `y = 1`,
-/// takes for its top: `Merged` of `floor` (the operand's face in the
-/// plane, where there is one) and the sections `0..sections`, numbered
-/// in their completion order (N3). No section is published on its own,
+/// takes for its top: `Merged` of the plane, cited once and bare
+/// whatever number of sections the join completed, and `floor` (the
+/// operand's face in the plane, where there is one) (N3). No section is
+/// published on its own,
 /// and `seams` of the half's edges are named from the merged face and
 /// the face across them, as a seam is.
-fn assert_merged_top(
-    outline: &[(f64, f64)],
-    solid: Solid,
-    floor: bool,
-    sections: u32,
-    seams: usize,
-) {
+fn assert_merged_top(outline: &[(f64, f64)], solid: Solid, floor: bool, seams: usize) {
     let (ev, target, sp) = split_at_y1(outline, solid, 1.0);
     let face = |seg| StableName {
         kind: editor_core::EntityKind::Face,
         node: sp,
         path: vec![seg],
     };
-    let mut constituents: Vec<StableName> = (0..sections)
-        .map(|section| face(RoleSeg::SectionFace { section }))
-        .collect();
+    let mut constituents = vec![face(RoleSeg::SectionFace)];
     if floor {
         constituents.push(operand_floor(&ev, target));
     }
     constituents.sort();
-    let merged = face(RoleSeg::Merged(constituents));
+    // A `Merged` of one is that one (N3): two sections merged alone are
+    // the plane, bare.
+    let merged = match constituents.as_slice() {
+        [one] => one.clone(),
+        _ => face(RoleSeg::Merged(constituents)),
+    };
     let below = fixture::half(&ev, sp, SplitHalf::Below);
     assert!(
         below.iter().any(|(n, _)| *n == merged),
@@ -407,9 +418,10 @@ fn assert_merged_top(
         below.iter().map(|(n, _)| n).collect::<Vec<_>>()
     );
     assert!(
-        !below
+        below
             .iter()
-            .any(|(n, _)| matches!(n.path.as_slice(), [RoleSeg::SectionFace { .. }])),
+            .filter(|(n, _)| matches!(n.path.as_slice(), [RoleSeg::SectionFace, ..]))
+            .all(|(n, _)| *n == merged),
         "no section of the lower half is published on its own"
     );
     let named_from_merged = below
@@ -427,21 +439,21 @@ fn assert_merged_top(
 /// chords and the floor's rim, so it is named from its two faces.
 #[test]
 fn a_notched_blocks_lower_top_is_the_floor_and_its_sections_merged() {
-    assert_merged_top(NOTCHED, Solid::Prism, true, 3, 2);
+    assert_merged_top(NOTCHED, Solid::Prism, true, 2);
 }
 
 /// The pentagon's lower top: its two sections either side of the apex,
 /// one face; each cap's edge along it joins two chords, and stays one.
 #[test]
 fn a_pentagons_lower_top_is_its_two_sections_merged() {
-    assert_merged_top(PENTAGON, Solid::Prism, false, 2, 0);
+    assert_merged_top(PENTAGON, Solid::Prism, false, 0);
 }
 
 /// The revolved pentagon's lower top: the disc's annulus inside the
 /// apex circle and the one outside it, one face.
 #[test]
 fn a_revolved_pentagons_lower_top_is_its_two_sections_merged() {
-    assert_merged_top(REVOLVED, Solid::Turned, false, 2, 0);
+    assert_merged_top(REVOLVED, Solid::Turned, false, 0);
 }
 
 /// **A split half on the plane is an operand a boolean accepts.** A
@@ -524,6 +536,409 @@ fn a_lower_half_on_the_plane_takes_a_box_hole() {
             ev.value(cut).is_some(),
             "{what}: the lower half takes the hole: {:?}",
             ev.node_error(cut)
+        );
+    }
+}
+
+// ------------------------------------------------------------------ //
+// A Split's section faces: pieces of the plane (N2)
+// ------------------------------------------------------------------ //
+
+/// The operand face of `target` whose plane holds `p` with normal `±n`
+/// (`n` a unit vector).
+fn operand_face_on(
+    ev: &Evaluation<f64>,
+    target: RecipeNodeId,
+    p: [f64; 3],
+    n: [f64; 3],
+) -> StableName {
+    let body = ev.value(target).unwrap().payload.output_body(0).unwrap();
+    ev.table(ev.output_var(target, 0).unwrap())
+        .unwrap()
+        .iter()
+        .find_map(|(name, entry)| match entry {
+            Entry::Unique(EntityRef {
+                key: EntityKey::Face(f),
+                ..
+            }) => match body.get_surface(body.get_face(*f).unwrap().surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => {
+                    let off = (p[0] - origin.x) * normal.x
+                        + (p[1] - origin.y) * normal.y
+                        + (p[2] - origin.z) * normal.z;
+                    let along = n[0] * normal.x + n[1] * normal.y + n[2] * normal.z;
+                    (off.abs() < 1e-9 && (along.abs() - 1.0).abs() < 1e-9).then(|| name.clone())
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("an operand face through {p:?} normal to {n:?}"))
+}
+
+/// `side`'s pieces of the plane, by their qualifier: `None` for the bare
+/// `SectionFace`, else the `Borders` walls; each with its candidates.
+fn plane_pieces(
+    ev: &Evaluation<f64>,
+    sp: RecipeNodeId,
+    side: SplitHalf,
+) -> Vec<(Option<Vec<StableName>>, usize)> {
+    fixture::half(ev, sp, side)
+        .iter()
+        .filter_map(|(n, entry)| {
+            let walls = match n.path.as_slice() {
+                [RoleSeg::SectionFace] => None,
+                [
+                    RoleSeg::SectionFace,
+                    RoleSeg::Fragment(Qualifier::Borders(walls)),
+                ] => Some(walls.clone()),
+                [RoleSeg::SectionFace, ..] => panic!("an unexpected plane piece {n:?}"),
+                _ => return None,
+            };
+            let candidates = match entry {
+                Entry::Unique(_) => 1,
+                Entry::Tied(c) => c.len(),
+            };
+            Some((walls, candidates))
+        })
+        .collect()
+}
+
+fn sorted(mut names: Vec<StableName>) -> Vec<StableName> {
+    names.sort();
+    names
+}
+
+/// **One plane piece is the bare `SectionFace`; two are told apart by
+/// their walls, and a held bare name fails loudly.** Just below the
+/// pentagon's apex the upper half holds one section; just above it, the
+/// two prongs' sections, each citing the caps and its own prong's two
+/// walls, since the exterior borders both. Moving the plane past the
+/// apex vanishes the bare name, diagnosed `PredicateFlip` off the split's
+/// own classification of the apex.
+#[test]
+fn a_pentagons_upper_section_is_bare_below_its_apex_and_two_borders_pieces_above() {
+    let (doc, target, plane, sp) =
+        split_doc(PENTAGON, Solid::Prism, [0.0, 0.9, 0.0], [0.0, 1.0, 0.0]);
+    let before = fixture::run(&doc, &Default::default());
+    assert_eq!(
+        plane_pieces(&before, sp, SplitHalf::Above),
+        vec![(None, 1)],
+        "below the apex the upper half holds one section, bare"
+    );
+    let (moved, _) = fixture::step(
+        doc.clone(),
+        editor_core::DocEdit::SetParam {
+            node: plane,
+            slot: editor_core::SlotId::Origin(editor_core::Axis3::Y),
+            value: len(1.1).into(),
+            fresh: Vec::new(),
+        },
+    );
+    let after = fixture::run(&moved, &Default::default());
+    let face = |p, n| operand_face_on(&after, target, p, n);
+    let r = std::f64::consts::FRAC_1_SQRT_2;
+    let caps = [
+        face([0.5, 0.5, 0.0], [0.0, 0.0, 1.0]),
+        face([0.5, 0.5, 1.0], [0.0, 0.0, 1.0]),
+    ];
+    let prong = |wall: StableName, slant: StableName| {
+        sorted(vec![caps[0].clone(), caps[1].clone(), wall, slant])
+    };
+    let left = prong(
+        face([0.0, 1.5, 0.5], [1.0, 0.0, 0.0]),
+        face([0.5, 1.5, 0.5], [r, r, 0.0]),
+    );
+    let right = prong(
+        face([2.0, 1.5, 0.5], [1.0, 0.0, 0.0]),
+        face([1.5, 1.5, 0.5], [r, -r, 0.0]),
+    );
+    let mut got = plane_pieces(&after, sp, SplitHalf::Above);
+    got.sort();
+    let mut want = vec![(Some(left), 1), (Some(right), 1)];
+    want.sort();
+    assert_eq!(
+        got, want,
+        "above the apex: two pieces, each by its prong's walls"
+    );
+
+    let bare = StableName {
+        kind: editor_core::EntityKind::Face,
+        node: sp,
+        path: vec![RoleSeg::SectionFace],
+    };
+    let above = doc.output(sp, SplitHalf::Above.port()).unwrap();
+    let new = editor_core::RunCtx {
+        doc: &moved,
+        eval: &after,
+    };
+    let prior = editor_core::RunCtx {
+        doc: &doc,
+        eval: &before,
+    };
+    match editor_core::resolve_with_prior(new, prior, above, &bare).unwrap() {
+        editor_core::Resolution::Failed(f) => assert!(
+            matches!(
+                f.error,
+                editor_core::ResolveError::Vanished {
+                    diagnosis: editor_core::Diagnosis::PredicateFlip { .. },
+                    ..
+                }
+            ),
+            "the held bare section vanishes, a predicate flip: {:?}",
+            f.error
+        ),
+        other => panic!("the bare section no longer resolves: {other:?}"),
+    }
+}
+
+/// **A tilt within one topology moves no section's name.** The notched
+/// block cut at `y = 1.5` holds three sections in each half, each by
+/// its own walls; turning the plane a little about `z` or `x`, which
+/// reorders the join's sweep, renames none of them.
+#[test]
+fn a_notched_blocks_three_sections_keep_their_names_under_a_tilt() {
+    let eval = |normal| {
+        let (doc, _, _, sp) = split_doc(NOTCHED, Solid::Prism, [0.0, 1.5, 0.0], normal);
+        (fixture::run(&doc, &Default::default()), sp)
+    };
+    let (flat, sp) = eval([0.0, 1.0, 0.0]);
+    for side in [SplitHalf::Above, SplitHalf::Below] {
+        let pieces = plane_pieces(&flat, sp, side);
+        assert!(
+            pieces.len() == 3 && pieces.iter().all(|(w, c)| w.is_some() && *c == 1),
+            "{side:?}: three sections, each by its walls: {pieces:?}"
+        );
+    }
+    let t = 0.06_f64.to_radians();
+    for normal in [[t.sin(), t.cos(), 0.0], [0.0, t.cos(), t.sin()]] {
+        let (tilted, tsp) = eval(normal);
+        for side in [SplitHalf::Above, SplitHalf::Below] {
+            assert_eq!(
+                names(&flat, sp, side, sp),
+                names(&tilted, tsp, side, sp),
+                "{side:?}: the plane turned to {normal:?} renames nothing"
+            );
+        }
+    }
+}
+
+/// **A hole that no other piece sits in is cited nowhere.** Two prongs
+/// of a U, the left one bored along `y`, cut across both: each upper
+/// section cites the caps and its own prong's outer walls, and the
+/// bored one none of the bore's four faces.
+#[test]
+fn a_sections_hole_with_no_island_cites_nothing_of_the_hole() {
+    const U: &[(f64, f64)] = &[
+        (0.0, 0.0),
+        (5.0, 0.0),
+        (5.0, 2.0),
+        (3.0, 2.0),
+        (3.0, 1.0),
+        (2.0, 1.0),
+        (2.0, 2.0),
+        (0.0, 2.0),
+    ];
+    let doc = ProfileDoc::empty_derived("split_section_hole", Tol::witness());
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![U.to_vec()],
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    // A bore along +y: drawn in z (u) and x (v), so its normal is +y.
+    let (doc, q) = on_frame(
+        doc,
+        [0.0, -1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        vec![vec![(0.25, 0.5), (0.75, 0.5), (0.75, 1.5), (0.25, 1.5)]],
+    );
+    let (doc, bore) = insert(
+        doc,
+        Node::Extrude {
+            profile: q.into(),
+            distance: len(4.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, cut) = insert(
+        doc,
+        Node::Subtract {
+            from: editor_core::Operand::output(ext, 0).into(),
+            tool: bore.into(),
+        },
+    );
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(1.5), len(0.0)],
+            normal: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
+    let (doc, sp) = insert(
+        doc,
+        Node::Split {
+            target: editor_core::Operand::output(cut, 0).into(),
+            tool: plane.into(),
+        },
+    );
+    let ev = fixture::run(&doc, &Default::default());
+    assert!(ev.value(sp).is_some(), "{:?}", ev.node_error(sp));
+    let face = |p, n| operand_face_on(&ev, cut, p, n);
+    let caps = [
+        face([1.0, 1.5, 0.0], [0.0, 0.0, 1.0]),
+        face([1.0, 1.5, 1.0], [0.0, 0.0, 1.0]),
+    ];
+    let prong = |a: f64, b: f64| {
+        sorted(vec![
+            caps[0].clone(),
+            caps[1].clone(),
+            face([a, 1.5, 0.5], [1.0, 0.0, 0.0]),
+            face([b, 1.5, 0.5], [1.0, 0.0, 0.0]),
+        ])
+    };
+    let mut got = plane_pieces(&ev, sp, SplitHalf::Above);
+    got.sort();
+    let mut want = vec![(Some(prong(0.0, 2.0)), 1), (Some(prong(3.0, 5.0)), 1)];
+    want.sort();
+    assert_eq!(got, want, "each prong's section by its outer walls alone");
+}
+
+/// **A ring an island sits in divides the plane.** A block with a
+/// square groove round a central pin, cut across the groove: the outer
+/// wall's section holds the groove's outline as a ring and the pin's
+/// section lies in it, so the ring's part of the plane borders both and
+/// the exterior only the wall. The wall's section cites the groove's
+/// outer faces, and the pin's its own, and neither cites the block's
+/// outside.
+#[test]
+fn a_ring_holding_an_island_cites_the_ring_and_the_island() {
+    let doc = ProfileDoc::empty_derived("split_section_island", Tol::witness());
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (0.0, 3.0)]],
+    );
+    let (doc, block) = insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(4.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    // The groove along +y from y = 0.5: drawn in z (u) and x (v).
+    let square = |a: f64, b: f64| vec![(a, a), (b, a), (b, b), (a, b)];
+    let (doc, q) = on_frame(
+        doc,
+        [0.0, 0.5, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        vec![square(1.0, 3.0), square(1.5, 2.5)],
+    );
+    let (doc, groove) = insert(
+        doc,
+        Node::Extrude {
+            profile: q.into(),
+            distance: len(4.0),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (doc, cut) = insert(
+        doc,
+        Node::Subtract {
+            from: editor_core::Operand::output(block, 0).into(),
+            tool: groove.into(),
+        },
+    );
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(2.0), len(0.0)],
+            normal: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
+    let (doc, sp) = insert(
+        doc,
+        Node::Split {
+            target: editor_core::Operand::output(cut, 0).into(),
+            tool: plane.into(),
+        },
+    );
+    let ev = fixture::run(&doc, &Default::default());
+    assert!(ev.value(sp).is_some(), "{:?}", ev.node_error(sp));
+    let face = |p, n| operand_face_on(&ev, cut, p, n);
+    let square_walls = |a: f64, b: f64| {
+        let m = 0.5 * (a + b);
+        sorted(vec![
+            face([a, 2.0, m], [1.0, 0.0, 0.0]),
+            face([b, 2.0, m], [1.0, 0.0, 0.0]),
+            face([m, 2.0, a], [0.0, 0.0, 1.0]),
+            face([m, 2.0, b], [0.0, 0.0, 1.0]),
+        ])
+    };
+    let mut want = vec![
+        (Some(square_walls(1.0, 3.0)), 1),
+        (Some(square_walls(1.5, 2.5)), 1),
+    ];
+    want.sort();
+    for side in [SplitHalf::Above, SplitHalf::Below] {
+        let mut got = plane_pieces(&ev, sp, side);
+        got.sort();
+        assert_eq!(
+            got, want,
+            "{side:?}: the wall by the ring, the pin by its own"
+        );
+    }
+}
+
+/// **Two sections bounded alike tie.** A square ring, its square
+/// revolved a full turn about `y`, cut through its axis leaves each half
+/// two squares, each bounded by the ring's same four faces: one `Tied`
+/// row, never told apart by an order.
+#[test]
+fn a_ring_cut_through_its_axis_ties_its_two_sections() {
+    const SQUARE: &[(f64, f64)] = &[(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)];
+    let (doc, ring, _, sp) = split_doc(SQUARE, Solid::Turned, [0.0; 3], [1.0, 0.0, 0.0]);
+    let ev = fixture::run(&doc, &Default::default());
+    assert!(ev.value(sp).is_some(), "{:?}", ev.node_error(sp));
+    let bands: Vec<StableName> = ev
+        .table(ev.output_var(ring, 0).unwrap())
+        .unwrap()
+        .iter()
+        .filter(|(n, _)| n.kind == editor_core::EntityKind::Face)
+        .map(|(n, _)| n.clone())
+        .collect();
+    assert_eq!(bands.len(), 4, "the premise: a four-face ring: {bands:?}");
+    // A wall is cited by its parent: an annulus the half's merge joined
+    // across its own seam is the `Merged` of it alone.
+    let parent_band = |w: &StableName| match w.path.as_slice() {
+        [RoleSeg::Merged(set)] => match set.as_slice() {
+            [one] => one.clone(),
+            _ => panic!("a wall merged from several faces: {w:?}"),
+        },
+        _ => w.clone(),
+    };
+    for side in [SplitHalf::Above, SplitHalf::Below] {
+        let pieces = plane_pieces(&ev, sp, side);
+        let [(Some(walls), 2)] = pieces.as_slice() else {
+            panic!("{side:?}: one tied row over the two squares: {pieces:?}");
+        };
+        assert_eq!(
+            sorted(walls.iter().map(parent_band).collect()),
+            sorted(bands.clone()),
+            "{side:?}: the two squares are bounded by the ring's four faces"
         );
     }
 }

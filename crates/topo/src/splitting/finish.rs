@@ -367,6 +367,12 @@ pub struct SplitNaming {
     /// two-piece cylinder wall cut across its axis. Those faces stay as
     /// the cut left them, their boundaries re-described ([`end_maximal`]).
     pub merge_skipped: Vec<(PlaneSide, crate::merge_faces::SkippedMerge)>,
+    /// Which ring holds which island: `(ring, island)` for each section
+    /// face whose outline lies in a ring the nesting rule gave another
+    /// section face of its side ([`nest_hole_sections`]), with the
+    /// innermost such ring, read by the same rule's recorded verdicts.
+    /// The ring is the hole's loop as the face that took it holds it.
+    pub islands: Vec<(crate::entity::LoopKey, FaceKey)>,
 }
 
 impl SplitNaming {
@@ -476,6 +482,7 @@ impl Default for SplitNaming {
             joined_lineage: Default::default(),
             merge_groups: Default::default(),
             merge_skipped: Default::default(),
+            islands: Default::default(),
         }
     }
 }
@@ -587,11 +594,12 @@ pub enum SplitFinishError {
     /// dihedral along the edge over the edge's own arm, is the one left
     /// where the two arms decide differently in the band.
     KnifeEdge(KnifeEdge),
-    /// Two section faces each read as enclosing the other around a
-    /// hole: their outlines were decided disjoint, and disjoint
-    /// outlines cannot (kernel bug, loudly).
+    /// Two section loops each read as enclosing the other around a
+    /// hole or an island: they were decided disjoint, and disjoint
+    /// loops cannot (kernel bug, loudly).
     NestingContradiction {
-        /// The hole's section face (in the discarded scratch body).
+        /// The hole's or the island's section face (in the discarded
+        /// scratch body).
         hole: FaceKey,
     },
     /// A slit trace's slit, read definitely, lies in no section region of
@@ -971,6 +979,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         joined_lineage: Default::default(),
         merge_groups: Vec::new(),
         merge_skipped: Vec::new(),
+        islands: Vec::new(),
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
@@ -1205,15 +1214,14 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
             }
         }
         let side_normal = section_loops::section_normal(normal, side);
-        let nesting =
-            section_loops::nest(body, outlines, holes, side_normal, band).map_err(|fault| {
-                match fault {
-                    section_loops::NestFault::Torn => corrupt(),
-                    section_loops::NestFault::Contradiction((hole, _)) => {
-                        SplitFinishError::NestingContradiction { hole }
-                    }
+        let nesting = section_loops::nest(body, outlines.clone(), holes, side_normal, band)
+            .map_err(|fault| match fault {
+                section_loops::NestFault::Torn => corrupt(),
+                section_loops::NestFault::Contradiction((hole, _)) => {
+                    SplitFinishError::NestingContradiction { hole }
                 }
             })?;
+        let mut side_rings: Vec<(crate::entity::LoopKey, crate::entity::LoopKey)> = Vec::new();
         for (parent, holes) in nesting.regions {
             let mut rings: Vec<crate::entity::LoopKey> = Vec::new();
             for (hole, hole_loop) in holes {
@@ -1226,7 +1234,23 @@ fn nest_hole_sections<T: Decide + crate::props::AtRestPolicy>(
                 if clear {
                     rings.push(hole_loop);
                     parent_of.insert(hole, parent);
+                    side_rings.push((hole_loop, hole_loop));
                 }
+            }
+        }
+        // An island needs an outline other than the one holding the ring.
+        if !side_rings.is_empty() && outlines.len() > 1 {
+            let islands = section_loops::nest(body, side_rings, outlines, side_normal, band)
+                .map_err(|fault| match fault {
+                    section_loops::NestFault::Torn => corrupt(),
+                    section_loops::NestFault::Contradiction(island) => {
+                        SplitFinishError::NestingContradiction { hole: island }
+                    }
+                })?;
+            for (ring, held) in islands.regions {
+                naming
+                    .islands
+                    .extend(held.into_iter().map(|island| (ring, island)));
             }
         }
     }

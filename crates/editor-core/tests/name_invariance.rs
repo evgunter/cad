@@ -1365,6 +1365,27 @@ fn pentagon_split_turned(deg: f64) -> Halves {
     )
 }
 
+/// The notched block's split by the plane `y = 1.5`, which cuts three
+/// sections from each half, turned `deg` about `z`.
+fn notched_split_turned(deg: f64) -> Halves {
+    split(
+        Target::Prism(crate::split_pinch_keeps::NOTCHED),
+        Tool::Plane([0.0, 1.5, 0.0], turned(Y, Z, deg)),
+        &unedited,
+    )
+}
+
+/// A split whose plane is posed by a tilt, by name.
+type TurnedSplit = fn(f64) -> Halves;
+
+const TURNED_SPLITS: &[(&str, TurnedSplit)] = &[
+    ("notched pentagon, plane turned", pentagon_split_turned),
+    (
+        "notched block's three sections, plane turned",
+        notched_split_turned,
+    ),
+];
+
 /// Compares `subject`'s poses at [`TILTS`] with its pose at 0°, each
 /// as `pose` builds it: its tables and its bodies' counts. A pose whose
 /// bodies' counts differ is another topology, and is not compared but
@@ -1422,15 +1443,16 @@ fn a_tilt_within_one_topology_moves_no_name() {
             "{what}: {compared} tilts keep the topology"
         );
     }
-    let what = "notched pentagon, plane turned";
-    let compared = tilt(&mut found, what, &|deg| {
-        let h = pentagon_split_turned(deg);
-        (h.tables.to_vec(), h.counts)
-    });
-    assert!(
-        compared >= COMPARED_TILTS,
-        "{what}: {compared} tilts keep the topology"
-    );
+    for &(what, pose) in TURNED_SPLITS {
+        let compared = tilt(&mut found, what, &|deg| {
+            let h = pose(deg);
+            (h.tables.to_vec(), h.counts)
+        });
+        assert!(
+            compared >= COMPARED_TILTS,
+            "{what}: {compared} tilts keep the topology"
+        );
+    }
     found.settle(ADMITTED_TILT, VACUOUS_TILT);
 }
 
