@@ -393,7 +393,23 @@ fn binom_table() -> &'static [Vec<f64>] {
 /// whenever the output row is served at all: by Vandermonde,
 /// `C(da,i)·C(db,j) ≤ C(da+db, i+j)`, and `da + db >`
 /// [`BINOM_EXACT_MAX`] is already refused through `binom_row`.
-fn bern_mul_row(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
+///
+/// **`derivative`'s `product` states the same product with the other
+/// association**: exact integer numerators, a division after each
+/// coefficient's sum (by `C(ma+mb, k)`, then `C(na+nb, l)`), at any
+/// `Real` on bivariate grids. Each association is the tighter one for
+/// its own callers, so neither is folded into the other. Here, a
+/// memoized outward quotient weight per term keeps the tensor powers'
+/// exact points exact and their coefficients tightest: taking the
+/// other association widens coefficients by up to 6× at the tensor
+/// path, the curve product and the patch block, and widens exact points
+/// at the tensor powers. Taking this one in `product` widens its area
+/// and cross terms by up to 1470×. Both enclose the exact rational
+/// product (`derivative`'s
+/// `both_bernstein_products_enclose_the_exact_rational_product`); the
+/// measurement is in
+/// `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
+pub(super) fn bern_mul_row(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
     let w = bern_weights(a.len() - 1, b.len() - 1);
     bern_mul_row_with(a, b, &w)
 }
@@ -1121,10 +1137,10 @@ pub fn canonical_composite(
 }
 
 /// The exact-rational oracle the containment rows below compare against,
-/// shared with this crate's integration suites.
+/// shared with this crate's integration suites and `derivative`'s tests.
 #[cfg(test)]
 #[path = "../../tests/exact_q/mod.rs"]
-mod exact_q;
+pub(super) mod exact_q;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

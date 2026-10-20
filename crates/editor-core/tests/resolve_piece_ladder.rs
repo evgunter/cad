@@ -85,6 +85,22 @@ fn wall(doc: &ProfileDoc, bar: RecipeNodeId, segment: u32) -> StableName {
     }
 }
 
+/// The bar's wall `segment` as the cut's table carries it in, through
+/// the read the cut's tool seat holds: a seam's side (N3).
+fn cutter(doc: &ProfileDoc, cut: RecipeNodeId, bar: RecipeNodeId, segment: u32) -> StableName {
+    let Some(Node::Subtract { tool, .. }) = doc.node(cut) else {
+        panic!("the cut is a subtract");
+    };
+    StableName {
+        kind: EntityKind::Face,
+        node: cut,
+        path: vec![RoleSeg::From {
+            read: tool.read,
+            of: wall(doc, bar, segment).into(),
+        }],
+    }
+}
+
 fn slot() -> Slot {
     let doc = ProfileDoc::empty_derived("bool7", Tol::witness());
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
@@ -390,7 +406,7 @@ fn a_collapsed_borders_group_is_diagnosed_group_resized_and_offers_the_survivor(
                 // crosses it too.
                 cutters: GroupCutters::Read {
                     gone: vec![],
-                    new: vec![wall(&s.doc, s.bar, 0)],
+                    new: vec![cutter(&s.doc, s.cut, s.bar, 0)],
                 },
             },
             "y = {to}"
@@ -468,7 +484,10 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
                     // walls at once, read in name order.
                     cutters: GroupCutters::Read {
                         gone: {
-                            let mut gone = vec![wall(&s.doc, s.bar, 1), wall(&s.doc, s.bar, 3)];
+                            let mut gone = vec![
+                                cutter(&s.doc, s.cut, s.bar, 1),
+                                cutter(&s.doc, s.cut, s.bar, 3),
+                            ];
                             gone.sort();
                             gone
                         },

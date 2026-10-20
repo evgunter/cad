@@ -40,7 +40,7 @@ Scope: D10's **Coincidence** and **Booleans** paragraphs (`docs/DESIGN.md` §D10
   - When the join refuses a declared union, `ops.rs:896` opens the declared-REST zip (`boolean/rest.rs`, 2693 lines).
 - **The records.**
   - `ContactRecords` (`boolean/mod.rs:614`) are the verified declared contacts a result carries.
-  - `BooleanNaming` (`ops.rs:230`) records what was glued (`merge_groups`, `covered`, `vertex_merges`), but only naming emission reads it.
+  - `BooleanNaming` (`ops.rs:230`) records what was glued (`merge_groups`, `substituted`, `vertex_merges`), but only naming emission reads it.
   - The blend battery's `DecidedCoincidence::IsoscelesTurn` (`sweep/src/blend/battery.rs:2033`) is the one typed value-decided record in the tree. It does not leave the battery (`Blended`, `blend/build.rs:85`, does not carry it).
 - **At rest.** The census refuses `ValidationError::UndeclaredContact` (`validate.rs:1596`) at nine sites in `census.rs`. A5 attributes each to a mate, and an unattributed one is a hard error (`assembly.rs:1297`, `:1768`).
   - A mate carries `class: ContactClass` (`node.rs:2711`), and `class_admission` (`mate.rs:649`) mints `Rest` and refuses `Tangent` as `NoAtRestRecord`.

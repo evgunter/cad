@@ -17,7 +17,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` (an edge its closing join made over several trims, rim trims or survivors `Merged`), `emit_shell.rs` (the shell: survivors `From` the target's read, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`, an edge its closing join made over several input edges `Merged`) |
 | N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
 | N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing's sense and the same-sense ordinal's predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
-| A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, an `EdgeCrossing`'s run, a union seam's sides), and what ordering a union seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
+| A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, an `EdgeCrossing`'s run, a seam's sides), and what ordering a seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
 | N6 a recorded cell's read and name; the walk from them to the minting node | `crates/editor-core/src/coincide.rs` (`NamedCell`, `construction`) |
 | Which node minted a named entity (`NameOrigin`); name → geometry (`denotation`, `face_frame`, ...) | `attribute.rs`; `interrogate.rs` |
@@ -253,6 +253,19 @@ The qualifier depends on what was split:
   in one half are further qualified by `Qualifier::Keeps`, the sorted set
   of the parent's boundary edges each holds a stretch of, cited by their lines
   (below); equal sets tie.
+- **A Split's section faces** are pieces of one parent, the tool plane.
+  - One plane piece in a half is the bare `SectionFace`.
+  - Several are each `SectionFace` + `Fragment(Borders)`, read over the
+    plane's complement in that half. An obstacle is a connected part of
+    the plane the half's pieces do not hold, and it divides where it
+    borders two or more pieces. A piece's walls are the operand faces
+    across its edges along a divider, each cited by its parent's name, as
+    its `SectionEdge` chords cite them. So two sections never cite each
+    other, and a hole that no other piece sits in renames nothing.
+  - Equal sets tie (N4); nothing breaks the tie by an order, since every
+    order the join has reads the plane.
+  - A parent that holds the plane qualifies its pieces by `Borders`, since
+    the plane has no boundary edges for `Keeps` to cite.
 - **Edge pieces** take `Qualifier::Ends`: the sorted pair of a piece's two end
   vertices' names as the node publishes them. A piece is spelled on its parent
   edge's *line*: the edge's name with every piece qualifier removed, at every
@@ -284,7 +297,7 @@ The qualifier depends on what was split:
   meets an edge of the other is a crossing, named by its sense: where the
   crossed edge's two sides at the vertex lie against the closed body the
   crossing face belongs to, the edge oriented as the operand body stores it
-  (a seam edge as the loop of the pair's first side runs along it). The sense
+  (a seam edge as the loop of the pair's first side, the lesser name, runs along it). The sense
   is `Enters` (outside, then inside), `Leaves` (inside, then outside),
   `Outside` (outside on both sides: a touch from outside) or `Inside` (inside
   on both sides: a touch from inside); a side lying on the face counts as
@@ -407,7 +420,7 @@ resolves is offered every set listing that member edge.
 **A union's face is named for its PARENT.** Two member faces are linked when
 the pairwise judgement of their two members (DM4) merged or covered them:
 its two-member union merged the faces or held either face's region through
-the other (`BooleanNaming::merge_groups`, `BooleanNaming::covered`). A pair
+the other (`BooleanNaming::merge_groups`, `BooleanNaming::substituted`). A pair
 the judgement never brought together links nothing. Linking is
 transitive. The member faces so linked are one parent, named `Merged` of all of
 them, and a member face nothing links is its own parent. A parent is a set of
@@ -458,11 +471,11 @@ and a constituent is never itself a bare merged face: whatever mints a `Merged`
 mints it flat — a merge of a merged face lists the faces, never the merge — and
 a nested `Merged` is an emission bug, refused at the mint and again at the
 union's collapse rather than flattened (the fragment carve-out is stated once,
-at `RoleSeg::Merged`). A split's section faces are constituents like any
-other face: a split finishes each half with maximal faces, and a group that
-holds section faces is `Merged` of its constituents' names, each
-`SectionFace { k }` numbered in the completion order it had before the
-merge, so no section is renumbered. A split's group that holds no section
+at `RoleSeg::Merged`). A split finishes each half with maximal faces, and
+a group that holds section faces is `Merged` of the plane and the operand
+faces it absorbed: the plane is a parent linked as an operand face is,
+cited once and bare, whatever number of sections the join completed, and
+every plane piece of the half is a piece of that parent. A split's group that holds no section
 face is named as a boolean names it: `Merged` of the operand faces its faces
 descend from, the faces of one such parent in one half told apart by `Keeps`
 (N2). A `Merged` whose set has one element is that
@@ -474,9 +487,15 @@ constituents retire. In a union no face publishes under a constituent's
 name: every piece of a member face a merge links is a piece of its parent
 (N2), including a piece that never itself merged. At every boolean, a
 pair as much as a union, a seam cites, as each side, the parent of the face
-beside it (a merged face's `Merged` set, an unmerged face's own name), and a
+beside it as this boolean's own table names it (a merged face's `Merged`
+set; an unmerged face's own name, with the read it came in through), and a
 `Borders` wall cites its parent: a seam never descends to a constituent, so
 a seam along a merged face is named the same wherever the cut crosses it.
+A seam's two sides are in name order, at a pair as at a union: the order
+spells a set, and which input a side came from is in the side's own name. A
+chord between two merged faces that lies within one input's rim is a piece
+of that rim; one that lies within no rim is the seam of the two parents,
+as a crossing between them is.
 Two edges of one seam between the same two faces are two pieces of that
 seam, told apart by their ends (N2), never by citing a retired
 constituent. Referencing a constituent fails with the merged name

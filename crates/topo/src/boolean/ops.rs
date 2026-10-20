@@ -301,19 +301,23 @@ pub struct BooleanNaming {
     pub reduction_contacts: ReductionContacts,
     /// Every face an operand lost to the result, with the kept faces it
     /// bordered (`boolean::discard`, which says which paths record
-    /// rows and why the others have none to record).
+    /// rows and why the others have none to record), and every face the
+    /// material divided along an edge lying in it, which lost the line
+    /// between its pieces (`boolean::slit`).
     pub discards: Vec<super::DiscardRow>,
-    /// Each pair `(A face, B face)` of coincident faces where the result
-    /// holds either face's region through the other: their materials lie
-    /// on one side, so the classification keeps one operand's copy of the
-    /// region they share and drops the other's (Eq. 15.3). The pair is
-    /// one fact whichever copy is kept. Clone keys, as
-    /// [`super::DiscardRow::face`]: chase `face_fragments_a`/`face_fragments_b`
-    /// for the operand faces. Read off the classification, so every path
-    /// that classifies records it — the section path and the
-    /// containment fallback — sorted and deduplicated;
-    /// a path that never classifies (disjoint boxes) has none.
-    pub covered: Vec<(FaceKey, FaceKey)>,
+    /// Every fragment of a coincident face the result holds through the
+    /// other operand's copy ([`super::SubstitutedFace`]), sorted and
+    /// deduplicated. The section path writes each fragment as cut where
+    /// the held region ends; the containment fallback, which cuts
+    /// nothing, writes whole faces from what its result holds.
+    ///
+    /// The rows are in clone keys, which
+    /// [`substitutions`](Self::substitutions) cannot hold: those are result keys,
+    /// and the dropped fragment is never in the result. In a
+    /// containment fallback its whole operand is absent
+    /// ([`OperandKeys::Absent`]), so no key of the result names it. A
+    /// path that never classifies (disjoint boxes) has none.
+    pub substituted: Vec<super::SubstitutedFace>,
     /// Every operand edge piece the classification read beside a vertex,
     /// with its side of the other operand
     /// ([`EdgePieceClass`](super::EdgePieceClass)), sorted: the vertex in
@@ -392,7 +396,7 @@ impl Default for BooleanNaming {
             ),
             reduction_contacts: Default::default(),
             discards: Default::default(),
-            covered: Default::default(),
+            substituted: Default::default(),
             edge_classes: Default::default(),
             unread_partners: Default::default(),
             chart_cuts: Default::default(),
@@ -894,7 +898,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         };
     let decls = &*glued;
     let reduction_contacts = red.contacts.clone();
-    let covered = red.covered.clone();
     let edge_classes = red.edge_classes.clone();
     let unread_partners = red.unread_partners.clone();
     let null_copies = super::null_copy_rows(&red.null_edges);
@@ -905,6 +908,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         connected.completed.iter().map(|p| p.b_face).collect(),
     ];
     let ledger = ledger(&red, decls, [&scaffold[0], &scaffold[1]])?;
+    let substituted = connected.fates.substituted.clone();
     let tangent_lines = red.tangent_lines.clone();
     let fin = setopfinish(op, red, &connected, a, b, band, tol)?;
     // The zip, the merge, the re-description and the closing mint are
@@ -952,12 +956,18 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         body.movefac(shell)?;
     }
     let vertex_merges = desc.vertex_merges();
-    let cone_splits = cones.splits().clone();
+    let mut cone_splits = cones.splits().clone();
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
     let views = [&KeyView::Direct, &KeyView::Graft(&fin.graft)];
     let mut discarded = [BTreeSet::new(), BTreeSet::new()];
-    for row in &fin.discards {
-        discarded[usize::from(row.operand == Operand::B)].insert(row.face);
+    // A substituted fragment leaves the result as a discard does.
+    for (operand, face) in fin
+        .discards
+        .iter()
+        .map(|r| (r.operand, r.face))
+        .chain(substituted.iter().map(|s| (s.operand, s.face)))
+    {
+        discarded[usize::from(operand == Operand::B)].insert(face);
     }
     let recorded = carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
     let OutputStage {
@@ -990,12 +1000,27 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         band,
     )?;
     share_recorded_points(&mut body, &contacts, &coincidences, band)?;
+    let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
+    if !parted.is_empty() {
+        crate::pcurves::mint_pcurves(&mut body, tol)
+            .map_err(|source| BooleanError::Pcurves { source })?;
+    }
+    // Each parted edge now bounds a face of each operand, as a seam does.
+    seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
     body.sweep_and_close();
     let body = gate(finished, band, tol)?;
     interior_loops?;
     T::gate_volume_backstop(op, a, b, &body, band, tol)?;
-    let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&fin.graft);
-    let [face_fragments_a, face_fragments_b] = fragments;
+    let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) = graft_rows(&fin.graft);
+    let [mut face_fragments_a, face_fragments_b] = fragments;
+    let mut discards = fin.discards;
+    name_parted(
+        &parted,
+        &mut graft_faces,
+        &mut face_fragments_a,
+        &mut cone_splits,
+        &mut discards,
+    )?;
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
         b_keys: OperandKeys::Grafted,
@@ -1011,9 +1036,9 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         face_fragments_a,
         face_fragments_b,
         reduction_contacts,
-        discards: fin.discards,
+        discards,
         carved_lineage: fin.carved_lineage,
-        covered,
+        substituted,
         edge_classes,
         unread_partners,
         chart_cuts: [Vec::new(), Vec::new()],
@@ -1030,6 +1055,50 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         verdicts: GlueVerdict::of_rows(&coincidences, &tangent_lines),
         coincidences,
     }))
+}
+
+/// **The naming rows of the partings [`super::slit::part_riders`]
+/// made.** An end the material parted is held as one copy per wedge, as
+/// the zip's per-cone splits are (`cone_splits`). A face it divided along
+/// an edge lying in it descends from the face it was divided off, on that
+/// face's side (`graft_faces` for B's, `face_fragments_a` for A's), and
+/// lost the line between its pieces: a discard row whose stretch is the
+/// line, along which each piece borders the region the other holds.
+///
+/// # Errors
+///
+/// [`BooleanError::LineageRow`] where a row would make a list cycle.
+fn name_parted(
+    parted: &[super::slit::Parted],
+    graft_faces: &mut Vec<(FaceKey, FaceKey)>,
+    face_fragments_a: &mut crate::lineage::FaceDivisions,
+    cone_splits: &mut crate::lineage::ConeCopies,
+    discards: &mut Vec<super::DiscardRow>,
+) -> Result<(), BooleanError> {
+    for p in parted {
+        for &row in &p.copies {
+            cone_splits.push(row)?;
+        }
+        let Some(piece) = p.divided else { continue };
+        let (operand, face) = match graft_faces.iter().find(|&&(_, r)| r == p.face) {
+            Some(&(from, _)) => {
+                graft_faces.push((from, piece));
+                (Operand::B, from)
+            }
+            None => {
+                face_fragments_a.push((piece, p.face))?;
+                (Operand::A, p.face)
+            }
+        };
+        discards.push(super::DiscardRow {
+            operand,
+            face,
+            bordered: vec![p.ends],
+            bordered_through: Vec::new(),
+            boundary_chains: Vec::new(),
+        });
+    }
+    Ok(())
 }
 
 /// `map` with each vertex on either side read as the vertex a zip's
@@ -1184,7 +1253,15 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // argument — and `red` is a local of this pipeline, so a refusal
     // on the way drops it.
     red.enter_join_surgery();
-    let connected = bool_connect(&mut red, a, b, band, tol);
+    let connected = bool_connect(&mut red, a, b, band, tol).and_then(|mut c| {
+        c.fates = super::fate::cut(
+            &mut red,
+            [&mut c.a_fragments, &mut c.b_fragments],
+            band,
+            tol,
+        )?;
+        Ok(c)
+    });
     red.leave_join_surgery(connected.is_ok());
     let connected = connected?;
     if connected.completed.is_empty() {
@@ -3349,7 +3426,7 @@ impl Descendants {
 
 /// What [`piece_holds`] read of one piece.
 #[derive(Debug)]
-enum PieceRead {
+pub(super) enum PieceRead {
     /// The point is strictly inside the piece.
     In,
     /// The point is off the piece's carrier, outside its region, or on
@@ -3368,7 +3445,7 @@ enum PieceRead {
 ///
 /// [`BooleanError::Escalated`] (`SelfCheck(CarriedLineage)`) on a margin
 /// in band, the on-plane one or the door's.
-fn piece_holds<T: Decide>(
+pub(super) fn piece_holds<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
@@ -5514,7 +5591,8 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::FaceThroughEdgeWedge { .. }
         | V::FaceThroughEdgeWedgeUndecided { .. }
         | V::ArcEndOffCorner { .. }
-        | V::InstanceInterference { .. } => None,
+        | V::InstanceInterference { .. }
+        | V::CuspEdgesMissing { .. } => None,
         // A certificate that failed or a lane that cannot run: the
         // kernel's.
         V::Band { .. }
@@ -7198,8 +7276,26 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 band,
             )?;
             share_recorded_points(&mut body, &contacts, &coincidences, band)?;
+            let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
+            if !parted.is_empty() {
+                crate::pcurves::mint_pcurves(&mut body, tol)
+                    .map_err(|source| BooleanError::Pcurves { source })?;
+            }
             let body = gate(body, band, tol)?;
-            let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
+            let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) =
+                graft_rows(&graft);
+            let mut face_fragments_a =
+                crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions);
+            let mut cone_splits =
+                crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies);
+            let mut discards = Vec::new();
+            name_parted(
+                &parted,
+                &mut graft_faces,
+                &mut face_fragments_a,
+                &mut cone_splits,
+                &mut discards,
+            )?;
             let naming = BooleanNaming {
                 a_keys: OperandKeys::Direct,
                 b_keys: OperandKeys::Grafted,
@@ -7211,12 +7307,16 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 substitutions: output.clone(),
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
-                covered: red.covered.clone(),
+                substituted: super::fate::uncut(red, [&discarded[0], &discarded[1]]),
                 edge_classes: red.edge_classes.clone(),
                 unread_partners: red.unread_partners.clone(),
                 null_copies: super::null_copy_rows(&red.null_edges),
                 edge_joins,
                 killed_lineage,
+                seam_edges: parted.iter().flat_map(|p| [p.kept, p.minted]).collect(),
+                face_fragments_a,
+                cone_splits,
+                discards,
                 ..BooleanNaming::default()
             };
             Ok(BooleanResult::Body(BooleanBody {
@@ -7253,7 +7353,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    let (contacts, covered) = (&red.contacts, &red.covered);
+    let contacts = &red.contacts;
     let reduction_contacts = contacts.clone();
     let mut body = body;
     if kind == BooleanResultKind::OperandB && op == BooleanOp::Subtract {
@@ -7265,7 +7365,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     }
     // No cross-operand pair merges here: one operand is absent from the
     // result. A declared pair that held the absent operand's region
-    // through the kept one is `covered`; the surviving operand's
+    // through the kept one is a `substituted` row; the surviving operand's
     // CARRIED records still apply.
     let mut desc = Descendants::default();
     let (a_view, b_view) = match kind {
@@ -7278,6 +7378,14 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         BooleanResultKind::OperandA => [faces_outside(&red.a, keep), faces_outside(&red.b, &[])],
         _ => [faces_outside(&red.a, &[]), faces_outside(&red.b, keep)],
     };
+    let substituted = super::fate::uncut(red, [&discarded[0], &discarded[1]]);
+    // The lump keeps operand A's copy of a coincident pair
+    // (`tables::kept_copy`), so a shell holding one is kept: a fallback
+    // that keeps B whole drops no such pair.
+    debug_assert!(
+        substituted.is_empty() || kind == BooleanResultKind::OperandA,
+        "a containment fallback keeping operand B whole holds a coincident pair"
+    );
     let recorded = carried_vertices(
         &body,
         &ledger,
@@ -7311,7 +7419,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             substitutions: output.clone(),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
-            covered: covered.to_vec(),
+            substituted: substituted.clone(),
             edge_classes: red.edge_classes.clone(),
             unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
@@ -7327,7 +7435,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             substitutions: output.clone(),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
-            covered: covered.to_vec(),
+            substituted: substituted.clone(),
             edge_classes: red.edge_classes.clone(),
             unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
@@ -8178,10 +8286,10 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let profile = [(0.1, 0.2), (1.3, 0.25), (1.1, 1.7), (0.05, 0.9)];
         let mut turned = profile;
-        turned.rotate_left(3);
+        turned.rotate_left(1);
         let (low, high) = (
-            quad_prism(&profile, 0.7, Tol::witness()),
             quad_prism(&turned, 0.7, Tol::witness()),
+            quad_prism(&profile, 0.7, Tol::witness()),
         );
         let volume = |body| crate::mass_properties(body, Tol::witness()).unwrap().volume;
         assert!(
@@ -9938,7 +10046,7 @@ mod from_computed_rows {
         let band = Band::linear(tol).unwrap();
         let profile = [(0.1, 0.2), (1.3, 0.25), (1.1, 1.7), (0.05, 0.9)];
         let mut turned = profile;
-        turned.rotate_left(3);
+        turned.rotate_left(1);
         let off = SymBudget {
             max_terms: 0,
             max_degree: 0,
@@ -9957,7 +10065,7 @@ mod from_computed_rows {
                 );
                 body
             };
-            let (low, high) = (prism(&profile), prism(&turned));
+            let (low, high) = (prism(&turned), prism(&profile));
             let got = volume_backstop(
                 BooleanOp::Intersect,
                 &low,

@@ -476,11 +476,16 @@ fn a_seam_group_tied_parents_share_is_not_counted() {
     let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Z), 3.2);
     let ev2 = silent(run(&doc2, Some(&ev1)));
     let ev1 = silent(ev1);
-    // A seam whose A face is one of the first cut's TIED rows.
+    // A seam a side of which is one of the first cut's TIED rows, as the
+    // second cut carries it in.
     let tied = ev1.table_at(sub).expect("the first cut evaluates");
+    let is_tied = |side: &StableName| match side.path.as_slice() {
+        [RoleSeg::From { of, .. }] => matches!(tied.lookup(of), Some(Entry::Tied(_))),
+        _ => false,
+    };
     let rows = vanished((&doc, &ev2), (&doc, &ev1), cut, |n, _| {
         match n.path.first() {
-            Some(RoleSeg::Seam { a, .. }) => matches!(tied.lookup(a), Some(Entry::Tied(_))),
+            Some(RoleSeg::Seam { a, b }) => is_tied(a) || is_tied(b),
             _ => false,
         }
     });

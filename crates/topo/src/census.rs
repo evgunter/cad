@@ -71,9 +71,11 @@
 //!   only in touches refuse on the touch analysis. Why that decides a
 //!   pair, and on what premises, is stated once, at arm 2's loop in
 //!   [`sweep_cross_solid_backstop`].
-//! - **Genuinely undetected until C9/C6**: SAME-solid distinct-key
-//!   curved pairs (the backstop is cross-solid — a single solid's own
-//!   curved faces are its constructor's obligations), and one
+//! - **Discovered within one solid**: two faces on distinct carriers
+//!   touching along their closed-form tangent line through both
+//!   interiors ([`sweep_same_solid_tangent_lines`]).
+//! - **Genuinely undetected until C9/C6**: the other SAME-solid
+//!   distinct-key curved pairs (the backstop is cross-solid), and one
 //!   cross-solid residue named at that loop: a pair whose ONLY
 //!   meetings are declared has some of its records taken on their word
 //!   (`work/contacthold/declared-only-meetings-clear-at-the-census-gate-unread.md`).
@@ -597,6 +599,9 @@ struct Trees {
     /// The curved edges, in arena order — pass 2′'s answering side, and
     /// pass 5′'s query side, self-joined for its curved pairs.
     curved: Class,
+    /// Every face, curved or planar, in arena order — self-joined by the
+    /// same-solid tangent-line pass.
+    every_face: Class,
 }
 
 /// One entity class under the strategy: its padded boxes in snapshot
@@ -663,7 +668,7 @@ fn empty_box() -> Aabb {
 }
 
 /// The candidate pairs every sweep examines, under one strategy: the
-/// three snapshot classes and the curved edges, and a door for the
+/// three snapshot classes, the curved edges and every face, and a door for the
 /// classes the backstop
 /// builds over its own boxes.
 struct Candidates {
@@ -671,6 +676,8 @@ struct Candidates {
     trees: Trees,
     /// The curved edges [`Trees::curved`] indexes, in its order.
     curved: Vec<EdgeKey>,
+    /// The faces [`Trees::every_face`] indexes, in its order.
+    every_face: Vec<FaceKey>,
 }
 
 /// The item of a snapshot slice at a candidate index. The index is
@@ -703,16 +710,31 @@ impl Candidates {
             .iter()
             .map(|e| edge_box(body, e.key, pad))
             .collect();
+        let boxed = |k: FaceKey| {
+            if plant == Some(k) {
+                empty_box()
+            } else {
+                face_box(body, k, pad, band).unwrap_or_else(|_| Aabb::poison())
+            }
+        };
+        // Every face's box, once, where the same-solid tangent-line pass
+        // has a curved face to read; the planar class takes its own from
+        // them.
+        let every_face: Vec<FaceKey> = if geo.curved_faces.is_empty() {
+            Vec::new()
+        } else {
+            body.faces.keys().collect()
+        };
+        let every_face_boxes: Vec<Aabb> = every_face.iter().map(|&k| boxed(k)).collect();
+        let by_face: std::collections::BTreeMap<FaceKey, Aabb> = every_face
+            .iter()
+            .copied()
+            .zip(every_face_boxes.iter().copied())
+            .collect();
         let face_boxes: Vec<Aabb> = geo
             .faces
             .iter()
-            .map(|f| {
-                if plant == Some(f.key) {
-                    empty_box()
-                } else {
-                    face_box(body, f.key, pad, band).unwrap_or_else(|_| Aabb::poison())
-                }
-            })
+            .map(|f| by_face.get(&f.key).copied().unwrap_or_else(|| boxed(f.key)))
             .collect();
         let curved: Vec<EdgeKey> = body
             .edges
@@ -744,8 +766,10 @@ impl Candidates {
                 edges: Class::build(strategy, edge_boxes),
                 faces: Class::build(strategy, face_boxes),
                 curved: Class::build(strategy, curved_boxes),
+                every_face: Class::build(strategy, every_face_boxes),
             },
             curved,
+            every_face,
         }
     }
 
@@ -921,6 +945,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
         &mut errors,
     );
     sweep_conformal_patches(body, &geo, &declared, band, region, &mut errors);
+    sweep_same_solid_tangent_lines(body, &declared, band, &cands, &mut errors);
     sweep_cross_solid_backstop(body, &geo, &declared, band, tol, &cands, trace, &mut errors);
     confirm_records(body, &geo, contacts, band, region, &mut errors);
     errors
@@ -4067,9 +4092,11 @@ enum Bound {
 ///   envelope): distinct-key pairs. Cross-solid ones are caught by
 ///   the conservative loudness backstop
 ///   ([`sweep_cross_solid_backstop`] — refused undecidable, never
-///   silently passed); same-solid distinct-key pairs and pure
-///   tangency classes are the named residue until the C9 exclusion
-///   ring lands (CONTACT-DESIGN C2 step 1's missing first step).
+///   silently passed); a same-solid pair on distinct carriers touching
+///   along a closed-form tangent line is
+///   [`sweep_same_solid_tangent_lines`]'s, and the other same-solid
+///   distinct-key pairs are the named residue until the rest of the C9
+///   exclusion ring lands.
 ///
 /// A definitely-positive overlap is a FINDING — the kernel
 /// vocabulary's [`crate::contact::ContactFinding`], carried on the
@@ -4198,6 +4225,200 @@ fn sweep_conformal_patches<T: Decide>(
                 }
             }
         }
+    }
+}
+
+/// **Same-solid discovery along a tangent line** (C2): two faces of one
+/// solid on distinct carriers that touch along their closed-form
+/// tangent line through both interiors, read on the lane that confirms
+/// a face–face record on two carriers
+/// ([`crate::boolean::tangent_pair_at_rest`], then
+/// [`crate::boolean::rest_line_in_both_faces`], then
+/// [`crate::boolean::tangent_table_at_rest`] in the detector posture,
+/// since no record stands behind the pair to bridge an in-band κ_rel).
+///
+/// - A void crescent (a rod resting on a plate, bridged into one
+///   solid) is a touch, and one no face–face record names is
+///   `UnrecordedContact`.
+/// - A material crescent (a bore tangent to a face from inside) owes
+///   two coincident cusp edges on the line (D1 tier 3), so a pair
+///   running through it is [`ValidationError::CuspEdgesMissing`].
+/// - A table that reads the faces apart along the line (a definite gap,
+///   a witness off a carrier, normals not parallel) has no touch to
+///   report, as the carriers decided not tangent have none; one that
+///   reads the outward normals aligned or mixed is the lane refusing
+///   typed.
+///
+/// The candidates: faces of one solid on the line lane's carrier kinds
+/// ([`geom_brep::tangent_locus_kinds`]), on distinct carriers, sharing
+/// no edge, whose padded boxes overlap. A pair the carriers give no
+/// line, or decide not tangent, has no line touch to read; a pair the
+/// records name is the confirm pass's. A touch at an isolated point,
+/// where a crescent one solid shares with itself is legal, is not this
+/// arm's.
+fn sweep_same_solid_tangent_lines<T: Decide>(
+    body: &Body<T>,
+    declared: &Declared,
+    band: Band,
+    cands: &Candidates,
+    errors: &mut Vec<ValidationError>,
+) {
+    struct Candidate {
+        face: FaceKey,
+        solid: crate::SolidKey,
+        surface: crate::geometry::SurfaceKey,
+        kind: geom::SurfaceKind,
+        edges: BTreeSet<EdgeKey>,
+    }
+    let read = |face: FaceKey| -> Option<Candidate> {
+        let f = body.get_face(face)?;
+        Some(Candidate {
+            face,
+            solid: body.solid_of_face(face)?,
+            surface: f.surface,
+            kind: body.get_surface(f.surface)?.kind(),
+            edges: face_cycles(body, f)
+                .filter_map(Result::ok)
+                .flatten()
+                .filter_map(|he| body.half_edges.get(he).map(|h| h.edge))
+                .collect(),
+        })
+    };
+    let faces: Vec<Option<Candidate>> = cands.every_face.iter().map(|&f| read(f)).collect();
+    for (i, x) in faces.iter().enumerate() {
+        let Some(x) = x else { continue };
+        for j in cands.trees.every_face.later(i) {
+            let Some(y) = candidate(&faces, j) else {
+                continue;
+            };
+            if x.solid != y.solid
+                || !geom_brep::tangent_locus_kinds(x.kind, y.kind)
+                || x.surface == y.surface
+                || declared.faces.contains(&(x.face, y.face))
+                || !x.edges.is_disjoint(&y.edges)
+            {
+                continue;
+            }
+            same_solid_tangent_pair(body, x.face, y.face, band, errors);
+        }
+    }
+}
+
+/// A two-carrier face pair's lane refusal other than a contradiction,
+/// which each caller reads for itself: an escalation is
+/// `CensusEscalated`, and a pair the lane cannot certify
+/// `CensusUnsupported`, carrying the refusal.
+fn pair_lane_refused(
+    a: FaceKey,
+    b: FaceKey,
+    refusal: crate::contact::ContactRefusal,
+) -> ValidationError {
+    match refusal {
+        crate::contact::ContactRefusal::Escalated { diag }
+        | crate::contact::ContactRefusal::Undeclared { diag } => {
+            ValidationError::CensusEscalated { cause: diag }
+        }
+        refusal => ValidationError::CensusUnsupported {
+            subject: CensusSubject::FacePair(a, b),
+            cause: CensusUnsupportedCause::ContactLane(refusal),
+        },
+    }
+}
+
+/// What [`crate::boolean::rest_line_in_both_faces`] leaves unread on a
+/// two-carrier face pair, as the census reports it.
+fn line_unread(
+    a: FaceKey,
+    b: FaceKey,
+) -> impl Fn(usize, crate::boolean::FaceUnread, &mut Vec<ValidationError>) {
+    move |i, why, held| match why {
+        crate::boolean::FaceUnread::Trim => held.push(pair_lane_refused(
+            a,
+            b,
+            crate::contact::ContactRefusal::NotCertifiable {
+                what: "a face of a two-carrier face pair whose trim the containment door does \
+                       not read",
+            },
+        )),
+        crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::OnPlane(cause)) => {
+            held.push(ValidationError::CensusEscalated { cause });
+        }
+        crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::Door(e)) => {
+            read_containment([a, b][i], Err::<(), _>(e), held);
+        }
+    }
+}
+
+/// One candidate of [`sweep_same_solid_tangent_lines`].
+fn same_solid_tangent_pair<T: Decide>(
+    body: &Body<T>,
+    a: FaceKey,
+    b: FaceKey,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    use crate::contact::ContactRefusal;
+    let (carrier, overlap) = match crate::boolean::tangent_pair_at_rest(body, a, b, band) {
+        Ok(crate::boolean::RestTangent::Line { carrier, overlap }) => (carrier, overlap),
+        Ok(crate::boolean::RestTangent::Apart | crate::boolean::RestTangent::NoLine)
+        | Err(ContactRefusal::Contradicted { .. }) => return,
+        Err(refusal) => {
+            errors.push(pair_lane_refused(a, b, refusal));
+            return;
+        }
+    };
+    let at = witness(carrier.eval((overlap.0 + overlap.1) * T::from_f64(0.5)));
+    let line = match crate::boolean::rest_line_in_both_faces(
+        body,
+        [a, b],
+        carrier,
+        overlap,
+        band,
+        line_unread(a, b),
+    ) {
+        Ok(Some(line)) => line,
+        Ok(None) => return,
+        Err(held) => {
+            errors.extend(held);
+            return;
+        }
+    };
+    match crate::boolean::tangent_table_at_rest(&line, false, band) {
+        Ok(verdict) => errors.push(ValidationError::UnrecordedContact {
+            contact: CensusContact::FaceFaceTangent {
+                finding: crate::contact::ContactFinding {
+                    pair: crate::contact::DeclaredContact {
+                        a,
+                        b,
+                        class: crate::contact::ContactClass::Tangent,
+                    },
+                    verdict,
+                },
+            },
+            witness: at,
+            margin: None,
+        }),
+        Err(ContactRefusal::Contradicted { diag, .. }) => match diag.predicate {
+            Some("contact_tangent_overlap") => {
+                errors.push(ValidationError::CuspEdgesMissing { a, b, witness: at });
+            }
+            // The faces read apart along the line: no touch.
+            Some(
+                "contact_tangent_gap"
+                | "contact_tangent_off_1"
+                | "contact_tangent_off_2"
+                | "contact_tangent_parallel"
+                | "contact_tangent_independent",
+            ) => {}
+            // Aligned or mixed outward normals: the solid's material on
+            // both sides of a sheet, which no touch explains.
+            _ => errors.push(pair_lane_refused(
+                a,
+                b,
+                ContactRefusal::Contradicted { diag, steer: None },
+            )),
+        },
+        Err(refusal) => errors.push(pair_lane_refused(a, b, refusal)),
     }
 }
 
@@ -4870,8 +5091,8 @@ enum Said {
     Touch(TouchSite),
     /// An edge through a face's interior: a crossing.
     Pierce,
-    /// A conformal patch: the conformal arm finds same-carrier CURVED
-    /// pairs only, so it is a curved touch.
+    /// A curved touch: a conformal patch (the conformal arm finds
+    /// same-carrier CURVED pairs only), or a tangent line.
     CurvedTouch,
     /// A candidate an arm left unexamined (arm 1's refusal, an
     /// unsupported face pair).
@@ -4902,7 +5123,8 @@ impl Named {
                     CensusContact::EdgeFacePierce { edge, face } => {
                         Self::Two(EntityId::Edge(edge), EntityId::Face(face), Said::Pierce)
                     }
-                    CensusContact::ConformalPatch { ref finding } => Self::Two(
+                    CensusContact::ConformalPatch { ref finding }
+                    | CensusContact::FaceFaceTangent { ref finding } => Self::Two(
                         EntityId::Face(finding.pair.a),
                         EntityId::Face(finding.pair.b),
                         Said::CurvedTouch,
@@ -4927,6 +5149,11 @@ impl Named {
                 EntityId::Face(*face),
                 Said::Touch(TouchSite::EdgeInFace(*edge, *face)),
             ),
+            // Two faces of one solid: that solid's own defect, which
+            // leaves no other solid's boundary unread.
+            ValidationError::CuspEdgesMissing { a, b, .. } => {
+                Self::Two(EntityId::Face(*a), EntityId::Face(*b), Said::CurvedTouch)
+            }
             _ => Self::Nothing,
         }
     }
@@ -5328,7 +5555,9 @@ impl TouchSite {
             CensusContact::VertexOnFace { vertex, face } => Self::VertexOnFace(vertex, face),
             CensusContact::EdgeFaceOverlap { edge, face } => Self::EdgeInFace(edge, face),
             CensusContact::EdgeEdgeCross { a, b, .. } => Self::EdgeCross(a, b),
-            CensusContact::EdgeFacePierce { .. } | CensusContact::ConformalPatch { .. } => {
+            CensusContact::EdgeFacePierce { .. }
+            | CensusContact::ConformalPatch { .. }
+            | CensusContact::FaceFaceTangent { .. } => {
                 return None;
             }
         })
@@ -8141,16 +8370,7 @@ fn confirm_face_pair<T: Decide>(
                 steer,
             }
         }
-        crate::contact::ContactRefusal::Escalated { diag }
-        | crate::contact::ContactRefusal::Undeclared { diag } => {
-            ValidationError::CensusEscalated { cause: diag }
-        }
-        refusal @ crate::contact::ContactRefusal::NotCertifiable { .. } => {
-            ValidationError::CensusUnsupported {
-                subject: CensusSubject::FacePair(a, b),
-                cause: CensusUnsupportedCause::ContactLane(refusal),
-            }
-        }
+        refusal => pair_lane_refused(a, b, refusal),
     };
     let (carrier, overlap) = match crate::boolean::tangent_pair_at_rest(body, a, b, band) {
         Ok(crate::boolean::RestTangent::Apart) => {
@@ -8158,6 +8378,13 @@ fn confirm_face_pair<T: Decide>(
             return;
         }
         Ok(crate::boolean::RestTangent::Line { carrier, overlap }) => (carrier, overlap),
+        Ok(crate::boolean::RestTangent::NoLine) => {
+            errors.push(refused(crate::contact::ContactRefusal::NotCertifiable {
+                what: "a face-face record on two carriers with no closed-form tangent locus \
+                       (plane x cylinder along a ruling, parallel cylinders)",
+            }));
+            return;
+        }
         Err(refusal) => {
             errors.push(refused(refusal));
             return;
@@ -8169,23 +8396,7 @@ fn confirm_face_pair<T: Decide>(
         carrier,
         overlap,
         band,
-        |i, why, held| match why {
-            crate::boolean::FaceUnread::Trim => held.push(ValidationError::CensusUnsupported {
-                subject: CensusSubject::FacePair(a, b),
-                cause: CensusUnsupportedCause::ContactLane(
-                    crate::contact::ContactRefusal::NotCertifiable {
-                        what: "a face of a two-carrier face-face record whose trim the \
-                               containment door does not read",
-                    },
-                ),
-            }),
-            crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::OnPlane(
-                cause,
-            )) => held.push(ValidationError::CensusEscalated { cause }),
-            crate::boolean::FaceUnread::Placement(crate::boolean::PlacementError::Door(e)) => {
-                read_containment([a, b][i], Err::<(), _>(e), held);
-            }
-        },
+        line_unread(a, b),
     );
     let line = match through {
         Ok(Some(line)) => line,
@@ -8198,7 +8409,7 @@ fn confirm_face_pair<T: Decide>(
             return;
         }
     };
-    if let Err(refusal) = crate::boolean::tangent_table_at_rest(&line, band) {
+    if let Err(refusal) = crate::boolean::tangent_table_at_rest(&line, true, band) {
         errors.push(refused(refusal));
     }
 }
@@ -8857,7 +9068,8 @@ pub fn census_contact_row(finding: &ValidationError) -> Option<crate::Coincidenc
             ..
         }
         | CensusContact::EdgeFacePierce { .. }
-        | CensusContact::ConformalPatch { .. } => return None,
+        | CensusContact::ConformalPatch { .. }
+        | CensusContact::FaceFaceTangent { .. } => return None,
     };
     Some(crate::Coincidence {
         cells: cells.map(|cell| crate::RowCell::Result { cell }),
@@ -16034,6 +16246,7 @@ mod two_carrier_records {
                         format!("Line overlap {overlap:?}")
                     }
                     Ok(crate::boolean::RestTangent::Apart) => "Apart".to_owned(),
+                    Ok(crate::boolean::RestTangent::NoLine) => "NoLine".to_owned(),
                     Err(e) => format!("Err {e:?}"),
                 };
                 let errors = census_and_certify(
@@ -16879,6 +17092,141 @@ mod split_wedge_tests {
         assert!(
             read > 0,
             "a split side kept the pinch's two edges on the line"
+        );
+    }
+}
+
+/// The same-solid tangent-line pass ([`sweep_same_solid_tangent_lines`])
+/// on bodies built directly: two cylinder-wall sheets, each its own
+/// solid as built and filed under one where the row says, which no op
+/// reaches (two parallel cylinders touching along a ruling).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod same_solid_tangent_lines {
+    use super::*;
+    use crate::test_support_fixtures::{CylFrame, CylKey, cyl_wall_sheet_keyed};
+    use geom_core::{Point3, Tol, Vec3};
+
+    /// A sheet about +z through `(x, 0)` of `radius`, its seam (`u = 0`)
+    /// along `seam`.
+    fn frame(x: f64, radius: f64, seam: f64) -> CylFrame {
+        CylFrame {
+            origin: Point3::new(x, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            radius,
+            u_ref: Vec3::unit_x() * seam,
+        }
+    }
+
+    /// Two cylinder-wall sheets over angles `±u` about each seam and
+    /// heights (0, 1) and (0.2, 0.8), each face's sense given (`true`:
+    /// material inside the cylinder), filed under one solid when
+    /// `one_solid`. Each sheet's seed face keeps its placeholder, so the
+    /// two walls are the only faces on the lane. The census with no
+    /// record, and what it says of the two walls.
+    fn walls(
+        (a, sense_a, ua): (CylFrame, bool, f64),
+        (b, sense_b, ub): (CylFrame, bool, f64),
+        one_solid: bool,
+    ) -> (Vec<ValidationError>, Vec<String>) {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let (fa, _) = cyl_wall_sheet_keyed(&mut body, a, CylKey::Bare, (-ua, ua), (0.0, 1.0), tol);
+        let (fb, _) = cyl_wall_sheet_keyed(&mut body, b, CylKey::Bare, (-ub, ub), (0.2, 0.8), tol);
+        crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+        body.get_face_mut(fa).unwrap().sense = sense_a;
+        body.get_face_mut(fb).unwrap().sense = sense_b;
+        if one_solid {
+            body.merge_all_solids().unwrap();
+        }
+        let errors = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            Band::linear(tol).unwrap(),
+            tol,
+            None,
+        );
+        let pair = |x: FaceKey, y: FaceKey| (x, y) == (fa, fb) || (x, y) == (fb, fa);
+        let said = errors
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::UnrecordedContact {
+                    contact: CensusContact::FaceFaceTangent { finding },
+                    ..
+                } if pair(finding.pair.a, finding.pair.b) => Some("touch".to_owned()),
+                ValidationError::CuspEdgesMissing { a, b, .. } if pair(*a, *b) => {
+                    Some("cusp edges missing".to_owned())
+                }
+                ValidationError::CensusUnsupported {
+                    subject: CensusSubject::FacePair(x, y),
+                    cause: CensusUnsupportedCause::ContactLane(r),
+                } if pair(*x, *y) => Some(format!("unsupported {r:?}")),
+                ValidationError::CensusEscalated { cause } => {
+                    Some(format!("escalated {}", cause.predicate.unwrap_or("?")))
+                }
+                _ => None,
+            })
+            .collect();
+        (errors, said)
+    }
+
+    /// Two unit rods side by side, touching along x = 1 with the void
+    /// between them (each sheet's seam facing the other), one solid: a
+    /// touch no record names. The same two as two solids: not this
+    /// pass's, so nothing it says (red when the pass drops its solid
+    /// test). Both sheet orders.
+    #[test]
+    fn two_rods_touching_outside_in_one_solid_are_an_unrecorded_touch() {
+        for flip in [false, true] {
+            let (x, y) = (
+                (frame(0.0, 1.0, 1.0), true, 0.5),
+                (frame(2.0, 1.0, -1.0), true, 0.3),
+            );
+            let (x, y) = if flip { (y, x) } else { (x, y) };
+            let (errors, said) = walls(x, y, true);
+            assert_eq!(said, ["touch"], "flip {flip}, one solid: {errors:?}");
+            let (errors, said) = walls(x, y, false);
+            assert_eq!(
+                said,
+                Vec::<String>::new(),
+                "flip {flip}, two solids: {errors:?}"
+            );
+        }
+    }
+
+    /// A cylinder of radius 2 holding a bore of radius 0.5 tangent to it
+    /// from inside along x = 2, one solid: the material crescent between
+    /// them owes two cusp edges. Both sheet orders.
+    #[test]
+    fn a_bore_tangent_inside_a_cylinder_in_one_solid_misses_its_cusp_edges() {
+        for flip in [false, true] {
+            let (x, y) = (
+                (frame(0.0, 2.0, 1.0), true, 0.3),
+                (frame(1.5, 0.5, 1.0), false, 0.5),
+            );
+            let (x, y) = if flip { (y, x) } else { (x, y) };
+            let (errors, said) = walls(x, y, true);
+            assert_eq!(said, ["cusp edges missing"], "flip {flip}: {errors:?}");
+        }
+    }
+
+    /// A unit cylinder holding a bore of radius 1 − δ tangent to it from
+    /// inside, δ three escalation bands: κ_rel = δ / (1 − δ) reads in
+    /// band, and with no record to bridge it the pass escalates on the
+    /// second order and finds nothing. Red when the pass reads the pair
+    /// in the declared posture, which bridges the residue into a touch.
+    #[test]
+    fn a_near_equal_bore_in_one_solid_escalates_on_its_second_order() {
+        let d = 3.0 * Band::linear(Tol::witness()).unwrap().escalate();
+        let (errors, said) = walls(
+            (frame(0.0, 1.0, 1.0), true, 0.5),
+            (frame(d, 1.0 - d, 1.0), false, 0.3),
+            true,
+        );
+        assert_eq!(
+            said,
+            ["escalated contact_tangent_second_order"],
+            "δ = {d}: {errors:?}"
         );
     }
 }
