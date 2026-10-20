@@ -285,7 +285,7 @@ impl Select {
         };
         if !holds.admits(names.len()) {
             return Some(SelectionFault::Count {
-                holds,
+                kind,
                 count: names.len(),
             });
         }
@@ -396,11 +396,12 @@ pub enum SelectionFault {
         /// The entity kind the names name.
         entity: crate::names::EntityKind,
     },
-    /// A selection holding a count of names its kind does not hold.
+    /// A selection holding a count of names its kind does not hold
+    /// ([`VarKind::selection`]).
     Count {
-        /// What the kind holds.
-        holds: SelectionCount,
-        /// How many it holds.
+        /// The selection's kind.
+        kind: VarKind,
+        /// How many names it holds.
         count: usize,
     },
     /// An edge set not strictly increasing at `at`: a swap or a repeat
@@ -432,6 +433,23 @@ pub enum SelectionFault {
     OtherBody,
 }
 
+impl SelectionFault {
+    /// **What a count fault's kind holds**: its entity kind and how many
+    /// names, `None` for a fault that is not about the count.
+    #[must_use]
+    pub fn count_bound(&self) -> Option<(crate::names::EntityKind, SelectionCount)> {
+        match self {
+            Self::Count { kind, .. } => kind.selection(),
+            Self::NotASelection { .. }
+            | Self::Seat { .. }
+            | Self::NotCanonical { .. }
+            | Self::Kind { .. }
+            | Self::Repeated { .. }
+            | Self::OtherBody => None,
+        }
+    }
+}
+
 impl core::fmt::Display for SelectionFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -444,12 +462,17 @@ impl core::fmt::Display for SelectionFault {
                     entity.noun()
                 )
             }
-            Self::Count { holds, count } => {
-                write!(
+            Self::Count { kind, count } => match kind.selection() {
+                // A singleton's kind is its entity's noun ("an edge"); a
+                // set's is "set of …".
+                Some((entity, holds @ SelectionCount::One)) => write!(
                     f,
-                    "a selection of this kind holds {holds} name, not {count}"
-                )
-            }
+                    "{} {kind} holds {holds} name, not {count}",
+                    entity.article()
+                ),
+                Some((_, holds)) => write!(f, "a {kind} holds {holds} name, not {count}"),
+                None => write!(f, "a {kind} is not a selection"),
+            },
             Self::OtherBody => f.write_str("the body named is not the body read"),
             Self::NotCanonical { at } => write!(
                 f,

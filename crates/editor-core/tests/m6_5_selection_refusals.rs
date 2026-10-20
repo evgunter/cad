@@ -421,7 +421,7 @@ fn an_empty_selection_refuses_at_the_insert() {
             err,
             editor_core::EditError::SelectionShape {
                 fault: editor_core::SelectionFault::Count {
-                    holds: editor_core::SelectionCount::AtLeastOne,
+                    kind: editor_core::VarKind::Edges,
                     count: 0,
                 },
                 ..

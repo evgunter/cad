@@ -20,8 +20,7 @@ use editor_core::ExtrudeSide;
 
 use editor_core::{
     CapEnd, DocEdit, EditError, EntityKind, Node, Operand, PersistError, ProfileDoc, RecipeNodeId,
-    RoleSeg, Select, SelectionCount, SelectionFault, SnapshotError, StableName, VarKind, apply,
-    load, save,
+    RoleSeg, Select, SelectionFault, SnapshotError, StableName, VarKind, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -301,19 +300,64 @@ fn an_empty_selection_is_refused_at_the_insert_door() {
             },
             Tol::witness(),
         ) {
-            Err(EditError::SelectionShape {
-                fault:
-                    SelectionFault::Count {
-                        holds: SelectionCount::AtLeastOne,
-                        count: 0,
-                    },
-                ..
-            }) => {}
+            Err(
+                error @ EditError::SelectionShape {
+                    fault:
+                        SelectionFault::Count {
+                            kind: VarKind::Edges,
+                            count: 0,
+                        },
+                    ..
+                },
+            ) => {
+                // The sentence names the kind, and the recourse says what
+                // to name rather than an order to put the names in.
+                let said = error.to_string();
+                assert!(
+                    said.contains("a set of edges holds at least one name, not 0")
+                        && said.contains("name at least one edge of the body it reads")
+                        && !said.contains("stored order"),
+                    "the count refusal's sentence and recourse: {said}"
+                );
+            }
             other => panic!("an empty selection must refuse typed, got {other:?}"),
         }
     }
     // A shell's empty set is the sealed hollow: the bound is the kind's.
     assert!(Select::fault(VarKind::Faces, &[]).is_none());
+}
+
+/// **A selection read by id is held to the same count**: an empty edge
+/// set minted with no door around it (`edit::selection_into`), then
+/// read by a fillet as a variable, refuses at the insert rather than
+/// reaching evaluation.
+#[test]
+fn an_empty_selection_read_by_id_is_refused_at_the_insert_door() {
+    let (mut doc, solid) = prism();
+    let body = doc.output(solid, 0).expect("the prism's body is read");
+    let empty =
+        editor_core::edit::selection_into(&mut doc, editor_core::OperandSlot::Selection, body, &[]);
+    match apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Fillet {
+                radius: fixture::len(0.0625),
+                selection: Operand::Var(empty),
+            }),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::SelectionShape {
+            fault:
+                SelectionFault::Count {
+                    kind: VarKind::Edges,
+                    count: 0,
+                },
+            ..
+        }) => {}
+        other => panic!("an empty selection read by id must refuse typed, got {other:?}"),
+    }
 }
 
 /// **The load door refuses an empty selection with the same fault**.
@@ -345,7 +389,7 @@ fn an_empty_selection_is_refused_at_the_load_door() {
         Err(PersistError::Snapshot(SnapshotError::SelectionShape {
             fault:
                 SelectionFault::Count {
-                    holds: SelectionCount::AtLeastOne,
+                    kind: VarKind::Edges,
                     count: 0,
                 },
             ..

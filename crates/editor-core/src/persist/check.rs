@@ -2566,7 +2566,7 @@ mod tests {
             SnapshotError::SelectionShape {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
                 fault: crate::var::SelectionFault::Count {
-                    holds: crate::var::SelectionCount::One,
+                    kind: crate::VarKind::Edge,
                     count: 2,
                 },
             },

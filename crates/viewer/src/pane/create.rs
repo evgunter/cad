@@ -1764,7 +1764,7 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             let commit = ui
                 .add_enabled(count > 0, egui::Button::new(ToolKind::Blend.commit()))
-                .on_disabled_hover_text("pick an edge first: a blend blends at least one");
+                .on_disabled_hover_text("pick an edge first");
             if commit.clicked() {
                 match self.notation.length_literal(self.drafts.blend_size) {
                     Ok(size) => {

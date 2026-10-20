@@ -101,12 +101,13 @@ fn messages(
 /// **The fillet's SELECTION refusal text is byte-frozen, and its op
 /// row is prefix-pinned** — deliberately not two byte pins.
 ///
-/// The selection row is this layer's own text and freezes whole. The op row's tail is the kernel's message, which quotes an
-/// arena key, so it is pinned by PREFIXES instead: the wrapper's, and
-/// the kernel payload's opening words — the exact text the verb-
-/// vocabulary unit reworded (the payload no longer opens "fillet: ";
-/// the wrapper is the one verb), so this is where a regression toward
-/// a re-verbed inner Display shows up on the fillet side.
+/// The selection row is this layer's own text and freezes whole. The
+/// op row's tail is the kernel's message, which quotes an arena key, so
+/// it is pinned by PREFIXES instead: the wrapper's, and the kernel
+/// payload's opening words — the exact text the verb-vocabulary unit
+/// reworded (the payload no longer opens "fillet: "; the wrapper is the
+/// one verb), so this is where a regression toward a re-verbed inner
+/// Display shows up on the fillet side.
 #[test]
 fn the_fillets_selection_refusal_is_byte_frozen_and_the_op_row_prefix_pinned() {
     let got = messages(Node::fillet);
