@@ -115,15 +115,17 @@ fn motion<T: Decide>(p: &Pose) -> RigidMotion<T> {
     RigidMotion::rotation(ax, T::from_f64(p.angle)).unwrap()
 }
 
-/// The pair read at `T`, the world ends, and the stored plane (at `f64`).
+/// The pair read at `T`, the world ends, and the stored plane; `None`
+/// where the turned prism does not certify at the run's ε (at `Interval`,
+/// whose rotation's enclosures pass 1e-12).
 fn read_pose<T: Decide + crate::props::AtRestPolicy>(
     p: &Pose,
     band: Band,
-) -> (Found, [Point3<T>; 2], Point3<T>, Vec3<T>) {
+) -> Option<(Found, [Point3<T>; 2], Point3<T>, Vec3<T>)> {
     let (poly, _) = profile(p.kind, p.w);
     let prism = crate::test_support_fixtures::prism_z::<T>(&poly, 0.0, 1.0, Tol::witness());
     let m = motion::<T>(p);
-    let mut body = crate::transform_rigid(&prism.body, &m, Tol::witness()).unwrap();
+    let mut body = crate::transform_rigid(&prism.body, &m, Tol::witness()).ok()?;
     let face = prism.top_face;
     let s = body.get_face(face).unwrap().surface;
     let (o, n) = match body.surfaces.get_mut(s).unwrap() {
@@ -140,7 +142,7 @@ fn read_pose<T: Decide + crate::props::AtRestPolicy>(
     let declared = Declared::index(&geo, &ContactRecords::default());
     let mut errors = Vec::new();
     pair_edge_face(&body, &geo, &declared, band, None, &e, f, &mut errors);
-    (found(&errors), ends, o, n)
+    Some((found(&errors), ends, o, n))
 }
 
 /// The exact crossing of the stored plane with the stored ends, in the
@@ -218,10 +220,13 @@ fn a_grazing_edge_across_a_tilted_non_convex_cap_is_read_pierced_where_it_pierce
     let mut bad = Vec::new();
     for eps in EPS {
         let band = Band::new(eps, K * eps).unwrap();
-        let (mut read, mut held, mut held_iv) = (0usize, 0usize, 0usize);
+        let (mut read, mut held, mut held_iv, mut unbuilt) = (0usize, 0usize, 0usize, 0usize);
         for _ in 0..test_utils::fuzz::scaled(COUNT / 2) {
             let pose = draw(&mut r, eps, 40.0);
-            let (f, ends, o, n) = read_pose::<f64>(&pose, band);
+            let Some((f, ends, o, n)) = read_pose::<f64>(&pose, band) else {
+                unbuilt += 1;
+                continue;
+            };
             let inside = truth(&pose, ends, o, n);
             let margin = 2.0 * band.escalate();
             let want = if inside >= margin {
@@ -231,7 +236,13 @@ fn a_grazing_edge_across_a_tilted_non_convex_cap_is_read_pierced_where_it_pierce
             } else {
                 continue;
             };
-            let (iv, ..) = read_pose::<Interval>(&pose, band);
+            let iv = match read_pose::<Interval>(&pose, band) {
+                Some((iv, ..)) => iv,
+                None => {
+                    unbuilt += 1;
+                    Found::Refused
+                }
+            };
             read += 1;
             held += usize::from(f == Found::Refused);
             held_iv += usize::from(iv == Found::Refused);
@@ -243,7 +254,8 @@ fn a_grazing_edge_across_a_tilted_non_convex_cap_is_read_pierced_where_it_pierce
             }
         }
         println!(
-            "[fuzz] {label} at ε {eps:e}: {read} poses read, {held} refused at f64, {held_iv} at Interval"
+            "[fuzz] {label} at ε {eps:e}: {read} poses read, {held} refused at f64, {held_iv} at \
+             Interval; {unbuilt} turned prisms that do not certify"
         );
     }
     assert!(
@@ -274,8 +286,8 @@ fn a_tilted_cap_read_at_any_slope_and_origin_does_not_panic() {
                 _ => r.log_uniform(0.3, 1e3),
             } * if r.below(2) == 0 { 1.0 } else { -1.0 };
             // A panic fails the row; the seed is in the log above.
-            read_pose::<f64>(&pose, band);
-            read_pose::<Interval>(&pose, band);
+            let _ = read_pose::<f64>(&pose, band);
+            let _ = read_pose::<Interval>(&pose, band);
         }
     }
     println!("[fuzz] {label}: no panic; {}", test_utils::fuzz::replay());
