@@ -181,9 +181,11 @@ use geom_core::{
     KERNEL_DEFECT_ENDING, Margin, MarginDiag, Point2, Real, Sign, Tol, Vec2,
 };
 
-/// The recourse of [`ProfileError::ArcBelowSceneResolution`]: the arc's
-/// carrier is stored at a magnitude whose `f64` rounding the tolerance
-/// cannot see past, so bring the magnitude down or the tolerance up.
+/// The recourse of [`ProfileError::ArcBelowSceneResolution`], and of
+/// the path door's [`crate::PathError::ArcMissBelowSceneResolution`]:
+/// the arc's carrier is stored, or was read back, at a magnitude whose
+/// `f64` rounding the tolerance cannot see past, so bring the magnitude
+/// down or the tolerance up.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -194,9 +196,16 @@ use geom_core::{
 )]
 pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the origin, or author the \
      arc with a smaller radius (a flatter arc stores its centre farther out); a coarser tolerance \
-     also reads it, and an arc the path lattice constructs is verified at its construction, so \
-     validating its loop with that provenance (a `ConstructedProfile`, `pncad::validated`) does \
-     not re-read it";
+     also reads it";
+
+/// The recourse of an undecided read in the path door's read-back of a
+/// constructed arc (`seg::read_back_arc`): the read sits inside the
+/// band, which a coarser tolerance clears; at a magnitude the scene
+/// resolves, a construction should land well inside ε, so it may be a
+/// kernel defect.
+pub(crate) const ARC_READ_BACK_UNDECIDED_RECOURSE: &str = "a coarser tolerance reads it, and so \
+     may moving the profile nearer the origin; where the scene resolves this size, an arc the \
+     path built should not miss by it, so report it as a possible kernel defect";
 
 /// The lever at a junction whose turn is undecided, and at one that is
 /// definitely tangent ([`crate::PathError::JunctionTangent`]):
@@ -905,6 +914,30 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_arc_chord",
         kind: EndingKind::Sized,
     },
+    // how far a constructed arc's start, turned by its sweep, lands from its end vertex (for an
+    // arc decided inline, from that vertex moved onto its circle), read back at a point scalar
+    DecisionEnding {
+        name: "path_arc_landing",
+        kind: EndingKind::Lever(ARC_READ_BACK_UNDECIDED_RECOURSE),
+    },
+    // the lesser of the authored data's headroom below the magnitude whose rounding reaches the
+    // band and the miss's clearance of the read's own rounding: a read-back miss's defect gate
+    DecisionEnding {
+        name: "path_arc_landing_resolution",
+        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
+    },
+    // a constructed arc's length, signed by the turn sense it was authored to: negative is the
+    // other arc between its ends, read back at a point scalar
+    DecisionEnding {
+        name: "path_arc_branch",
+        kind: EndingKind::Lever(ARC_READ_BACK_UNDECIDED_RECOURSE),
+    },
+    // the lesser of the authored data's headroom below the magnitude whose rounding reaches the
+    // band and the miss's clearance of the read's own rounding: a read-back miss's defect gate
+    DecisionEnding {
+        name: "path_arc_branch_resolution",
+        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
+    },
     // an authored sweep angle metered against zero
     DecisionEnding {
         name: "path_arc_sweep",
@@ -914,6 +947,30 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
     DecisionEnding {
         name: "path_arc_sweep_full",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
+    },
+    // how far a constructed arc's start vertex lies off its stored carrier, read back at a point
+    // scalar
+    DecisionEnding {
+        name: "path_arc_start_on_carrier",
+        kind: EndingKind::Lever(ARC_READ_BACK_UNDECIDED_RECOURSE),
+    },
+    // the lesser of the authored data's headroom below the magnitude whose rounding reaches the
+    // band and the miss's clearance of the read's own rounding: a read-back miss's defect gate
+    DecisionEnding {
+        name: "path_arc_start_on_carrier_resolution",
+        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
+    },
+    // how far a constructed Via arc's carrier lies off the through-point it was authored by,
+    // read back at a point scalar
+    DecisionEnding {
+        name: "path_arc_through_point",
+        kind: EndingKind::Lever(ARC_READ_BACK_UNDECIDED_RECOURSE),
+    },
+    // the lesser of the authored data's headroom below the magnitude whose rounding reaches the
+    // band and the miss's clearance of the read's own rounding: a read-back miss's defect gate
+    DecisionEnding {
+        name: "path_arc_through_point_resolution",
+        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
     },
     // a via point's lateral offset from the chord it bulges
     DecisionEnding {
@@ -1140,8 +1197,26 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         }
         "path_arc_center_radius" => "whether an authored radius is zero",
         "path_arc_chord" => "whether an authored chord has any length",
+        "path_arc_branch" => "whether an arc the path built turns the way it was authored to",
+        "path_arc_branch_resolution" => {
+            "whether an arc's wrong branch is a defect the scene resolves"
+        }
+        "path_arc_landing" => "whether an arc the path built lands on its end vertex",
+        "path_arc_landing_resolution" => {
+            "whether an arc's miss of its end vertex is a defect the scene resolves"
+        }
         "path_arc_sweep" => "whether an authored sweep angle is zero",
         "path_arc_sweep_full" => "whether an authored sweep is short of a full turn",
+        "path_arc_start_on_carrier" => "whether an arc the path built starts on its own carrier",
+        "path_arc_start_on_carrier_resolution" => {
+            "whether an arc's start off its carrier is a defect the scene resolves"
+        }
+        "path_arc_through_point" => {
+            "whether an arc the path built passes through the point it was authored through"
+        }
+        "path_arc_through_point_resolution" => {
+            "whether an arc's miss of its through-point is a defect the scene resolves"
+        }
         "path_arc_via_offset" => "whether a via point lies off the chord it bulges",
         "path_carrier_identity" => "whether two arc carriers are one circle",
         "path_carrier_meet" => "whether a ray meets a circle",
@@ -2519,11 +2594,13 @@ impl<T: Decide> ConstructedProfile<T> {
     /// answer it, and the answers are compared against the record.
     ///
     /// An arc's three consistency checks are not decided at all
-    /// ([`Consistency::ByConstruction`]): each arc was verified at its
-    /// construction in the guided replay, at this scalar (D1) — a
-    /// `Center` arc by `path_arc_center_equidistant`, which the path
-    /// door decides inline, and a lowered arc by the exact witness of
-    /// the endpoint identities its lowering registers.
+    /// ([`Consistency::ByConstruction`]): each arc was checked at its
+    /// construction in the guided replay, at this scalar (D1). At an
+    /// exact scalar the check is the exact witness of the endpoint
+    /// identities its lowering registers, or the door's inline decision
+    /// (a `Center` arc's `path_arc_center_equidistant`); at a point
+    /// scalar it is the door's read-back of the stored arc against what
+    /// was authored (`seg::read_back_arc`).
     ///
     /// # Errors
     ///

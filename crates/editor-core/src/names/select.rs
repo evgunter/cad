@@ -251,7 +251,7 @@ impl SegTag {
             RoleSeg::Merged(..) => Self::Merged,
             RoleSeg::Fragment(..) => Self::Fragment,
             RoleSeg::SplitBody => Self::SplitBody,
-            RoleSeg::SectionFace { .. } => Self::SectionFace,
+            RoleSeg::SectionFace => Self::SectionFace,
             RoleSeg::SectionEdge { .. } => Self::SectionEdge,
             RoleSeg::SplitFragment { .. } => Self::SplitFragment,
             RoleSeg::CrossingVertex { .. } => Self::CrossingVertex,
@@ -342,7 +342,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         // Side-free segments (kept explicit — see the doc note). A
         // split's half is the variable's, not the name's (N1, the scope).
         RoleSeg::SplitBody
-        | RoleSeg::SectionFace { .. }
+        | RoleSeg::SectionFace
         | RoleSeg::SectionEdge { .. }
         | RoleSeg::SplitFragment { .. }
         | RoleSeg::CrossingVertex { .. }

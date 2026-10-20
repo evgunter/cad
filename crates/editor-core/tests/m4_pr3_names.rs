@@ -607,12 +607,8 @@ fn split_names_sections_fragments_and_crossings() {
                 .is_some()
         );
         assert!(
-            t.lookup(&minted(
-                EntityKind::Face,
-                split,
-                RoleSeg::SectionFace { section: 0 }
-            ))
-            .is_some()
+            t.lookup(&minted(EntityKind::Face, split, RoleSeg::SectionFace))
+                .is_some()
         );
     }
     // Caps pass through UNCHANGED (names still minted at the extrude;

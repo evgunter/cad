@@ -106,7 +106,9 @@ pub use containment::{
     Escalation, LoopContainment, LoopDecision, OffPlane, OffPlaneCause, PointInLoopError,
     Uncrossable, UncrossableCarrier, point_in_loop,
 };
-pub use finish::{SplitContacts, SplitFinishError, SplitNaming, SplitPart, SplitResult};
+pub use finish::{
+    PlanePieces, SplitContacts, SplitFinishError, SplitNaming, SplitPart, SplitResult,
+};
 pub use neighborhood::classify_neighborhood;
 pub use section::{
     Section, SectionEdge, SectionError, SectionPolygon, SectionRegion, plane_section,
@@ -1184,7 +1186,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             // On this run's own output: a refusal discards it.
-            finish::end_maximal(body, side, &mut result.naming, tol)?;
+            finish::end_maximal(body, side, &mut result.naming, plane.normal.get(), tol)?;
             // The side's tier-2 gate again, on the body as joined.
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;

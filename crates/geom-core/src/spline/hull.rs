@@ -573,11 +573,12 @@ impl KnotVector {
     /// [`C1Break::Degree1Crease`] at degree 1 with an interior knot,
     /// [`C1Break::Crease`] at a full-multiplicity interior knot.
     pub fn c1(&self) -> Result<(), C1Break> {
-        match self.derived() {
-            Derived::Vector(_) => Ok(()),
-            Derived::SpanConstant(breaks) if breaks.len() == 2 => Ok(()),
-            Derived::SpanConstant(_) => Err(C1Break::Degree1Crease),
-            Derived::Discontinuous { .. } => Err(C1Break::Crease),
+        // A crease is [`KnotStructure::crease_runs`]'s; at degree ≥ 2 it
+        // is exactly where the derivative is [`Derived::Discontinuous`].
+        match (self.structure().crease_runs().next(), self.degree()) {
+            (None, _) => Ok(()),
+            (Some(_), 1) => Err(C1Break::Degree1Crease),
+            (Some(_), _) => Err(C1Break::Crease),
         }
     }
 

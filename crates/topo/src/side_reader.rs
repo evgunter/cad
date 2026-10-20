@@ -16,12 +16,12 @@
 //! ([`crate::boolean::solid_contain`]'s crossing walk), logged under their
 //! own rows ([`AIMED_ROWS`]) so the two readers' verdicts stay apart.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Point3, Vec3};
 
 use crate::body::Body;
 use crate::boolean::SolidContainment;
 use crate::boolean::solid_contain::{
-    FaceGeo, PointInSolidError, RayRows, SolidFaces, face_geo, face_plane, ray_crossings,
+    FaceGeo, PointInSolidError, RayHit, RayRows, SolidFaces, face_geo, face_plane, ray_crossings,
     selection_reach, side_before, uncrossable,
 };
 use crate::entity::{EntityId, FaceKey, LoopBoundary};
@@ -34,6 +34,10 @@ pub(crate) const AIMED_ROWS: RayRows = RayRows {
     clearance: "side_at_infinity_clearance",
     beside: "side_at_infinity_beside",
     order: "side_at_infinity_order",
+    vertex: "side_at_infinity_vertex",
+    edge: "side_at_infinity_edge",
+    edge_span: "side_at_infinity_edge_span",
+    winding: "side_at_infinity_winding",
 };
 
 /// **Two crossings of an aimed ray in band of each other along it** —
@@ -54,7 +58,7 @@ pub struct AimedPair {
     /// decisions"), so it takes the witness posture
     /// (`census::witness`).
     pub aim: String,
-    /// The face of the ray's closest crossing.
+    /// The face of one crossing.
     pub near: FaceKey,
     /// The face of the crossing in band of it.
     pub far: FaceKey,
@@ -91,21 +95,27 @@ pub struct SetAside {
 /// `carried_refusal_payloads_are_matchable_through_the_prelude` and a
 /// Python word per arm, both the façade crate's to write.
 ///
-/// **The falsifier is a Python caller who must tell a sharp corner from
+/// **The falsifier is a Python caller who must tell a corner from
 /// a crossing in band of a face's boundary** without reading the
 /// sentence. When the façade carries the reading, delete this paragraph
 /// and the disposition row with it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SetAsideWhy {
-    /// Its two closest crossings lie in band of each other on faces that
-    /// meet: a sharp corner, whose gap closes at the cell the faces
-    /// share, and no pair.
+    /// It passes within the band of a vertex, and reads nothing (D10,
+    /// Booleans): a corner, never a pair.
     Corner {
-        /// The face of its closest crossing.
-        near: FaceKey,
-        /// The face of the crossing in band of it.
-        far: FaceKey,
-        /// Their gap along the ray, in band.
+        /// Two faces at the corner.
+        faces: [FaceKey; 2],
+        /// The ray's distance from the vertex, in band.
+        gap: Indeterminate,
+    },
+    /// It passes within the band of two edges of one face, narrower than
+    /// the band there, and reads nothing (D10, Booleans): a wedge, never
+    /// a pair.
+    Wedge {
+        /// The face and the other face of one of its edges.
+        faces: [FaceKey; 2],
+        /// The ray's distance from the nearer edge met in band.
         gap: Indeterminate,
     },
     /// A crossing it could not place: in band of a face's boundary, or
@@ -191,11 +201,19 @@ impl core::fmt::Display for UnreadRays<'_> {
                 write!(f, " (aimed at {aim})")?;
             }
             match &s.why {
-                SetAsideWhy::Corner { near, far, gap } => write!(
+                SetAsideWhy::Corner { faces, gap } => write!(
                     f,
-                    ", {} and {}, which meet, crossed in band of each other at a sharp corner: {}",
-                    EntityId::Face(*near),
-                    EntityId::Face(*far),
+                    ", it passed in band of a corner of {} and {}: {}",
+                    EntityId::Face(faces[0]),
+                    EntityId::Face(faces[1]),
+                    gap.payload()
+                )?,
+                SetAsideWhy::Wedge { faces, gap } => write!(
+                    f,
+                    ", it passed in band of two edges of {}, narrower than the band there \
+                     (one of them shared with {}): {}",
+                    EntityId::Face(faces[0]),
+                    EntityId::Face(faces[1]),
                     gap.payload()
                 )?,
                 SetAsideWhy::Crossing(PointInSolidError::Escalated { face, diag }) => write!(
@@ -239,16 +257,18 @@ impl<V> SideUnread<V> {
 type Aim<T> = (Point3<T>, Vec3<T>);
 
 /// **Where a ray aimed at `face` aims**, and the face's outward normal
-/// there. A planar face aims at a point certified strictly inside it
+/// there. A planar face whose outer loop is all lines aims at the mean of
+/// its points ([`line_loop_mean`]), which asks nothing: the ray meets
+/// the edges it passes, however near ([`ray_crossings`]). Another planar
+/// face aims at a point certified strictly inside it
 /// ([`crate::stands::planar_interior_point`]), and offers none where no
 /// candidate certifies. A cylinder, cone or torus face aims at its
 /// chart's point at the middle of its window (a full turn's middle where
-/// it wraps), and a closed sphere at a fixed point of its chart; neither
-/// is certified inside the face, nor needs to be: the ray's start lies
-/// beyond every face whatever it aims at, so its closest crossing reads
-/// the side wherever it lands, and an aim off the face only steers it.
-/// A trimmed sphere, a cone this door cannot trim and a spline offer
-/// none.
+/// it wraps), and a closed sphere at a fixed point of its chart; none of
+/// these needs to lie inside the face: the ray's start lies beyond every
+/// face whatever it aims at, so its count reads the side wherever it
+/// lands, and an aim off the face only steers it. A trimmed sphere, a
+/// cone this door cannot trim and a spline offer none.
 ///
 /// # Errors
 ///
@@ -262,6 +282,9 @@ fn aim_at<T: Decide>(
 ) -> Result<Option<Aim<T>>, PointInSolidError> {
     match face_plane(body, face) {
         Ok((_, normal)) => {
+            if let Some(aim) = line_loop_mean(body, face) {
+                return Ok(Some((aim, normal)));
+            }
             return Ok(
                 crate::stands::planar_interior_point(body, face, band)?.map(|aim| (aim, normal))
             );
@@ -292,6 +315,31 @@ fn aim_at<T: Decide>(
             .flatten()
             .map(|normal| (aim, normal.vec())),
     )
+}
+
+/// The mean of the points of planar `face`'s outer loop, where every
+/// edge of it is a line: an aim that asks nothing, which the ray crosses
+/// edge by edge however near an edge it lands ([`ray_crossings`]).
+/// `None` for a loop with a curved edge, or one that does not walk.
+fn line_loop_mean<T: geom_core::Real>(body: &Body<T>, face: FaceKey) -> Option<Point3<T>> {
+    let outer = body.get_face(face)?.outer;
+    let first = match body.get_loop(outer)?.boundary {
+        LoopBoundary::Cycle { first } => first,
+        // An outer loop with no edge has no points to take the mean of;
+        // the certified interior point, asked next, reads the same face.
+        LoopBoundary::Empty { .. } => return None,
+    };
+    let origin = Point3::new(T::zero(), T::zero(), T::zero());
+    let (mut sum, mut n) = (Vec3::zero(), T::zero());
+    for h in body.loop_walk(first).closed("loop", first) {
+        let he = body.get_half_edge(h)?;
+        if !crate::census::edge_is_line(body, he.edge) {
+            return None;
+        }
+        sum = sum + (*body.get_point(body.get_vertex(he.start)?.point)? - origin);
+        n = n + T::one();
+    }
+    Some(origin + sum / n)
 }
 
 /// **How far from `aim` any face of the selection reaches**: the loops'
@@ -333,8 +381,8 @@ fn beyond<T: Decide>(
 }
 
 /// **Whether faces `a` and `b` meet**, so that a ray's two crossings of
-/// them in band of each other are a sharp corner and no pair: the gap
-/// between them closes at the cell they share.
+/// them in band of each other are no pair: the gap between them closes
+/// at the cell they share, and the ray sums them.
 /// - A face meets itself: a curved face crossed twice in band (a ray
 ///   grazing near its silhouette) is no pair either.
 /// - Two faces meet where they share an edge, or only a vertex (a
@@ -342,7 +390,7 @@ fn beyond<T: Decide>(
 ///   where a half-edge of the other does.
 ///
 /// Both faces' loops are walked in place; nothing is collected.
-fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -> bool {
+pub(crate) fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -> bool {
     if a == b {
         return true;
     }
@@ -360,9 +408,12 @@ fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -> bool {
     starts(a).any(|v| starts(b).any(|w| w == v))
 }
 
-/// The incidence an aimed ray meets its face at: `cos 60°` along the
-/// face's outward normal and `sin 60°` along the face.
-const AIM_INCIDENCE: (f64, f64) = (0.5, 0.866_025_403_784_438_6);
+/// The incidence an aimed ray meets its face at: `cos 10°` along the
+/// face's outward normal and `sin 10°` along the face. Near the normal,
+/// a face is as wide to the ray as it is, so a ray through a narrow face
+/// passes its two edges as far apart as they are; the tilt keeps the ray
+/// off the planes of a box's faces square to the aimed one.
+pub(crate) const AIM_INCIDENCE: (f64, f64) = (0.984_807_753_012_208, 0.173_648_177_666_930_33);
 
 /// The turn about the face's normal its aimed ray's tangent component
 /// makes off the normal's frame (`Vec3::orthonormal_basis`), as
@@ -382,42 +433,47 @@ fn aim_turn() -> (f64, f64) {
 /// inside out).
 ///
 /// **Aimed rays first.** Each face of the selection that offers an aim
-/// ([`aim_at`]: a planar face's certified interior point, a curved
-/// face's chart window's middle) is aimed at, in face order: the ray
-/// leaves from twice the selection's reach from that point, beyond every
-/// face, so its start lies on the side at infinity, and meets the face at
-/// 60° from its outward normal ([`AIM_INCIDENCE`]), turned about it off
-/// the coordinate planes ([`aim_turn`]). Its closest crossing's outward
-/// sign is the side, as a schedule ray's is (point containment's), its decisions
-/// logged under the aimed rows ([`AIMED_ROWS`]). The first ray that
-/// decides answers.
+/// ([`aim_at`]: a line-bounded planar face's mean point, another planar
+/// face's certified interior point, a curved face's chart window's
+/// middle) is aimed at, in face order: the ray leaves from twice the
+/// selection's reach from that point, beyond every face, so its start
+/// lies on the side at infinity, and meets the face at 10° from its
+/// outward normal ([`AIM_INCIDENCE`]), turned about it off the coordinate
+/// planes ([`aim_turn`]). It reads the side as the sign of its count of
+/// crossings (D10, Booleans; [`ray_crossings`]): a ray within the band
+/// of an edge meets it, half a crossing for each face the edge bounds,
+/// crossings in band of each other are summed, and the first nonzero
+/// running count's sign is the side, as a schedule ray's is (point
+/// containment's), its decisions logged under the aimed rows
+/// ([`AIMED_ROWS`]). The first ray that decides answers.
 ///
-/// The incidence keeps a ray's reading in band only where a pair is:
-/// the ray cannot graze the face it aims at (`d·n = −½`), and between
-/// two faces `t` apart its two crossings lie at least `t` apart, `2t`
-/// across two parallel ones, so a pair the census reads definite at
-/// `Kε` leaves the ray `2Kε`, a full `Kε` of slack against the rounding
-/// of advances measured from a start a few reaches out. A ray that
-/// grazes another face, whose hit lands in band of a face's boundary, or
-/// whose two closest crossings lie in band on faces that meet (a sharp
-/// corner, whose gap closes at the cell the faces share, and no pair) is
-/// set aside, and the next face is aimed at.
+/// **A pair is two crossings of faces that do not meet** (`meet`), in
+/// band of each other along the ray, each read where the ray meets its
+/// faces ([`RayHit::pair`]): a face's crossing, or the point where the
+/// ray passes an edge, in band of both its faces; an edge the ray passes
+/// without crossing is no party. Two faces `t` apart are met about `t`
+/// apart along the ray, less what the band lets an edge's passage slide
+/// along it, so the ray refuses only where its parties' faces lie about
+/// in band. Where the ray crosses their carriers is no such read: on a
+/// ray shallow to a face, its carrier crossing lands far off the face,
+/// beside another face.
 ///
-/// **The face-boundary band is the other half, and the slack does not
-/// cover it.** A crossing within `Kε` of a face's loop boundary
-/// (`point_in_loop_boundary`, or a curved face's trim, in band) cannot be
-/// placed in or out of the face, so its ray is set aside however
-/// definite every pair is. A planar face's aim is certified more than
-/// `Kε` inside it, so the aimed face's own crossing clears its boundary;
-/// the faces the ray crosses on the way are not chosen, and on a body
-/// thin in two directions every crossing lies near an edge. Such a body
-/// offers no ray that reads (`work/flush/the-side-reader-refuses-a-body-thin-in-two-directions-whose-pairs-are-definite.md`).
+/// **A corner or a wedge reads nothing, and is read before a pair** in
+/// the same cluster ([`crate::ray_walk::Crossings::first_count`]): D10
+/// refuses only on a pair, which restricts refusal and does not demand
+/// it, and a ray that meets a corner or a wedge reads nothing. A ray
+/// that grazes a face, meets a corner (a vertex in band of it) or a
+/// wedge (a face it passes within the band of at two of its edges,
+/// narrower than the band there), or crosses a curved face in band of
+/// its trim, reads nothing and is set aside, and the next face is aimed
+/// at. A needle narrower than about `2Kε` across offers no ray that
+/// reads: every ray through it meets a wedge.
 ///
 /// **The volume only where no face offers an aim that reads.**
 /// Where no aimed ray decided and none read in band, `volume` reads
 /// the side: a selection all of whose faces are trimmed spheres, untrimmable
-/// cones or splines, or whose rays all grazed, met a limit or crossed a
-/// sharp corner in band. A selection holding a face the ray test has no
+/// cones or splines, or whose rays all grazed, met a limit, a corner or
+/// a wedge. A selection holding a face the ray test has no
 /// arm for ([`crate::boolean::solid_contain::ray_crosses`]: a spline) casts no ray at all: every ray
 /// would fault on that face, whatever it aimed at, so the volume reads
 /// with it as the limit.
@@ -425,9 +481,9 @@ fn aim_turn() -> (f64, f64) {
 /// its pair ([`SideUnread::InBand`]) without the volume: a pair in band
 /// is the answer. The volume's sign is certified by its enclosure alone,
 /// never held against the band (D10), so it reads a thin selection as
-/// surely as a thick one. A ray whose crossings lie in band of
-/// each other on two faces that meet is set aside at a sharp corner
-/// ([`SetAsideWhy::Corner`]): it reads nothing and is never the refusal,
+/// surely as a thick one. A ray that meets a corner or a wedge is set
+/// aside ([`SetAsideWhy::Corner`], [`SetAsideWhy::Wedge`]): it reads
+/// nothing and is never the refusal,
 /// and where the volume does not read either, the volume's refusal is,
 /// carrying the rays set aside ([`SideUnread::Fallback`]).
 ///
@@ -470,7 +526,15 @@ pub(crate) fn side_at_infinity<T: Decide, V>(
 /// so N5's flip lane passes over the family (`editor_core::resolve`).
 pub const FAMILY: &str = "side_at_infinity_";
 
+/// What one aimed ray's count reads in band: a pair, or a corner or a
+/// wedge it meets ([`cast_aims`]).
+enum Unread {
+    Pair(AimedPair),
+    Mark(SetAsideWhy),
+}
+
 /// What the aimed rays read ([`cast_aims`]).
+#[derive(Debug)]
 enum Rays {
     /// A ray decided the side.
     Side(SolidContainment),
@@ -566,42 +630,41 @@ fn cast_aims<T: Decide>(
                 continue;
             }
         };
-        // The pair's gap is read as a magnitude, the distance between the
-        // two crossings whichever the scan met first.
-        let pair = |signed, &(_, far, at_far): &(Sign, FaceKey, T), &(_, near, at_near): &_| {
-            let gap = geom_core::k_stats::decide_magnitude(
-                AIMED_ROWS.order,
-                Margin::of((at_far - at_near).abs()),
-                band,
-            )
-            .err()
-            .unwrap_or(signed);
-            AimedPair {
-                shell,
-                aimed: face,
-                aim: at.clone(),
-                near,
-                far,
-                gap,
-            }
-        };
-        match crossings.closest(AIMED_ROWS.order, band, pair) {
-            Ok(Some((outward, _, _))) => return Ok(Rays::Side(side_before(outward))),
-            // Two faces that meet at a vertex are no pair: their gap closes
-            // at the cell they share, and a ray crossing a sharp corner
-            // near it reads in band however definite every pair is.
-            Err(RayFault::InBand(pair)) if meet(body, pair.near, pair.far) => {
-                set(SetAsideWhy::Corner {
-                    near: pair.near,
-                    far: pair.far,
-                    gap: pair.gap,
-                });
-            }
-            Err(RayFault::InBand(pair)) => {
+        match crossings.first_count(
+            AIMED_ROWS.order,
+            band,
+            RayHit::count,
+            |a, b| {
+                a.pair(body, b, AIMED_ROWS.order, band).map_err(|f| {
+                    f.map(|(near, gap, far)| {
+                        Unread::Pair(AimedPair {
+                            shell,
+                            aimed: face,
+                            aim: at.clone(),
+                            near,
+                            far,
+                            gap,
+                        })
+                    })
+                })
+            },
+            |hits| {
+                RayHit::unread(hits, |wedge, faces, gap| {
+                    Unread::Mark(if wedge {
+                        SetAsideWhy::Wedge { faces, gap }
+                    } else {
+                        SetAsideWhy::Corner { faces, gap }
+                    })
+                })
+            },
+        ) {
+            Ok(Some(outward)) => return Ok(Rays::Side(side_before(outward))),
+            Err(RayFault::InBand(Unread::Pair(pair))) => {
                 in_band.get_or_insert(pair);
             }
-            // `closest` reads no limit: a tie, a crossing on an edge, or
-            // none at all.
+            Err(RayFault::InBand(Unread::Mark(why))) => set(why),
+            // The count reads no limit: a tie between two faces that do
+            // not meet, a graze, or nothing that counts.
             Ok(None) | Err(_) => set(SetAsideWhy::Graze),
         }
     }
@@ -610,6 +673,18 @@ fn cast_aims<T: Decide>(
     }
     Ok(Rays::Unread { aimed, set_aside })
 }
+/// **What each solid's aimed rays read**, before the volume, as text:
+/// the probe surface `test_support::aimed_rays` renders.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn aimed_rays_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<String> {
+    body.solids()
+        .map(|(solid, _)| match SolidFaces::of(body, solid) {
+            Ok(sel) => format!("{:?}", cast_aims(body, &sel, band)),
+            Err(e) => format!("no selection: {e:?}"),
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod pre_filter_tests {
     #![allow(clippy::expect_used, clippy::panic)]

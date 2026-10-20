@@ -142,8 +142,8 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// longer sentences are the right names, not a regression. The maxima
 /// and the scoped percentiles held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 55_815]),
-    ("full", [19, 129, 196, 423_200]),
+    ("scoped faces", [16, 43, 57, 55_805]),
+    ("full", [19, 129, 196, 423_190]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -246,7 +246,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// A seam's sides and a crossing's lines named in the boolean's own
 /// table (N3) moved it with [`NAME_WORDS`], in every document holding a
 /// subtract.
-const SAID_DIGEST: u64 = 0x7e29_603b_1bbe_e3d6;
+const SAID_DIGEST: u64 = 0x11ae_c07a_9b0c_6bee;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

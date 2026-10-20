@@ -85,6 +85,8 @@ mod issue896_pole_guard;
 mod issue897_s65_cost;
 #[path = "k_funnel_composition.rs"]
 mod k_funnel_composition;
+#[path = "lofted_circle.rs"]
+mod lofted_circle;
 #[path = "loops_the_meridian_guard_admits.rs"]
 mod loops_the_meridian_guard_admits;
 #[path = "loops_with_no_rim.rs"]
