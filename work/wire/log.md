@@ -6920,3 +6920,7 @@ Signed (WIRE orchestrator).
   - `wire-emis-union` (wire/emission-union): emit_union.rs, join_names.rs, borders.rs, canonical.rs, defer.rs.
   - `wire-emis-rest` (wire/emission-rest): emit.rs, emit_sweep.rs, emit_shell.rs, emit_blend.rs, eval/*, coincide.rs, verbs/mod.rs.
   - Wire is at 69/30 load, so a split along the priority seam is owed (work/README.md "Track size"). This sitting is doing work first; the split is noted here.
+- 2026-10-20 (WIRE orchestrator) `wire-emis-topo` opened PR 5503 (head 368af77673). emit_topo's 76 raises: 8 to row 0, 48 to row 4, 3 to row 2 (SeamVertexParentage), 6 kept typed as reached, 11 survivors.
+  - It filed two rows: ten survivors have no row-1/2 variant, and a tied-set defect.
+  - PR CI ran only a narrow change-filter set; the lane's wide suites were local. A FULL review (`wire-emis-topo-rev`) re-runs the slow set and corrupt-input, and samples the row-4 claims for reach.
+  - Its emit.rs edits overlap `wire-emis-rest`'s file; that lane was told.
