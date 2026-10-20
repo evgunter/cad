@@ -6717,3 +6717,9 @@ Signed (WIRE orchestrator).
   - The fix pass was read. A ROSTERS table reds on any roster no row reaches, every level is an exhaustive match, and the reviewer's three mutations are now red. ROWLESS is replaced by OVER_BUDGET ceilings.
   - The ResultEscalated row is pinned at margin 1e-20 for one length across eps. The longer tolerance-offering form is unmeasured, noted on the hone row.
   - Three rows closed.
+
+- 2026-10-20 (WIRE orchestrator) PR 5436 (wire-blend) is green at aa71518c41, after resuming across a container restart.
+  - SelectionCount sits on the kind, with one Count fault. BlendSelectionEmpty and the viewer's BlendError go; the commit is disabled at 0 edges.
+  - Filed: band's kernel empty blend returns its input; wire's loft TooFewSections.
+  - STYLE review dispatched.
+  - Orchestrator error: blend-opus.md held the designer prompt (my extraction matched a phrase in the brief). Re-extracted; the build followed my brief's description, which matched the report.
