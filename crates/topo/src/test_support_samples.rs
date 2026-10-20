@@ -1816,8 +1816,9 @@ mod tests {
     /// door but for the file's ε_in and the file's damage** (D4 ¶1: one
     /// recourse per decision, wherever it is read): the door's ending
     /// departs from the at-rest one only through its ε_in sentences, which
-    /// name ε_in, and where a sized decision's defect ending at rest is
-    /// the file's at the door ([`geom_core::DAMAGED_FILE_ENDING`]). The
+    /// name ε_in, and where a defect ending at rest is the file's at the
+    /// door ([`geom_core::DAMAGED_FILE_ENDING`]): a sized decision's
+    /// stored contradiction, or a miss over the file's own data. The
     /// roster is [`super::certify_errors`], which `nested_coverage_gaps`
     /// holds to every `CertifyError`, `PlaneNurbsRefusal` and
     /// `AnalyticRung3Refusal` variant. Red where the door's ending departs
