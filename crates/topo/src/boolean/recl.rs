@@ -851,7 +851,7 @@ pub(super) fn recl_edges<T: Decide>(
         // it only where both ends read it), and where another edge's
         // wedge swallows an edge, the carry drops it (`ops::Descendants`).
         let mut meet = |aw: Wedge, bw: Wedge, faces: [&[Folded<T>]; 2], fallback| {
-            let (read, inside) = read_edge_edge(
+            let (read, inside) = resolve_edge_edge(
                 a_sectors, b_sectors, a_body, b_body, op, declared, band, held, faces, aw, bw,
                 fallback,
             )
@@ -1598,32 +1598,11 @@ fn common_line<T: geom_core::Real>(
 /// With no germ, the event is a touch where the op keeps every
 /// flanking face, which leaves both edges on the result's boundary
 /// ([`EdgeEdge`]).
-#[cfg(test)]
+///
+/// Returns the reading with each wedge's two flanks' membership in the
+/// other's material, A's then B's.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn resolve_edge_edge<T: Decide>(
-    a_sectors: &[BoolSector<T>],
-    b_sectors: &[BoolSector<T>],
-    a_body: &Body<T>,
-    b_body: &Body<T>,
-    op: BooleanOp,
-    declared: &super::GluedPairs<T>,
-    band: Band,
-    held: [Option<HeldFace<T>>; 2],
-    faces: [&[Folded<T>]; 2],
-    aw: Wedge,
-    bw: Wedge,
-    fallback: Option<Rep<T>>,
-) -> Result<EdgeEdge, BooleanError> {
-    read_edge_edge(
-        a_sectors, b_sectors, a_body, b_body, op, declared, band, held, faces, aw, bw, fallback,
-    )
-    .map(|(read, _)| read)
-}
-
-/// [`resolve_edge_edge`], with each wedge's flanks' membership in the
-/// other's material, A's flanks then B's.
-#[allow(clippy::too_many_arguments)]
-fn read_edge_edge<T: Decide>(
     a_sectors: &[BoolSector<T>],
     b_sectors: &[BoolSector<T>],
     a_body: &Body<T>,
@@ -2560,6 +2539,7 @@ mod tests {
                 Wedge::at_bound(&b, 0),
                 None,
             )
+            .map(|(read, _)| read)
         };
         let inside = resolve(200.0, 250.0);
         assert!(
@@ -2590,7 +2570,8 @@ mod tests {
             Wedge::at_bound(&half_turn, 0),
             Wedge::at_bound(&half_turn, 0),
             None,
-        );
+        )
+        .map(|(read, _)| read);
         assert!(
             matches!(
                 neither,
@@ -2700,6 +2681,7 @@ mod tests {
                 Wedge::at_bound(&sb, 0),
                 None,
             )
+            .map(|(read, _)| read)
         };
         let mid = (band.zero() + band.escalate()) / 2.0;
         let arms = [
