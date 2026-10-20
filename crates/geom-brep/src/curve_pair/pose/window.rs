@@ -860,8 +860,9 @@ mod rows {
         let (ka, kb) = (Conic::of(a).unwrap(), Conic::of(b).unwrap());
         let lever = ka.speed_hi().max(kb.speed_hi());
         let o = Point3::origin();
-        let noise =
-            crate::rounding_charge((ka.center - o).norm() + (kb.center - o).norm() + lever + lever);
+        let noise = geom_core::rounding_charge(
+            (ka.center - o).norm() + (kb.center - o).norm() + lever + lever,
+        );
         let w = Window {
             a: &ka,
             span_a: (-0.5, 0.5),
