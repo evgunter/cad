@@ -266,3 +266,11 @@ fn a_grazing_edge_refuses_near_a_far_origined_faces_boundary_and_reads_away_from
         assert_eq!(read::<f64>(&p, band), want, "{what}");
     }
 }
+
+#[cfg(test)]
+#[path = "pierce_probe.rs"]
+mod probe;
+
+#[cfg(test)]
+#[path = "pierce_probe_notch.rs"]
+mod probe_notch;
