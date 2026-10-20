@@ -4671,7 +4671,7 @@ fn slit_tip_on<T: geom_core::Real>(
 /// outer lane's, the arc of better [`Capture`] ([`best_arc`]); the
 /// sliver's side is read with the section's other loops
 /// ([`resolve_roles_geometric`]), and the result merges the slit's two
-/// edges across it ([`super::slit::merge_glued_slits`]). Every other
+/// edges across it ([`super::slit::merge_slivers`]). Every other
 /// refusal is [`pinch_ray_refusal`]'s.
 fn glued_slit_roles<T: Decide>(
     e: BooleanError,
@@ -4885,7 +4885,10 @@ fn cut_pair<T: Decide>(
 /// What this question adds to the ladder is [`loop_roles`]: the two
 /// loops' regions flank the seam, so their sides are opposite.
 ///
-/// **A sliver along the other's slit reads Out.** Where the other solid
+/// **A sliver along the other's slit reads Out**, where neither loop
+/// reads a side and no witness met a limit, the one case [`loop_roles`]
+/// would refuse [`SplitJoinError::SectionLoopUndecided`]; a limit keeps
+/// its refusal. Where the other solid
 /// glues away the face a slit or ring of its lies in, `side`'s face
 /// flush with it is cut along the slit's two edges, and one loop's
 /// regions are the slivers between them, faces of no area
@@ -4920,7 +4923,10 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
         )
     };
     let (mut o, mut r) = (read(outer)?, read(ring)?);
-    if matches!((&o, &r), (Reading::Undecided(_), Reading::Undecided(_))) {
+    // Only where [`loop_roles`] would refuse `SectionLoopUndecided`:
+    // a limit either loop's witnesses met still refuses as its own.
+    let undecided = |x: &Reading| matches!(x, Reading::Undecided(t) if !t.kept.met_a_limit());
+    if undecided(&o) && undecided(&r) {
         if sliver_along_a_slit(red, side, face, ring)? {
             r = Reading::Side(SideCode::Out);
         } else if sliver_along_a_slit(red, side, face, outer)? {
@@ -4931,10 +4937,10 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
 }
 
 /// Whether every region face flanking section loop `l` of null face
-/// `face`, on `side`, is a sliver along a slit or ring of the other
-/// operand's: a face with no rings whose outer loop is two straight
-/// edges, so one segment run twice and no area, with an end at the
-/// slit's tip ([`slit_tip_on`]).
+/// `face`, on `side`, is a sliver ([`super::slit::sliver_halves`]) along
+/// a slit or ring of the other operand's: both its ends are tips of that
+/// operand's slits in one face ([`slit_tip_on`]), so its one segment is
+/// the slit's line.
 fn sliver_along_a_slit<T: Decide>(
     red: &BooleanReduction<T>,
     side: Operand,
@@ -4948,27 +4954,14 @@ fn sliver_along_a_slit<T: Decide>(
     let regions = region_faces(body, face, l)?;
     Ok(!regions.is_empty()
         && regions.iter().all(|&f| {
-            let Some(data) = body.get_face(f) else {
+            let Some(halves) = super::slit::sliver_halves(body, f) else {
                 return false;
             };
-            let Some(LoopBoundary::Cycle { first }) = body.get_loop(data.outer).map(|d| d.boundary)
-            else {
-                return false;
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                return false;
-            };
-            let halves: Vec<_> = cycle
-                .iter()
-                .filter_map(|&h| body.get_half_edge(h))
-                .collect();
-            data.rings.is_empty()
-                && halves.len() == 2
-                && halves
-                    .iter()
-                    .all(|h| crate::census::edge_is_line(body, h.edge))
-                && slit_tip_on(red, side, halves.iter().map(|h| h.start))
-                    .is_some_and(|(operand, _)| operand == side.other())
+            let tips = halves.map(|h| {
+                body.get_half_edge(h)
+                    .and_then(|d| slit_tip_on(red, side, [d.start]))
+            });
+            matches!(tips, [Some(a), Some(b)] if a == b && a.0 == side.other())
         }))
 }
 

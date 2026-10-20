@@ -981,11 +981,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &declared_pairs,
         &seam_edges,
         &recorded,
-        &|b: &Body<T>| {
-            crate::census::collinear_overlaps(b, band)
-                .ok()
-                .map(|pairs| pairs.into_iter().map(|p| p.edges).collect())
-        },
         band,
         tol,
     )?;
@@ -2588,8 +2583,8 @@ fn bound_holds<'t, 'b, T: Decide>(
 pub(super) struct OutputStage {
     /// The merge of coplanar faces.
     pub(super) merged: crate::merge_faces::MergeCoplanarOutcome,
-    /// The glued slits' slivers merged away
-    /// ([`super::slit::merge_glued_slits`]).
+    /// The slivers merged away
+    /// ([`super::slit::merge_slivers`]).
     pub(super) slivers: Vec<super::slit::Sliver>,
     /// The joins, in the order made ([`BooleanNaming::edge_joins`]).
     pub(super) edge_joins: Vec<super::EdgeJoin>,
@@ -2603,9 +2598,8 @@ pub(super) struct OutputStage {
 /// over the `declared` surface pairs (none where one operand is absent
 /// from the result), the re-description of the edges the op minted
 /// (`seam_edges`, plus the boundaries of groups the merge skipped), the
-/// merge of each glued slit's two edges across its sliver
-/// ([`super::slit::merge_glued_slits`], reading which edges lie on one
-/// line by `on_one_line`), and the join
+/// merge of each sliver's two edges where its line holds no other edge
+/// ([`super::slit::merge_slivers`]), and the join
 /// ([`super::edge_join::join_stage`]), each writing its rows
 /// into the op's one `desc`. The result then has maximal faces and
 /// maximal edges, and its records are carried over `desc` after.
@@ -2614,14 +2608,12 @@ pub(super) struct OutputStage {
 ///
 /// The merge's ([`BooleanError::Merge`]), the description's, or the
 /// join's.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     desc: &mut Descendants,
     declared: &[(SurfaceKey, SurfaceKey)],
     seam_edges: &[EdgeKey],
     recorded: &BTreeSet<VertexKey>,
-    on_one_line: super::slit::OnOneLine<'_, T>,
     band: Band,
     tol: Tol,
 ) -> Result<OutputStage, BooleanError> {
@@ -2653,7 +2645,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     );
     desc.absorb_merge(&merged)?;
     describe_minted_edges(body, seam_edges, &merged, band, tol)?;
-    let slivers = super::slit::merge_glued_slits(body, on_one_line, band, tol)?;
+    let slivers = super::slit::merge_slivers(body, band, tol)?;
     super::edge_join::record_killed_lineage(
         &mut killed_lineage,
         &split_from,
@@ -7291,11 +7283,6 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 &declared_pairs,
                 &[],
                 &recorded,
-                &|b: &Body<T>| {
-                    crate::census::collinear_overlaps(b, band)
-                        .ok()
-                        .map(|pairs| pairs.into_iter().map(|p| p.edges).collect())
-                },
                 band,
                 tol,
             )?;
@@ -7433,20 +7420,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         slivers,
         edge_joins,
         killed_lineage,
-    } = finish_output(
-        &mut body,
-        &mut desc,
-        &[],
-        &[],
-        &recorded,
-        &|b: &Body<T>| {
-            crate::census::collinear_overlaps(b, band)
-                .ok()
-                .map(|pairs| pairs.into_iter().map(|p| p.edges).collect())
-        },
-        band,
-        tol,
-    )?;
+    } = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
     let output = output_substitutions(&merged, &slivers, &edge_joins)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;

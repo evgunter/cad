@@ -24,11 +24,11 @@ same sense.
 | op | `763ca322a0` | `origin/main` after PR 5368 (`985a3d37e0`) |
 |---|---|---|
 | `[0,4]²×[0,½] ∪ slit`, closed and one end | builds, v16 e24 f11 / f10, volume `16 − 0.225 L`, tiers 1–3 and 3′ | `ClassificationInvariant` "a fate cut's end lies in no corner of the dropped face" |
-| `slit ∩ [0,4]²×[0,½]`, closed and one end | builds, v14 e22 f10 / v15 e23 f10, `8 − 0.075 L` | the same refusal |
+| `slit ∩ [0,4]²×[0,½]`, closed and one end | builds, v14 e22 f10 / v15 e23 f10, `8 − 0.075 L` | `ClassificationInvariant` "a fate cut leaves a slit in the dropped face" |
 
 Five poses, both slit operands (the Boolean's and the split's), and the
 same at ε = default, 1e-6 and 1e-12: 40 cells per ε. Wall to wall
-still builds. The refusal comes from the coincident fate cut
+still builds. Both refusals come from the coincident fate cut
 (`b8043fe8d1`, "cut a dropped coincident face where its fate
 changes"). Its fate cut ends at the slit's tip, whose corner in the
 dropped face is the full turn the slit leaves (`sectors::SlitTips`).

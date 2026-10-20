@@ -1,7 +1,15 @@
-//! **The material parts an edge of the result lying in one of its own
-//! faces** (`crates/topo/README.md`, tier 3: where more than two sheets
+//! **The material decides the edges where coincident sheets meet on a
+//! line** (`crates/topo/README.md`, tier 3: where more than two sheets
 //! meet on a line, the material decides the edges, and no face passes
-//! through an edge's material wedge).
+//! through an edge's material wedge). Two operations on the result build
+//! what it decides:
+//!
+//! - **Parting** ([`part_riders`]) makes two edges of one, where an edge
+//!   lies in a face whose material crosses its wedge.
+//! - **Merging** ([`merge_slivers`]) makes one edge of two, where a face
+//!   of no area runs between them and nothing else lies on their line.
+//!
+//! # Parting
 //!
 //! The join pairs each operand's own faces into an edge. Where an edge of
 //! one operand lies in a face of the other and both its faces leave the
@@ -9,9 +17,8 @@
 //! floor), the result's material about the line is two wedges, each
 //! between the face and one of the edge's faces, and the edge as the join
 //! leaves it claims the face's empty side as well. [`part_riders`] reads
-//! every such edge of the result and builds what the material decides:
-//! two coincident distinct edges, face | wall and wall | face, carried by
-//! the face as
+//! every such edge of the result and builds two coincident distinct
+//! edges, face | wall and wall | face, carried by the face as
 //!
 //! - a zero-area ring, where neither end lies on the face's boundary;
 //! - a slit of the loop an end lies on, that end parted into one vertex
@@ -39,11 +46,21 @@
 //! pinch (`zip::split_cones`). The two edges are then described on the
 //! faces they bound.
 //!
-//! The converse runs at the output stage: where the other solid glues
-//! away the face an operand's slit or ring lies in, the material about
-//! the line is the two walls' alone, and [`merge_glued_slits`] merges
-//! the slit's two edges into one, wall | wall, across the sliver the
-//! join leaves between them.
+//! # Merging
+//!
+//! A sliver ([`sliver_halves`]) is a face with no rings whose outline is
+//! two distinct straight edges: one segment run twice, a face of no area,
+//! so no sheet. The join leaves one where it cuts a face flush with the
+//! other operand along two coincident edges and keeps the piece between
+//! them: across a slit whose face the other solid glues away
+//! (`join::glued_slit_roles`, `join::resolve_roles_geometric`), and
+//! along a pinch line two operands' faces meet on. [`merge_slivers`]
+//! runs in the output stage, after the coplanar merge. Where no other
+//! edge lies along the sliver's line, the only sheets there are the two
+//! faces beyond its edges, and they pair into one edge between them:
+//! `kef` kills one edge with the sliver, and the other is described on
+//! the two faces. A sliver whose line holds another edge is left for the
+//! result gate, whose line reading refuses its overlapping wedges.
 
 use std::collections::BTreeSet;
 
@@ -337,12 +354,7 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
     Ok((parted, kept))
 }
 
-/// Every pair of a body's edges that overlap along one line
-/// ([`crate::census::collinear_overlaps`]'s reading), or `None` where it
-/// cannot read one ([`merge_glued_slits`]).
-pub(super) type OnOneLine<'a, T> = &'a dyn Fn(&Body<T>) -> Option<Vec<[EdgeKey; 2]>>;
-
-/// One sliver the output stage merged away ([`merge_glued_slits`]).
+/// One sliver the output stage merged away ([`merge_slivers`]).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Sliver {
     /// The face of no area between the two edges.
@@ -364,80 +376,78 @@ impl Sliver {
     }
 }
 
-/// **Merges a glued slit's two edges into one edge between its walls.**
-/// Where the other solid glues away the face a slit or ring lies in,
-/// the join cuts the face flush with it along the slit's two edges and
-/// keeps the sliver between them, on the side of the slit's opening
-/// (`join::resolve_roles_geometric`), so after the coplanar merge the
-/// result holds a face whose only loop is two straight edges on one
-/// segment: wall a | sliver and sliver | wall b. The sliver has no
-/// area, so it is no sheet. Where no other edge of the result lies
-/// along its line (`on_one_line`), the two walls are the only sheets
-/// there, and the material pairs them into one edge
-/// (`crates/topo/README.md`, tier 3: the material decides the edges).
-/// `kef` kills one edge with the sliver, and the other, now wall a |
-/// wall b, is described on the two walls.
-///
-/// A sliver both of whose edges bound one other face, or whose line
-/// holds another edge, where more sheets meet and this pairing is not
-/// the material's to assume, is left for the result gate, which
-/// refuses its overlapping wedges; so is every sliver where the census
-/// cannot read which edges lie on one line, which the gate reads again
-/// and escalates.
+/// **The two halves of `face`'s outline where `face` is a sliver**: no
+/// rings, and an outline of two distinct straight edges, one segment run
+/// twice. `None` for any other face.
+pub(super) fn sliver_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<[HalfEdgeKey; 2]> {
+    if !body.get_face(face)?.rings.is_empty() {
+        return None;
+    }
+    let [h, k] = face_halves(body, face)?[..] else {
+        return None;
+    };
+    let edges = [h, k].map(|x| body.get_half_edge(x).map(|d| d.edge));
+    (edges[0] != edges[1]
+        && edges
+            .iter()
+            .all(|e| e.is_some_and(|e| crate::census::edge_is_line(body, e))))
+    .then_some([h, k])
+}
+
+/// **Merges the two edges of each sliver alone on its line into one**
+/// (module docs, *Merging*): for each sliver ([`sliver_halves`]) whose
+/// two halves' mates lie in two distinct faces other than it, and whose
+/// line holds no other edge ([`crate::census::line_holds_another_edge`]),
+/// `kef` kills the second half's edge with the sliver, and the first
+/// half's edge, now between the two faces, is described on them.
 ///
 /// # Errors
 ///
-/// The Euler operator's and the re-description's refusals.
-pub(super) fn merge_glued_slits<T: Decide + crate::props::AtRestPolicy>(
+/// [`BooleanError::Escalated`] ([`super::BooleanDecision::LineEdges`])
+/// where whether an edge lies on the sliver's line is in band, as the
+/// result gate's line reading escalates it; [`BooleanError::JoinDesync`]
+/// where `kef` kills a face other than the sliver; the Euler operator's
+/// and the re-description's refusals.
+pub(super) fn merge_slivers<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
-    on_one_line: OnOneLine<'_, T>,
     band: Band,
     tol: Tol,
 ) -> Result<Vec<Sliver>, BooleanError> {
     let mut slivers = Vec::new();
+    let mut read: BTreeSet<FaceKey> = BTreeSet::new();
     loop {
-        let candidates: Vec<(FaceKey, [HalfEdgeKey; 2])> = body
-            .faces()
-            .filter_map(|(f, data)| {
-                let crate::entity::LoopBoundary::Cycle { first } =
-                    body.get_loop(data.outer)?.boundary
-                else {
-                    return None;
-                };
-                let [h, k] = body.loop_cycle(first)?[..] else {
-                    return None;
-                };
-                let walls = [h, k].map(|x| body.mate(x).and_then(|m| body.face_of_half_edge(m)));
-                let edges = [h, k].map(|x| body.get_half_edge(x).map(|d| d.edge));
-                (data.rings.is_empty()
-                    && edges[0] != edges[1]
-                    && edges
-                        .iter()
-                        .all(|e| e.is_some_and(|e| crate::census::edge_is_line(body, e)))
-                    && walls[0] != walls[1]
-                    && !walls.contains(&Some(f)))
-                .then_some((f, [h, k]))
-            })
-            .collect();
-        if candidates.is_empty() {
-            return Ok(slivers);
-        }
-        let Some(overlaps) = on_one_line(body) else {
-            return Ok(slivers);
-        };
-        let alone = candidates.into_iter().find(|&(_, halves)| {
-            let edges = halves.map(|h| proven(&body.half_edges, h, EntityId::HalfEdge).edge);
-            overlaps.iter().all(|pair| {
-                let touches = pair.iter().filter(|e| edges.contains(e)).count();
-                touches == 0 || touches == 2
-            })
+        let next = body.faces().find_map(|(f, _)| {
+            if read.contains(&f) {
+                return None;
+            }
+            let halves = sliver_halves(body, f)?;
+            let walls = halves.map(|x| body.mate(x).and_then(|m| body.face_of_half_edge(m)));
+            match walls {
+                [Some(a), Some(b)] if a != b && a != f && b != f => Some((f, halves)),
+                _ => None,
+            }
         });
-        let Some((face, [keep, kill])) = alone else {
+        let Some((face, [keep, kill])) = next else {
             return Ok(slivers);
         };
+        read.insert(face);
         let kept = proven(&body.half_edges, keep, EntityId::HalfEdge).edge;
         let killed = proven(&body.half_edges, kill, EntityId::HalfEdge).edge;
-        body.kef_minting(kill, tol)?;
+        let alone = !crate::census::line_holds_another_edge(body, [kept, killed], band).map_err(
+            |(_, diag)| BooleanError::Escalated {
+                decision: super::BooleanDecision::LineEdges,
+                diag,
+            },
+        )?;
+        if !alone {
+            continue;
+        }
+        let done = body.kef_minting(kill, tol)?;
+        if done.killed_face != face || done.killed_edge != killed {
+            return Err(BooleanError::JoinDesync {
+                what: "the sliver's kef killed another face or edge",
+            });
+        }
         super::ops::describe_edges(body, [kept], &[], band, tol)
             .map_err(super::ops::of_describe)?;
         slivers.push(Sliver { face, killed, kept });

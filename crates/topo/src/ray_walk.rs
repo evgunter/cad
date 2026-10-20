@@ -200,6 +200,12 @@ impl<E> Evidence<E> {
         }
     }
 
+    /// Whether a limit was kept: [`Self::ranked`] reads
+    /// [`Ranked::Blocked`].
+    pub(crate) const fn met_a_limit(&self) -> bool {
+        self.blocked.is_some()
+    }
+
     /// The one ranking (the type's docs).
     pub(crate) fn ranked(self) -> Ranked<E> {
         match (self.blocked, self.in_band) {
