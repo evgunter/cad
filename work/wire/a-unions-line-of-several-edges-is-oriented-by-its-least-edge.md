@@ -4,7 +4,7 @@ kind: issue
 title: A union orients a line by its least edge, so where flush edges or a seam's sides run opposite ways a crossing's sense and a group's ranks read which was minted first
 status: open
 opened: 2026-10-20
-priority: P3
+priority: P2
 cost: M
 ---
 
@@ -31,20 +31,29 @@ orientation:
   loop of its first side, the lesser name, runs along it.
 
 Name order compares the minting node's id first, then a `From`'s read,
-and both order as minted. Where the edges of the line run the same way
-(every fixture in `tests/name_invariance.rs`) the orientation is one
-whichever is least, and nothing moves. Where they run opposite ways, or
-a seam's two sides swap order under another authoring history, the
-sense flips (`Enters` and `Leaves`) or the ranks reverse, and the table
-differs up to the bijection of minted ids: NS1 says no name reads an
-order. Unmeasured: no fixture with opposite-running flush edges or a
-swapped-side seam crossing group is in `name_invariance.rs`'s history
-set.
+and both order as minted. Where the edges of a line run the same way the
+orientation is one whichever is least, and nothing moves. Where they run
+opposite ways the sense flips (`Enters` and `Leaves`) or the ranks
+reverse with the authoring order, which NS1 forbids.
+
+## Measured
+
+`tests/name_invariance.rs`, history case "plate pinch, p2 extruded
+down": `union_pinch_member_order::pinch` with `p2` the same solid
+extruded `ExtrudeSide::Against` from its top (z = 1.7), so its leg runs
+downward while `p1`'s runs up. The union lists `[plate, p1, p2]` in every
+document. The pinch vertex on the plate's top is
+`Crossing { edge: Merged{p1 leg, p2 leg}, face: plate Cap(End), sense }`:
+`Leaves` when `p1` is authored first, `Enters` when `p2` is. That
+vertex, and the leg pieces whose `Ends` cite it, are 18 names over the
+five other authoring orders, admitted there against this row; the
+admission goes red when this is fixed.
 
 ## What it needs
 
-An orientation of a line that is the same in every authoring history,
-or a sense and rank that need none (an unordered pair of the two sides'
-classifications, say), decided under N0 (PR 5455); then a history
-fixture with opposite-running flush edges to pin it.
+A design answer under N0 (PR 5455): what orients a line of several
+edges that no mint order may choose, or a sense and rank that need no
+orientation (an unordered pair of the two sides' classifications, say).
+The names README states only that such a line's sense is read along one
+of its edges and that which one is open, pointing here.
 

@@ -216,7 +216,8 @@ fn shared_corner(ev: &Evaluation<f64>, union: RecipeNodeId) -> Vec<StableName> {
 /// block was minted first, nor the list's order. The union is then
 /// re-pointed from `b` to a re-drawing of it (identical geometry, a
 /// later id): the corner is named for `a` and the re-drawing, whose
-/// read is a new key (DM4: re-pointing a member is a recipe edit).
+/// read is a new key (DM4: re-pointing a member is a recipe edit), and
+/// every entity `a` carries whole keeps its name.
 #[test]
 fn a_held_flush_stretch_is_named_for_every_member_that_holds_it() {
     let tol = Tol::witness();
@@ -279,6 +280,20 @@ fn a_held_flush_stretch_is_named_for_every_member_that_holds_it() {
                 "{case}: the corner is named for both blocks: {held:?}"
             );
 
+            let a_own = |ev: &Evaluation<f64>| -> Vec<StableName> {
+                table(ev, union)
+                    .iter()
+                    .filter(|(name, _)| {
+                        matches!(name.path.as_slice(), [RoleSeg::From { read, .. }] if *read == a_read)
+                    })
+                    .map(|(name, _)| name.clone())
+                    .collect()
+            };
+            let a_before = a_own(&ev);
+            assert!(
+                !a_before.is_empty(),
+                "{case}: `a` carries entities of its own whole"
+            );
             let (doc, _) = step(
                 doc,
                 DocEdit::SetMembers {
@@ -293,6 +308,11 @@ fn a_held_flush_stretch_is_named_for_every_member_that_holds_it() {
                 failure(&ev, union).is_none(),
                 "{case}: {:?}",
                 failure(&ev, union)
+            );
+            assert_eq!(
+                a_own(&ev),
+                a_before,
+                "{case}: re-pointing `b` leaves every entity `a` carries whole as it was"
             );
             let redrawn_read = fixture::out(&doc, redrawn);
             let now = shared_corner(&ev, union);

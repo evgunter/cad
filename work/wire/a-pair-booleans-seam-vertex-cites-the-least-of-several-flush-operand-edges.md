@@ -38,3 +38,18 @@ The union's rule at the pair: the set of the flush edges, oriented as
 with a history fixture that reaches it. `emit_topo.rs` was outside
 `wire-mintfirst`'s fence (another lane held it).
 
+## Both seats (traced for PR 5488's review)
+
+The names README said a subtract's seam vertex cites "the least in name
+order, its two seats among them, so no seat is preferred". Since every
+name compares `From { read }`, a least taken across the two seats would
+prefer the seat minted first. Traced: `flush_lines` is called once per
+seat (`emit_topo.rs`, the pinch arm of the seam-vertex naming,
+`flush_lines(aes, a, ..)` and `flush_lines(bes, b, ..)`), so the least
+is taken within one seat's edges and never sets one seat against the
+other; the lines of both seats enter the vertex's run side by side. The
+README now says that. What does compare across seats is the rank of
+several vertices sharing one run, read along the run's least line,
+which is `a-unions-line-of-several-edges-is-oriented-by-its-least-edge`'s
+orientation question at the pair.
+

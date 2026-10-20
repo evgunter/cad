@@ -1451,6 +1451,9 @@ enum Part {
     Block(Spans),
     /// A [`pinch_order::sector_of`] this sector.
     Sector(Sector),
+    /// The block of these spans, extruded down from its top: the same
+    /// solid as [`Part::Block`]'s, its lateral edges running the other way.
+    Downward(Spans),
 }
 
 impl Part {
@@ -1458,6 +1461,23 @@ impl Part {
         match self {
             Self::Block(s) => block_of(doc, s),
             Self::Sector(s) => pinch_order::sector_of(doc, s),
+            Self::Downward(((x0, x1), (y0, y1), z0, dz)) => {
+                let (doc, p) = on_frame(
+                    doc,
+                    [0.0, 0.0, z0 + dz],
+                    [1.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+                );
+                insert(
+                    doc,
+                    Node::Extrude {
+                        profile: p.into(),
+                        distance: len(dz),
+                        side: ExtrudeSide::Against,
+                    },
+                )
+            }
         }
     }
 }
@@ -1486,6 +1506,7 @@ const UNIT_BLOCK: Part = Part::Block(((1.0, 2.0), (0.5, 1.5), 0.5, 1.0));
 const PLATE: Part = Part::Block(pinch_order::PLATE_SPANS);
 const P1: Part = Part::Block(pinch_order::P1);
 const P2: Part = Part::Block(pinch_order::P2);
+const P2_DOWNWARD: Part = Part::Downward(pinch_order::P2);
 const KISS_A: Part = Part::Block(decide_alike::KISS[0]);
 const KISS_B: Part = Part::Block(decide_alike::KISS[1]);
 const WEDGE_A: Part = Part::Sector(pinch_order::WEDGE_A);
@@ -1528,6 +1549,11 @@ const HISTORIES: &[Roles] = &[
     (
         "plate pinch",
         &[("plate", PLATE), ("p1", P1), ("p2", P2)],
+        Combine::Nary(Nary::Union),
+    ),
+    (
+        "plate pinch, p2 extruded down",
+        &[("plate", PLATE), ("p1", P1), ("p2", P2_DOWNWARD)],
         Combine::Nary(Nary::Union),
     ),
     (
@@ -1597,9 +1623,6 @@ fn an_authoring_history_moves_no_name() {
         let n = roles.1.len();
         let forward: Vec<usize> = (0..n).collect();
         let first = by_roles(roles, &forward);
-        if roles.0 == "a block and its copy" {
-            cites_both(&first, ["(one+", "(copy+"]);
-        }
         let case = format!("{} / authored in another order", roles.0);
         for order in decide_alike::orders(n)
             .into_iter()
@@ -1627,24 +1650,51 @@ fn an_authoring_history_moves_no_name() {
     found.settle(ADMITTED_HISTORY, VACUOUS_HISTORY);
 }
 
-/// A body and its exact copy are one body, so every name of their union
-/// but the body's is the same entity in both members and cites both reads (N0's NS4:
-/// two operands with identical tables are told apart by their reads,
-/// never ordered).
-fn cites_both(p: &Published, reads: [&str; 2]) {
-    let Published::Table(t) = p else {
-        panic!("a body and its copy: a table, not {}", outline(p))
-    };
-    for n in t.keys().filter(|n| !n.contains("kind: Body")) {
-        assert!(
-            reads.iter().all(|r| n.contains(r)),
-            "a body and its copy: {n} cites one copy alone"
-        );
+/// **A body and its exact copy name every entity by both reads** (N0's
+/// NS4: two operands with identical tables are told apart by their
+/// reads, never ordered): their union is one body, each face, edge and
+/// vertex the same entity in both, so each is `Merged` of two names
+/// whose heads are `From` the two members' reads.
+#[test]
+fn a_body_and_its_copy_name_every_entity_by_both_reads() {
+    let doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
+    let (doc, one) = UNIT_BLOCK.author(doc);
+    let (doc, copy) = UNIT_BLOCK.author(doc);
+    let (doc, op) = insert(doc, Nary::Union.node(&[one, copy]));
+    let ev = run(&doc);
+    let reads = BTreeSet::from([
+        crate::fixture::out(&doc, one),
+        crate::fixture::out(&doc, copy),
+    ]);
+    let var = ev.output_var(op, 0).expect("the union defines its port");
+    let table = ev.table(var).expect("the union's table");
+    let mut named = 0;
+    for (name, _) in table.iter() {
+        if name.kind == editor_core::EntityKind::Body {
+            continue;
+        }
+        let cited: BTreeSet<VarId> = match name.path.as_slice() {
+            [editor_core::RoleSeg::Merged(set)] => set
+                .iter()
+                .filter_map(|c| match c.path.as_slice() {
+                    [editor_core::RoleSeg::From { read, .. }] => Some(*read),
+                    _ => None,
+                })
+                .collect(),
+            _ => BTreeSet::new(),
+        };
+        assert_eq!(cited, reads, "{name:?} is not named for both copies");
+        named += 1;
     }
+    assert_eq!(named, 26, "a block's 6 faces, 12 edges and 8 vertices");
 }
 
 /// The history cases that move today.
-const ADMITTED_HISTORY: &[Admitted] = &[];
+const ADMITTED_HISTORY: &[Admitted] = &[(
+    "plate pinch, p2 extruded down / authored in another order",
+    18,
+    LINE_ORIENTED_BY_LEAST,
+)];
 
 /// The history cases that compare no table today.
 const VACUOUS_HISTORY: &[Vacuous] = &[
@@ -1662,6 +1712,12 @@ const VACUOUS_HISTORY: &[Vacuous] = &[
         LINE_WEDGES,
     ),
 ];
+
+/// A union's line of several flush member edges is oriented by its
+/// least edge, which orders by read, so where the edges run opposite
+/// ways its crossing's sense reads which member was minted first.
+const LINE_ORIENTED_BY_LEAST: &str =
+    "work/wire/a-unions-line-of-several-edges-is-oriented-by-its-least-edge.md";
 
 /// A plate less blocks that meet on a line through it refuses
 /// `LineWedges`: the contact is two coincident edges whose material

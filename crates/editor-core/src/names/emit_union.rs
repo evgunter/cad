@@ -64,12 +64,14 @@
 //!   none but along several that cover it (a flush rim the output stage
 //!   joined) is named for that set ([`Flush`], [`group_member_edges`])
 //!   — which member was operand A is fold history;
-//! - a vertex is named for the member vertex it sits at, or for the
-//!   lines through it — the member edge it lies on and the one face
-//!   crossing it there, or the run of member edges and seams that meet
-//!   there, each edge's sense read from the members' pairwise judgements
-//!   ([`Flush::meeting`]) — and otherwise cites the member edge it lies
-//!   on whole, not the stretch of it the fold had cut when it met the
+//! - a vertex is named for the member vertex it sits at, `Merged` of
+//!   the several where more than one member has a vertex there
+//!   ([`Flush::member_vertices`]), or for the lines through it — the
+//!   member edge it lies on (or the set of those flush on one line) and
+//!   the one face crossing it there, or the run of such lines and seams
+//!   that meet there, each line's sense read from the members' pairwise
+//!   judgements ([`Flush::meeting`]) — and otherwise cites the member
+//!   edge it lies on whole, not the stretch of it the fold had cut when it met the
 //!   vertex, and a seam by its head ([`cite_member_edges`]);
 //! - every piece of a member edge the finished body does not hold
 //!   whole, a lone one included, and several pieces of one seam, are
@@ -541,18 +543,6 @@ fn line_name(union: RecipeNodeId, line: &BTreeSet<MemberEntity>) -> NameRef {
             union,
             several.iter().map(|e| (*one(e)).clone()),
         )),
-    }
-}
-
-/// The member edge a line name is oriented by: the edge itself, or the
-/// least of a `Merged` set of edges flush on one line, as its sense and
-/// ranks are read ([`Flush::line_sense`]).
-fn line_head(name: &StableName) -> Option<(VarId, NameRef, bool)> {
-    match name.path.as_slice() {
-        [RoleSeg::Merged(line)] if name.kind == EntityKind::Edge => {
-            member_edge_piece(line.first()?)
-        }
-        _ => member_edge_piece(name),
     }
 }
 
@@ -1059,6 +1049,35 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         Ok(lines.into_iter().map(|(line, _)| line).collect())
     }
 
+    /// **The member edge a line name is read along**: the member edge
+    /// it names, or, for `Merged` of member edges that all lie on one
+    /// line (several flush there, or a span the output stage joined end
+    /// to end), its least edge; `None` for any other name, a set some of
+    /// whose edges lie off its least edge's line among them. Which edge
+    /// of such a line orients it is
+    /// `work/wire/a-unions-line-of-several-edges-is-oriented-by-its-least-edge.md`.
+    fn line_head(&self, name: &StableName) -> Result<Option<(VarId, NameRef, bool)>, NamingError> {
+        let [RoleSeg::Merged(line)] = name.path.as_slice() else {
+            return Ok(member_edge_piece(name));
+        };
+        if name.kind != EntityKind::Edge {
+            return Ok(None);
+        }
+        let mut edges = line.iter().map(member_edge_piece);
+        let Some(Some(head)) = edges.next() else {
+            return Ok(None);
+        };
+        for e in edges {
+            let Some((m, e, _)) = e else {
+                return Ok(None);
+            };
+            if self.same_way(&(m, e), &(head.0, head.1.clone()))?.is_none() {
+                return Ok(None);
+            }
+        }
+        Ok(Some(head))
+    }
+
     /// **The sense at finished vertex `v` of the line of member edges
     /// `line`** against the closed bodies of members `others`
     /// ([`Flush::sense_against`]): each edge's own, read along the line
@@ -1275,18 +1294,20 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// lines are matched by image, not by position: the rewrite puts an
     /// `EdgeCrossing`'s run in name order, each sense with its line. A
     /// sense read along a member edge is flipped where the rewrite cites
-    /// another one running the other way along the line
-    /// ([`Flush::same_way`]). A line that cites no member edge, before and
-    /// after, is a joined edge (`Merged`) or a name the union does not own,
-    /// which re-citing its constituents does not move, so its sense
+    /// another one running the other way along the line, or a line of
+    /// several member edges whose least edge does ([`Flush::line_head`],
+    /// [`Flush::same_way`]). A line that cites no member edge before the
+    /// rewrite is a joined edge (`Merged`) or a name the union does not
+    /// own, which re-citing its constituents does not move, so its sense
     /// stands.
     ///
     /// # Errors
     ///
     /// [`NamingError::Emission`] where two lines have one image, where a
-    /// line of `now` with a sense is no line's image, where one line cites
-    /// a member edge and its image does not (or the other way round), or
-    /// where a re-cited member edge lies off the line.
+    /// line of `now` with a sense is no line's image, where a member
+    /// edge's image is no line of member edges, where a line that cited
+    /// none comes to cite one, or where a re-cited member edge lies off
+    /// the line.
     fn resensed(
         &self,
         was: &StableName,
@@ -1330,7 +1351,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         for (old, (edge, sense)) in pairs {
             let was = member_edge_piece(old);
             let image = match was {
-                Some(_) => line_head(edge),
+                Some(_) => self.line_head(edge)?,
                 None => member_edge_piece(edge),
             };
             match (was, image) {
@@ -1351,7 +1372,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 (None, None) => {}
                 _ => {
                     return Err(bug(
-                        "a union's rewrite turns a crossing's member edge into a joined edge, or back",
+                        "a union's rewrite turns a crossing's member edge into no line of member \
+                         edges, or a line of none into a member edge",
                     ));
                 }
             }
@@ -1642,11 +1664,13 @@ fn cite_member_edges<T: geom_core::Decide>(
             put_entry(&mut out, if moved { base } else { name.clone() }, entry)?;
             continue;
         }
-        let whole = |n: &StableName| line_head(n).filter(|(_, _, qualified)| !qualified);
+        let whole = |n: &StableName| {
+            Ok::<_, NamingError>(flush.line_head(n)?.filter(|(_, _, qualified)| !qualified))
+        };
         let seam_of = |line: &StableName| seams.iter().find(|g| g.base == *line);
         let carrier = match base.path.as_slice() {
             [RoleSeg::EdgeCrossing(run)] => match run.iter().find(|l| l.sense.is_some()) {
-                Some(least) => match whole(&least.line) {
+                Some(least) => match whole(&least.line)? {
                     Some(m) => Some(m),
                     None if moved => return Err(bug(CITED_GROUP_NO_MEMBER_EDGE)),
                     None => None,
@@ -1662,7 +1686,7 @@ fn cite_member_edges<T: geom_core::Decide>(
                 | RoleSeg::Crossing {
                     edge: a, face: b, ..
                 },
-            ] => match (whole(a), whole(b)) {
+            ] => match (whole(a)?, whole(b)?) {
                 (Some(m), None) | (None, Some(m)) => Some(m),
                 (Some(_), Some(_)) => return Err(bug(SEAM_VERTEX_TWO_EDGES)),
                 (None, None) if respelled_bases.contains(&base) => {
@@ -3970,8 +3994,15 @@ mod tests {
         let (b4, e4) = line([0.5, -0.5, 0.0], [0.5, 0.5, 0.0]);
         let (b5, e5) = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
         let (b6, e6) = line([0.25, 0.0, 0.0], [0.75, 0.0, 0.0]);
-        let tables = [table(3, e3), table(4, e4), table(5, e5), table(6, e6)];
-        let members = [(3, &b3), (4, &b4), (5, &b5), (6, &b6)]
+        let (b7, e7) = line([2.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        let tables = [
+            table(3, e3),
+            table(4, e4),
+            table(5, e5),
+            table(6, e6),
+            table(7, e7),
+        ];
+        let members = [(3, &b3), (4, &b4), (5, &b5), (6, &b6), (7, &b7)]
             .into_iter()
             .zip(&tables)
             .map(|((m, body), table)| Member {
@@ -4055,6 +4086,35 @@ mod tests {
                 .unwrap(),
             crossing(line, Sense::Leaves),
             "re-cited as a line of flush edges whose least runs the other way"
+        );
+        let set = |ms: [u64; 2]| StableName {
+            kind: EntityKind::Edge,
+            node: union,
+            path: vec![RoleSeg::Merged(
+                ms.iter().map(|&m| member_edge(union, m)).collect(),
+            )],
+        };
+        assert_eq!(
+            flush
+                .resensed(
+                    &crossing(member_edge(union, 7), Sense::Enters),
+                    None,
+                    crossing(set([5, 7]), Sense::Enters),
+                )
+                .unwrap(),
+            crossing(set([5, 7]), Sense::Leaves),
+            "a span joined end to end lies on one line, read along its least edge"
+        );
+        let err = flush
+            .resensed(
+                &crossing(member_edge(union, 5), Sense::Enters),
+                None,
+                crossing(set([3, 4]), Sense::Enters),
+            )
+            .unwrap_err();
+        assert!(
+            matches!(err, NamingError::Emission { what } if what.contains("no line of member")),
+            "a set of edges off one line is no line: {err:?}"
         );
     }
 
@@ -4342,6 +4402,102 @@ mod tests {
             other => panic!("the two candidates are one tied row: {other:?}"),
         }
         assert_eq!(out.len(), 1, "no row keeps the fold's spelling");
+    }
+
+    /// **A vertex two members hold, one tying its vertex and one not, is
+    /// `Merged` of both and discriminated by the untied one**: a member's
+    /// tie spells two vertices alike, but the copy's own names tell them
+    /// apart, so each finished vertex is its own row, not one tied row.
+    #[test]
+    fn a_vertex_held_by_a_tied_and_an_untied_member_is_its_own_row() {
+        let mut tied = SelfMember::new();
+        let plain = SelfMember::new();
+        let vs: Vec<_> = tied.body.vertices().map(|(v, _)| v).collect();
+        let (v0, v1) = (vs[0], vs[1]);
+        let tie = tied.tie(EntityKey::Vertex(v0), EntityKey::Vertex(v1));
+        let copy = VarId::new(1, 8);
+        let members = [
+            Member {
+                read: tied.read,
+                body: &tied.body,
+                table: &tied.table,
+            },
+            Member {
+                read: copy,
+                body: &tied.body,
+                table: &plain.table,
+            },
+        ];
+        let inc = Incidence::of(&tied.body).unwrap();
+        let face_ents = tied
+            .body
+            .faces()
+            .map(|(f, _)| (f, BTreeSet::from([(0, f), (1, f)])))
+            .collect();
+        let flush = Flush {
+            union: tied.union,
+            body: &tied.body,
+            members: &members,
+            inc,
+            face_ents,
+            edges: BTreeMap::new(),
+            spans: BTreeMap::new(),
+            face_names: BTreeMap::new(),
+            bnd: geom_core::Band::new(1e-9, 1e-6).unwrap(),
+        };
+        let held = |v| {
+            let own = plain
+                .table
+                .name_ref_of(&ent(0, EntityKey::Vertex(v)))
+                .unwrap();
+            crate::names::merged::entity_set(
+                EntityKind::Vertex,
+                tied.union,
+                [
+                    entity_name(tied.union, &(tied.read, NameRef::new(tie.clone()))),
+                    entity_name(tied.union, &(copy, own.clone())),
+                ],
+            )
+        };
+        assert_eq!(
+            flush.member_vertices(v0).unwrap(),
+            Some((held(v0), true)),
+            "candidate 0: both members' vertices, one of them tied"
+        );
+        let mut t = NameTable::new();
+        for (i, v) in [v0, v1].into_iter().enumerate() {
+            let fold = vertex(
+                tied.union,
+                vec![RoleSeg::Instance {
+                    i: u32::try_from(i).unwrap(),
+                    of: NameRef::new(tie.clone()),
+                }],
+            );
+            t.insert(fold, ent(0, EntityKey::Vertex(v))).unwrap();
+        }
+        let lines = EdgeLines {
+            member: BTreeMap::new(),
+            seam: BTreeMap::new(),
+        };
+        let out = cite_member_edges(
+            t,
+            Vec::new(),
+            &[],
+            &tied.body,
+            &members,
+            &flush,
+            (&lines, &Links::default()),
+            flush.bnd,
+        )
+        .unwrap();
+        for v in [v0, v1] {
+            assert_eq!(
+                out.lookup(&held(v)),
+                Some(&Entry::Unique(ent(0, EntityKey::Vertex(v)))),
+                "{v:?} is its own row under the copy's discriminating name"
+            );
+        }
+        assert_eq!(out.len(), 2, "no tied row");
     }
 
     /// **A member edge its member ties refuses where one edge's faces
