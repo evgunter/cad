@@ -65,7 +65,7 @@
 //!
 //! `F`'s harmonics are sums of terms much larger than `F` where the
 //! crossings live, so at `f64` their rounding is an error in `F` of about
-//! `u·T` (`T` a bound on the terms' magnitudes, [`crate::HARMONIC_NOISE_ULPS`] of them
+//! `u·T` (`T` a bound on the terms' magnitudes, [`geom_core::SHORT_CHAIN_ULPS`] of them
 //! charged): `noise`, a residual error of `noise / f_per_metre` metres,
 //! `f_per_metre` the door's floor on `|F|` per metre of residual. The
 //! subdivision charges it to every Taylor term it reads (its docs), so a

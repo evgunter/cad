@@ -5588,6 +5588,8 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::CensusUnsupported { .. }
         | V::CensusLaneUnsupported { .. }
         | V::CensusUndecidable { .. }
+        | V::FaceThroughEdgeWedge { .. }
+        | V::FaceThroughEdgeWedgeUndecided { .. }
         | V::ArcEndOffCorner { .. }
         | V::InstanceInterference { .. }
         | V::CuspEdgesMissing { .. } => None,

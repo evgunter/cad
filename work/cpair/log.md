@@ -21,6 +21,30 @@ arm. No CPAIR row covered it (the task named FUSE's
 polish meters, untouched). Its sweep filed
 `the-curve-pair-pose-reads-a-conics-whole-carrier-before-its-arc` here.
 
+## 2026-10-20 — NURBS build A takes the polish meters
+
+NURBS build A (dispatched by the NURBS orchestrator) claims
+`curve-pair-polish-meters-refuse-shallow-meetings`: the basin meter in
+`geom_brep::curve_pair::pose` (`Polish::closest`,
+`curve_pair_pose_basin`) on shallow meetings with no found meeting
+beside them, the needle at ε 1e-12 its first witness. No CPAIR or BAND
+branch touches `crates/geom-brep/src/curve_pair/` (checked against every
+live remote branch). Plan before code, at the NURBS orchestrator.
+
+## 2026-10-20 — NURBS build A: one reading of two spans on one line (PR 1 of 4)
+
+`two-spans-projections-on-one-line-are-read-four-ways`, staged in four PRs.
+PR 1 adds `geom_core::one_line` (`OnOneLine`, `on_one_line`,
+`on_one_line_2d`): b's projection on a's axis, read from a's span start,
+charged `geom_core::rounding_charge` of the four points' metres plus the
+metres the caller computed them at (`produced`; zero for given
+vertices). The curve-pair router's line-line gap reads it, passing its
+ends' evaluation `|o| + |d|·|t|`. `rounding_charge` and
+`SHORT_CHAIN_ULPS` (was `HARMONIC_NOISE_ULPS`) move from
+`geom_brep::implicit` to `geom_core`, with every caller on the one path.
+Still to come, each on its own program's ground: check 9 (RESTFRONT),
+`profile::seg` (PATHS) and the census (topo). — (NURBS build A)
+
 ## 2026-10-20 — NURBS build A: the line-line crossing measured, no wrong side
 
 `the-curve-pair-line-line-crossing-is-read-from-the-carriers-origins-uncharged`
