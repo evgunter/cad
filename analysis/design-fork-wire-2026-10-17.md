@@ -12,3 +12,5 @@
 | FORK-ROWPRESENCE | three-member-coincidence-rows-may-not-be-order-free-once-a-fourth-member-covers-them | 128 | even: Opus is A, Fable is B |
 | FORK-DEFECT | a-kernel-defect-is-a-panic-or-a-typed-refusal-and-nothing-says-which | 135 | odd: Fable is A, Opus is B |
 | FORK-PAIRSEAM | should-pair-seams-take-name-ordered-sides + a-chord-between-two-merged-faces-within-no-rim-refuses | 206 | even: Opus is A, Fable is B |
+| FORK-SECTIONID | a-section-faces-index-is-its-completion-order-not-its-identity | 93 | odd: Fable is A, Opus is B |
+| FORK-BLENDEMPTY | a-blend-of-no-edges-refuses-at-evaluation | 196 | even: Opus is A, Fable is B |
