@@ -785,8 +785,8 @@ fn every_node_refusal_renders_within_the_budget() {
 
 use editor_core::clearance::ClearanceRefusal;
 use editor_core::{
-    BifurcationKind, Diagnosis, EvalError, ParamBoxError, PiecesFault, PlacementRuleFault,
-    ResolveError, SeedError,
+    BifurcationKind, Diagnosis, EvalError, ParamBoxError, PlacementRuleFault, ResolveError,
+    SeedError,
 };
 
 test_utils::f6_variants! {
@@ -828,11 +828,6 @@ test_utils::f6_variants! {
 }
 
 test_utils::f6_variants! {
-    /// `PiecesFault`'s arms, for the `ProfilePieces/` rows.
-    const PIECES_FAULT: PiecesFault = [NoRecord, NoIds, Length, NoStepId];
-}
-
-test_utils::f6_variants! {
     /// `ResolveError`'s arms, for the `SelectResolve/` rows.
     const RESOLVE_ERROR: ResolveError = [Vanished, Ambiguous, ReadGone, NodeGone];
 }
@@ -842,13 +837,12 @@ test_utils::f6_variants! {
     /// census rows are checked against, so an arm with no row reds and
     /// an arm added to the enum stops this compiling until it is here.
     const NODE_ERROR_KIND: NodeErrorKind = [
-        Expr, Profile, ProfileReplay, ProfileLaneReplay, ProfileAnchor, ProfilePieces,
-        ProfileRecordMissing, Extrude, Revolve, Tube, Split, Blend, Boolean, Transform, Motion,
-        Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
+        Expr, Profile, ProfileReplay, ProfileLaneReplay, Extrude, Revolve, Tube, Split, Blend,
+        Boolean, Transform, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, ProductOperand,
         UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchCopy, CopiesShareAKey, CopyShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
-        VerbArity, Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
+        Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
         PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, NegativeSpacing, DegenerateSpacing,
         DegenerateStep, FullRangeStep, PlacementsUncertified, PlacementRule, UnschedulableCycle,
         Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
@@ -1105,7 +1099,6 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("ParamBoxError", PARAM_BOX_ERROR.identifiers()),
         ("SeedError", SEED_ERROR.identifiers()),
         ("PlacementRuleFault", PLACEMENT_RULE_FAULT.identifiers()),
-        ("PiecesFault", PIECES_FAULT.identifiers()),
         ("ResolveError", RESOLVE_ERROR.identifiers()),
         ("Diagnosis", DIAGNOSIS.identifiers()),
         ("BifurcationKind", BIFURCATION_KIND.identifiers()),
@@ -1206,7 +1199,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             }
             welded(levels)
         }
-        NodeErrorKind::ProfilePieces { fault } => one("PiecesFault", fault),
         NodeErrorKind::WitnessBifurcation(e) => one("BifurcationKind", &e.kind),
         NodeErrorKind::MeasureClearanceRefused(e) => one("ClearanceRefusal", e),
         // Labelled by the standing each carries, the names the filed
@@ -1287,9 +1279,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::Motion(_)
         | NodeErrorKind::FaceFrameReadback { .. }
         | NodeErrorKind::FrameDirection { .. } => Forward::Unwelded(UNWELDED_PLACEMENT),
-        NodeErrorKind::ProfileAnchor
-        | NodeErrorKind::ProfileRecordMissing { .. }
-        | NodeErrorKind::CurvedSolidFrontier { .. }
+        NodeErrorKind::CurvedSolidFrontier { .. }
         | NodeErrorKind::MissingInput { .. }
         | NodeErrorKind::UnresolvedRead { .. }
         | NodeErrorKind::ToleranceConflict { .. }
@@ -1305,7 +1295,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::NonFiniteDirection { .. }
         | NodeErrorKind::UnderflowedDirection { .. }
         | NodeErrorKind::MissingSlot { .. }
-        | NodeErrorKind::VerbArity { .. }
         | NodeErrorKind::Escalated { .. }
         | NodeErrorKind::MeasureEscalated { .. }
         | NodeErrorKind::PlacementAxisEscalated { .. }
@@ -1601,8 +1590,9 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
 /// repair, so a wrapper that added one of its own would read here as
 /// two. The interpolation's carriers (`Fit/`, `Structure/`) are NOT
 /// forwarded: the kernel chose their samples and knots, so a builder's
-/// repair would name nothing the user supplied, and those rows end in
-/// the kernel-defect ending instead.
+/// repair would name nothing the user supplied. A seed that ran short
+/// (`Fit/TooFewPoints`) ends in the narrow knot span's lever; the
+/// structure's arm and the mint's limb end in the last resort.
 ///
 /// Every meter refusal ends in its decision's one recourse for its
 /// verdict ([`meter_escalations`], [`meter_verdicts`]), never the
@@ -1660,9 +1650,14 @@ fn every_offset_fit_refusal_ends_exactly_once() {
                 "{name}: a shell user sets a wall, not a distance or a side: {text}"
             );
         }
-        if arm.starts_with("Fit/") || arm.starts_with("Structure/") || arm.starts_with("MintLimb") {
+        if arm.starts_with("Fit/TooFewPoints") {
             assert!(
-                text.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                text.ends_with(geom_brep::recourse::NARROW_SPAN_RECOURSE),
+                "{name}: {text}"
+            );
+        } else if arm.starts_with("Structure/") || arm.starts_with("MintLimb") {
+            assert!(
+                text.ends_with(geom_core::KERNEL_LIMIT_RECOURSE),
                 "{name}: {text}"
             );
         }
@@ -1670,10 +1665,7 @@ fn every_offset_fit_refusal_ends_exactly_once() {
         // is the call that refused, and nothing is stored.
         if arm.starts_with("MintLimb") {
             mint_limbs += 1;
-            assert!(
-                !text.contains("stored") && !text.contains("Recourse"),
-                "{name}: {text}"
-            );
+            assert!(!text.contains("stored"), "{name}: {text}");
         } else if arm.starts_with("Limb") {
             at_rest_limbs += 1;
             assert!(
@@ -1737,11 +1729,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
                 step: 2,
                 structure: None,
             },
-        ),
-        row("ProfileAnchor", NodeErrorKind::ProfileAnchor),
-        row(
-            "ProfileRecordMissing",
-            NodeErrorKind::ProfileRecordMissing { loop_: 1 },
         ),
         row(
             "CurvedSolidFrontier",
@@ -1914,13 +1901,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "MissingSlot",
             NodeErrorKind::MissingSlot {
                 slot: SlotId::Distance,
-            },
-        ),
-        row(
-            "VerbArity",
-            NodeErrorKind::VerbArity {
-                verb: verbs::VerbKind::Fillet,
-                given: verbs::Arity::Two,
             },
         ),
         row(
@@ -3332,7 +3312,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         ("Meter/NormalFloor", 2),
         ("Meter/CurvatureHeadroom", 2),
         ("Meter/Escalated", 1),
-        ("PatchBound/", 7),
+        ("PatchBound/", 6),
         ("Fit/", 1),
         ("Structure/", 1),
         ("InvalidRequest", 1),
@@ -4376,7 +4356,7 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
 /// analysis seeds, placement rules, naming, the name ladder.
 fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError, PiecesFault,
+        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError,
         PlacementRuleFault, RecipeEditRef, ResolveError, RimShare, SeedError, SlotId, StableName,
         TieWitness, VarName,
     };
@@ -4444,26 +4424,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             ),
         ]
     };
-    let pieces = [
-        ("NoRecord", PiecesFault::NoRecord { loop_: 0 }),
-        ("NoIds", PiecesFault::NoIds { loop_: 0 }),
-        (
-            "Length",
-            PiecesFault::Length {
-                loop_: 0,
-                recorded: 4,
-                anchored: 5,
-            },
-        ),
-        (
-            "NoStepId",
-            PiecesFault::NoStepId {
-                loop_: 0,
-                step: 6,
-                ids: 5,
-            },
-        ),
-    ];
     let param_box = [
         (
             "UnknownParam",
@@ -4839,12 +4799,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         for (n, e) in eval() {
             rows.push(row(&format!("{wrap}/{n}"), build(e)));
         }
-    }
-    for (n, fault) in pieces {
-        rows.push(row(
-            &format!("ProfilePieces/{n}"),
-            NodeErrorKind::ProfilePieces { fault },
-        ));
     }
     for (n, source) in param_box {
         rows.push(row(

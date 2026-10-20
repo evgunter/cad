@@ -1281,9 +1281,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Profile(_)
         | NodeErrorKind::ProfileReplay { .. }
         | NodeErrorKind::ProfileLaneReplay { .. }
-        | NodeErrorKind::ProfileAnchor
-        | NodeErrorKind::ProfilePieces { .. }
-        | NodeErrorKind::ProfileRecordMissing { .. }
         | NodeErrorKind::Extrude(_)
         | NodeErrorKind::Revolve(_)
         | NodeErrorKind::Tube(_)
@@ -1303,7 +1300,6 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::UnderflowedDirection { .. }
         | NodeErrorKind::Band(_)
         | NodeErrorKind::MissingSlot { .. }
-        | NodeErrorKind::VerbArity { .. }
         | NodeErrorKind::Escalated { .. }
         | NodeErrorKind::MeasureEscalated { .. }
         | NodeErrorKind::PlacementAxisEscalated { .. }

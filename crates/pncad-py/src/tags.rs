@@ -134,10 +134,10 @@ use pncad::document::{
     CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
     EvalError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
     MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass, NodeErrorKind,
-    NodeStanding, ParseError, PersistError, PiecesFault, PinRefusal, PlacedBy, PlacementRuleFault,
-    ProgramFault, ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation,
-    ResolveFault, ShellClassifyError, SlideAxis, SlotId, SnapshotError, SplitError,
-    StepHandleRefusal, StepIdFault, Unlocalized, UpdateError, WorldReadFault,
+    NodeStanding, ParseError, PersistError, PinRefusal, PlacedBy, PlacementRuleFault, ProgramFault,
+    ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault,
+    ShellClassifyError, SlideAxis, SlotId, SnapshotError, SplitError, StepHandleRefusal,
+    StepIdFault, Unlocalized, UpdateError, WorldReadFault,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthonormalizeError,
@@ -928,9 +928,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Profile => "profile",
         C::ProfileReplay => "profile_replay",
         C::ProfileLaneReplay => "profile_lane_replay",
-        C::ProfileAnchor => "profile_anchor",
-        C::ProfilePieces => "profile_pieces",
-        C::ProfileRecordMissing => "profile_record_missing",
         C::Extrude => "extrude",
         C::Revolve => "revolve",
         // ONE tag for both tube kinds, matching every other op on
@@ -994,7 +991,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::UnderflowedDirection => "underflowed_direction",
         C::Band => "band",
         C::MissingSlot => "missing_slot",
-        C::VerbArity => "verb_arity",
         C::Escalated => "escalated",
         C::PoseRead => "pose_read",
         C::PoseDegenerate => "pose_degenerate",
@@ -1126,9 +1122,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             Some(refusal) => Some(structure_refusal_tag(&refusal.kind)),
             None => None,
         },
-        NodeErrorKind::ProfileAnchor => None,
-        NodeErrorKind::ProfilePieces { fault } => Some(pieces_fault_tag(fault)),
-        NodeErrorKind::ProfileRecordMissing { .. } => None,
         NodeErrorKind::Extrude(inner) => Some(extrude_error_tag(inner)),
         NodeErrorKind::Revolve(inner) => Some(revolve_error_tag(inner)),
         NodeErrorKind::Tube(inner) => Some(tube_error_tag(inner)),
@@ -1162,7 +1155,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::UnderflowedDirection { .. } => None,
         NodeErrorKind::Band(inner) => Some(band_error_tag(inner)),
         NodeErrorKind::MissingSlot { .. } => None,
-        NodeErrorKind::VerbArity { .. } => None,
         // The escalation's payload is a MARGIN and a band, not an arm;
         // the predicate that escalated is a name the kernel mints and
         // the message carries.
@@ -1835,7 +1827,6 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
         ProgramRefusal::Validate(_) => "validate",
         ProgramRefusal::Unminted => "unminted",
         ProgramRefusal::StepIds(_) => "step_ids",
-        ProgramRefusal::Pieces(_) => "pieces",
     }
 }
 
@@ -3174,6 +3165,10 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CensusUnsupported { .. } => "census_unsupported",
         ValidationError::CensusLaneUnsupported { .. } => "census_lane_unsupported",
         ValidationError::CensusUndecidable { .. } => "census_undecidable",
+        ValidationError::FaceThroughEdgeWedge { .. } => "face_through_edge_wedge",
+        ValidationError::FaceThroughEdgeWedgeUndecided { .. } => {
+            "face_through_edge_wedge_undecided"
+        }
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
         ValidationError::CuspEdgesMissing { .. } => "cusp_edges_missing",
@@ -3405,18 +3400,6 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::StrandedSelection { .. } => "stranded_selection",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
-    }
-}
-
-/// The stable tag for where a profile's naming anchor, replay record
-/// and minted ids disagree — the fault `NodeErrorKind::ProfilePieces`
-/// carries, published on `inner_variant` beside the node error's word.
-pub fn pieces_fault_tag(fault: &PiecesFault) -> &'static str {
-    match fault {
-        PiecesFault::NoRecord { .. } => "no_record",
-        PiecesFault::NoIds { .. } => "no_ids",
-        PiecesFault::Length { .. } => "length",
-        PiecesFault::NoStepId { .. } => "no_step_id",
     }
 }
 
