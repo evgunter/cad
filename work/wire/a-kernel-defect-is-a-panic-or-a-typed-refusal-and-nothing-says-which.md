@@ -2,14 +2,14 @@
 id: a-kernel-defect-is-a-panic-or-a-typed-refusal-and-nothing-says-which
 kind: issue
 title: D9 says a kernel bug panics, while KERNEL_DEFECT_ENDING and eval's typed defect arms refuse one typed, and no ratified text says which a site gets
-status: dispatched
+status: closed
 opened: 2026-10-19
 priority: P2
 cost: M
 design: true
-needs_ev: true
 pr: 5411
 branch: wire/ev-kernel-defect-rule
+closed: 2026-10-20
 ---
 
 

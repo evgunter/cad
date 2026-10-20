@@ -2,11 +2,10 @@
 id: a-split-merging-a-two-piece-wall-reads-its-seam-vertex-as-a-pinch-corner
 kind: issue
 title: A split that merges a two-piece wall's halves across the seam leaves its loop through the seam vertex twice, and a near-tangent cut there refuses at rest as a pinch corner, ending as a kernel defect
-status: parked
+status: open
 opened: 2026-10-19
 priority: P3
 cost: M
-blocked_on: [a-kernel-defect-is-a-panic-or-a-typed-refusal-and-nothing-says-which]
 ---
 
 
@@ -64,3 +63,15 @@ the class [ev] PR 5411 decides: a check over a result no proof covers
 (row 6), or a row-1 carrier-resolution finding. Parked until 5411
 answers. The merge-door alternative is WIRE's (`end_maximal`); the
 validate alternative is TOPO / RESTFRONT's.
+
+## Unparked (WIRE orchestrator, 2026-10-20)
+
+PR 5411's ratified D9 answers its question: a site whose firing a
+correct kernel can reach is not a defect but a precision limit the model
+controls (row 1, a lever and `KERNEL_LIMIT_RECOURSE`). The near-tangent
+pinch corner here comes from the carrier's rounding, amplified by the
+semi-axis, so it takes the limit ending rather than `DEFECT`.
+- If validate's `PinchCornerCrossed` / `PinchCornerEscalated` change
+  their ending, that is the `validate.rs` fix (RESTFRONT's ground; see
+  `work/scalar/kernel-defect-ending-sites-convert-to-panics-or-their-true-ending.md`).
+- Alternatively, WIRE's merge door declines the glue.

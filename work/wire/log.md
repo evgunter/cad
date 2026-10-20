@@ -6745,3 +6745,12 @@ Signed (WIRE orchestrator).
   - It cites WIRE's six naming forks this week.
   - A read-only survey lane (wire-namesurvey) is dispatched: a defect census grouped by what leaked, the clauses' generality, and an invariance-check sketch. The strategy itself will go to Ev as an [ev] PR.
   - Not replied on 5426, since it is merged.
+
+- 2026-10-20 (WIRE orchestrator) Ev approved 5411 after asking to rewrite the misleading sentence: 'looks good!'. Merged (86f868aeb2), fork-log row 177 filled (match: neither). Fork row closed. Follow-ups:
+  - Filed scalar/kernel-defect-ending-sites-convert-to-panics-or-their-true-ending (P2 H), with the 28 outside sites by owning program.
+  - Raised CLEAVE's ring-tie row to P1, since it is a known-reached defect.
+  - WIRE rows:
+    - eval-typed-defect-arms-go-by-row-zero-or-panic (dispatched as wire-evalarms, FULL review, staying out of names/ while seamorder runs);
+    - names-emission-raises-panic-or-take-their-true-ending (after seamorder);
+    - held-out-goes-once-the-ring-tie-row-is-fixed (parked on CLEAVE).
+  - The pinch-corner row is unparked: it is a limit, row 1.
