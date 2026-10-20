@@ -616,6 +616,8 @@ BOUND_AS = {
     "Proof": "Coincidence.rung",
     "Rung": "Coincidence.rung",
     "Residual": "Coincidence.residual",
+    # Which of the node's decisions a row is crosses as a tuple tag.
+    "RowOrigin": "Coincidence.origin",
     # The verify door's two-plane verdict crosses as the row's word:
     # `same_oriented` / `same_opposite` on `Coincidence.relation`.
     "PlaneRelation": "Coincidence.relation",
@@ -1847,7 +1849,7 @@ FAMILIES: dict[str, str] = {
 #: hands `Node.profile` a `ClosedLoop` and the program is built inside
 #: Rust, so no Python value is ever one of these. The naming table and
 #: its provenance payloads (`NameTable`, `SeatingRefusal`,
-#: `DuplicateName`, `KindMismatch`, `ShortTie`,
+#: `DuplicateName`, `EntityNamed`, `KindMismatch`, `ShortTie`,
 #: `ProfileEdgeRef`, `ProfileVertexRef`, `edge_name`, `face_name` —
 #: key-to-name inversions with no key to invert), the declared-contact
 #: interior (`DeclaredContact`, `ContactVerdict`, `ContactRefusal`,
@@ -2851,6 +2853,7 @@ NOT_BOUND = {
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
+    "EntityNamed": INTERIOR,
     "KindMismatch": INTERIOR,
     "SeatingRefusal": INTERIOR,
     "ShortTie": INTERIOR,

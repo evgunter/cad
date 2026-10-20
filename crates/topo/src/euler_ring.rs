@@ -1042,6 +1042,10 @@ impl<T: Decide> Body<T> {
     /// # Panics
     ///
     /// As [`Body::kfmrh`].
+    ///
+    /// Also on a kernel bug: an edge the body stores, re-minted or
+    /// restated on its own carrier and interval, whose span or winding
+    /// reads certainly refused at the run's band.
     pub fn kfmrh_describing(
         &mut self,
         f1: FaceKey,
@@ -1877,6 +1881,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(
+            crate::policy_lane::Origin::Callers,
             None,
             curve.spec(u == w, p_u, p_w),
             p_u,
@@ -1976,6 +1981,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(
+            crate::policy_lane::Origin::Callers,
             None,
             curve.spec(u == w, p_u, p_w),
             p_u,
@@ -2065,6 +2071,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(
+            crate::policy_lane::Origin::Callers,
             None,
             curve.spec(u == w, p_u, p_w),
             p_u,
@@ -2163,6 +2170,7 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(
+            crate::policy_lane::Origin::Callers,
             None,
             curve.spec(u == w, p_u, p_w),
             p_u,

@@ -70,6 +70,15 @@ the PR fixed: because the guards run ahead of the pose trileans,
 `route_pose` must read their refusal as an UNclassified pose, not a
 served one.
 
+**Measured (2026-10-14, `germ/pt-degenerate-torus-ending`).** No
+build door was found that mints a tube the band refuses: at ε unset,
+`1e-6` and `1e-12`, `sweep::revolve` of a circle profile with
+`r ≤ 1.2·10ε` is refused by the profile validator, and `r = 2·10ε`
+builds a tube the section's tube half (`torus_tube_positive` now, in
+place of `pt_tube_guard`) decides positive. Either side of this row's
+question, the section's refusal now ends in the tube half's lever
+(`geom_brep::TorusRefusal`), not as corruption.
+
 ## What must be decided
 
 One of three answers:

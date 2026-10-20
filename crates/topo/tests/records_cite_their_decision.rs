@@ -578,8 +578,8 @@ fn a_pinch_records_the_vertex_identity_that_made_it() {
 /// slab would hold the contact as two coincident edges with their
 /// edge-edge record; the complement of the two blocks inside the slab
 /// pairs one block's faces with the other's, and ∖ does not build that
-/// re-pairing, so the result's two edges would bound 270° each,
-/// overlapping, and ∖ refuses `Revert`. The record's lineage at a
+/// re-pairing, so the result's two edges bound 270° each, overlapping
+/// by 180°, and the result gate refuses `LineWedges`. The record's lineage at a
 /// plate's pierce through that slab returns with the re-pairing
 /// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
 #[test]
@@ -603,12 +603,12 @@ fn cutting_a_touching_pair_out_of_a_slab_refuses_its_revert() {
     assert!(
         matches!(
             got,
-            Err(topo::BooleanError::Revert {
-                operand: Operand::B,
+            Err(topo::BooleanError::LineWedges {
+                fault: topo::LineWedgeFault::Overlap { .. },
                 ..
             })
         ),
-        "the slab less the blocks: {got:?}, not the revert's refusal"
+        "the slab less the blocks: {got:?}, not the overlap's refusal"
     );
 }
 

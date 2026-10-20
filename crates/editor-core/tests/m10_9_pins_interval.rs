@@ -115,14 +115,32 @@ pub(crate) struct Study {
 /// 811 → 763, bracket 1367 → 1307, pad 1283 → 1211; with the door shut
 /// the link (766, 780) → (718, 740), still refusing at
 /// `pcurve_envelope`, the bracket (1310, 1149) → (1250, 1099) and the pad
-/// (1219, 1452) → (1147, 1392). Check 4 deciding no whole period (PCERT
-/// B2b) takes fidelity's numeric branch decisions out of each door-shut
-/// replay: the link (718, 740) → (718, 708), still refusing at
-/// `pcurve_envelope`, the bracket (1250, 1099) → (1250, 1059) and the pad
-/// (1147, 1392) → (1147, 1344). No registrant moved and no verdict
-/// moved. With a chord's director spelled as its components (main), the
-/// pad's door-shut replay reads the shipped receipt, and B2b's 48
-/// numeric decisions come off it as off the shipped one: (1373, 1118).
+/// (1219, 1452) → (1147, 1392). No registrant moved and no verdict
+/// moved.
+///
+/// The profile's joint pass reads each joint's turn
+/// (`path_junction_turn`, #5354's ruling) where it read a line/arc
+/// joint's carrier clearance, numerically: the tier proves the turn, so
+/// those decisions move from `numeric` to `symbolic`, link 763 → 767,
+/// bracket 1307 → 1311, pad 1211 → 1223; with the door shut the link
+/// (718, 740) → (722, 736), still refusing at `pcurve_envelope`, the
+/// bracket (1250, 1099) → (1252, 1102) and the pad (1147, 1392) →
+/// (1157, 1382). No registrant moved and no verdict moved.
+///
+/// Its fix pass levers the turn by the shorter of the two legs' arms,
+/// and the path door reads each junction a departing leg follows again
+/// at that arm once the leg is stored: the bracket's door-shut numeric
+/// 1102 → 1106 (four more junction reads), and the pad 1373 → 1389
+/// symbolic, (1373, 1166) → (1389, 1150) shut: sixteen decisions move
+/// from `numeric` to `symbolic`, the total unchanged. No registrant
+/// moved and no verdict moved.
+///
+/// Check 4 deciding no whole period (PCERT B2b) takes fidelity's numeric
+/// branch decisions out of each door-shut replay, measured on the tree
+/// with the joint pass above: the link (722, 736) → (722, 704), still
+/// refusing at `pcurve_envelope`, the bracket (1252, 1106) →
+/// (1252, 1066) and the pad (1389, 1150) → (1389, 1102). `symbolic`
+/// holds, no registrant moved and no verdict moved.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -167,8 +185,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // circle's radius and orientation read as one pair), so it
             // decides 3 of the envelope's 9 terms on each of its two
             // reads.
-            without_the_registry: Some(((718, 708), Some("pcurve_envelope"))),
-            symbolic: [763, 763, 763],
+            without_the_registry: Some(((722, 704), Some("pcurve_envelope"))),
+            symbolic: [767, 767, 767],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {
@@ -182,13 +200,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1250, 1059), None)),
+            without_the_registry: Some(((1252, 1066), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1307, 1307, 1307],
+            symbolic: [1311, 1311, 1311],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -205,13 +223,12 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // pad reads the shipped receipt: with its legs' directors
             // exact components, the tier proves what the door used to
             // discharge (64 decisions, `(1147, 1392)` shut against
-            // `(1211, 1328)` shipped, when they were angles), less
-            // check 4's 48 numeric branch decisions (PCERT B2b).
-            without_the_registry: Some(((1373, 1118), None)),
+            // `(1211, 1328)` shipped, when they were angles).
+            without_the_registry: Some(((1389, 1102), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1373, 1373, 1373],
+            symbolic: [1389, 1389, 1389],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -640,8 +657,9 @@ fn m10_9_what_the_registry_buys() {
 ///
 /// A harmonic row's windings stored as structure (PCERT B2a): the
 /// decisions that read them gone, (1283, 1388, 4112) → (1211, 1328,
-/// 4112), at both dials alike; check 4 deciding no whole period (PCERT
-/// B2b), fidelity's 48 numeric branch decisions gone, (1211, 1280, 4112).
+/// 4112), at both dials alike. The joint pass reading each joint's
+/// turn, which the tier proves where it read a clearance numerically:
+/// (1211, 1328, 4112) → (1223, 1316, 4112).
 ///
 /// A chord's director spelled as its components over its length
 /// (`profile`'s `path::chord_director`) where it was the `sin_cos` of an
@@ -649,9 +667,13 @@ fn m10_9_what_the_registry_buys() {
 /// forms the walks freeze rise, (1211, 1328, 4112) → (1373, 1166, 4298),
 /// at both dials alike. No decision is gained or lost. The same
 /// receipt holds at the pad's new `certifies_at` (its ceiling rose, see
-/// [`measured_studies`]). On the tree with B2b, measured: its 48 numeric
-/// branch decisions come off the components receipt alike,
-/// (1373, 1166, 4298) → (1373, 1118, 4298).
+/// [`measured_studies`]). The junction's turn levered by the shorter
+/// leg's arm, and read again at the door once the leaving leg is
+/// stored: sixteen decisions move from `numeric` to `symbolic`, the
+/// total unchanged, and one more form freezes, (1373, 1166, 4298) →
+/// (1389, 1150, 4299). Check 4 deciding no whole period (PCERT B2b),
+/// fidelity's 48 numeric branch decisions gone, measured on that tree:
+/// (1389, 1150, 4299) → (1389, 1102, 4299), at both dials alike.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -685,7 +707,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1373, 1118, 4298), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1389, 1102, 4299), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

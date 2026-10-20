@@ -9,23 +9,29 @@ points against 30 with its P0 units landed or parked (PRs 4363, 4368,
 
 ## The slate
 
-In flight:
+As of the 2026-10-19 hand-back. `python3 scripts/work.py` lists every
+row; this names the ones that set the order.
 
-- PR 4575 (`contacthold/side-code-order2`, dual review, fix pass): `boolean-conic-side-code-zero-is-first-order`
-- `contacthold/at-rest-cell-pairs` (dual review): `at-rest-records-are-unordered-cell-pairs`, with `curve-contact-names-one-face-where-its-witness-edge-lies-in-two` and `contact-records-carry-operand-labels-into-the-at-rest-currency` riding
-
-Merged: PR 4545 (wording), PR 4550 (census backstop), PR 4558 (tangent locus), PR 4559 (census edge passes).
-
-Open, held for designers: `contact-verify-lane-gate-answers-a-crossing-not-certifiable` (PR 4558 has landed; same function) and `tangent-offset-and-tilt-are-two-epsilon-checks-where-rest-is-one-displacement` (ratified C4/C7 text; a fork for Ev if the designers find one).
-
-Open, filed by this session's reviews: `zero-to-distinct-cells-on-one-point-doors-audit` (P2), `census-containment-gate-reads-instances-along-world-axes-only`, `a-vf-record-defers-a-whole-curved-face-pair-at-the-backstop` (measure first), `contact-verify-keeps-a-bridged-or-later-overruled-second-order-escalation`.
-
-Parked, each on its named trigger:
-
-- `CONTACT-13`, `declared-only-meetings-clear-at-the-census-gate-unread`, `the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box` — on [intent-stage4-is-built]
-- `a-bridge-union-fuses-a-declared-tangent-rest-into-one-shell-with-an-edgeless-contact`, `carrier-escalation-drops-its-plane-rung-at-the-contact-doors` — on [declared-pairs-retire]
-- `topo-surgery-verbs-drop-a-bodys-contact-records`, `declared-faces-has-no-cross-solid-check` — on [at-rest-records-are-unordered-cell-pairs]
-- `notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands` — on [c5-plane-torus-cone-cylinder-arms]
+- **Waiting on Ev** (`[ev]` PR 5395, fork-log row 177): the P1
+  `the-census-discovers-no-same-solid-tangent-touch-through-face-interiors`
+  and `a-bore-tangent-to-a-plates-face-mints-a-face-face-record-the-census-contradicts`.
+  Both designers agree the discovery is a build; the split is whether a
+  material-crescent pinch is a record or two cusp edges.
+- **P2, dispatchable:** `a-touch-along-a-glued-tangency-cites-no-tangency-decision`
+  (unreached today; measure first), `a-point-touchs-kappa-is-levered-by-the-carriers-radius-not-the-cells-reach`
+  (a design question under C3), `an-inherited-pinch-decided-onto-the-ops-face-records-nothing`,
+  `a-brick-on-a-tube-ruling-in-the-zero-band-glues-then-meets-the-pierce-refusal`,
+  `a-face-beside-the-ruling-turned-obliquely-refuses-at-the-split-on-a-carrier-graze`,
+  `a-dipping-round-refuses-at-a-run-boundary-on-its-coplanar-bottom-sector`,
+  `a-round-lifted-within-band-off-the-rim-refuses-its-union-on-the-volume-bound`,
+  `conic-ties-outside-the-vertex-on-face-pass-still-read-first-order`,
+  and the at-rest κ_rel bridge row filed with PR 5395.
+- **Parked:** `a-rim-locus-tangency-through-two-faces-interiors-mints-no-face-face-row`
+  behind TANG's `dev1-cylinder-sphere-circle-locus-arm` (no circle
+  witness locus exists); the D10-hold rows on
+  `d10-one-way-to-say-intent-is-unbuilt`; the P0s `CONTACT-13` and
+  `declared-only-meetings-clear-at-the-census-gate-unread` on
+  `intent-stage4-is-built`.
 
 ## Order
 

@@ -310,22 +310,27 @@ fn eps_row(eps: f64) -> usize {
 /// 2697 → 2733 and `Early/Assertion` 4121 → 4157, and their digests, at
 /// every row; calls, frozen counts, both `*/Decision` lines and the
 /// largest form hold.
+///
+/// The joint's turn and the door's second junction read, as on the
+/// plate: `Plain/Assertion` and `Early/Assertion` +14 calls
+/// (514 → 528) and +30 forms, with their digests, at every row; both
+/// `*/Decision` lines and the largest form hold.
 const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 9fd9683c510b6d13533481894aff86fe\n\
-     Plain/Assertion calls 514 forms 2733 frozen 0 digest 806e4164ff0eae109afd91bcbb432fe9\n\
+     Plain/Assertion calls 528 forms 2763 frozen 0 digest de77b0b2c47cea9e7045c8471e184cb8\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4157 frozen 0 digest 94eb0cd011bda6f54ff7bfe2ee0453c2",
+     Early/Assertion calls 528 forms 4187 frozen 0 digest fd25d46abfb0d394dbb3d2cc79b79f20",
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 7572a0635345c9fe906c50fadd763ce0\n\
-     Plain/Assertion calls 514 forms 2733 frozen 0 digest 7b90d93d3999a85acc7557a506e28138\n\
+     Plain/Assertion calls 528 forms 2763 frozen 0 digest 32b4131f53a420ef27309ad73c84bf01\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4157 frozen 0 digest cf662dda5d1d031e0e9af6238f538eed",
+     Early/Assertion calls 528 forms 4187 frozen 0 digest d7d94722c1d348616d16414a2cc582c0",
     "\
      Plain/Decision calls 928 forms 9415 frozen 0 digest 4c421c5d18739546779e9a8966c18e71\n\
-     Plain/Assertion calls 514 forms 2733 frozen 0 digest d0fe4dd300906adf23c7097661588401\n\
+     Plain/Assertion calls 528 forms 2763 frozen 0 digest 214d14c7211d40f17dac0abfb356f2c1\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 514 forms 4157 frozen 0 digest 188afd10ef6ad7f4f7c711336f4ee6fa",
+     Early/Assertion calls 528 forms 4187 frozen 0 digest e2aad0e30e65d05b5b701fe7c90eca55",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -678,18 +683,24 @@ const PLATE_MAX_TERMS: usize = 28;
 /// 8165 → 8205, and their digests; every call, frozen count, the three
 /// `*/Decision` lines and the largest form hold.
 ///
+/// The profile's joint pass reading each joint's turn, levered by the
+/// shorter leg's arm, and the path door reading each junction a
+/// departing leg follows again once that leg is stored (#5354's ruling
+/// and #5377's fix pass): `Plain/Assertion` and `Early/Assertion` +7
+/// calls (686 → 693) and +30 forms, with their digests; the
+/// `*/Decision` lines, the freezes and the largest form hold.
+///
 /// Check 4 deciding no whole period (PCERT B2b): fidelity's 32 branch
 /// decisions are gone, each a numeric decision checked against the
-/// tier, so `Plain/Assertion` and `Early/Assertion` 686 → 654 calls and
+/// tier, so `Plain/Assertion` and `Early/Assertion` 693 → 661 calls and
 /// `Door/Decision` 428 → 396; forms and digests move with them, and
 /// `Plain/Decision`'s calls, every freeze and the largest form hold.
-/// Measured on the tree with both (the components' +40 forms on each
-/// `*/Assertion` line hold).
+/// Measured on the tree with every move above.
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 939 forms 15828 frozen 324 digest 106c6e8f656834241d3861faf20e7799\n\
-     Plain/Assertion calls 654 forms 6983 frozen 405 digest 1ef4df39484a2e621ea573f570cb0d3a\n\
+     Plain/Assertion calls 661 forms 7013 frozen 405 digest 1a76fa82f0b30a56afad775d19795ee4\n\
      Early/Decision calls 352 forms 8884 frozen 0 digest 77472cc4b2b651d309e31f2086d5b20a\n\
-     Early/Assertion calls 654 forms 8145 frozen 0 digest 9d2325c4b098143e137e9e29960a0c41\n\
+     Early/Assertion calls 661 forms 8175 frozen 0 digest f70c798210d8be477658168802101352\n\
      Door/Decision calls 396 forms 9465 frozen 0 digest c689a400e4425e2426a805dc6619c228";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

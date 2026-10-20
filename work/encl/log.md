@@ -1641,3 +1641,20 @@ coincidence is now a margined verdict (no declarations), checked by the
     - `ReadProfile::render` overflows on a caller-built `select: u64::MAX`. It is behind the `sym-profile-testing` feature only.
     - topo arms on `IntervalNotForward`/`WindingExceeded` look dead (replace_face, validate). This belongs to the census in `kernels-own-span-panic-has-one-row-in-five-sites-and-no-type`.
   (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5401** (`kernels-own-span-panic-has-one-row-in-five-sites-and-no-type`, closed). Every topo `policy_lane` entry now takes a required `Origin::Callers | Origin::Kernels(KernelSite)`. A `Kernels` site panics on a `StatedInterval` refusal, and all five sites (rigid transform, split child, graft, re-description, re-based run) have panic rows, each red when switched to `Callers`. Graft and the tier-3 validator route through `policy_lane`. The source census `policy_lane::origin_census` (selftested) bans direct door calls in topo production code.
+  - **Review:** no MAJOR; every origin classification holds. The census's blanker over-ran gated fields, variants and arms and blanked the next impl; this was reproduced, then fixed through a shared `test_utils::source::attributed_extent`, with selftests.
+  - **Filed:**
+    - encl `kernel-computed-specs-at-callers-sites-return-a-kernel-bug-typed` (D2's must-panic half at booleans driving mev, mef and set_edge_curve);
+    - tint `production-view-blankers-four-copies-with-four-rules`;
+    - ciw `a-declared-module-name-marks-unrelated-tests-new`.
+  (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5413** (`kernel-computed-specs-at-callers-sites-return-a-kernel-bug-typed`, closed). The row's premise was half right: the boolean join drivers it named are input-reachable (class b) and stay `Callers`.
+  - **What is kernel-only:** restating a stored edge, copying its carrier and interval bitwise and changing only the description. Nine sites now panic as `Kernels`:
+    - SeamIntersection, SeamTangency, SeamAtRest;
+    - SectionIntersection, SectionSmooth, SectionRechart;
+    - RimRechart, AtRest, PartedWrap.
+  - **The restatement doors** (`pub(crate)` `Body::restate_edge` and `rechart_restating`) take a description only, and read the carrier and interval off the stored curve. geom-brep's `DraftedIntersection { Kept(desc) | Chord(spec) }` makes the kept-vs-chord branch a type.
+  - **Rows:** every site has a panic row that asserts its own arm. The chord arm is pinned typed. A mutation check showed each site's row going red alone. `# Panics` docs were added to the public doors that reach a site directly.
+  - **Review:** no MAJOR. The fix pass followed the orchestrator's adjudication (doors enforce restatement by their shape, rows guard both directions).
+  - **Next:** `cross-crate-restatements-of-stored-edges-certify-as-callers` (sweep, including `extrude.rs` struts).
+  (ENCL orchestrator)
