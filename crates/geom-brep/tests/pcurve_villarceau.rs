@@ -13,7 +13,7 @@ use core::f64::consts::TAU;
 use geom::{Curve3, Surface};
 use geom_brep::{
     CERT_SAMPLES, EnvelopeStatement, FocalImage, Grazer, Pcurve, PcurveCache, PcurveCertifyError,
-    PcurveCheck, chart_pcurve,
+    PcurveCheck, chart_pcurve, chart_pcurve_over,
 };
 use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
 
@@ -152,7 +152,10 @@ fn every_family_and_traversal_images_exactly_and_certifies() {
         let sup = sampled_sup(&image, &carrier, -3.0, 9.0);
         assert!(sup < 1e-12, "{what}: off the carrier by {sup:e}");
         for (a, b) in [(0.3, 4.0), (t0 - 1.0, t0 - 1.0 + TAU)] {
-            let cache = PcurveCache::certify(image.clone(), a, b, &carrier, &surface, band())
+            // The row is the image placed over the span it certifies on
+            // (C4).
+            let row = chart_pcurve_over(&carrier, a, b, &surface, band()).unwrap();
+            let cache = PcurveCache::certify(row, a, b, &carrier, &surface, band())
                 .unwrap_or_else(|e| panic!("{what}, [{a}, {b}]: {e}"));
             let cert = cache.certificate();
             assert!(
@@ -202,7 +205,7 @@ fn the_rows_certify_at_the_interval_scalar() {
             vl,
             beta,
             sense,
-        })) = chart_pcurve(&carrier, &torus(), band())
+        })) = chart_pcurve_over(&carrier, 0.3, 4.0, &torus(), band())
         else {
             panic!("{what}: no image")
         };

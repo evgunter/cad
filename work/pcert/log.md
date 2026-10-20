@@ -820,3 +820,5 @@ coincidence is now a margined verdict (no declarations), checked by the
   (tracker sweep)
 
 - 2026-10-17 — B1's frame lane is decided across the window's cut (two designers concurred independently; (a) rotated read and (j) per-frame names withdrawn).
+
+- 2026-10-20 — B2b (PR 5343) merged: check 4 decides no whole period on any lane (a lifted copy refuses as its fidelity term), S1 through `Period::times`. The B2 item closes; B1, B2a and B2b all landed.
