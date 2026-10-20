@@ -793,7 +793,9 @@ fn no_unjoined_line<T: Decide + Bounds>(
 /// An in-band reading of whether two straight edges lie on one line
 /// ([`BooleanDecision::LineEdges`]), of the subtracted solid's or of the
 /// result's: a reading of the input, which moving its geometry reaches.
-fn collinear_escalated((_, diag): ([crate::entity::EdgeKey; 2], Indeterminate)) -> BooleanError {
+pub(super) fn collinear_escalated(
+    (_, diag): ([crate::entity::EdgeKey; 2], Indeterminate),
+) -> BooleanError {
     BooleanError::Escalated {
         decision: BooleanDecision::LineEdges,
         diag,

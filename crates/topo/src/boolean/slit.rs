@@ -433,12 +433,8 @@ pub(super) fn merge_slivers<T: Decide + crate::props::AtRestPolicy>(
         read.insert(face);
         let kept = proven(&body.half_edges, keep, EntityId::HalfEdge).edge;
         let killed = proven(&body.half_edges, kill, EntityId::HalfEdge).edge;
-        let alone = !crate::census::line_holds_another_edge(body, [kept, killed], band).map_err(
-            |(_, diag)| BooleanError::Escalated {
-                decision: super::BooleanDecision::LineEdges,
-                diag,
-            },
-        )?;
+        let alone = !crate::census::line_holds_another_edge(body, [kept, killed], band)
+            .map_err(super::ops::collinear_escalated)?;
         if !alone {
             continue;
         }
