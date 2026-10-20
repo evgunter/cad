@@ -6791,3 +6791,9 @@ Signed (WIRE orchestrator).
   - Filed 3 new wire rows, a P3 topo arena-helper row, and a cleave at-rest refusal.
   - Perturbations 3 and 4 find nothing today.
   - STYLE review dispatched; it presses whether the set-sort normalisation hides content leaks.
+
+- 2026-10-20 (WIRE orchestrator) PR 5457 (wire-evalarms) is green at 8f279e27fc.
+  - VerbArity and ProfileAnchor go by row 0; ProfilePieces and ProfileRecordMissing by row 4. MissingSlot is row 4 except on D10 readers (parked).
+  - Two rewordings forced by moved code: the bounds-allowlist pin goes 1→5, plus the real.rs SEAT-4 and the READMEs.
+  - Four rows filed.
+  - FULL review dispatched; it presses input-reachability per panic and the five-copy header.
