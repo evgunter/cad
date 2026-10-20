@@ -1624,6 +1624,63 @@ fn meetings_are_neighbours_along_the_span_whatever_order_they_are_found_in() {
     );
 }
 
+/// **Two segments on one line, far apart along it and in the band across
+/// it, meet nowhere** (the four readers' witness,
+/// `work/cpair/two-spans-projections-on-one-line-are-read-four-ways`).
+/// `(0,0,0)–(1,0,0)` and `(3, 5·10⁻¹², 0)–(4, 5·10⁻¹², 0)` at
+/// `ε = 10⁻¹²`: `b` lies in the escalation band of `a`'s line, but its
+/// projection on `a`'s axis is `2` m past `a`'s end, so the router's gap
+/// decides them apart before any end is read against a carrier,
+/// whichever span is read first. The router read the gap first on main
+/// too; check 9 and `profile`'s segment pairs escalated here.
+#[test]
+fn two_segments_on_one_line_far_apart_along_it_meet_nowhere() {
+    let fine = Band::new(1e-12, 1e-11).unwrap();
+    let a = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let b = line([3.0, 5e-12, 0.0], [1.0, 0.0, 0.0]);
+    let (sa, sb) = (Span::new(&a, (0.0, 1.0)), Span::new(&b, (0.0, 1.0)));
+    for (order, got) in [
+        ("a first", meet(&sa, &sb, fine)),
+        ("b first", meet(&sb, &sa, fine)),
+    ] {
+        let got = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert!(
+            got.shared.is_none() && got.points.is_empty(),
+            "{order}: apart: {got:?}"
+        );
+    }
+}
+
+/// **The router's gap is read from the first span's start, not the
+/// carriers' origins.** Two segments a metre long on the `x` axis near
+/// `x = 10³`, `10⁻¹⁰` apart along it, on carriers whose origins stand
+/// `10⁶` m away. Read from the origins, as on main, the projections carry
+/// `rounding_charge` of the origins' metres, about `4·10⁻⁹`, which hid the
+/// gap: the pair routed level and read one curve
+/// (`Pose::Coincident`, `shared` set, no shared run). Read from the first
+/// span's start the charge is about `7·10⁻¹²`, and the gap decides them
+/// apart.
+#[test]
+fn the_routers_gap_does_not_depend_on_where_the_carriers_origins_lie() {
+    let fine = Band::new(1e-12, 1e-11).unwrap();
+    let a = line([-1e6, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let b = line([1e6, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let (sa, sb) = (
+        Span::new(&a, (1e6 + 1e3, 1e6 + 1e3 + 1.0)),
+        Span::new(&b, (-1e6 + 1e3 + 1.0 + 1e-10, -1e6 + 1e3 + 2.0)),
+    );
+    for (order, got) in [
+        ("a first", meet(&sa, &sb, fine)),
+        ("b first", meet(&sb, &sa, fine)),
+    ] {
+        let got = got.unwrap_or_else(|e| panic!("{order}: {e:?}"));
+        assert!(
+            got.shared.is_none() && got.points.is_empty(),
+            "{order}: apart: {got:?}"
+        );
+    }
+}
+
 /// **A fillet joint between two ellipses across their planes is read by
 /// its window.** A rod's rim cut at 45°, the quarter of its ellipse from
 /// `θ = 0.4636`, and a fillet's ellipse in a plane tilted `26.6°` ending

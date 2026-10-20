@@ -67,7 +67,7 @@ pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Real, Witness, is_exact_zero, is_finite_length,
     is_underflowed_length, is_zero_length,
 };
-pub use running::{Rounded, UNIT_ROUNDOFF};
+pub use running::{HARMONIC_NOISE_ULPS, Rounded, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRetry, SymRules};
 pub use tolerance::{
