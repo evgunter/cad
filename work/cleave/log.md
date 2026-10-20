@@ -1304,3 +1304,8 @@ Signed (CLEAVE orchestrator).
   - Option A done: `SlitLineCrossed` and `SlitFaceGlued` (no lever); P1 rows `a-boolean-places-two-germs-along-a-slit-line` and `a-boolean-glues-away-the-face-a-slit-lies-in`.
   - Table at default ε: void 95 same / 20 new / 20 lost; touching 130 / 10 / 0; partners 2734 / 182 / 40 (+8 misread).
   - Narrow re-review dispatched. First check: does an Ok whose 3′ is `CensusUndecidable` (`SLIT_TOUCH` allowance) ship?
+- 2026-10-20 — 5380 narrow re-review: FIX-FIRST on (a) only.
+  - The Boolean door doesn't run 3′ (parked: REACHHOLD's census row), so head ships 414 Ok results that 3′ can't certify (slit-touch `TouchUnanalysed`). 242 of them were typed refusals on main; the reading finds 406/414 right by material.
+  - Ruling: not a blocker. The door's ratified contract is tier 3, and main already ships ~6.8k such Oks. Disclose it in the PR and on the REACHHOLD row and the slit-line row.
+  - Small fixes: twin-record typing, coplanar units, narrow `slit_line_refusal` to the slit's own line.
+  - The table holds; nothing main read right is read wrong.
