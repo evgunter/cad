@@ -6705,3 +6705,10 @@ Signed (WIRE orchestrator).
   - A new ROWLESS list holds back two over-budget rows.
   - Two recourses added. 8 rows filed, D10 ones parked.
   - STYLE review dispatched; it presses ROWLESS as a possible second hand-kept list.
+
+- 2026-10-20 (WIRE orchestrator) PR 5427 STYLE review at 0072cfea6e: MERGEABLE with MINORs.
+  - Demonstrated: three forward-arm mutations stay green (if-let levels act as wildcards, and nothing checks a roster is read).
+  - ROWLESS is a second hand-kept list. Replace it with name_words_corpus's OVER_BUDGET ceiling precedent.
+  - Stale header; check_findings' inline weld; NITs.
+  - Fix pass sent.
+  - Class note: an exhaustive roster proves the enum is listed, not that the list is consulted. Mutate the forward arms too.
