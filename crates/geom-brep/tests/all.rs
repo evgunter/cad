@@ -184,6 +184,8 @@ mod ring2_r2_probes;
 
 #[path = "cert5_r2_probes.rs"]
 mod cert5_r2_probes;
+#[path = "e1_probe.rs"]
+mod e1_probe;
 #[path = "chart_incidence.rs"]
 mod chart_incidence;
 #[path = "cone_incidence_fuzz.rs"]
