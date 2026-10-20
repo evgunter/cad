@@ -6699,3 +6699,9 @@ Signed (WIRE orchestrator).
   - The kernel record is the ring-to-island export plus the emitter's plane group (the orchestrator checked emit_topo ~503: the split records its other groups).
   - Premise checked against N4 and N2's ratified words.
   - [ev] PR 5426, fork-log row 179. Subscribed.
+
+- 2026-10-20 (WIRE orchestrator) PR 5427 (wire-census2) is green at 0072cfea6e.
+  - A multi-level weld over 18 kernel rosters adds ~45 rows.
+  - A new ROWLESS list holds back two over-budget rows.
+  - Two recourses added. 8 rows filed, D10 ones parked.
+  - STYLE review dispatched; it presses ROWLESS as a possible second hand-kept list.
