@@ -5695,6 +5695,12 @@ pub(crate) mod staleness_posture {
                 "a test-support door that overwrites one surface datum and leaves every row \
                  as found; a row the new datum stales is the tier-3 pass's to report",
             ),
+            (
+                "rotate_shell_faces",
+                Neither,
+                "a test-support door that rotates each shell's stored face list; no face, \
+                 loop or carrier moves, so every row stands as found",
+            ),
             ("mvfs", Neither, "Euler operator"),
             (
                 "merge_unjoined",

@@ -19,10 +19,6 @@ use topo::{Body, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 
 use super::emit::NamingError;
 
-fn bug(what: &'static str) -> NamingError {
-    NamingError::Emission { what }
-}
-
 /// The walls of each of `pieces`, in their order: the faces of `body`
 /// across each piece's edges along a divider, each read by `wall`.
 /// `islands` is the kernel's `(ring, island)` record over the faces
@@ -30,13 +26,14 @@ fn bug(what: &'static str) -> NamingError {
 ///
 /// # Panics
 ///
-/// Where the kernel's record disagrees with `pieces`, or a piece among
-/// several meets no divider, both kernel bugs (the `unreachable!`s say
-/// why).
+/// Where the kernel's record disagrees with `pieces`, where a piece
+/// among several meets no divider, or where a piece's own topology does
+/// not walk: `pieces` are faces of `body`'s half that the split door
+/// recorded, in a body every door keeps tier-1-valid, so each is a
+/// kernel bug (the `unreachable!`s say why).
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where a piece or a loop does not walk, and
 /// `wall`'s.
 pub(super) fn plane_walls<T: geom_core::Real, W: Ord>(
     body: &Body<T>,
@@ -48,9 +45,7 @@ pub(super) fn plane_walls<T: geom_core::Real, W: Ord>(
     // Region 0 is the exterior; each ring of a piece bounds its own.
     let mut ring_region: BTreeMap<LoopKey, usize> = BTreeMap::new();
     for &f in pieces {
-        let face = body
-            .get_face(f)
-            .ok_or_else(|| bug("a plane piece is not live in its half"))?;
+        let face = piece_face(body, f);
         for &r in &face.rings {
             let n = ring_region.len() + 1;
             ring_region.insert(r, n);
@@ -76,21 +71,22 @@ pub(super) fn plane_walls<T: geom_core::Real, W: Ord>(
     // (region, piece, the loop's half-edges)
     let mut sides: Vec<(usize, usize, Vec<HalfEdgeKey>)> = Vec::new();
     for (p, &f) in pieces.iter().enumerate() {
-        let face = body
-            .get_face(f)
-            .ok_or_else(|| bug("a plane piece is not live in its half"))?;
+        let face = piece_face(body, f);
         for l in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
             let region = if l == face.outer {
                 outline_region.get(&f).copied().unwrap_or(0)
             } else {
                 ring_region[&l]
             };
-            let hes = loop_half_edges(body, l)?;
+            let hes = loop_half_edges(body, l);
             for &he in &hes {
-                let v = body
-                    .get_half_edge(he)
-                    .ok_or_else(|| bug("a plane piece's half-edge is dangling"))?
-                    .start;
+                let Some(half) = body.get_half_edge(he) else {
+                    unreachable!(
+                        "plane piece {f:?}'s loop {l:?} walks to half-edge {he:?}, which is not \
+                         live, though `loop_cycle` walks a tier-1-valid body's live half-edges"
+                    )
+                };
+                let v = half.start;
                 match at.get(&v) {
                     Some(&other) => union(&mut link, other, region),
                     None => {
@@ -114,7 +110,7 @@ pub(super) fn plane_walls<T: geom_core::Real, W: Ord>(
             continue;
         }
         for he in hes {
-            let across = face_across(body, he)?;
+            let across = face_across(body, he);
             if !ix.contains_key(&across) {
                 walls[p].insert(wall(across)?);
             }
@@ -143,34 +139,49 @@ fn union(link: &mut [usize], a: usize, b: usize) {
     link[a.max(b)] = a.min(b);
 }
 
-fn loop_half_edges<T: geom_core::Real>(
-    body: &Body<T>,
-    l: LoopKey,
-) -> Result<Vec<HalfEdgeKey>, NamingError> {
-    match body
-        .get_loop(l)
-        .ok_or_else(|| bug("a plane piece's loop is dangling"))?
-        .boundary
-    {
-        LoopBoundary::Empty { .. } => Ok(Vec::new()),
-        LoopBoundary::Cycle { first } => body
-            .loop_cycle(first)
-            .ok_or_else(|| bug("a plane piece's loop does not walk")),
+/// A plane piece's face, which the split door recorded in `body`.
+#[track_caller]
+fn piece_face<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> &topo::Face {
+    body.get_face(f).unwrap_or_else(|| {
+        unreachable!(
+            "plane piece {f:?} is not live in its half, though the split door records the \
+             pieces of the half it hands over"
+        )
+    })
+}
+
+/// A plane piece's loop `l`, walked: a loop of a live face of a body
+/// every door keeps tier-1-valid.
+#[track_caller]
+fn loop_half_edges<T: geom_core::Real>(body: &Body<T>, l: LoopKey) -> Vec<HalfEdgeKey> {
+    let Some(lp) = body.get_loop(l) else {
+        unreachable!("a plane piece's loop {l:?} is not live, though its face holds it")
+    };
+    match lp.boundary {
+        LoopBoundary::Empty { .. } => Vec::new(),
+        LoopBoundary::Cycle { first } => body.loop_cycle(first).unwrap_or_else(|| {
+            unreachable!(
+                "a plane piece's loop {l:?} does not walk from {first:?}, though a tier-1-valid \
+                 loop's cycle closes"
+            )
+        }),
     }
 }
 
-fn face_across<T: geom_core::Real>(
-    body: &Body<T>,
-    he: HalfEdgeKey,
-) -> Result<FaceKey, NamingError> {
-    let mate = body
-        .mate(he)
-        .ok_or_else(|| bug("a plane piece's edge has no mate"))?;
-    let mate_he = body
-        .get_half_edge(mate)
-        .ok_or_else(|| bug("a plane piece's edge mate is dangling"))?;
-    Ok(body
-        .get_loop(mate_he.parent_loop)
-        .ok_or_else(|| bug("the loop across a plane piece's edge is dangling"))?
-        .face)
+/// The face across half-edge `he` of a plane piece: its mate's loop's.
+#[track_caller]
+fn face_across<T: geom_core::Real>(body: &Body<T>, he: HalfEdgeKey) -> FaceKey {
+    let Some(mate) = body.mate(he) else {
+        unreachable!("a plane piece's half-edge {he:?} has no mate, though a tier-1 edge has two")
+    };
+    let Some(mate_he) = body.get_half_edge(mate) else {
+        unreachable!("half-edge {he:?}'s mate {mate:?} is not live in a tier-1-valid body")
+    };
+    let Some(lp) = body.get_loop(mate_he.parent_loop) else {
+        unreachable!(
+            "half-edge {mate:?}'s loop {:?} is not live in a tier-1-valid body",
+            mate_he.parent_loop
+        )
+    };
+    lp.face
 }

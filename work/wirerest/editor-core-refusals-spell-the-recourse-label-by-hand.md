@@ -32,3 +32,7 @@ the literal; each wants reading.
 Write each refusal's ending through `Recourse(..)` (with
 `format_args!` where it carries a value), leaving literals only where a
 test pins the rendered sentence.
+
+## Moved to WIREREST (2026-10-20)
+
+WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).
