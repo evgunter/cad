@@ -253,6 +253,15 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
         got.volume_pad,
         ARC_PRISM_PAD_AT_DEFAULT_EPS,
     );
+    // The measure the ceiling's comment cites, held where it was taken.
+    if Tol::witness().get().eps == 1e-9 {
+        assert!(
+            (got.volume_pad / ARC_PRISM_PAD_AT_DEFAULT_EPS - 1.0).abs() < 0.01,
+            "MEASURED: volume pad {} moved from the {} the ceiling's comment cites",
+            got.volume_pad,
+            ARC_PRISM_PAD_AT_DEFAULT_EPS,
+        );
+    }
 }
 
 /// The pad measured on the arc prism at the default ε (1e-9), each face

@@ -540,7 +540,7 @@ pub(crate) fn sign_walk<'b, T: Decide, V>(
     last_word: impl Fn(Option<MassPropsError>) -> V,
 ) -> Result<(V, SignCertificate<'b, T>), MassPropsError> {
     let hook = round_hook(quad);
-    let refs = References::of(body, faces.iter().copied())?;
+    let refs = References::of(body, faces.iter().copied());
     // Round 0 over every face, then the rounds after it over the faces
     // still open — both idiom 1 into slots in the caller's order, both
     // composed sequentially in it ([`mass_properties_impl`]'s note).
@@ -729,9 +729,7 @@ impl<T: Decide> PastTarget<'_, T> {
         }
         let hook = round_hook(walk.quad);
         let (body, band, tol) = (walk.body, walk.band, walk.tol);
-        let Ok(refs) = References::of(body, next.iter().map(|&(_, face, _)| face)) else {
-            return false;
-        };
+        let refs = References::of(body, next.iter().map(|&(_, face, _)| face));
         match decide_faces(&next, |&(_, face, round)| {
             face_flux(body, face, band, &hook, tol, RoundWindow::at(round), &refs)
         }) {
@@ -1193,7 +1191,7 @@ pub(crate) fn certify_role<T: Decide>(
 /// none to give, and what this read certifies is only that the sums' sign
 /// is not within the rounding the model puts on them.
 fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, MassPropsError> {
-    let refs = References::of(body, runs.iter().map(|r| r.face))?;
+    let refs = References::of(body, runs.iter().map(|r| r.face));
     let one_norm = |x: T, y: T, z: T| x.abs() + y.abs() + z.abs();
     let mut bound = T::zero();
     for run in runs {
@@ -1371,7 +1369,7 @@ fn rederive_faces<T: Decide>(
     runs: &[FaceRun<T>],
     tight: bool,
 ) -> Result<Rederived, MassPropsError> {
-    let refs = References::of(body, runs.iter().map(|r| r.face))?;
+    let refs = References::of(body, runs.iter().map(|r| r.face));
     let (mut flux, mut area) = (Interval::zero(), Interval::zero());
     let mut recentred = true;
     let mut quadrature = false;
@@ -1493,7 +1491,7 @@ fn rederive_polygons<T: Decide>(
     polygons: &[PlanePolygon],
     runs: &[FaceRun<T>],
 ) -> Result<Rederived, MassPropsError> {
-    let refs = References::of(body, runs.iter().map(|r| r.face))?;
+    let refs = References::of(body, runs.iter().map(|r| r.face));
     let (mut flux, mut area) = (Interval::zero(), Interval::zero());
     for ((rings, normal), run) in polygons.iter().zip(runs) {
         let centre = corner_of(body, lane, &refs, run.face)?;
@@ -1879,8 +1877,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         let refs = References::of(
             body,
             runs.iter().filter(|r| r.open_at.is_some()).map(|r| r.face),
-        )
-        .map_err(hard)?;
+        );
         let resume = |face, round: usize| {
             face_flux(
                 body,
@@ -2790,6 +2787,18 @@ pub fn mass_properties_with_face_terms(
     Ok((props, terms))
 }
 
+/// Every shell of `body` with the point its faces are read about
+/// ([`shell_reference`]), in arena order. Test vocabulary.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[must_use]
+pub fn shell_references(body: &Body<f64>) -> Vec<(ShellKey, Point3<f64>)> {
+    body.shells
+        .iter()
+        .map(|(key, _)| (key, shell_reference(body, key)))
+        .collect()
+}
+
 /// Every quadrature face of `body` with the first round its lane meets
 /// the reporting target at, each read alone at that round about the
 /// face's shell's reference ([`shell_reference`]) as [`mass_properties`] reads it:
@@ -2809,7 +2818,7 @@ pub fn quadrature_rounds(
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let hook = reporting_hook(Some(QuadLane::certified()));
-    let refs = References::of(body, faces.iter().copied())?;
+    let refs = References::of(body, faces.iter().copied());
     let mut rounds = Vec::new();
     for &face in &faces {
         let (mut met, mut quadrature) = (None, false);
@@ -2841,7 +2850,7 @@ fn mass_properties_runs<T: Decide>(
     quad: &QuadHook<'_, T>,
     tol: Tol,
 ) -> Result<(MassProperties<T>, Vec<FaceRun<T>>), MassPropsError> {
-    let refs = References::of(body, faces.iter().copied())?;
+    let refs = References::of(body, faces.iter().copied());
     let runs = decide_faces(faces, |&face_key| {
         face_flux(
             body,
@@ -3026,36 +3035,21 @@ fn closed_form_about<U: Decide>(
 }
 
 /// **The point a face's flux is read about** — its shell's reference:
-/// the stored point of the vertex the outer loop of the shell's first
-/// face that takes the quadrature ([`takes_quadrature`]) starts at, in the
-/// shell's own face order; for a shell with no such face, its first
-/// face's (the world origin for a shell of no face, which sums nothing).
-/// A closed surface's volume is a third of its faces' fluxes about any
-/// one point, so a shell's sum does not depend on it, nor a body's, which
-/// sums its shells'. Each face's width does, by its lever from the point,
-/// and only a quadrature face carries a width: a closed form reads none
-/// at the walk's scalar. A vertex of a quadrature face bounds every
-/// quadrature face's lever by the extent of the shell's quadrature faces,
-/// not of the shell, and wherever the body sits (D4 ¶4's box, W1); which
-/// such vertex is first depends on the stored face order only within
-/// that extent.
-///
-/// A stored vertex, not a mean point and not a carrier evaluated at a
-/// parameter: its coordinates are the body's own, so moving a face's
-/// geometry by it rounds no more than the body's coordinates do (a box
-/// centre off that grid rounds every moved coordinate, and over a long
-/// face that is width), and at `f64` it is exact. At an interval scalar a
-/// computed body's vertex carries the width its construction left, and
-/// moving every point by it adds that width to each, but no evaluation's
-/// on top. The point is the shell's, not the walk's: every walk over a
-/// face — the whole body, a face list in any order, a solid, a shell, and
-/// every resumption — reads it about the same point, so a face's term is
-/// one value whichever walk reads it. [`References`] holds it per walk;
-/// [`corner_of`] is it, lifted.
-fn shell_reference<T: Decide>(
-    body: &Body<T>,
-    shell: ShellKey,
-) -> Result<Point3<T>, MassPropsError> {
+/// the stored start vertex of the outer loop of the shell's first face, in
+/// its stored order, that takes the quadrature ([`takes_quadrature`]), or
+/// of its first face where none does (the world origin for a shell of no
+/// face, which sums nothing). A shell's sum does not depend on the point;
+/// each quadrature face's width does, by its lever from it, and only a
+/// quadrature face carries one at the walk's scalar. The point is a stored
+/// vertex, so moving geometry by it rounds no more than the body's own
+/// coordinates do. Which quadrature face is first is the stored order's
+/// choice, and the lever is unbounded by it: a shell whose quadrature
+/// faces lie a kilometre apart reads pads up to 90× apart across
+/// rotations of its face list at 1e-6
+/// (`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`).
+/// Every walk over a face reads it about this one point; [`References`]
+/// holds it per door call and [`corner_of`] lifts it.
+fn shell_reference<T: Decide>(body: &Body<T>, shell: ShellKey) -> Point3<T> {
     use crate::entity::EntityId;
     let start = |face: &crate::entity::Face| {
         let outer = crate::live::proven(&body.loops, face.outer, EntityId::Loop);
@@ -3077,44 +3071,43 @@ fn shell_reference<T: Decide>(
             takes_quadrature(surface, loops.iter().flatten().map(|e| &e.carrier))
         });
         if quadrature {
-            return Ok(start(face));
+            return start(face);
         }
     }
-    Ok(shell
+    shell
         .faces
         .first()
-        .map_or_else(Point3::origin, |&key| start(resolve_face(body, key).0)))
+        .map_or_else(Point3::origin, |&key| start(resolve_face(body, key).0))
 }
 
 /// **Each shell's reference** ([`shell_reference`]) over the faces one
-/// walk reads, found once per walk: finding it reads the shell's faces
-/// up to its first quadrature face, so a walk that asked for it per face
-/// would read a shell of no quadrature face once per face.
+/// door call reads, found once per call: finding it reads the shell's
+/// faces up to its first quadrature face, so a walk that asked for it per
+/// face would read a shell of no quadrature face once per face.
 struct References<T: Decide>(std::collections::BTreeMap<ShellKey, Point3<T>>);
 
 impl<T: Decide> References<T> {
     /// The references of the shells `faces` lie on.
-    fn of(
-        body: &Body<T>,
-        faces: impl IntoIterator<Item = FaceKey>,
-    ) -> Result<Self, MassPropsError> {
+    fn of(body: &Body<T>, faces: impl IntoIterator<Item = FaceKey>) -> Self {
         let mut map = std::collections::BTreeMap::new();
         for key in faces {
             let shell = resolve_face(body, key).0.shell;
-            if let std::collections::btree_map::Entry::Vacant(slot) = map.entry(shell) {
-                slot.insert(shell_reference(body, shell)?);
-            }
+            map.entry(shell)
+                .or_insert_with(|| shell_reference(body, shell));
         }
-        Ok(Self(map))
+        Self(map)
     }
 
-    /// The point `face` is read about: its shell's reference.
+    /// The point `face` is read about: its shell's reference. A face
+    /// whose shell the door did not hold is a door that read a face it
+    /// did not hand [`References::of`], refused as corrupt.
     fn at(&self, body: &Body<T>, face: FaceKey) -> Result<Point3<T>, MassPropsError> {
-        let shell = resolve_face(body, face).0.shell;
         self.0
-            .get(&shell)
+            .get(&resolve_face(body, face).0.shell)
             .copied()
-            .map_or_else(|| shell_reference(body, shell), Ok)
+            .ok_or(MassPropsError::Corrupt {
+                what: "a walk read a face of a shell it holds no reference for",
+            })
     }
 }
 
@@ -3135,16 +3128,17 @@ fn takes_quadrature<'a, T: Decide + 'a>(
         Surface::Plane { .. } => carriers().any(|c| matches!(c, geom::Curve3::Spiric { .. })),
         _ => {
             surface.spline_chart().is_some()
-                || (!matches!(surface, Surface::Cone { .. })
-                    && carriers().any(|c| {
-                        matches!(
-                            c,
-                            geom::Curve3::Ellipse { .. }
-                                | geom::Curve3::Spiric { .. }
-                                | geom::Curve3::Nurbs(_)
-                        )
-                    }))
+                || (!matches!(surface, Surface::Cone { .. }) && carriers().any(trims))
         }
+    }
+}
+
+/// Whether a carrier trims a curved face off its closed form: an ellipse,
+/// a spiric or a spline, where a line or a circle keeps it.
+fn trims<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
+    match carrier {
+        geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } => false,
+        geom::Curve3::Ellipse { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => true,
     }
 }
 
@@ -3201,12 +3195,7 @@ fn face_flux_about<T: Decide>(
             let trimmed = loops
                 .iter()
                 .flat_map(|(edges, _)| edges)
-                .any(|e| match e.carrier {
-                    geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } => false,
-                    geom::Curve3::Ellipse { .. }
-                    | geom::Curve3::Spiric { .. }
-                    | geom::Curve3::Nurbs(_) => true,
-                });
+                .any(|e| trims(&e.carrier));
             // Which lanes read a ring: the cone's closed form (every
             // loop's vector area, whatever trims it), the cylinder's
             // closed form and quadrature alike (each a Green form summed
@@ -4107,7 +4096,7 @@ fn measured_at_target<T: Decide>(
 ) -> Result<MassProperties<T>, MassPropsError> {
     let hook = reporting_hook(quad);
     // Serial, for [`decide_faces_serially`]'s reason.
-    let refs = References::of(body, faces.iter().copied())?;
+    let refs = References::of(body, faces.iter().copied());
     let runs = decide_faces_serially(faces, |&face_key| {
         face_flux(
             body,
@@ -6105,7 +6094,7 @@ mod exact_enclosure_rows {
                         };
                         let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
                         let hook = reporting_hook(Some(lane));
-                        let refs = References::of(&body, faces.iter().copied()).unwrap();
+                        let refs = References::of(&body, faces.iter().copied());
                         let runs = decide_faces_serially(&faces, |&f| {
                             face_flux(&body, f, band, &hook, tol, RoundWindow::SCHEDULE, &refs)
                         })
@@ -6171,7 +6160,7 @@ mod shell_reference_rows {
         let band = Band::linear(tol).unwrap();
         let faces = crate::query::all_faces(body);
         let hook = reporting_hook(Some(QuadLane::<f64>::certified()));
-        let refs = References::of(body, faces.iter().copied()).unwrap();
+        let refs = References::of(body, faces.iter().copied());
         let runs = decide_faces_serially(&faces, |&f| {
             let about = about.map_or_else(|| refs.at(body, f), Ok)?;
             face_flux_about(body, f, band, &hook, tol, RoundWindow::SCHEDULE, about)
@@ -6255,7 +6244,7 @@ mod shell_reference_rows {
                     LoopBoundary::Cycle { first } => body.get_half_edge(first).unwrap().start,
                 };
                 let want = body.vertex_points().find(|(v, _)| *v == start).unwrap().1;
-                let got = shell_reference(body, key).unwrap();
+                let got = shell_reference(body, key);
                 assert_eq!(
                     [got.x, got.y, got.z].map(f64::to_bits),
                     [want.x, want.y, want.z].map(f64::to_bits),
@@ -6365,7 +6354,7 @@ mod shell_reference_rows {
         let faces = crate::query::all_faces(&body);
         let lane = QuadLane::<f64>::certified();
         let hook = reporting_hook(Some(lane));
-        let refs = References::of(&body, faces.iter().copied()).unwrap();
+        let refs = References::of(&body, faces.iter().copied());
         let runs = decide_faces_serially(&faces, |&f| {
             face_flux(&body, f, band, &hook, tol, RoundWindow::SCHEDULE, &refs)
         })

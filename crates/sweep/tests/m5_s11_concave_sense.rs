@@ -620,6 +620,15 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
                 "{row}: volume pad {} vs {ceiling:e}",
                 m.volume_pad
             );
+            // The measure the ceiling's comment cites, held where it was taken.
+            if row == "the lofted concave prism" && Tol::witness().get().eps == 1e-6 {
+                assert!(
+                    (m.volume_pad / LOFTED_CONCAVE_PAD_AT_1E6 - 1.0).abs() < 0.01,
+                    "{row}: volume pad {} moved from the {LOFTED_CONCAVE_PAD_AT_1E6} the \
+                     ceiling's comment cites",
+                    m.volume_pad
+                );
+            }
         }
         Err(topo::MassPropsError::Face {
             source:
@@ -1096,3 +1105,7 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
     let oracle = |q| loft_contains(&swept, q);
     assert_walls_face_out(&swept, &oracle, &samples, 0.05, 4);
 }
+
+/// The lofted concave prism's volume pad at ε 1e-6, the measure the
+/// rational-volume ceiling's comment cites.
+const LOFTED_CONCAVE_PAD_AT_1E6: f64 = 1.381_6e-3;

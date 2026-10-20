@@ -328,7 +328,20 @@ fn row(
         "PAD CEILING {name}: volume pad {} vs {ceiling}",
         got.volume_pad
     );
+    // The measure the ceiling's comment cites, held where it was taken.
+    if name == "blade-8 (deg 1)" && eps == DEFAULT_EPS {
+        assert!(
+            (got.volume_pad / BLADE_8_PAD_AT_DEFAULT_EPS - 1.0).abs() < 0.01,
+            "MEASURED {name}: volume pad {} moved from the {BLADE_8_PAD_AT_DEFAULT_EPS} the \
+             ceiling's comment cites",
+            got.volume_pad
+        );
+    }
 }
+
+/// blade-8's volume pad at the default ε, the measure the ceiling's
+/// comment cites.
+const BLADE_8_PAD_AT_DEFAULT_EPS: f64 = 2.001_6e-6;
 
 /// **The regression row** (issue 453): SIX stations, a quadratic skin,
 /// and a rational wall whose interior v knots are off the composite's

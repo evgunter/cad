@@ -120,19 +120,21 @@ Measured both options and five candidates as local spikes, pads at
   `fillet_h5_r2_probes` its tolerance.
 - **qfirst landed.** `c` is the start vertex of the shell's first face
   that takes the quadrature (`takes_quadrature`, the walk's own
-  dispatch). It is exact, needs no decision, and bounds each quadrature
-  face's lever by the extent of the shell's quadrature faces. Only a
-  quadrature face carries a pad at the walk's scalar. It reaches the
-  per-face lower bound on every probe above but the turned pose, and its
-  order dependence lies within the quadrature extent: 1.04× on the bar at
-  every ε. "Nearest vertex to the quadrature box centre" read about the
-  same, but needs recorded comparisons in kernel code.
-- **qfirst is still order-dependent**, only now within the quadrature
-  extent and not the shell's: which quadrature face is first is the
-  stored order's choice. The order row pins each ε's measured ratio with
-  headroom: `one_solid_in_two_face_orders_carries_nearly_one_pad`, 1.04×
-  on the 900 m bar at every ε, and 1.11×, 1.10× and 1.55× on the cut far
-  off and turned at 1e-9, 1e-12 and 1e-6. No pair passes 2×.
+  dispatch). It is exact and needs no decision. Only a quadrature face
+  carries a pad at the walk's scalar, so it reaches the per-face lower
+  bound on every probe above except the turned pose. "Nearest vertex to
+  the quadrature box centre" read about the same, but needs recorded
+  comparisons in kernel code.
+- **qfirst is still order-dependent, and the dependence is unbounded.**
+  Which quadrature face is first is the stored order's choice. On the
+  bodies above it moves the pad 1.04× (the 900 m bar) and 1.10–1.55×
+  (turned), pinned per ε by
+  `one_solid_in_two_face_orders_carries_nearly_one_pad`. On one shell
+  whose quadrature faces lie a kilometre apart (two tori on one bar), it
+  moves the pad 2.58× at 1e-9, 2.71× at 1e-12 and 90.2× at 1e-6 across
+  rotations of the stored face list, the same as the vertex rule. That is
+  filed as P2
+  `work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`.
 - **Cost that stays:** a quadrature body centred on the origin is read
   about a vertex on its rim, where the origin was its centre. `m8_3`
   reads 2.00e-6 against 0.98e-6 on main, and its ceiling states the
