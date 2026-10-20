@@ -2,7 +2,7 @@
 //! moved with it** — the SEAT-4/5/7 method, for the first verb whose
 //! result is two-sided.
 //!
-//! `Node::Split` builds a `verbs::Verb`, runs it through the split
+//! `Node::Split` builds a `verbs::Split`, runs it through the split
 //! door, takes its birth record out of the closed record channel and
 //! its two sides out of the door's own out-type, and emits names from
 //! the record. A re-plumbing's failure mode is a difference nobody
@@ -307,9 +307,9 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x615f_38e4_0bb7_2148u64),
-        ("part_select", 0x7b4d_39f0_68df_e9b5),
-        ("kitchen_sink", 0x1032_8a96_fb12_9d02),
+        ("cut_cylinder", 0xa830_a06a_2d5f_ae9cu64),
+        ("part_select", 0xb498_9a13_15bb_a765),
+        ("kitchen_sink", 0x9b0e_dde4_bead_e818),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

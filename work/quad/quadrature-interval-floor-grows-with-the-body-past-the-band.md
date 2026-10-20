@@ -83,3 +83,12 @@ frame converges at all three ε. Which term holds the width is not
 measured; the position term `o·A⃗`, read at the interval scalar a
 kilometre out, is the candidate. The row pins it by type
 (`runs_out_of_budget_at_interval`).
+
+**Measured (FLUX spiric-budget unit, `flux/spiric-budget-world-position`,
+2026-10-20).** It was the position term. With each face's flux read about
+a vertex of its shell (`topo::props`' `shell_reference`) instead of the
+world origin, this pose converges at `Interval` and ε = 1e-12. The pin is
+gone and the row asserts the enclosure for every pose. The scale-1 rod's
+backstop floor above is not re-measured here, so this item stays open
+for it: the ε share and the round-6 rule remainder are not position
+terms.

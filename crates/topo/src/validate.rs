@@ -391,6 +391,7 @@ use geom_brep::{
     CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge,
     classify_material_pairing,
 };
+use geom_core::one_line::on_one_line;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, NOT_YET_ENDING, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
@@ -1916,6 +1917,35 @@ pub enum ValidationError {
         /// The not-yet-supported class, named.
         what: &'static str,
     },
+    /// **Tier 3′: a face passes through an edge's material wedge.** An
+    /// edge lies in a face of its own solid, and on decided readings the
+    /// two cells' material overlaps there: a sheet of the face lies
+    /// inside the edge's wedge, or the wedge inside the face's material.
+    /// The material sectors on one line are disjoint (D1,
+    /// `crates/topo/README.md` tier 3), so no record makes this valid.
+    FaceThroughEdgeWedge {
+        /// The edge.
+        edge: EdgeKey,
+        /// The face it lies in.
+        face: FaceKey,
+        /// Where the two were read, as coordinates.
+        witness: String,
+    },
+    /// **Tier 3′: whether a face passes through an edge's material wedge
+    /// is undecided.** An edge lies in a face of its own solid, and the
+    /// side reading of the two ([`Self::FaceThroughEdgeWedge`]'s) could
+    /// not be taken: `why` says why.
+    FaceThroughEdgeWedgeUndecided {
+        /// The edge.
+        edge: EdgeKey,
+        /// The face it lies in.
+        face: FaceKey,
+        /// Where the two were read, as coordinates.
+        witness: String,
+        /// Why the reading was not taken; the finding renders it with
+        /// its recourse.
+        why: crate::census::TouchUnread,
+    },
     /// Tier 3′: the census read a point at an arc's end that lies
     /// definitely off both of its edge's corners, on a body tier 3 passed
     /// at the same band, which pins every carrier end within the zero
@@ -1949,6 +1979,22 @@ pub enum ValidationError {
         /// `inner`'s first vertex in arena order found strictly inside
         /// `outer`'s material.
         witness: VertexKey,
+    },
+    /// Tier 3′ (D1 tier 3, C4): two faces of one solid that share no
+    /// edge, on carriers whose closed-form tangent line runs strictly
+    /// through both faces' interiors, with the solid's material in the
+    /// crescent between them (a bore tangent to a face from inside).
+    /// Such a line carries two coincident cusp edges, wedge 0, one per
+    /// cusp, and this body has none there: a defect of the body, which
+    /// no contact record answers for.
+    CuspEdgesMissing {
+        /// One face through the line.
+        a: FaceKey,
+        /// The other.
+        b: FaceKey,
+        /// A point on the line within both faces' extents along it,
+        /// read after "at" in the message.
+        witness: String,
     },
     /// An entity holds a topology key that does not resolve in its arena.
     /// Reported once per occurrence (a parent listing the same dangling
@@ -2376,6 +2422,15 @@ pub enum CensusContact {
         /// The face.
         face: FaceKey,
     },
+    /// Two faces of one solid on distinct carriers touching along their
+    /// tangent line through both interiors, the crescent between them
+    /// void (CONTACT-DESIGN C2's same-solid discovery, C3's curve touch),
+    /// carried as the kernel contact finding of class `Tangent`.
+    FaceFaceTangent {
+        /// What was found: the face pair, its class (`Tangent`), and
+        /// the verdict the jet schedule read along the line.
+        finding: crate::contact::ContactFinding,
+    },
     /// Two curved faces on ONE carrier with opposed senses whose trim
     /// regions definitely overlap in the shared chart (M9-2's
     /// conformal face-pair arm) — carried as the kernel contact
@@ -2405,6 +2460,7 @@ impl fmt::Display for CensusContact {
             Self::EdgeEdgeCross { .. } => f.write_str("two edges crossing"),
             Self::EdgeEdgeOverlap { .. } => f.write_str("two edges overlapping along a length"),
             Self::EdgeFaceOverlap { .. } => f.write_str("an edge lying in a face along a length"),
+            Self::FaceFaceTangent { .. } => f.write_str("two faces touching along a line"),
             Self::ConformalPatch { finding } => write!(
                 f,
                 "two faces lying against each other (a {} contact)",
@@ -3359,7 +3415,9 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             "the face wraps all the way round its surface, which the kernel cannot yet map",
             NOT_YET_ENDING,
         ),
-        M::Escalated { cause, .. } => {
+        // A net closed in `v` whose `v` sections sit in the band's sliver
+        // of collapsing: an undecided reading, read as one.
+        M::Escalated { cause, .. } | M::NetStretchUndecided { cause, .. } => {
             return (
                 CLOSE,
                 geom_brep::recourse::not_yet(RefusedArm::Undecided(cause), Reading::AtRest).into(),
@@ -4222,11 +4280,29 @@ impl fmt::Display for ValidationError {
                     _ => "two parts of the body",
                 }
             ),
+            Self::FaceThroughEdgeWedge { witness, .. } => write!(
+                f,
+                "an edge lies in a face of its own part at {witness}, and the face passes \
+                 through the material the edge bounds, so the edge pairs two faces with \
+                 the face between them. {DEFECT}"
+            ),
+            Self::FaceThroughEdgeWedgeUndecided { witness, why, .. } => write!(
+                f,
+                "an edge lies in a face of its own part at {witness}, and whether the face \
+                 passes through the material the edge bounds is undecided: {}",
+                why.in_own_face()
+            ),
             Self::InstanceInterference { .. } => write!(
                 f,
                 "two instances overlap: a corner of one lies inside the other \
                  (an interference fit), which no declaration can make valid. Recourse: move \
                  the instances apart"
+            ),
+            Self::CuspEdgesMissing { witness, .. } => write!(
+                f,
+                "two faces of one part are pinched together along a line at {witness} with \
+                 material between them on both sides, and no edge lies on the line, which owes \
+                 two cusp edges. {DEFECT}"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(
@@ -8905,12 +8981,40 @@ fn segments_meet<T: Decide>(
     }
 }
 
-/// Two straight edges `[a0, a1]` and `[b0, b1]` in one plane, by the
-/// four orientation margins of each one's ends against the other's
-/// line — signed lengths, `(p − o) × ê · n̂`. Both ends strictly on one
-/// side of the other's line separates them; otherwise they meet,
-/// unless all of one's ends lie ON the other's line, where the pair is
-/// collinear and the question is whether the two spans overlap.
+/// Whether two segments' projections lie apart past the band on
+/// either one's axis (the **`ring_outer_meet_gap`** row, [`lines_meet`]):
+/// on `a`'s unit `ea` first, then on `b`'s `eb` where `a`'s did not
+/// decide. Either axis apart holds every pair of points apart, so the
+/// reading is the pair's, whichever segment is named first.
+fn gaps_apart<T: Decide>(
+    (ea, a): (
+        geom_core::Vec3<T>,
+        (geom_core::Point3<T>, geom_core::Point3<T>),
+    ),
+    (eb, b): (
+        geom_core::Vec3<T>,
+        (geom_core::Point3<T>, geom_core::Point3<T>),
+    ),
+    band: Band,
+) -> bool {
+    let apart = |unit, first, second| {
+        let along = on_one_line(unit, first, second, T::zero());
+        decide("ring_outer_meet_gap", Margin::of(along.apart()), band) == Ok(Sign::Positive)
+    };
+    apart(ea, a, b) || apart(eb, b, a)
+}
+
+/// Two straight edges `[a0, a1]` and `[b0, b1]` in one plane. First the
+/// gap between their projections on either one's axis ([`gaps_apart`],
+/// [`geom_core::one_line`]): projections apart past the band hold every
+/// pair of points apart by as much, whatever the ends' sides would read.
+/// The four points are the body's stored vertex positions
+/// ([`edge_endpoints`]). Then the four
+/// orientation margins of each one's ends against the other's line —
+/// signed lengths, `(p − o) × ê · n̂`. Both ends strictly on one side of
+/// the other's line separates them; otherwise they meet, unless all of
+/// one's ends lie ON the other's line, where the pair is collinear and
+/// the question is whether the two spans overlap.
 fn lines_meet<T: Decide>(
     a0: geom_core::Point3<T>,
     a1: geom_core::Point3<T>,
@@ -8921,6 +9025,9 @@ fn lines_meet<T: Decide>(
 ) -> EdgePair {
     let ea = (a1 - a0).normalize();
     let eb = (b1 - b0).normalize();
+    if gaps_apart((ea, (a0, a1)), (eb, (b0, b1)), band) {
+        return EdgePair::Apart;
+    }
     let side = |p: geom_core::Point3<T>, o: geom_core::Point3<T>, e: geom_core::Vec3<T>| {
         decide(
             "ring_outer_meet_side",
@@ -8945,18 +9052,26 @@ fn lines_meet<T: Decide>(
     let collinear =
         |pair: &[Result<Sign, Indeterminate>; 2]| matches!(pair, [Ok(Sign::Zero), Ok(Sign::Zero)]);
     // Collinear: do the spans overlap, measured along one edge's own
-    // axis? A point of overlap is a meeting too.
+    // axis? A point of overlap is a meeting too. The overlap is the one
+    // reading's ([`geom_core::one_line`]), decided past its charge both
+    // ways: a meeting where even its lower bound reaches the band's
+    // zero, apart where even its upper bound is definitely negative, and
+    // the bounds' straddle otherwise.
     let overlap = |o0: geom_core::Point3<T>,
                    o1: geom_core::Point3<T>,
                    e: geom_core::Vec3<T>,
                    p0: geom_core::Point3<T>,
                    p1: geom_core::Point3<T>| {
-        let len = (o1 - o0).norm();
-        let (t0, t1) = ((p0 - o0).dot(e), (p1 - o0).dot(e));
-        let margin = t0.max(t1).min(len) - t0.min(t1).max(T::zero());
-        match decide("ring_outer_meet_overlap", Margin::of(margin), band) {
-            Ok(Sign::Positive | Sign::Zero) => EdgePair::Meet,
-            Ok(Sign::Negative) => EdgePair::Apart,
+        const ROW: &str = "ring_outer_meet_overlap";
+        let along = on_one_line(e, (o0, o1), (p0, p1), T::zero());
+        let lower = match decide_reported(ROW, Margin::of(along.extent() - along.noise), band) {
+            Ok(d) if matches!(d.sign, Sign::Positive | Sign::Zero) => return EdgePair::Meet,
+            Ok(d) => d,
+            Err(source) => return EdgePair::Unsure(source),
+        };
+        match decide_reported(ROW, Margin::of(along.extent() + along.noise), band) {
+            Ok(d) if d.sign == Sign::Negative => EdgePair::Apart,
+            Ok(upper) => EdgePair::Unsure(geom_core::k_stats::straddle(ROW, lower, upper, band)),
             Err(source) => EdgePair::Unsure(source),
         }
     };
@@ -10705,6 +10820,9 @@ fn shell_component<T: Real>(
         rings,
     })
 }
+
+#[cfg(test)]
+mod gap_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -15430,6 +15548,81 @@ mod tests {
         );
     }
 
+    /// **Two segments on one line, far apart along it and in the band
+    /// across it, are apart** (the four readers' witness,
+    /// `work/cpair/two-spans-projections-on-one-line-are-read-four-ways`).
+    /// `(0,0,0)–(1,0,0)` and `(3, 5·10⁻¹², 0)–(4, 5·10⁻¹², 0)` at
+    /// `ε = 10⁻¹²`: `b`'s ends lie in the escalation band of `a`'s line, but
+    /// its projection on `a`'s axis lies two metres past `a`'s end. On main
+    /// arm 5 read the four sides first and kept the pair `Unsure` on the
+    /// in-band ones; read from the gap first, it is apart, in either order.
+    #[test]
+    fn two_segments_on_one_line_far_apart_along_it_are_apart() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let a = MeetSegment::Line {
+            a: Point3::new(0.0, 0.0, 0.0),
+            b: Point3::new(1.0, 0.0, 0.0),
+        };
+        let b = MeetSegment::Line {
+            a: Point3::new(3.0, 5e-12, 0.0),
+            b: Point3::new(4.0, 5e-12, 0.0),
+        };
+        for (order, got) in [
+            ("a first", segments_meet(a, b, n, band)),
+            ("b first", segments_meet(b, a, n, band)),
+        ] {
+            assert!(matches!(got, EdgePair::Apart), "[{order}] apart");
+        }
+    }
+
+    /// **A segment whose end touches the middle of another, square to it,
+    /// is never read apart by the gap**, at every length and scale. In Q
+    /// `a` ends at `a1`, and `b` runs from `a1 + (s, −t)` to `a1 − (s, −t)`,
+    /// square to `a1 − a0 = k·(t, s)`; every coordinate is an integer
+    /// times a power of two, so the stored points are the real ones. So
+    /// `b`'s projection on `a`'s axis starts exactly where `a`'s ends:
+    /// the gap is zero, and only the rounding of the projections, about
+    /// `u` of `a`'s length, can read it open. Red where the gap's charge
+    /// is dropped: a long `a` then reads apart past the band.
+    #[test]
+    fn an_end_touching_the_middle_of_a_square_segment_is_never_read_apart_by_the_gap() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let mut rng = test_utils::fuzz::start("check-9-gap-touch");
+        let int =
+            |rng: &mut test_utils::fuzz::Rng, bits: f64| rng.range(1.0, 2f64.powf(bits)).floor();
+        for _ in 0..test_utils::fuzz::scaled(4000) {
+            let scale = 2f64.powi(-(rng.range(0.0, 30.0) as i32));
+            let (x, y) = (int(&mut rng, 40.0), int(&mut rng, 40.0));
+            let (t, s, k) = (
+                int(&mut rng, 10.0),
+                int(&mut rng, 10.0),
+                int(&mut rng, 10.0),
+            );
+            let at = |px: f64, py: f64| Point3::new(px * scale, py * scale, 0.0);
+            let a = MeetSegment::Line {
+                a: at(x - k * t, y - k * s),
+                b: at(x, y),
+            };
+            let b = MeetSegment::Line {
+                a: at(x + s, y - t),
+                b: at(x - s, y + t),
+            };
+            for (order, got) in [
+                ("a first", segments_meet(a, b, n, band)),
+                ("b first", segments_meet(b, a, n, band)),
+            ] {
+                assert!(
+                    !matches!(got, EdgePair::Apart),
+                    "[{order}] a touching pair read apart: a1 ({x}, {y}), (t, s) ({t}, {s}), \
+                     k {k}, scale {scale:e} — {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
+    }
+
     /// **Two arcs that cross are read meeting, at radii orders of
     /// magnitude apart**, in either order and at `f64` and `Interval`:
     /// the two arc pairs of `arc-arc-secant-arm-misses-crossings-at-unequal-radii`
@@ -16345,7 +16538,7 @@ mod review_census_display_keys {
             }
         }
         assert_eq!(
-            checked, 14,
+            checked, 15,
             "every CensusContact and StaleDeclaration sample"
         );
     }

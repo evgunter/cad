@@ -145,16 +145,32 @@ pub(crate) struct PendingArc<T: Real> {
     /// own algebra ([`crate::Facts::Registered`]), or only to its
     /// `Center` equidistance decision ([`crate::Facts::Decided`]).
     pub head_on_circle: crate::Facts,
+    /// The authored point the side's circle passes through that its
+    /// run does not keep: a `Via` incoming's `q`.
+    pub through: Option<Point2<T>>,
+}
+
+/// An arc side's circle run, as [`Pending::run`] reads it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SideRun<T: Real> {
+    /// The side circle's radius ([`PendingArc::circle_radius`]).
+    pub radius: T,
+    /// [`PendingArc::head_on_circle`].
+    pub head_on_circle: crate::Facts,
+    /// [`PendingArc::through`].
+    pub through: Option<Point2<T>>,
 }
 
 impl<T: Real> Pending<T> {
-    /// The incoming side's circle run, for an arc side: its circle's
-    /// radius and whether the chain head lies on that circle by
-    /// construction.
-    pub(crate) fn run(&self) -> Option<(T, crate::Facts)> {
+    /// The incoming side's circle run, for an arc side.
+    pub(crate) fn run(&self) -> Option<SideRun<T>> {
         match self {
             Pending::Ray(_) => None,
-            Pending::Arc(p) => Some((p.circle_radius, p.head_on_circle)),
+            Pending::Arc(p) => Some(SideRun {
+                radius: p.circle_radius,
+                head_on_circle: p.head_on_circle,
+                through: p.through,
+            }),
         }
     }
 }

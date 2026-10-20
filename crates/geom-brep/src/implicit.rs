@@ -81,6 +81,7 @@
 //! second is `K + 1` residual evaluations per call.
 
 use geom::Surface;
+use geom_core::rounding_charge;
 use geom_core::{Point3, Real, Rounded, Vec3};
 
 use crate::enters::OutwardNormal;
@@ -560,16 +561,6 @@ pub fn implicit_max_normal_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T
 /// law admits.
 pub const ARC_RESIDUAL_SAMPLES: usize = 256;
 
-/// How many half-ulps of a term bound a residual's evaluation is
-/// charged, here and by `topo`'s root doors (one spelling,
-/// [`rounding_charge`]). Each harmonic coefficient, and each sampled
-/// residual, is a short chain from the inputs — a difference, a squared
-/// norm, a product, a sum of a few terms — whose every rounding is half
-/// an ulp of a quantity the term bound dominates; sixteen is that
-/// chain's count with room. A ROUNDING estimate, the `f64` lane's
-/// contract, not an enclosure: the `Interval` lane carries its own.
-pub const HARMONIC_NOISE_ULPS: f64 = 16.0;
-
 /// The factor a CEILING read from the carrier's frame is padded by, so
 /// that the `f64` value bounds the true one: the cone's reach `R`
 /// ([`conic_cone_harmonics`]) and the torus's reach and surface ceilings
@@ -580,15 +571,8 @@ pub const HARMONIC_NOISE_ULPS: f64 = 16.0;
 /// `(aa − bb)/2`, to the sum beside it that dominates it. To first order
 /// the ceiling is off by well under `32u`, and `64u` doubles that for
 /// the second-order terms. A ROUNDING estimate, as
-/// [`HARMONIC_NOISE_ULPS`] is.
+/// [`geom_core::SHORT_CHAIN_ULPS`] is.
 const CEILING_PAD: f64 = 1.0 + 64.0 * geom_core::UNIT_ROUNDOFF;
-
-/// The rounding charged against a term bound `terms`:
-/// [`HARMONIC_NOISE_ULPS`] half-ulps of it.
-#[must_use]
-pub fn rounding_charge<T: Real>(terms: T) -> T {
-    T::from_f64(HARMONIC_NOISE_ULPS * f64::EPSILON * 0.5) * terms
-}
 
 /// `|F″|` over the whole carrier for a harmonic residual: the true
 /// polynomial's `A₁ + 4A₂`, read from the rounded amplitudes with the

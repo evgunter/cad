@@ -21,6 +21,7 @@ trigger:
 - `kernel-standing-names-a-cluster-refused-node-as-its-own-failure` — on [a-mate-relates-two-poses]
 - `opout-contacts-body-zero-invariant-is-held-by-prose` — on [mates-declare-no-contact]
 - `contact-lineage-renders-a-wrong-finding-kind-as-a-missing-image` — on [the-at-rest-census-is-a-check]
+- `missing-slot-stays-typed-on-the-held-placement-datum-and-pattern-readers` — on [transform-retires-into-a-placement, patterns-are-index-variables]
 
 ## Order
 

@@ -68,3 +68,9 @@ crossing lane and the edge-on-face lane (plan.md, Order).
     - Both MAJORs were bilateral, so 0 were tallied.
   - **After review.** One fix pass in the implementer's cloud session, then a verifier (VERIFIED-WITH-NITS: the pass end, closure and tie slack were unguarded, and the slack could be half what a ray reading needs), then a follow-up that pinned all three and doubled the slack.
   - **Rows filed by the unit.** `hone/cone-side-is-a-second-reader-of-a-directions-side-of-a-polygon-cone` (P3) and `contacthold/a-vertex-on-edge-record-alone-is-never-read-as-a-touch` (P2). — (RESTREAD orchestrator)
+- 2026-10-20 — PR 5431 (`restread/face-in-edge-wedge`) merges and closes `census-passes-a-face-inside-an-edges-material-wedge`.
+  - Tier 3′ now reads an edge lying in a face of its own solid for sides, through `rest::judge`. A decided crossing refuses `FaceThroughEdgeWedge`, and anything undecided refuses `FaceThroughEdgeWedgeUndecided`. That includes a curved edge face: my ruling, fail loud. It costs 38 likely-valid curved outside touches, which the new curved row is to restore.
+  - Tier: dual, arm sequential (byte 14). Review 1 returned APPROVE-WITH-FIXES with no MAJOR; then a fix pass by a fresh lane (the first was lost to a restart), a verifier (VERIFIED-WITH-NITS) and a follow-up.
+  - CLEAVE's `boolean::slit` landed on main meanwhile. The Boolean's keel-in-face results now build the slit form and pass, so the refusal guards hand-built rider bodies, witnessed by a keel prism.
+  - Rows filed: `tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid` (P2, a design fork, also carrying the arm-2 vertex-on-face gap), `tier-3-prime-reads-no-side-between-coincident-edges-on-one-line` (P2), `tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face` (P2).
+  - Merged with only the main-red `band_turn_overrun_fillet` 1e-12 row failing. — (RESTREAD orchestrator)

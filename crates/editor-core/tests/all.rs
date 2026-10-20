@@ -500,6 +500,8 @@ mod meta_minted_ids;
 mod meta_nesting_bound;
 #[path = "name_depth.rs"]
 mod name_depth;
+#[path = "name_invariance.rs"]
+mod name_invariance;
 #[path = "name_size_against_cut_depth.rs"]
 mod name_size_against_cut_depth;
 #[path = "name_tables_by_position.rs"]
@@ -524,6 +526,8 @@ mod p2_gauge_poses_and_doors;
 mod p2_gauges;
 #[path = "p2_split.rs"]
 mod p2_split;
+#[path = "pair_seam_name_order.rs"]
+mod pair_seam_name_order;
 #[path = "parallel_node_map_interval.rs"]
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]

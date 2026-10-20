@@ -1420,18 +1420,15 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
         }
     }
     for edge in edges {
-        let curve_key = body
-            .get_edge(edge)
-            .unwrap_or_else(|| {
-                unreachable!("edge {edge:?} was read off a live half-edge of face {face:?}")
-            })
-            .curve;
-        let scaffolded = body
-            .get_curve_geom(curve_key)
-            .and_then(topo::CurveGeom::certified)
+        let curve = match body.stored_curve(edge) {
+            Ok(curve) => curve,
             // Null scaffolding carries no description at all.
-            .is_some_and(|c| c.description().is_scaffold());
-        if !scaffolded {
+            Err(EulerOpError::NullScaffoldCurve { .. }) => continue,
+            Err(e) => {
+                unreachable!("edge {edge:?} was read off a live half-edge of face {face:?}: {e}")
+            }
+        };
+        if !curve.description().is_scaffold() {
             continue;
         }
         // The rim is the cap's own profile, the plane fitted through it,
@@ -1443,10 +1440,7 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
         // its description by what the lane can certify, so every rim
         // stays in the cap's chart until the pair certifies them all
         // (`work/select/onpair-has-no-incidence-lane-on-a-spline-adjacent-pair.md`).
-        let description = body
-            .get_curve_geom(curve_key)
-            .and_then(topo::CurveGeom::certified)
-            .unwrap_or_else(|| unreachable!("{edge:?} was read scaffolded just above"))
+        let description = curve
             .restated_spec()
             .at_rest_in_chart(chart, false)
             .description;

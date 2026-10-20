@@ -16,7 +16,7 @@
 //! judgement passed.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{Spans, block, failure, run};
 use crate::corpus::body_of;
 use crate::docm8_flat_merged::split_fixture;
 
@@ -28,8 +28,56 @@ use editor_core::{
 use geom_core::{Point3, Tol};
 use std::collections::BTreeSet;
 
-/// A block's x span, y span, base z and height, as [`block`] takes them.
-type Spans = ((f64, f64), (f64, f64), f64, f64);
+/// The cut's slab, across the line the boss's wall pieces meet on.
+pub(crate) const SLAB: Spans = ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2);
+
+/// A step beside [`SLAB`] whose chord crosses the glued line.
+pub(crate) const STEP_ACROSS: Spans = ((0.9, 1.4), (1.4, 4.0), 1.3, 0.7);
+
+/// [`STEP_ACROSS`] the other way along y.
+pub(crate) const STEP_THE_OTHER_WAY: Spans = ((0.9, 1.4), (-1.0, 1.7), 1.3, 0.7);
+
+/// A slab whose chord runs along the glued line.
+pub(crate) const ALONG: Spans = ((1.4, 2.0), (1.5, 4.0), 0.8, 1.2);
+
+/// The plate `[0,3]² × [0,1]` and the cylinder boss sunk into it, its
+/// wall two semicircular pieces either side of y = 1.5.
+pub(crate) fn plate_and_boss(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, boss) = crate::emit_union_borders::cylinder(
+        doc,
+        [1.5, 1.5, 0.5],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        1.0,
+    );
+    (doc, [plate, boss])
+}
+
+/// A tool block over `spans` on a frame of its own an edit can move:
+/// the block and its frame.
+pub(crate) fn tool_block(
+    doc: ProfileDoc,
+    ((x0, x1), (y0, y1), z0, dz): Spans,
+) -> (ProfileDoc, (RecipeNodeId, RecipeNodeId)) {
+    let (d, plane) = insert(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let (d, p) = insert(
+        d,
+        Node::Profile(desc(
+            plane,
+            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+        )),
+    );
+    let (d, b) = insert(
+        d,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(dz),
+            side: ExtrudeSide::Along,
+        },
+    );
+    (d, (b, plane))
+}
 
 /// A plate `[0,3]² × [0,1]` and a cylinder boss sunk into it, its wall
 /// drawn as two semicircular pieces either side of y = 1.5, joined by a
@@ -47,34 +95,11 @@ struct SunkBossCut {
 impl SunkBossCut {
     fn new(tool: &[Spans]) -> Self {
         let doc = ProfileDoc::empty_derived("wire_merged_chord", Tol::witness());
-        let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-        let (doc, boss) = crate::emit_union_borders::cylinder(
-            doc,
-            [1.5, 1.5, 0.5],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            1.0,
-        );
-        let mut doc = doc;
+        let (mut doc, [plate, boss]) = plate_and_boss(doc);
         let mut blocks = Vec::new();
         let mut frames = Vec::new();
-        for &((x0, x1), (y0, y1), z0, dz) in tool {
-            let (d, plane) = insert(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
-            let (d, p) = insert(
-                d,
-                Node::Profile(desc(
-                    plane,
-                    vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-                )),
-            );
-            let (d, b) = insert(
-                d,
-                Node::Extrude {
-                    profile: p.into(),
-                    distance: len(dz),
-                    side: ExtrudeSide::Along,
-                },
-            );
+        for &spans in tool {
+            let (d, (b, plane)) = tool_block(doc, spans);
             doc = d;
             blocks.push(b);
             frames.push(plane);
@@ -243,8 +268,7 @@ fn assert_cites_the_merged_wall(label: &str, name: &StableName, pieces: &BTreeSe
 /// y = 1.5 from above, names the same way.
 #[test]
 fn a_chord_across_the_glued_pieces_line_names_wherever_the_cut_crosses() {
-    let slab = ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2);
-    let fixture = SunkBossCut::new(&[slab, ((0.9, 1.4), (1.4, 4.0), 1.3, 0.7)]);
+    let fixture = SunkBossCut::new(&[SLAB, STEP_ACROSS]);
     let across = fixture.chord("across", [[1.2172, 1.4, 1.3], [1.4, 1.7828, 1.3]]);
     let upper = fixture
         .moved(1, 0.2)
@@ -253,7 +277,7 @@ fn a_chord_across_the_glued_pieces_line_names_wherever_the_cut_crosses() {
         across, upper,
         "a chord across the glued line and one clear of it are one name"
     );
-    SunkBossCut::new(&[slab, ((0.9, 1.4), (-1.0, 1.7), 1.3, 0.7)])
+    SunkBossCut::new(&[SLAB, STEP_THE_OTHER_WAY])
         .chord("the other way", [[1.2764, 1.7, 1.3], [1.4, 1.2172, 1.3]]);
 }
 
@@ -264,7 +288,7 @@ fn a_chord_across_the_glued_pieces_line_names_wherever_the_cut_crosses() {
 /// alone, under the same name.
 #[test]
 fn a_chord_along_the_glued_pieces_line_names_as_one_beside_it() {
-    let fixture = SunkBossCut::new(&[((1.4, 2.0), (1.5, 4.0), 0.8, 1.2)]);
+    let fixture = SunkBossCut::new(&[ALONG]);
     let along = fixture.chord("along", [[1.8, 1.5, 1.0], [1.8, 1.5, 1.5]]);
     let beside = fixture
         .moved(0, 0.1)
@@ -282,7 +306,7 @@ fn a_chord_along_the_glued_pieces_line_names_as_one_beside_it() {
 /// `Ends` (N2), never by the piece it lies on.
 #[test]
 fn two_chords_of_one_seam_are_told_apart_by_their_ends() {
-    let fixture = SunkBossCut::new(&[((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2)]);
+    let fixture = SunkBossCut::new(&[SLAB]);
     let on_wall = |p: Point3<f64>| ((p.x - 1.5).hypot(p.y - 1.5) - 0.3).abs() < 1e-9;
     let chords = fixture.edges("x = 1.4", |p0, p1| {
         on_wall(p0)

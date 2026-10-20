@@ -323,7 +323,7 @@ pub enum CertCheck {
 /// not doors anyone calls: a reader told
 /// `EndpointStart` has nothing to reach for with that word, which is
 /// what makes an identifier the right rendering where the vocabulary
-/// names doors (`verbs`' `VerbKind` and `Arity`) and the wrong one
+/// names doors (`verbs`' `VerbKind`) and the wrong one
 /// here. The typed field is what a programmatic consumer matches on;
 /// this is the sentence for the person reading it.
 ///

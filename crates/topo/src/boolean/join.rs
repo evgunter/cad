@@ -1120,6 +1120,9 @@ pub(super) struct Connected {
     /// edge between its two ends, so it holds the edge's interior
     /// where the op drops the edge ([`SolidJoin::join`]).
     pub along: [Vec<(EdgeKey, EdgeKey)>; 2],
+    /// The cuts dividing each dropped coincident face where its fate
+    /// changes, made after the join ([`super::fate::cut`]).
+    pub fates: super::fate::FateCuts,
 }
 
 /// The lockstep joining sweep (module docs). Mutates both annotated
@@ -1700,6 +1703,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         b_fragments: sb.joiner.take_fragments(),
         absorbed: [sa.joiner.take_absorbed(), sb.joiner.take_absorbed()],
         along: [sa.along, sb.along],
+        fates: super::fate::FateCuts::default(),
     })
 }
 

@@ -2,11 +2,13 @@
 id: a-boolean-builds-a-reflex-edge-lying-inside-a-face
 kind: issue
 title: The boolean builds a reflex edge lying inside a face, and returns one solid for a wall-to-wall trench
-status: open
+status: closed
 opened: 2026-10-12
 priority: P1
 cost: M
+branch: cleave/boolean-builds-the-slit-form
 pr: 5380
+closed: 2026-10-20
 ---
 
 Found by the keel design fork (`[ev]` PR 4795, designer reports in its
@@ -71,3 +73,15 @@ the slit's line, or glues away its face, it refuses typed
 evidence is on
 `a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs`. The
 editor names all three extents, the two keel edges apart.
+
+## Note from RESTREAD (2026-10-20): tier 3′ refuses the rider form
+
+Branch `restread/face-in-edge-wedge`: tier 3′ reads an edge lying in a
+face of its own solid for sides and refuses this row's form
+`FaceThroughEdgeWedge`
+(`crates/topo/tests/a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs`,
+the keel in the floor built as one prism). Merged with the slit
+parting, none of the results that branch had pinned in the rider form
+reaches tier 3′ in it: the trenches and the glued tip build the slit
+form, which tier 3′ passes, and the others build without the refusal
+or refuse `EdgeInFace`.

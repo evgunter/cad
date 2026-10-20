@@ -2,7 +2,8 @@
 id: the-arc-rim-pick-on-a-chart-closed-in-v-has-no-row
 kind: issue
 title: nothing exercises the arc rim's row-and-direction pick on a chart whose two boundary rows coincide in 3-D (closed in v), the one case where candidate order decides
-status: open
+status: closed
+closed: 2026-10-19
 opened: 2026-10-13
 priority: P3
 cost: E
@@ -56,3 +57,26 @@ decision's gap is within about two periods once images are placed).
 ## The answer
 
 Ev took the recommendation on `[ev]` PR 5142 (2026-10-15, "i think this sounds good"): no cap; images placed over the edge's span in the principal window; a row is its placed image and a lifted copy is the (row, deck element) pair, never re-certified; the walk reads the half-period marks from zero; a `Period` per closed channel (a net's `v` included) owned by the chart, and an `Azimuth` exit from `atan2` through a stated reference. C4 carries it.
+
+## Fixed (PCERT unit C, `pcert/net-v-period`)
+
+The answer carried out, in place of PR 5137's per-side pick:
+- A spline net decided closed in `v` has a `v` period, the knot
+  domain's length (`chart_v_period`, one closure rule with `u`'s,
+  `pcurve_chart_v_closed`), and the walk decides `Deck.v` on it by the
+  half-period marks from zero. `Deck::apply` shifts a net's `v` by that
+  length.
+- The seam keeps one image. The arc rim (`geom_brep::pick_arc_rim`) and
+  `iso_schedule` take the first row that holds, `v₀`; both halves of a
+  seam circle derive it (`a_seam_circle_on_a_chart_closed_in_v_has_one_image`,
+  on PR 5137's `seam_tube` fixture).
+- The walk crossing a `v` seam by one period, the chart boundary's lift
+  by it and validation are pinned on a net whose walk closes
+  (`a_net_closed_in_v_lifts_its_seam_crossing_by_a_v_period`).
+
+The candidate order still decides which row is the image; with one image
+and the joint elements it no longer decides whether the walk closes.
+
+`seam_tube` itself does not mint: its cap arcs' fitted images fold back
+across the chart at the seam vertex, which is
+`work/iso/a-general-image-ending-on-a-closed-charts-seam-takes-its-foot-on-the-first-branch`.
