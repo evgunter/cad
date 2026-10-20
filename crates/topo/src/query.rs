@@ -416,7 +416,7 @@ fn half_edge_ends<T: Real>(
 
 /// The two end vertices of `e`, a live edge the walk reached, in
 /// `he_plus`-forward order.
-fn edge_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
+pub(crate) fn edge_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
     let edge = crate::live::proven(&body.edges, e, EntityId::Edge);
     half_edge_ends(body, edge.he_plus, EntityId::Edge(e), "he_plus")
 }

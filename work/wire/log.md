@@ -6839,3 +6839,11 @@ Signed (WIRE orchestrator).
   - Also: witnesses to assert agreement across symmetries; the RimPick ladder once; stale prose; rows.
   - Fix pass sent.
   - Class note: re-read the ratified text, not my memory of a draft, before briefing a D9 rule. A withdrawn draft's test leaked into a brief.
+
+- 2026-10-20 (WIRE orchestrator) PR 5469 merged (747279992d).
+  - The fix pass was read. BOTH_RIMS is now unreachable!. Distinct faces off their rim at a subtract or intersect are row 4 (a valid operand's faces meet only along edges); one face on both sides is row 2, the new ChordOffRim, Unruled.
+  - Name agreement is asserted across symmetries, and the RimPick ladder is written once.
+  - Three rows closed; the Transform-copy row is closed here.
+  - Dispatched (emit_topo is free now):
+    - wire-secface (wire/section-face-pieces; FULL review), the row-179 build;
+    - wire-mintfirst (wire/union-reads-not-mint-order; FULL review), for the copy-minted-first and pinch-leg-minted-first leaks, staying in emit_union.

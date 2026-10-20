@@ -2,8 +2,10 @@
 id: a-held-edge-wholly-inside-a-dropped-face-is-recorded-nowhere
 kind: issue
 title: A kept face's edge that lies wholly inside a dropped covered face, both ends at vertex-on-face contacts, is held by no discard row
-status: parked
+status: closed
 opened: 2026-10-02
+closed: 2026-10-20
+pr: 5368
 priority: P3
 cost: M
 design: true
@@ -203,15 +205,26 @@ Two consequences for this row:
   rule retire** when the imprint row lands. The pocket fixture is
   re-measured then, as above.
 
-## Another witness, possibly this class (WIRE lane `wire-mchord`, 2026-10-20)
+## Resolution (PR 5368, 2026-10-20)
 
-A three-member union refuses `Naming(Emission "a piece of a face held
-as several borders no recorded discard between them")` in 4 of 6
-member orders. The members are A, plus B split into a lower block and an
-upper step (blocks helpers; `prism(o, u, v, loop, d)` = `on_frame` +
-`Extrude Along`):
-- A: `prism([0,0,0], X, Y, [(0,-1),(2,-1),(2,0),(4,0),(4,2),(0,2)], 1)`
-- `prism([1,0,0], Y, Z, [(0,-1),(3,-1),(3,1),(0,1)], 2)`
-- `prism([1,0,0], Y, Z, [(0,0.5),(1,0.5),(1,2),(0,2)], 2)`
+The fate-change cut landed (`crates/topo/src/boolean/fate.rs`). A dropped
+coincident face is cut along the kept face's edges where its fate
+changes, so the fragment under the pocket floor is substituted
+(`BooleanNaming::substituted`, no discard) and the lost annulus is its
+own discard, bordering the floor's outline across the one-sided chords
+(`DiscardRow::bordered_through`). `HeldEdge`, `HeldInto` and
+`DiscardRow::held` are gone, and with them the entry-vertex attach rule
+of the second residue.
 
-Nobody has checked yet whether this is the held-edge gap or a sibling.
+**Measured on PR 5368's head.**
+- The pocket fixture, `editor-core`
+  `emit_union_borders::a_pocket_floor_held_inside_a_dropped_face_names_alike`,
+  is un-ignored and publishes one set of names in the pair union, `[a, b]`
+  and `[b, a]`.
+- The three-box reproducer is unchanged: `[a, m, c]`, `[m, a, c]`,
+  `[m, c, a]` and `[c, m, a]` refuse "a piece of a face held as several
+  borders no recorded discard between them", and `[a, c, m]` and
+  `[c, a, m]` build, as recorded above. No binary step of it meets a
+  coincident pair, so the cut does not reach it. It moves to
+  `a-union-over-a-stepped-plate-refuses-in-the-orders-that-fold-the-plate-early`,
+  this row's nearest open relative.

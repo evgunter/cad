@@ -555,6 +555,101 @@ fn moved_together_outward_every_edge_leaves_the_fits_windows() {
     }
 }
 
+/// **Each wall's chart is minted once per operation.** The general
+/// simultaneous door holds one chart slot per wall
+/// (`topo::offset_derive::WallCharts`), and every section that reads a
+/// wall reads that slot. Here every chart moves, the seams are
+/// sections of two moved spline walls, and each wall is read by
+/// several sections before a rim refuses; the operation mints one
+/// chart per spline wall and no more. A slot never filled, so that
+/// each section mints again, reads 8 on the prism and 16 on the loft.
+#[test]
+fn moving_every_chart_mints_each_spline_walls_chart_once() {
+    for (name, body) in [
+        ("planar prism", prism()),
+        ("twisted loft", twisted_loft(0.3)),
+    ] {
+        let walls = body
+            .surfaces()
+            .filter(|(_, s)| s.kind() == geom::SurfaceKind::Nurbs)
+            .count();
+        let moves: Vec<topo::ChartMove<f64>> = body
+            .faces()
+            .map(|(k, _)| topo::ChartMove {
+                faces: vec![k],
+                distance: 100.0 * Tol::witness().eps(),
+            })
+            .collect();
+        let mut moved = body.clone();
+        let before = geom_brep::charted_nurbs_mints();
+        let _refused = topo::offset_surfaces_together(
+            &mut moved,
+            &moves,
+            common::approx::band(),
+            Tol::witness(),
+        );
+        let minted = geom_brep::charted_nurbs_mints() - before;
+        assert_eq!(
+            (walls, minted),
+            (4, 4),
+            "{name}: one chart per spline wall, minted once"
+        );
+    }
+}
+
+/// **A held wall's chart is minted once per operation too.** The
+/// general door holds a slot per held surface as well as per moved
+/// chart (`WallCharts::held`). Here every face is named, but only two
+/// opposite walls move (the rest move by zero, which the door reads as
+/// held), so each held wall lies between the two moved ones and is
+/// read by both its seams. Two moved charts and two held walls: four
+/// mints. A held slot never read, so that each section mints the held
+/// wall afresh, reads 6 on both bodies; moving every chart, as the row
+/// above does, never reads a held slot at all.
+#[test]
+fn moving_two_opposite_walls_mints_each_held_walls_chart_once() {
+    for (name, body) in [
+        ("planar prism", prism()),
+        ("twisted loft", twisted_loft(0.3)),
+    ] {
+        let walls: Vec<FaceKey> = body
+            .faces()
+            .filter(|(_, f)| {
+                body.get_surface(f.surface).map(geom::Surface::kind)
+                    == Some(geom::SurfaceKind::Nurbs)
+            })
+            .map(|(k, _)| k)
+            .collect();
+        assert_eq!(walls.len(), 4, "{name}: four spline walls");
+        // Walls 0 and 2 in face order are opposite on both bodies.
+        let moving = [walls[0], walls[2]];
+        let moves: Vec<topo::ChartMove<f64>> = body
+            .faces()
+            .map(|(k, _)| topo::ChartMove {
+                faces: vec![k],
+                distance: if moving.contains(&k) {
+                    100.0 * Tol::witness().eps()
+                } else {
+                    0.0
+                },
+            })
+            .collect();
+        let mut moved = body.clone();
+        let before = geom_brep::charted_nurbs_mints();
+        let _refused = topo::offset_surfaces_together(
+            &mut moved,
+            &moves,
+            common::approx::band(),
+            Tol::witness(),
+        );
+        let minted = geom_brep::charted_nurbs_mints() - before;
+        assert_eq!(
+            minted, 4,
+            "{name}: two moved charts and two held walls, each minted once"
+        );
+    }
+}
+
 /// **An offset as deep as the walls are tall collapses their seams, and
 /// says so.** The prism's walls are 1 m tall: moving the top cap 1 m
 /// down puts each vertical seam's moved end on its other end, and 1.5 m

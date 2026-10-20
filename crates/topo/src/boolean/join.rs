@@ -1120,6 +1120,9 @@ pub(super) struct Connected {
     /// edge between its two ends, so it holds the edge's interior
     /// where the op drops the edge ([`SolidJoin::join`]).
     pub along: [Vec<(EdgeKey, EdgeKey)>; 2],
+    /// The cuts dividing each dropped coincident face where its fate
+    /// changes, made after the join ([`super::fate::cut`]).
+    pub fates: super::fate::FateCuts,
 }
 
 /// The lockstep joining sweep (module docs). Mutates both annotated
@@ -1700,6 +1703,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         b_fragments: sb.joiner.take_fragments(),
         absorbed: [sa.joiner.take_absorbed(), sb.joiner.take_absorbed()],
         along: [sa.along, sb.along],
+        fates: super::fate::FateCuts::default(),
     })
 }
 
@@ -4564,8 +4568,12 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
 /// whose cones touch along a ray in its face
 /// ([`super::PierceRingRecord::tied`]): the corner of no angle the tie
 /// leaves, the unbuilt shape, refused [`BooleanError::PinchRaysInAFace`]
-/// naming that ring's face. Every other error, and a degenerate run
-/// that passes no tied ring, is returned as it is.
+/// naming that ring's face; one that passes the tip of a slit or ring
+/// of either operand's ([`super::sectors::SlitTips`]): `side`'s own, or
+/// the other's, paired with the run's vertex there or piercing at its
+/// ring vertex, refused
+/// [`BooleanError::SlitFaceGlued`]. Every other error, and a degenerate
+/// run that passes neither, is returned as it is.
 fn pinch_ray_refusal<T: geom_core::Real>(
     e: BooleanError,
     red: &BooleanReduction<T>,
@@ -4583,14 +4591,17 @@ fn pinch_ray_refusal<T: geom_core::Real>(
     // The run's vertices, `h1` through `h2` in `next` order, and `h2`'s
     // end.
     let mut on_run = std::collections::BTreeSet::new();
+    let mut run_vertices = Vec::new();
     let mut h = h1;
     for _ in 0..body.half_edges.len() {
         let Some(half) = body.get_half_edge(h) else {
             break;
         };
         on_run.extend(point(half.start));
+        run_vertices.push(half.start);
         if h == h2 {
             on_run.extend(body.half_edge_end(h).and_then(point));
+            run_vertices.extend(body.half_edge_end(h));
             break;
         }
         h = half.next;
@@ -4599,10 +4610,43 @@ fn pinch_ray_refusal<T: geom_core::Real>(
         .iter()
         .filter(|r| r.tied && r.operand == side)
         .find(|r| point(r.ring_vertex).is_some_and(|k| on_run.contains(&k)))
-        .map_or(e, |r| BooleanError::PinchRaysInAFace {
+        .map(|r| BooleanError::PinchRaysInAFace {
             operand: side.other(),
             face: r.face,
         })
+        // A run through the tip of a slit, of `side`'s or, at a vertex
+        // pair, of the other's, whose carrying face the other solid glues
+        // away: the slit's two edges would be one edge.
+        .or_else(|| {
+            run_vertices.iter().find_map(|&v| {
+                // The other's vertices at the run's: a vertex pair's
+                // partner, or the pierces a ring vertex serves.
+                let paired = red
+                    .contacts
+                    .vv
+                    .iter()
+                    .filter_map(|c| match side {
+                        Operand::A => (c.record.a == v).then_some(c.record.b),
+                        Operand::B => (c.record.b == v).then_some(c.record.a),
+                    })
+                    .chain(
+                        red.pierce_rings
+                            .iter()
+                            .filter(|r| r.operand == side && r.ring_vertex == v)
+                            .flat_map(|r| r.pierces.iter().copied()),
+                    )
+                    .map(|w| (side.other(), w));
+                [(side, v)]
+                    .into_iter()
+                    .chain(paired)
+                    .find_map(|(operand, w)| {
+                        red.slit_tips[usize::from(operand == Operand::B)]
+                            .face_at(w)
+                            .map(|face| BooleanError::SlitFaceGlued { operand, face })
+                    })
+            })
+        })
+        .unwrap_or(e)
 }
 
 /// The ring lane's refusal of a run that encloses no area.

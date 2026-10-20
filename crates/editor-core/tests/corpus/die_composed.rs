@@ -84,7 +84,7 @@ const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 /// |---|---|---|
 /// | 8 | `From(cube, RimEdge(Top\|Bottom, seg))` | the cube's cap–wall rims, surviving the subtraction |
 /// | 4 | `From(cube, LateralEdge(vertex))` | the cube's four vertical struts |
-/// | 2 | `Seam { Cap(End), Band(0) \| BandPi(0) }` | the PIP RIM — the two arcs the zip minted where the cube's end cap crosses the ball's lower band (a full revolve's band is two half-faces, split at the seam meridians, so the rim is two arcs, not one circle) |
+/// | 2 | `Seam { From(cube, Cap(End)), From(ball, Band(0) \| BandPi(0)) }` | the PIP RIM — the two arcs the zip minted where the cube's end cap crosses the ball's lower band (a full revolve's band is two half-faces, split at the seam meridians, so the rim is two arcs, not one circle) |
 /// | *2 excluded* | `From(ball, Meridian(Seam\|Pi, 0))` | the cavity's meridian seams |
 ///
 /// **Why the meridians are excluded, and why this document exists.**
@@ -141,10 +141,26 @@ pub fn selection(
             })
         })
         .collect();
+    // A seam's sides are the faces' parents as the subtract's own table
+    // names them, each carried in through the read its seat holds, in
+    // name order (N3).
+    let Some(Node::Subtract { from, tool }) = doc.node(pipped) else {
+        panic!("the pipped cube is a subtract");
+    };
+    let carried = |read: editor_core::VarId, f: StableName| StableName {
+        kind: EntityKind::Face,
+        node: pipped,
+        path: vec![RoleSeg::From { read, of: f.into() }],
+    };
     for band in [RoleSeg::Band(lower.into()), RoleSeg::BandPi(lower.into())] {
+        let (x, y) = (
+            carried(from.read, cap_top.clone()),
+            carried(tool.read, ball_face(band)),
+        );
+        let (a, b) = if y < x { (y, x) } else { (x, y) };
         out.push(at(RoleSeg::Seam {
-            a: cap_top.clone().into(),
-            b: ball_face(band).into(),
+            a: a.into(),
+            b: b.into(),
         }));
     }
     out
@@ -162,11 +178,13 @@ pub fn selection(
 ///    four struts). Saying "a box edge carried through" is exactly the
 ///    intent; enumerating twelve `RimEdge`/`LateralEdge` names was the
 ///    P10 relocation.
-/// 2. `Seam { a: Cap(End), b: Band | BandPi }` — the pip rim, the two
-///    arcs the zip minted where the cube's end cap crosses the ball's
-///    lower band. A full revolve's band is two half-faces split at the
-///    seam meridians, so the rim is two arcs and the band role has two
-///    variants; the union says both.
+/// 2. `Seam { a: From(Cap(End)), b: From(Band | BandPi) }` — the pip
+///    rim, the two arcs the zip minted where the cube's end cap crosses
+///    the ball's lower band, each side carried in through its read. A
+///    full revolve's band is two half-faces split at the seam meridians,
+///    so the rim is two arcs and the band role has two variants; the
+///    union says both. A seam's sides are in name order, and the cube's
+///    read names before the ball's, so the cap is the first side.
 ///
 /// What is NOT selected falls out of the shapes: the cavity meridians
 /// are `From(Meridian(..))`, and neither alternative admits a carried
@@ -181,8 +199,11 @@ pub fn selector() -> Selector {
     let face = |tag: SegTag| NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(tag));
     let cap_top =
         NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
-    let pip_rim =
-        |band: SegTag| edge().seg(SegPat::tag(SegTag::Seam).of([cap_top.clone(), face(band)]));
+    let from =
+        |p: NamePat| NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::From).of([p]));
+    let pip_rim = |band: SegTag| {
+        edge().seg(SegPat::tag(SegTag::Seam).of([from(cap_top.clone()), from(face(band))]))
+    };
     let carried =
         |tag: SegTag| edge().seg(SegPat::tag(SegTag::From).of([edge().seg(SegPat::tag(tag))]));
     Selector::any_of([

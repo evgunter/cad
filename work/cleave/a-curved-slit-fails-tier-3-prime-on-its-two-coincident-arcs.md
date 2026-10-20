@@ -35,6 +35,16 @@ the default ε:
   `a_curved_keel_in_the_plane_splits_sound_and_sections_with_no_spur`
   refuses the same way on the walls' side.
 
+- the Boolean's twin, on `cleave/boolean-builds-the-slit-form`'s first
+  head: a 270° annular slab about `y` less a 150° revolved V whose tip
+  rests on its floor, turned 60° (a ring) and −20° (a slit of the
+  floor's outline), built both forms at the closed-form volume, tiers
+  1, 2 and 3 passing, and 3′ refused one `UnrecordedContact {
+  EdgeEdgeOverlap }` naming the two arcs. The Boolean now refuses
+  `EdgeInFace { gap: Curved }` before parting instead, with the split's
+  words (pinned by
+  `crates/sweep/tests/a_curved_keel_on_the_floor_refuses_its_slit_form.rs`).
+
 Straight slits and rings pass: two collinear edges whose bounds are one
 point key each are one line by the census's reconstruction rule
 (`census.rs` module docs, the D3 rule). Two arcs between two shared
@@ -57,4 +67,5 @@ One of:
 Neighbour: `work/contacthold/two-coincident-curved-edges-touching-record-no-edge-edge-row.md`
 (the boolean's curved edge-edge rows).
 
-Once this lands, lift `CurvedSlitTrace` from `Sweep::section_kind`.
+Once this lands, lift `CurvedSlitTrace` from `Sweep::section_kind`, and
+`EdgeInFaceGap::Curved` from `topo::boolean::slit::part_riders`.

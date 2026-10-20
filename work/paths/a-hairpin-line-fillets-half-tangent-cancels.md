@@ -2,9 +2,12 @@
 id: a-hairpin-line-fillets-half-tangent-cancels
 kind: issue
 title: paths: the line x line fillet's half-angle tangent divides by |v1||v2| + v1.v2, which cancels at a hairpin corner and moves the fillet's effective radius
-status: open
+status: closed
+branch: paths/hairpin-fillet-half-tan
 opened: 2026-10-19
-priority: P2
+closed: 2026-10-20
+pr: 5441
+priority: P0
 ---
 
 
@@ -43,3 +46,56 @@ reaches it. Measure the stored radius against `r` before deciding.
 The fix moves the setback's bits at every corner turning past a quarter
 turn, and the closed-form oracle in `tests/path_differential.rs`
 (`expected_trims`) moves with them.
+
+## Outcome
+
+**Banded P0**: a silent wrong answer on main. The review's generator,
+covering both turn senses at ε = 1e-9, found on main 168 cases past ε,
+108 of which validated. They include an arc 8.1e-3 m off its end vertex
+that validated (O = (0, 0), u = (0.6079, 0.7940), r = 4.03e-3), and a
+fillet whose setback was 1.6e4 times its leg, built and validated with a
+3.2e-3 m miss (O = (1000, −2000), r = 1.6e-3). The lane's own grid,
+below, covered one turn sense.
+
+Measured past ε, and fixed: `sugar::line_line_fillet_trims` reads
+tan(φ/2) by the home's select (`sugar::split_half_tan`), not its first
+arm.
+
+- **What a user reached.** The probe, with the arrival anchor either
+  near the origin (the row's shape, whose corner gate is levered by
+  `L·δ`) or a leg's length past it (levered by `L`, so δ reaches
+  `Kε/L`), over legs of 100 m and 1e4 m, δ from 0.3 rad to 1e-13 and
+  radii from 1e-8 m to 1e4 m. mpmath at 60 digits from the authored f64
+  literals. The stored radius is the authored `r` by construction; what
+  moves is the setback, so the measure is the fillet the stored legs
+  describe (setback over tan(φ/2) of the stored legs), the stored arc's
+  end-vertex miss and its rim's distance off each leg's line.
+- **On main, at ε = 1e-9:** 83 built hairpins past ε, 52 of them
+  validated. The row's own probe peaks at 4.2e-7 m off the radius and
+  8.4e-7 m off the end vertex (L = 1e4, δ = 1e-6, r = 3.2e-3), as the
+  row's arithmetic said. The far anchor is worse: at L = 1e4, δ = 1e-8,
+  r = 1e-4 the quotient read a setback of 6.7e3 m where the reals give
+  2e4 m, on a 1e4 m leg, so a radius that does not fit was rounded
+  elsewhere: 1.3e-4 m off the end vertex, 6.7e-5 m off tangency, and
+  validated. ε = 1e-6: the same worst case, 7 past ε. ε = 1e-12: 254
+  past. `Interval` escalated every one of them (the denominator
+  straddles zero).
+- **With the select:** the worst miss over the grid is 2.7e-12 m and
+  the worst tangency and radius errors are 2.8e-13 and 2.1e-13 m, all
+  at the 1e4 m scene's f64 resolution, at every ε row; the radius that
+  does not fit refuses on the anchor fit with setback 2e4 m. `Interval`
+  builds every case at 1e-9 and 1e-6 with the landing holding its
+  vertex; at 1e-12 the 1e4 m scenes refuse as finer than the scene, as
+  on main.
+- **The symbolic tier, against main.** No decision is lost. The pad's
+  `frozen` rises by two (the select is an atom where the corner's
+  `v₁·v₂` is not a constant): `m10_9_pins_interval` (1389, 1102, 4299)
+  → (1389, 1102, 4301), `sym11` past the ceiling [1413, 1114, 4310] →
+  [1413, 1114, 4312]. The bracket and the link do not move.
+  `sym_9`'s pad-by-angle leaf gains decisions: 1262/1230 → 1264/1228
+  with the ladder (retried 38 → 39), 1224/1268 → 1225/1267 without. No
+  form that kept the first arm was needed, so none was weighed.
+- Rows: `crates/profile/tests/hairpin_fillet_radius.rs` (the grid as a
+  counterexample search, two pinned hairpins against the reals at f64
+  and `Interval`, and the refusal). `path_differential`'s
+  `expected_trims` oracle reads the same select.
