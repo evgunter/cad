@@ -6831,3 +6831,11 @@ Signed (WIRE orchestrator).
   - die_composed_tour.pncad is respelled by a scratch replay. The file is stale on main, filed with intent.
   - Filed the Borders bare-names row.
   - FULL review dispatched.
+
+- 2026-10-20 (WIRE orchestrator) PR 5469 FULL review at 253aefec22: changes requested.
+  - M1, demonstrated: the head predates 5460, so merging reds four name_invariance tests on 'two prisms' VACUOUS; it now compares with zero differences. Remove the entries.
+  - m1: the new typed Emissions misread D9. Correcting my own brief: the ratified rows 4/5 test is 'current best understanding', not a citation (that was 5411's withdrawn first draft). BOTH_RIMS becomes unreachable!; ONE_OPERAND and BESIDE_OFF_RIM become row 2 or row 4 by D9.
+  - m2: the zip-rim path is unit-only. m3: a silent unwrap_or_default. m4: RankRule (true,true) given a reading.
+  - Also: witnesses to assert agreement across symmetries; the RimPick ladder once; stale prose; rows.
+  - Fix pass sent.
+  - Class note: re-read the ratified text, not my memory of a draft, before briefing a D9 rule. A withdrawn draft's test leaked into a brief.
