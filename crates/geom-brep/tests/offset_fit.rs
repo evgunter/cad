@@ -1146,17 +1146,16 @@ fn a_patch_with_more_spans_than_the_cap_seeds_refuses_before_round_0() {
     }
 }
 
-/// **A knot span a few ulps wide refuses on the span.** A valid face
-/// whose `u` domain sits far from zero holds few `f64` values per span:
-/// `[1e15, 1e15 + 1]` holds nine, and `[4e15, 4e15 + 1]` three. The
-/// rows are one per arm the narrow span reaches through the fit door:
-/// the patch bound's insertion chain (equal-split points collide past a
-/// quadratic's degree), its refined vector (a cubic's split points
-/// collide up to its degree), and the fit's seed (two one-ulp spans
-/// hold three distinct parameters, under a cubic's four). Each names
-/// the span as its lever and never the kernel-defect dead end, and
-/// none reaches the fit's spline assembly, whose averaged knots a far
-/// domain was feared to collapse.
+/// **A knot span a few ulps wide refuses on the span**
+/// (`geom_brep::recourse::NARROW_SPAN`), one row per arm it reaches
+/// through the fit door: `[1e15, 1e15 + 1]` holds nine `f64` values,
+/// so a quadratic's refinement overflows and a cubic's refined vector
+/// is discontinuous; two one-ulp spans on `[4e15, 4e15 + 1]` seed three
+/// distinct parameters under a cubic's four; one two-ulp rational span
+/// on `[1, 1 + 2ε]` seeds a repeated one. Each names the span as its
+/// lever and never the kernel-defect dead end, and none reaches the
+/// fit's spline assembly, whose averaged knots a far domain was feared
+/// to collapse.
 #[test]
 fn a_knot_span_a_few_ulps_wide_refuses_on_its_span() {
     let face = |lo: f64, p: usize, interior: &[f64]| {
@@ -1180,8 +1179,21 @@ fn a_knot_span_a_few_ulps_wide_refuses_on_its_span() {
         }
         NurbsSurface::new(ku, kv, control, vec![1.0; nu * nv]).unwrap()
     };
+    // Degree 1 in `u` over `[1, 1 + 2ε]`, `x` at its Grevilles so the
+    // `u` speed is one, rational so the patch bound reads it unrefined.
+    let two_ulps = {
+        let (a, b) = (1.0, 1.0 + 2.0 * f64::EPSILON);
+        let ku = KnotVector::clamped(vec![a, a, b, b], 1).unwrap();
+        let mut control = Vec::new();
+        for x in [a, b] {
+            for (y, z) in [(0.0, 0.0), (0.5, 0.2), (1.0, 0.0)] {
+                control.push(Point3::new(x, y, z));
+            }
+        }
+        NurbsSurface::new(ku, kv2(), control, vec![1.0, 0.9, 1.0, 1.0, 0.9, 1.0]).unwrap()
+    };
     type Arm = fn(&OffsetFitError) -> bool;
-    let rows: [(&str, NurbsSurface<f64>, Arm); 3] = [
+    let rows: [(&str, NurbsSurface<f64>, Arm); 4] = [
         ("insertion chain", face(1e15, 2, &[]), |e| {
             matches!(
                 e,
@@ -1197,6 +1209,12 @@ fn a_knot_span_a_few_ulps_wide_refuses_on_its_span() {
                 OffsetFitError::Fit(geom::curves::fit::FitError::TooFewPoints { .. })
             )
         }),
+        ("repeated seed", two_ulps, |e| {
+            matches!(
+                e,
+                OffsetFitError::Fit(geom::curves::fit::FitError::ParamCountMismatch { .. })
+            )
+        }),
     ];
     for (name, base, arm) in rows {
         match fit_offset_at(&base, 0.01, 1e-4, band()) {
@@ -1204,8 +1222,8 @@ fn a_knot_span_a_few_ulps_wide_refuses_on_its_span() {
                 assert!(arm(&e), "{name}: refused on another arm: {e:?}");
                 let msg = e.to_string();
                 assert!(
-                    msg.contains(geom_brep::patch_bound::NARROW_SPAN)
-                        && msg.ends_with(geom_brep::patch_bound::NARROW_SPAN_RECOURSE),
+                    msg.contains(geom_brep::recourse::NARROW_SPAN)
+                        && msg.ends_with(geom_brep::recourse::NARROW_SPAN_RECOURSE),
                     "{name}: not the narrow span's story: {msg}"
                 );
             }

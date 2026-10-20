@@ -100,6 +100,8 @@ use geom_core::Bounds;
 use std::borrow::Cow;
 use std::ops::RangeInclusive;
 
+#[cfg(test)]
+use crate::recourse::{NARROW_SPAN, NARROW_SPAN_RECOURSE};
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, max_bound, norm_sup};
@@ -121,40 +123,14 @@ use geom_core::spline::{
 /// each piece's spread of coefficient ratios.
 pub const RATIONAL_CERT_SPLITS: usize = 16;
 
-/// The narrow-span decision's subject, as a literal for `concat!`: a
-/// knot span whose parameter values are so large against its width that
-/// floating point cannot cut it into the pieces a reading needs.
-macro_rules! narrow_span {
-    () => {
-        "a knot span too narrow, for the size of its parameter values, to be subdivided"
-    };
-}
-
-/// The narrow-span decision's one recourse, as a literal for `concat!`:
-/// the span is the lever.
-macro_rules! narrow_span_recourse {
-    () => {
-        "Recourse: widen that knot span or merge it into a neighbouring one"
-    };
-}
-
-/// **The narrow-span decision's subject**: what [`PatchBoundError::RefinementFailed`],
-/// [`PatchBoundError::DerivedKnots`] and the offset fit's crowded seed
-/// (`OffsetFitError::Fit`) refuse on.
-pub const NARROW_SPAN: &str = narrow_span!();
-
-/// **The narrow-span decision's one recourse** (D4 ¶1 (i)): every
-/// refusal of [`NARROW_SPAN`] ends in it.
-pub const NARROW_SPAN_RECOURSE: &str = narrow_span_recourse!();
-
 /// A typed refusal of the patch-bound assembly (fail-loud). Each
 /// carries the prose its consumers print, so a lifted consumer's
 /// message is this module's message.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-// The variant roster `topo`'s sample list iterates (this crate's
-// `test-support` feature, test builds only): fieldless, so the enum is
-// its own discriminant.
-#[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
+// The variant roster `topo`'s sample list and this module's tests
+// iterate (this crate's `test-support` feature, or its own test build):
+// fieldless, so the enum is its own discriminant.
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub enum PatchBoundError {
     /// A degree-0 direction — a degenerate patch description: a
     /// degree-0 locus is a step function rather than a surface
@@ -173,24 +149,18 @@ pub enum PatchBoundError {
     /// surface refuses these already, so a face reaching this bound
     /// carrying one is also a finding.
     NonPositiveWeight,
-    /// A refinement's knot-insertion chain refused, on a valid face:
-    /// the equal-split points of a knot span a few ulps wide round onto
-    /// one another, and inserting one value past the direction's degree
-    /// is refused. The narrow-span decision ([`NARROW_SPAN`]), as
-    /// [`Self::DerivedKnots`] is; its lever is the span.
+    /// A refinement's knot-insertion chain refused: the narrow-span
+    /// decision ([`NARROW_SPAN`](crate::recourse::NARROW_SPAN)), as [`Self::DerivedKnots`] is.
     RefinementFailed,
     /// A rational direction of degree above 18: the rational arm reads
     /// the second partials as quotients of degree `3p`, past the
     /// [`QUOTIENT_MAX_DEGREE`] of `56` its exact Bernstein products
     /// reach (module docs, "Refusal").
     DegreeAboveCeiling,
-    /// A refined direction whose first derivative is discontinuous, on
-    /// a valid face: the equal-split points of a knot span a few ulps
-    /// wide collide up to the direction's degree, so the refined vector
-    /// carries a knot of full multiplicity, which the C¹ gate never saw.
-    /// The narrow-span decision ([`NARROW_SPAN`]), as
-    /// [`Self::RefinementFailed`] is. The answer is a typed refusal,
-    /// never a second partial read as zero.
+    /// A refined direction whose first derivative is discontinuous, a
+    /// multiplicity the C¹ gate never saw: the narrow-span decision
+    /// ([`NARROW_SPAN`](crate::recourse::NARROW_SPAN)), as [`Self::RefinementFailed`] is. The answer
+    /// is a typed refusal, never a second partial read as zero.
     DerivedKnots,
 }
 
@@ -217,9 +187,9 @@ impl PatchBoundError {
             }
             Self::RefinementFailed | Self::DerivedKnots => concat!(
                 "NURBS face with ",
-                narrow_span!(),
+                crate::recourse::narrow_span!(),
                 " for bounding. ",
-                narrow_span_recourse!()
+                crate::recourse::narrow_span_recourse!()
             ),
             Self::DegreeAboveCeiling => {
                 "rational NURBS face of degree above 18 in a direction, past the degree its \
@@ -422,8 +392,8 @@ pub fn patch_cells_refined(
 /// # Errors
 ///
 /// [`PatchBoundError::RefinementFailed`] — a refused insertion chain,
-/// which only colliding split points on a narrow span reach: the points
-/// lie strictly inside their spans and the weights are unit.
+/// which only [`NARROW_SPAN`](crate::recourse::NARROW_SPAN) reaches: the points lie strictly inside
+/// their spans and the weights are unit.
 fn refine_split<'s, const C: usize>(
     nets: &'s TensorChannels<'_, C>,
     splits: usize,
@@ -519,9 +489,7 @@ impl Second {
     /// # Errors
     ///
     /// [`PatchBoundError::DerivedKnots`] at [`Derived::Discontinuous`]
-    /// — a multiplicity the C¹ gate never saw, which equal-split
-    /// refinement can raise when its split points collide on a span a
-    /// few ulps wide.
+    /// ([`NARROW_SPAN`](crate::recourse::NARROW_SPAN)).
     fn of(
         derived: Derived<'_, TensorCoeffs<'_>>,
         diff: impl FnOnce(&TensorCoeffs<'_>) -> Net,
@@ -842,10 +810,10 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             )
             .unwrap_or_else(|| {
                 unreachable!(
-                    "the quotient statement refuses only a degree-0 axis, a block not \
-                     (p + 1)(q + 1) long, or a degree past {QUOTIENT_MAX_DEGREE}; the C¹ gate \
-                     admitted degrees ({}, {}) ≥ 1, the block is the span window's, and \
-                     3·max(p, q) passed the ceiling above",
+                    "`cell_second_quotients` refused a block it always forms: its refusals \
+                     (geom-core `cell_pieces`, `cell_whole`, `product`) are structural, and \
+                     this block is a span window of a C¹-gated patch of degrees ({}, {}) \
+                     whose `3·max(p, q)` passed the {QUOTIENT_MAX_DEGREE} ceiling above",
                     kv_u.degree(),
                     kv_v.degree()
                 )
@@ -956,9 +924,10 @@ fn integral_area_floor(
     )
     .unwrap_or_else(|| {
         unreachable!(
-            "the area statement refuses only a degree-0 axis, a block not (p + 1)(q + 1) \
-             long, or a degree past {QUOTIENT_MAX_DEGREE}; the C¹ gate admitted degrees \
-             ({}, {}) ≥ 1, the block is the span window's, and 2p − 1 passed the ceiling above",
+            "`polynomial_area_pieces` refused a block it always forms: its refusals \
+             (geom-core `polynomial_area_pieces`, `product`) are structural, and this block \
+             is a span window of a C¹-gated patch of degrees ({}, {}) whose `2p − 1` passed \
+             the {QUOTIENT_MAX_DEGREE} ceiling above",
             span_u.degree(),
             span_v.degree()
         )
@@ -1138,17 +1107,8 @@ pub(crate) mod tests {
         // the thing a caller supplies satisfies the claim the same way
         // an imperative does.
         const RECOURSE_WORDS: &[&str] = &["describe", "supply", "widen", "split"];
-        let arms = [
-            PatchBoundError::DegreeZero,
-            PatchBoundError::Degree1Crease,
-            PatchBoundError::Crease,
-            PatchBoundError::NonPositiveWeight,
-            PatchBoundError::RefinementFailed,
-            PatchBoundError::DegreeAboveCeiling,
-            PatchBoundError::DerivedKnots,
-        ];
-        assert_eq!(arms.len(), 7, "an arm was added without a row here");
-        for arm in arms {
+        use strum::IntoEnumIterator;
+        for arm in PatchBoundError::iter() {
             let msg = arm.to_string();
             assert_eq!(msg, arm.note(), "Display is the shared note");
             // One ending, a labelled repair: a valid face reaches every
@@ -1180,11 +1140,11 @@ pub(crate) mod tests {
         }
     }
 
-    /// **Colliding split points do not zero a second partial.**
-    /// Equal-split points collide with each other on a span a few ulps
-    /// wide, so refinement can raise a multiplicity to `p` after the C¹
-    /// gate passed, and the derived vector stops being clamped. That
-    /// must refuse typed or bound the partial — never read it as zero.
+    /// **Colliding split points do not zero a second partial.** On a
+    /// [`NARROW_SPAN`] refinement can raise a multiplicity to `p` after
+    /// the C¹ gate passed, and the derived vector stops being clamped.
+    /// That must refuse typed or bound the partial — never read it as
+    /// zero.
     /// `x = Σ i³·N_i(u)` on a degree-3 `u` with knots `½, ½ + 3 ulp` has
     /// `S_uu ≠ 0`; both arms (unit and non-unit weights), at two split
     /// counts.

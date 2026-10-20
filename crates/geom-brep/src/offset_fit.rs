@@ -238,11 +238,8 @@ use geom_core::{
 
 use crate::descent::{self, Descent, Work};
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig};
-use crate::patch_bound::{
-    NARROW_SPAN, NARROW_SPAN_RECOURSE, PatchBoundError, check_direction, is_rational,
-    unit_scaled_weights,
-};
-use crate::recourse::Reading;
+use crate::patch_bound::{PatchBoundError, check_direction, is_rational, unit_scaled_weights};
+use crate::recourse::{NARROW_SPAN, NARROW_SPAN_RECOURSE, Reading};
 use geom_core::spline::{Derived, TensorCoeffs};
 
 /// The fitted surface's degree in both directions. A CONSTANT (D9:
@@ -502,20 +499,21 @@ pub enum OffsetFitError {
     /// the carrier rides in `Debug`.
     ///
     /// A seed with too few distinct parameters
-    /// ([`FitError::TooFewPoints`]) is the narrow-span decision: on a
-    /// valid face whose knot span is a few ulps wide at its parameter
-    /// values, the seed's points round onto the span's ends, and the
-    /// span is the lever. No other arm is shown reachable or excluded —
-    /// parameters that rounding crowds out of ascending order, a
-    /// collocation pivot that does not certify, a solve that overflows
-    /// — so each ends in the last resort.
+    /// ([`FitError::TooFewPoints`]) or a repeated one
+    /// ([`FitError::ParamCountMismatch`], whose counts the fit always
+    /// pairs, so only its ordering half is left) is [`NARROW_SPAN`]. No
+    /// other arm is shown reachable or excluded — a collocation pivot
+    /// that does not certify, a solve that overflows — so each ends in
+    /// the last resort
+    /// (`encl/offset-fit-unproven-refusals-end-in-the-last-resort`).
     Fit(FitError),
     /// Spline structure construction refused, on knots and control
     /// points the fit computed over the face's validated domain. Not
     /// shown unreachable: [`KnotVector::on_domain`] refuses averaged
     /// knots that rounding collapses onto one value, which sample
     /// parameters bisected down to adjacent floats could reach, so it
-    /// ends in the last resort, as [`Self::Fit`]'s unproven arms do.
+    /// ends in the last resort, as [`Self::Fit`]'s unproven arms do
+    /// (`encl/offset-fit-unproven-refusals-end-in-the-last-resort`).
     Structure(SplineError),
     /// `d` or the tolerance is not a finite, non-zero (resp.
     /// positive) number. Both are the call's own arguments, so a
@@ -702,7 +700,8 @@ pub enum OffsetFitError {
     /// samples to overflow, and the sampled residual is `f64`
     /// arithmetic on the model's coordinates while the bound the loop
     /// accepted is certified, so a sample's rounding above a bound just
-    /// under the tolerance is not excluded. It ends in the last resort.
+    /// under the tolerance is not excluded. It ends in the last resort
+    /// (`encl/offset-fit-unproven-refusals-end-in-the-last-resort`).
     MintLimb {
         /// Which limb.
         limb: OffsetLimb,
@@ -776,11 +775,13 @@ impl core::fmt::Display for OffsetFitError {
             // The carriers' own prose is not rendered: their repairs
             // are addressed to a caller supplying samples or a spline,
             // and here the kernel supplied both (variant docs).
-            Self::Fit(FitError::TooFewPoints { .. }) => write!(
-                f,
-                "the offset surface's fit could not place enough samples on the face: its \
-                 surface has {NARROW_SPAN}. {NARROW_SPAN_RECOURSE}"
-            ),
+            Self::Fit(FitError::TooFewPoints { .. } | FitError::ParamCountMismatch { .. }) => {
+                write!(
+                    f,
+                    "the offset surface's fit could not place distinct samples on the face: \
+                     its surface has {NARROW_SPAN}. {NARROW_SPAN_RECOURSE}"
+                )
+            }
             Self::Fit(_) => write!(
                 f,
                 "the offset surface's fit could not interpolate the samples it chose on the \
@@ -3404,7 +3405,7 @@ mod recourse_tests {
     use super::{BestBound, OffsetFitError, OffsetFitWall, OffsetLimb};
     use crate::offset_meters::MeterError;
     use crate::patch_bound::PatchBoundError;
-    use crate::recourse::{Classified, Reading, Refused};
+    use crate::recourse::{Classified, NARROW_SPAN_RECOURSE, Reading, Refused};
     use geom::curves::fit::FitError;
     use geom_core::spline::SplineError;
     use geom_core::{BandError, BandField};
@@ -3464,6 +3465,7 @@ mod recourse_tests {
             params: 5,
             points: 5,
         };
+        let unproven = FitError::NonFinitePoint { index: 3 };
         let structure = SplineError::NonPositiveWeight {
             index: 0,
             weight: 0.0,
@@ -3484,6 +3486,7 @@ mod recourse_tests {
             OffsetFitError::PatchBound(patch_bound),
             OffsetFitError::Fit(fit.clone()),
             OffsetFitError::Fit(crowded.clone()),
+            OffsetFitError::Fit(unproven.clone()),
             OffsetFitError::Structure(structure.clone()),
             OffsetFitError::InvalidRequest {
                 d: 0.0,
@@ -3580,7 +3583,7 @@ mod recourse_tests {
             OffsetFitError::Band(bands[0]),
             OffsetFitError::Band(bands[1]),
         ];
-        // Fourteen variants; `Fit` at its narrow-span arm and an
+        // Fourteen variants; `Fit` at its two narrow-span arms and an
         // unproven one, `WallReached` at both walls, which the
         // message names in two different words, `BoundNotFinite` at
         // both of its `best` cases, which are two different messages sending the caller
@@ -3589,7 +3592,7 @@ mod recourse_tests {
         // which it names as no number, `MintLimb` at its limb's NaN and
         // finite bounds, and `Band` at both arms `Band::linear` can
         // return.
-        assert_eq!(arms.len(), 21, "an arm was added without a row here");
+        assert_eq!(arms.len(), 22, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             let delegated = match arm {
@@ -3614,10 +3617,13 @@ mod recourse_tests {
             // resort on every arm not shown reachable or excluded.
             let kernel_input = match arm {
                 OffsetFitError::Fit(FitError::TooFewPoints { .. }) => {
-                    Some((fit.to_string(), super::NARROW_SPAN_RECOURSE))
+                    Some((fit.to_string(), NARROW_SPAN_RECOURSE))
+                }
+                OffsetFitError::Fit(FitError::ParamCountMismatch { .. }) => {
+                    Some((crowded.to_string(), NARROW_SPAN_RECOURSE))
                 }
                 OffsetFitError::Fit(_) => {
-                    Some((crowded.to_string(), geom_core::KERNEL_LIMIT_RECOURSE))
+                    Some((unproven.to_string(), geom_core::KERNEL_LIMIT_RECOURSE))
                 }
                 OffsetFitError::Structure(_) => {
                     Some((structure.to_string(), geom_core::KERNEL_LIMIT_RECOURSE))

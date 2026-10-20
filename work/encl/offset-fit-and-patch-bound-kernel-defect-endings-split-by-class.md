@@ -73,9 +73,9 @@ Re-check each `likely` or `unsure` argument before acting on it; one that fails 
 (ENCL implementer, 2026-10-20, on main c032d6377f.)
 
 - `RefinementFailed`, `DerivedKnots`: **class 1**, one decision, the
-  narrow knot span (`patch_bound::NARROW_SPAN`): both end in
-  `NARROW_SPAN_RECOURSE` ("widen that knot span or merge it into a
-  neighbouring one"). `DerivedKnots`' two raisers in `offset_fit.rs`
+  narrow knot span (`recourse::NARROW_SPAN`): both end in
+  `NARROW_SPAN_RECOURSE` ("widen the face's narrow knot spans, or move
+  its parameter range nearer zero"). `DerivedKnots`' two raisers in `offset_fit.rs`
   `Composite::build` were **class 2**: they read the base's own vector
   right after `check_direction`, which refuses a discontinuous first
   derivative as a crease; they are `unreachable!` now, and the variant
@@ -90,8 +90,11 @@ Re-check each `likely` or `unsure` argument before acting on it; one that fails 
 - `Fit(_)`: **class 1** at `FitError::TooFewPoints`, falsified: a valid
   face on `[4e15, 4e15 + 1]` with an interior knot has two one-ulp
   spans, and the seed's points round onto their ends (three distinct
-  parameters for a cubic's four). Ends in the narrow span's lever.
-  Every other arm ends in `KERNEL_LIMIT_RECOURSE`.
+  parameters for a cubic's four). `ParamCountMismatch` too (review of
+  PR 5476): a rational degree-1 face on `[1, 1 + 2ε]` seeds
+  `[1, 1+ε, 1+ε, 1+2ε]`, and the fit's counts always pair, so only its
+  ordering half is left. Both end in the narrow span's lever. Every
+  other arm ends in `KERNEL_LIMIT_RECOURSE`.
 - `Structure(_)`: **unproven**, ends in `KERNEL_LIMIT_RECOURSE`. A far
   domain does not reach it: `[1e15, 1e15 + 1]` refuses earlier on the
   narrow span (the test above), and a direct probe of
@@ -103,20 +106,8 @@ Re-check each `likely` or `unsure` argument before acting on it; one that fails 
 
 ## Open questions
 
-- **`Structure`**: can the loop bisect sample parameters close enough
-  to adjacent floats, on a domain whose width is comparable to its
-  magnitude, that `on_domain`'s rounding collapses two averaged knots?
-  Per-step rounding is about `width · 2⁻⁵³`, so it needs some ~50
-  bisections at one place inside `OFFSET_FIT_WORK`; neither excluded
-  nor reached.
-- **`Fit` past `TooFewPoints`**: the same crowding as an unordered
-  parameter (`ParamCountMismatch`) or averaged knots
-  (`FitError::Structure`), a collocation pivot that does not certify
-  (`Lsq`), and pass 2's solve overflowing into a non-finite row
-  (`NonFinitePoint`). None reached.
-- **`MintLimb`**: the on-locus limb is an `f64` residual on world
-  coordinates and the loop accepts on the certified hull alone, so a
-  sample's rounding above a hull just under the tolerance is not
-  excluded; and a NaN residual needs a solved fit to overflow.
-- If `nurbs/equal-split-points-insert-a-value-twice-on-a-narrow-span`
-  lands, both narrow-span arms become bug-only and move to class 2.
+Moved to their own rows: `offset-fit-unproven-refusals-end-in-the-last-resort`
+(`Structure`, `Fit` past its narrow-span arms, `MintLimb`) and
+`narrow-span-refusals-do-not-say-which-span` (the location the lever
+needs). What the NURBS fix would move is in
+`nurbs/equal-split-points-insert-a-value-twice-on-a-narrow-span`.

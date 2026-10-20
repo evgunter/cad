@@ -842,6 +842,7 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             source: diag().with_predicate(Meter::NormalFloor.predicate()),
         }),
         OffsetFitError::Fit(geom::curves::fit::FitError::TooFewPoints { have: 2, need: 4 }),
+        OffsetFitError::Fit(geom::curves::fit::FitError::NonFinitePoint { index: 3 }),
         OffsetFitError::Structure(geom_core::spline::SplineError::DomainInvalid {
             lo: 1.0,
             hi: 0.0,
