@@ -6941,3 +6941,6 @@ Signed (WIRE orchestrator).
     - message values; the stale merged.rs doc; PR body corrections.
   - **Class note:** a row-4 argument resting on a band or length bound must hold for every K and ε that `Tolerance` accepts, not the defaults. Both other reviewers were told to probe with CAD_AMBIGUITY_K=1.5 and CAD_TOLERANCE_EPS=1e-6.
   - The stored-curve row (`naming-edge-curve-ladders-can-read-through-body-stored-curve`) closes when 5503 merges.
+- 2026-10-20 (WIRE orchestrator) PR 5502 FULL review: MERGEABLE. The low-K/ε probe fired no `unreachable!`, and the head merges clean with 5503.
+  - A small fix pass is sent for: stale "refuses" prose in sweep/blend and wire.rs, the RowCell::Result premise, emit_sweep's empty-run ordering and messages, track_caller, the new rows' frontmatter, and a PR body citation.
+  - Filed `emit-rs-shared-helpers-raise-emission-for-torn-reads` for the 12 shared-helper raises no lane owned (review M4).
