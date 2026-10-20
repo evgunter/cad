@@ -174,6 +174,11 @@ pub use path::{
     PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via,
     circle, circle_split,
 };
+/// The path door's read-back rounding bounds and its magnitude
+/// headroom (`seg::read_back_arc`), for the suites that hold a scene's
+/// answer against them rather than restating them.
+#[cfg(any(test, feature = "test-support"))]
+pub use seg::{LANDING_ULPS as READ_BACK_LANDING_ULPS, READ_BACK_RIM_ULPS, resolution_headroom};
 pub use structure::{
     CIRCLE_PIECES, CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision,
     LoopCanonical, Piece, PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure,
@@ -327,15 +332,56 @@ pub(crate) struct BuiltArc<T: Real> {
     pub(crate) arc: Arc2<T>,
     /// What its construction proved.
     pub(crate) facts: Facts,
+    /// An authored point its carrier passes through that the stored
+    /// arc does not keep: a `Via` arc's `q`. The path door reads the
+    /// carrier back against it at a point scalar, and it goes no
+    /// further than the door.
+    pub(crate) through: Option<Point2<T>>,
+    /// The turn sense the construction states, from a decision on its
+    /// inputs rather than from the sweep it stored (a winding, a side,
+    /// the side of the chord a through-point or a target lies on, a
+    /// corner's turn): which of the two arcs on the carrier between its
+    /// ends it meant. The door reads the stored sweep's branch against
+    /// it. Where that decision also fixes the sign of the quarter-tangent
+    /// the sweep was computed from, the read sees a defect after the
+    /// sign, not one in it. `None` for a `Bulge` leg, whose bulge is the
+    /// authored data.
+    pub(crate) sense: Option<ArcSweep>,
+    /// The bulge is the authored data itself (the `Bulge` leg), so a
+    /// stored arc that reads as a line is a line as authored, and the
+    /// door does not read it back.
+    pub(crate) bulge_authored: bool,
 }
 
 impl<T: Real> BuiltArc<T> {
+    /// `arc` as its construction built it, with what it proved; nothing
+    /// further authored.
+    pub(crate) fn new(arc: Arc2<T>, facts: Facts) -> Self {
+        Self {
+            arc,
+            facts,
+            through: None,
+            sense: None,
+            bulge_authored: false,
+        }
+    }
+
     /// The arc [`lower_arc`] lowers from the chord `start → end` and
     /// `x`, with its endpoint facts — theorems of that lowering.
     pub(crate) fn lowered(start: Point2<T>, end: Point2<T>, x: T) -> Self {
+        Self::new(lower_arc(start, end, x), Facts::Registered)
+    }
+
+    /// The same arc, authored through `q`.
+    pub(crate) fn through(self, q: Option<Point2<T>>) -> Self {
+        Self { through: q, ..self }
+    }
+
+    /// The same arc, authored to turn in `sense`.
+    pub(crate) fn sensed(self, sense: ArcSweep) -> Self {
         Self {
-            arc: lower_arc(start, end, x),
-            facts: Facts::Registered,
+            sense: Some(sense),
+            ..self
         }
     }
 

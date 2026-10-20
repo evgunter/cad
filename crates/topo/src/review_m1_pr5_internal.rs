@@ -264,6 +264,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "a test-support door that overwrites one surface datum in place; no vertex, edge, \
          loop, face or shell is touched, so tier 1 holds as it found it",
     ),
+    (
+        "rotate_shell_faces",
+        "a test-support door that rotates each shell's stored face list; tier 1 reads a \
+         shell's faces as a set with back-pointers, which a rotation keeps",
+    ),
     // ---- Pipelines composed of asserting operators. ----
     (
         "merge_coplanar_faces",

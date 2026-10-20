@@ -8,12 +8,11 @@ against 30 with its six charter rows closed. Nothing dispatched.
 
 ## The slate
 
-**23.5 budget points** of dispatchable work against a ceiling of 30.
+**21 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P2 | `a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound` | M | A subtract whose tool lies wholly inside its target ties vol(A ∖ B) ≥ vol(A) − vol(B) exactly, and the certified lane decides that tie on no box |
-| P2 | `a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate` | M | A brick through an L-prism's top k·ε from its far carrier unions and subtracts to the right volume, and the result gate refuses it RingContactEscalated |
 | P2 | `a-plate-touching-a-cut-torus-at-its-cap-rim-builds-an-assembly` | M | A plate touching a 270° torus on its cut-cap rim (δ = 0) builds an Assembly, and ∩ comes back Empty |
 | P2 | `rod-minus-brick-minus-slab-refuses-solids-do-not-cross` | M | rod minus brick minus a slab across z in [3.5, 4] refuses 'the solids do not cross' although they overlap |
 | P2 | `split-bisector-side-in-band-off-a-corner-at-millimetre-scale` | M | A cut 1e-7 off a corner of a millimetre body refuses SliverSector at split_bisector_side |
