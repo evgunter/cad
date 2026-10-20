@@ -1584,3 +1584,7 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - Reviewer archived.
 - 2026-10-20 02:35Z — **#5433 up** (build A's STANDARD follow-up to #5399 and #5414, head 47d1d68c). It also folds a third, production copy of the binomial fold (`carrier_net.rs`'s Taylor re-expansion, bit-identical).
   - **Base red found by A:** topo's `every_public_mutation_path_preserves_tier1` is red on main since ENCL's PR 5418 (`restate_stored_edge` is off the roster). Filed on ENCL's slate with a seam note; NURBS PRs cite it as a base red.
+- 2026-10-20 02:50Z — **#5424 merged** (8f1edb5f; the `mul_nonneg` thin step).
+  - **STANDARD review MERGEABLE:** a probe of 296k real weight pairs (~1.19M steps) found 0 differences, and no weight read `lo < 0`. Suites are green at both ε on head and main; r1 is −8% at opt-level 0.
+  - The MINOR (the "[0,1]" comment is inexact; `s.hi` reaches 1+2⁻⁵²) and the row's missing wide/tiny-t draws ride C's next `split_restrict` PR.
+  - The lever is marked done in `cheapen-the-restriction-cut-steps-2-to-4` and the slow-rows item. Reviewer archived.
