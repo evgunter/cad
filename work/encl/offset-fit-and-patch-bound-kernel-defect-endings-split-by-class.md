@@ -2,7 +2,10 @@
 id: offset-fit-and-patch-bound-kernel-defect-endings-split-by-class
 kind: issue
 title: geom-brep: six offset-fit and patch-bound refusals end in KERNEL_DEFECT_ENDING; two are reachable by input, and the other four are bug-only or not yet shown to be
-status: open
+status: closed
+closed: 2026-10-20
+branch: encl/patch-bound-endings
+pr: 5476
 opened: 2026-10-20
 parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
 priority: P3
@@ -65,3 +68,47 @@ all three arms to the defect ending, and has to move with them.
 - **Class 1**: the decision's own lever, in its own words (`[tolerance.recourse]` (i)), with a test that reaches it through the door.
 
 Re-check each `likely` or `unsure` argument before acting on it; one that fails moves the site to class 1.
+
+## Disposition
+
+(ENCL implementer, 2026-10-20, on main c032d6377f.)
+
+- `RefinementFailed`, `DerivedKnots`: **class 1**, one decision, the
+  narrow knot span (`recourse::NARROW_SPAN`): both end in
+  `NARROW_SPAN_RECOURSE` ("widen the face's narrow knot spans, or move
+  its parameter range nearer zero"). `DerivedKnots`' two raisers in `offset_fit.rs`
+  `Composite::build` were **class 2**: they read the base's own vector
+  right after `check_direction`, which refuses a discontinuous first
+  derivative as a crease; they are `unreachable!` now, and the variant
+  is raised only on a refined vector. Reached through the door by
+  `tests/offset_fit.rs` `a_knot_span_a_few_ulps_wide_refuses_on_its_span`.
+- `QuotientRefused`: **class 2**, the variant is gone. Every `None` of
+  `cell_second_quotients` and `polynomial_area_pieces` is a degree-0
+  axis, a block not `(p + 1)(q + 1)` long, or a product past
+  `QUOTIENT_MAX_DEGREE` (`spline/derivative.rs` `cell_whole`,
+  `product`, `Grid::new`, `raised_to`); the C¹ gate, the span window and
+  the ceiling checks before each call exclude all three.
+- `Fit(_)`: **class 1** at `FitError::TooFewPoints`, falsified: a valid
+  face on `[4e15, 4e15 + 1]` with an interior knot has two one-ulp
+  spans, and the seed's points round onto their ends (three distinct
+  parameters for a cubic's four). `ParamCountMismatch` too (review of
+  PR 5476): a rational degree-1 face on `[1, 1 + 2ε]` seeds
+  `[1, 1+ε, 1+ε, 1+2ε]`, and the fit's counts always pair, so only its
+  ordering half is left. Both end in the narrow span's lever. Every
+  other arm ends in `KERNEL_LIMIT_RECOURSE`.
+- `Structure(_)`: **unproven**, ends in `KERNEL_LIMIT_RECOURSE`. A far
+  domain does not reach it: `[1e15, 1e15 + 1]` refuses earlier on the
+  narrow span (the test above), and a direct probe of
+  `interpolate_columns` + `KnotVector::on_domain` over 20 000 random
+  parameter sets on the `[1e15, 1e15 + 8]` grid collapsed none.
+- `MintLimb`: **unproven**, ends in `KERNEL_LIMIT_RECOURSE`. Not reached
+  by a quarter cylinder shifted to 1e3 … 1e9 at tolerances 1e-4 …
+  1e-10, nor scaled to 1e300 … 4e307 (the meters refuse first).
+
+## Open questions
+
+Moved to their own rows: `offset-fit-unproven-refusals-end-in-the-last-resort`
+(`Structure`, `Fit` past its narrow-span arms, `MintLimb`) and
+`narrow-span-refusals-do-not-say-which-span` (the location the lever
+needs). What the NURBS fix would move is in
+`nurbs/equal-split-points-insert-a-value-twice-on-a-narrow-span`.

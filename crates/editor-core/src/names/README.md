@@ -16,14 +16,87 @@ the name↔entity table and re-resolution is a lookup, never a match.
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` (an edge its closing join made over several trims, rim trims or survivors `Merged`), `emit_shell.rs` (the shell: survivors `From` the target's read, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`, an edge its closing join made over several input edges `Merged`) |
 | N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
-| N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing's sense and the same-sense ordinal's predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
-| A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, an `EdgeCrossing`'s run, a union seam's sides), and what ordering a union seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
+| N2 discriminators — `Borders` over the kernel's record of what a boolean discarded and over a Split's tool plane, `Keeps`, `Ends`, the crossing's sense and the same-sense ordinal's predicates; tie propagation | `borders.rs`, `plane_pieces.rs`, `discriminate.rs`; `defer.rs` |
+| A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, an `EdgeCrossing`'s run, a seam's sides), and what ordering a seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
 | N6 a recorded cell's read and name; the walk from them to the minting node | `crates/editor-core/src/coincide.rs` (`NamedCell`, `construction`) |
 | Which node minted a named entity (`NameOrigin`); name → geometry (`denotation`, `face_frame`, ...) | `attribute.rs`; `interrogate.rs` |
 | Selectors, geometric filters, detect/declare | `select.rs`, `geompred.rs`, `flush.rs`; design in `docs/SELECT-DESIGN.md`, usage in `docs/guide/selecting.md` |
 
 ## Names
+
+**N0 — What a name is.** Naming instantiates `[intrinsic.contingent]`
+(`docs/DESIGN.md`): a name is decided by what matters to the entity, never by
+how the operation happened to compute it. N1–N5 are instances of N0; where a
+case has no rule, N0 decides it, and a lane derives the name rather than
+forking a question. Each principle names the check that holds it.
+
+- **NS1, what a name may read.** A name may read only:
+  - the operation's kind and its authored structure, up to the operation's
+    declared symmetries. Each operation says which inputs are a set and which
+    a sequence: union and intersect members, a seam's sides, `Merged`
+    constituents, `Borders` walls, `Ends` and an `EdgeCrossing`'s lines are
+    sets; a subtract's seats, loft sections, profile steps and a pattern's
+    index are sequences;
+  - the reads it takes, by minted identity (DM4), and the names in their
+    tables;
+  - the entity's descent from the kernel's birth records (D5);
+  - the verdicts that decided it. For a union these are the judged pairwise
+    verdicts, which are order-free (DM4), never a fold step's decision.
+
+  Nothing else: no order of any kind (fold, completion, pairing, insertion,
+  arena storage), no slot beyond the declared sequences, no frame, no value.
+  A *slot* is the position an input fills: a subtract's `from` and `tool`,
+  or a two-member union's first and second member. A sequence's slot means
+  something (what is cut from what), so a name may read it; a set's does not
+  (swapping a union's two members makes the same body), so a name may not.
+  List order is the same: a loft's sections are a sequence, a union's members
+  a set.
+  A set is spelled in name order, which is a spelling, never a choice.
+  *Check:* the table is unchanged, up to ties, under each of these: the
+  f64/Interval pin; a permutation of a set input; a frame change of a split
+  plane; a tilt within one topology; two separately authored identical
+  operands; a replay under a different edit history (up to the bijection of
+  minted ids); and an operand's arena storage permuted.
+- **NS2, one grammar, read off the finished body.** Every entity takes one of
+  four forms over its descent, and a new entity is named by placing it in
+  one:
+  - **Carried**: one input entity whole, `From { read, of }` or a
+    pass-through.
+  - **Merged**: it covers several input entities, `Merged(flat set)`.
+  - **Met**: it lies in no input entity of its own dimension, and arises
+    where input entities meet (`Seam`, `Crossing`, `EdgeCrossing`), spelled as
+    the set it is made of.
+  - **Made**: the operation builds it under a role its kind fixes (`Cap`,
+    `Band`, `Pole`, `BlendFace`, `Inner`, a profile `Piece`). The role's
+    arguments are names, reads, locators, verdict enums and integers the
+    author wrote, never a counter.
+
+  A form that does not tell an entity from its siblings takes a `Fragment`
+  qualifier (NS3). *Check:* one exhaustive map from each `RoleSeg` variant to
+  its form; and a denotation verifier, independent of the emitters, that
+  re-reads the finished body and the records and confirms what each name
+  claims.
+- **NS3, locality.** A name reads nothing outside the entity's closure (its
+  boundary and the lines it lies on) and its parents' closures. A qualifier
+  reads only the entity's own relation to its siblings: walls, kept edges,
+  ends, or a rank along a shared line, which is a recorded verdict. It never
+  reads how many siblings there are or which came first. *Check:* an
+  unrelated feature added elsewhere leaves every surviving entity's name.
+- **NS4, totality and identity.** Every live entity has exactly one name, and
+  distinct entities have distinct names. Two entities nothing covariant tells
+  apart are a tie (N4); two operands with identical tables are told apart by
+  their reads, never ordered or collapsed. A naming refusal on a legal body is
+  a defect, never a policy. *Check:* `check_total` and `NameTable::insert`,
+  and a coverage fuzzer over legal arrangements that admits no `Naming(*)`
+  refusal but `Escalated` and `Band`.
+- **NS5, complete records.** A name reads descent from the birth records and
+  never reconstructs it; a missing or wrong record is a kernel defect, fixed in
+  the kernel. *Check:* the D5 record validator, and the NS4 fuzzer.
+
+Coincidence rows are records, not names (REFERENCES DM4): their presence
+follows the decisions an evaluation took, and NS1 governs only what a name
+reads of them.
 
 **N1 — A stable name is a derivation path.** `StableName { kind, node, path }`:
 a runtime `EntityKind` (Body, Face, Edge, Vertex — bodies are first-class), the
@@ -307,8 +380,9 @@ The qualifier depends on what was split:
   `CrossingVertex` holds it as a field.
   A vertex where two or more lines meet is an `EdgeCrossing` over the run of
   those lines, each with its sense, in name order. Its lines are the edges cut
-  at the vertex, edges that run flush on one line counted once as the least of
-  them, and, at a union, each seam through the vertex whose two faces bound
+  at the vertex, edges that run flush on one line counted once (at a union as
+  the `Merged` set of them, flat and in name order; at a pair boolean as the
+  least of them), and, at a union, each seam through the vertex whose two faces bound
   none of those edges, cited by its faces' parents as a seam edge is. So a
   union vertex no member edge reaches is the run of its seams, and a lone
   member edge through a seam is the run of the edge and the seam. A face
@@ -320,8 +394,11 @@ The qualifier depends on what was split:
   run. A seam in a run carries none. A boolean reads the sense at the step
   that mints the vertex. A union reads it from its members' pairwise
   judgements, a side being inside when any judgement classed it so; a side
-  no judgement classed refuses. Reversing an edge swaps `Enters` and
-  `Leaves` and keeps the other two.
+  no judgement classed refuses. A union's line of several flush edges carries
+  one sense, on which its edges all agree, read along one of its edges. Which
+  edge orients it is open
+  (`work/wire/a-unions-line-of-several-edges-is-oriented-by-its-least-edge.md`).
+  Reversing an edge swaps `Enters` and `Leaves` and keeps the other two.
   Crossings of one line by one face with the same sense, and vertices with
   the same run, are ranked along a line they share by its carrier's own
   parameter, in its stored orientation: the run's least edge, or where the
@@ -337,18 +414,23 @@ The qualifier depends on what was split:
   vertex (in a Split, one per half) is its bare name.
 
 No rule reads a plane or a direction, and a union's reading of a seam pair in
-name order changes nothing. Name order spells a set; the flush rule below is
-the one place it chooses an entity.
+name order changes nothing. Name order spells a set, and at a union it
+chooses no entity: what several members hold at once is named for all of
+them (below). The pair boolean's seam vertex still cites the least of several
+flush edges.
 
 **Flush edges at a union.** Each union edge is named for the member edges it
 lies on, read off the finished body and the members' own bodies
 (`emit_union::Flush`), so the name is the same in every member order:
 
-- An edge that lies within one or more member edges, where they run flush, is
-  a piece of the first minted of them (the least in name order, since name
-  order compares the minting node's id first and ids order as minted), so a
-  member added later never takes a stretch from an earlier one, whatever the
-  fold named it. An edge lies within a member edge when it lies within that
+- An edge that lies within one member edge is a piece of it, whatever the
+  fold named it. One that lies within several, where they run flush, is the
+  same edge in each of those members, and is named for the set of them:
+  `Merged` of those member edges, flat and in name order, as a face two
+  members hold coincidently is `Merged` of both (N3). No member's edge is
+  chosen over another's, so the name is the same whichever member was
+  authored first, and two members with identical tables (a body and its
+  exact copy) are told apart by their reads. An edge lies within a member edge when it lies within that
   edge along its carrier and both of its faces descend from that member edge's
   two faces. An edge one of whose member faces was glued away, another
   member's face lying over it, does not: it is the seam of the faces it
@@ -406,15 +488,20 @@ split, the shell and the blend read their joins through one helper
 (`join_names.rs`), each supplying only which input edge a covered edge is
 the image of.
 
-A seam vertex cites an input edge
-whole, `From(m, e)`, never a piece and never a set: the one it lies on,
-the least in name order where several do, a subtract's two seats among
-them, so no seat is preferred. A vertex at a member vertex is that vertex; one
-where a single face crosses or touches a member edge is the `Crossing` of that
-edge and that face; and every other is the `EdgeCrossing` run of the member
-edges and seams through it (N2), read from the finished body and its senses
-from the members' pairwise judgements, never from the fold, so every member
-order spells it alike. A reference to a member edge, or to a piece of one, that no longer
+A seam vertex cites an input edge whole, `From(m, e)`, never a piece: the
+one it lies on. Where several of one input's edges lie flush on its line, a
+union cites the `Merged` set of them. A pair boolean cites the least of them
+in name order; it reads each seat's edges apart, so this choice never sets one
+seat against the other
+(`work/wire/a-pair-booleans-seam-vertex-cites-the-least-of-several-flush-operand-edges.md`).
+A vertex at a member vertex is that vertex. At several members' vertices (a
+body glued to its copy) it is `Merged` of them, flat and in name order. A
+vertex where a single face crosses or touches a member edge, or a line of
+member edges flush on one line, is the `Crossing` of that line and that face.
+Every other is the `EdgeCrossing` run of the lines and seams through it (N2).
+Each is read from the finished body, and its senses from the members'
+pairwise judgements, never from the fold, so every member order spells it
+alike. A reference to a member edge, or to a piece of one, that no longer
 resolves is offered every set listing that member edge.
 
 **A union's face is named for its PARENT.** Two member faces are linked when
@@ -515,10 +602,9 @@ live entity is `NamingError::Unnamed`, and `NameTable::insert` refuses aliasing
 (`SeatingRefusal::KindMismatch`). The table is bidirectional (`lookup`,
 `name_of`), one per output variable (N1, the scope), read through that
 variable alone (`Evaluation::table`), and rides memo hits with the geometry;
-consumed entities have no row. The invariant CI pins: the table is a
-function of (recipe structure, structural parameters, predicate verdict vector)
-only — same recipe and same verdicts give an identical table at f64 and at
-Interval (`tests/m4_pr3_names_ci.rs`, `tests/m4_pr3_names_interval.rs`,
+consumed entities have no row. The invariant is N0's NS1: the table reads
+only what NS1 lists. CI pins one instance of it, that the same recipe and the
+same verdicts give an identical table at f64 and at Interval (`tests/m4_pr3_names_ci.rs`, `tests/m4_pr3_names_interval.rs`,
 `tests/lib_g16_corpus_name_digests.rs`). The kernel never sees a `StableName`;
 hit-testing (`resolve/hit.rs`) reads the table backwards, so the GUI never sees
 an arena key.

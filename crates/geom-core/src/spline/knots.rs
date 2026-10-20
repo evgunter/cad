@@ -570,6 +570,17 @@ impl KnotStructure {
         &self.multiplicities
     }
 
+    /// The runs a spline on this structure may have no derivative
+    /// across, by index into [`Self::multiplicities`]: its C⁰ creases,
+    /// the interior runs of multiplicity at least the degree (every
+    /// interior run at degree 1). The one statement of where a crease
+    /// is: [`KnotVector::c1`] refuses exactly when this is nonempty,
+    /// and a consumer locating the creases reads it too.
+    pub fn crease_runs(&self) -> impl Iterator<Item = usize> + '_ {
+        let last = self.multiplicities.len() - 1;
+        (1..last).filter(move |&r| self.multiplicities[r] >= self.degree)
+    }
+
     /// The run knot `index` belongs to.
     pub fn run_of(&self, index: usize) -> usize {
         self.run_of[index]

@@ -830,7 +830,7 @@ const ADMITTED_MEMBER_ORDER: &[Admitted] = &[
 ];
 
 /// The member-order cases that compare no table today.
-const VACUOUS_MEMBER_ORDER: &[Vacuous] = &[("two prisms / union", MERGED_CHORD)];
+const VACUOUS_MEMBER_ORDER: &[Vacuous] = &[];
 
 /// `x` and `y` combined by `op` as a pair, in that order, `y` the
 /// union of the members it lists where it lists several.
@@ -928,7 +928,6 @@ const VACUOUS_OPERAND_ORDER: &[Vacuous] = &[
     ),
     ("two bridges / intersect / m2 against the rest", BRIDGES_MET),
     ("two bridges / intersect / m3 against the rest", BRIDGES_MET),
-    ("two prisms / union / m0 against the rest", MERGED_CHORD),
 ];
 
 /// A bridge listed before the union of the wedges and the other bridge
@@ -943,10 +942,6 @@ const BRIDGE_FOLDED_LAST: &str =
 /// A bridge met with the union of the wedges and the other bridge
 /// refuses: vertices share a name that is no single seam.
 const BRIDGES_MET: &str = "work/wire/a-bridge-met-with-the-wedges-and-the-other-bridge-names-vertices-on-no-single-seam-alike.md";
-
-/// A chord between two merged faces within no rim refuses
-/// (`MergedChord`).
-const MERGED_CHORD: &str = "work/wire/a-chord-between-two-merged-faces-within-no-rim-refuses.md";
 
 // ------------------------------------------------------------------ //
 // Merged chords
@@ -1036,6 +1031,9 @@ fn sunk_boss_cut(tool: &[Spans], pose: CutPose) -> Published {
 #[derive(Clone, Copy)]
 enum Target {
     Prism(&'static [(f64, f64)]),
+    /// [`Target::Prism`] with the outline's `x` drawn along `z`, so the
+    /// prism runs along `-x`.
+    PrismAlongZ(&'static [(f64, f64)]),
     Turned(&'static [(f64, f64)]),
     Union(Members),
 }
@@ -1044,9 +1042,14 @@ enum Target {
 /// one, and the node split.
 fn target(doc: ProfileDoc, t: Target) -> (ProfileDoc, (Option<RecipeNodeId>, RecipeNodeId)) {
     match t {
-        Target::Prism(outline) | Target::Turned(outline) => {
-            let (doc, p) = on_frame(doc, [0.0; 3], X, Y, vec![outline.to_vec()]);
-            let node = if matches!(t, Target::Prism(_)) {
+        Target::Prism(outline) | Target::PrismAlongZ(outline) | Target::Turned(outline) => {
+            let u = if matches!(t, Target::PrismAlongZ(_)) {
+                Z
+            } else {
+                X
+            };
+            let (doc, p) = on_frame(doc, [0.0; 3], u, Y, vec![outline.to_vec()]);
+            let node = if matches!(t, Target::Prism(_) | Target::PrismAlongZ(_)) {
                 Node::Extrude {
                     profile: p.into(),
                     distance: len(1.0),
@@ -1370,6 +1373,27 @@ fn pentagon_split_turned(deg: f64) -> Halves {
     )
 }
 
+/// The notched block, drawn along `z`, split by the plane `y = 1.5`,
+/// which cuts three sections from each half, turned `deg` about `z`.
+fn notched_split_turned(deg: f64) -> Halves {
+    split(
+        Target::PrismAlongZ(crate::split_pinch_keeps::NOTCHED),
+        Tool::Plane([0.0, 1.5, 0.0], turned(Y, Z, deg)),
+        &unedited,
+    )
+}
+
+/// A split whose plane is posed by a tilt, by name.
+type TurnedSplit = fn(f64) -> Halves;
+
+const TURNED_SPLITS: &[(&str, TurnedSplit)] = &[
+    ("notched pentagon, plane turned", pentagon_split_turned),
+    (
+        "notched block's three sections, plane turned",
+        notched_split_turned,
+    ),
+];
+
 /// Compares `subject`'s poses at [`TILTS`] with its pose at 0°, each
 /// as `pose` builds it: its tables and its bodies' counts. A pose whose
 /// bodies' counts differ is another topology, and is not compared but
@@ -1427,15 +1451,16 @@ fn a_tilt_within_one_topology_moves_no_name() {
             "{what}: {compared} tilts keep the topology"
         );
     }
-    let what = "notched pentagon, plane turned";
-    let compared = tilt(&mut found, what, &|deg| {
-        let h = pentagon_split_turned(deg);
-        (h.tables.to_vec(), h.counts)
-    });
-    assert!(
-        compared >= COMPARED_TILTS,
-        "{what}: {compared} tilts keep the topology"
-    );
+    for &(what, pose) in TURNED_SPLITS {
+        let compared = tilt(&mut found, what, &|deg| {
+            let h = pose(deg);
+            (h.tables.to_vec(), h.counts)
+        });
+        assert!(
+            compared >= COMPARED_TILTS,
+            "{what}: {compared} tilts keep the topology"
+        );
+    }
     found.settle(ADMITTED_TILT, VACUOUS_TILT);
 }
 
@@ -1456,6 +1481,9 @@ enum Part {
     Block(Spans),
     /// A [`pinch_order::sector_of`] this sector.
     Sector(Sector),
+    /// The block of these spans, extruded down from its top: the same
+    /// solid as [`Part::Block`]'s, its lateral edges running the other way.
+    Downward(Spans),
 }
 
 impl Part {
@@ -1463,6 +1491,23 @@ impl Part {
         match self {
             Self::Block(s) => block_of(doc, s),
             Self::Sector(s) => pinch_order::sector_of(doc, s),
+            Self::Downward(((x0, x1), (y0, y1), z0, dz)) => {
+                let (doc, p) = on_frame(
+                    doc,
+                    [0.0, 0.0, z0 + dz],
+                    [1.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0],
+                    vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+                );
+                insert(
+                    doc,
+                    Node::Extrude {
+                        profile: p.into(),
+                        distance: len(dz),
+                        side: ExtrudeSide::Against,
+                    },
+                )
+            }
         }
     }
 }
@@ -1491,6 +1536,7 @@ const UNIT_BLOCK: Part = Part::Block(((1.0, 2.0), (0.5, 1.5), 0.5, 1.0));
 const PLATE: Part = Part::Block(pinch_order::PLATE_SPANS);
 const P1: Part = Part::Block(pinch_order::P1);
 const P2: Part = Part::Block(pinch_order::P2);
+const P2_DOWNWARD: Part = Part::Downward(pinch_order::P2);
 const KISS_A: Part = Part::Block(decide_alike::KISS[0]);
 const KISS_B: Part = Part::Block(decide_alike::KISS[1]);
 const WEDGE_A: Part = Part::Sector(pinch_order::WEDGE_A);
@@ -1533,6 +1579,11 @@ const HISTORIES: &[Roles] = &[
     (
         "plate pinch",
         &[("plate", PLATE), ("p1", P1), ("p2", P2)],
+        Combine::Nary(Nary::Union),
+    ),
+    (
+        "plate pinch, p2 extruded down",
+        &[("plate", PLATE), ("p1", P1), ("p2", P2_DOWNWARD)],
         Combine::Nary(Nary::Union),
     ),
     (
@@ -1629,34 +1680,51 @@ fn an_authoring_history_moves_no_name() {
     found.settle(ADMITTED_HISTORY, VACUOUS_HISTORY);
 }
 
+/// **A body and its exact copy name every entity by both reads** (N0's
+/// NS4: two operands with identical tables are told apart by their
+/// reads, never ordered): their union is one body, each face, edge and
+/// vertex the same entity in both, so each is `Merged` of two names
+/// whose heads are `From` the two members' reads.
+#[test]
+fn a_body_and_its_copy_name_every_entity_by_both_reads() {
+    let doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
+    let (doc, one) = UNIT_BLOCK.author(doc);
+    let (doc, copy) = UNIT_BLOCK.author(doc);
+    let (doc, op) = insert(doc, Nary::Union.node(&[one, copy]));
+    let ev = run(&doc);
+    let reads = BTreeSet::from([
+        crate::fixture::out(&doc, one),
+        crate::fixture::out(&doc, copy),
+    ]);
+    let var = ev.output_var(op, 0).expect("the union defines its port");
+    let table = ev.table(var).expect("the union's table");
+    let mut named = 0;
+    for (name, _) in table.iter() {
+        if name.kind == editor_core::EntityKind::Body {
+            continue;
+        }
+        let cited: BTreeSet<VarId> = match name.path.as_slice() {
+            [editor_core::RoleSeg::Merged(set)] => set
+                .iter()
+                .filter_map(|c| match c.path.as_slice() {
+                    [editor_core::RoleSeg::From { read, .. }] => Some(*read),
+                    _ => None,
+                })
+                .collect(),
+            _ => BTreeSet::new(),
+        };
+        assert_eq!(cited, reads, "{name:?} is not named for both copies");
+        named += 1;
+    }
+    assert_eq!(named, 26, "a block's 6 faces, 12 edges and 8 vertices");
+}
+
 /// The history cases that move today.
-const ADMITTED_HISTORY: &[Admitted] = &[
-    (
-        "a block and its copy / authored in another order",
-        40,
-        COPY_MINTED_FIRST,
-    ),
-    (
-        "a block and its copy, met / authored in another order",
-        40,
-        COPY_MINTED_FIRST,
-    ),
-    (
-        "the plate less a block and its copy / authored in another order",
-        96,
-        COPY_MINTED_FIRST,
-    ),
-    (
-        "plate pinch / authored in another order",
-        18,
-        LEG_MINTED_FIRST,
-    ),
-    (
-        "twins on the plate / authored in another order",
-        18,
-        LEG_MINTED_FIRST,
-    ),
-];
+const ADMITTED_HISTORY: &[Admitted] = &[(
+    "plate pinch, p2 extruded down / authored in another order",
+    18,
+    LINE_ORIENTED_BY_LEAST,
+)];
 
 /// The history cases that compare no table today.
 const VACUOUS_HISTORY: &[Vacuous] = &[
@@ -1673,24 +1741,19 @@ const VACUOUS_HISTORY: &[Vacuous] = &[
         "the plate less the twins / authored in another order",
         LINE_WEDGES,
     ),
-    ("two prisms / after an unrelated node", MERGED_CHORD),
 ];
+
+/// A union's line of several flush member edges is oriented by its
+/// least edge, which orders by read, so where the edges run opposite
+/// ways its crossing's sense reads which member was minted first.
+const LINE_ORIENTED_BY_LEAST: &str =
+    "work/wire/a-unions-line-of-several-edges-is-oriented-by-its-least-edge.md";
 
 /// A plate less blocks that meet on a line through it refuses
 /// `LineWedges`: the contact is two coincident edges whose material
 /// wedges overlap.
 const LINE_WEDGES: &str =
     "work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md";
-
-/// A boolean of a body and its exact copy names each entity of the
-/// result from the copy minted first.
-const COPY_MINTED_FIRST: &str =
-    "work/wire/a-boolean-of-a-body-and-its-copy-names-its-entities-from-the-copy-minted-first.md";
-
-/// Where two members' legs cross a face at one pinch point, the vertex
-/// is named the crossing of the leg minted first.
-const LEG_MINTED_FIRST: &str =
-    "work/wire/a-pinch-where-two-legs-cross-one-face-is-named-by-the-leg-minted-first.md";
 
 // ------------------------------------------------------------------ //
 // Far features
@@ -1845,5 +1908,4 @@ const ADMITTED_FAR: &[Admitted] = &[(
 const VACUOUS_FAR: &[Vacuous] = &[
     ("bridging / a far member", BRIDGE_FOLDED_LAST),
     ("pinch and far / a far member", decide_alike::CARRIED_PINCH),
-    ("two prisms / a far member", MERGED_CHORD),
 ];

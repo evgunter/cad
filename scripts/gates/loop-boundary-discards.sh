@@ -161,6 +161,7 @@ REGISTER=(
   "crates/topo/src/boolean/rim_wedge.rs|face_boundary_arcs||1|unaudited"
   "crates/topo/src/stands.rs|face_loops||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|cone_slant_window||1|unaudited"
+  "crates/topo/src/side_reader.rs|line_loop_mean||1|audited: an outer loop with no edge has no points to take the mean of, and the aim falls to planar_interior_point, which reads the same face's loops by name"
   "crates/topo/src/boolean/solid_contain.rs|cone_window_premise||1|audited: the discarded variant is a lone-vertex ring, which holds no edge, so it has no carrier class to ask about; cone_slant_window, which reads the same face's outer loop right after, answers a non-cycle outer loop as CorruptFace"
   "crates/topo/src/boolean/solid_contain.rs|cylinder_chart_trim||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|sphere_chart_trim||1|unaudited"

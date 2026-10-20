@@ -239,37 +239,45 @@ fn sans_epsilon(t: &str) -> String {
 /// **Re-pinned for a seam citing the parent face** (N3): `crossing_slots`'
 /// table only, whose two seams beside the merged floor cite its
 /// `Merged` parent where they cited one floor; its persisted text held.
+///
+/// **Re-pinned for a seam's sides and a crossing's lines named in the
+/// boolean's own table, in name order** (N3): the tables of the nine
+/// documents holding a subtract; the persisted text of `die_composed`
+/// and `die_composed_tour`, whose stored selections name their pip rims
+/// by the subtract's seams, and the tour's ids after its fillets with
+/// them. No point moved
+/// (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`).
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0x8460e9578c470e60, 0x7134dab9e0a2c309),
+    ("die", 0xfff9d96b416b369c, 0x7134dab9e0a2c309),
     ("corner_table", 0xfe4524cd4290cd89, 0x4e4c3ddbafffeae6),
     ("heat_sink", 0x74fe7181598471d0, 0x548b2f20591251f3),
-    ("crossing_slots", 0x51165bb2ff33b3fe, 0xdf3ffbe0e05e610d),
-    ("nested_islands_105", 0x67c13cad100b68f6, 0x97d8297c514a94e9),
+    ("crossing_slots", 0x25b0625cf2e5672c, 0xdf3ffbe0e05e610d),
+    ("nested_islands_105", 0x066feef8b80f1a74, 0x97d8297c514a94e9),
     (
         "nested_islands_106_depth1",
-        0x354881c4d3dfe7e4,
+        0xd215d79daf13c102,
         0x647b7eaec4ab6495,
     ),
     (
         "nested_islands_106_depth2",
-        0x8665ba2f77131667,
+        0x3a11f4c78c2454b5,
         0x93c042bb07455569,
     ),
     ("declared_tangency", 0xbaa9e6b3d162774a, 0xc95a317280289284),
-    ("kitchen_sink", 0x1225c4d0874ea978, 0x99e65653180c3b54),
-    ("cut_cylinder", 0x2a8edc5183287fe3, 0x394b95d945b2b646),
+    ("kitchen_sink", 0x835d64dd49824b14, 0x99e65653180c3b54),
+    ("cut_cylinder", 0x227f994892067b3f, 0x394b95d945b2b646),
     ("measured_web", 0x4dbe5560756047e3, 0xc90bc32f58fb1b9a),
     ("boss_union", 0x656bf5121430f4fd, 0x41c28dcbc24fa662),
     ("die_fillet", 0x9a8baa9d147d7044, 0x70955ca41e0dd922),
     ("die_chamfer", 0x89e1ab0139eee9ed, 0xe3ce852f108f6840),
-    ("die_pips", 0xd16be90f6d29c7aa, 0x492d787849b6a4d3),
+    ("die_pips", 0xf91cef8cb7b82f0a, 0x492d787849b6a4d3),
     ("heat_sink_fins", 0x4343509df0fa3673, 0x96d24784173da012),
-    ("die_tool", 0x58fabcdc84d77007, 0x3cb2941aed5896b0),
+    ("die_tool", 0x53eb3c60a8f4e4c7, 0x3cb2941aed5896b0),
     ("face_sketch", 0x668bf6731fcd92d0, 0x537c88785af84d78),
-    ("part_select", 0x37c21b8ec7d5133b, 0xacbfa3bfb57ed085),
+    ("part_select", 0x589fd0b13d93c267, 0xacbfa3bfb57ed085),
     ("loft_prism", 0x3226abdd88349262, 0x506986cb31940d2e),
-    ("die_composed", 0x5076e08480bdcf6d, 0x943ee1336021f491),
-    ("die_composed_tour", 0xa68d546c0464bd77, 0x0fb9bbeb71f7a9b3),
+    ("die_composed", 0xd05ef1dd4f687696, 0xb2bcbc07b8eb831b),
+    ("die_composed_tour", 0x7badfb1ed751956d, 0xc494d981f06964b6),
     ("plate_param", 0x4d4af4940bbcf6b4, 0x43cc904beefda406),
     ("kiss_carry", 0xeb5729ade9d7fcc7, 0xd53e88f7a7d82914),
     ("tube_ring", 0xc6c0297620ada5aa, 0x53a256dbdf51810c),

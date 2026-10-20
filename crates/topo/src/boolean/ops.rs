@@ -5588,6 +5588,8 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::CensusUnsupported { .. }
         | V::CensusLaneUnsupported { .. }
         | V::CensusUndecidable { .. }
+        | V::FaceThroughEdgeWedge { .. }
+        | V::FaceThroughEdgeWedgeUndecided { .. }
         | V::ArcEndOffCorner { .. }
         | V::InstanceInterference { .. }
         | V::CuspEdgesMissing { .. } => None,
@@ -7903,8 +7905,7 @@ mod tests {
                     aimed: FaceKey::default(),
                     aim: Some("(0.5, 0.5, 1.0)".to_owned()),
                     why: crate::side_reader::SetAsideWhy::Corner {
-                        near: FaceKey::default(),
-                        far: FaceKey::default(),
+                        faces: [FaceKey::default(); 2],
                         gap: gap(1e-9),
                     },
                 }],

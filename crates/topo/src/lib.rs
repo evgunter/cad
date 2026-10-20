@@ -315,6 +315,12 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
+    /// What each solid's aimed rays read before the volume, as text
+    /// (`side_reader`): the edge-meeting ray's probes read it.
+    pub fn aimed_rays(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::aimed_rays_report(body, band)
+    }
+
     /// The pad a face's reach box takes past the band, and each face's
     /// share of the census's gaps (`boolean::boxes::sweep_pad`): the
     /// spelling a test outside this crate reads it by.
@@ -921,9 +927,9 @@ pub use chord_join::face_azimuth_window_traces;
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
 pub use census::{
-    CensusStrategy, CensusTrace, RecordedAtRest, SweepPairs, census_cell_solid, census_contact_row,
-    census_entity_solid, census_interference_solids, census_rest_decision, census_uncleared_solids,
-    record_at_rest,
+    CensusStrategy, CensusTrace, RecordedAtRest, SweepPairs, TouchUnread, census_cell_solid,
+    census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
+    census_uncleared_solids, record_at_rest,
 };
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};

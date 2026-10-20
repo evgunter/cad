@@ -229,7 +229,7 @@ fn streams(decisions: &[Decision]) -> (Vec<Decision>, Vec<Decision>) {
 /// build may have aimed a ray the other did not, and nothing on the
 /// record says which ray a decision belongs to, so no later pair is known
 /// to be one decision
-/// (`work/flush/revalue-pairs-the-ray-casters-decisions-only-to-their-first-difference.md`).
+/// (`work/flushtail/revalue-pairs-the-ray-casters-decisions-only-to-their-first-difference.md`).
 fn compare_decisions(
     p0: &[Decision],
     p1: &[Decision],
@@ -943,4 +943,37 @@ fn the_instrument_and_the_door_replay_in_one_session() {
         (door, door_counts),
         "one session, one reading"
     );
+}
+
+/// **The side reader's exact ties at a document's nominal**
+/// (`work/flush/the-side-readers-aims-decide-exact-ties-at-a-documents-nominal.md`):
+/// every decision taken under the reader's family whose margin is
+/// exactly 0 in a build at the nominal, for `die_chamfer` and
+/// `cut_cylinder`. Evidence, not a gate: run with
+/// `cargo nextest run -p editor-core --run-ignored only -E 'test(reader_ties_at_the_nominal)' --no-capture`.
+#[test]
+#[ignore = "evidence: the side reader's exact ties at a nominal"]
+fn reader_ties_at_the_nominal() {
+    for cd in corpus::documents() {
+        if !["die_chamfer", "cut_cylinder"].contains(&cd.name) {
+            continue;
+        }
+        let (decisions, _) = replayed(&BTreeMap::new(), |opts| build(&cd.doc, opts));
+        let family: Vec<(usize, &Decision)> = decisions
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.family == Some(topo::SIDE_READER_FAMILY))
+            .collect();
+        let ties: Vec<(usize, &'static str)> = family
+            .iter()
+            .filter(|(_, d)| d.value == Some(0.0))
+            .map(|&(k, d)| (k + 1, d.predicate))
+            .collect();
+        println!(
+            "TIES {}: {} decisions, {} the reader's, exact ties {ties:?}",
+            cd.name,
+            decisions.len(),
+            family.len()
+        );
+    }
 }

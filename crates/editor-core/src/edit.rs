@@ -4973,11 +4973,7 @@ fn undrawn_kept_pieces<P: crate::ProfilePayload>(
         node: doc.spoken(node),
         refusal: Box::new(refusal),
     };
-    let before = match old.drawn_pieces(&env, tol) {
-        Ok(drawn) => Some(drawn),
-        Err(refusal @ crate::ProgramRefusal::Pieces(_)) => return Err(refused(refusal)),
-        Err(_) => None,
-    };
+    let before = old.drawn_pieces(&env, tol).ok();
     // The new program reads the variables its lowering minted, which
     // the document it is written into holds.
     let after = new

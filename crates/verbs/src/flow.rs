@@ -44,7 +44,7 @@
 //! this declaration's scope; widening it is a change to what the
 //! consumer keys on, not a change here alone.
 
-use crate::verb::{Verb, VerbKind};
+use crate::verb::VerbKind;
 
 /// **A verb's scalar parameter, named.**
 ///
@@ -54,20 +54,20 @@ use crate::verb::{Verb, VerbKind};
 /// of a per-verb count copied into an assertion.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarParam {
-    /// [`Verb::Fillet`]'s `radius`.
+    /// [`crate::Blend::Fillet`]'s `radius`.
     FilletRadius,
-    /// [`Verb::Chamfer`]'s `distance`.
+    /// [`crate::Blend::Chamfer`]'s `distance`.
     ChamferDistance,
-    /// [`Verb::Extrude`]'s `distance`.
+    /// [`crate::Sweep::Extrude`]'s `distance`.
     ExtrudeDistance,
-    /// [`Verb::Revolve`]'s angle — the scalar a `Revolution::Partial`
+    /// [`crate::Sweep::Revolve`]'s angle — the scalar a `Revolution::Partial`
     /// carries. `Revolution::Full` carries none, and the name still
     /// covers it: the flow is keyed on the parameter's NAME, and the
     /// row this name owns is empty for either spelling (an angle is an
     /// extent and reaches no stored field), so a full revolve has
     /// nothing to declare rather than a row that does not apply.
     RevolveAngle,
-    /// [`Verb::Shell`]'s `thickness`.
+    /// [`crate::Shell`]'s `thickness`.
     ShellThickness,
 }
 
@@ -377,15 +377,6 @@ impl VerbKind {
             Self::Split => SPLIT_FLOW,
             Self::Shell => SHELL_FLOW,
         }
-    }
-}
-
-impl<T: geom_core::Real> Verb<T> {
-    /// This verb's parameter→field flow ([`VerbKind::param_flow`]) —
-    /// a function of the verb's NAME, not of its payload.
-    #[must_use]
-    pub fn param_flow(&self) -> &'static [ParamFlow] {
-        self.kind().param_flow()
     }
 }
 

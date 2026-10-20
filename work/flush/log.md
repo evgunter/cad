@@ -498,4 +498,14 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - Filed: `a-curved-coincident-wall-ships-its-seam-where-operand-a-ends` (P3). The other two residues were filed by the lane.
   - The slate stands at 41.5 points against 32, still owed a split.
 — (FLUSH orchestrator)
+- 2026-10-20 — **FLUSH split along its priority seam.** It measured 41.5 points against its 32 after PR 5368, so the eight P3 rows and the one P4 row moved to the new program **FLUSHTAIL** (`work/flushtail/`, `ready`, no orchestrator) by `git mv`, ids and bodies unchanged. FLUSH keeps P0 to P2 at 25 points. One code comment followed its row (`revalue_corpus.rs`).
+— (FLUSH orchestrator)
+- 2026-10-20 — **PR 5422 closes `a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face`** (the planar half of the ray side of Ev's needle ruling).
+  - A dual concurrent review found no MAJOR (letter H, byte 50; nothing tallied). The fix pass and two narrow re-checks approved.
+  - Ruled: marks before pairs is within D10 ("refuses only on a pair" restricts refusal; it does not require it).
+  - Residues: the curved half (P2, H) stays here, and the aims' ties stay parked on it. The small torus's aims (P3) moves to FLUSHTAIL.
+  - Filed in FLUSHTAIL, for Ev: `d10-says-no-word-on-what-a-wedge-is-or-how-far-a-rays-refusal-reaches` (design).
+— (FLUSH orchestrator)
 
+- 2026-10-20 — **Dispatched the fin crown** (`a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass`, P1 M, branch `flush/fin-crown-winding`). The work: find the step that winds the crown's faces against each other at the slit's mouth, and have check 7 read every deciding aim, as ratified: "definitely inside-out by any reading is invalid". Tier: one review (the M arm).
+— (FLUSH orchestrator)
