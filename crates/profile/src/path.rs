@@ -7614,16 +7614,20 @@ mod stored_arc_landing {
             read(decided(1.0), a, admitted, verb).is_ok(),
             "an end off the carrier by what the decision admitted passes"
         );
-        // The decision's slack and a sweep defect together: the end up to
-        // 0.99ε inside the carrier, the sweep off by 1.2ε or 1.5ε of arc.
-        // The radial part does not hide the sweep's, as subtracting it
-        // from the whole miss did.
-        for rho in [0.5 * eps, 0.99 * eps] {
-            for sweep in [1.2 * eps, 1.5 * eps] {
-                let inside = at(1.0, r - rho);
+        // The decision's slack and a sweep error together: the end up to
+        // 0.99ε off the carrier on either side, the sweep off by 0.5ε of
+        // arc (passes) or by 1.2ε to 2.5ε (escalates). The radial part
+        // hides none of the sweep's.
+        for rho in [0.0, 0.5 * eps, 0.99 * eps, -0.5 * eps, -0.99 * eps] {
+            let end = at(1.0, r - rho);
+            assert!(
+                read(decided(1.0 + 0.5 * eps / r), a, end, verb).is_ok(),
+                "a decided end {rho:e} inside the carrier with a 0.5ε sweep error passes"
+            );
+            for sweep in [1.2 * eps, 1.5 * eps, 1.9 * eps, 2.5 * eps] {
                 let off = decided(1.0 + sweep / r);
                 assert!(
-                    matches!(read(off, a, inside, verb), Err(PathError::Escalated { .. })),
+                    matches!(read(off, a, end, verb), Err(PathError::Escalated { .. })),
                     "a decided end {rho:e} inside the carrier with a {sweep:e} sweep defect \
                      escalates"
                 );
