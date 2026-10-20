@@ -1740,3 +1740,34 @@ fn a_partner_tipped_off_the_face_still_ends_the_cut() {
         );
     }
 }
+
+/// Review probe (PR 5368, R1): the tipped partner at tips beyond the
+/// pinned ones, every op and order, through the same gate as
+/// `a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose`
+/// (tier 3, tier 3′, material); every refusal is printed.
+#[test]
+#[ignore = "review probe"]
+fn review_r1_tipped_partner_wider_sweep() {
+    let eps = t().eps();
+    let mut built = 0;
+    for pose in poses() {
+        let s = Scene::at(&pose);
+        for k in [12.0, 20.0, 50.0, 300.0, 1000.0, -1000.0, 1e4, -1e4] {
+            let y = match union(&s.plate, &tet(lying(k * eps), &pose), t()) {
+                Ok(BooleanResult::Body(r)) => r.body,
+                other => {
+                    println!("TIP {k} {}: plate ∪ lying refuses {:?}", pose.label, other.map(|_| ()));
+                    continue;
+                }
+            };
+            for (label, x) in [("flush on the top", &s.flush), ("on its face", &s.on_lying)] {
+                let label = format!("{label}, the pyramid lying {k}ε off the top");
+                built += builds_or_refuses(&label, x, &y, &pose, &|e| {
+                    println!("TIP-REFUSAL {label} {}: {e:?}", pose.label);
+                    true
+                });
+            }
+        }
+    }
+    println!("TIP built {built}");
+}
