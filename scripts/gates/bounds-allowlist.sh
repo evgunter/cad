@@ -791,9 +791,12 @@ BOUNDS_ALLOWLIST=(
   # `bounds_allowlist` ledger: the verb dispatch site, which decides
   # nothing and reads no bracket. 2 -> 1: SEAT-9 was the shell
   # door's own second header, and the shell door is now a VALUE the
-  # caller passes (`topo::ShellDoor`), so the file has one header
-  # again and the seam SEAT-9 argued for has nothing left in it.
-  'crates/verbs/src/run.rs 1 SEAT-4, in the Bounds trait doc'
+  # caller passes (`topo::ShellDoor`), so the seam SEAT-9 argued for
+  # has nothing left in it. 1 -> 5: each run door is a method of its
+  # own payload type, so the one header is now five, one per door, each
+  # the same bound set over the same delegations — one seam, five
+  # spellings, no new obligation.
+  'crates/verbs/src/run.rs 5 SEAT-4, in the Bounds trait doc'
   # LIB-G2's LB3 (ruled 2026-08-08), homed in the file's own module docs.
   "crates/profile/src/path/arc_fillet.rs 3 LIB-G2's LB3 (ruled 2026-08-08), in the file's module docs"
 )

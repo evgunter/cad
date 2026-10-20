@@ -1115,11 +1115,11 @@ pub fn is_exact_zero<T: Real>(x: T) -> bool {
 /// **It clears the first thing an entry owes** — that its reads stay
 /// on the prune/report side — vacuously and checkably: the file
 /// contains no [`Bounds`] read at all. No `lo`, no `hi`, no
-/// comparison; the bound appears exactly once, as an INLINE bound on
-/// the `impl<T: Decide + Bounds + AtRestPolicy> Verb<T>` header
-/// (not a `where` clause — the earlier wording of this entry said
-/// `where`-position and was simply wrong about the syntax), purely so
-/// the callee's bound is satisfiable. Nothing there decides anything,
+/// comparison; the bound appears only as an INLINE bound on each run
+/// door's `impl<T: Decide + Bounds + AtRestPolicy>` header, one per
+/// door's payload type (`Blend<T>`, `Boolean<T>`, `Sweep<T>`,
+/// `Split<T>`, `Shell<T>`; not a `where` clause), purely so the
+/// callee's bound is satisfiable. Nothing there decides anything,
 /// in or out of the trilean.
 ///
 /// **That "no read at all" clearance is a REVIEW-TIME MEASUREMENT, not
