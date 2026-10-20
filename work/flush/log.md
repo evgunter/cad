@@ -507,3 +507,5 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - Filed in FLUSHTAIL, for Ev: `d10-says-no-word-on-what-a-wedge-is-or-how-far-a-rays-refusal-reaches` (design).
 — (FLUSH orchestrator)
 
+- 2026-10-20 — **Dispatched the fin crown** (`a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass`, P1 M, branch `flush/fin-crown-winding`). The work: find the step that winds the crown's faces against each other at the slit's mouth, and have check 7 read every deciding aim, as ratified: "definitely inside-out by any reading is invalid". Tier: one review (the M arm).
+— (FLUSH orchestrator)
