@@ -3626,7 +3626,6 @@ Blocked: no orchestrator, and no row that can be picked up.
 | 30 | `lint-does-not-notice-a-row-closed-before-it-opened` | meta | open | work.py lint resolves references and measures territory but never compares closed against opened, so a row closed before it opened passes |
 | 30 | `loft-seam-carrier-exact-knot-compare` | iso | open | loft_body refuses at degree ≥ 2 on generic parameterizations: pcurve_cache compares the seam carrier's knots/weights by exact equality |
 | 30 | `loft-walls-carry-no-per-edge-radius-address` | — | open | Lofted::side_faces and LoftGeometry group walls per loop per segment but reach no flow row, so a loft that declares a per-edge source has no address to attach it at |
-| 30 | `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late` | tess | open | a lofted Circle section is unmeshable, and the refusal arrives three steps downstream |
 | 30 | `loop-walk-is-respelled-across-topo` | walks | open | the face loop walk (once(outer).chain(rings)) is respelled across topo/src outside census.rs |
 | 30 | `m5-s13-pips-union-escalation-arm-runs-at-no-gated-eps` | vacuity | open | m5_s13_pips_interval's union escalation arm executes at none of the three gated eps rows |
 | 30 | `m6-carried-items-register` | meta | open | M6 carried-items register — every carried/re-banked item from the ratified exit walk, with owners and sequencing |
