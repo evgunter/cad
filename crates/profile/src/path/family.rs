@@ -1009,7 +1009,16 @@ fn via_close<T: geom_core::Decide>(
     })?;
     let band = linear_band(tol)?;
     let (centre, winding) = verbs::via_carrier(DirectedPoint { at: start_pos, dir }, q, band)?;
-    resolve_arc_close(&mut core, resolver, centre, winding, false, Some(q), seam, tol)
+    resolve_arc_close(
+        &mut core,
+        resolver,
+        centre,
+        winding,
+        false,
+        Some(q),
+        seam,
+        tol,
+    )
 }
 
 // ------------------------------------------------------------------

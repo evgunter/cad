@@ -1581,9 +1581,7 @@ impl<T: Real> PathError<T> {
             Self::ArcCenterNotEquidistant { .. } => PathErrorKind::ArcCenterNotEquidistant,
             Self::DegenerateArcCenter { .. } => PathErrorKind::DegenerateArcCenter,
             Self::ArcMissesAuthoredPoint { .. } => PathErrorKind::ArcMissesAuthoredPoint,
-            Self::ArcMissBelowSceneResolution { .. } => {
-                PathErrorKind::ArcMissBelowSceneResolution
-            }
+            Self::ArcMissBelowSceneResolution { .. } => PathErrorKind::ArcMissBelowSceneResolution,
             Self::FarEndAnchorWithoutFillet => PathErrorKind::FarEndAnchorWithoutFillet,
             Self::Escalated { .. } => PathErrorKind::Escalated,
             Self::Band(_) => PathErrorKind::Band,
@@ -3843,11 +3841,14 @@ impl<T: Decide> Core<T> {
         let n = self.verts.len();
         for (k, &(start, leaving)) in self.verts.iter().enumerate() {
             if let Some(built) = leaving {
-                let piece = self.pieces.get(k).copied().flatten().ok_or(
-                    PathError::UnderdeterminedLeg {
-                        site: "an arc segment of a closed chain that no emission named",
-                    },
-                )?;
+                let piece =
+                    self.pieces
+                        .get(k)
+                        .copied()
+                        .flatten()
+                        .ok_or(PathError::UnderdeterminedLeg {
+                            site: "an arc segment of a closed chain that no emission named",
+                        })?;
                 let verb = self.program.get(piece.step).map(Step::verb).ok_or(
                     PathError::UnderdeterminedLeg {
                         site: "an arc segment named by a step the program does not hold",
@@ -4488,7 +4489,15 @@ fn circle_kernel<T: Decide>(
         Point2::new(center.x + radius, center.y),
         Point2::new(center.x - radius, center.y),
     ];
-    circle_loop(&vertices, center, radius, half, tol, band, program::Verb::Circle)
+    circle_loop(
+        &vertices,
+        center,
+        radius,
+        half,
+        tol,
+        band,
+        program::Verb::Circle,
+    )
 }
 
 /// The kernel behind the table's split-circle row: the lowered loop
@@ -4557,7 +4566,7 @@ fn circle_loop<T: Decide>(
     let arc = BuiltArc {
         arc: Arc2 {
             centre,
-            radius,
+            radius: radius.abs(),
             sweep,
         },
         facts: crate::Facts::Registered,

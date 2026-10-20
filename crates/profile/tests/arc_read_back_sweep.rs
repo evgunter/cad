@@ -42,7 +42,10 @@ struct Drawn {
 impl Drawn {
     fn at(&self, angle: f64) -> Point2<f64> {
         let (s, c) = angle.sin_cos();
-        Point2::new(self.centre.x + self.radius * c, self.centre.y + self.radius * s)
+        Point2::new(
+            self.centre.x + self.radius * c,
+            self.centre.y + self.radius * s,
+        )
     }
 
     fn a(&self) -> Point2<f64> {

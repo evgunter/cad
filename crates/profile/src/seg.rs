@@ -684,16 +684,16 @@ pub(crate) fn constructed_landing<T: Decide>(
     if T::WITNESS == geom_core::Witness::Exact {
         return Ok(());
     }
-    let scale = arc
-        .radius
-        .max(reach(arc.centre))
-        .max(reach(a))
-        .max(reach(b));
     read_back(
         LANDING_READ,
         "path_arc_landing_resolution",
         arc.landing(a).distance(b),
-        scale,
+        || {
+            arc.radius
+                .max(reach(arc.centre))
+                .max(reach(a))
+                .max(reach(b))
+        },
         LANDING_ULPS,
         decided,
         band,
@@ -712,12 +712,11 @@ pub(crate) fn constructed_through_point<T: Decide>(
     if T::WITNESS == geom_core::Witness::Exact {
         return Ok(());
     }
-    let scale = arc.radius.max(reach(arc.centre)).max(reach(q));
     read_back(
         THROUGH_POINT_READ,
         "path_arc_through_point_resolution",
         arc.rim(q) - arc.radius,
-        scale,
+        || arc.radius.max(reach(arc.centre)).max(reach(q)),
         ON_CARRIER_ULPS,
         false,
         band,
@@ -727,7 +726,8 @@ pub(crate) fn constructed_through_point<T: Decide>(
 /// **The path door's read-back of a constructed arc** (audit row F23),
 /// on the witness lane (`Witness::Inexact`) only: `miss` (`predicate`,
 /// meters) against the band, and where it reads off, [`resolves`]'s
-/// headroom at `ulps` (`resolution`). A construction's proof of its arc
+/// headroom at `ulps` (`resolution`) at the magnitude `scale` gives,
+/// which only a miss reads. A construction's proof of its arc
 /// is a theorem of the reals; this reads whether the arithmetic it ran
 /// at a point scalar delivered it. Zero passes; off at a magnitude the
 /// scene resolves is [`ReadBackIssue::Defect`]; off past the scene's
@@ -741,7 +741,7 @@ fn read_back<T: Decide>(
     predicate: &'static str,
     resolution_predicate: &'static str,
     miss: T,
-    scale: T,
+    scale: impl FnOnce() -> T,
     ulps: f64,
     band_passes: bool,
     band: Band,
@@ -752,6 +752,7 @@ fn read_back<T: Decide>(
         Err(_) if band_passes && !miss.is_poison() => return Ok(()),
         Err(source) => return Err(ReadBackIssue::Escalated(source)),
     }
+    let scale = scale();
     let found = ArcMiss {
         predicate,
         miss: miss.abs(),

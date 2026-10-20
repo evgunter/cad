@@ -91,7 +91,8 @@ fn f64_replay_or_unresolvable(
             None
         }
     };
-    let unresolvable = |read: &str, scale: f64| ulps(read).is_some_and(|u| u * scale * ULP >= k * eps);
+    let unresolvable =
+        |read: &str, scale: f64| ulps(read).is_some_and(|u| u * scale * ULP >= k * eps);
     let answered = match &refusal.kind {
         ReplayErrorKind::Path(PathError::ArcMissBelowSceneResolution {
             predicate, scale, ..
