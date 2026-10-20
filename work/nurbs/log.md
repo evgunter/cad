@@ -1571,3 +1571,5 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **Timing:** shelling 2.14× → 1.86× of pre-4954 (−13%); r1 flat at 1.49×.
   - **Deviation from ruling (A), accepted:** a concrete `f64` `OnceCell` slot in `offset_derive::WallCharts`, with no associated type on the lane trait, because the planners are bounded by `T: Decide` only. `props.rs` is untouched, so there's no collision with flux.
   - FULL reviewer: session_01RsTjMpvtHiPMQ64nQhBY4V.
+- 2026-10-20 00:40Z — **#5424 is up** (build C, the `mul_nonneg` thin step in `split_restrict`, STANDARD, head ece8fbf1, bit-identical). Shelling −7.6%, r1 −11% against main 8c6e959e; independent of #5419, so the two should stack. STANDARD reviewer: session_018C4CWrdSjiRiekkGe59P8T.
+  - **Friction:** C reports my `next`-priority messages from ~22:00Z and 00:06Z (the `props.rs` ruling and #5419's latency red) arrived late, all at once. `next` joins the running turn, but C's long background timing loops leave few points where it can. The #5419 red was re-sent at `now` priority. A red on a lane's own PR should go `now` from the start.
