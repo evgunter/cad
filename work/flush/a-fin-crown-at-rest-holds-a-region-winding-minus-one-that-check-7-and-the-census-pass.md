@@ -2,7 +2,7 @@
 id: a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass
 kind: issue
 title: The fin crown at rest holds a region that winds −1, and check 7 and the census pass it; which of its unions refuses is face order's choice
-status: open
+status: review
 opened: 2026-10-14
 priority: P1
 cost: M
@@ -65,3 +65,47 @@ slit's mouth, and whether the fixture means to hold that region at all.
 A candidate remedy at the check, for this row and not the PR that found
 it: a cross-check between readings, so that two aimed rays that decide
 opposite sides refuse rather than whichever comes first answering.
+
+## Measured on main (`5d0e2023`)
+
+**The fixture builds a non-solid; no kernel step makes the region.**
+The crown's triangles, from `fin()` and the bottom `(0, 0.2, −0.6)`,
+cross each other: an exact rational segment–triangle test finds the
+bottom fan's face on the fin's long edge `c0 c1` (`c1 c0 low`) crossing
+the fin's far face (`c1 c2 MEET`) and the top face beyond it
+(`c2 c3 MEET`), and the face on `c1 c2` crossing `c2 c3 MEET` too.
+Seen from above, the fin's ring is a slit polygon (in to the 1 mm edge
+and back out), and a bottom fan bounds a solid only from a point every
+ring edge faces from inside: the thin wedge behind the slit's inner
+end, about the slit's bearing. `(0, 0.2)` is 0.2 off that wedge, so the
+fan's face on `c0 c1` leans across the slit, 3 in depth per 1 across,
+and passes through the far fin face wherever that face stands above it.
+A winding number over the triangles reads −1 just off the fin faces
+near the mouth; the region is the crown's from the start, and every
+union carried it unchanged.
+
+## Fix
+
+- **The fixture.** The fin crown's bottom is `FIN_BOTTOM =
+  (0, 0, −0.6)` (`test_support_meeting.rs`), straight under `MEET` on
+  the slit's bearing, the dented crown's bottom. The same exact test
+  finds no crossing; the winding probe reads 0 or 1 at every pose, and
+  in every union with probes 1, 2 and 4, both orders
+  (`crates/topo/tests/the_fin_crown_winds_as_a_solid.rs`). Every fin
+  scene of `a_vertex_read_again_classes_every_edge` now builds, with no
+  wrong, missing or doubled row: probes 2 and 4 build 30 cells each,
+  where main refused 3 and built 27. `KNOWN_INSIDE_OUT` and
+  `KNOWN_WRONG` are empty and gone.
+- **Check 7 reads every aim that decides**
+  (`side_reader::side_at_infinity_by_every_aim`, one caster, `cast_aims`,
+  with an `Aims` mode). Every ray that decides is read; two that read
+  opposite sides refuse `ValidationError::OrientationOpposed`, naming
+  both rays, their aims and the faces they crossed. Rays set aside, and
+  rays that read in band, change nothing. The role readers keep the first
+  ray that decides. On the old crown the gate now refuses at three poses
+  of five; at the two flipped poses no aimed ray's closest crossing
+  enters the −1 region, and it still passes (filed on RESTFRONT,
+  `the-at-rest-gate-passes-a-planar-body-whose-boundary-passes-through-itself`).
+- **The cost.** Every aim is cast on a valid body, so check 7 is
+  quadratic in faces: 71 ms against 2.7 s at 1026 faces (filed,
+  `check-7-casts-a-ray-per-face-so-the-at-rest-gate-is-quadratic-in-faces`).

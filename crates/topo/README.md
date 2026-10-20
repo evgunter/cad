@@ -598,9 +598,11 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    a pole or apex), **prefer-intrinsic enforcement** ([edges]) and the
    **orientation invariant** (a solid's faces leave infinity outside
    it, read by the reader of a shell's role, [coincidence.booleans]: a ray
-   aimed at one of its faces, the certified signed volume where no ray
-   reads; definitely inside-out by any reading ⇒ invalid (a certified
-   negative volume refuses even where a ray reads its side), and a solid
+   aimed at each of its faces, every one that decides read, the
+   certified signed volume where no ray reads; definitely inside-out by
+   any reading ⇒ invalid (a certified negative volume refuses even where
+   a ray reads its side, and so do two rays that read opposite sides,
+   whichever face order meets first), and a solid
    whose side no reading decides refuses — an orientation probe, not a
    thinness gate, at every door). Laminae live here, not at
    tier 2: two faces glued along their whole shared boundary is a
