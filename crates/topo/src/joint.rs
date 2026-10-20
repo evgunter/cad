@@ -60,7 +60,7 @@
 //! exit, and away from the singular set there is one such element.
 
 use geom::Surface;
-use geom_brep::Pcurve;
+use geom_brep::{Pcurve, Period};
 use geom_core::{Decide, Real};
 
 /// A deck transformation of a chart, in the normal form
@@ -147,11 +147,10 @@ impl Deck {
             image.clone()
         };
         if self.v != 0 {
-            out =
-                crate::pcurves::shift_polar_branch(&out, T::from_f64(f64::from(self.v)), T::tau());
+            out = crate::pcurves::shift_polar_branch(&out, self.v, Period::new(T::tau()));
         }
         if self.u != 0 {
-            out = out.shift_branch(T::from_f64(f64::from(self.u)), u_period(surface));
+            out = out.shift_branch(self.u, u_period(surface));
         }
         Some(out)
     }
@@ -161,13 +160,13 @@ impl Deck {
 /// domain's length on a spline chart, `τ` on the analytic charts. Read
 /// without a band: only a chart a band decided closed carries an
 /// element with azimuth periods ([`crate::pcurves`]'s `chart_u_period`).
-fn u_period<T: Real>(surface: &Surface<T>) -> T {
+fn u_period<T: Real>(surface: &Surface<T>) -> Period<T> {
     match surface.spline_chart() {
         Some(payload) => {
             let (u0, u1) = payload.knot_values_u().domain();
-            u1 - u0
+            Period::new(u1 - u0)
         }
-        None => T::tau(),
+        None => Period::new(T::tau()),
     }
 }
 

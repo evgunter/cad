@@ -964,6 +964,13 @@ pub(super) use crate::swept::{SweptSeg, swept_segments};
 /// angle, half-plane violations, sliver radii, unsupported toroids,
 /// non-manifold axis contact, sliver dihedrals, Newell failures, and
 /// every operator/certification refusal.
+///
+/// # Panics
+///
+/// On a kernel bug: an edge the operation stored whose own span or
+/// winding reads certainly refused at the run's band where it is
+/// re-described ([`topo::Body::restate_stored_edge`],
+/// [`topo::Body::describe_at_rest`]).
 pub fn revolve<T: Decide + topo::AtRestPolicy>(
     profile: &ValidatedProfile<T>,
     axis: RevolveAxis<T>,

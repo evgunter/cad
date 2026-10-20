@@ -725,8 +725,9 @@ fn f4_sphere_composite_hand_check_degree1() {
     println!("[F4] degree-1 sphere composite matches hand algebra: [{b0}, {b1}, {b2}]");
 }
 
-/// F4/doc-honesty: is binom_row really exact through n = 56? Compare the
-/// same recurrence against u128 exact binomials.
+/// F4/doc-honesty: is `compose`'s binomial row really exact through its
+/// cap? Its rows are `geom_core::spline::pieces::binomial`, formed in
+/// integers; compare that against u128 exact binomials.
 #[test]
 fn f4_binomial_row_exactness_probe() {
     fn exact_binom(n: usize, k: usize) -> u128 {
@@ -739,29 +740,29 @@ fn f4_binomial_row_exactness_probe() {
     }
     let mut first_bad = None;
     for n in 1..=60usize {
-        // Reproduce compose::binom_row's recurrence.
-        let mut row = vec![1.0f64; n + 1];
-        for k in 1..=n {
-            row[k] = row[k - 1] * ((n - k + 1) as f64) / (k as f64);
-        }
         for k in 0..=n {
-            let exact = exact_binom(n, k) as f64; // may round for n>56, fine
-            if row[k] != exact && first_bad.is_none() {
-                first_bad = Some((n, k, row[k], exact));
+            let got = geom_core::spline::pieces::binomial(n, k);
+            #[allow(clippy::cast_precision_loss)]
+            let exact = exact_binom(n, k) as f64; // rounds for n > 56, fine
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let exact_back = exact as u128 == exact_binom(n, k);
+            if (got != exact || !exact_back) && first_bad.is_none() {
+                first_bad = Some((n, k, got, exact_binom(n, k)));
             }
         }
     }
-    // The MINOR-1 pin: the recurrence is exact through n = 54 and
-    // FIRST inexact at n = 55 (the intermediate product exceeds 2^53
-    // although C(55, 26) is representable) — which is why
-    // compose::binom_row documents BINOM_EXACT_MAX = 54 and refuses
-    // beyond it rather than serving a rounded weight.
+    // The MINOR-1 pin, moved with the fold: the rows are exact through
+    // n = 56 and FIRST hold an unrepresentable value at C(57, 25),
+    // which is why compose documents BINOM_EXACT_MAX = 56 and refuses
+    // beyond it rather than serving a rounded weight. (The
+    // multiplicative recurrence the rows replaced first rounded at
+    // n = 55, an intermediate product past 2^53.)
     match first_bad {
-        None => panic!("[F4] recurrence unexpectedly exact through n = 60"),
+        None => panic!("[F4] binomials unexpectedly exact through n = 60"),
         Some((n, k, got, want)) => {
-            println!("[F4] binom_row recurrence FIRST INEXACT at C({n},{k}): {got} vs {want}");
-            assert_eq!(n, 55, "exactness frontier moved");
-            assert!(k >= 26, "inexact below the pinned column");
+            println!("[F4] binomial FIRST INEXACT at C({n},{k}): {got} vs {want}");
+            assert_eq!(n, 57, "exactness frontier moved");
+            assert_eq!(k, 25, "inexact at another column");
         }
     }
 }
