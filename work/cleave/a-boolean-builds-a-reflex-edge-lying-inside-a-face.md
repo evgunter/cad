@@ -2,11 +2,13 @@
 id: a-boolean-builds-a-reflex-edge-lying-inside-a-face
 kind: issue
 title: The boolean builds a reflex edge lying inside a face, and returns one solid for a wall-to-wall trench
-status: open
+status: closed
 opened: 2026-10-12
 priority: P1
 cost: M
+branch: cleave/boolean-builds-the-slit-form
 pr: 5380
+closed: 2026-10-20
 ---
 
 Found by the keel design fork (`[ev]` PR 4795, designer reports in its

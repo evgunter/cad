@@ -95,6 +95,7 @@ mod ellipse_torus;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
 pub(crate) use contain::ContainErrorKind;
+mod fate;
 mod finish;
 mod fragments;
 mod glue;
@@ -174,7 +175,8 @@ pub use contain::{
 pub(crate) use contain::{
     CurvedPlacement, PlacementError, driver_face_stale, face_placement, loop_circle,
 };
-pub use discard::{DiscardRow, HeldEdge};
+pub use discard::DiscardRow;
+pub use fate::SubstitutedFace;
 // Crate-internal: tier 3's check 11 reads every vertex through the
 // join's own predicate.
 pub(crate) use edge_join::joinable_at_rest;
@@ -2229,14 +2231,12 @@ pub struct BooleanReduction<T: Real> {
     /// `(A face, B face)`, in clone keys, sorted and deduplicated: each
     /// pair of coincident faces whose Eq. 15.3 lump keeps one copy of
     /// a region they share and drops the other, so the result holds
-    /// either face's region through the other (`BooleanNaming::covered`).
+    /// either face's region through the other ([`fate`]).
     pub covered: Vec<(FaceKey, FaceKey)>,
-    /// For each covered pair met at a vertex both operands hold, the
-    /// kept copy's edges that run into the dropped face and bound the
-    /// held region from outside ([`HeldEdge`]), sorted and
-    /// deduplicated. A vertex-on-face contact records none: the face
-    /// holds no vertex there for a fragment to be told by.
-    pub held: Vec<HeldEdge>,
+    /// What the covered pairs owe the dropped copies: the kept edges
+    /// along which a dropped face's fate changes, and the dropped
+    /// sectors held wholly ([`fate`]).
+    pub(crate) fates: fate::Fates<T>,
     /// The `Rest` declarations `(A face, B face)` the declaration door
     /// verified one carrier with opposed senses: the REST-contact pairs
     /// the containment fallback's extent scans exempt, read rather than
@@ -5531,7 +5531,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut pierce_rings = Vec::new();
     let mut ring_ties = Vec::new();
     let mut covered = Vec::new();
-    let mut held = Vec::new();
+    let mut fates = fate::Fates::default();
     let mut edge_classes = Vec::new();
     let mut unread_partners = Vec::new();
 
@@ -5623,6 +5623,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             );
             minted.push((out.edges, out.ring));
             covered.extend(out.covered);
+            fates.edges.extend(out.fates.edges);
+            fates.corners.extend(out.fates.corners);
             if reread.is_some() {
                 touches.insert(
                     (operand, c.vertex),
@@ -5823,7 +5825,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &declared,
             band,
             &mut covered,
-            &mut held,
+            &mut fates,
         )?;
         let sector_read = (records.clone(), raw.clone());
         let mut touched = Vec::new();
@@ -5994,7 +5996,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         records: null_edges,
         copies,
     } = null_edges;
-    let held = border_held(held, &covered, &null_edges, &a, &b)?;
+    let fates = fate::border_fates(fates, &covered, &null_edges, &a, &b)?;
     let rest_contacts = decls
         .pairs
         .iter()
@@ -6058,7 +6060,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             .collect::<std::collections::BTreeSet<_>>()
             .into_iter()
             .collect(),
-        held,
+        fates,
         rest_contacts,
         coincident,
         edge_splits,
@@ -6314,54 +6316,6 @@ fn piece_classes<T: Real>(
             starts,
             class,
         });
-    }
-    Ok(out)
-}
-
-/// The held edges that bound the held region from outside. A null edge
-/// is the split's scaffolding, not an edge of the face, and an edge
-/// whose two faces both cover the dropped face (a seam between two
-/// coplanar faces of the kept copy, or a face meeting itself) lies
-/// inside the held region; both are dropped. Sorted and deduplicated.
-fn border_held<T: Real>(
-    mut held: Vec<HeldEdge>,
-    covered: &[(FaceKey, FaceKey)],
-    null_edges: &[BoolNullEdgeRecord<T>],
-    a: &Body<T>,
-    b: &Body<T>,
-) -> Result<Vec<HeldEdge>, BooleanError> {
-    let mut out = Vec::with_capacity(held.len());
-    held.sort_by_key(|h| (h.holder == Operand::B, h.edge, h.face, h.at));
-    held.dedup();
-    for h in held {
-        if null_edges
-            .iter()
-            .any(|r| r.operand == h.holder && r.edge == h.edge)
-        {
-            continue;
-        }
-        let body = match h.holder {
-            Operand::A => a,
-            Operand::B => b,
-        };
-        let edge = body
-            .get_edge(h.edge)
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "a held edge no longer resolves",
-            })?;
-        let sides = [edge.he_plus, edge.he_minus].map(|he| body.face_of_half_edge(he));
-        let covers = |f: Option<FaceKey>| {
-            f.is_some_and(|f| {
-                covered.contains(&match h.holder {
-                    Operand::A => (f, h.face),
-                    Operand::B => (h.face, f),
-                })
-            })
-        };
-        if sides[0] == sides[1] || sides.iter().all(|&f| covers(f)) {
-            continue;
-        }
-        out.push(h);
     }
     Ok(out)
 }
@@ -6845,6 +6799,10 @@ pub(crate) enum RestTangent<T: Real> {
     /// ([`locus_through_both_faces`]): no span of the line is in both,
     /// so their interiors do not meet along it.
     Apart,
+    /// The two carriers derive no closed-form tangent line
+    /// ([`geom_brep::TangentLocusError::Unsupported`]): the pair is
+    /// outside the line lane.
+    NoLine,
     /// The faces' extents along the line meet over `overlap`; whether
     /// the line lies in the two faces there is the caller's to read
     /// ([`rest_line_in_both_faces`]), and only then whether the table
@@ -6868,8 +6826,8 @@ pub(crate) enum RestTangent<T: Real> {
 ///
 /// [`crate::contact::ContactRefusal::Contradicted`] where the carriers
 /// are definitely not tangent, labelled with the row that refused it;
-/// `Escalated` where a margin is in band; and `NotCertifiable` where no
-/// closed-form locus derives or a face cannot be read (naming why).
+/// `Escalated` where a margin is in band; and `NotCertifiable` where a
+/// face cannot be read (naming why).
 pub(crate) fn tangent_pair_at_rest<T: Decide>(
     body: &Body<T>,
     fa: FaceKey,
@@ -6903,10 +6861,7 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
             });
         }
         Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
-            return Err(ContactRefusal::NotCertifiable {
-                what: "a face-face record on two carriers with no closed-form tangent locus \
-                       (plane x cylinder along a ruling, parallel cylinders)",
-            });
+            return Ok(RestTangent::NoLine);
         }
     };
     let (t0, t1) = line.overlap;
@@ -6969,11 +6924,12 @@ pub(crate) fn rest_line_in_both_faces<'b, T: Decide, E>(
     }))
 }
 
-/// The C4 `Tangent` table of a face–face record on two carriers along
-/// their tangent line, where it runs through both faces
-/// ([`RestLineInBothFaces`]), the declared posture, the record standing
-/// as the declaration ([`contact_verify::tangent_locus_relation`]): the
-/// touch and the material sides.
+/// The C4 `Tangent` table of two faces on two carriers along their
+/// tangent line, where it runs through both faces
+/// ([`RestLineInBothFaces`]) ([`contact_verify::tangent_locus_relation`]):
+/// the touch and the material sides. `declared` is the posture: a
+/// record stands as the declaration; a pair the census discovers is
+/// read as a detector.
 ///
 /// # Errors
 ///
@@ -6983,8 +6939,9 @@ pub(crate) fn rest_line_in_both_faces<'b, T: Decide, E>(
 /// `NotCertifiable` where a face has no surface.
 pub(crate) fn tangent_table_at_rest<T: Decide>(
     line: &RestLineInBothFaces<'_, T>,
+    declared: bool,
     band: Band,
-) -> Result<(), crate::contact::ContactRefusal> {
+) -> Result<crate::contact::ContactVerdict, crate::contact::ContactRefusal> {
     let [fa, fb] = line.faces;
     let ((sa, sense_a), (sb, sense_b)) = (record_face(line.body, fa)?, record_face(line.body, fb)?);
     let (t0, t1) = line.overlap;
@@ -6996,10 +6953,9 @@ pub(crate) fn tangent_table_at_rest<T: Decide>(
         &line.carrier,
         t0,
         t1,
-        true,
+        declared,
         band,
     )
-    .map(|_| ())
 }
 
 /// **The glue door's tangency**: the check ([`verify_tangency`]), and

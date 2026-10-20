@@ -100,6 +100,7 @@ fn touch_kinds(errors: &[ValidationError]) -> Vec<&'static str> {
                 CensusContact::EdgeFaceOverlap { .. } => "EdgeFaceOverlap",
                 CensusContact::EdgeFacePierce { .. } => "EdgeFacePierce",
                 CensusContact::EdgeEdgeCross { .. } => "EdgeEdgeCross",
+                CensusContact::FaceFaceTangent { .. } => "FaceFaceTangent",
                 CensusContact::ConformalPatch { .. } => "ConformalPatch",
             }),
             _ => None,

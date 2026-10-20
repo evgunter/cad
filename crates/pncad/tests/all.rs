@@ -424,6 +424,11 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
         CensusContact::EdgeEdgeCross { .. } => true,
         CensusContact::EdgeEdgeOverlap { .. } => true,
         CensusContact::EdgeFaceOverlap { .. } => true,
+        // A face–face record of class `Tangent` backs it.
+        CensusContact::FaceFaceTangent { finding } => {
+            named::<ContactFinding>(finding);
+            true
+        }
         // The arm the stop was named at, and its payload has a name
         // now: a caller that reaches a conformal patch asks what the
         // finding CLAIMS and what verdict decided it, instead of

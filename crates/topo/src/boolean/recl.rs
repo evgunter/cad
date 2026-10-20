@@ -306,8 +306,10 @@ fn cancel_uniform(r: &mut PairRecord) {
 ///
 /// Each coincident pair whose lump keeps one copy of the region is
 /// pushed onto `covered` as `(A face, B face)`
-/// (`BooleanReduction::covered`), and each edge of the kept copy's face
-/// that runs into the dropped copy's onto `held`. `first_read` holds the codes
+/// (`BooleanReduction::covered`), and what it owes the dropped copy
+/// onto `fates` ([`super::fate`]): each edge of the kept copy's sector
+/// that runs into the dropped copy's, or the dropped sector the kept
+/// one holds wholly. `first_read` holds the codes
 /// as first read, parallel to `records`, which the germ loci are derived
 /// from ([`super::sectors::germ_locus`]); a declared-`Tangent` record's
 /// is overwritten with its second-order reading.
@@ -323,7 +325,7 @@ pub(super) fn recl_sectors<T: Decide>(
     declared: &super::GluedPairs<T>,
     band: Band,
     covered: &mut Vec<(crate::entity::FaceKey, crate::entity::FaceKey)>,
-    held: &mut Vec<super::HeldEdge>,
+    fates: &mut super::fate::Fates<T>,
 ) -> Result<(), BooleanError> {
     let (n_a, n_b) = (a_sectors.len(), b_sectors.len());
     for i in 0..records.len() {
@@ -443,24 +445,42 @@ pub(super) fn recl_sectors<T: Decide>(
         )?;
         if let Some(keeper) = kept_copy(op, rel) {
             covered.push((sa.face, sb.face));
-            let (body, own, other, other_body) = match keeper {
-                Operand::A => (a_body, sa, sb, b_body),
-                Operand::B => (b_body, sb, sa, a_body),
+            let (body, own, other) = match keeper {
+                Operand::A => (a_body, sa, sb),
+                Operand::B => (b_body, sb, sa),
             };
-            let at = other_body.get_half_edge(other.he).map(|h| h.start).ok_or(
-                BooleanError::ClassificationInvariant {
-                    what: "a covered sector's half-edge no longer resolves",
-                },
-            )?;
+            let mut runs = false;
             for (edge, dir) in super::sectors::bound_edges(body, own) {
                 if super::sectors::runs_into(other, dir, arm, band)? {
-                    held.push(super::HeldEdge {
+                    runs = true;
+                    fates.edges.push(super::fate::FateEdge {
                         holder: keeper,
                         edge,
+                        kept: own.face,
                         face: other.face,
-                        at,
+                        aligned: matches!(rel, super::PlaneRelation::SameOriented),
                     });
                 }
+            }
+            if !runs {
+                // The kept copy holds the dropped sector wholly, so the
+                // dropped sector's direction names the piece of the kept
+                // face over it, wherever the join divides that face after;
+                // the kept sector's own may lie in another piece.
+                let inside = super::fate::bisector(other, band)?;
+                fates.corners.push(super::fate::FateCorner {
+                    holder: keeper,
+                    dropped: super::fate::SectorAt {
+                        he: other.he,
+                        face: other.face,
+                        dir: inside,
+                    },
+                    kept: super::fate::KeptAt::Sector(super::fate::SectorAt {
+                        he: own.he,
+                        face: own.face,
+                        dir: inside,
+                    }),
+                });
             }
         }
         let (newsa, newsb) = (

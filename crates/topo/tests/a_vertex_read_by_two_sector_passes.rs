@@ -1737,9 +1737,31 @@ fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
             .chain(s.along_ray.iter().map(|(label, x)| (*label, x, false)))
             {
                 let inside = label.starts_with("inside");
+                // Pinned: at ε 1e-12 the turned pose's `x ∩ y`, which is
+                // `x`, stores its result a sub-ulp outside `x`, and the
+                // volume backstop's exact band refuses it
+                // (`work/cleave/a-correct-intersect-a-sub-ulp-outside-its-operand-refuses-at-the-backstops-exact-band.md`).
+                // The refusal is asserted, so this goes red when it is fixed.
+                let pinned = eps == 1e-12
+                    && k == 100.0
+                    && pose.label == "turned"
+                    && label == "inside the lying pyramid";
+                let excess = |e: &BooleanError| {
+                    matches!(e, BooleanError::ResultVolumeImplausible { which, .. }
+                        if *which == "vol(A ∩ B) ≤ vol(A)")
+                };
+                if pinned {
+                    let got = intersect(x, &y, t());
+                    assert!(
+                        got.as_ref().is_err_and(excess),
+                        "the pinned sub-ulp backstop refusal: got {:?}",
+                        got.map(|_| ())
+                    );
+                }
                 let label = format!("{label}, the pyramid lying {k}ε off the top");
                 built += builds_or_refuses(&label, x, &y, &pose, &|e| {
-                    matches!(e, BooleanError::Escalated { .. })
+                    (pinned && excess(e))
+                        || matches!(e, BooleanError::Escalated { .. })
                         || (faced
                             && matches!(
                                 e,
@@ -1752,4 +1774,41 @@ fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
         }
     }
     assert!(built > 0, "cells built");
+}
+
+/// **A partner tipped off the face still ends the cut**: with the lying
+/// pyramid's corner a hundred ε off the top, its apex rests on the top
+/// unimprinted, so the flush pyramid's edges end on the top where it
+/// holds no vertex. `flush − y` keeps the flush pyramid's face over the
+/// top and cuts the top where that face ends (`boolean::fate`, a lone
+/// vertex minted at the apex): the row names a fragment of the top, not
+/// the top whole, and the body holds tiers 3 and 3′ (`three_prime`).
+#[test]
+fn a_partner_tipped_off_the_face_still_ends_the_cut() {
+    let eps = t().eps();
+    for pose in poses() {
+        let s = Scene::at(&pose);
+        let y = built(
+            "the plate and the tipped pyramid",
+            union(&s.plate, &tet(lying(100.0 * eps), &pose), t()),
+        );
+        let BooleanResult::Body(out) = subtract(&s.flush, &y, t()).expect("flush − y builds")
+        else {
+            panic!("{}: flush − y is not empty", pose.label);
+        };
+        let rows: Vec<_> = out
+            .naming
+            .substituted
+            .iter()
+            .map(|c| (c.operand, c.face, out.naming.face_fragments_b.root(c.face)))
+            .collect();
+        assert!(
+            matches!(rows.as_slice(), [(Operand::B, face, root)] if face != root),
+            "{}: one row, a fragment cut from y's top, got {rows:?}",
+            pose.label
+        );
+        let what = format!("{}: flush − y", pose.label);
+        assert_eq!(validate_geometric(&out.body, t()), Ok(()), "{what}: tier 3");
+        three_prime(&what, &out, &pose, false, None, None);
+    }
 }
