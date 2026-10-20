@@ -90,7 +90,8 @@ pub fn report(what: &str, body: &Body<f64>, errors: &[ValidationError], tol: Tol
                 "REV5431-UNDEC-OUTSIDETOUCH"
             };
             let why: String = why.chars().take(40).collect();
-            println!("{tag} {what} at {witness} [{why}]: {line}");
+            let esc = errors.iter().filter(|e| matches!(e, ValidationError::CensusEscalated { .. })).count();
+            println!("{tag} {what} at {witness} [{why}] esc={esc} of {}: {line}", errors.len());
         }
     }
 }
