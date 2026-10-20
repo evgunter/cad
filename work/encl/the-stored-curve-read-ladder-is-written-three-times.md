@@ -2,7 +2,9 @@
 id: the-stored-curve-read-ladder-is-written-three-times
 kind: issue
 title: sweep and topo each read a stored edge's carrier and interval through their own get_edge/get_curve_geom/certified ladder
-status: dispatched
+status: closed
+closed: 2026-10-20
+pr: 5467
 opened: 2026-10-20
 priority: P4
 cost: E

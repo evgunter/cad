@@ -152,7 +152,9 @@ pub use intersect::{
     sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
-pub use locus::{TangentLocus, TangentLocusError, tangent_locus, tangent_locus_of_faces};
+pub use locus::{
+    TangentLocus, TangentLocusError, tangent_locus, tangent_locus_kinds, tangent_locus_of_faces,
+};
 pub use mapped::{MappedCurve, MappedSource, SketchSegment, SubRange};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{
@@ -183,6 +185,9 @@ pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
     require_one_chart_branch,
 };
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub use ssi::charted_nurbs_mints;
 pub use ssi::{
     BandVerdict, BoundaryChart, BoundaryPoint, BoundarySection, ChartAxis, ChartCorner, ChartEnd,
     ChartSide, ChartSpeedRefusal, ChartedNurbs, DomainField, ExhaustLane, Exhaustiveness,
