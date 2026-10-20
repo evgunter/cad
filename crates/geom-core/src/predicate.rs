@@ -1607,7 +1607,8 @@ impl FileCoincidence {
             }
             (MissSource::File, Within::Partly) => format!(
                 "{head}, to which alone the file's data claims to agree. {stopgap}; a miss that \
-                 persists there is a kernel defect or a damaged file, worth reporting"
+                 persists there means the file is damaged, worth reporting to the program that \
+                 wrote it"
             ),
             (MissSource::Fit, _) => format!(
                 "{head}, and may be the kernel's own approximation. {stopgap}; this refusal may \
@@ -3726,8 +3727,8 @@ mod tests {
                  1e-6 m; this refusal may indicate a kernel bug worth reporting"
             )
         };
-        let persists = "; a miss that persists there is a kernel defect or a damaged file, worth \
-                        reporting";
+        let persists = "; a miss that persists there means the file is damaged, worth reporting \
+                        to the program that wrote it";
         let banded = |m| MissReading::Banded(m, band);
         for (miss, lies) in [
             (banded(MarginDiag::value(5e-9)), Some("within")),

@@ -22,3 +22,5 @@ The import door cannot honestly blame the file for this miss: the kernel minted 
 ## Repair shape
 
 Mint the generator on the surface's own u = 0 locus, and project each rim vertex onto it, instead of running it through one vertex. Alternatively, admit the generator's endpoint residual against the 2·ε_in its construction allows.
+
+Note (PR 5464, 2026-10-20): Ev ruled that the import door names the file for every refusal a bad file reaches, stored or derived, and `recourse::Provenance` is gone. Past ε_in this refusal now ends in `DAMAGED_FILE_ENDING` ("the file is damaged"), so a sound file refused here is told it is damaged: the defect now also makes the message false, which raises its cost. The paragraph above describes the state before that PR. (ENCL implementer)

@@ -1836,29 +1836,48 @@ mod tests {
     use geom_core::FileCoincidence;
 
     /// **Every certification refusal ends alike at rest and at the import
-    /// door but for the file's ε_in** (D4 ¶1: one recourse per decision,
-    /// wherever it is read): the door's ending departs from the at-rest
-    /// one only through its ε_in sentences, which name ε_in. Each of
-    /// these decisions compares a value the kernel derives at adoption,
-    /// so past ε_in its defect ending names the kernel or the file at
-    /// both doors. The roster is [`super::certify_errors`], which `nested_coverage_gaps`
-    /// holds to every `CertifyError`, `PlaneNurbsRefusal` and
-    /// `AnalyticRung3Refusal` variant. Red where the door's ending departs
-    /// from the at-rest one any other way.
+    /// door but for the file's ε_in and its culprit** (D4 ¶1: one
+    /// recourse per decision, wherever it is read; (iv)): the door's
+    /// ending departs from the at-rest one only through its ε_in
+    /// sentences, which name ε_in, and where a defect ending at rest names
+    /// the kernel or the file, which at the door names the file
+    /// ([`geom_core::DAMAGED_FILE_ENDING`]). The roster is
+    /// [`super::certify_errors`], which `nested_coverage_gaps` holds to
+    /// every `CertifyError`, `PlaneNurbsRefusal` and `AnalyticRung3Refusal`
+    /// variant. Red where the door's ending departs from the at-rest one
+    /// any other way, the door naming the kernel included, or where no
+    /// refusal reaches the file's ending.
     #[test]
     fn every_certify_refusal_ends_alike_at_rest_and_at_the_import_door() {
+        use geom_core::{DAMAGED_FILE_ENDING, KERNEL_OR_FILE_DEFECT_ENDING};
+
         let file = FileCoincidence::new(1e-6);
+        let mut damaged = 0;
         let split: Vec<String> = super::certify_errors()
             .iter()
             .filter(|e| {
                 let (rest, door) = (e.ending(Reading::AtRest), e.ending(file));
-                rest != door && !door.is_some_and(|d| d.contains("ε_in"))
+                if door.as_deref().is_some_and(|d| d.contains("ε_in")) {
+                    return false;
+                }
+                let want = match rest.as_deref() {
+                    Some(KERNEL_OR_FILE_DEFECT_ENDING) => {
+                        damaged += 1;
+                        Some(DAMAGED_FILE_ENDING.to_owned())
+                    }
+                    _ => rest,
+                };
+                door != want
             })
             .map(|e| format!("{e:?}"))
             .collect();
         assert!(
             split.is_empty(),
-            "the doors end apart, beyond the file's ε_in: {split:#?}"
+            "the doors end apart, beyond the file's ε_in and its culprit: {split:#?}"
+        );
+        assert!(
+            damaged > 0,
+            "no refusal in the roster reads a defect at rest"
         );
     }
 }

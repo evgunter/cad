@@ -22,3 +22,5 @@ The import door cannot honestly blame the file for this miss: the kernel derived
 ## Repair shape
 
 Give a vertex off the carrier its nearest-point parameter (a certified foot-point on the ellipse), or bound the scaled angle's overstatement and read the residual against it.
+
+Note (PR 5464, 2026-10-20): Ev ruled that the import door names the file for every refusal a bad file reaches, stored or derived, and `recourse::Provenance` is gone. Past ε_in this refusal now ends in `DAMAGED_FILE_ENDING` ("the file is damaged"), so a sound file refused here is told it is damaged: the defect now also makes the message false, which raises its cost. The paragraph above describes the state before that PR. (ENCL implementer)

@@ -18,7 +18,8 @@ use geom_brep::{
 };
 use geom_core::spline::KnotVector;
 use geom_core::{
-    Band, FileCoincidence, Interval, KERNEL_OR_FILE_DEFECT_ENDING, Point3, Real, Vec3,
+    Band, DAMAGED_FILE_ENDING, FileCoincidence, Interval, KERNEL_OR_FILE_DEFECT_ENDING, Point3,
+    Real, Vec3,
 };
 use slotmap::SlotMap;
 
@@ -190,7 +191,7 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
         );
         assert_eq!(
             e.ending(FileCoincidence::new(0.5 * value)).as_deref(),
-            Some(KERNEL_OR_FILE_DEFECT_ENDING),
+            Some(DAMAGED_FILE_ENDING),
             "{e:?}"
         );
     }

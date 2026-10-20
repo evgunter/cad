@@ -235,42 +235,23 @@ unresolved enclosure, a straddle) ends in the lever whatever the side.
 | Refused side | At a build | At the import door, past ε_in | Over a body at rest |
 |---|---|---|---|
 | `Lever` | the lever and the note | the lever and the note | the lever and the note |
-| `StoredContradiction(Stored)` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
-| `StoredContradiction(Derived)` | the lever and the note | `KERNEL_OR_FILE_DEFECT_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
-| `Unminted(Stored)` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
-| `Unminted(Derived)` | the lever and the note | `KERNEL_OR_FILE_DEFECT_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
+| `StoredContradiction` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
+| `Unminted` | the lever and the note | `DAMAGED_FILE_ENDING` | `KERNEL_OR_FILE_DEFECT_ENDING` |
 
 One chooser names the culprit of every defect ending read through
-`geom_brep::recourse`, sized or not (`geom_brep::recourse::culprit`),
-by the door and by whose data the contradiction is about
-(`geom_brep::recourse::Provenance`). At a build it names the kernel and
-at rest the kernel or the file. At the import door past ε_in it names
-the file where the file stored what the decision compares, and the
-kernel or the file where a side is a value the kernel derives at
-adoption. Each sized decision names the provenance of its defect side,
-as a column of the side itself (`RefusedSide::StoredContradiction` and
-`RefusedSide::Unminted` each carry one), so no such side is written
-without it. Every one in `geom_brep` is derived: the edge's interval
-(`CertCheck::ParamSpan`, `CertCheck::ParamWinding`, and a door's
-`StatedInterval` refusal of it) is the one the import computes from the
-file's vertices, except a spline edge's, which is the file's stored
-knot domain verbatim — a route that compares stored values only, and
-harmless because a knot vector's domain is strictly forward; the image's span and its period gates
-(`CertCheck::ImageSpan`, the `PcurveCheck` span and period checks) read
-a chart image the kernel derives; and a transversal or tangent
-description (`CertCheck::Transversality`,
-`CertCheck::TangentSecondOrder`) is the adoption ladder's candidate,
-sampled at the derived parameters. Every decision with no size reads a
-derived value too, since at the import door each compares a value the
-kernel derives at adoption — an edge's carrier parameters, a carrier
-the import mints, the witness at the carrier's mid-parameter, a chart
-image or a fit — so its definite refusals there name the kernel or the
-file. Defect endings spelled as a
+`geom_brep::recourse`, sized or not
+(`geom_brep::recourse::ReadAt::culprit`), by the door alone. At a build it names the kernel and at rest the
+kernel or the file. At the import door past ε_in it names the file: a
+bad file reaches every refusal there, whether the reading compares a
+value the file stored or one adoption derives from it (an edge's
+carrier parameters, a carrier the import mints, the witness at the
+carrier's mid-parameter, a chart image, a fit, the adoption ladder's
+description candidate). A sound file such a refusal reaches is a kernel
+bug to fix, not a reason for the words to hedge. Defect endings spelled as a
 constant at their own site (`KERNEL_DEFECT_ENDING`,
 `KERNEL_OR_FILE_DEFECT_ENDING`) do not read the chooser: elsewhere in
-`geom_brep` (`edge_nurbs`, `offset`, `offset_fit`, `patch_bound`,
-`props`) and in `topo`, `sweep`, `profile`, `editor-core`, `pncad` and
-`viewer`, each names the culprit its own door gives.
+`geom_brep` (`offset`, `offset_fit`, `patch_bound`, `props`) and in
+`topo`, `sweep`, `profile`, `editor-core`, `pncad` and `viewer`, each names the culprit its own door gives.
 
 Within ε_in the import door ends every band-decided reading in its one
 sentence and the lever, whatever the side. No public door returns a
@@ -292,12 +273,9 @@ input, so it ends there as the door's own refusal does, in the lever,
 and the kernel-bug panic is `Origin::Kernels`'s alone. So the `Unminted`
 build cell keeps clause (iv)'s panic where the kernel constructs, the
 only place such a reading arises; the cell names what a hand-built
-value renders. The import-door column is clause (iv)'s: the file where
-its own stored values contradict, the kernel or the file where adoption
-derives the comparand. The table departs from clause (iv) in one
-column, typed until the door that would keep input from it exists, and
-scheduled by its row: the at-rest column's defect cells, which (iv)
-has panic past the import door and which the validator also reads at the import gate (`[import]` step 4) and so a
+value renders. The table departs from clause (iv) in one cell, typed until the door that would keep input
+from it exists, and scheduled by its row: the at-rest column, which the
+validator also reads at the import gate (`[import]` step 4) and so a
 damaged file reaches until adoption checks everything the validator
 does
 (`work/encl/at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything.md`).

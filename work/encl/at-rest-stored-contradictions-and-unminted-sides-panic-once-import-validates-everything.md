@@ -30,3 +30,5 @@ That leaves two ways to land the panic:
 2. The validator takes the door it reads at (a `ReadAt` parameter, or an import-gate entry point), so a refusal at the gate ends as the file's and a later one panics. That reverses `[import]`'s "same function, same tiers".
 
 Option 1 is what `[import]` already says; the trigger is `can-an-import-reach-a-state-only-a-kernel-bug-otherwise-reaches` closing with it true.
+
+Note (PR 5464, 2026-10-20): Ev ruled on that PR that the import door names the file for every refusal a bad file reaches. The certification refusals adoption renders at `ReadAt::File` now do. The validator verdicts `StepImportError::TierInvalid` carries from the import gate are read at rest (`topo::validate_geometric`), so they still end in `KERNEL_OR_FILE_DEFECT_ENDING` there. Until this row lands, that gate is the one place at the import door where a bad file is still told "kernel defect or damaged file". (ENCL implementer)

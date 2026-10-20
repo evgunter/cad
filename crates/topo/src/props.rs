@@ -3640,9 +3640,7 @@ impl ShellClassifyError {
             | Self::Props { .. }
             | Self::Band { .. }
             | Self::Ray { .. }
-            | Self::SignUnresolved { .. } => {
-                geom_brep::recourse::Unsized::Defect.recourse(arm, at.reading())
-            }
+            | Self::SignUnresolved { .. } => geom_brep::recourse::Unsized::Defect.recourse(arm, at),
         })
     }
 

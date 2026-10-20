@@ -77,7 +77,6 @@ use crate::pcurve_cache::Pcurve;
 use core::num::NonZeroUsize;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
 use geom_core::spline::{KnotVector, SpanLocate, SplineError};
 use geom_core::{
     Band, Bounds, Decide, Decided, Indeterminate, MarginDiag, Point2, Point3, Readable, Real, Sign,
@@ -354,8 +353,10 @@ impl core::fmt::Display for CarrierDomainRefusal {
 impl PlaneNurbsRefusal {
     /// The ending this refusal's decision gives it, read at `at`
     /// ([`recourse`]), or `None` for a refusal that is no decision's
-    /// refused arm. `Display` renders the payload alone, as
-    /// [`crate::CertifyError`]'s does, and the door appends this.
+    /// refused arm, but for the pcurve fit's, which ends in the door's
+    /// defect ending ([`ReadAt::culprit`]). `Display` renders the payload
+    /// alone, as [`crate::CertifyError`]'s does, and the door appends
+    /// this.
     ///
     /// The per-sample transversality and the uniqueness tube are the
     /// `Transversality` decision, whose band-decided arms end alike (D4
@@ -370,6 +371,9 @@ impl PlaneNurbsRefusal {
             Self::Escalated { limb, cause } => {
                 return Some(crate::ssi::SsiDecision::Limb(*limb).ending(cause, at));
             }
+            // No decision's refused arm: the producer refused, so it ends
+            // in the defect ending naming the door's culprit.
+            Self::PcurveFit => return Some(crate::recourse::defect_ending(at).to_owned()),
             _ => {}
         }
         self.decision().map(|(check, arm)| recourse(check, arm, at))
@@ -444,7 +448,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 },
                 f,
             ),
-            Self::PcurveFit => write!(f, "{PCURVE_FIT_REFUSAL}. {KERNEL_OR_FILE_DEFECT_ENDING}"),
+            Self::PcurveFit => f.write_str(PCURVE_FIT_REFUSAL),
             Self::CarrierDomain(refusal) => write!(f, "{refusal}"),
             Self::Limb { limb, margin } => match limb {
                 SsiLimb::HullSup => write!(

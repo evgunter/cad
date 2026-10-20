@@ -2,8 +2,11 @@
 id: param-span-provenance-is-per-decision-not-per-import-route
 kind: issue
 title: recourse: ParamSpan's Provenance is a per-decision constant, but whether its interval is derived or file-stated is a property of the import route
-status: open
+status: closed
 opened: 2026-10-20
+pr: 5464
+branch: encl/sized-provenance
+closed: 2026-10-20
 ---
 
 
@@ -20,3 +23,7 @@ A sized decision's defect side carries its `Provenance` as a constant of the dec
 ## Why it matters
 
 If `TRIMMED_CURVE` / `SURFACE_CURVE` support lands, the file states the trim parameters, so `ParamSpan`'s interval becomes file-stated on that route and a reversed or zero trim is the file's own contradiction. The per-decision `Provenance` cannot express that: `culprit(at, Provenance::Derived)` would keep naming the kernel beside the file for a contradiction of the file's own values. Whoever adds that route has to carry provenance per route (for example, on the refusal or on `ReadAt::File`) rather than per decision.
+
+## Closed
+
+2026-10-20, PR 5464: moot. Ev ruled on that PR that the import door names the file for every refusal a bad file reaches, whether the comparand is stored or derived. `Provenance` is removed, so no per-decision provenance is left to be wrong per route. A `TRIMMED_CURVE` / `SURFACE_CURVE` route needs nothing extra: a reversed or zero trim it states already ends in `DAMAGED_FILE_ENDING` at the import door (`ReadAt::culprit`, `crates/geom-brep/src/recourse.rs`).

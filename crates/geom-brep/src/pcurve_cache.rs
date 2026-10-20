@@ -187,8 +187,7 @@ use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::ladder::{IdentityLadder, read_identity};
 use crate::recourse::{
-    Provenance, Reading, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision,
-    Unsized,
+    Reading, RefusedArm, RefusedSide::StoredContradiction, SizedDecision, SpanDecision, Unsized,
 };
 use crate::ssi::{SsiDecision, SsiLimb};
 
@@ -2411,9 +2410,9 @@ impl PcurveCheck {
             },
             // The winding on a spline image, which can sweep past a period
             // no edge check counts (the projected lane's gate): a stored
-            // contradiction, over a cache the kernel derives.
+            // contradiction.
             Self::AzimuthPeriod | Self::TubePeriod => {
-                Routing::Sized(SpanDecision::Winding.on(StoredContradiction(Provenance::Derived)))
+                Routing::Sized(SpanDecision::Winding.on(StoredContradiction))
             }
             // The winding the kernel stores exactly: a form selection.
             Self::ChartWinding | Self::ChartIncidence | Self::Sector => {
@@ -10220,24 +10219,21 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    /// **Each pcurve check's sized decision names whose data it refuses**
-    /// (D4 ¶1 (iv)): the image's span and its period gates read a cache
-    /// the kernel derives, so each refused side is
-    /// [`Provenance::Derived`], and past ε_in at the import door a
-    /// reading in band wholly on it names the kernel beside the file.
-    /// The table and the roster are exhaustive matches, so a check or
-    /// envelope term added without a row does not compile; red if a
-    /// provenance is flipped.
+    /// **Each pcurve check's sized decision names its refused side**
+    /// (D4 ¶1 (iv)): the image's span and its period gates are each a
+    /// stored contradiction, and past ε_in at the import door a reading
+    /// in band wholly on it names the file. The table and the roster are
+    /// exhaustive matches, so a check or envelope term added without a
+    /// row does not compile; red if a side is flipped or the door names
+    /// the kernel.
     #[test]
-    fn each_pcurve_check_names_its_refused_sides_provenance() {
+    fn each_pcurve_check_names_its_refused_side() {
         use crate::recourse::RefusedSide;
-        use geom_core::{FileCoincidence, KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag};
+        use geom_core::{DAMAGED_FILE_ENDING, FileCoincidence, MarginDiag};
 
-        let derived = Some(RefusedSide::StoredContradiction(Provenance::Derived));
+        let stored = Some(RefusedSide::StoredContradiction);
         let want = |check: PcurveCheck| match check {
-            PcurveCheck::ParamSpan | PcurveCheck::AzimuthPeriod | PcurveCheck::TubePeriod => {
-                derived
-            }
+            PcurveCheck::ParamSpan | PcurveCheck::AzimuthPeriod | PcurveCheck::TubePeriod => stored,
             PcurveCheck::MapResidual
             | PcurveCheck::Envelope
             | PcurveCheck::EnvelopeTerm(_)
@@ -10278,7 +10274,7 @@ mod tests {
                 Routing::Sized(decision) => {
                     assert_eq!(
                         decision.recourse(past, file),
-                        KERNEL_OR_FILE_DEFECT_ENDING,
+                        DAMAGED_FILE_ENDING,
                         "{check:?} past ε_in at the import door"
                     );
                     Some(decision.side)

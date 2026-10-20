@@ -3037,8 +3037,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         None => Cow::Borrowed(match e {
             CertifyError::UnresolvedSurface { .. }
             | CertifyError::IntersectionSameSurface { .. }
-            | CertifyError::WrapOnNonPeriodic
-            | CertifyError::PlaneNurbs(P::PcurveFit) => DEFECT,
+            | CertifyError::WrapOnNonPeriodic => DEFECT,
             CertifyError::PlaneNurbs(P::CarrierDomain(_)) => REPARAMETERIZE,
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
@@ -3073,14 +3072,15 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 | P::TubeNotOneArc { .. }
                 | P::Escalated { .. }
                 | P::ReportedTransversalityPoisoned(_)
-                | P::ChartSpeed(_),
+                | P::ChartSpeed(_)
+                | P::PcurveFit,
             )
             | CertifyError::AnalyticRung3(
                 A::Limb { .. }
                 | A::Escalated { .. }
                 | A::TubeStraddles { .. }
                 | A::TubeNotOneArc { .. },
-            ) => unreachable!("a decision's refused arm always has its decision's ending"),
+            ) => unreachable!("a refusal whose ending its own type gives always has one"),
         }),
     };
     (why, recourse)
