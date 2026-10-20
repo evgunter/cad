@@ -118,10 +118,10 @@ pub enum Unsized {
     Defect,
     /// The kernel approximated (a fitted carrier, a settled root, a
     /// spent budget), so a miss may be the approximation's limit (D4 ¶1
-    /// (i)'s last resort): at a build on every arm, and at rest on a
-    /// reading no verdict was reached on. A definite miss read at rest,
-    /// or at the import door past ε_in, is a stored contradiction, which
-    /// ends in [`KERNEL_OR_FILE_DEFECT_ENDING`] at both: unlike a sized
+    /// (i)'s last resort): at a build on every arm, and at rest on an
+    /// undecided one. A definite miss read at rest, or at the import
+    /// door past ε_in, is a stored contradiction, which ends in
+    /// [`KERNEL_OR_FILE_DEFECT_ENDING`] at both: unlike a sized
     /// decision's ([`RefusedSide::StoredContradiction`]), it does not yet
     /// name the file alone at the import door.
     Fit,
@@ -142,12 +142,10 @@ impl Unsized {
     /// stored contradiction. A bound ends in the last resort on every
     /// arm at every reading. An arm whose margin could not be read ends
     /// in the defect ending, whatever the decision: no tolerance makes it
-    /// readable. A reading a verdict was reached on ends as that
-    /// verdict's arm, whichever arm routed it ([`RefusedArm::read`]).
+    /// readable.
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>, reading: Reading) -> String {
         let defect = defect_ending(reading);
-        let arm = arm.read();
         match self {
             Self::Defect => defect.to_owned(),
             Self::Fit | Self::Bound if arm.unreadable() => defect.to_owned(),
@@ -176,7 +174,6 @@ impl Unsized {
     #[must_use]
     pub fn residual_in_file(self, arm: RefusedArm<'_>, file: FileCoincidence) -> String {
         let reading = ReadAt::File(file).reading();
-        let arm = arm.read();
         let miss = match (self, arm) {
             // A bound at zero refuses nothing a residual would.
             (Self::Bound, RefusedArm::Zero(_)) => return self.recourse(arm, reading),
@@ -303,26 +300,6 @@ pub enum RefusedArm<'a> {
 }
 
 impl RefusedArm<'_> {
-    /// **This arm, as its reading ends**: an undecided arm whose reading a
-    /// verdict was reached on ([`Indeterminate::verdict`]) — a gate's
-    /// rejection of a decided sign, or a proved zero — is that verdict's
-    /// arm, Zero with its margin and band or sign-certain with its
-    /// margin; every other arm is itself. So an unsized decision, whose
-    /// table splits by arm, ends one reading one way whichever arm
-    /// carried it, as a sized decision's ends it by its margin's class.
-    #[must_use]
-    pub fn read(self) -> Self {
-        let Self::Undecided(cause) = self else {
-            return self;
-        };
-        let (margin, band) = (cause.margin, cause.band);
-        match cause.verdict() {
-            Some(Sign::Zero) => Self::Zero(Classified { margin, band }),
-            Some(Sign::Positive | Sign::Negative) => Self::SignCertain(Some(margin)),
-            None => self,
-        }
-    }
-
     /// The margin a band-decided arm carries: in band, or at zero. A
     /// straddle is two readable bounds, and a sign-certain arm was read.
     fn banded(self) -> Option<MarginDiag> {
@@ -821,59 +798,34 @@ mod tests {
         );
     }
 
-    /// **An unsized decision ends a decided reading as its verdict's
-    /// arm**, whichever arm routed it ([`RefusedArm::read`]): a gate's
-    /// rejected Zero and its rejected sign past the band, carried as
-    /// `RefusedArm::Undecided`, end at a build, at rest and at the import
-    /// door as the Zero arm and the sign-certain arm with the same margin
-    /// do, and a reading inside the band keeps the undecided arm's
-    /// ending. Red where an approximation's rejected sign at rest ends in
-    /// the last resort, the undecided story.
+    /// **An approximation's gate rejection ends in the last resort at
+    /// every door** (`Unsized::Fit`): a fit's meter that a gate rejects,
+    /// zero or past the band, is the approximation's limit, not a stored
+    /// contradiction, so carried as `RefusedArm::Undecided` it ends as the
+    /// undecided arm does, at a build, at rest and at the import door.
+    /// Red if the table converts a gate's tagged reading into its
+    /// definite arm.
     #[test]
-    fn an_unsized_decision_ends_a_decided_reading_as_its_verdict() {
+    fn a_fits_gate_rejection_ends_in_the_last_resort_at_every_door() {
         use geom_core::{Margin, k_stats::decide_positive};
-        let band = band();
-        let rejected = |m: f64| decide_positive("p", Margin::of(m), band).unwrap_err();
-        let (zero, negative, in_band) = (rejected(5e-10), rejected(-1.0), rejected(5e-9));
-        let file = FileCoincidence::new(1e-12);
-        for decision in [Unsized::Defect, Unsized::Fit, Unsized::Bound] {
-            for (routed, arm) in [
-                (
-                    &zero,
-                    RefusedArm::Zero(Classified {
-                        margin: zero.margin,
-                        band,
-                    }),
-                ),
-                (&negative, RefusedArm::SignCertain(Some(negative.margin))),
-            ] {
-                let undecided = RefusedArm::Undecided(routed);
-                for reading in [Reading::Build, Reading::AtRest] {
-                    assert_eq!(
-                        decision.recourse(undecided, reading),
-                        decision.recourse(arm, reading),
-                        "{decision:?} on {}, {reading:?}",
-                        routed.margin
-                    );
-                }
+        let rejected = |m: f64| decide_positive("p", Margin::of(m), band()).unwrap_err();
+        for cause in [rejected(5e-10), rejected(-1.0)] {
+            let arm = RefusedArm::Undecided(&cause);
+            let label = cause.margin;
+            assert!(cause.margin.rejected_sign().is_some(), "tagged: {label}");
+            for reading in [Reading::Build, Reading::AtRest] {
                 assert_eq!(
-                    decision.residual_in_file(undecided, file),
-                    decision.residual_in_file(arm, file),
-                    "{decision:?} on {}, at the import door",
-                    routed.margin
+                    Unsized::Fit.recourse(arm, reading),
+                    KERNEL_LIMIT_RECOURSE,
+                    "{label}, {reading:?}"
                 );
             }
+            assert_eq!(
+                Unsized::Fit.residual_in_file(arm, FileCoincidence::new(1e-12)),
+                KERNEL_LIMIT_RECOURSE,
+                "{label}, at the import door"
+            );
         }
-        assert_eq!(
-            Unsized::Fit.recourse(RefusedArm::Undecided(&negative), Reading::AtRest),
-            KERNEL_OR_FILE_DEFECT_ENDING,
-            "a rejected sign at rest is a stored contradiction"
-        );
-        assert_eq!(
-            Unsized::Fit.recourse(RefusedArm::Undecided(&in_band), Reading::AtRest),
-            KERNEL_LIMIT_RECOURSE,
-            "in band at rest, the last resort"
-        );
     }
 
     /// **Either route ends a reading alike** (`SizedDecision::recourse`):

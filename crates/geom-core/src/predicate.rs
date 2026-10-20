@@ -1772,23 +1772,6 @@ impl MarginDiag {
         }
     }
 
-    /// The verdict reached on this reading against `band`, where one
-    /// was ([`Indeterminate::verdict`]).
-    fn verdict(self, band: Band) -> Option<Sign> {
-        let positive = match self.0 {
-            Reading::Value(m, ..) => m > 0.0,
-            Reading::Enclosure { lo, .. } => lo > 0.0,
-            Reading::Invalid => return None,
-        };
-        match self.placement(band) {
-            Placement::ZeroBand => Some(Sign::Zero),
-            Placement::Past if positive => Some(Sign::Positive),
-            Placement::Past => Some(Sign::Negative),
-            Placement::Undecided if self.proven() => Some(Sign::Zero),
-            Placement::Undecided | Placement::Invalid => None,
-        }
-    }
-
     /// The sign the classifier decided, where this reading is a gate's
     /// rejection of it; `None` for every other reading (in band,
     /// straddling, poisoned). A verdict, read as a sign — never the
@@ -2398,12 +2381,13 @@ impl fmt::Display for MissingRecourse<'_> {
 /// bare [`Indeterminate`] Display is this payload plus the shared
 /// tail.
 ///
-/// Where the reading is a sign decided past the band
-/// ([`Indeterminate::verdict`]), which a lead that calls the refusal
-/// undecided does not tell, the payload says what it is after the
-/// placement, " — {word}" ([`Indeterminate::reading`]), so every
-/// composition of a payload and an ending tells it, whoever's ending
-/// follows.
+/// Where a gate rejected a sign it decided past the band
+/// ([`MarginDiag::rejected_sign`]), which a lead that calls the refusal
+/// undecided does not tell, the payload says so after the placement,
+/// " — {word}", so every composition of a payload and an ending tells
+/// it, whoever's ending follows. A reading past the band that no gate
+/// tagged (a bound reported where it stands) was decided by nobody, and
+/// gets no word.
 #[derive(Debug, Clone, Copy)]
 pub struct IndeterminatePayload<'a>(&'a Indeterminate);
 
@@ -2645,8 +2629,8 @@ impl Indeterminate {
     /// ([`MarginDiag::shows`]) and its kind alone, never from which route
     /// carried it, so a class says one thing and its ending
     /// ([`Indeterminate::ending`], the same class) agrees. Read for the
-    /// word by the payload, on a sign decided past the band, and by
-    /// [`UnderTail`] otherwise; and by [`Indeterminate::ending`] for the
+    /// word by [`UnderTail`], unless the payload said a gate's
+    /// [`DECIDED_SIGN`] already, and by [`Indeterminate::ending`] for the
     /// lever.
     ///
     /// A decided nonzero sign is sign-certain. A reading that shows no
@@ -2659,10 +2643,7 @@ impl Indeterminate {
         let undecided_value =
             margin.kind() == MarginKind::Value || margin.placement(band) == Placement::ZeroBand;
         match margin.shows(band, self.passes()) {
-            Shows::Past | Shows::Refused => (
-                Some("a decided sign this decision cannot use"),
-                KindLever::Door,
-            ),
+            Shows::Past | Shows::Refused => (Some(DECIDED_SIGN), KindLever::Door),
             Shows::Unreadable => (None, KindLever::Inputs),
             Shows::NoSize if margin.proven() => (
                 Some("a zero the symbolic tier proved, which no tolerance makes a size"),
@@ -2682,6 +2663,11 @@ impl Indeterminate {
         }
     }
 }
+
+/// What a reading past the band is to the decision that refused it: the
+/// one spelling of the word ([`Indeterminate::reading`], and the payload
+/// of a gate's rejected sign).
+const DECIDED_SIGN: &str = "a decided sign this decision cannot use";
 
 /// The lever a margin kind puts in front of the door's
 /// ([`Indeterminate::reading`]).
@@ -2703,28 +2689,15 @@ impl Indeterminate {
         self.margin.tag().map_or(SizedPass::NonZero, |r| r.passes)
     }
 
-    /// **The verdict reached on this reading**, where one was: Zero in
-    /// the zero band or where the symbolic tier proved it, a sign past
-    /// the ambiguity band. `None` for a reading inside the band, an
-    /// enclosure the band leaves undecided, and a poisoned margin. Read
-    /// from the number, never from the route that carried it, it is the
-    /// test a reading is told by as decided: a decided sign's payload
-    /// says its word ([`Indeterminate::payload`]), and a decision's table
-    /// ends it as the decided arm it is (`geom_brep::recourse::Unsized`).
-    #[must_use]
-    pub fn verdict(&self) -> Option<Sign> {
-        self.margin.verdict(self.band)
-    }
-
-    /// The word this escalation's payload says after its placement: its
-    /// reading's ([`Indeterminate::reading`]), where it is a sign decided
-    /// past the band. A zero band's verdict is told by its placement, and
-    /// an offer's word is its ending's to tell.
+    /// The word this escalation's payload says after its placement, read
+    /// from the gate's tag: [`DECIDED_SIGN`] where a gate rejected a
+    /// nonzero sign. A rejected zero's verdict is told by its placement.
     fn payload_word(&self) -> Option<&'static str> {
-        match self.verdict()? {
-            Sign::Positive | Sign::Negative => self.reading().0,
-            Sign::Zero => None,
-        }
+        matches!(
+            self.margin.rejected_sign(),
+            Some(Sign::Positive | Sign::Negative)
+        )
+        .then_some(DECIDED_SIGN)
     }
 
     /// Whether [`Indeterminate::ending`] offers a tolerance: a smaller

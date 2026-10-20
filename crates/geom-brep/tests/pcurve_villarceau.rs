@@ -739,17 +739,19 @@ fn a_plane_gate_in_band_near_the_horn_escalates_on_it() {
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
 
-/// **A gate's rejection on a Villarceau tangent part is told as the
-/// verdict it is.** On `R = 2`, `r = 1.8e-9`, band `(1e-9, 2e-9)`, the
-/// radius-2 circle centred `2.5e-9` along `x`, its normal tilted
-/// `0.9e-9/2` toward `y`, reaches `torus_oblique_circle` on the parallel
-/// arm, where `decide_positive` rejects the tube-rate part's magnitude
-/// as a decided Zero. `ChartIncidence` ends it as an unsized defect, on
-/// its verdict's arm, and the payload places it in the zero band: a
-/// magnitude cannot fall past the band on the side the gate rejects, so
-/// no decided sign's word is due.
+/// **A gate's rejected zero on a Villarceau tangent part, as it renders
+/// today.** On `R = 2`, `r = 1.8e-9`, band `(1e-9, 2e-9)`, the radius-2
+/// circle centred `2.5e-9` along `x`, its normal tilted `0.9e-9/2`
+/// toward `y`, reaches `torus_oblique_circle` on the parallel arm, where
+/// `decide_positive` rejects the tube-rate part's magnitude as a decided
+/// Zero. The payload places it in the zero band and carries no decided
+/// sign's word: a magnitude cannot fall past the band on the side the
+/// gate rejects. `ChartIncidence` ends it in the kernel-defect ending;
+/// whether that ending is true of a valid band-scale torus is the open
+/// D2 question of `work/pcert/band-scale-torus-geometry-ends-as-a-kernel-defect.md`,
+/// so this pins the text only so that a change to it shows.
 #[test]
-fn a_tube_rate_gates_rejected_zero_is_told_as_its_verdict() {
+fn a_tube_rate_gates_rejected_zero_renders_its_current_ending() {
     let band = geom_core::Band::new(1e-9, 2e-9).unwrap();
     let surface = Surface::Torus {
         center: Point3::origin(),
@@ -778,14 +780,9 @@ fn a_tube_rate_gates_rejected_zero_is_told_as_its_verdict() {
         panic!("the tube-rate gate's rejection: {got:?}");
     };
     assert_eq!(
-        (
-            cause.predicate,
-            cause.margin.rejected_sign(),
-            cause.verdict()
-        ),
+        (cause.predicate, cause.margin.rejected_sign()),
         (
             Some("pcurve_torus_villarceau_tube_rate"),
-            Some(geom_core::Sign::Zero),
             Some(geom_core::Sign::Zero)
         ),
         "the gate that rejected: {cause:?}"
