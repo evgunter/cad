@@ -2,10 +2,11 @@
 id: a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass
 kind: issue
 title: The fin crown at rest holds a region that winds −1, and check 7 and the census pass it; which of its unions refuses is face order's choice
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P1
 cost: M
+branch: flush/fin-crown-winding
 ---
 
 
