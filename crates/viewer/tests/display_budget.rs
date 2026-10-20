@@ -21,7 +21,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use editor_core::{DocEdit, ProfileDoc};
+use editor_core::ProfileDoc;
 use pncad::geom_core::Tol;
 use pncad::quantity::MM;
 use viewer::readout;
@@ -492,7 +492,7 @@ fn a_budget_delta_renders_to_the_grid_rather_than_to_its_figures() {
 fn budgeted_documents(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
     let mut out: Vec<(&'static str, ProfileDoc)> = corpus::documents()
         .into_iter()
-        .filter(|c| matches!(c.bump, DocEdit::SetParam { .. }))
+        .filter(|c| crate::common::corpus_pick::bump_op(&c.doc, &c.bump).is_some())
         .map(|c| (c.name, c.doc))
         .collect();
     out.push(("gallery_ring", gallery_ring_doc(tol)));
@@ -542,6 +542,15 @@ struct Answer {
 /// where it read two — one more chord on one arc, four more triangles
 /// (`probe_triangles` 388 → 392 and 732 → 736). The δ, the prediction
 /// and the largest rung hold.
+///
+/// Under INTENT stage 3 D `face_sketch`'s product is its box and the
+/// boss sketched on it, one body (the gesture writes the union), so its
+/// two rows price the boss too (12 → 28 predicted). `die_composed_tour`
+/// is the tour's regenerated document, its pips placed against the die
+/// by quarter-turn frames: 14 more probe triangles at `1e-4`, and at
+/// `1e-5` the budget settles a δ 0.1% coarser (`1.9336e-5` →
+/// `1.9356e-5`), the prediction at the budget and the largest rung
+/// held.
 const ANSWERS: &[Answer] = &[
     Answer {
         document: "die",
@@ -887,20 +896,20 @@ const ANSWERS: &[Answer] = &[
         document: "face_sketch",
         requested: 0.0001,
         delta: 0.0001,
-        predicted: 12,
+        predicted: 28,
         requested_cost: None,
-        largest_probe: 12,
-        probe_triangles: 24,
+        largest_probe: 28,
+        probe_triangles: 56,
         stop: ProbeStop::Flat,
     },
     Answer {
         document: "face_sketch",
         requested: 1e-5,
         delta: 1e-5,
-        predicted: 12,
+        predicted: 28,
         requested_cost: None,
-        largest_probe: 12,
-        probe_triangles: 36,
+        largest_probe: 28,
+        probe_triangles: 84,
         stop: ProbeStop::Flat,
     },
     Answer {
@@ -950,17 +959,17 @@ const ANSWERS: &[Answer] = &[
         predicted: 208127,
         requested_cost: None,
         largest_probe: 26016,
-        probe_triangles: 29740,
+        probe_triangles: 29754,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "die_composed_tour",
         requested: 1e-5,
-        delta: 1.9336001620400844e-5,
+        delta: 1.9355638273184584e-5,
         predicted: 1000000,
-        requested_cost: Some(1933600),
+        requested_cost: Some(1935563),
         largest_probe: 119934,
-        probe_triangles: 178038,
+        probe_triangles: 177674,
         stop: ProbeStop::Converged,
     },
     Answer {

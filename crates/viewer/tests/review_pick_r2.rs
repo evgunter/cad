@@ -155,7 +155,19 @@ struct Tally {
 /// unchanged.
 ///
 /// No genuine crossing is refused either way.
-const PINNED: (usize, usize, usize, usize) = (441_198, 141_775, 13_524, 6_936);
+///
+/// It moved again under INTENT stage 3 D, merged over main, from
+/// `(441198, 141775, 13524, 6936)`: the corpus is re-spelled, each
+/// construction built in its own coordinates and placed, a body
+/// combined into another drawn through that combine rather than as a
+/// copy of its own, `face_sketch`'s boss unioned with its box, and the
+/// tour die regenerated with its pips placed by quarter-turn frames;
+/// and every parametric document is walked through its bump, a
+/// variable's value as well as a slot's (`cut_cylinder` and
+/// `part_select` bump their cut's variable). 738 fewer rays, 1503 more
+/// grazes, 36 fewer refused candidates, 96 more rays with a refusal.
+/// No genuine crossing is refused.
+const PINNED: (usize, usize, usize, usize) = (440_460, 143_278, 13_488, 7_032);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

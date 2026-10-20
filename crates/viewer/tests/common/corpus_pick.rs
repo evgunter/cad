@@ -351,6 +351,34 @@ pub fn set_slot(doc: &ProfileDoc, node: RecipeNodeId, slot: SlotId, expr: &Formu
     }
 }
 
+/// **A corpus document's bump edit, as the session op a person would
+/// perform**: a slot's expression written as text, or a document
+/// variable given a new value. `None` for a bump with no such op.
+pub fn bump_op(doc: &ProfileDoc, bump: &DocEdit<editor_core::ProfileProgram>) -> Option<SessionOp> {
+    match bump {
+        DocEdit::SetParam {
+            node,
+            slot,
+            value: pncad::document::SlotValue::Formula(expr),
+            ..
+        } => Some(set_slot(doc, *node, *slot, expr)),
+        DocEdit::SetVarValue {
+            var,
+            value: editor_core::FreeValue::Continuous(x),
+        } => {
+            let var = match var {
+                editor_core::VarRef::Id(id) => *id,
+                editor_core::VarRef::Name(name) => doc.var_named(name.as_str())?,
+            };
+            Some(SessionOp::SetVariable {
+                var,
+                value: viewer::SlotValue::Continuous(*x),
+            })
+        }
+        _ => None,
+    }
+}
+
 /// **Every landing the corpus pick suites sweep**: the gallery ring at
 /// open and after its [`ring_bump`], then each parametric corpus
 /// document the same way through its own bump edit — `sweep(name,
@@ -384,13 +412,7 @@ pub fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluat
         landed("gallery_ring", "the first edit", &session);
     }
     for doc in corpus::documents() {
-        let DocEdit::SetParam {
-            node,
-            slot,
-            value: pncad::document::SlotValue::Formula(expr),
-            ..
-        } = doc.bump.clone()
-        else {
+        let Some(bump) = bump_op(&doc.doc, &doc.bump) else {
             continue;
         };
         let mut session = crate::common::inline_without_door(doc.doc.clone(), tol);
@@ -399,7 +421,7 @@ pub fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluat
             continue;
         }
         landed(doc.name, "open", &session);
-        let outcome = session.perform(set_slot(session.committed_doc(), node, slot, &expr));
+        let outcome = session.perform(bump);
         if outcome.refusal.is_some() {
             continue;
         }
