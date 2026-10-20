@@ -332,22 +332,48 @@ pub(crate) struct BuiltArc<T: Real> {
     /// carrier back against it at a point scalar, and it goes no
     /// further than the door.
     pub(crate) through: Option<Point2<T>>,
+    /// The turn sense the construction authored, from data other than
+    /// the sweep it computed (a winding, a side, the side of the chord
+    /// a through-point or a target lies on): which of the two arcs on
+    /// the carrier between its ends it built. The door reads the
+    /// stored sweep's branch against it.
+    pub(crate) sense: Option<ArcSweep>,
+    /// The bulge is the authored data itself (the `Bulge` leg), so a
+    /// stored arc that reads as a line is a line as authored, and the
+    /// door does not read it back.
+    pub(crate) bulge_authored: bool,
 }
 
 impl<T: Real> BuiltArc<T> {
+    /// `arc` as its construction built it, with what it proved; nothing
+    /// further authored.
+    pub(crate) fn new(arc: Arc2<T>, facts: Facts) -> Self {
+        Self {
+            arc,
+            facts,
+            through: None,
+            sense: None,
+            bulge_authored: false,
+        }
+    }
+
     /// The arc [`lower_arc`] lowers from the chord `start → end` and
     /// `x`, with its endpoint facts — theorems of that lowering.
     pub(crate) fn lowered(start: Point2<T>, end: Point2<T>, x: T) -> Self {
-        Self {
-            arc: lower_arc(start, end, x),
-            facts: Facts::Registered,
-            through: None,
-        }
+        Self::new(lower_arc(start, end, x), Facts::Registered)
     }
 
     /// The same arc, authored through `q`.
     pub(crate) fn through(self, q: Option<Point2<T>>) -> Self {
         Self { through: q, ..self }
+    }
+
+    /// The same arc, authored to turn in `sense`.
+    pub(crate) fn sensed(self, sense: ArcSweep) -> Self {
+        Self {
+            sense: Some(sense),
+            ..self
+        }
     }
 
     /// The same arc with its endpoint facts held only to a decision:

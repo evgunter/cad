@@ -1190,15 +1190,22 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
         // The collinear gate, then the existing closed form — the sharp
         // `Via` leg mode's own derivation, verbatim.
         let offset = chord_v.perp_dot(self.q - at) / chord;
-        match geom_core::k_stats::decide("path_arc_via_offset", geom_core::Margin::of(offset), band)
-        {
+        // The side of the chord `q` lies on is the turn sense, read off
+        // the authored points rather than the computed bulge's sign: the
+        // arc on the other side shares the carrier.
+        let winding = match geom_core::k_stats::decide(
+            "path_arc_via_offset",
+            geom_core::Margin::of(offset),
+            band,
+        ) {
             Ok(geom_core::Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
-            Ok(_) => {}
+            Ok(geom_core::Sign::Positive) => crate::sugar::ArcSweep::Cw,
+            Ok(geom_core::Sign::Negative) => crate::sugar::ArcSweep::Ccw,
             Err(source) => return Err(PathError::Escalated { source }),
-        }
+        };
         let b = crate::bulge_from_via(at, self.q, self.p);
-        let (c, w, start) = bulge_carrier(at, self.p, b, tol)?;
-        Ok((c, w, start, self.p))
+        let (c, _, start) = bulge_carrier(at, self.p, b, tol)?;
+        Ok((c, winding, start, self.p))
     }
     fn to_wire(&self) -> ArcData<T> {
         ArcData::Via {
@@ -1525,11 +1532,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         }
         self.core.push_arc(
             leg.end,
-            crate::BuiltArc {
-                arc: leg.arc,
-                facts: crate::Facts::Registered,
-                through: None,
-            },
+            crate::BuiltArc::new(leg.arc, crate::Facts::Registered).sensed(leg.winding),
         )?;
         let arm = carrier.radius.min(leg.chord);
         Ok(in_state(

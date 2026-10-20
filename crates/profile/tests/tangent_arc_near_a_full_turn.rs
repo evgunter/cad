@@ -72,20 +72,42 @@ fn f64_miss(lp: &ConstructedLoop<f64>, what: &str) -> f64 {
 /// refuses loudly as the scene-resolution sibling or escalates in the
 /// band, naming the read. Any other refusal, or either of those on a
 /// scene that resolves the read, fails the row.
+///
+/// Which rows refuse is pinned at the ε rows the gate runs
+/// ([`REFUSES_PAST_RESOLUTION`]); at any other ε either answer stands.
 fn f64_replay_or_unresolvable(
     steps: &[Step<f64>],
     r: f64,
     what: &str,
 ) -> Option<ConstructedLoop<f64>> {
+    let eps = tol().get().eps;
+    let pinned = REFUSES_PAST_RESOLUTION
+        .iter()
+        .find(|(e, _)| *e == eps)
+        .map(|(_, rows)| rows.contains(&what));
     let refusal = match try_replay_at::<f64>(steps) {
-        Ok(lp) => return Some(lp),
+        Ok(lp) => {
+            assert_ne!(
+                pinned,
+                Some(true),
+                "{what}: pinned to refuse at ε = {eps:e}, built"
+            );
+            return Some(lp);
+        }
         Err(e) => e,
     };
+    assert_ne!(
+        pinned,
+        Some(false),
+        "{what}: pinned to build at ε = {eps:e}, refused: {refusal}"
+    );
     let (eps, k) = (tol().get().eps, tol().get().k);
     let ulps = |read: &str| {
-        if read.starts_with("path_arc_through_point") {
+        if read.starts_with("path_arc_through_point")
+            || read.starts_with("path_arc_start_on_carrier")
+        {
             Some(8.0)
-        } else if read.starts_with("path_arc_landing") {
+        } else if read.starts_with("path_arc_landing") || read.starts_with("path_arc_branch") {
             Some(16.0)
         } else {
             None
@@ -105,6 +127,41 @@ fn f64_replay_or_unresolvable(
     assert!(answered, "{what}: f64 replay refused: {refusal}");
     None
 }
+
+/// **The rows whose `f64` replay the door refuses, per ε row the gate
+/// runs**: each a sound arc on a scene that cannot resolve the door's
+/// read of it. Every row not listed builds at that ε.
+const REFUSES_PAST_RESOLUTION: &[(f64, &[&str])] = &[
+    (
+        1e-9,
+        &[
+            "Via, R 1.37e7",
+            "Via, R 1.37e8",
+            "arc_onto, R 1.37e7",
+            "arc_onto, R 1.37e8",
+            "tangent_arc_to, R 1.37e7",
+            "tangent_arc_to, R 1.37e8",
+        ],
+    ),
+    (1e-6, &[]),
+    (
+        1e-12,
+        &[
+            "Center, R 1.37e6",
+            "Center, R 1e6, turn 1e-4",
+            "Via, R 1.36e4",
+            "Via, R 1.37e7",
+            "Via, R 1.37e8",
+            "Via, R 1e4, turn 1e-2",
+            "Via, R 1e4, turn 1e-3",
+            "Via, R 1e6, turn 1e-4",
+            "arc_onto, R 1.37e7",
+            "arc_onto, R 1.37e8",
+            "tangent_arc_to, R 1.37e7",
+            "tangent_arc_to, R 1.37e8",
+        ],
+    ),
+];
 
 /// Whether the `Interval` first arc, landed from its start vertex,
 /// holds the next vertex, and the wider side of that landing.

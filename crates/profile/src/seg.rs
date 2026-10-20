@@ -459,7 +459,6 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
             return Err(ShapeIssue::Degenerate { margin: len }.into());
         }
     }
-    let half = T::from_f64(0.5);
     // The decision is fired for every segment, since the K stream
     // records it for every segment, but only an arc's is read: a stored
     // line has no turn for its margin to report.
@@ -470,12 +469,8 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
             arc.quarter_tan()
         }
     };
-    let straightness = decide(
-        "segment_straightness",
-        Margin::levered(bow * half, len),
-        band,
-    )
-    .map_err(escalated)?;
+    let straightness =
+        decide("segment_straightness", sagitta(bow, len), band).map_err(escalated)?;
     let kind = match segment {
         Segment::Line => SegKind::Line,
         Segment::Arc(..) if straightness == Sign::Zero => SegKind::Line,
@@ -633,13 +628,14 @@ fn check_carrier<T: Decide>(
     Ok(())
 }
 
-/// One read-back of a constructed arc against a point it was authored
-/// by, past the band ([`read_back`]).
+/// One read-back of a constructed arc against what was authored, past
+/// the band ([`read_back`]).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ArcMiss<T: Real> {
-    /// The read's funnel name: [`LANDING_READ`] or [`THROUGH_POINT_READ`].
+    /// The read's funnel name: [`START_READ`], [`LANDING_READ`],
+    /// [`THROUGH_POINT_READ`] or [`BRANCH_READ`].
     pub(crate) predicate: &'static str,
-    /// How far the stored arc is off the authored point, meters.
+    /// How far the stored arc is off what was authored, meters.
     pub(crate) miss: T,
     /// The magnitude the read was taken at, meters.
     pub(crate) scale: T,
@@ -657,122 +653,179 @@ pub(crate) enum ReadBackIssue<T: Real> {
     /// band: the input's conditioning or the construction's, which a
     /// point scalar cannot tell apart.
     BelowSceneResolution(ArcMiss<T>),
-    /// The read, or its resolution gate, in the band or poisoned.
+    /// A read, or its resolution gate, in the band or poisoned.
     Escalated(Indeterminate),
 }
 
-/// **Whether a constructed arc from `a` to `b` stores a carrier the
-/// door reads back**: validation's `segment_straightness` question,
-/// its signed sagitta `(|b − a|/2)·tan(Δθ/4)`, asked unlogged (audit
-/// row F23). A definite sagitta is an arc, whose carrier validation
-/// reads and the door reads back. A sagitta at Zero is a line, which
-/// keeps no carrier, so there is nothing to read; one in the band is a
-/// sliver, which validation escalates, so the door does not decide it
-/// first. A poisoned one is read, and its read escalates.
-pub(crate) fn reads_as_arc<T: Decide>(
-    arc: Arc2<T>,
-    a: Point2<T>,
-    b: Point2<T>,
-    band: Band,
-) -> bool {
-    let sagitta = a.distance(b) * T::from_f64(0.5) * arc.quarter_tan();
-    match check_unlogged("segment_straightness", sagitta, band, "F23") {
-        Ok(Sign::Positive | Sign::Negative) => true,
-        Ok(Sign::Zero) => false,
-        Err(_) => sagitta.is_poison(),
-    }
-}
+/// The start read's funnel name: ‖a − centre‖ − r.
+pub(crate) const START_READ: &str = "path_arc_start_on_carrier";
 
-/// The landing read's funnel name: ‖landing(a) − b‖.
+/// The landing read's funnel name: ‖landing(a) − b‖, less the radial
+/// part an inline decision admitted.
 pub(crate) const LANDING_READ: &str = "path_arc_landing";
 
 /// The through-point read's funnel name: ‖q − centre‖ − r.
 pub(crate) const THROUGH_POINT_READ: &str = "path_arc_through_point";
 
-/// **A constructed arc's landing on its end vertex, read back at a
-/// point scalar**: [`read_back`] of ‖landing(a) − b‖ at
-/// [`LANDING_ULPS`], at the magnitude of the arc and both vertices.
-/// `decided` is an arc whose end is on its carrier only to an inline
-/// ε-decision the door made ([`crate::Facts::Decided`]): its landing
-/// may miss by what that decision admitted, so a reading inside the
-/// band is the decision's and passes rather than deciding it again.
-pub(crate) fn constructed_landing<T: Decide>(
-    arc: Arc2<T>,
+/// The branch read's funnel name: the stored arc's length, signed by
+/// the authored turn sense.
+pub(crate) const BRANCH_READ: &str = "path_arc_branch";
+
+/// **A segment's signed sagitta**, `(|b − a|/2)·tan(Δθ/4)` meters: the
+/// apex's offset from the chord, `bow` (tan(Δθ/4), zero for a line)
+/// acting through the half-chord. The one spelling of
+/// `segment_straightness`'s margin, read by [`build_seg`] and by the
+/// door's read-back ([`read_back_arc`]).
+fn sagitta<T: Real>(bow: T, len: T) -> Margin<T> {
+    Margin::levered(bow * T::from_f64(0.5), len)
+}
+
+/// **The path door's read-back of a constructed arc** from `a` to `b`
+/// (audit row F23), on the witness lane (`Witness::Inexact`) only: the
+/// stored arc against what its construction authored, each read through
+/// [`read_back`].
+///
+/// - **Start on the carrier** ([`START_READ`], ‖a − centre‖ − r,
+///   [`ON_CARRIER_ULPS`]): the stored radius against the vertex the arc
+///   leaves.
+/// - **Landing** ([`LANDING_READ`], [`LANDING_ULPS`]): ‖landing(a) − b‖.
+///   For an arc whose end is on its carrier only to an inline
+///   ε-decision the door made ([`crate::Facts::Decided`]), the radial
+///   part that decision admitted, |‖a − centre‖ − ‖b − centre‖|, is
+///   subtracted (the landing keeps a's distance from the centre, so it
+///   is the least the miss can be); what is read is the sweep's own
+///   error, which no decision admitted.
+/// - **Through-point** ([`THROUGH_POINT_READ`], [`ON_CARRIER_ULPS`]): a
+///   `Via` arc's carrier against its authored `q`.
+/// - **Branch** ([`BRANCH_READ`], [`LANDING_ULPS`]): the stored arc's
+///   length `r·Δθ`, signed by the turn sense the construction authored
+///   independently of its sweep (a `Center` arc's winding, the side of
+///   the chord `q` or a tangent's target lies on). Positive passes;
+///   Negative is the other arc on the same carrier between the same
+///   ends, which lands exactly. Both span the chord, so neither reads
+///   shorter than it.
+///
+/// An arc whose bulge is the authored data itself
+/// ([`crate::BuiltArc::bulge_authored`]) and whose sagitta reads as a
+/// line is not read: validation reads it as a line that keeps no
+/// carrier, as authored. Every other arc is read whatever its stored
+/// form looks like, so a construction that flattened an arc it
+/// authored is read and refused. An exact scalar's stored arc encloses
+/// the arc its construction proved, and its registered identities are
+/// its check, so nothing is read there.
+pub(crate) fn read_back_arc<T: Decide>(
+    built: &crate::BuiltArc<T>,
     a: Point2<T>,
     b: Point2<T>,
-    decided: bool,
     band: Band,
 ) -> Result<(), ReadBackIssue<T>> {
     if T::WITNESS == geom_core::Witness::Exact {
         return Ok(());
     }
+    let arc = built.arc;
+    let len = a.distance(b);
+    let bow = sagitta(arc.quarter_tan(), len).value();
+    if built.bulge_authored {
+        match check_unlogged("segment_straightness", bow, band, "F23") {
+            Ok(Sign::Positive | Sign::Negative) => {}
+            Ok(Sign::Zero) => return Ok(()),
+            Err(_) if !bow.is_poison() => return Ok(()),
+            Err(_) => {}
+        }
+    }
+    let carrier = || arc.radius.max(reach(arc.centre));
+    read_back(
+        START_READ,
+        "path_arc_start_on_carrier_resolution",
+        Some(arc.rim(a) - arc.radius),
+        || carrier().max(reach(a)),
+        ON_CARRIER_ULPS,
+        band,
+    )?;
+    let miss = arc.landing(a).distance(b);
+    let landing = if built.facts == crate::Facts::Decided {
+        (miss - (arc.rim(a) - arc.rim(b)).abs()).max(T::zero())
+    } else {
+        miss
+    };
     read_back(
         LANDING_READ,
         "path_arc_landing_resolution",
-        arc.landing(a).distance(b),
-        || {
-            arc.radius
-                .max(reach(arc.centre))
-                .max(reach(a))
-                .max(reach(b))
-        },
+        Some(landing),
+        || carrier().max(reach(a)).max(reach(b)),
         LANDING_ULPS,
-        decided,
         band,
-    )
-}
-
-/// **A constructed arc's carrier through the point `q` it was authored
-/// through, read back at a point scalar**: [`read_back`] of
-/// ‖q − centre‖ − r at [`ON_CARRIER_ULPS`], at the magnitude of the
-/// carrier and `q`.
-pub(crate) fn constructed_through_point<T: Decide>(
-    arc: Arc2<T>,
-    q: Point2<T>,
-    band: Band,
-) -> Result<(), ReadBackIssue<T>> {
-    if T::WITNESS == geom_core::Witness::Exact {
-        return Ok(());
+    )?;
+    if let Some(q) = built.through {
+        read_back(
+            THROUGH_POINT_READ,
+            "path_arc_through_point_resolution",
+            Some(arc.rim(q) - arc.radius),
+            || carrier().max(reach(q)),
+            ON_CARRIER_ULPS,
+            band,
+        )?;
     }
-    read_back(
-        THROUGH_POINT_READ,
-        "path_arc_through_point_resolution",
-        arc.rim(q) - arc.radius,
-        || arc.radius.max(reach(arc.centre)).max(reach(q)),
-        ON_CARRIER_ULPS,
-        false,
-        band,
-    )
+    if let Some(sense) = built.sense {
+        // The stored arc's length, signed by the authored sense. Both the
+        // authored arc and the other one on the carrier span the chord,
+        // so each reads at least the chord's length: the authored one
+        // Positive, the other Negative.
+        let signed = Margin::levered(arc.sweep * sense.sign::<T>(), arc.radius).value();
+        let wrong = match check_unlogged(BRANCH_READ, signed, band, "F23") {
+            Ok(Sign::Positive) => None,
+            Ok(Sign::Zero | Sign::Negative) => Some(signed),
+            Err(source) => return Err(ReadBackIssue::Escalated(source)),
+        };
+        read_back(
+            BRANCH_READ,
+            "path_arc_branch_resolution",
+            wrong,
+            || carrier().max(reach(a)).max(reach(b)),
+            LANDING_ULPS,
+            band,
+        )?;
+    }
+    Ok(())
 }
 
-/// **The path door's read-back of a constructed arc** (audit row F23),
-/// on the witness lane (`Witness::Inexact`) only: `miss` (`predicate`,
-/// meters) against the band, and where it reads off, [`resolves`]'s
-/// headroom at `ulps` (`resolution`) at the magnitude `scale` gives,
-/// which only a miss reads. A construction's proof of its arc
-/// is a theorem of the reals; this reads whether the arithmetic it ran
-/// at a point scalar delivered it. Zero passes; off at a magnitude the
-/// scene resolves is [`ReadBackIssue::Defect`]; off past the scene's
-/// resolution is [`ReadBackIssue::BelowSceneResolution`]; poisoned
-/// escalates, and so does a reading in the band unless `band_passes`.
-/// An exact scalar's stored arc encloses the arc
-/// its construction proved, and its registered identities are its
-/// check, so its callers return before reading. Not a verdict
+/// **One read of the door's read-back** ([`read_back_arc`]): `miss`
+/// (`predicate`, meters) against the band, and where it reads off, its
+/// clearance of the read's own rounding (`resolution`): the miss less
+/// `ulps · 2⁻⁵² · scale`, at the magnitude `scale` gives, which only a
+/// miss reads. Zero passes; off and clear of that rounding by the band
+/// is [`ReadBackIssue::Defect`], a miss no rounding of a sound
+/// construction reaches; off and within it is
+/// [`ReadBackIssue::BelowSceneResolution`], which the scene cannot tell
+/// from its rounding; in the band or poisoned escalates. `None` is a
+/// read its caller has already classified as passing. Not a verdict
 /// (`k_stats::check_unlogged`): a box leaf has no row for it.
+///
+/// The gate is the miss's, not the magnitude's alone as validation's
+/// [`resolves`] is: a construction that loses digits can also inflate
+/// the magnitude it stored (a carrier flattened to 1e12 m), and a miss
+/// far above that magnitude's rounding is still its arithmetic. Nor
+/// does it share [`resolves`]'s door: validation's difference checks
+/// are logged verdicts whose refusal reports each classification's
+/// [`MarginDiag`] (`decide_reported`), and these are unlogged
+/// cross-checks at the witness lane, whose door reports a sign.
 fn read_back<T: Decide>(
     predicate: &'static str,
     resolution_predicate: &'static str,
-    miss: T,
+    miss: Option<T>,
     scale: impl FnOnce() -> T,
     ulps: f64,
-    band_passes: bool,
     band: Band,
 ) -> Result<(), ReadBackIssue<T>> {
-    match check_unlogged(predicate, miss, band, "F23") {
-        Ok(Sign::Zero) => return Ok(()),
-        Ok(Sign::Positive | Sign::Negative) => {}
-        Err(_) if band_passes && !miss.is_poison() => return Ok(()),
-        Err(source) => return Err(ReadBackIssue::Escalated(source)),
+    let Some(miss) = miss else {
+        return Ok(());
+    };
+    if predicate != BRANCH_READ {
+        match check_unlogged(predicate, miss, band, "F23") {
+            Ok(Sign::Zero) => return Ok(()),
+            Ok(Sign::Positive | Sign::Negative) => {}
+            Err(source) => return Err(ReadBackIssue::Escalated(source)),
+        }
     }
     let scale = scale();
     let found = ArcMiss {
@@ -781,8 +834,10 @@ fn read_back<T: Decide>(
         scale,
         resolution: scale * T::from_f64(ulps * f64::EPSILON),
     };
-    let headroom = resolution_headroom(scale, ulps, band);
-    match check_unlogged(resolution_predicate, headroom, band, "F23") {
+    // How far the miss stands clear of the read's own rounding at its
+    // magnitude: clear by the band, it is no rounding.
+    let clearance = found.miss - found.resolution;
+    match check_unlogged(resolution_predicate, clearance, band, "F23") {
         Ok(Sign::Positive) => Err(ReadBackIssue::Defect(found)),
         Ok(Sign::Zero | Sign::Negative) => Err(ReadBackIssue::BelowSceneResolution(found)),
         Err(source) => Err(ReadBackIssue::Escalated(source)),

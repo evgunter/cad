@@ -181,9 +181,11 @@ use geom_core::{
     KERNEL_DEFECT_ENDING, Margin, MarginDiag, Point2, Real, Sign, Tol, Vec2,
 };
 
-/// The recourse of [`ProfileError::ArcBelowSceneResolution`]: the arc's
-/// carrier is stored at a magnitude whose `f64` rounding the tolerance
-/// cannot see past, so bring the magnitude down or the tolerance up.
+/// The recourse of [`ProfileError::ArcBelowSceneResolution`], and of
+/// the path door's [`crate::PathError::ArcMissBelowSceneResolution`]:
+/// the arc's carrier is stored, or was read back, at a magnitude whose
+/// `f64` rounding the tolerance cannot see past, so bring the magnitude
+/// down or the tolerance up.
 #[cfg_attr(
     not(any(test, feature = "test-support")),
     allow(
@@ -194,9 +196,7 @@ use geom_core::{
 )]
 pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the origin, or author the \
      arc with a smaller radius (a flatter arc stores its centre farther out); a coarser tolerance \
-     also reads it, and an arc the path lattice constructs is verified at its construction, so \
-     validating its loop with that provenance (a `ConstructedProfile`, `pncad::validated`) does \
-     not re-read it";
+     also reads it";
 
 /// The lever at a junction whose turn is undecided, and at one that is
 /// definitely tangent ([`crate::PathError::JunctionTangent`]):
@@ -909,13 +909,25 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
     // back at a point scalar
     DecisionEnding {
         name: "path_arc_landing",
-        kind: EndingKind::Lever(crate::path::ARC_MISS_SCENE_RESOLUTION_RECOURSE),
+        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
     },
     // how far below the magnitude at which its rounding reaches the band a constructed arc's
     // landing was read
     DecisionEnding {
         name: "path_arc_landing_resolution",
-        kind: EndingKind::Lever(crate::path::ARC_MISS_SCENE_RESOLUTION_RECOURSE),
+        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
+    },
+    // how far a constructed arc's sagitta, signed by the turn sense it was authored to, bows to
+    // the wrong side of its chord, read back at a point scalar
+    DecisionEnding {
+        name: "path_arc_branch",
+        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
+    },
+    // how far below the magnitude at which its rounding reaches the band a constructed arc's
+    // branch was read
+    DecisionEnding {
+        name: "path_arc_branch_resolution",
+        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
     },
     // an authored sweep angle metered against zero
     DecisionEnding {
@@ -927,17 +939,29 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_arc_sweep_full",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
     },
+    // how far a constructed arc's start vertex lies off its stored carrier, read back at a point
+    // scalar
+    DecisionEnding {
+        name: "path_arc_start_on_carrier",
+        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
+    },
+    // how far below the magnitude at which its rounding reaches the band a constructed arc's
+    // start was read
+    DecisionEnding {
+        name: "path_arc_start_on_carrier_resolution",
+        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
+    },
     // how far a constructed Via arc's carrier lies off the through-point it was authored by,
     // read back at a point scalar
     DecisionEnding {
         name: "path_arc_through_point",
-        kind: EndingKind::Lever(crate::path::ARC_MISS_SCENE_RESOLUTION_RECOURSE),
+        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
     },
     // how far below the magnitude at which its rounding reaches the band a constructed Via
     // arc's through-point was read
     DecisionEnding {
         name: "path_arc_through_point_resolution",
-        kind: EndingKind::Lever(crate::path::ARC_MISS_SCENE_RESOLUTION_RECOURSE),
+        kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
     },
     // a via point's lateral offset from the chord it bulges
     DecisionEnding {
@@ -1164,12 +1188,20 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         }
         "path_arc_center_radius" => "whether an authored radius is zero",
         "path_arc_chord" => "whether an authored chord has any length",
+        "path_arc_branch" => "whether an arc the path built turns the way it was authored to",
+        "path_arc_branch_resolution" => {
+            "whether the scene can read an arc's branch at its magnitude"
+        }
         "path_arc_landing" => "whether an arc the path built lands on its end vertex",
         "path_arc_landing_resolution" => {
             "whether the scene can read an arc's landing on its end vertex at its magnitude"
         }
         "path_arc_sweep" => "whether an authored sweep angle is zero",
         "path_arc_sweep_full" => "whether an authored sweep is short of a full turn",
+        "path_arc_start_on_carrier" => "whether an arc the path built starts on its own carrier",
+        "path_arc_start_on_carrier_resolution" => {
+            "whether the scene can read an arc's start on its carrier at its magnitude"
+        }
         "path_arc_through_point" => {
             "whether an arc the path built passes through the point it was authored through"
         }

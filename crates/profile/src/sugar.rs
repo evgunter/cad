@@ -46,6 +46,15 @@ pub enum ArcSweep {
 }
 
 impl ArcSweep {
+    /// The other sense: the same arc traversed backwards.
+    #[must_use]
+    pub(crate) fn reversed(self) -> Self {
+        match self {
+            Self::Ccw => Self::Cw,
+            Self::Cw => Self::Ccw,
+        }
+    }
+
     /// The sense as the literal ±1: `+1` counterclockwise, `−1`
     /// clockwise.
     pub(crate) fn sign<T: Real>(self) -> T {
