@@ -131,6 +131,15 @@ change.
   swap-identical. Example: a box sunk flush in a block gets a
   kept-beside-substituted cut on the block's top when the box is A,
   and the merge removes it. No reader sees the pieces.
+  - **Carve-out, curved coincident faces.** The merge does not join
+    curved faces, so the finished body keeps the junction where
+    operand A's coincident wall ends, and that moves with the swap:
+    coaxial rods over z 0..2 and z 1..3 ship the seam circle at z 2
+    with the lower rod as A and at z 1 swapped, identically on the
+    merge base. A discard's border along the junction moves with it,
+    and the other order's cap borders nothing, its circle lying inside
+    the kept wall where the result holds no vertex
+    (`sweep` `curved_coincident_fates::coaxial_rods_border_the_seam_circle_only_where_the_result_holds_it`).
 - **Rejected:** imprinting both copies at the glue door. The glue door
   knows no vertices, so it would need a second, two-dimensional
   intersection engine in carrier coordinates. Every extra cut it made

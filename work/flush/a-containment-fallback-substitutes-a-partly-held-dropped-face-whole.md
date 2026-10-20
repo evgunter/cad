@@ -41,3 +41,18 @@ drops whole shells, so its dropped clone is free to divide), or record
 the row as partial with the kept face's boundary, or write no row for a
 dropped face that is not wholly held and record why. Pin both witnesses
 beside `boolean_covered::a_containment_fallback_writes_each_row_from_the_face_its_result_holds`.
+
+## A second order difference: the fallback records no discards
+
+The section path records each discarded fragment with the kept faces it
+borders (`BooleanNaming::discards`); the containment fallback records
+none (`crates/topo/src/boolean/discard.rs`'s module docs). Where one
+operand order takes the fallback and the other the section path (a box
+sunk flush in a block, `block ∪ box` against `box ∪ block`; a hemisphere
+and a small brick on its base, `hemi ∪ brick` against `brick ∪ hemi`),
+the two results agree on the body and the substituted rows but not on
+the discards: one order has none. Both swap comparators exclude this
+explicitly, asserting the fallback side records no discard rather than
+comparing (`topo` `boolean_covered::assert_alike`, `sweep`
+`curved_coincident_fates::assert_alike`). A fix here would record the
+fallback's discards too, or say why a whole-shell path owes none.
