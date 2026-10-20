@@ -7,6 +7,7 @@ opened: 2026-10-18
 priority: P0
 cost: M
 refs: [transform-retires-into-a-placement, intent-stage3-is-built]
+parent: a-placement-pins-by-written-values-without-a-mate
 ---
 
 

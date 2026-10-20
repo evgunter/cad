@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-18
 priority: P3
 cost: M
-parent: transform-retires-into-a-placement
+parent: a-placement-pins-by-written-values-without-a-mate
 ---
 
 `mate::stand` (and `pin_at`, `place_at`) anchor a copy on a face whose geometry reads no variable, decided from the recipe by `Anchors::fixed` (`crates/editor-core/src/mate/anchor.rs`). An instance's faces are `InPart { of }` names, and what `of` reads is the part's recipe, which `Anchors` cannot see: an `Evaluation` keeps a part's product (`eval/parts.rs::PartValue`), not its document.

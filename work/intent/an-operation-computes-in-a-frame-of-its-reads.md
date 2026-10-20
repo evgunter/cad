@@ -5,10 +5,13 @@ title: D10 stage 3 PR E: an operation computes in a frame that is a function of 
 status: parked
 opened: 2026-10-09
 priority: P0
-cost: M
-blocked_on: [transform-retires-into-a-placement]
+cost: H
+blocked_on: [a-placement-pins-by-written-values-without-a-mate]
 refs: [intent-stage3-is-built, each-space-computes-in-its-earliest-members-frame]
+design: true
 ---
+
+**Spec:** `docs/INTENT-STAGE3-SPEC.md` §6, restated against D's head (`7bcc7f6b4c`); where this body and §6 differ, §6 governs. Cost H, design open: three questions (Q1 how a value holds its body and the frame it is computed in, shared with G; Q2 where a minted reference comes from when the inputs carry none; Q3 how the world's space is drawn without reading the world's map). E's core waits on D′ (`a-placement-pins-by-written-values-without-a-mate`), not D: it reads D′'s picks and rewrites `wire_place`, `Copies` and `product.rs` beside it. Its rider may land first, alone.
 
 INTENT stage 3, PR E. Spec: `docs/INTENT-STAGE3-SPEC.md` §6. Built on FORK-S3P (fork log row 95, PR 4324), which with FORK-S3O (row 96) supersedes "the kernel computes each space in the frame of its earliest member"; this row replaces `each-space-computes-in-its-earliest-members-frame`, closed for it.
 

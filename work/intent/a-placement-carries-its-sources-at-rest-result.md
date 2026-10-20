@@ -2,12 +2,15 @@
 id: a-placement-carries-its-sources-at-rest-result
 kind: unit
 title: A placement carries its source space's at-rest result (records and census findings) with its copies, at every placement
-status: open
+status: parked
 opened: 2026-10-19
 priority: P1
 cost: M
 refs: [each-space-runs-its-census-between-arrivals, a-part-drops-its-census-findings-at-the-seam]
+blocked_on: [a-placement-pins-by-written-values-without-a-mate]
 ---
+
+**Sequencing:** `docs/INTENT-STAGE3-SPEC.md` §12 ("The census per space and the carry"). Parked on D′: the carry rides a placement's value, which D′ rebuilds (`wire_place`, a source space, picks); it shares `product.rs`, `eval/wire.rs` `wire_place` and `eval/parts.rs` `PartValue` with D′ and with E's core.
 
 D10 `[placement.placement]` (PR 4666): a placement carries every pose of the source and "the source's at-rest decisions about those bodies, its contact records and its census's findings, which stay the source's".
 

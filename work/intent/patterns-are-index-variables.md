@@ -7,8 +7,11 @@ opened: 2026-10-08
 priority: P0
 cost: H
 refs: [interference-at-rest-is-a-finding, a-placement-is-the-bundle-of-mates, intent-stage3-is-built]
-blocked_on: [transform-retires-into-a-placement]
+blocked_on: [a-placement-pins-by-written-values-without-a-mate]
+design: true
 ---
+
+**Spec:** `docs/INTENT-STAGE3-SPEC.md` §8, restated against D's head (`7bcc7f6b4c`); where this body and §8 differ, §8 governs. FORK-DM4 is ruled and built (PRs 4527, 4674), so G no longer waits on it; it waits on D′ (`a-placement-pins-by-written-values-without-a-mate`), since a pattern's copies are a pick family of a D′ placement. Riders: `placed-union-places-and-fuses-in-one-node`, `explicit-placement-frames-hold-floats`, `a-map-over-a-patterns-bodies-asserts-once-per-member`. Design open: ring closure modulo a turn (§8 Q1, measure first) and how a copy's body is held (§6 Q1, shared with E). Below, the Sites' `placer_axis` no longer exists and `eval/stepped.rs` is `eval/wire/stepped.rs`; the Migration is a regeneration from each document's generator (DESIGN Band 4), not a conversion of stored frames.
 
 FORK-PAT (fork log row 99). Ev, 2026-10-08, on interference between a
 pattern's outputs: "for pattern interference, i am wondering if we

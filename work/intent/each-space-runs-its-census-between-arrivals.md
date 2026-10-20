@@ -2,12 +2,15 @@
 id: each-space-runs-its-census-between-arrivals
 kind: unit
 title: Each space runs its at-rest census between its arrivals; the graft supplies the arrivals and record_at_rest takes them
-status: open
+status: parked
 opened: 2026-10-19
 priority: P1
 cost: H
 refs: [a-census-contact-is-a-row-and-a-record, a-placement-carries-its-sources-at-rest-result]
+blocked_on: [a-placement-pins-by-written-values-without-a-mate, a-placement-carries-its-sources-at-rest-result]
 ---
+
+**Sequencing:** `docs/INTENT-STAGE3-SPEC.md` §12 ("The census per space and the carry"). Parked on D′ and on the carry: a finding names its cells by D′'s picks, "per space" reads D′'s spaces (D's head has `Space::{World, Loose}`, which D′ replaces), and the confirm-and-match arm is the carry's. Before G, it must treat each `Pattern`/`PlacedUnion` copy as its own arrival (a named interim G removes).
 
 D10 `[assertions]` (PR 4666, Ev 2026-10-19: "the second seems solidly better, yes"): each space's census examines its carried bodies; between two arrivals it decides and records; inside one it decides nothing and reads nothing. This unit lands a transitional check inside each arrival (confirm carried records, match carried findings, report anything else as that arrival's door's defect, typed); `the-in-arrival-census-check-retires` removes it. A finding is reported once, as the deciding space's. A space outside the product is checked too.
 

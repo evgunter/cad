@@ -7,6 +7,7 @@ opened: 2026-10-18
 priority: P0
 cost: M
 refs: [a-placement-relates-two-frames]
+parent: a-placement-pins-by-written-values-without-a-mate
 ---
 
 From row 162 (PR 5312). Ev, chat 2026-10-18: "a space is defined by a set of placements, and then provides a nice api to things downstream where the api doesn't say anything about how the geometry got there". The ratified sentence is "what reads it downstream reads the space's bodies, never a placement". But nothing represents a space's body today. A copy is an output of its placement, read by key (`CopyKey`, `BodyRead.key`, `crates/editor-core/src/operand.rs:502`; `copy_of`, `eval/wire.rs:2575`). Its names are re-minted under the placement node (`RoleSeg::Placed`, `names/role.rs:1579`; `name_placed*`, `names/emit.rs:919–1000`; `InPart`, `emit.rs:951`). Line numbers are stage 3 D's branch at bf45076901.

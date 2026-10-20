@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-17
 priority: P1
 cost: M
+parent: a-placement-pins-by-written-values-without-a-mate
 ---
 
 

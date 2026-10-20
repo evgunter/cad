@@ -5,9 +5,12 @@ title: A map over a pattern's Bodies states one assertion per member, and a map 
 status: open
 opened: 2026-10-08
 priority: P0
-design: true
 refs: [interference-at-rest-is-a-finding]
+cost: M
+rides_with: patterns-are-index-variables
 ---
+
+**Spec:** `docs/INTENT-STAGE3-SPEC.md` §8 ("Per-member assertions"). Build only (Ev on PR 5230 settled the design): rides with G, since it needs G's index. Stage 5 B (`interference-at-rest-is-a-finding`) has merged.
 
 Ev, 2026-10-08, on interference between a pattern's outputs: "we should
 have a map higher order function to allow declaring over all the

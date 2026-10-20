@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-16
 priority: P1
 refs: [a-placement-is-the-bundle-of-mates]
+parent: a-placement-pins-by-written-values-without-a-mate
 ---
 
 

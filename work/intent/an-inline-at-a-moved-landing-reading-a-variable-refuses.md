@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-18
 priority: P2
 cost: M
-parent: transform-retires-into-a-placement
+parent: a-placement-pins-by-written-values-without-a-mate
 ---
 
 

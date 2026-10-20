@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-11
 priority: P1
 refs: [a-mate-relates-two-poses]
+parent: a-placement-pins-by-written-values-without-a-mate
 ---
 
 

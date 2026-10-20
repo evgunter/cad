@@ -1,13 +1,17 @@
 ---
 id: a-placement-pins-by-written-values-without-a-mate
 kind: issue
-title: "A placement pins by written values without a mate: stage 3 D′, the placement pivot"
-status: open
+title: A placement pins by written values without a mate: stage 3 D′, the placement pivot
+status: parked
 opened: 2026-10-18
 priority: P0
 cost: H
 refs: [transform-retires-into-a-placement]
+design: true
+blocked_on: [transform-retires-into-a-placement]
 ---
+
+**Spec:** `docs/INTENT-STAGE3-SPEC.md` §5′, restated against D's head (`7bcc7f6b4c`) by symbol; where this body and §5′ differ, §5′ governs. It lists the seven interims D's head carries and what D′ makes of each, the order of work, the absorbed rows (each now `parent:` this item), and five open design questions (Q1 how the recipe names a placement's source and target space; Q2 how a value names its freedom beside a mate; Q3 what the viewer shows besides the world; Q4 what a placement helper takes from its caller; Q5 what inline makes of a moved landing), which go to designer pairs before dispatch. Parked on D (`transform-retires-into-a-placement`). E and G wait on this unit; so do `a-placement-carries-its-sources-at-rest-result` and `each-space-runs-its-census-between-arrivals` (spec §12, boundaries).
 
 Stage 3 D′, which follows D (`transform-retires-into-a-placement`); opened by the item `a-placement-relates-two-frames` (PR 5312). D10 `[placement]` was restated by PR 5312 (fork-log row 162; Ev approved). The clauses this builds:
 - `[placement.spaces]`: "Only a placement relates two spaces". A space is a construction's coordinates or the world, and spaces form a DAG.

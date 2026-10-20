@@ -4,6 +4,7 @@ kind: issue
 title: Inline refuses every part placed by the place gesture once its instance stands off the identity (ValueOnAMovedWorld)
 status: open
 opened: 2026-10-18
+parent: a-placement-pins-by-written-values-without-a-mate
 ---
 
 

@@ -7,7 +7,10 @@ opened: 2026-10-08
 rides_with: an-operation-computes-in-a-frame-of-its-reads
 priority: P0
 cost: M
+design: true
 ---
+
+**Spec:** `docs/INTENT-STAGE3-SPEC.md` §6 ("Minted reference directions"). The three sites below are not all: `orthonormal_basis` also reaches output carriers' `u_ref` in topo's boolean emitters (`join.rs`, `boxes.rs`, and others §6 lists), and the PR classifies every caller. Its ground (topo, sweep, geom-brep, mesh, step-import) is disjoint from D′ and G, so it may be dispatched now, alone, ahead of E; §6 Q2 (where a minted reference comes from when the inputs carry none) is the design question on it.
 
 
 `Vec3::orthonormal_basis` (`crates/geom-core/src/linalg/vec.rs:640`,
