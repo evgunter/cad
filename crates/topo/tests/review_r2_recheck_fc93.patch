@@ -1,0 +1,111 @@
+diff --git a/crates/topo/src/boolean/solid_contain.rs b/crates/topo/src/boolean/solid_contain.rs
+index b8d4213a50..79003807af 100644
+--- a/crates/topo/src/boolean/solid_contain.rs
++++ b/crates/topo/src/boolean/solid_contain.rs
+@@ -4776,10 +4776,10 @@ fn edge_meets<T: Decide>(
+         if !inside {
+             continue;
+         }
+-        let wedge = meets
++        let wedge = if std::env::var("EMR_NOWEDGE").is_ok() { None } else { meets
+             .met
+             .iter()
+-            .position(|w| [w.1, w.2].iter().any(|f| faces.contains(f)));
++            .position(|w| [w.1, w.2].iter().any(|f| faces.contains(f))) };
+         if let Some(k) = wedge {
+             let mark = gap.or(gaps[k]).map_or(Mark::Graze, Mark::Wedge);
+             meets.marks.push(RayHit::marked(faces, at, mark));
+@@ -5964,6 +5964,93 @@ mod per_solid_entry_tests {
+     /// their faces' planes it crosses at least `g` apart: it reads, or is
+     /// set aside, and never refuses on a pair (`bool_point_in_solid_order`
+     /// in band).
++    /// Review R2 re-check of fc93825299: a staircase. Box A's top-right
++    /// edge at `(1, 1)`, box B's bottom-left edge at `(1 + g, 1 + h)`,
++    /// faces `√(g² + h²)` apart (definite); a ray rising gently in `x`
++    /// passes between the two edges, leaving A's corner (count +1) and
++    /// entering B's (count −1), the passes `≈ g` apart along it.
++    #[test]
++    fn review_r2_a_staircase_of_two_corners() {
++        let tol = Tol::witness();
++        let band = Band::linear(tol).unwrap();
++        let b = tol.k() * tol.eps();
++        for (g, h) in [(0.3, 1.5), (0.5, 1.2), (0.2, 1.8), (0.8, 1.1)] {
++            for slope in [0.02, 0.05] {
++                let (g, h) = (g * b, h * b);
++                let mut body =
++                    quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
++                let mut other = Body::<f64>::new();
++                crate::test_support::cube_into(
++                    &mut other,
++                    move |x, y, z| Point3::new(1.0 + g + x, y, 1.0 + h + z),
++                    tol,
++                );
++                crate::instance::graft_disjoint(&mut body, &other).unwrap();
++                let sel =
++                    SolidFaces::select(&body, body.faces().map(|(k, _)| k).collect()).unwrap();
++                let geos: Vec<_> = sel
++                    .faces()
++                    .iter()
++                    .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
++                    .collect();
++                let d = Vec3::new(1.0, 0.05, slope).normalize();
++                // Through the midpoint between the two edges.
++                let mid = Point3::new(1.0 + 0.5 * g, 0.5, 1.0 + 0.5 * h);
++                let q = mid - d * 0.4;
++                let reach = selection_reach(&body, sel.faces(), q).unwrap();
++                let got = cast_ray(&body, &geos, q, d, reach, band);
++                eprintln!(
++                    "R2STAIR g={:.1}K h={:.1}K dist={:.2}K slope={slope} eps={:e}: {:?}",
++                    g / b,
++                    h / b,
++                    (g * g + h * h).sqrt() / b,
++                    tol.eps(),
++                    got.map_err(|e| format!("{e:?}").chars().take(150).collect::<String>())
++                );
++            }
++        }
++    }
++
++    /// Review R2 re-check: a shallow ray leaves a wall of one box and,
++    /// `L` further on, passes the top edge of a second box, whose top it
++    /// crosses obliquely: the top's carrier is crossed beside the wall,
++    /// though the two faces stand `L` apart.
++    #[test]
++    fn review_r2_an_oblique_carrier_crossing_beside_another_face() {
++        let tol = Tol::witness();
++        let band = Band::linear(tol).unwrap();
++        for m in [3.0, 5.0, 8.0] {
++            for slope in [0.05, 0.1, 0.15] {
++                let l = m * tol.k() * tol.eps();
++                let mut body =
++                    quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.5, tol);
++                let other = quad_prism(
++                    &[(1.0 + l, 0.0), (2.0 + l, 0.0), (2.0 + l, 1.0), (1.0 + l, 1.0)],
++                    1.0,
++                    tol,
++                );
++                crate::instance::graft_disjoint(&mut body, &other).unwrap();
++                let sel =
++                    SolidFaces::select(&body, body.faces().map(|(k, _)| k).collect()).unwrap();
++                let geos: Vec<_> = sel
++                    .faces()
++                    .iter()
++                    .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
++                    .collect();
++                let d = Vec3::new(1.0, 0.05, -slope).normalize();
++                // Through the wall's middle at the second box's top height.
++                let q = Point3::new(1.0, 0.5, 1.0 + 3.0 * tol.eps() * slope) - d * 0.3;
++                let reach = selection_reach(&body, sel.faces(), q).unwrap();
++                let got = cast_ray(&body, &geos, q, d, reach, band);
++                eprintln!(
++                    "R2OBL L={m}Kε slope={slope} eps={:e}: {:?}",
++                    tol.eps(),
++                    got.map_err(|e| format!("{e:?}").chars().take(140).collect::<String>())
++                );
++            }
++        }
++    }
++
+     #[test]
+     fn two_edges_of_faces_definite_apart_are_no_pair() {
+         let tol = Tol::witness();
