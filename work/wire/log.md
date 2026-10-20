@@ -6797,3 +6797,11 @@ Signed (WIRE orchestrator).
   - Two rewordings forced by moved code: the bounds-allowlist pin goes 1→5, plus the real.rs SEAT-4 and the READMEs.
   - Four rows filed.
   - FULL review dispatched; it presses input-reachability per panic and the five-copy header.
+
+- 2026-10-20 (WIRE orchestrator) PR 5460 STYLE review at 93d1cf0c37: mergeable once M1 is fixed.
+  - Demonstrated: planted leaks red tests 1 and 3, and the admissions red both ways.
+  - M1, demonstrated: many cases are vacuous (both sides empty or refusing). Fix with a must-compare assertion and a VACUOUS admission.
+  - m1: the hand set-sort copies canonical.rs partially; use production canonicalisation.
+  - m2: per-witness admissions. m3: tilt refusals were skipped. m4: the copy row's remedy conflicts with N0. m5: wrong row cited. m6: add an OrderAlong case. m7: the arena row. m8: test 5 is a subset of 7.
+  - Fix pass sent.
+  - Class note: an invariance test over a corpus that mostly refuses or is empty passes by comparing nothing. Assert that each case compared something.
