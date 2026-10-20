@@ -1991,9 +1991,9 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 resolution,
             } => write!(
                 f,
-                "{piece} ({verb}) built an arc {miss} m off {what} ({x}, {y}), read at a \
-                 magnitude of {scale} m that resolves to about {resolution} m \
-                 ('{predicate}'). {KERNEL_DEFECT_ENDING}",
+                "{piece} ({verb}) built an arc {miss} m off {what} ({x}, {y}), clear of the \
+                 {resolution} m its read rounds to at {scale} m ('{predicate}'). \
+                 {KERNEL_DEFECT_ENDING}",
                 what = authored_point_name(predicate),
                 x = num(&point.x),
                 y = num(&point.y),
@@ -2011,10 +2011,9 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 resolution,
             } => write!(
                 f,
-                "{piece} ({verb}) built an arc {miss} m off {what} ({x}, {y}), read at a \
-                 magnitude of {scale} m that resolves only to about {resolution} m \
-                 ('{predicate}'): the scene cannot tell this miss from its own rounding. \
-                 Recourse: {ARC_SCENE_RESOLUTION_RECOURSE}",
+                "{piece} ({verb}) built an arc {miss} m off {what} ({x}, {y}), within the \
+                 {resolution} m its read rounds to at {scale} m ('{predicate}'). Recourse: \
+                 {ARC_SCENE_RESOLUTION_RECOURSE}",
                 what = authored_point_name(predicate),
                 x = num(&point.x),
                 y = num(&point.y),
@@ -4606,10 +4605,7 @@ fn authored_point_name(predicate: &str) -> &'static str {
     match predicate {
         seg::START_READ => "its start vertex",
         seg::THROUGH_POINT_READ => "the through-point it was authored by",
-        seg::BRANCH_READ => {
-            "the turn it was authored to (it built the other arc between the same ends, \
-             through the point that fixes the turn)"
-        }
+        seg::BRANCH_READ => "the turn it was authored to, at",
         _ => "its end vertex",
     }
 }

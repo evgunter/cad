@@ -103,7 +103,7 @@ const KERNEL_KEYED: &[&str] = &[
 /// under it with the ceiling standing, is red.
 const OVER_BUDGET: &[(&str, usize)] = &[
     // work/paths/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
-    ("Profile/ArcBelowSceneResolution", 117),
+    ("Profile/ArcBelowSceneResolution", 91),
     // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/ResultEscalated", 90),
 ];
