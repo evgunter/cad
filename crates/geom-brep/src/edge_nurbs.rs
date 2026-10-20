@@ -176,8 +176,8 @@ pub enum PlaneNurbsRefusal {
         /// door's words on it.
         margin: MarginDiag,
     },
-    /// The uniqueness tube's transversality is not certified clear of
-    /// the zero band — a genuine sliver of the operand pair along the
+    /// The uniqueness tube's lower bound on the crossing angle is not
+    /// clear of the zero band — a genuine sliver of the operand pair along the
     /// locus at this tolerance (F6: escalate, never guess).
     TubeStraddles {
         /// The verdict on the transversality enclosure's **certified
@@ -205,8 +205,9 @@ pub enum PlaneNurbsRefusal {
         /// What the narrowest of them found.
         cause: OneArcRefusal,
     },
-    /// The per-sample transversality margin escalated: the same
-    /// decision as [`NotTransverse`](Self::NotTransverse), undecided.
+    /// The crossing angle at an interior sample escalated: the same
+    /// decision as [`NotTransverse`](Self::NotTransverse), undecided, and
+    /// told in certification's sentence for it.
     TransversalityEscalated {
         /// The interior sample index.
         sample: u32,
@@ -435,15 +436,13 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 },
                 f,
             ),
-            Self::TransversalityEscalated { sample, cause } => write!(
+            Self::TransversalityEscalated { sample, cause } => core::fmt::Display::fmt(
+                &crate::certify::CertifyError::Escalated {
+                    check: CertCheck::Transversality,
+                    sample: *sample,
+                    cause: *cause,
+                },
                 f,
-                concat!(
-                    "whether the plane and the NURBS wall cross at interior sample {}",
-                    geom_core::undecided!(),
-                    ": {}"
-                ),
-                sample,
-                cause.payload()
             ),
             Self::PcurveFit => write!(f, "{PCURVE_FIT_REFUSAL}. {KERNEL_OR_FILE_DEFECT_ENDING}"),
             Self::CarrierDomain(refusal) => write!(f, "{refusal}"),
@@ -497,10 +496,10 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             },
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
-                "the uniqueness tube's transversality is not certified clear of the zero band \
-                 over {boxes} boxes of the chain — a sliver of the surface pair along the \
-                 locus at this tolerance; the certificate's proven clearance from zero is {:e} \
-                 m, which is the bound it could prove and not the sliver's own extent",
+                "{} is not clear of the zero band over {boxes} boxes of the chain — a sliver of \
+                 the surface pair along the locus at this tolerance; the bound reads {:e} m, \
+                 which is what the certificate could prove and not the sliver's own extent",
+                crate::certify::TUBE_CROSSING_BOUND,
                 verdict.margin()
             ),
             Self::Escalated { limb, cause } => {
@@ -1518,8 +1517,8 @@ pub enum AnalyticRung3Refusal {
         /// The operand.
         operand: geom::SurfaceKind,
     },
-    /// The uniqueness tube's transversality is not certified clear of
-    /// the zero band — a sliver of the pair along the carrier at this
+    /// The uniqueness tube's lower bound on the crossing angle is not
+    /// clear of the zero band — a sliver of the pair along the carrier at this
     /// tolerance ([`PlaneNurbsRefusal::TubeStraddles`] reads the same
     /// verdict).
     TubeStraddles {
@@ -1680,11 +1679,11 @@ impl core::fmt::Display for AnalyticRung3Refusal {
             ),
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
-                "the uniqueness tube's transversality is not certified clear of the zero band \
-                 over {boxes} boxes of the chain — it straddles zero, from a near-tangency of \
-                 the two surfaces along the carrier or from the enclosure's slack; the \
-                 certificate's proven clearance from zero is {:e} m, which is the bound it could \
-                 prove",
+                "{} is not clear of the zero band over {boxes} boxes of the chain — the \
+                 crossing angle's enclosure straddles zero, from a near-tangency of the two surfaces along the carrier or \
+                 from the enclosure's slack; the bound reads {:e} m, which is what the \
+                 certificate could prove",
+                crate::certify::TUBE_CROSSING_BOUND,
                 verdict.margin()
             ),
             Self::TubeNotOneArc { rungs, cause } => write!(

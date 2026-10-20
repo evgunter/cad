@@ -110,7 +110,7 @@ pub enum CertCheck {
     /// [`CertifyError::SpanMeterCollapsed`].
     ParamSpanMeter,
     /// A periodic carrier's stored interval leaves headroom to one full
-    /// period — named on escalations of that decision; its definite
+    /// turn — named on escalations of that decision; its definite
     /// failure is [`CertifyError::WindingExceeded`], which every public
     /// door reports as its input's [`CertifyError::StatedInterval`].
     ParamWinding,
@@ -144,9 +144,9 @@ pub enum CertCheck {
     /// samples alone cannot see (every point of the wrong arc also
     /// lies on both surfaces).
     WitnessMidpoint,
-    /// Intersection: the transversality margin at an interior sample
-    /// (the dihedral displacement margin — must be definitely
-    /// transverse).
+    /// Intersection: the crossing angle at an interior sample, levered
+    /// to the dihedral displacement margin — must be definitely
+    /// transverse.
     Transversality,
     /// Intersection, rung 3: the uniqueness tube's certified clearance
     /// of the operands' transversality from zero over its box chain — a
@@ -180,7 +180,7 @@ pub enum CertCheck {
     /// two implicit gradients' alignment) — the touch itself, a fact
     /// about the pair rather than the carrier (C7).
     TangentGap,
-    /// TangentIntersection: the second-order margin at an interior
+    /// TangentIntersection: the curvature difference at an interior
     /// sample — the relative transverse normal curvature `|κ_rel|`
     /// metered as the displacement it induces at the folded lever arm
     /// (D4 ¶1), which must be definitely positive (the jet system's
@@ -271,12 +271,8 @@ pub enum CertCheck {
 /// **Each word is the phrase a person would write, not the variant
 /// identifier**, and the sentence around it is what decides that. Every
 /// other arm of [`CertifyError`]'s `Display` is English prose about the
-/// geometry, and one of them names a member of this very taxonomy in
-/// prose — "the tangency's second-order margin (relative transverse
-/// normal curvature, tangent_second_order)", which is
-/// [`CertCheck::TangentSecondOrder`] — so a CamelCase identifier
-/// standing in the neighbouring sentence is the odd spelling, not the
-/// house one. These rows are also not doors anyone calls: a reader told
+/// geometry, so a CamelCase identifier standing in the neighbouring
+/// sentence is the odd spelling, not the house one. These rows are also not doors anyone calls: a reader told
 /// `EndpointStart` has nothing to reach for with that word, which is
 /// what makes an identifier the right rendering where the vocabulary
 /// names doors (`verbs`' `VerbKind` and `Arity`) and the wrong one
@@ -290,31 +286,52 @@ pub enum CertCheck {
 /// [`CertCheck::TangentHull`]) and [`CertCheck::TangentParallel`] a
 /// parallelism defect. A noun owned by the sentence is a noun the
 /// sentence cannot get right for every check that reaches it.
+///
+/// **A sized decision is told in one noun.** Its word is the noun its
+/// definite refusals tell their margin of, read from one home both
+/// spellings share, and the size its ending names is that noun's head:
+/// the undecided arm renders through the word, so a word in another noun
+/// would name one decision two ways.
 impl core::fmt::Display for CertCheck {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // The surface rides the typed field, not the words: a refusal
-        // names what it is about without an arena key.
+        // names what it is about without an arena key. A span decision's
+        // noun is its size ([`SpanDecision::size`]).
         f.write_str(match self {
             Self::SurfaceResidual { .. } => "the residual against one of the edge's surfaces",
             Self::WitnessSurfaceResidual { .. } => {
                 "the witness point's residual against one of the edge's surfaces"
             }
-            Self::ParamSpan => "the stored interval's span",
-            Self::ParamSpanMeter => "the spline carrier's metered length",
-            Self::ParamWinding => "the stored interval's headroom to one full period",
-            Self::ImageSpan => "the span of the edge's image on its wall's chart",
+            Self::ParamSpan => {
+                return write!(f, "{STORED_INTERVAL}'s {}", SpanDecision::Forward.size());
+            }
+            Self::ParamWinding => {
+                return write!(
+                    f,
+                    "{STORED_INTERVAL}'s {} to {FULL_TURN}",
+                    SpanDecision::Winding.size()
+                );
+            }
+            Self::ImageSpan => {
+                return write!(
+                    f,
+                    "the {} of the edge's image on its wall's chart",
+                    SpanDecision::Forward.size()
+                );
+            }
+            Self::ParamSpanMeter => SPAN_METER,
             Self::EndpointStart => "the start-endpoint residual",
             Self::EndpointEnd => "the end-endpoint residual",
             Self::WitnessMidpoint => "the witness-midpoint residual",
-            Self::Transversality => "the transversality margin",
-            Self::TransversalityTube => "the uniqueness tube's transversality bound",
+            Self::Transversality => CROSSING_ANGLE,
+            Self::TransversalityTube => TUBE_CROSSING_BOUND,
             Self::TransversalityArm => crate::DIHEDRAL_ARM_NOUN,
             Self::TangentPlanes => "the surfaces' tangent planes",
             Self::TangentParallel => "the normal-parallelism defect",
             Self::TangentGap => "the surfaces' separation along their shared normal",
-            Self::TangentSecondOrder => "the second-order margin",
+            Self::TangentSecondOrder => CURVATURE_DIFFERENCE,
             Self::TangentHull => "the between-samples sag bound",
-            Self::TangentTube => "the second-order tube bound",
+            Self::TangentTube => TUBE_CURVATURE_BOUND,
             Self::MappedSource => "the mapped-source residual",
             Self::ChartImage => "the chart-image mint",
             Self::ChartResidual => "the unified conventional residual",
@@ -716,8 +733,8 @@ impl core::fmt::Display for CertifyError {
             }
             Self::SpanMeterCollapsed { verdict } => write!(
                 f,
-                "the spline carrier's knot domain, metered at its certified speed floor, is {} \
-                 zero (margin {} m), so the stored interval has no proven metre scale",
+                "{SPAN_METER} is {} zero (margin {} m), so the stored interval has no proven \
+                 metre scale",
                 verdict.worded("not shown above", "below"),
                 verdict.margin().readable()
             ),
@@ -774,28 +791,28 @@ impl core::fmt::Display for CertifyError {
             } => {
                 write!(
                     f,
-                    "at sample {sample} the faces {} cross (margin {} m",
+                    "at sample {sample} the faces {} cross (margin {} m of {CROSSING_ANGLE}",
                     verdict.worded("are not shown to", "do not"),
                     verdict.margin().readable()
                 )?;
                 if let Some(lever) = lever {
-                    write!(f, ", their angle levered by {lever}")?;
+                    write!(f, ", levered by {lever}")?;
                 }
                 write!(f, "), though the edge's description says they do")
             }
             Self::NotSecondOrderSeparated { sample, verdict } => write!(
                 f,
-                "at sample {sample} the faces {} curve apart at second order (margin {} m), so \
-                 they {} fix where the edge runs, though its description says they do",
+                "at sample {sample} the faces {} curve apart at second order (margin {} m of \
+                 {CURVATURE_DIFFERENCE}), so they {} fix where the edge runs, though its \
+                 description says they do",
                 verdict.worded("are not shown to", "do not"),
                 verdict.margin().readable(),
                 verdict.worded("might not", "cannot")
             ),
             Self::TubeNotSeparated { verdict } => write!(
                 f,
-                "along the whole edge the certified lower bound on how far the faces curve apart \
-                 is {} zero (margin {} m), so they are not proved to fix where it runs, though \
-                 its description says they do",
+                "along the whole edge {TUBE_CURVATURE_BOUND} is {} zero (margin {} m), so the \
+                 faces are not proved to fix where it runs, though its description says they do",
                 verdict.worded("not shown above", "below"),
                 verdict.margin().readable()
             ),
@@ -1076,6 +1093,32 @@ const STORED_INTERVAL: &str = "the stored parameter interval";
 /// ([`StatedSpan`]'s `Display`).
 const GIVEN_INTERVAL: &str = "this edge's parameter interval";
 
+/// What [`SpanDecision::Winding`]'s headroom is short of.
+const FULL_TURN: &str = "one full turn of its carrier";
+
+/// The quantity [`CertCheck::ParamSpanMeter`] decides: its word, and the
+/// subject of [`CertifyError::SpanMeterCollapsed`].
+const SPAN_METER: &str = "the spline carrier's length metered at its certified speed floor";
+
+/// The quantity [`CertCheck::Transversality`] decides: its word, and the
+/// noun of its margin in [`CertifyError::NotTransverse`].
+const CROSSING_ANGLE: &str = "the crossing angle";
+
+/// The quantity [`CertCheck::TransversalityTube`] decides: its word, and
+/// the subject of each refusal of it (`TubeStraddles` at the plane ×
+/// NURBS lane, the analytic rung 3 and the SSI door).
+pub(crate) const TUBE_CROSSING_BOUND: &str =
+    "the uniqueness tube's lower bound on the crossing angle";
+
+/// The quantity [`CertCheck::TangentSecondOrder`] decides: its word, and
+/// the noun of its margin in [`CertifyError::NotSecondOrderSeparated`].
+const CURVATURE_DIFFERENCE: &str = "the curvature difference";
+
+/// The quantity [`CertCheck::TangentTube`] decides: its word, and the
+/// subject of [`CertifyError::TubeNotSeparated`].
+const TUBE_CURVATURE_BOUND: &str =
+    "the second-order tube's lower bound on the curvature difference";
+
 impl StatedSpan {
     /// **The span decisions' one sentence**, told of `given`: a door's
     /// input ([`GIVEN_INTERVAL`]) or the stored interval
@@ -1095,17 +1138,18 @@ impl StatedSpan {
                 };
                 write!(
                     f,
-                    "{given} is not shown to run forward (length {} m)",
+                    "{given} is not shown to run forward ({} {} m)",
+                    SpanDecision::Forward.size(),
                     length.readable()
                 )
             }
             Self::Winding(WindingReading::Exceeded) => {
-                write!(f, "{given} spans more than one full turn of its carrier")
+                write!(f, "{given} spans more than {FULL_TURN}")
             }
             Self::Winding(WindingReading::InBand(cause)) => write!(
                 f,
-                "{given} is not shown to stay within one full turn of its carrier (headroom {} \
-                 m)",
+                "{given} is not shown to stay within {FULL_TURN} ({} {} m)",
+                SpanDecision::Winding.size(),
                 cause.margin.readable()
             ),
         }
@@ -4476,7 +4520,9 @@ mod tests {
         }
         .to_string();
         assert!(
-            not_sampled.starts_with("the stored interval's span (not a sampled check) escalated: "),
+            not_sampled.starts_with(
+                "the stored parameter interval's length (not a sampled check) escalated: "
+            ),
             "the not-a-sample escalation reads {not_sampled:?}"
         );
         let sampled = CertifyError::Escalated {
@@ -4486,8 +4532,160 @@ mod tests {
         }
         .to_string();
         assert!(
-            sampled.starts_with("the transversality margin at sample 3 escalated: "),
+            sampled.starts_with("the crossing angle at sample 3 escalated: "),
             "the sampled escalation reads {sampled:?}"
+        );
+    }
+
+    /// **A sized decision is told in one noun**: its check's word, which
+    /// its undecided arm renders, the size its ending names, and each of
+    /// its definite payloads say the same quantity, at every door that
+    /// refuses it. Literals throughout, so a rewording of any one home
+    /// goes red here.
+    #[test]
+    fn each_decision_is_told_in_one_noun() {
+        use crate::edge_nurbs::{AnalyticRung3Refusal, PlaneNurbsRefusal};
+        use crate::ssi::{PointLever, SsiError};
+
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let zero = Refused::Zero(Classified {
+            margin: MarginDiag::value(0.0),
+            band,
+        });
+        let below = Refused::Negative {
+            margin: MarginDiag::value(-5e-9),
+        };
+        let cause = Indeterminate {
+            margin: MarginDiag::value(5e-9),
+            band,
+            predicate: Some("a_probe"),
+            terminal_sliver: false,
+        };
+        // (check, its word, its size, what the word and every payload
+        // say, the definite payloads)
+        let rows: [(CertCheck, &str, &str, &str, Vec<String>); 7] = [
+            (
+                CertCheck::ParamSpan,
+                "the stored parameter interval's length",
+                "length",
+                "length",
+                vec![CertifyError::IntervalNotForward { verdict: zero }.to_string()],
+            ),
+            (
+                CertCheck::ParamWinding,
+                "the stored parameter interval's headroom to one full turn of its carrier",
+                "headroom",
+                "one full turn of its carrier",
+                vec![CertifyError::WindingExceeded.to_string()],
+            ),
+            (
+                CertCheck::ParamSpanMeter,
+                "the spline carrier's length metered at its certified speed floor",
+                "length",
+                "the spline carrier's length metered at its certified speed floor",
+                vec![
+                    CertifyError::SpanMeterCollapsed { verdict: zero }.to_string(),
+                    CertifyError::SpanMeterCollapsed { verdict: below }.to_string(),
+                ],
+            ),
+            (
+                CertCheck::Transversality,
+                "the crossing angle",
+                "angle",
+                "the crossing angle",
+                vec![
+                    CertifyError::NotTransverse {
+                        sample: 4,
+                        lever: None,
+                        verdict: zero,
+                    }
+                    .to_string(),
+                    PlaneNurbsRefusal::NotTransverse {
+                        sample: 4,
+                        lever: PointLever::Extent,
+                        verdict: below,
+                    }
+                    .to_string(),
+                ],
+            ),
+            (
+                CertCheck::TransversalityTube,
+                "the uniqueness tube's lower bound on the crossing angle",
+                "angle",
+                "the uniqueness tube's lower bound on the crossing angle",
+                vec![
+                    PlaneNurbsRefusal::TubeStraddles {
+                        verdict: zero,
+                        boxes: 8,
+                    }
+                    .to_string(),
+                    AnalyticRung3Refusal::TubeStraddles {
+                        verdict: zero,
+                        boxes: 8,
+                    }
+                    .to_string(),
+                    SsiError::TubeStraddles {
+                        verdict: zero,
+                        boxes: 8,
+                    }
+                    .to_string(),
+                ],
+            ),
+            (
+                CertCheck::TangentSecondOrder,
+                "the curvature difference",
+                "curvature difference",
+                "the curvature difference",
+                vec![
+                    CertifyError::NotSecondOrderSeparated {
+                        sample: 4,
+                        verdict: zero,
+                    }
+                    .to_string(),
+                    CertifyError::NotSecondOrderSeparated {
+                        sample: 4,
+                        verdict: below,
+                    }
+                    .to_string(),
+                ],
+            ),
+            (
+                CertCheck::TangentTube,
+                "the second-order tube's lower bound on the curvature difference",
+                "curvature difference",
+                "the second-order tube's lower bound on the curvature difference",
+                vec![CertifyError::TubeNotSeparated { verdict: zero }.to_string()],
+            ),
+        ];
+        for (check, word, size, noun, payloads) in rows {
+            assert_eq!(check.to_string(), word, "{check:?}'s word");
+            let Ending::Sized(decision) = check.ending() else {
+                panic!("{check:?} is a sized decision")
+            };
+            assert_eq!(decision.size, size, "{check:?}'s size");
+            let escalated = CertifyError::Escalated {
+                check,
+                sample: 2,
+                cause,
+            }
+            .to_string();
+            assert!(
+                escalated.starts_with(&format!("{word} at sample 2 escalated: ")),
+                "{check:?}'s undecided arm reads {escalated:?}"
+            );
+            for payload in payloads {
+                assert!(
+                    payload.contains(noun),
+                    "{check:?}'s definite payload names {noun:?}: {payload:?}"
+                );
+            }
+        }
+        // The plane × NURBS lane's undecided crossing is certification's
+        // sentence, word for word.
+        assert_eq!(
+            PlaneNurbsRefusal::TransversalityEscalated { sample: 2, cause }.to_string(),
+            "the crossing angle at sample 2 escalated: margin 5e-9 lies inside the ambiguity \
+             band (1e-9, 1e-8)"
         );
     }
 
@@ -6838,7 +7036,7 @@ mod tests {
             (
                 undecided(CertCheck::ParamWinding, inside),
                 "Recourse: move the geometry so this arc stays clearly short of a full turn, or, \
-                 if this arc is intended, tighten the tolerance below 2e-10 m",
+                 if this headroom is intended, tighten the tolerance below 2e-10 m",
             ),
             (
                 undecided(CertCheck::Transversality, straddle),
@@ -6990,8 +7188,8 @@ mod tests {
                 cause: rejected,
             }
             .render(Reading::Build),
-            "the stored interval's span at sample 0 escalated: margin 2e-12 lies within the zero \
-             band (±1e-9). Recourse: move the geometry so this edge runs forward over a clear \
+            "the stored parameter interval's length at sample 0 escalated: margin 2e-12 lies \
+             within the zero band (±1e-9). Recourse: move the geometry so this edge runs forward over a clear \
              length; no tolerance a run admits decides this length",
             "the whole sentence, so a second statement of the floor goes red"
         );
@@ -7581,14 +7779,13 @@ mod tests {
             ),
             (
                 meter(zero(sized)),
-                "the spline carrier's knot domain, metered at its certified speed floor, is not \
-                 shown above zero (margin 5e-10 m), so the stored interval has no proven metre \
-                 scale",
+                "the spline carrier's length metered at its certified speed floor is not shown \
+                 above zero (margin 5e-10 m), so the stored interval has no proven metre scale",
             ),
             (
                 meter(below),
-                "the spline carrier's knot domain, metered at its certified speed floor, is below \
-                 zero (margin -5e-9 m), so the stored interval has no proven metre scale",
+                "the spline carrier's length metered at its certified speed floor is below zero \
+                 (margin -5e-9 m), so the stored interval has no proven metre scale",
             ),
             (
                 arm(zero(across)),
@@ -7607,46 +7804,48 @@ mod tests {
             ),
             (
                 crossing(None, zero(sized)),
-                "at sample 4 the faces are not shown to cross (margin 5e-10 m), though the edge's \
-                 description says they do",
+                "at sample 4 the faces are not shown to cross (margin 5e-10 m of the crossing \
+                 angle), though the edge's description says they do",
             ),
             (
                 crossing(extent, zero(sized)),
-                "at sample 4 the faces are not shown to cross (margin 5e-10 m, their angle \
-                 levered by the feature extent), though the edge's description says they do",
+                "at sample 4 the faces are not shown to cross (margin 5e-10 m of the crossing \
+                 angle, levered by the feature extent), though the edge's description says they \
+                 do",
             ),
             (
                 crossing(None, below),
-                "at sample 4 the faces do not cross (margin -5e-9 m), though the edge's \
-                 description says they do",
+                "at sample 4 the faces do not cross (margin -5e-9 m of the crossing angle), though \
+                 the edge's description says they do",
             ),
             (
                 crossing(extent, below),
-                "at sample 4 the faces do not cross (margin -5e-9 m, their angle levered by the \
-                 feature extent), though the edge's description says they do",
+                "at sample 4 the faces do not cross (margin -5e-9 m of the crossing angle, levered \
+                 by the feature extent), though the edge's description says they do",
             ),
             (
                 second(zero(sized)),
                 "at sample 4 the faces are not shown to curve apart at second order (margin \
-                 5e-10 m), so they might not fix where the edge runs, though its description \
-                 says they do",
+                 5e-10 m of the curvature difference), so they might not fix where the edge runs, \
+                 though its description says they do",
             ),
             (
                 second(below),
-                "at sample 4 the faces do not curve apart at second order (margin -5e-9 m), so \
-                 they cannot fix where the edge runs, though its description says they do",
+                "at sample 4 the faces do not curve apart at second order (margin -5e-9 m of the \
+                 curvature difference), so they cannot fix where the edge runs, though its \
+                 description says they do",
             ),
             (
                 tube(zero(sized)),
-                "along the whole edge the certified lower bound on how far the faces curve apart \
-                 is not shown above zero (margin 5e-10 m), so they are not proved to fix where it \
-                 runs, though its description says they do",
+                "along the whole edge the second-order tube's lower bound on the curvature \
+                 difference is not shown above zero (margin 5e-10 m), so the faces are not proved \
+                 to fix where it runs, though its description says they do",
             ),
             (
                 tube(below),
-                "along the whole edge the certified lower bound on how far the faces curve apart \
-                 is below zero (margin -5e-9 m), so they are not proved to fix where it runs, \
-                 though its description says they do",
+                "along the whole edge the second-order tube's lower bound on the curvature \
+                 difference is below zero (margin -5e-9 m), so the faces are not proved to fix \
+                 where it runs, though its description says they do",
             ),
         ];
         // No payload claims no size or names a cause its verdict did not

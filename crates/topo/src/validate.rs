@@ -12216,7 +12216,7 @@ mod tests {
                     cause: in_band,
                 }),
                 "Recourse: move the geometry so this arc stays clearly short of a full turn, or, \
-                 if this arc is intended, tighten the tolerance below 5e-10 m"
+                 if this headroom is intended, tighten the tolerance below 5e-10 m"
                     .to_owned(),
             ),
             (

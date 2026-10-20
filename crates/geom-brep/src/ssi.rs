@@ -1006,9 +1006,9 @@ impl core::fmt::Display for SsiError {
             ),
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
-                "ssi: over its {boxes}-box chain the uniqueness tube cannot certify the surfaces \
-                 crossing clear of the tolerance band (certified clearance {:e} m), so a second \
-                 branch may lie inside the tube",
+                "ssi: over its {boxes}-box chain {} is not clear of the tolerance band ({:e} m), \
+                 so a second branch may lie inside the tube",
+                crate::certify::TUBE_CROSSING_BOUND,
                 verdict.margin()
             ),
             Self::TubeNotOneArc { rungs, cause } => write!(

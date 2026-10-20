@@ -402,15 +402,25 @@ impl SpanDecision {
         }
     }
 
+    /// The quantity its margin measures: the size its ending names, and
+    /// the noun of its check's word and of its payloads.
+    #[must_use]
+    pub const fn size(self) -> &'static str {
+        match self {
+            Self::Forward => "length",
+            Self::Winding => "headroom",
+        }
+    }
+
     /// The decision, read with `side` as its refused side.
     pub(crate) const fn on(self, side: RefusedSide) -> SizedDecision {
-        let (size, passes) = match self {
-            Self::Forward => ("length", SizedPass::Positive),
-            Self::Winding => ("arc", SizedPass::NonNegative),
+        let passes = match self {
+            Self::Forward => SizedPass::Positive,
+            Self::Winding => SizedPass::NonNegative,
         };
         SizedDecision {
             lever: self.lever(),
-            size,
+            size: self.size(),
             passes,
             side,
             no_size: None,
