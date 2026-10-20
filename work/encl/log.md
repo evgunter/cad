@@ -1753,3 +1753,14 @@ coincidence is now a margined verdict (no declarations), checked by the
     - `OffsetFitError::Structure` may collapse knots by rounding; it needs a proof before any panic.
   - **Not yet classified.** About 25 sites reach the ending through helpers, and 18 spell "(kernel bug)" in prose.
   (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5476**. It closes `offset-fit-and-patch-bound-kernel-defect-endings-split-by-class`, the first child of the census.
+  - **Input reaches it, so it takes the narrow-span lever.** `PatchBoundError::RefinementFailed`, `DerivedKnots`, and `OffsetFitError::Fit(TooFewPoints | ParamCountMismatch)` all end "widen the face's narrow knot spans, or move its parameter range nearer zero". The vocabulary is `NARROW_SPAN` / `NARROW_SPAN_RECOURSE` in `geom_brep::recourse`.
+  - **Only a kernel bug reaches it, so it panics.** `QuotientRefused` is removed, and its two sites are `unreachable!`. The two base-vector `DerivedKnots` raisers in `Composite::build` sit behind the crease gate.
+  - **Unproven, so it stays typed with `KERNEL_LIMIT_RECOURSE`.** `Structure`, the other `Fit` arms, and `MintLimb`. They are scheduled on `offset-fit-unproven-refusals-end-in-the-last-resort`.
+  - **Review.** No MAJOR findings. Two MINORs were fixed: `ParamCountMismatch` from the seed is reachable, and the "merge" lever was wrong.
+  - **Filed.**
+    - nurbs: `equal-split-points-insert-a-value-twice-on-a-narrow-span`
+    - encl: `narrow-span-refusals-do-not-say-which-span`
+    - encl: `offset-fit-unproven-refusals-end-in-the-last-resort`
+  - **Gate.** It waited on main's 1e-12 needle red, which NURBS fixed in PR 5477; I merged main in, then the gate went green.
+  (ENCL orchestrator)

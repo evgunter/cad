@@ -24,6 +24,21 @@ use crate::{Real, Vec3};
 /// relative error bound of one correctly rounded operation.
 pub const UNIT_ROUNDOFF: f64 = f64::EPSILON * 0.5;
 
+/// How many half-ulps of a term bound a short evaluation chain is
+/// charged ([`rounding_charge`]): a chain from the inputs — a
+/// difference, a squared norm, a product, a sum of a few terms — whose
+/// every rounding is half an ulp of a quantity the term bound dominates;
+/// sixteen is that chain's count with room. A ROUNDING estimate, the `f64` lane's contract, not an
+/// enclosure: the `Interval` lane carries its own.
+pub const SHORT_CHAIN_ULPS: f64 = 16.0;
+
+/// The rounding charged against a term bound `terms`:
+/// [`SHORT_CHAIN_ULPS`] half-ulps of it.
+#[must_use]
+pub fn rounding_charge<T: Real>(terms: T) -> T {
+    T::from_f64(SHORT_CHAIN_ULPS * f64::EPSILON * 0.5) * terms
+}
+
 /// A value and a first-order bound on its accumulated rounding (module
 /// docs).
 #[derive(Debug, Clone, Copy)]

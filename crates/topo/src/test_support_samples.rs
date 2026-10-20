@@ -731,6 +731,10 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             half_edge,
             cause: diag(),
         },
+        PcurveMintError::NetStretchUndecided {
+            half_edge,
+            cause: diag(),
+        },
     ];
     v.extend(band_errors().into_iter().map(PcurveMintError::Band));
     v.extend(
@@ -1666,6 +1670,25 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 a,
                 b,
                 what: why.what(),
+            },
+        ));
+    }
+    s.push((
+        "FaceThroughEdgeWedge".to_owned(),
+        ValidationError::FaceThroughEdgeWedge {
+            edge: EdgeKey::default(),
+            face,
+            witness: "(0.0, 0.0, 0.0)".to_owned(),
+        },
+    ));
+    for why in crate::census::TouchUnread::iter() {
+        s.push((
+            format!("FaceThroughEdgeWedgeUndecided/{why:?}"),
+            ValidationError::FaceThroughEdgeWedgeUndecided {
+                edge: EdgeKey::default(),
+                face,
+                witness: "(0.0, 0.0, 0.0)".to_owned(),
+                why,
             },
         ));
     }

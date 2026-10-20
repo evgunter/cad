@@ -122,8 +122,8 @@ its step's minted id and its role in that step's fixed list
 (`crates/editor-core/src/names/README.md`, "N1, the profile pieces") —
 which the replay records per segment (`ReplayStructure::pieces`), so no
 value edit, loop-role change or sense flip moves a name.
-`eval/anchor.rs` recovers each loop's reversal as a `LoopAnchor` by
-bit-matching the canonical loop against the replayed one, and pairs each
+`eval/anchor.rs` reads each loop's reversal as a `LoopAnchor` off the f64
+validation's own record (`CanonicalStructure`), and pairs each
 canonical segment and vertex with its piece (`ProfilePieces`). A step
 `SetProgram` drops takes its id with it, and its names resolve Vanished.
 
