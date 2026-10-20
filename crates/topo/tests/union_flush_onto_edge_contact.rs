@@ -622,13 +622,7 @@ fn clip(subject: &[(f64, f64)], window: &[(f64, f64)]) -> Vec<(f64, f64)> {
 /// the unions where `union_overlaps`, which refuse their overlapping
 /// wedges ([`every_op_builds`]). A nonzero `shear` leans the cutter by
 /// that much per unit of height ([`sheared`]).
-fn crossings_at_one_corner(
-    spans: &[(f64, f64)],
-    cutter: (f64, f64),
-    shear: (f64, f64),
-    union_overlaps: bool,
-    tol: Tol,
-) {
+fn crossings_at_one_corner(spans: &[(f64, f64)], cutter: (f64, f64), shear: (f64, f64), tol: Tol) {
     let fold = |acc: &BooleanBody<f64>, next: &AtRestBody<f64>| {
         let decls = BooleanInputs {
             records_a: carried_rows(&acc.contacts),
@@ -677,7 +671,7 @@ fn crossings_at_one_corner(
         &carried_rows(&pinch.contacts),
         &cutter_body,
         [
-            (!union_overlaps).then_some(pinch_volume + cutter_volume - common),
+            Some(pinch_volume + cutter_volume - common),
             Some(pinch_volume - common),
             Some(common),
         ],
@@ -701,7 +695,6 @@ fn three_crossings_at_one_corner_build_in_every_op() {
         &[(0.0, 60.0), (90.0, 120.0), (150.0, 210.0)],
         (50.0, 160.0),
         (0.0, 0.0),
-        false,
         Tol::witness(),
     );
 }
@@ -720,7 +713,6 @@ fn four_crossings_at_one_corner_build_in_every_op() {
         &[(0.0, 30.0), (60.0, 80.0), (100.0, 120.0), (150.0, 200.0)],
         (20.0, 160.0),
         (0.0, 0.0),
-        false,
         Tol::witness(),
     );
 }
@@ -923,11 +915,11 @@ fn swept_common(tri: &[(f64, f64)], shear: (f64, f64), window: &[(f64, f64)]) ->
 /// at the volume a polygon clip of the sheared triangle against each
 /// brick's square gives, and passes 3′ with the pinch's records
 /// carried. Red as the first row: the tied cuts each read as held, and
-/// all six refuse `SharedVertexCrossings`.
-/// Both unions and `cutter ∖ pinch` refuse `LineWedges` instead: they
-/// carry the pinch line below `z = 1` as two edges of 260° and 190°
-/// (170° and 100° in the difference), overlapping, which every tier
-/// passed.
+/// all six refuse `SharedVertexCrossings`. Red in both unions and
+/// `cutter ∖ pinch` if the output stage does not merge the sliver of no
+/// area the join leaves on the pinch line below `z = 1`: the result
+/// carries the line as two edges, overlapping, and refuses
+/// `LineWedges`.
 #[test]
 fn a_pinch_line_flat_in_the_shared_corners_face_builds_in_every_op() {
     let tol = Tol::witness();
@@ -940,12 +932,17 @@ fn a_pinch_line_flat_in_the_shared_corners_face_builds_in_every_op() {
         [(-1.0, -1.0), (0.0, -1.0), (0.0, 0.0), (-1.0, 0.0)],
     ];
     let common: f64 = squares.iter().map(|q| swept_common(&tri, shear, q)).sum();
+    let cutter = area(&tri) * 0.5;
     every_op_builds(
         &pinch.body,
         &carried,
         &sheared_wedge(shear, tol),
-        [None, Some(2.0 - common), Some(common)],
-        None,
+        [
+            Some(2.0 + cutter - common),
+            Some(2.0 - common),
+            Some(common),
+        ],
+        Some(cutter - common),
         tol,
     );
 }
@@ -958,10 +955,10 @@ fn a_pinch_line_flat_in_the_shared_corners_face_builds_in_every_op() {
 /// prism's bottom corner. Each op, in both operand orders, builds at
 /// the volume a polygon clip of the sheared triangle against each
 /// wedge's gives, and passes 3′ with the pinch's records carried. Red
-/// as the two-piece tie.
-/// Both unions and `cutter ∖ pinch` refuse `LineWedges` instead: two
-/// edges of 230° and 190° (170°, 100° and 330° in the difference),
-/// overlapping, which every tier passed.
+/// as the two-piece tie, and in both unions if the output stage does not
+/// merge the sliver of no area the join leaves on the pinch line.
+/// `cutter ∖ pinch` refuses `LineWedges` instead: edges of 170°, 100°
+/// and 330°, overlapping, which every tier passed.
 #[test]
 fn three_pieces_two_of_whose_cuts_tie_build_in_every_op() {
     let (c, s) = (50f64.to_radians().cos(), 50f64.to_radians().sin());
@@ -969,7 +966,6 @@ fn three_pieces_two_of_whose_cuts_tie_build_in_every_op() {
         &[(0.0, 60.0), (90.0, 120.0), (150.0, 240.0)],
         (50.0, 160.0),
         (-0.5 * c, -0.5 * s),
-        true,
         Tol::witness(),
     );
 }
@@ -1285,10 +1281,10 @@ fn the_cube(tol: Tol) -> AtRestBody<f64> {
 /// `SharedVertexCrossings`. Red with the notch from −20° to 220° if a
 /// dangling null edge splices by the germ its run leaves from rather
 /// than its lower germ: both leave from the line, and all six refuse
-/// the anchor's invariant.
-/// Both unions and `prism ∖ pinch` refuse `LineWedges` instead: two
-/// edges of 225° each (135° each in the difference), overlapping, which
-/// every tier passed.
+/// the anchor's invariant. Red in both unions and `prism ∖ pinch` if
+/// the output stage does not merge the sliver of no area the join
+/// leaves on the pinch line: two edges of 225° each (135° each in the
+/// difference), overlapping, and `LineWedges`.
 #[test]
 fn two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op() {
     for notch in [(-40.0, 200.0), (-20.0, 220.0)] {
@@ -1380,19 +1376,6 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
         ]
     }) {
         let op = format!("{op} (notch {notch:?})");
-        if op.starts_with("prism ∖ pinch") || op.contains('∪') {
-            assert!(
-                matches!(
-                    got,
-                    Err(BooleanError::LineWedges {
-                        fault: topo::LineWedgeFault::Overlap { .. },
-                        ..
-                    })
-                ),
-                "{op}: {got:?}, not the overlap's refusal"
-            );
-            continue;
-        }
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
@@ -1693,9 +1676,14 @@ fn lens_prisms(
 /// run inside it that hangs at its tip. `y` is built in both orders of
 /// its union, and every op, in both operand orders, builds at the
 /// volume clipping each prism to each box gives, and passes 3′ with
-/// `y`'s records carried, but those that refuse
+/// `y`'s records carried, but, where `overlapping`, those that refuse
 /// ([`lens_against_the_cube`]).
-fn lens_in_a_lens(outer: [[[f64; 3]; 3]; 2], inner: ([[[f64; 3]; 3]; 2], f64), tol: Tol) {
+fn lens_in_a_lens(
+    outer: [[[f64; 3]; 3]; 2],
+    inner: ([[[f64; 3]; 3]; 2], f64),
+    overlapping: bool,
+    tol: Tol,
+) {
     let volumes = lens_volumes(outer, inner, None, None);
     for (order, y) in lens_ys(outer, inner, tol) {
         assert_eq!(
@@ -1703,7 +1691,7 @@ fn lens_in_a_lens(outer: [[[f64; 3]; 3]; 2], inner: ([[[f64; 3]; 3]; 2], f64), t
             2,
             "y = {order}: each piece's corner at the origin"
         );
-        lens_against_the_cube(&y, volumes, order, tol);
+        lens_against_the_cube(&y, volumes, overlapping, order, tol);
     }
 }
 
@@ -1846,13 +1834,15 @@ fn lens_volumes(
 
 /// A lens `y`, built in the `order` named, against the cube's corner:
 /// each op builds at its share of `[common, y]` ([`lens_volumes`]) and
-/// passes 3′ with `y`'s records carried, but `cube ∖ y` and both
-/// unions: `y`'s coincident struts lie inside the cube, and those
-/// results carry them as edges whose wedges overlap, which every tier
-/// passed, so the result gate refuses `BooleanError::LineWedges`.
+/// passes 3′ with `y`'s records carried, but, where `overlapping`,
+/// `cube ∖ y` and both unions: `y`'s coincident struts lie inside the
+/// cube, and those results carry them as edges whose wedges overlap,
+/// which every tier passed, so the result gate refuses
+/// `BooleanError::LineWedges`.
 fn lens_against_the_cube(
     y: &BooleanBody<f64>,
     [common, y_volume]: [f64; 2],
+    overlapping: bool,
     order: &str,
     tol: Tol,
 ) {
@@ -1862,7 +1852,7 @@ fn lens_against_the_cube(
         "y = {order}: volume {got}, want {y_volume}"
     );
     for (op, got) in against_the_cube(&y.body, &carried_rows(&y.contacts), tol) {
-        if matches!(op, "cube ∖ y" | "y ∪ cube" | "cube ∪ y") {
+        if overlapping && matches!(op, "cube ∖ y" | "y ∪ cube" | "cube ∪ y") {
             assert!(
                 matches!(
                     got,
@@ -1878,6 +1868,7 @@ fn lens_against_the_cube(
         let volume = match op {
             "y ∪ cube" | "cube ∪ y" => y_volume + 1.0 - common,
             "y ∖ cube" => y_volume - common,
+            "cube ∖ y" => 1.0 - common,
             _ => common,
         };
         let op = format!("{op} (y = {order})");
@@ -1934,12 +1925,18 @@ fn one_arc_inner() -> [[[f64; 3]; 3]; 2] {
 /// if the strut minted first holds: `y = lens ∪ cut` refuses the same
 /// way, and so does `cut ∪ lens` with its vertex pairs reversed
 /// ([`every_tied_strut_witness_holds_with_its_vertex_pairs_reversed`]).
-/// Both unions and `cube ∖ y` refuse `LineWedges` instead: two edges of
-/// 330.8° and 195.6° on each pinch line (164.4° and 29.2° in the
-/// difference), overlapping, which every tier passed.
+/// Red in both unions and `cube ∖ y` if the output stage does not merge
+/// the sliver of no area the join leaves on each pinch line: two edges
+/// of 330.8° and 195.6° there (164.4° and 29.2° in the difference),
+/// overlapping, and `LineWedges`.
 #[test]
 fn two_dangling_null_edges_with_one_segment_build_in_every_op() {
-    lens_in_a_lens(one_arc_outer(), (one_arc_inner(), 2.0), Tol::witness());
+    lens_in_a_lens(
+        one_arc_outer(),
+        (one_arc_inner(), 2.0),
+        false,
+        Tol::witness(),
+    );
 }
 
 /// **The one arc with the pinch lines ending inside the cube's face**:
@@ -1979,18 +1976,20 @@ fn two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face_build_in_ev
     let [(_, cut_first), (_, lens_first)] = lens_ys(one_arc_outer(), inner, tol);
     let plain = lens_volumes(one_arc_outer(), inner, None, None);
     for (order, y) in [("cut ∪ lens", &cut_first), ("lens ∪ cut", &lens_first)] {
-        lens_against_the_cube(y, plain, order, tol);
+        lens_against_the_cube(y, plain, true, order, tol);
     }
     let notched_y = notched(&cut_first, notch, None, tol);
     lens_against_the_cube(
         &notched_y,
         lens_volumes(one_arc_outer(), inner, Some(notch), None),
+        true,
         "cut ∪ notched lens",
         tol,
     );
     lens_against_the_cube(
         &notched(&cut_first, notch, Some(fill), tol),
         lens_volumes(one_arc_outer(), inner, Some(notch), Some(fill)),
+        true,
         "cut ∪ notched lens ∪ lens in the notch",
         tol,
     );
@@ -2048,6 +2047,7 @@ fn a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op() {
             lens_prisms((D1, [0.6, 1.0, 0.0]), ([0.8, 0.8, 0.15], [0.8, 0.8, -0.15])),
             0.5,
         ),
+        true,
         Tol::witness(),
     );
 }

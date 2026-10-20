@@ -964,6 +964,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let recorded = carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
     let OutputStage {
         merged,
+        slivers,
         edge_joins,
         killed_lineage,
     } = finish_output(
@@ -972,10 +973,16 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &declared_pairs,
         &seam_edges,
         &recorded,
+        &|b: &Body<T>| {
+            crate::census::collinear_overlaps(b, band)
+                .ok()
+                .map(|pairs| pairs.into_iter().map(|p| p.edges).collect())
+        },
         band,
         tol,
     )?;
-    let output = output_substitutions(&merged, &edge_joins)?;
+    seam_edges.retain(|e| !slivers.iter().any(|s| s.killed == *e));
+    let output = output_substitutions(&merged, &slivers, &edge_joins)?;
     // Curved results carry certified per-half-edge pcurves at rest
     // (M5 PR 9, the PR 6 contract): re-derive the whole cache set on
     // the finished body — the same pass the split lane runs. A planar
@@ -2063,6 +2070,7 @@ pub(super) fn merge_rows(
 /// [`BooleanError::LineageRow`] at the first row the list refuses.
 pub(super) fn output_substitutions(
     m: &crate::merge_faces::MergeCoplanarOutcome,
+    slivers: &[super::slit::Sliver],
     joins: &[super::EdgeJoin],
 ) -> Result<crate::lineage::Substitutions, BooleanError> {
     let mut rows = crate::lineage::Substitutions::new(crate::lineage::LineageRows::Substitutions);
@@ -2081,7 +2089,10 @@ pub(super) fn output_substitutions(
         .flatten()
         .map(move |dead| (dead, kept))
     });
-    merged.chain(joined).try_for_each(|row| rows.push(row))?;
+    merged
+        .chain(slivers.iter().flat_map(super::slit::Sliver::substitutions))
+        .chain(joined)
+        .try_for_each(|row| rows.push(row))?;
     Ok(rows)
 }
 
@@ -2561,10 +2572,13 @@ fn bound_holds<'t, 'b, T: Decide>(
 pub(super) struct OutputStage {
     /// The merge of coplanar faces.
     pub(super) merged: crate::merge_faces::MergeCoplanarOutcome,
+    /// The glued slits' slivers merged away
+    /// ([`super::slit::merge_glued_slits`]).
+    pub(super) slivers: Vec<super::slit::Sliver>,
     /// The joins, in the order made ([`BooleanNaming::edge_joins`]).
     pub(super) edge_joins: Vec<super::EdgeJoin>,
-    /// The parents of the edges the merge and the join killed
-    /// ([`BooleanNaming::killed_lineage`]).
+    /// The parents of the edges the merge, the slivers' merge and the
+    /// join killed ([`BooleanNaming::killed_lineage`]).
     pub(super) killed_lineage: BTreeMap<EdgeKey, EdgeKey>,
 }
 
@@ -2572,8 +2586,11 @@ pub(super) struct OutputStage {
 /// (`docs/DESIGN.md`, the merge stage): the merge of coplanar faces
 /// over the `declared` surface pairs (none where one operand is absent
 /// from the result), the re-description of the edges the op minted
-/// (`seam_edges`, plus the boundaries of groups the merge skipped), and
-/// the join ([`super::edge_join::join_stage`]), each writing its rows
+/// (`seam_edges`, plus the boundaries of groups the merge skipped), the
+/// merge of each glued slit's two edges across its sliver
+/// ([`super::slit::merge_glued_slits`], reading which edges lie on one
+/// line by `on_one_line`), and the join
+/// ([`super::edge_join::join_stage`]), each writing its rows
 /// into the op's one `desc`. The result then has maximal faces and
 /// maximal edges, and its records are carried over `desc` after.
 ///
@@ -2581,12 +2598,14 @@ pub(super) struct OutputStage {
 ///
 /// The merge's ([`BooleanError::Merge`]), the description's, or the
 /// join's.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     desc: &mut Descendants,
     declared: &[(SurfaceKey, SurfaceKey)],
     seam_edges: &[EdgeKey],
     recorded: &BTreeSet<VertexKey>,
+    on_one_line: super::slit::OnOneLine<'_, T>,
     band: Band,
     tol: Tol,
 ) -> Result<OutputStage, BooleanError> {
@@ -2618,6 +2637,15 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     );
     desc.absorb_merge(&merged)?;
     describe_minted_edges(body, seam_edges, &merged, band, tol)?;
+    let slivers = super::slit::merge_glued_slits(body, on_one_line, band, tol)?;
+    super::edge_join::record_killed_lineage(
+        &mut killed_lineage,
+        &split_from,
+        slivers.iter().map(|s| s.killed),
+    );
+    for row in slivers.iter().flat_map(super::slit::Sliver::substitutions) {
+        desc.substitute(row)?;
+    }
     let edge_joins = join_stage(
         body,
         desc,
@@ -2629,6 +2657,7 @@ pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
     )?;
     Ok(OutputStage {
         merged,
+        slivers,
         edge_joins,
         killed_lineage,
     })
@@ -7234,6 +7263,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 carried_vertices(&body, &ledger, views, &desc, [&discarded[0], &discarded[1]])?;
             let OutputStage {
                 merged,
+                slivers,
                 edge_joins,
                 killed_lineage,
             } = finish_output(
@@ -7242,10 +7272,15 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 &declared_pairs,
                 &[],
                 &recorded,
+                &|b: &Body<T>| {
+                    crate::census::collinear_overlaps(b, band)
+                        .ok()
+                        .map(|pairs| pairs.into_iter().map(|p| p.edges).collect())
+                },
                 band,
                 tol,
             )?;
-            let output = output_substitutions(&merged, &edge_joins)?;
+            let output = output_substitutions(&merged, &slivers, &edge_joins)?;
             crate::pcurves::mint_pcurves(&mut body, tol)
                 .map_err(|source| BooleanError::Pcurves { source })?;
             let (contacts, coincidences) = carry(
@@ -7368,10 +7403,24 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     )?;
     let OutputStage {
         merged,
+        slivers,
         edge_joins,
         killed_lineage,
-    } = finish_output(&mut body, &mut desc, &[], &[], &recorded, band, tol)?;
-    let output = output_substitutions(&merged, &edge_joins)?;
+    } = finish_output(
+        &mut body,
+        &mut desc,
+        &[],
+        &[],
+        &recorded,
+        &|b: &Body<T>| {
+            crate::census::collinear_overlaps(b, band)
+                .ok()
+                .map(|pairs| pairs.into_iter().map(|p| p.edges).collect())
+        },
+        band,
+        tol,
+    )?;
+    let output = output_substitutions(&merged, &slivers, &edge_joins)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
     let (contacts, coincidences) = carry(
@@ -7591,7 +7640,7 @@ mod tests {
             groups: vec![group(k1, vec![f]), group(k2, vec![k1])],
             ..MergeCoplanarOutcome::default()
         };
-        let rows = output_substitutions(&chained, &[]).expect("a chain is no cycle");
+        let rows = output_substitutions(&chained, &[], &[]).expect("a chain is no cycle");
         assert_eq!(
             refused_at(merge_rows(&chained, &rows).map(|_| ())),
             k1,
@@ -7603,7 +7652,7 @@ mod tests {
             ..MergeCoplanarOutcome::default()
         };
         assert_eq!(
-            refused_at(output_substitutions(&reversed, &[]).map(|_| ())),
+            refused_at(output_substitutions(&reversed, &[], &[]).map(|_| ())),
             k1,
             "F onto K1, which the first row retired"
         );
@@ -7612,7 +7661,7 @@ mod tests {
             groups: vec![group(k1, vec![f])],
             ..MergeCoplanarOutcome::default()
         };
-        let rows = output_substitutions(&sound, &[]).unwrap();
+        let rows = output_substitutions(&sound, &[], &[]).unwrap();
         assert_eq!(merge_rows(&sound, &rows).unwrap(), [(k1, vec![f])]);
     }
 
@@ -7656,7 +7705,7 @@ mod tests {
         let cycle = [join(u, e0, e1), join(v, e2, e0), join(w, e1, e2)];
         assert!(
             matches!(
-                output_substitutions(&merged, &cycle),
+                output_substitutions(&merged, &[], &cycle),
                 Err(BooleanError::LineageRow {
                     rows: LineageRows::Substitutions,
                     defect: RowDefect::NamesRetired,
@@ -7668,7 +7717,7 @@ mod tests {
 
         let joins = [join(u, e0, e1)];
         let naming = BooleanNaming {
-            substitutions: output_substitutions(&merged, &joins).unwrap(),
+            substitutions: output_substitutions(&merged, &[], &joins).unwrap(),
             edge_joins: joins.to_vec(),
             ..BooleanNaming::default()
         };

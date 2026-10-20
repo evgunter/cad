@@ -1594,10 +1594,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // The ring lane's order, wound with the curve.
         let a_roles = a_lane
             .resolve(&red.a, (ea, ra), &a_loose, &curve_a, band)
-            .map_err(|e| pinch_ray_refusal(e, red, Operand::A, (ea, ra)))?;
+            .or_else(|e| glued_slit_roles(e, red, Operand::A, (ea, ra), &a_loose))?;
         let b_roles = b_lane
             .resolve(&red.b, (eb, rb), &b_loose, &curve_b, band)
-            .map_err(|e| pinch_ray_refusal(e, red, Operand::B, (eb, rb)))?;
+            .or_else(|e| glued_slit_roles(e, red, Operand::B, (eb, rb), &b_loose))?;
         sa.join(&mut red.a, a_roles, &plan_a, &curve_a, seg_a, tol)?;
         sb.join(&mut red.b, b_roles, &plan_b, &curve_b, seg_b, tol)?;
         for (r, slot) in seg.ends {
@@ -1639,20 +1639,20 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     let mut resolved = Vec::with_capacity(completed.len());
     for c in completed {
         let (a_in_loop, a_out_loop) = resolve_roles_geometric(
-            &red.a,
-            (b_pristine, Operand::B),
+            red,
+            Operand::A,
+            b_pristine,
             c.a_face,
-            c.a_outer,
-            c.a_ring,
+            (c.a_outer, c.a_ring),
             band,
             tol,
         )?;
         let (b_in_loop, b_out_loop) = resolve_roles_geometric(
-            &red.b,
-            (a_pristine, Operand::A),
+            red,
+            Operand::B,
+            a_pristine,
             c.b_face,
-            c.b_outer,
-            c.b_ring,
+            (c.b_outer, c.b_ring),
             band,
             tol,
         )?;
@@ -4612,37 +4612,80 @@ fn pinch_ray_refusal<T: geom_core::Real>(
         })
         // A run through the tip of a slit, of `side`'s or, at a vertex
         // pair, of the other's, whose carrying face the other solid glues
-        // away: the slit's two edges would be one edge.
+        // away.
         .or_else(|| {
-            run_vertices.iter().find_map(|&v| {
-                // The other's vertices at the run's: a vertex pair's
-                // partner, or the pierces a ring vertex serves.
-                let paired = red
-                    .contacts
-                    .vv
-                    .iter()
-                    .filter_map(|c| match side {
-                        Operand::A => (c.record.a == v).then_some(c.record.b),
-                        Operand::B => (c.record.b == v).then_some(c.record.a),
-                    })
-                    .chain(
-                        red.pierce_rings
-                            .iter()
-                            .filter(|r| r.operand == side && r.ring_vertex == v)
-                            .flat_map(|r| r.pierces.iter().copied()),
-                    )
-                    .map(|w| (side.other(), w));
-                [(side, v)]
-                    .into_iter()
-                    .chain(paired)
-                    .find_map(|(operand, w)| {
-                        red.slit_tips[usize::from(operand == Operand::B)]
-                            .face_at(w)
-                            .map(|face| BooleanError::SlitFaceGlued { operand, face })
-                    })
-            })
+            slit_tip_on(red, side, run_vertices)
+                .map(|(operand, face)| BooleanError::SlitFaceGlued { operand, face })
         })
         .unwrap_or(e)
+}
+
+/// The slit or ring whose tip one of `side`'s `vertices` is
+/// ([`super::sectors::SlitTips`]), as its operand and carrying face:
+/// `side`'s own at the vertex, else the other's at a vertex the other
+/// holds there, a vertex pair's partner or a pierce the vertex's ring
+/// serves.
+fn slit_tip_on<T: geom_core::Real>(
+    red: &BooleanReduction<T>,
+    side: Operand,
+    vertices: impl IntoIterator<Item = VertexKey>,
+) -> Option<(Operand, FaceKey)> {
+    vertices.into_iter().find_map(|v| {
+        let paired = red
+            .contacts
+            .vv
+            .iter()
+            .filter_map(|c| match side {
+                Operand::A => (c.record.a == v).then_some(c.record.b),
+                Operand::B => (c.record.b == v).then_some(c.record.a),
+            })
+            .chain(
+                red.pierce_rings
+                    .iter()
+                    .filter(|r| r.operand == side && r.ring_vertex == v)
+                    .flat_map(|r| r.pierces.iter().copied()),
+            )
+            .map(|w| (side.other(), w));
+        [(side, v)]
+            .into_iter()
+            .chain(paired)
+            .find_map(|(operand, w)| {
+                red.slit_tips[usize::from(operand == Operand::B)]
+                    .face_at(w)
+                    .map(|face| (operand, face))
+            })
+    })
+}
+
+/// **The ring lane's order where its run walls off a sliver along a
+/// glued slit.** A ring run that encloses no area
+/// ([`DEGENERATE_RING_WINDING`]) and passes a slit's tip
+/// ([`pinch_ray_refusal`]'s [`BooleanError::SlitFaceGlued`]) runs along
+/// the slit's two edges, or their copies on the face the other solid
+/// glues to the slit's: either order walls off the one sliver between
+/// them, a face of no area, and nothing winds it. The order is the
+/// outer lane's, the arc of better [`Capture`] ([`best_arc`]); the
+/// sliver's side is read with the section's other loops
+/// ([`resolve_roles_geometric`]), and the result merges the slit's two
+/// edges across it ([`super::slit::merge_glued_slits`]). Every other
+/// refusal is [`pinch_ray_refusal`]'s.
+fn glued_slit_roles<T: Decide>(
+    e: BooleanError,
+    red: &BooleanReduction<T>,
+    side: Operand,
+    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+    loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
+) -> Result<(HalfEdgeKey, HalfEdgeKey), BooleanError> {
+    match pinch_ray_refusal(e, red, side, (h1, h2)) {
+        refusal @ BooleanError::SlitFaceGlued { .. } => {
+            let body = match side {
+                Operand::A => &red.a,
+                Operand::B => &red.b,
+            };
+            best_arc(body, h1, h2, loose)?.ok_or(refusal)
+        }
+        other => Err(other),
+    }
 }
 
 /// The ring lane's refusal of a run that encloses no area.
@@ -4837,25 +4880,92 @@ fn cut_pair<T: Decide>(
 ///
 /// What this question adds to the ladder is [`loop_roles`]: the two
 /// loops' regions flank the seam, so their sides are opposite.
+///
+/// **A sliver along the other's slit reads Out.** Where the other solid
+/// glues away the face a slit or ring of its lies in, `side`'s face
+/// flush with it is cut along the slit's two edges, and one loop's
+/// regions are the slivers between them, faces of no area
+/// ([`sliver_along_a_slit`]). The ladder reads neither loop: the flush
+/// region lies on the other boundary, and a sliver has no interior. A
+/// slit is a gap of no width in its face, opening on the region between
+/// its two walls, which the other solid's material does not fill (tier
+/// 3: the material about the line is the two wedges, face | wall a and
+/// wall b | face). So the sliver, the face's piece across that gap,
+/// lies outside the other solid, and the flush region on the opposite
+/// side.
 fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
-    body: &Body<T>,
-    other_pristine: (&Body<T>, Operand),
+    red: &BooleanReduction<T>,
+    side: Operand,
+    other_pristine: &Body<T>,
     face: FaceKey,
-    outer: LoopKey,
-    ring: LoopKey,
+    (outer, ring): (LoopKey, LoopKey),
     band: Band,
     tol: Tol,
 ) -> Result<(LoopKey, LoopKey), BooleanError> {
-    let side = |l: LoopKey| -> Result<Reading, BooleanError> {
+    let body = match side {
+        Operand::A => &red.a,
+        Operand::B => &red.b,
+    };
+    let read = |l: LoopKey| -> Result<Reading, BooleanError> {
         complex_side(
             body,
             &region_faces(body, face, l)?,
-            other_pristine,
+            (other_pristine, side.other()),
             band,
             tol,
         )
     };
-    loop_roles(face, (outer, side(outer)?), (ring, side(ring)?))
+    let (mut o, mut r) = (read(outer)?, read(ring)?);
+    if matches!((&o, &r), (Reading::Undecided(_), Reading::Undecided(_))) {
+        if sliver_along_a_slit(red, side, face, ring)? {
+            r = Reading::Side(SideCode::Out);
+        } else if sliver_along_a_slit(red, side, face, outer)? {
+            o = Reading::Side(SideCode::Out);
+        }
+    }
+    loop_roles(face, (outer, o), (ring, r))
+}
+
+/// Whether every region face flanking section loop `l` of null face
+/// `face`, on `side`, is a sliver along a slit or ring of the other
+/// operand's: a face with no rings whose outer loop is two straight
+/// edges, so one segment run twice and no area, with an end at the
+/// slit's tip ([`slit_tip_on`]).
+fn sliver_along_a_slit<T: Decide>(
+    red: &BooleanReduction<T>,
+    side: Operand,
+    face: FaceKey,
+    l: LoopKey,
+) -> Result<bool, BooleanError> {
+    let body = match side {
+        Operand::A => &red.a,
+        Operand::B => &red.b,
+    };
+    let regions = region_faces(body, face, l)?;
+    Ok(!regions.is_empty()
+        && regions.iter().all(|&f| {
+            let Some(data) = body.get_face(f) else {
+                return false;
+            };
+            let Some(LoopBoundary::Cycle { first }) = body.get_loop(data.outer).map(|d| d.boundary)
+            else {
+                return false;
+            };
+            let Some(cycle) = body.loop_cycle(first) else {
+                return false;
+            };
+            let halves: Vec<_> = cycle
+                .iter()
+                .filter_map(|&h| body.get_half_edge(h))
+                .collect();
+            data.rings.is_empty()
+                && halves.len() == 2
+                && halves
+                    .iter()
+                    .all(|h| crate::census::edge_is_line(body, h.edge))
+                && slit_tip_on(red, side, halves.iter().map(|h| h.start))
+                    .is_some_and(|(operand, _)| operand == side.other())
+        }))
 }
 
 /// The (IN, OUT) loop order from each loop's ladder reading. Either

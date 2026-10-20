@@ -163,3 +163,26 @@ rows above, these return with the re-pairing:
 - topo `a_vertex_read_again_classes_every_edge::partners_along_the_face_build_sound_against_the_germ`:
   146 cells at the default ε, 125 at 1e-6 and 141 at 1e-12
   (`PARTNERS_OVERLAPPING`, which says why the count moves with ε).
+
+## 2026-10-20: the slivers of no area merge where they are alone on their line (CLEAVE, `cleave/boolean-merges-a-glued-slit`)
+
+Where the join leaves a face of no area between two coincident edges,
+and no third edge of the result lies along their line, the output
+stage merges the two edges into one between the two walls
+(`boolean/slit.rs` `merge_glued_slits`). Two sheets meet there, so the
+pairing is forced. That is the glued slit's case
+(`work/cleave/a-boolean-glues-away-the-face-a-slit-lies-in.md`), and
+it reaches part of `union_flush_onto_edge_contact` too, which now
+builds at the test's own volume, class probes and 3′, at all three ε:
+
+- the flat-corner witness's two unions and `cutter ∖ pinch`;
+- the three-pieces witness's two unions (its `cutter ∖ pinch` still
+  refuses);
+- both two-dangling witnesses' two unions and `prism ∖ pinch`;
+- the one-segment lens's two unions and `cube ∖ y`, in both orders of
+  `y`.
+
+The ending-in-the-cube's-face lens's four `y`s, the lens inside
+another along one end, and the three and four crossings' `cutter ∖
+pinch` still refuse `LineWedges`. No sliver alone on its line forms
+there, so this row's re-pairing is still owed.

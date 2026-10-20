@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-20
 priority: P1
 cost: M
+branch: cleave/boolean-merges-a-glued-slit
 ---
 
 
@@ -58,3 +59,37 @@ of sheets on a line
 for the general case). Or kill the zero-area two-edge face the join
 leaves, by `kef` on one of its edges. Then pin the probe building as main
 does.
+
+## Built (branch `cleave/boolean-merges-a-glued-slit`)
+
+The join cuts the face glued to the slit's floor along the slit's two
+edges and keeps the sliver between them, a face of no area: its ring
+lane orders a run of no area through a glued slit's tip as the outer
+lane does (`join.rs` `glued_slit_roles`), and a section loop whose
+regions are only such slivers reads Out, the side of the slit's opening
+(`resolve_roles_geometric`, `sliver_along_a_slit`). The output stage
+then merges the slit's two edges into one, wall a | wall b, by `kef` of
+the sliver (`slit.rs` `merge_glued_slits`), with lineage rows for the
+killed edge and the sliver. The zero-area face never reaches the gate.
+
+Measured on main (`763ca322a0`) at ε = default, 1e-6 and 1e-12, five
+poses, both operand origins (the Boolean's slit and the split's): every
+∪ with the slab under refuses, closed `SlitFaceGlued`, open and wall to
+wall `LineWedges`, in both orders; so do `slit ∪ [0,4]²×[0,0.5]` closed
+(`SlitFaceGlued`) and `[0,4]²×[0,0.5] ∖ slit` at every extent. Head
+builds all 300 of those cells (100 per ε) at their closed-form volume
+with tiers 1–3 and 3′, and the slab-under cells at main's rider-era
+counts (v14 e21 f10, v14 e21 f9, v14 e21 f9), the keel one edge between
+the walls. Pinned by
+`a_keel_on_the_floor_subtracts_as_a_slit::a_face_glued_to_the_slit_floor_merges_its_two_edges`.
+
+The merge acts only where the sliver's two edges are the only edges on
+their line, so the pairing is forced. That also reaches 34 calls per ε
+of `union_flush_onto_edge_contact`, which main refused `LineWedges`
+and which now build at that test's own volume, class probes and 3′
+(re-pinned; evidence on
+`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
+The mirror case, where the slit's face stays and its walls go
+(`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`), is a
+different construction: it is refused in `recl` before the join, and
+the face must close across the line. It is left on that row.
