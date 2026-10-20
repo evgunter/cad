@@ -233,6 +233,16 @@ fn merge_of<T: Real>(pending: &verbs::Pending<T>, meta: &PendingMeta<T>) -> bool
     }
 }
 
+/// An arc arrival's authored circle: its centre, its travel sense, and
+/// the point a `Via` arrival authored it through, which its stored run
+/// carries to the door's read-back and no further.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ArrivalCircle<T: Real> {
+    pub(super) centre: Point2<T>,
+    pub(super) winding: crate::sugar::ArcSweep,
+    pub(super) through: Option<Point2<T>>,
+}
+
 /// Resolves the open fillet against an ARC ARRIVAL about `centre`,
 /// anchored at `anchor` — the interior form (§2c dissolution): the
 /// verb emits its WHOLE arrival side — the fillet arc, then the
@@ -246,12 +256,15 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     mut core: Core<T>,
     resolver: verbs::ArcResolver<T>,
     anchor: Point2<T>,
-    centre: Point2<T>,
-    winding: crate::sugar::ArcSweep,
+    circle: ArrivalCircle<T>,
     arrival_radius: Option<T>,
-    through: Option<Point2<T>>,
     tol: Tol,
 ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+    let ArrivalCircle {
+        centre,
+        winding,
+        through,
+    } = circle;
     let band = linear_band(tol)?;
     let dir = carrier_tangent(anchor, centre, winding, band)?;
     let (pending, meta) =
@@ -335,13 +348,16 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
 pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     core: &mut Core<T>,
     resolver: verbs::ArcResolver<T>,
-    centre: Point2<T>,
-    winding: crate::sugar::ArcSweep,
+    circle: ArrivalCircle<T>,
     arrival_radius: bool,
-    through: Option<Point2<T>>,
     seam: SeamArrival,
     tol: Tol,
 ) -> Result<ClosedLoop<T>, PathError<T>> {
+    let ArrivalCircle {
+        centre,
+        winding,
+        through,
+    } = circle;
     let start_pos = core.start_pos.ok_or(PathError::UnderdeterminedLeg {
         site: "close before the entry position is bound",
     })?;
@@ -465,9 +481,11 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Point2<T>> {
             core,
             arc_fillet::resolve::<T>,
             spec.p,
-            spec.c,
-            spec.winding,
-            None,
+            ArrivalCircle {
+                centre: spec.c,
+                winding: spec.winding,
+                through: None,
+            },
             None,
             tol,
         )
@@ -495,10 +513,12 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Start> {
         resolve_arc_close(
             &mut core,
             arc_fillet::resolve::<T>,
-            spec.c,
-            spec.winding,
+            ArrivalCircle {
+                centre: spec.c,
+                winding: spec.winding,
+                through: None,
+            },
             arrival_radius,
-            None,
             SeamArrival::Undeclared,
             tol,
         )
@@ -525,10 +545,12 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, super::ArrivesTangent> {
         resolve_arc_close(
             &mut core,
             arc_fillet::resolve::<T>,
-            spec.c,
-            spec.winding,
+            ArrivalCircle {
+                centre: spec.c,
+                winding: spec.winding,
+                through: None,
+            },
             arrival_radius,
-            None,
             SeamArrival::Checked,
             tol,
         )
@@ -749,10 +771,12 @@ fn radius_complete<T: geom_core::Decide>(
         core,
         resolver,
         at,
-        centre,
-        winding,
+        ArrivalCircle {
+            centre,
+            winding,
+            through: None,
+        },
         Some(spec.r.abs()),
-        None,
         tol,
     )
 }
@@ -925,7 +949,12 @@ fn via_complete<T: geom_core::Decide>(
     // A `Via` arrival authors its carrier from a through-point, so
     // nothing of it is a radius argument.
     let (centre, winding) = verbs::via_carrier(DirectedPoint { at: p, dir }, q, band)?;
-    resolve_arc_arrival(core, resolver, p, centre, winding, None, Some(q), tol)
+    let circle = ArrivalCircle {
+        centre,
+        winding,
+        through: Some(q),
+    };
+    resolve_arc_arrival(core, resolver, p, circle, None, tol)
 }
 
 /// A `Via` CLOSE: anchor at the entry, director pending. The director
@@ -1012,10 +1041,12 @@ fn via_close<T: geom_core::Decide>(
     resolve_arc_close(
         &mut core,
         resolver,
-        centre,
-        winding,
+        ArrivalCircle {
+            centre,
+            winding,
+            through: Some(q),
+        },
         false,
-        Some(q),
         seam,
         tol,
     )
