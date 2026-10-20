@@ -687,6 +687,23 @@
 //! which now run every mated placement's map, the ones the narrowing
 //! let snap included (`0x63f6_f4c9_2609_d2c6, …` before). The Probe row
 //! is the `f64` number, as it must be.
+//!
+//! **ALL FOUR NUMBERS RE-TAKEN MERGING MAIN AT `557e581a64` AND FOR
+//! EXACT TURNS** (the id-free number was `(0xf626_b0e0_3603_b949, …)`).
+//! A turn written as a fraction of a turn takes its sine and cosine
+//! from the fraction in every lane, so a revolve whose heading is
+//! `turn/4` (`fixture::along_y`, every die's ball, the vessel, the
+//! kitchen sink's revolve) is built on its axis exactly, and the
+//! documents that mean an axis-aligned placement state it exactly: the
+//! pips stand on lines stated from the cube's corner, the vessel and the
+//! kitchen sink's revolve stand upright by a bundle with no mate spun
+//! `turn/4`, and the sink's split plane and pattern axis are read off its
+//! faces. Those points move by the ulps the rounded radian put on them.
+//! The merge's own moves are in the same numbers; the line-by-line dump
+//! was not taken. The `Interval` number is now one number at every ε
+//! row: at ε = 1e-12 `die_composed`'s and the tour die's fillets build
+//! on the `Interval` lane, which refused there while their pips stood
+//! on frames spun by rounded radians.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -982,7 +999,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x28e9_d7ba_8ce5_c1ab, 0x424a_b821_8d76_5a5f),
+        (0xe841_2ceb_7dd5_2ab8, 0x628d_5124_4618_7f0c),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -1012,7 +1029,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x5cd6_4b4f_4a5c_4cb0, 0xea8b_96a0_7d7b_c80c),
+        (0x7c4a_e28b_4433_f12e, 0xaed0_a779_3fdc_79aa),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -1036,7 +1053,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x28e9_d7ba_8ce5_c1ab, 0x424a_b821_8d76_5a5f),
+        (0xe841_2ceb_7dd5_2ab8, 0x628d_5124_4618_7f0c),
         "the corpus's Probe evaluation moved"
     );
 }
@@ -1114,7 +1131,7 @@ fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
     println!("m10-p fence id-free: {got:016x?}");
     assert_eq!(
         got,
-        (0xf626_b0e0_3603_b949, 0xd2d9_d89a_a93b_055d),
+        (0x9dcb_d61a_401e_cc61, 0x2f80_6957_56b0_40dd),
         "an outcome or a point of the corpus moved — every other row here also \
          moves with ids, and this one does not"
     );

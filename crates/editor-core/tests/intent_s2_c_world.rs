@@ -51,6 +51,14 @@ const FILES: [&str; 5] = [
 /// `SetExtrudeSide` edit had them, its revolve's quarter-turn placement
 /// leaving its corners an ulp's square off the union's edges
 /// (`work/intent/a-turn-by-the-nearest-quarter-turn-rounds.md`).
+/// Exact turns moved five rows, every word count kept: a turn written as
+/// a fraction of a turn takes its sine and cosine from the fraction, so
+/// `die_tool`'s ball (heading `turn/4`) is built on its axis exactly; the
+/// pips of `die_pips`, `die_composed` and the tour die stand on lines
+/// stated from the cube's corner; and `kitchen_sink`'s revolve stands
+/// upright by a bundle with no mate spun `turn/4`, its pattern's axis and
+/// split's plane read off its faces. The two saved files follow their
+/// documents.
 const PRE_C: [(&str, &str); 34] = [
     ("die", "9b90c91fc8ab87a8/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
@@ -60,20 +68,20 @@ const PRE_C: [(&str, &str); 34] = [
     ("nested_islands_106_depth1", "32fed3f5e12387ee/52"),
     ("nested_islands_106_depth2", "3a7999e85a64a33b/76"),
     ("declared_tangency", "89b46a31a322fc03/88"),
-    ("kitchen_sink", "81144e32a8742a64/196"),
+    ("kitchen_sink", "34a5423649535fd1/196"),
     ("cut_cylinder", "cb8ccadf87044e7f/28"),
     ("measured_web", "f556ab19f06e9f9e/28"),
     ("boss_union", "a07c97077aedd76c/46"),
     ("die_fillet", "934f10b8156f9396/76"),
     ("die_chamfer", "934f10b8156f9396/76"),
-    ("die_pips", "64057d3b07e85fb7/37"),
+    ("die_pips", "2859880c273d7b35/37"),
     ("heat_sink_fins", "8a57c326dc5f71aa/124"),
-    ("die_tool", "0dd163ae3f5c059a/82"),
+    ("die_tool", "e9386c077f13b02a/82"),
     ("face_sketch", "7809b39224c44527/52"),
     ("part_select", "e54d217adfa64523/52"),
     ("loft_prism", "36c0de6a313e3a66/28"),
-    ("die_composed", "587f5ca67a34b858/88"),
-    ("die_composed_tour", "6c98bf4c5c636a73/328"),
+    ("die_composed", "182b02846757307e/88"),
+    ("die_composed_tour", "ca0b8371cb38e973/328"),
     ("plate_param", "fd7b71fa51270532/88"),
     ("kiss_carry", "9efdca7b404d4e52/85"),
     ("tube_ring", "c342379c65eab6d1/10"),
@@ -82,8 +90,8 @@ const PRE_C: [(&str, &str); 34] = [
     ("hollow_tube_ring", "1db62df6ebe2507d/16"),
     ("reshaped_rod", "128f9facfb4a7626/52"),
     (FILES[0], "8853ddff30bcec28/154"),
-    (FILES[1], "0dd163ae3f5c059a/82"),
-    (FILES[2], "6c98bf4c5c636a73/328"),
+    (FILES[1], "e9386c077f13b02a/82"),
+    (FILES[2], "ca0b8371cb38e973/328"),
     (FILES[3], "07c4e18f181e9b69/16"),
     (FILES[4], "fd7b71fa51270532/88"),
 ];

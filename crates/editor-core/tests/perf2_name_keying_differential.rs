@@ -264,6 +264,15 @@ fn sans_epsilon(t: &str) -> String {
 /// tables moved in the five documents that mint a node after a stand
 /// (`heat_sink`, `declared_tangency`, `kitchen_sink`, `cut_cylinder`,
 /// `part_select`), as `lib_g16`'s did.
+///
+/// Re-pinned for exact turns (INTENT stage 3 D), name tables and
+/// persisted text: `die_tool` (its ball's exact heading lets the
+/// placement gesture write its spin as the constant `0`, one variable
+/// fewer, so every later id moved); `die_pips`, `die_composed` and the
+/// tour die (pips standing on lines stated from the cube's corner); and
+/// `kitchen_sink` (its revolve upright by a bundle with no mate spun
+/// `turn/4`, its split's plane and pattern's axis read off its faces).
+/// Every other document held, across main's merge at `557e581a64` too.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xb4db9802b0b606f7, 0x8af513933244b575),
     ("corner_table", 0x45e0ac4118bb214d, 0x8716f69f07ef2d45),
@@ -281,20 +290,20 @@ const PINNED: &[(&str, u64, u64)] = &[
         0x9e765a7498cfa656,
     ),
     ("declared_tangency", 0x51206b9c784061eb, 0x303c312bc828657a),
-    ("kitchen_sink", 0x9775c1bdc5d5fbc3, 0x842d352de9a587d3),
+    ("kitchen_sink", 0xe18313feb241d472, 0x53c127394e06a682),
     ("cut_cylinder", 0xe723fe79aa24b696, 0x7dff515702541057),
     ("measured_web", 0xf21138cd48fb53df, 0x66b24d0b5e0fd191),
     ("boss_union", 0xd03552cff4cfc65b, 0x82fc0e1b54a1f27f),
     ("die_fillet", 0xa96f8a70800a1e51, 0x9277c3dbd74f7da5),
     ("die_chamfer", 0x370ebad78cec9015, 0x18dab54353cab960),
-    ("die_pips", 0x4d251e92f20d09b5, 0xd161c98fc06e6fad),
+    ("die_pips", 0x1fff1b83a30b5c99, 0x0d819577eaa47983),
     ("heat_sink_fins", 0xd2143bd13f9aeb93, 0xd0d0bd7b24a38c2d),
-    ("die_tool", 0xb45b4521a91a16f0, 0x552f48f8e128de83),
+    ("die_tool", 0x8c3eb3d0aea92c7d, 0x8437bb4a7be0043f),
     ("face_sketch", 0x9cff6e4f5211da3d, 0x8bd8c95b2263b17d),
     ("part_select", 0x295f529b85ed0c9b, 0xdeb5a09d1f184d27),
     ("loft_prism", 0x9cb4bf86a35998f3, 0x49d4f40ea014df5c),
-    ("die_composed", 0x0a3bf41f3cb481f1, 0x4ebb894ab65bc903),
-    ("die_composed_tour", 0x78311863f06061d1, 0x8308ab3f88921f4b),
+    ("die_composed", 0xf30def740ea93329, 0x540b83453b9c46a2),
+    ("die_composed_tour", 0x4fa390ec962ef734, 0x6aaf8417114b0da9),
     ("plate_param", 0x1374cf899f16a081, 0xc61e5981d4483dad),
     ("kiss_carry", 0x94d99109484dbaad, 0x0b50925beeee0a40),
     ("tube_ring", 0xb1623d89f704044f, 0xf71602ffe004bfc3),

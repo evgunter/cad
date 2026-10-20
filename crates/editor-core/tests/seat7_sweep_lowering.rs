@@ -398,6 +398,18 @@ fn both_sweeps_evaluate_in_one_document() {
 /// copy's map, it is placed by no map again. Every standing copy in the
 /// corpus is bit-identical to its source (measured with a lane probe
 /// over `body_digest`).
+///
+/// RE-BLESSED, `kitchen_sink` only, for exact turns (INTENT stage 3 D):
+/// a turn written as a fraction of a turn takes its sine and cosine from
+/// the fraction, so its revolve's heading `turn/4` puts the axis on the
+/// profile's `y` exactly; its revolve stands upright by a bundle with no
+/// mate spun `turn/4` (`fixture::upright_at`) where `place_at` wrote an
+/// `Axis` mate onto a world read spun by turns read off by `atan2`; and
+/// its split's plane and its circular pattern's axis are read off its
+/// faces (`fixture::plane_on`, `axis_on`) where they were frames moved by
+/// rounded turns. On the merged tree with the exact heading alone it
+/// read `0xcd7f_f823_b396_33fc`. The other rows held across main's merge
+/// at `557e581a64` and this lane.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
@@ -405,7 +417,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("corner_table", 0xd125_80bc_7a18_9468),
         ("cut_cylinder", 0xacfc_bd06_c584_16a7),
         ("boss_union", 0xd486_5e6b_6a43_0069),
-        ("kitchen_sink", 0x5b1f_f3ef_7be3_a94c),
+        ("kitchen_sink", 0x04bc_da74_1fbe_d57c),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

@@ -40,6 +40,17 @@ use geom_core::Tol;
 /// stands is written as one `AddValues` with no mate, which mints a
 /// different number of ids from the plane mate and three values it
 /// replaces, so the ids minted after a stand moved; no verdict did.
+///
+/// Re-blessed at every ε row for exact turns (INTENT stage 3 D): only
+/// `kitchen_sink` moved. Its revolve stands upright by a bundle with no
+/// mate spun `turn/4`, whose sine and cosine are read from the fraction,
+/// so its corner at `(0, 0, 1)` lies on the union's edge along `z`
+/// exactly: the six contacts there read the margin `0.0` where they
+/// read `2.3e-49`, `2.3e-33` and `3.7e-33`, the witness `(0, 0, 1)`
+/// where it was `(0, -3.7e-33, 1)`; and the revolve's curved face is in
+/// reach of a block face again, one more `CensusUndecidable` (28 -> 29
+/// findings), as it was on datum frames before D. Its rows' mint
+/// digests moved with its re-spelled placements.
 const CENSUS_GOLDENS: &[(&str, &str, &str)] = &[
     (
         "1e-6",

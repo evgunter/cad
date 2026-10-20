@@ -332,13 +332,25 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// Where C-5's narrowing ran a standing copy's map, it is placed by no
 /// map again. Every standing copy in the corpus is bit-identical to its
 /// source (measured with a lane probe over `body_digest`).
+///
+/// RE-BLESSED, `kitchen_sink` only, for exact turns (INTENT stage 3 D):
+/// a turn written as a fraction of a turn takes its sine and cosine from
+/// the fraction, so its revolve's heading `turn/4` puts the axis on the
+/// profile's `y` exactly; its revolve stands upright by a bundle with no
+/// mate spun `turn/4` (`fixture::upright_at`) where `place_at` wrote an
+/// `Axis` mate onto a world read spun by turns read off by `atan2`; and
+/// its split's plane and its circular pattern's axis are read off its
+/// faces (`fixture::plane_on`, `axis_on`) where they were frames moved by
+/// rounded turns. On the merged tree with the exact heading alone it
+/// read `0xcd7f_f823_b396_33fc`. The other rows held across main's merge
+/// at `557e581a64` and this lane.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0xacfc_bd06_c584_16a7u64),
         ("part_select", 0xd94a_a647_45b1_289b),
-        ("kitchen_sink", 0x5b1f_f3ef_7be3_a94c),
+        ("kitchen_sink", 0x04bc_da74_1fbe_d57c),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -450,6 +462,12 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// geometry (`fixture::plane_on`) where it was a `Datum::Plane`, and the
 /// profile carries no frame, so its nodes, their ids and the names they
 /// mint moved.
+///
+/// RE-BLESSED for exact turns (INTENT stage 3 D): the tool is the
+/// cube's end cap's plane slid along its normal (`fixture::plane_on`
+/// reads a face with the stated normal) where it was a frame read off
+/// the cube's edges moved by turns read off by `atan2`, so its pose's
+/// nodes and the names the split mints moved.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -470,7 +488,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x2925_5a68_7f1b_9e14,
+        got, 0x9ddd_e390_4cc2_ff78,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

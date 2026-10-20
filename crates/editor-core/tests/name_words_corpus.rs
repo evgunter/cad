@@ -275,7 +275,15 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// written as one `AddValues`, which mints a different number of ids from the plane
 /// mate and three values it replaces, so every tag minted after a stand
 /// moved. [`NAME_WORDS`] held.
-const SAID_DIGEST: u64 = 0x6d75_0566_c546_aab7;
+///
+/// Exact turns (INTENT stage 3 D) moved it by tags in the five documents
+/// `lib_g16_corpus_name_digests` moved with them: `die_tool` writes its
+/// ball's spin as the constant `0` (one variable fewer); the pips of
+/// `die_pips`, `die_composed` and the tour die stand on lines stated
+/// from the cube's corner; `kitchen_sink`'s revolve stands upright by a
+/// bundle with no mate and its split's plane and pattern's axis are read
+/// off its faces. [`NAME_WORDS`] held.
+const SAID_DIGEST: u64 = 0x46c3_0a46_d078_99f3;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

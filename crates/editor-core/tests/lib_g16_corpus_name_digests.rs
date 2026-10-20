@@ -245,6 +245,16 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// exactly the documents that mint a node after a stand
 /// (`cut_cylinder`'s second half stands after its first). Every
 /// standing copy is bit-identical to its source.
+///
+/// Re-pinned for exact turns (INTENT stage 3 D): `die_tool`, whose
+/// ball's heading `turn/4` now reads its axis exactly, so the placement
+/// gesture writes its spin as the constant `0` where it wrote a typed
+/// `6.1e-17 rad`, one variable fewer, and every later id moved; the pips
+/// of `die_pips`, `die_composed` and the tour die, which stand on lines
+/// stated from the cube's corner; and `kitchen_sink`, whose revolve
+/// stands upright by a bundle with no mate spun `turn/4` and whose
+/// split's plane and pattern's axis are read off its faces. Every other
+/// document held, across main's merge at `557e581a64` too.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xd996a20e0fd9ee56),
     ("corner_table", 0x29800dc909826450),
@@ -254,20 +264,20 @@ const PINNED: &[(&str, u64)] = &[
     ("nested_islands_106_depth1", 0xc52eb6cf8b1e5acd),
     ("nested_islands_106_depth2", 0x155d067061c7b7dc),
     ("declared_tangency", 0x57d4ee11deccc368),
-    ("kitchen_sink", 0xdc0321cd120eac0c),
+    ("kitchen_sink", 0x86f84c3284fcef4e),
     ("cut_cylinder", 0x89205495cfa42a99),
     ("measured_web", 0x44c4e0d24d38b03c),
     ("boss_union", 0x52aab550bf0ac788),
     ("die_fillet", 0xc57e5803d9b2429a),
     ("die_chamfer", 0x07195df35d2892cc),
-    ("die_pips", 0xc2a208938f51447f),
+    ("die_pips", 0x7987c560eab620bb),
     ("heat_sink_fins", 0xc11b5c13358b6b56),
-    ("die_tool", 0xdae16a127ee6ecd8),
+    ("die_tool", 0x683264efe31cd2ee),
     ("face_sketch", 0xe1162804a5269b4c),
     ("part_select", 0x8d9fda8439eaf0a0),
     ("loft_prism", 0x5a473fb46c0284ce),
-    ("die_composed", 0x33574884cb7300e9),
-    ("die_composed_tour", 0x20b023d1fb63a5b0),
+    ("die_composed", 0x0efee0885352a50d),
+    ("die_composed_tour", 0xa0796277cc94fd0f),
     ("plate_param", 0x91ce84257aef28bf),
     ("kiss_carry", 0x800de290a5901f2f),
     ("tube_ring", 0xc7e2d65e798931e7),
