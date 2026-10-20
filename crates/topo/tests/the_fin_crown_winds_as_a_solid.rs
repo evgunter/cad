@@ -245,3 +245,41 @@ fn a_crown_wound_against_itself_refuses_at_rest_by_two_opposed_rays() {
         "the poses at which two aimed rays read opposite sides"
     );
 }
+
+/// **What reading every aim costs**: the at-rest validation of a prism
+/// over a regular `n`-gon (`n + 2` planar faces), timed, and again with
+/// the aimed rays' crossings (`side_at_infinity_advance` verdicts)
+/// counted. A probe,
+/// not a gate: `cargo nextest run -p topo --test all --release
+/// --run-ignored only -E 'test(check_7_reads_every_aim_at_a_cost)'
+/// --no-capture`.
+#[test]
+#[ignore = "a cost probe: it times, it asserts nothing"]
+fn check_7_reads_every_aim_at_a_cost() {
+    use geom_core::k_stats::Bracket;
+    for n in [16, 64, 256, 1024] {
+        let profile: Vec<(f64, f64)> = (0..n)
+            .map(|k| {
+                let a = core::f64::consts::TAU * k as f64 / n as f64;
+                (a.cos(), a.sin())
+            })
+            .collect();
+        let body = common::prism::<f64>(&profile, 1.0, t()).body;
+        let start = std::time::Instant::now();
+        let read = topo::validate_geometric(&body, t());
+        let took = start.elapsed();
+        let bracket = Bracket::open();
+        let _ = topo::validate_geometric(&body, t());
+        let log = bracket.finish();
+        let rays = log
+            .verdicts
+            .iter()
+            .filter(|v| v.predicate == "side_at_infinity_advance")
+            .count();
+        eprintln!(
+            "prism over a {n}-gon ({} faces): {:?} in {took:?}, {rays} aimed-ray advance verdicts",
+            n + 2,
+            read.is_ok()
+        );
+    }
+}
