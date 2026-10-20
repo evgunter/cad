@@ -47,3 +47,11 @@ Bring `ResultEscalated` under the budget and name the faces in words,
 then take it off `OVER_BUDGET` and its keys off `ADMISSIONS`. Have `Merge` drop the merge's stage label and key and end
 in the merge's recourse (or the kernel-defect or not-yet ending), and
 drop its three admissions.
+
+## The form the census no longer measures (WIRE orchestrator, 2026-10-20)
+
+PR 5427 pins `Split/Finish/ResultEscalated` at a margin of 1e-20, where
+no tolerance decides it, so the census row renders one length (90 words)
+at every eps. The longer form, which offers a tolerance (94 words at the
+default eps, 83 at 1e-12), is measured nowhere. Whatever fix lands here
+should bring that form under the budget too.
