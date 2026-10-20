@@ -9,7 +9,7 @@ cost: M
 design: true
 pr: 5486
 branch: wire/section-face-pieces
-closed: 2026-10-20 by PR 5486
+closed: 2026-10-20
 ---
 
 
