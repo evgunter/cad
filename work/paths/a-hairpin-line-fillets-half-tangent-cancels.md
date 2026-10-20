@@ -7,7 +7,7 @@ branch: paths/hairpin-fillet-half-tan
 opened: 2026-10-19
 closed: 2026-10-20
 pr: 5441
-priority: P2
+priority: P0
 ---
 
 
@@ -48,6 +48,14 @@ turn, and the closed-form oracle in `tests/path_differential.rs`
 (`expected_trims`) moves with them.
 
 ## Outcome
+
+**Banded P0**: a silent wrong answer on main. The review's generator,
+covering both turn senses at ε = 1e-9, found on main 168 cases past ε,
+108 of which validated. They include an arc 8.1e-3 m off its end vertex
+that validated (O = (0, 0), u = (0.6079, 0.7940), r = 4.03e-3), and a
+fillet whose setback was 1.6e4 times its leg, built and validated with a
+3.2e-3 m miss (O = (1000, −2000), r = 1.6e-3). The lane's own grid,
+below, covered one turn sense.
 
 Measured past ε, and fixed: `sugar::line_line_fillet_trims` reads
 tan(φ/2) by the home's select (`sugar::split_half_tan`), not its first
