@@ -189,12 +189,12 @@ and one with no reader follows what it reads. One whose side is the
 cut's is declared in the part and deleted from the remainder.
 
 *Inline.* `refactor::inline` is the inverse. An instance placed by the
-identity bundle as written splices its part's placements into the
-space it places into, verbatim, their reads of the part's world's roles
-becoming reads of that space's. Any other instance splices its part's
-world as a space of the host, nothing built in it: the part's
-placements land in it verbatim, and the instance becomes a placement of
-that space under the instance's own bundle, verbatim. No motion is
+identity bundle as written splices its part's members into the space
+holding it, verbatim, their reads of the part's world's roles becoming
+reads of that space's. Any other instance splices its part's world as
+a space of the host: the part's members land in it verbatim, and the
+instance becomes a member whose source is that space, under the
+instance's own bundle, verbatim. No motion is
 composed, every variable keeps driving its copy, and no landing refuses
 for its numbers. A host mate reading the instance's copies reads them
 through that placement.

@@ -1059,10 +1059,9 @@ suits the slot.
   never a frame. A loft reads its sections and, for each after the
   first, a station: slides and spins in the first section's own axes.
 - *Spaces:* `Space`, a coordinate system ([placement.spaces]),
-  defined by a construction that reads no body (the coordinates it is
-  written in) or by a space node, which reads nothing and in which
-  nothing is built, and read only by a placement, as its source and as
-  the space it places into. A `Space` holds no pose and no value.
+  defined only by a space node, which owns its members; read as a
+  member's source, by a pick, and by export and drawing. A `Space`
+  holds no pose and no value.
 - *Selections* of a shape: one cell of a body (`Face`, `Edge`,
   `Vertex`), or the set of them a reader takes (`Faces`, `Edges`; a
   set kind exists only for a slot that reads one).
@@ -1201,22 +1200,24 @@ recognised from the program for display only.
 **A part has no location.** No body has coordinates anyone reads
 until a placement relates them to something: a part has no location,
 so how two parts relate is always stated explicitly. Every
-construction is built in coordinates of its own, which are its space,
-and spaces are related only at placement: a feature on a face is a
-construction placed into the space the face's copy is in, against the face by mates and values,
+construction is built in coordinates of its own, which only a
+placement reads, and bodies are related only by being members of one
+space: a feature on a face is a construction placed into the space
+the face's body is a member of, against the face by mates and values,
 then combined, and which side of the face its material lies on is the
 mates' to say. No construction reads a frame (FORK-S3P), so a feature
 at several positions is one body placed several times, each placement
 a copy.
 
-**Spaces.** `[placement.spaces]` A **space** is a coordinate system:
-the coordinates a construction is written in, or a space nothing is
-built in, whose content is what is placed into it, of which the world
-is the one every document holds and cannot delete. Each is a `Space`
-variable, and only placements read one. A body is
-in exactly one space, decided from what it reads: a construction is in
-its own, a copy is in the space its placement places it into, and a
-body an operation builds is in the space of the bodies it reads, so an
+**Spaces.** `[placement.spaces]` A **space** is a node owning an ordered
+list of **members**, each a placement, and is defined by nothing else;
+the world is the one every document holds and cannot delete, and an
+empty list is a space like any other. A construction's own
+coordinates are not a space: a body is built in coordinates of its
+own, which only a member's bundle reads. A body is in at most one
+space, decided from what it reads: a member's copy is in the space
+that holds the member, and a body an operation builds is in the space
+of the bodies it reads, so an
 operation over two spaces is a space mismatch at the door and a kernel
 bug anywhere else. **Only a placement relates two spaces**: without
 one, two spaces' coordinates say nothing of each other. Spaces form a
@@ -1227,10 +1228,11 @@ build another, so booleans happen among what is placed into one
 space. A space nothing places, transitively, into the world is not in
 the product.
 
-**A placement** `[placement.placement]` is an operation reading a
-**source** — a space, or a space of another document (an instance) —
-the space it places into, and a bundle of constraints, mates and
-values, and placing the source's content into that space under the one rigid motion its
+**A placement** `[placement.placement]` is a member of the space
+holding it, with no slot naming that space: it reads a **source** — a
+body, a space, or a space of another document (an instance) — and a
+bundle of constraints, mates and values, and places the source's
+content into the space holding it under the one rigid motion its
 constraints state. It places a copy of each of the source's carried
 bodies into that space, and carries every pose of the source as the
 copy carries it and the source's at-rest decisions about those bodies,
@@ -1321,10 +1323,10 @@ which has no mate is the identity, and the façade writes the constant
 reader of a source's own coordinates, and reads them only through the
 freedoms its mates leave.
 
-**The world** `[placement.world]` is one undeletable space nothing is
-built in. It defines one variable, its space, and no pose: a
-placement reads it as a source or as the space it places into, a mate
-reads its roles (its origin, an axis, a coordinate plane), and
+**The world** `[placement.world]` is the space every document holds
+and cannot delete. It defines one variable, its space, and no pose: a
+member of another document reads it as a source, a mate of one of its
+own members reads its roles (its origin, an axis, a coordinate plane), and
 construction never reads it. Export and the viewer's drawing compose
 a body into the coordinates of a space it reaches, the world's or
 any other shown space's, through one door that nothing else calls,
