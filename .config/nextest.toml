@@ -118,7 +118,9 @@ not (
   (binary_id(geom-brep::all) & (test(=review_m5_pr7_adversarial::a_loop_straddling_cell_boundaries_is_found_or_refused_typed) | test(=ssi_limb3_one_arc::a_short_arc_in_a_long_arcs_end_box_is_traced))) |
   (binary_id(step-import::all) & (test(=wild::no_wild_file_panics))) |
   (binary_id(topo) & (test(=boolean::boxes::rect_extent_rows::the_sphere_rect_extent_is_the_rectangles_support_along_every_direction) | test(=chord_join::torus_ring_rows::a_run_on_the_tubes_top_or_bottom_circle_winds_its_island_as_the_oracle_does) | test(=replace_face::offset_fit_door_rows::the_f64_door_mints_the_free_function_s_surface) | test(=ring_path::far_frame_rows::a_cone_path_in_a_far_frame_reads_the_oracle_parity_or_nothing))) |
-  (binary_id(topo::all) & (test(=a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op) | test(=three_solids_on_one_line::three_prisms_flush_along_one_line_build_undeclared_in_every_member_order) | test(=union_flush_onto_edge_contact::four_crossings_at_one_corner_build_in_every_op)))
+  (binary_id(topo::all) & (test(=a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op) | test(=three_solids_on_one_line::three_prisms_flush_along_one_line_build_undeclared_in_every_member_order) | test(=union_flush_onto_edge_contact::four_crossings_at_one_corner_build_in_every_op))) |
+  (binary_id(mesh) & (test(=nurbs_cert::tests::a_lofted_circle_straddler_reads_its_true_deviation))) |
+  (binary_id(mesh::all) & (test(=lofted_circle::a_loft_of_two_circles_tessellates)))
 )
 """
 

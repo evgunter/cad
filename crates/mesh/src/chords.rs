@@ -42,8 +42,9 @@
 //!   `sweep::skin::segment_curve` places the joint knot with.
 //!
 //! An adjacent surface reaches a chord count only through
-//! [`adjacent_surface`], and the two tightenings above are its two
-//! call sites — the `Circle` arm's torus boundary step and
+//! [`adjacent_surface`], and the two tightenings above (not the crease
+//! joints, which round a count already tightened) are its two call
+//! sites — the `Circle` arm's torus boundary step and
 //! [`nurbs_tighten`].
 //! The claim is therefore about one function's callers, which a reader
 //! settles by grepping this file for the name. **Nothing in the tree

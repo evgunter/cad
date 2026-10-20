@@ -858,7 +858,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 unreachable!(
                     "`cell_second_quotients` refused a block it always forms: its refusals \
                      (geom-core `cell_pieces`, `cell_whole`, `product`) are structural, and \
-                     this block is a span window of a C¹-gated patch of degrees ({}, {}) \
+                     this block is a span window of a patch of degrees ({}, {}) \
                      whose `3·max(p, q)` passed the {QUOTIENT_MAX_DEGREE} ceiling above",
                     kv_u.degree(),
                     kv_v.degree()

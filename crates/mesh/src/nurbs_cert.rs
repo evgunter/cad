@@ -2237,9 +2237,17 @@ pub(crate) mod tests {
     /// equal: each is the same rational quadratic on an equal knot
     /// span, so the one-sided derivatives at the joint agree and the
     /// wall is C¹ there in fact. The trimmed lane cuts along it anyway;
-    /// here that costs only the cut. A row that goes red on the second
-    /// assertion means the sub-arcs stopped being equal, and the crease
-    /// became a real one.
+    /// here that costs only the cut.
+    ///
+    /// The second assertion is a tripwire for unequal sub-arcs, and only
+    /// a narrow straddler is a sharp one. #5499's review built a half
+    /// cylinder from unequal sub-arcs on equal knot spans: a straddler
+    /// over `u ∈ [0.49, 0.51]`, the span of the first one here,
+    /// deviated past the cells' max already at an 80°/100° split, while
+    /// the `[0.45, 0.55]` straddler stayed under it down to a 45° split
+    /// and the `[0.3, 0.7]` one at every split tried. So the row reads
+    /// a split as near equal as 80°/100°, through its first straddler;
+    /// it does not claim every inequality.
     #[test]
     fn a_lofted_circle_straddler_reads_its_true_deviation() {
         let body = sweep::test_support::lofted_cylinder(1.0, Tol::witness());
@@ -2275,6 +2283,7 @@ pub(crate) mod tests {
                 worst
             };
             for across in [
+                [[0.49, 0.2], [0.51, 0.2], [0.5, 0.8]],
                 [[0.45, 0.2], [0.55, 0.2], [0.5, 0.8]],
                 [[0.3, 0.1], [0.7, 0.1], [0.5, 0.9]],
             ] {

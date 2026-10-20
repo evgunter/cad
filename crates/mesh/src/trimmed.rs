@@ -1544,6 +1544,70 @@ mod tests {
         }
     }
 
+    /// **The chain row: the crease line holds where Delaunay alone
+    /// would cross it.** On grid rows the chain is redundant: every
+    /// point beside a crease has a crease point on its own row
+    /// ([`Creases::cut_candidates`]), so each link is a Gabriel edge
+    /// and Delaunay realises it unconstrained. A trim loop's points
+    /// have no rows: here two holes, one each side of the crease and
+    /// `5e-3` off it, so the crease points are only the outer square's
+    /// two, and the circle on that link holds every hole corner.
+    /// Chained, no triangle crosses the crease; unchained, one does, so
+    /// the row goes red if [`chain_creases`] stops adding its links.
+    #[test]
+    fn the_crease_chain_holds_beside_off_row_trim_points() {
+        for axis in [0, 1] {
+            let c = creases(axis, &[0.5]);
+            let swap = |(x, y): (f64, f64)| if axis == 0 { (x, y) } else { (y, x) };
+            let hole = |lo: f64, hi: f64| {
+                [(lo, 0.4), (hi, 0.4), (hi, 0.6), (lo, 0.6)]
+                    .map(swap)
+                    .to_vec()
+            };
+            let loops = [square(&c, 1), hole(0.48, 0.495), hole(0.505, 0.52)];
+            let crossing = |chained: bool| {
+                let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
+                    ConstrainedDelaunayTriangulation::new();
+                let mut on: Vec<(f64, f64, FixedVertexHandle)> = Vec::new();
+                for l in &loops {
+                    let handles: Vec<_> = l
+                        .iter()
+                        .map(|&p| {
+                            let h = cdt.insert(SpadePoint::new(p.0, p.1)).unwrap();
+                            c.note(&mut on, p, h);
+                            h
+                        })
+                        .collect();
+                    for i in 0..handles.len() {
+                        let (a, b) = (handles[i], handles[(i + 1) % handles.len()]);
+                        assert_eq!(cdt.try_add_constraint(a, b).len(), 1);
+                    }
+                }
+                assert_eq!(on.len(), 2, "axis {axis}: the square's two crease points");
+                if chained {
+                    let through = chain_creases(&mut cdt, &mut on).expect("the link realises");
+                    assert!(through.is_empty(), "a link ran through {through:?}");
+                }
+                cdt.inner_faces()
+                    .filter(|f| {
+                        let xs = f.positions().map(|p| if axis == 0 { p.x } else { p.y });
+                        let (lo, hi) = (xs[0].min(xs[1]).min(xs[2]), xs[0].max(xs[1]).max(xs[2]));
+                        lo < 0.5 && 0.5 < hi
+                    })
+                    .count()
+            };
+            assert_eq!(
+                crossing(true),
+                0,
+                "axis {axis}: a triangle crosses the chained crease"
+            );
+            assert!(
+                crossing(false) > 0,
+                "axis {axis}: the row cannot see a missing chain"
+            );
+        }
+    }
+
     /// A grid point and a boundary point one ulp off a crease merge
     /// onto it, on either side: neither survives beside the crease line
     /// to cut a sliver, and the triangulation still keeps every
