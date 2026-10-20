@@ -498,4 +498,5 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - Filed: `a-curved-coincident-wall-ships-its-seam-where-operand-a-ends` (P3). The other two residues were filed by the lane.
   - The slate stands at 41.5 points against 32, still owed a split.
 — (FLUSH orchestrator)
-
+- 2026-10-20 — **FLUSH split along its priority seam.** It measured 41.5 points against its 32 after PR 5368, so the eight P3 rows and the one P4 row moved to the new program **FLUSHTAIL** (`work/flushtail/`, `ready`, no orchestrator) by `git mv`, ids and bodies unchanged. FLUSH keeps P0 to P2 at 25 points. One code comment followed its row (`revalue_corpus.rs`).
+— (FLUSH orchestrator)

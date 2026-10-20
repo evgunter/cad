@@ -3992,6 +3992,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::EmptyLoop": "TessellateError.variant",
     "TessellateError::MissingEntity": "TessellateError.variant",
     "TessellateError::ResolutionOverflow": "TessellateError.variant",
+    "TessellateError::StepNotPositive": "TessellateError.variant",
     "TessellateError::CertificateExceeded": "TessellateError.variant",
     "TessellateError::Triangulation": "TessellateError.variant",
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",

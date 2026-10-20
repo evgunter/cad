@@ -1782,8 +1782,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         // bug, and these are not one.
         NamingError::SeamVertexParentage { .. } => "seam_vertex_parentage",
         NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
-        NamingError::MergedChord { .. } => "merged_chord",
-        NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
+        NamingError::ChordOffRim { .. } => "chord_off_rim",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
         NamingError::ConventionalVertex { .. } => "conventional_vertex",
         NamingError::ClosedCarrierUnread { .. } => "closed_carrier_unread",
@@ -2404,6 +2403,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::EmptyLoop { .. } => "empty_loop",
         TessellateError::MissingEntity { .. } => "missing_entity",
         TessellateError::ResolutionOverflow { .. } => "resolution_overflow",
+        TessellateError::StepNotPositive { .. } => "step_not_positive",
         TessellateError::CertificateExceeded { .. } => "certificate_exceeded",
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",

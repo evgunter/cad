@@ -3778,7 +3778,7 @@ struct LinesClosest<T: Real> {
 /// Counted to first order, the error is about
 /// `8.5u·|e|/s + 5.5u·|reach| + 5.5u·gap/s` in a reach and
 /// `(5.5/s + 4)u·|e|` in the gap, under the
-/// `16u` of [`geom_brep::rounding_charge`] by about 2×, and every single
+/// `16u` of [`geom_core::rounding_charge`] by about 2×, and every single
 /// reading's error is held under half its charge at coordinates to
 /// `1e4` and ends to a thousand lengths off the crossing
 /// (`segment_fuzz::each_readings_error_stays_inside_its_charge_far_from_the_unit_box`).
@@ -3845,7 +3845,7 @@ fn lines_frame<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> (Vec3<T>, T, T) {
 /// rounding charge ([`ee_lines_closest`]).
 fn gap_from_ends<T: Real>(e: Vec3<T>, n: Vec3<T>, s: T) -> [T; 2] {
     let g = e.dot(n).abs() / s;
-    let charge = geom_brep::rounding_charge(e.norm() * (T::one() + s)) / s;
+    let charge = geom_core::rounding_charge(e.norm() * (T::one() + s)) / s;
     [g - charge, g + charge]
 }
 
@@ -3860,7 +3860,7 @@ fn reach_axis<T: Real>(x: &EdgeGeo<T>, y: &EdgeGeo<T>, nn: T) -> Vec3<T> {
 /// rounding charge, `gap_hi` the gap's upper bound ([`ee_lines_closest`]).
 fn reach_from_end<T: Real>(e: Vec3<T>, w: Vec3<T>, flip: bool, gap_hi: T, s: T) -> [T; 2] {
     let r = if flip { -e.dot(w) } else { e.dot(w) };
-    let charge = geom_brep::rounding_charge(e.norm() + r.abs() + gap_hi / s) / s;
+    let charge = geom_core::rounding_charge(e.norm() + r.abs() + gap_hi / s) / s;
     [r - charge, r + charge]
 }
 
