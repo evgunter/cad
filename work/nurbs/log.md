@@ -1618,3 +1618,5 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - `approximate` elevates only from p ≤ 2 (exact);
     - `review_m5_pr3_attack::f5_*` is a latent ~4e-6 flake with the wrong law in its comment.
   - **Ruled:** fix, at FULL. A conditioning-aware forward/backward split in elevation's recomposition only. If that doesn't reach ε·scale at p ≥ 6, report; the fallback is a typed refusal, never silent drift. Rows red on main; goldens over elevated geometry re-cut, with what moved stated; SWEEP and curves seam notes if their goldens move.
+- 2026-10-20 05:15Z — **#5446 CI red, base red.** `geom curves::tests::ellipse_constructor_trios` (`SemiAxisNotFinite`) is red on main since GERM's `53967a14` (#5156); build C bisected it. Filed on GERM's slate with a seam note. #5446 merges over it under the standing base-red ruling.
+  - **Friction:** the orchestrator's container hit 99% disk (a 24 GB stale target from earlier timing work) and couldn't build to check. Freed; lanes with warm builds now do base-red checks.
