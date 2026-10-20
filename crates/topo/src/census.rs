@@ -305,7 +305,8 @@ use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
 use geom_brep::curve_pair::{Hit, MeetFault, Span as CarrierSpan, meet};
-use geom_core::k_stats::Magnitude;
+use geom_core::k_stats::{Magnitude, decide_positive};
+use geom_core::one_line::on_one_line;
 use geom_core::{
     Band, Bounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3,
 };
@@ -352,6 +353,8 @@ struct EdgeGeo<T: Real> {
 #[derive(Clone, Copy)]
 struct Span<T: Real> {
     p0: Point3<T>,
+    /// The end point: the stored vertex, read as given.
+    p1: Point3<T>,
     dir: Vec3<T>,
     len: T,
 }
@@ -371,6 +374,7 @@ impl<T: Real> Spans<T> for EdgeGeo<T> {
     fn span(&self) -> Span<T> {
         Span {
             p0: self.p0,
+            p1: self.p1,
             dir: self.dir,
             len: self.len,
         }
@@ -3872,6 +3876,31 @@ fn ee_crossing_lane<T: Decide>(
     }
 }
 
+/// **Whether the census reads two spans' projections at this band**
+/// (`pm_census_ee_overlap_precision`). Margin: `(K − 1)·ε / (SHORT_CHAIN_ULPS·u)`
+/// less the four points' summed distance from the origin (meters): how
+/// far that sum sits below the one at which the projections' charge
+/// ([`geom_core::one_line`]) reaches `(K − 1)·ε`.
+///
+/// **Why that much room is enough.** [`collinear_overlap`] decides its
+/// projections uncharged ([`tri_cmp`], `pm_census_ee_overlap`), because
+/// within that room no uncharged verdict can be wrong: each margin it
+/// reads is within the charge `n` of its real value, so a definite
+/// verdict (`|m| > Kε`) has its real sign past `Kε − n ≥ ε`, and a Zero
+/// (`|m| ≤ ε`) is never a real definite (`ε + n ≤ Kε`). Points the body
+/// stores collinear within `ε` sit where their ulp is below `ε`, so no
+/// body the census reads today comes near the edge (a 135 153-pair sweep
+/// at `ε = 10⁻¹²` found no misread). Past it the reading is the
+/// representation's rounding, not the geometry: an escalation, the
+/// tolerance coarser or the geometry nearer the origin its recourse,
+/// never a guess.
+fn overlap_resolves<T: Decide>(noise: T, band: Band) -> Result<(), Indeterminate> {
+    let room = band.escalate() - band.zero();
+    let per_metre = T::from_f64(geom_core::SHORT_CHAIN_ULPS * f64::EPSILON * 0.5);
+    let headroom = (T::from_f64(room) - noise) / per_metre;
+    decide_positive("pm_census_ee_overlap_precision", Margin::of(headroom), band)
+}
+
 /// The positive-length overlap `[lo, hi]` of two parallel edges on
 /// `ea`'s axis, where they are collinear: `Some(Some(_))` an overlap;
 /// `Some(None)` where they are not collinear, or the overlap is a point
@@ -3888,10 +3917,16 @@ fn collinear_overlap<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<((T, T), MarginDiag)>> {
     let (ea, eb) = (ea.span(), eb.span());
-    let t0 = (eb.p0 - ea.p0).dot(ea.dir);
-    let t1 = t0 + eb.len * eb.dir.dot(ea.dir);
+    // The projections are the one reading's ([`geom_core::one_line`]),
+    // of the stored vertices as given, so nothing here computed them.
+    let along = on_one_line(ea.dir, (ea.p0, ea.p1), (eb.p0, eb.p1), T::zero());
+    if let Err(cause) = overlap_resolves(along.noise, band) {
+        errors.push(ValidationError::CensusEscalated { cause });
+        return None;
+    }
+    let ((_, len), (t0, t1)) = (along.a, along.b);
     let mut held = Vec::new();
-    let span = projected_overlap(&ea, (t0, t1), band, &mut held);
+    let span = projected_overlap(len, (t0, t1), band, &mut held);
     if matches!(span, Some(None)) {
         return Some(None);
     }
@@ -3934,7 +3969,7 @@ fn overlap_gap<T: Real>(ea: &Span<T>, eb: &Span<T>, (t0, t1): (T, T)) -> Margin<
 /// a positive length (`pm_census_ee_overlap`), `Some(None)` a point or
 /// empty, `None` escalated (pushed).
 fn projected_overlap<T: Decide>(
-    ea: &Span<T>,
+    len: T,
     (t0, t1): (T, T),
     band: Band,
     errors: &mut Vec<ValidationError>,
@@ -3947,9 +3982,9 @@ fn projected_overlap<T: Decide>(
         core::cmp::Ordering::Greater => blo,
         _ => T::zero(),
     };
-    let hi = match tri_cmp(bhi, ea.len, band, errors)? {
+    let hi = match tri_cmp(bhi, len, band, errors)? {
         core::cmp::Ordering::Less => bhi,
-        _ => ea.len,
+        _ => len,
     };
     match decide("pm_census_ee_overlap", Margin::of(hi - lo), band) {
         Ok(Sign::Positive) => Some(Some((lo, hi))),
@@ -16830,6 +16865,112 @@ mod edge_pairs_as_segments {
 
     fn seg(a: [f64; 3], b: [f64; 3]) -> EdgeGeo<f64> {
         segment((pt(a), pt(b)))
+    }
+
+    /// **Spans too far out for this band escalate on their precision,
+    /// never decide.** Two collinear edges a metre long about `10⁴` m from
+    /// the origin at `ε = 10⁻¹²`: their four points sum to `4·10⁴` m, past
+    /// the `(K − 1)·ε / (SHORT_CHAIN_ULPS·u) ≈ 5·10³` m at which the
+    /// projections' charge reaches the room [`overlap_resolves`] keeps, so
+    /// the uncharged end comparisons could read rounding as geometry.
+    /// [`collinear_overlap`] escalates `pm_census_ee_overlap_precision`
+    /// rather than read them. At `ε = 10⁻⁹` the same spans are inside the
+    /// room and read as an overlap.
+    #[test]
+    fn spans_too_far_out_for_the_band_escalate_on_their_precision() {
+        let far = 1e4;
+        let ea = seg([far, far, far], [far + 1.0, far, far]);
+        let eb = seg([far + 0.5, far, far], [far + 1.5, far, far]);
+        let mut errors = Vec::new();
+        let read = collinear_overlap(&ea, &eb, band(AT_1E12), &mut errors);
+        assert!(read.is_none(), "far out at 1e-12: {read:?}");
+        assert!(
+            matches!(
+                errors.as_slice(),
+                [ValidationError::CensusEscalated { cause }]
+                    if cause.predicate == Some("pm_census_ee_overlap_precision")
+            ),
+            "{errors:?}"
+        );
+        let mut errors = Vec::new();
+        let read = collinear_overlap(&ea, &eb, band(AT_1E9), &mut errors);
+        assert!(
+            matches!(read, Some(Some(_))) && errors.is_empty(),
+            "inside the room at 1e-9: {read:?} {errors:?}"
+        );
+    }
+
+    /// **Where the census reads, no uncharged comparison misreads.**
+    /// Collinear pairs of stored, non-exact `f64` points up to `10⁴` m
+    /// out at `ε = 10⁻¹²`, `b` overlapping `a`'s end by `0` … `60·ε` and
+    /// lying within `ε` of `a`'s line in ℝ (`Interval`). Wherever
+    /// [`collinear_overlap`] reads, a real overlap past `Kε` is never read
+    /// as none, and one within `(ε, Kε]` is never decided as none
+    /// without an escalation: the argument at [`overlap_resolves`],
+    /// measured. (135 153 such pairs in the PR that added this row, 0
+    /// misreads.)
+    #[test]
+    fn where_the_census_reads_no_uncharged_comparison_misreads() {
+        use geom_core::Interval;
+        let mut rng = test_utils::fuzz::start("census-overlap-misreads");
+        let (z, k) = AT_1E12;
+        let mut read_pairs = 0usize;
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let far = 10f64.powf(rng.range(0.0, 4.0));
+            let a0 = pt([
+                far * rng.range(-1.0, 1.0),
+                far * rng.range(-1.0, 1.0),
+                far * rng.range(-1.0, 1.0),
+            ]);
+            let d = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            )
+            .normalize();
+            let len = far * rng.range(0.1, 2.0);
+            let a1 = a0 + d * len;
+            let b0 = a1 - d * (rng.range(0.0, 60.0) * z);
+            let b1 = b0 + d * (len * rng.range(0.1, 1.0));
+            let iv = |p: Point3<f64>| {
+                Point3::new(
+                    Interval::from_f64(p.x),
+                    Interval::from_f64(p.y),
+                    Interval::from_f64(p.z),
+                )
+            };
+            let (ia0, ia1) = (iv(a0), iv(a1));
+            let chord = ia1 - ia0;
+            let unit = chord * (Interval::one() / chord.norm());
+            let w = iv(b0) - ia0;
+            if (w - unit * w.dot(unit)).norm().hi() > z {
+                continue;
+            }
+            let over = chord.norm() - w.dot(unit);
+            let mut errors = Vec::new();
+            let read = collinear_overlap(
+                &segment((a0, a1)),
+                &segment((b0, b1)),
+                band(AT_1E12),
+                &mut errors,
+            );
+            if read.is_none() {
+                continue;
+            }
+            read_pairs += 1;
+            let none = matches!(read, Some(None));
+            assert!(
+                !(none && over.lo() > k),
+                "a real overlap past Kε read as none: {over:?} — {}",
+                test_utils::fuzz::replay()
+            );
+            assert!(
+                !(none && over.lo() > z && errors.is_empty()),
+                "a real overlap in (ε, Kε] decided as none: {over:?} — {}",
+                test_utils::fuzz::replay()
+            );
+        }
+        assert!(read_pairs > 1000, "only {read_pairs} pairs read");
     }
 
     /// Whether the two edges' interiors meet, as the confirm pass reads
