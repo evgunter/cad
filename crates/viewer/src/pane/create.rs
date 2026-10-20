@@ -13,7 +13,7 @@ use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
-use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
+use crate::blend::{BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
@@ -1743,8 +1743,9 @@ impl ViewerBehavior<'_> {
     }
 
     /// The blend tool's commit/cancel row — [`ViewerBehavior::tool_commit_row`]'s
-    /// rules, spelled here because this tool's commit door refuses in
-    /// its own vocabulary ([`BlendError`]) rather than in the seats'.
+    /// rules, spelled here because this tool holds a set rather than
+    /// seats. With no edge held there is no body to blend and so no op:
+    /// the commit is disabled and says why.
     ///
     /// Both halves of the close rule are unchanged: the op is QUEUED
     /// and the application closes the tool when the edit actually
@@ -1761,21 +1762,21 @@ impl ViewerBehavior<'_> {
         self.creation_label_row(ui, noun);
         let mut close = false;
         ui.horizontal(|ui| {
-            if ui.button(ToolKind::Blend.commit()).clicked() {
+            let commit = ui
+                .add_enabled(count > 0, egui::Button::new(ToolKind::Blend.commit()))
+                .on_disabled_hover_text("pick an edge first: a blend blends at least one");
+            if commit.clicked() {
                 match self.notation.length_literal(self.drafts.blend_size) {
                     Ok(size) => {
-                        let op: Option<Result<SessionOp, BlendError>> =
-                            self.tools.blend().map(|tool| match self.drafts.blend_kind {
-                                BlendKindChoice::Fillet => tool.fillet_op(size.clone()),
-                                BlendKindChoice::Chamfer => tool.chamfer_op(size),
-                            });
-                        match op {
-                            Some(Ok(op)) => self.push_labelled(noun, op),
-                            Some(Err(error)) => {
-                                self.notices
-                                    .push(frame::tool_news(&ToolKind::Blend.refuses(&error)));
-                            }
-                            None => {}
+                        let op: Option<SessionOp> = self.tools.blend().and_then(|tool| match self
+                            .drafts
+                            .blend_kind
+                        {
+                            BlendKindChoice::Fillet => tool.fillet_op(size.clone()),
+                            BlendKindChoice::Chamfer => tool.chamfer_op(size),
+                        });
+                        if let Some(op) = op {
+                            self.push_labelled(noun, op);
                         }
                     }
                     Err(error) => {

@@ -2005,14 +2005,6 @@ pub enum NodeErrorKind {
         /// The step's refusal.
         refusal: Box<NodeErrorKind>,
     },
-    /// A blend node's selection is EMPTY. A blend of nothing is not
-    /// the identity — it is an unfinished recipe, refused rather than
-    /// passed through (the fail-loud voice: no op silently returns its
-    /// input).
-    BlendSelectionEmpty {
-        /// Which blend the refusing node is.
-        verb: sweep::blend::BlendKind,
-    },
     /// **The shell op refused** — the thickness gate, the wall-clearance
     /// gate, a face's inward offset, a designation gate (a chart named
     /// in part, every face of a shell named, a designation that cuts
@@ -2648,10 +2640,6 @@ impl crate::spoken::Say for NodeErrorKind {
                 "the fold refused at the step that folds in member {member} ({}): {}",
                 by.read(*read),
                 Said(refusal.as_ref(), by)
-            ),
-            Self::BlendSelectionEmpty { verb } => write!(
-                f,
-                "the {verb} selection is empty — an unfinished recipe, not the identity"
             ),
             Self::Shell(e) => write!(f, "the shell op refused: {e}"),
             Self::ShellLaneUnsupported { scalar } => write!(

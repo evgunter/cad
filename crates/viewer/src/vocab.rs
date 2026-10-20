@@ -82,8 +82,7 @@
 //!
 //! Demonstrated, not assumed: a variant re-indented to column 21
 //! inside `blend.rs`'s block leaves `cargo fmt --check` at exit 0,
-//! while the same mis-indent on the `BlendError` enum ten lines below
-//! it is caught. It is the invocation that stops rustfmt and not the
+//! while the same mis-indent on an ordinary enum below it is caught. It is the invocation that stops rustfmt and not the
 //! body: the same test with the body rewritten so it parses as a
 //! single well-formed item (the `ALL` declaration moved onto the enum
 //! as an attribute), and again with the invocation delimited by `()`

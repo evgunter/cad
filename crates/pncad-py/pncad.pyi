@@ -129,8 +129,10 @@ class EditError(PncadError):
       (`profile`, `target`, `from`, `cut`, `member`, ...), with
       `index` the position of a section or a member.
     - `count` is how many nodes a definition expands to
-      (`definition_too_large`), or how many entities a selection meant
-      to name one names (`selection_shape`). It is NOT `found`: a count
+      (`definition_too_large`), or how many names a selection holds
+      where its kind holds another count (`selection_shape`,
+      `name_count`: a singleton holds exactly one, a set of edges at
+      least one). It is NOT `found`: a count
       and a dimension are two types, and one attribute carries one.
     - `first` and `again` are POSITIONS in a selection's names, and
       the fault (`fault`) decides what `first` means. On `repeated` (a

@@ -19,12 +19,11 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    CancelToken, CapEnd, DocEdit, EditError, EntityKind, EvalOptions, Node, NodeErrorKind,
-    NodeResult, Operand, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, Select, SelectionFault,
-    SnapshotError, StableName, VarKind, apply, evaluate, load, save,
+    CapEnd, DocEdit, EditError, EntityKind, Node, Operand, PersistError, ProfileDoc, RecipeNodeId,
+    RoleSeg, Select, SelectionCount, SelectionFault, SnapshotError, StableName, VarKind, apply,
+    load, save,
 };
 use geom_core::Tol;
-use sweep::blend::BlendKind;
 
 /// A square prism: an XY frame (0), a unit-square profile (1) and the
 /// extrude (2) whose edges the blends name.
@@ -278,50 +277,80 @@ fn the_construction_doors_canonicalize() {
     }
 }
 
-/// **An EMPTY selection is canonical**, and stays a different refusal:
-/// a blend of nothing is an unfinished recipe, which EVALUATION names,
-/// not a corrupt form the authoring door can diagnose. The row admits
-/// it at the insert door and then takes the refusal it does get, so
-/// the sentence in `input_fault`'s comment is evidence and not a
-/// claim.
+/// **An EMPTY selection is refused at the insert door**: a set of
+/// edges holds at least one name, which is read off the names as
+/// written, so it is the doors' fact and never evaluation's.
 #[test]
-fn an_empty_selection_is_canonical() {
+fn an_empty_selection_is_refused_at_the_insert_door() {
     let (doc, solid) = prism();
-    let empty: AuthoredNode = Node::Fillet {
-        radius: fixture::len(0.0625),
-        selection: editor_core::Operand::select(solid, Vec::new()),
-    };
-    assert!(Select::fault(VarKind::Edges, &[]).is_none());
-    let doc = apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(empty),
-            fresh: Vec::new(),
+    for empty in [
+        Node::Fillet {
+            radius: fixture::len(0.0625),
+            selection: editor_core::Operand::select(solid, Vec::new()),
         },
-        Tol::witness(),
-    )
-    .expect("an empty selection is not this door's refusal")
-    .doc;
-    let fillet = *doc.ids().last().expect("the fillet is the last node");
-    let ev = evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
-    );
-    match ev.nodes.get(&fillet) {
-        Some(NodeResult::Failed(e)) => assert!(
-            matches!(
-                e.kind,
-                NodeErrorKind::BlendSelectionEmpty {
-                    verb: BlendKind::Fillet
-                }
-            ),
-            "the empty blend refuses at evaluation, not at a door: {:?}",
-            e.kind
-        ),
-        other => panic!("expected an evaluation refusal, got {other:?}"),
+        Node::Chamfer {
+            distance: fixture::len(0.0625),
+            selection: editor_core::Operand::select(solid, Vec::new()),
+        },
+    ] {
+        match apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(empty),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        ) {
+            Err(EditError::SelectionShape {
+                fault:
+                    SelectionFault::Count {
+                        holds: SelectionCount::AtLeastOne,
+                        count: 0,
+                    },
+                ..
+            }) => {}
+            other => panic!("an empty selection must refuse typed, got {other:?}"),
+        }
+    }
+    // A shell's empty set is the sealed hollow: the bound is the kind's.
+    assert!(Select::fault(VarKind::Faces, &[]).is_none());
+}
+
+/// **The load door refuses an empty selection with the same fault**.
+#[test]
+fn an_empty_selection_is_refused_at_the_load_door() {
+    let text = saved_fillet(&[0]);
+    load(&text, Tol::witness()).expect("the one-edge fixture loads");
+    let names = text
+        .find("\"Select\"")
+        .and_then(|sel| text[sel..].find("\"names\": [").map(|at| sel + at))
+        .expect("the selection's names reach the wire");
+    // The list's own `]`: the first bracket that closes more than it
+    // opened (no name's text holds a bracket).
+    let open = names + "\"names\": [".len();
+    let mut depth = 0i32;
+    let close = open
+        + text[open..]
+            .find(|c| {
+                depth += match c {
+                    '[' => 1,
+                    ']' => -1,
+                    _ => 0,
+                };
+                depth < 0
+            })
+            .expect("the names list closes");
+    let corrupt = format!("{}{}", &text[..open], &text[close..]);
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::SelectionShape {
+            fault:
+                SelectionFault::Count {
+                    holds: SelectionCount::AtLeastOne,
+                    count: 0,
+                },
+            ..
+        })) => {}
+        other => panic!("an empty selection must refuse typed at load, got {other:?}"),
     }
 }
 
