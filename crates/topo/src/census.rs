@@ -112,7 +112,7 @@
 //! `_structural` twin hands `None` at every scalar it is called at — a
 //! dual's only route, and an `f64` caller's when it chooses that door.
 //!
-//! **Sense-invariant** (M5 S10 audit), with ONE named exception.
+//! **Sense-invariant** (M5 S10 audit), with two named exceptions.
 //! Every use of a face's plane `normal` in the COINCIDENCE sweeps is
 //! either an on-plane residual compared against `Sign::Zero` (does
 //! this point/segment LIE on the face's carrier?) or the in-plane
@@ -120,14 +120,18 @@
 //! Neither reads a side: negating the normal leaves a zero residual
 //! zero and leaves a crossing count unchanged — coincidence is a
 //! question about position, never about which way the material lies.
-//! The exception is the crossing rung's SIDE TEST
+//! The first exception is the crossing rung's SIDE TEST
 //! ([`ee_cross_backed`]): whether a declared pair may back an
 //! `EdgeEdgeCross` is a question about which way the material lies —
 //! opposite sides of the shared carrier is a legal overhang, one side
 //! is interpenetration — and it hands each face's `Face::sense` bit to
 //! the one sense algebra the kernel already carries
 //! (`geom_brep::classify_material_pairing`, the tier-3 wedge pass's
-//! family), never a hand-rolled sign.
+//! family), never a hand-rolled sign. The second is pass 4's reading of
+//! an edge lying in a face of its own solid ([`edge_in_own_face`]): a
+//! backed overlap still refuses where the face passes through the
+//! edge's material wedge, read by the touch analysis's one test
+//! ([`rest::judge`]) over each cell's outward normals.
 //!
 //! **Certification (F1/F2(iii))**: the census never blesses — every
 //! finding must be *backed* by a declaration and every declaration
@@ -2721,6 +2725,8 @@ fn ef_overlap_lane<T: Decide>(
                 witness: witness(cell.mid),
                 margin,
             });
+        } else {
+            errors.extend(edge_in_own_face(body, geo, e.key, f.key, cell.mid, band));
         }
     }
 }
@@ -4878,6 +4884,15 @@ impl Named {
                 }
             },
             ValidationError::CensusUndecidable { a, b, .. } => Self::Two(*a, *b, Said::Unexamined),
+            // A touch inside one solid, read for sides where it is found
+            // ([`edge_in_own_face`]): an edge's pairing, which no face
+            // crossing and no placement reading of another solid rests on.
+            ValidationError::FaceThroughEdgeWedge { edge, face, .. }
+            | ValidationError::FaceThroughEdgeWedgeUndecided { edge, face, .. } => Self::Two(
+                EntityId::Edge(*edge),
+                EntityId::Face(*face),
+                Said::Touch(TouchSite::EdgeInFace(*edge, *face)),
+            ),
             _ => Self::Nothing,
         }
     }
@@ -5368,6 +5383,105 @@ fn read_touch<T: Decide>(
     let got = site.verdict(body, geo, ties, band).refusal();
     read.borrow_mut().insert(unit, got);
     got
+}
+
+/// **An edge lying in a face of its own solid**, read for sides at `p`,
+/// inside both. Where more than two sheets meet on a line, each creased
+/// material sector between two consecutive sheets is one edge, and the
+/// sectors are disjoint (D1, `crates/topo/README.md` tier 3): the face's
+/// two sheets through the line lie outside the edge's wedge, and that
+/// wedge outside the face's material. The edge's link (its two faces,
+/// [`Link::on_edge`]) and the face's are the two cones of
+/// [`rest::judge`]: a rest is that, and a crossing is a face sheet inside
+/// the wedge, or the wedge inside the face's material, which leaves the
+/// edge's two faces no consecutive pair about a material sector of
+/// their own. Every other verdict leaves the side unread and refuses as
+/// that verdict names. `None` for a rest, or for an edge of another
+/// solid, whose touch arm 2 reads.
+fn edge_in_own_face<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    edge: EdgeKey,
+    face: FaceKey,
+    p: Point3<T>,
+    band: Band,
+) -> Option<ValidationError> {
+    let solid = census_entity_solid(body, EntityId::Face(face));
+    if solid.is_none() || census_entity_solid(body, EntityId::Edge(edge)) != solid {
+        return None;
+    }
+    let verdict = match (
+        Link::on_edge(body, geo, edge, p, band),
+        Link::in_face(body, geo, face, p, band),
+    ) {
+        (Ok(a), Ok(b)) => rest::judge(&a, &b, band),
+        (Err(v), _) | (_, Err(v)) => v,
+    };
+    let unread = match verdict {
+        TouchVerdict::Rest(_) => return None,
+        TouchVerdict::Crossing => {
+            return Some(ValidationError::FaceThroughEdgeWedge {
+                edge,
+                face,
+                witness: witness(p),
+            });
+        }
+        TouchVerdict::InBand | TouchVerdict::PieceInBand => WedgeSideUnread::InBand,
+        TouchVerdict::Unreadable => WedgeSideUnread::Curved,
+        TouchVerdict::Unanalysed | TouchVerdict::Degenerate => WedgeSideUnread::Unanalysed,
+        TouchVerdict::ChordScale => WedgeSideUnread::ChordScale,
+        TouchVerdict::Corrupt => WedgeSideUnread::Corrupt,
+    };
+    Some(ValidationError::FaceThroughEdgeWedgeUndecided {
+        edge,
+        face,
+        witness: witness(p),
+        what: unread.what(),
+    })
+}
+
+/// Why [`edge_in_own_face`] read no side.
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
+pub(crate) enum WedgeSideUnread {
+    /// A sign the reading needed is in band.
+    InBand,
+    /// A curved face or edge takes part.
+    Curved,
+    /// The faces there fold onto each other, or do not close.
+    Unanalysed,
+    /// An edge's length there is not a number.
+    ChordScale,
+    /// The topology there does not read.
+    Corrupt,
+}
+
+impl WedgeSideUnread {
+    /// The reason and its recourse, as the finding renders them.
+    pub(crate) fn what(self) -> &'static str {
+        match self {
+            Self::InBand => concat!(
+                geom_core::undecided!("which side of each other their material lies on"),
+                ". There is no way through yet for this shape"
+            ),
+            Self::Curved => {
+                "a curved face meets the point, and the check cannot yet read which side of \
+                 a curved face material lies on. There is no way through yet for this shape"
+            }
+            Self::Unanalysed => {
+                "the part's faces there fold onto each other or do not close around the \
+                 point, so no side reads. There is no way through yet for this shape"
+            }
+            Self::ChordScale => {
+                "an edge there is too long or too short to measure. Recourse: rescale the \
+                 model so every edge length is an ordinary number"
+            }
+            Self::Corrupt => concat!(
+                "the part's topology there could not be walked. ",
+                geom_core::kernel_or_file_defect_ending!()
+            ),
+        }
+    }
 }
 
 /// One touch point's two links, each as built or as the verdict its

@@ -3173,6 +3173,10 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CensusUnsupported { .. } => "census_unsupported",
         ValidationError::CensusLaneUnsupported { .. } => "census_lane_unsupported",
         ValidationError::CensusUndecidable { .. } => "census_undecidable",
+        ValidationError::FaceThroughEdgeWedge { .. } => "face_through_edge_wedge",
+        ValidationError::FaceThroughEdgeWedgeUndecided { .. } => {
+            "face_through_edge_wedge_undecided"
+        }
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
         ValidationError::DanglingTopology { .. } => "dangling_topology",

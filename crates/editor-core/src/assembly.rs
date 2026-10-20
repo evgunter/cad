@@ -2121,6 +2121,10 @@ fn attribute(
             ..
         }
         | ValidationError::CensusUndecidable { .. }
+        // An edge in a face of its own solid, read for sides: one
+        // solid's cells, which no minted face pair names.
+        | ValidationError::FaceThroughEdgeWedge { .. }
+        | ValidationError::FaceThroughEdgeWedgeUndecided { .. }
         // A kernel defect in one face's boundary reading, about no pair.
         | ValidationError::ArcEndOffCorner { .. }
         | ValidationError::InstanceInterference { .. } => None,

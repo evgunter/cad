@@ -48,3 +48,16 @@ wall-to-wall case returns two solids. Nearest row:
 
 
 **Unblocked (CLEAVE, 2026-10-19).** `[ev]` PR 4795 merged (`0a702a9bc1`). Ev ratified the D1 sentence in `crates/topo/README.md` tier 3: where more than two sheets meet on a line, the material decides the edges, and the complement re-pairs. Radial edges were declined.
+
+## Note from RESTREAD (2026-10-19): tier 3′ refuses the rider form
+
+Branch `restread/face-in-edge-wedge`: tier 3′ reads an edge lying in a
+face of its own solid for sides, and refuses the three trench bodies
+`FaceThroughEdgeWedge` (`crates/topo/tests/a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs`,
+pinned there until this row builds the slit form; flip them to pass
+then). Two more shipped results of this form were re-baselined to the
+refusal: `y − x` in
+`a_vertex_read_by_two_sector_passes::an_edge_through_two_blocks_glued_faces_builds_*`
+(the pyramid's edge through the glued faces) and `cutter ∖ pinch` at
+slope −0.5 in
+`union_flush_onto_edge_contact::a_face_holding_the_pinch_line_ties_the_pierces_germs`.

@@ -2,10 +2,11 @@
 id: census-passes-a-face-inside-an-edges-material-wedge
 kind: issue
 title: Tiers 3 and 3′ pass a face lying inside an edge's material wedge
-status: open
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: M
+closed: 2026-10-19
 ---
 
 Found by the keel design fork (`[ev]` PR 4795), measured on main
@@ -110,3 +111,28 @@ body; hand-built tier-3 fixtures and assembly copies placed on top of
 each other did. The face-inside-a-wedge half (the rider form) is
 untouched. The reader also refuses a cusp or slit edge on a line typed
 (`WedgeRefusal::WedgeEnd`) instead of as an in-band escalation.
+
+## Closed
+
+2026-10-19, branch `restread/face-in-edge-wedge`. Tier 3′ reads an edge
+lying in a face of its own solid for sides (`census.rs`
+`edge_in_own_face`, at every cell of pass 4's in-plane overlap that its
+bounds back): the edge's link against the face's, through the touch
+analysis's `rest::judge`. A crossing refuses `FaceThroughEdgeWedge`; a
+reading that does not decide refuses `FaceThroughEdgeWedgeUndecided`,
+naming why.
+
+- The keel-in-face trenches (both ends closed, one open, wall to wall)
+  and the glued tip subtracted with its records refuse, pinned in
+  `crates/topo/tests/a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs`
+  until CLEAVE's `a-boolean-builds-a-reflex-edge-lying-inside-a-face`
+  builds the slit form. A ridge resting on its own solid's floor passes.
+- Newly refused shipped results, re-baselined to the refusal, the same
+  keel-in-face form: `y − x` of the glued blocks against the pyramid
+  (`a_vertex_read_by_two_sector_passes`), and `cutter ∖ pinch` at slope
+  −0.5 (`union_flush_onto_edge_contact`).
+- Out of this row: a face against a vertex's cone, where the literal
+  corollary refuses valid cavity corners
+  (`tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid`),
+  and coincident edges on one line at tier 3′
+  (`tier-3-prime-reads-no-side-between-coincident-edges-on-one-line`).

@@ -168,7 +168,12 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 /// op called without them does not carry
 /// (`work/contacthold/a-booleans-records-are-complete-only-relative-to-the-records-passed-in.md`);
 /// an edge of the other operand through the rectangle's interior is not
-/// admitted. Returns whether 3′ held.
+/// admitted. An edge of the result lying in the rectangle may refuse
+/// `FaceThroughEdgeWedge`: `y − x` keeps the pyramid's edge through the
+/// glued faces one reflex edge with a glued face through its wedge, the
+/// keel-in-face form
+/// (`work/cleave/a-boolean-builds-a-reflex-edge-lying-inside-a-face.md`).
+/// Returns whether 3′ held.
 fn three_prime(
     what: &str,
     r: &topo::BooleanBody<f64>,
@@ -222,6 +227,25 @@ fn three_prime(
         (-1e-9..=1.0 + 1e-9).contains(&s) && (l - d * s).norm() < 1e-6
     };
     let corner = |v| sides.iter().any(|&[o, _]| at(point(v)) == at(o));
+    // In the rectangle, its sides included, to a micron.
+    let in_rectangle = |q: Point3<f64>| {
+        let Some(&[o, a]) = sides.first() else {
+            return false;
+        };
+        let (u, w) = (a - o, sides[3][0] - o);
+        let (s, r) = ((q - o).dot(u) / u.dot(u), (q - o).dot(w) / w.dot(w));
+        let off = (q - o) - u * s - w * r;
+        [s, r].iter().all(|c| (-1e-9..=1.0 + 1e-9).contains(c)) && off.norm() < 1e-6
+    };
+    let in_glued = |e| {
+        let edge = r.body.get_edge(e).unwrap();
+        let plus = r.body.get_half_edge(edge.he_plus).unwrap();
+        let next = r.body.get_half_edge(plus.next).unwrap();
+        [plus.start, next.start]
+            .map(point)
+            .into_iter()
+            .all(in_rectangle)
+    };
     let along_a_side = |e| {
         let edge = r.body.get_edge(e).unwrap();
         let plus = r.body.get_half_edge(edge.he_plus).unwrap();
@@ -242,6 +266,7 @@ fn three_prime(
                 CensusContact::EdgeFaceOverlap { edge, .. } => along || on_ray(edge),
                 _ => false,
             },
+            ValidationError::FaceThroughEdgeWedge { edge, .. } => in_glued(*edge),
             ValidationError::CensusUndecidable { a, b, what: class } => {
                 class.starts_with("one passes into the other where they touch")
                     && touches_meet(a)

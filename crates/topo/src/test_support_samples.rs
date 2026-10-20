@@ -1654,6 +1654,25 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
+    s.push((
+        "FaceThroughEdgeWedge".to_owned(),
+        ValidationError::FaceThroughEdgeWedge {
+            edge: EdgeKey::default(),
+            face,
+            witness: "(0.0, 0.0, 0.0)".to_owned(),
+        },
+    ));
+    for why in crate::census::WedgeSideUnread::iter() {
+        s.push((
+            format!("FaceThroughEdgeWedgeUndecided/{why:?}"),
+            ValidationError::FaceThroughEdgeWedgeUndecided {
+                edge: EdgeKey::default(),
+                face,
+                witness: "(0.0, 0.0, 0.0)".to_owned(),
+                what: why.what(),
+            },
+        ));
+    }
     let ContainError::ArcEndClearOfCorners(gaps) = arc_end_clear_of_corners(true) else {
         unreachable!("the sample builds the arc-end finding")
     };
