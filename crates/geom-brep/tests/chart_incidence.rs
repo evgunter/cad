@@ -188,7 +188,7 @@ fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
                 centre.x
             );
             assert!(
-                matches!(got, Err(PcurveCertifyError::GeneralLaneUnwritten { .. })),
+                matches!(got, Err(PcurveCertifyError::NoGeneralLane { .. })),
                 "alpha = {alpha}: an on-cone circle that is no rim refuses not yet (its general \
                  lane is unwritten), never off the chart: {got:?}"
             );
@@ -584,8 +584,8 @@ fn a_closed_form_re_read_with_its_class_in_band_is_undecided() {
 /// its carrier ends lever-only "not yet" at the edge certificate, never
 /// as the description's defect** (D3). The carrier is the on-cone
 /// circle that is no rim (`a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone`'s
-/// wide cone): the mint refuses `GeneralLaneUnwritten`, and the edge
-/// certificate carries it as its own `GeneralLaneUnwritten` under the
+/// wide cone): the mint refuses `NoGeneralLane`, and the edge
+/// certificate carries it as its own `NoGeneralLane` under the
 /// class check, not folded into `ChartImageUnavailable`'s defect. Read
 /// at a build and at rest.
 #[test]
@@ -619,10 +619,7 @@ fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
         band(),
     )
     .expect_err("an on-cone circle that is no rim has no image yet");
-    assert!(
-        matches!(err, CertifyError::GeneralLaneUnwritten { .. }),
-        "{err:?}"
-    );
+    assert!(matches!(err, CertifyError::NoGeneralLane { .. }), "{err:?}");
     assert_eq!(
         err.decision().map(|(check, _)| check),
         Some(CertCheck::ChartClass)

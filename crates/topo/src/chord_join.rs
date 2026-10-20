@@ -479,7 +479,7 @@ pub enum SplitJoinError {
     /// A run edge of a curved face whose image on the face's chart is
     /// none of the chart's own curves: its class reading took the
     /// general lane, read in band or definite, or found none written
-    /// for the pair ([`geom_brep::PcurveCertifyError::GeneralLaneUnwritten`]).
+    /// for the pair ([`geom_brep::PcurveCertifyError::NoGeneralLane`]).
     /// The window walk reads a closed-form azimuth, so a general image
     /// is a lane it does not read yet: a lane choice (D3), refused
     /// lever-only "not yet", never an invariant break or a tolerance.
@@ -3115,10 +3115,10 @@ fn run_azimuth_images<T: Decide>(
                 // The class reading is a lane choice (D3): in band, and
                 // with no general lane written, it ends "not yet".
                 geom_brep::PcurveCertifyError::Escalated {
-                    check: geom_brep::PcurveCheck::ChartClass,
+                    check: geom_brep::PcurveCheck::ChartClass | geom_brep::PcurveCheck::GeneralLane,
                     ..
                 }
-                | geom_brep::PcurveCertifyError::GeneralLaneUnwritten { .. } => {
+                | geom_brep::PcurveCertifyError::NoGeneralLane { .. } => {
                     SplitJoinError::RunImageNotYet {
                         face,
                         kind: surface.kind(),

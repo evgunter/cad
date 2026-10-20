@@ -1642,6 +1642,14 @@ pub enum PcurveCheck {
     /// "not yet" ([`crate::recourse::not_yet`]), never as a defect or a
     /// tolerance offer.
     ChartClass,
+    /// The general lane's own reading at the mint, where D3's lane choice
+    /// sent a carrier the chart's incidence test does not show off it
+    /// (the projected lane's sector and nappe readings, relabelled at that
+    /// one call site, `general_lane_refusal`): the lane cannot image this
+    /// pose yet, a capability gap, so it ends lever-only "not yet" like
+    /// [`PcurveCheck::ChartClass`]. Check 4's reading of a STORED image
+    /// stays [`PcurveCheck::Sector`].
+    GeneralLane,
     /// An identity check on a stored image's copied data at check 4: the
     /// spiric image's scalars, sense and chart premise, the focal
     /// section's sense, `β` and tube rate. The kernel copies them
@@ -1874,18 +1882,19 @@ pub enum PcurveCertifyError {
         /// The surface kind.
         chart: geom::SurfaceKind,
     },
-    /// The chart's incidence test does not show the carrier off the chart,
-    /// and its class reading shows it definitely none of the chart's own
-    /// classes, so no closed form images it, and the general lane D3's
-    /// lane choice takes for it is not written yet for this pair: a circle
-    /// on a cone or torus (unit E4; the sphere's is written). A capability
-    /// gap, never a defect: it ends lever-only "not yet"
-    /// ([`PcurveCheck::ChartClass`]).
-    GeneralLaneUnwritten {
+    /// D3's lane choice sent a carrier the chart's incidence test does not
+    /// show off it to the general lane, and no general image is there for
+    /// it ([`LaneGap`] says why: none written for the pair, or the lane
+    /// does not image this pose). A capability gap, never a defect: it
+    /// ends lever-only "not yet" ([`PcurveCheck::ChartClass`] for an
+    /// unwritten pair, [`PcurveCheck::GeneralLane`] for an uncovered pose).
+    NoGeneralLane {
         /// The chart kind.
         chart: geom::SurfaceKind,
         /// The carrier kind.
         carrier: geom::CurveKind,
+        /// Why there is no image.
+        gap: LaneGap,
     },
     /// The carrier cannot lie on the chart, or is degenerate there: the
     /// edge is not on its face, a body defect no lane will ever image.
@@ -2112,13 +2121,30 @@ impl core::fmt::Display for PcurveCertifyError {
                  harmonic family belongs to the fitted lane where one exists",
                 chart.name()
             ),
-            Self::GeneralLaneUnwritten { chart, carrier } => write!(
+            Self::NoGeneralLane {
+                chart,
+                carrier,
+                gap: LaneGap::Unwritten,
+            } => write!(
                 f,
                 "pcurve certification: the {} carrier is on the {} chart but is none of its own \
                  curves, so no closed form images it, and its general image is not written yet \
                  for this pair",
                 carrier.name(),
                 chart.name()
+            ),
+            Self::NoGeneralLane {
+                chart,
+                carrier,
+                gap: LaneGap::Pose { piece, channel },
+            } => write!(
+                f,
+                "pcurve certification: the {} carrier is on the {} chart but is none of its own \
+                 curves, and its general (projected) image does not yet cover this pose: piece \
+                 {piece}'s {}",
+                carrier.name(),
+                chart.name(),
+                channel.describe()
             ),
             Self::CarrierOffChart {
                 chart,
@@ -2314,9 +2340,14 @@ impl PcurveCertifyError {
                 (PcurveCheck::ChartWinding, RefusedArm::SignCertain(None))
             }
             Self::TubePeriodExceeded => (PcurveCheck::TubePeriod, RefusedArm::SignCertain(None)),
-            Self::GeneralLaneUnwritten { .. } => {
-                (PcurveCheck::ChartClass, RefusedArm::SignCertain(None))
-            }
+            Self::NoGeneralLane {
+                gap: LaneGap::Unwritten,
+                ..
+            } => (PcurveCheck::ChartClass, RefusedArm::SignCertain(None)),
+            Self::NoGeneralLane {
+                gap: LaneGap::Pose { .. },
+                ..
+            } => (PcurveCheck::GeneralLane, RefusedArm::SignCertain(None)),
             Self::FittedEscalated { .. }
             | Self::UnsupportedChart { .. }
             | Self::CarrierOffChart { .. }
@@ -2388,7 +2419,7 @@ impl PcurveCheck {
             }
             // A lane choice whose general lane is not written yet (D3):
             // lever-only "not yet", never a defect, never a tolerance.
-            Self::ChartClass => Routing::NotYet,
+            Self::ChartClass | Self::GeneralLane => Routing::NotYet,
             // The placement integer and the stored copies the kernel
             // writes exactly.
             Self::ChartWinding | Self::ImageIdentity | Self::ChartIncidence | Self::Sector => {
@@ -2468,6 +2499,7 @@ impl PcurveCheck {
             Self::ParamSpan
             | Self::ChartWinding
             | Self::ChartClass
+            | Self::GeneralLane
             | Self::ImageIdentity
             | Self::AzimuthPeriod
             | Self::TubePeriod
@@ -8501,7 +8533,7 @@ fn stable_azimuth<T: Decide>(y: T, x: T, start: T, band: Band) -> T {
 /// circle on a sphere, a spline on any analytic chart), and otherwise
 /// refuses lever-only "not yet": `Escalated` ([`PcurveCheck::ChartClass`])
 /// with the class reading's cause where it was in band, and
-/// [`PcurveCertifyError::GeneralLaneUnwritten`] where it was definite. A
+/// [`PcurveCertifyError::NoGeneralLane`] where it was definite. A
 /// circle on a cone, torus or cylinder, a line and an ellipse have no
 /// general lane yet (units E2 and E4, `work/pcert/plan.md`). The
 /// projected lane's own refusals at the mint are its own
@@ -8578,13 +8610,69 @@ fn chart_image<T: Decide>(
             _ if projected::has_lane(carrier, surface) => {
                 projected::project(carrier, span, surface, band)
                     .map(|image| Pcurve::Projected(Box::new(image)))
+                    .map_err(|refused| general_lane_refusal(refused, carrier, surface))
             }
             Some(cause) => Err(incidence::class_escalated(shown, cause)),
-            None => Err(PcurveCertifyError::GeneralLaneUnwritten {
+            None => Err(PcurveCertifyError::NoGeneralLane {
                 chart: surface.kind(),
                 carrier: carrier.kind(),
+                gap: LaneGap::Unwritten,
             }),
         },
+    }
+}
+
+/// **Why D3's lane choice found no general image** for a carrier the
+/// chart's incidence test does not show off it
+/// ([`PcurveCertifyError::NoGeneralLane`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LaneGap {
+    /// No general lane is written for this (chart, carrier) pair
+    /// ([`projected::has_lane`]).
+    Unwritten,
+    /// The lane is written for the pair but does not image this pose: its
+    /// partition found no piece sector ([`projected::SectorChannel`])
+    /// within its refinement cap.
+    Pose {
+        /// The piece whose sector failed.
+        piece: u32,
+        /// The channel that failed.
+        channel: projected::SectorChannel,
+    },
+}
+
+/// **The projected lane's refusal at the mint, read where D3's lane choice
+/// took it**: the one place a lane choice's general-lane refusal is
+/// relabelled, and nothing in `projected` learns of lane choices. The
+/// lane's own capability gap on a carrier the incidence test does not
+/// show off the chart, its partition's sector reading (and a cone net's
+/// nappe, `chart_of`), ends "not yet" ([`PcurveCheck::GeneralLane`]):
+/// in band as an escalation of that check, decided as
+/// [`LaneGap::Pose`]. Every other refusal `project` returns stays as it
+/// is: the deck's placement (`Placement::turns`) refuses only a poisoned
+/// midpoint or one past every turn an `i32` counts, and the kind and chart
+/// refusals are fenced off by [`projected::has_lane`] before the call.
+fn general_lane_refusal<T: Real>(
+    refused: PcurveCertifyError,
+    carrier: &Curve3<T>,
+    surface: &Surface<T>,
+) -> PcurveCertifyError {
+    match refused {
+        PcurveCertifyError::Escalated {
+            check: PcurveCheck::Sector,
+            sample,
+            cause,
+        } => PcurveCertifyError::Escalated {
+            check: PcurveCheck::GeneralLane,
+            sample,
+            cause,
+        },
+        PcurveCertifyError::SectorRefused { piece, channel } => PcurveCertifyError::NoGeneralLane {
+            chart: surface.kind(),
+            carrier: carrier.kind(),
+            gap: LaneGap::Pose { piece, channel },
+        },
+        other => other,
     }
 }
 
@@ -9844,7 +9932,7 @@ fn torus_oblique_circle<T: Decide>(
     //   along its own normal by `3e-9` to `1e-8` escalates here on
     //   `_plane` (`pcurve_villarceau::a_plane_gate_in_band_near_the_horn_…`),
     //   and by `3e-8` is not shown off the torus, no Villarceau circle,
-    //   and refused "not yet" (`GeneralLaneUnwritten`).
+    //   and refused "not yet" (`NoGeneralLane`).
     // - The masking order needs a gate read before `_plane` (`_offset`,
     //   `_equator`) in band with `_plane` past it. On that near-horn pose,
     //   with `_plane` at `3e-8` or `5e-8`, `2e-9` or `5e-9` of offset or
@@ -11812,7 +11900,7 @@ mod tests {
         );
         let got = chart_pcurve(&crest, &torus, band());
         assert!(
-            matches!(got, Err(PcurveCertifyError::GeneralLaneUnwritten { .. })),
+            matches!(got, Err(PcurveCertifyError::NoGeneralLane { .. })),
             "a crest parallel centred off the axis: {got:?}"
         );
     }
@@ -12771,8 +12859,9 @@ mod check_4_class_rows {
     }
 
     /// **A lane choice with no general lane yet ends lever-only "not
-    /// yet"** (D3, `PcurveCheck::ChartClass`): its undecided reading and
-    /// its definite refusal (`GeneralLaneUnwritten`) both end in the
+    /// yet"** (D3, `PcurveCheck::ChartClass` and `GeneralLane`): its
+    /// undecided reading and its definite refusal (`NoGeneralLane`, for an
+    /// unwritten pair and an uncovered pose) all end in the
     /// not-yet ending at every reading, never in a defect ending and
     /// never in a tolerance offer. An identity check on a stored image's
     /// copies (`ImageIdentity`) keeps the defect ending.
@@ -12790,12 +12879,26 @@ mod check_4_class_rows {
             sample: 0,
             cause,
         };
-        let unwritten = PcurveCertifyError::GeneralLaneUnwritten {
+        let unwritten = PcurveCertifyError::NoGeneralLane {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
+            gap: super::LaneGap::Unwritten,
+        };
+        let lane_undecided = PcurveCertifyError::Escalated {
+            check: PcurveCheck::GeneralLane,
+            sample: 0,
+            cause,
+        };
+        let uncovered = PcurveCertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Circle,
+            gap: super::LaneGap::Pose {
+                piece: 0,
+                channel: super::projected::SectorChannel::Azimuth,
+            },
         };
         for reading in [Reading::Build, Reading::AtRest] {
-            for e in [&undecided, &unwritten] {
+            for e in [&undecided, &unwritten, &lane_undecided, &uncovered] {
                 let ending = e.ending(reading).unwrap();
                 assert!(
                     ending.starts_with(geom_core::NOT_YET_ENDING),

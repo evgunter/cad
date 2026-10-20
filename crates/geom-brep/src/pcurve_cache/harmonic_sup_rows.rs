@@ -766,16 +766,116 @@ fn the_closed_forms_are_the_sampled_sup() {
     }
 }
 
+/// **Where the general lane cannot image an on-sphere circle near a pole,
+/// it refuses "not yet", never a defect** (D3; the PCERT E1 review's P3).
+/// Three circles on the unit sphere passing within the band of its pole,
+/// whose class reading sends them to the projected lane: a great circle
+/// tilted mid-band off a meridian (its meridian reading in band), a
+/// small circle on a vertical plane mid-band off the axis (definitely no
+/// meridian, passing mid-band from the pole), and a small circle through
+/// the pole itself. The projected lane's partition cannot put a piece
+/// clear of the axis there, so it escalates or refuses its sector; the
+/// lane choice reads that as its own capability gap
+/// (`PcurveCheck::GeneralLane`, `NoGeneralLane { gap: LaneGap::Pose }`).
+/// Every outcome, at `f64` and at `Interval`, is a certified image or a
+/// "not yet" ending with no defect and no tolerance in it; and at least
+/// one pose reaches the general lane's own refusal, so a routing of
+/// `GeneralLane` to the defect ending reds the row.
+#[test]
+fn a_circle_near_a_pole_the_general_lane_cannot_image_ends_not_yet() {
+    use crate::recourse::Reading;
+    fn read<T: geom_core::Decide>(
+        at: impl Fn(f64) -> T,
+        n: Vec3<f64>,
+        h: f64,
+    ) -> Result<(), PcurveCertifyError> {
+        let carrier = Curve3::Circle {
+            center: Point3::origin() + n * h,
+            axis: n,
+            radius: (1.0 - h * h).sqrt(),
+            u_ref: Vec3::unit_y(),
+        }
+        .map_scalar(&at);
+        let sphere = unit_sphere().map_scalar(&at);
+        let image = chart_pcurve(&carrier, &sphere, band())?;
+        let tau = at(core::f64::consts::TAU);
+        PcurveCache::certify(image, at(0.0), tau, &carrier, &sphere, band()).map(|_| ())
+    }
+    let mid = 0.5 * (band().zero() + band().escalate());
+    let through_pole = Vec3::new(1.0, 0.0, 1.0).normalize();
+    let poses = [
+        (
+            "a great circle mid-band off a meridian",
+            Vec3::new(1.0, 0.0, mid).normalize(),
+            0.0,
+        ),
+        ("a small circle mid-band off the axis", Vec3::unit_x(), mid),
+        (
+            "a small circle through the pole",
+            through_pole,
+            through_pole.z,
+        ),
+    ];
+    let mut wrong = Vec::new();
+    let mut lane_gaps = 0;
+    for (what, n, h) in poses {
+        for (lane, got) in [
+            ("f64", read(|x| x, n, h)),
+            (
+                "Interval",
+                read(<geom_core::Interval as geom_core::Real>::from_f64, n, h),
+            ),
+        ] {
+            let Err(e) = got else { continue };
+            if matches!(
+                e,
+                PcurveCertifyError::Escalated {
+                    check: PcurveCheck::GeneralLane,
+                    ..
+                } | PcurveCertifyError::NoGeneralLane {
+                    gap: LaneGap::Pose { .. },
+                    ..
+                }
+            ) {
+                lane_gaps += 1;
+            }
+            for reading in [Reading::Build, Reading::AtRest] {
+                let ending = e.ending(reading).unwrap_or_default();
+                let not_yet = ending.starts_with(geom_core::NOT_YET_ENDING)
+                    && !ending.contains("defect")
+                    && !ending.contains("tolerance");
+                if !not_yet {
+                    wrong.push(format!(
+                        "{what} at {lane}, {reading:?}: {e:?} ends {ending}"
+                    ));
+                }
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+    assert!(
+        lane_gaps > 0,
+        "no pose reached the general lane's own refusal"
+    );
+}
+
 /// **An in-band class on the sphere takes the projected lane** (D3's lane
 /// choice): a circle exactly on the sphere, tilted off a parallel so its
 /// axial reading (`pcurve_sphere_chart_axial`) sits mid-band, is neither
 /// decided a parallel on that margin nor refused: the incidence test
 /// reads it on the sphere, and it takes the general lane, the projected
-/// image, which certifies over the turn, at `f64` and at `Interval`.
+/// image, which certifies over the turn, at `f64` and at `Interval`. Three
+/// parallels, well clear of the poles: a northern one, the equator (a
+/// great circle) and a southern one. Near a pole the lane's partition
+/// refuses instead, "not yet"
+/// (`a_circle_near_a_pole_the_general_lane_cannot_image_ends_not_yet`).
 #[test]
 fn an_in_band_class_on_the_sphere_takes_the_projected_lane() {
-    fn read<T: geom_core::Decide>(at: impl Fn(f64) -> T) -> Result<Pcurve<T>, PcurveCertifyError> {
-        let (h, rho) = (0.6, 0.8);
+    fn read<T: geom_core::Decide>(
+        at: impl Fn(f64) -> T,
+        h: f64,
+    ) -> Result<Pcurve<T>, PcurveCertifyError> {
+        let rho = (1.0 - h * h).sqrt();
         let mid = 0.5 * (band().zero() + band().escalate());
         let theta = (mid / rho).asin();
         let (s, c) = theta.sin_cos();
@@ -793,19 +893,21 @@ fn an_in_band_class_on_the_sphere_takes_the_projected_lane() {
         PcurveCache::certify(image.clone(), at(0.0), tau, &carrier, &sphere, band())?;
         Ok(image)
     }
-    for (lane, projected) in [
-        ("f64", matches!(read(|x| x), Ok(Pcurve::Projected(_)))),
-        (
-            "Interval",
-            matches!(
-                read(<geom_core::Interval as geom_core::Real>::from_f64),
-                Ok(Pcurve::Projected(_))
+    for h in [0.6, 0.0, -0.6] {
+        for (lane, projected) in [
+            ("f64", matches!(read(|x| x, h), Ok(Pcurve::Projected(_)))),
+            (
+                "Interval",
+                matches!(
+                    read(<geom_core::Interval as geom_core::Real>::from_f64, h),
+                    Ok(Pcurve::Projected(_))
+                ),
             ),
-        ),
-    ] {
-        assert!(
-            projected,
-            "{lane}: the in-band class takes the projected lane"
-        );
+        ] {
+            assert!(
+                projected,
+                "{lane}, height {h}: the in-band class takes the projected lane"
+            );
+        }
     }
 }

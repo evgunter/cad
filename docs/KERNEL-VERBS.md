@@ -582,7 +582,7 @@ are discharged). Each refuses typed with a message naming its blocker
   (`Pcurve::FocalSection`), and a circle not shown off a cone or torus
   that is none of its circles, or whose class reading is in band, has
   no general lane yet and refuses lever-only "not yet"
-  (`GeneralLaneUnwritten`, `PcurveCheck::ChartClass`; unit E4 in
+  (`NoGeneralLane`, `PcurveCheck::ChartClass`; unit E4 in
   `work/pcert/plan.md`), as does a line or ellipse whose class reading
   is in band (unit E2); a spiric on its torus's mirror through the
   cutting plane mints the wall image with its azimuth sign opposed

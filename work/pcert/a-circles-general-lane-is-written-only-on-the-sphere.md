@@ -30,7 +30,7 @@ circle that is not a rim, a torus circle that is neither a parallel, a
 meridian nor a Villarceau circle), has no general lane. Under D3's
 interim rule it refuses lever-only "not yet" (`PcurveCheck::ChartClass`:
 `Escalated` with the class reading's cause in band,
-`PcurveCertifyError::GeneralLaneUnwritten` when definite). Before E1 the
+`PcurveCertifyError::NoGeneralLane` when definite). Before E1 the
 definite case refused as `CarrierGrazesChart`, ending as a defect.
 
 ## What to build

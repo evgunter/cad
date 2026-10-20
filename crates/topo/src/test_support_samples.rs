@@ -465,9 +465,18 @@ fn certify_errors() -> Vec<CertifyError> {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Ellipse,
         },
-        CertifyError::GeneralLaneUnwritten {
+        CertifyError::NoGeneralLane {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Unwritten,
+        },
+        CertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Pose {
+                piece: 1,
+                channel: geom_brep::SectorChannel::Azimuth,
+            },
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
@@ -631,9 +640,18 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Torus,
         },
-        PcurveCertifyError::GeneralLaneUnwritten {
+        PcurveCertifyError::NoGeneralLane {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Unwritten,
+        },
+        PcurveCertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Pose {
+                piece: 1,
+                channel: geom_brep::SectorChannel::Azimuth,
+            },
         },
         PcurveCertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,

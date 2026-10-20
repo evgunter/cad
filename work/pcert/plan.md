@@ -72,7 +72,7 @@ this order:
 - **E3**: `edge_join` records its class Zeros.
 - **E4**: a circle's general lane on a cone, torus and cylinder
   (`a-circles-general-lane-is-written-only-on-the-sphere`). Until it
-  lands, such a circle refuses `GeneralLaneUnwritten` "not yet", and
+  lands, such a circle refuses `NoGeneralLane` "not yet", and
   D3's "every class has one" is still owed.
 - **E5**: the mint-side class picks on a spline chart (`pick_arc_rim`,
   `iso_schedule`'s `probe_pick`, the arc-rim closure) take the general

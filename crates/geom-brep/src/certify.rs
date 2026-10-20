@@ -264,6 +264,11 @@ pub enum CertCheck {
     /// written for the pair, the refusal is lever-only "not yet"
     /// ([`crate::recourse::not_yet`]).
     ChartClass,
+    /// **The general lane's own reading** at the mint step, where the
+    /// class reading sent an on-chart carrier there and the lane cannot
+    /// image this pose yet ([`crate::PcurveCheck::GeneralLane`]): "not
+    /// yet", as [`CertCheck::ChartClass`].
+    GeneralLane,
     /// **The unified conventional meter** (D1): `|C(tᵢ) − S(P(tᵢ))|`
     /// at a sample, C4 verbatim — the ONE statement every collapsed
     /// conventional description makes, whatever certification lane its
@@ -383,6 +388,7 @@ impl core::fmt::Display for CertCheck {
             Self::MappedSource => "the mapped-source residual",
             Self::ChartImage => "the chart-image mint",
             Self::ChartClass => "the chart-image class reading",
+            Self::GeneralLane => "the chart image's general lane",
             Self::ChartResidual => "the unified conventional residual",
             Self::PlaneNurbsOnLocus => "the spline Intersection lane's on-locus residual",
             Self::PlaneNurbsHull => "the spline Intersection lane's sup-norm bound",
@@ -451,14 +457,16 @@ pub enum CertifyError {
     /// The carrier is on the chart but is none of its own curves, so no
     /// closed form images it, and the general image is not written for
     /// this (chart, carrier) pair yet
-    /// ([`PcurveCertifyError::GeneralLaneUnwritten`]): a lane choice with
+    /// ([`PcurveCertifyError::NoGeneralLane`]): a lane choice with
     /// no lane, which ends lever-only "not yet" ([`CertCheck::ChartClass`]),
     /// never as the description's defect.
-    GeneralLaneUnwritten {
+    NoGeneralLane {
         /// The chart kind the description named.
         chart: geom::SurfaceKind,
         /// The carrier kind offered against it.
         carrier: geom::CurveKind,
+        /// Why there is no general image ([`crate::LaneGap`]).
+        gap: crate::LaneGap,
     },
     /// A surface key in the description did not resolve in the owning
     /// body (stale, or the surface does not exist yet — attach the
@@ -734,6 +742,7 @@ fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'stati
         Some(
             C::ChartWinding
             | C::ChartClass
+            | C::GeneralLane
             | C::ImageIdentity
             | C::AzimuthPeriod
             | C::TubePeriod
@@ -773,13 +782,20 @@ impl core::fmt::Display for CertifyError {
                 chart.name(),
                 carrier.name()
             ),
-            Self::GeneralLaneUnwritten { chart, carrier } => write!(
+            Self::NoGeneralLane {
+                chart,
+                carrier,
+                gap,
+            } => write!(
                 f,
                 "a conventional description's {} carrier is on its {} chart but is none of \
-                 the chart's own curves, and its general image on that chart is not written \
-                 yet",
+                 the chart's own curves, and its general image on that chart {}",
                 carrier.name(),
-                chart.name()
+                chart.name(),
+                match gap {
+                    crate::LaneGap::Unwritten => "is not written yet",
+                    crate::LaneGap::Pose { .. } => "does not yet cover this pose",
+                }
             ),
             Self::Unimplemented => write!(
                 f,
@@ -961,9 +977,14 @@ impl CertifyError {
             Self::ChartImageUnavailable { .. } => {
                 (CertCheck::ChartImage, RefusedArm::SignCertain(None))
             }
-            Self::GeneralLaneUnwritten { .. } => {
-                (CertCheck::ChartClass, RefusedArm::SignCertain(None))
-            }
+            Self::NoGeneralLane {
+                gap: crate::LaneGap::Unwritten,
+                ..
+            } => (CertCheck::ChartClass, RefusedArm::SignCertain(None)),
+            Self::NoGeneralLane {
+                gap: crate::LaneGap::Pose { .. },
+                ..
+            } => (CertCheck::GeneralLane, RefusedArm::SignCertain(None)),
             Self::OnPairArcRim { iso, limb, bound } => {
                 match iso.and_then(crate::pcurve_cache::PcurveCheck::incidence_limb) {
                     // The exact image's check: its certificate carries
@@ -1390,7 +1411,7 @@ impl CertCheck {
             | Self::ChartResidual => Ending::Residual(Unsized::Defect),
             Self::ChartImage => Ending::Unsized(Unsized::Defect),
             // A lane choice (D3): no defect and no tolerance on any arm.
-            Self::ChartClass => Ending::NotYet,
+            Self::ChartClass | Self::GeneralLane => Ending::NotYet,
             // A fold over samples that each decided transverse: a poison
             // that survives it is the kernel's.
             Self::PlaneNurbsReportedTransversality => Ending::Unsized(Unsized::Defect),
@@ -3640,14 +3661,32 @@ fn run_checks<T: Decide>(
                         sample: NOT_A_SAMPLE,
                         cause,
                     },
+                    // The general lane's own reading where the lane
+                    // choice sent the carrier: its capability gap,
+                    // "not yet" as well.
+                    PcurveCertifyError::Escalated {
+                        check: PcurveCheck::GeneralLane,
+                        cause,
+                        ..
+                    } => CertifyError::Escalated {
+                        check: CertCheck::GeneralLane,
+                        sample: NOT_A_SAMPLE,
+                        cause,
+                    },
                     PcurveCertifyError::Escalated { cause, .. } => CertifyError::Escalated {
                         check: CertCheck::ChartImage,
                         sample: NOT_A_SAMPLE,
                         cause,
                     },
-                    PcurveCertifyError::GeneralLaneUnwritten { chart, carrier } => {
-                        CertifyError::GeneralLaneUnwritten { chart, carrier }
-                    }
+                    PcurveCertifyError::NoGeneralLane {
+                        chart,
+                        carrier,
+                        gap,
+                    } => CertifyError::NoGeneralLane {
+                        chart,
+                        carrier,
+                        gap,
+                    },
                     // Every other refusal says the same thing: this
                     // (chart, carrier) pair has no certified chart
                     // image. That is a fact about the DESCRIPTION's
@@ -4487,7 +4526,7 @@ mod tests {
     /// below. Held total against the enum by
     /// [`all_is_the_whole_taxonomy`]'s compile-time visit, not by
     /// review.
-    fn all_checks() -> [CertCheck; 30] {
+    fn all_checks() -> [CertCheck; 31] {
         let surface = SurfaceKey::default();
         [
             CertCheck::ParamSpan,
@@ -4511,6 +4550,7 @@ mod tests {
             CertCheck::MappedSource,
             CertCheck::ChartImage,
             CertCheck::ChartClass,
+            CertCheck::GeneralLane,
             CertCheck::ChartResidual,
             CertCheck::PlaneNurbsOnLocus,
             CertCheck::PlaneNurbsHull,
@@ -4538,36 +4578,37 @@ mod tests {
     #[test]
     fn all_is_the_whole_taxonomy() {
         let rows = match CertCheck::ParamSpan {
-            CertCheck::ParamSpan => 30,
-            CertCheck::ParamSpanMeter => 30,
-            CertCheck::ParamWinding => 30,
-            CertCheck::ImageSpan => 30,
-            CertCheck::EndpointStart => 30,
-            CertCheck::EndpointEnd => 30,
-            CertCheck::SurfaceResidual { .. } => 30,
-            CertCheck::WitnessSurfaceResidual { .. } => 30,
-            CertCheck::WitnessMidpoint => 30,
-            CertCheck::Transversality => 30,
-            CertCheck::TransversalityTube => 30,
-            CertCheck::TransversalityArm => 30,
-            CertCheck::TangentPlanes => 30,
-            CertCheck::TangentParallel => 30,
-            CertCheck::TangentGap => 30,
-            CertCheck::TangentSecondOrder => 30,
-            CertCheck::TangentHull => 30,
-            CertCheck::TangentTube => 30,
-            CertCheck::MappedSource => 30,
-            CertCheck::ChartImage => 30,
-            CertCheck::ChartClass => 30,
-            CertCheck::ChartResidual => 30,
-            CertCheck::PlaneNurbsOnLocus => 30,
-            CertCheck::PlaneNurbsHull => 30,
-            CertCheck::PlaneNurbsHullValue => 30,
-            CertCheck::AnalyticBreakResidual => 30,
-            CertCheck::AnalyticHull => 30,
-            CertCheck::PlaneNurbsReportedTransversality => 30,
-            CertCheck::PlaneNurbsChartSpeed => 30,
-            CertCheck::PlaneNurbsChartSpeedBound => 30,
+            CertCheck::ParamSpan => 31,
+            CertCheck::ParamSpanMeter => 31,
+            CertCheck::ParamWinding => 31,
+            CertCheck::ImageSpan => 31,
+            CertCheck::EndpointStart => 31,
+            CertCheck::EndpointEnd => 31,
+            CertCheck::SurfaceResidual { .. } => 31,
+            CertCheck::WitnessSurfaceResidual { .. } => 31,
+            CertCheck::WitnessMidpoint => 31,
+            CertCheck::Transversality => 31,
+            CertCheck::TransversalityTube => 31,
+            CertCheck::TransversalityArm => 31,
+            CertCheck::TangentPlanes => 31,
+            CertCheck::TangentParallel => 31,
+            CertCheck::TangentGap => 31,
+            CertCheck::TangentSecondOrder => 31,
+            CertCheck::TangentHull => 31,
+            CertCheck::TangentTube => 31,
+            CertCheck::MappedSource => 31,
+            CertCheck::ChartImage => 31,
+            CertCheck::ChartClass => 31,
+            CertCheck::GeneralLane => 31,
+            CertCheck::ChartResidual => 31,
+            CertCheck::PlaneNurbsOnLocus => 31,
+            CertCheck::PlaneNurbsHull => 31,
+            CertCheck::PlaneNurbsHullValue => 31,
+            CertCheck::AnalyticBreakResidual => 31,
+            CertCheck::AnalyticHull => 31,
+            CertCheck::PlaneNurbsReportedTransversality => 31,
+            CertCheck::PlaneNurbsChartSpeed => 31,
+            CertCheck::PlaneNurbsChartSpeedBound => 31,
         };
         for (i, check) in all_checks().iter().enumerate() {
             assert!(
@@ -8399,6 +8440,7 @@ mod tests {
             (CertCheck::ChartResidual, Miss(Unsized::Defect)),
             (CertCheck::ChartImage, NoSize(Unsized::Defect)),
             (CertCheck::ChartClass, NotYet),
+            (CertCheck::GeneralLane, NotYet),
             (CertCheck::PlaneNurbsOnLocus, Miss(Unsized::Fit)),
             (CertCheck::PlaneNurbsHull, Miss(Unsized::Bound)),
             (CertCheck::PlaneNurbsHullValue, Miss(Unsized::Bound)),
