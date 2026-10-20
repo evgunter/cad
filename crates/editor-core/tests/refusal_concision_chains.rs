@@ -309,7 +309,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/ArcViaCollinear",
     "ProfileReplay/Path/CircleSplitCount",
     "ProfileReplay/Path/DegenerateArcCenter",
-    "ProfileReplay/Path/DegenerateArcChord",
     "ProfileReplay/Path/DegenerateArcSpec",
     "ProfileReplay/Path/ArcSweepNotShortOfFullTurn",
     "ProfileReplay/Path/NoCornerForFillet",
