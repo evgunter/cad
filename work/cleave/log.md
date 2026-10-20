@@ -1295,3 +1295,8 @@ Signed (CLEAVE orchestrator).
   - MAJOR: correct answers on main now refuse `SlitTipUnread`. Void ray: 95/150 were correct on main; touching vertex: 19/30; the undisclosed partners matrix: 464/960. Later Booleans on the new ring operands can't read its 0° tip.
   - **I reverse my earlier ruling.** I had accepted the lane's claim that main built them only from a rider operand. The reviewer read main's results and showed that's false for most cells. Lesson: verify a class claim against main's outputs before ruling on it.
   - Fix pass: build the slit-tip reading in this PR, keyed to the slit structure, so main's correct cells build. Plus: merge main (5357) and re-pin 7; correct the classification; the wall-side lever; side-aware Tangent; the doc; loud twin records; pin the glued tip; helper reuse; file the zero-area-face ∪ row.
+- 2026-10-20 — 5380: the slit-tip reading is built (structural `SlitTips` via `shared_segments`; `SlitTipUnread` gone). Most of main's correct cells build again, and some cells newly build.
+  - Two gaps remain, outside sectors:
+    - recl along a slit line: 60 + 40 cells; the lever is false on the kernel's own slit;
+    - a slit face glued away: the probe. The split's slits fail it on main too.
+  - Ruling: A. Type both as construction gaps with no lever, disclose exactly (a per-family table against main), and file both builds as P1. The rider form's silent wrong answers outweigh holding the PR for two more kernel sites.
