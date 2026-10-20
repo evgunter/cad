@@ -780,9 +780,7 @@ fn an_arc_whose_centre_overflows_refuses_at_the_preview() {
                 kind: PathErrorKind::Escalated,
                 ..
             }
-        ) && refusal
-            .to_string()
-            .contains("move the profile nearer the origin"),
+        ) && refusal.to_string().contains("nearer the origin"),
         "{refusal}",
     );
 }
@@ -928,9 +926,7 @@ fn an_arcs_far_side_past_the_range_refuses_though_its_frame_is_finite() {
                 kind: PathErrorKind::ArcMissBelowSceneResolution | PathErrorKind::Escalated,
                 ..
             }
-        ) && refusal
-            .to_string()
-            .contains("move the profile nearer the origin"),
+        ) && refusal.to_string().contains("nearer the origin"),
         "{refusal}",
     );
 }

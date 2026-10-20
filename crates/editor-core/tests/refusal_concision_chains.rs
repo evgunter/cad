@@ -4175,6 +4175,8 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                 miss: 3.4e-8,
                 scale: 1.36e4,
                 resolution: 4.8e-11,
+                turn: 6.2,
+                authored: None,
             },
         ),
         (
@@ -4190,6 +4192,8 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                 miss: 3.0e-8,
                 scale: 2.74e8,
                 resolution: 4.9e-7,
+                turn: 6.2,
+                authored: None,
             },
         ),
         ("FarEndAnchorWithoutFillet", P::FarEndAnchorWithoutFillet),

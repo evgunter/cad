@@ -404,10 +404,10 @@ fn sub_ulp_fillets_on_far_via_carriers_are_never_defects() {
                     Step::LineTo(Target::Point(Point2::new(mid.x * 0.2, mid.y * 0.2))),
                     Step::LineTo(Target::Start),
                 ];
-                if let Err(e) = try_replay_at::<f64>(&steps) {
-                    if read_back(&e.kind) == Some(true) {
-                        defects.push(format!("R {r:e}, fillet {f:e}, turns {t0}/{t1}: {e}"));
-                    }
+                if let Err(e) = try_replay_at::<f64>(&steps)
+                    && read_back(&e.kind) == Some(true)
+                {
+                    defects.push(format!("R {r:e}, fillet {f:e}, turns {t0}/{t1}: {e}"));
                 }
             }
         }
@@ -436,10 +436,10 @@ fn reads_past_overflow_are_never_defects() {
                 through: 0.4,
             };
             for (mode, steps) in programs(&arc, &mut rng) {
-                if let Err(e) = try_replay_at::<f64>(&steps) {
-                    if read_back(&e.kind) == Some(true) {
-                        defects.push(format!("{mode} at 1e{e} m, turn {turn}: {e}"));
-                    }
+                if let Err(err) = try_replay_at::<f64>(&steps)
+                    && read_back(&err.kind) == Some(true)
+                {
+                    defects.push(format!("{mode} at 1e{e} m, turn {turn}: {err}"));
                 }
             }
         }
