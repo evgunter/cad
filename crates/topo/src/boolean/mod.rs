@@ -2435,6 +2435,58 @@ pub enum RefusedRow {
     Found,
 }
 
+/// **Which construction a slit's line lacks**
+/// ([`BooleanError::SlitLineCrossed`]): the other solid has an edge
+/// along an operand's slit or ring, and the germs on the line are not
+/// placed where
+///
+/// **NOT carried to the façade's curated list, and that is a decision
+/// rather than an omission** (`scripts/payload-rung-sweep.py` names
+/// this rung; the disposition table cites this paragraph as its home).
+/// Every case is a construction gap with no lever, so nothing a person
+/// does differs by case, and the refusal's sentence names it. A Rust
+/// caller can already name and match it, since `pncad` re-exports
+/// `topo` whole.
+///
+/// **The falsifier is a caller that acts on the case by itself**: a
+/// driver that tilts a part off the slit's face when it reads
+/// [`SlitLineGap::Flush`], say. Then carry it and delete this paragraph
+/// and the disposition row with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SlitLineGap {
+    /// The result keeps only the slit's face on the line, on both
+    /// sides: it closes that face across the line, which the join does
+    /// not build.
+    Closes,
+    /// A flank of a wedge on the line lies in a flank's plane of the
+    /// other's, flush with a face of the other solid there, and the op
+    /// keeps one of the two flush faces: the cut the germs make in the
+    /// dropped one has no corner to end in.
+    Flush,
+    /// One solid's material about the line, a wedge with a face of its
+    /// own folded in, crosses the other's twice at the slit's tip.
+    CrossedTwice,
+}
+
+impl SlitLineGap {
+    /// The gap in the refusal's words.
+    pub(super) const fn words(self) -> &'static str {
+        match self {
+            Self::Closes => {
+                "the result keeps only that face on the line, on both sides, so it closes the \
+                 face across the line"
+            }
+            Self::Flush => {
+                "a face of the other solid lies flush with a face on the line, and the op keeps \
+                 one of the two"
+            }
+            Self::CrossedTwice => {
+                "one solid's material about the line crosses the other's twice at the tip"
+            }
+        }
+    }
+}
+
 /// **Why a node of an equal cylinder pair is not built**
 /// ([`BooleanError::NodeUnbuilt`]).
 ///
@@ -3692,14 +3744,11 @@ pub enum BooleanError {
         gap: EdgeInFaceGap,
     },
     /// The other solid's edges cross the two coincident edges of an
-    /// operand's slit or zero-area ring where the solids meet along
-    /// it, and the result keeps only the slit's face there, on both
-    /// sides (`recl::recl_edges`): it closes that face across the line,
-    /// which the join does not yet build. Or one material about the
-    /// line crosses twice at the slit's tip.
-    /// [`BooleanError::CrossingsAlongAContactLine`] where the line is
-    /// the operand's own slit, which no piece of it makes: a
-    /// construction gap, with no lever.
+    /// operand's slit or zero-area ring where the solids meet along it
+    /// (`recl::recl_edges`), and the germs on the line are not placed
+    /// where [`SlitLineGap`] says. [`BooleanError::CrossingsAlongAContactLine`]
+    /// where the line is the operand's own slit, which no piece of it
+    /// makes: a construction gap, with no lever.
     SlitLineCrossed {
         /// The operand holding the slit.
         operand: Operand,
@@ -3707,6 +3756,8 @@ pub enum BooleanError {
         vertex: VertexKey,
         /// The face carrying the slit.
         face: FaceKey,
+        /// Which construction is missing.
+        gap: SlitLineGap,
     },
     /// The face carrying an operand's slit or zero-area ring is glued
     /// away by the other solid, so the slit's two coincident edges would
@@ -5013,14 +5064,15 @@ impl core::fmt::Display for BooleanError {
                 operand,
                 vertex,
                 face,
+                gap,
             } => write!(
                 f,
                 "the {} solid holds a slit or zero-area ring in face {face:?} ending at vertex \
                  {vertex:?}, where the solids meet along it, and the other solid's edges cross \
-                 its two coincident edges there so that the result closes that face across the \
-                 line, or crosses one material twice at the tip, which the Boolean does not yet \
-                 build. {}",
+                 its two coincident edges there where {}, which the Boolean does not yet build. \
+                 {}",
                 operand_word(*operand),
+                gap.words(),
                 geom_core::NOT_YET_ENDING
             ),
             Self::SlitFaceGlued { operand, face } => write!(

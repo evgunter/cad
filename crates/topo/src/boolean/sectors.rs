@@ -1359,11 +1359,14 @@ pub(super) fn bound_edges<T: Decide>(
 /// attribution of an edge-sector crossing — so at every site, in every
 /// op, a section segment along the edge is attributed to the flanking
 /// sector on the Out side, and the two ends of the segment put their
-/// null edges into the same face. The one exception is an edge-edge
-/// germ along an edge that two crossing pairs at one vertex both cross
-/// along: it folds Out in both, at both of the edge's ends, each of
+/// null edges into the same face. There are two exceptions, each an
+/// edge-edge germ placed on the flanker inside the other solid's wedge:
+/// a germ along an edge that two crossing pairs at one vertex both cross
+/// along, which folds Out in both, at both of the edge's ends, each of
 /// which is a v-v site of both pairs once the reduction has split the
-/// edges there ([`super::recl::Reversed`]).
+/// edges there ([`super::recl::Reversed`]); and a germ of a wedge that
+/// crosses both wedges of a slit's or ring's line, so the line's two
+/// germs lie apart on their own sides (`recl::onto_inside`).
 pub(super) fn fold_on_bound(before: SideCode, after: SideCode) -> SideCode {
     match (before, after) {
         (SideCode::Out, SideCode::Out) => SideCode::Out,

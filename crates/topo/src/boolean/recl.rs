@@ -32,9 +32,12 @@
 //! when `pair_search` met no such pair (two coplanar flankers touching
 //! along the edge never make a record of their own). An edge-sector
 //! crossing's record is minted the same way where the search did not
-//! meet the fold flanker (`resolve_edge_sector`). An edge two
-//! crossing pairs at one vertex both run a germ along folds Out in
-//! each ([`Reversed`]).
+//! meet the fold flanker (`resolve_edge_sector`). Two germs leave the
+//! fold rule's flanker for the edge's other one, inside the other
+//! solid's wedge: an edge two crossing pairs at one vertex both run a
+//! germ along, which folds Out in each ([`Reversed`]); and a wedge that
+//! crosses both wedges of a slit's line, whose germs then lie apart on
+//! their own sides ([`onto_inside`]).
 //!
 //! Postcondition (checked loudly): no surviving record carries an On
 //! code.
@@ -47,7 +50,7 @@ use super::sectors::{BoolSector, Flank, PairRecord, Reach, crossing_flank, pair_
 use super::tables::{
     TableIiVerdict, eq15_3_lump, kept_copy, resolve_verdict, table_ii, table_iii_rule,
 };
-use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode};
+use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode, SlitLineGap};
 use crate::body::Body;
 use crate::entity::EntityId;
 use crate::live::{Proven, proven};
@@ -667,10 +670,12 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 ///   wedges lying apart, so the material sectors decide each germ: one
 ///   per wedge pair that crosses, a wedge crossing two of the other's
 ///   holding each on its flanker inside the wedge it crosses
-///   ([`reflank`]), so the two lie apart along the line on their own
-///   sides. Where the result keeps only the slit's face there, on both
-///   sides, it closes that face across the line, which the join does
-///   not build ([`BooleanError::SlitLineCrossed`]).
+///   ([`onto_inside`]), so the two lie apart along the line on their
+///   own sides. What the line's germs cannot build yet refuses
+///   [`BooleanError::SlitLineCrossed`], by its [`SlitLineGap`]: a flank
+///   flush with one of the other's where the op keeps one copy
+///   (`Flush`), or a result that keeps only the slit's face there, on
+///   both sides, and so closes it across the line (`Closes`).
 ///
 /// `held` is each solid's face through the point that the other's
 /// vertex touches ([`HeldFace`]), read with every edge-edge meeting of
@@ -826,7 +831,7 @@ pub(super) fn recl_edges<T: Decide>(
                     .iter()
                     .any(|m| m.real && bounds_face(bound(secs, m.start_holder)))
                 {
-                    return Some(BooleanError::SlitLineCrossed {
+                    return Some(SlitLine {
                         operand,
                         vertex,
                         face,
@@ -839,7 +844,7 @@ pub(super) fn recl_edges<T: Decide>(
             let BooleanError::CrossingsAlongAContactLine { a_vertex, b_vertex } = e else {
                 return e;
             };
-            slit_line(a_vertex, b_vertex).unwrap_or(e)
+            slit_line(a_vertex, b_vertex).map_or(e, |slit| slit.refusal(SlitLineGap::CrossedTwice))
         };
         // One wedge of each solid by the edge-edge rule
         // ([`resolve_edge_edge`]): its germ, an edge in `reversed` folded
@@ -851,7 +856,7 @@ pub(super) fn recl_edges<T: Decide>(
         // it only where both ends read it), and where another edge's
         // wedge swallows an edge, the carry drops it (`ops::Descendants`).
         let mut meet = |aw: Wedge, bw: Wedge, faces: [&[Folded<T>]; 2], fallback| {
-            let (read, inside) = resolve_edge_edge(
+            let (read, flanks) = resolve_edge_edge(
                 a_sectors, b_sectors, a_body, b_body, op, declared, band, held, faces, aw, bw,
                 fallback,
             )
@@ -877,7 +882,7 @@ pub(super) fn recl_edges<T: Decide>(
                 }
                 EdgeEdge::Dropped => None,
             };
-            Ok::<_, BooleanError>((germ, inside))
+            Ok::<_, BooleanError>((germ, flanks))
         };
 
         let germs: Vec<usize> = if a_ms.len() > 1 || b_ms.len() > 1 {
@@ -952,14 +957,19 @@ pub(super) fn recl_edges<T: Decide>(
             // Each flank's membership in the other solid's material, all
             // of its wedges together: A's wedges' then B's, by wedge.
             let mut whole = [vec![[false; 2]; a_ws.len()], vec![[false; 2]; b_ws.len()]];
+            // Whether a flank read on the line lies in a flank's plane of
+            // the other's ([`FlankRead::along`]).
+            let mut along = false;
             for (i, &aw) in a_ws.iter().enumerate() {
                 for (j, &bw) in b_ws.iter().enumerate() {
                     let faces: [&[Folded<T>]; 2] = [
                         if aw.edge { &a_faces } else { &[] },
                         if bw.edge { &b_faces } else { &[] },
                     ];
-                    let (germ, [a_in, b_in]) = meet(aw, bw, faces, Some(line))?;
-                    germs.extend(germ.map(|g| (g, [i, j])));
+                    let (germ, flanks) = meet(aw, bw, faces, Some(line))?;
+                    let [a_in, b_in] = flanks.inside;
+                    along |= flanks.along;
+                    germs.extend(germ.map(|g| (g, [i, j], flanks.inside)));
                     for k in 0..2 {
                         whole[0][i][k] |= a_in[k];
                         whole[1][j][k] |= b_in[k];
@@ -971,7 +981,7 @@ pub(super) fn recl_edges<T: Decide>(
             };
             // Two germs along the ray lie apart only on a slit's line,
             // whose two edges are two wedges of material, apart.
-            if germs.len() > 1 {
+            let slit = if germs.len() > 1 {
                 let Some(slit) = slit_line(vertex(a_body, a_sectors), vertex(b_body, b_sectors))
                 else {
                     return Err(BooleanError::CrossingsAlongAContactLine {
@@ -979,14 +989,16 @@ pub(super) fn recl_edges<T: Decide>(
                         b_vertex: vertex(b_body, b_sectors),
                     });
                 };
+                // A flank flush with one of the other's leaves the germs'
+                // cut no corner to end in.
+                if along {
+                    return Err(slit.refusal(SlitLineGap::Flush));
+                }
                 // The sheets the result keeps on the line: each flank on
                 // its operand's kept side of the other's whole material.
                 // Where they are the slit's face alone, on both sides, the
                 // result closes the face across the slit, which the join
                 // does not build.
-                let BooleanError::SlitLineCrossed { operand, face, .. } = slit else {
-                    unreachable!("the slit line reads as its refusal")
-                };
                 let mut kept_slit_face = 0;
                 let mut kept_other = false;
                 for (slot, (ws, secs, own)) in [
@@ -996,18 +1008,12 @@ pub(super) fn recl_edges<T: Decide>(
                 .into_iter()
                 .enumerate()
                 {
-                    let keeps = super::finish::kept_side(op, own);
                     for (w, inside) in ws.iter().zip(&whole[slot]) {
                         for (k, &flanker) in w.flankers.iter().enumerate() {
-                            let side = if inside[k] {
-                                SideCode::In
-                            } else {
-                                SideCode::Out
-                            };
-                            if side != keeps {
+                            if !kept_by(op, own, inside[k]) {
                                 continue;
                             }
-                            if own == operand && secs[flanker].face == face {
+                            if own == slit.operand && secs[flanker].face == slit.face {
                                 kept_slit_face += 1;
                             } else {
                                 kept_other = true;
@@ -1016,22 +1022,40 @@ pub(super) fn recl_edges<T: Decide>(
                     }
                 }
                 if kept_slit_face == 2 && !kept_other {
-                    return Err(slit);
+                    return Err(slit.refusal(SlitLineGap::Closes));
                 }
-            }
+                Some(slit)
+            } else {
+                None
+            };
             // A wedge crossing two of the other's along the slit's line
             // holds one germ per wedge it crosses, each on its flanker
-            // lying in that wedge: the two lie apart along the line, on
-            // the sides of the material each crosses into.
+            // lying in that wedge, not the fold rule's Out flanker: the two
+            // lie apart along the line, on the sides of the material each
+            // crosses into. The flanker is set, not toggled, so an edge
+            // `reversed` already moved there stays.
             let crossed =
-                |side: usize, w: usize| germs.iter().filter(|(_, ws)| ws[side] == w).count();
+                |side: usize, w: usize| germs.iter().filter(|(_, ws, _)| ws[side] == w).count();
+            // A germ whose crossing is a face folded into its wedge, not
+            // the wedge's own flanks, has no flanker of the wedge to sit
+            // on: one material crossing twice.
+            let off_wedge = || {
+                slit.map_or(
+                    BooleanError::ClassificationInvariant {
+                        what: "a wedge crossed twice off a slit's line",
+                    },
+                    |slit| slit.refusal(SlitLineGap::CrossedTwice),
+                )
+            };
             let mut moved = Vec::with_capacity(germs.len());
-            for &(mut g, [i, j]) in &germs {
-                if crossed(0, i) > 1 && a_ws[i].edge {
-                    (g.a, g.sa) = reflank(g.a, g.sa, n_a);
+            for &(mut g, [i, j], [a_in, b_in]) in &germs {
+                if crossed(0, i) > 1 {
+                    (g.a, g.sa) =
+                        onto_inside(a_ws[i], a_in, (g.a, g.sa), n_a).ok_or_else(off_wedge)?;
                 }
-                if crossed(1, j) > 1 && b_ws[j].edge {
-                    (g.b, g.sb) = reflank(g.b, g.sb, n_b);
+                if crossed(1, j) > 1 {
+                    (g.b, g.sb) =
+                        onto_inside(b_ws[j], b_in, (g.b, g.sb), n_b).ok_or_else(off_wedge)?;
                 }
                 moved.push(g);
             }
@@ -1194,6 +1218,61 @@ pub(super) fn edge_edge_bound<T: geom_core::Real>(
     Some(if a_side { a } else { b })
 }
 
+/// **A solid's own slit or ring line through a vertex pair**
+/// ([`recl_edges`]): the solid, its tip there ([`super::sectors::SlitTips`])
+/// and the face the slit lies in.
+#[derive(Clone, Copy, Debug)]
+struct SlitLine {
+    operand: Operand,
+    vertex: crate::entity::VertexKey,
+    face: crate::entity::FaceKey,
+}
+
+impl SlitLine {
+    /// The refusal where the line lacks `gap`.
+    const fn refusal(self, gap: SlitLineGap) -> BooleanError {
+        BooleanError::SlitLineCrossed {
+            operand: self.operand,
+            vertex: self.vertex,
+            face: self.face,
+            gap,
+        }
+    }
+}
+
+/// `inside`'s side code: a flank in the other's material reads `In`.
+const fn side_of(inside: bool) -> SideCode {
+    if inside { SideCode::In } else { SideCode::Out }
+}
+
+/// Whether `op` keeps `operand`'s flank that lies `inside` the other's
+/// material or not: its side is the operand's kept side.
+fn kept_by(op: BooleanOp, operand: Operand, inside: bool) -> bool {
+    side_of(inside) == super::finish::kept_side(op, operand)
+}
+
+/// A germ's flanker `at` (with its codes as read) set onto the flanker
+/// of wedge `w` that lies inside the other's wedge (`inside`, per flank),
+/// moved across the edge ([`reflank`]) where the fold rule put it on the
+/// other. `None` where `at` is neither of `w`'s flankers (a crossing of
+/// a face folded into it) or `w` is no edge's.
+fn onto_inside(
+    w: Wedge,
+    inside: [bool; 2],
+    at: (usize, (SideCode, SideCode)),
+    n: usize,
+) -> Option<(usize, (SideCode, SideCode))> {
+    if !w.edge || inside[0] == inside[1] || !w.flankers.contains(&at.0) {
+        return None;
+    }
+    let target = w.flankers[usize::from(inside[1])];
+    if at.0 == target {
+        return Some(at);
+    }
+    let moved = reflank(at.0, at.1, n);
+    (moved.0 == target).then_some(moved)
+}
+
 /// An edge-edge germ moved to its edge's other flanker, the edge read
 /// On at the bound that flanker holds and its other bound reading the
 /// opposite key, so [`mark_germ`] folds it to the same transition.
@@ -1202,6 +1281,20 @@ fn reflank(idx: usize, codes: (SideCode, SideCode), n: usize) -> (usize, (SideCo
         (SideCode::On, k) => ((idx + 1) % n, (k.opposite(), SideCode::On)),
         (k, _) => ((idx + n - 1) % n, (SideCode::On, k.opposite())),
     }
+}
+
+/// How each flank of an edge-edge event's two wedges reads against the
+/// other's material ([`resolve_edge_edge`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct FlankRead {
+    /// Each wedge's two flanks' membership in the other's material, A's
+    /// then B's.
+    pub inside: [[bool; 2]; 2],
+    /// Whether a flank lies in a flank's plane of the other's, along that
+    /// flank, where the op keeps one copy of the two flush faces (or they
+    /// are a glued tangency): the coplanar verdict decides its membership,
+    /// and the dropped copy is cut where its fate changes.
+    pub along: bool,
 }
 
 /// What an edge-edge event reads ([`resolve_edge_edge`]).
@@ -1615,7 +1708,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     aw: Wedge,
     bw: Wedge,
     fallback: Option<Rep<T>>,
-) -> Result<(EdgeEdge, [[bool; 2]; 2]), BooleanError> {
+) -> Result<(EdgeEdge, FlankRead), BooleanError> {
     let (axis, axis_reach) = common_line(a_sectors, b_sectors, aw, bw, fallback)?;
     // Each solid's face holding the line, A's then B's.
     let mut holding = [None; 2];
@@ -1649,6 +1742,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
 
     // Membership of one flanker's rep inside one wedge of the other
     // solid's.
+    let along = core::cell::Cell::new(false);
     let in_wedge_of = |own_is_a: bool,
                        own_idx: usize,
                        (w, reach): Rep<T>,
@@ -1735,6 +1829,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                         );
                         let lump =
                             if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
+                                along.set(true);
                                 let surface_of = |body: &Body<T>, face| {
                                     body.get_face(face)
                                         .and_then(|f| body.get_surface(f.surface))
@@ -1784,6 +1879,9 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                                     arm,
                                     band,
                                 )?;
+                                if kept_copy(op, rel).is_some() {
+                                    along.set(true);
+                                }
                                 eq15_3_lump(op, comparison, rel)
                             };
                         *inside = Half::Along(lump == SideCode::In);
@@ -1931,6 +2029,10 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         }
         Ok(crossing)
     };
+    let flanks = FlankRead {
+        inside: [a_in, b_in],
+        along: along.get(),
+    };
     let cross_a = crossings(true, a_fl, a_in, &b_fl)?;
     let cross_b = crossings(false, b_fl, b_in, &a_fl)?;
     if cross_a.len() > 1 || cross_b.len() > 1 {
@@ -1949,18 +2051,14 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     }
     if cross_a.is_empty() {
         // A flanking face the op keeps lies on its operand's kept side.
-        let kept = |inside: bool, operand| {
-            let side = if inside { SideCode::In } else { SideCode::Out };
-            side == super::finish::kept_side(op, operand)
-        };
-        let both =
-            a_in.iter().all(|&i| kept(i, Operand::A)) && b_in.iter().all(|&i| kept(i, Operand::B));
+        let both = a_in.iter().all(|&i| kept_by(op, Operand::A, i))
+            && b_in.iter().all(|&i| kept_by(op, Operand::B, i));
         let read = if both {
             EdgeEdge::Touch
         } else {
             EdgeEdge::Dropped
         };
-        return Ok((read, [a_in, b_in]));
+        return Ok((read, flanks));
     }
     // The one fold rule per solid, on that solid's own membership keys:
     // the common edge joins the run `fold_on_bound` names, so the
@@ -1969,9 +2067,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     // solids decide apart, so the record is the pair of their two
     // flankers whether or not `pair_search` met that pair (two coplanar
     // flankers touching along the edge are never a record of their own).
-    let code = |inside: bool| if inside { SideCode::In } else { SideCode::Out };
     let pick = |fl: &[(usize, Rep<T>); 2], inside: [bool; 2]| {
-        let (before, after) = (code(inside[0]), code(inside[1]));
+        let (before, after) = (side_of(inside[0]), side_of(inside[1]));
         match crossing_flank(before, after) {
             Some(Flank::Before) => Ok((fl[0].0, (SideCode::On, before))),
             Some(Flank::After) => Ok((fl[1].0, (after, SideCode::On))),
@@ -1989,7 +2086,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         sb,
         intersect: true,
     };
-    Ok((EdgeEdge::Germ(germ), [a_in, b_in]))
+    Ok((EdgeEdge::Germ(germ), flanks))
 }
 
 /// Edge-sector coincidence (module docs): Table II on the on-side
@@ -3355,8 +3452,12 @@ mod tests {
                 let ok = if slit {
                     matches!(
                         err,
-                        BooleanError::SlitLineCrossed { operand: Operand::A, vertex, face: f }
-                            if vertex == want.0 && f == face
+                        BooleanError::SlitLineCrossed {
+                            operand: Operand::A,
+                            vertex,
+                            face: f,
+                            gap: SlitLineGap::CrossedTwice,
+                        } if vertex == want.0 && f == face
                     )
                 } else {
                     matches!(err, BooleanError::CrossingsAlongAContactLine { .. })

@@ -25,9 +25,9 @@ does not build that. Placed, the two germs leave F | F struts after the
 zip, and the merge refuses its input (`Merge` `InputNotClosed`,
 `ScaffoldingStrutVertex`), or, in the other operand order, the zip's
 glue panics on a dead half-edge (`zip.rs`, `glue`). So recl refuses
-first, typed `SlitLineCrossed` with no lever, where every sheet the
-result keeps on the line is a half of F (`recl_edges`, the
-`kept_slit_face` reading).
+first, typed `SlitLineCrossed { gap: SlitLineGap::Closes }` with no
+lever, where every sheet the result keeps on the line is a half of F
+(`recl_edges`, the `kept_slit_face` reading).
 
 It is the mirror of `a-boolean-glues-away-the-face-a-slit-lies-in`,
 where F goes and the walls stay (wall a | wall b): here the walls go and

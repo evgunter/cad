@@ -21,7 +21,11 @@
 //! operands' material decides, the result's material round the line the
 //! op's. The union keeps only the top on both sides of the ring and
 //! closes it across the line, which the join does not build: it refuses
-//! `SlitLineCrossed` (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`).
+//! `SlitLineCrossed` `Closes`
+//! (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`).
+//! A partner with a face flush with the top beside the ring refuses
+//! `Flush` where the op keeps one of the two flush faces
+//! (`work/cleave/a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line.md`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -29,8 +33,9 @@ use crate::common;
 use common::meeting::{MEET, PLATE, Pose, apex_pyramid, bearing, lying, posed_box, poses};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, BooleanError, BooleanResult, SolidContainment, intersect, mass_properties,
-    point_in_solid, readback, subtract, union, validate_geometric, validate_pseudomanifold,
+    AtRestBody, BooleanError, BooleanResult, SlitLineGap, SolidContainment, intersect,
+    mass_properties, point_in_solid, readback, subtract, union, validate_geometric,
+    validate_pseudomanifold,
 };
 
 fn t() -> Tol {
@@ -197,7 +202,13 @@ fn check(s: &Scene, pose: &Pose) {
         let what = format!("{}, {}, {op}", s.label, pose.label);
         if op.contains('∪') {
             assert!(
-                matches!(r, Err(BooleanError::SlitLineCrossed { .. })),
+                matches!(
+                    r,
+                    Err(BooleanError::SlitLineCrossed {
+                        gap: SlitLineGap::Closes,
+                        ..
+                    })
+                ),
                 "{what}: the union closes the top across the ring, got {:?}",
                 r.map(|_| ())
             );
@@ -270,6 +281,117 @@ fn an_edge_along_a_ring_places_its_germs_apart_in_every_op_it_builds() {
     for s in &scenes() {
         for pose in [&poses[0], &poses[2]] {
             check(s, pose);
+        }
+    }
+}
+
+/// **A partner flush with the ring's face, kept once, refuses typed.**
+/// The partner's edge runs along the ring, one of its faces lies on the
+/// top beside it and the other in the far wall's wedge, on either side
+/// of the ray. Where the op keeps one copy of the two flush faces and
+/// the line holds two germs (`x ∩ y`, `y ∪ x`), the cut in the dropped
+/// copy has no corner to end in: `SlitLineCrossed` `Flush`, no lever.
+/// The other ops build, tier 3 and 3′, their edges on the line the
+/// material's creases, their volumes adding up.
+#[test]
+fn a_partner_flush_with_the_rings_face_refuses_typed_where_one_copy_is_kept() {
+    let poses = poses();
+    let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
+    for (side, base) in [
+        (
+            "left",
+            [
+                bearing(60.0, 0.6, 0.0),
+                bearing(150.0, 0.6, 0.0),
+                bearing(20.0, 0.6, -0.7),
+            ],
+        ),
+        (
+            "right",
+            [
+                bearing(60.0, 0.6, 0.0),
+                bearing(-30.0, 0.6, 0.0),
+                bearing(100.0, 0.6, -0.7),
+            ],
+        ),
+    ] {
+        for pose in [&poses[0], &poses[2]] {
+            let plate = posed_box("the plate", PLATE, pose, t());
+            let void = apex_pyramid(&below(lying(0.0)), pose, t());
+            let y = built("the plate less the void", subtract(&plate, &void, t()));
+            let x = apex_pyramid(&base, pose, t());
+            let o = pose.at(MEET);
+            let end = lying(0.0)[2];
+            let d = (pose.at([0, 1, 2].map(|k| MEET[k] + end[k])) - o).normalize();
+            type Keep = fn(bool, bool) -> bool;
+            type Made = Result<BooleanResult<f64>, BooleanError>;
+            let ops: [(&str, Keep, Made); 6] = [
+                ("x − y", |a, b| a && !b, subtract(&x, &y, t())),
+                ("y − x", |a, b| b && !a, subtract(&y, &x, t())),
+                ("y ∩ x", |a, b| a && b, intersect(&y, &x, t())),
+                ("x ∪ y", |a, b| a || b, union(&x, &y, t())),
+                ("x ∩ y", |a, b| a && b, intersect(&x, &y, t())),
+                ("y ∪ x", |a, b| a || b, union(&y, &x, t())),
+            ];
+            let mut vol = Vec::new();
+            for (op, keep, r) in ops {
+                let what = format!("flush {side}, {}, {op}", pose.label);
+                if op == "x ∩ y" || op == "y ∪ x" {
+                    assert!(
+                        matches!(
+                            r,
+                            Err(BooleanError::SlitLineCrossed {
+                                gap: SlitLineGap::Flush,
+                                ..
+                            })
+                        ),
+                        "{what}: refuses the flush gap, got {:?}",
+                        r.map(|_| ())
+                    );
+                    continue;
+                }
+                let r = match r {
+                    Ok(BooleanResult::Body(r)) => r,
+                    other => panic!("{what}: builds, got {:?}", other.map(|_| ())),
+                };
+                assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
+                assert_eq!(
+                    validate_pseudomanifold(&r.body, &r.contacts, t()),
+                    Ok(()),
+                    "{what}: tier 3′"
+                );
+                vol.push(volume(&r.body));
+                let on = spans(&r.body, o, d, 0.6);
+                for k in 0..4 {
+                    let at = 0.6 * (f64::from(k) + 0.6) / 4.0;
+                    let p = o + d * at;
+                    let want = creases(p, d, 1e-3, &|q| Some(keep(inside(&x, q)?, inside(&y, q)?)));
+                    let got = on.iter().filter(|&&(a, b)| a < at && at < b).count();
+                    assert_eq!(
+                        got, want,
+                        "{what}: edges on the line at {at}, the material's creases"
+                    );
+                    let held = creases(p, d, 1e-3, &|q| inside(&r.body, q));
+                    assert_eq!(held, want, "{what}: the result's own material at {at}");
+                }
+            }
+            let [xy, yx, i, u] = vol[..] else {
+                unreachable!("four ops build")
+            };
+            let (vx, vy) = (volume(&x), volume(&y));
+            let what = format!("flush {side}, {}", pose.label);
+            assert!(
+                (xy + i - vx).abs() < 1e-9,
+                "{what}: |x − y| + |x ∩ y| = |x|"
+            );
+            assert!(
+                (yx + i - vy).abs() < 1e-9,
+                "{what}: |y − x| + |x ∩ y| = |y|"
+            );
+            assert!(
+                (u + i - vx - vy).abs() < 1e-9,
+                "{what}: |x ∪ y| + |x ∩ y| = |x| + |y|"
+            );
         }
     }
 }
