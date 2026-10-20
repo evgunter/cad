@@ -17,10 +17,10 @@
 //! result holds. A pair on one surface key is structure and is not
 //! recorded, and an ON verdict that only places topology is not a
 //! coincidence (D1): a boolean records every vertex identity it decides
-//! with a margin, as a row where its inputs' cells state it and as an
-//! [`UnspelledDecision`] where they would state another relation, and a
-//! face-pair decision only where the two faces meet, at a point, an
-//! edge or an area.
+//! with a margin, as a row of the relation it decided where its inputs'
+//! cells state it and as a [`Relation::Meet`] of those cells where they
+//! would state another, and a face-pair decision only where the two
+//! faces meet, at a point, an edge or an area.
 
 use geom_core::MarginDiag;
 
@@ -105,6 +105,12 @@ pub enum Relation {
     /// cross-section plane sections both into curves that do not vary
     /// along it (a cylinder and a plane parallel to its axis).
     CoRuled,
+    /// The cells' carriers share one point, decided by the margin:
+    /// unordered, between two cells or more. It states a point decided
+    /// on a cell where no one cell of the row is that point (a vertex
+    /// minted on an edge, read as that edge), or where three cells or
+    /// more meet there.
+    Meet,
 }
 
 impl Relation {
@@ -125,7 +131,8 @@ impl Relation {
             | Self::Coaxial
             | Self::SameRadius
             | Self::AxesMeet
-            | Self::CoRuled => None,
+            | Self::CoRuled
+            | Self::Meet => None,
         }
     }
 }
@@ -174,8 +181,8 @@ pub enum DecisionSite {
     /// A boolean's vertex identity: a vertex of one operand decided on
     /// a vertex, an edge or a face of the other, or a carried record's
     /// vertex on a vertex the reduction minted, every one the boolean
-    /// decides with a margin whose input cells state it
-    /// ([`UnspelledDecision`] holds the rest).
+    /// decides with a margin, spelled in its input cells
+    /// ([`Relation::Meet`] where a cell was read as one it lies in).
     VertexFusion,
     /// The at-rest census: two cells of different groups of a body at
     /// rest (two copies, two imported instances) decided one, or two
@@ -212,7 +219,8 @@ impl Discharge {
 /// **One coincidence an operation decided from values.**
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Coincidence {
-    /// The two cells decided one, in the order the decision read them.
+    /// The two cells decided one, in the order the decision read them;
+    /// a [`Relation::Meet`]'s sorted.
     pub cells: [RowCell; 2],
     /// What was decided between them.
     pub relation: Relation,
@@ -225,33 +233,16 @@ pub struct Coincidence {
     pub discharge: Discharge,
 }
 
-/// **A decision an operation took with a margin and has not spelled
-/// as a row**: its cells, read back to the operation's inputs, would
-/// state a different relation than the one decided. A vertex minted on
-/// an edge read as that edge, decided on a face, would say the edge
-/// lies on the face where the decision put one point of it there. The
-/// decision is kept with the cells it was taken between, in the keys of
-/// the operand the operation worked on, until its meeting is spelled by
-/// the cells that meet.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct UnspelledDecision {
-    /// The two cells decided, in the order the decision read them,
-    /// each in its operand's working keys.
-    pub cells: [(Operand, Cell); 2],
-    /// What was decided between them.
-    pub relation: Relation,
-    /// Where it was decided.
-    pub site: DecisionSite,
-    /// The margin that decision read.
-    pub margin: MarginDiag,
-}
-
 impl Coincidence {
-    /// The row's A-operand face and B-operand face, where it relates
-    /// one face of each operand, in that order; `None` for any other
-    /// pair of cells.
+    /// The row's A-operand face and B-operand face, where it decided
+    /// one face of each operand a carrier pair, in that order; `None`
+    /// for any other pair of cells, and for a [`Relation::Meet`], which
+    /// decides a point.
     #[must_use]
     pub fn face_pair(&self) -> Option<(crate::FaceKey, crate::FaceKey)> {
+        if self.relation == Relation::Meet {
+            return None;
+        }
         match self.cells {
             [
                 RowCell::Input {

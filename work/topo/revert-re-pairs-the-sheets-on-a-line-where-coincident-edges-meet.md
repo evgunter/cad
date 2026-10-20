@@ -127,3 +127,39 @@ other refusals listed here still refuse on the branch's CI.
 
 
 **Unblocked (CLEAVE, 2026-10-19).** `[ev]` PR 4795 merged (`0a702a9bc1`). Ev ratified the D1 sentence in `crates/topo/README.md` tier 3: where more than two sheets meet on a line, the material decides the edges, and the complement re-pairs. Radial edges were declined.
+## 2026-10-19: the Boolean gate refuses the class at every op (CLEAVE, `cleave/gate-refuses-overlapping-wedges`)
+
+The result gate now reads every line where coincident edges lie
+(`boolean/ops.rs` `coincident_wedges_disjoint`) and refuses an overlap
+`BooleanError::LineWedges { fault: Overlap }`, for ∪ and ∩ as well as
+∖, where the join pairs each operand's own faces at a line four sheets
+meet on. ∖'s reverted-line check is folded into it, so the ∖ rows above
+now refuse `LineWedges` instead of `Revert { WedgesOverlap }` (the
+fallbacks that revert B whole or a cavity still refuse `Revert {
+CoincidentEdges }`). Every newly refusing op read overlapping wedges on
+main (topo, sweep, editor-core, slow set included, three ε). Besides the
+rows above, these return with the re-pairing:
+
+- `boolean_pinch_copies`: the four pinches along an operand edge (270°
+  and 270°; 90° and 313.6°);
+- `pierce_strut_at_a_pinch`: the staircase X itself (its second cut,
+  270° and 270°), so its six ops against the plate, `P − X` among them;
+- `review_4740_r1_probes`: the reflex blocks' ∩ and the quarters' ∖
+  (270°, 270°), `a − nested` (90°, 310°);
+- `union_flush_onto_edge_contact`: the unions of the flat-corner,
+  three-pieces, two-dangling and lens witnesses (260°/190°, 230°/190°,
+  225°/225°, 330.8°/195.6°), and the ending-in-the-cube's-face lens's
+  four `y`s;
+- sweep `ring_carry_through_by_piece`: the ring pinched to a rim vertex
+  (seam 180°, pocket edge 270°), and with it the rim fillet's refusal on
+  the pocket's ring;
+- sweep `a_ruling_lying_on_a_wall`: `t ∖ b` on a seam ruling (180°,
+  270°);
+- sweep `join_reflex_wedge_probes`: four poses' ops (`OVERLAPPING`);
+- topo `a_vertex_read_by_two_sector_passes` (15 cells, `OVERLAPPING`),
+  `a_vertex_read_again_classes_every_edge` (four scenes, and the void on
+  the lying pyramid's ray, 30.6° and 356.1°, with its three scenes),
+  `three_solids_on_one_line` (fourteen cells);
+- topo `a_vertex_read_again_classes_every_edge::partners_along_the_face_build_sound_against_the_germ`:
+  146 cells at the default ε, 125 at 1e-6 and 141 at 1e-12
+  (`PARTNERS_OVERLAPPING`, which says why the count moves with ε).

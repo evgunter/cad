@@ -20,9 +20,9 @@ use common::meeting::{MEET, Pose, at, posed_box, posed_boxes, poses};
 use common::split_plane;
 use geom_core::{Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, Body, BooleanError, BooleanResult, ContactRecords, Operand, RevertError, SplitPart,
-    VoidContainment, VoidEvidence, VoidInsertError, insert_void, split, subtract,
-    validate_geometric, validate_pseudomanifold,
+    AtRestBody, Body, BooleanError, BooleanResult, ContactRecords, LineWedgeFault, Operand,
+    RevertError, SplitPart, VoidContainment, VoidEvidence, VoidInsertError, insert_void, split,
+    subtract, validate_geometric, validate_pseudomanifold,
 };
 
 fn t() -> Tol {
@@ -95,9 +95,7 @@ fn slit_body(pose: &Pose) -> Body<f64> {
 /// Asserts `refusal` names the slit: both its edges of `body` run
 /// between the points of `MEET` and [`OPEN`] at `pose`.
 fn names_the_slit(what: &str, body: &Body<f64>, pose: &Pose, refusal: &RevertError) {
-    let RevertError::CoincidentEdges { edges, .. } = refusal else {
-        panic!("{what}: {refusal:?}, not the coincident edges");
-    };
+    let RevertError::CoincidentEdges { edges, .. } = refusal;
     let near = |p: Point3<f64>, q: [f64; 3]| p.distance(pose.at(q)) < 1e-9;
     for &edge in edges {
         let he = body.get_edge(edge).unwrap().he_plus;
@@ -150,8 +148,8 @@ fn the_split_slit_body_is_legal_and_refuses_to_revert() {
 fn subtracting_a_slit_tool_refuses_where_it_keeps_the_slit() {
     for pose in poses() {
         let tool = AtRestBody::validate(slit_body(&pose), t()).unwrap();
-        // The seamed finish reads the result's wedges on the line; the
-        // containment fallback reads the cavity's line, which nothing
+        // The result gate reads the seamed result's wedges on the line;
+        // the containment fallback reads the cavity's line, which nothing
         // joins.
         for (what, slab, seamed) in [
             (
@@ -174,9 +172,9 @@ fn subtracting_a_slit_tool_refuses_where_it_keeps_the_slit() {
             let a = posed_box(&what, slab, &pose, t());
             match (subtract(&a, &tool, t()), seamed) {
                 (
-                    Err(BooleanError::Revert {
-                        operand: Operand::B,
-                        source: RevertError::WedgesOverlap { .. },
+                    Err(BooleanError::LineWedges {
+                        fault: LineWedgeFault::Overlap { .. },
+                        ..
                     }),
                     true,
                 )
@@ -252,11 +250,11 @@ fn a_pinch_of_unequal_bricks_refuses_its_revert_through_subtract() {
         };
         let b = posed_box(what, [(-0.5, 0.5), (-0.5, 0.5), (0.0, 1.0)], &pose, t());
         match subtract(&b, &pinch.body, t()) {
-            Err(BooleanError::Revert {
-                operand: Operand::B,
-                source: RevertError::WedgesOverlap { .. },
+            Err(BooleanError::LineWedges {
+                fault: LineWedgeFault::Overlap { .. },
+                ..
             }) => {}
-            other => panic!("{what}: B − pinch: {other:?}, not the revert's refusal"),
+            other => panic!("{what}: B − pinch: {other:?}, not the overlap's refusal"),
         }
     }
 }
@@ -318,11 +316,13 @@ fn a_tool_with_near_parallel_edges_standing_apart_builds() {
 /// only the move that builds.** The tool holds the bricks
 /// `[0, 1] × [0, 1] × [0.5, 1.5]` and `[−1, −g] × [−1, 0] × [0.5, 1.5]`,
 /// whose edges at the gap lie within `g = 4 ε` of one line inside the
-/// box `[−0.5, 0.5]² × [0, 2]`. Whether they share it is in band:
-/// ∖ refuses `LineEdges`, whose lever is the bricks clearly apart, not
-/// clearly on one line (which ∖ refuses as reversed wedges). Moved
+/// box `[−0.5, 0.5]² × [0, 2]`. Whether the result's two edges there
+/// share it is in band: the result gate refuses `LineEdges`, whose
+/// lever is the edges clearly apart, not clearly on one line (whose
+/// reversed wedges overlap, and refuse). Moved
 /// clearly apart, `g = 0.25`, it builds: the box's 2 less the two
-/// bricks inside it, `0.25 + 0.5 · (0.5 − g)`.
+/// bricks inside it, `0.25 + 0.5 · (0.5 − g)`. A box holding both
+/// bricks whole reads the gap on the cavity it reverts, as `LineEdges`.
 #[test]
 fn bricks_a_hair_apart_on_one_line_escalate_with_the_move_that_builds() {
     let tol = t();
@@ -356,9 +356,9 @@ fn bricks_a_hair_apart_on_one_line_escalate_with_the_move_that_builds() {
     assert_eq!(
         refusal.to_string(),
         format!(
-            "whether two straight edges of the subtracted solid lie on one line along a length \
-             is undecided: margin {:e} lies inside the ambiguity band ({:e}, {:e}). Recourse: move the \
-             geometry so the subtracted solid's straight edges clearly stand apart",
+            "whether two straight edges lie on one line along a length is undecided: margin {:e} \
+             lies inside the ambiguity band ({:e}, {:e}). Recourse: move the geometry so the \
+             straight edges along that line clearly stand apart",
             diag.margin,
             diag.band.zero(),
             diag.band.escalate()
@@ -375,5 +375,68 @@ fn bricks_a_hair_apart_on_one_line_escalate_with_the_move_that_builds() {
     assert!(
         (v - closed).abs() < 1e-9,
         "moved apart: volume {v}, closed form {closed}"
+    );
+    // A box holding both bricks whole takes the containment fallback,
+    // which reads the cavity's own lines before reverting it: the same
+    // gap escalates there as `LineEdges`.
+    let around = posed_box(
+        "the box round them",
+        [(-2.0, 2.0), (-2.0, 2.0), (0.0, 2.0)],
+        &Pose::rest(),
+        tol,
+    );
+    let refusal = subtract(&around, &tool(4.0 * tol.eps()), tol).err();
+    assert!(
+        matches!(
+            refusal,
+            Some(BooleanError::Escalated {
+                decision: topo::BooleanDecision::LineEdges,
+                ..
+            })
+        ),
+        "the box round them: {refusal:?}, not the cavity line's escalation"
+    );
+}
+
+/// **A minted edge's in-band gap is the operands' own.** The bricks of
+/// [`bricks_a_hair_apart_on_one_line_escalate_with_the_move_that_builds`]
+/// reaching past the box's top, `z ∈ [0.5, 2.5]`, so each edge at the gap
+/// would end on a vertex the op mints where it crosses the top. The gap
+/// is read in band before the result gate, where the bricks' faces cross
+/// the top (the contact reading of the containment), and its margin is
+/// the bricks' gap `g = 4 ε` up to rounding: the reading is of the
+/// operands' geometry, which moving reaches, not of the kernel's
+/// arithmetic.
+#[test]
+fn a_minted_edges_in_band_gap_is_the_operands_own() {
+    let tol = t();
+    let g = 4.0 * tol.eps();
+    let tool = posed_boxes(
+        "the tall bricks",
+        &[
+            [(0.0, 1.0), (0.0, 1.0), (0.5, 2.5)],
+            [(-1.0, -g), (-1.0, 0.0), (0.5, 2.5)],
+        ],
+        &Pose::rest(),
+        tol,
+    );
+    let a = posed_box(
+        "the box",
+        [(-0.5, 0.5), (-0.5, 0.5), (0.0, 2.0)],
+        &Pose::rest(),
+        tol,
+    );
+    let refusal = subtract(&a, &tool, tol).err();
+    let Some(BooleanError::Escalated {
+        decision: topo::BooleanDecision::Containment { .. },
+        diag,
+    }) = refusal
+    else {
+        panic!("{refusal:?}, not the containment's escalation");
+    };
+    let margin: f64 = format!("{:e}", diag.margin).parse().unwrap();
+    assert!(
+        (margin.abs() - g).abs() < 1e-3 * g,
+        "the margin {margin:e} is the bricks' gap {g:e}"
     );
 }

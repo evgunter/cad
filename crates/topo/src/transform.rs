@@ -497,6 +497,12 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 /// mapped surfaces — see the module docs for the contract and the
 /// refusal doors.
 ///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
+///
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
@@ -617,17 +623,17 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
             old.carrier(),
             (param_start, param_end),
         );
-        let mapped = crate::policy_lane::certify(spec, start, end, surfaces, reach, band).map_err(
-            |refusal| match refusal {
-                crate::policy_lane::ByPolicy::NoLane { scalar } => {
-                    TransformError::NurbsLaneUnsupported { edge: ek, scalar }
-                }
-                crate::policy_lane::ByPolicy::Refused(source) => TransformError::Certify {
-                    edge: ek,
-                    source: crate::policy_lane::kernels_own(source, "transform_rigid"),
-                },
-            },
-        )?;
+        let origin =
+            crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::RigidTransform);
+        let mapped = crate::policy_lane::certify(origin, spec, start, end, surfaces, reach, band)
+            .map_err(|refusal| match refusal {
+            crate::policy_lane::ByPolicy::NoLane { scalar } => {
+                TransformError::NurbsLaneUnsupported { edge: ek, scalar }
+            }
+            crate::policy_lane::ByPolicy::Refused(source) => {
+                TransformError::Certify { edge: ek, source }
+            }
+        })?;
         out.curves[curve_key] = CurveGeom::Certified(mapped);
         rewritten.insert(curve_key);
     }

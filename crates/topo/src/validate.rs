@@ -2856,10 +2856,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::WrapOnNonPeriodic
-        | CertifyError::IntervalNotForward {
-            verdict: Refused::Negative { .. },
-        }
-        | CertifyError::WindingExceeded
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
         CertifyError::ResidualExceeded { check, .. } => {
             if check.bounds_a_miss() {
@@ -2913,12 +2909,19 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         CertifyError::IntervalNotForward {
             verdict: Refused::Zero(_),
         } => "its length is within the tolerance of zero",
+        // A door reports a sign-certain span refusal as its input's
+        // (`StatedInterval`), so the bare variants arrive only built by
+        // hand, and read as the door's.
         CertifyError::StatedInterval {
             refused: geom_brep::StatedSpan::Forward(_),
+        }
+        | CertifyError::IntervalNotForward {
+            verdict: Refused::Negative { .. },
         } => "its parameter interval does not run forward",
         CertifyError::StatedInterval {
             refused: geom_brep::StatedSpan::Winding(_),
-        } => "its arc spans more than one full turn",
+        }
+        | CertifyError::WindingExceeded => "its arc spans more than one full turn",
         CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => {
             "its faces are tangent where its description says they cross"
         }
@@ -6936,7 +6939,8 @@ pub(crate) fn tier3_local_checks_marked<
         // the edge's two faces' reach; it never trusts the stored
         // certificate. It meters the chart image the body stores where
         // the op metered it (`Body::stated_pair_image`, an
-        // `OnPair` rim's wall image), so rest and op read one image.
+        // `OnPair` rim's wall image), so rest and op read one image. The
+        // body is this door's input, so a span refusal is reported.
         let stated = match curve.description() {
             geom_brep::EdgeDescription::OnPair { pair } => body.stated_pair_image(edge_key, *pair),
             _ => None,
@@ -6951,7 +6955,9 @@ pub(crate) fn tier3_local_checks_marked<
             (t0, t1),
         );
         reaches.insert(edge_key, reach);
-        match curve.recertify_via_stated(
+        match crate::policy_lane::recertify_via_stated(
+            crate::policy_lane::Origin::Callers,
+            curve,
             p_start,
             p_end,
             |k| body.surfaces.get(k).cloned(),
@@ -16951,13 +16957,13 @@ mod certify_escalation_rows {
                         margin: MarginDiag::value(-1.0e-3),
                     },
                 }),
-                "its stored description does not match its geometry. There is no way through: \
-                 this is a kernel defect or a damaged file; report it",
+                "its parameter interval does not run forward. There is no way through: this is \
+                 a kernel defect or a damaged file; report it",
             ),
             (
                 says(CertifyError::WindingExceeded),
-                "its stored description does not match its geometry. There is no way through: \
-                 this is a kernel defect or a damaged file; report it",
+                "its arc spans more than one full turn. There is no way through: this is a \
+                 kernel defect or a damaged file; report it",
             ),
             // The tangent tube's margin is a lower bound: a Negative is
             // the certificate's limit, which the lever reaches.

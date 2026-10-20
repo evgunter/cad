@@ -2256,7 +2256,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::VolumeUnmeasured
         | BooleanErrorKind::GraftRecertify
         | BooleanErrorKind::Pieces
-        | BooleanErrorKind::Revert => Vec::new(),
+        | BooleanErrorKind::Revert
+        | BooleanErrorKind::LineWedges => Vec::new(),
     }
 }
 
@@ -2559,6 +2560,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("join.rs", "rotational_sense", "SelfCheck::ArcFacing", 1),
     ("join.rs", "section", "BooleanDecision::Coincidence", 1),
     ("join.rs", "section", "Coincide::Section", 1),
+    ("join.rs", "section_refusal", "BooleanDecision::Torus", 1),
     ("mod.rs", "coincidence", "BooleanDecision::Coincidence", 1),
     ("mod.rs", "undecided_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
@@ -2638,10 +2640,15 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "recut_lean", "BooleanDecision::Sphere", 1),
     ("ops.rs", "recut_lean", "SphereQuestion::RecutAlign", 1),
     ("ops.rs", "of_describe", "BooleanDecision::EdgeOnFaces", 1),
-    ("ops.rs", "line_edges", "BooleanDecision::LineEdges", 1),
     (
         "ops.rs",
-        "reverted_lines_disjoint",
+        "collinear_escalated",
+        "BooleanDecision::LineEdges",
+        1,
+    ),
+    (
+        "ops.rs",
+        "coincident_wedges_disjoint",
         "BooleanDecision::LineWedges",
         1,
     ),
@@ -2826,6 +2833,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "sphere_region.rs",
         "-",
         "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
+    (
+        "torus_frame_rows.rs",
+        "a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it",
+        "BooleanDecision::Torus",
         1,
     ),
     (

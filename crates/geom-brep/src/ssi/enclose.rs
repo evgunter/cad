@@ -76,8 +76,8 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{cross, div_down, dot, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
-    AxisCut, CellAxis, CellBlock, CellFirstQuotients, CellQuotients, KnotVector, Knots, ParamRange,
-    RingRefinement, Span, TensorNet, basis::basis_funs_in, cell_first_quotients,
+    AxisCut, CellAxis, CellBlock, CellFirstQuotients, IntervalPieces, KnotVector, Knots,
+    ParamRange, RingRefinement, Span, TensorNet, basis::basis_funs_in, cell_first_quotients,
 };
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, SupSpeed, Vec3};
 
@@ -806,7 +806,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         // cell's: a zero the whole cell reads exactly stays exact.
         self.fold_cells(
             w,
-            cut,
+            cut.then_some((along_u, !along_u)),
             |net| net.derivative_box(along_u),
             Box3::meet_enclosure,
             Box3::hull,
@@ -828,7 +828,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     pub(crate) fn speed_sup(&self, w: UvWindow, along_u: bool) -> f64 {
         self.fold_cells(
             w,
-            true,
+            Some((along_u, !along_u)),
             |net| net.derivative_norm_sup(along_u),
             min_bound,
             max_bound,
@@ -849,7 +849,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     ) -> (Interval, f64) {
         self.fold_cells(
             w,
-            true,
+            Some((true, true)),
             |net| net.transverse_readings(n, ex, ey),
             |(a, s), (b, t)| (a.meet(b), min_bound(s, t)),
             |(a, s), (b, t)| (Interval::hull(a, b), max_bound(s, t)),
@@ -858,14 +858,15 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     }
 
     /// `read` over every nonempty span cell the rectangle touches,
-    /// `join`ed across cells. With `cut`, each cell's net is also cut to
-    /// the rectangle ([`CellNet::cut`]) and the two readings `meet`:
+    /// `join`ed across cells. With `cut` (the axes `read` reads), each
+    /// cell's net is also cut to the rectangle ([`CellNet::cut`]) and
+    /// the two readings `meet`:
     /// both hold over the rectangle's part of the cell. `None` for a
     /// malformed net.
     fn fold_cells<R>(
         &self,
         w: UvWindow,
-        cut: bool,
+        cut: Option<(bool, bool)>,
         read: impl Fn(&CellNet) -> R,
         meet: impl Fn(R, R) -> R,
         join: impl Fn(R, R) -> R,
@@ -884,7 +885,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 }
                 let (whole, spans) = self.cell(su, sv)?;
                 let r = read(whole);
-                let r = match cut.then(|| whole.cut(spans, range.clamped)).flatten() {
+                let r = match cut.and_then(|axes| whole.cut(spans, range.clamped, axes)) {
                     Some(net) => meet(r, read(&net)),
                     None => r,
                 };
@@ -1176,10 +1177,12 @@ struct CellNet {
     /// The quotients over the whole cell, which a cut restricts; `None`
     /// on a cut net, and where the statement refused.
     raised: Option<CellFirstQuotients<Interval>>,
-    /// `S_u` and `S_v` on each of the block's [`BLOCK_PIECE_SPLITS`]²
-    /// pieces, `None` where the statement refused (every reading then
-    /// refuses).
-    quotients: Option<Vec<CellQuotients<Interval>>>,
+    /// `S_u` on each of the block's [`BLOCK_PIECE_SPLITS`]² pieces,
+    /// `None` where the statement refused (every reading of it then
+    /// refuses) or, on a cut net, where its reader did not ask for it.
+    u: Option<IntervalPieces>,
+    /// `S_v` likewise, piece for piece in `u`'s order.
+    v: Option<IntervalPieces>,
 }
 
 impl CellNet {
@@ -1250,10 +1253,13 @@ impl CellNet {
                 },
             )
         };
-        let quotients = raised
+        // Both axes or neither: a refusal of either refuses the cell.
+        let splits = (BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS);
+        let (u, v) = raised
             .as_ref()
-            .and_then(|r| r.pieces((BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS)));
-        Some(Self { raised, quotients })
+            .and_then(|r| Some((r.axis_pieces(true, splits)?, r.axis_pieces(false, splits)?)))
+            .unzip();
+        Some(Self { raised, u, v })
     }
 
     /// This cell's quotients cut to `wu × wv`: along each axis whose
@@ -1264,31 +1270,36 @@ impl CellNet {
     /// the span whole, or meets it in at most a point), or on a net with
     /// no whole-cell quotients: the whole cell is the caller's answer
     /// either way, and a sound one.
-    fn cut(&self, (span_u, span_v): (Span<'_>, Span<'_>), w: UvWindow) -> Option<Self> {
+    ///
+    /// Only the `axes` its reader reads are restricted (`(S_u, S_v)`): a
+    /// reader of one axis's quotient restricts its numerator and `W²`
+    /// alone, bit for bit the pieces restricting both would give it.
+    fn cut(
+        &self,
+        (span_u, span_v): (Span<'_>, Span<'_>),
+        w: UvWindow,
+        axes: (bool, bool),
+    ) -> Option<Self> {
         let (cut_u, cut_v) = (inside(span_u, w.u), inside(span_v, w.v));
         if cut_u.is_none() && cut_v.is_none() {
             return None;
         }
-        let quotients = self
-            .raised
-            .as_ref()?
-            .restrict((cut_u, cut_v))
-            .pieces((BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS));
-        Some(Self {
-            raised: None,
-            quotients,
-        })
+        let (u, v) = self.raised.as_ref()?.cut_pieces(
+            (cut_u, cut_v),
+            axes,
+            (BLOCK_PIECE_SPLITS, BLOCK_PIECE_SPLITS),
+        );
+        Some(Self { raised: None, u, v })
     }
 
     /// The coefficient ratios `a_k/b_k` of `S_u` (`along_u`) or `S_v`
     /// on every piece; `None` where the statement refused.
     fn ratios(&self, along_u: bool) -> Option<Vec<[Interval; 3]>> {
         Some(
-            self.quotients
+            if along_u { &self.u } else { &self.v }
                 .as_ref()?
                 .iter()
                 .flat_map(|q| {
-                    let q = if along_u { &q.u } else { &q.v };
                     q.numer()
                         .iter()
                         .zip(q.denom())
@@ -1336,19 +1347,19 @@ impl CellNet {
     /// `(ex·a_k + ey·a′_k)/b_k`, whose `n·` hull encloses it and whose
     /// largest norm bounds it.
     fn transverse_readings(&self, n: [Interval; 3], ex: Interval, ey: Interval) -> (Interval, f64) {
-        let Some(pieces) = self.quotients.as_ref() else {
+        let (Some(us), Some(vs)) = (self.u.as_ref(), self.v.as_ref()) else {
             return (Interval::refused(), f64::NAN);
         };
         let mut ratios: Vec<[Interval; 3]> = Vec::new();
-        for q in pieces {
-            if q.u.denom().len() != q.v.denom().len() {
+        for (qu, qv) in us.iter().zip(vs) {
+            if qu.denom().len() != qv.denom().len() {
                 return (Interval::refused(), f64::NAN);
             }
             ratios.extend(
-                q.u.numer()
+                qu.numer()
                     .iter()
-                    .zip(q.v.numer())
-                    .zip(q.u.denom())
+                    .zip(qv.numer())
+                    .zip(qu.denom())
                     .map(|((a, b), w)| core::array::from_fn(|k| (a[k] * ex + b[k] * ey) / *w)),
             );
         }

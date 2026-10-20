@@ -18,7 +18,7 @@ Found by a designer of the overlapping-tangency fork (fork log row 118), read fr
 ## Note (PR 4831)
 
 Untouched by the claim-free glue build: the census confirm
-(`tangent_pair_at_rest` → `contact_verify::tangent_locus_relation`) still
+(`tangent_table_at_rest` → `contact_verify::tangent_locus_relation`) still
 reads the crescent as the `Tangent` contact's contradiction. The ruling on
 PR 4775 places the crescent check there and calls a shared crescent
 interference; which refusal the census reports is this row's.

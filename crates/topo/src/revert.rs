@@ -99,10 +99,9 @@
 //! ([`crate::census::shared_segments`]). A pair only a decision would
 //! read (a bound on a record, one edge's end on the other's interior)
 //! passes here, and passes the void door, which reverts its cavity
-//! through this map and decides nothing either. Only ∖ reads such
-//! pairs, holding a band: it reads every collinear overlap of the
-//! edges of its operand that its result keeps
-//! ([`crate::census::collinear_overlaps`]) and checks the result's
+//! through this map and decides nothing either. The Boolean's result
+//! gate reads such pairs, holding a band: every collinear overlap of
+//! the result's edges ([`crate::census::collinear_overlaps`]), and the
 //! wedges on each ([`crate::census::line_wedges`]). Two curved edges
 //! on one curve are outside every reader, as they are outside the
 //! census's exact sweeps. A single cusp is one edge, so its revert, the
@@ -374,8 +373,8 @@ impl<T: Real> CollinearOverlap<T> {
     }
 }
 
-/// Why [`Body::revert`], or ∖ on the lines it reverts, refused (closed
-/// enum, D4 ¶3).
+/// Why [`Body::revert`], or ∖ on an operand part it reverts and
+/// nothing joins afterwards, refused (closed enum, D4 ¶3).
 #[derive(Clone, Debug, PartialEq)]
 pub enum RevertError {
     /// **Two distinct edges lie on one line**, so more than two face
@@ -393,26 +392,6 @@ pub enum RevertError {
         /// Where it ends.
         to: String,
     },
-    /// **The result's edges on one line bound overlapping material**,
-    /// where ∖ reversed a line two edges of the subtracted solid lie on
-    /// ([`crate::census::line_wedges`]): the faces meeting there are
-    /// paired as no material pairs them. Which operand's edges carry the
-    /// overlap is not read.
-    WedgesOverlap {
-        /// Two of the result's edges whose wedges overlap, in arena
-        /// order.
-        edges: [EdgeKey; 2],
-        /// Where the line read begins.
-        from: String,
-        /// Where it ends.
-        to: String,
-    },
-    /// A face meeting a line where two edges lie has no tangent plane
-    /// there, so the material on its side of the line has no reading.
-    NoSheet {
-        /// The two coincident edges, in arena order.
-        edges: [EdgeKey; 2],
-    },
 }
 
 impl core::fmt::Display for RevertError {
@@ -422,16 +401,6 @@ impl core::fmt::Display for RevertError {
                 f,
                 "two edges lie on one line from {from} to {to}: the complement pairs the faces \
                  meeting there differently, and that re-pairing is not built"
-            ),
-            Self::WedgesOverlap { from, to, .. } => write!(
-                f,
-                "the result's edges on the line from {from} to {to} bound overlapping material: \
-                 the reversal pairs the faces meeting there as the material does not, and the \
-                 re-pairing it needs is not built"
-            ),
-            Self::NoSheet { .. } => write!(
-                f,
-                "a face meeting a line where two edges lie has no tangent plane there"
             ),
         }
     }

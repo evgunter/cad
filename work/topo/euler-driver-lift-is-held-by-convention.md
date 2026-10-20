@@ -43,3 +43,13 @@ constructor is `From<EulerOpError>` (applying `from_driver`), held by
 each driver's `Euler`/`Op` variant, so `?` is the one spelling and a
 bare variant around an `EulerOpError` does not type-check. Readers
 match through an accessor.
+
+**The panicking half is `pub` too** (ENCL's total-render sweep,
+`work/encl/a-hand-built-unminted-refusal-panics-through-pub-render.md`,
+2026-10-19). `EulerOpError::from_driver` (`crates/topo/src/euler.rs`)
+is `pub`, and so is each `From<EulerOpError>` above, so
+`BooleanError::from(EulerOpError::Argument(..))` (or
+`EulerOpError::Argument(..).from_driver()`) panics on a value a caller
+built. `[failure]` (D2) makes that input. A `DriverRefusal` whose
+constructor is `pub(crate)` closes both: the lift stays the one
+spelling inside topo, and no caller outside reaches the panic.
