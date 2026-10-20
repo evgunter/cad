@@ -66,12 +66,7 @@ pub(super) fn read_ends<T: Decide + crate::props::AtRestPolicy>(
         pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
         classify(&errors)
     })
-    .map_err(|p| {
-        p.downcast_ref::<String>()
-            .cloned()
-            .or_else(|| p.downcast_ref::<&str>().map(|s| (*s).to_string()))
-            .unwrap_or_default()
-    })
+    .map_err(|_| "panicked (its message is on stderr)".to_string())
 }
 
 fn classify(errors: &[ValidationError]) -> Found {
@@ -89,19 +84,15 @@ fn classify(errors: &[ValidationError]) -> Found {
     }
 }
 
-fn probe_n() -> usize {
-    std::env::var("PROBE_N")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(200)
-}
+/// Poses per grid cell.
+const PROBE_N: usize = 200;
 
 /// Attack grid: far offsets up to 1e3 m, tilts, three ε, both scalars.
 #[test]
 #[ignore = "review probe, prints only: cargo nextest run -p topo --run-ignored all --no-capture -E 'test(/probe_/)'"]
 fn probe_grid() {
     let mut r = test_utils::fuzz::start("probe_grid");
-    let n = probe_n();
+    let n = PROBE_N;
     for scale in [3.0, 30.0, 300.0, 1000.0] {
         for eps in EPS {
             let band = Band::new(eps, K * eps).unwrap();
@@ -175,7 +166,7 @@ fn probe_grid() {
 #[ignore = "review probe, prints only: cargo nextest run -p topo --run-ignored all --no-capture -E 'test(/probe_/)'"]
 fn probe_lever_atmost() {
     let mut r = test_utils::fuzz::start("probe_atmost");
-    let n = probe_n();
+    let n = PROBE_N;
     for scale in [1.0, 30.0, 1000.0, 1e4, 1e5] {
         for eps in EPS {
             let band = Band::new(eps, K * eps).unwrap();

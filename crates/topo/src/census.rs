@@ -2669,8 +2669,9 @@ impl<T: Decide> EfPair<'_, T> {
 }
 
 /// **Where the plane of `f` meets the line of `e`**, as an enclosure
-/// `[lo, hi]` of the fraction of the chord from its start; `None` where
-/// no crossing is placed: a lever at most ε, or one undecided (pushed).
+/// `[lo, hi]` of the fraction of the chord from its start, beside the
+/// lever's upper bound ([`PierceSpan`]); `None` where no crossing is
+/// placed: a lever at most ε, or one undecided (pushed).
 ///
 /// The fraction is `t = r₀/ℓ`, `ℓ = r₀ − r₁`, the residuals
 /// `rᵢ = (pᵢ − o)·n` read off the plane's stored origin `o`. Each is
@@ -2689,21 +2690,34 @@ impl<T: Decide> EfPair<'_, T> {
 /// `|r₀β − r₁α| / (|ℓ|·|ℓ + α − β|)`, at most
 /// `δ = (c₀|r₁| + c₁|r₀|) / (|ℓ|·(|ℓ| − c₀ − c₁))`, the one divisor the
 /// lever's lower bound keeps clear of zero. The enclosure is `t ± δ`,
-/// the quotient's own rounding charged beside it; the few roundings in
-/// `δ` itself are relative and covered by the charge's headroom.
+/// the quotient's own rounding charged beside it.
+///
+/// Charged are the residuals and the quotient. Not charged are the
+/// operations that form the lever (`r₀ − r₁`), its bounds `|ℓ| ∓
+/// (c₀ + c₁)`, and `δ`. Each of those rounds `u`-relative to what it
+/// forms, so it moves `δ` and the lever by a few `u` of themselves:
+/// - the residuals round within a quarter of their charge, so `δ`
+///   bounds three times the displacement those few `u` add;
+/// - the lever's bounds are read past `Kε` or at most ε, a gap no
+///   `u`-relative move closes.
+///
+/// At [`Interval`](geom_core::Interval) every operation encloses its own
+/// rounding.
 ///
 /// Two ends decided on opposite sides stand past the band's escalation
 /// either side of the plane, so their lever reads past it. Under signs
 /// an undecided residual can take ([`undecided_signs`]) the lever can
-/// read at most ε: its ends' enclosures then overlap across the plane,
-/// their difference no divisor, and that pair of signs is ruled out.
+/// read at most ε. Its ends' enclosures then overlap across the plane,
+/// and their difference is no divisor. That pair of signs places
+/// nothing, and the edge's reach along the plane is the `[Zero, Zero]`
+/// branch's, which the same undecided residuals also take.
 fn pierce_span<T: Decide>(
     e: &EdgeGeo<T>,
     f: &FaceGeo<T>,
     [r0, r1]: [T; 2],
     band: Band,
     errors: &mut Vec<ValidationError>,
-) -> Option<[T; 2]> {
+) -> Option<PierceSpan<T>> {
     let [c0, c1] = [e.p0, e.p1].map(|p| residual_charge(f, p));
     let lever = r0 - r1;
     let (size, slack) = (lever.abs(), c0 + c1);
@@ -2720,7 +2734,19 @@ fn pierce_span<T: Decide>(
     let t = r0 / lever;
     let moved = (c0 * r1.abs() + c1 * r0.abs()) / (size * (size - slack));
     let reach = moved + geom_brep::rounding_charge(t.abs());
-    Some([t - reach, t + reach])
+    Some(PierceSpan {
+        t: [t - reach, t + reach],
+        lever: size + slack,
+    })
+}
+
+/// [`pierce_span`]'s placement: the fraction's enclosure `t`, and
+/// `lever`, an upper bound on `|r₀ − r₁|`, the residual's change along
+/// the whole chord.
+#[derive(Clone, Copy, Debug)]
+struct PierceSpan<T> {
+    t: [T; 2],
+    lever: T,
 }
 
 /// The rounding charged to the residual `(p − o)·n` of `p` off `f`'s
@@ -2746,9 +2772,15 @@ fn residual_charge<T: Real>(f: &FaceGeo<T>, p: Point3<T>) -> T {
 ///     crossing stands on the ends' side more than `(K − 1)ε` off the
 ///     boundary — not on it, though an exact reading there could still
 ///     escalate;
-///   - else, on a polygon face ([`span_clear`]): no boundary edge's
-///     interior meets `S`'s and no boundary vertex lies on `S`'s, so all
-///     of `S` lies on the ends' side, past `Kε` off the boundary;
+///   - else, on a polygon face, `S` read within `(K − 1)ε` of the plane
+///     and clear ([`span_clear`]). The height is `lever·(hi − lo)`,
+///     read over `K − 1` through the magnitude door
+///     (`pm_census_ef_pierce_height`) and refused past it. Clear means
+///     no boundary edge's interior meets `S`'s, and no boundary vertex
+///     lies on `S`'s. Both readings are of 3D gaps. A boundary edge or
+///     vertex, itself within ε of the plane, whose projection met `S`
+///     would stand within `Kε` of it, so it would not read apart. So
+///     all of `S` lies on the ends' side, past `Kε` off the boundary;
 ///   - else the half-span's reading refuses (`pm_census_ef_pierce_span`
 ///     in the band, its straddle past it): a face with a curved edge is
 ///     not read for a boundary inside a span longer than `2ε`.
@@ -2773,7 +2805,7 @@ fn pierce_inside<T: Decide>(
     geo: &Geo<T>,
     e: &EdgeGeo<T>,
     f: &FaceGeo<T>,
-    [lo, hi]: [T; 2],
+    PierceSpan { t: [lo, hi], lever }: PierceSpan<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Point3<T>> {
@@ -2796,7 +2828,17 @@ fn pierce_inside<T: Decide>(
         (In, In) | (Out, Out) => {
             let clear = match half() {
                 Ok(_) => true,
-                Err(_) if f.polygon => span_clear(geo, f, (q_lo, q_hi), band, errors)?,
+                Err(_) if f.polygon => {
+                    let per_gap = band.zero() / (band.escalate() - band.zero());
+                    let height = [T::zero(), lever * (hi - lo) * T::from_f64(per_gap)];
+                    let decide = magnitude_door("pm_census_ef_pierce_height", band);
+                    let straddle = "pm_census_ef_pierce_height_straddle";
+                    if let Err(cause) = enclosure_reading(height, straddle, band, decide) {
+                        errors.push(ValidationError::CensusEscalated { cause });
+                        return None;
+                    }
+                    span_clear(geo, f, (q_lo, q_hi), band, errors)?
+                }
                 Err(cause) => {
                     errors.push(ValidationError::CensusEscalated { cause });
                     return None;

@@ -89,7 +89,7 @@ fn cap_read<T: Decide + crate::props::AtRestPolicy>(
                 .collect(),
         )
     })
-    .map_err(|p| p.downcast_ref::<String>().cloned().unwrap_or_default())
+    .map_err(|_| "panicked (its message is on stderr)".to_string())
 }
 
 #[test]
@@ -280,7 +280,8 @@ fn a_strip_whose_sides_hold_the_spans_ends_is_not_read_clear() {
     let e = segment((ends[0], ends[1]));
     let r = [e.p0, e.p1].map(|p| (p - f.origin).dot(f.normal));
     let band = Band::new(1e-12, 1e-11).unwrap();
-    let [lo, hi] = pierce_span(&e, f, r, band, &mut Vec::new()).expect("a placed crossing");
+    let PierceSpan { t: [lo, hi], .. } =
+        pierce_span(&e, f, r, band, &mut Vec::new()).expect("a placed crossing");
     let x = |t: f64| (e.p0 + (e.p1 - e.p0) * t).x;
     assert!(x(hi) - x(lo) > 1e-4, "a span of {:e}", x(hi) - x(lo));
     let prism = crate::test_support_fixtures::prism_z::<f64>(
@@ -332,4 +333,51 @@ fn a_disc_narrower_than_the_span_is_not_read_clear() {
         matches!(got, Found::Pierce | Found::Refused),
         "the crossing inside the disc read clear: {got:?}"
     );
+}
+
+/// **A span standing off the plane past the band is not read clear**: a
+/// slot `|x − 0.5| < 0.03` cut into the cap from its far edge, the edge
+/// crossing the plane exactly at the slot's middle, the plane's stored
+/// origin moved to `(1000, −1000, 1)`, at ε = 2.5e-13 and K = 4. The
+/// residuals' charge, about `2.5e-12`, lifts the span's ends that far
+/// off the plane, so the slot's sides stand past `Kε` from the span in
+/// 3D, though their projections cross it. Both ends read `In`; only the
+/// span's height keeps them from answering for the crossing.
+#[test]
+fn a_span_standing_off_the_plane_past_the_band_is_not_read_clear() {
+    fn read<T: Decide + crate::props::AtRestPolicy>() -> Found {
+        let band = Band::new(2.5e-13, 1e-12).unwrap();
+        let slot = [
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (0.53, 1.0),
+            (0.53, 0.3),
+            (0.47, 0.3),
+            (0.47, 1.0),
+            (0.0, 1.0),
+        ];
+        let mut prism = crate::test_support_fixtures::prism_z::<T>(&slot, 0.0, 1.0, Tol::witness());
+        let s = prism.body.get_face(prism.top_face).unwrap().surface;
+        match prism.body.surfaces.get_mut(s).unwrap() {
+            geom::Surface::Plane { origin, .. } => {
+                *origin = Point3::new(1000.0, -1000.0, 1.0).map(T::from_f64);
+            }
+            _ => panic!("a planar face"),
+        }
+        let geo = snapshot(&prism.body);
+        let f = geo.faces.iter().find(|f| f.key == prism.top_face).unwrap();
+        let [p0, p1] = level_ends((0.25, 0.75), 0.45).map(|p| p.map(T::from_f64));
+        let e = segment((p0, p1));
+        let declared = Declared::index(&geo, &ContactRecords::default());
+        let mut errors = Vec::new();
+        pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
+        classify(&errors)
+    }
+    for (scalar, got) in [("f64", read::<f64>()), ("Interval", read::<Interval>())] {
+        assert!(
+            matches!(got, Found::Nothing | Found::Refused),
+            "{scalar}: a pierce read at the slot's middle: {got:?}"
+        );
+    }
 }

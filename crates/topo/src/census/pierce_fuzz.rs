@@ -278,8 +278,8 @@ mod probe_notch;
 /// **Each residual's rounding stays inside half its charge, and the
 /// placement's enclosure holds the exact crossing**: poses as the
 /// grazing fuzzer draws them, the origin up to a kilometre off, each
-/// residual and the fraction `r₀/(r₀ − r₁)` measured exactly against
-/// what [`pierce_span`] reads at `f64`.
+/// residual, the lever `|r₀ − r₁|` and the fraction `r₀/(r₀ − r₁)`
+/// measured exactly against what [`pierce_span`] reads at `f64`.
 #[test]
 fn each_residual_stays_inside_its_charge_and_the_span_holds_the_crossing() {
     let label = "census_pierce_span_encloses";
@@ -319,7 +319,11 @@ fn each_residual_stays_inside_its_charge_and_the_span_holds_the_crossing() {
                 }
             }
             let mut errors = Vec::new();
-            let Some([lo, hi]) = pierce_span(&e, &f, read, band, &mut errors) else {
+            let Some(PierceSpan {
+                t: [lo, hi],
+                lever: reach,
+            }) = pierce_span(&e, &f, read, band, &mut errors)
+            else {
                 continue;
             };
             placed += 1;
@@ -329,6 +333,11 @@ fn each_residual_stays_inside_its_charge_and_the_span_holds_the_crossing() {
             } else {
                 (exact[0].clone() << 1074_usize, lever)
             };
+            if (big(reach) << 1074_usize) < lever {
+                bad.push(format!(
+                    "ε {eps:e} {pose:?}: the lever's bound {reach:e} under the lever"
+                ));
+            }
             if !(big(lo) * &lever <= num && num <= big(hi) * &lever) {
                 bad.push(format!(
                     "ε {eps:e} {pose:?}: [{lo:e}, {hi:e}] misses the crossing"
