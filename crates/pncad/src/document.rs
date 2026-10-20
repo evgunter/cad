@@ -322,9 +322,9 @@ pub use editor_core::DocParamField;
 // `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
-    EvalOptions, EvalOutcome, Evaluation, Mispaired, NodeError, NodeErrorClass,
-    NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, SplitSide,
-    StepTurns, ValuePayload, VerbKind, evaluate,
+    EvalOptions, EvalOutcome, Evaluation, Mispaired, NodeError, NodeErrorClass, NodeErrorKind,
+    NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, SplitSide, StepTurns,
+    ValuePayload, VerbKind, evaluate,
 };
 // A placement's copies, keyed (`ValuePayload::Copies`): each copy by
 // its key, with its own names.

@@ -2239,7 +2239,10 @@ fn placed_against(
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("the copy places against its target: {e}"));
-    let (doc, placement) = insert(doc, Node::place(vec![pncad::document::BodyRead::plain(body)]));
+    let (doc, placement) = insert(
+        doc,
+        Node::place(vec![pncad::document::BodyRead::plain(body)]),
+    );
     let added = applied(
         &doc,
         DocEdit::AddConstraint {
@@ -2249,17 +2252,20 @@ fn placed_against(
         },
     );
     let mate = added.record.minted_constraints[0];
-    let doc = placed.values.into_iter().fold(added.doc, |doc, (coord, by)| {
-        applied(
-            &doc,
-            DocEdit::AddValue {
-                placement,
-                value: Box::new(Value { mate, coord, by }),
-                fresh: Vec::new(),
-            },
-        )
-        .doc
-    });
+    let doc = placed
+        .values
+        .into_iter()
+        .fold(added.doc, |doc, (coord, by)| {
+            applied(
+                &doc,
+                DocEdit::AddValue {
+                    placement,
+                    value: Box::new(Value { mate, coord, by }),
+                    fresh: Vec::new(),
+                },
+            )
+            .doc
+        });
     (doc, placement)
 }
 
@@ -6644,8 +6650,8 @@ mod unit_vector_witness_through_the_facade {
 /// node alone, with every other node green.
 mod the_hollowed_box_through_the_facade {
     use pncad::document::{
-        CancelToken, EvalOptions, Evaluation, LoopProgram, Node, NodeErrorKind,
-        NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, evaluate,
+        CancelToken, EvalOptions, Evaluation, LoopProgram, Node, NodeErrorKind, NodeResult,
+        ProfileDoc, ProfileProgram, RecipeNodeId, evaluate,
     };
     use pncad::geom_core::Tol;
     use pncad::prelude::StableName;
