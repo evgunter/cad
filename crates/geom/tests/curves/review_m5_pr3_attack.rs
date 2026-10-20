@@ -352,7 +352,7 @@ fn f5_insert_refine_elevate_are_evaluation_invariant_fuzzed() {
         // with degree (1 at degree 3-5, 2 at 6-7), and two knots drawn
         // 3.8e-4 apart (`CAD_FUZZ_SEED=0x827507a3dc90eac7`) disagreed
         // by 2.0e-9. The recomposition now picks each removal's split
-        // by its rounding (`elevate_plan`), and agrees to about 1e-14
+        // by its rounding (`elevate_plan`), and agrees to about 4e-14 of scale
         // at every gap (`elevation_conditioning.rs`).
         for (name, v) in &variants {
             // End conditions stay clamped/interpolating.

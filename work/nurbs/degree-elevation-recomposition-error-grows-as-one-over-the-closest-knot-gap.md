@@ -99,14 +99,17 @@ curves. Each curve has one close interior pair `(a, a + g)` on
 
 ## Closed (2026-10-20)
 
-`elevate_plan`'s recomposition now picks each removal's
-forward/backward split by tracked first-order error.
-`remove_knot_plan` keeps Piegl–Tiller's midpoint.
+`elevate_plan`'s recomposition now tracks a first-order error
+estimate per control point. Each removal keeps Piegl–Tiller's midpoint
+unless another forward/backward split's estimated worst error is more
+than 8× smaller. `remove_knot_plan` keeps the midpoint.
 
 - **The plain `α ≥ ½` split was not enough.** On uniform knots `α` ties
-  at exactly ½, so it chained errors from knot to knot and failed at
-  degree ≥ 6 with 50 knots.
+  at exactly ½, so it chained errors from knot to knot and refused every
+  curve at degree ≥ 6 with 50 knots.
+- **The margin of 8.** Margins of 2 and 4 still moved degree-10
+  uniform rows off the midpoint's numbers; 8 reads them exactly.
 - **After the fix:** every degree ≤ 10 and every gap ≥ 1e-9 agrees to
-  ≤ 3e-15 of the largest coordinate, and uniform knots read what the
-  midpoint split read.
+  about 4e-14 of the largest coordinate, and uniform knots read exactly
+  what the midpoint split read.
 - **Refusals:** the `WeightCollapse` refusals at degree ≥ 8 are gone.

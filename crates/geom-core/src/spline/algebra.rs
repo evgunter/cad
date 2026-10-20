@@ -1253,7 +1253,8 @@ enum ChainSplit<'e> {
     /// equation, which is the one its bound is built around.
     Midpoint,
     /// The split whose worst written point carries the least
-    /// first-order rounding error, the midpoint on a tie. The vector
+    /// first-order rounding error, unless the midpoint's is within
+    /// [`MIDPOINT_MARGIN`] of it. The vector
     /// holds one estimate per control point, in units of one rounding
     /// of the point's scale, and is rewritten to the removed curve's
     /// layout. Sound only for a removal exact in ℝ, where every
@@ -1261,6 +1262,14 @@ enum ChainSplit<'e> {
     /// recomposition.
     Conditioned(&'e mut Vec<f64>),
 }
+
+/// How much worse than the best split [`ChainSplit::Conditioned`] lets
+/// the midpoint's estimated error be before it leaves the midpoint.
+/// Measured: on uniform knots, where the splits rank within a few of
+/// each other, 2 and 4 still moved degree-10 rows off the midpoint's
+/// numbers (by up to 2×, either way), and 8 reads them exactly; a close
+/// pair puts the midpoint `span/g` or more behind, far past any margin.
+const MIDPOINT_MARGIN: f64 = 8.0;
 
 /// One removal pass (fn docs on [`remove_knot_plan`] for the chain
 /// derivation; preconditions established there).
@@ -1341,13 +1350,21 @@ fn remove_once(
                     .fold(0.0f64, f64::max)
             };
             let mid = n_unknown.div_ceil(2);
-            let nf = (0..=n_unknown)
+            let best = (0..=n_unknown)
                 .min_by(|&x, &y| {
                     worst(x)
                         .total_cmp(&worst(y))
                         .then(x.abs_diff(mid).cmp(&y.abs_diff(mid)))
                 })
                 .unwrap_or(mid);
+            // The estimate is first order, so a split it ranks within
+            // `MIDPOINT_MARGIN` of the best is no better on evidence,
+            // and the midpoint keeps its bits.
+            let nf = if worst(mid) <= MIDPOINT_MARGIN * worst(best) {
+                mid
+            } else {
+                best
+            };
             // The removed curve's layout: prefix carried, the chains'
             // unknowns, the suffix shifted down past the dropped slot.
             let mut next = Vec::with_capacity(n_new);
@@ -1440,11 +1457,11 @@ fn remove_once(
 /// and each removal pass feeds the next its error, so a close pair
 /// amplified rounding by about `(span/g)^k` with `k` growing with
 /// degree: from degree 8, a pair `1e-5` apart moved the curve by the
-/// size of its coordinates. Each pass here takes the split whose worst
-/// point carries the least first-order error, given what its inputs
-/// already carry, and agreement holds at about `1e-14` of the largest
-/// coordinate for every gap and degree the rows draw. Any split is
-/// exact in ℝ, so the choice moves only rounding.
+/// size of its coordinates. Each pass here keeps the midpoint unless
+/// another split's worst point carries clearly less first-order error,
+/// given what its inputs already carry, and agreement holds at about
+/// `4e-14` of the largest coordinate for every gap and degree the rows
+/// draw. Any split is exact in ℝ, so the choice moves only rounding.
 ///
 /// # Errors
 ///

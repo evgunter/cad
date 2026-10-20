@@ -15,7 +15,7 @@
 //! Every row reads the sup of `|C(t) − E(t)|` over nine points per
 //! distinct span (the close pair's own span included) against
 //! `1e-12` of the largest control coordinate. Measured after the fix,
-//! the worst row reads about `3e-15` of it.
+//! the worst close-pair row reads about `4e-14` of it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
@@ -158,6 +158,26 @@ fn high_degree_close_pairs_elevate_without_refusing() {
             let e = e.unwrap();
             let d = disagreement(&c, &e);
             assert!(d <= AGREE, "p={p}: {d:e} — {}", fuzz::replay());
+        }
+    }
+}
+
+/// Fifty uniform knots, where the midpoint split was already at
+/// rounding: the choice of split must not move them off it. The worst
+/// of 40 drawn curves on main reads about `1.1e-13` of scale at degree
+/// 10 and `2.4e-15` at degree 8. Red on a split forward while
+/// `α ≥ ½`, and on one chosen per pass without the error its inputs
+/// carry: both refused every degree-8 curve with `WeightCollapse`.
+#[test]
+fn uniform_knots_keep_the_midpoint_splits_rounding() {
+    const UNIFORM: f64 = 5e-13;
+    let mut rng = fuzz::start("elevation_conditioning::uniform");
+    let mids: Vec<f64> = (1..=50).map(|i| f64::from(i) / 51.0).collect();
+    for p in [6, 8, 10] {
+        for _ in 0..fuzz::scaled(4) {
+            let c = drawn(&mut rng, p, &mids);
+            let d = disagreement(&c, &c.elevate_degree(1).unwrap());
+            assert!(d <= UNIFORM, "p={p}: {d:e} — {}", fuzz::replay());
         }
     }
 }
