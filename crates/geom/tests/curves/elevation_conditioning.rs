@@ -226,3 +226,90 @@ fn steeply_graded_knots_leave_the_midpoint() {
         assert!(d <= STEEP, "{d:e} — {}", fuzz::replay());
     }
 }
+
+/// Fifty interior knots of three spacings, as the envelope past degree
+/// 10 draws them: uniform (jittered by `1e-6` of a span), graded
+/// `t^1.5`, and jittered by `±30%` of a span.
+fn past_ten_knots(rng: &mut fuzz::Rng, spacing: &str) -> Vec<f64> {
+    let h = 1.0 / 51.0;
+    let mut v: Vec<f64> = (1..=50)
+        .map(|i| {
+            let i = f64::from(i);
+            match spacing {
+                "uniform" => (i + rng.range(-1e-6, 1e-6)) * h,
+                "graded" => (i * h).powf(1.5),
+                _ => (i + rng.range(-0.3, 0.3)) * h,
+            }
+        })
+        .collect();
+    v.sort_by(f64::total_cmp);
+    v.dedup();
+    v
+}
+
+/// The envelope at degree 11, past the rows above: fifty uniform,
+/// graded and jittered knots. The midpoint split refuses every one of
+/// these curves (`WeightCollapse`). Measured worst of 90 curves per
+/// spacing, relative to scale: `4.4e-12`, `2.4e-12`, `8.1e-12`; the cap
+/// is about 3× the worst. A margin of 1 reads alike and no row tells it
+/// apart here (`uniform_knots_keep_the_midpoint_split_at_every_pass`
+/// does). No bound is surfaced
+/// (`work/nurbs/elevation-past-degree-ten-agrees-to-1e-11-with-no-bound`).
+#[test]
+fn degree_eleven_elevates_within_its_measured_envelope() {
+    const ELEVEN: f64 = 2.5e-11;
+    let mut rng = fuzz::start("elevation_conditioning::eleven");
+    for spacing in ["uniform", "graded", "jitter"] {
+        for _ in 0..fuzz::scaled(1) {
+            let mids = past_ten_knots(&mut rng, spacing);
+            let c = drawn(&mut rng, 11, &mids);
+            let d = disagreement(&c, &c.elevate_degree(1).unwrap());
+            assert!(d <= ELEVEN, "{spacing}: {d:e} — {}", fuzz::replay());
+        }
+    }
+}
+
+/// The envelope at degree 12, as `degree_eleven_…`. The midpoint split
+/// reads `1.7e-4` to 12 of scale here, or refuses. Measured worst of 90
+/// curves per spacing: `1.8e-11`, `1.5e-11`, `3.6e-11`; the cap is about
+/// 3× the worst.
+#[test]
+fn degree_twelve_elevates_within_its_measured_envelope() {
+    const TWELVE: f64 = 1.1e-10;
+    let mut rng = fuzz::start("elevation_conditioning::twelve");
+    for spacing in ["uniform", "graded", "jitter"] {
+        for _ in 0..fuzz::scaled(1) {
+            let mids = past_ten_knots(&mut rng, spacing);
+            let c = drawn(&mut rng, 12, &mids);
+            let d = disagreement(&c, &c.elevate_degree(1).unwrap());
+            assert!(d <= TWELVE, "{spacing}: {d:e} — {}", fuzz::replay());
+        }
+    }
+}
+
+/// The envelope at degrees 16, 20 and 25 on clusters of 2 and 4 knots
+/// `1e-9` apart. The midpoint split refuses every one of these curves.
+/// Measured worst of 90 curves per shape: about `1e-13` at 16, `4e-13`
+/// at 20, `5.9e-12` at 25; the cap is about 3× the worst. A margin of 8
+/// reads 2–4e-11 at degree 25 and turns this row red; the degree-11 and
+/// degree-12 rows do not see it.
+#[test]
+fn high_degree_clusters_elevate_within_their_measured_envelope() {
+    const CLUSTERS: f64 = 2e-11;
+    let mut rng = fuzz::start("elevation_conditioning::clusters");
+    for p in [16, 20, 25] {
+        for k in [2, 4] {
+            for _ in 0..fuzz::scaled(4) {
+                let a = rng.range(0.2, 0.6);
+                let mids: Vec<f64> = (0..k).map(|i| a + 1e-9 * f64::from(i)).collect();
+                let c = drawn(&mut rng, p, &mids);
+                let d = disagreement(&c, &c.elevate_degree(1).unwrap());
+                assert!(
+                    d <= CLUSTERS,
+                    "p={p}, {k} knots: {d:e} — {}",
+                    fuzz::replay()
+                );
+            }
+        }
+    }
+}
