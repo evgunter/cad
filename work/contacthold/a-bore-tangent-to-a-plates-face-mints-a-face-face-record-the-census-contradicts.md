@@ -5,9 +5,7 @@ title: A plate minus a rod tangent to its face from inside mints a face–face r
 status: open
 opened: 2026-10-19
 priority: P2
-design: true
 refs: [a-two-carrier-face-pair-off-its-tangent-line-reads-contradicted-not-stale, an-at-rest-shared-crescent-reads-as-a-contradicted-contact-not-an-interference-finding, the-census-discovers-no-same-solid-tangent-touch-through-face-interiors]
-needs_ev: true
 ---
 
 Found by `contacthold/ff-divided-reads-stale` (the unit
@@ -64,3 +62,46 @@ Which is wrong, the mint or the confirm:
 Pins on the fix: both probes' A∖B rows, every scale, every eps row.
 
 
+
+## W1′: the same point set in two topologies (2026-10-19)
+
+Measured by both designers of the pinch fork's round 3 (`[ev]` PR 5395),
+on main `f6ee5c7db8`, f64, `Tol::witness`, with throwaway probes:
+
+- **Rod seams off the ruling** (this row's fixture): one solid,
+  v = 16 − π/8, records ff(plate's y = 2 face, bore wall) plus two
+  edge–face records (the cap circles). Tier 3 passes; 3′ refuses
+  `ContactContradicted` on the face–face record.
+- **Rod seam on the ruling** (the rod's seam placed on the ruling,
+  x = 0, y = 2): the seam edge lies in the plate face (`Smooth`,
+  `Aligned`), records ef(seam, plate face) plus two vertex–face
+  records. Tier 3 and 3′ both pass.
+
+Same point set, same volume: two topologies by vertex placement, with
+opposite 3′ verdicts. Whichever answer the fork takes, the two forms owe
+one verdict; the edge–face form passes only because no lane reads its
+sides (RESTREAD's
+`the-edge-edge-and-point-record-confirms-read-no-material-sides`).
+
+## The through-bore slot (2026-10-19, unmeasured)
+
+From round 4 of the pinch fork (`[ev]` PR 5395): a plate ∖ a rod tangent
+from inside that runs through the plate (a through-bore), then ∖ a slot
+cut through the wall beneath the bore, far from the tangent line. The
+slot leaves the material joined only along the line, so the body is two
+solids, each ending in a cusp there. Either answer must handle it: the
+record form has to split the plate face and the bore wall at the
+record's locus, which that op never sectioned; the edge form already
+holds the cusp edges and only re-sorts. Not yet probed on main.
+
+## Answered (Ev, `[ev]` PR 5395, 2026-10-20)
+
+The edge form (option 2, refined). The final state is two coincident
+cusp edges, wedge 0, one per cusp, built at the glue decision, with no
+face–face row: the plate face carries them as a zero-area ring and the
+bore wall is cut along its ruling (D1 tier 3, C7). Interim (option 3):
+the op refuses typed, and so does a carry that lands a record whose
+crescent reads material (the mould). Built by
+`a-material-crescent-tangent-line-builds-two-coincident-cusp-edges`;
+the interim is
+`a-material-crescent-face-face-record-refuses-typed-at-the-op-and-the-carry`.
