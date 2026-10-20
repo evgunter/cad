@@ -300,8 +300,8 @@ should know why. They live only in an `Indeterminate.predicate`:
     bound of the lever the census's edge–face pierce is placed by, of
     the pierce's distance from the face's boundary where its
     placement's two ends read the face apart, of the placement's
-    half-span, and of its height off the plane (`pierce_span`,
-    `pierce_inside`);
+    half-span, and of its reach to a boundary point under it
+    (`pierce_span`, `pierce_inside`, `span_clear`);
   - `curve_carrier_straddle`, `geom`'s on-carrier reading of a point
     whose lower bound on the distance from a conic and the gap at its
     foot straddle (`curves::on_carrier`);
