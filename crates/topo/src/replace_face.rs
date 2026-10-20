@@ -1554,10 +1554,18 @@ fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
             }
         }
     }
+    let walls = wall_charts::<T>(body, charts.len());
     boundary
         .into_iter()
         .map(|edge| {
-            let plan = plan_edge(body, edge, &charts, band, tol, T::section_lane());
+            let plan = plan_edge(
+                body,
+                edge,
+                &charts,
+                band,
+                tol,
+                (T::section_lane(), walls.as_ref()),
+            );
             (edge, plan)
         })
         .collect()
@@ -1604,6 +1612,7 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
         d,
     };
     let boundary = group_boundary(body, &faces);
+    let walls = wall_charts::<T>(body, 1);
     let plans: Vec<EdgePlan<T>> = boundary
         .iter()
         .map(|&edge| {
@@ -1613,7 +1622,7 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
                 core::slice::from_ref(&chart),
                 band,
                 tol,
-                T::section_lane(),
+                (T::section_lane(), walls.as_ref()),
             )
             .unwrap_or_else(|e| panic!("{edge:?} plans: {e}"))
         })
@@ -1748,6 +1757,17 @@ pub(crate) struct MovedChart<'a, T: Real> {
     d: T,
     /// The cone's `d·cot α` parameter shift; zero on every other kind.
     shift: T,
+}
+
+/// **The operation's wall slots** ([`crate::offset_derive::WallCharts`]):
+/// one per moved chart and one per surface of `body`, where the scalar
+/// has a section lane to mint into them; `None` at any other scalar.
+fn wall_charts<'s, T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    moved: usize,
+) -> Option<crate::offset_derive::WallCharts<'s>> {
+    T::section_lane()
+        .map(|_| crate::offset_derive::WallCharts::new(moved, body.surfaces().map(|(key, _)| key)))
 }
 
 /// The moved chart wearing `key`, if one does.
@@ -1929,15 +1949,20 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
         }
     }
     let mut plans: Vec<EdgePlan<T>> = Vec::with_capacity(boundary.len());
-    for &edge in &boundary {
-        plans.push(plan_edge(
-            body,
-            edge,
-            &charts,
-            band,
-            tol,
-            T::section_lane(),
-        )?);
+    {
+        // Each wall's chart is minted at most once for all its edges, and
+        // the slots are dropped before anything is written.
+        let walls = wall_charts::<T>(body, charts.len());
+        for &edge in &boundary {
+            plans.push(plan_edge(
+                body,
+                edge,
+                &charts,
+                band,
+                tol,
+                (T::section_lane(), walls.as_ref()),
+            )?);
+        }
     }
 
     // ---- Decide: where each moved corner lands, and the agreement. ----
@@ -2348,14 +2373,21 @@ fn iso_image_row<T: Decide>(
 /// the moved chart, the carrier transported, the endpoints read off the
 /// transported carrier — or, between two distinct moved charts,
 /// [`plan_between_moved`].
-fn plan_edge<T: Decide>(
-    body: &Body<T>,
+fn plan_edge<'s, T: Decide>(
+    body: &'s Body<T>,
     edge: EdgeKey,
-    charts: &[MovedChart<'_, T>],
+    charts: &'s [MovedChart<'_, T>],
     band: Band,
     tol: Tol,
-    section_lane: Option<crate::offset_derive::SectionLane<T>>,
+    (section_lane, walls): (
+        Option<crate::offset_derive::SectionLane<T>>,
+        Option<&crate::offset_derive::WallCharts<'s>>,
+    ),
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
+    // A moved chart's slot is its place among the operation's charts.
+    let moved_slot = |key: SurfaceKey| {
+        walls.and_then(|w| w.moved(charts.iter().position(|c| c.old_key == key)?))
+    };
     let edge_data = proven(&body.edges, edge, EntityId::Edge);
     let sides = edge_side_keys(body, edge, edge_data);
     let he_plus = edge_data.he_plus;
@@ -2388,7 +2420,7 @@ fn plan_edge<T: Decide>(
                 (a, b),
                 band,
                 tol,
-                section_lane,
+                (section_lane, (moved_slot(a.old_key), moved_slot(b.old_key))),
             );
         }
         (Some(mover), _) | (None, Some(mover)) => mover,
@@ -2557,7 +2589,10 @@ fn plan_edge<T: Decide>(
                 extent,
                 crate::wedge_reach(body, crate::edge_faces(body, edge), &old_carrier, (t0, t1)),
                 band,
-                section_lane,
+                (
+                    section_lane,
+                    (moved_slot(old_key), walls.and_then(|w| w.held(other_key))),
+                ),
             );
         }
     }
@@ -2892,14 +2927,21 @@ fn edge_side_keys<T: Real>(
 /// surfaces, so it is their section. Anywhere else the edge is the
 /// section of the two MOVED surfaces through C5, seeded by the old
 /// carrier for branch and sense ([`derive_edge`]).
-fn plan_between_moved<T: Decide>(
+#[allow(clippy::type_complexity)]
+fn plan_between_moved<'w, 's, T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
     curve: &geom_brep::EdgeCurve<T>,
     reach: T,
-    (a, b): (&MovedChart<'_, T>, &MovedChart<'_, T>),
+    (a, b): (&'s MovedChart<'_, T>, &'s MovedChart<'_, T>),
     band: Band,
     tol: Tol,
-    section_lane: Option<crate::offset_derive::SectionLane<T>>,
+    (section_lane, slots): (
+        Option<crate::offset_derive::SectionLane<T>>,
+        (
+            Option<&'w core::cell::OnceCell<geom_brep::ChartedNurbs<'s, f64>>>,
+            Option<&'w core::cell::OnceCell<geom_brep::ChartedNurbs<'s, f64>>>,
+        ),
+    ),
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
     let (t0, t1) = curve.params();
     let old = curve.carrier();
@@ -2974,7 +3016,7 @@ fn plan_between_moved<T: Decide>(
         extent,
         reach,
         band,
-        section_lane,
+        (section_lane, slots),
     )
 }
 
@@ -3053,21 +3095,28 @@ fn untilted<T: Real>(
 /// must-carry rule reads the section ([`crate::offset_restate::re_ask_on_pair`]).
 /// Its ends are its corners', read once those are solved.
 #[allow(clippy::type_complexity)]
-fn derive_edge<T: Decide>(
+fn derive_edge<'w, 's, T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
     (curve, description, (t0, t1)): (&geom_brep::EdgeCurve<T>, &EdgeDescription<T>, (T, T)),
     (old_key, other_key, new_surface, neighbour): (
         SurfaceKey,
         SurfaceKey,
-        &Surface<T>,
-        &Surface<T>,
+        &'s Surface<T>,
+        &'s Surface<T>,
     ),
     extent: T,
     reach: T,
     band: Band,
-    section_lane: Option<crate::offset_derive::SectionLane<T>>,
+    (section_lane, (new_slot, neighbour_slot)): (
+        Option<crate::offset_derive::SectionLane<T>>,
+        (
+            Option<&'w core::cell::OnceCell<geom_brep::ChartedNurbs<'s, f64>>>,
+            Option<&'w core::cell::OnceCell<geom_brep::ChartedNurbs<'s, f64>>>,
+        ),
+    ),
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
     use crate::offset_derive::SectionVerdict;
+    use crate::offset_derive::Wall;
     untilted(edge, description)?;
     let (kind, other_kind) = (new_surface.kind(), neighbour.kind());
     if !geom_brep::intersect::route(kind, other_kind).implemented {
@@ -3122,13 +3171,45 @@ fn derive_edge<T: Decide>(
     let esc = |source| ReplaceFaceError::Escalated { source };
     // A fitted surface is its fit as a section operand: its spline
     // chart, as for evaluation and pcurves.
+    // Each wall with its own slot: the neighbour's where the plane is
+    // the new surface, the new surface's where the plane is the
+    // neighbour (the first arm wins where both are planes, as before).
     let plane_wall = match (new_surface, neighbour) {
-        (plane @ Surface::Plane { .. }, wall) | (wall, plane @ Surface::Plane { .. }) => {
-            wall.spline_chart().map(|wall| (plane, wall))
-        }
+        (plane @ Surface::Plane { .. }, wall) => wall.spline_chart().map(|net| {
+            (
+                plane,
+                Wall {
+                    net,
+                    chart: neighbour_slot,
+                },
+            )
+        }),
+        (wall, plane @ Surface::Plane { .. }) => wall.spline_chart().map(|net| {
+            (
+                plane,
+                Wall {
+                    net,
+                    chart: new_slot,
+                },
+            )
+        }),
         _ => None,
     };
-    let spline_pair = new_surface.spline_chart().zip(neighbour.spline_chart());
+    let spline_pair = new_surface
+        .spline_chart()
+        .zip(neighbour.spline_chart())
+        .map(|(a, b)| {
+            (
+                Wall {
+                    net: a,
+                    chart: new_slot,
+                },
+                Wall {
+                    net: b,
+                    chart: neighbour_slot,
+                },
+            )
+        });
     let lane = || {
         section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
             edge,

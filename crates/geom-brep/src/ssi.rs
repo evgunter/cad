@@ -2790,7 +2790,7 @@ fn plane_nurbs_ssi_within(
     band: Band,
     max_steps: usize,
 ) -> Result<SsiOutcome, SsiError> {
-    PlaneSection::within(plane, wall, domain, band, max_steps)?.all()
+    PlaneSection::within(plane, (wall, ChartedNurbs::mint), domain, band, max_steps)?.all()
 }
 
 /// The boundary pass over `wall`'s knot rectangle against `plane`, at

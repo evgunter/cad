@@ -338,8 +338,15 @@ fn r1_the_boss_closed_form_and_ulp_claim() {
         out.body.shells().count()
     );
     // Re-derived from the fixture's own constants, not copied: the
-    // answer is the closed form EXACTLY, zero ulps of error.
-    assert_eq!(v, truth, "the boss volume is the closed form to the bit");
+    // answer is the closed form to within one ulp. It read the closed
+    // form to the bit (0.31 ulp from 9π/4) while every face was read
+    // about the world origin, which lies on both cylinders' axis, where
+    // a wall's flux has no lever; about its shell's vertex on a rim, it
+    // reads the next float up (0.69 ulp from 9π/4).
+    assert!(
+        (v - truth).abs() <= ulp,
+        "the boss volume is the closed form to within one ulp"
+    );
     assert_eq!(topo::validate_geometric(&out.body, tol), Ok(()), "tier 3");
     assert_eq!(out.body.shells().count(), 1);
 }

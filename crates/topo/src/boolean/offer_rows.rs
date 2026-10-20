@@ -2255,6 +2255,9 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GraftRecertify
         | BooleanErrorKind::Pieces
         | BooleanErrorKind::Revert
+        | BooleanErrorKind::EdgeInFace
+        | BooleanErrorKind::SlitLineCrossed
+        | BooleanErrorKind::SlitFaceGlued
         | BooleanErrorKind::LineWedges => Vec::new(),
     }
 }
@@ -2830,6 +2833,9 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("sectors.rs", "within_signs", "Coincide::Sectors", 1),
+    ("slit.rs", "lies_in", "Coincide::EdgeOnPlane", 1),
+    ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
+    ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (
         "sphere_region.rs",
         "-",

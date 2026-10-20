@@ -675,7 +675,11 @@ fn m10_9_what_the_registry_buys() {
 /// total unchanged, and one more form freezes, (1373, 1166, 4298) →
 /// (1389, 1150, 4299). Check 4 deciding no whole period (PCERT B2b),
 /// fidelity's 48 numeric branch decisions gone, measured on that tree:
-/// (1389, 1150, 4299) → (1389, 1102, 4299), at both dials alike.
+/// (1389, 1150, 4299) → (1389, 1102, 4299), at both dials alike. The
+/// line×line fillet's half-angle tangent read by the home's select
+/// (`profile`'s `sugar::split_half_tan`), one atom to the plain walk
+/// where the corner's `v₁·v₂` is not a constant: two more forms
+/// freeze, (1389, 1102, 4299) → (1389, 1102, 4301), decisions held.
 ///
 /// **What runs it: the slow set** (`.config/nextest.toml`), at the
 /// default ε on every PR whose diff seeds `editor-core`, and every night
@@ -709,7 +713,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1389, 1102, 4299), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1389, 1102, 4301), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

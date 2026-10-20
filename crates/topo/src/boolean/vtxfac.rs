@@ -774,6 +774,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     contacts: &super::ReductionContacts,
     reread: Option<SectorRead>,
     branch: Option<super::Branch>,
+    tips: &super::sectors::SlitTips,
     band: Band,
 ) -> Result<VtxFacOut<T>, BooleanError> {
     let vertex = contact.vertex;
@@ -835,7 +836,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // verdicts are unmoved.
     let pierced_lever = PierceLever::of(pierced_surface, p);
     let pierced_shape = super::sectors::FaceShape::of(pierced_surface);
-    let sectors = build_sectors(piercing_body, piercing, vertex, band)?;
+    let sectors = build_sectors(piercing_body, piercing, vertex, tips, band)?;
     let n = sectors.len();
 
     // Entries = the bounds in orbit order (entry k = sector k's END
@@ -3938,7 +3939,14 @@ mod tests {
             .vertices()
             .find(|(v, _)| (body.resolve_vertex_point(*v, Proven) - corner).norm() < 1e-12)
             .expect("the reflex top corner");
-        let sectors = build_sectors(&body, Operand::A, vertex, band).unwrap();
+        let sectors = build_sectors(
+            &body,
+            Operand::A,
+            vertex,
+            &super::super::sectors::SlitTips::default(),
+            band,
+        )
+        .unwrap();
         let n = sectors.len();
         let (mut runs_read, mut twin_runs) = (0, 0);
         for az in (0..16).map(|k| 0.1 + f64::from(k) * std::f64::consts::TAU / 16.0) {
@@ -4237,6 +4245,7 @@ mod tests {
                 &super::super::ReductionContacts::default(),
                 None,
                 None,
+                &super::super::sectors::SlitTips::default(),
                 band,
             )
             .unwrap();
