@@ -1434,7 +1434,7 @@ impl Evaluation {
     /// answer in the same alphabet.
     ///
     /// Empty when the node has no value, no name table, or no edges.
-    /// The fillet node is what refuses an EMPTY selection, so the
+    /// The fillet's insert is what refuses an EMPTY selection, so the
     /// emptiness surfaces there rather than here.
     fn all_edges(&self, py: Python<'_>, node: super::doc::AtArg) -> PyResult<Vec<String>> {
         names(py, pncad::select::all_edges(&self.inner, node.at()))

@@ -200,31 +200,6 @@ impl BlendKindChoice {
     }
 }
 
-/// A typed blend-tool refusal at a commit door (closed enum, D4 ¶3).
-#[derive(Debug, PartialEq, Eq)]
-pub enum BlendError {
-    /// No edges are held, so there is nothing to blend.
-    ///
-    /// The commit door refuses here rather than emitting an op with an
-    /// empty set, for the reason a seated tool refuses an empty seat:
-    /// a button that authors an unfinished node is a button that costs
-    /// an undo. The DOCUMENT-level rule is unchanged and lives where
-    /// it always did — `NodeErrorKind::BlendSelectionEmpty` refuses an
-    /// empty selection at evaluation, so a hand-written recipe gets
-    /// the same answer as an authored one.
-    NoEdges,
-}
-
-impl core::fmt::Display for BlendError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::NoEdges => f.write_str("no edges picked yet"),
-        }
-    }
-}
-
-impl core::error::Error for BlendError {}
-
 /// A typed tool event the chrome renders — every state change, or
 /// refused change, that was not the direct echo of a pick the tool
 /// took.
@@ -369,9 +344,8 @@ impl core::fmt::Display for BlendEvent {
 /// start on any body; without that, un-picking down to zero left the
 /// tool latched to a body it was no longer holding anything on, and
 /// the cross-target refusal would have fired on a set of nothing.
-/// [`BlendTool::require_target`] reads the invariant rather than
-/// re-checking both halves, which is what makes
-/// [`BlendError::NoEdges`]'s one sentence true of the one state.
+/// [`BlendTool::fillet_op`] reads the invariant rather than
+/// re-checking both halves: a tool holding nothing has no op.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BlendTool {
     target: Option<HeldTarget>,
@@ -682,18 +656,15 @@ impl BlendTool {
     }
 
     /// **The one committed edit, as a fillet**: the session op that
-    /// inserts `Node::Fillet` through the ordinary commit door.
-    ///
-    /// # Errors
-    ///
-    /// [`BlendError::NoEdges`] until an edge is held. The target's
-    /// kind refuses at the session door, and everything about the
-    /// selection's meaning — a stranded name, a mis-kinded one, a
-    /// radius the geometry cannot take — refuses typed at evaluation
-    /// on the node's own badge.
-    pub fn fillet_op(&self, radius: Formula) -> Result<SessionOp, BlendError> {
-        Ok(SessionOp::AddFillet {
-            target: self.require_target()?,
+    /// inserts `Node::Fillet` through the ordinary commit door, or
+    /// `None` until an edge is held, when there is no body to blend and
+    /// so no edit to author. The op's refusals are the doors': the
+    /// target's kind and the selection's form at the session's insert,
+    /// and a stranded name or a radius the geometry cannot take at
+    /// evaluation, on the node's own badge.
+    pub fn fillet_op(&self, radius: Formula) -> Option<SessionOp> {
+        Some(SessionOp::AddFillet {
+            target: self.held_target()?,
             radius,
             selection: self.selection(),
         })
@@ -703,33 +674,25 @@ impl BlendTool {
     /// twin, and the size means a setback along both supports rather
     /// than a radius.
     ///
-    /// # Errors
-    ///
-    /// As [`BlendTool::fillet_op`].
-    pub fn chamfer_op(&self, distance: Formula) -> Result<SessionOp, BlendError> {
-        Ok(SessionOp::AddChamfer {
-            target: self.require_target()?,
+    /// `None` as [`BlendTool::fillet_op`].
+    pub fn chamfer_op(&self, distance: Formula) -> Option<SessionOp> {
+        Some(SessionOp::AddChamfer {
+            target: self.held_target()?,
             distance,
             selection: self.selection(),
         })
     }
 
-    /// The target a commit needs, or the typed "nothing picked yet".
-    ///
-    /// One check for both doors, and one check for both halves: the
-    /// struct's invariant makes "no target" and "no edges" the same
-    /// state, so reading the target alone is reading both, and
-    /// [`BlendError::NoEdges`]'s single sentence is true of it.
-    fn require_target(&self) -> Result<RecipeNodeId, BlendError> {
+    /// The node a commit blends, while an edge is held: the struct's
+    /// invariant makes "no target" and "no edges" one state, so reading
+    /// the target alone is reading both.
+    fn held_target(&self) -> Option<RecipeNodeId> {
         debug_assert_eq!(
             self.target.is_some(),
             !self.edges.is_empty(),
             "a target is held exactly while an edge is"
         );
-        match self.target() {
-            Some(target) => Ok(target.node),
-            None => Err(BlendError::NoEdges),
-        }
+        self.target().map(|target| target.node)
     }
 }
 
