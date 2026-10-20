@@ -58,7 +58,11 @@ const FILES: [&str; 5] = [
 /// stated from the cube's corner; and `kitchen_sink`'s revolve stands
 /// upright by a bundle with no mate spun `turn/4`, its pattern's axis and
 /// split's plane read off its faces. The two saved files follow their
-/// documents.
+/// documents. `die_tool` moved once more, its count kept, when its
+/// master ball came to stand on the cube's corner frame by an axis mate
+/// (where `place_against` had turned it by `atan2`), with its rule's
+/// frames built from the fraction of a turn each is; its saved file
+/// follows it.
 const PRE_C: [(&str, &str); 34] = [
     ("die", "9b90c91fc8ab87a8/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
@@ -76,7 +80,7 @@ const PRE_C: [(&str, &str); 34] = [
     ("die_chamfer", "934f10b8156f9396/76"),
     ("die_pips", "2859880c273d7b35/37"),
     ("heat_sink_fins", "8a57c326dc5f71aa/124"),
-    ("die_tool", "e9386c077f13b02a/82"),
+    ("die_tool", "e426662d8439569d/82"),
     ("face_sketch", "7809b39224c44527/52"),
     ("part_select", "e54d217adfa64523/52"),
     ("loft_prism", "36c0de6a313e3a66/28"),
@@ -90,7 +94,7 @@ const PRE_C: [(&str, &str); 34] = [
     ("hollow_tube_ring", "1db62df6ebe2507d/16"),
     ("reshaped_rod", "128f9facfb4a7626/52"),
     (FILES[0], "8853ddff30bcec28/154"),
-    (FILES[1], "e9386c077f13b02a/82"),
+    (FILES[1], "e426662d8439569d/82"),
     (FILES[2], "ca0b8371cb38e973/328"),
     (FILES[3], "07c4e18f181e9b69/16"),
     (FILES[4], "fd7b71fa51270532/88"),

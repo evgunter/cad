@@ -91,6 +91,16 @@ use editor_core::Node;
 /// `turn/4`, its split's plane and its pattern's axis read off its faces
 /// (nine rows). Every other row held, across main's merge at
 /// `557e581a64` too.
+///
+/// `die_tool`'s two rows moved again when its master ball came to
+/// stand on the cube's corner frame by an axis mate whose slide and
+/// spin are the constant `0`, where `place_against` had turned it by
+/// `atan2`'s rounded quarter turns. Its explicit rule's frames are now
+/// built from the fraction of a turn each is
+/// (`Frame::rotate_by_turns_then_translate`). The rows are the ball's
+/// copy and the product. The product's ordinal fell from 101 to 59:
+/// the master's placement mints 42 fewer ids than `place_against`'s
+/// did.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 122, 0xedc88b0c9768a183),
     ("die", 137, 0x3b18c1950c918b57),
@@ -169,8 +179,8 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("die_pips", 36, 0x9799e9408a965673),
     ("die_pips", 85, 0xabdcdd68d6103dcc),
     ("heat_sink_fins", 27, 0xb641d0c4ac52804e),
-    ("die_tool", 36, 0x63729297eb30c227),
-    ("die_tool", 101, 0x9cab060877de1b65),
+    ("die_tool", 36, 0x3ff90e3ab6223307),
+    ("die_tool", 59, 0xe1197d85a85e8d88),
     ("face_sketch", 37, 0x7786f1eb617ac49b),
     ("face_sketch", 53, 0xd5e58b4c5b896c38),
     ("part_select", 42, 0x82790a172f72402b),

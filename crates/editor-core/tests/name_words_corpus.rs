@@ -283,7 +283,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// from the cube's corner; `kitchen_sink`'s revolve stands upright by a
 /// bundle with no mate and its split's plane and pattern's axis are read
 /// off its faces. [`NAME_WORDS`] held.
-const SAID_DIGEST: u64 = 0x46c3_0a46_d078_99f3;
+///
+/// It moved again by tags in `die_tool` alone, when its master ball came
+/// to stand on the cube's corner frame by an axis mate, which mints 42
+/// fewer ids than the `place_against` it replaces. [`NAME_WORDS`] held.
+const SAID_DIGEST: u64 = 0xab31_fa51_bb72_320d;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

@@ -273,6 +273,13 @@ fn sans_epsilon(t: &str) -> String {
 /// `kitchen_sink` (its revolve upright by a bundle with no mate spun
 /// `turn/4`, its split's plane and pattern's axis read off its faces).
 /// Every other document held, across main's merge at `557e581a64` too.
+///
+/// `die_tool` moved again when its master ball came to stand on the
+/// cube's corner frame (`corner_frame`) by an axis mate whose slide and
+/// spin are the constant `0`, where `place_against` had placed it by a
+/// read-back frame that minted 42 more ids, and its explicit rule's
+/// frames came to be built from the fraction of a turn each is. Every
+/// other document held.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xb4db9802b0b606f7, 0x8af513933244b575),
     ("corner_table", 0x45e0ac4118bb214d, 0x8716f69f07ef2d45),
@@ -298,7 +305,7 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("die_chamfer", 0x370ebad78cec9015, 0x18dab54353cab960),
     ("die_pips", 0x1fff1b83a30b5c99, 0x0d819577eaa47983),
     ("heat_sink_fins", 0xd2143bd13f9aeb93, 0xd0d0bd7b24a38c2d),
-    ("die_tool", 0x8c3eb3d0aea92c7d, 0x8437bb4a7be0043f),
+    ("die_tool", 0x5f3d123cc3ff8f9a, 0xbd5ef3af13e3a895),
     ("face_sketch", 0x9cff6e4f5211da3d, 0x8bd8c95b2263b17d),
     ("part_select", 0x295f529b85ed0c9b, 0xdeb5a09d1f184d27),
     ("loft_prism", 0x9cb4bf86a35998f3, 0x49d4f40ea014df5c),

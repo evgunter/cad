@@ -255,6 +255,13 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// stands upright by a bundle with no mate spun `turn/4` and whose
 /// split's plane and pattern's axis are read off its faces. Every other
 /// document held, across main's merge at `557e581a64` too.
+///
+/// `die_tool` moved again when its master ball came to stand on the
+/// cube's corner frame (`corner_frame`) by an axis mate whose slide and
+/// spin are the constant `0`, where `place_against` had placed it by a
+/// read-back frame that minted 42 more ids, and its explicit rule's
+/// frames came to be built from the fraction of a turn each is. Every
+/// other document held.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xd996a20e0fd9ee56),
     ("corner_table", 0x29800dc909826450),
@@ -272,7 +279,7 @@ const PINNED: &[(&str, u64)] = &[
     ("die_chamfer", 0x07195df35d2892cc),
     ("die_pips", 0x7987c560eab620bb),
     ("heat_sink_fins", 0xc11b5c13358b6b56),
-    ("die_tool", 0x683264efe31cd2ee),
+    ("die_tool", 0xd7ecb55f034767ce),
     ("face_sketch", 0xe1162804a5269b4c),
     ("part_select", 0x8d9fda8439eaf0a0),
     ("loft_prism", 0x5a473fb46c0284ce),
