@@ -32,41 +32,32 @@ The floor these rows meet is the basin meter's, as computed: `sin φ > 2(κ₁ +
 
 `sweep/tests/a_ruling_lying_on_a_wall.rs` `two_rims_the_band_reads_coplanar_are_one_curve_only_within_it`: a seam ruling crosses a rim's plane at `|d̂·n̂| ≈ 0.01` and meets the rim at its tip, where the radius of curvature is `b²/a = 10⁻⁴` m. The basin meter (`Polish::closest`, `crates/geom-brep/src/curve_pair/pose.rs`) charges the curvature bound over the line's whole band stretch, `e/|d̂·n̂|`, to the conic as well, though the line runs across the conic there (sine 1). At `ε = 10⁻⁶` the turn reads `≈ 40` against a sine of `1`, so every op refuses `CurvedPierceUnsupported` where main's own carrier reading refused `FallbackExtentUnsupported` further on. At `10⁻⁹` and `10⁻¹²` it decides. The row states the threshold (`ε` past about `2.5·10⁻⁸`). A per-side region (the conic's stretch near the foot, not the line's) would decide it, once its bound is argued.
 
-## Evidence: fillet joints across a plane (2026-10-16, PR 5227)
+## Fillet joints: read by the window, not the meter
 
-Tier 3′'s pass 5′ reads every pair of curved edges through `meet`. At a fillet joint, a rod's rim ellipse meets the fillet's circle, or another rim, at a shared vertex where the ellipse touches the other conic's plane. Each span's end is read first and the joint is found, but the height harmonic's root there is a crossing of the plane, not a meeting. Its window may hold another meeting, so it is polished and metered as with no meeting found (C5 licenses dividing out only a root of the meeting's own equation; the reviewers' probes on PR 5227 showed the window losing real meetings when it was skipped). The basin meter reads the two tangents parallel there and refuses `Unsettled::Meter`, and the census pushes `CensusUnsupported { ContactLane(NotCertifiable("the meeting reading of two curved edges could not settle a count")) }` on both edges. Sixteen `sweep` rows fail tier 3′ on that refusal alone, every one in `band_turn_overrun_fillet` or `band_turn_overrun_fillet_model`. Seven of them are among the 31 rows pass 5′ first turned red:
-- `band_turn_overrun_fillet::{a_concave_overrun_fills_at_the_oracles_volume, a_later_fillet_of_l_refuses_at_the_far_bands_curved_face, a_short_near_edge_refuses_foot_inside_a_face_for_the_fillet_too, the_needle_builds_then_refuses_at_the_turn_as_it_flattens, the_witnesses_build_at_the_oracles_volumes}`;
-- `band_turn_overrun_fillet_model::{the_interval_overrun_arc_runs_the_f64_way, the_concave_skewed_box_fills_the_model}`.
+At a fillet joint a rim ellipse meets the fillet's conic at a shared
+vertex where it touches the other's plane, with parallel tangents. The
+height harmonic's root there is polished as with no meeting found, and
+the basin meter rightly refuses parallel tangents. Since
+`fuse/curve-pair-reader-c3` (2026-10-16) the plane root's window beside
+a found meeting is read instead (`geom_brep::curve_pair::pose::window`),
+and the sixteen `band_turn_overrun_fillet{,_model}` rows PR 5227 turned
+red pass. At `ε = 1e-12` the touch's run within the zero band
+(`√(2z/κ)`) outlasted the window's first-order on readings, which ran
+out of pieces. The needle and `leaning_prisms` ("lean -2 scale 100
+r 0.05") went red in the nightlies, bisected to PR 5227. The on reading
+carried along the other conic (`window` module docs, "On, along `b`";
+PR on `nurbs/cpair-shallow-meetings`) reads that run in a few pieces,
+and both pass at 1e-12.
 
-The other nine are:
-- `band_turn_overrun_fillet::{features_in_and_around_the_overrun_refuse_or_build_as_their_regions_say, generic_hexahedra_build_and_fill_at_the_oracle, leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales, the_sweep_builds_every_convex_overrun_at_the_probes_closed_forms, the_sweep_fills_concave_overruns, the_witnesses_build_at_every_pose}`;
-- `band_turn_overrun_fillet_model::{features_about_the_arc_build_clear_and_refuse_where_they_straddle, the_built_body_is_the_model_point_by_point, the_model_reads_the_box_corner_by_hand_and_every_witness}`.
+The `Interval` reds of the same nightlies are not this meter's. They
+are `curve-pair-polish-at-interval-reads-the-iterates-width`:
+- `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`
+  at 1e-12;
+- `band_planar_cut_off_interval`'s fillet rows, whose `tier_3_prime`
+  admission below `ε = 1e-9` stays until that item is fixed.
 
-**Decided since (2026-10-16, `fuse/curve-pair-reader-c3`).** The plane root's window is now read rather than polished blind (`geom_brep::curve_pair::pose::window`). Beside a found meeting, the window is the found meetings' own when every piece of it past their rings reads, outward from a ring, as one of:
-- **off**: a lower bound past the zero band;
-- **on**: an upper bound inside it;
-- **receding**: `d² = H² + D²` strictly growing away from the meeting, `H` the height above the other's plane and `D` the in-plane distance, in one of three certified ways;
-
-
-The window is read modulo the conic's period over the part on its span, and an arc of it no found meeting's ring bounds must read off throughout. The argument is in the module docs. Otherwise the root is polished and metered as before, so a window holding a second meeting still refuses or finds it.
-
-All sixteen rows pass. The geom-brep rows that pin the poses:
-- `meet_rows::a_crossing_of_the_others_plane_at_a_found_meeting_is_read_by_its_window` (the rim and fillet circle);
-- `meet_rows::a_fillet_joint_between_two_ellipses_is_read_by_its_window`;
-- `pose::window::rows::*`, one row per reading and a control.
-
-What stays on this row is the meter itself: shallow meetings with no found meeting beside them (the evidence above).
-
-## Evidence: the needle at ε 1e-12 is red on main (2026-10-18)
-
-`band_turn_overrun_fillet::the_needle_builds_then_refuses_at_the_turn_as_it_flattens`
-fails at `CAD_TOLERANCE_EPS=1e-12` on `origin/main` (`80d100e8e`),
-measured locally and on PR 5269's CI: "the needle at 1°: tier 3′,
-[CensusUnsupported { … ContactLane(NotCertifiable { what: "the meeting
-reading of two curved edges could not settle a count" }) }]" on two
-edges. The window reading above passes it at the default ε; the 1e-12
-row still reaches the meter.
-
+What stays on this row is the meter itself: shallow meetings with no
+found meeting beside them (the families and evidence above and below).
 
 ## Evidence: a body door reaches the sphere-circles window (2026-10-19)
 
@@ -75,25 +66,3 @@ every op `CurvedPierceUnsupported` at `θ ≤ 10³·Kε`. The cause is
 `meet(rim, rim)` → `Unsettled(Meter)` → `Unread`. Before the reader,
 main built this door at 1e-9. Filed as
 `a-ball-split-on-its-equator-and-turned-refuses-every-op-below-the-basin-floor`.
-
-## Evidence: three ε-1e-12 nightly reds, bisected to PR 5227 (2026-10-19)
-
-The 2026-10-17, 2026-10-18 and 2026-10-19 nightlies fail three `sweep` rows at ε 1e-12 only, each on this row's refusal ("the meeting reading of two curved edges could not settle a count", on two or four edges):
-- `band_turn_overrun_fillet::the_needle_builds_then_refuses_at_the_turn_as_it_flattens` (above);
-- `band_turn_overrun_fillet::leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales`, at `lean -2 scale 100 r 0.05 order [0, 1]`;
-- `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`, at `Interval`. This row is not listed above.
-
-CONTACTHOLD's nightly-red lane built `sweep`'s `all` binary on both sides of PR 5227's merge. All three pass at its first parent `f4ebb63a56` and fail at `37edb540a9`.
-
-## Evidence: more fillet joints at ε 1e-12 (2026-10-19, PR 5346)
-
-On `main`'s blend code at `CAD_TOLERANCE_EPS=1e-12`,
-`band_turn_overrun_fillet::leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales`
-("lean -2 scale 100 r 0.05") and
-`band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval`
-fail tier 3′ on the same `CensusUnsupported { ContactLane(NotCertifiable("the meeting reading of two curved edges could not settle a count")) }`.
-So does every fillet row of PR 5346's
-`band_planar_cut_off_interval::a_fillet_foot_on_atan2s_cut_at_an_oblique_end_carves_at_the_certified_scalar`
-at `Interval`: the sheared box's top edge, shears `±0.1 … ±0.6`, convex
-and concave. That row admits exactly this finding below `ε = 1e-9`
-(its `tier_3_prime`), so its tolerance comes out when this item is fixed.
