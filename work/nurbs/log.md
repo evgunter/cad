@@ -1566,3 +1566,8 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - M1 (the cut side's `shared_pieces` switch was unscheduled) is filed as `cut-side-quotients-halve-the-shared-weight-power-per-axis`, which also carries M2 (`WEIGHT_HALVINGS` counts calls, not halvings);
     - the NIT (the bit row skips `cell_quotients`' arms) and the `halving_counts` switch in `cell_pieces` go to build A's follow-up.
   - Reviewer archived.
+- 2026-10-19 23:45Z — **Mint-once is up as #5419** (build C, FULL, head 019beb75, bit-identical; `limb_three` matches line for line on 4 rows).
+  - **Shelling:** 17 mints of 4 walls become 5. The fifth, in `plane_nurbs_limbs`, runs after the scope drops, by design.
+  - **Timing:** shelling 2.14× → 1.86× of pre-4954 (−13%); r1 flat at 1.49×.
+  - **Deviation from ruling (A), accepted:** a concrete `f64` `OnceCell` slot in `offset_derive::WallCharts`, with no associated type on the lane trait, because the planners are bounded by `T: Decide` only. `props.rs` is untouched, so there's no collision with flux.
+  - FULL reviewer: session_01RsTjMpvtHiPMQ64nQhBY4V.
