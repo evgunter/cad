@@ -7,6 +7,7 @@ closed: 2026-10-20
 branch: paths/stored-arc-landing-check
 opened: 2026-10-19
 priority: P2
+pr: 5449
 ---
 
 
@@ -52,7 +53,7 @@ Questions for whoever takes it:
 
 ## Outcome
 
-On `paths/stored-arc-landing-check`.
+#5449 (`paths/stored-arc-landing-check`).
 
 **The questions.**
 - *Decision or witness check?* Neither, as the row framed them. It
