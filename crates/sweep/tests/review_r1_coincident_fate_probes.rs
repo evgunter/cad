@@ -154,6 +154,19 @@ fn summary(
         .filter(|s| root(s.operand, s.face) != s.face)
         .map(|s| (role(s.operand), fdesc(s.operand, s.face)))
         .collect();
+    let grafted: BTreeSet<FaceKey> = out.naming.graft_faces.iter().map(|&(c, _)| c).collect();
+    let live = |o: Operand, f: FaceKey| match o {
+        Operand::A => out.naming.a_keys == topo::OperandKeys::Direct && out.body.get_face(f).is_some(),
+        Operand::B => grafted.contains(&f),
+    };
+    for s in &out.naming.substituted {
+        if live(s.operand, s.face) {
+            println!("LIVE-SUB {:?} k={k} {s:?} {}", roles, fdesc(s.operand, s.face));
+        }
+        if !live(s.operand.other(), s.by) {
+            println!("DEAD-BY {:?} k={k} {s:?}", roles);
+        }
+    }
     let settler = out.naming.settler(&out.body);
     let at = |v| match settler.settle(v) {
         Ok(topo::Cell::Vertex(w)) => topo::readback::vertex_point(&out.body, w).ok().map(pt),
