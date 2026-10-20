@@ -12,7 +12,8 @@
 //!   `d` to `b`'s carrier past the zero band — the greater of the middle's
 //!   [`Curve3::clearance`] less the piece's reach, and the least `|H|`;
 //! - **on** (`curve_pair_window_on`): an upper bound inside the zero band —
-//!   the middle's foot gap plus the reach, or `√(|H|² + (L·|F|)²)` at most;
+//!   the middle's foot gap plus the reach, `√(|H|² + (L·|F|)²)` at most,
+//!   or the foot gap carried along `b` (below);
 //! - **(ii) receding** (`curve_pair_window_recedes`): `d` strictly growing
 //!   away from the ring.
 //!
@@ -36,6 +37,21 @@
 //! `D·s·(|F′| − 2L·|F|·|Q′|/s²)` exceeds `2|H|·|H′|`. `H`, `F` and their
 //! slopes are bounded over a piece by Taylor's theorem as
 //! [`crate::half_angle::certified_subdivision`] bounds its harmonic.
+//!
+//! **On, along `b`.** Where `a` touches `b`, tangent to it, `d` stays
+//! within the zero band `z` over a run about `√(2z/κ)` long, `κ` their
+//! relative bend, far past the ring's `e`. The two first-order bounds
+//! need pieces of reach under `z` to read it, about `1/√(zκ)` of them,
+//! and the level's is floored by its harmonics' rounding at `L` times
+//! their charge, so at a fine band no piece reads on and the window runs
+//! out of pieces. Carried along `b` instead: with `φ` the middle's foot
+//! on `b`'s carrier and `g(δ) = a(m + δ) − b(φ + kδ)` for any slope `k`,
+//! `d(a(m + δ)) ≤ |g(δ)|`, and Taylor's theorem gives
+//! `|g(δ)| ≤ |g(0)| + |δ|·|g′(0)| + δ²/2·sup|g″|`. A conic's `|C″|` is
+//! at most its larger semi-axis (`speed_hi`), so
+//! `sup|g″| ≤ A + k²·B` over every `δ`, and `k = a′·b′/|b′|²`, the slope
+//! that matches the tangents, leaves `|g′(0)|` the skew between them:
+//! near zero at a touch, where one piece then reads the run on.
 //!
 //! **No second meeting.** A second meeting `P` past a ring would lie
 //! beyond a point `Q` that is not on `b`. `Q`'s piece is receding or off,
@@ -141,6 +157,24 @@ fn bounds<T: Decide>(p: &TrigPoly<T>, m: T, w: T, noise: T) -> Bounds<T> {
     }
 }
 
+/// `x`, non-negative and computed in `n` roundings to nearest, raised to
+/// an upper bound on the real value it stands for. Each rounding is
+/// within `u = ε/2` relative, so `x ≥ x̂/(1 − u)ⁿ` fails only below
+/// `x̂·(1 + (n + 1)·2u)` rounded: `x̂·c·(1 − u) ≥ x·(1 − (n + 1)·u)·(1 +
+/// 2(n + 1)·u) ≥ x` while `(n + 1)·u ≤ ½`. At an enclosure the product
+/// is outward already, and this only widens it.
+fn up<T: Decide>(x: T, n: u32) -> T {
+    x * T::from_f64(1.0 + f64::from(n + 1) * f64::EPSILON)
+}
+
+/// **The bend term** `(A + k²·B)·w²/2` of the on reading along `b`
+/// (module docs), `A` and `B` the conics' larger semi-axes: six
+/// roundings (`k²`, `·B`, `+ A`, `w²`, the product, the halving, inexact
+/// only below the normal range), raised past them.
+fn bent<T: Decide>(a: T, b: T, k: T, w: T) -> T {
+    up((a + k * k * b) * (w * w) * T::from_f64(0.5), 6)
+}
+
 /// Whether `x` is definitely positive, read exactly
 /// ([`super::super::compare`]).
 fn positive<T: Decide>(row: &'static str, x: T) -> bool {
@@ -220,13 +254,47 @@ impl<T: Decide> Window<'_, T> {
         if (height_recedes && (level_recedes || level_negligible)) || level_dominates {
             return Some(Read::Recedes);
         }
-        let gap = self.carrier_b.foot(q, self.foot_seed(q)).gap() + reach;
+        let foot = self.carrier_b.foot(q, self.foot_seed(q));
+        let gap = foot.gap() + reach;
         let close = (h.hi.powi(2) + d_hi.powi(2)).sqrt();
         let on = |x: T| decide("curve_pair_window_on", Margin::of(x), band) == Ok(Sign::Zero);
-        if on(close) || on(gap) {
+        if on(close) || on(gap) || on(self.along_b(m, w, &foot)) {
             return Some(Read::On);
         }
         None
+    }
+
+    /// **An upper bound on `d` over the piece of half-width `w` about `m`,
+    /// carried along `b` from the middle's foot** (module docs, "On,
+    /// along `b`"). The anchor `|g(0)|` is the foot's gap, read as the
+    /// first-order on reading reads it. The rest is f64 arithmetic,
+    /// raised past its rounding ([`up`]): the half-width past the
+    /// rounding of `m` and `w`, the skew past each velocity's evaluation,
+    /// and each term and the sum past their own; an Interval reading
+    /// encloses each step and is raised alike.
+    fn along_b(&self, m: T, w: T, foot: &geom::Foot<'_, T>) -> T {
+        let eps = T::from_f64(f64::EPSILON);
+        let a = Curve3::Ellipse {
+            center: self.a.center,
+            axis: self.a.axis,
+            semi_u: self.a.semi_u,
+            semi_v: self.a.semi_v,
+            u_ref: self.a.u_ref,
+        };
+        let (_, va) = a.ders1(m);
+        let (_, vb) = self.carrier_b.ders1(foot.t());
+        let k = va.dot(vb) / vb.dot(vb);
+        let (sa, sb) = (self.a.speed_hi(), self.b.speed_hi());
+        // `m` and `w` are each within two roundings of `(l ± r)/2`, so
+        // the piece lies within `w·(1 + 3ε) + 2ε·|m|` of `m`.
+        let reach = up(up(w, 2) + T::from_f64(2.0) * eps * m.abs(), 1);
+        // Each velocity's coordinates are a handful of roundings of
+        // products at most its larger semi-axis.
+        let skew = up(
+            (va - vb * k).norm() + T::from_f64(16.0) * eps * (sa + k.abs() * sb),
+            4,
+        );
+        up(foot.gap() + up(skew * reach, 1) + bent(sa, sb, k, reach), 2)
     }
 
     /// A seed for `q`'s foot on `b`: its angle about `b`'s centre in
