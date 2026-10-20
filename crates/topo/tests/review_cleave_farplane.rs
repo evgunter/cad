@@ -211,8 +211,8 @@ type Case = (&'static str, Body<f64>, [Option<f64>; 3]);
 /// Booleans of the L-prism with a brick whose faces sit in band of
 /// the L's far carriers (and whose carriers pass in band of the L's
 /// vertices): nested, poking through the top, and disjoint. An answer
-/// must carry the right volume, and the refusals are exactly the ring
-/// escalations below.
+/// must carry the right volume, and none refuses: a refusal is recorded
+/// with whether it is a ring escalation, so a regression names its kind.
 #[test]
 fn booleans_beside_a_far_carrier_never_answer_wrong() {
     let tol = Tol::witness();

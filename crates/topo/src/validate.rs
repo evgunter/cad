@@ -8981,26 +8981,35 @@ fn segments_meet<T: Decide>(
     }
 }
 
-/// Whether `[b0, b1]`'s projection on the unit `ea` lies apart from
-/// `[a0, a1]`'s past the band (the **`ring_outer_meet_gap`** row,
-/// [`lines_meet`]).
+/// Whether two segments' projections lie apart past the band on
+/// either one's axis (the **`ring_outer_meet_gap`** row, [`lines_meet`]):
+/// on `a`'s unit `ea` first, then on `b`'s `eb` where `a`'s did not
+/// decide. Either axis apart holds every pair of points apart, so the
+/// reading is the pair's, whichever segment is named first.
 fn gaps_apart<T: Decide>(
-    ea: geom_core::Vec3<T>,
-    a: (geom_core::Point3<T>, geom_core::Point3<T>),
-    b: (geom_core::Point3<T>, geom_core::Point3<T>),
+    (ea, a): (
+        geom_core::Vec3<T>,
+        (geom_core::Point3<T>, geom_core::Point3<T>),
+    ),
+    (eb, b): (
+        geom_core::Vec3<T>,
+        (geom_core::Point3<T>, geom_core::Point3<T>),
+    ),
     band: Band,
 ) -> bool {
-    let along = on_one_line(ea, a, b, T::zero());
-    decide("ring_outer_meet_gap", Margin::of(along.apart()), band) == Ok(Sign::Positive)
+    let apart = |unit, first, second| {
+        let along = on_one_line(unit, first, second, T::zero());
+        decide("ring_outer_meet_gap", Margin::of(along.apart()), band) == Ok(Sign::Positive)
+    };
+    apart(ea, a, b) || apart(eb, b, a)
 }
 
 /// Two straight edges `[a0, a1]` and `[b0, b1]` in one plane. First the
-/// gap between their projections on `a`'s axis
-/// ([`geom_core::one_line`]): projections apart past the band hold every
+/// gap between their projections on either one's axis ([`gaps_apart`],
+/// [`geom_core::one_line`]): projections apart past the band hold every
 /// pair of points apart by as much, whatever the ends' sides would read.
 /// The four points are the body's stored vertex positions
-/// ([`edge_endpoints`]), the geometry this check reads, so nothing
-/// computed them here and none is charged for its making. Then the four
+/// ([`edge_endpoints`]). Then the four
 /// orientation margins of each one's ends against the other's line —
 /// signed lengths, `(p − o) × ê · n̂`. Both ends strictly on one side of
 /// the other's line separates them; otherwise they meet, unless all of
@@ -9016,7 +9025,7 @@ fn lines_meet<T: Decide>(
 ) -> EdgePair {
     let ea = (a1 - a0).normalize();
     let eb = (b1 - b0).normalize();
-    if gaps_apart(ea, (a0, a1), (b0, b1), band) {
+    if gaps_apart((ea, (a0, a1)), (eb, (b0, b1)), band) {
         return EdgePair::Apart;
     }
     let side = |p: geom_core::Point3<T>, o: geom_core::Point3<T>, e: geom_core::Vec3<T>| {
@@ -9043,18 +9052,26 @@ fn lines_meet<T: Decide>(
     let collinear =
         |pair: &[Result<Sign, Indeterminate>; 2]| matches!(pair, [Ok(Sign::Zero), Ok(Sign::Zero)]);
     // Collinear: do the spans overlap, measured along one edge's own
-    // axis? A point of overlap is a meeting too.
+    // axis? A point of overlap is a meeting too. The overlap is the one
+    // reading's ([`geom_core::one_line`]), decided past its charge both
+    // ways: a meeting where even its lower bound reaches the band's
+    // zero, apart where even its upper bound is definitely negative, and
+    // the bounds' straddle otherwise.
     let overlap = |o0: geom_core::Point3<T>,
                    o1: geom_core::Point3<T>,
                    e: geom_core::Vec3<T>,
                    p0: geom_core::Point3<T>,
                    p1: geom_core::Point3<T>| {
-        let len = (o1 - o0).norm();
-        let (t0, t1) = ((p0 - o0).dot(e), (p1 - o0).dot(e));
-        let margin = t0.max(t1).min(len) - t0.min(t1).max(T::zero());
-        match decide("ring_outer_meet_overlap", Margin::of(margin), band) {
-            Ok(Sign::Positive | Sign::Zero) => EdgePair::Meet,
-            Ok(Sign::Negative) => EdgePair::Apart,
+        const ROW: &str = "ring_outer_meet_overlap";
+        let along = on_one_line(e, (o0, o1), (p0, p1), T::zero());
+        let lower = match decide_reported(ROW, Margin::of(along.extent() - along.noise), band) {
+            Ok(d) if matches!(d.sign, Sign::Positive | Sign::Zero) => return EdgePair::Meet,
+            Ok(d) => d,
+            Err(source) => return EdgePair::Unsure(source),
+        };
+        match decide_reported(ROW, Margin::of(along.extent() + along.noise), band) {
+            Ok(d) if d.sign == Sign::Negative => EdgePair::Apart,
+            Ok(upper) => EdgePair::Unsure(geom_core::k_stats::straddle(ROW, lower, upper, band)),
             Err(source) => EdgePair::Unsure(source),
         }
     };

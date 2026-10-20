@@ -17,8 +17,9 @@ use super::gaps_apart;
 /// `10⁻¹³` … `10⁻⁷` m (either sign) along `a`'s line past its end and
 /// in band across it. Wherever [`gaps_apart`] reads them apart at the
 /// fine band, the `Interval` enclosure of the real gap (the stored
-/// points against `a`'s real unit chord) is positive: the segments
-/// are apart in ℝ.
+/// points against either segment's real unit chord, the larger) lies
+/// past the band's zero: the segments are apart in ℝ by more than `ε`,
+/// as the reading claims.
 ///
 /// **The lengths reach `3·10⁶` m because the charge is only visible
 /// there.** For stored points near one another `p − a0` is nearly
@@ -56,8 +57,8 @@ fn a_gap_read_apart_is_a_real_gap_on_points_far_from_the_origin() {
         let b0 = a1 + d * step + across;
         let turn = (d + n.cross(d) * rng.range(-1.0, 1.0)).normalize();
         let b1 = b0 + turn * len;
-        let ea = (a1 - a0).normalize();
-        if !gaps_apart(ea, (a0, a1), (b0, b1), band) {
+        let (ea, eb) = ((a1 - a0).normalize(), (b1 - b0).normalize());
+        if !gaps_apart((ea, (a0, a1)), (eb, (b0, b1)), band) {
             continue;
         }
         fired += 1;
@@ -68,14 +69,21 @@ fn a_gap_read_apart_is_a_real_gap_on_points_far_from_the_origin() {
                 Interval::from_f64(p.z),
             )
         };
-        let (ia0, ia1) = (iv(a0), iv(a1));
-        let chord = ia1 - ia0;
-        let real_unit = chord * (Interval::one() / chord.norm());
-        let along = |q: Point3<Interval>| (q - ia0).dot(real_unit);
-        let (t0, t1) = (along(iv(b0)), along(iv(b1)));
-        let gap = t0.min(t1) - along(ia1);
+        // The real gap between the two spans' projections on one's real
+        // unit chord, whichever side the other lies: the reading may have
+        // found either axis apart, so the pair's real gap is the larger.
+        let real_gap = |(p0, p1): (Point3<f64>, Point3<f64>),
+                        (q0, q1): (Point3<f64>, Point3<f64>)| {
+            let (ip0, ip1) = (iv(p0), iv(p1));
+            let chord = ip1 - ip0;
+            let unit = chord * (Interval::one() / chord.norm());
+            let along = |q: Point3<Interval>| (q - ip0).dot(unit);
+            let (t0, t1, len) = (along(iv(q0)), along(iv(q1)), along(ip1));
+            (t0.min(t1) - len).max(Interval::zero() - t0.max(t1))
+        };
+        let gap = real_gap((a0, a1), (b0, b1)).max(real_gap((b0, b1), (a0, a1)));
         assert!(
-            gap.lo() > 0.0,
+            gap.lo() > band.zero(),
             "read apart, but the real gap encloses {gap:?}: a {a0:?}→{a1:?}, \
              b {b0:?}→{b1:?} — {}",
             test_utils::fuzz::replay()
