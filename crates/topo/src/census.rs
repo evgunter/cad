@@ -3898,7 +3898,7 @@ fn ee_crossing_lane<T: Decide>(
 fn overlap_resolves<T: Decide>(noise: T, band: Band) -> Result<(), Indeterminate> {
     let room = band.escalate() - band.zero();
     let per_metre = T::from_f64(geom_core::SHORT_CHAIN_ULPS * f64::EPSILON * 0.5);
-    let headroom = (T::from_f64(room) - noise) / per_metre;
+    let headroom = (T::from_computed(room) - noise) / per_metre;
     decide_positive("pm_census_ee_overlap_precision", Margin::of(headroom), band)
 }
 
