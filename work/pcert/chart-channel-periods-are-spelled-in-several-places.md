@@ -1,7 +1,7 @@
 ---
-id: chart-channel-periods-are-spelled-in-five-places
+id: chart-channel-periods-are-spelled-in-several-places
 kind: issue
-title: Which chart channel is an angle, and its period, is spelled in geom-brep's angle_periods and in five topo copies; topo's chart v_periodic answers no for a sphere's v where angle_periods answers τ
+title: Which chart channel is an angle or a closed net channel, and its period, is spelled in geom-brep's angle_periods and again in topo's own readers; topo's Chart::v_periodic answers no for a sphere's v where angle_periods answers τ, and the band-free ChartPeriods::stated gives an open net periods
 status: open
 opened: 2026-10-19
 priority: P3
@@ -22,10 +22,15 @@ answers the same question in its own copies:
 | site | answers |
 |---|---|
 | `topo::pcurves::chart_u_period` | `u`'s period: `τ` on every curved analytic chart, a net's knot length when decided closed |
+| `topo::pcurves::chart_v_period` | `v`'s period and its kind (`VPeriod`): `τ` levered by the polar radius on a sphere or torus, a net's knot length when decided closed |
+| `topo::pcurves::ChartPeriods::stated` | both, band-free, for `loop_lift` (no band at hand): a net's knot lengths whether or not the net closes |
 | `topo::pcurves::chart_period` | `u`'s period by kind, `None` on a plane |
-| `topo::joint::u_period` | `u`'s period as a deck element applies it, band-free |
 | `topo::pcurves::polar_arm` | whether `v` is an angle (sphere, torus), as the radius that levers it |
 | `topo::chart::Chart::v_periodic` (`crates/topo/src/chart.rs:235`) | whether `v` wraps: the torus only |
+
+`Deck::apply` reads no copy of its own: it applies the `ChartPeriods`
+its caller hands it, decided at the band by `chart_boundary` and the
+walk, stated by `loop_lift`.
 
 **The disagreement.** `Chart::v_periodic` answers `false` for a sphere,
 whose `v` is a latitude in `[−π/2, π/2]` that does not wrap on the
@@ -41,7 +46,14 @@ Export one home (geom-brep's `angle_periods`, or a `Surface` method in
 `geom`) for "is `S` periodic in this channel, and with what period", and
 route topo's copies through it; and name `v_periodic`'s question as the
 other one (the domain wraps) so the two cannot be read for each other.
-PCERT unit C adds two more readers for spline charts:
-`topo::pcurves::chart_v_period` (a net's `v` knot length when decided
-closed, beside `chart_u_period`) and `topo::joint::v_period` (`v`'s
-period as a deck element applies it, band-free, beside `u_period`).
+
+
+**A second disagreement, band-free against decided** (PCERT unit C).
+`ChartPeriods::stated` answers a net's knot length in a channel the net
+is open in, where `ChartPeriods::of` answers `None`. So an element with
+periods planted by hand on an open net applies in `loop_lift` and is a
+gap in `chart_boundary`'s lift; tier 3 re-decides it and reads it loud.
+Pinned by `joint::tests::an_elements_v_periods_are_the_charts_own`.
+`loop_lift` takes no band (nor does `Body`), which is why it states
+rather than decides; giving it one, or storing the decided periods with
+the face, removes the band-free reader.

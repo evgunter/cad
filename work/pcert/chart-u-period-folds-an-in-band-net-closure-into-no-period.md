@@ -40,6 +40,14 @@ every knot vector is clamped: `KnotVector`'s constructors, `clamped`,
 `bezier` and `unit_segment` in `crates/geom-core/src/spline/knots.rs`,
 admit no other.) The fix below covers `v` with `u`.
 
+**Pinned** by `pcurves::net_period_rows::a_seam_a_near_band_offset_apart`
+(`crates/topo/src/pcurves.rs`): a prism net closed in `v` whose last row
+is moved off its first by `d`. Under the band's zero (`d` up to 0.5 ε)
+it reads closed and its seam crossing is one `v` period; in the band it
+folds to open and the same crossing refuses as a decided
+`PinMiss::Discontinuity`. The fix turns that last assertion into an
+escalation.
+
 **The fix shape.** `chart_u_period` answers a tri-state (closes, decided
 open, in band with its cause). Its callers (`chart_boundary`,
 `decide_joint`'s callers, the split and merge walks, about six sites)

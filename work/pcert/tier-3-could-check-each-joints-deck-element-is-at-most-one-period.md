@@ -37,7 +37,13 @@ Unit C gives a spline net closed in `v` a `v` period, the knot domain's
 length, so the walk decides `Deck.v` there as it decides `Deck.u` on a
 net closed in `u`. A net's images are not placed in a principal window:
 an image on a net keeps the net's knot domain. So on a net the
-"one period" bound is not given by placement. It holds only because
-every image on a net lies within the knot domain, so two neighbouring
-images' ends are within one domain length. A tier-3 check would rest
-on that, not on C4's placement.
+"one period" bound is not given by placement. It would hold if every
+image on a net lay within the knot domain, so that two neighbouring
+images' ends are within one domain length. **That is an unchecked
+premise**: the derivations happen to produce such images (an iso row
+sits on a boundary or interior knot line; a fitted or general image
+interpolates feet that `wall.project` returns inside the domain), but
+nothing checks it: no certificate, mint or tier-3 pass refuses an
+image on a net that leaves the domain. A tier-3 bound on a net's
+elements would rest on that premise, so deciding this item for nets
+means checking the premise too, not reading it off C4's placement.

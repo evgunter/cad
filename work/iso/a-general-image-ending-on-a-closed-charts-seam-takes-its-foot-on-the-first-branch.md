@@ -18,10 +18,18 @@ was first written on PR 5137's branch, which unit C supersedes.
 Take a spline chart closed in `v`, whose first and last control rows
 are the same points. An edge on it that ends at a vertex on the seam
 row has an end point with two chart feet, `v = v₀` and `v = v₁`. The
-`General` image's foot schedule (`edge_nurbs`, reached through
-`FittedLane::general_image` from `nurbs_iso_derive`'s fall-through in
-`crates/topo/src/pcurves.rs`) takes the `v₀` one whichever way the
-edge approaches it.
+`General` image's foot schedule takes the `v₀` one whichever way the
+edge approaches it. The path:
+- `nurbs_iso_derive`'s fall-through calls `derive_general_image`
+  (`crates/topo/src/pcurves.rs:1376`);
+- that reaches `FittedLane::general_image`
+  (`crates/geom-brep/src/fitted_lane.rs:206`);
+- whose schedule projects each sample on its own
+  (`wall.project`, `crates/geom-brep/src/edge_nurbs.rs:1820-1836`),
+  with no reference to the previous foot, so a foot on the seam row
+  lands where the projection lands, `v₀` here;
+- `chart_foot` (`crates/geom-brep/src/edge_nurbs.rs:1864`) is the
+  same projection for a single foot.
 
 ## Seen on
 
