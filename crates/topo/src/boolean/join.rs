@@ -3506,15 +3506,13 @@ fn cylinder_pair_axes<T: Decide>(
 const FACE_REACH_ELSEWHERE: &str = "a curved face's reach levered a pair with no cone or torus";
 
 /// A germ pair's section refusal that is not the table's verdict on the
-/// pair's locus: an undecided degeneracy, or a carrier the conic
-/// constructor could not tell from a circle (the table's classifier read
-/// the tilt as definite, `ellipse_axes_distinct` read the semi-axes as
-/// equal or in the band), escalates; anything else is a desync.
+/// pair's locus: an undecided degeneracy, or a conic carrier whose
+/// minor semi-axis the constructor could not decide positive,
+/// escalates; anything else is a desync.
 fn section_refusal(e: geom_brep::SectionError) -> FrameError {
-    use geom::EllipseInvalid as Ei;
     match e {
         geom_brep::SectionError::Escalated(diag)
-        | geom_brep::SectionError::Carrier(Ei::Escalated(diag) | Ei::CircularAxes(diag)) => {
+        | geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)) => {
             FrameError::section(diag)
         }
         geom_brep::SectionError::DegenerateTorus(geom_brep::TorusRefusal {
@@ -3820,9 +3818,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
         }
         Err(
             e @ (geom_brep::SectionError::Escalated(_)
-            | geom_brep::SectionError::Carrier(
-                geom::EllipseInvalid::Escalated(_) | geom::EllipseInvalid::CircularAxes(_),
-            )),
+            | geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(_))),
         ) => Err(refused(section_refusal(e))),
         Err(geom_brep::SectionError::RadiusEscalated { radius, diag }) => {
             Err(refused(FrameError::Escalated {
@@ -3847,9 +3843,13 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
         ) => Ok(None),
         // Refusals two cylinders read apart cannot raise: the kinds
         // were matched above, the coaxial pose answered parallel, no
-        // torus question is asked, and no extent is handed to this pair.
+        // torus question is asked, no extent is handed to this pair, and
+        // a bisector's semi-axes are a radius over a half-angle's sine or
+        // cosine read off `a1 ∓ a2`, which are finite at any radius in
+        // the box.
         Err(
-            geom_brep::SectionError::WrongLane { .. }
+            geom_brep::SectionError::Carrier(geom::EllipseInvalid::SemiAxisNotFinite)
+            | geom_brep::SectionError::WrongLane { .. }
             | geom_brep::SectionError::BeyondOperandExtent { .. }
             | geom_brep::SectionError::CoincidentSurfaces
             | geom_brep::SectionError::DegenerateTorus(_)
@@ -3950,9 +3950,7 @@ fn intersecting_cylinder_axes<T: Decide>(
         ),
         Err(
             e @ (geom_brep::SectionError::Escalated(_)
-            | geom_brep::SectionError::Carrier(
-                geom::EllipseInvalid::Escalated(_) | geom::EllipseInvalid::CircularAxes(_),
-            )),
+            | geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(_))),
         ) => section_refusal(e),
         // The table's own routing verdict, honoured the way
         // `cs_pair_frame` honours it: NOT a desync, since nothing is
@@ -3966,7 +3964,7 @@ fn intersecting_cylinder_axes<T: Decide>(
         // coaxial-equal-radius pose was refused at the parallelism
         // gate, no torus question is asked of two cylinders with
         // meeting axes, the bisector ellipses' semi-axes are decided
-        // positive, and no arm this pair reaches states
+        // positive and finite, and no arm this pair reaches states
         // a locus off the extent it was handed (the cylinder pair's
         // ellipses stand on the operands themselves).
         Err(
@@ -3976,7 +3974,9 @@ fn intersecting_cylinder_axes<T: Decide>(
             | geom_brep::SectionError::CoincidentSurfaces
             | geom_brep::SectionError::DegenerateTorus(_)
             | geom_brep::SectionError::BeyondOperandExtent { .. }
-            | geom_brep::SectionError::Carrier(geom::EllipseInvalid::MinorNotPositive)
+            | geom_brep::SectionError::Carrier(
+                geom::EllipseInvalid::MinorNotPositive | geom::EllipseInvalid::SemiAxisNotFinite,
+            )
             | geom_brep::SectionError::Spiric(_),
         ) => FrameError::Desync(
             "the equal-radius cylinder section refused at the germ pair with a refusal this \

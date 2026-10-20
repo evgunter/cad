@@ -402,15 +402,25 @@ impl SpanDecision {
         }
     }
 
+    /// The size its ending names ("if this {size} is intended"), which its
+    /// lever moves and its check's word names.
+    #[must_use]
+    pub const fn size(self) -> &'static str {
+        match self {
+            Self::Forward => crate::certify::length_noun!(),
+            Self::Winding => crate::certify::arc_noun!(),
+        }
+    }
+
     /// The decision, read with `side` as its refused side.
     pub(crate) const fn on(self, side: RefusedSide) -> SizedDecision {
-        let (size, passes) = match self {
-            Self::Forward => ("length", SizedPass::Positive),
-            Self::Winding => ("arc", SizedPass::NonNegative),
+        let passes = match self {
+            Self::Forward => SizedPass::Positive,
+            Self::Winding => SizedPass::NonNegative,
         };
         SizedDecision {
             lever: self.lever(),
-            size,
+            size: self.size(),
             passes,
             side,
             no_size: None,

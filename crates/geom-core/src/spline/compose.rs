@@ -349,10 +349,9 @@ fn to_bezier_spans_extra(pair: SplineCoeffs<'_, Interval>, extra: &[f64]) -> Ber
 
 /// The largest row degree [`binom_row`] serves exactly. The rows are
 /// formed in integers ([`super::pieces::binomial`]), so the cap is the
-/// values' own: every `C(n, k)` with `n ≤ 56` is at most `2⁵³`, and
-/// `C(57, 25)` is the first that is not representable
-/// (differentially pinned against `u128` arithmetic in the tests).
-const BINOM_EXACT_MAX: usize = 56;
+/// values' own, [`super::pieces::BINOMIAL_EXACT_MAX`] (differentially
+/// pinned against `u128` arithmetic in the tests).
+const BINOM_EXACT_MAX: usize = super::pieces::BINOMIAL_EXACT_MAX;
 
 /// Binomial row `C(n, 0..=n)` at `f64` — exact for `n ≤`
 /// [`BINOM_EXACT_MAX`], which covers every degree this module can
@@ -482,7 +481,7 @@ fn build_bern_weights(da: usize, db: usize) -> BernWeights {
 ///
 /// **A refused table is not what the grid excludes.** Every pair with
 /// `da + db >` [`BINOM_EXACT_MAX`] has an all-refused table, and plenty
-/// of those pairs are INSIDE the grid — `(27, 27)` is a slotted pair
+/// of those pairs are INSIDE the grid — `(28, 29)` is a slotted pair
 /// whose every entry is `NaN`. That is the correct answer for the pair
 /// and it is memoized like any other. What is served fresh rather than
 /// given a slot is a pair with a SINGLE degree past the cap, and that
@@ -1941,8 +1940,8 @@ mod tests {
 
     /// **The production weights, read two corners, are the general
     /// product.** Every weight [`bern_weights`] serves for degrees
-    /// `0 ..= 27` each (the square whose every pair has exact rows,
-    /// `da + db <=` [`BINOM_EXACT_MAX`]) times operands drawn to provoke ties —
+    /// `0 ..= BINOM_EXACT_MAX / 2` each (the square whose every pair
+    /// has exact rows, `da + db <=` [`BINOM_EXACT_MAX`]) times operands drawn to provoke ties —
     /// intervals over dyadic values with few significant bits (whose
     /// products are often exact), random doubles, values near the
     /// 2Prod floor and zeros, both signs — [`Interval::mul_nonneg`]
@@ -2170,11 +2169,6 @@ mod tests {
         }
         assert!(binom_row(BINOM_EXACT_MAX + 1).iter().all(|v| v.is_nan()));
         assert!(binom_row(80).iter().all(|v| v.is_nan()));
-        // The cap is the values' own: `C(57, 25)` has no `f64`.
-        let c57_25 = (1u128..=25).fold(1u128, |b, j| b * (57 - j + 1) / j);
-        #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
-        let rounded = c57_25 as f64 as u128;
-        assert_ne!(rounded, c57_25, "C(57, 25) is representable");
     }
 
     /// **The rows the bounds were pinned on did not move.** Through
