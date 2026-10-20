@@ -163,7 +163,9 @@ fn run(
     let mut borders = BTreeSet::new();
     let mut disc_lines = Vec::new();
     for d in &out.naming.discards {
-        let s = stretches(&out, &d.bordered);
+        let mut s = stretches(&out, &d.bordered);
+        s.extend(stretches(&out, &d.bordered_through));
+        s.sort();
         if !s.is_empty() {
             disc_lines.push(format!("{}:{:?}{:?}", lab(d.operand), root(&out, d.operand, d.face), s));
         }
