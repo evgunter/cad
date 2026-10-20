@@ -267,7 +267,7 @@ pub(crate) fn name_split<T: Decide>(
     }
 
     for &(f, side) in &naming.sections {
-        let half = half_of(side, "a section row");
+        let half = half_of(side, "section row", &f);
         let absorbed = naming
             .merge_groups
             .iter()
@@ -333,7 +333,8 @@ pub(crate) fn name_split<T: Decide>(
     Ok([above, below].map(|h| Emitted::new(h.t, h.rec)))
 }
 
-/// The half a split's record names by its side.
+/// The half a split's record names by its side; `row` is the record's
+/// entry, for the panic.
 ///
 /// # Panics
 ///
@@ -341,13 +342,13 @@ pub(crate) fn name_split<T: Decide>(
 /// section, join and merge row with the side whose body it was made
 /// on, `Above` or `Below`.
 #[track_caller]
-fn half_of(side: PlaneSide, record: &'static str) -> SplitHalf {
+fn half_of(side: PlaneSide, record: &'static str, row: &dyn core::fmt::Debug) -> SplitHalf {
     match side {
         PlaneSide::Above => SplitHalf::Above,
         PlaneSide::Below => SplitHalf::Below,
         PlaneSide::On => unreachable!(
-            "{record} names the side On: a split records each section, join and merge with \
-             the side whose body it was made on, Above or Below"
+            "{record} {row:?} names the side On: a split records each section, join and merge \
+             with the side whose body it was made on, Above or Below"
         ),
     }
 }
@@ -509,7 +510,7 @@ fn name_split_merges<T: Decide>(
         let plane = naming.plane_pieces(plane_side(s.half), s.body);
         let mut linked: Vec<Linked> = Vec::new();
         for (side, g) in &naming.merge_groups {
-            if half_of(*side, "a split merge's row") != s.half {
+            if half_of(*side, "split merge row", g) != s.half {
                 continue;
             }
             if s.body.get_face(g.kept).is_none() {
@@ -888,7 +889,7 @@ fn split_joined_readings<T: Decide>(
     // Each record states the half it was made on: the edge it leaves
     // lives there.
     for &(side, j) in &naming.edge_joins {
-        let half = half_of(side, "a split join's row");
+        let half = half_of(side, "split join row", &j);
         let left = topo::joined_edge(joins, j.kept);
         if !sides
             .iter()
@@ -1769,8 +1770,8 @@ pub(crate) fn name_boolean<T: Decide>(
         // both emitters: a constituent that is itself a merged face
         // (through any wrapping) is a name this loop cannot have
         // built from a flat operand, so it panics rather than being
-        // published. `emit_union`'s `collapse` reads the same rule at
-        // the union's second door; the two are one rule at two doors.
+        // published. `emit_union`'s `collapse` holds the same rule at
+        // the union's own door, with its own ending.
         if let Some(nested) = constituents
             .iter()
             .find(|c| merged::constituents_through_wrappers(c).is_some())
@@ -1917,12 +1918,12 @@ pub(crate) fn name_boolean<T: Decide>(
         let mut parent: BTreeSet<OpSide<FaceKey>> = BTreeSet::new();
         for &side in sides {
             let (op, k) = side.of(a, b);
-            let faces = op.body.faces_of_vertex(k).unwrap_or_else(|| {
-                unreachable!(
-                    "operand corner {k:?}'s faces do not read, yet its operand's table names it, \
-                     and a table names its own body's live entities"
-                )
-            });
+            let faces = live_vertex_faces(
+                op.body,
+                k,
+                "its operand's table names the corner, and a table names its own body's live \
+                 entities",
+            );
             parent.extend(faces.into_iter().map(|f| side.with(f)));
         }
         let pieces: BTreeSet<FaceKey> = parent.iter().flat_map(&held_by).collect();
@@ -2163,7 +2164,8 @@ fn name_boolean_edges<T: Decide>(
         let Some(faces) = inc.edge_faces.get(&e) else {
             unreachable!(
                 "seam edge {e:?} bounds no face: the incidence read every half-edge of the \
-                 result, and a tier-1-valid body gives each live edge two"
+                 result, and in a tier-1-valid body each live edge has two half-edges, each in \
+                 a face's loop"
             )
         };
         if faces.len() != 2 {
@@ -2538,7 +2540,7 @@ fn joined_cover<T: Decide>(
     let Some(faces) = inc.edge_faces.get(&e) else {
         unreachable!(
             "joined edge {e:?} bounds no face: the incidence read every half-edge of the result, \
-             and a tier-1-valid body gives each live edge two"
+             and in a tier-1-valid body each live edge has two half-edges, each in a face's loop"
         )
     };
     let [f0, f1] = faces.as_slice() else {
@@ -3364,12 +3366,11 @@ struct EdgeSense {
 /// partner of ([`topo::UnreadPartner`]), whose edges hold no class to
 /// read a sense from; [`NamingError::Emission`] where
 /// one side of the vertex holds pieces of one edge on both sides of the
-/// other operand.
+/// other operand, or no classified piece ([`UNCLASSIFIED_SIDE`]).
 ///
 /// # Panics
 ///
-/// Where a side holds no classified piece ([`UNCLASSIFIED_SIDE`]), or a
-/// classified edge is one its operand's table does not name.
+/// Where a classified edge is one its operand's table does not name.
 fn senses_at<T: Decide>(
     naming: &topo::BooleanNaming,
     v: VertexKey,
@@ -3448,15 +3449,13 @@ fn senses_at<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where its pieces there read both ways.
-///
-/// # Panics
-///
-/// Where no piece there was classified ([`UNCLASSIFIED_SIDE`]).
-#[track_caller]
+/// [`NamingError::Emission`] where its pieces there read both ways, or
+/// where no piece there was classified ([`UNCLASSIFIED_SIDE`]).
 fn side_in_body(classes: &BTreeSet<bool>) -> Result<bool, NamingError> {
     match classes.len() {
-        0 => unreachable!("{UNCLASSIFIED_SIDE}"),
+        0 => Err(NamingError::Emission {
+            what: UNCLASSIFIED_SIDE,
+        }),
         1 => Ok(classes.contains(&true)),
         _ => Err(NamingError::Emission {
             what: "a crossing's edge has pieces on both sides of the other operand on one side of it",
@@ -3464,12 +3463,16 @@ fn side_in_body(classes: &BTreeSet<bool>) -> Result<bool, NamingError> {
     }
 }
 
-/// A crossed edge has a side at the crossing with no piece classified,
-/// which is a row the boolean owed: [`senses_at`] reads only a vertex
-/// no operand names, which lies inside each edge it is on and so holds
-/// a piece of it on both sides, and the boolean classes every piece at
-/// a vertex whose partner it read ([`NamingError::PartnerUnread`] is
-/// the one it did not).
+/// A crossed edge has a side at the crossing with no piece classified.
+/// [`senses_at`] reads only a vertex no operand names, which lies inside
+/// each edge it is on and so holds a piece of it on both sides, and the
+/// boolean classes every piece at a vertex whose partner it read
+/// ([`NamingError::PartnerUnread`] is the one it did not), so this is a
+/// row the boolean owed. It stays typed rather than a panic: a legal
+/// document reached its union twin (`work/borders/` row
+/// `a-whole-ball-cut-by-a-tilted-brick-refuses-an-unclassified-member-edge-side`),
+/// and the crossing's "no piece the boolean classified" is reached too,
+/// so no one has shown a correct kernel never reaches it.
 const UNCLASSIFIED_SIDE: &str = "a crossing's edge has a side the boolean classified no piece of: \
                                  a vertex no operand names lies inside each edge it is on, and the \
                                  boolean classes the pieces on both sides of it";
@@ -3482,13 +3485,15 @@ mod side_tests {
 
     use super::side_in_body;
 
-    /// **A side of a crossing with no classified piece panics** (N2):
-    /// a vertex that is not an operand's own holds the edge on both
-    /// sides, so a missing class is a row the boolean owed.
+    /// **A side of a crossing with no classified piece refuses typed**
+    /// (N2): a vertex that is not an operand's own holds the edge on
+    /// both sides, so a missing class is a row the boolean owed.
     #[test]
-    #[should_panic(expected = "a crossing's edge has a side the boolean classified no piece of")]
-    fn a_side_with_no_classified_piece_panics() {
-        let _ = side_in_body(&BTreeSet::new());
+    fn a_side_with_no_classified_piece_refuses() {
+        assert!(matches!(
+            side_in_body(&BTreeSet::new()),
+            Err(super::NamingError::Emission { what }) if what == super::UNCLASSIFIED_SIDE
+        ));
     }
 
     /// One class reads its side; two refuse.
@@ -3704,12 +3709,14 @@ impl<T: Decide> Segment<T> {
     /// does not lie on it (`None`): its two ends on the line, then the
     /// sign of the two directions' dot, each through `predicate`.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Where the dot decides zero, which two certified edges cannot
-    /// reach: with both of `other`'s ends on this line the dot is its
-    /// length to within the zero band, and certification refuses an edge
-    /// whose span is under the escalate band.
+    /// [`NamingError::Escalated`] where a verdict falls in the band;
+    /// [`NamingError::Emission`] where the dot decides zero. A certified
+    /// edge spans at least the escalate band, K zero bands, but its ends
+    /// may each lie up to a zero band off this line, so for a small
+    /// enough K (any finite K > 1 is accepted) its projection on the line
+    /// can fall in the zero band: a precision limit, kept typed.
     pub(super) fn runs_with(
         &self,
         other: &Self,
@@ -3728,13 +3735,10 @@ impl<T: Decide> Segment<T> {
         match way {
             Sign::Positive => Ok(Some(true)),
             Sign::Negative => Ok(Some(false)),
-            Sign::Zero => unreachable!(
-                "segment {:?}..{:?} lies on the line of {:?}..{:?} yet runs neither way along \
-                 it: its two ends lie within the zero band of that line, so the dot is its length \
-                 to within the band, and certification refuses an edge whose span is under the \
-                 escalate band",
-                other.q0, other.q1, self.q0, self.q1
-            ),
+            Sign::Zero => Err(NamingError::Emission {
+                what: "two segments on one line run neither way along it: the one's projection \
+                       on the other's line falls in the zero band",
+            }),
         }
     }
 
@@ -4389,12 +4393,13 @@ fn places_points<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
 /// a null edge at rest (`topo::validate`'s `ScaffoldAtRest`).
 #[track_caller]
 fn certified_curve<T: Decide>(body: &Body<T>, e: EdgeKey) -> &geom_brep::EdgeCurve<T> {
-    body.stored_curve(e).unwrap_or_else(|err| {
-        unreachable!(
+    match body.stored_curve(e) {
+        Ok(curve) => curve,
+        Err(err) => unreachable!(
             "edge {e:?} has no certified curve ({err:?}): its caller holds it live in a body at \
              rest, where tier 2 refuses a null edge"
-        )
-    })
+        ),
+    }
 }
 
 impl<T: Decide> Track<T> {
@@ -4407,18 +4412,16 @@ impl<T: Decide> Track<T> {
     /// stretches compared differ by a quarter of `other`'s length in
     /// metres. Certification refuses an edge whose span is under the
     /// escalate band (`interval_span_forward`), so that quarter is at
-    /// least a quarter of the escalate band, above the zero band: the
-    /// verdict never decides zero, and for an edge under four escalate
-    /// bands long it may escalate.
+    /// least a quarter of the escalate band, K/4 zero bands: for an edge
+    /// under four escalate bands long the verdict may escalate, and at an
+    /// ambiguity factor K ≤ 4 (any finite K > 1 is accepted) it may
+    /// decide zero.
     ///
     /// # Errors
     ///
     /// As [`Track::offset`]; [`NamingError::Escalated`] where the band
-    /// cannot decide the two stretches.
-    ///
-    /// # Panics
-    ///
-    /// Where it decides them equal, which a certified edge cannot reach.
+    /// cannot decide the two stretches; [`NamingError::Emission`] where it
+    /// decides them equal, a precision limit kept typed.
     pub(super) fn runs_with(
         &self,
         other: &Self,
@@ -4440,11 +4443,10 @@ impl<T: Decide> Track<T> {
         match self.sign(ahead, predicate, bnd)? {
             Sign::Positive => Ok(Some(true)),
             Sign::Negative => Ok(Some(false)),
-            Sign::Zero => unreachable!(
-                "a certified edge on another's carrier runs neither way along it: the stretches \
-                 compared differ by a quarter of its length, and certification refuses an edge \
-                 whose span is under the escalate band"
-            ),
+            Sign::Zero => Err(NamingError::Emission {
+                what: "a certified edge on another's carrier runs neither way along it: the \
+                       stretches compared, a quarter of its length apart, fall in the zero band",
+            }),
         }
     }
 }
@@ -4928,7 +4930,15 @@ fn group_count(n: usize) -> Result<u32, NamingError> {
 ///
 /// # Panics
 ///
-/// Where a piece ends at a vertex `t` does not name.
+/// Where a piece ends at a vertex `t` does not name. Every caller names
+/// its body's vertices first: the split and boolean emitters run their
+/// vertex passes before their edge pieces; `emit_shell` writes a row for
+/// every vertex of its body (each minted, or carried `From` its input's
+/// name, or the emission refuses) and flushes them before naming pieces;
+/// and `emit_union` names pieces off the table `cite_member_edges`
+/// returns, which writes back every vertex row of the collapsed fold
+/// table, itself total over the body, as each fold step's boolean table
+/// is (`check_total`).
 #[track_caller]
 pub(super) fn name_edge_pieces<T: geom_core::Real>(
     out: &mut EdgePieces,
@@ -4951,7 +4961,8 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
             let Some(end) = t.name_of(&ent(ix, EntityKey::Vertex(v))) else {
                 unreachable!(
                     "edge piece {e:?} under {base:?} ends at vertex {v:?}, which the table does \
-                     not name: every caller names a body's vertices before its edge pieces"
+                     not name: every caller (split, boolean, shell, union) names each vertex of \
+                     its body before its edge pieces"
                 )
             };
             ends.push(end.clone());
@@ -5402,8 +5413,29 @@ fn live_vertex_edges<T: geom_core::Real>(
     v: VertexKey,
     held: &'static str,
 ) -> Vec<EdgeKey> {
-    body.edges_of_vertex(v)
-        .unwrap_or_else(|| unreachable!("vertex {v:?}'s edges do not read, yet {held}"))
+    match body.edges_of_vertex(v) {
+        Some(edges) => edges,
+        None => unreachable!("vertex {v:?}'s edges do not read, yet {held}"),
+    }
+}
+
+/// The faces at vertex `v` of `body` ([`Body::faces_of_vertex`]).
+///
+/// # Panics
+///
+/// Where `v` does not read (that door refuses only a stale key or a
+/// broken orbit): `held` says why the caller holds it live, in a body
+/// every door keeps tier-1-valid.
+#[track_caller]
+fn live_vertex_faces<T: geom_core::Real>(
+    body: &Body<T>,
+    v: VertexKey,
+    held: &'static str,
+) -> Vec<FaceKey> {
+    match body.faces_of_vertex(v) {
+        Some(faces) => faces,
+        None => unreachable!("vertex {v:?}'s faces do not read, yet {held}"),
+    }
 }
 
 /// The two faces edge `e` of `body` bounds, its `he_plus` side first.
@@ -5451,16 +5483,18 @@ fn operand_boundary<T: Decide>(
 /// tier-1-valid.
 #[track_caller]
 fn face_edges<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> Result<Vec<EdgeKey>, NamingError> {
-    Ok(face_half_edges(body, f)?
-        .into_iter()
-        .map(|he| match body.get_half_edge(he) {
-            Some(h) => h.edge,
-            None => unreachable!(
+    let hes = face_half_edges(body, f)?;
+    let mut out = Vec::with_capacity(hes.len());
+    for he in hes {
+        let Some(h) = body.get_half_edge(he) else {
+            unreachable!(
                 "half-edge {he:?} of face {f:?}'s loops does not resolve: the face walk read it \
                  off those loops, and a tier-1-valid body holds every half-edge they cycle through"
-            ),
-        })
-        .collect())
+            )
+        };
+        out.push(h.edge);
+    }
+    Ok(out)
 }
 
 /// N2's `Keeps`, one reading for a split's face pieces and corner
@@ -8938,9 +8972,9 @@ mod rim_holding_rows {
     /// way** (`Track::runs_with`): an arc two escalate bands long on the
     /// base arc's circle lies on it, and the two stretches it compares
     /// differ by a quarter of its length, half an escalate band, inside
-    /// the band at every tolerance. Certification
-    /// refuses a span under the escalate band, so no arc reaches the
-    /// zero band and the `Emission` arm.
+    /// the band at the default ambiguity factor K = 10. At K ≤ 4 the same
+    /// half escalate band can fall in the zero band instead, which
+    /// [`an_arc_a_few_tolerances_long_at_a_small_k_refuses_typed`] holds.
     #[test]
     fn an_arc_a_few_tolerances_long_escalates_its_way() {
         use super::EdgeCarrier;
@@ -8955,6 +8989,59 @@ mod rim_holding_rows {
         assert!(
             matches!(way, Err(NamingError::Escalated { .. })),
             "an arc two escalate bands long escalates its way, got {way:?}"
+        );
+    }
+
+    /// **At a small ambiguity factor the way an arc runs is a precision
+    /// limit, refused typed, not a panic** (`Track::runs_with`): under
+    /// K = 1.5, which `Tolerance` accepts (any finite K > 1), an arc two
+    /// escalate bands long compares two stretches 0.75 zero bands apart,
+    /// inside the zero band.
+    #[test]
+    fn an_arc_a_few_tolerances_long_at_a_small_k_refuses_typed() {
+        use super::EdgeCarrier;
+        use crate::names::discriminate::ON_MEMBER_EDGE;
+        use crate::names::emit::NamingError;
+        // A wide band, so the arc spans the witness tolerance's escalate
+        // band too and the body that holds it builds.
+        let zero = 1e-3;
+        let bnd = geom_core::Band::new(zero, 1.5 * zero).unwrap();
+        let line = |(b, e): (Body<f64>, EdgeKey)| EdgeCarrier::of_edge(&b, e).unwrap();
+        let base = line(chord_arc(0.0, 90.0));
+        let t = 30.0 * DEG;
+        let short = line(arc_on(&circle(), t, t + 2.0 * bnd.escalate()));
+        let way = base.runs_with(&short, ON_MEMBER_EDGE, bnd);
+        assert!(
+            matches!(way, Err(NamingError::Emission { what }) if what.contains("runs neither way")),
+            "at K = 1.5 the arc's way decides zero and refuses typed, got {way:?}"
+        );
+    }
+
+    /// **At a small ambiguity factor a segment across a line can lie on
+    /// it and run neither way, refused typed** (`Segment::runs_with`):
+    /// under K = 1.5 a segment 1.8 zero bands long, square across the
+    /// base line with each end 0.9 zero bands off it, spans the escalate
+    /// band, lies on the line at both ends, and projects to nothing.
+    #[test]
+    fn a_segment_across_a_line_at_a_small_k_refuses_typed() {
+        use super::EdgeCarrier;
+        use crate::names::discriminate::ON_MEMBER_EDGE;
+        use crate::names::emit::NamingError;
+        let zero = 1e-3;
+        let bnd = geom_core::Band::new(zero, 1.5 * zero).unwrap();
+        let line = |(b, e): (Body<f64>, EdgeKey)| EdgeCarrier::of_edge(&b, e).unwrap();
+        let base = line(chord_line(
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+        ));
+        let across = line(chord_line(
+            Point3::new(0.5, 0.9 * zero, 0.0),
+            Point3::new(0.5, -0.9 * zero, 0.0),
+        ));
+        let way = base.runs_with(&across, ON_MEMBER_EDGE, bnd);
+        assert!(
+            matches!(way, Err(NamingError::Emission { what }) if what.contains("run neither way")),
+            "the segment across the line refuses typed, got {way:?}"
         );
     }
 

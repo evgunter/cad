@@ -1,7 +1,7 @@
 ---
 id: emit-topo-raises-a-correct-kernel-may-reach-have-no-variant
 kind: issue
-title: Ten emit_topo Emission raises a correct kernel may reach have no row-1 or row-2 variant to take
+title: Twelve emit_topo Emission raises a correct kernel may reach have no row-1 or row-2 variant to take
 status: open
 opened: 2026-10-20
 ---
@@ -15,7 +15,7 @@ Filed by `wire-emis-topo` (the `emit_topo.rs` third of
 
 Under D9 as PR 5411 wrote it, a raise a correct kernel can reach takes
 row 1 (a precision limit: a lever and `KERNEL_LIMIT_RECOURSE`) or row 2
-(`NOT_YET_ENDING`, a variant naming the construction). These ten in
+(`NOT_YET_ENDING`, a variant naming the construction). These twelve in
 `crates/editor-core/src/names/emit_topo.rs` can be reached by a sound
 body as far as anyone has shown, and `NamingError` has no variant for
 any of them, so each still refuses `NamingError::Emission`. Adding the
@@ -52,6 +52,19 @@ Row 2 (a shape no rule names):
   class one edge's pieces against two wedges.
 - `sense_of`: "edges of one name read different senses at one
   crossing". Two tied edges at one vertex.
+
+Row 1 (a verdict at the ambiguity factor K, which `Tolerance` takes as
+any finite K > 1, `geom-core/src/tolerance.rs`):
+
+- `Track::runs_with`: "a certified edge on another's carrier runs
+  neither way along it". The two stretches it compares are a quarter of
+  the edge's length apart, at least K/4 zero bands for a certified edge,
+  so at K ≤ 4 they can decide zero. Under K = 1.5 an arc two escalate
+  bands long does (`an_arc_a_few_tolerances_long_at_a_small_k_refuses_typed`).
+- `Segment::runs_with`: "two segments on one line run neither way along
+  it". Each end may lie up to a zero band off the line, so at small K a
+  certified segment can project into the zero band
+  (`a_segment_across_a_line_at_a_small_k_refuses_typed`).
 
 Row 1 (two band verdicts over different levers can disagree):
 
