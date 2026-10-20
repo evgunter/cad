@@ -20,6 +20,7 @@
 //! carrier closed forms for the containment forest's parity test.
 
 use geom_core::k_stats::{decide, decide_reported};
+use geom_core::one_line::on_one_line_2d;
 use geom_core::{
     Arc2, Band, Circles2, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Real, Sign,
     Vec2,
@@ -1124,8 +1125,22 @@ fn joint(
     }
 }
 
-/// Line/line contacts via the four `chord_side` orientations (the
-/// Shewchuk-style segment test, trileanized). Strictly opposite sides
+/// Whether two straight segments' projections on `s1`'s axis lie apart
+/// past the band (the **`segment_gap`** predicate, [`line_line`]).
+fn gaps_apart<T: Decide>(s1: &Seg<T>, s2: &Seg<T>, band: Band) -> bool {
+    let along = on_one_line_2d(s1.unit, (s1.a, s1.b), (s2.a, s2.b), T::zero());
+    decide("segment_gap", Margin::of(along.apart()), band) == Ok(Sign::Positive)
+}
+
+/// Line/line contacts. First the **`segment_gap`** predicate — margin:
+/// the gap between the two spans' projections on `s1`'s axis, past its
+/// rounding ([`geom_core::one_line`]; meters, positive = apart): spans
+/// apart along it past the band hold every pair of points apart by as
+/// much, so the pair has no contact whatever its sides would read. The
+/// four points are the loop's stored vertices (`build_loop_seg`), the
+/// geometry the simplicity pass reads, so nothing here computed them
+/// and none is charged for its making. Then the four `chord_side`
+/// orientations (the Shewchuk-style segment test, trileanized). Strictly opposite sides
 /// both ways ⇒ one proper crossing; any Zero ⇒ endpoint-on-carrier
 /// configurations resolved by `line_span`; both of one segment's
 /// endpoints on the other's carrier ⇒ collinear, resolved by the
@@ -1138,6 +1153,9 @@ fn line_line<T: Decide>(
     s2: &Seg<T>,
     band: Band,
 ) -> Result<PairOutcome<T>, Indeterminate> {
+    if gaps_apart(s1, s2, band) {
+        return Ok(PairOutcome::Contacts(Vec::new()));
+    }
     let (o_c, _) = chord_side(s1, s2.a, band)?;
     let (o_d, _) = chord_side(s1, s2.b, band)?;
     if o_c == Sign::Zero && o_d == Sign::Zero {
@@ -1857,7 +1875,7 @@ pub(crate) fn ray_crossings<T: Decide>(
 #[allow(clippy::panic)]
 mod pair_contact_tests {
     use super::*;
-    use geom_core::{Interval, Tol};
+    use geom_core::{Bounds, Interval, Tol};
 
     /// What `line_arc` read: the contact count, or the predicate it
     /// escalated on.
@@ -1874,6 +1892,65 @@ mod pair_contact_tests {
     fn line<T: Decide>(a: (f64, f64), b: (f64, f64), band: Band) -> Seg<T> {
         build_seg(pt(a), pt(b), Segment::Line, Consistency::Decide, band)
             .unwrap_or_else(|e| panic!("line {a:?} → {b:?}: {}", e.predicate()))
+    }
+
+    /// **The gap read apart is a real gap, on stored points far from the
+    /// origin.** Two segments whose coordinates are arbitrary `f64`s up to
+    /// `10⁶` m out, up to `3·10⁶` m long, `b` starting a small step
+    /// (`10⁻¹³` … `10⁻⁷` m, either sign) along `a`'s line past its end and
+    /// in band across it. Wherever
+    /// [`gaps_apart`] reads them apart at the fine band, the `Interval`
+    /// enclosure of the real gap, `b`'s stored points against `a`'s on
+    /// `a`'s real unit chord, is positive: the segments are apart in ℝ.
+    /// Red where the gap's charge is dropped: on a long `a` the
+    /// projections' own rounding, about `u` of its length, passes the
+    /// band, and a step that rounding hides then reads as a gap.
+    #[test]
+    fn a_gap_read_apart_is_a_real_gap_on_points_far_from_the_origin() {
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let mut rng = test_utils::fuzz::start("seg-gap-far");
+        let mut fired = 0usize;
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let far = 10f64.powf(rng.range(0.0, 6.0));
+            let a0 = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
+            let th = rng.range(0.0, core::f64::consts::TAU);
+            let (dx, dy) = (th.cos(), th.sin());
+            let len = 10f64.powf(rng.range(-2.0, 6.5));
+            let a1 = (a0.0 + dx * len, a0.1 + dy * len);
+            let step = rng.range(-1.0, 1.0) * 10f64.powf(rng.range(-13.0, -7.0));
+            let across = rng.range(-1.0, 1.0) * 5e-12;
+            let b0 = (
+                a1.0 + dx * step - dy * across,
+                a1.1 + dy * step + dx * across,
+            );
+            let phi = th + rng.range(-1.0, 1.0);
+            let b1 = (b0.0 + phi.cos() * len, b0.1 + phi.sin() * len);
+            if (b1.0 - a1.0) * dx + (b1.1 - a1.1) * dy < 0.0 {
+                continue;
+            }
+            let (s1, s2) = (line::<f64>(a0, a1, band), line::<f64>(b0, b1, band));
+            if !gaps_apart(&s1, &s2, band) {
+                continue;
+            }
+            fired += 1;
+            let p = pt::<Interval>;
+            let (ia0, ia1) = (p(a0), p(a1));
+            let chord = ia1 - ia0;
+            let unit = chord * (Interval::one() / chord.norm());
+            let along = |q: Point2<Interval>| (q - ia0).dot(unit);
+            let (t0, t1) = (along(p(b0)), along(p(b1)));
+            let gap = t0.min(t1) - along(ia1);
+            assert!(
+                gap.lo() > 0.0,
+                "read apart, but the real gap encloses {gap:?}: a {a0:?}→{a1:?}, \
+                 b {b0:?}→{b1:?} — {}",
+                test_utils::fuzz::replay()
+            );
+        }
+        assert!(
+            fired > 100,
+            "only {fired} draws read apart: the sweep does not reach the gap"
+        );
     }
 
     /// The arc on the circle `centre`, `radius` from polar angle `start`

@@ -327,6 +327,33 @@ fn arc_kissing_a_line_is_a_tangential_contact() {
     );
 }
 
+/// **A segment's end in band of another's carrier but past its end
+/// along it is no contact** (the line×line row of
+/// `paths/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
+/// The chain `(0,0) (2,0) (2,2) (4,2) (4,b) (6,−1) (6,3) (0,3)` with `b`
+/// in band of segment 0's carrier `y = 0`: `(4, b)` lies two metres past
+/// segment 0's end along it. On main the pair pass read the four ends'
+/// sides of the other's carrier first and escalated
+/// `SegmentPair(0, 3)` on `chord_side`; read from the two spans' gap
+/// along segment 0 first, they are apart, and the loop validates, at
+/// `f64` and `Interval` alike.
+#[test]
+fn an_end_in_band_of_a_carrier_but_past_its_segment_is_no_contact() {
+    let t = tol().get();
+    let b = t.eps * ((1.0 + t.k) / 2.0);
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (2.0, 0.0, 0.0),
+        (2.0, 2.0, 0.0),
+        (4.0, 2.0, 0.0),
+        (4.0, b, 0.0),
+        (6.0, -1.0, 0.0),
+        (6.0, 3.0, 0.0),
+        (0.0, 3.0, 0.0),
+    ])]);
+    validate_both(&p).expect("the end two metres past segment 0 is no contact");
+}
+
 /// One circle, its lowest point an in-band height above the bottom
 /// line, carrying either of two arcs between `(3, 3)` and `(1, 3)`:
 /// the major arc dips through that point and escalates on the carrier

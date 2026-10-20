@@ -54,3 +54,18 @@ read (`seg::end_touches`). This holds in the tangent arms and in the
 secant arms, where a shallow crossing had the same hole. That fix does
 not touch the siblings above: each still escalates on an in-band
 carrier reading before any candidate is formed.
+
+## line × line: resolved (2026-10-20)
+
+`seg::line_line` reads the two spans' gap on `s1`'s axis first, through
+`geom_core::one_line::on_one_line_2d` (`gaps_apart`, predicate
+`segment_gap`), and answers no contact where it is apart past the band,
+before any `chord_side` is read. The points are the loop's stored
+vertices (`build_loop_seg`), so `produced` is zero. The table's
+`line_line` fixture validates at `f64` and `Interval`
+(`rejections::an_end_in_band_of_a_carrier_but_past_its_segment_is_no_contact`;
+`Escalated SegmentPair(0, 3)` on main). PR 3 of
+`work/cpair/two-spans-projections-on-one-line-are-read-four-ways`.
+
+`line_arc` (foot off the line's span) and `arc_arc` stay open: each
+needs a radial margin, not a projection on one line.
