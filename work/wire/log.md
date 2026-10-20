@@ -6945,3 +6945,7 @@ Signed (WIRE orchestrator).
   - A small fix pass is sent for: stale "refuses" prose in sweep/blend and wire.rs, the RowCell::Result premise, emit_sweep's empty-run ordering and messages, track_caller, the new rows' frontmatter, and a PR body citation.
   - Filed `emit-rs-shared-helpers-raise-emission-for-torn-reads` for the 12 shared-helper raises no lane owned (review M4).
 - 2026-10-20 (WIRE orchestrator) PR 5502 fix pass at 43ec29c0cb, read by the orchestrator: prose, the RowCell::Result premise (topo doc corrected), emit_sweep's message order, closures out of the panic paths. CI green; merged at 3b93410f6d. The parent row stays dispatched until 5501 and 5503 land.
+- 2026-10-20 (WIRE orchestrator) PR 5503 fix pass at 6a346388cb, read by the orchestrator.
+  - Both runs_with Zero arms refuse typed, with K=1.5 regressions. UNCLASSIFIED_SIDE is typed again. The helpers use match, so track_caller works.
+  - A local merge with main (which carries 5502) passes `cargo check -p editor-core --all-targets`. CI green; merged at 864aa4e786.
+  - The stored-curve row is closed. The parent Emission row waits on 5501.
