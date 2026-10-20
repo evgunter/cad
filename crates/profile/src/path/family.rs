@@ -233,6 +233,16 @@ fn merge_of<T: Real>(pending: &verbs::Pending<T>, meta: &PendingMeta<T>) -> bool
     }
 }
 
+/// An arc arrival's authored circle: its centre, its travel sense, and
+/// the point a `Via` arrival authored it through, which its stored run
+/// carries to the door's read-back and no further.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ArrivalCircle<T: Real> {
+    pub(super) centre: Point2<T>,
+    pub(super) winding: crate::sugar::ArcSweep,
+    pub(super) through: Option<Point2<T>>,
+}
+
 /// Resolves the open fillet against an ARC ARRIVAL about `centre`,
 /// anchored at `anchor` — the interior form (§2c dissolution): the
 /// verb emits its WHOLE arrival side — the fillet arc, then the
@@ -246,11 +256,15 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     mut core: Core<T>,
     resolver: verbs::ArcResolver<T>,
     anchor: Point2<T>,
-    centre: Point2<T>,
-    winding: crate::sugar::ArcSweep,
+    circle: ArrivalCircle<T>,
     arrival_radius: Option<T>,
     tol: Tol,
 ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
+    let ArrivalCircle {
+        centre,
+        winding,
+        through,
+    } = circle;
     let band = linear_band(tol)?;
     let dir = carrier_tangent(anchor, centre, winding, band)?;
     let (pending, meta) =
@@ -285,7 +299,8 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
             radius,
             winding,
             crate::Facts::Registered,
-        );
+        )
+        .through(through);
         let carrier = SegArc {
             center: centre,
             radius,
@@ -333,12 +348,16 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
 pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     core: &mut Core<T>,
     resolver: verbs::ArcResolver<T>,
-    centre: Point2<T>,
-    winding: crate::sugar::ArcSweep,
+    circle: ArrivalCircle<T>,
     arrival_radius: bool,
     seam: SeamArrival,
     tol: Tol,
 ) -> Result<ClosedLoop<T>, PathError<T>> {
+    let ArrivalCircle {
+        centre,
+        winding,
+        through,
+    } = circle;
     let start_pos = core.start_pos.ok_or(PathError::UnderdeterminedLeg {
         site: "close before the entry position is bound",
     })?;
@@ -380,7 +399,8 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
             radius,
             winding,
             crate::Facts::Registered,
-        );
+        )
+        .through(through);
         // The arrival spec's own step is the fused verb's (see
         // `resolve_arc_arrival`), never the step being lowered.
         if arrival_radius {
@@ -461,8 +481,11 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Point2<T>> {
             core,
             arc_fillet::resolve::<T>,
             spec.p,
-            spec.c,
-            spec.winding,
+            ArrivalCircle {
+                centre: spec.c,
+                winding: spec.winding,
+                through: None,
+            },
             None,
             tol,
         )
@@ -490,8 +513,11 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Start> {
         resolve_arc_close(
             &mut core,
             arc_fillet::resolve::<T>,
-            spec.c,
-            spec.winding,
+            ArrivalCircle {
+                centre: spec.c,
+                winding: spec.winding,
+                through: None,
+            },
             arrival_radius,
             SeamArrival::Undeclared,
             tol,
@@ -519,8 +545,11 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, super::ArrivesTangent> {
         resolve_arc_close(
             &mut core,
             arc_fillet::resolve::<T>,
-            spec.c,
-            spec.winding,
+            ArrivalCircle {
+                centre: spec.c,
+                winding: spec.winding,
+                through: None,
+            },
             arrival_radius,
             SeamArrival::Checked,
             tol,
@@ -738,7 +767,18 @@ fn radius_complete<T: geom_core::Decide>(
     // The `Radius` arrival mode IS the radius-bearing one: its `r` is
     // the arrival spec's carrier-radius argument.
     let (centre, winding) = verbs::radius_carrier(DirectedPoint { at, dir }, spec, band)?;
-    resolve_arc_arrival(core, resolver, at, centre, winding, Some(spec.r.abs()), tol)
+    resolve_arc_arrival(
+        core,
+        resolver,
+        at,
+        ArrivalCircle {
+            centre,
+            winding,
+            through: None,
+        },
+        Some(spec.r.abs()),
+        tol,
+    )
 }
 
 impl<T: geom_core::Decide> RadiusArrival<T> {
@@ -909,7 +949,12 @@ fn via_complete<T: geom_core::Decide>(
     // A `Via` arrival authors its carrier from a through-point, so
     // nothing of it is a radius argument.
     let (centre, winding) = verbs::via_carrier(DirectedPoint { at: p, dir }, q, band)?;
-    resolve_arc_arrival(core, resolver, p, centre, winding, None, tol)
+    let circle = ArrivalCircle {
+        centre,
+        winding,
+        through: Some(q),
+    };
+    resolve_arc_arrival(core, resolver, p, circle, None, tol)
 }
 
 /// A `Via` CLOSE: anchor at the entry, director pending. The director
@@ -993,7 +1038,18 @@ fn via_close<T: geom_core::Decide>(
     })?;
     let band = linear_band(tol)?;
     let (centre, winding) = verbs::via_carrier(DirectedPoint { at: start_pos, dir }, q, band)?;
-    resolve_arc_close(&mut core, resolver, centre, winding, false, seam, tol)
+    resolve_arc_close(
+        &mut core,
+        resolver,
+        ArrivalCircle {
+            centre,
+            winding,
+            through: Some(q),
+        },
+        false,
+        seam,
+        tol,
+    )
 }
 
 // ------------------------------------------------------------------
@@ -1064,6 +1120,19 @@ fn head_on_circle<T: Real>(wire: &ArcData<T>) -> crate::Facts {
     }
 }
 
+/// The authored point an incoming's carrier passes through that its
+/// stored run does not keep: a `Via` mode's `q`.
+fn through_point<T: Real>(wire: &ArcData<T>) -> Option<Point2<T>> {
+    match wire {
+        ArcData::Via { q, .. } => Some(*q),
+        ArcData::Bulge { .. }
+        | ArcData::Radius { .. }
+        | ArcData::Sweep { .. }
+        | ArcData::ArcLen { .. }
+        | ArcData::Center { .. } => None,
+    }
+}
+
 /// A point-mode incoming's derived pieces: (centre, winding, start
 /// tangent, anchor).
 type PointCarrier<T> = (Point2<T>, crate::sugar::ArcSweep, Dir<T>, Point2<T>);
@@ -1121,15 +1190,22 @@ impl<T: ArcCarrierScalar> PointIncoming<T> for Via<T, Point2<T>> {
         // The collinear gate, then the existing closed form — the sharp
         // `Via` leg mode's own derivation, verbatim.
         let offset = chord_v.perp_dot(self.q - at) / chord;
-        match geom_core::k_stats::decide("path_arc_via_offset", geom_core::Margin::of(offset), band)
-        {
+        // The side of the chord `q` lies on is the turn sense, read off
+        // the authored points rather than the computed bulge's sign: the
+        // arc on the other side shares the carrier.
+        let winding = match geom_core::k_stats::decide(
+            "path_arc_via_offset",
+            geom_core::Margin::of(offset),
+            band,
+        ) {
             Ok(geom_core::Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
-            Ok(_) => {}
+            Ok(geom_core::Sign::Positive) => crate::sugar::ArcSweep::Cw,
+            Ok(geom_core::Sign::Negative) => crate::sugar::ArcSweep::Ccw,
             Err(source) => return Err(PathError::Escalated { source }),
-        }
+        };
         let b = crate::bulge_from_via(at, self.q, self.p);
-        let (c, w, start) = bulge_carrier(at, self.p, b, tol)?;
-        Ok((c, w, start, self.p))
+        let (c, _, start) = bulge_carrier(at, self.p, b, tol)?;
+        Ok((c, winding, start, self.p))
     }
     fn to_wire(&self) -> ArcData<T> {
         ArcData::Via {
@@ -1336,6 +1412,7 @@ fn entry_arc_open<T: ArcCarrierScalar>(
             circle_radius: (spec.p - spec.c).norm(),
             // The chain is seeded at the anchor itself.
             head_on_circle: crate::Facts::Registered,
+            through: None,
         },
         PointIncoming::to_wire(spec).carries_radius(),
         tol,
@@ -1426,6 +1503,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                 circle_radius: leg.arc.radius,
                 // The leg's end is its start rotated about the centre.
                 head_on_circle: crate::Facts::Registered,
+                through: None,
             },
             spec.to_wire().carries_radius(),
             tol,
@@ -1454,10 +1532,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         }
         self.core.push_arc(
             leg.end,
-            crate::BuiltArc {
-                arc: leg.arc,
-                facts: crate::Facts::Registered,
-            },
+            crate::BuiltArc::new(leg.arc, crate::Facts::Registered).sensed(leg.winding),
         )?;
         let arm = carrier.radius.min(leg.chord);
         Ok(in_state(
@@ -1530,6 +1605,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
                 resolver: arc_fillet::resolve::<T>,
                 circle_radius: (anchor - centre).norm(),
                 head_on_circle: head_on_circle(&spec.to_wire()),
+                through: through_point(&spec.to_wire()),
             },
             spec.to_wire().carries_radius(),
             tol,
@@ -1659,6 +1735,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                         resolver: arc_fillet::resolve::<T>,
                         circle_radius: (anchor - centre).norm(),
                         head_on_circle: head_on_circle(&spec.to_wire(tol)),
+                        through: through_point(&spec.to_wire(tol)),
                     },
                     incoming_radius,
                     tol,
@@ -1690,6 +1767,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                         circle_radius,
                         // The anchor is the chain head itself.
                         head_on_circle: crate::Facts::Registered,
+                        through: None,
                     },
                     incoming_radius,
                     extends,
