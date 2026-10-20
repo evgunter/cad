@@ -244,22 +244,32 @@ applies is a fact of the loop's provenance, carried by its type.
   lattice's closing by the builder and by every replay) holds by
   construction: `ConstructedProfile`'s validate doors, `pncad::validated`
   and the loft's constructed sections do not decide the three again. A
-  `Center` arc's landing is the path door's own predicate
-  (`path_arc_center_equidistant`), and a fillet arc's ends are the
-  door's own decisions where its resolution decided the offset
-  carriers tangent or a leg's fit exact, each made inline at every
-  scalar (`Facts::Decided`); every other construction's facts are the
-  identities it registers on the values it built (`BuiltArc`,
-  `Facts::Registered`), which an exact scalar's witness checks. At an
-  exact scalar, re-deciding any of them could only confirm Zero or
-  escalate on dependency width, never catch an inconsistency. A point
-  scalar has no width: what it reads is the arithmetic the
-  construction ran, which can lose the digits its proof is about. So
-  on the witness lane the path door reads every arc's landing on its
-  end vertex before the chain stores it (`seg::constructed_landing`),
-  as a cross-check, not a verdict. A miss past the band, at a
-  magnitude whose rounding stays inside it, refuses
-  `PathError::ArcMissesItsEnd`; any other reading passes.
+  construction's proof holds over the reals. A `Center` arc's landing
+  is the path door's own predicate (`path_arc_center_equidistant`), and
+  a fillet arc's ends are the door's own decisions where its
+  resolution decided the offset carriers tangent or a leg's fit exact,
+  each made inline at every scalar (`Facts::Decided`); every other
+  construction's facts are the identities it registers on the values
+  it built (`BuiltArc`, `Facts::Registered`).
+  - **At an exact scalar** (`Interval`, and the symbolic tier over it)
+    the stored arc encloses the arc its construction proved, and the
+    registered identities are the check. Re-deciding them could only
+    confirm Zero or escalate on dependency width, never catch an
+    inconsistency, so nothing is decided again.
+  - **At a point scalar** (`f64`, and every scalar whose witness is
+    inexact) the stored arc is the arithmetic the construction ran,
+    which can lose the digits its proof is about. So the path door
+    reads the stored form back once against the authored data, before
+    the chain stores it: every arc's landing on its end vertex
+    (`seg::constructed_landing`), and a `Via` arc's carrier against the
+    through-point `q` it was authored by, which the stored form does not
+    keep (`seg::constructed_through_point`). A miss is a loud refusal
+    naming the step, the read and the miss:
+    `PathError::ArcMissesAuthoredPoint`, a kernel defect, where the
+    scene resolves the read; `PathError::ArcMissBelowSceneResolution`,
+    with its recourse, where it does not. A read in the band, or
+    poisoned, escalates. That read-back is the only place a point
+    scalar decides these facts, so none is decided twice.
 - Giving up the provenance (`ConstructedLoop::into_loop`) makes the loop
   a table again, and it is checked.
 
@@ -466,8 +476,11 @@ Moved from DESIGN `[topology]` on 2026-10-17, verbatim. Bracketed ids (`[topolog
   carrier is one edge. The form is redundant (the vertices lie on the
   carrier, Δθ agrees with them mod 2π, 0 < |Δθ| ≤ 2π), and those
   consistency conditions are never trusted: each is either checked at
-  validate or holds by construction, proved by what built the arc at
-  the scalar it was built in, and none is decided twice (where each
+  validate (a table) or holds by construction (a constructed arc),
+  proved by what built the arc over the reals and checked at the
+  scalar it was built in, by an exact scalar's registered identities or
+  by the door that built it reading a point scalar's stored form back
+  against the authored data, and none is decided twice (where each
   is decided: `crates/profile/README.md`); a stored carrier is carried
   verbatim, including across scalars, and never re-derived from its
   vertices. The authored shape lives in the program, which is what a

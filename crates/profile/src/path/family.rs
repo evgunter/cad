@@ -249,6 +249,7 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     centre: Point2<T>,
     winding: crate::sugar::ArcSweep,
     arrival_radius: Option<T>,
+    through: Option<Point2<T>>,
     tol: Tol,
 ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
     let band = linear_band(tol)?;
@@ -285,7 +286,8 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
             radius,
             winding,
             crate::Facts::Registered,
-        );
+        )
+        .through(through);
         let carrier = SegArc {
             center: centre,
             radius,
@@ -336,6 +338,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     centre: Point2<T>,
     winding: crate::sugar::ArcSweep,
     arrival_radius: bool,
+    through: Option<Point2<T>>,
     seam: SeamArrival,
     tol: Tol,
 ) -> Result<ClosedLoop<T>, PathError<T>> {
@@ -380,7 +383,8 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
             radius,
             winding,
             crate::Facts::Registered,
-        );
+        )
+        .through(through);
         // The arrival spec's own step is the fused verb's (see
         // `resolve_arc_arrival`), never the step being lowered.
         if arrival_radius {
@@ -464,6 +468,7 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Point2<T>> {
             spec.c,
             spec.winding,
             None,
+            None,
             tol,
         )
     }
@@ -493,6 +498,7 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, Start> {
             spec.c,
             spec.winding,
             arrival_radius,
+            None,
             SeamArrival::Undeclared,
             tol,
         )
@@ -522,6 +528,7 @@ impl<T: ArcCarrierScalar> ArrivalSpec<T> for Center<T, super::ArrivesTangent> {
             spec.c,
             spec.winding,
             arrival_radius,
+            None,
             SeamArrival::Checked,
             tol,
         )
@@ -738,7 +745,16 @@ fn radius_complete<T: geom_core::Decide>(
     // The `Radius` arrival mode IS the radius-bearing one: its `r` is
     // the arrival spec's carrier-radius argument.
     let (centre, winding) = verbs::radius_carrier(DirectedPoint { at, dir }, spec, band)?;
-    resolve_arc_arrival(core, resolver, at, centre, winding, Some(spec.r.abs()), tol)
+    resolve_arc_arrival(
+        core,
+        resolver,
+        at,
+        centre,
+        winding,
+        Some(spec.r.abs()),
+        None,
+        tol,
+    )
 }
 
 impl<T: geom_core::Decide> RadiusArrival<T> {
@@ -909,7 +925,7 @@ fn via_complete<T: geom_core::Decide>(
     // A `Via` arrival authors its carrier from a through-point, so
     // nothing of it is a radius argument.
     let (centre, winding) = verbs::via_carrier(DirectedPoint { at: p, dir }, q, band)?;
-    resolve_arc_arrival(core, resolver, p, centre, winding, None, tol)
+    resolve_arc_arrival(core, resolver, p, centre, winding, None, Some(q), tol)
 }
 
 /// A `Via` CLOSE: anchor at the entry, director pending. The director
@@ -993,7 +1009,7 @@ fn via_close<T: geom_core::Decide>(
     })?;
     let band = linear_band(tol)?;
     let (centre, winding) = verbs::via_carrier(DirectedPoint { at: start_pos, dir }, q, band)?;
-    resolve_arc_close(&mut core, resolver, centre, winding, false, seam, tol)
+    resolve_arc_close(&mut core, resolver, centre, winding, false, Some(q), seam, tol)
 }
 
 // ------------------------------------------------------------------
@@ -1061,6 +1077,19 @@ fn head_on_circle<T: Real>(wire: &ArcData<T>) -> crate::Facts {
         | ArcData::Sweep { .. }
         | ArcData::ArcLen { .. } => crate::Facts::Registered,
         ArcData::Center { .. } => crate::Facts::Decided,
+    }
+}
+
+/// The authored point an incoming's carrier passes through that its
+/// stored run does not keep: a `Via` mode's `q`.
+fn through_point<T: Real>(wire: &ArcData<T>) -> Option<Point2<T>> {
+    match wire {
+        ArcData::Via { q, .. } => Some(*q),
+        ArcData::Bulge { .. }
+        | ArcData::Radius { .. }
+        | ArcData::Sweep { .. }
+        | ArcData::ArcLen { .. }
+        | ArcData::Center { .. } => None,
     }
 }
 
@@ -1336,6 +1365,7 @@ fn entry_arc_open<T: ArcCarrierScalar>(
             circle_radius: (spec.p - spec.c).norm(),
             // The chain is seeded at the anchor itself.
             head_on_circle: crate::Facts::Registered,
+            through: None,
         },
         PointIncoming::to_wire(spec).carries_radius(),
         tol,
@@ -1426,6 +1456,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
                 circle_radius: leg.arc.radius,
                 // The leg's end is its start rotated about the centre.
                 head_on_circle: crate::Facts::Registered,
+                through: None,
             },
             spec.to_wire().carries_radius(),
             tol,
@@ -1457,6 +1488,7 @@ impl<T: ArcCarrierScalar, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             crate::BuiltArc {
                 arc: leg.arc,
                 facts: crate::Facts::Registered,
+                through: None,
             },
         )?;
         let arm = carrier.radius.min(leg.chord);
@@ -1530,6 +1562,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<Plain>, NoAng> {
                 resolver: arc_fillet::resolve::<T>,
                 circle_radius: (anchor - centre).norm(),
                 head_on_circle: head_on_circle(&spec.to_wire()),
+                through: through_point(&spec.to_wire()),
             },
             spec.to_wire().carries_radius(),
             tol,
@@ -1659,6 +1692,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                         resolver: arc_fillet::resolve::<T>,
                         circle_radius: (anchor - centre).norm(),
                         head_on_circle: head_on_circle(&spec.to_wire(tol)),
+                        through: through_point(&spec.to_wire(tol)),
                     },
                     incoming_radius,
                     tol,
@@ -1690,6 +1724,7 @@ impl<T: ArcCarrierScalar> PartialPath<T, HasPos<WithIncoming>, NoAng> {
                         circle_radius,
                         // The anchor is the chain head itself.
                         head_on_circle: crate::Facts::Registered,
+                        through: None,
                     },
                     incoming_radius,
                     extends,

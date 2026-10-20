@@ -905,6 +905,18 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_arc_chord",
         kind: EndingKind::Sized,
     },
+    // how far a constructed arc's start, turned by its sweep, lands from its end vertex, read
+    // back at a point scalar
+    DecisionEnding {
+        name: "path_arc_landing",
+        kind: EndingKind::Lever(crate::path::ARC_MISS_SCENE_RESOLUTION_RECOURSE),
+    },
+    // how far below the magnitude at which its rounding reaches the band a constructed arc's
+    // landing was read
+    DecisionEnding {
+        name: "path_arc_landing_resolution",
+        kind: EndingKind::Lever(crate::path::ARC_MISS_SCENE_RESOLUTION_RECOURSE),
+    },
     // an authored sweep angle metered against zero
     DecisionEnding {
         name: "path_arc_sweep",
@@ -914,6 +926,18 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
     DecisionEnding {
         name: "path_arc_sweep_full",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),
+    },
+    // how far a constructed Via arc's carrier lies off the through-point it was authored by,
+    // read back at a point scalar
+    DecisionEnding {
+        name: "path_arc_through_point",
+        kind: EndingKind::Lever(crate::path::ARC_MISS_SCENE_RESOLUTION_RECOURSE),
+    },
+    // how far below the magnitude at which its rounding reaches the band a constructed Via
+    // arc's through-point was read
+    DecisionEnding {
+        name: "path_arc_through_point_resolution",
+        kind: EndingKind::Lever(crate::path::ARC_MISS_SCENE_RESOLUTION_RECOURSE),
     },
     // a via point's lateral offset from the chord it bulges
     DecisionEnding {
@@ -1140,8 +1164,18 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         }
         "path_arc_center_radius" => "whether an authored radius is zero",
         "path_arc_chord" => "whether an authored chord has any length",
+        "path_arc_landing" => "whether an arc the path built lands on its end vertex",
+        "path_arc_landing_resolution" => {
+            "whether the scene can read an arc's landing on its end vertex at its magnitude"
+        }
         "path_arc_sweep" => "whether an authored sweep angle is zero",
         "path_arc_sweep_full" => "whether an authored sweep is short of a full turn",
+        "path_arc_through_point" => {
+            "whether an arc the path built passes through the point it was authored through"
+        }
+        "path_arc_through_point_resolution" => {
+            "whether the scene can read an arc's through-point at its magnitude"
+        }
         "path_arc_via_offset" => "whether a via point lies off the chord it bulges",
         "path_carrier_identity" => "whether two arc carriers are one circle",
         "path_carrier_meet" => "whether a ray meets a circle",

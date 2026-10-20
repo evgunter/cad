@@ -53,64 +53,53 @@ Questions for whoever takes it:
 
 ## Outcome
 
-#5449 (`paths/stored-arc-landing-check`).
+#5449 (`paths/stored-arc-landing-check`), an `[ev]` fork: both
+designers recommended reading every constructed arc back at point
+scalars, at the door, and Ev ruled on 2026-10-20: "we definitely want
+the tripwire. hopefully we can make it so the failure is loud and we
+can fix any cases of ill conditioning that come up, even though those
+kernel issues will be mixed together with unfixable cases".
 
-**The questions.**
-- *Decision or witness check?* Neither, as the row framed them. It
-  is a cross-check of the arithmetic, run on the witness lane only. A
-  registered landing is a theorem of the reals, and the two misses
-  were arithmetic losing the digits that theorem is about. A `Center`
-  arc's landing follows from its decided equidistance the same way.
-  So the check does not decide anything about the loop, and it is not
-  a verdict: it goes through `k_stats::check_unlogged` (audit row F23).
-  It is not a `debug_assert!` either. At an inexact witness an
-  assertion is ruled out (SYM-6: a `Disputed` answer is never
-  asserted on), so the loud answer is a typed refusal,
-  `PathError::ArcMissesItsEnd`, which ends in the kernel-defect ending.
-- *Where?* At storage: `Core::build`, before the chain is finished,
-  and `circle_loop`. Every constructed arc passes through one of those
-  two, at every scalar and every replay. It is not in
-  `ConstructedProfile::validate`, which keeps D1's "not decided
-  again", and not per construction, since the class lives at storage.
-- *Cost?* On the symbolic tier, none: `Sym<Interval>` has an exact
-  witness, so the check does not run there and mints no node. On
-  `Sym<f64>` (coincide replay) it is one unlogged check per arc. The
-  K stream gains one `path_arc_landing` sample per constructed arc at
-  the `Probe` lane. A `path_arc_landing_resolution` sample appears only
-  behind a Positive landing, so a sound arc never adds one. No verdict
-  rows, no stored bits and no goldens move.
-- *Does it supersede `Facts::Registered`?* No. The registration is
-  what the symbolic tier believes and what the exact witness checks;
-  the cross-check is the witness lane's reading of the same fact.
-  Both stay.
+**What the door reads.** At a point scalar (`T::WITNESS == Inexact`:
+`f64`, `Dual`, `Probe`, `Sym<f64>`), before the chain stores an arc
+(`Core::build`, after the fillet tangency re-read, and `circle_loop`),
+`path::arc_reads_back` reads every arc's landing on its end vertex
+(`seg::constructed_landing`, `path_arc_landing`, 16 ulps) and a `Via`
+arc's carrier against its authored `q` (`seg::constructed_through_point`,
+`path_arc_through_point`, 8 ulps). `q` travels on `BuiltArc::through`
+to the door and is not stored. Both go through `k_stats::check_unlogged`
+(audit row F23). Exact scalars do not run it.
 
-**Why not at `Interval`.** An exact scalar's stored arc encloses the
-arc its construction proved. A cancelling spelling makes that
-enclosure wide; it does not make it wrong. Reading the landing there
-could confirm Zero or escalate on the width, and it could never catch
-a miss (the D1 page's own argument, which holds there). Both
-mutants' `Interval` arcs do enclose their end vertex: that is pinned
-by `a_cancelling_arc_at_interval_encloses_its_end_vertex`. They are
-loud at `Interval` all the same, but through validation's
-`arc_span` escalation, and that is also what the fixed code answers on
-those probes (`a-near-full-arcs-span-reads-a-chord-scale-apex-at-interval`).
+**Outcomes.** Zero passes. Off at a magnitude the scene resolves:
+`PathError::ArcMissesAuthoredPoint`, a kernel defect. Off past the
+scene's resolution: `PathError::ArcMissBelowSceneResolution`, with the
+recourse "move the shape nearer the origin, or use a coarser
+tolerance". Both name the step and its role, the verb, the read, the
+authored point, the miss, the magnitude and the rounding there. In the
+band or poisoned: `PathError::Escalated`, naming the read, with the same
+recourse. One exception: an arc whose end is on its carrier only to the
+door's own inline decision (`Facts::Decided`, a `Center` arc or a
+decided fillet tangency) passes an in-band landing, which that decision
+admitted; reading it again would decide it twice
+(`review_s2`'s drawn decided tangencies land 1.1e-9 to 1.3e-9 m off at
+ε = 1e-9).
 
-**Teeth.** `sugar::split_half_tan` was mutated back to its first arm,
-which is both pre-#5403 spellings (the tangent arc's
-`across/(|d| + along)` and the `Center` arc's
-`σ(L/2)/(r + σ·offset)`). On the row's probes at R = 1.36e4, 1.37e5
-and 1.37e6 the `f64` replay refuses `ArcMissesItsEnd` in all six cases
-(4.7e-8, 4.8e-8, 4.9e-7, 5.0e-6, 1.6e-4 and 2.1e-4 m). Before this
-change all six built and validated silently. Under the mutant,
-`tests/tangent_arc_near_a_full_turn.rs` goes red with the new refusal
-on the tangent, `Center` and near-behind rows. The kept rows are
-`path::stored_arc_landing`, which spell both cancelling arcs by hand
-at every ε row.
+**Teeth** (kept, `path::stored_arc_landing`, every ε row): the
+cancelling tangent, `Center` and `Via` arcs, spelled by hand as they
+stood before #5403, each refuse `ArcMissesAuthoredPoint` naming their
+read; the door's own arcs on the same probes pass; a miss past the
+scene's resolution refuses the sibling, naming its step and recourse;
+an in-band miss and a poisoned arc escalate. Mutating the guard to
+always pass reds the first three; inverting its resolution gate reds
+the first three and the sibling row.
 
-**The blind spot.** A lowered arc (chord + X) lands by construction,
-so a cancelling X moves its carrier rather than its end. Under the
-mutant, the `Via` row's arc missed its through point `q` by 1.4e-5 m
-to 382 m and validated silently, with its landing within 4e-10.
-Filed as
-`a-via-arcs-carrier-is-never-checked-against-its-authored-through-point`
-(P2).
+**What moved.** Sound arcs on scenes the read cannot resolve now refuse
+at `f64` instead of storing: `tangent_arc_near_a_full_turn`'s
+1.37e7 and 1.37e8 rows at the default ε, its `Center` 1.37e6 row and its
+1e4 m short `Via` row at ε = 1e-12. Those rows now pin the refusal and
+its scale. No stored bit, golden or symbolic receipt moves.
+
+**Not covered.** A `Via` arrival or fused incoming whose fillet fits
+exactly stores no arc on the `Via` carrier, so there is nothing stored
+to read against `q`. That residue stays on
+`a-via-arcs-carrier-is-never-checked-against-its-authored-through-point`.

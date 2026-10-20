@@ -66,6 +66,12 @@ pub(crate) const CARRIERS: &[NameCarrier] = &[
     // caller supplies: validation's `path_junction_turn`, or the door's
     // stored-form read's `path_fillet_joint_turn`.
     NameCarrier::Call("joint_tangency"),
+    // `seg::read_back` reads a constructed arc back at a point scalar
+    // (`k_stats::check_unlogged`) under the read's name, `seg::LANDING_READ`
+    // or `seg::THROUGH_POINT_READ`, and its resolution gate's.
+    NameCarrier::Call("read_back"),
+    NameCarrier::Const("LANDING_READ"),
+    NameCarrier::Const("THROUGH_POINT_READ"),
 ];
 
 /// The `decide*` calls whose name the reader cannot read at the site,

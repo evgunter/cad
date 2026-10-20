@@ -327,6 +327,11 @@ pub(crate) struct BuiltArc<T: Real> {
     pub(crate) arc: Arc2<T>,
     /// What its construction proved.
     pub(crate) facts: Facts,
+    /// An authored point its carrier passes through that the stored
+    /// arc does not keep: a `Via` arc's `q`. The path door reads the
+    /// carrier back against it at a point scalar, and it goes no
+    /// further than the door.
+    pub(crate) through: Option<Point2<T>>,
 }
 
 impl<T: Real> BuiltArc<T> {
@@ -336,7 +341,13 @@ impl<T: Real> BuiltArc<T> {
         Self {
             arc: lower_arc(start, end, x),
             facts: Facts::Registered,
+            through: None,
         }
+    }
+
+    /// The same arc, authored through `q`.
+    pub(crate) fn through(self, q: Option<Point2<T>>) -> Self {
+        Self { through: q, ..self }
     }
 
     /// The same arc with its endpoint facts held only to a decision:

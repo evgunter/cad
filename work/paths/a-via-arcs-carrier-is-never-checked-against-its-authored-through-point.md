@@ -1,11 +1,10 @@
 ---
 id: a-via-arcs-carrier-is-never-checked-against-its-authored-through-point
 kind: issue
-title: paths: a Via arc lands on its end vertex by construction, so nothing reads its stored carrier against the through point it was authored by; a quarter-tangent that loses digits bends the arc off q silently
+title: paths: a Via arrival or fused incoming whose fillet fits exactly stores no arc on its Via carrier, so nothing reads that carrier against the through-point q it was authored by
 status: open
 opened: 2026-10-20
-priority: P2
-needs_ev: true
+priority: P3
 ---
 
 
@@ -47,5 +46,27 @@ Positive refused as a kernel defect. The sites are the leg
 (`family.rs`, `bulge_from_via`) and the arrival (`ViaArrival`).
 
 
-## Question to Ev
-The design question this row and `a-stored-arcs-end-is-never-checked-against-its-authored-vertex` raise is in front of Ev in an `[ev]` PR: whether, and how, the path door reads a constructed arc back against what was authored at point scalars, which amends D1's point-scalar mechanism sentence. Both designers recommend that a `Via` arc's carrier be read against its through point `q` at the door. The implementation follows the ruling.
+## What #5449 did, and what is left
+
+Ev ruled on #5449 (2026-10-20) for the tripwire. The path door now
+reads every stored `Via` arc's carrier against its `q` at a point
+scalar (`seg::constructed_through_point`, `path_arc_through_point`):
+the leg (`path::via_arc`), the fused incoming's run
+(`family.rs`, `through_point` onto `PendingArc::through`) and the
+arrival's and close's run (`resolve_arc_arrival`, `resolve_arc_close`).
+`q` rides `BuiltArc::through` to `Core::build` and is never stored. The
+cancelling mutant's 1.4e-5 m miss refuses `ArcMissesAuthoredPoint` at
+every ε row (`a_cancelling_via_arc_refuses_off_its_through_point_at_f64`).
+On main, `split_half_tan` holds `q` to within an ulp or two of the
+carrier's magnitude at the row's probes (3.6e-12, 2.9e-11 and 0 m at
+R = 1.36e4, 1.37e5, 1.37e6; 1.9e-9 and 3.0e-8 at 1.37e7 and 1.37e8,
+where the scene cannot resolve the read and the door now refuses).
+
+**Left.** Where the fillet fits exactly (`fit_out` Zero on an arrival,
+`fit_in` Zero on a fused incoming), the fillet arc takes the whole
+`Via` side and no arc on the `Via` carrier is stored. The carrier still
+shapes the fillet (the resolution is tangent to it), but nothing stored
+is on it to read against `q`. A read of the derived carrier itself at
+`verbs::via_carrier` and `PointIncoming for Via` would cover it; it is
+a read of a value the stored form does not hold, so it was left out of
+#5449's door-read shape. P3: no construction is known to miss there.

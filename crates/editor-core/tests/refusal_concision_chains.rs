@@ -973,8 +973,8 @@ mod kernel {
             NonpositiveCircleRadius, DegenerateArcSpec, ArcSweepNotShortOfFullTurn,
             CircleSplitCount, PolygonTooFewVertices, ZeroDirection, NonFiniteDirection,
             UnderflowedDirection, ArcViaCollinear, DegenerateArcChord,
-            ArcCenterNotEquidistant, DegenerateArcCenter, ArcMissesItsEnd,
-            FarEndAnchorWithoutFillet,
+            ArcCenterNotEquidistant, DegenerateArcCenter, ArcMissesAuthoredPoint,
+            ArcMissBelowSceneResolution, FarEndAnchorWithoutFillet,
             Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction,
         ];
     }
@@ -4164,10 +4164,33 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             P::DegenerateArcCenter { radius: 1e-12 },
         ),
         (
-            "ArcMissesItsEnd",
-            P::ArcMissesItsEnd {
+            "ArcMissesAuthoredPoint",
+            P::ArcMissesAuthoredPoint {
+                piece: profile::Piece {
+                    step: 1,
+                    role: profile::PieceRole::Leg,
+                },
+                verb: profile::Verb::TangentArcTo,
+                predicate: "path_arc_landing",
+                point: Point2::new(-2.7, 2.7e-4),
                 miss: 3.4e-8,
                 scale: 1.36e4,
+                resolution: 4.8e-11,
+            },
+        ),
+        (
+            "ArcMissBelowSceneResolution",
+            P::ArcMissBelowSceneResolution {
+                piece: profile::Piece {
+                    step: 1,
+                    role: profile::PieceRole::Leg,
+                },
+                verb: profile::Verb::ArcTo,
+                predicate: "path_arc_through_point",
+                point: Point2::new(0.0, 2.74e8),
+                miss: 3.0e-8,
+                scale: 2.74e8,
+                resolution: 4.9e-7,
             },
         ),
         ("FarEndAnchorWithoutFillet", P::FarEndAnchorWithoutFillet),

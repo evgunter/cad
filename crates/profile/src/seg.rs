@@ -217,8 +217,8 @@ impl<T: Real> ChordFrame<T> {
 }
 
 /// Whether [`build_seg`] decides an arc's three consistency checks
-/// (D1): a table's arcs are verified here, and an arc a construction
-/// built was verified at that construction, at this scalar, so the
+/// (D1): a table's arcs are checked here, and an arc a construction
+/// built was checked by the door that built it, at its scalar, so the
 /// checks are not decided again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Consistency {
@@ -226,12 +226,15 @@ pub(crate) enum Consistency {
     /// — the fixture door, a hand-built loop, `map_scalar`, a pinned
     /// lift).
     Decide,
-    /// The arc is the construction's own output, verified there: by the
-    /// construction's own predicate (a `Center` arc's
-    /// `path_arc_center_equidistant`), or by the exact witness of the
-    /// identities the lowering registers. Passed by every validation of
-    /// a constructed loop ([`crate::ConstructedProfile`]) and by the path
-    /// door's re-read of the fillet arcs it has just lowered.
+    /// The arc is the construction's own output, proved over the reals
+    /// by its construction (its own predicate, such as a `Center` arc's
+    /// `path_arc_center_equidistant`, or the identities its lowering
+    /// registers) and checked at its scalar: at an exact witness by
+    /// those registered identities, at a point scalar by the door's
+    /// read-back ([`constructed_landing`], [`constructed_through_point`]).
+    /// Passed by every validation of a constructed loop
+    /// ([`crate::ConstructedProfile`]) and by the path door's re-read of
+    /// the fillet arcs it has just lowered.
     ByConstruction,
 }
 
@@ -630,59 +633,136 @@ fn check_carrier<T: Decide>(
     Ok(())
 }
 
-/// A constructed arc whose landing a point scalar read off its end
-/// vertex past the band, at a magnitude whose rounding cannot account
-/// for it ([`constructed_landing`]).
-pub(crate) struct LandingMiss<T: Real> {
-    /// ‖landing(a) − b‖, meters.
+/// One read-back of a constructed arc against a point it was authored
+/// by, past the band ([`read_back`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ArcMiss<T: Real> {
+    /// The read's funnel name: [`LANDING_READ`] or [`THROUGH_POINT_READ`].
+    pub(crate) predicate: &'static str,
+    /// How far the stored arc is off the authored point, meters.
     pub(crate) miss: T,
-    /// The magnitude the landing was read at, meters.
+    /// The magnitude the read was taken at, meters.
     pub(crate) scale: T,
+    /// The rounding the read carries at that magnitude,
+    /// `ulps · 2⁻⁵² · scale`, meters.
+    pub(crate) resolution: T,
 }
 
-/// **A constructed arc's landing, cross-checked at a point scalar**
-/// (audit row F23): margin ‖landing(a) − b‖ (`path_arc_landing`, meters,
-/// direct), and where that reads Positive, [`resolves`]'s headroom at
-/// [`LANDING_ULPS`] (`path_arc_landing_resolution`). A construction
-/// states its arc's endpoint facts as theorems of the reals, or lands
-/// them to an inline decision; this reads whether the arithmetic it
-/// ran delivered them. A miss past the band at a magnitude where the
-/// landing's rounding stays inside it is no rounding of a sound
-/// construction: it is the construction's arithmetic losing digits,
-/// and refuses ([`LandingMiss`]).
-///
-/// Run on the witness lane (`Witness::Inexact`) only. An exact
-/// scalar's stored arc encloses the arc its construction proved, so
-/// its reading of the landing can confirm Zero or escalate on the
-/// enclosure's width and never catch a miss; the lowering's registered
-/// identities are what that scalar checks. Not a verdict
-/// (`k_stats::check_unlogged`): a box leaf has no row for it. Silent
-/// where the reading is not that proof: in the band, poisoned, or at a
-/// magnitude whose rounding reaches the band.
+/// How a constructed arc's read-back refuses ([`read_back`]).
+pub(crate) enum ReadBackIssue<T: Real> {
+    /// Off past the band at a magnitude the scene resolves: the
+    /// construction's arithmetic lost the digits its proof is about.
+    Defect(ArcMiss<T>),
+    /// Off past the band at a magnitude whose rounding reaches the
+    /// band: the input's conditioning or the construction's, which a
+    /// point scalar cannot tell apart.
+    BelowSceneResolution(ArcMiss<T>),
+    /// The read, or its resolution gate, in the band or poisoned.
+    Escalated(Indeterminate),
+}
+
+/// The landing read's funnel name: ‖landing(a) − b‖.
+pub(crate) const LANDING_READ: &str = "path_arc_landing";
+
+/// The through-point read's funnel name: ‖q − centre‖ − r.
+pub(crate) const THROUGH_POINT_READ: &str = "path_arc_through_point";
+
+/// **A constructed arc's landing on its end vertex, read back at a
+/// point scalar**: [`read_back`] of ‖landing(a) − b‖ at
+/// [`LANDING_ULPS`], at the magnitude of the arc and both vertices.
+/// `decided` is an arc whose end is on its carrier only to an inline
+/// ε-decision the door made ([`crate::Facts::Decided`]): its landing
+/// may miss by what that decision admitted, so a reading inside the
+/// band is the decision's and passes rather than deciding it again.
 pub(crate) fn constructed_landing<T: Decide>(
     arc: Arc2<T>,
     a: Point2<T>,
     b: Point2<T>,
+    decided: bool,
     band: Band,
-) -> Result<(), LandingMiss<T>> {
-    match T::WITNESS {
-        geom_core::Witness::Exact => return Ok(()),
-        geom_core::Witness::Inexact => {}
-    }
-    let miss = arc.landing(a).distance(b);
-    match check_unlogged("path_arc_landing", miss, band, "F23") {
-        Ok(Sign::Positive | Sign::Negative) => {}
-        Ok(Sign::Zero) | Err(_) => return Ok(()),
+) -> Result<(), ReadBackIssue<T>> {
+    if T::WITNESS == geom_core::Witness::Exact {
+        return Ok(());
     }
     let scale = arc
         .radius
         .max(reach(arc.centre))
         .max(reach(a))
         .max(reach(b));
-    let headroom = resolution_headroom(scale, LANDING_ULPS, band);
-    match check_unlogged("path_arc_landing_resolution", headroom, band, "F23") {
-        Ok(Sign::Positive) => Err(LandingMiss { miss, scale }),
-        Ok(Sign::Zero | Sign::Negative) | Err(_) => Ok(()),
+    read_back(
+        LANDING_READ,
+        "path_arc_landing_resolution",
+        arc.landing(a).distance(b),
+        scale,
+        LANDING_ULPS,
+        decided,
+        band,
+    )
+}
+
+/// **A constructed arc's carrier through the point `q` it was authored
+/// through, read back at a point scalar**: [`read_back`] of
+/// ‖q − centre‖ − r at [`ON_CARRIER_ULPS`], at the magnitude of the
+/// carrier and `q`.
+pub(crate) fn constructed_through_point<T: Decide>(
+    arc: Arc2<T>,
+    q: Point2<T>,
+    band: Band,
+) -> Result<(), ReadBackIssue<T>> {
+    if T::WITNESS == geom_core::Witness::Exact {
+        return Ok(());
+    }
+    let scale = arc.radius.max(reach(arc.centre)).max(reach(q));
+    read_back(
+        THROUGH_POINT_READ,
+        "path_arc_through_point_resolution",
+        arc.rim(q) - arc.radius,
+        scale,
+        ON_CARRIER_ULPS,
+        false,
+        band,
+    )
+}
+
+/// **The path door's read-back of a constructed arc** (audit row F23),
+/// on the witness lane (`Witness::Inexact`) only: `miss` (`predicate`,
+/// meters) against the band, and where it reads off, [`resolves`]'s
+/// headroom at `ulps` (`resolution`). A construction's proof of its arc
+/// is a theorem of the reals; this reads whether the arithmetic it ran
+/// at a point scalar delivered it. Zero passes; off at a magnitude the
+/// scene resolves is [`ReadBackIssue::Defect`]; off past the scene's
+/// resolution is [`ReadBackIssue::BelowSceneResolution`]; poisoned
+/// escalates, and so does a reading in the band unless `band_passes`.
+/// An exact scalar's stored arc encloses the arc
+/// its construction proved, and its registered identities are its
+/// check, so its callers return before reading. Not a verdict
+/// (`k_stats::check_unlogged`): a box leaf has no row for it.
+fn read_back<T: Decide>(
+    predicate: &'static str,
+    resolution_predicate: &'static str,
+    miss: T,
+    scale: T,
+    ulps: f64,
+    band_passes: bool,
+    band: Band,
+) -> Result<(), ReadBackIssue<T>> {
+    match check_unlogged(predicate, miss, band, "F23") {
+        Ok(Sign::Zero) => return Ok(()),
+        Ok(Sign::Positive | Sign::Negative) => {}
+        Err(_) if band_passes && !miss.is_poison() => return Ok(()),
+        Err(source) => return Err(ReadBackIssue::Escalated(source)),
+    }
+    let found = ArcMiss {
+        predicate,
+        miss: miss.abs(),
+        scale,
+        resolution: scale * T::from_f64(ulps * f64::EPSILON),
+    };
+    let headroom = resolution_headroom(scale, ulps, band);
+    match check_unlogged(resolution_predicate, headroom, band, "F23") {
+        Ok(Sign::Positive) => Err(ReadBackIssue::Defect(found)),
+        Ok(Sign::Zero | Sign::Negative) => Err(ReadBackIssue::BelowSceneResolution(found)),
+        Err(source) => Err(ReadBackIssue::Escalated(source)),
     }
 }
 
