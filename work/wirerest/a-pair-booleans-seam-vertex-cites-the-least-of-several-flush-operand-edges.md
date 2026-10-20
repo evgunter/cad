@@ -53,3 +53,7 @@ several vertices sharing one run, read along the run's least line,
 which is `a-unions-line-of-several-edges-is-oriented-by-its-least-edge`'s
 orientation question at the pair.
 
+
+## Moved to WIREREST (2026-10-20)
+
+WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).

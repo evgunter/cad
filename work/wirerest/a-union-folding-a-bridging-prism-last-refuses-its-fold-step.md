@@ -42,3 +42,7 @@ The pair case cites the tangtail row directly.
 The tangtail row's fix: topo building an edge whose wedge crosses two
 coincident edges on one ray of a vertex pair. When it lands, the
 admission and the two vacuous entries go red and come out.
+
+## Moved to WIREREST (2026-10-20)
+
+WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).
