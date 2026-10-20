@@ -303,6 +303,7 @@ pub mod test_support {
     pub use crate::null::with_ring_root;
     pub use crate::props::{
         FaceTerm, fold_order_bound, mass_properties_with_face_terms, quadrature_rounds,
+        shell_references,
     };
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
@@ -314,6 +315,22 @@ pub mod test_support {
         split_plane, straddle_seat, wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
+
+    /// Every shell's stored face list rotated left by `k` (modulo its
+    /// length): the same solid stored in another face order, which the
+    /// tiers do not read. Each shell's face count, in arena order.
+    pub fn rotate_shell_faces<T: Real>(body: &mut Body<T>, k: usize) -> Vec<usize> {
+        body.shells
+            .iter_mut()
+            .map(|(_, shell)| {
+                let n = shell.faces.len();
+                if n > 0 {
+                    shell.faces.rotate_left(k % n);
+                }
+                n
+            })
+            .collect()
+    }
 
     /// What each solid's aimed rays read before the volume, as text
     /// (`side_reader`): the edge-meeting ray's probes read it.

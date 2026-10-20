@@ -98,23 +98,6 @@ pub(crate) enum Unrankable {
     RankOutsideCount,
 }
 
-impl Unrankable {
-    /// The emission bug this is, in `NamingError::Emission`'s words.
-    pub(crate) fn what(self) -> &'static str {
-        match self {
-            Self::RunLeastLineMoved => {
-                "a ranked edge-crossing run's least line is another line once rewritten, so \
-                 nothing says where its vertices lie along it"
-            }
-            Self::Reshaped => {
-                "a ranked seam vertex group's lines are a pair on one side of a rewrite and a run \
-                 on the other"
-            }
-            Self::RankOutsideCount => "a seam vertex group's rank lies outside its count",
-        }
-    }
-}
-
 /// Why [`canonical`] stopped: the rewrite's image refused, or a rank
 /// could not be re-read.
 pub(crate) enum Stop<E> {

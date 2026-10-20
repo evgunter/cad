@@ -75,19 +75,13 @@ pub(super) struct Upstream {
 }
 
 /// The upstream name of an entity. A MISSING row is still loud (the
-/// upstream tables are total by this same machinery), and so is a
-/// table whose two directions disagree — after B1, that is the ONE
-/// remaining condition genuinely needing a unique upstream, because no
-/// candidate list exists to propagate.
+/// upstream tables are total by this same machinery).
 ///
-/// It has no executable test row ON PURPOSE, and the reason is a
-/// property rather than an omission: the condition is unconstructible
-/// through `NameTable`'s public API — `insert`/`insert_tied` write both
-/// directions together and there is no removal door, so no caller can
-/// reach a state where `name_of` answers and `lookup` does not. The
-/// LIB-G14 review confirmed this independently (MINOR-1) and recorded
-/// the prose as the faithful reading. The arm stays because the
-/// invariant is the emitter's to assert, not to assume.
+/// # Panics
+///
+/// Where the table's two directions disagree: `insert`/`insert_tied`
+/// write both together and there is no removal door, so no caller can
+/// reach a state where `name_of` answers and `lookup` does not.
 pub(super) fn upstream_name(
     table: &NameTable,
     node: RecipeNodeId,
@@ -100,15 +94,19 @@ pub(super) fn upstream_name(
     let name = table
         .name_ref_of(&e)
         .ok_or(NamingError::MissingUpstream { node })?;
-    let disagree = || NamingError::Emission {
-        what: "an operand name table's forward and reverse directions disagree",
+    let disagree = || -> ! {
+        unreachable!(
+            "operand table of node {node:?} names {e:?} as {name:?} and does not hold that row \
+             back: `NameTable::insert` and `insert_tied` write both directions together and \
+             nothing removes a row"
+        )
     };
     let tied = match table.entry_of(name) {
         Some(Entry::Unique(_)) => false,
         Some(Entry::Tied(_)) => true,
-        None => return Err(disagree()),
+        None => disagree(),
     };
-    let candidate = table.candidate_of(name, &e).ok_or_else(disagree)?;
+    let candidate = table.candidate_of(name, &e).unwrap_or_else(|| disagree());
     Ok(Upstream {
         name: name.clone(),
         tied,

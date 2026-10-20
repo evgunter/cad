@@ -36,3 +36,7 @@ reading that does decide. Either one changes what the emitter is given
 by the kernel's record.
 
 Signed (WIRE, section-face lane).
+
+## Moved to WIREREST (2026-10-20)
+
+WIRE measured 69 budget points against 30. This row is P3 or P4, and WIRETAIL already stood at 25 of 30, so it moved by `git mv` (id and body unchanged) to WIRE's second tail. Signed (WIRE orchestrator).

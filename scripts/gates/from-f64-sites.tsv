@@ -108,10 +108,10 @@ crates/sweep/src/blend/reach.rs	1	constant	band.zero()	the band's zero width, a 
 crates/sweep/src/blend/reach.rs	1	constant	pts.len() as f64	a point count
 crates/sweep/src/blend/reach.rs	3	constant	band.escalate()	the band's escalation width, a tolerance
 crates/sweep/src/loft.rs	1	constant	next.len() as f64	a count
-crates/sweep/src/skin.rs	1	constant	(k + 1) as f64 / steps	a sub-arc end k/m as a fraction of the sweep, structure
+crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k + 1, m)	a sub-arc end k/m as a fraction of the sweep, structure
 crates/sweep/src/skin.rs	1	constant	counted as f64	a row count
 crates/sweep/src/skin.rs	1	constant	k as f64	a sub-arc index
-crates/sweep/src/skin.rs	1	constant	k as f64 / steps	a sub-arc breakpoint k/m, structure
+crates/sweep/src/skin.rs	1	constant	geom_brep::sub_arc_joint(k, m)	a sub-arc breakpoint k/m, structure
 crates/sweep/src/skin.rs	1	constant	steps	the sub-arc count
 crates/sweep/src/test_support.rs	1	fixture	(core::f64::consts::FRAC_PI_2 / 4.0).tan()	a fixture arc's bulge
 crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted into T, and its placements' twelve constants admitted again at T

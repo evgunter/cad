@@ -2,8 +2,9 @@
 id: naming-edge-curve-ladders-can-read-through-body-stored-curve
 kind: issue
 title: emit_topo's edge-to-certified-curve ladders could read through topo::Body::stored_curve
-status: open
+status: closed
 opened: 2026-10-20
+closed: 2026-10-20
 ---
 
 
@@ -22,3 +23,5 @@ opened: 2026-10-20
 - `crossed_curve` (~4625): each miss gets its own `Emission` text, and a dangling curve link is "a crossed edge's carrier is dangling".
 
 Routing each site is `stored_curve(e)` with a `map_err`. A dangling curve link would then panic instead of coming back as an `Emission` error. That trade, and whether the three collapse into one helper, is this program's call.
+
+Closed by PR 5503 (2026-10-20): `emit_topo`'s five edge-to-curve reads are one `#[track_caller] certified_curve` over `Body::stored_curve`; the FULL review found the behaviour identical.
