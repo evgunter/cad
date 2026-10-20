@@ -69,9 +69,12 @@ nothing.
 ## Fix
 
 Every face is read about its shell's reference (`topo::props`'
-`shell_reference`): the first loop point of the shell's first face with
-one, in the shell's own order, a vertex of the shell, so the lever is
-bounded by the shell's diameter wherever the body sits. Every walk
+`shell_reference`): the stored point of the vertex the outer loop of
+the shell's first face starts at, in the shell's own order, so the lever
+is bounded by the shell's diameter wherever the body sits. It is not
+bounded by the face's own distance from the origin, and it depends on
+the shell's stored face order:
+`work/flux/a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order.md`. Every walk
 (the whole body, a face list in any order, a solid, a shell, every
 resumption) reads a face about the same point, and a body sums its
 closed shells. `corner_of`, the re-derivation's centre, is the same
@@ -80,6 +83,4 @@ point lifted. Rows: `sweep` tests
 s = 100 turned and measure the s = 0 volume; every quadrature face meets
 its target at the same round; every pad is its pad at home) and
 `topo::props::shell_reference_rows` (a closed-form body's volume is
-unchanged in the reals). The cost, up to 2× on a body centred on the
-origin, is filed as
-`work/flux/the-quadrature-position-term-could-use-the-shells-box-centre.md`.
+unchanged in the reals).

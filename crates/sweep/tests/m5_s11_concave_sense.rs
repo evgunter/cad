@@ -609,12 +609,14 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
             // schedule achieves. It is twice the `2·target` it was while
             // every face was read about the world origin: each face is
             // read about a vertex of its shell (`topo::props`'
-            // `shell_reference`), whose lever is at most the shell's
-            // diameter, against about its radius from the origin these
-            // prisms stand on, and the quadrature's width scales with the
-            // lever (`m8_3_rational_volume`'s ceiling has the trade). The
-            // lofted concave prism measured 2.07e-3 at 1e-6, 2.02 times
-            // the target.
+            // `shell_reference`), and a face's pad scales, against the
+            // origin's, by about the shell's diameter over the face's
+            // own distance from the origin, unbounded and
+            // order-dependent
+            // (`work/flux/a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order.md`).
+            // The lofted concave prism measured 2.07e-3 at 1e-6, 2.02
+            // times the target: the ceiling is the measure with
+            // headroom, not a bound the rule guarantees.
             let ceiling = 4.0 * target;
             assert!(
                 m.volume_pad.is_finite() && m.volume_pad < ceiling,

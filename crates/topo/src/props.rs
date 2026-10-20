@@ -1163,16 +1163,19 @@ pub(crate) fn certify_role<T: Decide>(
 /// `b`): `ROUNDING_TERMS · u · Σ_f (n_f + 1) · R_f · D_f²` over the walk's
 /// faces, `u` the unit roundoff and `n_f` a face's edge count. A face's
 /// closed form is taken about its surface's anchor (a plane's or a
-/// cylinder's origin, a cone's apex, a sphere's or a torus's centre): `R_f`
-/// is the larger 1-norm of the anchor and of the face's loop points
-/// (their distance from the world origin, from above), and `D_f` the
-/// larger of the loop points' box and their 1-norm distance from the
-/// anchor (the spread of the vectors the closed form crosses, from
-/// above).
+/// cylinder's origin, a cone's apex, a sphere's or a torus's centre), on
+/// its geometry moved by `−c`, `c` its shell's reference
+/// ([`shell_reference`]): `R_f` is the larger 1-norm of the anchor and of
+/// the face's loop points about `c` (their distance from the point the
+/// face is read about, from above), and `D_f` the larger of the loop
+/// points' box and their 1-norm distance from the anchor (the spread of
+/// the vectors the closed form crosses, from above).
 ///
 /// The model: a face's flux is a sum over its edges of cross products of
 /// vectors `D_f` long, each rounding by about `u · D_f²`, levered by a
-/// point `R_f` from the origin; the fold adds one rounding per face.
+/// point `R_f` from `c`; moving a point by `−c` rounds by `u` of the moved
+/// point, which `R_f` already counts; the fold adds one rounding per
+/// face.
 /// `ROUNDING_TERMS` covers the few rounded operations of each term. It is
 /// a stated bound, not a certificate: a scalar with no interval lane has
 /// none to give, and what this read certifies is only that the sums' sign
@@ -1182,6 +1185,8 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
     let mut bound = T::zero();
     for run in runs {
         let (face, surface) = resolve_face(body, run.face);
+        let c = shell_reference(body, run.face)?;
+        let about = |p: Point3<T>| one_norm(p.x - c.x, p.y - c.y, p.z - c.z);
         let anchor = match *surface {
             Surface::Plane { origin, .. } | Surface::Cylinder { origin, .. } => Some(origin),
             Surface::Cone { apex, .. } => Some(apex),
@@ -1190,7 +1195,7 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
         };
         // One plus the face's edge count, kept in `T`.
         let mut terms = T::one();
-        let mut reach = anchor.map_or(T::zero(), |a| one_norm(a.x, a.y, a.z));
+        let mut reach = anchor.map_or(T::zero(), about);
         let mut spread = T::zero();
         let mut box_lo: Option<Point3<T>> = None;
         let mut box_hi: Option<Point3<T>> = None;
@@ -1198,7 +1203,7 @@ fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, M
             for e in &lp {
                 terms = terms + T::one();
                 for p in [e.carrier.eval(e.t0), e.carrier.eval(e.t1)] {
-                    reach = reach.max(one_norm(p.x, p.y, p.z));
+                    reach = reach.max(about(p));
                     if let Some(a) = anchor {
                         spread = spread.max(one_norm(p.x - a.x, p.y - a.y, p.z - a.z));
                     }
@@ -2716,9 +2721,10 @@ pub fn fold_order_bound(terms: &[FaceTerm]) -> (f64, f64) {
 /// [`mass_properties`], so the properties are its bits, and the terms
 /// are what a caller compares face by face where two bodies store
 /// their faces in different orders (the fold's sum depends on the
-/// order; each face's term depends only on the point it is about, the
-/// first loop point of the walk's first face, so two such bodies compare
-/// face by face where that point is one vertex of both).
+/// order; each face's term depends only on the point it is about, its
+/// shell's reference ([`shell_reference`]), so two such bodies compare
+/// face by face where each shell's first face starts at one vertex of
+/// both).
 ///
 /// # Errors
 ///
@@ -2959,7 +2965,7 @@ fn closed_form_about<U: Decide>(
     about: Point3<U>,
 ) -> Result<FaceContribution<U>, PropsError> {
     let unmoved = || PropsError::QuadratureUnsupported {
-        what: "a closed-form face whose carrier has no datum to carry to the walk's reference",
+        what: "a closed-form face whose carrier has no datum to carry to its shell's reference",
     };
     let moved = quad_lane::translated_surface(surface, about).ok_or_else(unmoved)?;
     let loops = loops
@@ -2988,11 +2994,18 @@ fn closed_form_about<U: Decide>(
 /// faces' fluxes about any one point, so a shell's sum does not depend on
 /// it, nor a body's, which sums its shells'; each face's width does, by
 /// the lever from it, and a vertex of the shell bounds that lever by the
-/// shell's own diameter wherever the body sits (D4 ¶4's box, W1). A
-/// stored vertex point, not a carrier evaluated at a parameter: moving
-/// a face by it moves every point by the same value, which an interval
-/// scalar's evaluated point, wide by its own rounding, would not. The
-/// point is the shell's, not the walk's: a whole-body walk, a face-list
+/// shell's own diameter wherever the body sits (D4 ¶4's box, W1). It
+/// does not bound it by the face's own distance from the origin: a face
+/// beside the origin in a long shell is read across the shell, and which
+/// vertex is first depends on the shell's stored face order, so one
+/// solid stored in two orders can carry pads several times apart
+/// (`work/flux/a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order.md`).
+/// A stored vertex point, not a carrier evaluated at a parameter: at
+/// `f64` it is exact; at an interval scalar a computed body's vertex
+/// carries the width its construction left, and moving every point by it
+/// adds that width to each, but no evaluation's width on top, which a
+/// point evaluated on a carrier would add. The point is the shell's, not
+/// the walk's: a whole-body walk, a face-list
 /// walk in any order, a solid's or a shell's own walk, and every
 /// resumption of any of them read each face about the same point, so a
 /// face's term is one value whichever walk reads it. [`corner_of`] is
@@ -6110,5 +6123,97 @@ mod shell_reference_rows {
                 "{name}: about the reference {new:e}, about the origin {old:e}"
             );
         }
+    }
+
+    static REFUSED: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
+
+    /// `quad_lane::closed_form`, refusing an up-facing plane read about
+    /// any point but the world origin, as a closed form refuses where its
+    /// inventory reads in band about the shell's reference.
+    fn refusing_up_planes(
+        surface: &Surface<f64>,
+        loops: &[Vec<LoopEdge<f64>>],
+        sense: bool,
+        band: Band,
+        centre: Point3<Interval>,
+        measured: Option<((Interval, Interval), Point3<Interval>)>,
+    ) -> Result<(FaceContribution<Interval>, bool), PropsError> {
+        use geom_core::Bounds;
+        let up = matches!(surface, Surface::Plane { normal, .. } if normal.z > 0.5);
+        let off = [centre.x, centre.y, centre.z]
+            .iter()
+            .any(|x| x.lo() != 0.0 || x.hi() != 0.0);
+        if up && off && measured.is_none() {
+            REFUSED.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
+            return Err(PropsError::QuadratureUnsupported {
+                what: "the row's planted refusal about the shell's reference",
+            });
+        }
+        quad_lane::closed_form(surface, loops, sense, band, centre, measured)
+    }
+
+    /// **A closed-form face that refuses about its shell's reference is
+    /// carried there from the world origin** (`rederive_faces`). The
+    /// notch prism with a disc in its top, moved off the origin so its
+    /// reference is too, keeps its faces off the polygon route; a lane
+    /// whose closed form refuses its two up-facing planes about the
+    /// reference reads those two about the origin and carries them by
+    /// their vector area `(0, 0, A)`, `c·A⃗` with `c` on the top, 3 m up.
+    /// Summed without the carry the volume reads `c_z·A/3 = 6 m³` over:
+    /// 12 m³ for the prism's 6, measured.
+    #[test]
+    fn a_closed_form_face_refusing_about_its_reference_is_carried_from_the_origin() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let notch = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
+        let p = crate::test_support::prism::<f64>(&notch, 1.0, tol);
+        let mut body = p.body;
+        let outer = body.get_face(p.top_face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the top's outer loop is a cycle");
+        };
+        crate::test_support::plant_disc_face(
+            &mut body,
+            first,
+            Point3::new(1.0, 0.6, 1.0),
+            0.4,
+            tol,
+        );
+        let body = crate::transform_rigid(
+            &body,
+            &geom_core::RigidMotion::translation(geom_core::Vec3::new(5.0, -3.0, 2.0)).unwrap(),
+            tol,
+        )
+        .unwrap();
+        let faces = crate::query::all_faces(&body);
+        let lane = QuadLane::<f64>::certified();
+        let hook = reporting_hook(Some(lane));
+        let runs = decide_faces_serially(&faces, |&f| {
+            face_flux(&body, f, band, &hook, tol, RoundWindow::SCHEDULE)
+        })
+        .unwrap();
+        assert!(
+            shell_polygons(&body, lane, &runs).unwrap().is_none(),
+            "the disc keeps every face off the polygon route"
+        );
+        let stub = QuadLane {
+            closed_form: refusing_up_planes,
+            ..lane
+        };
+        REFUSED.store(0, core::sync::atomic::Ordering::Relaxed);
+        let got = rederive(&body, band, tol, stub, &runs, true).unwrap();
+        assert_eq!(
+            REFUSED.load(core::sync::atomic::Ordering::Relaxed),
+            2,
+            "the top and the disc refuse about the reference"
+        );
+        assert!(!got.recentred, "two faces were carried from the origin");
+        use geom_core::Bounds;
+        let six = Interval::from_f64(6.0);
+        assert!(
+            got.volume.lo() <= 6.0 && 6.0 <= got.volume.hi(),
+            "the carried sum encloses the prism's 6 m³: {:?} against {six:?}",
+            got.volume
+        );
     }
 }
