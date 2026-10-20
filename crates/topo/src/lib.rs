@@ -315,6 +315,12 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
+    /// What each solid's aimed rays read before the volume, as text
+    /// (`side_reader`): the edge-meeting ray's probes read it.
+    pub fn aimed_rays(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::aimed_rays_report(body, band)
+    }
+
     /// The pad a face's reach box takes past the band, and each face's
     /// share of the census's gaps (`boolean::boxes::sweep_pad`): the
     /// spelling a test outside this crate reads it by.

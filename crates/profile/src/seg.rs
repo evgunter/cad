@@ -697,7 +697,7 @@ fn sagitta<T: Real>(bow: T, len: T) -> Margin<T> {
 }
 
 /// **The path door's read-back of a constructed arc** from `a` to `b`
-/// (audit row F23), on the witness lane (`Witness::Inexact`) only: the
+/// (audit row F24), on the witness lane (`Witness::Inexact`) only: the
 /// stored arc against what its construction authored, each read through
 /// [`read_back`].
 ///
@@ -749,7 +749,7 @@ pub(crate) fn read_back_arc<T: Decide>(
     let len = a.distance(b);
     let bow = sagitta(arc.quarter_tan(), len).value();
     if built.bulge_authored {
-        match check_unlogged("segment_straightness", bow, band, "F23") {
+        match check_unlogged("segment_straightness", bow, band, "F24") {
             Ok(Sign::Positive | Sign::Negative) => {}
             Ok(Sign::Zero) => return Ok(()),
             Err(_) if !bow.is_poison() => return Ok(()),
@@ -803,7 +803,7 @@ pub(crate) fn read_back_arc<T: Decide>(
         // so each reads at least the chord's length: the authored one
         // Positive, the other Negative.
         let signed = Margin::levered(arc.sweep * sense.sign::<T>(), arc.radius).value();
-        let reading = match check_unlogged(BRANCH_READ, signed, band, "F23") {
+        let reading = match check_unlogged(BRANCH_READ, signed, band, "F24") {
             Ok(Sign::Positive) => Reading::Passed,
             Ok(Sign::Zero | Sign::Negative) => Reading::Off(signed),
             Err(source) => return Err(ReadBackIssue::Escalated(source)),
@@ -894,7 +894,7 @@ fn read_back<T: Decide>(
     let miss = match reading {
         Reading::Passed => return Ok(()),
         Reading::Off(miss) => miss,
-        Reading::Difference(miss) => match check_unlogged(predicate, miss, band, "F23") {
+        Reading::Difference(miss) => match check_unlogged(predicate, miss, band, "F24") {
             Ok(Sign::Zero) => return Ok(()),
             Ok(Sign::Positive | Sign::Negative) => miss,
             Err(source) => return Err(ReadBackIssue::Escalated(source)),
@@ -913,7 +913,7 @@ fn read_back<T: Decide>(
     }
     let clearance = found.miss - found.resolution;
     let margin = resolution_headroom(authored, ulps, band).min(clearance);
-    match check_unlogged(resolution_predicate, margin, band, "F23") {
+    match check_unlogged(resolution_predicate, margin, band, "F24") {
         Ok(Sign::Positive) => Err(ReadBackIssue::Defect(found)),
         Ok(Sign::Zero | Sign::Negative) => Err(ReadBackIssue::BelowSceneResolution(found)),
         Err(source) => Err(ReadBackIssue::Escalated(source)),

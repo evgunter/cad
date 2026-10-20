@@ -1228,7 +1228,21 @@ Flagged, NOT fixed here (dispositions):
   turn builds. Same arm question as F10; one site,
   `LEDGER_FLAGGED_SITES` 5 → 6.
 
-- **F23** (added by PATHS' stored-arc read-back unit)
+- **F23** (added by FLUSH's edge-meeting ray, PR 5422)
+  `topo/src/boolean/solid_contain.rs` `crosses_by_turn`, under the
+  ray's `winding` row (`bool_point_in_solid_winding`,
+  `side_at_infinity_winding`): `(|turn| − π)·reach`, the turn of a
+  planar face's loops about a ray's hit less `π`, levered by the
+  selection's reach. It is read only where the ray was decided
+  definitely clear of every edge of the face, so the turn is `±2π` or `0`
+  to rounding and the margin `±π·reach`, definite by construction: it
+  can never escalate, and as a logged verdict it would be a margin no
+  value of the variables moves, counted by the flip lane and the tie
+  census as if it could. **Carried as `k_stats::check_unlogged(..,
+  "F23")`**, the same door as F18, F20 and F21. Not a `decide_flagged`
+  site; `LEDGER_FLAGGED_SITES` does not move.
+
+- **F24** (added by PATHS' stored-arc read-back unit)
   `profile/src/seg.rs` `read_back_arc` and its `read_back`, reached from
   the path door before a chain stores its arcs (`path::arc_reads_back`):
   a constructed arc read back against what was authored, all margins
@@ -1261,8 +1275,8 @@ Flagged, NOT fixed here (dispositions):
   re-decide a registered identity on the enclosure's width. A logged
   point-scalar row would be one a box build cannot have.
 
-  **Carried as `k_stats::check_unlogged(.., "F23")`**, the door F18,
-  F20 and F21 use. Zero passes (Positive, for the branch). Off with
+  **Carried as `k_stats::check_unlogged(.., "F24")`**, the door F18, F20,
+  F21 and F23 use. Zero passes (Positive, for the branch). Off with
   that gate Positive refuses `PathError::ArcMissesAuthoredPoint`; any
   other definite miss, and any miss that is not finite, refuses
   `PathError::ArcMissBelowSceneResolution`; in the band or poisoned

@@ -205,38 +205,28 @@ fn shared_corner(ev: &Evaluation<f64>, union: RecipeNodeId) -> Vec<StableName> {
     out
 }
 
-/// **Re-drawing another member never takes a held flush stretch**
-/// (`names/README.md`, the flush rule: an entity several members hold
-/// is named for the first minted of them). Two blocks placed in an L,
-/// `a` = [0, 2] × [0, 1] and `b` = [1, 2] × [0, 2], share the vertical
-/// edge at x = 2, y = 0 and its two end vertices (designer B's fixture
-/// on the name-order fork), and the union names all three through `a`,
-/// the senior block. The union is then re-pointed, through the doors,
-/// from `b` to a re-drawing of it (identical geometry, a later id):
-/// the three names it held there are still the union's names for
-/// them, still through `a`. A salt node inserted
-/// first moves every digest, so the answer is not the digests' luck,
-/// and each member list is also given the other way round, so the
-/// answer is not the list's order either: "first" is first minted.
+/// **A flush stretch several members hold is named for all of them**
+/// (`names/README.md`, the flush rule; N0: no name reads mint order).
+/// Two blocks placed in an L, `a` = [0, 2] × [0, 1] and `b` =
+/// [1, 2] × [0, 2], share the vertical edge at x = 2, y = 0 and its two
+/// end vertices, and the union names each of the three `Merged` of both
+/// blocks' entities. A salt node inserted first moves every digest, `b`
+/// is authored before or after `a`, and the member list is given both
+/// ways round, so the answer is neither the digests' luck, nor which
+/// block was minted first, nor the list's order. The union is then
+/// re-pointed from `b` to a re-drawing of it (identical geometry, a
+/// later id): the corner is named for `a` and the re-drawing, whose
+/// read is a new key (DM4: re-pointing a member is a recipe edit), and
+/// every entity `a` carries whole keeps its name.
 #[test]
-fn redrawing_another_member_never_takes_a_held_flush_stretch() {
+fn a_held_flush_stretch_is_named_for_every_member_that_holds_it() {
     let tol = Tol::witness();
     for salt in 0..6u32 {
-        // Each list both ways round, so a rule keyed by list position
-        // rather than by mint order names the corner through `b` (or the
-        // re-drawing) in one of the two.
-        for reversed in [false, true] {
+        for (b_first, reversed) in [(false, false), (false, true), (true, false), (true, true)] {
             let listed = |x: RecipeNodeId, y: RecipeNodeId| {
                 if reversed { vec![y, x] } else { vec![x, y] }
             };
-            let case = format!(
-                "salt {salt}, {}",
-                if reversed {
-                    "listed later first"
-                } else {
-                    "listed in mint order"
-                }
-            );
+            let case = format!("salt {salt}, b authored first {b_first}, list reversed {reversed}");
             let doc = ProfileDoc::empty_derived("redraw-flush", tol);
             let (doc, _) = insert(
                 doc,
@@ -244,9 +234,18 @@ fn redrawing_another_member_never_takes_a_held_flush_stretch() {
                     position: [len(f64::from(salt)), len(0.0), len(0.0)],
                 }),
             );
-            let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-            let (doc, b) = block(doc, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-            let (doc, redrawn) = block(doc, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+            let a_block = |doc| block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+            let b_block = |doc| block(doc, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+            let (doc, a, b) = if b_first {
+                let (doc, b) = b_block(doc);
+                let (doc, a) = a_block(doc);
+                (doc, a, b)
+            } else {
+                let (doc, a) = a_block(doc);
+                let (doc, b) = b_block(doc);
+                (doc, a, b)
+            };
+            let (doc, redrawn) = b_block(doc);
             let (doc, union) = fixture::union_over(doc, &listed(a, b));
             let ev = run(&doc);
             assert!(
@@ -260,13 +259,41 @@ fn redrawing_another_member_never_takes_a_held_flush_stretch() {
                 3,
                 "{case}: the corner edge and its two ends: {held:?}"
             );
-            let a_read = fixture::out(&doc, a);
-            let senior = |name: &StableName| matches!(name.path.first(), Some(RoleSeg::From { read, .. }) if *read == a_read);
+            let both = |held: &[StableName], reads: [VarId; 2]| {
+                held.iter().all(|name| {
+                    let [RoleSeg::Merged(set)] = name.path.as_slice() else {
+                        return false;
+                    };
+                    let cited: Vec<VarId> = set
+                        .iter()
+                        .filter_map(|c| match c.path.first() {
+                            Some(RoleSeg::From { read, .. }) => Some(*read),
+                            _ => None,
+                        })
+                        .collect();
+                    cited.len() == set.len() && reads.iter().all(|r| cited.contains(r))
+                })
+            };
+            let (a_read, b_read) = (fixture::out(&doc, a), fixture::out(&doc, b));
             assert!(
-                held.iter().all(senior),
-                "{case}: the corner is named through the senior block: {held:?}"
+                both(&held, [a_read, b_read]),
+                "{case}: the corner is named for both blocks: {held:?}"
             );
 
+            let a_own = |ev: &Evaluation<f64>| -> Vec<StableName> {
+                table(ev, union)
+                    .iter()
+                    .filter(|(name, _)| {
+                        matches!(name.path.as_slice(), [RoleSeg::From { read, .. }] if *read == a_read)
+                    })
+                    .map(|(name, _)| name.clone())
+                    .collect()
+            };
+            let a_before = a_own(&ev);
+            assert!(
+                !a_before.is_empty(),
+                "{case}: `a` carries entities of its own whole"
+            );
             let (doc, _) = step(
                 doc,
                 DocEdit::SetMembers {
@@ -283,9 +310,15 @@ fn redrawing_another_member_never_takes_a_held_flush_stretch() {
                 failure(&ev, union)
             );
             assert_eq!(
-                shared_corner(&ev, union),
-                held,
-                "{case}: the re-drawn member took none of the held corner"
+                a_own(&ev),
+                a_before,
+                "{case}: re-pointing `b` leaves every entity `a` carries whole as it was"
+            );
+            let redrawn_read = fixture::out(&doc, redrawn);
+            let now = shared_corner(&ev, union);
+            assert!(
+                now.len() == 3 && both(&now, [a_read, redrawn_read]),
+                "{case}: the re-drawn corner is named for `a` and the re-drawing: {now:?}"
             );
         }
     }

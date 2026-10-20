@@ -79,7 +79,7 @@ kernel issues will be mixed together with unfixable cases".
   sign (X → −1/X), not one in it.
 
 Every arc is read except a `Bulge` leg whose authored bulge reads as a
-line. All reads go through `k_stats::check_unlogged` (audit row F23).
+line. All reads go through `k_stats::check_unlogged` (audit row F24).
 Exact scalars do not run any of it.
 
 **Outcomes.** Zero passes. A miss is `PathError::ArcMissesAuthoredPoint`,
