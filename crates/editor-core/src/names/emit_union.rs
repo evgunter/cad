@@ -534,11 +534,14 @@ type MemberEntity = (VarId, NameRef);
 /// The union's name for the line of member edges `line`: the one edge's
 /// line, or `Merged` of the several flush on it, flat and in name order.
 fn line_name(union: RecipeNodeId, line: &BTreeSet<MemberEntity>) -> NameRef {
-    NameRef::new(crate::names::merged::edge_set(
-        union,
-        line.iter()
-            .map(|e| (*edge_line(&NameRef::new(entity_name(union, e)))).clone()),
-    ))
+    let one = |e| edge_line(&NameRef::new(entity_name(union, e)));
+    match line.iter().collect::<Vec<_>>().as_slice() {
+        [e] => one(e),
+        several => NameRef::new(crate::names::merged::edge_set(
+            union,
+            several.iter().map(|e| (*one(e)).clone()),
+        )),
+    }
 }
 
 /// The member edge a line name is oriented by: the edge itself, or the
@@ -1461,14 +1464,15 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 at_v.insert((m.read, name.clone()));
             }
         }
-        if at_v.is_empty() {
-            return Ok(None);
-        }
-        let name = crate::names::merged::entity_set(
-            EntityKind::Vertex,
-            self.union,
-            at_v.iter().map(|w| entity_name(self.union, w)),
-        );
+        let name = match at_v.iter().collect::<Vec<_>>().as_slice() {
+            [] => return Ok(None),
+            [w] => entity_name(self.union, w),
+            several => crate::names::merged::entity_set(
+                EntityKind::Vertex,
+                self.union,
+                several.iter().map(|w| entity_name(self.union, w)),
+            ),
+        };
         Ok(Some((name, tied)))
     }
 }
