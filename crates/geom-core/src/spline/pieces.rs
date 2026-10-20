@@ -8,9 +8,14 @@ use core::ops::{Add, Mul, Sub};
 
 use crate::real::Real;
 
-/// `C(n, k)` as an `f64`, formed in integers: exact while it is at most
-/// `2⁵³`, which every `n ≤ 56` meets (`C(56, 28) < 2⁵³ < C(57, 28)`).
-/// `0` for `k > n`.
+/// The largest `n` whose every binomial [`binomial`] forms is an exact
+/// `f64`: `C(56, 28) < 2⁵³`, and `C(57, 25)` is the first that is not
+/// representable. The binomial tables' exactness caps read it
+/// (`super::compose`'s rows, `super::derivative`'s degree ceiling).
+pub const BINOMIAL_EXACT_MAX: usize = 56;
+
+/// `C(n, k)` as an `f64`, formed in integers: exact for every
+/// `n ≤` [`BINOMIAL_EXACT_MAX`]. `0` for `k > n`.
 #[must_use]
 pub fn binomial(n: usize, k: usize) -> f64 {
     if k > n {

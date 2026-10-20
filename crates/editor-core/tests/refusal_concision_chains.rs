@@ -258,7 +258,6 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
-    "BlendSelectionEmpty",
     "CrossingUnverified",
     "CurvedSolidFrontier",
     "DegenerateDirection",
@@ -858,7 +857,7 @@ test_utils::f6_variants! {
         VerbArity, Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
         PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, NegativeSpacing, DegenerateSpacing,
         DegenerateStep, FullRangeStep, PlacementsUncertified, PlacementRule, UnschedulableCycle,
-        Naming, UnionFoldStep, BlendSelectionEmpty, Shell, ShellLaneUnsupported,
+        Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
         FaceFrameNotPlanar, FaceFrameReadback, FrameDirection, WitnessBifurcation, Part, Mate,
         SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
         MeasureNotParallel, MeasureUnsupported, PayloadExpr, MeasureClearanceRefused,
@@ -1326,7 +1325,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::PlacementsUncertified { .. }
         | NodeErrorKind::UnschedulableCycle
         | NodeErrorKind::UnionFoldStep { .. }
-        | NodeErrorKind::BlendSelectionEmpty { .. }
         | NodeErrorKind::ShellLaneUnsupported { .. }
         | NodeErrorKind::FaceFrameNotPlanar { .. }
         | NodeErrorKind::CrossingUnverified { .. }
@@ -2050,12 +2048,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::PlacementsUncertified { i: 0, j: 1 },
         ),
         row("UnschedulableCycle", NodeErrorKind::UnschedulableCycle),
-        row(
-            "BlendSelectionEmpty",
-            NodeErrorKind::BlendSelectionEmpty {
-                verb: sweep::blend::BlendKind::Fillet,
-            },
-        ),
         row(
             "ShellLaneUnsupported",
             NodeErrorKind::ShellLaneUnsupported { scalar: "interval" },

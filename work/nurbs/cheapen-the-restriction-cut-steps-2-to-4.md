@@ -54,8 +54,8 @@ statistics:
    restriction, 14 of 19 samples are `split_restrict`'s own interval
    arithmetic (each thin step's two products fold four corners) and 1
    is allocation, so batching buys ≲2%. The corner fold's lever is
-   `Interval::mul_nonneg` (#5163) on the step's `[0, 1]` weights, a
-   bit-identical follow-up once it lands.
+   `Interval::mul_nonneg` (#5163) on the step's `[0, 1]` weights.
+   **Done in #5424** (8f1edb5f, bit-identical): shelling −7.6%, r1 −11%.
 4. **A one-piece cut** (no 2×2 halving), only if 1–3 leave the rows over
    target. It must not move any rung count, worst margin or the
    flat-wall row at 1e-9.
