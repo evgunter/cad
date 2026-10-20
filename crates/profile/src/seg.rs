@@ -1907,7 +1907,7 @@ mod pair_contact_tests {
     /// band, and a step that rounding hides then reads as a gap.
     #[test]
     fn a_gap_read_apart_is_a_real_gap_on_points_far_from_the_origin() {
-        let band = Band::new(1e-12, 1e-11).unwrap();
+        let band = Band::new(1e-12, 1e-11).unwrap_or_else(|e| panic!("band: {e}"));
         let mut rng = test_utils::fuzz::start("seg-gap-far");
         let mut fired = 0usize;
         for _ in 0..test_utils::fuzz::scaled(20_000) {

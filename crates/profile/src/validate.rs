@@ -1037,6 +1037,11 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "ray_side",
         kind: EndingKind::Sized,
     },
+    // how far apart two straight segments' projections lie along the first one's line
+    DecisionEnding {
+        name: "segment_gap",
+        kind: EndingKind::Sized,
+    },
     // a segment's bow: its quarter-angle tangent, levered by its length
     DecisionEnding {
         name: "segment_straightness",
@@ -1170,6 +1175,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "path_seam_arrival_turn" => "whether the seam arrival turns",
         "ray_advance" => "whether a crossing lies ahead on a containment ray",
         "ray_side" => "which side of a containment ray a point lies on",
+        "segment_gap" => "whether two straight segments lie apart along one of them",
         "segment_straightness" => "whether a segment is straight or an arc",
         "vertex_separation" => "whether a segment has any length",
         _ => return None,
