@@ -1675,3 +1675,14 @@ coincidence is now a margined verdict (no declarations), checked by the
     The fix pass removed `verdict()` and `RefusedArm::read` and keyed the word on the tag.
   - **Rows:** evidence added to pcert `band-scale-torus-geometry-ends-as-a-kernel-defect`; the Villarceau pin is renamed to show it pins a known-wrong ending. Evidence also added to restfront `an-at-rest-certify-lead-calls-a-gates-definite-rejection-undecided`.
   (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5437** (rows `the-dihedral-arm-noun-is-spelled-twice-…` and `zero-and-negative-payloads-of-one-decision-use-different-nouns`, both closed).
+  - The dihedral arm is a "width" in its check noun, its size word and its clause.
+  - The forward-span sentence has one home, `StatedSpan::tell`, which takes the subject (`STORED_INTERVAL` / `GIVEN_INTERVAL`). "Runs backwards by" appears only on a decided Negative.
+  - `WindingExceeded` says "turn".
+  - Plane×NURBS `NotTransverse` renders through certify's sentence, with its margin.
+  - The torus spindle clause is dropped, and `TubeNotSeparated` is reordered.
+  - Review: no MAJOR. The fix pass unified the arm's noun and replaced self-pins with literal pins.
+  - Filed: `a-certify-checks-word-and-its-definite-payload-name-one-decision-apart`.
+  - Notes added to iso `plane-nurbs-not-transverse…` (half fixed), ssimarch, and restfront `validate-window-leads…` (`classify_certify` is a hand-written second telling; sweep it as a class).
+  - A container restart mid-fix-pass was resumed without loss.
+  (ENCL orchestrator)
