@@ -37,10 +37,8 @@ pub(crate) use wire::{
     TRANSFORM_AXIS_ROLE, need_scalar, need_vec3, transform_map, unit as unit_direction,
 };
 
-pub(crate) use anchor::derive_naming;
-pub use anchor::{
-    CanonicalSegment, LoopAnchor, PiecesFault, ProfileNaming, ProfilePieces, ProfileValue,
-};
+pub use anchor::{CanonicalSegment, LoopAnchor, ProfileNaming, ProfilePieces, ProfileValue};
+pub(crate) use anchor::{derive_naming, validated_naming};
 pub use class::NodeErrorClass;
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::{DirectionRefusal, FramePlacement};
@@ -1367,13 +1365,6 @@ pub enum SplitSide<T: Decide> {
 // its symmetry; it is re-exported here, where a value payload is read.
 pub use crate::pose::PoseValue;
 
-// `NodeErrorKind::VerbArity` carries the kernel's verb name and
-// declared-arity types in a pub payload, so both cross with it — the
-// discriminant-crosses-with-the-refusal rule the pncad prelude writes
-// at its `BlendKind` row. Without these a consumer could match the
-// variant but never name what it caught.
-pub use verbs::{Arity, VerbKind};
-
 /// A node's typed failure: the wrapped cause plus the node it happened
 /// at (spec D2's context contract; slot context lives in
 /// [`NodeErrorKind::Expr`] — the PR 1 `NonFiniteResult` obligation).
@@ -1540,26 +1531,6 @@ pub enum NodeErrorKind {
         step: usize,
         /// The consumed decision, when the wall was the record.
         structure: Option<profile::StructureRefusal>,
-    },
-    /// The naming-anchor derivation failed to match a canonical loop
-    /// back to a program loop — an internal invariant break
-    /// (validate's canonical form is an exact reindexing of its
-    /// input), surfaced typed rather than panicking. It names no loop:
-    /// the derivation reports only that it failed.
-    ProfileAnchor,
-    /// The naming anchor, the replay record and the program's minted
-    /// step ids do not describe one program, so the profile's pieces
-    /// have no names — an internal invariant break, surfaced typed.
-    ProfilePieces {
-        /// Where the three disagree.
-        fault: PiecesFault,
-    },
-    /// The profile op found no replay record of the f64 pass for a
-    /// program loop the guided lift replays — an internal invariant
-    /// break, surfaced typed.
-    ProfileRecordMissing {
-        /// The program loop with no replay record.
-        loop_: u32,
     },
     /// The extrude op refused.
     Extrude(ExtrudeError),
@@ -1828,23 +1799,14 @@ pub enum NodeErrorKind {
     },
     /// The ambient tolerance could not form a classification band.
     Band(geom_core::BandError),
-    /// A slot the wiring expected was absent from the node — a wiring
-    /// bug surfaced typed (unreachable while `Node::slots` and the
-    /// wire agree; no panic paths in this crate).
+    /// A slot the wiring expected was absent from the node's evaluated
+    /// values, which only a kernel bug reaches (`Node::slots` and its
+    /// wire disagreeing). Raised by the datum, placement, pattern and
+    /// instance readers; every other reader panics on the same state
+    /// (`wire`'s `declared`).
     MissingSlot {
         /// The absent slot.
         slot: SlotId,
-    },
-    /// A verb was run through a door it does not declare —
-    /// [`NodeErrorKind::MissingSlot`]'s class: a wiring bug surfaced
-    /// typed (unreachable while the per-verb correspondences and the
-    /// run doors agree; no panic paths in this crate).
-    VerbArity {
-        /// The verb whose door refused.
-        verb: verbs::VerbKind,
-        /// The door the verb was handed to; the declared one is
-        /// `verb.arity()`.
-        given: verbs::Arity,
     },
     /// A decided predicate escalated (in-band indeterminacy).
     Escalated {
@@ -2274,20 +2236,6 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::ProfileReplay { loop_, error } => {
                 write!(f, "profile loop {loop_} refused at {error}")
             }
-            Self::ProfileAnchor => write!(
-                f,
-                "a loop of the validated profile did not match back to a loop of the program. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
-            Self::ProfilePieces { fault } => {
-                write!(f, "the profile's pieces have no names: {fault}")
-            }
-            Self::ProfileRecordMissing { loop_ } => write!(
-                f,
-                "profile loop {loop_} has no replay record from the f64 pass to guide its \
-                 lift. {}",
-                geom_core::KERNEL_DEFECT_ENDING
-            ),
             Self::Mate(fault) => write!(f, "the mate solve refused: {}", Said(&**fault, by)),
             Self::SpaceMismatch { a, b } => {
                 let space = |s: &crate::mate::Space| match s.loose() {
@@ -2479,21 +2427,6 @@ impl crate::spoken::Say for NodeErrorKind {
                     slot.label(),
                     geom_core::KERNEL_DEFECT_ENDING
                 )
-            }
-            // The sentence is single-homed at the run doors' own
-            // refusal (`verbs::VerbError::Arity`); this arm re-wraps
-            // the same fields and forwards its Display, so the two
-            // layers cannot drift apart.
-            Self::VerbArity { verb, given } => {
-                // The scalar is immaterial: this arm of the kernel's
-                // refusal carries none, and its sentence is a function
-                // of the two names it holds. One is named so the type
-                // is complete.
-                let refusal = verbs::VerbError::<f64>::Arity {
-                    verb: *verb,
-                    given: *given,
-                };
-                write!(f, "{refusal}. {}", geom_core::KERNEL_DEFECT_ENDING)
             }
             Self::Escalated { predicate, source } => {
                 // What the decision was deciding, in words; the name is
@@ -4993,8 +4926,8 @@ mod tag {
 /// EXISTING tag must never be reused for a new meaning, which is the
 /// rule every vocabulary in the key runs on ([`tag`]).
 ///
-/// It takes the payload-free [`verbs::VerbKind`] rather than a
-/// `&verbs::Verb<T>` because a content key is computed BEFORE the node's
+/// It takes the payload-free [`verbs::VerbKind`] rather than a verb
+/// payload because a content key is computed BEFORE the node's
 /// selection has resolved to arena keys or its slot to a scalar: at
 /// this point in evaluation there is no verb value to match on, only
 /// the verb's name — which is exactly what the tag is a function of.
@@ -5257,8 +5190,7 @@ where
             // fact hashed twice — with the two copies free to disagree
             // the day a frame's own key changes shape.
             // Present by eval_node's stage order (profiles resolve
-            // before keying); written defensively — no panic paths in
-            // this crate — and the presence word keeps an (impossible)
+            // before keying); the presence word keeps an (impossible)
             // absent-program key distinct from any real program's key
             // rather than aliasing an empty loop list, which the loop
             // count alone could not do. The structural words are the
@@ -5726,15 +5658,14 @@ where
                 h.write_tag(tag::slot::NOMINAL);
                 h.write_f64_bits(*n);
             }
-            // A count feeds no nominal ([`tag::slot`]). The mixed arms
-            // are unreachable — one door decided both lists' shapes
-            // off the same `SlotId::is_structural` — and are written
-            // rather than panicked: the lane value is the node's own
-            // answer, and dropping the nominal word from one slot can
-            // only ever merge keys the mixed shape already made
-            // impossible.
-            (slots::SlotVal::Count(c), _) => h.write_i64(*c),
-            (slots::SlotVal::Scalar(v), slots::SlotVal::Count(_)) => v.feed(&mut h),
+            // A count feeds no nominal ([`tag::slot`]).
+            (slots::SlotVal::Count(c), slots::SlotVal::Count(_)) => h.write_i64(*c),
+            (slots::SlotVal::Count(_), slots::SlotVal::Scalar(_))
+            | (slots::SlotVal::Scalar(_), slots::SlotVal::Count(_)) => unreachable!(
+                "slot {slot:?} evaluated as a count at one environment and a scalar at the \
+                 other, though `slots::eval_rows` decides the kind off `SlotId::is_structural` \
+                 alone"
+            ),
         }
     }
     // The node's evaluated PAYLOAD expressions, in `payload_exprs`

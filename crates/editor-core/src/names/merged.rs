@@ -117,6 +117,17 @@ pub(crate) fn edge_set(
     node: crate::node::RecipeNodeId,
     along: impl IntoIterator<Item = StableName>,
 ) -> StableName {
+    entity_set(super::role::EntityKind::Edge, node, along)
+}
+
+/// [`edge_set`] for an entity of any `kind`: a union's vertex that sits
+/// at several members' vertices is `Merged` of them, as its edge that
+/// lies within several members' edges is.
+pub(crate) fn entity_set(
+    kind: super::role::EntityKind,
+    node: crate::node::RecipeNodeId,
+    along: impl IntoIterator<Item = StableName>,
+) -> StableName {
     let mut names = std::collections::BTreeSet::new();
     for n in along {
         match constituents_through_wrappers(&n) {
@@ -127,7 +138,7 @@ pub(crate) fn edge_set(
         }
     }
     super::canonical::minted(StableName {
-        kind: super::role::EntityKind::Edge,
+        kind,
         node,
         path: vec![RoleSeg::Merged(names.into_iter().collect())],
     })

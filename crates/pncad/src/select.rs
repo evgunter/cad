@@ -85,7 +85,7 @@
 // stop. A payload whose vocabulary one of the curated
 // lists owns lives on THAT list, spelled once; a payload whose only
 // home is the refusal holding it rides its carrier, which is what
-// `crate::document`'s `VerbKind` does. The cost is one extra `use`
+// `crate::document`'s `NodeRefusal` does. The cost is one extra `use`
 // for a consumer of `pncad::document` alone, and the cost the other
 // way is the same name on two lists.
 pub use editor_core::{
@@ -107,7 +107,8 @@ pub use editor_core::{
 /// [`ContactClass`], [`ContactRefusal`] and [`ContactVerdict`] are
 /// above, lifted from `editor_core`; the finding itself is `topo`'s
 /// and was reachable only one module hop away. It is what
-/// `CensusContact::ConformalPatch` carries, so a caller matching a
+/// `CensusContact::ConformalPatch` and `CensusContact::FaceFaceTangent`
+/// carry, so a caller matching a
 /// prelude-curated `ValidationError` down to that arm was binding a
 /// value whose type this list did not name — and it is what the flush
 /// detector's own vocabulary is built from, since a

@@ -196,6 +196,7 @@ fn contact_kind(c: &CensusContact) -> &'static str {
         CensusContact::EdgeFaceOverlap { .. } => "EdgeFaceOverlap",
         CensusContact::EdgeFacePierce { .. } => "EdgeFacePierce",
         CensusContact::EdgeEdgeCross { .. } => "EdgeEdgeCross",
+        CensusContact::FaceFaceTangent { .. } => "FaceFaceTangent",
         CensusContact::ConformalPatch { .. } => "ConformalPatch",
     }
 }
