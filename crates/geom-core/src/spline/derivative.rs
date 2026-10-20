@@ -897,6 +897,12 @@ fn grid_pieces<T: Real, const D: usize>(
     grid: &Grid<T, D>,
     counts: (usize, usize),
 ) -> Option<Vec<Grid<T, D>>> {
+    // A one-channel grid here is a weight power: counted where it is
+    // halved, so a reader that halves one twice reads two.
+    #[cfg(test)]
+    if D == 1 {
+        tests::WEIGHT_HALVINGS.with(|n| n.set(n.get() + 1));
+    }
     let mut out = Vec::with_capacity(counts.0 * counts.1);
     for g in halvings(grid.clone(), counts.0, |g| g.halved(true))? {
         out.extend(halvings(g, counts.1, |g| g.halved(false))?);
@@ -915,8 +921,6 @@ fn shared_pieces<T: Real, const D: usize, const N: usize>(
     denom: &Grid<T, 1>,
     counts: (usize, usize),
 ) -> Option<[Vec<QuotientPiece<T, D>>; N]> {
-    #[cfg(test)]
-    tests::WEIGHT_HALVINGS.with(|n| n.set(n.get() + 1));
     let denoms: Vec<Vec<T>> = grid_pieces(denom, counts)?
         .iter()
         .map(|d| d.c.iter().map(|w| w.0[0]).collect())
@@ -1342,10 +1346,13 @@ impl<T: Real> CellFirstQuotients<T> {
     /// `v`, the area absent.
     #[must_use]
     pub fn pieces(&self, splits: (usize, usize)) -> Option<Vec<CellQuotients<T>>> {
-        let (u, v) = (
-            self.axis_pieces(true, splits)?,
-            self.axis_pieces(false, splits)?,
-        );
+        // `S_u` and `S_v` share `W²` (`Homogeneous::first_raised`): one
+        // halving of it serves both numerators.
+        let [u, v] = shared_pieces(
+            [&self.u.numer, &self.v.numer],
+            &self.u.denom,
+            halving_counts(splits),
+        )?;
         Some(
             u.into_iter()
                 .zip(v)
@@ -1411,11 +1418,15 @@ impl CellFirstQuotients<crate::interval::Interval> {
         splits: (usize, usize),
     ) -> (Option<IntervalPieces>, Option<IntervalPieces>) {
         let counts = halving_counts(splits);
-        let (u, v) = self.restrict_axes(cuts, axes);
-        (
-            u.and_then(|r| r.pieces(counts)),
-            v.and_then(|r| r.pieces(counts)),
-        )
+        match self.restrict_axes(cuts, axes) {
+            // Both axes share the one restricted `W²`: halved once.
+            (Some(u), Some(v)) => shared_pieces([&u.numer, &v.numer], &u.denom, counts)
+                .map_or((None, None), |[u, v]| (Some(u), Some(v))),
+            (u, v) => (
+                u.and_then(|r| r.pieces(counts)),
+                v.and_then(|r| r.pieces(counts)),
+            ),
+        }
     }
 
     /// The asked axes' quotients restricted; `S_u` and `S_v` share `W²`
@@ -2387,6 +2398,59 @@ mod tests {
                 2,
                 "W² and W³ once each, splits {splits:?}"
             );
+        }
+    }
+
+    /// **A cut reader halves its weight power once.**
+    /// [`super::CellFirstQuotients::pieces`] and the both-axes
+    /// [`super::CellFirstQuotients::cut_pieces`] pair one halving of the
+    /// shared `W²` with `S_u`'s and `S_v`'s numerators; a one-axis cut
+    /// halves it once for its one numerator, and a cut that asks for no
+    /// axis halves nothing. Counted where a weight power is halved, so red
+    /// if a reader, or `shared_pieces` itself, halves the shared `W²` once
+    /// per numerator.
+    #[test]
+    fn a_cut_reader_halves_its_weight_power_once() {
+        let RationalCell {
+            a,
+            w,
+            knots_u,
+            knots_v,
+            ku,
+            kv,
+        } = rational_cell();
+        let axes = (
+            super::CellAxis::Span(ku.span(3).expect("the span"), &knots_u[..]),
+            super::CellAxis::Span(kv.span(2).expect("the span"), &knots_v[..]),
+        );
+        let whole =
+            super::cell_first_quotients(axes, super::CellBlock::Homogeneous { a: &a, w: &w })
+                .expect("a block under the ceiling");
+        let halvings = |f: &dyn Fn()| {
+            let before = WEIGHT_HALVINGS.with(core::cell::Cell::get);
+            f();
+            WEIGHT_HALVINGS.with(core::cell::Cell::get) - before
+        };
+        let cuts = (
+            Some(((0.0, 1.0), (0.25, 0.5))),
+            Some(((0.0, 1.0), (0.5, 0.75))),
+        );
+        for splits in [(1, 1), (2, 2), (4, 2)] {
+            let whole_pieces = || {
+                whole.pieces(splits).expect("the whole pieces");
+            };
+            assert_eq!(halvings(&whole_pieces), 1, "the whole cell, {splits:?}");
+            for (asked, want) in [
+                ((true, true), 1),
+                ((true, false), 1),
+                ((false, true), 1),
+                ((false, false), 0),
+            ] {
+                let cut = || {
+                    let _ = whole.cut_pieces(cuts, asked, splits);
+                };
+                assert_eq!(halvings(&cut), want, "a cut asking {asked:?}, {splits:?}");
+            }
         }
     }
 
