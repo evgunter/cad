@@ -6667,3 +6667,10 @@ Signed (WIRE orchestrator).
   - Both recommend name order everywhere and retiring Seams, of_published and the MergedChord arms.
   - Divergent premise: one assumes the sides carry their read, while the other measured bare operand names (a Transform-copy subtract keeps distinct seams apart only by slot, and its four Crossings tie). The other's design is node-space sides, then name order.
   - Filed a-subtract-of-a-transform-copy-ties-its-seam-crossings (P2). Crossover round 1 sent.
+
+- 2026-10-20 (WIRE orchestrator) FORK-PAIRSEAM converged in one round.
+  - B verified the sides are bare and adopted A's node-table sides; A adopted B's vertex and one-operand rules.
+  - [ev] PR 5423 edits N3 and N2's parenthesis, with fork-log row 178. 177 is 5411's, and a contacthold PR also cites 177, so renumber on merge.
+  - One small split for Ev: a chord within both inputs' rims is SharedRim or a defect.
+  - Before sending, the shared premise was checked against N3's ratified words ('an unmerged face's own name'): the clarified reading is consistent with it, and the order clause is new.
+  - Subscribed.
