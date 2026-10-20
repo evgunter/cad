@@ -1,0 +1,97 @@
+diff --git a/crates/topo/src/boolean/solid_contain.rs b/crates/topo/src/boolean/solid_contain.rs
+index a1b2af3f..97abb373 100644
+--- a/crates/topo/src/boolean/solid_contain.rs
++++ b/crates/topo/src/boolean/solid_contain.rs
+@@ -4687,12 +4687,13 @@ fn edge_meets<T: Decide>(
+         }
+         let wedge = meets.met.iter().position(|w| {
+             [w.1, w.2].iter().any(|f| faces.contains(f))
+-                || body.get_edge(w.0).is_some_and(|e| {
++                || std::env::var("EMR_FACEWEDGE").is_err() && body.get_edge(w.0).is_some_and(|e| {
+                     let start = |h| body.get_half_edge(h).map(|he| he.start);
+                     let theirs = [start(e.he_plus), start(e.he_minus)];
+                     pass.ends.iter().any(|v| theirs.contains(&Some(*v)))
+                 })
+         });
++        let wedge = if std::env::var("EMR_NOWEDGE").is_ok() { None } else { wedge };
+         if let Some(k) = wedge {
+             let gap = gap.or(gaps[k]);
+             meets.marks.push(mark(faces, at, gap));
+@@ -5415,7 +5416,11 @@ pub(crate) fn ray_crossings<T: Decide>(
+             }
+         }
+     }
+-    Ok(crossings.into_inner())
++    let crossings = crossings.into_inner();
++    if std::env::var("EMR_DUMP").is_ok() {
++        eprintln!("EMRDUMP q={q:?} d={d:?}\n{}", crossings.dump());
++    }
++    Ok(crossings)
+ }
+ 
+ /// A query's reading of its selection's side at infinity, taken once
+@@ -5902,6 +5907,37 @@ mod per_solid_entry_tests {
+         ));
+     }
+ 
++    /// Review R2 probe: two unit cubes `g = 15ε` apart (their facing
++    /// faces definite at `Kε`), a ray crossing the gap's mouth into the
++    /// second cube near its top edge: what the edge-meeting count reads.
++    #[test]
++    fn review_r2_two_edges_of_faces_definite_apart() {
++        let tol = Tol::witness();
++        let band = Band::linear(tol).unwrap();
++        for m in [12.0, 15.0, 19.0, 25.0, 40.0] {
++            let g = m * tol.eps();
++            let mut body = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
++            let other = quad_prism(
++                &[(1.0 + g, 0.0), (2.0 + g, 0.0), (2.0 + g, 1.0), (1.0 + g, 1.0)],
++                1.0,
++                tol,
++            );
++            crate::instance::graft_disjoint(&mut body, &other).unwrap();
++            let sel = SolidFaces::select(&body, body.faces().map(|(k, _)| k).collect()).unwrap();
++            let geos: Vec<_> = sel
++                .faces()
++                .iter()
++                .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
++                .collect();
++            let d = Vec3::new(0.5, 0.3, -1.0).normalize();
++            // Through `(1 + g/2, 0.5, 1)`, from above.
++            let q = Point3::new(1.0 + 0.5 * g, 0.5, 1.0) - d * 2.0;
++            let reach = selection_reach(&body, sel.faces(), q).unwrap();
++            let got = cast_ray(&body, &geos, q, d, reach, band);
++            eprintln!("R2GAP m={m} eps={:e}: {:?}", tol.eps(), got.map_err(|e| format!("{e:?}").chars().take(160).collect::<String>()));
++        }
++    }
++
+     fn solids(body: &Body<f64>) -> (SolidKey, SolidKey) {
+         let v: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
+         (v[0], v[1])
+diff --git a/crates/topo/src/ray_walk.rs b/crates/topo/src/ray_walk.rs
+index 0a5180d0..70aac3d6 100644
+--- a/crates/topo/src/ray_walk.rs
++++ b/crates/topo/src/ray_walk.rs
+@@ -345,6 +345,22 @@ impl<T: Decide, H> Crossings<T, H> {
+         self.spans.push((from, to));
+     }
+ 
++    /// Review probe: every crossing as text.
++    pub(crate) fn dump(&self) -> String
++    where
++        T: core::fmt::Debug,
++        H: core::fmt::Debug,
++    {
++        let mut v: Vec<String> = self
++            .ahead
++            .iter()
++            .zip(&self.spans)
++            .map(|((at, h, sl), sp)| format!("  at={at:?} span={sp:?} sideless={sl} {h:?}"))
++            .collect();
++        v.sort();
++        v.join("\n")
++    }
++
+     /// The closest crossing's hit, `None` when the ray met nothing.
+     ///
+     /// The closest is the least by the caller's `order` row. Every other
