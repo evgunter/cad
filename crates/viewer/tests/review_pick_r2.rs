@@ -167,7 +167,20 @@ struct Tally {
 /// `part_select` bump their cut's variable). 738 fewer rays, 1503 more
 /// grazes, 36 fewer refused candidates, 96 more rays with a refusal.
 /// No genuine crossing is refused.
-const PINNED: (usize, usize, usize, usize) = (440_460, 143_278, 13_488, 7_032);
+///
+/// It moved for the identity bundle (FORK-REST), from `(440460, 143278,
+/// 13488, 7032)`, measured landing by landing against D's head before
+/// the change (`434139ef1c`): every landing reads what it read there
+/// but one, `tube_arc` after its first edit, 887 fewer grazes, 186 more
+/// refused candidates, 60 more rays with a refusal. There the tube's
+/// copy stood by a mate read off its own geometry, so after the edit it
+/// was placed by that mate's solved map; it now stands by the identity
+/// bundle, its source's geometry at every value. The gallery ring is
+/// regenerated with it (`common::GALLERY_RING`) and reads what it read;
+/// the old ring, an `Axis` mate the snap placed by no map, would now
+/// run its quarter-turn map (738 more refused candidates). No genuine
+/// crossing is refused.
+const PINNED: (usize, usize, usize, usize) = (440_460, 142_391, 13_674, 7_092);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

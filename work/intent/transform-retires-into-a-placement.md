@@ -326,12 +326,22 @@ TODO from lanes.
 
 TODO: what moved and why (the re-bless lane's log). The lane of 2026-10-19/20 re-pinned perf12 (all ε), intent_s2_c_world, edit_placement_corpus_bits, perf2, lib_g16, name_words' digest, seat7, seat8, display_budget and review_pick_r2, each with its reason in its file.
 
+The lane of 2026-10-20 (rulings 1 and 2), each with its reason in its file, attributed against D's head before the rulings (`434139ef1c`, measured in a worktree) and, for sym11's `frozen`, main before D (`1fcd4bd807`):
+- **Ids only (the identity bundle mints a different number of ids from the plane mate and three values it replaces; every standing copy is bit-identical to its source):** seat4 (heat_sink), seat7, seat8, lib_g16, perf2 (and the persisted text of every document with a stand), edit_placement_corpus_bits, name_words' digest, perf12 at all ε (byte-identical with every `digest:` masked), msolve14 a3 at all ε (green at `434139ef1c`), m10_p_fence's `f64` and Probe numbers (the id-free number is `434139ef1c`'s, every document's one by one).
+- **FORK-REST (a mated placement runs its map where the snap placed it by no map):** seat4's empty boolean; m10_bulge (the literal D-tab runs its map, so both spellings share one table and the overlay retires); m10_10 ×2 and the plate's ledger in m10_sym_profile (the plate's holes; rows that read their rims doubled); m10_9 and sym_9's kept-atom row on the plate alone (945 -> 1253 symbolic); sym11's plate row; m10_p_fence's `Interval` number.
+- **Moved before the rulings, on the lane of 2026-10-19/20 (main's merge at `0a1d95321e` and two corpus port fixes), left red there unattributed, and re-taken here at the values `434139ef1c` reads:** m10_9's other four documents and the pad's rule-F row, sym_9's other four and its drive leaf, sym11's other four, the slab's ledger, m10_6's certifying keys, m10_p_fence's id-free number, the boss's pcurve rows in m10_bulge.
+- **The identity bundle in a stored document:** `crates/viewer/tests/gallery_ring.pncad` (regenerated from `demo-tour gallery`; the old ring's `Axis` mate, which the snap placed by no map, would now run its quarter-turn map) and `crates/pncad/tests/plate_param.pncad` (`PNCAD_BLESS`).
+- **review_pick_r2's tally:** one landing moved, `tube_arc` after its first edit, whose copy stood by a mate read off its own geometry and now stands by the identity bundle (measured landing by landing against `434139ef1c`).
+- **Restated:** `revalue_boss_union` owes no laundering (FORK-REST removes its `bool_pair_gap` swap; evidence on its inlane item); sym11's `frozen` column explained in its file (Degree freezes on products of a datum frame's forms before D; low-degree forms in a construction's own coordinates in D; Degree freezes back on the plate where its holes' maps run).
+
 #### Items filed
 
 - `a-value-charted-on-the-target-reads-frame-carries-the-datum-chain` (P2): the (B) lever.
 - `an-inline-at-a-moved-landing-reading-a-variable-refuses` (P2): the narrowing above.
 - `a-loft-set-members-cannot-add-a-section` (P2): a members edit that adds a section has no station.
-- `a-stand-on-a-revolve-shares-its-written-axis-numbers` (P1, design): `stand` shares a revolve's written axis numbers, which the edit door refuses; the viewer's ring stream waits on it.
+- `a-stand-on-a-revolve-shares-its-written-axis-numbers` (P1, design): closed by ruling 2 (`stand` writes the identity bundle, which reads no axis number).
+- Closed by FORK-REST: `a-placed-copy-rests-at-the-identity-only-at-the-nominal`, `a-symbolic-runs-copy-decided-at-rest-keeps-its-map`.
+- Evidence added: `a-turn-by-the-nearest-quarter-turn-rounds` (m10_di_dual's 16 escalations still occur; die_composed's fillet refuses on the Interval lane at ε = 1e-12, so m10_p_fence's Interval fence reads another number on the nightly's 1e-12 row), `under-the-guided-lift-boss-unions-bool-pair-gap-decisions-swap-order-under-the-apart-move` (the swap is gone; the parting stays).
 - TODO: from lanes.
 
 #### The anchor census (for the record)
