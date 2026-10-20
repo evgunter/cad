@@ -20,3 +20,15 @@ arm. No CPAIR row covered it (the task named FUSE's
 `curve-pair-polish-meters-refuse-shallow-meetings`, which is about the
 polish meters, untouched). Its sweep filed
 `the-curve-pair-pose-reads-a-conics-whole-carrier-before-its-arc` here.
+
+## 2026-10-20 — NURBS build A: one reading of two spans on one line (PR 1 of 4)
+
+`two-spans-projections-on-one-line-are-read-four-ways`, staged in four PRs.
+PR 1 adds `geom::one_line` (`OnOneLine`, `on_one_line`, `on_one_line_2d`):
+b's projection on a's axis, read from a's span start, with
+`geom_core::rounding_charge` of the four points' metres. The curve-pair
+router's line-line gap reads it. `rounding_charge` and
+`HARMONIC_NOISE_ULPS` move from `geom_brep::implicit` to `geom_core`
+(re-exported where they were) so `profile` can charge alike. Still to
+come, each on its own program's ground: check 9 (RESTFRONT),
+`profile::seg` (PATHS) and the census (topo). — (NURBS build A)
