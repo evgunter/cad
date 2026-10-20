@@ -62,6 +62,8 @@ mod a_carried_record_no_reading_covers;
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
 #[path = "a_curved_keel_in_the_plane.rs"]
 mod a_curved_keel_in_the_plane;
+#[path = "a_curved_keel_on_the_floor_refuses_its_slit_form.rs"]
+mod a_curved_keel_on_the_floor_refuses_its_slit_form;
 #[path = "a_face_off_the_tangent_ruling.rs"]
 mod a_face_off_the_tangent_ruling;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
