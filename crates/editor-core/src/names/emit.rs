@@ -147,9 +147,11 @@ pub enum NamingError {
     /// about and how it failed.
     Settle(SettleError),
     /// A pair boolean's seam VERTEX left half-decided by the edges
-    /// around it: every edge at it descends from one edge of operand A,
-    /// no edge of operand B and no seam reaches it, and nothing else
-    /// (an operand vertex, a contact row) names the missing B parent.
+    /// around it: the incident edges' parents fit none of the shapes the
+    /// vertex pass names — one operand's edge with no single face of the
+    /// other across it, its mirror, several edges of each operand, or a
+    /// seam between two faces of one operand — and nothing else (an
+    /// operand vertex, a contact row) names it.
     ///
     /// **Not an emission inconsistency**, and the test is the same one
     /// [`Self::Band`] applies: nothing about the result body is wrong
@@ -158,12 +160,8 @@ pub enum NamingError {
     /// the merged wall — and what such an author needs is that the
     /// emitter has no rule for this shape, not an instruction to file a
     /// kernel bug. Maximal edges join that witness's vertex away, and no
-    /// document reaches it now.
-    ///
-    /// **It is raised from a NAMED shape, not from a catch-all.** The
-    /// vertex pass's `_` arm is the preimage of every case nobody has
-    /// enumerated, and a shape nobody has reached is not a shape known
-    /// to be legal; that residue keeps [`Self::Emission`].
+    /// document reaches it now; nothing proves the other shapes
+    /// unreachable, so they take the same ending.
     ///
     /// Carries the vertex — a key in the RESULT body — which is the one
     /// thing a sentence cannot supply and where a rule would apply.
@@ -494,8 +492,8 @@ impl crate::spoken::Say for NamingError {
             // and the vertex is where a rule would be applied.
             Self::SeamVertexParentage { vertex } => write!(
                 f,
-                "{UNRULED_FRAMING}: seam vertex {vertex:?} lies on one edge of operand A and on \
-                 no edge or face of operand B, so its parentage is half-decided"
+                "{UNRULED_FRAMING}: seam vertex {vertex:?} meets edges whose parents fit no \
+                 shape a naming rule reads, so its parentage is half-decided"
             ),
             // The node rides in the sentence, not only in the payload:
             // the two keys are an OPERAND body's, so a reader handed
@@ -1867,9 +1865,9 @@ mod display_tests {
                 // payload that greps to nothing would outlive its own
                 // subject.
                 NamingError::Emission {
-                    what: "section face classified On",
+                    what: "a chart cut survives in the result",
                 },
-                vec!["section face classified On"],
+                vec!["a chart cut survives in the result"],
             ),
             (
                 NamingError::Escalated {
@@ -2272,7 +2270,9 @@ mod display_tests {
 /// **Each hop of the hand-written walks refuses in its own words**,
 /// driven through a real body with that hop's entity removed
 /// (`Body::with_entity_removed_for_tests`, `topo`'s `sweep-testing`
-/// failure-injection door) and asserted by the sentence it refuses with.
+/// failure-injection door) and asserted by the sentence it refuses with
+/// (`chord_faces` panics instead, a torn body being a kernel bug, and is
+/// asserted by its panic's words).
 ///
 /// The walks: [`rim_between`] and `emit_topo`'s `chord_faces` (half-edge
 /// → mate → mate's loop → face), [`face_half_edges`] (face → loop →
@@ -2400,27 +2400,43 @@ mod walk_tests {
         assert_eq!(walk(&r.without(r.wall_loop())), "rim walk: dangling loop");
     }
 
-    #[test]
-    fn the_chord_walk_refuses_each_hop_in_its_own_words() {
-        let r = rim1();
+    /// The chord walk over the cube's top as a section face, through
+    /// `body`.
+    fn chord_walk(r: &Rim1, body: &Body<f64>) -> BTreeMap<EdgeKey, FaceKey> {
         let sections = [(r.top, PlaneSide::Above)];
         let keys = BTreeSet::from([r.top]);
-        let control = chord_faces(r.body(), &sections, &keys).unwrap();
+        chord_faces(body, &sections, &keys).unwrap()
+    }
+
+    #[test]
+    fn the_chord_walk_carries_the_rim_to_the_face_across_it() {
+        let r = rim1();
         assert_eq!(
-            control.get(&r.edge),
+            chord_walk(&r, r.body()).get(&r.edge),
             Some(&r.wall),
             "the control carries the rim edge to the wall across it"
         );
-        let walk = |body: &Body<f64>| refusal("chord_faces", chord_faces(body, &sections, &keys));
-        assert_eq!(
-            walk(&r.without(EntityId::Edge(r.edge))),
-            "chord mate missing"
-        );
-        assert_eq!(
-            walk(&r.without(EntityId::HalfEdge(r.mate))),
-            "chord mate dangling"
-        );
-        assert_eq!(walk(&r.without(r.wall_loop())), "chord loop dangling");
+    }
+
+    #[test]
+    #[should_panic(expected = "chord mate missing")]
+    fn the_chord_walk_panics_on_an_unmated_half_edge() {
+        let r = rim1();
+        chord_walk(&r, &r.without(EntityId::Edge(r.edge)));
+    }
+
+    #[test]
+    #[should_panic(expected = "chord mate dangling")]
+    fn the_chord_walk_panics_on_a_dangling_mate() {
+        let r = rim1();
+        chord_walk(&r, &r.without(EntityId::HalfEdge(r.mate)));
+    }
+
+    #[test]
+    #[should_panic(expected = "chord loop dangling")]
+    fn the_chord_walk_panics_on_a_dangling_loop() {
+        let r = rim1();
+        chord_walk(&r, &r.without(r.wall_loop()));
     }
 
     #[test]

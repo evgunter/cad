@@ -2636,9 +2636,9 @@ fn naming_error_display_names_its_content_not_its_struct() {
         ),
         (
             NamingError::Emission {
-                what: "section face classified On",
+                what: "a chart cut survives in the result",
             },
-            vec!["section face classified On"],
+            vec!["a chart cut survives in the result"],
         ),
         (
             NamingError::SplitLineage(topo::SplitLineageCycle { edge }),

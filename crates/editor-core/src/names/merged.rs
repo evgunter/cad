@@ -21,9 +21,11 @@
 use super::role::{CapEnd, EntityKind, MeridianEnd, NameRef, PieceRun, RoleSeg, StableName};
 
 /// The emission bug a nested merged face is — a `Merged` constituent
-/// that is itself a merged face, through any wrapping — refused at
-/// the mint (`emit_topo`) and again at the union's collapse
-/// (`emit_union`): one rule, two doors.
+/// that is itself a merged face, through any wrapping. `emit_topo`'s two
+/// mints (a split's merge and a boolean's merge loop) panic on it, as
+/// each builds its set from flat names. The union's collapse
+/// (`emit_union`) holds the same rule at its own door, with its own
+/// ending.
 pub(crate) const NESTED_MERGED: &str =
     "a boolean table carries a merged face whose constituent is itself a merged face";
 
