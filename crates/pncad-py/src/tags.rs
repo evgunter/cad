@@ -1779,8 +1779,6 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         // bug, and these are not one.
         NamingError::SeamVertexParentage { .. } => "seam_vertex_parentage",
         NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
-        NamingError::MergedChord { .. } => "merged_chord",
-        NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
         NamingError::ConventionalVertex { .. } => "conventional_vertex",
         NamingError::ClosedCarrierUnread { .. } => "closed_carrier_unread",

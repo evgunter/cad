@@ -86,8 +86,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/SeamVertexParentage",
     "Naming/SeamVertexPartners",
     "Naming/SharedRim",
-    "Naming/MergedChord",
-    "Naming/MergedChordOffRim",
     "Naming/ConventionalVertex",
     "Naming/ClosedCarrierUnread",
     "Naming/CarrierUnplaced",
@@ -4633,20 +4631,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             NamingError::SeamVertexPartners {
                 vertex: topo::VertexKey::default(),
                 candidates: vec![stable(EntityKind::Vertex, 3), stable(EntityKind::Vertex, 4)],
-            },
-        ),
-        (
-            "MergedChord",
-            NamingError::MergedChord {
-                edge: topo::EdgeKey::default(),
-            },
-        ),
-        (
-            "MergedChordOffRim",
-            NamingError::MergedChordOffRim {
-                edge: topo::EdgeKey::default(),
-                node: RecipeNodeId::new(0, tagged(3)),
-                rim: topo::EdgeKey::default(),
             },
         ),
         (

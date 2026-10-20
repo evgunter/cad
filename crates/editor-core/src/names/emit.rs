@@ -37,7 +37,6 @@ use crate::node::RecipeNodeId;
 ///    stands on — *nothing about the result body is wrong here*.
 /// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
-///    [`Self::MergedChord`], [`Self::MergedChordOffRim`],
 ///    [`Self::MemberEdgeTied`],
 ///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`],
 ///    [`Self::CarrierUnplaced`] and [`Self::PartnerUnread`],
@@ -241,37 +240,6 @@ pub enum NamingError {
         other: FaceKey,
         /// What the walk found instead of one edge.
         found: RimShare,
-    },
-    /// A boolean's chord between two MERGED faces that no rule names.
-    ///
-    /// Each merged face holds faces of both sides, so the faces do not
-    /// say which side the chord belongs to. The rule that exists reads
-    /// the chord on the side its own key descends to and names it as
-    /// the rim a face of that side in one merged face shares with one in
-    /// the other — when the chord lies within that rim, which is checked
-    /// geometrically (`emit_topo`'s `chord_within`). This is the refusal for a chord
-    /// with no key side to read through to: a zip-listed edge, which
-    /// the join minted. It does not say the body is wrong; what is
-    /// missing is a rule for the chord.
-    MergedChord {
-        /// The result-body edge.
-        edge: EdgeKey,
-    },
-    /// A boolean's chord between two faces of one operand, one of them
-    /// at least MERGED, that lies within no rim of that operand between
-    /// a face on one side of it and a face on the other — the other case
-    /// [`Self::MergedChord`]'s rule does not cover, a sibling word
-    /// because its subject carries a rim it lies off as well (the least
-    /// by name). A union names such a chord beside one merged face as
-    /// the seam of the two faces' parents; between two merged faces, and
-    /// at a subtract or an intersect, no rule does.
-    MergedChordOffRim {
-        /// The result-body edge.
-        edge: EdgeKey,
-        /// The operand node whose body holds `rim`.
-        node: RecipeNodeId,
-        /// The rim the read-through offered, in that operand's body.
-        rim: EdgeKey,
     },
     /// A **conventional vertex** (`topo::is_conventional_vertex`: its
     /// only edge is one closed edge, at both its ends) that a table
@@ -542,11 +510,6 @@ impl crate::spoken::Say for NamingError {
                     .collect::<Vec<_>>()
                     .join("; ")
             ),
-            Self::MergedChord { edge } => write!(
-                f,
-                "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces and is \
-                 the join's own edge, so neither face nor key says which operand's rim it is"
-            ),
             Self::ClosedCarrierUnread { edge, carrier } => write!(
                 f,
                 "{UNRULED_FRAMING}: joined edge {edge:?} is closed on its {} carrier, which has \
@@ -590,13 +553,6 @@ impl crate::spoken::Say for NamingError {
                  edge's conventional vertex, which has no identity of its own, and the name it \
                  takes from its edge is not built yet \
                  (work/seamrank/a-conventional-vertex-mints-no-edge-derived-name)"
-            ),
-            Self::MergedChordOffRim { edge, node, rim } => write!(
-                f,
-                "{UNRULED_FRAMING}: seam chord {edge:?} lies between two faces of one \
-                 operand, one merged, and within neither the rim {rim:?} of operand {}'s body \
-                 it lies along nor any other rim between them",
-                by.node(*node)
             ),
             Self::MemberEdgeTied { member, edge } => write!(
                 f,
@@ -681,8 +637,6 @@ impl NamingError {
             Self::SeamVertexParentage { .. }
             | Self::SeamVertexPartners { .. }
             | Self::SharedRim { .. }
-            | Self::MergedChord { .. }
-            | Self::MergedChordOffRim { .. }
             | Self::ConventionalVertex { .. }
             | Self::ClosedCarrierUnread { .. }
             | Self::CarrierUnplaced { .. }
@@ -1941,20 +1895,6 @@ mod display_tests {
                 ],
             ),
             (
-                NamingError::MergedChord {
-                    edge: two_edges().0,
-                },
-                vec!["merged faces", "the join's own edge"],
-            ),
-            (
-                NamingError::MergedChordOffRim {
-                    edge: two_edges().0,
-                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(29)),
-                    rim: two_edges().1,
-                },
-                vec!["one merged", "00000000001d", "within neither the rim"],
-            ),
-            (
                 NamingError::ClosedCarrierUnread {
                     edge: EdgeKey::default(),
                     carrier: geom::CurveKind::Nurbs,
@@ -2086,18 +2026,16 @@ mod display_tests {
                 NamingError::SeamVertexParentage { .. } => 6,
                 NamingError::SharedRim { .. } => 7,
                 NamingError::SeamVertexPartners { .. } => 8,
-                NamingError::MergedChord { .. } => 9,
-                NamingError::MergedChordOffRim { .. } => 10,
-                NamingError::Band(_) => 11,
-                NamingError::MemberEdgeTied { .. } => 12,
-                NamingError::ConventionalVertex { .. } => 13,
-                NamingError::ClosedCarrierUnread { .. } => 14,
-                NamingError::Settle(_) => 15,
-                NamingError::CarrierUnplaced { .. } => 16,
-                NamingError::PartnerUnread { .. } => 17,
-                NamingError::KindMismatch { .. } => 18,
-                NamingError::ShortTie { .. } => 19,
-                NamingError::EntityNamed { .. } => 20,
+                NamingError::Band(_) => 9,
+                NamingError::MemberEdgeTied { .. } => 10,
+                NamingError::ConventionalVertex { .. } => 11,
+                NamingError::ClosedCarrierUnread { .. } => 12,
+                NamingError::Settle(_) => 13,
+                NamingError::CarrierUnplaced { .. } => 14,
+                NamingError::PartnerUnread { .. } => 15,
+                NamingError::KindMismatch { .. } => 16,
+                NamingError::ShortTie { .. } => 17,
+                NamingError::EntityNamed { .. } => 18,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

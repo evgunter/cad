@@ -21,12 +21,9 @@
 //!   duplicate to drop;
 //! - a [`RoleSeg::EdgeCrossing`]'s run, each line with its sense:
 //!   sorted, in every name;
-//! - a [`RoleSeg::Seam`]'s two sides, in a name whose seams are
-//!   [`Seams::ByName`]: a union has no A and B, so its pair is put in
-//!   name order. A pair boolean's seams are [`Seams::Sided`]: `a` is
-//!   the A side's face and `b` the B side's — an operand's face, or
-//!   the `Merged` parent of a face the pair merged, standing opposite
-//!   the operand face across the seam — and that order is data.
+//! - a [`RoleSeg::Seam`]'s two sides, in every name: the pair spells
+//!   a set, and which input a side came from is in the side's own name,
+//!   the face's name in the minting node's own table (N3).
 //!
 //! Any rewrite that changes the names in those positions has to put
 //! them back in order, or it publishes a name the emitter would not
@@ -42,12 +39,12 @@
 //!
 //! A seam vertex group's `Fragment(OrderAlong)` ranks are measured along
 //! the crossed edge. Where that edge lies on a seam line, it is oriented
-//! as the loop of its pair's first side AS WRITTEN runs along it, and
-//! that pair need not be in the ranked name's own path: it is written
-//! inside the edge parent the vertex name embeds. So a rewrite that
-//! reorders that pair — the collapse ordering a union seam, or a re-map
-//! reordering the sides of a union seam some name embeds — reverses
-//! every rank along it: `of − 1 − rank`.
+//! as the loop of its pair's first side, the lesser name, runs along it,
+//! and that pair need not be in the ranked name's own path: it is
+//! written inside the edge parent the vertex name embeds. So a rewrite
+//! whose images put that pair in the other order — the collapse
+//! carrying a fold step's seam into the union's space, or a re-map of
+//! a published name — reverses every rank along it: `of − 1 − rank`.
 //!
 //! That rule is [`RankRule`], and it is derived HERE, from the name as
 //! it was and the name as the rewrite leaves it: the line each rank lies
@@ -67,49 +64,6 @@
 use super::role::{EntityKind, Qualifier, RoleSeg, RunLine, StableName, name_free_seg};
 use super::seam_pair::{VertexLines, seam_line_pair, seam_vertex_parents};
 
-/// Whether a name's own [`RoleSeg::Seam`] sides are an operand order
-/// or a name order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Seams {
-    /// A pair boolean's seams: `a` is the A side's face and `b` the B
-    /// side's — an operand's face, or a merged face's `Merged` parent
-    /// opposite the operand face across the seam — so the two sides stay
-    /// where they are.
-    Sided,
-    /// A union's seams: the pair is put in name order.
-    ByName,
-}
-
-impl Seams {
-    /// The order a PUBLISHED name's own seams are in, read off the name.
-    ///
-    /// A pair boolean's seam sides are its OPERANDS' names (N2), minted
-    /// by other nodes, but for a side beside a face the pair merged,
-    /// which cites that face's `Merged` parent, minted by the pair (N3).
-    /// A union's sides are its own member-space names, minted by the
-    /// union: the collapse rewrites every side into this node's space.
-    /// So a seam both of whose sides are minted by the name's own node
-    /// is read as a union's, and one with an operand's side as a pair's.
-    /// The pair emitter mints no seam between two of its own merged
-    /// faces (`emit_topo`'s `chord_kind` names such a chord as an
-    /// operand rim or refuses), which is what keeps this reading
-    /// whole.
-    ///
-    /// Only published names are read this way. Inside a union's fold
-    /// every row, a seam's sides included, is minted under the union's
-    /// id while the pair is still sided; those tables are the pair
-    /// emitter's, which mints through [`minted`], and they never reach
-    /// a rewrite (the collapse publishes their rows).
-    pub(crate) fn of_published(name: &StableName) -> Self {
-        let union = name.path.iter().any(|seg| match seg {
-            RoleSeg::Seam { a, b } => a.node == name.node && b.node == name.node,
-            RoleSeg::EdgeCrossing(run) => run.iter().any(|l| l.line.node == name.node),
-            _ => false,
-        });
-        if union { Self::ByName } else { Self::Sided }
-    }
-}
-
 /// What a rewrite did to the line a name's `Fragment(OrderAlong)` ranks
 /// lie on (module docs).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -123,25 +77,23 @@ enum RankRule {
     /// pair came out in the other order. The edge is read the other
     /// way, and the rank from the other end: `of − 1 − rank`.
     Reverse,
-    /// A UNION's seam vertex group whose two parents are both edges,
-    /// which the pair emitter ranks along the A side's edge, so no
-    /// canonical line holds the rank. The collapse refuses rather than
-    /// publish a rank a member reorder could rebind.
-    Refuse,
     /// A run whose ranks the rewrite moved off the line they were
     /// measured along: its least edge is the image of another line, or,
     /// in a run with no edge, a seam's pair or the lines' order changed.
     /// Where the run lies along the new least line no name says.
     RefuseRun,
+    /// A seam vertex group whose pair the rewrite made a run, or whose
+    /// run it made a pair: no line holds the rank on both sides of it.
+    Reshaped,
 }
 
 /// Why a rank could not be re-read against a canonical line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Unrankable {
-    /// [`RankRule::Refuse`]'s shape carried a rank.
-    SidedVertexRank,
     /// [`RankRule::RefuseRun`]: a run's least line moved.
     RunLeastLineMoved,
+    /// [`RankRule::Reshaped`]: a pair became a run, or a run a pair.
+    Reshaped,
     /// A rank at or beyond its count.
     RankOutsideCount,
 }
@@ -150,13 +102,13 @@ impl Unrankable {
     /// The emission bug this is, in `NamingError::Emission`'s words.
     pub(crate) fn what(self) -> &'static str {
         match self {
-            Self::SidedVertexRank => {
-                "a union's seam vertex group is ranked along one of two edge parents, chosen by \
-                 operand side"
-            }
             Self::RunLeastLineMoved => {
                 "a ranked edge-crossing run's least line is another line once rewritten, so \
                  nothing says where its vertices lie along it"
+            }
+            Self::Reshaped => {
+                "a ranked seam vertex group's lines are a pair on one side of a rewrite and a run \
+                 on the other"
             }
             Self::RankOutsideCount => "a seam vertex group's rank lies outside its count",
         }
@@ -192,7 +144,6 @@ impl RankRule {
     fn derive<'n, E>(
         was: &'n StableName,
         now: &StableName,
-        seams: Seams,
         image: Image<'_, 'n, E>,
     ) -> Result<Self, E> {
         let is_edge = |n: &StableName| n.kind == EntityKind::Edge;
@@ -206,14 +157,14 @@ impl RankRule {
                 Some(VertexLines::Pair(a2, b2)),
             ) => {
                 // The edge parent in `now`: the one of kind edge, which a
-                // rewrite does not change, wherever ordering put it.
+                // rewrite does not change, wherever ordering put it. A
+                // pair holds one edge at most: a `Crossing`'s second
+                // side is a face, and a seam vertex's sides are faces.
                 let edge_now = if is_edge(a2) { a2 } else { b2 };
-                match (is_edge(a), is_edge(b), seams) {
-                    (true, true, Seams::ByName) => Ok(Self::Refuse),
-                    (true, true, Seams::Sided) => Self::along(a, a2, image),
-                    (true, false, _) => Self::along(a, edge_now, image),
-                    (false, true, _) => Self::along(b, edge_now, image),
-                    (false, false, _) => Ok(Self::Keep),
+                match (is_edge(a), is_edge(b)) {
+                    (true, _) => Self::along(a, edge_now, image),
+                    (false, true) => Self::along(b, edge_now, image),
+                    (false, false) => Ok(Self::Keep),
                 }
             }
             (
@@ -221,7 +172,7 @@ impl RankRule {
                 Some(VertexLines::Run(was_run)),
                 Some(VertexLines::Run(now_run)),
             ) => Self::along_run(was_run, now_run, image),
-            (EntityKind::Vertex, Some(_), Some(_)) => Ok(Self::Refuse),
+            (EntityKind::Vertex, Some(_), Some(_)) => Ok(Self::Reshaped),
             (EntityKind::Vertex | EntityKind::Edge | EntityKind::Face | EntityKind::Body, ..) => {
                 Ok(Self::Keep)
             }
@@ -288,8 +239,8 @@ impl RankRule {
                 .and_then(|last| last.checked_sub(rank))
                 .map(|rank| Qualifier::OrderAlong { rank, of })
                 .ok_or(Unrankable::RankOutsideCount),
-            Self::Refuse => Err(Unrankable::SidedVertexRank),
             Self::RefuseRun => Err(Unrankable::RunLeastLineMoved),
+            Self::Reshaped => Err(Unrankable::Reshaped),
         }
     }
 }
@@ -312,12 +263,11 @@ impl RankRule {
 pub(crate) fn canonical<'n, E>(
     was: &'n StableName,
     now: StableName,
-    seams: Seams,
     image: Image<'_, 'n, E>,
 ) -> Result<StableName, Stop<E>> {
-    let mut now = order(now, seams);
+    let mut now = order(now);
     if has_rank(&now) {
-        let rule = RankRule::derive(was, &now, seams, image).map_err(Stop::Image)?;
+        let rule = RankRule::derive(was, &now, image).map_err(Stop::Image)?;
         for seg in &mut now.path {
             if let RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }) = seg {
                 *seg = RoleSeg::Fragment(rule.apply(*rank, *of).map_err(Stop::Unrankable)?);
@@ -379,31 +329,31 @@ fn flip_senses<'n, E>(
     Ok(())
 }
 
-/// **A name the pair emitter just minted**, in canonical form: its
-/// positions ordered with its seams [`Seams::Sided`]. Its ranks were
+/// **A name an emitter just minted**, in canonical form: its positions
+/// in order. Its ranks were
 /// measured along the pair it writes, so there is no earlier spelling
 /// to re-read them against: [`canonical`] with the name as its own
 /// `was` and nothing rewritten, which derives `Keep` for every rank.
 pub(crate) fn minted(name: StableName) -> StableName {
-    order(name, Seams::Sided)
+    order(name)
 }
 
 /// **One freshly minted segment in canonical form**, for an emitter
 /// that mints a segment rather than a whole path (`emit_blend`'s band
 /// face): [`minted`]'s ordering, one segment at a time.
 pub(crate) fn minted_segment(seg: RoleSeg) -> RoleSeg {
-    segment(seg, Seams::Sided)
+    segment(seg)
 }
 
 /// **A fold-table name collapsed into a union's space**, in canonical
-/// form: [`canonical`] with the union's seams [`Seams::ByName`]. A rank
-/// it cannot re-read is refused: the collapse is an emission door.
+/// form ([`canonical`]). A rank it cannot re-read is refused: the
+/// collapse is an emission door.
 pub(crate) fn collapsed<'n, E>(
     was: &'n StableName,
     now: StableName,
     image: Image<'_, 'n, E>,
 ) -> Result<StableName, Stop<E>> {
-    canonical(was, now, Seams::ByName, image)
+    canonical(was, now, image)
 }
 
 /// What [`rewritten`] made of a published name.
@@ -416,19 +366,18 @@ pub(crate) enum Rewritten {
     Carried(StableName, Unrankable),
 }
 
-/// **A published name after a rewrite**, in canonical form:
-/// [`canonical`] with the name's own seams in the order
-/// [`Seams::of_published`] reads off it.
+/// **A published name after a rewrite**, in canonical form
+/// ([`canonical`]).
 ///
 /// A name with a rank that cannot be re-read is answered
 /// [`Rewritten::Carried`], nothing reordered and nothing re-ranked: a
 /// rewrite re-spells a reference, and whether it may carry one is the
 /// rewriter's to say (`SegRewrite::unrankable`). Two of the reasons are
-/// emission-time facts: the collapse refuses [`RankRule::Refuse`]'s
-/// shape, and no emitter mints a rank at or past its count, so a name
-/// carrying either was never published and resolves to nothing before
-/// the rewrite and after it. [`RankRule::RefuseRun`] is not: a pair
-/// boolean publishes a ranked run, and a rewrite whose map does not
+/// emission-time facts: no emitter mints a rank at or past its count,
+/// and no rewrite changes the head a seam vertex's lines are read from,
+/// so a name carrying either was never published and resolves to
+/// nothing before the rewrite and after it. [`RankRule::RefuseRun`] is
+/// not: a pair boolean publishes a ranked run, and a rewrite whose map does not
 /// keep name order can make another of its lines least, so the name
 /// carried resolves to nothing though it resolved before.
 ///
@@ -440,12 +389,11 @@ pub(crate) fn rewritten<'n, E>(
     now: StableName,
     image: Image<'_, 'n, E>,
 ) -> Result<Rewritten, E> {
-    let seams = Seams::of_published(was);
     if !has_rank(&now) && !has_sense(&now) {
-        return Ok(Rewritten::Canonical(order(now, seams)));
+        return Ok(Rewritten::Canonical(order(now)));
     }
     let carried = now.clone();
-    match canonical(was, now, seams, image) {
+    match canonical(was, now, image) {
         Ok(name) => Ok(Rewritten::Canonical(name)),
         Err(Stop::Image(e)) => Err(e),
         Err(Stop::Unrankable(why)) => Ok(Rewritten::Carried(carried, why)),
@@ -453,10 +401,10 @@ pub(crate) fn rewritten<'n, E>(
 }
 
 /// The ordering half: every position in order, the ranks untouched.
-fn order(mut name: StableName, seams: Seams) -> StableName {
+fn order(mut name: StableName) -> StableName {
     name.path = core::mem::take(&mut name.path)
         .into_iter()
-        .map(|seg| segment(seg, seams))
+        .map(segment)
         .collect();
     if is_junction(&name) {
         name.path.sort();
@@ -503,10 +451,10 @@ pub(crate) fn is_junction(name: &StableName) -> bool {
 /// added to [`RoleSeg`] says here whether it carries a name-ordered
 /// position, or stops the build.
 #[allow(clippy::too_many_lines)] // one arm per name-carrying RoleSeg variant
-fn segment(seg: RoleSeg, seams: Seams) -> RoleSeg {
+fn segment(seg: RoleSeg) -> RoleSeg {
     match seg {
         // The name-ordered positions.
-        RoleSeg::Seam { a, b } if seams == Seams::ByName && a > b => RoleSeg::Seam { a: b, b: a },
+        RoleSeg::Seam { a, b } if a > b => RoleSeg::Seam { a: b, b: a },
         RoleSeg::EdgeCrossing(mut run) => {
             run.sort();
             RoleSeg::EdgeCrossing(run)
@@ -667,9 +615,9 @@ mod tests {
     }
 
     /// `written` in canonical form, read as its own earlier spelling.
-    fn form(written: StableName, seams: Seams) -> StableName {
+    fn form(written: StableName) -> StableName {
         let was = written.clone();
-        match canonical(&was, written, seams, &mut same) {
+        match canonical(&was, written, &mut same) {
             Ok(n) => n,
             Err(_) => panic!("refused"),
         }
@@ -692,17 +640,13 @@ mod tests {
         out
     }
 
-    /// `build` over every order of `items`, in canonical form under
-    /// `seams`: one form for all of them, and that form is a fixed
-    /// point of [`canonical`], [`minted`] (Sided) and [`rewritten`].
-    fn one_form<T: Clone>(
-        items: &[T],
-        seams: Seams,
-        build: impl Fn(Vec<T>) -> StableName,
-    ) -> StableName {
+    /// `build` over every order of `items`, in canonical form: one form
+    /// for all of them, and that form is a fixed point of
+    /// [`canonical`], [`minted`] and [`rewritten`].
+    fn one_form<T: Clone>(items: &[T], build: impl Fn(Vec<T>) -> StableName) -> StableName {
         let forms: Vec<StableName> = permutations(items)
             .into_iter()
-            .map(|p| form(build(p), seams))
+            .map(|p| form(build(p)))
             .collect();
         for f in &forms {
             assert_eq!(
@@ -711,10 +655,8 @@ mod tests {
             );
         }
         let f = forms[0].clone();
-        assert_eq!(form(f.clone(), seams), f, "not a fixed point");
-        if seams == Seams::Sided {
-            assert_eq!(minted(f.clone()), f);
-        }
+        assert_eq!(form(f.clone()), f, "not a fixed point");
+        assert_eq!(minted(f.clone()), f);
         assert_eq!(formed(rewritten(&f, f.clone(), &mut same)), f);
         f
     }
@@ -722,22 +664,18 @@ mod tests {
     #[test]
     fn a_merged_set_is_one_form_in_every_order() {
         let cs = [face(9, 3), face(9, 1), face(9, 2), face(9, 1)];
-        for seams in [Seams::Sided, Seams::ByName] {
-            let out = one_form(&cs, seams, |p| {
-                name(EntityKind::Face, 9, vec![RoleSeg::Merged(p)])
-            });
-            assert_eq!(
-                out.path,
-                vec![RoleSeg::Merged(vec![face(9, 1), face(9, 2), face(9, 3)])],
-                "sorted, each constituent once"
-            );
-        }
+        let out = one_form(&cs, |p| name(EntityKind::Face, 9, vec![RoleSeg::Merged(p)]));
+        assert_eq!(
+            out.path,
+            vec![RoleSeg::Merged(vec![face(9, 1), face(9, 2), face(9, 3)])],
+            "sorted, each constituent once"
+        );
     }
 
     #[test]
     fn a_band_face_set_is_one_form_in_every_order() {
         let es = [edge(4, 2), edge(4, 0), edge(4, 1), edge(4, 0)];
-        let out = one_form(&es, Seams::Sided, |p| {
+        let out = one_form(&es, |p| {
             name(EntityKind::Face, 5, vec![RoleSeg::BandFace(p)])
         });
         assert_eq!(
@@ -754,27 +692,25 @@ mod tests {
     #[test]
     fn a_borders_set_is_one_form_in_every_order() {
         let ws = [face(9, 2), face(9, 1), face(9, 3), face(9, 1)];
-        for seams in [Seams::Sided, Seams::ByName] {
-            let out = one_form(&ws, seams, |w| {
-                name(
-                    EntityKind::Face,
-                    9,
-                    vec![
-                        RoleSeg::Cap(CapEnd::Start),
-                        RoleSeg::Fragment(Qualifier::Borders(w)),
-                    ],
-                )
-            });
-            assert_eq!(
-                out.path.last(),
-                Some(&RoleSeg::Fragment(Qualifier::Borders(vec![
-                    face(9, 1),
-                    face(9, 2),
-                    face(9, 3)
-                ]))),
-                "the walls are sorted and a repeat is one wall"
-            );
-        }
+        let out = one_form(&ws, |w| {
+            name(
+                EntityKind::Face,
+                9,
+                vec![
+                    RoleSeg::Cap(CapEnd::Start),
+                    RoleSeg::Fragment(Qualifier::Borders(w)),
+                ],
+            )
+        });
+        assert_eq!(
+            out.path.last(),
+            Some(&RoleSeg::Fragment(Qualifier::Borders(vec![
+                face(9, 1),
+                face(9, 2),
+                face(9, 3)
+            ]))),
+            "the walls are sorted and a repeat is one wall"
+        );
     }
 
     #[test]
@@ -791,15 +727,12 @@ mod tests {
                 p.into_iter().map(|(a, b)| seam(a, b)).collect(),
             )
         };
-        // Sided: the run is sorted and each line keeps its sides.
-        let sided = one_form(&lines, Seams::Sided, build);
-        assert!(sided.path.windows(2).all(|w| w[0] < w[1]));
-        // By name: each line's sides AND the run are in name order, so
-        // a line written the other way round is the same line.
+        // Each line's sides AND the run are in name order, so a line
+        // written the other way round is the same line.
         let flipped: Vec<(StableName, StableName)> =
             lines.iter().map(|(a, b)| (b.clone(), a.clone())).collect();
-        let by_name = one_form(&lines, Seams::ByName, build);
-        assert_eq!(by_name, one_form(&flipped, Seams::ByName, build));
+        let by_name = one_form(&lines, build);
+        assert_eq!(by_name, one_form(&flipped, build));
         assert_eq!(
             by_name.path,
             vec![
@@ -828,17 +761,15 @@ mod tests {
                 None,
             ),
         ];
-        for seams in [Seams::Sided, Seams::ByName] {
-            let out = one_form(&lines, seams, |p| {
-                name(EntityKind::Vertex, 9, vec![RoleSeg::EdgeCrossing(p)])
-            });
-            let [RoleSeg::EdgeCrossing(run)] = out.path.as_slice() else {
-                panic!("one run: {out:?}")
-            };
-            assert!(run.windows(2).all(|w| w[0].line < w[1].line), "{run:?}");
-            for l in &lines {
-                assert!(run.contains(l), "{l:?} kept its sense: {run:?}");
-            }
+        let out = one_form(&lines, |p| {
+            name(EntityKind::Vertex, 9, vec![RoleSeg::EdgeCrossing(p)])
+        });
+        let [RoleSeg::EdgeCrossing(run)] = out.path.as_slice() else {
+            panic!("one run: {out:?}")
+        };
+        assert!(run.windows(2).all(|w| w[0].line < w[1].line), "{run:?}");
+        for l in &lines {
+            assert!(run.contains(l), "{l:?} kept its sense: {run:?}");
         }
     }
 
@@ -921,7 +852,7 @@ mod tests {
     }
 
     #[test]
-    fn a_union_seam_edge_piece_is_one_form_from_either_side_and_whatever_order_its_ends_are_in() {
+    fn a_seam_edge_piece_is_one_form_from_either_side_and_whatever_order_its_ends_are_in() {
         let (x, y) = (face(9, 1), face(9, 2));
         let (v, w) = (vertex(9, 3), vertex(9, 4));
         let want = vec![seam(x.clone(), y.clone()), ends(v.clone(), w.clone())];
@@ -932,28 +863,18 @@ mod tests {
                     9,
                     vec![seam(a.clone(), b.clone()), ends(v0.clone(), v1.clone())],
                 );
-                let out = form(written, Seams::ByName);
+                let out = form(written);
                 assert_eq!(out.path, want, "the pair and the ends in name order");
-                assert_eq!(form(out.clone(), Seams::ByName), out, "not a fixed point");
+                assert_eq!(form(out.clone()), out, "not a fixed point");
             }
         }
-        // A pair boolean's seam is sided: only the ends are ordered.
-        let sided = name(
-            EntityKind::Edge,
-            9,
-            vec![seam(y.clone(), x.clone()), ends(w.clone(), v.clone())],
-        );
-        assert_eq!(
-            form(sided, Seams::Sided).path,
-            vec![seam(y.clone(), x.clone()), ends(v.clone(), w.clone())]
-        );
         // A repeated end is kept: a piece has two ends.
         let closed = name(
             EntityKind::Edge,
             9,
             vec![seam(x.clone(), y.clone()), ends(v.clone(), v.clone())],
         );
-        assert_eq!(form(closed.clone(), Seams::ByName), closed);
+        assert_eq!(form(closed.clone()), closed);
     }
 
     #[test]
@@ -969,11 +890,11 @@ mod tests {
             name(EntityKind::Edge, 9, vec![seam(a.clone(), b.clone())])
         };
         let crossing = |edge: StableName, r| {
-            name(
+            minted(name(
                 EntityKind::Vertex,
                 12,
                 vec![seam(edge, cutter.clone()), rank(r, 2)],
-            )
+            ))
         };
         let was = crossing(union_seam(&x, &y), 0);
         // The rewrite swaps x and y (a re-map that reorders members),
@@ -1154,39 +1075,39 @@ mod tests {
     }
 
     #[test]
-    fn a_published_union_name_orders_its_seams_by_name_and_a_pair_booleans_does_not() {
-        let union = name(EntityKind::Edge, 9, vec![seam(face(9, 1), face(9, 2))]);
-        assert_eq!(Seams::of_published(&union), Seams::ByName);
-        let pair = name(EntityKind::Edge, 9, vec![seam(face(7, 1), face(8, 2))]);
-        assert_eq!(Seams::of_published(&pair), Seams::Sided);
+    fn a_seams_sides_are_in_name_order_whichever_node_minted_them() {
         // A pair seam beside a face the pair merged cites that face's
-        // `Merged` parent, minted by the pair itself, in either slot
-        // (N3). It is still the pair's, and a rewrite keeps its sides
-        // where they are although its `a` side names after its `b`.
+        // `Merged` parent and the other face's name in the pair's own
+        // table (N3), both minted by the pair; a union's sides are its
+        // own too. Either way the two are put in name order.
         let parent = name(
             EntityKind::Face,
             9,
-            vec![RoleSeg::Merged(vec![face(7, 1), face(8, 3)])],
+            vec![RoleSeg::Merged(vec![face(9, 1), face(9, 3)])],
         );
-        let beside = face(8, 2);
-        assert!(parent > beside, "the premise: slot a names after slot b");
-        for pair in [
+        let beside = face(9, 2);
+        let want = name(
+            EntityKind::Edge,
+            9,
+            vec![seam(beside.clone(), parent.clone())],
+        );
+        assert!(
+            parent > beside,
+            "the premise: the merged parent names after"
+        );
+        for written in [
             name(
                 EntityKind::Edge,
                 9,
                 vec![seam(parent.clone(), beside.clone())],
             ),
-            name(
-                EntityKind::Edge,
-                9,
-                vec![seam(beside.clone(), parent.clone())],
-            ),
+            want.clone(),
         ] {
-            assert_eq!(Seams::of_published(&pair), Seams::Sided, "{pair:?}");
+            assert_eq!(minted(written.clone()), want, "{written:?}");
             assert_eq!(
-                rewritten(&pair, pair.clone(), &mut same).unwrap(),
-                Rewritten::Canonical(pair.clone()),
-                "a pair seam's sides stay where they are: {pair:?}"
+                rewritten(&written, written.clone(), &mut same).unwrap(),
+                Rewritten::Canonical(want.clone()),
+                "{written:?}"
             );
         }
     }

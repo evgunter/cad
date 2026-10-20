@@ -2089,7 +2089,7 @@ impl SegRewrite for Remapping<'_> {
             Unrankable::RunLeastLineMoved => Err(RemapError::RankedRunReordered {
                 vertex: Box::new(was.clone()),
             }),
-            Unrankable::SidedVertexRank | Unrankable::RankOutsideCount => Ok(()),
+            Unrankable::Reshaped | Unrankable::RankOutsideCount => Ok(()),
         }
     }
 }
@@ -5130,7 +5130,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
     }
 
     #[test]
-    fn a_pair_booleans_sets_borders_and_junction_are_resorted_and_its_seams_stay_sided() {
+    fn a_pair_booleans_sets_borders_junction_and_seams_are_resorted() {
         // Boolean 5 over operands 1 and 2, with 3 a third name.
         let face = |n| cap(EntityKind::Face, n);
         let was = name(
@@ -5161,16 +5161,18 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             vec![seam(face(30), face(32)), seam(face(31), face(32))],
             "the run re-sorted, each line A-first"
         );
-        let sided = name(
-            EntityKind::Vertex,
-            5,
-            vec![seam(cap(EntityKind::Edge, 1), face(2)), rank(0, 3)],
-        );
-        let out = remap_name(&sided, &map(), &StepMap::new(), &mirrored_reads()).expect("covered");
+        // A pair boolean's seam is in name order as a union's is; its
+        // edge lies on no seam line, so the rank keeps its reading.
+        let (edge, face) = (cap(EntityKind::Edge, 1), face(2));
+        let crossing = name(EntityKind::Vertex, 5, vec![seam(edge, face), rank(0, 3)]);
+        let out =
+            remap_name(&crossing, &map(), &StepMap::new(), &mirrored_reads()).expect("covered");
+        let (x, y) = (cap(EntityKind::Edge, 31), cap(EntityKind::Face, 30));
+        let (x, y) = if x < y { (x, y) } else { (y, x) };
         assert_eq!(
             out.path,
-            vec![seam(cap(EntityKind::Edge, 31), face(30)), rank(0, 3)],
-            "a pair boolean's seam is sided: no swap, no reversal"
+            vec![seam(x, y), rank(0, 3)],
+            "the pair in name order"
         );
     }
 }
