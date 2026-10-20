@@ -127,8 +127,12 @@ Measured both options and five candidates as local spikes, pads at
   order dependence lies within the quadrature extent: 1.04× on the bar at
   every ε. "Nearest vertex to the quadrature box centre" read about the
   same, but needs recorded comparisons in kernel code.
-- **The order row now asserts one pad:**
-  `one_solid_in_two_face_orders_carries_one_pad`.
+- **qfirst is still order-dependent**, only now within the quadrature
+  extent and not the shell's: which quadrature face is first is the
+  stored order's choice. The order row pins each ε's measured ratio with
+  headroom: `one_solid_in_two_face_orders_carries_nearly_one_pad`, 1.04×
+  on the 900 m bar at every ε, and 1.11×, 1.10× and 1.55× on the cut far
+  off and turned at 1e-9, 1e-12 and 1e-6. No pair passes 2×.
 - **Cost that stays:** a quadrature body centred on the origin is read
   about a vertex on its rim, where the origin was its centre. `m8_3`
   reads 2.00e-6 against 0.98e-6 on main, and its ceiling states the
