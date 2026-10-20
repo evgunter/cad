@@ -428,73 +428,112 @@ fn a_cavity_resting_its_keel_on_the_floor_opens_through_it_as_a_ring() {
     }
 }
 
+/// **A slab glued under the slit floor refuses typed**: the slab less the
+/// trench, its floor carrying the keel as a ring or slit, ∪ the slab
+/// `[0, 4]² × [−1, 0]` under it. The floor is glued away, so the slit's
+/// two edges would be one edge between its walls, which the join does
+/// not build
+/// (`work/cleave/a-boolean-glues-away-the-face-a-slit-lies-in.md`). Main
+/// built each from the rider form, the keel one edge in the floor.
+/// Closed, the join's run along the ring encloses no area:
+/// `SlitFaceGlued`. Open at an end or wall to wall it leaves a two-edge
+/// face of no area on the keel, which the result gate refuses
+/// `LineWedges` (overlap). At every pose.
 #[test]
-fn zz_probe_slab_under_the_floor() {
+fn a_slab_glued_under_the_slit_floor_refuses_typed() {
+    let tol = t();
     for row in &ROWS {
-        let pose = Pose::rest();
-        let Ok(BooleanResult::Body(cut)) =
-            subtract(&slab(&pose, (0.0, 1.0)), &trench(&pose, row.span), t())
-        else {
-            panic!()
-        };
-        let cut = cut.body;
-        let under = slab(&pose, (-1.0, 0.0));
-        let r = topo::union(&cut, &under, t());
-        eprintln!(
-            "PROBE {}: {:?}",
-            row.what,
-            r.as_ref().map(|r| match r {
-                BooleanResult::Body(b) => format!(
-                    "v{} e{} f{}",
-                    b.body.vertices().count(),
-                    b.body.edges().count(),
-                    b.body.faces().count()
-                ),
-                _ => "empty".into(),
-            })
-        );
+        for pose in poses() {
+            let what = format!("{}, {}", row.what, pose.label);
+            let Ok(BooleanResult::Body(cut)) =
+                subtract(&slab(&pose, (0.0, 1.0)), &trench(&pose, row.span), tol)
+            else {
+                panic!("{what}: the slab less the trench");
+            };
+            let got = topo::union(&cut.body, &slab(&pose, (-1.0, 0.0)), tol);
+            let want = if row.at_ends == [1, 1] {
+                topo::BooleanErrorKind::SlitFaceGlued
+            } else {
+                topo::BooleanErrorKind::LineWedges
+            };
+            match got {
+                Err(e) => assert_eq!(e.kind(), want, "{what}: {e:?}"),
+                Ok(_) => panic!("{what}: builds, where it refuses {want:?}"),
+            }
+        }
     }
 }
 
+/// **A keel glued to a face from outside stays one edge with its
+/// records**: the trench's V turned up on the slab's top, and turned
+/// down under its bottom, each resting its keel on the face. Both of the
+/// edge's faces leave the line on the face's empty side, so the edge
+/// touches the face from outside its material wedge and is not parted
+/// (D1, `crates/topo/README.md` tier 3): ∪ builds two solids, the keel
+/// one edge, an edge-on-face record of it on the face, a vertex-on-face
+/// record of each end inside the face, and an edge-edge record where it
+/// crosses the face's boundary. At every extent and pose.
 #[test]
-fn zz_probe_split_side_under() {
-    for row in &ROWS {
-        let pose = Pose::rest();
-        let Ok(BooleanResult::Body(cut)) =
-            subtract(&slab(&pose, (-1.0, 1.0)), &trench(&pose, row.span), t())
-        else {
-            panic!()
-        };
-        let sides = split(
-            &cut.body,
-            &split_plane(pose.at([0.0; 3]), Vec3::new(0.0, 0.0, 1.0), t()),
-            t(),
-        );
-        let walls = match sides {
-            Ok(s) => match s.above {
-                SplitPart::Body(w) => w,
-                _ => panic!(),
-            },
-            Err(e) => {
-                eprintln!("PROBE2 {}: split {e:?}", row.what);
-                continue;
+fn a_keel_glued_to_a_face_from_outside_stays_one_edge() {
+    let tol = t();
+    for (side, z, profile) in [
+        ("on the top", 1.0, [(2.0, 1.0), (2.6, 3.0), (1.4, 3.0)]),
+        (
+            "under the bottom",
+            0.0,
+            [(2.0, 0.0), (1.4, -2.0), (2.6, -2.0)],
+        ),
+    ] {
+        for row in &ROWS {
+            for pose in poses() {
+                let what = format!("{side}, {}, {}", row.what, pose.label);
+                let v = prism(&pose, "the V", &profile, row.span, &|y, h, x| [x, y, h]);
+                let Ok(BooleanResult::Body(r)) = topo::union(&slab(&pose, (0.0, 1.0)), &v, tol)
+                else {
+                    panic!("{what}: the slab and the V");
+                };
+                let b = &r.body;
+                assert_eq!(b.solids().count(), 2, "{what}: solids");
+                let [p, q] = [[0.0, 2.0, z], [4.0, 2.0, z]].map(|c| pose.at(c));
+                let on_keel = |v| {
+                    let x = topo::readback::vertex_point(b, v).unwrap();
+                    let (d, l) = (q - p, x - p);
+                    (l - d * (l.dot(d) / d.dot(d))).norm() < 1e-9
+                };
+                let keel: Vec<EdgeKey> = b
+                    .edges()
+                    .map(|(e, _)| e)
+                    .filter(|&e| {
+                        let he = b.get_edge(e).unwrap().he_plus;
+                        on_keel(b.get_half_edge(he).unwrap().start)
+                            && on_keel(b.half_edge_end(he).unwrap())
+                    })
+                    .collect();
+                let [keel] = keel[..] else {
+                    panic!("{what}: the keel is {keel:?}, not one edge");
+                };
+                let kinds: Vec<_> = r.contacts.rows().iter().map(|r| r.record.kind()).collect();
+                let count =
+                    |f: &dyn Fn(&topo::ContactKind) -> bool| kinds.iter().filter(|k| f(k)).count();
+                assert_eq!(
+                    count(&|k| matches!(k, topo::ContactKind::EdgeFace(e, _) if *e == keel)),
+                    1,
+                    "{what}: the keel's edge-on-face record among {kinds:?}"
+                );
+                let inside = row.at_ends.iter().filter(|&&n| n == 1).count();
+                assert_eq!(
+                    count(&|k| matches!(k, topo::ContactKind::VertexFace(..))),
+                    inside,
+                    "{what}: vertex-on-face records among {kinds:?}"
+                );
+                assert_eq!(
+                    count(
+                        &|k| matches!(k, topo::ContactKind::EdgeEdge(_, e) | topo::ContactKind::EdgeEdge(e, _) if *e == keel)
+                    ),
+                    2 - inside,
+                    "{what}: edge-edge records among {kinds:?}"
+                );
             }
-        };
-        let walls = topo::test_support::finished("walls", walls, t());
-        let r = topo::union(&walls, &slab(&pose, (-1.0, 0.0)), t());
-        eprintln!(
-            "PROBE2 {}: {:?}",
-            row.what,
-            r.as_ref().map(|r| match r {
-                BooleanResult::Body(b) => format!(
-                    "v{} e{} f{} vol {}",
-                    b.body.vertices().count(),
-                    b.body.edges().count(),
-                    b.body.faces().count(),
-                    topo::mass_properties(&b.body, t()).unwrap().volume
-                ),
-                _ => "empty".into(),
-            })
-        );
+        }
     }
 }

@@ -212,10 +212,32 @@ fn local(pose: &Pose, w: Vec3<f64>) -> [f64; 3] {
 /// which every tier passed. They return with the re-pairing
 /// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
 const OVERLAPPING: &[(&str, usize)] = &[
-    ("under the lying pyramid's ray", 5),
     ("around the lying pyramid", 5),
     ("inside the lying pyramid", 5),
-    ("continuing the lying pyramid's face", 5),
+];
+
+/// **Refused, a parting not built**: the scenes whose cells refuse
+/// `EdgeInFace`, each pose's `y − x`. A pyramid on the void's face, in
+/// the arch or round its island: `y − x` leaves the pyramid's edge in the
+/// void's face along part of its length, and the material about it (at
+/// its midpoint, from the face's own direction round into it: solid to
+/// 20°, empty to 90°, solid to 180°, empty beyond) parts it, which is not
+/// built where it runs on past the face's boundary
+/// (`work/cleave/a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted.md`).
+/// Main built the one edge, its wedge a reflex 290° through the empty
+/// half-space.
+const UNPARTED: [(&str, [&str; 5]); 2] = [
+    ("on the void's face in the arch", ON_THE_VOIDS_FACE),
+    ("on the void's face, the island in it", ON_THE_VOIDS_FACE),
+];
+
+/// [`UNPARTED`]'s cells.
+const ON_THE_VOIDS_FACE: [&str; 5] = [
+    "at rest, y − x: EdgeInFace",
+    "turned about z, y − x: EdgeInFace",
+    "turned, y − x: EdgeInFace",
+    "flipped, y − x: EdgeInFace",
+    "flipped and turned, y − x: EdgeInFace",
 ];
 
 /// A refusal's kind as a tally keys it: the error's arm, and for the
@@ -1014,13 +1036,20 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         // join (`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`):
         // which of its unions refuses is face order's choice, not the
         // region's. Pinned exactly, both what refuses and what builds
-        // holding the region, so the row's fix shows here. The result
-        // gate's overlap refusals are pinned apart, by count
-        // ([`OVERLAPPING`]).
+        // holding the region, so the row's fix shows here. So are the
+        // partings not built ([`UNPARTED`]). The result gate's overlap
+        // refusals are pinned apart, by count ([`OVERLAPPING`]).
         let refused = KNOWN_INSIDE_OUT
             .iter()
             .find(|(l, _)| l == label)
-            .map_or(&[][..], |(_, cells)| &cells[..]);
+            .map(|(_, cells)| &cells[..])
+            .or_else(|| {
+                UNPARTED
+                    .iter()
+                    .find(|(l, _)| l == label)
+                    .map(|(_, cells)| &cells[..])
+            })
+            .unwrap_or(&[][..]);
         let (overlaps, others): (Vec<&String>, Vec<&String>) = tally
             .refused_cells
             .iter()
@@ -1179,18 +1208,7 @@ fn probe_material(
     .enumerate()
     {
         tally.cells += 1;
-        let op = what;
         let what = format!("{label}, {}, {what}", pose.label);
-        let before = tally.bad.len();
-        let dump = |tally: &ProbeTally, outcome: &str| {
-            if std::env::var_os("DUMP_CELLS").is_some() {
-                eprintln!(
-                    "PCELL\t{label}\t{}\t{op}\t{outcome}\tgood={}",
-                    pose.label,
-                    tally.bad.len() == before
-                );
-            }
-        };
         // The germ's verdict at each direction it reads a side at.
         let sides = dirs.iter().filter_map(|&d| {
             let (sx, sy) = (x.1.side(d, ball), y.1.side(d, ball));
@@ -1207,7 +1225,6 @@ fn probe_material(
                         .bad
                         .push(format!("{what}: empty, but the germ holds {d:?}"));
                 }
-                dump(tally, "empty\t0");
                 continue;
             }
             Err(e) => {
@@ -1215,7 +1232,6 @@ fn probe_material(
                 if kind == OVERLAP {
                     tally.overlaps.insert(what.clone());
                 }
-                dump(tally, &format!("err:{kind}\t- {e:?}"));
                 *tally.refused.entry(kind).or_default() += 1;
                 continue;
             }
@@ -1223,7 +1239,6 @@ fn probe_material(
         tally.built += 1;
         if let Err(e) = validate_geometric(&body, t()) {
             tally.bad.push(format!("{what}: tier 3 {e:?}"));
-            dump(tally, "body\t-");
             continue;
         }
         v[k] = vol(&body).ok();
@@ -1241,7 +1256,6 @@ fn probe_material(
                 break;
             }
         }
-        dump(tally, &format!("body\t{:.9}", v[k].unwrap_or(f64::NAN)));
     }
     if let [Some(xl), Some(yl), Some(u1), Some(u2), Some(i1), Some(i2)] = v {
         let tol = 1e-9 * (vx + vy).max(1.0);
@@ -1533,6 +1547,19 @@ fn partners_along_the_face_build_sound_against_the_germ() {
         probe.refused,
         germ.refused
     );
+    let gaps =
+        ["SlitLineCrossed", "EdgeInFace"].map(|k| probe.refused.get(k).copied().unwrap_or(0));
+    match PARTNERS_SLIT_GAPS.iter().find(|&&(e, _, _)| e == eps) {
+        Some(&(_, lines, faces)) => assert_eq!(
+            gaps,
+            [lines, faces],
+            "the cells that refuse the slit form's gaps at ε = {eps:e}: {:?}",
+            probe.refused
+        ),
+        None => println!(
+            "SKIPPED: no pinned count of the slit form's gaps at ε = {eps:e}; {gaps:?} refused"
+        ),
+    }
     match PARTNERS_OVERLAPPING.iter().find(|&&(e, _)| e == eps) {
         Some(&(_, want)) => assert_eq!(
             overlaps, want,
@@ -1551,8 +1578,21 @@ fn partners_along_the_face_build_sound_against_the_germ() {
 /// the result gate refuses for overlapping wedges, at each ε a CI row
 /// runs. The count moves with ε because the cells that reach the
 /// result gate do: a partner whose own construction escalates drops its
-/// 84 cells (four at the default ε, six at 1e-6 and 1e-12: 3 024 cells
-/// against 2 856), and a cell an earlier reading escalates in band never
-/// reaches the gate (516, 705 and 492 such cells), both moving with
-/// where the run's ε puts the partners' near-flat and `k·ε` geometry.
-const PARTNERS_OVERLAPPING: &[(f64, usize)] = &[(1e-9, 146), (1e-6, 125), (1e-12, 141)];
+/// 84 cells (four at the default ε and 1e-6, six at 1e-12), and a
+/// corner within the band of a pyramid's apex its six (two at 1e-6),
+/// 3 024, 3 012 and 2 856 cells in all; and a cell an earlier reading
+/// escalates in band never reaches the gate (516, 855 and 492 such
+/// cells), both moving with where the run's ε puts the partners'
+/// near-flat and `k·ε` geometry.
+const PARTNERS_OVERLAPPING: &[(f64, usize)] = &[(1e-9, 40), (1e-6, 26), (1e-12, 35)];
+
+/// How many cells of [`partners_along_the_face_build_sound_against_the_germ`]
+/// refuse a construction gap of the slit form, at each ε a CI row runs,
+/// as `(ε, SlitLineCrossed, EdgeInFace)`. A void under the top whose ray
+/// lies on it is a zero-area ring of the top, and a partner with an edge
+/// along the ray crosses its two coincident edges there
+/// (`work/cleave/a-boolean-places-two-germs-along-a-slit-line.md`); a
+/// half-turn partner's edge inside the along face runs on past it
+/// (`work/cleave/a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted.md`).
+/// They move with ε as [`PARTNERS_OVERLAPPING`] does.
+const PARTNERS_SLIT_GAPS: &[(f64, usize, usize)] = &[(1e-9, 60, 8), (1e-6, 54, 3), (1e-12, 60, 7)];

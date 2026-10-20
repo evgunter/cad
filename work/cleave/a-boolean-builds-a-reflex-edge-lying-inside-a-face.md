@@ -59,12 +59,15 @@ had the same rider form across two shells). The three extents agree
 with the split on main (PR 5350 merged). Where the parting is not built
 it refuses `BooleanError::EdgeInFace`, typed, never the rider form: a
 tangent wall (the doubled cusp) and an arc (the curved twin) refuse
-before parting. A later Boolean reading a slit's tip refuses
-`SlitTipUnread`. Filed:
+before parting. A later Boolean reads an operand's slit tip as its face's
+full turn (`sectors::SlitTips`). Where another solid's edge runs along
+the slit's line, or glues away its face, it refuses typed
+(`SlitLineCrossed`, `SlitFaceGlued`). Filed:
 `a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted` (p12's
 `A ∖ B`), `a-boolean-edge-lying-in-a-curved-face-is-not-read`,
-`the-boolean-parting-refuses-its-rarer-configurations` and
-`a-boolean-reading-a-slit-tip-refuses-its-zero-corner`; the curved
-twin's evidence is on
+`the-boolean-parting-refuses-its-rarer-configurations`,
+`a-boolean-places-two-germs-along-a-slit-line` and
+`a-boolean-glues-away-the-face-a-slit-lies-in`. The curved twin's
+evidence is on
 `a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs`. The
 editor names all three extents, the two keel edges apart.

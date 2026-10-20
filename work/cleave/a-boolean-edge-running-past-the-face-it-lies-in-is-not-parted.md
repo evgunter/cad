@@ -33,6 +33,25 @@ the wall's two edges divided at their crossings first, and their
 crossing vertices fused, before the middle piece parts the wall as an
 edge whose ends lie on its outline.
 
+**More witnesses** (PR 5380, with 5357 merged). The same refusal
+(`Partly`) has more witnesses. In each, a material-wedge reading at the
+edge's midpoint finds both of its faces going into the face's material,
+and main built the one edge:
+
+- `crates/topo/tests/a_vertex_read_again_classes_every_edge.rs`,
+  `partners_along_the_face_build_sound_against_the_germ`: the half-turn
+  partners against "an edge inside the (other) along face", `y − x`, at
+  both scales. That is 8 cells; main's results pass the germ's material
+  probe round `MEET`.
+- `every_edge_a_vertex_read_again_reads_is_classed_against_the_germ` and
+  `a_vertex_read_by_two_sector_passes.rs`: a pyramid on the void's face,
+  in the arch or round its island, `y − x`, at every pose.
+- `crates/topo/tests/three_solids_on_one_line.rs` (`UNPARTED`):
+  - the line body less the 0° prism against the bisector, every order
+    (main refused it `LineWedges`);
+  - the line body less the bridge moved 1e-2 along x, every order (main
+    built it).
+
 ## Fix
 
 Divide the edge and the face's boundary edges at each crossing the

@@ -19,12 +19,17 @@
 //! - two faces, where both ends lie on one loop of the face: each end
 //!   parts, and so does the face, along the line.
 //!
-//! Where the parting is not built the Boolean refuses
-//! ([`EdgeInFaceGap`]), and never leaves the one edge: an edge one of
-//! whose faces is tangent to the face leaves a cusp per edge, whose
-//! reading on a line of coincident edges is not built, and an arc leaves
-//! two coincident arcs the census does not read
-//! ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`]).
+//! Where it reads an edge whose material parts it and the parting is not
+//! built, the Boolean refuses ([`EdgeInFaceGap`]) rather than leave the
+//! one edge: an edge one of whose faces is tangent to the face leaves a
+//! cusp per edge, whose reading on a line of coincident edges is not
+//! built, and an arc leaves two coincident arcs the census does not read
+//! ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`]). The reading
+//! finds an edge only where its ends lie on the face, by structure or by
+//! a record, or a record names the pair; an edge it does not find stays
+//! one edge, and the result gate's line reading
+//! ([`crate::census::line_wedges`]) refuses its overlapping wedges
+//! instead.
 //!
 //! The parting is Euler surgery on the result. `mef` in the wall the
 //! edge's plus half runs in mints the second edge, and the two-edge face
@@ -44,7 +49,7 @@ use crate::Cell;
 use crate::body::Body;
 use crate::boolean::records::{Contact, ContactKind, ContactRecords};
 use crate::coincidence::Cited;
-use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
+use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::live::proven;
 
@@ -183,14 +188,23 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(Vec<Parted>, ContactRecords), BooleanError> {
-    let riders = riders(body, contacts, band)?;
     let mut parted = Vec::new();
+    // Every edge read so far, parted or not.
+    let mut read: BTreeSet<EdgeKey> = BTreeSet::new();
     let mut dropped: BTreeSet<[Cell; 2]> = BTreeSet::new();
     // Each parted edge and divided end, and its twin: every contact the
     // one holds the other holds too, at one point or along one line.
     let mut twins: Vec<(Cell, Cell)> = Vec::new();
     let mut divided: BTreeSet<FaceKey> = BTreeSet::new();
-    for (edge, faces) in riders {
+    // Read again after each parting: a parting that divides a face
+    // gives one of its pieces a new key, which a later edge lying in
+    // that piece is read against. A record naming a divided face refuses
+    // `Recorded` below.
+    while let Some((edge, faces)) = riders(body, contacts, band)?
+        .into_iter()
+        .find(|(e, _)| !read.contains(e))
+    {
+        read.insert(edge);
         let mut parting = Vec::new();
         for (face, partly) in faces {
             if let Some(tangent) = walls_inside(body, edge, face, band)? {
@@ -222,9 +236,7 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         if !crate::census::edge_is_line(body, edge) {
             return Err(refused(EdgeInFaceGap::Curved));
         }
-        let (a, b) = ends(body, edge).ok_or(BooleanError::JoinDesync {
-            what: "an edge lying in a face does not resolve",
-        })?;
+        let (a, b) = crate::query::edge_ends(body, edge);
         if [a, b]
             .into_iter()
             .any(|v| touches_boundary_between(body, contacts, v, face))
@@ -290,9 +302,18 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
             let Some(k) = cells.iter().position(|&c| c == of) else {
                 continue;
             };
-            if let Ok(contact) = Contact::new(body, twin, cells[1 - k]) {
-                kept.push(Cited::new(contact, row.cites.clone()));
-            }
+            // The twin is a cell the parting minted: the copy of an end,
+            // which takes none of the edges the record's other cell
+            // touched in their interiors, or the second edge, on the
+            // kept edge's ends or their copies, which bounds the floor
+            // and a wall the kept edge bounded before. So it is neither
+            // the other cell nor incident to it, and a refusal here is
+            // the parting's own defect.
+            let contact =
+                Contact::new(body, twin, cells[1 - k]).map_err(|_| BooleanError::JoinDesync {
+                    what: "a parted cell's twin is incident to the cell its record names",
+                })?;
+            kept.push(Cited::new(contact, row.cites.clone()));
         }
     }
     Ok((parted, kept))
@@ -333,9 +354,7 @@ fn riders<T: Decide>(
     };
     let mut out = Vec::new();
     for (e, _) in body.edges() {
-        let Some((a, b)) = ends(body, e) else {
-            continue;
-        };
+        let (a, b) = crate::query::edge_ends(body, e);
         if a == b {
             continue;
         }
@@ -453,11 +472,6 @@ fn walls_inside<T: Decide>(
         .carrier()
         .deriv((t0 + t1) * T::from_f64(0.5))
         .normalize();
-    let (a, b) = ends(body, e).ok_or_else(desync)?;
-    let arm = vertex_point(body, a)
-        .zip(vertex_point(body, b))
-        .map(|(p, q)| p.distance(q))
-        .ok_or_else(desync)?;
     let floor = crate::face_normal::face_outward_normal(body, f)
         .ok_or_else(desync)?
         .vec();
@@ -467,7 +481,7 @@ fn walls_inside<T: Decide>(
         .into_iter()
         .enumerate()
     {
-        let wall = loop_face(body, he).ok_or_else(desync)?;
+        let wall = body.face_of_half_edge(he).ok_or_else(desync)?;
         let normal = match crate::face_normal::face_outward_normal_at(body, wall, mid, band) {
             Ok(Some(n)) => n.vec(),
             Ok(None) => return Err(desync()),
@@ -480,6 +494,10 @@ fn walls_inside<T: Decide>(
             Err(_) => return Err(refused(EdgeInFaceGap::NoNormal)),
         };
         let into = normal.cross(dir);
+        // How far the wall leaves the floor grows across the line: the
+        // lever is the wall's own reach from the line's middle, as a
+        // seam's dihedral reads it ([`crate::wedge_reach`]).
+        let arm = crate::wedge_reach(body, [wall, wall], curve.carrier(), (t0, t1));
         let sectors =
             |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
         inside[k] = match crate::validate::decide(
@@ -508,6 +526,29 @@ fn walls_inside<T: Decide>(
                         apex + axis * (mid - apex).dot(axis) - mid
                     }
                     geom::Surface::Sphere { center, .. } => center - mid,
+                    // A plane wall tangent along the line lies in the
+                    // floor's plane. Glued to the floor from outside
+                    // (outward normals opposed), its material is across
+                    // the plane from the floor's, and the edge keeps one
+                    // edge, as D1 says; facing as the floor does, it
+                    // would lie over the floor's own sheet.
+                    geom::Surface::Plane { .. } => {
+                        match crate::validate::decide_nonzero(
+                            "bool_rider_wall_coplanar",
+                            Margin::of(normal.dot(floor)),
+                            band,
+                        )
+                        .map_err(sectors)?
+                        {
+                            geom_core::k_stats::NonzeroSign::Negative => {
+                                inside[k] = false;
+                                continue;
+                            }
+                            geom_core::k_stats::NonzeroSign::Positive => {
+                                return Err(refused(EdgeInFaceGap::Tangent));
+                            }
+                        }
+                    }
                     _ => return Err(refused(EdgeInFaceGap::Tangent)),
                 };
                 match crate::validate::decide_nonzero(
@@ -553,14 +594,15 @@ fn part<T: Decide + crate::props::AtRestPolicy>(
         .get_curve_geom(data.curve)
         .and_then(|c| c.certified())
         .cloned();
-    let (a, b) = ends(body, edge).ok_or_else(desync)?;
-    let wall = loop_face(body, h).ok_or_else(desync)?;
+    let (a, b) = crate::query::edge_ends(body, edge);
+    let wall = body.face_of_half_edge(h).ok_or_else(desync)?;
     let surfaces = [face, wall].map(|f| body.get_face(f).map(|d| d.surface));
     let [Some(floor_surface), Some(wall_surface)] = surfaces else {
         return Err(desync());
     };
-    let (pa, pb) = vertex_point(body, a)
-        .zip(vertex_point(body, b))
+    let (pa, pb) = crate::readback::vertex_point(body, a)
+        .ok()
+        .zip(crate::readback::vertex_point(body, b).ok())
         .ok_or_else(desync)?;
     // A line edge (an arc refuses `Curved` before parting): the draft
     // draws the chord between the ends, its own spec.
@@ -709,12 +751,6 @@ fn touches_an_edge(contacts: &ContactRecords, v: VertexKey) -> bool {
         .any(|row| matches!(row.record.kind(), ContactKind::VertexEdge(x, _) if x == v))
 }
 
-/// The face the loop of `he` bounds.
-fn loop_face<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<FaceKey> {
-    let l: LoopKey = body.get_half_edge(he)?.parent_loop;
-    Some(body.get_loop(l)?.face)
-}
-
 /// Every half-edge of `face`'s loops.
 fn face_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<HalfEdgeKey>> {
     let data = body.get_face(face)?;
@@ -725,17 +761,4 @@ fn face_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<HalfEdgeK
         }
     }
     Some(out)
-}
-
-/// An edge's start and end vertices.
-fn ends<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<(VertexKey, VertexKey)> {
-    let he = body.get_edge(e)?.he_plus;
-    Some((body.get_half_edge(he)?.start, body.half_edge_end(he)?))
-}
-
-/// A vertex's point.
-fn vertex_point<T: Decide>(body: &Body<T>, v: VertexKey) -> Option<geom_core::Point3<T>> {
-    body.get_vertex(v)
-        .and_then(|d| body.get_point(d.point))
-        .copied()
 }
