@@ -2403,6 +2403,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::EmptyLoop { .. } => "empty_loop",
         TessellateError::MissingEntity { .. } => "missing_entity",
         TessellateError::ResolutionOverflow { .. } => "resolution_overflow",
+        TessellateError::StepNotPositive { .. } => "step_not_positive",
         TessellateError::CertificateExceeded { .. } => "certificate_exceeded",
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
