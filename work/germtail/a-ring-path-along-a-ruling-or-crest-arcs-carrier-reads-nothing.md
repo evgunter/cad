@@ -5,6 +5,7 @@ title: A ring path along a cone ruling arc's line, or the torus's crest cylinder
 status: open
 opened: 2026-10-12
 priority: P4
+cost: M
 ---
 
 ## What

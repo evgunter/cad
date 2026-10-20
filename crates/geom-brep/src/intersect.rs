@@ -34,7 +34,7 @@
 //!   as stored. A body at rest holds the convention against ZERO (tier-3
 //!   check 1), so a cone that validates can be refused here. Whether the
 //!   convention is a band question or a datum-sign question is open
-//!   (`work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo.md`),
+//!   (`work/germcert/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo.md`),
 //!   and these trileans follow the band side until that is ruled.
 //! - **The M2 pairs enter unchanged**: plane×plane stays the existing
 //!   splitting/boolean seam (rung 1, implemented — the table names it,

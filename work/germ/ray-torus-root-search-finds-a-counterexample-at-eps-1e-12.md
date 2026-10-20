@@ -156,4 +156,4 @@ said nothing about the ray's angle to the axis.
 **Residue, filed:**
 - `ray-wall-and-cone-near-root-cancels-over-a-small-lead` (closed, PR 3755)
 - `work/inside/torus-split-lead-escalates-a-legitimately-small-resolvent-root.md`
-- `work/germ/generic-pose-window-is-tighter-than-the-biquadratic-arm-bound.md`
+- `work/germcert/generic-pose-window-is-tighter-than-the-biquadratic-arm-bound.md`
