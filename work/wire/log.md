@@ -6904,3 +6904,8 @@ Signed (WIRE orchestrator).
   - line_head now checks it is a flush line; cites_both checks the head reads; a locality assert added; tied flag pinned.
   - Rows: doctail N5 two-hop offers; one flush-grouping helper; pair-seam seat trace (no cross-seat least).
   - [ev] taken off the title.
+
+- 2026-10-20 (WIRE orchestrator) PR 5486 fix pass at 4bddb8ab69 is green, including python.
+  - topo now defines a half's plane pieces (SplitNaming::plane_pieces); record_islands runs post-merge with new verdicts on ringed sides; the moat witness evaluates.
+  - The three Emissions are now unreachable!. A completion-index mutant reds both tilt rows. The tie flag is per wall set.
+  - Because the kernel part was rebuilt, a focused FULL re-review of the fix delta is dispatched.
