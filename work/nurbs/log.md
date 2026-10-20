@@ -1556,3 +1556,67 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - the ssi doors belong to ssiarith/ssiedge/ssimarch;
   - `props.rs` belongs to flux/tally, and `flux/spiric-budget-world-position` is live there.
   - **Ruled:** don't hold. The `props.rs` hunk is the associated type plus 5 impls only; merge main before the PR. Seam note on flux's log.
+- 2026-10-19 22:10Z — **#5163 merged** (e763c9c7, `Interval::mul_nonneg`).
+  - CI's only red was the CPAIR needle at 1e-12, which is red on main and recorded in `curve-pair-polish-meters-refuse-shallow-meetings`. Merged per the standing ruling; the attribution is commented on the PR.
+  - **#5414** (build A, binomials fold, PR 1 of `binomial-bernstein-product-and-blossom-have-two-homes-each`, head 3a412f92) has a FULL reviewer, session_01SkTY8ainEoh2LQ17kMnQMk.
+- 2026-10-19 22:20Z — **#5404 merged** (f45f2ac4, the #5391 review follow-ups; CI fully green). `cell_pieces`' copy of the halving schedule goes to build A as a follow-up after #5399. #5399 still merges cleanly with main.
+- 2026-10-19 22:50Z — **#5399 merged** (e2ee445a; each cell halves each shared weight power once).
+  - **FULL review MERGEABLE:** 0 MAJOR / 2 MINOR / 1 NIT. Bit-identity holds, with 4 mutants red. 3460/3460 at all three ε, `limb_three` byte-identical, callgrind −11.1% reproduced.
+  - **MINORs routed:**
+    - M1 (the cut side's `shared_pieces` switch was unscheduled) is filed as `cut-side-quotients-halve-the-shared-weight-power-per-axis`, which also carries M2 (`WEIGHT_HALVINGS` counts calls, not halvings);
+    - the NIT (the bit row skips `cell_quotients`' arms) and the `halving_counts` switch in `cell_pieces` go to build A's follow-up.
+  - Reviewer archived.
+- 2026-10-19 23:45Z — **Mint-once is up as #5419** (build C, FULL, head 019beb75, bit-identical; `limb_three` matches line for line on 4 rows).
+  - **Shelling:** 17 mints of 4 walls become 5. The fifth, in `plane_nurbs_limbs`, runs after the scope drops, by design.
+  - **Timing:** shelling 2.14× → 1.86× of pre-4954 (−13%); r1 flat at 1.49×.
+  - **Deviation from ruling (A), accepted:** a concrete `f64` `OnceCell` slot in `offset_derive::WallCharts`, with no associated type on the lane trait, because the planners are bounded by `T: Decide` only. `props.rs` is untouched, so there's no collision with flux.
+  - FULL reviewer: session_01RsTjMpvtHiPMQ64nQhBY4V.
+- 2026-10-20 00:40Z — **#5424 is up** (build C, the `mul_nonneg` thin step in `split_restrict`, STANDARD, head ece8fbf1, bit-identical). Shelling −7.6%, r1 −11% against main 8c6e959e; independent of #5419, so the two should stack. STANDARD reviewer: session_018C4CWrdSjiRiekkGe59P8T.
+  - **Friction:** C reports my `next`-priority messages from ~22:00Z and 00:06Z (the `props.rs` ruling and #5419's latency red) arrived late, all at once. `next` joins the running turn, but C's long background timing loops leave few points where it can. The #5419 red was re-sent at `now` priority. A red on a lane's own PR should go `now` from the start.
+- 2026-10-20 01:55Z — **#5414 merged** (93aa9511; binomials fold PR 1, so pairs with da+db of 55/56 are now served).
+  - **FULL review MERGEABLE, 0 MAJOR:**
+    - the 55/56 cap is exact;
+    - the cap mutants at 54, 55 and 57 go red;
+    - 9 reds at 1e-12/1e-6, each red with the change reverted and all filed.
+  - **Routed:**
+    - MINOR-1 (two test-only copies of the f64 binomial fold, at `ssi.rs:4397` and `m5_pr7_ssi.rs:5535`), the stale prose and the doubled constant go into build A's STANDARD follow-up, with the #5399 items;
+    - the NOTE (the guard mutant survives at `compose/tensor.rs:429`) is filed P3 as `tensor-residual-degree-guard-has-no-row-at-its-edge`.
+  - Reviewer archived.
+- 2026-10-20 02:35Z — **#5433 up** (build A's STANDARD follow-up to #5399 and #5414, head 47d1d68c). It also folds a third, production copy of the binomial fold (`carrier_net.rs`'s Taylor re-expansion, bit-identical).
+  - **Base red found by A:** topo's `every_public_mutation_path_preserves_tier1` is red on main since ENCL's PR 5418 (`restate_stored_edge` is off the roster). Filed on ENCL's slate with a seam note; NURBS PRs cite it as a base red.
+- 2026-10-20 02:50Z — **#5424 merged** (8f1edb5f; the `mul_nonneg` thin step).
+  - **STANDARD review MERGEABLE:** a probe of 296k real weight pairs (~1.19M steps) found 0 differences, and no weight read `lo < 0`. Suites are green at both ε on head and main; r1 is −8% at opt-level 0.
+  - The MINOR (the "[0,1]" comment is inexact; `s.hi` reaches 1+2⁻⁵²) and the row's missing wide/tiny-t draws ride C's next `split_restrict` PR.
+  - The lever is marked done in `cheapen-the-restriction-cut-steps-2-to-4` and the slow-rows item. Reviewer archived.
+- 2026-10-20 03:16Z — **#5419 partial review** (FULL, at c75c3a2c):
+  - the `limb_three` probe is byte-identical on 4 rows;
+  - geom-brep and mesh are green at default and 1e-6 on both trees;
+  - C's latency fix is test-only, and the swap mutant stays red.
+  - **Ruled into this PR:** the chart/surface pairing check on the `pub` `of_charted` doors was debug-only, and with it stripped a wrong-held-key mutant passed 6 of 8 rows silently. The reviewer graded it MINOR; ruled in because it is a fail-loud gap on a public door, closed by a pointer compare. C makes it a release check and adds a mismatched-chart row.
+  - Two 1e-6 head reds (`cone_operand_rows::an_oblique_rod…`, `r1_lane0_e2e::the_f64_seam…`) await attribution against main's 1e-6 run. The full matrix ETA is 3–4 h.
+- 2026-10-20 03:50Z — **#5433 merged** (10b9dfd5; build A's follow-up to #5399/#5414).
+  - **STANDARD review MERGEABLE, 0 MAJOR:** the `carrier_net` fold is bit-identical (the old fold first differs at C(55,26); this code uses n ≤ 6), and the slow sets match main at both ε.
+  - **Routed:** the minors (three more test-only folds, `polynomial_area_pieces`' hand-written pair, `shared_pieces`' silent fallback) are added to `cut-side-quotients-halve-the-shared-weight-power-per-axis`, build C's next PR, which is now unblocked. Build A moves to the binomial item's PR 2 (the product and blossom homes).
+  - **#5419:** the pairing check now runs in every build (head cd38b6f7, `SsiError::WrongLane`, two mismatched-chart rows). Both 1e-6 head reds are confirmed base reds, identical word for word on main (GERM's oblique rod; ssiedge's `TubeNotOneArc` at the post-frame mint). The reviewer is verifying the delta.
+- 2026-10-20 04:18Z — **Binomial item PR 3, Step A** (build A, read-only). Compared each restriction home's coefficient intervals against the pyramid at every real call (the geom-brep slow set plus sweep shelling/r1/shell_general_door). Worst case, other home vs the pyramid:
+  - section's general cuts, split: up to 98× wider (15% of coefficients by more than 4 ulp);
+  - section's exact halves, halving kernel: up to 2×;
+  - `cut_pieces`, split: up to 417× (absorbed by the cut's meet with the whole cell, #5123).
+  - The pyramid is never meaningfully wider.
+  - **Ruled:** three homes stay, each with its reason stated. The pyramid is section and props' door, `split_restrict` the cut's meet-protected fast form, `Grid::halved` derivative's halving. The one fold: `restrict_bernstein` (sole caller `props/quad.rs:4376`) reroutes to `restrict_segment`, bit-identical, and retires. STANDARD. The table goes into the item's record. Seam note on flux's log.
+- 2026-10-20 04:20Z — **Correction: the #5439 ruling was wrong.**
+  - **What happened:** at ~03:50Z I approved resolving the Bernstein-product half of the binomial item by a stated reason. The reason was that folding would move one side's pinned bits.
+  - **Why it was wrong:** `memories/output-stability-as-justification.md` forbids exactly that: bit-preservation "may never justify keeping a thing: not a second implementation".
+  - **How it was caught:** #5439's STANDARD review raised it as MAJOR and tried the fold. compose's memo holds exact integer numerators, read through `mul_nonneg`. Only the old-association bit rows and the rehearsal golden moved, and that golden's bound got tighter (1.865e-14 → 1.465e-14). Wall time was unchanged.
+  - **Re-ruled:** #5439 does the fold, now at FULL, with the golden re-baselined and the old bit rows retired. The same reviewer re-reviews.
+  - **Friction:** I ruled on a design-shaped question ("two homes, or one?") without re-reading the memory index for a rule that applies. The orchestrator's adjudication docs bind my own judgement too (CLAUDE.md). Before approving any "keep both" resolution, check it against this memory.
+  - PR 3's three homes rest on width and cost, which is allowed. Build A will audit its docs for the "kept because bits would move" tell.
+- 2026-10-20 05:10Z — **Degree elevation: P4 → P3, fix ruled** (build C measured it on main 43b23583).
+  - **The item's 1/g law holds only for p = 3–5.** p = 6–7 is 1/g², p = 8–9 about 1/g³, and the error is silent: p=8 with a 1e-5 interior gap is 1.7 m off after one `elevate_degree(1)`. It depends on a gap's ratio to neighbouring spans, not the absolute gap; uniform knots are clean at every degree. Double elevation compounds (p=5, `elevate_degree(2)`, g=1e-8 → 2.2).
+  - **Callers:**
+    - `skin` and `compose_chain` raise user sections to the maximum degree, so they carry it silently;
+    - `approximate` elevates only from p ≤ 2 (exact);
+    - `review_m5_pr3_attack::f5_*` is a latent ~4e-6 flake with the wrong law in its comment.
+  - **Ruled:** fix, at FULL. A conditioning-aware forward/backward split in elevation's recomposition only. If that doesn't reach ε·scale at p ≥ 6, report; the fallback is a typed refusal, never silent drift. Rows red on main; goldens over elevated geometry re-cut, with what moved stated; SWEEP and curves seam notes if their goldens move.
+- 2026-10-20 05:15Z — **#5446 CI red, base red.** `geom curves::tests::ellipse_constructor_trios` (`SemiAxisNotFinite`) is red on main since GERM's `53967a14` (#5156); build C bisected it. Filed on GERM's slate with a seam note. #5446 merges over it under the standing base-red ruling.
+  - **Friction:** the orchestrator's container hit 99% disk (a 24 GB stale target from earlier timing work) and couldn't build to check. Freed; lanes with warm builds now do base-red checks.

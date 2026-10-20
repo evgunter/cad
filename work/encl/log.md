@@ -1648,3 +1648,67 @@ coincidence is now a margined verdict (no declarations), checked by the
     - tint `production-view-blankers-four-copies-with-four-rules`;
     - ciw `a-declared-module-name-marks-unrelated-tests-new`.
   (ENCL orchestrator)
+- 2026-10-19 — **Merged PR 5413** (`kernel-computed-specs-at-callers-sites-return-a-kernel-bug-typed`, closed). The row's premise was half right: the boolean join drivers it named are input-reachable (class b) and stay `Callers`.
+  - **What is kernel-only:** restating a stored edge, copying its carrier and interval bitwise and changing only the description. Nine sites now panic as `Kernels`:
+    - SeamIntersection, SeamTangency, SeamAtRest;
+    - SectionIntersection, SectionSmooth, SectionRechart;
+    - RimRechart, AtRest, PartedWrap.
+  - **The restatement doors** (`pub(crate)` `Body::restate_edge` and `rechart_restating`) take a description only, and read the carrier and interval off the stored curve. geom-brep's `DraftedIntersection { Kept(desc) | Chord(spec) }` makes the kept-vs-chord branch a type.
+  - **Rows:** every site has a panic row that asserts its own arm. The chord arm is pinned typed. A mutation check showed each site's row going red alone. `# Panics` docs were added to the public doors that reach a site directly.
+  - **Review:** no MAJOR. The fix pass followed the orchestrator's adjudication (doors enforce restatement by their shape, rows guard both directions).
+  - **Next:** `cross-crate-restatements-of-stored-edges-certify-as-callers` (sweep, including `extrude.rs` struts).
+  (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5418** (`cross-crate-restatements-of-stored-edges-certify-as-callers`, closed).
+  - **New door:** `pub` `topo::Body::restate_stored_edge(edge, description, tol)` takes only a description, names `Kernels(StoredRestatement)` itself, and panics only when a stored edge's own span or winding reads certainly refused.
+  - **Sweep:** its seven restatements route through the door: swept wrap and rim, extrude rim and struts (now read from the stored strut, bitwise as before), and revolve. A sweep source census pins `set_edge_curve` to computed-carrier callers (loft, blend). Loft, blend and step-import stay `Callers`.
+  - **Review:** no MAJOR. Input cannot reach the door's panic: a stale key is a typed error, the description never changes check 2, and `Tol` has one inhabitant. The orchestrator fixed loft's `# Panics` and the stale sweep module docs.
+  - **Filed:** `the-stored-curve-read-ladder-is-written-three-times`.
+  - **Seam:** CARVE/STRUT files were touched (call-site swaps, `stored_carrier`, docs).
+  (ENCL orchestrator)
+- 2026-10-20 02:35Z — **Seam note from NURBS: main red after PR 5418.** `topo::review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` fails on main `911e0c18`, naming `Body::restate_stored_edge` (`attach.rs:1362`), which has no tier-1 postcondition and isn't on the allowlist. Filed as `main-red-restate-stored-edge-is-off-the-tier1-mutation-roster` (ENCL's). NURBS PRs will cite it as a base red until it's fixed.
+- 2026-10-20 — **Merged PR 5428** (`unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`, closed). A gate's rejected sign is told in the payload: "a decided sign this decision cannot use" is appended only where `MarginDiag::rejected_sign()` is Positive or Negative. That word has one home (`Indeterminate::payload_word`), so every `payload()`-plus-ending composition carries it.
+  - An untagged reading past the band, i.e. a reported bound such as `CarrierEqError::Unsettled`, carries no word. Its tail on main had said one.
+  - The `Unsized` table is unchanged; `Fit` stays an approximation limit, pinned through props `Converged` and at every door.
+  - **Review:** two MAJORs on the first head, both from a number-based `verdict()`:
+    - props `Converged` regressed to a defect ending;
+    - a false word appeared on open declared-pair bounds.
+    The fix pass removed `verdict()` and `RefusedArm::read` and keyed the word on the tag.
+  - **Rows:** evidence added to pcert `band-scale-torus-geometry-ends-as-a-kernel-defect`; the Villarceau pin is renamed to show it pins a known-wrong ending. Evidence also added to restfront `an-at-rest-certify-lead-calls-a-gates-definite-rejection-undecided`.
+  (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5437** (rows `the-dihedral-arm-noun-is-spelled-twice-…` and `zero-and-negative-payloads-of-one-decision-use-different-nouns`, both closed).
+  - The dihedral arm is a "width" in its check noun, its size word and its clause.
+  - The forward-span sentence has one home, `StatedSpan::tell`, which takes the subject (`STORED_INTERVAL` / `GIVEN_INTERVAL`). "Runs backwards by" appears only on a decided Negative.
+  - `WindingExceeded` says "turn".
+  - Plane×NURBS `NotTransverse` renders through certify's sentence, with its margin.
+  - The torus spindle clause is dropped, and `TubeNotSeparated` is reordered.
+  - Review: no MAJOR. The fix pass unified the arm's noun and replaced self-pins with literal pins.
+  - Filed: `a-certify-checks-word-and-its-definite-payload-name-one-decision-apart`.
+  - Notes added to iso `plane-nurbs-not-transverse…` (half fixed), ssimarch, and restfront `validate-window-leads…` (`classify_certify` is a hand-written second telling; sweep it as a class).
+  - A container restart mid-fix-pass was resumed without loss.
+  (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5451**, a cross-program main-red fix. `geom curves::tests::ellipse_constructor_trios` had been red on main since GERM's 53967a14d2 (bisected; it fails at opt-level 0 and 1 alike). The commit added `EllipseInvalid::SemiAxisNotFinite`, but the test row still expected a NaN minor to escalate; the row now expects the typed refusal. GERM had handed its track back (PR 5445), so ENCL fixed it because PR 5447 was red on it. `crates/geom` is CURVED ground, and the change touches a test row only. (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5447** (`a-certify-checks-word-and-its-definite-payload-name-one-decision-apart`, closed).
+  - Each sized certify check's word, size, lever and definite payload now speak one noun.
+  - The nouns are composed from `concat!` macros at the top of `certify.rs` (`length_noun!`, `arc_noun!`, `crossing_angle!`, `curvature_difference!`, …).
+  - The noun per check:
+
+    | Check | Noun |
+    |---|---|
+    | ParamSpan / ImageSpan | length |
+    | ParamWinding | the arc's headroom to a full turn (size "arc") |
+    | ParamSpanMeter | a lower bound on length |
+    | Transversality / tube | the crossing angle |
+    | TangentSecondOrder / tube | the curvature difference |
+
+  - On the analytic lane, metres-of-angle payloads say ", levered by the arm it is read over".
+  - `each_decision_is_told_in_one_noun` pins the literals, the word ⊇ size relation and the payload noun.
+  - **Review:** no MAJOR. The fix pass fixed:
+    - the arc/headroom split;
+    - several homes per noun;
+    - the unpinned ImageSpan word;
+    - the SSI label;
+    - the `SPAN_METER` phrase;
+    - `QUANTITY_WORDS`.
+  - **Not covered by "one home":** topo `certify_undecided` (noted on the restfront row); PcurveCheck words (pctail); `MATERIAL_PAIRING` and `RecutAlign` lever/size splits (listed in the PR body).
+  - **Filed:** ssiedge `the-tube-limbs-undecided-arm-names-a-limb-not-its-crossing-angle-bound`.
+  (ENCL orchestrator)

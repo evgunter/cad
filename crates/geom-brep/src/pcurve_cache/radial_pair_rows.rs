@@ -506,6 +506,7 @@ fn the_projected_envelope_sums_its_channels() {
     let lane = Some(crate::FittedLane::<f64>::certified());
     let terms =
         projected::projected_envelope(&image, t0, t1, &boxed, &carrier, &surface, band(), lane)
+            .map(|(terms, _)| terms)
             .unwrap();
     let (u, v) = (
         terms.0[EnvelopeTerm::FidelityU.slot()],

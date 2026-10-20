@@ -1516,6 +1516,83 @@ pub fn conic_torus_implicit<T: Real>(
     ((rho - big).square() + hh - rr) * ((rho + big).square() + hh - rr)
 }
 
+/// The torus's implicit `F` ([`ConicTorusHarmonics`]) and its first
+/// three derivatives in `θ` at the [`Conic`] point of parameter `theta`,
+/// each carried with a first-order running bound on its rounding
+/// ([`Rounded`]), read from the point rather than from the harmonics.
+///
+/// With `q = C(θ) − c = (C₀ − c) + E`, `E = a·û cos θ + b·v̂ sin θ`, the
+/// carrier's derivatives are `q′ = E′`, `q″ = −E`, `q‴ = −E′` on any
+/// frame, so `S = |q|²` and `h = q·â` have
+/// `S′ = 2q·E′`, `S″ = 2(E′·E′ − q·E)`, `S‴ = −2(3E′·E + q·E′)` and
+/// `h⁽ʲ⁾ = q⁽ʲ⁾·â`, and `F = P² − 4R²(S − h²)`, `P = S + R² − r²`, has
+///
+/// - `F′ = 2PS′ − 4R²(S′ − 2hh′)`,
+/// - `F″ = 2(S′² + PS″) − 4R²(S″ − 2(h′² + hh″))`,
+/// - `F‴ = 2(3S′S″ + PS‴) − 4R²(S‴ − 2(3h′h″ + hh‴))`.
+///
+/// Every term is read at the point, so it is no larger than `F`'s own
+/// scale there (`|q|` near the tube is at most `R + 2r`, and `E`, `E′`
+/// enter at the carrier's speed, one power per derivative): the bound is
+/// `u` of those magnitudes plus the point's own rounding carried through.
+/// `q` is formed as `(C₀ − c) + E`, not in [`Conic::point`]'s order, so
+/// that rounding is `u` of `|C₀ − c|` and `|E|`, not of the frame's
+/// `|C₀|`. The harmonics' evaluation sums terms as
+/// large as `F`'s amplitude round the whole carrier, `~ρ⁴` for a circle
+/// of radius `ρ` far larger than the torus, which cancel to the small
+/// values `F` takes near the tube. `theta`, the frames and the radii are
+/// taken as exact; `v̂ = n̂ × û` is charged as formed.
+#[must_use]
+pub fn conic_torus_jet<T: Real>(
+    conic: &Conic<T>,
+    t_center: Point3<T>,
+    t_axis: Vec3<T>,
+    major_radius: T,
+    minor_radius: T,
+    theta: T,
+) -> [Rounded<T>; 4] {
+    use geom_core::running::{cross, dot, exact_vec};
+    let ulp = T::from_f64(2.0 * geom_core::UNIT_ROUNDOFF);
+    let (sin, cos) = theta.sin_cos();
+    let transcendental = |x: T| Rounded {
+        value: x,
+        error: ulp * x.abs(),
+    };
+    let (sin, cos) = (transcendental(sin), transcendental(cos));
+    let (a, b) = (Rounded::exact(conic.semi_u), Rounded::exact(conic.semi_v));
+    let (n, u) = (exact_vec(conic.axis), exact_vec(conic.u_ref));
+    let v = cross(n, u);
+    let c = exact_vec(Vec3::new(conic.center.x, conic.center.y, conic.center.z));
+    let tc = exact_vec(Vec3::new(t_center.x, t_center.y, t_center.z));
+    let (ac, bs, as_, bc) = (a * cos, b * sin, a * sin, b * cos);
+    let e: [Rounded<T>; 3] = core::array::from_fn(|i| u[i] * ac + v[i] * bs);
+    let q: [Rounded<T>; 3] = core::array::from_fn(|i| (c[i] - tc[i]) + e[i]);
+    let e1: [Rounded<T>; 3] = core::array::from_fn(|i| v[i] * bc - u[i] * as_);
+    let axis = exact_vec(t_axis);
+    let (two, three) = (
+        Rounded::exact(T::from_f64(2.0)),
+        Rounded::exact(T::from_f64(3.0)),
+    );
+    let zero = Rounded::exact(T::zero());
+    let s0 = dot(q, q);
+    let s1 = two * dot(q, e1);
+    let s2 = two * (dot(e1, e1) - dot(q, e));
+    let s3 = zero - two * (three * dot(e1, e) + dot(q, e1));
+    let h0 = dot(q, axis);
+    let h1 = dot(e1, axis);
+    let h2 = zero - dot(e, axis);
+    let h3 = zero - h1;
+    let big = Rounded::exact(major_radius);
+    let four_rr = Rounded::exact(T::from_f64(4.0)) * big.square();
+    let p = s0 + (big.square() - Rounded::exact(minor_radius).square());
+    [
+        p.square() - four_rr * (s0 - h0.square()),
+        two * p * s1 - four_rr * (s1 - two * h0 * h1),
+        two * (s1.square() + p * s2) - four_rr * (s2 - two * (h1.square() + h0 * h2)),
+        two * (three * s1 * s2 + p * s3) - four_rr * (s3 - two * (three * h1 * h2 + h0 * h3)),
+    ]
+}
+
 /// The [`Conic`] point of parameter `theta` against the torus's frame:
 /// its distance `ρ` from the axis and its height `h` along it, with the
 /// running bounds of [`conic_torus_residual`]'s chain.
@@ -3306,6 +3383,98 @@ mod conic_tests {
                         );
                     }
                 }
+            }
+        }
+    }
+
+    /// **The jet is the harmonics' derivatives, read at the point.** For
+    /// every conic and torus of
+    /// [`the_torus_harmonics_are_the_implicit_along_the_carrier`], the
+    /// skewed frame included, [`conic_torus_jet`]'s `F⁽ʲ⁾` agrees with the
+    /// `j`-th derivative of the degree-4 polynomial the harmonics spell to
+    /// within its own bound plus the harmonics' `4ʲ·noise` (Bernstein).
+    /// And on a circle of radius 1000 grazing the tube, where the
+    /// harmonics' noise is some `10⁻³` m⁴, the jet's bounds stay within
+    /// `10⁻⁹` of its scale there.
+    #[test]
+    fn the_jet_is_the_harmonics_derivatives_at_the_point() {
+        let tori = [
+            (
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 1.0),
+                0.55,
+                0.2,
+            ),
+            (
+                Point3::new(0.3, -0.1, 0.4),
+                Vec3::new(0.2, 1.0, -0.3).normalize(),
+                1.1,
+                0.35,
+            ),
+        ];
+        let mut conics = ellipses();
+        conics.push(Conic::circle(
+            Point3::new(0.2, 0.1, -0.1),
+            Vec3::new(0.0, 0.6, 0.8),
+            0.7,
+            Vec3::new(1.0, 0.0, 0.0),
+        ));
+        conics.push(Conic {
+            u_ref: Vec3::new(1.0, 0.003, 0.0),
+            ..conics[0]
+        });
+        for (k, conic) in conics.iter().enumerate() {
+            for &(c, ax, big, small) in &tori {
+                let h = conic_torus_harmonics(conic, c, ax, big, small);
+                let noise = rounding_charge(h.terms);
+                for i in 0..64 {
+                    let t = TAU * f64::from(i) / 64.0;
+                    let jet = conic_torus_jet(conic, c, ax, big, small, t);
+                    for (j, got) in jet.iter().enumerate() {
+                        let want = (1..5).fold(if j == 0 { h.cos[0] } else { 0.0 }, |acc, m| {
+                            let mf = f64::from(m);
+                            let (sm, cm) = (mf * t).sin_cos();
+                            let (a, b) = (h.cos[m as usize], h.sin[m as usize]);
+                            // The `j`-th derivative turns harmonic `m` by `jπ/2`.
+                            let turned = match j {
+                                0 => a * cm + b * sm,
+                                1 => b * cm - a * sm,
+                                2 => -(a * cm + b * sm),
+                                _ => a * sm - b * cm,
+                            };
+                            acc + mf.powi(j as i32) * turned
+                        });
+                        let room = got.error + 4f64.powi(j as i32) * noise;
+                        assert!(
+                            (got.value - want).abs() <= room,
+                            "conic {k}, F^({j}) at {t}: the jet reads {} ± {}, the harmonics {want}",
+                            got.value,
+                            got.error
+                        );
+                    }
+                }
+            }
+        }
+        let rho = 1000.0;
+        let (big, small) = (1.0, 0.25);
+        let graze = Conic::circle(
+            Point3::new(big + small + rho, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            rho,
+            Vec3::new(-1.0, 0.0, 0.0),
+        );
+        let (c, ax) = (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let noise = rounding_charge(conic_torus_harmonics(&graze, c, ax, big, small).terms);
+        assert!(noise > 1e-4, "the harmonics' noise at ρ = {rho}: {noise}");
+        for t in [0.0, 1e-4, -2e-3] {
+            let jet = conic_torus_jet(&graze, c, ax, big, small, t);
+            for (j, got) in jet.iter().enumerate() {
+                let scale = (big + small).powi(4) * rho.powi(j as i32);
+                assert!(
+                    got.error <= 1e-9 * scale,
+                    "ρ = {rho}, F^({j}) at {t}: bound {} against the scale {scale}",
+                    got.error
+                );
             }
         }
     }

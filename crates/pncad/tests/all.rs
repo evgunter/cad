@@ -197,6 +197,11 @@ fn seating_refusal_payload(e: &pncad::select::SeatingRefusal) {
             named::<&pncad::select::DuplicateName>(d);
             named::<&StableName>(&d.name);
         }
+        pncad::select::SeatingRefusal::EntityNamed(n) => {
+            named::<&pncad::select::EntityNamed>(n);
+            named::<&StableName>(&n.name);
+            named::<&StableName>(&n.held);
+        }
         pncad::select::SeatingRefusal::KindMismatch(k) => {
             named::<&pncad::select::KindMismatch>(k);
             named::<&StableName>(&k.name);
@@ -374,7 +379,6 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::ContactSecondOrder => "contact_second_order",
         BlendDecision::CornerIndependence => "corner_independence",
         BlendDecision::CapTransverse => "cap_transverse",
-        BlendDecision::CapEllipse => "cap_ellipse",
         BlendDecision::CutOffFeet => "cut_off_feet",
         BlendDecision::TurnFeetGap => "turn_feet_gap",
         BlendDecision::TurnOverrunChord => "turn_overrun_chord",

@@ -275,7 +275,10 @@ fn step(x: Interval, y: Interval, (t, s): (Interval, Interval)) -> Interval {
     if x.same_enclosure(y) {
         x
     } else {
-        x * s + y * t
+        // Both weights lie in `[0, 1]`, so each product reads the two
+        // corners its signs select (`Interval::mul_nonneg`), bit for bit
+        // the general product.
+        x.mul_nonneg(s) + y.mul_nonneg(t)
     }
 }
 
@@ -852,6 +855,55 @@ mod tests {
                     "degree {p} on [{s0}, {s1}] cut to [{a}, {b}]: {got:?} is not {c:?}"
                 );
             }
+        }
+    }
+
+    /// **The thin step's products are the general products to the bit.**
+    /// `step` reads `x·(1 − t) + y·t` through `Interval::mul_nonneg`;
+    /// against `x * s + y * t` over drawn coefficients of every sign
+    /// (below, above and straddling zero, thin and wide) and weights from
+    /// interior ratios, ratios at an end of `[0, 1]`, and point ratios
+    /// (the general product's fallback), every result has the same ends
+    /// and decoration. Red on a product that pads or picks a corner
+    /// otherwise.
+    #[test]
+    fn the_thin_step_reads_the_general_products_to_the_bit() {
+        use interval_transcendentals::Decoration;
+        let bits = |x: Interval| -> (u64, u64, Decoration) {
+            (x.lo().to_bits(), x.hi().to_bits(), x.decoration())
+        };
+        let mut rng = test_utils::fuzz::start("thin-step-nonneg");
+        let coefficient = |rng: &mut test_utils::fuzz::Rng| {
+            let c = rng.range(-3.0, 3.0);
+            let w = match rng.below(3) {
+                0 => 0.0,
+                1 => rng.range(0.0, 1e-9),
+                _ => rng.range(0.0, 2.0),
+            };
+            Interval::from_bounds(c, c + w)
+        };
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let (x, y) = (coefficient(&mut rng), coefficient(&mut rng));
+            let ratio = match rng.below(4) {
+                0 => Interval::point(rng.range(0.0, 1.0)),
+                1 => Interval::point(if rng.below(2) == 0 { 0.0 } else { 1.0 }),
+                _ => {
+                    let (s0, s1) = (rng.range(-2.0, 1.0), rng.range(1.0, 3.0));
+                    let a = rng.range(s0, s1);
+                    let lo = Interval::point(s0);
+                    ((Interval::point(a) - lo) / (Interval::point(s1) - lo)).clamped_to(0.0, 1.0)
+                }
+            };
+            let (t, s) = convex(ratio);
+            let general = x * s + y * t;
+            let got = step(x, y, (t, s));
+            if x.same_enclosure(y) {
+                continue;
+            }
+            assert!(
+                bits(got) == bits(general),
+                "x {x:?}, y {y:?}, t {t:?}: {got:?} against {general:?}"
+            );
         }
     }
 

@@ -66,6 +66,8 @@ mod a_curved_keel_in_the_plane;
 mod a_face_off_the_tangent_ruling;
 #[path = "a_flank_touch_at_a_shared_corner.rs"]
 mod a_flank_touch_at_a_shared_corner;
+#[path = "a_flat_frustum_revolves.rs"]
+mod a_flat_frustum_revolves;
 #[path = "a_flipped_shallow_dimple.rs"]
 mod a_flipped_shallow_dimple;
 #[path = "a_keel_ring_in_an_elliptic_section.rs"]
@@ -561,6 +563,8 @@ mod mass_props;
 mod mass_props_interval;
 #[path = "must_carry_rule.rs"]
 mod must_carry_rule;
+#[path = "near_circular_sections.rs"]
+mod near_circular_sections;
 #[path = "r1_probes_issue1362_donut.rs"]
 mod r1_probes_issue1362_donut;
 #[path = "r2_sense_fold_probes.rs"]
