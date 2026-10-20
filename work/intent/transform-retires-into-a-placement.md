@@ -2,12 +2,12 @@
 id: transform-retires-into-a-placement
 kind: issue
 title: D10 stage 3 PR D: constructions read no frame and nothing moves a body; Datum, Transform and PlacedFrom retire, each use becoming a placement
-status: parked
+status: review
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [a-mate-relates-two-poses]
 refs: [intent-stage3-is-built]
+branch: intent/s3-d-transform-retires-into-a-placement
 ---
 
 INTENT stage 3, PR D. Spec: `docs/INTENT-STAGE3-SPEC.md` §5. Built on FORK-S3P (row 95, PR 4324) and FORK-S3M (row 97, PR 4326).

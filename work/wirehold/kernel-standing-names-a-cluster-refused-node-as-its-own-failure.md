@@ -2,12 +2,11 @@
 id: kernel-standing-names-a-cluster-refused-node-as-its-own-failure
 kind: issue
 title: NodeStanding reports a cluster-refused node as its own failure, so every kernel refusal carrying one sends an API reader to the wrong node
-status: parked
+status: open
 opened: 2026-09-29
 priority: P3
 cost: M
 design: true
-blocked_on: [a-mate-relates-two-poses]
 ---
 
 
@@ -81,3 +80,7 @@ Read against the tree at `fd218851f9`. Mate-cluster blame is stage 3 C's ground.
 Signed (WIRE orchestrator).
 
 **Census entries that wait on it (WIRE, PR 5298, 2026-10-18).** `crates/editor-core/tests/refusal_concision_chains.rs` `FILED_NO_RECOURSE` keeps `MeasureRefUnreadable/NodeFailed` and `MeasureRefUnreadable/NodePoisoned` unlabelled under a comment citing this row. Their only recourse is `NodeStanding`'s "fix the node's own failure" / "the repair is upstream", which is false for a node a cluster refused, so it is not certified as a `Recourse:` until this lands.
+
+## Unparked (2026-10-20, INTENT stage 3 D lane)
+
+Its trigger fired: `a-mate-relates-two-poses` (stage 3 C, PR #5267) merged on 2026-10-18, so mate-cluster blame now stands on the tree it waited for and the design question is open to weigh.
