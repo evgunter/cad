@@ -6932,3 +6932,12 @@ Signed (WIRE orchestrator).
   - Rows owed after all three land:
     - one NamingError row-1/2 variant set for the 17 deferred "correct kernel may reach" sites (topo 10, union 7; filed rows);
     - the 12 shared helpers in emit.rs.
+- 2026-10-20 (WIRE orchestrator) PR 5503 FULL review: NOT MERGEABLE, one BLOCKER, DEMONSTRATED.
+  - `Track::runs_with`'s Zero arm panics under an accepted K=1.5: its row-4 argument needs K > 4, and `Tolerance` accepts any K > 1.
+  - Fix pass sent to `wire-emis-topo`:
+    - the Zero arms go typed;
+    - UNCLASSIFIED_SIDE goes back to typed (its union twin is reached);
+    - track_caller is useless inside closures;
+    - message values; the stale merged.rs doc; PR body corrections.
+  - **Class note:** a row-4 argument resting on a band or length bound must hold for every K and ε that `Tolerance` accepts, not the defaults. Both other reviewers were told to probe with CAD_AMBIGUITY_K=1.5 and CAD_TOLERANCE_EPS=1e-6.
+  - The stored-curve row (`naming-edge-curve-ladders-can-read-through-body-stored-curve`) closes when 5503 merges.
