@@ -69,7 +69,10 @@
 //! charged): `noise`, a residual error of `noise / f_per_metre` metres,
 //! `f_per_metre` the door's floor on `|F|` per metre of residual. The
 //! subdivision charges it to every Taylor term it reads (its docs), so a
-//! pose whose noise is past the band refuses there. A
+//! pose whose noise is past the band refuses there, unless the door
+//! hands it a jet ([`SubdivisionFrame`]): `F` and its derivatives read
+//! at the carrier point, each charged its own rounding, with `noise` left
+//! only in the one global bound on `|F⁗|`. A
 //! rounding estimate on `f64`, run on every scalar; the `Interval` lane
 //! carries its own enclosure.
 //!
@@ -157,7 +160,13 @@ impl<T: geom_core::Real> DegreeTwo<T> {
 /// |F| / f_per_metre_hi)` everywhere — the lower bound a clear piece is
 /// read in. A door whose `F` IS that residual passes exactly `1` for
 /// both ratios and no reach (`None`: the ceiling holds everywhere).
-pub struct SubdivisionFrame<T> {
+///
+/// `jet`, where a door has one, reads `F` and its first three
+/// derivatives at a parameter from the carrier point, each with a bound
+/// on its own rounding ([`Jet`]). The walk then reads its Taylor terms
+/// there and charges each that bound, and `noise` enters only the one
+/// global bound on `|F⁗|` the harmonics give.
+pub struct SubdivisionFrame<'a, T> {
     /// The arc's start.
     pub t0: T,
     /// The arc's end.
@@ -172,7 +181,14 @@ pub struct SubdivisionFrame<T> {
     pub f_per_metre_hi: T,
     /// Where the ceiling stops holding; `None`, everywhere.
     pub residual_reach: Option<T>,
+    /// `F`, `F′`, `F″` and `F‴` read at the point, if the door has them.
+    pub jet: Option<&'a Jet<'a, T>>,
 }
+
+/// `F` and its first three derivatives at a carrier parameter, each
+/// with a bound on its rounding: a reading of the true `F` that does not
+/// pass through the harmonics ([`SubdivisionFrame`]).
+pub type Jet<'a, T> = dyn Fn(T) -> [geom_core::Rounded<T>; 4] + 'a;
 
 /// **The root-slack meter** a caller of [`certified_subdivision`] may
 /// hand it: `residual`, the surface's residual (metres) at a carrier
@@ -244,16 +260,16 @@ pub struct SubdivisionRows {
 /// the carrier's least speed `|C′|` (a circle's radius; an ellipse's
 /// semi-minor axis; the top speed is `walk`'s), and the ladder's `lever`
 /// (a length).
-pub struct HalfAngleFrame<T> {
+pub struct HalfAngleFrame<'a, T> {
     /// The subdivision's frame.
-    pub walk: SubdivisionFrame<T>,
+    pub walk: SubdivisionFrame<'a, T>,
     /// The carrier's least speed.
     pub speed_lo: T,
     /// The length the ladder's roots spread over.
     pub lever: T,
 }
 
-impl<T: Decide> HalfAngleFrame<T> {
+impl<T: Decide> HalfAngleFrame<'_, T> {
     /// The ladder's noise meter's reading: the harmonics' evaluation
     /// error, `noise / f_per_metre`, in metres of residual.
     pub fn noise_reading(&self) -> T {
@@ -286,7 +302,7 @@ const POLE_CANDIDATES: u32 = 32;
 pub fn half_angle_roots<T: Decide>(
     f: &DegreeTwo<T>,
     residual: impl Fn(T) -> T,
-    frame: HalfAngleFrame<T>,
+    frame: HalfAngleFrame<'_, T>,
     rows: &HalfAngleRows,
     slack: &RootSlack<'_, T>,
     band: Band,
@@ -310,7 +326,7 @@ pub fn half_angle_roots<T: Decide>(
 fn ladder_roots<T: Decide>(
     f: &DegreeTwo<T>,
     residual: &impl Fn(T) -> T,
-    frame: &HalfAngleFrame<T>,
+    frame: &HalfAngleFrame<'_, T>,
     rows: &HalfAngleRows,
     band: Band,
 ) -> Result<(), Indeterminate> {
@@ -529,7 +545,9 @@ const BISECTIONS: u32 = 64;
 /// The harmonics are rounded: `F` read from them is the
 /// true one to within `noise`, so its `k`-th derivative to within
 /// `Nᵏ·noise` (Bernstein's inequality for a trigonometric polynomial of
-/// degree `N`), and each Taylor term above is charged its own share.
+/// degree `N`), and each Taylor term above is charged its own share. A
+/// frame's `jet` replaces those readings and their charges with its own;
+/// the harmonics then give `M₄` alone.
 ///
 /// **Without a meter** (`slack` `None`) a root is only a scalar whose
 /// residual, as evaluated, reads ON beside a sign change of it: within
@@ -545,7 +563,7 @@ const BISECTIONS: u32 = 64;
 pub fn certified_subdivision<T: Decide>(
     f: &TrigPoly<T>,
     residual: &impl Fn(T) -> T,
-    frame: &SubdivisionFrame<T>,
+    frame: &SubdivisionFrame<'_, T>,
     rows: &SubdivisionRows,
     slack: Option<&RootSlack<'_, T>>,
     band: Band,
@@ -557,6 +575,7 @@ pub fn certified_subdivision<T: Decide>(
         noise,
         f_per_metre_hi,
         residual_reach,
+        jet,
         ..
     } = *frame;
     let two = T::from_f64(2.0);
@@ -603,9 +622,21 @@ pub fn certified_subdivision<T: Decide>(
             }
         })
     };
-    let slope = |t: T| derivative(t, 1);
-    let bend = |t: T| derivative(t, 2);
-    let jerk = |t: T| derivative(t, 3);
+    // `F` and its first three derivatives at `t`, each with a bound on
+    // its distance from the true one: the door's jet where it has one,
+    // else the harmonics with `k` derivatives of an error bounded by
+    // `noise` bounded by `Nᵏ·noise` (Bernstein's inequality, degree `N`).
+    let taylor = |t: T| -> [(T, T); 4] {
+        match jet {
+            Some(jet) => jet(t).map(|r| (r.value, r.error)),
+            None => [
+                (value(t), noise),
+                (derivative(t, 1), deg * noise),
+                (derivative(t, 2), deg.powi(2) * noise),
+                (derivative(t, 3), deg.powi(3) * noise),
+            ],
+        }
+    };
     let (six, twenty_four) = (T::from_f64(6.0), T::from_f64(24.0));
     let definitely = |row, m: T| matches!(decide(row, Margin::of(m), band), Ok(Sign::Positive));
     let side = |t: T| match decide(rows.side, Margin::of(residual(t)), band) {
@@ -643,19 +674,16 @@ pub fn certified_subdivision<T: Decide>(
     let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
         let half = (r - l) / two;
         let m = l + half;
-        // The true `F`'s derivatives at `m`, each read from the rounded
-        // harmonics and widened by its own share of their error: `k`
-        // derivatives of an error bounded by `noise` are bounded by
-        // `Nᵏ·noise` (Bernstein's inequality, degree `N`).
-        let (d1, d2, d3) = (slope(m).abs(), bend(m).abs(), jerk(m).abs());
-        let (d1_lo, d1_hi) = (d1 - deg * noise, d1 + deg * noise);
-        let d2_hi = d2 + deg.powi(2) * noise;
-        let d3_hi = d3 + deg.powi(3) * noise;
+        // The true `F`'s derivatives at `m`, each widened by its bound.
+        let [(f0, e0), (f1, e1), (f2, e2), (f3, e3)] = taylor(m);
+        let (d1_lo, d1_hi) = (f1.abs() - e1, f1.abs() + e1);
+        let d2_hi = f2.abs() + e2;
+        let d3_hi = f3.abs() + e3;
         let fall = d1_hi * half
             + d2_hi * half.powi(2) / two
             + d3_hi * half.powi(3) / six
             + fourth_hi * half.powi(4) / twenty_four;
-        let clear = (value(m).abs() - fall - noise) / f_per_metre_hi;
+        let clear = (f0.abs() - fall - e0) / f_per_metre_hi;
         let clear = residual_reach.map_or(clear, |reach| clear.min(reach));
         if definitely(rows.clear, clear) {
             return Step::Settled;
@@ -727,12 +755,12 @@ pub fn certified_subdivision<T: Decide>(
                 // slack it gives fits inside it — and otherwise on the
                 // whole piece, which holds the true root.
                 let reach = meter.f_per_metre_hi * (meter.residual)(root).magnitude();
-                let (e1, e2, e3) = (slope(root).abs(), bend(root).abs(), jerk(root).abs());
-                let near = e1 - deg * noise;
+                let [_, (g1, e1), (g2, e2), (g3, e3)] = taylor(root);
+                let near = g1.abs() - e1;
                 let w = (two * reach / near).min(half).max(T::zero());
                 let window = near
-                    - (e2 + deg.powi(2) * noise) * w
-                    - (e3 + deg.powi(3) * noise) * w.powi(2) / two
+                    - (g2.abs() + e2) * w
+                    - (g3.abs() + e3) * w.powi(2) / two
                     - fourth_hi * w.powi(3) / six;
                 let lever =
                     (reach - window * w).select_le_zero(window.max(least_slope), least_slope);
@@ -812,6 +840,7 @@ mod subdivision_guard_rows {
             f_per_metre: 1.0,
             f_per_metre_hi: 1.0,
             residual_reach: None,
+            jet: None,
         };
         certified_subdivision(
             f,
@@ -933,6 +962,7 @@ mod subdivision_guard_rows {
             f_per_metre: 1.0,
             f_per_metre_hi: 1.0,
             residual_reach: None,
+            jet: None,
         };
         let band = Band::new(1e-9, 1e-8).unwrap();
         match certified_subdivision(&f, &value, &frame, &ROWS, None, band) {

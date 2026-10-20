@@ -344,7 +344,7 @@ pub(crate) fn infer_outer(
 }
 
 /// `next` moved into the branch continuous with `prev`, or the seam
-/// refusal when the step itself exceeds half a period (the sampling is
+/// refusal when the lifted step still exceeds a quarter turn (the sampling is
 /// then too coarse to tell a wrap from a jump — an honest refusal, not
 /// a guessed branch).
 fn unwrap(prev: f64, next: f64) -> Result<f64, OuternessRefusal> {

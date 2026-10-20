@@ -216,6 +216,12 @@ impl<T: Decide> Body<T> {
     /// patch machinery generalizes (pinned in
     /// `review_m3_pr1_sweep.rs::split_circle_carrier_intersection_edge`).
     ///
+    /// # Panics
+    ///
+    /// On a kernel bug: an edge the body stores, re-minted or restated on its
+    /// own carrier and interval, whose span or winding reads certainly
+    /// refused at the run's band.
+    ///
     /// # Errors
     ///
     /// The first failing precondition above, a tangent child the

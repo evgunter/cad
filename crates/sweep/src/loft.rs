@@ -1181,6 +1181,12 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
+///
+/// # Panics
+///
+/// On a kernel bug: an edge the operation stored whose own span or
+/// winding reads certainly refused at the run's band where it is
+/// re-described ([`topo::Body::restate_stored_edge`]).
 pub fn loft_body<T: Decide + topo::AtRestPolicy>(
     sections: &[Section<impl SectionLoop<T>>],
     places: &[SketchPlane<T>],
@@ -1211,6 +1217,12 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
 /// # Errors
 ///
 /// [`loft_body`]'s.
+///
+/// # Panics
+///
+/// On a kernel bug: an edge the operation stored whose own span or
+/// winding reads certainly refused at the run's band where it is
+/// re-described ([`topo::Body::restate_stored_edge`]).
 pub fn loft_profiles<T: Decide + topo::AtRestPolicy>(
     sections: &[ValidatedProfile<T>],
     v_degree: usize,
@@ -1295,6 +1307,12 @@ fn arc_all<T: Real>(arc: &geom_core::Arc2<T>, holds: impl Fn(T) -> bool + Copy) 
 /// [`SkinError::PathTangentReversal`] and
 /// [`SkinError::PathTangentUndecided`] arriving through
 /// [`LoftError::Skin`].
+///
+/// # Panics
+///
+/// On a kernel bug: an edge the operation stored whose own span or
+/// winding reads certainly refused at the run's band where it is
+/// re-described ([`topo::Body::restate_stored_edge`]).
 pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
     profile: &[impl SectionLoop<T>],
     plane: SketchPlane<T>,
