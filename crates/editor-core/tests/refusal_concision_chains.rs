@@ -838,8 +838,8 @@ test_utils::f6_variants! {
     /// census rows are checked against, so an arm with no row reds and
     /// an arm added to the enum stops this compiling until it is here.
     const NODE_ERROR_KIND: NodeErrorKind = [
-        Expr, Profile, ProfileReplay, ProfileLaneReplay, Extrude, Revolve, Tube, Split, Blend, Boolean, Transform, Motion,
-        Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
+        Expr, Profile, ProfileReplay, ProfileLaneReplay, Extrude, Revolve, Tube, Split, Blend,
+        Boolean, Transform, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, ProductOperand,
         UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchCopy, CopiesShareAKey, CopyShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,

@@ -58,7 +58,7 @@ use crate::fixture;
 use editor_core::{
     CancelToken, CanonicalSegment, CapEnd, EntityKey, Entry, EvalOptions, Evaluation, Formula,
     LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, RoleSeg, StepSegmentsError, ValuePayload, eval::ProfileNaming, evaluate,
+    RecipeNodeId, RoleSeg, StepSegmentsError, ValuePayload, evaluate,
 };
 use fixture::{insert, len, len2, on_frame, tol};
 use geom_core::Point2;
@@ -91,14 +91,13 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// anchor and the per-edge radii derived from the record, but not the
 /// record, so from outside the crate there is no path to the one the
 /// geometry was actually made from. That is exactly the gap
-/// `work/wire/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`
+/// `work/wirehold/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`
 /// records, and the same one that keeps the door from having a caller
 /// outside these rows and the in-crate one that reads those radii. So
-/// these rows pair a rebuilt structure with the
-/// evaluation's REAL `naming`, and the door's own two-record check is
-/// what holds that pairing honest: a rebuild that had drifted from the
-/// evaluation would disagree with the published anchor's permutation
-/// and every row here would refuse rather than pass.
+/// these rows read a rebuilt structure, and the door reads its anchor
+/// off that structure as the evaluation reads its own: what holds a
+/// rebuild that drifted from the evaluation to account is §2, which
+/// checks the answers against the geometry the evaluation drew.
 fn records(doc: &editor_core::ProfileDoc, program: &ProfileProgram) -> Records {
     let env = doc.var_env::<f64>();
     let resolved = program.resolve::<f64>(&env).expect("the corpus resolves");
@@ -196,7 +195,6 @@ impl Records {
 fn edges_by_step(
     program: &ProfileProgram,
     structure: &ProfileStructure,
-    naming: &ProfileNaming,
     loop_: u32,
     steps: usize,
     what: &str,
@@ -204,7 +202,7 @@ fn edges_by_step(
     (0..steps)
         .map(|step| {
             program
-                .profile_edges_of(structure, naming, loop_, step as u32)
+                .profile_edges_of(structure, loop_, step as u32)
                 .unwrap_or_else(|e| panic!("{what} loop {loop_} step {step}: {e}"))
         })
         .collect()
@@ -240,16 +238,15 @@ fn assert_partition(r: &Records, per_step: &[Vec<CanonicalSegment>], li: usize, 
 fn assert_refuses_off_the_program(
     program: &ProfileProgram,
     structure: &ProfileStructure,
-    naming: &ProfileNaming,
     loops: usize,
     steps: usize,
 ) {
     assert_eq!(
-        program.profile_edges_of(structure, naming, 0, steps as u32),
+        program.profile_edges_of(structure, 0, steps as u32),
         Err(StepSegmentsError::NoSuchStep { steps })
     );
     assert_eq!(
-        program.profile_edges_of(structure, naming, loops as u32, 0),
+        program.profile_edges_of(structure, loops as u32, 0),
         Err(StepSegmentsError::NoSuchLoop { loops })
     );
 }
@@ -324,15 +321,14 @@ fn every_corpus_step_is_answered_and_the_answers_partition_the_loop() {
             };
             profile_nodes += 1;
             let Some(value) = ev.value(id) else { continue };
-            let ValuePayload::Profile(pv) = &value.payload else {
+            let ValuePayload::Profile(_) = &value.payload else {
                 continue;
             };
             answered_nodes += 1;
             let r = records(&d.doc, program);
             for li in 0..r.verts.len() {
                 let steps = r.structure.replay[li].steps.len();
-                let per_step =
-                    edges_by_step(program, &r.structure, &pv.naming, li as u32, steps, d.name);
+                let per_step = edges_by_step(program, &r.structure, li as u32, steps, d.name);
                 assert_partition(&r, &per_step, li, d.name);
                 answered += per_step.len();
                 loops_seen += 1;
@@ -340,7 +336,6 @@ fn every_corpus_step_is_answered_and_the_answers_partition_the_loop() {
             assert_refuses_off_the_program(
                 program,
                 &r.structure,
-                &pv.naming,
                 program.loops.len(),
                 r.structure.replay[0].steps.len(),
             );
@@ -455,7 +450,7 @@ fn assert_steps_bound_their_walls(id: &str, points: Vec<(f64, f64)>, want: Perm)
     let place = |p: Point2<f64>| placement.transform_point(geom_core::Point3::new(p.x, p.y, 0.0));
 
     let steps = r.structure.replay[0].steps.len();
-    let per_step = edges_by_step(program, &r.structure, &pv.naming, 0, steps, id);
+    let per_step = edges_by_step(program, &r.structure, 0, steps, id);
     assert_partition(&r, &per_step, 0, id);
     let mut walls = BTreeSet::new();
     for (step, edges) in per_step.iter().enumerate() {
@@ -677,7 +672,7 @@ fn assert_sections_bound_their_walls(
             );
             let n = r.verts[li].len();
             let steps = r.structure.replay[li].steps.len();
-            let per_step = edges_by_step(program, &r.structure, &pv.naming, li as u32, steps, id);
+            let per_step = edges_by_step(program, &r.structure, li as u32, steps, id);
             for (step, edges) in per_step.iter().enumerate() {
                 let span = r.structure.replay[li].steps[step];
                 assert_eq!(
@@ -1292,19 +1287,13 @@ fn every_corpus_step_is_answered_against_its_own_authored_geometry() {
                 continue;
             };
             let Some(value) = ev.value(id) else { continue };
-            let ValuePayload::Profile(pv) = &value.payload else {
+            let ValuePayload::Profile(_) = &value.payload else {
                 continue;
             };
             let r = records(&d.doc, program);
             for li in 0..r.verts.len() {
-                let per_step = edges_by_step(
-                    program,
-                    &r.structure,
-                    &pv.naming,
-                    li as u32,
-                    r.steps[li].len(),
-                    d.name,
-                );
+                let per_step =
+                    edges_by_step(program, &r.structure, li as u32, r.steps[li].len(), d.name);
                 assert_attribution(&r, li, &per_step, d.name, &mut tally);
             }
         }
@@ -1344,7 +1333,7 @@ fn a_line_to_step_is_answered_with_the_segment_that_ends_where_it_says() {
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
     };
-    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+    let ValuePayload::Profile(_) = &ev.value(profile).expect("evaluates").payload else {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
@@ -1355,7 +1344,7 @@ fn a_line_to_step_is_answered_with_the_segment_that_ends_where_it_says() {
             continue;
         };
         let edges = program
-            .profile_edges_of(&r.structure, &pv.naming, 0, j as u32)
+            .profile_edges_of(&r.structure, 0, j as u32)
             .expect("the door answers");
         assert_eq!(
             edges.len(),
@@ -1380,66 +1369,33 @@ fn a_line_to_step_is_answered_with_the_segment_that_ends_where_it_says() {
 // 4. The refusals
 // ------------------------------------------------------------------
 
-/// **Two records of one permutation that disagree assert, naming both
-/// of them.**
+/// **A structure record that orders no loops refuses typed.**
 ///
-/// The permutation is recorded twice — once by canonicalization, once
-/// in the anchor the names hang off, read from it — and ONE evaluation
-/// produces both. So a disagreement is not a question the caller asked
-/// badly, it is the evaluation contradicting itself, and DM8 rules
-/// that it panics. The `expected` text is the whole message: the
-/// invariant in words, then both records' values, which is what a
-/// reader of the panic needs in order to tell which of the two lied.
+/// The anchor the door answers through is read off the record's own
+/// canonicalization, which orders the loops outer first. A record that
+/// calls no loop outer, or two, orders none; it is the caller's record,
+/// not the evaluation's, so the door answers the caller rather than
+/// panicking.
 #[test]
-#[should_panic(expected = "the evaluation's two records of loop 0's permutation \
-     disagree: canonicalization recorded reversed=false over 4 segments, \
-     the naming anchor recorded reversed=true over 4 vertices. One \
-     evaluation produces both, so they describe one permutation or the kernel \
-     has contradicted itself")]
-fn two_records_describing_different_loops_assert() {
+fn a_record_without_exactly_one_outer_loop_refuses() {
     let (doc, profile, _) = prism(
-        "step-segments-refusal",
+        "step-segments-loop-order",
         vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
     );
     let ev = run(&doc);
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
     };
-    let structure = records(&doc, program).structure;
-    let value = ev.value(profile).expect("evaluates");
-    let ValuePayload::Profile(pv) = &value.payload else {
-        panic!("carries a profile");
-    };
-    // An anchor for the same loop, reversed the other way: the two
-    // records now describe different permutations of one loop, which
-    // one evaluation cannot have produced.
-    let mut naming = pv.naming.clone();
-    naming.loops[0].reversed = !naming.loops[0].reversed;
-    let _ = program.profile_edges_of(&structure, &naming, 0, 0);
-}
-
-/// **A naming that does not mention the loop at all refuses typed.**
-///
-/// The sibling of the row above, and the reason the two are separate:
-/// an ABSENT anchor is a record the caller did not supply, not two
-/// records of one evaluation contradicting each other, so the door
-/// answers the caller rather than panicking.
-#[test]
-fn a_naming_without_this_loop_refuses_rather_than_asserting() {
-    let (doc, profile, _) = prism(
-        "step-segments-no-anchor",
-        vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
-    );
-    let ev = run(&doc);
-    let Some(Node::Profile(program)) = doc.node(profile) else {
-        panic!("the profile node is a program");
-    };
-    let structure = records(&doc, program).structure;
     ev.value(profile).expect("evaluates");
-    let empty = ProfileNaming::default();
+    let mut no_outer = records(&doc, program).structure;
+    no_outer.canonical.loops[0].role = profile::LoopRole::Hole;
     assert_eq!(
-        program.profile_edges_of(&structure, &empty, 0, 0),
-        Err(StepSegmentsError::NoAnchor { loop_: 0 })
+        program.profile_edges_of(&no_outer, 0, 0),
+        Err(StepSegmentsError::LoopOrder { outer_loops: 0 })
+    );
+    assert_eq!(
+        program.segment_radii(&no_outer, 0),
+        Err(StepSegmentsError::LoopOrder { outer_loops: 0 })
     );
 }
 
@@ -1462,7 +1418,7 @@ fn a_record_that_is_not_this_programs_refuses_rather_than_naming_segments() {
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
     };
-    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+    let ValuePayload::Profile(_) = &ev.value(profile).expect("evaluates").payload else {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
@@ -1474,7 +1430,7 @@ fn a_record_that_is_not_this_programs_refuses_rather_than_naming_segments() {
         canonical: CanonicalStructure { loops: Vec::new() },
     };
     assert_eq!(
-        program.profile_edges_of(&empty, &pv.naming, 0, 0),
+        program.profile_edges_of(&empty, 0, 0),
         Err(StepSegmentsError::NoRecord { loop_: 0 })
     );
 
@@ -1484,7 +1440,7 @@ fn a_record_that_is_not_this_programs_refuses_rather_than_naming_segments() {
     let mut short = r.structure.clone();
     short.replay[0].steps.pop();
     assert_eq!(
-        program.profile_edges_of(&short, &pv.naming, 0, 0),
+        program.profile_edges_of(&short, 0, 0),
         Err(StepSegmentsError::RecordShape {
             loop_: 0,
             authored,
@@ -1499,7 +1455,7 @@ fn a_record_that_is_not_this_programs_refuses_rather_than_naming_segments() {
     let last = off.replay[0].steps.len() - 1;
     off.replay[0].steps[last] = profile::StepSpan::new(0, n + 1);
     assert_eq!(
-        program.profile_edges_of(&off, &pv.naming, 0, last as u32),
+        program.profile_edges_of(&off, 0, last as u32),
         Err(StepSegmentsError::SpanOffTheLoop {
             step: last as u32,
             end: n + 1,
@@ -1633,7 +1589,7 @@ fn assert_arcs_are_answered(id: &str, side: profile::ArcSide, radii: &[f64], wan
         }
     );
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, 0)
         .unwrap_or_else(|e| panic!("{id}: the door answers: {e}"));
     assert_eq!(
         answer.len(),
@@ -1741,12 +1697,12 @@ fn a_carrier_loop_is_answered_at_every_edge() {
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
     };
-    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+    let ValuePayload::Profile(_) = &ev.value(profile).expect("evaluates").payload else {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, 0)
         .expect("the door answers");
     let segments: Vec<u32> = answer.iter().map(|(e, _)| e.segment).collect();
     assert_eq!(
@@ -1899,7 +1855,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         r.structure.replay[0].steps[4]
     );
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, 0)
         .expect("the door answers");
     let [(edge, expr)] = answer[..] else {
         panic!("one radius, one arc, one pair — got {answer:?}");
@@ -2012,7 +1968,7 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
     };
     let r = records(&doc, program);
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, 0)
         .expect("the door answers");
     let [(edge, expr)] = answer[..] else {
         panic!("one of the step's two arcs was drawn by a radius — got {answer:?}");
@@ -2078,12 +2034,12 @@ fn the_per_edge_door_refuses_where_the_map_does() {
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
     };
-    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+    let ValuePayload::Profile(_) = &ev.value(profile).expect("evaluates").payload else {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
     assert_eq!(
-        program.segment_radii(&r.structure, &pv.naming, 1),
+        program.segment_radii(&r.structure, 1),
         Err(StepSegmentsError::NoSuchLoop { loops: 1 })
     );
     let empty = ProfileStructure {
@@ -2091,23 +2047,19 @@ fn the_per_edge_door_refuses_where_the_map_does() {
         canonical: CanonicalStructure { loops: Vec::new() },
     };
     assert_eq!(
-        program.segment_radii(&empty, &pv.naming, 0),
+        program.segment_radii(&empty, 0),
         Err(StepSegmentsError::NoRecord { loop_: 0 })
     );
     let mut short = r.structure.clone();
     let authored = short.replay[0].steps.len();
     short.replay[0].steps.pop();
     assert_eq!(
-        program.segment_radii(&short, &pv.naming, 0),
+        program.segment_radii(&short, 0),
         Err(StepSegmentsError::RecordShape {
             loop_: 0,
             authored,
             recorded: authored - 1,
         })
-    );
-    assert_eq!(
-        program.segment_radii(&r.structure, &ProfileNaming::default(), 0),
-        Err(StepSegmentsError::NoAnchor { loop_: 0 })
     );
 }
 
@@ -2137,7 +2089,7 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
     };
-    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+    let ValuePayload::Profile(_) = &ev.value(profile).expect("evaluates").payload else {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
@@ -2153,7 +2105,7 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
     off.replay[0].radii[0].segment = n;
     let step = off.replay[0].radii[0].step as u32;
     assert_eq!(
-        program.segment_radii(&off, &pv.naming, 0),
+        program.segment_radii(&off, 0),
         Err(StepSegmentsError::EmissionOffTheLoop {
             step,
             arg: editor_core::StepArg::CarrierRadius,
@@ -2165,7 +2117,7 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
     );
     assert_eq!(
         program
-            .segment_radii(&off, &pv.naming, 0)
+            .segment_radii(&off, 0)
             .expect_err("it refuses")
             .to_string(),
         format!(
@@ -2179,7 +2131,7 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
     let mut role = r.structure.clone();
     role.replay[0].radii[0].role = profile::RadiusRole::Carrier2;
     assert_eq!(
-        program.segment_radii(&role, &pv.naming, 0),
+        program.segment_radii(&role, 0),
         Err(StepSegmentsError::RadiusNotAnArgument {
             step,
             arg: editor_core::StepArg::CarrierRadius2,
@@ -2187,7 +2139,7 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
     );
     assert_eq!(
         program
-            .segment_radii(&role, &pv.naming, 0)
+            .segment_radii(&role, 0)
             .expect_err("it refuses")
             .to_string(),
         format!(
@@ -2204,7 +2156,7 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
     let past = gone.replay[0].steps.len();
     gone.replay[0].radii[0].step = past;
     assert_eq!(
-        program.segment_radii(&gone, &pv.naming, 0),
+        program.segment_radii(&gone, 0),
         Err(StepSegmentsError::RadiusNotAnArgument {
             step: past as u32,
             arg: editor_core::StepArg::CarrierRadius,
@@ -2305,7 +2257,7 @@ fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_rever
     let c = &r.structure.canonical.loops[0];
     assert_eq!(c.reversed, want_reversed, "{id}: the winding case");
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, 0)
         .unwrap_or_else(|e| panic!("{id}: the door answers: {e}"));
     assert_eq!(answer.len(), 2, "{id}: two arc steps, two answers");
     let radii = [1.0, 0.25];
@@ -2697,7 +2649,7 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
         r.structure.replay[0].steps[1]
     );
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, 0)
         .expect("the door answers");
     let [(edge, expr)] = answer[..] else {
         panic!("the step's one radius drew one arc — got {answer:?}");
@@ -2802,7 +2754,7 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
         r.structure.replay[0].steps[4]
     );
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, 0)
         .expect("the door answers");
     assert_eq!(answer.len(), 3, "three radii, three arcs — got {answer:?}");
     for ((edge, expr), want) in answer.iter().zip([2.0, 0.25, 3.0]) {
@@ -2885,7 +2837,7 @@ fn assert_rotated_fillet_is_answered(id: &str, s: f64, want_reversed: bool) {
         "{id}: the binder emitted nothing"
     );
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, 0)
         .unwrap_or_else(|e| panic!("{id}: the door answers: {e}"));
     let [(edge, expr)] = answer[..] else {
         panic!("{id}: one binder, one arc, one pair — got {answer:?}");
@@ -2972,7 +2924,7 @@ fn a_reversed_via_closes_fillet_arc_reaches_its_wall() {
     let c = &r.structure.canonical.loops[0];
     assert!(c.reversed, "the mirrored chain is clockwise");
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, 0)
         .expect("the door answers");
     let [(edge, expr)] = answer[..] else {
         panic!("one radius — got {answer:?}");
@@ -3049,7 +3001,7 @@ fn an_exact_fit_closing_fillet_arc_reaches_its_wall() {
         .collect();
     assert_eq!(rec, vec![(3, profile::RadiusRole::Fillet, 2)]);
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, 0)
         .expect("the door answers");
     let [(edge, expr)] = answer[..] else {
         panic!("one radius — got {answer:?}");
@@ -3108,7 +3060,7 @@ fn a_fillet_arcs_two_radii_each_reach_their_own_wall() {
     let pv = row.profile_value();
     let r = records(&row.doc, program);
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, 0)
         .expect("the door answers");
     assert_eq!(answer.len(), 2, "two radii, two arcs — got {answer:?}");
     for (edge, expr) in &answer {
@@ -3158,13 +3110,12 @@ fn a_carrier_loops_record_is_checked_at_the_same_doors_a_chains_is() {
         }],
     );
     let program = row.program();
-    let pv = row.profile_value();
     let structure = records(&row.doc, program).structure;
     let segments = structure.canonical.loops[0].segments.len();
     assert_eq!(segments, 4, "the split loop has four segments");
     assert_eq!(
         program
-            .segment_radii(&structure, &pv.naming, 0)
+            .segment_radii(&structure, 0)
             .expect("the door answers")
             .len(),
         segments,
@@ -3182,14 +3133,12 @@ fn a_carrier_loops_record_is_checked_at_the_same_doors_a_chains_is() {
         segments,
     });
     assert_eq!(
-        program.profile_edges_of(&short, &pv.naming, 0, 0),
+        program.profile_edges_of(&short, 0, 0),
         want.map(|()| Vec::new()),
         "the per-step door refuses a span off the loop"
     );
     assert_eq!(
-        program
-            .segment_radii(&short, &pv.naming, 0)
-            .map(|v| v.len()),
+        program.segment_radii(&short, 0).map(|v| v.len()),
         want.map(|()| 0),
         "and so does the per-edge radius door, through the same walk"
     );
@@ -3203,7 +3152,7 @@ fn a_carrier_loops_record_is_checked_at_the_same_doors_a_chains_is() {
         segment: 0,
     });
     assert_eq!(
-        program.segment_radii(&emitting, &pv.naming, 0),
+        program.segment_radii(&emitting, 0),
         Err(StepSegmentsError::CarrierRecordsEmissions {
             loop_: 0,
             emissions: 1,

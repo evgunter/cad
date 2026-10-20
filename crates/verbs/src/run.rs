@@ -216,7 +216,15 @@ impl<T: Real> fmt::Display for VerbError<T> {
 
 impl<T: Real> core::error::Error for VerbError<T> {}
 
-impl<T: Decide + Bounds + topo::AtRestPolicy> Blend<T> {
+/// **The scalar every run door runs at**: the bound set the op doors
+/// it delegates to ask for, spelled once (SEAT-4, `geom_core::Real`'s
+/// `Bounds` doc). Every lane scalar that has the three has this, by the
+/// blanket impl; nothing here reads a bracket.
+pub trait DoorScalar: Decide + Bounds + topo::AtRestPolicy {}
+
+impl<T: Decide + Bounds + topo::AtRestPolicy> DoorScalar for T {}
+
+impl<T: DoorScalar> Blend<T> {
     /// **Run this blend against its operand.**
     ///
     /// The operand comes in borrowed, never in the payload, and finished
@@ -248,7 +256,7 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Blend<T> {
     }
 }
 
-impl<T: Decide + Bounds + topo::AtRestPolicy> Boolean<T> {
+impl<T: DoorScalar> Boolean<T> {
     /// **Run this boolean against its operands.**
     ///
     /// Both bodies come in borrowed, in operand order, finished
@@ -301,7 +309,7 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Boolean<T> {
     }
 }
 
-impl<T: Decide + Bounds + topo::AtRestPolicy> Sweep<T> {
+impl<T: DoorScalar> Sweep<T> {
     /// **Run this sweep against its operand profile.**
     ///
     /// The validated profile comes in BORROWED, never in the payload:
@@ -340,7 +348,7 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Sweep<T> {
     }
 }
 
-impl<T: Decide + Bounds + topo::AtRestPolicy> Split<T> {
+impl<T: DoorScalar> Split<T> {
     /// **Run this split against its operand body.**
     ///
     /// The operand comes in borrowed, never in the payload, and finished
@@ -380,7 +388,7 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Split<T> {
     }
 }
 
-impl<T: Decide + Bounds + topo::AtRestPolicy> Shell<T> {
+impl<T: DoorScalar> Shell<T> {
     /// **Run this shell against its operand body**, through
     /// the certified door the caller hands in.
     ///

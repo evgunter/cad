@@ -37,8 +37,8 @@ pub(crate) use wire::{
     TRANSFORM_AXIS_ROLE, need_scalar, need_vec3, transform_map, unit as unit_direction,
 };
 
-pub(crate) use anchor::derive_naming;
 pub use anchor::{CanonicalSegment, LoopAnchor, ProfileNaming, ProfilePieces, ProfileValue};
+pub(crate) use anchor::{derive_naming, validated_naming};
 pub use class::NodeErrorClass;
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::{DirectionRefusal, FramePlacement};

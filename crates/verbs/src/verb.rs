@@ -201,10 +201,10 @@ pub struct Shell<T: Real> {
 /// scalars and the entity references, the halves of a payload no
 /// commitment is a function of.
 ///
-/// This is a projection, not a twin: [`Verb::kind`] is the one place
-/// the mapping is written, it is exhaustive, and a new [`Verb`] variant
-/// therefore cannot compile until it has a `VerbKind` and every match
-/// over `VerbKind` has been visited.
+/// This is a projection, not a twin: each payload type's `kind` (and
+/// [`Verb::kind`] over them) is where the mapping is written, each is
+/// exhaustive, and a new verb therefore cannot compile until it has a
+/// `VerbKind` and every match over `VerbKind` has been visited.
 ///
 /// `sweep::blend::BlendKind` is a different thing that looks like this
 /// one: it is the label a blend REFUSAL carries, enumerating the two

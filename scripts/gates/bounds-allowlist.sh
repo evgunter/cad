@@ -792,11 +792,11 @@ BOUNDS_ALLOWLIST=(
   # nothing and reads no bracket. 2 -> 1: SEAT-9 was the shell
   # door's own second header, and the shell door is now a VALUE the
   # caller passes (`topo::ShellDoor`), so the seam SEAT-9 argued for
-  # has nothing left in it. 1 -> 5: each run door is a method of its
-  # own payload type, so the one header is now five, one per door, each
-  # the same bound set over the same delegations — one seam, five
-  # spellings, no new obligation.
-  'crates/verbs/src/run.rs 5 SEAT-4, in the Bounds trait doc'
+  # has nothing left in it. Each run door is a method of its own
+  # payload type, and the five door headers name the bound through the
+  # one `DoorScalar` alias (rostered below): the 2 are its declaration
+  # and its blanket impl, one bound set spelled once.
+  'crates/verbs/src/run.rs 2 SEAT-4, in the Bounds trait doc'
   # LIB-G2's LB3 (ruled 2026-08-08), homed in the file's own module docs.
   "crates/profile/src/path/arc_fillet.rs 3 LIB-G2's LB3 (ruled 2026-08-08), in the file's module docs"
 )
@@ -978,6 +978,11 @@ BOUNDS_ALIAS_ROSTER=(
   # crates/editor-core/src/lib.rs:117 and bound in
   # crates/editor-core/tests/, which is outside both gates' view.
   'crates/editor-core/src/eval/mod.rs EvalScalar'
+  # SEAT-4, in the `Bounds` trait's own doc — the same ratification the
+  # `run.rs` entry above cites. The name exists so the five run doors
+  # (one per verb payload type) spell their one bound set once; its uses
+  # are those five `impl` headers in run.rs, and they are unchecked.
+  'crates/verbs/src/run.rs DoorScalar'
 )
 
 # THE READER — the whole matcher, the count, and the census's name list,

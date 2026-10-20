@@ -178,10 +178,8 @@ impl ProfilePieces {
                     anchor.len
                 )
             }
-            // `segment` and `vertex` answer below `anchor.len`, which is
-            // `pieces.len()`.
-            let piece = |program_segment: u32| -> ProfileEdgeRef {
-                let p = &pieces[program_segment as usize];
+            let mut refs = Vec::with_capacity(pieces.len());
+            for p in pieces {
                 let Some(&step) = steps.get(p.step) else {
                     unreachable!(
                         "step {} of program loop {loop_} drew a piece but the loop has only {} \
@@ -191,8 +189,11 @@ impl ProfilePieces {
                         steps.len()
                     )
                 };
-                ProfileEdgeRef::Piece { step, role: p.role }
-            };
+                refs.push(ProfileEdgeRef::Piece { step, role: p.role });
+            }
+            // `segment` and `vertex` answer below `anchor.len`, which is
+            // `refs.len()`.
+            let piece = |program_segment: u32| refs[program_segment as usize];
             edges.push((0..anchor.len).map(|k| piece(anchor.segment(k))).collect());
             // Canonical vertex `v` is program vertex `anchor.vertex(v)`,
             // where the program segment of the same index starts.
@@ -413,15 +414,27 @@ pub(crate) struct ProfilePre {
 /// segment count (a reversal keeps the count and the authored vertex 0),
 /// so the anchor is the reindexing itself rather than a match against
 /// its result.
-pub(crate) fn derive_naming(canonical: &profile::CanonicalStructure) -> ProfileNaming {
-    let outer = canonical
+///
+/// # Errors
+///
+/// How many loops the record calls outer, where that is not exactly
+/// one: such a record orders no loops, and no validation records one
+/// ([`validated_naming`] says why).
+pub(crate) fn derive_naming(
+    canonical: &profile::CanonicalStructure,
+) -> Result<ProfileNaming, usize> {
+    let is_outer = |l: &profile::LoopCanonical| l.role == profile::LoopRole::Outer;
+    let outers = canonical.loops.iter().filter(|l| is_outer(l)).count();
+    let Some(outer) = canonical
         .loops
         .iter()
-        .position(|l| l.role == profile::LoopRole::Outer);
-    let order = outer
-        .into_iter()
-        .chain((0..canonical.loops.len()).filter(|&i| Some(i) != outer));
-    ProfileNaming {
+        .position(is_outer)
+        .filter(|_| outers == 1)
+    else {
+        return Err(outers);
+    };
+    let order = core::iter::once(outer).chain((0..canonical.loops.len()).filter(|&i| i != outer));
+    Ok(ProfileNaming {
         loops: order
             .map(|i| {
                 let rec = &canonical.loops[i];
@@ -432,5 +445,26 @@ pub(crate) fn derive_naming(canonical: &profile::CanonicalStructure) -> ProfileN
                 }
             })
             .collect(),
-    }
+    })
+}
+
+/// [`derive_naming`] of a record a validation of this evaluation just
+/// made.
+///
+/// # Panics
+///
+/// Where the record does not name exactly one outer loop, which only a
+/// kernel bug reaches: validation refuses an empty profile and a
+/// profile with several outer loops (`ProfileError::EmptyProfile`,
+/// `ProfileError::MultipleOuterLoops`) before it records anything, and
+/// records one role per loop.
+#[track_caller]
+pub(crate) fn validated_naming(canonical: &profile::CanonicalStructure) -> ProfileNaming {
+    derive_naming(canonical).unwrap_or_else(|outers| {
+        unreachable!(
+            "a validation recorded {outers} outer loops over {} loops, though it refuses any \
+             profile without exactly one before recording",
+            canonical.loops.len()
+        )
+    })
 }

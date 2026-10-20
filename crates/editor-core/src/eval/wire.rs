@@ -1502,12 +1502,14 @@ fn slot_count<T: Decide>(vals: &SlotValues<T>, slot: SlotId) -> i64 {
     declared(slots::count(vals, slot), slot)
 }
 
-/// A declared `[Expr; 2]` slot pair as a sketch-plane point
-/// ([`declared`], on the pair's x component).
+/// A declared `[Expr; 2]` slot pair as a sketch-plane point, each
+/// component read through [`declared`] under its own slot.
 #[track_caller]
 fn slot_point2<T: Decide>(vals: &SlotValues<T>, f: fn(Axis3) -> SlotId) -> Point2<T> {
-    let v = declared(slots::vec2(vals, f), f(Axis3::X));
-    Point2::new(v.x, v.y)
+    Point2::new(
+        slot_scalar(vals, f(Axis3::X)),
+        slot_scalar(vals, f(Axis3::Y)),
+    )
 }
 
 /// **A revolve's axis direction in its profile's plane**: the unit
@@ -1963,7 +1965,7 @@ pub(crate) fn prepare_profile(
     };
     geom_core::k_stats::splice(recording);
     let (replay_records, validated_f64, canonical) = elaborated?;
-    let naming = anchor::derive_naming(&canonical);
+    let naming = anchor::validated_naming(&canonical);
     let pieces = super::ProfilePieces::publish(&naming, &replay_records, ids);
     Ok(ProfilePre {
         validated_f64,
@@ -2060,8 +2062,7 @@ fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
 /// **A refusal here is the evaluation contradicting itself**: the
 /// records were minted from this program by the same pre-pass, so no
 /// document can reach one and no caller can repair it. It is a kernel
-/// bug observed in a branch — `unreachable!`'s job (D9's D2 addendum),
-/// as in `ProfileProgram::profile_edges_of`.
+/// bug observed in a branch — `unreachable!`'s job (D9 row 4).
 fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crate::var::VarId>>> {
     pre.naming
         .loops
@@ -2069,11 +2070,11 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
         .enumerate()
         .map(|(canonical_loop, anchor)| {
             let by_program_segment = program
-                .segment_radii(&pre.structure, &pre.naming, anchor.program_loop)
+                .segment_radii(&pre.structure, anchor.program_loop)
                 .unwrap_or_else(|e| {
                     unreachable!(
-                        "this profile's structure record and its naming anchor were \
-                         minted from this one program by one pre-pass, so the record \
+                        "this profile's structure record was minted from this one \
+                         program by one pre-pass, so the record \
                          describes THIS program — its steps, its segments and its \
                          radius arguments. Program loop {} is answered from a record \
                          that does not: {e}",

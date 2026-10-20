@@ -1602,7 +1602,7 @@ FAMILIES: dict[str, str] = {
         "the authored-step to profile-edge map — "
         "`ProfileProgram::profile_edges_of`, which answers which "
         "`ProfileEdgeRef`s one step of a loop program became. Closing "
-        "it needs the two records the door reads to be reachable from "
+        "it needs the record the door reads to be reachable from "
         "Python first (the replay/canonical structure record is not on "
         "`ProfileValue` at all today, so this waits on the Rust-side "
         "siting), then the method with its typed refusal, a `pncad.pyi` "
