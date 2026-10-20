@@ -12,7 +12,8 @@
 //!
 //! The perturbations, each its own test over the contact-heavy corpus
 //! below (pinches, flush faces, tilted wedges, prisms on a contact
-//! line, notched and pentagon splits, merged chords):
+//! line, notched and pentagon splits, merged chords across a sunk
+//! boss):
 //! 1. the member order of an n-ary union and intersect;
 //! 2. the operand order of a two-member union and intersect;
 //! 3. a rigid frame change of a split plane: its normal's sign, the
@@ -661,6 +662,23 @@ fn a_member_order_moves_no_name() {
             }
         }
     }
+    for &(what, tool) in CUTS.iter().filter(|(_, t)| t.len() > 1) {
+        note(
+            &mut found,
+            format!("{what} / its tool's member order"),
+            differences(
+                &sunk_boss_cut(tool, CutPose::default()),
+                &sunk_boss_cut(
+                    tool,
+                    CutPose {
+                        tool_reversed: true,
+                        ..CutPose::default()
+                    },
+                ),
+                Compare::Geometry,
+            ),
+        );
+    }
     settle(&found, ADMITTED_MEMBER_ORDER);
 }
 
@@ -709,6 +727,29 @@ fn an_operand_order_moves_no_name() {
             }
         }
     }
+    for &(what, tool) in CUTS {
+        let first = sunk_boss_cut(tool, CutPose::default());
+        assert!(
+            matches!(first, Published::Table(_)),
+            "{what}: the cut names: {}",
+            outline(&first)
+        );
+        note(
+            &mut found,
+            format!("{what} / the boss listed first"),
+            differences(
+                &first,
+                &sunk_boss_cut(
+                    tool,
+                    CutPose {
+                        joined_swapped: true,
+                        ..CutPose::default()
+                    },
+                ),
+                Compare::Geometry,
+            ),
+        );
+    }
     settle(&found, ADMITTED_OPERAND_ORDER);
 }
 
@@ -727,6 +768,101 @@ const ADMITTED_OPERAND_ORDER: &[(&str, &str)] = &[
 /// A bridge listed before the union of the wedges and the other bridge
 /// refuses that a seam was offered one edge twice.
 const BRIDGE_LISTED_FIRST: &str = "work/wire/a-pair-union-of-a-bridge-listed-first-and-the-wedges-offers-a-seam-one-edge-twice.md";
+
+// ------------------------------------------------------------------ //
+// Merged chords
+// ------------------------------------------------------------------ //
+
+/// A block's x span, y span, base z and height.
+type Spans = ((f64, f64), (f64, f64), f64, f64);
+
+/// The cuts of `wire_legal_union_refusals`'s sunk boss whose chords
+/// cross or run along the line where its two glued wall pieces meet:
+/// each tool, by name.
+const CUTS: &[(&str, &[Spans])] = &[
+    (
+        "a chord across the glued line",
+        &[
+            ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2),
+            ((0.9, 1.4), (1.4, 4.0), 1.3, 0.7),
+        ],
+    ),
+    (
+        "a chord across it the other way",
+        &[
+            ((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2),
+            ((0.9, 1.4), (-1.0, 1.7), 1.3, 0.7),
+        ],
+    ),
+    (
+        "a chord along the glued line",
+        &[((1.4, 2.0), (1.5, 4.0), 0.8, 1.2)],
+    ),
+    (
+        "two chords of one seam",
+        &[((1.4, 1.6), (-1.0, 4.0), 0.8, 1.2)],
+    ),
+];
+
+/// How a sunk-boss cut is perturbed.
+#[derive(Clone, Copy, Default)]
+struct CutPose {
+    /// The tool union's members listed in reverse.
+    tool_reversed: bool,
+    /// The plate and the boss listed boss first.
+    joined_swapped: bool,
+    /// A far block appended to the tool.
+    far: bool,
+}
+
+/// The plate `[0,3]² × [0,1]` with a cylinder boss sunk into it, its
+/// wall drawn in two pieces, joined, less the union of `tool`'s blocks
+/// (`wire_legal_union_refusals`'s `SunkBossCut`), posed by `pose`.
+fn sunk_boss_cut(tool: &[Spans], pose: CutPose) -> Published {
+    let mut ledger = Ledger::default();
+    let doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
+    let (doc, plate) = ledger.authored(doc, "plate", plate);
+    let (doc, boss) = ledger.authored(doc, "boss", |d| {
+        crate::emit_union_borders::cylinder(d, [1.5, 1.5, 0.5], X, Y, 1.0)
+    });
+    let (mut doc, mut blocks) = ledger.authored(doc, "tool", |mut d| {
+        let mut blocks = Vec::new();
+        for &(x, y, z0, dz) in tool {
+            let (e, b) = block(d, x, y, z0, dz);
+            d = e;
+            blocks.push(b);
+        }
+        (d, blocks)
+    });
+    if pose.far {
+        let (d, b) = ledger.authored(doc, "far", |d| block(d, (9.0, 10.0), (9.0, 10.0), 0.0, 1.0));
+        doc = d;
+        blocks.push(b);
+    }
+    if pose.tool_reversed {
+        blocks.reverse();
+    }
+    let (doc, tool) = ledger.authored(doc, "tool union", |d| match blocks.as_slice() {
+        [one] => (d, *one),
+        several => insert(d, Nary::Union.node(several)),
+    });
+    let joined = if pose.joined_swapped {
+        [boss, plate]
+    } else {
+        [plate, boss]
+    };
+    let (doc, joined) = ledger.authored(doc, "joined", |d| insert(d, Nary::Union.node(&joined)));
+    let (doc, cut) = ledger.authored(doc, "cut", |d| {
+        insert(
+            d,
+            Node::Subtract {
+                from: joined.into(),
+                tool: tool.into(),
+            },
+        )
+    });
+    published(&doc, cut, 0, &ledger)
+}
 
 // ------------------------------------------------------------------ //
 // Splits
@@ -1486,6 +1622,25 @@ fn a_far_feature_moves_no_other_name() {
                     .collect(),
             );
         }
+    }
+    // A one-block tool is the block itself; a far block would make it a
+    // union, whose names cite the union.
+    for &(what, tool) in CUTS.iter().filter(|(_, t)| t.len() > 1) {
+        note(
+            &mut found,
+            format!("{what} / a far block in the tool"),
+            differences(
+                &sunk_boss_cut(tool, CutPose::default()),
+                &sunk_boss_cut(
+                    tool,
+                    CutPose {
+                        far: true,
+                        ..CutPose::default()
+                    },
+                ),
+                Compare::Kept,
+            ),
+        );
     }
     settle(&found, ADMITTED_FAR);
 }
