@@ -4,6 +4,7 @@ kind: issue
 title: geom-brep: six offset-fit and patch-bound refusals end in KERNEL_DEFECT_ENDING; two are reachable by input, and the other four are bug-only or not yet shown to be
 status: review
 branch: encl/patch-bound-endings
+pr: 5476
 opened: 2026-10-20
 parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
 priority: P3
