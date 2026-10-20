@@ -529,3 +529,28 @@ fn a_path_escalating_at_a_graze_hands_the_winding_to_the_next() {
         [Body, Body, Body, Body, Body, Body],
     );
 }
+
+/// Reviewer probe (E1): pair 82 at the run's ε, every op printed then
+/// held to `assert_six`'s volume and validity oracle.
+#[test]
+fn e1_probe_pair_82_each_op() {
+    let tol = Tol::witness();
+    let (r1, r2) = (6.098088671076322e-4, 1.4613194916300017e-3);
+    let c2 = Vec3::new(-0.0018727710410726642, -5.7762472824686515e-5, -3.412205707271761e-5);
+    let p1 = Vec3::new(-0.20107294329337744, -0.891895479861727, -0.4050828612488538);
+    let p2 = Vec3::new(0.01866131486960719, -0.9760726504487204, -0.21664241591467578);
+    let a = finished("the small ball", ball_poled(r1, Vec3::new(0.0, 0.0, 0.0), p1, tol), tol);
+    let b = finished("the big ball", ball_poled(r2, c2, p2, tol), tol);
+    for (op, got) in [
+        ("a ∪ b", topo::union(&a, &b, tol)),
+        ("b ∪ a", topo::union(&b, &a, tol)),
+        ("a ∖ b", topo::subtract(&a, &b, tol)),
+        ("b ∖ a", topo::subtract(&b, &a, tol)),
+        ("a ∩ b", topo::intersect(&a, &b, tol)),
+        ("b ∩ a", topo::intersect(&b, &a, tol)),
+    ] {
+        let s = match &got { Ok(_) => "Ok".to_string(), Err(e) => { let d = format!("{e:?}"); d.chars().take(300).collect() } };
+        println!("[probe] eps {:e} {op}: {s}", tol.eps());
+    }
+    assert_six("pair 82 probe", &a, &b, (ball_volume(r1), ball_volume(r2), lens_volume(r1, r2, c2.norm())), [Body, Body, Body, Body, Body, Body]);
+}
