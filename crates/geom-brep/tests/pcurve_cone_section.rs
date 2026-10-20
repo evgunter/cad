@@ -778,13 +778,13 @@ const FLAT_IMAGE_ULPS: f64 = 48.0;
 ///
 /// The ceiling binds at every pose: the band's zero is 700 `u` of the
 /// largest `size` here and more of the others, so the ceiling, not the
-/// band, decides. Today's envelopes read 27, 8 and 31 `u`. What reds the
+/// band, decides. Today's envelopes read 37, 27 and 31 `u`. What reds the
 /// row:
 /// - the arm's old `K = c² − sin²α`, at every pose;
 /// - the arm's old centre `apex − (c·a − sin²α·n)·δ/K`, at every pose
 ///   (465 `u` at `f = 0.8`, a refusal at the others);
 /// - the centre moved 30 `u` of the semi-axis back along the major axis,
-///   which reads 64, 86 and 70 `u`.
+///   which reads 54, 63 and 70 `u`.
 #[test]
 fn a_flat_cones_section_images_and_certifies_at_its_own_resolution() {
     let band = geom_core::Band::new(1e-12, 1e-11).unwrap();

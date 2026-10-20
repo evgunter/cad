@@ -956,18 +956,19 @@ pub fn plane_cylinder_section_read<T: Decide>(
 /// `sin_vec = a × n` (its norm `s` the tilt's sine, definitely
 /// positive): `v × n`, `v` the minor direction `sin_vec / s`. The frame
 /// is orthonormal to a few `u` at any tilt and in any frame: `sin_vec`
-/// carries about `u` of rounding at norm `s`, so `v` stands up to
-/// `u / s` off the plane, which re-projecting it onto the plane and
-/// renormalising removes, and the major direction is renormalised in
-/// turn. What is left is the in-plane heading's `u / s`, which turns the
+/// carries about `u` of rounding at norm `s`, so `sin_vec / s` would
+/// stand up to `u / s` off the plane and its product with `n` fall short
+/// of unit by `(u / s)² / 2`; projecting `sin_vec` onto the plane before
+/// normalising leaves `v` within a few `u` of the plane, so `v × n` is
+/// unit to a few `u` as well. What is left is the in-plane heading's `u / s`, which turns the
 /// ellipse about its centre: a point moves by at most the semi-axes'
-/// difference times that angle, and the difference is of order
-/// `A·s²` (`A` the major semi-axis), so the carrier stands within
-/// about `A·s·u` of the wall.
+/// difference times that angle. The difference is of order `A·s²` on a
+/// cylinder and `A·tan²α·s²` on a cone of half-angle `α` (`A` the major
+/// semi-axis), so the carrier stands within about `A·s·u` of a
+/// cylinder's wall, and `tan²α` times that of a cone's: a few `u` of
+/// `A` near square, more on a flat cone tilted toward its parabola.
 pub fn tilted_section_major<T: Real>(n: Vec3<T>, sin_vec: Vec3<T>) -> Vec3<T> {
-    let v = sin_vec.normalize();
-    let v = (v - n * v.dot(n)).normalize();
-    v.cross(n).normalize()
+    (sin_vec - n * sin_vec.dot(n)).normalize().cross(n)
 }
 
 /// The axis-in-plane answers of [`plane_cylinder_section`]: its

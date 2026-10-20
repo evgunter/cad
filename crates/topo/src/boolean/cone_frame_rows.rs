@@ -603,10 +603,10 @@ fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
         geom::Surface::Cylinder { axis, .. } => axis,
         _ => unreachable!("a wall"),
     };
-    let (across, along) = (
-        (axis(&a) + axis(&c)).normalize(),
-        (axis(&a) - axis(&c)).normalize(),
-    );
+    // `â₁ ± â₂` in closed form: `a₁ − a₂` would read its `y` off
+    // `1 − cos φ`, to `u/φ²`.
+    let (sh, ch) = (phi / 2.0).sin_cos();
+    let (across, along) = (Vec3::new(-sh, ch, 0.0), Vec3::new(ch, sh, 0.0));
     for (label, x, y) in [("a, b", &a, &c), ("b, a", &c, &a)] {
         let got = pair_section_frame_at(x, y, Point3::origin(), FrameExtent::Radii, b);
         let Ok(Some(super::join::SectionLoops::Two { loops, .. })) = got else {
