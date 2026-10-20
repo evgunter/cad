@@ -212,8 +212,8 @@ pub fn axis_on(
 /// `frame`** — a frame read off the body it joins and stated by exact
 /// moves ([`pncad::document::moved_frame`]), so a quarter turn is
 /// `turn/4` and the axis is exactly where it is meant: an `Axis` mate
-/// from the revolve's own axis, the slide along it and the spin about
-/// it the constant `0`.
+/// from the revolve's own axis, slid `along` it (measured from the
+/// target body's own origin), its spin about it the constant `0`.
 ///
 /// # Panics
 ///
@@ -222,6 +222,7 @@ pub fn on_axis(
     doc: &Doc<ProfileProgram>,
     revolve: RecipeNodeId,
     frame: Operand,
+    along: Formula,
     tol: Tol,
 ) -> Placed {
     use pncad::document::{PlacedBy, TargetAxis};
@@ -241,10 +242,7 @@ pub fn on_axis(
             class: ContactClass::Rest,
         }),
         values: vec![
-            (
-                Coord::Slide(TargetAxis::Z),
-                Formula::zero(Dimension::Length),
-            ),
+            (Coord::Slide(TargetAxis::Z), along),
             (Coord::Spin, Formula::zero(Dimension::Angle)),
         ],
         by: PlacedBy::Axis,

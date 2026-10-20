@@ -112,6 +112,8 @@ fn layout(n: u32) -> Vec<(f64, f64)> {
 /// written as the fraction of a turn it is, so it turns exactly.
 struct Placement {
     centre: [f64; 3],
+    /// The face's outward normal, a coordinate axis either way.
+    normal: [f64; 3],
     axis: TargetAxis,
     /// The turn carrying +Z onto the face's normal, as `(num, den)` of
     /// a turn.
@@ -119,6 +121,12 @@ struct Placement {
 }
 
 impl Placement {
+    /// How far along the pole the centre stands from the cube's own
+    /// origin: its coordinate along the normal.
+    fn along(&self) -> f64 {
+        (0..3).map(|i| self.centre[i] * self.normal[i]).sum()
+    }
+
     /// The pole's line in the cube's own frame: turned about `axis`,
     /// then slid to `centre`.
     fn moves(&self) -> Vec<FrameMove> {
@@ -169,7 +177,12 @@ fn placements() -> Vec<Placement> {
             let centre = core::array::from_fn(|i| {
                 h + normal[i] * d + ex[i] * (u * PIP_D) + ey[i] * (w * PIP_D)
             });
-            out.push(Placement { centre, axis, turn });
+            out.push(Placement {
+                centre,
+                normal,
+                axis,
+                turn,
+            });
         }
     }
     out
@@ -327,7 +340,7 @@ fn pipped_node(a: &mut Author, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
         .into_iter()
         .map(|p| {
             let frame = moved_frame(own.clone(), &p.moves());
-            let placed = crate::world::on_axis(&a.doc, ball, frame, tol);
+            let placed = crate::world::on_axis(&a.doc, ball, frame, len(p.along()), tol);
             a.placed(placed)
         })
         .collect();
