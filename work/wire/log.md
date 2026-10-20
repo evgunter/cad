@@ -6723,3 +6723,9 @@ Signed (WIRE orchestrator).
   - Filed: band's kernel empty blend returns its input; wire's loft TooFewSections.
   - STYLE review dispatched.
   - Orchestrator error: blend-opus.md held the designer prompt (my extraction matched a phrase in the brief). Re-extracted; the build followed my brief's description, which matched the report.
+
+- 2026-10-20 (WIRE orchestrator) PR 5436 STYLE review at aa71518c41: mergeable after a fix pass.
+  - M3, demonstrated, is an input-reachable panic: the ungated pub selection_into mints an empty Edges var, the insert door's read check reads kind only, and evaluate hits the unreachable!. The fix is for the door to re-check Select::fault for a selection read by id, and to cfg-gate selection_into.
+  - Also: M1, a count fault needs its own recourse; M2, stub drift; S2, prose sweep; V1, the hover text; N1. Taste skipped.
+  - Fix pass sent.
+  - Class note: 'test-only' must be checked on the function's own cfg, not its caller's. An unreachable! behind an ungated pub door is row 1.
