@@ -9380,3 +9380,148 @@ mod from_computed_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
+mod review_c_r2_probes {
+    //! Reviewer probes (PCERT C, r2): `kv` on a net closed in `v` whose
+    //! knot domain is offset and scaled, both crossing directions, at
+    //! `f64` and at `Interval`, and near-band seam gaps.
+    use super::{DescribedChart, PinMiss, chart_periods, chart_v_period, decide_joint};
+    use crate::joint::{Deck, JointElement};
+    use geom::Surface;
+    use geom_brep::Pcurve;
+    use geom_core::{Band, Decide, Interval, Point2, Point3, Tol, Vec2};
+
+    fn tri() -> [(f64, f64); 3] {
+        [
+            (1.0, 0.0),
+            (-0.5, 0.75_f64.sqrt()),
+            (-0.5, -(0.75_f64.sqrt())),
+        ]
+    }
+
+    /// A degree-1 net, `u` the height over `[0, 1]`, `v` around the
+    /// prism over `[a, a + s]`; its last row is `last` (the first row's
+    /// point for a closed net).
+    fn net(a: f64, s: f64, last: (f64, f64)) -> Surface<f64> {
+        let [c0, c1, c2] = tri();
+        let ku = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kv = geom_core::spline::KnotVector::clamped(
+            vec![a, a, a + 0.3 * s, a + 0.7 * s, a + s, a + s],
+            1,
+        )
+        .unwrap();
+        let control = [0.0, 1.0]
+            .into_iter()
+            .flat_map(|z| [c0, c1, c2, last].map(|c| Point3::new(c.0, c.1, z)))
+            .collect();
+        Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap(),
+        ))
+    }
+
+    fn joint<T: Decide>(
+        s: &Surface<f64>,
+        entry_v: f64,
+        prev_v: f64,
+        band: Band,
+    ) -> Result<JointElement, PinMiss> {
+        let s: Surface<T> = s.map_scalar(T::from_f64);
+        let f = T::from_f64;
+        let image = Pcurve::IsoLine {
+            p0: Point2::new(f(0.5), f(entry_v)),
+            pl: Vec2::new(f(0.0), f(0.1)),
+        };
+        let [c0, ..] = tri();
+        let vertex = Point3::new(f(c0.0), f(c0.1), f(0.5));
+        decide_joint(
+            DescribedChart::of(&s).unwrap(),
+            &image,
+            f(0.0),
+            Point2::new(f(0.5), f(prev_v)),
+            vertex,
+            chart_periods(&s, band),
+            band,
+        )
+    }
+
+    fn shift(v: i32) -> Result<JointElement, PinMiss> {
+        Ok(JointElement::Shift(Deck {
+            u: 0,
+            v,
+            twin: false,
+        }))
+    }
+
+    fn show(out: &Result<JointElement, PinMiss>) -> String {
+        match out {
+            Ok(element) => format!("{element:?}"),
+            Err(PinMiss::Discontinuity) => "Discontinuity".to_owned(),
+            Err(PinMiss::Escalated(cause)) => format!("Escalated({cause:?})"),
+        }
+    }
+    fn eq(a: &Result<JointElement, PinMiss>, b: &Result<JointElement, PinMiss>) -> bool {
+        show(a) == show(b)
+    }
+
+    #[test]
+    fn kv_on_an_offset_scaled_domain_both_directions_both_lanes() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        for (a, s) in [(0.0, 1.0), (2.0, 3.0), (-7.5, 0.25), (100.0, 40.0)] {
+            let [c0, ..] = tri();
+            let closed = net(a, s, c0);
+            assert_eq!(
+                chart_v_period(&closed, band).map(geom_brep::Period::length),
+                Some(s),
+                "({a}, {s})"
+            );
+            for (entry, prev, want) in [(a, a + s, 1), (a + s, a, -1), (a, a, 0), (a + s, a + s, 0)]
+            {
+                let f = joint::<f64>(&closed, entry, prev, band);
+                let i = joint::<Interval>(&closed, entry, prev, band);
+                assert!(
+                    eq(&f, &shift(want)),
+                    "f64 ({a},{s}) {entry}->{prev}: {}",
+                    show(&f)
+                );
+                assert!(
+                    eq(&i, &shift(want)),
+                    "Interval ({a},{s}) {entry}->{prev}: {}",
+                    show(&i)
+                );
+            }
+            // Two periods out (a far-stated predecessor): the marks
+            // gallop, k = 2.
+            let f = joint::<f64>(&closed, a, a + 2.0 * s, band);
+            assert!(eq(&f, &shift(2)), "k=2 ({a},{s}): {}", show(&f));
+            // Exactly on a half-period mark: no branch is named.
+            let f = joint::<f64>(&closed, a, a + 0.5 * s, band);
+            assert!(f.is_err(), "on the mark ({a},{s}): {}", show(&f));
+        }
+    }
+
+    /// The seam's last row moved off the first by `d` (in metres): under
+    /// the band's zero the net closes; in band it folds to open
+    /// (the filed fold item), and a seam joint refuses as decided.
+    #[test]
+    fn a_near_band_seam_gap() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let eps = Tol::witness().eps();
+        let [c0, ..] = tri();
+        let mut out = Vec::new();
+        for d in [0.0, 0.1 * eps, 0.9 * eps, 1.1 * eps, 3.0 * eps, 10.0 * eps] {
+            let n = net(2.0, 3.0, (c0.0 + d, c0.1));
+            let p = chart_v_period(&n, band).map(geom_brep::Period::length);
+            let f = joint::<f64>(&n, 2.0, 5.0, band);
+            let i = joint::<Interval>(&n, 2.0, 5.0, band);
+            out.push(format!(
+                "d={:.2}eps period={p:?} f64={} iv={}",
+                d / eps,
+                show(&f),
+                show(&i)
+            ));
+        }
+        println!("{}", out.join("\n"));
+    }
+}
