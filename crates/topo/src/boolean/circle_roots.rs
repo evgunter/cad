@@ -46,7 +46,7 @@
 //!   error, plus only a share `|near|/(hi − lo)` of the far one's — so
 //!   the root moves by `δR / |R′|`, `|R′| = √(−lo·hi)` at both roots;
 //!   the phase's error moves it by itself, and the angle arithmetic
-//!   rounds by [`geom_brep::SHORT_CHAIN_ULPS`] half-ulps of a turn. That arc length must
+//!   rounds by [`geom_core::SHORT_CHAIN_ULPS`] half-ulps of a turn. That arc length must
 //!   be definitely inside the band, or the span and trim decisions the
 //!   caller makes on the point are made on the wrong point. An
 //!   unreadable reading refuses here too. A door whose only account is
