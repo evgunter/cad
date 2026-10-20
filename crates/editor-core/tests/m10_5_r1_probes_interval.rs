@@ -345,7 +345,7 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
     );
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),
-        (1, 580, 579, 228),
+        (1, 622, 621, 224),
         "the measured receipt, pinned — and load-bearing beyond this row's own subject: \
          a drop rule that lets an in-band or poison margin separate, or a description \
          tightened at the 0.05 scale, changes these counts while leaving every verdict \
@@ -355,7 +355,11 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
          that chart is the old re-chart turned a quarter turn about the normal — the \
          same window as a point set, halved along the other axis first, so the sweep \
          reaches the same verdict in 579 splits instead of 609 and proves four more \
-         cells outside. Nothing about the drop rule moved: {}",
+         cells outside. Nothing about the drop rule moved. RE-BASELINED from (1, 580, \
+         579, 228) on INTENT stage 3 D: the floated block's spin is the written constant \
+         `0`, now read as its exact sine and cosine at every scalar, so its placement's \
+         turn carries no enclosure dust; the sweep reaches the same verdict in 621 \
+         splits and proves 224 cells outside: {}",
         tight.serialize()
     );
 }

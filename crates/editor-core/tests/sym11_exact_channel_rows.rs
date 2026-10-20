@@ -201,12 +201,23 @@ use crate::m10_9_pins_interval::measured_studies;
 /// (1404 of 1557, on `Sub`, `Powi` and `Mul`), more than before D
 /// because each hole is walked twice, built in its own coordinates and
 /// re-certified placed.
+///
+/// Main's merge at `557e581a64`, measured on D's tree with the same
+/// replay: check 4 decides no whole period (PCERT B2b), so fidelity's
+/// numeric branch decisions go — plate `numeric` 1043 -> 979, annulus
+/// 605 -> 557, link 269 -> 253, bracket 1401 -> 1329, pad 1336 -> 1272,
+/// twice main's own drop on the plate and the bracket, whose copies D
+/// walks twice. The half-angle tangents chosen by `select_le_zero` take
+/// the link's `frozen` 263 -> 264 and the pad's 3035 -> 3037, as on
+/// main. `symbolic` holds everywhere and no dispute fired. Measured
+/// identical with a written fraction of a turn read as its rounded
+/// radian, so exact turns move none of these.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [1253, 1043, 1557]),
-    ("r1_annulus", [632, 605, 844]),
-    ("r2_link", [295, 269, 263]),
-    ("r2_filleted_bracket", [1630, 1401, 2409]),
-    ("r2_rounded_pad", [1570, 1336, 3035]),
+    ("two_hole_plate", [1253, 979, 1557]),
+    ("r1_annulus", [632, 557, 844]),
+    ("r2_link", [295, 253, 264]),
+    ("r2_filleted_bracket", [1630, 1329, 2409]),
+    ("r2_rounded_pad", [1570, 1272, 3037]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

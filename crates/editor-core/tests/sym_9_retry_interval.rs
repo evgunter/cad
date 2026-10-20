@@ -642,6 +642,14 @@ fn sym_9_what_each_retry_recovers() {
 /// between two trees, not between the ladder's two dials, which is what
 /// the paragraph below constrains.
 ///
+/// Main's merge at `557e581a64` (check 4 deciding no whole period, PCERT
+/// B2b) takes fidelity's numeric branch decisions out, with the ladder
+/// and without it alike: the plate's `numeric` 1043 -> 979, the annulus
+/// 605 -> 557, the boss 573 -> 533, the bracket 1397 -> 1325, the link
+/// 861 -> 813. `symbolic` and `retried` hold, and the fall is between two
+/// trees, not between the ladder's dials. Measured identical with a
+/// written fraction of a turn read as its rounded radian.
+///
 /// `numeric` can only FALL and `symbolic` can only rise: a retry is
 /// asked only into the first attempt's silence (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
@@ -651,11 +659,11 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
-        ("two_hole_plate", [1253, 1043], [1253, 1043], 0),
-        ("r1_annulus", [632, 605], [632, 605], 0),
-        ("r1_segment_boss", [625, 573], [625, 573], 0),
-        ("r2_filleted_bracket", [1625, 1397], [1625, 1397], 0),
-        ("r2_link", [924, 861], [924, 861], 0),
+        ("two_hole_plate", [1253, 979], [1253, 979], 0),
+        ("r1_annulus", [632, 557], [632, 557], 0),
+        ("r1_segment_boss", [625, 533], [625, 533], 0),
+        ("r2_filleted_bracket", [1625, 1325], [1625, 1325], 0),
+        ("r2_link", [924, 813], [924, 813], 0),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -763,6 +771,14 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// pins last held; the ladder now reaches thirty-four where the
 /// paragraphs above count thirty-eight, each a decision moved from
 /// `numeric` to `symbolic`.
+///
+/// Main's merge at `557e581a64` moved the leaf to [1421, 1386, 34]
+/// shipped and [1387, 1420, 0] bare: check 4 decides no whole period
+/// (PCERT B2b), so fidelity's numeric branch decisions go (`numeric`
+/// 1452 -> 1386 and 1486 -> 1420), and two more decisions discharge
+/// symbolically on the first attempt alike (1419 -> 1421, 1385 -> 1387).
+/// The ladder still retries thirty-four. Measured identical with a
+/// written fraction of a turn read as its rounded radian.
 #[test]
 fn sym_9_the_drive_writes_the_ladders_receipt() {
     let tol = Tol::witness();
@@ -798,7 +814,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     let d = shipped.decisions();
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
-        [1419, 1452, 34],
+        [1421, 1386, 34],
         "the shipped ladder's leaf receipt"
     );
     assert!(
@@ -810,7 +826,7 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
         "the human form names the thirty-four as the ladder's: {human}"
     );
     let b = bare.decisions();
-    assert_eq!([b.symbolic, b.numeric, b.retried], [1385, 1486, 0]);
+    assert_eq!([b.symbolic, b.numeric, b.retried], [1387, 1420, 0]);
     assert!(
         !bare.serialize().contains("retried="),
         "no ladder, no column"

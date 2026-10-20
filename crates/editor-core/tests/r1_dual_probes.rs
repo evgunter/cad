@@ -484,7 +484,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let fused = r.insert(Node::Union {
         members: editor_core::Bodies::Spelled(vec![slab.into(), placed.into()]),
     });
-    let tool = fixture::plane_on(
+    let tool = fixture::plane_on_frame(
         &r.doc,
         slab,
         [0.0, 0.0, 0.75],

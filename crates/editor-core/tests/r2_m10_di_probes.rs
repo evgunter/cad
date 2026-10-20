@@ -518,7 +518,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
         profile: profile.into(),
         distance: fixture::len(0.5),
     });
-    let tool = fixture::plane_on(
+    let tool = fixture::plane_on_frame(
         &r.doc,
         puck,
         [0.1, 0.0, 0.25],

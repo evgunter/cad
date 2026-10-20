@@ -373,7 +373,7 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
         ],
         1.0,
     );
-    let tool = crate::fixture::tilted_plane_on(&doc, ext, [2.5, 0.0, 0.0], [1.0, 1.0, 0.0]);
+    let tool = crate::fixture::plane_on_frame(&doc, ext, [2.5, 0.0, 0.0], [1.0, 1.0, 0.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {

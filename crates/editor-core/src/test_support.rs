@@ -376,7 +376,7 @@ pub fn frame_at(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::Frame {
 ///
 /// If `body` has no planar face with that normal, either way, or no
 /// value; a plane no face of the body is parallel to is
-/// [`tilted_plane_on`]'s.
+/// [`plane_on_frame`]'s.
 #[must_use]
 pub fn plane_on(
     doc: &ProfileDoc,
@@ -452,14 +452,16 @@ pub fn plane_on(
 
 /// **The plane through `origin` with normal `normal`, read off a frame
 /// on `body`'s own geometry** ([`crate::frame_at`] through its `xy`):
-/// a plane no face of the body is parallel to, its turns read once off
-/// the frame and written as numbers.
+/// a plane no face of the body is parallel to. The frame's turns are
+/// read once off the geometry by `atan2` and written as numbers, so a
+/// plane meant on the body's axes stands there to the rounding of those
+/// turns; [`plane_on`] reads one a face is parallel to exactly.
 ///
 /// # Panics
 ///
 /// If `normal` is zero or `body` offers no frame to read.
 #[must_use]
-pub fn tilted_plane_on(
+pub fn plane_on_frame(
     doc: &ProfileDoc,
     body: impl Into<crate::Operand>,
     origin: [f64; 3],
@@ -557,7 +559,7 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 2]) 
             distance: len(1.0),
         },
     );
-    let tool = tilted_plane_on(&doc, ext, [0.0, 0.2, 0.0], [0.0, 1.0, -1.0], tol);
+    let tool = plane_on_frame(&doc, ext, [0.0, 0.2, 0.0], [0.0, 1.0, -1.0], tol);
     let (doc, split) = ins(
         doc,
         Node::Split {

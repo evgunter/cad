@@ -34,7 +34,7 @@ use editor_core::{
 // `table` panics on a node with no value rather than answering `None`,
 // which is what this suite wants: a G14 regression IS a node failure,
 // and the panic's message is the diagnosis.
-use fixture::{insert, len, on_frame, plane_on, slid, table, tilted_plane_on};
+use fixture::{insert, len, on_frame, plane_on, plane_on_frame, slid, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -298,7 +298,7 @@ fn l_split(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     // x + y = 2.5: two DISJOINT chords per cap — one across the
     // horizontal leg, one across the vertical leg.
-    let tool = tilted_plane_on(&doc, ext, [2.5, 0.0, 0.0], [1.0, 1.0, 0.0]);
+    let tool = plane_on_frame(&doc, ext, [2.5, 0.0, 0.0], [1.0, 1.0, 0.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {

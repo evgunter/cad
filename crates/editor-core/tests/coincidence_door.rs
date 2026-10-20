@@ -638,7 +638,7 @@ fn split_prism(
             distance: len(1.0),
         },
     );
-    let tool = crate::fixture::plane_on(&doc, prism, [0.0, at, 0.0], [0.0, 1.0, 0.0]);
+    let tool = crate::fixture::plane_on_frame(&doc, prism, [0.0, at, 0.0], [0.0, 1.0, 0.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {

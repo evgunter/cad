@@ -284,9 +284,10 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
 }
 
 /// **The plane through `origin` normal to `normal`, read off `body`**, as
-/// one `Plane` read: the frame [`fixture::plane_on`] reads, through its
-/// `xy`, slid by the constant zero along its `z` — the spelling a
-/// split's tool slot is re-pointed at.
+/// one `Plane` read: the frame [`fixture::plane_on_frame`] reads (the
+/// normal is tilted off every face), through its `xy`, slid by the
+/// constant zero along its `z` — the spelling a split's tool slot is
+/// re-pointed at.
 fn plane_read(
     doc: &ProfileDoc,
     body: editor_core::RecipeNodeId,
@@ -294,7 +295,7 @@ fn plane_read(
     normal: [f64; 3],
 ) -> editor_core::Operand {
     use editor_core::pose::{PoseDef, PoseRole, RoleRead};
-    let frame = fixture::plane_on(doc, body, origin, normal).read;
+    let frame = fixture::plane_on_frame(doc, body, origin, normal).read;
     editor_core::Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::through(frame.clone(), PoseRole::Xy),
         along: RoleRead::through(frame, PoseRole::Z),

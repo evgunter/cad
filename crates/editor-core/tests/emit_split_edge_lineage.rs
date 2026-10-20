@@ -206,10 +206,10 @@ fn a_wall_crossed_twice_names_its_same_side_pieces_by_the_edges_they_keep() {
 
     use crate::emit_edge_piece_locality::d_rod;
     use crate::emit_union_borders::rod;
-    use crate::fixture::{insert, plane_on};
+    use crate::fixture::{insert, plane_on_frame};
 
     let split_at = |doc: ProfileDoc, ext| {
-        let tool = plane_on(&doc, ext, [0.0, 0.15, 0.0], [0.0, 1.0, 0.0]);
+        let tool = plane_on_frame(&doc, ext, [0.0, 0.15, 0.0], [0.0, 1.0, 0.0]);
         let (doc, split) = insert(
             doc,
             Node::Split {

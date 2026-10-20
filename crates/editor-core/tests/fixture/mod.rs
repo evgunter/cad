@@ -746,15 +746,15 @@ pub fn plane_on(
     editor_core::test_support::plane_on(doc, body, origin, normal, Tol::witness())
 }
 
-/// [`editor_core::test_support::tilted_plane_on`] at the witness
+/// [`editor_core::test_support::plane_on_frame`] at the witness
 /// tolerance.
-pub fn tilted_plane_on(
+pub fn plane_on_frame(
     doc: &ProfileDoc,
     body: impl Into<editor_core::Operand>,
     origin: [f64; 3],
     normal: [f64; 3],
 ) -> editor_core::pose::RoleRead<editor_core::Operand> {
-    editor_core::test_support::tilted_plane_on(doc, body, origin, normal, Tol::witness())
+    editor_core::test_support::plane_on_frame(doc, body, origin, normal, Tol::witness())
 }
 
 /// [`editor_core::test_support::axis_on`] at the witness tolerance.

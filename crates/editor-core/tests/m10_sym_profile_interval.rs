@@ -746,12 +746,23 @@ const PLATE_MAX_TERMS: usize = 28;
 /// largest form holds. Without the canonical root the plain walk
 /// renders 16 blocked residuals where it rendered 8, the copies' beside
 /// the construction's.
+///
+/// Merging main at `557e581a64` (check 4 deciding no whole period, PCERT
+/// B2b) takes fidelity's numeric branch decisions out of the plate's
+/// walks, twice main's own count because D walks each hole twice:
+/// `Plain/Assertion` and `Early/Assertion` 1043 -> 979 calls and
+/// `Door/Decision` 780 -> 716, forms 16 to 116 fewer on every line, with
+/// their digests; every freeze and the largest form hold. A spin written
+/// as a fraction of a turn (the holes' constant `0`) now enters the
+/// walks as its exact sine and cosine (`geom_core::Angle`), not as the
+/// sine and cosine of a radian, which moves the two `Plain` digests and
+/// no count (measured both ways on D's tree).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1253 forms 23528 frozen 969 digest 7dc8f5b607cda4856b81585e7aba25a1\n\
-     Plain/Assertion calls 1043 forms 11606 frozen 588 digest 881ab65fdbec21985bce298811f81725\n\
-     Early/Decision calls 554 forms 15715 frozen 0 digest 5094585347030104d650e9c79604bb69\n\
-     Early/Assertion calls 1043 forms 12990 frozen 0 digest 5b797fe1bcccfe750bca1b687a145824\n\
-     Door/Decision calls 780 forms 17979 frozen 0 digest 4d071628667b3a9dc6f616f8ed41b050";
+     Plain/Decision calls 1253 forms 23512 frozen 969 digest 216164bf511e72cf895b15904f37f396\n\
+     Plain/Assertion calls 979 forms 11490 frozen 588 digest ef7abbb807719a44e9a8a7324ae12a88\n\
+     Early/Decision calls 554 forms 15699 frozen 0 digest 5d0a2f7327691a731b96ad8a7b4cb3c1\n\
+     Early/Assertion calls 979 forms 12874 frozen 0 digest a357ccf0780ca116a56be9675624151c\n\
+     Door/Decision calls 716 forms 17865 frozen 0 digest e90cd17136524e01782b0608cf0a390b";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)

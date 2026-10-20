@@ -12,7 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, block_on, failure, run};
-use crate::fixture::{insert, tilted_plane_on};
+use crate::fixture::{insert, plane_on_frame};
 use editor_core::{Evaluation, Node, ProfileDoc, RecipeNodeId, SplitSide, ValuePayload};
 use geom_core::Tol;
 
@@ -25,7 +25,7 @@ fn split_of(
     target: RecipeNodeId,
 ) -> (ProfileDoc, RecipeNodeId) {
     let h = std::f64::consts::FRAC_1_SQRT_2;
-    let tool = tilted_plane_on(&doc, root, [0.0, 1.0, 1.0], [0.0, h, h]);
+    let tool = plane_on_frame(&doc, root, [0.0, 1.0, 1.0], [0.0, h, h]);
     insert(
         doc,
         Node::Split {

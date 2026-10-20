@@ -87,22 +87,15 @@ fn plane_at(doc: &ProfileDoc, ext: RecipeNodeId, at: f64) -> editor_core::Operan
 }
 
 /// **The plane through `origin` normal to `normal`, read off `body`**, as
-/// one `Plane` read: the frame [`fixture::plane_on`] reads, through its
-/// `xy`, slid by the constant zero along its `z` — the spelling a
-/// split's tool slot is re-pointed at.
+/// one `Plane` read ([`fixture::plane_on`]'s): the spelling a split's
+/// tool slot is re-pointed at.
 fn plane_read(
     doc: &ProfileDoc,
     body: RecipeNodeId,
     origin: [f64; 3],
     normal: [f64; 3],
 ) -> editor_core::Operand {
-    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
-    let frame = fixture::plane_on(doc, body, origin, normal).read;
-    editor_core::Operand::Pose(Box::new(PoseDef::Slide {
-        pose: RoleRead::through(frame.clone(), PoseRole::Xy),
-        along: RoleRead::through(frame, PoseRole::Z),
-        by: editor_core::Formula::zero(editor_core::Dimension::Length),
-    }))
+    fixture::plane_on(doc, body, origin, normal).read
 }
 
 /// `doc` with `split`'s tool moved to the plane `x = at`.

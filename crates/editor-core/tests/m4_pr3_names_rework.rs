@@ -150,7 +150,7 @@ fn split_through_operand_edges_names_totally() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
     let (doc, d) = block(doc, (0.0, 2.0), (0.0, 2.0), 2.0);
     // Plane x + z = 2: contains the cube edges (0,·,2) and (2,·,0).
-    let plane = fixture::tilted_plane_on(&doc, d, [2.0, 0.0, 0.0], [1.0, 0.0, 1.0]);
+    let plane = fixture::plane_on_frame(&doc, d, [2.0, 0.0, 0.0], [1.0, 0.0, 1.0]);
     let (doc, sp) = insert(
         doc,
         Node::Split {
@@ -216,7 +216,7 @@ fn split_through_a_reflex_corner_names_its_copy_where_the_corner_stands() {
             distance: len(1.0),
         },
     );
-    let plane = fixture::tilted_plane_on(&doc, prism, [0.0, 0.0, 1.0], [1.0, 0.0, -1.0]);
+    let plane = fixture::plane_on_frame(&doc, prism, [0.0, 0.0, 1.0], [1.0, 0.0, -1.0]);
     let (doc, sp) = insert(
         doc,
         Node::Split {
@@ -367,7 +367,7 @@ fn graze_split_edge_names(
             distance: len(1.0),
         },
     );
-    let plane = fixture::plane_on(&doc, cylinder, origin, normal);
+    let plane = fixture::plane_on_frame(&doc, cylinder, origin, normal);
     let (doc, sp) = insert(
         doc,
         Node::Split {

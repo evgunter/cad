@@ -181,6 +181,15 @@ pub(crate) struct Study {
 /// 1566/1456 and the pad 1546/1324. All five still certify whole and
 /// the door still moves decisions between columns and decides no
 /// others.
+///
+/// Merging main at `557e581a64` (check 4 deciding no whole period,
+/// PCERT B2b, on D's tree where the plate's and the bracket's copies
+/// run their maps) takes fidelity's numeric branch decisions out of
+/// each door-shut replay: the link 722/734 -> 722/702, still refusing
+/// at `pcurve_envelope`, the bracket 1566/1456 -> 1566/1384 and the
+/// pad 1546/1324 -> 1546/1260. `symbolic` holds. Measured identical with
+/// a written fraction of a turn read as its rounded radian, so exact
+/// turns move none of these.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -230,7 +239,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             //
             // reads. Under INTENT stage 3 D's placement it decides two
             // fewer numeric comparisons on the way (712 -> 710).
-            without_the_registry: Some(((722, 734), Some("pcurve_envelope"))),
+            without_the_registry: Some(((722, 702), Some("pcurve_envelope"))),
             symbolic: [924, 924, 924],
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
@@ -245,7 +254,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // centre's algebra, so eight `dihedral_wedge` decisions are
             // registered rather than proved. The tangent certificate's
             // gap rows on the fillet's contact edges added ten (47 → 57).
-            without_the_registry: Some(((1566, 1456), None)),
+            without_the_registry: Some(((1566, 1384), None)),
             // One is the fillet run out read against its arrival carrier
             // (`path_run_out_carrier`), a margin the tier proves zero.
             // How many the tier reaches depends on the order the
@@ -269,7 +278,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // exact components, the tier proves what the door used to
             // discharge (64 decisions, `(1147, 1392)` shut against
             // `(1211, 1328)` shipped, when they were angles).
-            without_the_registry: Some(((1546, 1324), None)),
+            without_the_registry: Some(((1546, 1260), None)),
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
@@ -741,6 +750,12 @@ fn m10_9_what_the_registry_buys() {
 /// a declared variable and already ran its map). It moved from (1500,
 /// 1446, 1406) with main's merge at `0a1d95321e`: `symbolic` 1500 ->
 /// 1546, `numeric` 1446 -> 1324 and `frozen` 1406 -> 3024.
+///
+/// Main's merge at `557e581a64` moved it to (1546, 1260, 3026): check 4
+/// decides no whole period (PCERT B2b), `numeric` 1324 -> 1260, and the
+/// line×line fillet's half-angle tangent is chosen by `select_le_zero`,
+/// `frozen` 3024 -> 3026. Measured identical with a written fraction of
+/// a turn read as its rounded radian.
 #[test]
 fn m10_9_the_pad_at_both_rule_f_dials() {
     let tol = Tol::witness();
@@ -769,7 +784,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
         );
         got.push((c.symbolic, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (1546, 1324, 3024), "rule F shut: the pad's receipt");
+    assert_eq!(got[0], (1546, 1260, 3026), "rule F shut: the pad's receipt");
     assert_eq!(
         got[1], got[0],
         "rule F moves nothing on the pad: the basis mints no copysign for it to fold"

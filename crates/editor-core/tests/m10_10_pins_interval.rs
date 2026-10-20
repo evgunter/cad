@@ -351,6 +351,10 @@ fn m10_10_the_plates_ceiling_is_the_flip() {
 /// their walked rows are derived again on the copies: `pcurve_envelope`
 /// 16 -> 32, still every one a theorem, and the branches 32 -> 64 and
 /// 34 -> 68.
+///
+/// Check 4 decides no whole period (PCERT B2b: a row is its placed
+/// image), so fidelity's branch decisions are gone; the walk's 68 hold
+/// (measured on INTENT stage 3 D after merging main at `557e581a64`).
 #[test]
 fn m10_10_the_walked_rows_envelope_is_a_theorem_over_the_box() {
     let tol = Tol::witness();
@@ -359,9 +363,8 @@ fn m10_10_the_walked_rows_envelope_is_a_theorem_over_the_box() {
     let (shapes, _, _) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
     let split = crate::m10_8_harness::split(&shapes);
     assert_eq!(split.get("pcurve_envelope"), Some(&[32, 0]));
-    // The branches themselves are definite sign decisions read off the
-    // value: 64 for check 4's fidelity, 68 for the walk, which decides
-    // each loop's closure joint as it does every other.
-    assert_eq!(split.get("pcurve_fidelity_branch"), Some(&[0, 64]));
+    // The walk's branches are definite sign decisions read off the
+    // value, deciding each loop's closure joint as it does every other.
+    assert_eq!(split.get("pcurve_fidelity_branch"), None);
     assert_eq!(split.get("pcurve_loop_branch"), Some(&[0, 68]));
 }

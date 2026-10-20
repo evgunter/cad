@@ -529,13 +529,21 @@ fn the_shipped_witness_vector_drops_the_assertion_row_for_any_assertion_document
     );
 }
 
-/// The behaviour the change buys: a bound INSIDE the leaf's enclosure
-/// leaves the assertion `Unevaluated` over a leaf that is nonetheless
-/// CERTIFIED (before this head the differing row refused the leaf as a
-/// flip). EVIDENCE for the caption check in §7 too.
+/// The behaviour the change buys: a bound within the coincidence band of
+/// the measured web reads `Holds` over a leaf that is CERTIFIED (before
+/// this head the differing row refused the leaf as a flip), while the
+/// stackup's worst case, read as numbers, lies under the bound.
+/// EVIDENCE for the caption check in §7 too.
+///
+/// The bound sits a quarter ε above the web's 2. The copy is slid by a
+/// placement whose spin is the written constant `0`, read as its exact
+/// sine and cosine in every lane, so the web's enclosure no longer
+/// straddles 2. While that spin was the sine and cosine of a radian it
+/// straddled 2 by ulps, and the bound was 2 itself.
 #[test]
 fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under() {
-    let (doc, measure, assertion) = web_plate(2.0, uniform());
+    let bound = 2.0 + Tol::witness().eps() / 4.0;
+    let (doc, measure, assertion) = web_plate(bound, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
     assert!(
@@ -549,11 +557,12 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
         let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
         seen.push(assertion_verdict(&ev, assertion));
     }
-    // The enclosure straddles the bound by a few ulps — inside the
-    // coincidence band `(−ε, ε)` — so the funnel classifies the margin
-    // ZERO and the non-strict relation HOLDS. An `Unevaluated` would
-    // need a straddle wider than ε, which an ε/64 box never produces.
-    eprintln!("straddling by ulps: {seen:?}");
+    // The web reads 2 (the slid copy's turn is exact), so the bound a
+    // quarter ε above it is inside the coincidence band
+    // `(−ε, ε)`: the funnel classifies the margin ZERO and the
+    // non-strict relation HOLDS. An `Unevaluated` would need a margin
+    // wider than ε, which an ε/64 box never produces.
+    eprintln!("within the band: {seen:?}");
     assert!(
         seen.iter()
             .all(|v| matches!(v, AssertionVerdict::Holds { .. })),
@@ -573,8 +582,12 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
     eprintln!("{}", report.render(&doc, &analyzed));
     // The tour's stop-2 sentence — "worst_case.lo < bound ⇒ the
     // requirement FAILS somewhere in the box" — is what a reader would
-    // print here; the node itself says it has NO verdict.
-    assert!(report.worst_case.lo < 2.0 && 2.0 < report.worst_case.hi);
+    // print here; the node itself says the requirement HOLDS.
+    assert!(
+        report.worst_case.lo < bound,
+        "the stackup reads under the bound: {:?}",
+        report.worst_case
+    );
 }
 
 // ------------------------------------------- 4. the cache key

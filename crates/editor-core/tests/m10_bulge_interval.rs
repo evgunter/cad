@@ -223,6 +223,10 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// map-running rows are main's since its merge: `pcurve_chart_cut_side`
 /// 0/26 -> 0/42, `pcurve_chart_placement` 0/52 -> 0/84, and the four
 /// `pcurve_*azimuth*`/`pcurve_chart_winding` rows no longer decide.
+///
+/// Check 4 decides no whole period (PCERT B2b: a row is its placed
+/// image), so `pcurve_fidelity_branch` 0/40 decides nothing (measured on
+/// INTENT stage 3 D after merging main at `557e581a64`).
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("arc_apex_identity", [0, 1]),
     ("arc_diameter_clearance", [0, 6]),
@@ -255,7 +259,6 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_chart_placement", [0, 84]),
     ("pcurve_chart_radial_moving", [22, 20]),
     ("pcurve_envelope", [16, 4]),
-    ("pcurve_fidelity_branch", [0, 40]),
     ("pcurve_interval_forward", [0, 20]),
     ("pcurve_loop_branch", [0, 42]),
     ("pcurve_map_residual", [36, 0]),
@@ -385,6 +388,10 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
 /// 0/25 -> 0/42 and `pcurve_map_residual` 18/0 -> 36/0, as on the
 /// D-tab. Under FORK-REST the boss's copy, mated and not the identity
 /// bundle, runs its map, as it did under the narrowing.
+///
+/// Check 4 decides no whole period (PCERT B2b: a row is its placed
+/// image), so `pcurve_fidelity_branch` 0/40 decides nothing (measured on
+/// INTENT stage 3 D after merging main at `557e581a64`).
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -423,7 +430,6 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_chart_placement", [0, 84]),
             ("pcurve_chart_radial_moving", [22, 20]),
             ("pcurve_envelope", [20, 0]),
-            ("pcurve_fidelity_branch", [0, 40]),
             ("pcurve_interval_forward", [0, 20]),
             ("pcurve_loop_branch", [0, 42]),
             ("pcurve_map_residual", [36, 0]),
