@@ -8259,10 +8259,10 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let profile = [(0.1, 0.2), (1.3, 0.25), (1.1, 1.7), (0.05, 0.9)];
         let mut turned = profile;
-        turned.rotate_left(3);
+        turned.rotate_left(1);
         let (low, high) = (
-            quad_prism(&profile, 0.7, Tol::witness()),
             quad_prism(&turned, 0.7, Tol::witness()),
+            quad_prism(&profile, 0.7, Tol::witness()),
         );
         let volume = |body| crate::mass_properties(body, Tol::witness()).unwrap().volume;
         assert!(
@@ -10019,7 +10019,7 @@ mod from_computed_rows {
         let band = Band::linear(tol).unwrap();
         let profile = [(0.1, 0.2), (1.3, 0.25), (1.1, 1.7), (0.05, 0.9)];
         let mut turned = profile;
-        turned.rotate_left(3);
+        turned.rotate_left(1);
         let off = SymBudget {
             max_terms: 0,
             max_degree: 0,
@@ -10038,7 +10038,7 @@ mod from_computed_rows {
                 );
                 body
             };
-            let (low, high) = (prism(&profile), prism(&turned));
+            let (low, high) = (prism(&turned), prism(&profile));
             let got = volume_backstop(
                 BooleanOp::Intersect,
                 &low,

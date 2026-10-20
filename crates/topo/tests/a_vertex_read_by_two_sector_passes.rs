@@ -1752,9 +1752,31 @@ fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
             .chain(s.along_ray.iter().map(|(label, x)| (*label, x, false)))
             {
                 let inside = label.starts_with("inside");
+                // Pinned: at ε 1e-12 the turned pose's `x ∩ y`, which is
+                // `x`, stores its result a sub-ulp outside `x`, and the
+                // volume backstop's exact band refuses it
+                // (`work/cleave/a-correct-intersect-a-sub-ulp-outside-its-operand-refuses-at-the-backstops-exact-band.md`).
+                // The refusal is asserted, so this goes red when it is fixed.
+                let pinned = eps == 1e-12
+                    && k == 100.0
+                    && pose.label == "turned"
+                    && label == "inside the lying pyramid";
+                let excess = |e: &BooleanError| {
+                    matches!(e, BooleanError::ResultVolumeImplausible { which, .. }
+                        if *which == "vol(A ∩ B) ≤ vol(A)")
+                };
+                if pinned {
+                    let got = intersect(x, &y, t());
+                    assert!(
+                        got.as_ref().is_err_and(excess),
+                        "the pinned sub-ulp backstop refusal: got {:?}",
+                        got.map(|_| ())
+                    );
+                }
                 let label = format!("{label}, the pyramid lying {k}ε off the top");
                 built += builds_or_refuses(&label, x, &y, &pose, &|e| {
-                    matches!(e, BooleanError::Escalated { .. })
+                    (pinned && excess(e))
+                        || matches!(e, BooleanError::Escalated { .. })
                         || (faced
                             && matches!(
                                 e,
