@@ -260,7 +260,9 @@ applies is a fact of the loop's provenance, carried by its type.
     inexact) the stored arc is the arithmetic the construction ran,
     which can lose the digits its proof is about. So the path door
     reads the stored form back once against the authored data, before
-    the chain stores it: every arc's landing on its end vertex
+    the chain stores it, for every arc validation reads as an arc
+    (its sagitta definite; a segment read as a line keeps no carrier):
+    the arc's landing on its end vertex
     (`seg::constructed_landing`), and a `Via` arc's carrier against the
     through-point `q` it was authored by, which the stored form does not
     keep (`seg::constructed_through_point`). A miss is a loud refusal

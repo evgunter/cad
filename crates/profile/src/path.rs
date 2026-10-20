@@ -4608,10 +4608,11 @@ fn authored_point_name(predicate: &str) -> &'static str {
 /// the chain stores it: its landing on `end` from `start`
 /// ([`seg::constructed_landing`]), and a `Via` arc's carrier through
 /// its authored `q` ([`seg::constructed_through_point`]), at a point
-/// scalar. Every construction proves both over the reals, or holds
-/// them to an inline decision; a miss read here is its arithmetic, or
-/// a scene that cannot resolve the read, and refuses naming `piece`
-/// and `verb`.
+/// scalar, where the arc stores a carrier validation reads
+/// ([`seg::reads_as_arc`]). Every construction proves both over the
+/// reals, or holds them to an inline decision; a miss read here is its
+/// arithmetic, or a scene that cannot resolve the read, and refuses
+/// naming `piece` and `verb`.
 fn arc_reads_back<T: Decide>(
     built: BuiltArc<T>,
     start: Point2<T>,
@@ -4643,6 +4644,9 @@ fn arc_reads_back<T: Decide>(
             seg::ReadBackIssue::Escalated(source) => PathError::Escalated { source },
         }
     };
+    if T::WITNESS == geom_core::Witness::Exact || !seg::reads_as_arc(built.arc, start, end, band) {
+        return Ok(());
+    }
     let decided = built.facts == crate::Facts::Decided;
     seg::constructed_landing(built.arc, start, end, decided, band).map_err(refusal(end))?;
     if let Some(q) = built.through {
@@ -7207,7 +7211,7 @@ mod stored_arc_landing {
     /// 4.8e-8 m off its `q` while `bulge_from_via` read its turn's
     /// cross term off the two long, nearly opposed chords at `q`. The
     /// door's arc now holds `q` to 8 ulps of the read's magnitude, and
-    /// the read passes.
+    /// the read passes wherever those 8 ulps stay under ε.
     #[test]
     fn the_sweeps_via_arc_near_a_full_turn_holds_its_through_point() {
         let (centre, r) = (
@@ -7231,10 +7235,24 @@ mod stored_arc_landing {
             off <= 8.0 * scale * f64::EPSILON,
             "the Via arc is {off:e} m off its q, past 8 ulps of {scale:e}"
         );
-        assert!(
-            read(door, a, b, program::Verb::ArcTo).is_ok(),
-            "the door's Via arc passes its read-back"
-        );
+        let answer = read(door, a, b, program::Verb::ArcTo);
+        if 8.0 * scale * f64::EPSILON <= band().zero() {
+            assert!(
+                answer.is_ok(),
+                "the door's Via arc passes its read-back: {answer:?}"
+            );
+        } else {
+            assert!(
+                matches!(
+                    answer,
+                    Ok(())
+                        | Err(PathError::ArcMissBelowSceneResolution { .. }
+                            | PathError::Escalated { .. })
+                ),
+                "past the read's resolution the door's Via arc refuses only as the scene's: \
+                 {answer:?}"
+            );
+        }
     }
 
     /// At `Interval` the cancelling arcs are wide, not wrong: each
@@ -7319,6 +7337,29 @@ mod stored_arc_landing {
                 && said.contains("its end vertex")
                 && said.contains(ARC_MISS_SCENE_RESOLUTION_RECOURSE),
             "the sibling's sentence names the step, the point and the recourse: {said}"
+        );
+    }
+
+    /// **An arc validation reads as a line is not read back**: a bulge
+    /// of 1e-320 on a centimetre chord, whose radius overflows, so its
+    /// carrier is not a circle and its landing reads poisoned; its
+    /// sagitta, 5e-323 m, reads Zero, so validation reads the segment
+    /// as a line that keeps no carrier, and the door has nothing to
+    /// read.
+    #[test]
+    fn an_arc_that_reads_as_a_line_is_not_read_back() {
+        let (a, b) = (Point2::new(0.0, 0.0), Point2::new(0.01, 0.0));
+        let flat = BuiltArc::lowered(a, b, 1e-320);
+        assert!(
+            matches!(
+                seg::constructed_landing(flat.arc, a, b, false, band()),
+                Err(seg::ReadBackIssue::Escalated(_))
+            ),
+            "premise: the flat arc's landing reads poisoned"
+        );
+        assert!(
+            read(flat, a, b, program::Verb::ArcTo).is_ok(),
+            "an arc that reads as a line passes"
         );
     }
 

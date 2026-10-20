@@ -661,6 +661,28 @@ pub(crate) enum ReadBackIssue<T: Real> {
     Escalated(Indeterminate),
 }
 
+/// **Whether a constructed arc from `a` to `b` stores a carrier the
+/// door reads back**: validation's `segment_straightness` question,
+/// its signed sagitta `(|b − a|/2)·tan(Δθ/4)`, asked unlogged (audit
+/// row F23). A definite sagitta is an arc, whose carrier validation
+/// reads and the door reads back. A sagitta at Zero is a line, which
+/// keeps no carrier, so there is nothing to read; one in the band is a
+/// sliver, which validation escalates, so the door does not decide it
+/// first. A poisoned one is read, and its read escalates.
+pub(crate) fn reads_as_arc<T: Decide>(
+    arc: Arc2<T>,
+    a: Point2<T>,
+    b: Point2<T>,
+    band: Band,
+) -> bool {
+    let sagitta = a.distance(b) * T::from_f64(0.5) * arc.quarter_tan();
+    match check_unlogged("segment_straightness", sagitta, band, "F23") {
+        Ok(Sign::Positive | Sign::Negative) => true,
+        Ok(Sign::Zero) => false,
+        Err(_) => sagitta.is_poison(),
+    }
+}
+
 /// The landing read's funnel name: ‖landing(a) − b‖.
 pub(crate) const LANDING_READ: &str = "path_arc_landing";
 

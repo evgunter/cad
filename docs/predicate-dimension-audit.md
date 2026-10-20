@@ -1251,7 +1251,11 @@ Flagged, NOT fixed here (dispositions):
   `PathError::ArcMissBelowSceneResolution`; in the band or poisoned
   escalates, except an in-band landing of an arc whose end is on its
   carrier only to the door's own inline decision (`Facts::Decided`),
-  which that decision admitted. A sample under either `_resolution`
+  which that decision admitted. Both reads are asked only of an arc
+  validation reads as an arc: `seg::reads_as_arc` asks validation's
+  own `segment_straightness` question (the signed sagitta, metres) the
+  same way, unlogged, and a segment read as a line or a sliver is left
+  to validation. A sample under either `_resolution`
   name is a refused arc, so those two populations are the probe lane's
   count of the read-back's refusals. Not a `decide_flagged` site;
   `LEDGER_FLAGGED_SITES` does not move.

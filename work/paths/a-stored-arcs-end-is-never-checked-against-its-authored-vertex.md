@@ -63,7 +63,9 @@ kernel issues will be mixed together with unfixable cases".
 **What the door reads.** At a point scalar (`T::WITNESS == Inexact`:
 `f64`, `Dual`, `Probe`, `Sym<f64>`), before the chain stores an arc
 (`Core::build`, after the fillet tangency re-read, and `circle_loop`),
-`path::arc_reads_back` reads every arc's landing on its end vertex
+`path::arc_reads_back` reads, for every arc validation reads as an
+arc (`seg::reads_as_arc`, validation's own sagitta question, unlogged;
+a segment read as a line keeps no carrier), its landing on its end vertex
 (`seg::constructed_landing`, `path_arc_landing`, 16 ulps) and a `Via`
 arc's carrier against its authored `q` (`seg::constructed_through_point`,
 `path_arc_through_point`, 8 ulps). `q` travels on `BuiltArc::through`
@@ -97,7 +99,22 @@ the first three and the sibling row.
 at `f64` instead of storing: `tangent_arc_near_a_full_turn`'s
 1.37e7 and 1.37e8 rows at the default ε, its `Center` 1.37e6 row and its
 1e4 m short `Via` row at ε = 1e-12. Those rows now pin the refusal and
-its scale. No stored bit, golden or symbolic receipt moves.
+its scale. Three viewer rows at 1e307 to 1.6e308 m now refuse at the
+door before the flattener (filed
+`issues/viewer-flattens-arc-arms-have-no-path-witness-after-the-door-read-back`).
+No symbolic receipt moves (`m10_9_pins_interval`, `m10_10`, `sym11`,
+`sym_9`, `m10_bulge`).
+
+**The sweep found a live defect, fixed here.** A counterexample search
+over every arc mode at `f64` (`tests/arc_read_back_sweep.rs`, about a
+million programs at three ε rows) found 229 `Via` legs near a full
+turn whose carrier sat off `q` (up to 4e-5 m at R = 1e6, 4.8e-8 m at
+R = 1.4e4) on scenes that resolve the read: `bulge_from_via` took its
+turn's cross term as `(q − a) × (b − q)`, two long, nearly opposed
+vectors whose product cancels to the short chord's scale. It now reads
+`(q − a) × (b − a)`, equal over the reals, and the sweep finds none.
+The first counterexample is pinned
+(`the_sweeps_via_arc_near_a_full_turn_holds_its_through_point`).
 
 **Not covered.** A `Via` arrival or fused incoming whose fillet fits
 exactly stores no arc on the `Via` carrier, so there is nothing stored
