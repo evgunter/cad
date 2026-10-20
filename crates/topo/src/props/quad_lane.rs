@@ -206,6 +206,9 @@ pub(super) fn closed_form<T: Decide + geom_core::CertifiedBounds>(
     }
 }
 
+/// A face's loops, each its edges in traversal order.
+pub(super) type Loops<U> = Vec<Vec<LoopEdge<U>>>;
+
 /// **A face's geometry carried by `−by`**: its surface and every loop
 /// edge's carrier moved, so a closed form read on it is the face's flux
 /// about `by`. The one home of reading a closed-form face about a point,
@@ -216,7 +219,7 @@ pub(super) fn moved_by<U: Decide>(
     surface: &Surface<U>,
     loops: &[Vec<LoopEdge<U>>],
     by: Point3<U>,
-) -> Option<(Surface<U>, Vec<Vec<LoopEdge<U>>>)> {
+) -> Option<(Surface<U>, Loops<U>)> {
     let loops = loops
         .iter()
         .map(|edges| {
