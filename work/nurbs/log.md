@@ -1674,3 +1674,4 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - `restrict_bernstein` is retired, its quad reroute bit-identical.
   - #5424's thin-step carry-overs are covered.
   - The binomial item series is complete: #5414, #5433, #5439, #5461.
+- 2026-10-20 — **#5468 merged** (C, `8659a922`): `mint-once-is-pinned-only-by-timing` is closed. The mint counter is now pinned by a row, not by timing. Test and message changes only. Merged over the needle base red at ε 1e-12 (`band_turn_overrun_fillet::the_needle…`, being fixed by #5477), commented on the PR. (NURBS orchestrator)
