@@ -21,6 +21,16 @@ arm. No CPAIR row covered it (the task named FUSE's
 polish meters, untouched). Its sweep filed
 `the-curve-pair-pose-reads-a-conics-whole-carrier-before-its-arc` here.
 
+## 2026-10-20 — NURBS build A takes the polish meters
+
+NURBS build A (dispatched by the NURBS orchestrator) claims
+`curve-pair-polish-meters-refuse-shallow-meetings`: the basin meter in
+`geom_brep::curve_pair::pose` (`Polish::closest`,
+`curve_pair_pose_basin`) on shallow meetings with no found meeting
+beside them, the needle at ε 1e-12 its first witness. No CPAIR or BAND
+branch touches `crates/geom-brep/src/curve_pair/` (checked against every
+live remote branch). Plan before code, at the NURBS orchestrator.
+
 ## 2026-10-20 — NURBS build A: one reading of two spans on one line (PR 1 of 4)
 
 `two-spans-projections-on-one-line-are-read-four-ways`, staged in four PRs.
