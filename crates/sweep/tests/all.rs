@@ -1220,3 +1220,5 @@ mod join_lever_is_the_joined_edge;
 mod review_4737_span_probes;
 #[path = "flush_fate_review_r2.rs"]
 mod flush_fate_review_r2;
+#[path = "flush_fate_review_r2_sweep.rs"]
+mod flush_fate_review_r2_sweep;

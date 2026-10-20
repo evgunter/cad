@@ -122,6 +122,7 @@ fn run(
         }
     };
     let vol = (mass_properties(&out.body, t).expect("mass").volume * 1e6).round() as i64;
+    let counts = (out.body.faces().count(), out.body.edges().count());
     let t3 = validate_geometric(&out.body, t).is_ok();
     let t3p = validate_pseudomanifold(&out.body, &out.contacts, t).err();
     let mut pairs = BTreeSet::new();
@@ -131,6 +132,18 @@ fn run(
         let k = (lab(s.operand.other()), format!("{:?}", root(&out, s.operand.other(), s.by)));
         rows.push(format!("{}:{:?}<-{}:{:?}", d.0, s.face, k.0, s.by));
         pairs.insert((d.clone().min(k.clone()), d.max(k)));
+    }
+    for s in &out.naming.substituted {
+        let holder = s.operand.other();
+        if out.naming.discards.iter().any(|d| d.operand == holder && d.face == s.by) {
+            println!("DEADBY {label} [{}{op}{}]: row {s:?}: its holder is a discard of its own operand", x.1, y.1);
+        }
+        if out.naming.discards.iter().any(|d| d.operand == s.operand && d.face == s.face) {
+            println!("BOTH {label} [{}{op}{}]: row {s:?}: the substituted face is also a discard", x.1, y.1);
+        }
+        if s.operand == Operand::A && out.naming.a_keys == topo::OperandKeys::Direct && out.body.get_face(s.face).is_some() {
+            println!("LIVESUB {label} [{}{op}{}]: row {s:?}: the substituted face is live in the result", x.1, y.1);
+        }
     }
     // fragments per substituted root
     let mut per_root = Vec::new();
@@ -157,11 +170,11 @@ fn run(
         borders.extend(s.into_iter().filter(|e| e[0][0] != i64::MAX));
     }
     println!(
-        "{label} [{}{op}{}]: {:?} vol {vol} t3 {t3} t3' {} subs {rows:?} roots(lab,root,frags,subs,discs) {per_root:?} discards {disc_lines:?}",
+        "{label} [{}{op}{}]: {:?} vol {vol} fe {counts:?} t3 {t3} t3' {} subs {rows:?} roots(lab,root,frags,subs,discs) {per_root:?} discards {disc_lines:?}",
         x.1, y.1, out.kind, t3p.as_ref().map_or("ok".to_string(), |e| format!("{e:?}"))
     );
     assert!(t3, "{label}: tier 3");
-    Summary { outcome: "ok".into(), volume: vol, pairs, borders }
+    Summary { outcome: format!("ok {counts:?}"), volume: vol, pairs, borders }
 }
 
 fn fixtures() -> Vec<(&'static str, AtRestBody<f64>, AtRestBody<f64>)> {
@@ -184,8 +197,12 @@ fn fixtures() -> Vec<(&'static str, AtRestBody<f64>, AtRestBody<f64>)> {
     v.push(("sunk-edge", brick((0.0, 3.0), (0.0, 3.0), u), brick((1.0, 2.0), (0.0, 2.0), (0.5, 1.0))));
     let plate = body(subtract(&brick((0.0, 3.0), (0.0, 2.0), u), &brick((1.0, 2.0), (0.8, 1.2), (0.5, 1.5)), t));
     v.push(("pocket-floor", plate, brick((0.5, 2.5), (-1.0, 3.0), (0.0, 0.5))));
+    v.push(("stand-on", brick((0.0, 2.0), (0.0, 2.0), u), brick((1.0, 3.0), (1.0, 3.0), (1.0, 2.0))));
+    v.push(("stand-in", brick((0.0, 2.0), (0.0, 2.0), u), brick((0.5, 1.5), (0.5, 1.5), (1.0, 2.0))));
+    v.push(("stand-L", fin("L2", st::prism(poly(&[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0), (1.0, 2.0), (0.0, 2.0)]), 1.0, t)), brick((0.5, 2.5), (0.5, 1.5), (1.0, 2.0))));
     // curved
     let c = |r, cx, cy, z0, h| fin("cyl", st::cylinder_of_arcs_at(4, r, Point2::new(cx, cy), z0, h, t));
+    v.push(("cyl-stand", c(1.0, 0.0, 0.0, 0.0, 1.0), brick((0.0, 2.0), (-0.5, 0.5), (1.0, 2.0))));
     v.push(("cyl-coaxial", c(1.0, 0.0, 0.0, 0.0, 2.0), c(1.0, 0.0, 0.0, 1.0, 2.0)));
     v.push(("cyl-sunk", brick((-2.0, 2.0), (-2.0, 2.0), u), c(1.0, 0.0, 0.0, 0.5, 0.5)));
     v.push(("cyl-edge", brick((0.0, 2.0), (0.0, 2.0), u), c(0.5, 2.0, 1.0, 0.0, 1.0)));
@@ -199,7 +216,7 @@ fn fixtures() -> Vec<(&'static str, AtRestBody<f64>, AtRestBody<f64>)> {
     let slanted = fin(
         "slant",
         st::prism_on(
-            st::sketch_from_axes(geom_core::Point3::new(0.0, -2.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), t),
+            st::sketch_from_axes(geom_core::Point3::new(0.0, 2.0, 0.0), Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), t),
             poly(&[(-2.0, -1.0), (2.0, -1.0), (2.0, 1.0), (-2.0, 1.6)]),
             4.0,
             t,
