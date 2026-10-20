@@ -141,10 +141,12 @@ pub enum Curve3<T: Real> {
     ///   rule), exactly the circle convention. θ is **not** arc length
     ///   and not the polar angle of the point — it is the conic's
     ///   eccentric anomaly; `|dP/dθ|` varies between the two semi-axes.
-    /// - Both semi-axes positive and distinct (meters), in either
-    ///   order. Equal semi-axes are a `Circle` — one kind per
-    ///   configuration (D3's closed-enum discipline) — and are refused
-    ///   by [`Curve3::ellipse`], the one deciding constructor. Like every
+    /// - Both semi-axes positive (meters), in either order, and
+    ///   possibly equal or near-equal: whether a configuration is a
+    ///   `Circle` or an `Ellipse` is decided by its pose (a section
+    ///   table's tilt reading), not by the semi-axes, and
+    ///   [`Curve3::ellipse`] refuses only a minor semi-axis not
+    ///   positive. Like every
     ///   conventional invariant this is *data* here: evaluators consume
     ///   the fields as given, and a struct-literal that bypasses the
     ///   constructor owns the consequences (well-defined garbage, not
@@ -152,7 +154,9 @@ pub enum Curve3<T: Real> {
     ///   ([`Curve3::representability_margins`]). Which semi-axis is the
     ///   larger is a reading of the two fields
     ///   ([`Curve3::semi_axes_by_size`], [`Curve3::major_frame`]), never
-    ///   of their names.
+    ///   of their names; on a near-circular ellipse that reading is
+    ///   rounding, so a reader that needs the major direction takes it
+    ///   from the surface's axis ([`Curve3::section_frame`]).
     Ellipse {
         /// The ellipse's center.
         center: Point3<T>,
@@ -478,24 +482,22 @@ impl CurveKind {
     }
 }
 
-/// Typed refusal of [`Curve3::ellipse`] — the one place that decides an
-/// ellipse's axis ordering (spec M5-PR5 §1: one kind per configuration;
-/// the constructor is the only decision point).
+/// Typed refusal of [`Curve3::ellipse`]. The constructor decides only
+/// that the curve is a genuine ellipse rather than a segment; whether a
+/// configuration is a `Circle` or an `Ellipse` is the caller's pose
+/// decision, so equal or near-equal semi-axes are not refused here.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EllipseInvalid {
-    /// The semi-axes coincide (|semi_u − semi_v| ≤ ε): this configuration
-    /// is a `Circle`, and D3's one-kind-per-configuration discipline
-    /// refuses to mint it as a degenerate `Ellipse`. It carries the
-    /// funnel's rejection of the decided zero, so a caller that meant
-    /// the axes to differ can escalate with the margin it was refused on.
-    CircularAxes(Indeterminate),
     /// The smaller semi-axis is not definitely positive (zero or
     /// negative: a degenerate segment, not an ellipse).
     MinorNotPositive,
-    /// A constructor predicate landed in the ambiguity band or was
-    /// poisoned (`ellipse_axes_distinct` / `ellipse_minor_positive`):
-    /// the configuration is too close to the circular (or degenerate)
-    /// coincidence to name a kind soundly.
+    /// A semi-axis is infinite or NaN: the configuration's ellipse is
+    /// past what the representation carries (a cosine that flushed to
+    /// zero, an overflowing quotient).
+    SemiAxisNotFinite,
+    /// `ellipse_minor_positive` landed in the ambiguity band or was
+    /// poisoned: the configuration is too close to the degenerate
+    /// segment to name soundly.
     Escalated(Indeterminate),
 }
 
@@ -508,7 +510,6 @@ impl EllipseInvalid {
     #[must_use]
     pub fn escalated_subject(diag: &Indeterminate) -> &'static str {
         match diag.predicate {
-            Some("ellipse_axes_distinct") => "whether the curve is a circle or an ellipse",
             Some("ellipse_minor_positive") => "whether the curve's minor semi-axis is positive",
             _ => geom_core::UNNAMED_DECISION,
         }
@@ -518,21 +519,19 @@ impl EllipseInvalid {
 impl core::fmt::Display for EllipseInvalid {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::CircularAxes(_) => write!(
-                f,
-                "ellipse construction: the semi-axes coincide — this configuration is a \
-                 Circle, one kind per configuration (D3); construct the Circle carrier, or {}",
-                geom_core::COINCIDENCE_RECOURSE
-            ),
             Self::MinorNotPositive => write!(
                 f,
                 "ellipse construction: the minor semi-axis is not positive (a degenerate \
                  segment, not an ellipse)"
             ),
+            Self::SemiAxisNotFinite => write!(
+                f,
+                "ellipse construction: a semi-axis is not finite (the section's ellipse is \
+                 past what f64 carries; turn the surfaces off this pose)"
+            ),
             Self::Escalated(diag) => write!(
                 f,
-                "ellipse construction: {} is undecided ({}) — construct the Circle \
-                 carrier, or {} (D4)",
+                "ellipse construction: {} is undecided ({}) — {} (D4)",
                 Self::escalated_subject(diag),
                 diag.payload(),
                 geom_core::COINCIDENCE_RECOURSE
@@ -853,19 +852,20 @@ impl<T: Real> Curve3<T> {
 }
 
 impl<T: Decide> Curve3<T> {
-    /// The one deciding door into [`Curve3::Ellipse`] (M5 PR 5 spec §1):
-    /// refuses equal semi-axes (that configuration is a `Circle` — one
-    /// kind per configuration, D3) and a non-positive one, each through
-    /// a named Q1 trilean. The semi-axes come in either order: `u_ref`
-    /// is a principal direction, along either.
+    /// The one deciding door into [`Curve3::Ellipse`]: refuses a
+    /// non-finite semi-axis ([`EllipseInvalid::SemiAxisNotFinite`], a
+    /// value-channel read, no band) and a non-positive minor semi-axis
+    /// through a named Q1 trilean, and nothing else. Equal or near-equal semi-axes are a genuine
+    /// `Ellipse`: the caller's pose decides the kind once (a square
+    /// section is its `Circle`, a definitely-off-square one this door's
+    /// `Ellipse`, however near-circular). The semi-axes come in either
+    /// order: `u_ref` is a principal direction, along either, and on a
+    /// near-circular ellipse it is the caller's frame, never a reading
+    /// of which semi-axis is larger.
     ///
     /// - `ellipse_minor_positive` — margin the smaller semi-axis
     ///   (meters): Positive required; Zero/Negative ⇒
     ///   [`EllipseInvalid::MinorNotPositive`]; in-band/poison ⇒
-    ///   escalated.
-    /// - `ellipse_axes_distinct` — margin `|semi_u − semi_v|` (meters):
-    ///   Positive ⇒ a genuine ellipse; Zero ⇒
-    ///   [`EllipseInvalid::CircularAxes`]; in-band/poison ⇒
     ///   [`EllipseInvalid::Escalated`].
     ///
     /// Frame fields stay conventional data exactly as for `Circle`
@@ -883,19 +883,14 @@ impl<T: Decide> Curve3<T> {
         u_ref: Vec3<T>,
         band: Band,
     ) -> Result<Self, EllipseInvalid> {
+        if !(geom_core::is_finite_length(semi_u) && geom_core::is_finite_length(semi_v)) {
+            return Err(EllipseInvalid::SemiAxisNotFinite);
+        }
         let minor = semi_u.min(semi_v);
         match geom_core::k_stats::decide("ellipse_minor_positive", Margin::of(minor), band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(EllipseInvalid::MinorNotPositive),
             Err(diag) => return Err(EllipseInvalid::Escalated(diag)),
-        }
-        let axes = Margin::of((semi_u - semi_v).abs());
-        if let Err(diag) = geom_core::k_stats::decide_positive("ellipse_axes_distinct", axes, band)
-        {
-            return Err(match diag.margin.rejected_sign() {
-                Some(Sign::Zero) => EllipseInvalid::CircularAxes(diag),
-                Some(Sign::Positive | Sign::Negative) | None => EllipseInvalid::Escalated(diag),
-            });
         }
         Ok(Curve3::Ellipse {
             center,
@@ -2230,28 +2225,23 @@ mod tests {
                 b,
             )
         };
-        // ellipse_axes_distinct: definitely-generic passes …
-        assert!(mk(2.0, 1.0).is_ok());
-        // … exactly-degenerate (major = minor, margin 0) refuses as the
-        // circular coincidence …
-        let err = mk(1.0, 1.0).unwrap_err();
-        assert!(matches!(err, EllipseInvalid::CircularAxes(_)), "{err:?}");
-        // … a sub-ε separation (dyadic 2⁻³¹ ≈ 4.7e-10, exact under
-        // subtraction) still refuses as the coincidence …
-        let err = mk(1.0 + 2.0f64.powi(-31), 1.0).unwrap_err();
-        let zero = |d: &Indeterminate| d.margin.rejected_sign() == Some(Sign::Zero);
-        assert!(
-            matches!(err, EllipseInvalid::CircularAxes(ref d) if zero(d)),
-            "{err:?}"
-        );
-        // … in-band escalates typed …
-        let err = mk(1.0 + 5e-9, 1.0).unwrap_err();
-        assert!(matches!(err, EllipseInvalid::Escalated(_)), "{err:?}");
-        // … and the semi-axes come in either order, `u_ref` along the
-        // smaller one, deciding alike.
-        assert!(mk(1.0, 2.0).is_ok());
-        let err = mk(1.0, 1.0 + 5e-9).unwrap_err();
-        assert!(matches!(err, EllipseInvalid::Escalated(_)), "{err:?}");
+        // Distinct, equal and sub-ε-separated semi-axes are all a
+        // genuine ellipse: the kind is the caller's pose decision, not
+        // a reading of the semi-axes. They come in either order.
+        for (u, v) in [
+            (2.0, 1.0),
+            (1.0, 2.0),
+            (1.0, 1.0),
+            (1.0 + 2.0f64.powi(-31), 1.0),
+            (1.0 + 5e-9, 1.0),
+            (1.0, 1.0 + 5e-9),
+        ] {
+            let c = mk(u, v).unwrap_or_else(|e| panic!("semi-axes ({u}, {v}) refused: {e}"));
+            assert!(
+                matches!(c, Curve3::Ellipse { semi_u, semi_v, .. } if semi_u == u && semi_v == v),
+                "({u}, {v}): {c:?}"
+            );
+        }
         assert_eq!(mk(0.0, 2.0).unwrap_err(), EllipseInvalid::MinorNotPositive);
 
         // ellipse_minor_positive: zero and negative refuse, in-band
@@ -2263,14 +2253,10 @@ mod tests {
         let err = mk(2.0, f64::NAN).unwrap_err();
         assert!(matches!(err, EllipseInvalid::Escalated(_)), "{err:?}");
 
-        // The circular-coincidence refusals compose the shared
-        // two-tolerance recourse (S6 / D4 ¶1 addendum), exactly once.
-        for e in [
-            mk(1.0, 1.0).unwrap_err().to_string(),
-            mk(1.0 + 5e-9, 1.0).unwrap_err().to_string(),
-        ] {
-            assert_eq!(e.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1, "{e}");
-        }
+        // The in-band refusal composes the shared two-tolerance
+        // recourse (S6 / D4 ¶1 addendum), exactly once.
+        let e = mk(2.0, 5e-9).unwrap_err().to_string();
+        assert_eq!(e.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1, "{e}");
     }
 
     proptest! {

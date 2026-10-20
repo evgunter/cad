@@ -3267,7 +3267,6 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ContactSecondOrder,
         BlendDecision::CornerIndependence,
         BlendDecision::CapTransverse,
-        BlendDecision::CapEllipse,
         BlendDecision::CutOffFeet,
         BlendDecision::TurnFeetGap,
         BlendDecision::TurnOverrunChord,

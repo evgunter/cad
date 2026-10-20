@@ -149,7 +149,7 @@ pub use intersect::{
     cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section,
     cylinder_sphere_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
     plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
-    sphere_sphere_section,
+    sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{TangentLocus, TangentLocusError, tangent_locus, tangent_locus_of_faces};
