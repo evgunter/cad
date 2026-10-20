@@ -546,8 +546,8 @@ pub enum CertifyError {
     /// circle or ellipse carrier of no positive radius, or a stored arc
     /// re-certified at a band finer than the one it was minted at, where
     /// its headroom read as zero. At a build it ends in the check's
-    /// lever; at the import door it is the file's, as any reading of the
-    /// check's refused side is there. Where the input is data the kernel
+    /// lever; at the import door it ends as any reading of the check's
+    /// refused side does there. Where the input is data the kernel
     /// holds, the kernel's call site panics on it instead: a kernel bug.
     StatedInterval {
         /// What the span checks refused, with the reading they refused it
@@ -1095,20 +1095,7 @@ impl StatedSpan {
     /// [`StatedSpan::check`]).
     #[must_use]
     pub fn decision(self) -> SpanDecision {
-        let Some((decision, _)) = self.check().span() else {
-            unreachable!("{:?} is a span check", self.check())
-        };
-        decision
-    }
-
-    /// The decision this refusal ends by: the check's own, on its
-    /// refused side ([`CertCheck::span`]). The interval is the door's
-    /// input, so at a build it ends in the check's lever.
-    fn ends_by(self) -> SizedDecision {
-        let Some((decision, side)) = self.check().span() else {
-            unreachable!("{:?} is a span check", self.check())
-        };
-        decision.on(side)
+        self.check().span_check().0
     }
 
     /// The refused arm its reading is.
@@ -1127,7 +1114,7 @@ impl StatedSpan {
     /// is there.
     #[must_use]
     pub fn ending(&self, at: impl Into<ReadAt>) -> String {
-        self.ends_by().recourse(self.arm(), at)
+        self.check().span_ending().recourse(self.arm(), at)
     }
 }
 
@@ -1258,8 +1245,11 @@ impl CertCheck {
     ///   it as a kernel bug. [`Provenance::Derived`]: the import door
     ///   certifies the interval it computes from the file's vertices
     ///   (`step-import`'s `endpoint_params`, which projects, takes an
-    ///   eccentric anomaly, wraps an angle or pins a spline's domain
-    ///   end), not one the file stores.
+    ///   eccentric anomaly or wraps an angle), not one the file stores.
+    ///   A spline edge's interval is the exception: the file's stored
+    ///   knot domain verbatim, so that route compares stored values
+    ///   only, and is harmless because a `KnotVector`'s domain is
+    ///   strictly forward.
     /// - The span of the edge's image on a spline wall
     ///   ([`CertCheck::ImageSpan`]): a stored contradiction. The kernel
     ///   derives the image at the band the operation passes, where a
@@ -1284,16 +1274,29 @@ impl CertCheck {
         }
     }
 
+    /// [`CertCheck::span`] of a check the caller holds to be a span
+    /// check; any other check here is a kernel bug.
+    fn span_check(self) -> (SpanDecision, RefusedSide) {
+        let Some(span) = self.span() else {
+            unreachable!("{self:?} is a span check")
+        };
+        span
+    }
+
+    /// The decision a span check's refusal ends by: its span decision
+    /// on its refused side.
+    fn span_ending(self) -> SizedDecision {
+        let (decision, side) = self.span_check();
+        decision.on(side)
+    }
+
     /// How this decision's refusals end: its own lever, and what it
     /// passes on, where it passes on a nonzero sign; otherwise the way
     /// its definite refusal ends.
     fn ending(self) -> Ending {
         match self {
             Self::ParamSpan | Self::ParamWinding | Self::ImageSpan => {
-                let Some((decision, side)) = self.span() else {
-                    unreachable!("{self:?} is a span check")
-                };
-                Ending::Sized(decision.on(side))
+                Ending::Sized(self.span_ending())
             }
             // The floor is a conservative lower bound, so a definite
             // refusal of it is the certificate's limit, which the lever

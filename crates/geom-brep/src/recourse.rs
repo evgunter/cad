@@ -36,9 +36,9 @@ pub enum Reading {
 
 /// **The door a refusal's ending is read at** (D4 ¶1): a [`Reading`] at
 /// this run's ε, or the STEP import door, where the file's declared
-/// coincidence distance picks the words and, past it, a stored
-/// contradiction is the file's ([`RefusedSide`]). Every ending in the
-/// refusal stack takes one, so one body serves every door.
+/// coincidence distance picks the words and, past it, the culprit is
+/// read off whose data the contradiction is about ([`culprit`]). Every
+/// ending in the refusal stack takes one, so one body serves every door.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ReadAt {
     /// At this run's ε.
@@ -517,7 +517,8 @@ impl SizedDecision {
     ///   ([`MarginDiag::sized_recourse_in_file`]), whichever arm the run's
     ///   band placed it on, with no decision's note. Past ε_in it ends as
     ///   at rest, except that a reading certainly on a stored
-    ///   contradiction or an unminted side is the file's. A straddle
+    ///   contradiction or an unminted side names the culprit its
+    ///   provenance gives there ([`culprit`]). A straddle
     ///   carries no single margin to place against ε_in.
     ///
     /// It returns text for every decision, arm and door a caller can

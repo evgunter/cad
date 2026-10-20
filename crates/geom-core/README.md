@@ -253,7 +253,9 @@ as a column of the side itself (`RefusedSide::StoredContradiction` and
 without it. Every one in `geom_brep` is derived: the edge's interval
 (`CertCheck::ParamSpan`, `CertCheck::ParamWinding`, and a door's
 `StatedInterval` refusal of it) is the one the import computes from the
-file's vertices; the image's span and its period gates
+file's vertices, except a spline edge's, which is the file's stored
+knot domain verbatim — a route that compares stored values only, and
+harmless because a knot vector's domain is strictly forward; the image's span and its period gates
 (`CertCheck::ImageSpan`, the `PcurveCheck` span and period checks) read
 a chart image the kernel derives; and a transversal or tangent
 description (`CertCheck::Transversality`,
@@ -290,9 +292,12 @@ input, so it ends there as the door's own refusal does, in the lever,
 and the kernel-bug panic is `Origin::Kernels`'s alone. So the `Unminted`
 build cell keeps clause (iv)'s panic where the kernel constructs, the
 only place such a reading arises; the cell names what a hand-built
-value renders. The table departs from clause (iv) in one cell, typed until the door that would keep input
-from it exists, and scheduled by its row: the at-rest column, which the
-validator also reads at the import gate (`[import]` step 4) and so a
+value renders. The import-door column is clause (iv)'s: the file where
+its own stored values contradict, the kernel or the file where adoption
+derives the comparand. The table departs from clause (iv) in one
+column, typed until the door that would keep input from it exists, and
+scheduled by its row: the at-rest column's defect cells, which (iv)
+has panic past the import door and which the validator also reads at the import gate (`[import]` step 4) and so a
 damaged file reaches until adoption checks everything the validator
 does
 (`work/encl/at-rest-stored-contradictions-and-unminted-sides-panic-once-import-validates-everything.md`).

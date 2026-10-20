@@ -14,7 +14,7 @@ opened: 2026-10-20
 
 A sized decision's defect side now names its provenance (`RefusedSide::StoredContradiction(Provenance)`, `RefusedSide::Unminted(Provenance)`, `crates/geom-brep/src/recourse.rs`). Checked one by one, every defect side in the codebase is `Provenance::Derived` at the import door:
 
-- `CertCheck::ParamSpan`, `CertCheck::ParamWinding` and a door's `CertifyError::StatedInterval` read the interval `step-import`'s `endpoint_params` (`crates/step-import/src/geometry.rs`) computes from the file's vertices.
+- `CertCheck::ParamSpan`, `CertCheck::ParamWinding` and a door's `CertifyError::StatedInterval` read the interval `step-import`'s `endpoint_params` (`crates/step-import/src/geometry.rs`) computes from the file's vertices. A spline edge's interval is the exception: `endpoint_params`'s `Curve3::Nurbs` arm returns the file's stored knot domain verbatim, a route that compares stored values only and never refuses, because a `KnotVector`'s domain is strictly forward (`param-span-provenance-is-per-decision-not-per-import-route`).
 - `CertCheck::ImageSpan` and the `PcurveCheck` span and period gates (`PcurveCheck::routing`, `crates/geom-brep/src/pcurve_cache.rs`) read a chart image the kernel derives.
 - `CertCheck::Transversality` and `CertCheck::TangentSecondOrder` refuse the adoption ladder's candidate description (`adopt_edges`, `crates/step-import/src/adopt.rs`), sampled at those derived parameters.
 

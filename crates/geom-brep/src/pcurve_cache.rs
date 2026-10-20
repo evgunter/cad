@@ -10225,8 +10225,9 @@ mod tests {
     /// the kernel derives, so each refused side is
     /// [`Provenance::Derived`], and past ε_in at the import door a
     /// reading in band wholly on it names the kernel beside the file.
-    /// The table is an exhaustive match, so a check added without a row
-    /// does not compile; red if a provenance is flipped.
+    /// The table and the roster are exhaustive matches, so a check or
+    /// envelope term added without a row does not compile; red if a
+    /// provenance is flipped.
     #[test]
     fn each_pcurve_check_names_its_refused_sides_provenance() {
         use crate::recourse::RefusedSide;
@@ -10252,18 +10253,26 @@ mod tests {
         };
         let past = RefusedArm::Undecided(&in_band);
         let file = FileCoincidence::new(1e-6);
-        let checks = [
-            PcurveCheck::ParamSpan,
-            PcurveCheck::MapResidual,
-            PcurveCheck::Envelope,
-            PcurveCheck::ChartWinding,
-            PcurveCheck::AzimuthPeriod,
-            PcurveCheck::TubePeriod,
-            PcurveCheck::ChartIncidence,
-            PcurveCheck::Sector,
-        ]
-        .into_iter()
-        .chain(EnvelopeTerm::ALL.map(PcurveCheck::EnvelopeTerm));
+        // One list spells both the roster iterated and an exhaustive
+        // match over it.
+        macro_rules! every_check {
+            ($($check:ident),+; $($term:ident),+) => {{
+                let _ = |check: PcurveCheck| match check {
+                    $(PcurveCheck::$check)|+ | PcurveCheck::EnvelopeTerm(_) => (),
+                };
+                let _ = |term: EnvelopeTerm| match term {
+                    $(EnvelopeTerm::$term)|+ => (),
+                };
+                [$(PcurveCheck::$check),+]
+                    .into_iter()
+                    .chain([$(EnvelopeTerm::$term),+].map(PcurveCheck::EnvelopeTerm))
+            }};
+        }
+        let checks = every_check!(
+            ParamSpan, MapResidual, Envelope, ChartWinding, AzimuthPeriod, TubePeriod,
+            ChartIncidence, Sector;
+            Frame, Centre, Radius, Line, Drift, FidelityU, FidelityV, Incidence, Fidelity
+        );
         for check in checks {
             let side = match check.routing() {
                 Routing::Sized(decision) => {
