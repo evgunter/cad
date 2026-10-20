@@ -35,9 +35,10 @@
 //!   coefficient `k` is the pyramid's level `p − k` at `a` carried `k`
 //!   levels further at `b` — so each is still exactly the `p` steps of
 //!   its own blossom, and the sharing changes no bit.
-//! - **A bare Bernstein row** on `[0, 1]` ([`restrict_bernstein`]) is a
-//!   proof about [`KnotVector::bezier`]`(p, (0, 1))`, whose ratios are
-//!   the arguments themselves, so no vector is minted for it.
+//! - **A Bézier segment's row** on `[s0, s1]` ([`restrict_segment`])
+//!   is a proof about [`KnotVector::bezier`]`(p, (s0, s1))`, whose
+//!   ratio at each cut end is formed once, so no vector is minted for
+//!   it.
 //!
 //! So no coefficient is more than `p` steps deep from the window it was
 //! read from, wherever the arguments fall and however many pieces a
@@ -179,18 +180,13 @@ impl<E: CertifiedBounds> CoeffWindow<'_, E> {
     }
 }
 
-/// The Bernstein row on `[a, b] ⊆ [0, 1]` of the polynomial whose
-/// Bernstein row on `[0, 1]` is `row`: [`CoeffWindow::restrict`] on
-/// [`KnotVector::bezier`]`(p, (0, 1))`, whose every ratio is the argument
-/// itself. A constant (one coefficient) is its own restriction.
-///
-/// # Errors
-///
-/// [`BlossomError::EmptyRow`] for an empty row;
-/// [`BlossomError::OutsideSpan`] for an end with no point in `[0, 1]`.
-///
-/// [`KnotVector::bezier`]: super::KnotVector::bezier
-pub fn restrict_bernstein(
+/// The arithmetic `restrict_bernstein` had before its one caller
+/// (`geom-brep`'s trim bisection) moved to [`restrict_segment`] on
+/// `[0, 1]`: the pyramid on the row at the admitted ends, every ratio
+/// the argument itself. The oracle for that caller's bit-identity row,
+/// read through `crate::test_support`.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn bernstein_restriction_as_retired(
     row: &[Interval],
     (a, b): (Interval, Interval),
 ) -> Result<Vec<Interval>, BlossomError> {
@@ -214,6 +210,27 @@ pub fn restrict_bernstein(
 /// end outside the segment, a reversed cut (sound, blossoms being
 /// symmetric, and refused by contract), an empty or unbounded segment,
 /// a cut that is not a number. An empty row comes back empty.
+///
+/// **The restriction door for a row that is read as it comes**: the
+/// SSI section's cuts and halves and the trim bisection's halves.
+/// It is the door for them by width: of restriction's three homes it is
+/// the tightest on those callers. Measured on the section's and props'
+/// real inputs (2026-10-20), [`split_restrict`] is up to 98× wider than
+/// it on the section's general cuts and 14× at its cut-and-derivative
+/// step, and `super::derivative`'s `Grid::halved` arithmetic (unscaled
+/// sums and one exact `2⁻ʳ` per output, its generic halving at ½) is up
+/// to 2× wider at the section's exact-half cuts. At the section's own
+/// halves of a `[0, 1]` row the other two are wider on 0.01% of
+/// coefficients, by at most 1.6× (3 ulp); at the trim bisection's
+/// halves all three agree to the bit. The other two are kept for what
+/// this one is not: `split_restrict` is the cut's fast form, `O(p²)`
+/// against `O(p³)`, sound beside it because its reader meets every cut
+/// with the whole cell's; `Grid::halved` is `super::derivative`'s
+/// halving, generic over `T: Real` with exact `2⁻ʳ` steps, where this
+/// reads certification scalars only. The numbers are a dated
+/// measurement nothing computes with, so no row guards them; the table
+/// and how it was taken are in
+/// `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
 ///
 /// [`KnotVector::bezier`]: super::KnotVector::bezier
 // The negated guard refuses a NaN cut, where `a < s0` would pass it.
@@ -275,7 +292,12 @@ fn step(x: Interval, y: Interval, (t, s): (Interval, Interval)) -> Interval {
     if x.same_enclosure(y) {
         x
     } else {
-        x * s + y * t
+        // Both weights' lower ends are non-negative (`t` is clamped to
+        // `[0, 1]`; `s = 1 − t` reaches `1 + 2⁻⁵²` above at a tiny
+        // positive `t.lo`),
+        // which is all `Interval::mul_nonneg` reads two corners on, bit
+        // for bit the general product.
+        x.mul_nonneg(s) + y.mul_nonneg(t)
     }
 }
 
@@ -289,6 +311,13 @@ fn step(x: Interval, y: Interval, (t, s): (Interval, Interval)) -> Interval {
 /// ([`restrict_segment`]). A split at an end of its segment is
 /// skipped. A cut out of order, or a segment that is empty or not
 /// finite, refuses every coefficient.
+///
+/// **The restriction cut's fast form, for a reader that meets it**:
+/// `derivative`'s cut pieces meet every cut box with the whole cell's,
+/// which absorbs its width. Unmet it is up to 417× wider per
+/// coefficient than the pyramid on the same inputs (measured at
+/// `cut_pieces`), so a row read as it comes restricts at
+/// [`restrict_segment`].
 // The negated guard refuses a NaN cut, where `a < s0` would pass it.
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub(crate) fn split_restrict(
@@ -566,10 +595,7 @@ mod tests {
             );
             let bez = KnotVector::bezier(p, (0.0, 1.0)).unwrap();
             let bern = &coeffs[..=p];
-            let ends = (
-                Interval::point(1.0 / 3.0),
-                Interval::from_bounds(0.6, 0.6000001),
-            );
+            let ends = (Interval::point(1.0 / 3.0), Interval::point(0.6));
             let via_pair = bez
                 .with_coeffs(bern)
                 .unwrap()
@@ -578,7 +604,7 @@ mod tests {
                 .restrict(ends)
                 .unwrap();
             assert_eq!(
-                bits(&restrict_bernstein(bern, ends).unwrap()),
+                bits(&restrict_segment(bern, (0.0, 1.0), (1.0 / 3.0, 0.6))),
                 bits(&via_pair),
                 "p={p}: bare row vs its Bézier pair"
             );
@@ -855,6 +881,71 @@ mod tests {
         }
     }
 
+    /// **The thin step's products are the general products to the bit.**
+    /// `step` reads `x·(1 − t) + y·t` through `Interval::mul_nonneg`;
+    /// against `x * s + y * t` over drawn coefficients of every sign
+    /// (below, above and straddling zero, thin and wide) and weights from
+    /// interior ratios, ratios at an end of `[0, 1]`, wide ratios, tiny
+    /// ratios (whose `1 − t` reaches above one) and point ratios (the
+    /// general product's fallback), every result has the same ends
+    /// and decoration. Red on a product that pads or picks a corner
+    /// otherwise.
+    #[test]
+    fn the_thin_step_reads_the_general_products_to_the_bit() {
+        use interval_transcendentals::Decoration;
+        let bits = |x: Interval| -> (u64, u64, Decoration) {
+            (x.lo().to_bits(), x.hi().to_bits(), x.decoration())
+        };
+        let mut rng = test_utils::fuzz::start("thin-step-nonneg");
+        let coefficient = |rng: &mut test_utils::fuzz::Rng| {
+            let c = rng.range(-3.0, 3.0);
+            let w = match rng.below(3) {
+                0 => 0.0,
+                1 => rng.range(0.0, 1e-9),
+                _ => rng.range(0.0, 2.0),
+            };
+            Interval::from_bounds(c, c + w)
+        };
+        let mut above = 0usize;
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let (x, y) = (coefficient(&mut rng), coefficient(&mut rng));
+            let ratio = match rng.below(6) {
+                0 => Interval::point(rng.range(0.0, 1.0)),
+                1 => Interval::point(if rng.below(2) == 0 { 0.0 } else { 1.0 }),
+                // A wide ratio: end weights far apart.
+                2 => {
+                    let (r0, r1) = (rng.range(0.0, 1.0), rng.range(0.0, 1.0));
+                    Interval::from_bounds(r0.min(r1), r0.max(r1))
+                }
+                // A tiny positive `t.lo`, at most `2⁻⁵⁴`: `1 − t` reads
+                // `1 + 2⁻⁵²` above.
+                3 => {
+                    let tiny = 2f64.powi(-54);
+                    let lo = rng.range(0.0, tiny).max(f64::from_bits(1));
+                    Interval::from_bounds(lo, lo + rng.range(0.0, tiny))
+                }
+                _ => {
+                    let (s0, s1) = (rng.range(-2.0, 1.0), rng.range(1.0, 3.0));
+                    let a = rng.range(s0, s1);
+                    let lo = Interval::point(s0);
+                    ((Interval::point(a) - lo) / (Interval::point(s1) - lo)).clamped_to(0.0, 1.0)
+                }
+            };
+            let (t, s) = convex(ratio);
+            above += usize::from(s.hi() > 1.0);
+            let general = x * s + y * t;
+            let got = step(x, y, (t, s));
+            if x.same_enclosure(y) {
+                continue;
+            }
+            assert!(
+                bits(got) == bits(general),
+                "x {x:?}, y {y:?}, t {t:?}: {got:?} against {general:?}"
+            );
+        }
+        assert!(above > 0, "no draw read `1 − t` above one");
+    }
+
     /// **A refused neighbour is not laundered by the equal arm.** A
     /// certified `[0, 2]` beside `sqrt([-1, 4])` — the same ends, refused
     /// (the domain clamp records `Trv`) — cut strictly inside, where
@@ -1008,8 +1099,7 @@ mod tests {
         // The segment's restriction is the [0, 1] row's at the mapped
         // ratios, which are exact here.
         let on_segment = restrict_segment(&row, (2.0, 6.0), (3.0, 5.0));
-        let on_unit =
-            restrict_bernstein(&row, (Interval::point(0.25), Interval::point(0.75))).unwrap();
+        let on_unit = restrict_segment(&row, (0.0, 1.0), (0.25, 0.75));
         for (x, y) in on_segment.iter().zip(&on_unit) {
             assert!(x.lo() <= y.hi() && y.lo() <= x.hi(), "{x:?} vs {y:?}");
         }

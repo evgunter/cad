@@ -251,7 +251,7 @@ impl SegTag {
             RoleSeg::Merged(..) => Self::Merged,
             RoleSeg::Fragment(..) => Self::Fragment,
             RoleSeg::SplitBody => Self::SplitBody,
-            RoleSeg::SectionFace { .. } => Self::SectionFace,
+            RoleSeg::SectionFace => Self::SectionFace,
             RoleSeg::SectionEdge { .. } => Self::SectionEdge,
             RoleSeg::SplitFragment { .. } => Self::SplitFragment,
             RoleSeg::CrossingVertex { .. } => Self::CrossingVertex,
@@ -342,7 +342,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         // Side-free segments (kept explicit — see the doc note). A
         // split's half is the variable's, not the name's (N1, the scope).
         RoleSeg::SplitBody
-        | RoleSeg::SectionFace { .. }
+        | RoleSeg::SectionFace
         | RoleSeg::SectionEdge { .. }
         | RoleSeg::SplitFragment { .. }
         | RoleSeg::CrossingVertex { .. }
@@ -772,8 +772,8 @@ impl core::fmt::Debug for NamePat {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Selector {
     /// The alternatives. An EMPTY selector matches nothing (and the
-    /// fillet node is where an empty selection refuses — one door for
-    /// that refusal, not two).
+    /// fillet's insert is where an empty selection refuses — one door
+    /// for that refusal, not two).
     pub alts: Vec<NamePat>,
 }
 
@@ -814,8 +814,8 @@ impl Selector {
 /// behaves like any other authored selection (the growth path is
 /// [`crate::DocEdit::Rebind`]). Returns canonical order (sorted,
 /// deduped), ready for [`crate::Node::fillet`]. Empty if `node` has
-/// no value, no table, or nothing matching — the fillet node is where
-/// an empty selection refuses.
+/// no value, no table, or nothing matching — the fillet's insert is
+/// where an empty selection refuses.
 ///
 /// **"No value" answers "no names" here, deliberately**: the question
 /// is which names the table `at` names holds, and a node with no value

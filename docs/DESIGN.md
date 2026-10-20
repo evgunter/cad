@@ -211,7 +211,7 @@ thing it is about. Two ways of missing that are kept apart:
   ([placement.frame]).
 
 *Instantiated in:* [verdicts], [tolerance], [determinism],
-[placement], [edges].
+[placement], [edges], [identity] (the names' N0, `crates/editor-core/src/names/README.md`).
 
 ### Few kinds of thing, one way to do each `[one-way]`
 
@@ -1572,17 +1572,20 @@ library spelling of.
 
 *From:* [loud-failure], [unrepresentable].
 
-- **The kernel never panics on any INPUT** — every failure an input can
-  reach is a typed error. **A panic is therefore never a refusal: it
-  reports that a bug has already happened.** Read it as *a firing panic
-  is evidence of a bug*, never as *a panic in the source is a defect to
-  remove*. **The converse is a positive obligation: a state that can
-  only be a kernel bug MUST panic**, as loudly and as early as it is
-  detectable (`unreachable!` / `debug_assert`, the taxonomy below);
-  downgrading one to silence, or to a typed error, launders a bug into
-  a supported outcome. The two halves are separate rules over disjoint
+- **The kernel panics on kernel bugs, and only on kernel bugs.** A state
+  that can only be a kernel bug MUST panic, as loudly and as early as it
+  is detectable (`unreachable!` / `debug_assert`, the taxonomy below);
+  downgrading one to silence, or to a typed error, launders a bug into a
+  supported outcome. **No input should be able to lead to a known panic,
+  since bad input is not a kernel bug**: every failure a correct kernel
+  lets input reach is a typed error. Some input triggers every bug, so a
+  check that fails on the kernel's own result reports a bug and panics;
+  it is not a refusal of that input. **A panic is therefore never a
+  refusal: it reports that a bug has already happened.** Read it as *a
+  firing panic is evidence of a bug*, never as *a panic in the source is
+  a defect to remove*. The two halves are separate rules over disjoint
   state classes. Every traversal is bounded: never a hang.
-  The closure property behind the first half: every public mutation
+  The closure property behind the no-known-panic half: every public mutation
   path preserves tier 1, **checked at every observable boundary** —
   the Euler operators by the soundness theorem, the non-operator
   structural mutators by declaring the same debug postcondition, or by
@@ -1651,6 +1654,18 @@ swallowed.
 - *Row 3:* poison flows through **values**, never through decisions
   ([scalars]). `sup_norm_bound` returning NaN on every poison path is the
   pattern.
+- *A site whose firing a correct kernel can reach is not a defect* but
+  a precision limit the model controls (row 1, a lever and
+  `KERNEL_LIMIT_RECOURSE`) or a case not built yet (row 2,
+  `NOT_YET_ENDING`), and it takes that row's ending. A file is input, so
+  a document check, or a check at the import door, is row 1.
+- *A load-bearing check panics in release.* A re-deriving check that
+  ships, because removing it would ship a wrong result (a validate
+  over a Boolean's result), is not row 5: row 5's contract (i) is
+  that a `debug_assert`'s absence changes nothing shipped. It runs in
+  release, and its failing branch is `unreachable!` with row 4's
+  message: what the check re-derived and why a correct kernel always
+  passes it.
 - *Rows 4 and 5 split on re-derivation, not on cost.* `unreachable!` is
   for a state the current best understanding says only a kernel bug
   reaches, however many interacting parts that understanding rests on
@@ -1813,7 +1828,7 @@ Each layer depends only on the layers below it.
 | `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation |
 | `topo` | Arenas, entities, Euler operators, the validation tiers; plane splitting, the boolean engine and its census/contact-record machinery (sibling modules at the crate root), shell/offset surgery, the kernel query seat |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft, sweep, tube; the blend family (fillets, chamfers) and its composition surgery |
-| `verbs` | The kernel verb vocabulary seat (VERB-SEAT-DESIGN §2): one closed `Verb` enum reifying an operation's parameters as data, run dispatch, and the parameter→field flow; a layer guard keeps serde, `Expr`, `StableName` and recipe ids out |
+| `verbs` | The kernel verb vocabulary seat (VERB-SEAT-DESIGN §2): one payload type per run door reifying an operation's parameters as data, the closed `VerbKind` vocabulary they project onto, run dispatch, and the parameter→field flow; a layer guard keeps serde, `Expr`, `StableName` and recipe ids out |
 | `mesh` / `stl` | Certified tessellation (watertight triangle meshes with source-`Face`/`Edge` back-references); STL export (binary + ASCII) |
 | `step-export` / `step-import` | STEP (AP214) analytic-subset export, and import of that subset as adoption ([import]) |
 | `quantity` | Typed quantities at the API boundary ([units]): `Length`, `Angle`, the unit table and the written forms |
@@ -2110,7 +2125,7 @@ is the board and `work/README.md` its contract.
 | `docs/DRAFT-DESIGN.md` | Ratified (#908); unbuilt | Draft DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming |
 | `docs/SELECT-DESIGN.md` | Ratified | Selection: filters, heterogeneous sets, vanishing entities; the contact-site recourse (§3d) |
 | `crates/editor-core/VARIABLES.md` | Ratified | How a variable is represented, VARIABLES-DESIGN VR1–VR9: minted identity and optional name, `Expr` holds no float, `Formula` lowered at the edit door, lifecycle, id-keyed tokens |
-| `crates/verbs/README.md` | Ratified (#1388, #1870, #1983, #1997) | The kernel query seat and one verb vocabulary, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: query doors at `topo`, the per-verb `Verb` declaration, the parameter→field flow |
+| `crates/verbs/README.md` | Ratified (#1388, #1870, #1983, #1997; V1's shape #5457) | The kernel query seat and one verb vocabulary, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: query doors at `topo`, the per-verb declaration (one payload type per door, `VerbKind`), the parameter→field flow |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
 | `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 2026-09-16) | What a recipe reference may be, DM1–DM8: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` |
 | `crates/editor-core/IDENTITY.md` | Ratified (in-chat 2026-09-04) | How editor-core keeps [assemblies.pairing] and [assemblies.saving], DI1–DI5: node ids across history, the memo and the store, an evaluation's identity stamp, saving vs forking |

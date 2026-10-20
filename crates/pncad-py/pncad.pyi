@@ -129,8 +129,10 @@ class EditError(PncadError):
       (`profile`, `target`, `from`, `cut`, `member`, ...), with
       `index` the position of a section or a member.
     - `count` is how many nodes a definition expands to
-      (`definition_too_large`), or how many entities a selection meant
-      to name one names (`selection_shape`). It is NOT `found`: a count
+      (`definition_too_large`), or how many names a selection holds
+      where its kind holds another count (`selection_shape`,
+      `name_count`: a singleton holds exactly one, a set of edges at
+      least one). It is NOT `found`: a count
       and a dimension are two types, and one attribute carries one.
     - `first` and `again` are POSITIONS in a selection's names, and
       the fault (`fault`) decides what `first` means. On `repeated` (a
@@ -543,17 +545,18 @@ class TessellateError(PncadError):
     `invalid_chordal_tolerance`, `unsupported_surface`,
     `unsupported_nurbs_face`, `unsupported_curve`,
     `null_scaffold_edge`, `ring_on_curved_face`, `empty_loop`,
-    `missing_entity`, `resolution_overflow`, `certificate_exceeded`,
-    `triangulation`, `self_touching_trim_loop` or
-    `unsupported_curved_domain`.
+    `missing_entity`, `resolution_overflow`, `step_not_positive`,
+    `certificate_exceeded`, `triangulation`, `self_touching_trim_loop`
+    or `unsupported_curved_domain`.
 
     The offending face or edge is an arena KEY and does not cross, so
     what a caller reads beside the tag is the arm's NUMBERS, always
     present and `None` where inapplicable: `value` (the refused
-    budget, the overflowed count, or the curved domain's worst
-    off-box distance in metres), `bound` / `requested` (a failed
-    deviation certificate against the budget it was checked to), and
-    `note` (the arm's own prose about which lane would be needed)."""
+    budget, the overflowed count, the refused step, or the curved
+    domain's worst off-box distance in metres), `bound` / `requested`
+    (a failed deviation certificate against the budget it was checked
+    to), and `note` (the arm's own prose about which lane would be
+    needed)."""
 
     variant: str
     value: Optional[float]
@@ -2351,9 +2354,10 @@ class Node:
 
         `Node.fillet`'s twin: `selection` is edge names as TEXT and the
         set FREEZES at authoring time. `distance` is the SETBACK along
-        each support, not a radius. An empty selection, an unresolvable
-        name, or an edge whose supports are not both planes refuses
-        typed at `evaluate`. `distance` mints a literal in the node's
+        each support, not a radius. An empty selection refuses at the
+        insert (`EditError` `selection_shape`, `name_count`); an
+        unresolvable name or an edge whose supports are not both planes
+        refuses typed at `evaluate`. `distance` mints a literal in the node's
         `chamfer_distance` slot, moved by `DocEdit.set_param`; the
         selection is repaired by `DocEdit.rebind`.
         """
@@ -2454,8 +2458,9 @@ class Node:
         `Evaluation.all_edges` answers with, or the ones a role-name
         door mints (`band_rim` and its five siblings) for a node no
         evaluation has reached yet. The set FREEZES at
-        authoring time; an empty one, an unresolvable name, or an edge
-        the roller cannot enter refuses typed at `evaluate`. `radius`
+        authoring time. An empty one refuses at the insert (`EditError`
+        `selection_shape`, `name_count`); an unresolvable name or an
+        edge the roller cannot enter refuses typed at `evaluate`. `radius`
         mints a literal in the node's `radius` slot, moved by
         `DocEdit.set_param`; one name of the selection is repaired by
         `DocEdit.rebind`.

@@ -137,11 +137,11 @@ pub use edit::{
 };
 pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
-    Arity, At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
+    At, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, Copies, DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar,
     Evaluation, FramePlacement, KeyedCopy, NamingKey, NodeError, NodeErrorClass, NodeErrorKind,
-    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PiecesFault, PoseValue,
-    ProfileLane, ProfilePieces, SplitSide, StepTurns, ValuePayload, VerbKind, evaluate,
+    NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, PoseValue, ProfileLane,
+    ProfilePieces, SplitSide, StepTurns, ValuePayload, evaluate,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
@@ -244,7 +244,8 @@ pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
 pub use var::{
-    FreshEntry, Select, SelectionFault, Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef,
+    FreshEntry, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId, VarKind,
+    VarRef, WrittenDef,
 };
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no

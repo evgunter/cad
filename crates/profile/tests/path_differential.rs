@@ -457,8 +457,9 @@ fn sharp_arc_chain_matches_loopbuilder() {
 
 /// D3 — constructed tangent leg: `.tangent().tangent_arc_to(p)` lowers to
 /// a joint constructed tangent plus the arc whose sweep is 4·atan(X), X =
-/// tan(Δ/2) of the tangent-chord angle Δ spelled algebraically,
-/// `across / (|d| + along)` — bit-identical to that closed form
+/// tan(Δ/2) of the tangent-chord angle Δ spelled algebraically — with
+/// `along ≥ 0`, the home's arm `across / (|d| + along)`
+/// (`sugar::split_half_tan`) — bit-identical to that closed form
 /// evaluated directly on the same inputs (the oracle below).
 #[test]
 fn tangent_arc_leg_matches_loopbuilder() {
@@ -514,24 +515,92 @@ fn expected_corner(origin: Point2<f64>, th1: f64, anchor: Point2<f64>, th2: f64)
 }
 
 /// The ratified line×line trim closed form, re-derived independently
-/// from the documented construction: (t1, t2, bulge).
+/// of the implementation's spelling: the corner's turn φ read as an
+/// angle (`atan2`), the setback `r·|tan(φ/2)|` along each leg's unit
+/// direction and the bulge `tan(φ/4)`: (t1, t2, bulge).
 fn expected_trims(
     head: Point2<f64>,
     corner: Point2<f64>,
     next: Point2<f64>,
     r: f64,
 ) -> (Point2<f64>, Point2<f64>, f64) {
-    let v1 = corner - head;
-    let v2 = next - corner;
-    let m = (v1.norm_squared() * v2.norm_squared()).sqrt();
-    let half_tan = v1.perp_dot(v2) / (m + v1.dot(v2));
-    let bulge = half_tan / (1.0 + (1.0 + half_tan * half_tan).sqrt());
-    let setback = r * half_tan.abs();
-    let len1 = v1.norm_squared().sqrt();
-    let len2 = v2.norm_squared().sqrt();
-    let t1 = corner - v1 * (setback / len1);
-    let t2 = corner + v2 * (setback / len2);
-    (t1, t2, bulge)
+    let u1 = (corner - head) / (corner - head).norm();
+    let u2 = (next - corner) / (next - corner).norm();
+    let turn = u1.perp_dot(u2).atan2(u1.dot(u2));
+    let setback = r * (turn * 0.5).tan().abs();
+    (
+        corner - u1 * setback,
+        corner + u2 * setback,
+        (turn * 0.25).tan(),
+    )
+}
+
+/// **Fillets away from a right angle, against the oracle.** Turns of
+/// ±30°, ±60°, ±120°, ±150° and a hairpin 1e-4 rad short of a half
+/// turn each way, the corner at (10, 0) and the arrival anchor 20 m
+/// down the outgoing carrier, the radius setting back 8 m: the stored
+/// tangent points within 1e-9 m of the oracle's and the sweep within
+/// 1e-12 of `4·atan` of its bulge. The first half-angle quotient alone
+/// sets the hairpin back about 3e-7 m off.
+#[test]
+fn fillets_off_a_right_angle_match_the_closed_form() {
+    let head = Point2::new(0.0, 0.0);
+    let corner = Point2::new(10.0, 0.0);
+    let hairpin = std::f64::consts::PI - 1e-4;
+    for turn in [
+        30f64.to_radians(),
+        60f64.to_radians(),
+        120f64.to_radians(),
+        150f64.to_radians(),
+        hairpin,
+        -30f64.to_radians(),
+        -60f64.to_radians(),
+        -120f64.to_radians(),
+        -150f64.to_radians(),
+        -hairpin,
+    ] {
+        let r = 8.0 / (turn * 0.5).tan().abs();
+        let (s, c) = turn.sin_cos();
+        let anchor = Point2::new(corner.x + 20.0 * c, 20.0 * s);
+        let lp = Open
+            .at(head)
+            .angle(0.0, Tol::witness())
+            .unwrap()
+            .fillet(r, Tol::witness())
+            .unwrap()
+            .at(anchor, Tol::witness())
+            .unwrap()
+            .angle(turn, Tol::witness())
+            .unwrap()
+            .line(1.0, Tol::witness())
+            .unwrap()
+            .line_to(Start, Tol::witness())
+            .unwrap()
+            .loop_;
+        let k = lp
+            .segments()
+            .iter()
+            .position(|s| matches!(s, profile::Segment::Arc(_)))
+            .expect("the fillet stores an arc");
+        let profile::Segment::Arc(arc) = lp.segments()[k] else {
+            unreachable!("position found an arc")
+        };
+        let v = lp.vertices();
+        let (t1, t2, bulge) = expected_trims(head, corner, anchor, r);
+        let what = format!("turn {:.6}°", turn.to_degrees());
+        assert!(
+            (v[k] - t1).norm() <= 1e-9 && (v[k + 1] - t2).norm() <= 1e-9,
+            "{what}: tangent points {:?}, {:?} against the closed form's {t1:?}, {t2:?}",
+            v[k],
+            v[k + 1]
+        );
+        assert!(
+            (arc.sweep - 4.0 * bulge.atan()).abs() <= 1e-12,
+            "{what}: sweep {} against the closed form's {}",
+            arc.sweep,
+            4.0 * bulge.atan()
+        );
+    }
 }
 
 /// D4 — one fillet whose incoming ray origin IS the chain head (the

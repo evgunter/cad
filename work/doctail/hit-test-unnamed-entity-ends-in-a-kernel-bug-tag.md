@@ -31,5 +31,18 @@ it.
 
 ## Repair shape
 
+**Superseded in direction (ENCL, 2026-10-20): read "Evidence: the repair is the shape D2 retires" below before acting on this section.** Ending these arms in `KERNEL_DEFECT_ENDING` is the shape the parent census retires.
+
+
 End the sentence with ". {KERNEL_DEFECT_ENDING}" and re-pin the two
 tests to the constant.
+
+## Evidence: the repair is the shape D2 retires (ENCL, 2026-10-20)
+
+`work/encl/a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids.md` holds that a typed refusal ending in `KERNEL_DEFECT_ENDING` is wrong
+in both of `[failure]`'s classes. `UnnamedEntity` rests on "naming
+emission is total". If that holds, the state is class 2 and panics, with
+its two tests moved to `#[should_panic]`. If it does not, the refusal
+names its lever. Either way it does not take the constant.
+`part-and-refactor-kernel-defect-endings-split-by-class`, on this
+slate, carries the document model's sites that already append it.

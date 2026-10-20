@@ -26,7 +26,7 @@ feeds a decision, every walk is bounded.
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `declared_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
 | Chart-boundary description | `src/chart_bound.rs` (`ChartBound`, `ChartLoop`, `ChartEdge`, `assembled`, `metred`, `MetredBound::certifies_outside`, `MetredRect`), `src/pcurves.rs` (`chart_boundary`) |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
-| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs`, `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
+| Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides), `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
 | Shell and offset surgery | `src/shell.rs`, `src/replace_face.rs`, `src/offset_general.rs`, `src/offset_together.rs`, `src/offset_axial.rs`, `src/merge_faces.rs` — decisions in `crates/geom-brep/README.md` (OFFSET-DESIGN). `shell` and `shell_open` take a finished body (`AtRestBody`): their thickness is measured into the solid's material. `replace_face_offset`, `replace_faces_offset`, `offset_surfaces_together`, `offset_planes_together` and `offset_charts_together` take construction state (`Body`), tier 2 in and tier 2 out: their argument is a distance along each chart's stored normal, which no face's sense decides, and `shell` runs them over a clone mid-construction. Their result becomes finished only through `AtRestBody::validate`, where an inside-out result refuses `NegativeVolume`. A move that carries a face through its neighbours inverts the body too, and refuses there on the rings it leaves outside the moved face (`RingOutsideOuter`) |
 | Queries, flush detection, read-back | `src/query.rs` (the EXACT/DECIDED atoms and `rim_of`; `crates/verbs/README.md` S1), `src/flush.rs`, `src/readback.rs`, `src/props.rs` (mass properties, `AtRestPolicy`), `src/ray_walk.rs` |
@@ -127,8 +127,16 @@ side clears only
   only: a touch a curved face takes part in refuses (`TouchUnreadable`) —
   it never decides a Rest or a crossing there;
 
-and refuses `CensusUndecidable` otherwise. Same-solid distinct-key curved
-pairs are not detected; they are their constructor's obligation.
+and refuses `CensusUndecidable` otherwise. Within one solid, two
+distinct-key curved faces touching along a tangent locus through both
+interiors are discovered like any touch, and refuse `UnrecordedContact`
+where no record backs them; that discovery is the C9 exclusion ring
+for same-solid pairs. Its line lane is built
+(`census::sweep_same_solid_tangent_lines`): faces of one solid sharing
+no edge, on distinct carriers whose closed-form tangent line runs
+through both, read on the lane that confirms a two-carrier face–face
+record, where a material crescent is `CuspEdgesMissing` (C4); the
+rest of the ring is Open.
 
 A declaration licenses a coincidence, never a side. Every meeting between
 two solids — found undeclared by a sweep, named by a record, or backed by
@@ -226,9 +234,12 @@ along a locus the witness lane certifies, and says nothing of the
 materials: whether the pair is a contact (a void crescent between the
 sheets), an overlap (a crescent both materials fill), a seam or a nested
 touch is read where it is consumed, by the lump and by the wedge of the
-result's junction (C7). `ContactClass::Tangent`, the record's and the
-mate's class, keeps its material claim, and a shared crescent
-contradicts it.
+result's junction (C7). `ContactClass::Tangent` is the record's and the
+mate's class. A crescent the materials of two distinct solids share is
+interference between them (C6), not a contradicted contact; a crescent
+one solid shares with itself at a point touch is that solid's own
+material, and legal. Inside one solid a shared crescent along a line
+is a missing edge, the op's defect (D1 tier 3's cusp edges).
 
 Verification is `Rest`'s carrier rung with the sense bit reversed:
 carrier non-contradiction through the kind ladder, senses aligned as an
@@ -379,8 +390,10 @@ line runs through a face's interior the touch is a face–face curve
 touch, recorded the same way and bounded by the records of the cells
 its ends lie in; where the two sides are one piece (the operands also
 overlap elsewhere, or a later op joins them), the result is one solid
-pinched along the line, carrying the same record. A pinch is a record,
-never a junction.
+pinched along the line, carrying the same record. A pinch whose
+crescents are void is a record, never a junction; where they are
+material (a bore tangent to a face from inside), the line carries two
+coincident cusp edges, wedge 0, one per cusp, and no face–face record.
 
 The same substrate is the at-rest door: `validate_pseudomanifold` with
 mate declarations landed in `ContactRecords`, no boolean, no zip.
@@ -578,18 +591,24 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    tangent line) and a reflex edge lying in one of its own faces are
    two coincident distinct edges, each classifying separately; an edge
    touching a face from outside its wedge stays one edge, in contact
-   with that face; and where no edge lies on the line, the wedges are a
-   touch between faces, recorded like any touch, and no op cuts edges
-   to make a junction of it. Where the line ends inside a face, that
-   face carries its edges as a zero-area ring, which bounds no hole and
-   whose winding is exempt; where it reaches the face's boundary, as a
-   slit of that loop. The complement pairs the sheets differently, so
-   a door that complements material across such a line re-pairs there.
+   with that face. Where four sheets continue through a tangent line
+   and the crescents beside it are material, each cusp is a creased
+   sector of wedge 0, so the line carries two coincident cusp edges,
+   one per cusp, each classifying separately; where the crescents are
+   void, the wedges are a touch between faces, recorded like any touch,
+   and no op cuts edges to make a junction of it. Where the line ends
+   inside a face, that face carries its edges as a zero-area ring,
+   which bounds no hole and whose winding is exempt; where it reaches
+   the face's boundary, as a slit of that loop. The complement pairs
+   the sheets differently, so a door that complements material across
+   such a line re-pairs there.
    Tier 3′ reads every touch for sides, the coincident edges on one
    line included: touching cells' material lies on opposite sides of
-   each other. Consumers with no wedge-0/2π answer (fillet, offset,
-   mesh sizing, sector classification), and none for a body's
-   curve-touch records, refuse typed at the consumer.
+   each other, except at a touch of one solid at an isolated point,
+   where no crease exists and a shared crescent is legal (C4).
+   Consumers with no wedge-0/2π answer (fillet, offset, mesh sizing,
+   sector classification), and none for a body's curve-touch records,
+   refuse typed at the consumer.
    Also at tier 3: **maximal edges** (a joinable vertex at rest is a
    construction that stopped half-way, `JoinableVertexAtRest`; a
    vertex whose regularity reading lands in the sliver band, so that
@@ -641,9 +660,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      certifier on one carrier or two planes and the jet schedule
      along the closed-form tangent line on two other carriers,
      cross-solid pairs with a curved
-     side in reach refuse as undecidable, and same-solid distinct-key
-     curved pairs stay undetected until C9/C6 (`topo::census` module
-     docs). A record or candidate outside a certifier's lane refuses
+     side in reach refuse as undecidable, same-solid distinct-key
+     pairs touching along a closed-form tangent line are discovered
+     (C2), and the other same-solid distinct-key curved pairs stay
+     undetected until C9/C6 (`topo::census` module docs). A record or candidate outside a certifier's lane refuses
      typed `CensusUnsupported`, never samples. Every comparison is a
      named trilean ([verdicts]); indeterminates surface as typed
      `CensusEscalated`, never a silent skip.
@@ -1008,8 +1028,11 @@ reads as an interference between two copies at rest, so no bool may
 stand there. `Undecided` escalates
 `CensusEscalated`. The side is read by handing both faces' `Face::sense`
 bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
-establishes the smooth precondition; the census is otherwise
-sense-invariant.
+establishes the smooth precondition. The census reads sides in two
+other places, both through the touch analysis's `rest::judge`: pass 4,
+of an edge lying in a face of its own solid (`edge_in_own_face`), and
+arm 2's touches between two solids (`TouchSite::verdict`). Every other
+use of a face's normal in the coincidence sweeps is sense-invariant.
 
 **Grandfathered rungs.** `vv_face_backed`, `vf_face_backed`,
 `ve_face_backed`, `ee_face_backed` (which stands in for a collinear
@@ -1064,4 +1087,4 @@ left).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse
   `ChartDivergence`; the C9 exclusion ring for same-solid distinct-key
-  curved pairs is unbuilt.
+  curved pairs is built for the closed-form tangent line only (C2).

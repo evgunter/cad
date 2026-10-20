@@ -34,7 +34,7 @@
 //!   as stored. A body at rest holds the convention against ZERO (tier-3
 //!   check 1), so a cone that validates can be refused here. Whether the
 //!   convention is a band question or a datum-sign question is open
-//!   (`work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo.md`),
+//!   (`work/germcert/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo.md`),
 //!   and these trileans follow the band side until that is ruled.
 //! - **The M2 pairs enter unchanged**: plane×plane stays the existing
 //!   splitting/boolean seam (rung 1, implemented — the table names it,
@@ -868,10 +868,8 @@ pub enum PlaneCylinderSection<T: Real> {
 /// 3. `pc_rim_alignment` — margin `‖axis×normal‖·r` (the tilt angle's
 ///    sine, metered at the rim radius): Zero ⇒
 ///    [`PlaneCylinderSection::Rim`]; definite ⇒
-///    [`PlaneCylinderSection::TiltedEllipse`] through the ellipse
-///    constructor (whose own `ellipse_axes_distinct` gate is the final
-///    word on near-circular tilts — the documented double gate: the
-///    constructor is the one deciding door for the kind).
+///    [`PlaneCylinderSection::TiltedEllipse`], however near-circular:
+///    this row is the one decision of the section's kind.
 ///
 /// # Errors
 ///
@@ -937,13 +935,32 @@ pub fn plane_cylinder_section_read<T: Decide>(
         // The margin is a norm: Negative is unreachable; both
         // definite verdicts take the tilted lane.
         Sign::Positive | Sign::Negative => {
-            let v_minor = sin_vec / sin_norm;
-            let u_major = v_minor.cross(n);
+            let u_major = tilted_section_major(n, sin_vec);
             let e = Curve3::ellipse(center, n, r / c.abs(), r, u_major, band)?;
             PlaneCylinderSection::TiltedEllipse(e)
         }
     };
     Ok((section, parallel))
+}
+
+/// The major direction of the ellipse a plane of unit normal `n` cuts
+/// from a cylinder or cone whose unit axis `a` it meets off square,
+/// `sin_vec = a × n` (its norm `s` the tilt's sine, definitely
+/// positive): `v × n`, `v` the minor direction `sin_vec / s`. The frame
+/// is orthonormal to a few `u` at any tilt and in any frame: `sin_vec`
+/// carries about `u` of rounding at norm `s`, so `sin_vec / s` would
+/// stand up to `u / s` off the plane and its product with `n` fall short
+/// of unit by `(u / s)² / 2`; projecting `sin_vec` onto the plane before
+/// normalising leaves `v` within a few `u` of the plane, so `v × n` is
+/// unit to a few `u` as well. What is left is the in-plane heading's `u / s`, which turns the
+/// ellipse about its centre: a point moves by at most the semi-axes'
+/// difference times that angle. The difference is of order `A·s²` on a
+/// cylinder and `A·tan²α·s²` on a cone of half-angle `α` (`A` the major
+/// semi-axis), so the carrier stands within about `A·s·u` of a
+/// cylinder's wall, and `tan²α` times that of a cone's: a few `u` of
+/// `A` near square, more on a flat cone tilted toward its parabola.
+pub fn tilted_section_major<T: Real>(n: Vec3<T>, sin_vec: Vec3<T>) -> Vec3<T> {
+    (sin_vec - n * sin_vec.dot(n)).normalize().cross(n)
 }
 
 /// The axis-in-plane answers of [`plane_cylinder_section`]: its
@@ -1636,19 +1653,36 @@ pub fn cylinder_cylinder_section<T: Decide>(
             // The two bisector planes through p. Each ellipse is the
             // tilted plane×cylinder cut of cylinder 1 (by symmetry it
             // lies on cylinder 2 as well).
-            let n1 = (a1 - a2).normalize();
-            let n2 = (a1 + a2).normalize();
-            let mk = |n: Vec3<T>| -> Result<Curve3<T>, SectionError> {
-                let c = a1.dot(n);
-                let sin_vec = a1.cross(n);
-                let v_minor = sin_vec.normalize();
-                let u_major = v_minor.cross(n);
-                Ok(Curve3::ellipse(p, n, r1 / c.abs(), r1, u_major, band)?)
+            //
+            // The normals are `a1 ∓ a2`, whose halved lengths are the
+            // half-angle's sine and cosine read without cancellation
+            // (`a·n` would read the sine off `1 − cos φ`, to `u / φ²`).
+            // The shorter is made ⊥ the longer: an axis a hair off unit
+            // turns `a1 − a2` toward `a1 + a2` by `u / φ`, and the long
+            // ellipse's plane must not tilt by that.
+            let two = T::from_f64(2.0);
+            let (d, s) = (a1 - a2, a1 + a2);
+            let off_unit = |v: Vec3<T>, w: Vec3<T>| v - w * v.dot(w);
+            let (dn, sn) = (d.normalize(), s.normalize());
+            let d_shorter = d.norm() - s.norm();
+            let pick = |when_le: Vec3<T>, when_gt: Vec3<T>| {
+                Vec3::new(
+                    d_shorter.select_le_zero(when_le.x, when_gt.x),
+                    d_shorter.select_le_zero(when_le.y, when_gt.y),
+                    d_shorter.select_le_zero(when_le.z, when_gt.z),
+                )
+            };
+            let (d, s) = (pick(off_unit(d, sn), d), pick(s, off_unit(s, dn)));
+            let (n1, n2) = (d.normalize(), s.normalize());
+            let (sin_half, cos_half) = (d.norm() / two, s.norm() / two);
+            let mk = |n: Vec3<T>, c: T| -> Result<Curve3<T>, SectionError> {
+                let u_major = tilted_section_major(n, a1.cross(n));
+                Ok(Curve3::ellipse(p, n, r1 / c, r1, u_major, band)?)
             };
             let off = cross * (r1.abs() / cross.norm());
             Ok(EqualCylinderSection::TwoEllipses {
-                e1: mk(n1)?,
-                e2: mk(n2)?,
+                e1: mk(n1, sin_half)?,
+                e2: mk(n2, cos_half)?,
                 margins: [radii.margin, meet.margin],
                 nodes: [p - off, p + off],
             })
@@ -2258,9 +2292,9 @@ pub enum PlaneConeSection<T: Real> {
 ///    the plane; definite ⇒ step 4.
 /// 4. `pn_conic_type` — the same margin `D`, metered at `extent`, off
 ///    the apex: Negative ⇒ the plane meets every generator once and the
-///    section is [`PlaneConeSection::TiltedEllipse`] through the ellipse
-///    constructor (whose `ellipse_axes_distinct` gate is the final word
-///    on a near-circular tilt — the cylinder arm's double gate); Zero ⇒
+///    section is [`PlaneConeSection::TiltedEllipse`], however
+///    near-circular (step 3 is the one decision of circle against
+///    ellipse); Zero ⇒
 ///    a parabola, Positive ⇒ a hyperbola, each refused naming its conic.
 ///    An in-band `D` (a near-parabola) escalates; it is never snapped
 ///    to either side.
@@ -2489,8 +2523,7 @@ pub fn plane_cone_section<T: Decide>(
                     let minor = apex_gap.abs() * sin_a / k.sqrt();
                     // The axis-normal trilean above made `s`
                     // definite, so the minor direction is.
-                    let v_minor = s_vec / s;
-                    let u_major = v_minor.cross(n);
+                    let u_major = tilted_section_major(n, s_vec);
                     // The centre is the apex's foot on the plane moved
                     // along the major axis by `c·δ·s/K`: in the plane by
                     // construction, where `apex − (c·a − sin²α·n)·δ/K`

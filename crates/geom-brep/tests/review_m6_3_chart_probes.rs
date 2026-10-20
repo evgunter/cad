@@ -108,7 +108,7 @@ fn probe_mirror_nappe_cone_rim_certifies_at_azimuth_plus_pi() {
         radius: rho,
         u_ref: Vec3::unit_x(),
     };
-    let p = chart_pcurve(&carrier, &cone, band()).unwrap();
+    let p = chart_pcurve_over(&carrier, 0.0, 2.0, &cone, band()).unwrap();
     let Some((p0, _, _, pl)) = p.harmonic_form() else {
         panic!("harmonic expected")
     };

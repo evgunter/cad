@@ -5,9 +5,11 @@
 //! alone ([`crate::Body::pcurve`]). The **joint element** is the deck
 //! transformation that carries the half-edge's image onto the end of
 //! the image of the half-edge before it in its loop
-//! ([`crate::Body::joint`]): a whole number of azimuth periods, on a
-//! torus and a sphere a whole number of second-channel periods, and on
-//! a sphere the involution twin. A loop's lift — the chain of chart
+//! ([`crate::Body::joint`]): a whole number of first-channel periods
+//! (azimuth periods, a net's `u` knot lengths), a whole number of
+//! second-channel periods where the chart is closed in that channel (a
+//! torus's and a sphere's second angle, a net's `v` knot length), and
+//! on a sphere the involution twin. A loop's lift — the chain of chart
 //! curves a reader draws — is the images moved by the elements summed
 //! along the loop ([`crate::Body::loop_lift`]), so no stored byte
 //! depends on which half-edge is the loop's `first`.
@@ -16,7 +18,7 @@
 //!
 //! A [`Deck`] `(u, v, twin)` is `T_u^u · T_v^v · σ^twin`, where `T_u`
 //! moves the first chart channel one period, `T_v` the second (an angle
-//! on the sphere and the torus only), and `σ` is the sphere chart's
+//! on the sphere and the torus, the knot domain on a net closed in `v`), and `σ` is the sphere chart's
 //! involution `(u, v) ↦ (u + π, π − v)`, under which the sphere's map
 //! is invariant. The relations are the chart's own:
 //!
@@ -27,14 +29,28 @@
 //! So every element has the one normal form `(u, v, twin)`, and
 //! [`Deck::compose`] and [`Deck::inverse`] are exact integer
 //! arithmetic. On a chart with no involution `twin` is always `false`,
-//! and on a chart whose second channel is not an angle `v` is always 0.
+//! and on a chart not closed in its second channel `v` is always 0.
 //!
 //! # The reset marker
 //!
-//! At a joint on the chart's singular set — a sphere's pole, a cone's
-//! apex, a spline chart whose whole first-channel stretch sits under
-//! the band — the first channel has no lever: every azimuth names the
-//! same point, so no whole number of azimuth periods is decided there.
+//! A reset is written at a joint in exactly two cases
+//! (`crate::pcurves`' `decide_joint`):
+//!
+//! - **on the chart's singular set** — a sphere's pole, a cone's apex,
+//!   or a spline chart whose first-channel knot domain moves a point
+//!   under the band — where the first channel has no lever: every
+//!   azimuth names the same point, so no whole number of azimuth periods
+//!   is decided there;
+//! - **on a spline chart whose first-channel gate is undecided** (its
+//!   `u` sweep in the band's sliver, `AzimuthRule::SplineUndecided`),
+//!   where no azimuth integer is claimed and the joint's chart-space gap
+//!   is what keeps the joint sound.
+//!
+//! An undecided SECOND-channel gate (a net closed in `v` whose `v` sweep
+//! sits in the band's sliver) writes no reset: the joint refuses
+//! (`crate::pcurves::PcurveMintError::NetStretchUndecided`), since a reset
+//! quotients out the first channel, not the second.
+//!
 //! Such a joint stores [`JointElement::Reset`], which carries only the
 //! part of the element that IS decided (the second-channel periods and
 //! the twin, the element modulo `T_u`; `T_u` is central, so that
@@ -61,7 +77,7 @@
 
 use geom::Surface;
 use geom_brep::Pcurve;
-use geom_core::{Decide, Real};
+use geom_core::Decide;
 
 /// A deck transformation of a chart, in the normal form
 /// `T_u^u · T_v^v · σ^twin` (module docs).
@@ -69,8 +85,9 @@ use geom_core::{Decide, Real};
 pub struct Deck {
     /// Whole periods of the first chart channel.
     pub u: i32,
-    /// Whole periods of the second chart channel, where it is an angle
-    /// (sphere, torus); 0 elsewhere.
+    /// Whole periods of the second chart channel, where the chart is
+    /// closed in it: `τ` on a sphere or torus, the knot domain's length
+    /// on a spline net closed in `v`; 0 elsewhere.
     pub v: i32,
     /// The sphere chart's involution `(u, v) ↦ (u + π, π − v)`, applied
     /// first; `false` on every other chart.
@@ -130,44 +147,39 @@ impl Deck {
 
     /// `image` moved by this element on `surface`'s chart: the twin
     /// first, then the second-channel periods, then the first-channel
-    /// periods. A spline chart's first-channel period is its knot
-    /// domain's length (an element with `u ≠ 0` is decided only on a
-    /// chart closed in `u`); every analytic chart's is `τ`.
+    /// periods, each in the period the chart owns for that channel
+    /// (`periods`: `crate::pcurves`' `ChartPeriods`, decided at a band
+    /// where the caller has one). A spline chart's periods are its knot
+    /// domains' lengths (an element with `u ≠ 0` or `v ≠ 0` is decided
+    /// only on a net closed in that channel); an analytic chart's first
+    /// is `τ`, and its second `τ` where `v` is an angle (sphere, torus).
     ///
     /// `None` where the element does not apply to the image: a twin off
     /// a sphere chart, or on an image the twin has no form for
-    /// ([`crate::pcurves::sphere_twin`]). No door decides such an
-    /// element; one planted by hand is a gap in the lift, never a
-    /// silently unmoved curve.
+    /// ([`crate::pcurves::sphere_twin`]); periods in a channel `periods`
+    /// gives none (a plane's `u`, a plane's, cylinder's or cone's `v`,
+    /// a net's channel it is not decided closed in). No door decides
+    /// such an element; one planted by hand is a gap in the lift, never
+    /// a silently unmoved curve.
     #[must_use]
-    pub fn apply<T: Decide>(self, image: &Pcurve<T>, surface: &Surface<T>) -> Option<Pcurve<T>> {
+    pub(crate) fn apply<T: Decide>(
+        self,
+        image: &Pcurve<T>,
+        surface: &Surface<T>,
+        periods: crate::pcurves::ChartPeriods<T>,
+    ) -> Option<Pcurve<T>> {
         let mut out = if self.twin {
             crate::pcurves::sphere_twin(surface, image)?
         } else {
             image.clone()
         };
         if self.v != 0 {
-            out =
-                crate::pcurves::shift_polar_branch(&out, T::from_f64(f64::from(self.v)), T::tau());
+            out = crate::pcurves::shift_v_branch(&out, self.v, periods.v()?);
         }
         if self.u != 0 {
-            out = out.shift_branch(T::from_f64(f64::from(self.u)), u_period(surface));
+            out = out.shift_branch(self.u, periods.u()?);
         }
         Some(out)
-    }
-}
-
-/// The first channel's period as an element applies it: the knot
-/// domain's length on a spline chart, `τ` on the analytic charts. Read
-/// without a band: only a chart a band decided closed carries an
-/// element with azimuth periods ([`crate::pcurves`]'s `chart_u_period`).
-fn u_period<T: Real>(surface: &Surface<T>) -> T {
-    match surface.spline_chart() {
-        Some(payload) => {
-            let (u0, u1) = payload.knot_values_u().domain();
-            u1 - u0
-        }
-        None => T::tau(),
     }
 }
 
@@ -280,7 +292,7 @@ impl Winding {
 
     /// **Whether the loop closes**: it winds the chart's first channel
     /// at most one period (none counted across a reset), its second
-    /// channel at most one period where that channel is an angle, and on
+    /// channel at most one period where the chart is closed in it, and on
     /// a sphere it may close through the involution (a loop over a pole
     /// that meets its start on the twin representation). Read off the
     /// composed element's conjugation invariants — `twin`, `u` plus half
@@ -477,5 +489,94 @@ mod tests {
             );
         }
         assert!(winding(0, 1, false, true), "a reset with v = 1 closes");
+    }
+
+    /// **An element's `v` periods are the chart's own.** On a net closed
+    /// in `v` over a knot domain of length 3 (neither 1 nor `τ`),
+    /// `Deck { v: 1 }` moves an image by 3 along `v` and none along `u`;
+    /// `Deck { v: −2 }` by −6. On a torus it moves by `τ`. On a cylinder,
+    /// whose `v` is a length, the element does not apply. On a net OPEN
+    /// in `v` it does not apply either, in the periods a band decides:
+    /// the gap the lift reports, where the band-free reading a reader
+    /// with no band takes (`ChartPeriods::stated`) moves it by the knot
+    /// length (`work/pcert/chart-channel-periods-are-spelled-in-several-places.md`).
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn an_elements_v_periods_are_the_charts_own() {
+        use crate::pcurves::ChartPeriods;
+        use geom::Surface;
+        use geom_brep::Pcurve;
+        use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+        let band = Band::linear(Tol::witness()).unwrap();
+        // `u` the height; `v` across three rows, the last the first's
+        // points where `closed`.
+        let net = |closed: bool| {
+            let ku = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+            let kv =
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.5, 3.0, 3.0], 1).unwrap();
+            let last = if closed { 0.0 } else { 2.0 };
+            let control = [0.0, 1.0]
+                .into_iter()
+                .flat_map(|z| {
+                    [
+                        Point3::new(0.0, 0.0, z),
+                        Point3::new(1.0, 1.0, z),
+                        Point3::new(last, 0.0, z),
+                    ]
+                })
+                .collect();
+            Surface::Nurbs(std::sync::Arc::new(
+                geom::NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
+            ))
+        };
+        let image = Pcurve::IsoLine {
+            p0: Point2::new(0.25, 0.5),
+            pl: Vec2::new(0.0, 1.0),
+        };
+        let moved_in = |deck: Deck, s: &Surface<f64>, periods: ChartPeriods<f64>| {
+            deck.apply(&image, s, periods).map(|p| {
+                let (a, b) = (image.eval(0.0), p.eval(0.0));
+                (b.x - a.x, b.y - a.y)
+            })
+        };
+        let moved = |deck: Deck, s: &Surface<f64>| moved_in(deck, s, ChartPeriods::of(s, band));
+        let up = Deck {
+            u: 0,
+            v: 1,
+            twin: false,
+        };
+        let closed = net(true);
+        assert_eq!(moved(up, &closed), Some((0.0, 3.0)), "one knot length");
+        assert_eq!(
+            moved(Deck { v: -2, ..up }, &closed),
+            Some((0.0, -6.0)),
+            "two knot lengths back"
+        );
+        let open = net(false);
+        assert_eq!(moved(up, &open), None, "an open net has no v period");
+        assert_eq!(
+            moved_in(up, &open, ChartPeriods::stated(&open)),
+            Some((0.0, 3.0)),
+            "the band-free reading states one"
+        );
+        let torus = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 2.0,
+            minor_radius: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        assert_eq!(
+            moved(up, &torus),
+            Some((0.0, core::f64::consts::TAU)),
+            "a torus's second angle"
+        );
+        let cylinder = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        assert_eq!(moved(up, &cylinder), None, "a cylinder's v is a length");
     }
 }

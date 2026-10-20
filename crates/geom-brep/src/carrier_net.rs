@@ -236,9 +236,7 @@ fn span_bernstein(h: &Harmonic, a: f64, b: f64) -> [Vec<Interval>; 3] {
     // `t − m = (a − m) + (b − a)·s`, so `(t − m)^j`'s coefficients in
     // `s` are the binomial expansion.
     let w = ib - ia;
-    let binom = |i: usize, k: usize| -> f64 {
-        (0..k).fold(1.0, |acc, j| acc * (i - j) as f64 / (j + 1) as f64)
-    };
+    let binom = geom_core::spline::pieces::binomial;
     let coords = |p0: Interval, u: Interval, v: Interval| -> Vec<Interval> {
         let node = channel(p0, u, v, &at_node.0, &at_node.1);
         let span = channel(p0, u, v, &over_span.0, &over_span.1);
@@ -489,8 +487,7 @@ mod tests {
                     let ctl = &net.coords[d][k * p..=k * p + p];
                     let si = Interval::from_f64(s);
                     let one = Interval::one();
-                    let binom =
-                        |i: usize| (0..i).fold(1.0, |acc, q| acc * (p - q) as f64 / (q + 1) as f64);
+                    let binom = |i: usize| geom_core::spline::pieces::binomial(p, i);
                     let val = ctl
                         .iter()
                         .enumerate()

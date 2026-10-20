@@ -19,7 +19,7 @@
 //! carrier), or nothing. Ray casting ([`ray_crossings`]) reuses the same
 //! carrier closed forms for the containment forest's parity test.
 
-use geom_core::k_stats::{decide, decide_reported};
+use geom_core::k_stats::{check_unlogged, decide, decide_reported};
 use geom_core::{
     Arc2, Band, Circles2, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Real, Sign,
     Vec2,
@@ -217,8 +217,8 @@ impl<T: Real> ChordFrame<T> {
 }
 
 /// Whether [`build_seg`] decides an arc's three consistency checks
-/// (D1): a table's arcs are verified here, and an arc a construction
-/// built was verified at that construction, at this scalar, so the
+/// (D1): a table's arcs are checked here, and an arc a construction
+/// built was checked by the door that built it, at its scalar, so the
 /// checks are not decided again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Consistency {
@@ -226,12 +226,15 @@ pub(crate) enum Consistency {
     /// — the fixture door, a hand-built loop, `map_scalar`, a pinned
     /// lift).
     Decide,
-    /// The arc is the construction's own output, verified there: by the
-    /// construction's own predicate (a `Center` arc's
-    /// `path_arc_center_equidistant`), or by the exact witness of the
-    /// identities the lowering registers. Passed by every validation of
-    /// a constructed loop ([`crate::ConstructedProfile`]) and by the path
-    /// door's re-read of the fillet arcs it has just lowered.
+    /// The arc is the construction's own output, proved over the reals
+    /// by its construction (its own predicate, such as a `Center` arc's
+    /// `path_arc_center_equidistant`, or the identities its lowering
+    /// registers) and checked at its scalar: at an exact witness by
+    /// those registered identities, at a point scalar by the door's
+    /// read-back ([`read_back_arc`]).
+    /// Passed by every validation of a constructed loop
+    /// ([`crate::ConstructedProfile`]) and by the path door's re-read of
+    /// the fillet arcs it has just lowered.
     ByConstruction,
 }
 
@@ -275,8 +278,9 @@ pub(crate) enum Consistency {
 ///     direct; [`Arc2::landing`]). Zero ⇒ the start, turned by the
 ///     sweep about the centre, lands on the end.
 /// - **`arc_diameter_clearance`** (arcs only) — margin:
-///   2r − |a − apex| = 2r·(1 − sin(|Δθ|/4)) (meters, computed in the
-///   second form): how far the arc's half-span chord sits below the
+///   2r − |a − apex| = 2r·cos²(|Δθ|/4)/(1 + sin(|Δθ|/4)) (meters,
+///   computed in the second form, which does not cancel near a full
+///   turn as `1 − sin(|Δθ|/4)` does): how far the arc's half-span chord sits below the
 ///   carrier diameter, ≈ L²/(16r) for a near-full arc of
 ///   endpoint chord L. Zero ⇒ the arc is within tolerance of a full
 ///   circle — rejected as [`ShapeIssue::NearFull`] (the angular gap g
@@ -455,7 +459,6 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
             return Err(ShapeIssue::Degenerate { margin: len }.into());
         }
     }
-    let half = T::from_f64(0.5);
     // The decision is fired for every segment, since the K stream
     // records it for every segment, but only an arc's is read: a stored
     // line has no turn for its margin to report.
@@ -466,12 +469,8 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
             arc.quarter_tan()
         }
     };
-    let straightness = decide(
-        "segment_straightness",
-        Margin::levered(bow * half, len),
-        band,
-    )
-    .map_err(escalated)?;
+    let straightness =
+        decide("segment_straightness", sagitta(bow, len), band).map_err(escalated)?;
     let kind = match segment {
         Segment::Line => SegKind::Line,
         Segment::Arc(..) if straightness == Sign::Zero => SegKind::Line,
@@ -485,11 +484,13 @@ fn classify<T: Decide, E: From<ShapeIssue<T>>>(
             let apex = arc.apex(a, b);
             let span_chord = a.distance(apex);
             // 2r − |a − apex| with |a − apex| = 2r·sin(|Δθ|/4), spelled
-            // on the carrier: the chord-scale apex carries tan(|Δθ|/4),
-            // whose relative error grows as 1/(2π − |Δθ|) near a full
-            // turn, while 1 − sin(|Δθ|/4) is flat there.
+            // on the carrier as 2r·cos²(|Δθ|/4)/(1 + sin(|Δθ|/4)): the
+            // chord-scale apex carries tan(|Δθ|/4), whose relative error
+            // grows as 1/(2π − |Δθ|) near a full turn, and
+            // 1 − sin(|Δθ|/4) cancels there.
+            let quarter = span * T::from_f64(0.25);
             let clearance =
-                (arc.radius + arc.radius) * (T::one() - (span * T::from_f64(0.25)).sin());
+                (arc.radius + arc.radius) * quarter.cos().powi(2) / (T::one() + quarter.sin());
             match decide("arc_diameter_clearance", Margin::of(clearance), band)
                 .map_err(escalated)?
             {
@@ -532,7 +533,15 @@ const ON_CARRIER_ULPS: f64 = 8.0;
 /// |Δθ| ≤ 2π), the rotation's sine, cosine, products and sums 4, and
 /// the landing's sum onto `a` and its distance to `b` 2 — 14, stated
 /// as 16.
-const LANDING_ULPS: f64 = 16.0;
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const LANDING_ULPS: f64 = 16.0;
 
 /// **`arc_carrier_resolution`** — whether a difference a consistency
 /// check read at magnitude `scale` is one the scene can read at all.
@@ -557,9 +566,12 @@ fn resolves<T: Decide>(
     ulps: f64,
     band: Band,
 ) -> Result<(), SegIssue<T>> {
-    let headroom = T::from_f64(band.escalate() / (ulps * f64::EPSILON)) - scale;
-    let gate = decide_reported("arc_carrier_resolution", Margin::of(headroom), band)
-        .map_err(SegIssue::escalated)?;
+    let gate = decide_reported(
+        "arc_carrier_resolution",
+        Margin::of(resolution_headroom(scale, ulps, band)),
+        band,
+    )
+    .map_err(SegIssue::escalated)?;
     match gate.sign {
         Sign::Positive => Ok(()),
         Sign::Zero | Sign::Negative => Err(SegIssue::BelowSceneResolution {
@@ -568,6 +580,19 @@ fn resolves<T: Decide>(
             headroom: gate.margin,
         }),
     }
+}
+
+/// [`resolves`]'s margin: K·ε/(ulps·2⁻⁵²) − `scale`, meters.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub fn resolution_headroom<T: Real>(scale: T, ulps: f64, band: Band) -> T {
+    T::from_f64(band.escalate() / (ulps * f64::EPSILON)) - scale
 }
 
 /// Validation's two difference checks of a stored arc against its
@@ -617,6 +642,282 @@ fn check_carrier<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// One read-back of a constructed arc against what was authored, past
+/// the band ([`read_back`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ArcMiss<T: Real> {
+    /// The read's funnel name: [`START_READ`], [`LANDING_READ`],
+    /// [`THROUGH_POINT_READ`] or [`BRANCH_READ`].
+    pub(crate) predicate: &'static str,
+    /// How far the stored arc is off what was authored, meters.
+    pub(crate) miss: T,
+    /// The magnitude the read was taken at, meters.
+    pub(crate) scale: T,
+    /// The rounding the read carries at that magnitude,
+    /// `ulps · 2⁻⁵² · scale`, meters.
+    pub(crate) resolution: T,
+}
+
+/// How a constructed arc's read-back refuses ([`read_back`]).
+pub(crate) enum ReadBackIssue<T: Real> {
+    /// Off past the band at a magnitude the scene resolves: the
+    /// construction's arithmetic lost the digits its proof is about.
+    Defect(ArcMiss<T>),
+    /// Off past the band at a magnitude whose rounding reaches the
+    /// band: the input's conditioning or the construction's, which a
+    /// point scalar cannot tell apart.
+    BelowSceneResolution(ArcMiss<T>),
+    /// A read, or its resolution gate, in the band or poisoned.
+    Escalated(Indeterminate),
+}
+
+/// The start read's funnel name: ‖a − centre‖ − r.
+pub(crate) const START_READ: &str = "path_arc_start_on_carrier";
+
+/// The landing read's funnel name: ‖landing(a) − b‖, less the radial
+/// part an inline decision admitted.
+pub(crate) const LANDING_READ: &str = "path_arc_landing";
+
+/// The through-point read's funnel name: ‖q − centre‖ − r.
+pub(crate) const THROUGH_POINT_READ: &str = "path_arc_through_point";
+
+/// The branch read's funnel name: the stored arc's length, signed by
+/// the authored turn sense.
+pub(crate) const BRANCH_READ: &str = "path_arc_branch";
+
+/// **A segment's signed sagitta**, `(|b − a|/2)·tan(Δθ/4)` meters: the
+/// apex's offset from the chord, `bow` (tan(Δθ/4), zero for a line)
+/// acting through the half-chord. The one spelling of
+/// `segment_straightness`'s margin, read by [`build_seg`] and by the
+/// door's read-back ([`read_back_arc`]).
+fn sagitta<T: Real>(bow: T, len: T) -> Margin<T> {
+    Margin::levered(bow * T::from_f64(0.5), len)
+}
+
+/// **The path door's read-back of a constructed arc** from `a` to `b`
+/// (audit row F24), on the witness lane (`Witness::Inexact`) only: the
+/// stored arc against what its construction authored, each read through
+/// [`read_back`].
+///
+/// - **Start on the carrier** ([`START_READ`], ‖a − centre‖ − r,
+///   [`READ_BACK_RIM_ULPS`]): the stored radius against the vertex the
+///   arc leaves.
+/// - **Landing** ([`LANDING_READ`], [`LANDING_ULPS`]): ‖landing(a) − b‖.
+///   For an arc whose end is on its carrier only to an inline
+///   ε-decision the door made ([`crate::Facts::Decided`]), the landing
+///   against `b` moved along its ray from the centre onto the landing's
+///   own circle: 2r·sin of half the sweep's own error, with `b`'s
+///   distance from the centre, which that decision admitted, left out.
+///   An in-band sweep error escalates there exactly as on a registered
+///   arc.
+/// - **Through-point** ([`THROUGH_POINT_READ`], [`READ_BACK_RIM_ULPS`]):
+///   a `Via` arc's carrier against its authored `q`.
+/// - **Branch** ([`BRANCH_READ`], [`LANDING_ULPS`]): the stored arc's
+///   length `r·Δθ`, signed by the turn sense the construction states
+///   ([`crate::BuiltArc::sense`]). Positive passes; Negative is the
+///   other arc on the same carrier between the same ends, which lands
+///   exactly. Both span the chord, so neither reads shorter than it.
+///   The sense is a decision the construction made on its inputs (the
+///   side of the chord `q` lies on, the side of the departure a target
+///   lies on, a winding, a corner's turn), and for a `Via`, `Center`,
+///   side-run, tangent or fillet arc it is the same primitive that fixes
+///   the sign of the arc's quarter-tangent X. So the read catches a
+///   defect after that sign (an X spelled −1/X, the other arc on the
+///   carrier), not one in the primitive itself. A `Bulge` leg states no
+///   sense apart from its bulge, which is the authored data.
+///
+/// An arc whose bulge is the authored data itself
+/// ([`crate::BuiltArc::bulge_authored`]) and whose sagitta reads as a
+/// line is not read: validation reads it as a line that keeps no
+/// carrier, as authored. Every other arc is read whatever its stored
+/// form looks like, so a construction that flattened an arc it
+/// authored is read and refused. An exact scalar's stored arc encloses
+/// the arc its construction proved, and its registered identities are
+/// its check, so nothing is read there.
+pub(crate) fn read_back_arc<T: Decide>(
+    built: &crate::BuiltArc<T>,
+    a: Point2<T>,
+    b: Point2<T>,
+    band: Band,
+) -> Result<(), ReadBackIssue<T>> {
+    if T::WITNESS == geom_core::Witness::Exact {
+        return Ok(());
+    }
+    let arc = built.arc;
+    let len = a.distance(b);
+    let bow = sagitta(arc.quarter_tan(), len).value();
+    if built.bulge_authored {
+        match check_unlogged("segment_straightness", bow, band, "F24") {
+            Ok(Sign::Positive | Sign::Negative) => {}
+            Ok(Sign::Zero) => return Ok(()),
+            Err(_) if !bow.is_poison() => return Ok(()),
+            Err(_) => {}
+        }
+    }
+    let carrier = || arc.radius.max(reach(arc.centre));
+    read_back(
+        START_READ,
+        "path_arc_start_on_carrier_resolution",
+        Reading::Difference(arc.rim(a) - arc.radius),
+        || reach(a),
+        || carrier().max(reach(a)),
+        READ_BACK_RIM_ULPS,
+        band,
+    )?;
+    let landing = if built.facts == crate::Facts::Decided {
+        // The landing against `b` moved along its ray from the centre
+        // onto the landing's own circle: 2r·sin of half the sweep's own
+        // error, whatever `b`'s distance from the centre, which is the
+        // decision's.
+        let towards = b - arc.centre;
+        let onto = arc.centre + towards * (arc.rim(a) / towards.norm());
+        arc.landing(a).distance(onto)
+    } else {
+        arc.landing(a).distance(b)
+    };
+    read_back(
+        LANDING_READ,
+        "path_arc_landing_resolution",
+        Reading::Difference(landing),
+        || reach(a).max(reach(b)),
+        || carrier().max(reach(a)).max(reach(b)),
+        LANDING_ULPS,
+        band,
+    )?;
+    if let Some(q) = built.through {
+        read_back(
+            THROUGH_POINT_READ,
+            "path_arc_through_point_resolution",
+            Reading::Difference(arc.rim(q) - arc.radius),
+            || reach(a).max(reach(b)).max(reach(q)),
+            || carrier().max(reach(q)),
+            READ_BACK_RIM_ULPS,
+            band,
+        )?;
+    }
+    if let Some(sense) = built.sense {
+        // The stored arc's length, signed by the authored sense. Both the
+        // authored arc and the other one on the carrier span the chord,
+        // so each reads at least the chord's length: the authored one
+        // Positive, the other Negative.
+        let signed = Margin::levered(arc.sweep * sense.sign::<T>(), arc.radius).value();
+        let reading = match check_unlogged(BRANCH_READ, signed, band, "F24") {
+            Ok(Sign::Positive) => Reading::Passed,
+            Ok(Sign::Zero | Sign::Negative) => Reading::Off(signed),
+            Err(source) => return Err(ReadBackIssue::Escalated(source)),
+        };
+        read_back(
+            BRANCH_READ,
+            "path_arc_branch_resolution",
+            reading,
+            || reach(a).max(reach(b)),
+            || carrier().max(reach(a)).max(reach(b)),
+            LANDING_ULPS,
+            band,
+        )?;
+    }
+    Ok(())
+}
+
+/// The rounding the door's two rim reads (`‖p − centre‖ − r`, the start
+/// and a `Via` arc's through-point) carry, in ulps of the read's
+/// magnitude. Validation's [`ON_CARRIER_ULPS`] is derived for a lowered
+/// arc, whose centre and radius come from one chord; a construction can
+/// derive both from points it derived itself. Counted as there: the
+/// centre from a lowered carrier 4; a radius re-read as the norm of a
+/// difference of derived points (a fused side's `‖anchor − centre‖`),
+/// with the centre's rounding inside it, 4; a vertex the construction
+/// derived (a trim point) 4; the read's own subtraction, norm and
+/// difference 2 — 14, stated as 16. A sound fused `Via` fillet was
+/// measured at 9.0 ulps.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const READ_BACK_RIM_ULPS: f64 = 16.0;
+
+/// One read of the door's read-back, as [`read_back`] takes it.
+enum Reading<T> {
+    /// A difference the authored data makes zero: Zero passes, a
+    /// definite sign is off.
+    Difference(T),
+    /// A read its caller classified as off, by this much.
+    Off(T),
+    /// A read its caller classified as passing.
+    Passed,
+}
+
+/// **One read of the door's read-back** ([`read_back_arc`]), and where
+/// it reads off, whether the miss is a kernel defect: one margin, the
+/// lesser of
+///
+/// - the **headroom** of the authored data's magnitude
+///   ([`resolution_headroom`] at `ulps`, as validation's [`resolves`]
+///   reads a table's): whether the scene the user authored resolves the
+///   read at all; and
+/// - the miss's **clearance** of the read's own rounding at the
+///   magnitude it was taken at, `miss − ulps·2⁻⁵²·scale`: whether this
+///   miss could be that rounding.
+///
+/// Positive on both is [`ReadBackIssue::Defect`]: a miss no rounding of
+/// a sound construction reaches, on a scene that resolves it. Anything
+/// else definite is [`ReadBackIssue::BelowSceneResolution`]. The
+/// magnitude gate reads the AUTHORED data, so a construction that lost
+/// digits and also inflated the magnitude it stored (a carrier flattened
+/// to 1e12 m) still reads as the defect it is; the clearance reads the
+/// STORED magnitude, so a sound arc whose stored form is legitimately
+/// far out is never called one. A miss that is not finite (a rim past
+/// 1.3e154 m overflows) is the scene's, never a defect. A difference in
+/// the band, or poisoned, escalates. Not a verdict
+/// (`k_stats::check_unlogged`): a box leaf has no row for it.
+///
+/// It shares [`resolves`]'s headroom and not its door: validation's
+/// difference checks are logged verdicts whose refusal reports each
+/// classification's [`MarginDiag`] (`decide_reported`), and these are
+/// unlogged cross-checks at the witness lane, whose door reports a
+/// sign.
+fn read_back<T: Decide>(
+    predicate: &'static str,
+    resolution_predicate: &'static str,
+    reading: Reading<T>,
+    authored: impl FnOnce() -> T,
+    stored: impl FnOnce() -> T,
+    ulps: f64,
+    band: Band,
+) -> Result<(), ReadBackIssue<T>> {
+    let miss = match reading {
+        Reading::Passed => return Ok(()),
+        Reading::Off(miss) => miss,
+        Reading::Difference(miss) => match check_unlogged(predicate, miss, band, "F24") {
+            Ok(Sign::Zero) => return Ok(()),
+            Ok(Sign::Positive | Sign::Negative) => miss,
+            Err(source) => return Err(ReadBackIssue::Escalated(source)),
+        },
+    };
+    let authored = authored();
+    let scale = stored().max(authored);
+    let found = ArcMiss {
+        predicate,
+        miss: miss.abs(),
+        scale,
+        resolution: scale * T::from_f64(ulps * f64::EPSILON),
+    };
+    if !found.miss.is_bounded() {
+        return Err(ReadBackIssue::BelowSceneResolution(found));
+    }
+    let clearance = found.miss - found.resolution;
+    let margin = resolution_headroom(authored, ulps, band).min(clearance);
+    match check_unlogged(resolution_predicate, margin, band, "F24") {
+        Ok(Sign::Positive) => Err(ReadBackIssue::Defect(found)),
+        Ok(Sign::Zero | Sign::Negative) => Err(ReadBackIssue::BelowSceneResolution(found)),
+        Err(source) => Err(ReadBackIssue::Escalated(source)),
+    }
 }
 
 /// Validation's third consistency check, `arc_sweep_range`, of a stored

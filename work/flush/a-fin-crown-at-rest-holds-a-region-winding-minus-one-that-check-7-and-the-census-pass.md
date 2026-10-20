@@ -6,6 +6,7 @@ status: review
 opened: 2026-10-14
 priority: P1
 cost: M
+branch: flush/fin-crown-winding
 ---
 
 
@@ -66,7 +67,15 @@ A candidate remedy at the check, for this row and not the PR that found
 it: a cross-check between readings, so that two aimed rays that decide
 opposite sides refuse rather than whichever comes first answering.
 
-## Measured on main (`5d0e2023`)
+## Measured on the edge-meeting ray
+
+With the edge-meeting ray's near-normal aims (FLUSH,
+`a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face`), `x ∪ y`
+of probes 2 and 4 refuses `ResultInvalid` at all five poses, the two
+flipped ones included; `y ∪ x` and probe 1 still build holding the
+region. Pinned in `KNOWN_INSIDE_OUT` and `KNOWN_WRONG`.
+
+## Measured on main (`be82e5ad6`)
 
 **The fixture builds a non-solid; no kernel step makes the region.**
 The crown's triangles, from `fin()` and the bottom `(0, 0.2, −0.6)`,

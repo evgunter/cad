@@ -1298,7 +1298,7 @@ surfaces osculate over a patch and the "locus" is not a curve).
 Reconstructing a tangency locus is well-conditioned *despite* the
 tangency because its defining system includes the first-order
 normal-alignment equations: the normal angle grows linearly with
-transverse distance, and the second-order margin is the
+transverse distance, and the curvature difference is the
 implicit-function-theorem denominator for that jet system. Order-k
 contact generalizes: defining equations from the k-jet, margin at order
 k+1, so a curvature-continuous join (k = 3) is read as a tangency where

@@ -53,12 +53,6 @@ pub enum NodeErrorClass {
     ProfileReplay,
     /// [`NodeErrorKind::ProfileLaneReplay`].
     ProfileLaneReplay,
-    /// [`NodeErrorKind::ProfileAnchor`].
-    ProfileAnchor,
-    /// [`NodeErrorKind::ProfilePieces`].
-    ProfilePieces,
-    /// [`NodeErrorKind::ProfileRecordMissing`].
-    ProfileRecordMissing,
     /// [`NodeErrorKind::Extrude`].
     Extrude,
     /// [`NodeErrorKind::Revolve`].
@@ -123,8 +117,6 @@ pub enum NodeErrorClass {
     Band,
     /// [`NodeErrorKind::MissingSlot`].
     MissingSlot,
-    /// [`NodeErrorKind::VerbArity`].
-    VerbArity,
     /// [`NodeErrorKind::Escalated`].
     Escalated,
     /// [`NodeErrorKind::PoseRead`].
@@ -166,10 +158,6 @@ pub enum NodeErrorClass {
     Naming,
     /// [`NodeErrorKind::UnionFoldStep`].
     UnionFoldStep,
-    /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a fillet.
-    FilletSelectionEmpty,
-    /// [`NodeErrorKind::BlendSelectionEmpty`] refused by a chamfer.
-    ChamferSelectionEmpty,
     /// [`NodeErrorKind::Shell`].
     Shell,
     /// [`NodeErrorKind::ShellLaneUnsupported`].
@@ -277,9 +265,6 @@ impl NodeErrorKind {
             Self::Profile(_) => C::Profile,
             Self::ProfileReplay { .. } => C::ProfileReplay,
             Self::ProfileLaneReplay { .. } => C::ProfileLaneReplay,
-            Self::ProfileAnchor => C::ProfileAnchor,
-            Self::ProfilePieces { .. } => C::ProfilePieces,
-            Self::ProfileRecordMissing { .. } => C::ProfileRecordMissing,
             Self::Extrude(_) => C::Extrude,
             Self::Revolve(_) => C::Revolve,
             Self::Tube(_) => C::Tube,
@@ -311,7 +296,6 @@ impl NodeErrorKind {
             Self::UnderflowedDirection { .. } => C::UnderflowedDirection,
             Self::Band(_) => C::Band,
             Self::MissingSlot { .. } => C::MissingSlot,
-            Self::VerbArity { .. } => C::VerbArity,
             Self::Escalated { .. }
             | Self::MeasureEscalated { .. }
             | Self::PlacementAxisEscalated { .. }
@@ -329,9 +313,6 @@ impl NodeErrorKind {
             Self::UnschedulableCycle => C::UnschedulableCycle,
             Self::Naming(_) => C::Naming,
             Self::UnionFoldStep { .. } => C::UnionFoldStep,
-            Self::BlendSelectionEmpty { verb } => {
-                by_verb(*verb, C::FilletSelectionEmpty, C::ChamferSelectionEmpty)
-            }
             Self::Shell(_) => C::Shell,
             Self::ShellLaneUnsupported { .. } => C::ShellLaneUnsupported,
             Self::FaceFrameNotPlanar { .. } => C::FaceFrameNotPlanar,
@@ -485,9 +466,6 @@ mod tests {
         Profile,
         ProfileReplay,
         ProfileLaneReplay,
-        ProfileAnchor,
-        ProfilePieces,
-        ProfileRecordMissing,
         Extrude,
         Revolve,
         Tube,
@@ -520,7 +498,6 @@ mod tests {
         UnderflowedDirection,
         Band,
         MissingSlot,
-        VerbArity,
         Escalated,
         PoseRead,
         PoseDegenerate,
@@ -539,8 +516,6 @@ mod tests {
         UnschedulableCycle,
         Naming,
         UnionFoldStep,
-        FilletSelectionEmpty,
-        ChamferSelectionEmpty,
         Shell,
         ShellLaneUnsupported,
         FaceFrameNotPlanar,
@@ -685,15 +660,6 @@ mod tests {
                 step: 2,
                 structure: None,
             },
-            C::ProfileAnchor => K::ProfileAnchor,
-            C::ProfilePieces => K::ProfilePieces {
-                fault: crate::PiecesFault::Length {
-                    loop_: 0,
-                    recorded: 4,
-                    anchored: 5,
-                },
-            },
-            C::ProfileRecordMissing => K::ProfileRecordMissing { loop_: 1 },
             C::Extrude => K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
             C::Revolve => K::Revolve(sweep::RevolveError::DegenerateAxis),
             C::Tube => K::Tube(Box::new(sweep::TubeError::DegenerateWindow)),
@@ -797,10 +763,6 @@ mod tests {
             C::MissingSlot => K::MissingSlot {
                 slot: SlotId::Distance,
             },
-            C::VerbArity => K::VerbArity {
-                verb: verbs::VerbKind::Fillet,
-                given: verbs::Arity::Two,
-            },
             C::Escalated => K::Escalated {
                 predicate: "side_of_plane",
                 source: diag(),
@@ -869,12 +831,6 @@ mod tests {
                 member: 2,
                 read: crate::VarId::new(2, 2),
                 refusal: Box::new(K::UnschedulableCycle),
-            },
-            C::FilletSelectionEmpty => K::BlendSelectionEmpty {
-                verb: BlendKind::Fillet,
-            },
-            C::ChamferSelectionEmpty => K::BlendSelectionEmpty {
-                verb: BlendKind::Chamfer,
             },
             C::Shell => K::Shell(Box::new(topo::ShellError::Thickness { thickness: -0.5 })),
             C::ShellLaneUnsupported => K::ShellLaneUnsupported { scalar: "interval" },

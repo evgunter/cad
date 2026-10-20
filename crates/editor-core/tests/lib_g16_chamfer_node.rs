@@ -38,10 +38,7 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use corpus::{body_of, die_chamfer, eval, failures};
-use editor_core::{
-    CancelToken, EvalOptions, EvalOutcome, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    RecipeNodeId, SlotId, evaluate,
-};
+use editor_core::{EvalOutcome, Node, ProfileDoc, RecipeNodeId, SlotId};
 use geom_core::Tol;
 
 /// The chamfered cube's closed forms (module docs).
@@ -181,9 +178,9 @@ fn the_selection_names_are_no_payload() {
     assert!(node.payload_names().is_empty());
 }
 
-/// **An empty selection refuses, naming the chamfer.** A blend of
-/// nothing is an unfinished recipe, not the identity — and the refusal
-/// must not tell the author a FILLET was empty.
+/// **An empty selection refuses at the insert, naming the chamfer**:
+/// a set of edges holds at least one name, and the refusal must not
+/// tell the author a FILLET was empty.
 #[test]
 fn an_empty_selection_refuses_as_a_chamfer() {
     let doc = ProfileDoc::empty_derived("g16-empty", Tol::witness());
@@ -202,27 +199,20 @@ fn an_empty_selection_refuses_as_a_chamfer() {
             side: ExtrudeSide::Along,
         },
     );
-    let (doc, ch) = fixture::insert(doc, Node::chamfer(cube, fixture::len(0.1), Vec::new()));
-
-    let ev = evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        Tol::witness(),
-    );
-    let Some(NodeResult::Failed(e)) = ev.nodes.get(&ch) else {
-        panic!("an empty selection must refuse");
-    };
-    match &e.kind {
-        NodeErrorKind::BlendSelectionEmpty { verb } => {
-            assert_eq!(*verb, sweep::blend::BlendKind::Chamfer);
-        }
-        other => panic!("expected the empty-selection refusal, got {other:?}"),
-    }
-    let msg = e.kind.to_string();
+    let err = fixture::insert_refused(&doc, Node::chamfer(cube, fixture::len(0.1), Vec::new()));
     assert!(
-        msg.contains("chamfer") && !msg.contains("fillet"),
+        matches!(
+            err,
+            editor_core::EditError::SelectionShape {
+                fault: editor_core::SelectionFault::Count { count: 0, .. },
+                ..
+            }
+        ),
+        "an empty selection refuses at the insert: {err:?}"
+    );
+    let msg = err.to_string();
+    assert!(
+        msg.contains("Chamfer") && !msg.contains("Fillet"),
         "the refusal must name the chamfer: {msg}"
     );
 }

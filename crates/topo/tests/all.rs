@@ -67,8 +67,12 @@ mod probe_support;
 mod a_callers_interval_is_refused_at_its_door;
 #[path = "a_doubled_line_does_not_revert.rs"]
 mod a_doubled_line_does_not_revert;
+#[path = "a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs"]
+mod a_face_inside_an_edges_wedge_refuses_at_tier_3_prime;
 #[path = "a_given_pair_is_made_from_a_kernel_verdict.rs"]
 mod a_given_pair_is_made_from_a_kernel_verdict;
+#[path = "a_keel_on_the_floor_subtracts_as_a_slit.rs"]
+mod a_keel_on_the_floor_subtracts_as_a_slit;
 #[path = "a_keel_wrapped_at_both_ends_splits_as_a_ring.rs"]
 mod a_keel_wrapped_at_both_ends_splits_as_a_ring;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
@@ -131,6 +135,8 @@ mod cube_by_hand;
 mod cube_doors_agree;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "edge_meeting_ray_probes.rs"]
+mod edge_meeting_ray_probes;
 #[path = "euler_site_pcurve_rows.rs"]
 mod euler_site_pcurve_rows;
 #[path = "fused_into_live_cells.rs"]
@@ -217,6 +223,8 @@ mod mesh12_rim_row_reach;
 mod mesh8_coherence;
 #[path = "missed_ray_side.rs"]
 mod missed_ray_side;
+#[path = "narrow_needle_containment.rs"]
+mod narrow_needle_containment;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
 #[path = "offset_a_corner_kiss.rs"]

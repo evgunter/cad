@@ -215,8 +215,8 @@ fn a_path_pattern_matches_length_for_length() {
 }
 
 /// **An empty selector selects nothing** — and says so here rather
-/// than at the fillet, which is where an empty SELECTION refuses
-/// (`BlendSelectionEmpty`, one door for that refusal).
+/// than at the fillet, whose insert is where an empty SELECTION
+/// refuses (`SelectionFault::Count`, one door for that refusal).
 #[test]
 fn an_empty_selector_matches_nothing() {
     let (doc, cube) = box_doc();
@@ -329,19 +329,22 @@ fn the_selector_excludes_the_cavity_meridians_by_shape() {
     }
 }
 
-/// **Prefix argument matching**: constraining only the A side of a
-/// `Seam` is a coarser, still-honest way to say the same pip rim —
-/// "wherever the cube's end cap crosses something". The two arcs come
-/// back without the pattern naming either band variant.
+/// **Prefix argument matching**: constraining only the first side of a
+/// `Seam`, the lesser name, is a coarser, still-honest way to say the
+/// same pip rim — "wherever the cube's end cap crosses something": the
+/// cube's read names before the ball's. The two arcs come back without
+/// the pattern naming either band variant.
 #[test]
-fn a_seam_pattern_may_constrain_only_its_a_side() {
+fn a_seam_pattern_may_constrain_only_its_first_side() {
     let doc = die_composed::document();
     let ev = eval(&doc.doc);
     let (_, _, pipped) = composed_ids(&doc.doc);
-    let sel = Selector::of(NamePat::of_kind(EntityKind::Edge).seg(
-        SegPat::tag(SegTag::Seam).of([
-            NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
-        ]),
-    ));
+    let cap = NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
+    let sel = Selector::of(
+        NamePat::of_kind(EntityKind::Edge).seg(
+            SegPat::tag(SegTag::Seam)
+                .of([NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::From).of([cap]))]),
+        ),
+    );
     assert_eq!(editor_core::select(&ev, pipped, &sel).len(), 2);
 }

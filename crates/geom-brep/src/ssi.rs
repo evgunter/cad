@@ -513,9 +513,9 @@ pub enum SsiError {
         /// rest built no chain.
         refused: u32,
     },
-    /// Limb 3's transversality is not certified clear of the zero band
-    /// over the tube chain at any rung (its enclosure straddles zero, or
-    /// its clearance lies inside the band). Either two branches pass
+    /// Limb 3's lower bound on the crossing angle is not clear of the
+    /// zero band over the tube chain at any rung (its enclosure straddles
+    /// zero, or the bound lies inside the band). Either two branches pass
     /// within the band of each other, a genuine sliver (F6), or the
     /// enclosure's remaining slack does not resolve the pair; both
     /// escalate, typed, never retried.
@@ -1006,9 +1006,9 @@ impl core::fmt::Display for SsiError {
             ),
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
-                "ssi: over its {boxes}-box chain the uniqueness tube cannot certify the surfaces \
-                 crossing clear of the tolerance band (certified clearance {:e} m), so a second \
-                 branch may lie inside the tube",
+                "ssi: over its {boxes}-box chain {} is not clear of the zero band (bound {:e} \
+                 m), so a second branch may lie inside the tube",
+                crate::certify::TUBE_CROSSING_BOUND,
                 verdict.margin()
             ),
             Self::TubeNotOneArc { rungs, cause } => write!(
@@ -1664,6 +1664,28 @@ pub struct ChartedNurbs<'a, T: geom_core::CertifiedBounds> {
     on_grid: Option<Rc<NurbsBoxes<'a, T>>>,
 }
 
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    static CHART_MINTS: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
+}
+
+/// Test-only: how many charts ([`ChartedNurbs::mint`] and its grid
+/// form) this thread has minted. An operation that mints each wall
+/// once is pinned by the count, which timing alone would otherwise
+/// carry.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[must_use]
+pub fn charted_nurbs_mints() -> usize {
+    CHART_MINTS.with(core::cell::Cell::get)
+}
+
+/// Counts one mint toward [`charted_nurbs_mints`]; nothing outside test builds.
+fn count_mint() {
+    #[cfg(any(test, feature = "test-support"))]
+    CHART_MINTS.with(|n| n.set(n.get() + 1));
+}
+
 impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     /// Mints the wall's `{u, v}` chart speeds over its domain.
     ///
@@ -1672,6 +1694,7 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
     /// [`SsiError::ChartSpeed`], naming the axis whose speed is zero or
     /// not finite.
     pub fn mint(surface: &'a NurbsSurface<T>) -> Result<Self, SsiError> {
+        count_mint();
         let boxes = NurbsBoxes::new(surface);
         let speeds = boxes.chart_speeds()?;
         Ok(Self {
@@ -1699,6 +1722,7 @@ impl<'a, T: geom_core::CertifiedBounds> ChartedNurbs<'a, T> {
         surface: &'a NurbsSurface<T>,
         grid: &'a enclose::CellGrid,
     ) -> Result<Self, SsiError> {
+        count_mint();
         let own = NurbsBoxes::new(surface);
         own.chart_speeds()?;
         let boxes = NurbsBoxes::on_grid(surface, grid);
@@ -2790,7 +2814,7 @@ fn plane_nurbs_ssi_within(
     band: Band,
     max_steps: usize,
 ) -> Result<SsiOutcome, SsiError> {
-    PlaneSection::within(plane, wall, domain, band, max_steps)?.all()
+    PlaneSection::within(plane, (wall, ChartedNurbs::mint), domain, band, max_steps)?.all()
 }
 
 /// The boundary pass over `wall`'s knot rectangle against `plane`, at
@@ -3214,7 +3238,7 @@ mod ending_tests {
         assert_eq!(
             escalated(TraceDecision::TransversalityArm).ending(Reading::Build),
             "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
-             tightly there, or, if this length or the gap its faces open is intended, \
+             tightly there, or, if this width or the gap its faces open is intended, \
              tighten the tolerance below 5e-10 m",
             "the arm gate ends as a length, not the angle it guards"
         );
@@ -4393,8 +4417,7 @@ mod budget_tests {
     /// The Bernstein coefficients on `[0, 1]` of degree `n` of the
     /// polynomial `Σ c[k]·tᵏ`, of at most that degree.
     fn bernstein(c: &[f64], n: usize) -> Vec<f64> {
-        let binom =
-            |n: usize, k: usize| (0..k).fold(1.0, |r, i| r * (n - i) as f64 / (i + 1) as f64);
+        let binom = geom_core::spline::pieces::binomial;
         (0..=n)
             .map(|i| {
                 (0..=i.min(c.len() - 1))

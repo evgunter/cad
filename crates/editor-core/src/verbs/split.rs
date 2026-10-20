@@ -34,8 +34,8 @@
 //!
 //! # Where an operand's expected-kind label lives, by convention
 //!
-//! Three labels of this shape exist and they are three different
-//! things, which is why they have three homes.
+//! Two labels of this shape exist and they are two different things,
+//! which is why they have two homes.
 //!
 //! **The convention is about which DECLARATION carries the label, not
 //! about who picks the word.** `tool_expected` is correspondence DATA
@@ -44,13 +44,9 @@
 //! label the refusal carries. The profile lowering's
 //! `expected: family::PROFILE` is the LOWERING's, because every
 //! profile verb takes a profile — the operand contract belongs to
-//! `wire_swept`, not to any one correspondence. The blends'
-//! `selection_label` is not an operand label at all: it is the kernel
-//! refusal label a SELECTION failure carries (`BlendKind`), shared
-//! with the kernel's own refusal so a verb is never rendered twice.
-//! The rule: a label is data on the correspondence that owns the
-//! reading it names, and inline in the lowering that owns the
-//! contract it names.
+//! `wire_swept`, not to any one correspondence. The rule: a label is
+//! data on the correspondence that owns the reading it names, and
+//! inline in the lowering that owns the contract it names.
 //!
 //! **The WORD is never a home's to invent, this one included.** Every
 //! `expected:` in the evaluation comes from `crate::eval::family` or
@@ -74,7 +70,7 @@ use crate::PoseValue;
 use geom_core::{Decide, Tol};
 use topo::splitting::SplitNaming;
 use topo::{Body, SplitPlane};
-use verbs::{Verb, VerbRecord};
+use verbs::{Split, VerbRecord};
 
 use crate::names::{self, NameTable, NamingError};
 use crate::node::RecipeNodeId;
@@ -94,7 +90,7 @@ pub(crate) type SplitEmitter<T> = fn(
 ) -> Result<[names::Emitted; 2], NamingError>;
 
 /// **The split's correspondence**, as data — everything the split's
-/// lowering needs to turn a `Node::Split` into a [`verbs::Verb`] and its two
+/// lowering needs to turn a `Node::Split` into a [`verbs::Split`] and its two
 /// sides into a name table. Adding a field here is how the verb
 /// declares something the lowering must know.
 pub(crate) struct SplitVerb<T: Decide> {
@@ -107,8 +103,8 @@ pub(crate) struct SplitVerb<T: Decide> {
     /// `WrongOperand` refusal carries when it is not.
     pub(crate) tool_expected: &'static str,
     /// **The plane → the kernel verb.** The one place a document's
-    /// resolved tool plane becomes a [`verbs::Verb`] payload, per instance.
-    pub(crate) build: fn(SplitPlane<T>) -> Verb<T>,
+    /// resolved tool plane becomes a [`verbs::Split`] payload, per instance.
+    pub(crate) build: fn(SplitPlane<T>) -> Split<T>,
     /// This verb's naming emitter.
     pub(crate) emitter: SplitEmitter<T>,
     /// **This family's arm of the closed record channel**, as a
@@ -126,8 +122,8 @@ pub(crate) struct SplitVerb<T: Decide> {
 
 /// The split's kernel payload. A named function rather than a closure
 /// so it can be a plain `fn` pointer in the struct above.
-fn build_split<T: Decide>(plane: SplitPlane<T>) -> Verb<T> {
-    Verb::Split { plane }
+fn build_split<T: Decide>(plane: SplitPlane<T>) -> Split<T> {
+    Split { plane }
 }
 
 /// The split family's arm of the record channel. Exhaustive with no
@@ -197,7 +193,7 @@ mod tests {
             Vec3::new(0.0, 0.0, 1.0),
             geom_core::Tol::witness(),
         );
-        let v: Verb<f64> = (split::<f64>().build)(plane);
+        let v: Split<f64> = (split::<f64>().build)(plane);
         assert_eq!(
             v.kind(),
             VerbKind::Split,

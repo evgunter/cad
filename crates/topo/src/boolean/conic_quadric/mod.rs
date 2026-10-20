@@ -127,7 +127,7 @@ use geom_brep::half_angle::{
 };
 use geom_brep::quartic::QuarticRows;
 use geom_brep::roots::{OnCarrier, Roots, Unsettled};
-use geom_brep::rounding_charge;
+use geom_core::rounding_charge;
 
 #[cfg(test)]
 mod circle_sphere_rows;
@@ -292,11 +292,11 @@ pub(super) fn conic_quadric_roots<T: Decide>(
 /// harmonics, the surface's decision, the quadric as
 /// [`geom_brep::conic_quadric_residual`] reads it, and the ladder's frame,
 /// which carries the harmonics' noise.
-struct QuadricLadder<T: Decide> {
+struct QuadricLadder<'a, T: Decide> {
     h: geom_brep::ConicHarmonics<T>,
     decision: BooleanDecision,
     quadric: (geom_core::Point3<T>, Option<geom_core::Vec3<T>>, T),
-    frame: HalfAngleFrame<T>,
+    frame: HalfAngleFrame<'a, T>,
 }
 
 /// [`QuadricLadder`] for `conic` against `surface` over `[t0, t1]`, or
@@ -305,7 +305,7 @@ fn quadric_ladder<T: Decide>(
     conic: &geom_brep::Conic<T>,
     surface: &geom::Surface<T>,
     (t0, t1): (T, T),
-) -> Option<QuadricLadder<T>> {
+) -> Option<QuadricLadder<'static, T>> {
     let (h, decision, quadric) = match *surface {
         geom::Surface::Sphere { center, radius, .. } => (
             geom_brep::conic_sphere_harmonics(conic, center, radius),
@@ -326,7 +326,7 @@ fn quadric_ladder<T: Decide>(
     };
     // The harmonics' rounding, in residual metres: the term bound is in
     // m², before the `2r` division. It is a charge on the residual's
-    // evaluation (`geom_brep::HARMONIC_NOISE_ULPS`), so it covers the
+    // evaluation (`geom_core::SHORT_CHAIN_ULPS`), so it covers the
     // arm's readings together — `c₀ ∓ A₁` and the `A₂` it charges.
     let noise = rounding_charge(h.terms) / h.per;
     let frame = ladder_frame(conic, (t0, t1), noise, h.floor);
@@ -374,7 +374,7 @@ fn ladder_frame<T: Decide>(
     (t0, t1): (T, T),
     noise: T,
     floor: T,
-) -> HalfAngleFrame<T> {
+) -> HalfAngleFrame<'static, T> {
     HalfAngleFrame {
         walk: SubdivisionFrame {
             t0,
@@ -384,6 +384,7 @@ fn ladder_frame<T: Decide>(
             f_per_metre: floor,
             f_per_metre_hi: T::one(),
             residual_reach: None,
+            jet: None,
         },
         speed_lo: conic.speed_lo(),
         lever: T::from_f64(2.0) * conic.speed_lo(),

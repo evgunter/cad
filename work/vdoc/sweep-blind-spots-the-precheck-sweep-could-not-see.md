@@ -56,27 +56,30 @@ about the document.
 layer 3 must not restate what a lower layer refuses typed — is about a
 LAYERING, not about one enum, and `crates/viewer/src/` holds 21 other
 typed fault enums (`grep -rn "pub enum .*Error\|pub enum .*Fault"
-crates/viewer/src/`). Two carry the same shape one layer down and were
-found by the #1846 style review, not by either pattern:
+crates/viewer/src/`). One carries the same shape one layer down and
+was found by the #1846 style review, not by either pattern:
 
-- **`BlendError::NoEdges`** (`crates/viewer/src/blend.rs:183-192`).
-  Its own doc-comment names the lower rule it duplicates:
-  *"`NodeErrorKind::BlendSelectionEmpty` refuses an empty selection at
-  evaluation, so a hand-written recipe gets the same answer as an
-  authored one."*
 - **`MateToolError::SamePick`** (`crates/viewer/src/matetool.rs:216-223`).
-  Likewise: *"the tool refuses here rather than authoring the edit the
-  solve would refuse as a self-mate."*
+  Its doc-comment names the lower rule it duplicates: *"the tool
+  refuses here rather than authoring the edit the solve would refuse
+  as a self-mate."*
 
-Both differ from #1846's defect in one way that matters and must not be
-skipped over: the lower refusal arrives at **evaluation or solve time**,
-not at the edit door, so the pre-check buys the user an answer *instead
-of* a landed-then-broken node rather than *ahead of* an identical
-answer. That is the same trade `add_profile`'s doc-comment states and
-#1846 dispositioned as correct for `require_kind`. Both also STATE the
+It differs from #1846's defect in one way that matters and must not be
+skipped over: the lower refusal arrives at **solve time**, not at the
+edit door, so the pre-check buys the user an answer *instead of* a
+landed-then-broken node rather than *ahead of* an identical answer.
+That is the same trade `add_profile`'s doc-comment states and #1846
+dispositioned as correct for `require_kind`. It also STATES the
 duplication rather than hiding it, which is the discipline working.
 
-So this is not a claim that either is a defect. It is the record that
+The review found a second, `BlendError::NoEdges`, whose lower rule was
+an evaluation refusal of an empty blend selection. That rule now lives
+at the edit and load doors (`Select::fault`: a set of edges holds at
+least one name), so the trade above no longer held for it and it is
+gone: the blend tool authors no op while it holds no edge, and any op
+it does author takes the insert's own refusal.
+
+So this is not a claim that `SamePick` is a defect. It is the record that
 **the sweep never looked**, that the rule generalises past `Refusal`,
 and that `crates/viewer/README.md`'s delegation clause is written about
 `Refusal` alone while the other 21 enums have no such clause anywhere.

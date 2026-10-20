@@ -1344,8 +1344,9 @@ pub enum ValidationError {
     },
     /// Tier 3 (check 4): at an interior sample of an edge, the folded
     /// lever arm the wedge between its faces is metered over was decided
-    /// not positive — the edge is too short, or a face curves too
-    /// tightly there (a cone at its apex), for an angle to be measured —
+    /// not positive — the faces' extent there, clamped by how tightly
+    /// they curve (a cone at its apex), leaves no width to measure an
+    /// angle between them over —
     /// the definite arm of [`WedgeCheck::Arm`], whose undecided arm is
     /// [`Self::SliverDihedral`] ([`geom_brep::DIHEDRAL_ARM`]).
     NoDihedralArm {
@@ -1930,6 +1931,35 @@ pub enum ValidationError {
         /// The not-yet-supported class, named.
         what: &'static str,
     },
+    /// **Tier 3′: a face passes through an edge's material wedge.** An
+    /// edge lies in a face of its own solid, and on decided readings the
+    /// two cells' material overlaps there: a sheet of the face lies
+    /// inside the edge's wedge, or the wedge inside the face's material.
+    /// The material sectors on one line are disjoint (D1,
+    /// `crates/topo/README.md` tier 3), so no record makes this valid.
+    FaceThroughEdgeWedge {
+        /// The edge.
+        edge: EdgeKey,
+        /// The face it lies in.
+        face: FaceKey,
+        /// Where the two were read, as coordinates.
+        witness: String,
+    },
+    /// **Tier 3′: whether a face passes through an edge's material wedge
+    /// is undecided.** An edge lies in a face of its own solid, and the
+    /// side reading of the two ([`Self::FaceThroughEdgeWedge`]'s) could
+    /// not be taken: `why` says why.
+    FaceThroughEdgeWedgeUndecided {
+        /// The edge.
+        edge: EdgeKey,
+        /// The face it lies in.
+        face: FaceKey,
+        /// Where the two were read, as coordinates.
+        witness: String,
+        /// Why the reading was not taken; the finding renders it with
+        /// its recourse.
+        why: crate::census::TouchUnread,
+    },
     /// Tier 3′: the census read a point at an arc's end that lies
     /// definitely off both of its edge's corners, on a body tier 3 passed
     /// at the same band, which pins every carrier end within the zero
@@ -1963,6 +1993,22 @@ pub enum ValidationError {
         /// `inner`'s first vertex in arena order found strictly inside
         /// `outer`'s material.
         witness: VertexKey,
+    },
+    /// Tier 3′ (D1 tier 3, C4): two faces of one solid that share no
+    /// edge, on carriers whose closed-form tangent line runs strictly
+    /// through both faces' interiors, with the solid's material in the
+    /// crescent between them (a bore tangent to a face from inside).
+    /// Such a line carries two coincident cusp edges, wedge 0, one per
+    /// cusp, and this body has none there: a defect of the body, which
+    /// no contact record answers for.
+    CuspEdgesMissing {
+        /// One face through the line.
+        a: FaceKey,
+        /// The other.
+        b: FaceKey,
+        /// A point on the line within both faces' extents along it,
+        /// read after "at" in the message.
+        witness: String,
     },
     /// An entity holds a topology key that does not resolve in its arena.
     /// Reported once per occurrence (a parent listing the same dangling
@@ -2390,6 +2436,15 @@ pub enum CensusContact {
         /// The face.
         face: FaceKey,
     },
+    /// Two faces of one solid on distinct carriers touching along their
+    /// tangent line through both interiors, the crescent between them
+    /// void (CONTACT-DESIGN C2's same-solid discovery, C3's curve touch),
+    /// carried as the kernel contact finding of class `Tangent`.
+    FaceFaceTangent {
+        /// What was found: the face pair, its class (`Tangent`), and
+        /// the verdict the jet schedule read along the line.
+        finding: crate::contact::ContactFinding,
+    },
     /// Two curved faces on ONE carrier with opposed senses whose trim
     /// regions definitely overlap in the shared chart (M9-2's
     /// conformal face-pair arm) — carried as the kernel contact
@@ -2419,6 +2474,7 @@ impl fmt::Display for CensusContact {
             Self::EdgeEdgeCross { .. } => f.write_str("two edges crossing"),
             Self::EdgeEdgeOverlap { .. } => f.write_str("two edges overlapping along a length"),
             Self::EdgeFaceOverlap { .. } => f.write_str("an edge lying in a face along a length"),
+            Self::FaceFaceTangent { .. } => f.write_str("two faces touching along a line"),
             Self::ConformalPatch { finding } => write!(
                 f,
                 "two faces lying against each other (a {} contact)",
@@ -3373,7 +3429,9 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             "the face wraps all the way round its surface, which the kernel cannot yet map",
             NOT_YET_ENDING,
         ),
-        M::Escalated { cause, .. } => {
+        // A net closed in `v` whose `v` sections sit in the band's sliver
+        // of collapsing: an undecided reading, read as one.
+        M::Escalated { cause, .. } | M::NetStretchUndecided { cause, .. } => {
             return (
                 CLOSE,
                 geom_brep::recourse::not_yet(RefusedArm::Undecided(cause), Reading::AtRest).into(),
@@ -4241,11 +4299,29 @@ impl fmt::Display for ValidationError {
                     _ => "two parts of the body",
                 }
             ),
+            Self::FaceThroughEdgeWedge { witness, .. } => write!(
+                f,
+                "an edge lies in a face of its own part at {witness}, and the face passes \
+                 through the material the edge bounds, so the edge pairs two faces with \
+                 the face between them. {DEFECT}"
+            ),
+            Self::FaceThroughEdgeWedgeUndecided { witness, why, .. } => write!(
+                f,
+                "an edge lies in a face of its own part at {witness}, and whether the face \
+                 passes through the material the edge bounds is undecided: {}",
+                why.in_own_face()
+            ),
             Self::InstanceInterference { .. } => write!(
                 f,
                 "two instances overlap: a corner of one lies inside the other \
                  (an interference fit), which no declaration can make valid. Recourse: move \
                  the instances apart"
+            ),
+            Self::CuspEdgesMissing { witness, .. } => write!(
+                f,
+                "two faces of one part are pinched together along a line at {witness} with \
+                 material between them on both sides, and no edge lies on the line, which owes \
+                 two cusp edges. {DEFECT}"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(
@@ -11997,7 +12073,7 @@ mod tests {
                 "whether an edge is between faces wide enough, for how they curve, to measure \
                  their angle is undecided. Recourse: move the geometry so \
                  that edge's faces clearly run farther and none curves tightly there, or, \
-                 if this length or the gap its faces open is intended, tighten the tolerance \
+                 if this width or the gap its faces open is intended, tighten the tolerance \
                  below 5e-10 m"
                     .to_owned(),
             ),
@@ -12005,7 +12081,7 @@ mod tests {
                 "wedge arm, zero band",
                 sliver(WedgeCheck::Arm, diag(MarginDiag::value(5e-10))),
                 "Recourse: move the geometry so that edge's faces clearly run farther and none \
-                 curves tightly there, or, if this length or the gap its faces open is \
+                 curves tightly there, or, if this width or the gap its faces open is \
                  intended, tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
@@ -12020,7 +12096,7 @@ mod tests {
                 },
                 "an edge is not between faces wide enough, for how they curve, to measure their \
                  angle. Recourse: move the geometry so that edge's faces clearly run farther \
-                 and none curves tightly there, or, if this length or the gap its faces \
+                 and none curves tightly there, or, if this width or the gap its faces \
                  open is intended, tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
@@ -12148,9 +12224,8 @@ mod tests {
                         margin: MarginDiag::value(-1e-3),
                     },
                 },
-                "a torus face's tube radius is larger than its ring's (margin -0.001 m), so the \
-                 surface is a spindle. Recourse: make the tube radius clearly smaller than the \
-                 ring radius"
+                "a torus face's tube radius is larger than its ring's (margin -0.001 m). \
+                 Recourse: make the tube radius clearly smaller than the ring radius"
                     .to_owned(),
             ),
             (
@@ -12380,7 +12455,7 @@ mod tests {
     /// finding, the boolean seam's subject, and the merge door's
     /// kept-boundary arm. A definite arm names no tolerance before its
     /// recourse: the exact zero no tolerance decides reads it too.
-    /// Certify's [`CertCheck`] word is a noun naming the length, not the
+    /// Certify's [`CertCheck`] word is a noun naming the width, not the
     /// question, so it is held to that noun. The pin reads rendered text,
     /// so a door that re-spells the clause identically rather than
     /// composing the const passes it; that copy goes unseen until the
@@ -12454,8 +12529,8 @@ mod tests {
         );
         assert_eq!(
             CertCheck::TransversalityArm.to_string(),
-            "the length its faces' angle is measured over",
-            "certify's word is a noun for the length"
+            "the width the faces' angle is measured across",
+            "certify's word is a noun for the width"
         );
         let ssi = geom_brep::SsiError::Escalated {
             decision: geom_brep::TraceDecision::TransversalityArm,
@@ -16373,7 +16448,7 @@ mod review_census_display_keys {
             }
         }
         assert_eq!(
-            checked, 14,
+            checked, 15,
             "every CensusContact and StaleDeclaration sample"
         );
     }

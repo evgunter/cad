@@ -161,8 +161,8 @@ use super::knots::Span;
 use super::pieces::{binomial, span_row};
 
 /// The degree ceiling of the quotient bound (module docs): the highest
-/// common degree whose binomials are all exact `f64`s, `C(56, 28) < 2⁵³`.
-pub const QUOTIENT_MAX_DEGREE: usize = 56;
+/// common degree whose binomials are all exact `f64`s.
+pub const QUOTIENT_MAX_DEGREE: usize = super::pieces::BINOMIAL_EXACT_MAX;
 
 /// `p / (hi − lo)` in `T`, for the pair whose knot difference runs from
 /// `lo = u_{i+1}` to `hi = u_{i+p+1}`.
@@ -506,6 +506,12 @@ impl<T: Real, const D: usize> Grid<T, D> {
     /// by its exact power `2⁻ʳ`, which reads every halving step's sums
     /// to the bit wherever no step leaves the normal range: a sum's
     /// rounding commutes with a power-of-two scale.
+    ///
+    /// One of restriction's three homes, kept as this module's halving:
+    /// it is generic over `T: Real` on `Vector<T, D>` grids, where
+    /// [`super::blossom::restrict_segment`], the door for a row read as
+    /// it comes and the tightest of the three, reads certification
+    /// scalars only.
     fn halved(&self, along_u: bool) -> Option<(Self, Self)> {
         let (nu, nv) = (self.nu(), self.nv);
         let (n, lines) = if along_u { (nu, nv) } else { (nv, nu) };
@@ -586,6 +592,20 @@ fn halvings<X>(whole: X, count: usize, halve: impl Fn(&X) -> Option<(X, X)>) -> 
 /// `Σ C(ma,i)C(mb,k−i)·C(na,j)C(nb,l−j)·mul(a_ij, b_{k−i,l−j})` over
 /// `C(ma+mb, k)·C(na+nb, l)`, folded in ascending `(i, j)` then
 /// ascending `b` index (D9). `None` above [`QUOTIENT_MAX_DEGREE`].
+///
+/// **`compose`'s `bern_mul_row` states the same product with the other
+/// association**: a memoized outward quotient weight per term, on
+/// univariate certification rows. Each association is the tighter one
+/// for its own callers, so neither is folded into the other. Here,
+/// exact integer numerators and a division after each coefficient's
+/// sum keep the area, cross and raised terms tightest: a quotient per
+/// term widens them by up to 1470× (`area_raised`), 208×
+/// (`doubled_cross`) and 10× (`cell_pieces`), and on the `f64` lane it
+/// would round every term. Taking this one in `compose` widens its
+/// tensor powers by up to 6×. Both enclose the exact rational product
+/// (`tests::both_bernstein_products_enclose_the_exact_rational_product`);
+/// the measurement is in
+/// `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
 fn product<T: Real, const A: usize, const B: usize, const C: usize>(
     a: &Grid<T, A>,
     b: &Grid<T, B>,
@@ -886,7 +906,8 @@ impl<T: Real, const D: usize> Raised<T, D> {
     /// The quotient on `counts` equal pieces per axis (powers of two),
     /// as [`shared_pieces`] cuts it.
     fn pieces(&self, counts: (usize, usize)) -> Option<Vec<QuotientPiece<T, D>>> {
-        shared_pieces(&[&self.numer], &self.denom, counts)?.pop()
+        let [pieces] = shared_pieces([&self.numer], &self.denom, counts)?;
+        Some(pieces)
     }
 }
 
@@ -896,6 +917,12 @@ fn grid_pieces<T: Real, const D: usize>(
     grid: &Grid<T, D>,
     counts: (usize, usize),
 ) -> Option<Vec<Grid<T, D>>> {
+    // A one-channel grid here is a weight power: counted where it is
+    // halved, so a reader that halves one twice reads two.
+    #[cfg(test)]
+    if D == 1 {
+        tests::WEIGHT_HALVINGS.with(|n| n.set(n.get() + 1));
+    }
     let mut out = Vec::with_capacity(counts.0 * counts.1);
     for g in halvings(grid.clone(), counts.0, |g| g.halved(true))? {
         out.extend(halvings(g, counts.1, |g| g.halved(false))?);
@@ -909,27 +936,26 @@ fn grid_pieces<T: Real, const D: usize>(
 /// every numerator's: halving is deterministic, so a quotient that
 /// halved its own copy of the same weight power would read the same
 /// bits, and a weight power several quotients share costs one halving.
-fn shared_pieces<T: Real, const D: usize>(
-    numers: &[&Grid<T, D>],
+fn shared_pieces<T: Real, const D: usize, const N: usize>(
+    numers: [&Grid<T, D>; N],
     denom: &Grid<T, 1>,
     counts: (usize, usize),
-) -> Option<Vec<Vec<QuotientPiece<T, D>>>> {
-    #[cfg(test)]
-    tests::WEIGHT_HALVINGS.with(|n| n.set(n.get() + 1));
+) -> Option<[Vec<QuotientPiece<T, D>>; N]> {
     let denoms: Vec<Vec<T>> = grid_pieces(denom, counts)?
         .iter()
         .map(|d| d.c.iter().map(|w| w.0[0]).collect())
         .collect();
-    numers
-        .iter()
-        .map(|numer| {
-            grid_pieces(numer, counts)?
-                .iter()
-                .zip(&denoms)
-                .map(|(n, d)| QuotientPiece::new(n.arrays(), d.clone()))
-                .collect()
-        })
-        .collect()
+    // Each numerator's list is filled or the whole reading refuses: no
+    // slot is left at a default.
+    let mut lists: [Vec<QuotientPiece<T, D>>; N] = core::array::from_fn(|_| Vec::new());
+    for (list, numer) in lists.iter_mut().zip(numers) {
+        *list = grid_pieces(numer, counts)?
+            .iter()
+            .zip(&denoms)
+            .map(|(n, d)| QuotientPiece::new(n.arrays(), d.clone()))
+            .collect::<Option<_>>()?;
+    }
+    Some(lists)
 }
 
 /// [`CellQuotients`] before it is cut.
@@ -1251,7 +1277,7 @@ pub fn polynomial_area_pieces<T: Real>(
     let numer = product(&du, &dv, cross)?;
     let (mu, mv) = numer.degree();
     let denom = Grid::new(mv + 1, vec![Vector([T::one()]); (mu + 1) * (mv + 1)])?;
-    Raised { numer, denom }.pieces((halving_count(splits.0), halving_count(splits.1)))
+    Raised { numer, denom }.pieces(halving_counts(splits))
 }
 
 #[allow(clippy::type_complexity)]
@@ -1269,37 +1295,32 @@ fn cell_pieces<T: Real>(
     // the second partials share `W³`. With the second order the area is
     // formed whatever `area` asks: `CellSecondQuotients` readers take it
     // beside them.
-    let counts = (halving_count(splits.0), halving_count(splits.1));
+    let counts = halving_counts(splits);
     let first = whole.first_raised(area || whole.second.is_some())?;
-    let [u, v]: [_; 2] = shared_pieces(&[&first.u.numer, &first.v.numer], &first.u.denom, counts)?
-        .try_into()
-        .ok()?;
-    let mut w3_pieces = match (&first.area, whole.second_raised()) {
+    let [u, v] = shared_pieces([&first.u.numer, &first.v.numer], &first.u.denom, counts)?;
+    let (area, second) = match (&first.area, whole.second_raised()) {
         (Some(a), Some(s)) => {
             // Every `W³` is `W²·W` of the same `W` (`area_raised`,
             // `second_numerator`), so the area's serves all four.
-            shared_pieces(
-                &[&a.numer, &s.uu.numer, &s.uv.numer, &s.vv.numer],
+            let [area, uu, uv, vv] = shared_pieces(
+                [&a.numer, &s.uu.numer, &s.uv.numer, &s.vv.numer],
                 &a.denom,
                 counts,
-            )?
+            )?;
+            let second = uu
+                .into_iter()
+                .zip(uv)
+                .zip(vv)
+                .map(|((uu, uv), vv)| Some(CellSecondQuotients { uu, uv, vv }))
+                .collect();
+            (area.into_iter().map(Some).collect(), second)
         }
-        (Some(a), None) => shared_pieces(&[&a.numer], &a.denom, counts)?,
-        (None, _) => Vec::new(),
-    }
-    .into_iter();
-    let area: Vec<_> = match w3_pieces.next() {
-        Some(a) => a.into_iter().map(Some).collect(),
-        None => vec![None; u.len()],
-    };
-    let second: Vec<_> = match (w3_pieces.next(), w3_pieces.next(), w3_pieces.next()) {
-        (Some(uu), Some(uv), Some(vv)) => uu
-            .into_iter()
-            .zip(uv)
-            .zip(vv)
-            .map(|((uu, uv), vv)| Some(CellSecondQuotients { uu, uv, vv }))
-            .collect(),
-        _ => vec![None; u.len()],
+        (Some(a), None) => {
+            let [area] = shared_pieces([&a.numer], &a.denom, counts)?;
+            (area.into_iter().map(Some).collect(), vec![None; u.len()])
+        }
+        (None, None) => (vec![None; u.len()], vec![None; u.len()]),
+        (None, Some(_)) => unreachable!("the second order forms the area (`first_raised` above)"),
     };
     let out = u
         .into_iter()
@@ -1345,10 +1366,13 @@ impl<T: Real> CellFirstQuotients<T> {
     /// `v`, the area absent.
     #[must_use]
     pub fn pieces(&self, splits: (usize, usize)) -> Option<Vec<CellQuotients<T>>> {
-        let (u, v) = (
-            self.axis_pieces(true, splits)?,
-            self.axis_pieces(false, splits)?,
-        );
+        // `S_u` and `S_v` share `W²` (`Homogeneous::first_raised`): one
+        // halving of it serves both numerators.
+        let [u, v] = shared_pieces(
+            [&self.u.numer, &self.v.numer],
+            &self.u.denom,
+            halving_counts(splits),
+        )?;
         Some(
             u.into_iter()
                 .zip(v)
@@ -1414,11 +1438,15 @@ impl CellFirstQuotients<crate::interval::Interval> {
         splits: (usize, usize),
     ) -> (Option<IntervalPieces>, Option<IntervalPieces>) {
         let counts = halving_counts(splits);
-        let (u, v) = self.restrict_axes(cuts, axes);
-        (
-            u.and_then(|r| r.pieces(counts)),
-            v.and_then(|r| r.pieces(counts)),
-        )
+        match self.restrict_axes(cuts, axes) {
+            // Both axes share the one restricted `W²`: halved once.
+            (Some(u), Some(v)) => shared_pieces([&u.numer, &v.numer], &u.denom, counts)
+                .map_or((None, None), |[u, v]| (Some(u), Some(v))),
+            (u, v) => (
+                u.and_then(|r| r.pieces(counts)),
+                v.and_then(|r| r.pieces(counts)),
+            ),
+        }
     }
 
     /// The asked axes' quotients restricted; `S_u` and `S_v` share `W²`
@@ -2063,7 +2091,7 @@ mod tests {
             if i > n {
                 return 0.0;
             }
-            let binom = (0..i).fold(1.0, |b, k| b * (n - k) as f64 / (k + 1) as f64);
+            let binom = super::super::pieces::binomial(n, i);
             binom * t.powi(i as i32) * (1.0 - t).powi((n - i) as i32)
         }
         fn dbern(n: usize, i: usize, t: f64) -> f64 {
@@ -2356,7 +2384,7 @@ mod tests {
             )
         };
         let block = || super::CellBlock::Homogeneous { a: &a, w: &w };
-        let halvings = |f: &dyn Fn() -> usize| {
+        let weight_halvings = |f: &dyn Fn() -> usize| {
             let before = WEIGHT_HALVINGS.with(core::cell::Cell::get);
             let pieces = f();
             assert!(pieces > 1, "the schedule cuts the cell");
@@ -2379,13 +2407,70 @@ mod tests {
                     .1
                     .len()
             };
-            assert_eq!(halvings(&first), 1, "W² once, splits {splits:?}");
-            assert_eq!(halvings(&area), 2, "W² and W³ once each, splits {splits:?}");
+            assert_eq!(weight_halvings(&first), 1, "W² once, splits {splits:?}");
             assert_eq!(
-                halvings(&second),
+                weight_halvings(&area),
                 2,
                 "W² and W³ once each, splits {splits:?}"
             );
+            assert_eq!(
+                weight_halvings(&second),
+                2,
+                "W² and W³ once each, splits {splits:?}"
+            );
+        }
+    }
+
+    /// **A cut reader halves its weight power once.**
+    /// [`super::CellFirstQuotients::pieces`] and the both-axes
+    /// [`super::CellFirstQuotients::cut_pieces`] pair one halving of the
+    /// shared `W²` with `S_u`'s and `S_v`'s numerators; a one-axis cut
+    /// halves it once for its one numerator, and a cut that asks for no
+    /// axis halves nothing. Counted where a weight power is halved, so red
+    /// if a reader, or `shared_pieces` itself, halves the shared `W²` once
+    /// per numerator.
+    #[test]
+    fn a_cut_reader_halves_its_weight_power_once() {
+        let RationalCell {
+            a,
+            w,
+            knots_u,
+            knots_v,
+            ku,
+            kv,
+        } = rational_cell();
+        let axes = (
+            super::CellAxis::Span(ku.span(3).expect("the span"), &knots_u[..]),
+            super::CellAxis::Span(kv.span(2).expect("the span"), &knots_v[..]),
+        );
+        let whole =
+            super::cell_first_quotients(axes, super::CellBlock::Homogeneous { a: &a, w: &w })
+                .expect("a block under the ceiling");
+        let halvings = |f: &dyn Fn()| {
+            let before = WEIGHT_HALVINGS.with(core::cell::Cell::get);
+            f();
+            WEIGHT_HALVINGS.with(core::cell::Cell::get) - before
+        };
+        let cuts = (
+            Some(((0.0, 1.0), (0.25, 0.5))),
+            Some(((0.0, 1.0), (0.5, 0.75))),
+        );
+        for splits in [(1, 1), (2, 2), (4, 2)] {
+            let whole_pieces = || {
+                whole.pieces(splits).expect("the whole pieces");
+            };
+            assert_eq!(halvings(&whole_pieces), 1, "the whole cell, {splits:?}");
+            for (asked, want) in [
+                ((true, true), 1),
+                ((true, false), 1),
+                ((false, true), 1),
+                ((false, false), 0),
+            ] {
+                let cut = || {
+                    let _ = whole.cut_pieces(cuts, asked, splits);
+                };
+                assert_eq!(halvings(&cut), want, "a cut asking {asked:?}, {splits:?}");
+            }
         }
     }
 
@@ -2394,7 +2479,8 @@ mod tests {
     /// `S_u`, `S_v`, area and three second partials, numerator and
     /// weight power) is the bits of that quotient halved as one,
     /// numerator and its own weight power together, the area's and the
-    /// second partials' `W³` formed apart.
+    /// second partials' `W³` formed apart; and so is every piece
+    /// [`super::cell_quotients`] serves with the area and without it.
     #[test]
     fn a_shared_weight_halving_is_each_quotients_own_to_the_bit() {
         let RationalCell {
@@ -2425,10 +2511,7 @@ mod tests {
             assert_eq!(flat(got), flat(want), "{what}");
         };
         for splits in [(1, 1), (2, 4), (8, 2)] {
-            let counts = (
-                super::halving_count(splits.0),
-                super::halving_count(splits.1),
-            );
+            let counts = super::halving_counts(splits);
             let whole =
                 super::cell_whole(axes(), block(), true).expect("a block under the ceiling");
             let first = whole.first_raised(true).expect("the first order");
@@ -2471,6 +2554,77 @@ mod tests {
                 same(&s.uu, &uu[k], &format!("S_uu piece {k}, splits {splits:?}"));
                 same(&s.uv, &uv[k], &format!("S_uv piece {k}, splits {splits:?}"));
                 same(&s.vv, &vv[k], &format!("S_vv piece {k}, splits {splits:?}"));
+            }
+            for with_area in [true, false] {
+                let got =
+                    super::cell_quotients(axes(), block(), splits, with_area).expect("pieces");
+                assert_eq!(got.len(), u.len());
+                for (k, f) in got.iter().enumerate() {
+                    let at = format!("piece {k}, splits {splits:?}, area {with_area}");
+                    same(&f.u, &u[k], &format!("S_u {at}"));
+                    same(&f.v, &v[k], &format!("S_v {at}"));
+                    match &f.area {
+                        Some(area) => same(area, &ar[k], &format!("area {at}")),
+                        None => assert!(!with_area, "the area is absent at {at}"),
+                    }
+                    assert!(f.area.is_some() == with_area, "the area asked at {at}");
+                }
+            }
+        }
+    }
+
+    /// **Two Bernstein products, one statement.** On integer rows, the
+    /// exact product's coefficient `k` is the rational
+    /// `Σ C(da,i)·C(db,k−i)·a_i·b_{k−i} / C(da+db, k)`. Both homes of
+    /// the Bernstein product (this module's [`super::product`] on
+    /// one-row grids, `compose`'s `bern_mul_row` on certification rows)
+    /// enclose it, each at its own association (`product`'s docs).
+    #[test]
+    fn both_bernstein_products_enclose_the_exact_rational_product() {
+        use super::super::compose::exact_q::Q;
+        let q = |x: i128| Q::from_f64(x as f64);
+        let choose = |n: usize, k: usize| Q::from_f64(super::binomial(n, k));
+        let iv = |x: i128| Interval::from_f64(x as f64);
+        let grid = |r: &[i128]| {
+            super::Grid::new(1, r.iter().map(|&x| super::Vector([iv(x)])).collect())
+                .expect("a one-row grid")
+        };
+        for (da, db) in [(1, 1), (3, 2), (5, 7), (12, 9), (20, 20)] {
+            let a: Vec<i128> = (0..=da).map(|i| ((i * 7 + 3) % 11) as i128 - 5).collect();
+            let b: Vec<i128> = (0..=db).map(|j| ((j * 5 + 1) % 9) as i128 - 4).collect();
+            let rows = (
+                a.iter().map(|&x| iv(x)).collect::<Vec<_>>(),
+                b.iter().map(|&x| iv(x)).collect::<Vec<_>>(),
+            );
+            let compose = super::super::compose::bern_mul_row(&rows.0, &rows.1);
+            let ours = super::product(
+                &grid(&a),
+                &grid(&b),
+                |x: [Interval; 1], y: [Interval; 1]| [x[0] * y[0]],
+            )
+            .expect("a product under the ceiling");
+            assert_eq!(compose.len(), da + db + 1);
+            assert_eq!(ours.c.len(), da + db + 1);
+            for k in 0..=da + db {
+                let exact = (k.saturating_sub(db)..=k.min(da))
+                    .map(|i| {
+                        choose(da, i)
+                            .mul(&choose(db, k - i))
+                            .mul(&q(a[i]))
+                            .mul(&q(b[k - i]))
+                    })
+                    .fold(q(0), |acc, t| acc.add(&t))
+                    .div(&choose(da + db, k));
+                for (home, x) in [("compose", compose[k]), ("derivative", ours.c[k].0[0])] {
+                    use core::cmp::Ordering::{Greater, Less};
+                    assert!(
+                        exact.cmp_f64(x.lo()) != Less && exact.cmp_f64(x.hi()) != Greater,
+                        "{home} misses {:e} at ({da}, {db}) k = {k}: [{:e}, {:e}]",
+                        exact.to_f64_report(),
+                        x.lo(),
+                        x.hi()
+                    );
+                }
             }
         }
     }

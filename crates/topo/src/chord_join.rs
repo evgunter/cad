@@ -723,10 +723,8 @@ impl core::fmt::Display for SplitJoinError {
                      {margin:e}, definitely past the tolerance. {SECTION_WITHIN_CAUSE} {ending}"
                 )
             }
-            // The carrier's constructor states its escalation for a
-            // caller that could build the circle instead; no reader of
-            // a join can, so the join keeps the constructor's subject
-            // and offers its own door's levers.
+            // The join keeps the carrier constructor's subject and
+            // offers its own door's levers.
             Self::Section {
                 source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(diag)),
                 ..
@@ -3209,7 +3207,7 @@ fn run_azimuth_images<T: Decide>(
                     )?,
                 };
                 prev_k = k;
-                base.shift_branch(T::from_f64(f64::from(k)), tau)
+                base.shift_branch(k, geom_brep::Period::new(tau))
             }
         };
         let (lo, hi) =
@@ -3269,7 +3267,7 @@ fn nearest_branch<T: Decide>(
         "split_window_branch",
         arm,
         gap,
-        T::tau(),
+        geom_brep::Period::new(T::tau()),
         crate::pcurves::Orbit::Periods,
         band,
     )

@@ -2,10 +2,11 @@
 id: windings-are-stored-structure-counted-in-the-channels-period
 kind: issue
 title: Unit B2 of the [ev] PR 5142 answer: a harmonic row's windings stored as integers counted in its channel's Period, the chart-pcurve door and check 4's integer gone, and every 'k periods as a length' read through Period::times
-status: open
+status: closed
 opened: 2026-10-15
 priority: P2
 cost: M
+closed: 2026-10-20
 ---
 
 
@@ -46,3 +47,17 @@ itself rather than asking the channel's `Period::times`:
   (`crates/topo/src/chord_join.rs:3237`);
 - check 4's `fidelity`, `less_branch`'s `k * tau`
   (`crates/geom-brep/src/pcurve_cache.rs:5176`).
+
+## Closed
+
+Landed in three units:
+- B1 (PR 5225): placement over the span in the chart's principal window;
+- B2a (PR 5244): windings stored as `i32` counted in the channel's `Period`, compared exactly;
+- B2b (PR 5343): check 4 decides no whole period on any lane, `pcurve_fidelity_branch` retired, and every "k periods as a length" above goes through `Period::times`.
+
+What B2b's sweep found outside its fence is filed:
+- `whole-period-integers-read-off-a-value-outside-the-s1-sweep.md`;
+- `chart-channel-periods-are-spelled-in-several-places.md`;
+- `a-lifted-copy-on-a-closed-spline-chart-has-no-placement-term.md`;
+- `a-sub-half-period-drift-names-envelope-on-the-focal-and-spiric-lanes.md`, all here;
+- `work/exch/step-import-unwrap-reads-a-whole-period-off-a-value.md`.

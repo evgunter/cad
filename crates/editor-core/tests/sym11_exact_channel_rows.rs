@@ -150,12 +150,25 @@ use crate::m10_9_pins_interval::measured_studies;
 /// bracket `[1312, 1046, 2112]` → `[1316, 1051, 2112]`. This is the
 /// finding the row asks for, and its cause is that fix; no dispute
 /// fired.
+///
+/// Check 4 deciding no whole period (PCERT B2b) takes fidelity's numeric
+/// branch decisions out, measured on the tree with every move above:
+/// plate `numeric` 693 → 661, annulus 431 → 399, link 271 → 255,
+/// bracket 1051 → 1011, pad 1162 → 1114; `symbolic` and `frozen` hold,
+/// and no dispute fired.
+///
+/// A tangent arc's quarter-tangent chosen between its two half-angle
+/// quotients by `select_le_zero` (`profile`'s `sugar::split_half_tan`),
+/// a value the plain walk keeps as one atom: the link's `frozen`
+/// 558 → 559, its decisions held. No dispute fired. The line×line
+/// fillet's half-angle tangent chosen the same way: the pad's `frozen`
+/// 4310 → 4312, its decisions held, the bracket and the link unmoved.
 const PAST_THE_CEILING: [(&str, [u64; 3]); 5] = [
-    ("two_hole_plate", [939, 693, 729]),
-    ("r1_annulus", [475, 431, 940]),
-    ("r2_link", [295, 271, 558]),
-    ("r2_filleted_bracket", [1316, 1051, 2112]),
-    ("r2_rounded_pad", [1413, 1162, 4310]),
+    ("two_hole_plate", [939, 661, 729]),
+    ("r1_annulus", [475, 399, 940]),
+    ("r2_link", [295, 255, 559]),
+    ("r2_filleted_bracket", [1316, 1011, 2112]),
+    ("r2_rounded_pad", [1413, 1114, 4312]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

@@ -3280,6 +3280,32 @@ mod tests {
             .expect("a cube has adjacent faces")
     }
 
+    /// **A declared pair's unsettled reach is told undecided, with no
+    /// decided sign's word.** `PlaneEqError::Unsettled` carries the upper
+    /// bound on the pair's displacement where it stands past the band,
+    /// untagged: no gate decided anything, so the payload places it and
+    /// says no more, and the ending is the bound's last resort. Red if a
+    /// reading past the band is told as decided without a gate's tag.
+    #[test]
+    fn a_declared_reach_past_the_band_says_no_decided_sign() {
+        let diag = Indeterminate {
+            margin: geom_core::MarginDiag::value(5e-7),
+            band: Band::new(1e-9, 1e-8).unwrap(),
+            predicate: Some("declared_reach_upper"),
+            terminal_sliver: false,
+        };
+        let text =
+            MergeCoplanarError::of_declared_refusal(PlaneEqError::Unsettled { diag }).to_string();
+        assert_eq!(
+            text,
+            format!(
+                "{} is undecided: margin 5e-7 lies past the ambiguity band (1e-9, 1e-8). {}",
+                MergeDecision::DeclaredReach.subject(),
+                geom_core::KERNEL_LIMIT_RECOURSE
+            )
+        );
+    }
+
     /// **The survivor search and the boundary points panic on a ring
     /// link that does not resolve**, where they stepped over it.
     #[test]

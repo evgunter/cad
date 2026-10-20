@@ -34,6 +34,14 @@ pub(crate) fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<&NodeErr
     }
 }
 
+/// A block's x span, y span, base z and height, as [`block`] takes them.
+pub(crate) type Spans = ((f64, f64), (f64, f64), f64, f64);
+
+/// [`block`] over `spans`.
+pub(crate) fn block_of(doc: ProfileDoc, (x, y, z0, dz): Spans) -> (ProfileDoc, RecipeNodeId) {
+    block(doc, x, y, z0, dz)
+}
+
 /// An axis-aligned block on the xy plane at height `z0`, extruded `dz`.
 pub(crate) fn block(
     doc: ProfileDoc,

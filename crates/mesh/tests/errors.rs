@@ -102,6 +102,7 @@ test_utils::f6_variants! {
         EmptyLoop,
         MissingEntity,
         ResolutionOverflow,
+        StepNotPositive,
         CertificateExceeded,
         Triangulation,
         SelfTouchingTrimLoop,
@@ -200,6 +201,13 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         (
             TessellateError::ResolutionOverflow { count: 1e9 },
             vec!["1e9", "coarser"],
+        ),
+        (
+            TessellateError::StepNotPositive {
+                span: 2.0,
+                step: -0.5,
+            },
+            vec!["-5e-1", "2e0", "kernel defect"],
         ),
         (
             TessellateError::CertificateExceeded {

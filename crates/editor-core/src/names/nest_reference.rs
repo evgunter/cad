@@ -152,9 +152,7 @@ pub(super) enum RoleSeg {
     Fragment(Qualifier),
 
     SplitBody,
-    SectionFace {
-        section: u32,
-    },
+    SectionFace,
     SectionEdge {
         face: NameRef,
     },

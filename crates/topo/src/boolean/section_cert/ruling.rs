@@ -106,7 +106,7 @@ use super::sign;
 use geom_brep::half_angle::{
     DegreeTwo, RootSlack, SubdivisionFrame, SubdivisionRows, TrigPoly, certified_subdivision,
 };
-use geom_brep::rounding_charge;
+use geom_core::rounding_charge;
 
 /// A vector `x₀ + x₁ cos θ + x₂ sin θ`; `turning` false, a constant
 /// `x₀` (`x₁ = x₂ = 0`).
@@ -514,6 +514,7 @@ fn roots<T: Decide>(
         f_per_metre: walk.per_metre,
         f_per_metre_hi: walk.per_metre,
         residual_reach: None,
+        jet: None,
     };
     let slack = RootSlack {
         row: walk.row,

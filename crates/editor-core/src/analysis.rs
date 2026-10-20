@@ -873,9 +873,11 @@ impl core::fmt::Display for ParamBoxError {
                 "parameter {param} spans offsets [{lo}, {hi}] and this evaluation scalar carries \
                  no such value — a widened box needs an enclosing scalar"
             ),
-            Self::SymbolsOverABox => f.write_str(
+            Self::SymbolsOverABox => write!(
+                f,
                 "the evaluation was asked to bind every variable a symbol and to widen some over \
-                 a box, and a run has one environment",
+                 a box, and a run has one environment. {}",
+                crate::sentence::Recourse("evaluate symbolically and over the box in two runs")
             ),
         }
     }

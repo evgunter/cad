@@ -731,8 +731,9 @@ pub(crate) struct BandCounts {
 /// [`nurbs_cell_bounds`] assembled into a tensor lookup — sorted cell
 /// boundary values per direction, and each cell's own certified
 /// Hessian bound. The trimmed lane sizes its grid from it (per-cell
-/// steps, grid lines on the cell boundaries) and certifies each
-/// triangle from it ([`Self::cert`]).
+/// steps; rows on the `v` cell boundaries, columns uniform over the
+/// trim box and so across the `u` ones) and certifies each triangle
+/// from the cells its box covers ([`Self::cert`]), one or several.
 #[derive(Clone, Debug)]
 pub(crate) struct NurbsCellGrid {
     /// Sorted cell boundary values in `u` (`cols + 1` entries); cell
@@ -743,6 +744,13 @@ pub(crate) struct NurbsCellGrid {
     v_cuts: Vec<f64>,
     /// Per-cell bounds, u-major: `bounds[ci * rows + ri]`.
     bounds: Vec<NurbsFaceBound>,
+    /// The face's C⁰ creases in `u`: interior knots of multiplicity at
+    /// least the degree, where the surface's first derivative may jump.
+    /// A triangle whose box strictly crosses one has no certificate
+    /// ([`Self::cert`]).
+    creases_u: Vec<f64>,
+    /// The face's C⁰ creases in `v`, as [`Self::creases_u`].
+    creases_v: Vec<f64>,
 }
 
 impl NurbsCellGrid {
@@ -813,7 +821,18 @@ pub(crate) fn nurbs_cell_grid(
             });
         }
     }
-    Ok(NurbsCellGrid::from_cells(&cells))
+    Ok(NurbsCellGrid::from_cells(
+        &cells,
+        (creases(n.knot_values_u()), creases(n.knot_values_v())),
+    ))
+}
+
+/// The C⁰ creases of one direction, as held knot values: the runs
+/// [`geom_core::spline::KnotStructure::crease_runs`] names, the same
+/// statement the C¹ gate (`KnotVector::c1`) refuses on.
+fn creases(knots: &geom_core::spline::Knots<f64>) -> Vec<f64> {
+    let values: Vec<f64> = knots.runs().map(|(u, _)| u).collect();
+    knots.structure().crease_runs().map(|r| values[r]).collect()
 }
 
 impl NurbsCellGrid {
@@ -822,7 +841,11 @@ impl NurbsCellGrid {
     /// own knot structure, so the cell rectangles ARE a tensor grid;
     /// the asserts are the fail-loud statement of that invariant, not
     /// a recovery path.
-    fn from_cells(cells: &[CellBound]) -> Self {
+    ///
+    /// `(creases_u, creases_v)` are the face's C⁰ creases ([`creases`]),
+    /// an argument rather than a later step so no grid is built without
+    /// them: [`Self::cert`] refuses a triangle across one.
+    fn from_cells(cells: &[CellBound], (creases_u, creases_v): (Vec<f64>, Vec<f64>)) -> Self {
         let mut u_cuts: Vec<f64> = cells.iter().flat_map(|c| [c.u.0, c.u.1]).collect();
         let mut v_cuts: Vec<f64> = cells.iter().flat_map(|c| [c.v.0, c.v.1]).collect();
         for cuts in [&mut u_cuts, &mut v_cuts] {
@@ -875,6 +898,8 @@ impl NurbsCellGrid {
             u_cuts,
             v_cuts,
             bounds,
+            creases_u,
+            creases_v,
         }
     }
 
@@ -1158,10 +1183,11 @@ impl NurbsCellGrid {
     /// the box covers.
     ///
     /// **Why per-cell bounds certify across half-open cell
-    /// boundaries**: the `Q/4` derivation is the integral Taylor
-    /// remainder (module docs), which needs only C¹ plus an a.e.
-    /// second-derivative bound along the segments it integrates. A
-    /// knot is exactly where a C¹ surface's second derivative jumps,
+    /// boundaries, and where they do not**: the `Q/4` derivation is the
+    /// integral Taylor remainder (module docs), which needs the surface
+    /// C¹ along every segment it integrates, plus an a.e.
+    /// second-derivative bound there. A knot of multiplicity below the
+    /// degree is exactly where a C¹ surface's second derivative jumps,
     /// but the cell boundaries are measure-zero, and each cell's hull
     /// bounds its polynomial piece on the cell's CLOSURE — so the
     /// componentwise max over the covered cells dominates the second
@@ -1175,18 +1201,29 @@ impl NurbsCellGrid {
     /// is strictly tighter on straddling boxes (dual review of PR
     /// #594, settled by derivation and dense numeric sup). The shipped
     /// semantics is the componentwise sup, pinned bit-for-bit by
-    /// `cert_is_pinned_to_the_componentwise_sup`; adopting the tighter
-    /// bound is possible future work, worth little — straddlers are
-    /// boundary fans only.)
+    /// `cert_is_pinned_to_the_componentwise_sup`.)
     ///
-    /// For the common case — the trimmed lane places its grid lines on
-    /// the cell boundaries, so a grid triangle's box lies inside ONE
-    /// cell — this is exactly that cell's own certificate.
+    /// **Both arguments need C¹ across the cut, so a C⁰ crease voids
+    /// them.** At an interior knot of multiplicity at least the degree
+    /// the first derivative jumps, and a triangle across it deviates by
+    /// the kink no second-derivative bound sees. A box that strictly
+    /// crosses a crease therefore answers `+∞`, which the trimmed lane
+    /// reads as a refused certificate. Straddling boxes are not only
+    /// boundary fans: the trimmed lane's `u` columns are uniform over the
+    /// trim box, not placed on the `u` cuts, so interior grid triangles
+    /// straddle `u` cuts too.
+    ///
+    /// For a box inside ONE cell this is exactly that cell's own
+    /// certificate.
     pub(crate) fn cert(&self, uv: [[f64; 2]; 3]) -> f64 {
         let u_lo = min3(uv[0][0], uv[1][0], uv[2][0]);
         let u_hi = max3(uv[0][0], uv[1][0], uv[2][0]);
         let v_lo = min3(uv[0][1], uv[1][1], uv[2][1]);
         let v_hi = max3(uv[0][1], uv[1][1], uv[2][1]);
+        let crosses = |creases: &[f64], lo: f64, hi: f64| creases.iter().any(|&c| lo < c && c < hi);
+        if crosses(&self.creases_u, u_lo, u_hi) || crosses(&self.creases_v, v_lo, v_hi) {
+            return f64::INFINITY;
+        }
         let ci0 = Self::cell_lo(&self.u_cuts, u_lo);
         let ci1 = Self::cell_hi(&self.u_cuts, u_hi).max(ci0);
         let ri0 = Self::cell_lo(&self.v_cuts, v_lo);
@@ -2095,6 +2132,169 @@ pub(crate) mod tests {
         }
     }
 
+    /// **A triangle across a C⁰ crease has no certificate.** A tent
+    /// face, degree 2 in `u` with a double knot at the ridge `u = ½`,
+    /// each half a straight strip: every second partial is zero on both
+    /// cells, so a box crossing the ridge would take the componentwise
+    /// max `0` while the triangle cuts under the ridge by `0.2`. The
+    /// row measures each triangle's true deviation (the surface against
+    /// the linear interpolant of its corners, densely sampled) against
+    /// its certificate; the straddler must answer `+∞`, and the
+    /// one-sided triangle its cell's own `0`.
+    #[test]
+    fn a_triangle_across_a_crease_has_no_certificate() {
+        let ridge = |u: f64| if u <= 0.5 { 2.0 * u } else { 2.0 - 2.0 * u };
+        let half = |lo: f64, hi: f64| {
+            let kv_u = KnotVector::clamped(vec![lo, lo, lo, hi, hi, hi], 2).unwrap();
+            let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+            let mut control = Vec::new();
+            for i in 0..3 {
+                let u = lo + (hi - lo) * f64::from(i) / 2.0;
+                for j in 0..2 {
+                    control.push(Point3::new(u, f64::from(j), ridge(u)));
+                }
+            }
+            NurbsSurface::new(kv_u, kv_v, control, vec![1.0; 6]).unwrap()
+        };
+        let face = FaceKey::default();
+        let (left, right) = (half(0.0, 0.5), half(0.5, 1.0));
+        let mut cells = nurbs_cell_bounds(&left, face).unwrap();
+        cells.extend(nurbs_cell_bounds(&right, face).unwrap());
+        assert!(
+            cells
+                .iter()
+                .all(|c| c.bound.muu == 0.0 && c.bound.mvv == 0.0)
+        );
+        // The whole tent's own knots name the ridge as its one crease.
+        let tent = {
+            let kv_u =
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+            let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+            let mut control = Vec::new();
+            for i in 0..5 {
+                let u = f64::from(i) / 4.0;
+                for j in 0..2 {
+                    control.push(Point3::new(u, f64::from(j), ridge(u)));
+                }
+            }
+            NurbsSurface::new(kv_u, kv_v, control, vec![1.0; 10]).unwrap()
+        };
+        assert_eq!(creases(tent.knot_values_u()), vec![0.5]);
+        assert!(creases(tent.knot_values_v()).is_empty());
+        let grid = NurbsCellGrid::from_cells(&cells, (vec![0.5], Vec::new()));
+        // The tent itself, read on either side of the ridge.
+        let surface = |u: f64, v: f64| Point3::new(u, v, ridge(u));
+        let deviation = |uv: [[f64; 2]; 3]| {
+            let p = uv.map(|[u, v]| surface(u, v));
+            let mut worst = 0.0f64;
+            for i in 0..=40 {
+                for j in 0..=(40 - i) {
+                    let (a, b) = (f64::from(i) / 40.0, f64::from(j) / 40.0);
+                    let c = 1.0 - a - b;
+                    let u = a * uv[0][0] + b * uv[1][0] + c * uv[2][0];
+                    let v = a * uv[0][1] + b * uv[1][1] + c * uv[2][1];
+                    let lin = Point3::new(
+                        a * p[0].x + b * p[1].x + c * p[2].x,
+                        a * p[0].y + b * p[1].y + c * p[2].y,
+                        a * p[0].z + b * p[1].z + c * p[2].z,
+                    );
+                    worst = worst.max((surface(u, v) - lin).norm());
+                }
+            }
+            worst
+        };
+        let across = [[0.4, 0.2], [0.6, 0.2], [0.5, 0.8]];
+        let beside = [[0.1, 0.2], [0.4, 0.2], [0.25, 0.8]];
+        for (name, uv) in [("across the ridge", across), ("beside it", beside)] {
+            let (cert, dev) = (grid.cert(uv), deviation(uv));
+            assert!(cert >= dev, "{name}: certified {cert:e}, deviates {dev:e}");
+        }
+        assert!(deviation(across) > 0.19);
+        assert!(grid.cert(across) == f64::INFINITY);
+        assert!(grid.cert(beside) == 0.0);
+    }
+
+    /// Two degree-2 halves meeting at `u = ½`, `v` linear: the left a
+    /// flat strip, the right bowed (`z = (u − ½)(1 − u)·4`), so their
+    /// cells' bounds differ. With `transpose` the same patches with `u`
+    /// and `v` swapped. Answers the grid built from both halves' cells
+    /// with the crease at `½` in the creased direction.
+    fn two_sided_grid(transpose: bool) -> NurbsCellGrid {
+        let half = |lo: f64, hi: f64, bowed: bool| {
+            let curved = KnotVector::clamped(vec![lo, lo, lo, hi, hi, hi], 2).unwrap();
+            let straight = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+            // Control row-major in the surface's own `u`: along the
+            // curved direction first, or along the straight one when
+            // transposed.
+            let at = |i: usize, j: usize| {
+                let u = lo + (hi - lo) * (i as f64) / 2.0;
+                // The bowed half's middle control point lifts the
+                // parabola through its ends.
+                let z = if bowed && i == 1 { 0.25 } else { 0.0 };
+                if transpose {
+                    Point3::new(j as f64, u, z)
+                } else {
+                    Point3::new(u, j as f64, z)
+                }
+            };
+            if transpose {
+                let control = (0..2).flat_map(|j| (0..3).map(move |i| at(i, j))).collect();
+                NurbsSurface::new(straight, curved, control, vec![1.0; 6]).unwrap()
+            } else {
+                let control = (0..3).flat_map(|i| (0..2).map(move |j| at(i, j))).collect();
+                NurbsSurface::new(curved, straight, control, vec![1.0; 6]).unwrap()
+            }
+        };
+        let face = FaceKey::default();
+        let mut cells = nurbs_cell_bounds(&half(0.0, 0.5, false), face).unwrap();
+        cells.extend(nurbs_cell_bounds(&half(0.5, 1.0, true), face).unwrap());
+        let creases = if transpose {
+            (Vec::new(), vec![0.5])
+        } else {
+            (vec![0.5], Vec::new())
+        };
+        NurbsCellGrid::from_cells(&cells, creases)
+    }
+
+    /// **A crease in `v`, crossed, has no certificate** — the `v` half of
+    /// `cert`'s crossing check, which the tent row (a `u` crease) cannot
+    /// see. Red with the `v` check dropped.
+    #[test]
+    fn a_triangle_across_a_v_crease_has_no_certificate() {
+        let grid = two_sided_grid(true);
+        let swap = |uv: [[f64; 2]; 3]| uv.map(|[a, b]| [b, a]);
+        assert!(grid.cert(swap([[0.4, 0.2], [0.6, 0.2], [0.5, 0.8]])) == f64::INFINITY);
+        assert!(grid.cert(swap([[0.1, 0.2], [0.4, 0.2], [0.25, 0.8]])) == 0.0);
+    }
+
+    /// **A triangle touching a crease is certified by its own side's
+    /// cells.** The crossing check is strict: a box whose edge lies ON
+    /// the crease is no straddler, and the half-open lookup reads the
+    /// side it lies on — the flat left's `0`, the bowed right's
+    /// positive bound — in either direction. The trimmed lane's crease
+    /// lines put triangle edges exactly there, so a non-strict check
+    /// (`<=`) would refuse every one of them: red then.
+    #[test]
+    fn a_triangle_touching_a_crease_reads_its_own_side() {
+        for transpose in [false, true] {
+            let grid = two_sided_grid(transpose);
+            let orient = |uv: [[f64; 2]; 3]| {
+                if transpose {
+                    uv.map(|[a, b]| [b, a])
+                } else {
+                    uv
+                }
+            };
+            let left = grid.cert(orient([[0.3, 0.2], [0.5, 0.2], [0.5, 0.8]]));
+            let right = grid.cert(orient([[0.5, 0.2], [0.7, 0.2], [0.5, 0.8]]));
+            assert!(left == 0.0, "transpose {transpose}: left {left:e}");
+            assert!(
+                right > 0.0 && right.is_finite(),
+                "transpose {transpose}: right {right:e}"
+            );
+        }
+    }
+
     /// **The shipped `cert` semantics, pinned bit-for-bit** (R1 MIN-2 /
     /// R2 MAJ-1 of the PR #594 dual review): the certificate of a
     /// straddling box IS the componentwise sup over covered cells fed
@@ -2132,7 +2332,7 @@ pub(crate) mod tests {
                 bound: mk(0.0, 8.0),
             },
         ];
-        let grid = NurbsCellGrid::from_cells(&cells);
+        let grid = NurbsCellGrid::from_cells(&cells, (Vec::new(), Vec::new()));
         // Straddles all three bands.
         let uv = [[0.1, 0.05], [0.9, 0.05], [0.5, 0.95]];
         let expected = mk(8.0, 8.0).cert(uv);
@@ -2187,7 +2387,7 @@ pub(crate) mod tests {
                 },
             },
         ];
-        let grid = NurbsCellGrid::from_cells(&cells);
+        let grid = NurbsCellGrid::from_cells(&cells, (Vec::new(), Vec::new()));
         // With every muv = 0 and unit speeds, the split selection's
         // interior optimum t* = √(mvv/muu) sits inside the aspect
         // window everywhere here (t* = 5.0, 1.0, ~1.18 vs [1/16, 16]),

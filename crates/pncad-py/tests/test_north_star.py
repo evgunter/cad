@@ -1448,14 +1448,15 @@ class TestDiefillet(unittest.TestCase):
         )
         self.assertAlmostEqual(volume_of(doc, blank), want, delta=1e-9 * want)
 
-    def test_an_empty_selection_is_the_kernels_refusal(self):
-        """Not pre-checked at the boundary: the fillet node itself
-        refuses an empty selection, typed, at evaluate."""
+    def test_an_empty_selection_refuses_at_the_insert(self):
+        """Not pre-checked at the boundary: a set of edges holds at
+        least one name, and the edit door says so."""
         doc, cube = self.build()
-        nothing = doc.insert(Node.fillet(cube, Formula.length_in(self.R, m), []))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(nothing)
-        self.assertEqual(caught.exception.kind, "fillet_selection_empty")
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.fillet(cube, Formula.length_in(self.R, m), []))
+        refusal = caught.exception
+        self.assertEqual((refusal.variant, refusal.inner_variant), ("selection_shape", "name_count"))
+        self.assertEqual(refusal.count, 0)
 
     def test_a_name_is_carried_not_composed(self):
         """The text is a TOKEN. Something that is not a name at all is
@@ -1575,14 +1576,15 @@ class TestDiechamfer(unittest.TestCase):
         self.assertEqual(len(edges_out), 48)
         self.assertEqual(len(set(edges_out)), 48, "every edge is named once")
 
-    def test_an_empty_selection_is_the_kernels_refusal_naming_the_chamfer(self):
-        """The refusal is the chamfer's, not the fillet's — one shared
-        ladder, but the tag says which verb asked."""
+    def test_an_empty_selection_refuses_at_the_insert(self):
+        """The chamfer's edges are a set of edges too, held at the
+        same door."""
         doc, cube = self.build()
-        nothing = doc.insert(Node.chamfer(cube, Formula.length_in(self.D, m), []))
-        with self.assertRaises(EvaluationError) as caught:
-            evaluate(doc).value(nothing)
-        self.assertEqual(caught.exception.kind, "chamfer_selection_empty")
+        with self.assertRaises(EditError) as caught:
+            doc.insert(Node.chamfer(cube, Formula.length_in(self.D, m), []))
+        refusal = caught.exception
+        self.assertEqual((refusal.variant, refusal.inner_variant), ("selection_shape", "name_count"))
+        self.assertEqual(refusal.count, 0)
 
     def test_a_name_is_carried_not_composed(self):
         _doc, cube = self.build()
@@ -4538,11 +4540,15 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             sel = Selector.of(NamePat.of_kind(kind).seg(SegPat.tag(tag)))
             return sum(len(ev.select(h, sel)) for h in halves)
 
-        self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
-        self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 14)
         def pieces(kind, tag):
             pat = NamePat.of_kind(kind).path([SegPat.tag(tag), SegPat.tag(SegTag.Fragment)])
             return sum(len(ev.select(h, Selector.of(pat))) for h in halves)
+
+        self.assertEqual(count(EntityKind.Body, SegTag.SplitBody), 2)
+        # Each half holds several pieces of the plane, each the plane
+        # qualified by the walls it borders, so none is the bare plane.
+        self.assertEqual(count(EntityKind.Face, SegTag.SectionFace), 0)
+        self.assertEqual(pieces(EntityKind.Face, SegTag.SectionFace), 14)
 
         # A section line that re-enters one operand face cuts several
         # chords of it, each named by its ends.

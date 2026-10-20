@@ -656,9 +656,11 @@ pub trait Real:
     /// candidate computations. It is a *value* operation, not control
     /// flow — it returns `Self`, so it cannot drive a branch, and no
     /// topology-determining question passes through it (those go to a
-    /// named predicate, per Q1). Its consumer is
+    /// named predicate, per Q1). Its consumers include
     /// [`crate::Vec3::orthonormal_basis`], which chooses which world
-    /// axis to cross the normal with.
+    /// axis to cross the normal with, and `profile`'s
+    /// `sugar::split_half_tan`, which chooses which half-angle
+    /// quotient of a chord split does not cancel.
     ///
     /// **The tie is keyed on the VALUE zero, never on a zero's sign
     /// bit** — `-0.0 ≤ 0` and `+0.0 ≤ 0` take the same arm. That is
@@ -1113,11 +1115,10 @@ pub fn is_exact_zero<T: Real>(x: T) -> bool {
 /// **It clears the first thing an entry owes** — that its reads stay
 /// on the prune/report side — vacuously and checkably: the file
 /// contains no [`Bounds`] read at all. No `lo`, no `hi`, no
-/// comparison; the bound appears exactly once, as an INLINE bound on
-/// the `impl<T: Decide + Bounds + AtRestPolicy> Verb<T>` header
-/// (not a `where` clause — the earlier wording of this entry said
-/// `where`-position and was simply wrong about the syntax), purely so
-/// the callee's bound is satisfiable. Nothing there decides anything,
+/// comparison; the bound is spelled once, as the supertraits of the
+/// `verbs::DoorScalar` alias (and its blanket impl), which each run
+/// door's `impl<T: DoorScalar>` header names, purely so the callee's
+/// bound is satisfiable. Nothing there decides anything,
 /// in or out of the trilean.
 ///
 /// **That "no read at all" clearance is a REVIEW-TIME MEASUREMENT, not

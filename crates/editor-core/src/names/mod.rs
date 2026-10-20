@@ -42,6 +42,7 @@ pub(crate) mod merged;
 mod nest;
 #[cfg(test)]
 mod nest_reference;
+mod plane_pieces;
 pub(crate) mod role;
 mod seam_pair;
 mod select;
@@ -112,8 +113,8 @@ pub use words::{LeafRole, leaf_role, role_leaf};
 ///
 /// Returns the names in canonical order, ready for
 /// [`crate::Node::fillet`]. Empty if `node` has no value, no table, or
-/// no edges — the fillet node itself refuses an empty selection, so
-/// the emptiness surfaces there rather than here.
+/// no edges — the fillet's insert refuses an empty selection, so the
+/// emptiness surfaces there rather than here.
 pub fn all_edges<T: geom_core::Decide>(
     ev: &crate::eval::Evaluation<T>,
     at: impl Into<crate::At>,
