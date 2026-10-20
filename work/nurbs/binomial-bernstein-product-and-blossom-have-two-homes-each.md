@@ -2,8 +2,9 @@
 id: binomial-bernstein-product-and-blossom-have-two-homes-each
 kind: issue
 title: Binomials, the Bernstein product and the span blossom each have two homes in geom_core::spline
-status: open
+status: closed
 opened: 2026-10-13
+closed: 2026-10-20
 priority: P3
 cost: M
 refs: [4954]
@@ -119,10 +120,34 @@ take all three: one restriction door with a halving fast path.
     widest excess is about 1e-15 to 1e-11 of the coefficient's
     magnitude. The ruling (2026-10-20): no fold direction may widen a
     real caller past about 2×, so both homes stay.
-- **Blossom and restriction: open** (`restrict_segment`, `split_restrict`,
-  `Grid::halved`: one restriction door with a halving fast path). Its
-  PR also carries two carry-overs from PR 5424's review in
-  `blossom::split_restrict`: the step's comment says both weights lie in
-  `[0, 1]`, where `s.hi` reaches `1 + 2⁻⁵²` at a tiny `t` and only
-  `lo ≥ 0` is needed; and the thin-step row draws no wide end weights
-  and no tiny `t`.
+- **Restriction: three homes, by width, and one fold** (PR 3 of this
+  item). Measured (2026-10-20) at every real call during the geom-brep
+  slow set and sweep's shelling, r1 and shell rows, each other home on
+  the same inputs against the pyramid (`restrict_segment`):
+
+  | caller | other home | coefficients | wider | > 4 ulp | worst |
+  |---|---|---|---|---|---|
+  | `ssi/section.rs:246` general cuts | `split_restrict` | 2.59 M | 18.2% | 15.2% | 98× |
+  | `ssi/section.rs:246` exact-half cuts | `Grid::halved`'s arithmetic | 7.8 k | 1.8% | 0.3% | 2× |
+  | `ssi/section.rs:261` | `split_restrict` | 1.1 k | 78.8% | 53.0% | 14× |
+  | `ssi/section.rs:337/338` halves | split, halving | 1.2 M | 0.01% | 0 | 1.6× (≤ 3 ulp) |
+  | `props/quad.rs` halves | split, halving | 48 | 0 | 0 | bit-equal |
+  | `derivative::cut_pieces` | `split_restrict` | 204 M | 42.6% | 32.6% | 417× |
+
+  The pyramid is never meaningfully wider on any caller. So it is the
+  door for a row read as it comes; `split_restrict` (`O(p²)` against
+  `O(p³)`) is the cut lane's form, whose reader meets every cut box with
+  the whole cell's; and `Grid::halved` stays `derivative`'s generic
+  halving. Each home's docs state this. The one fold: the trim
+  bisection's halves move to `restrict_segment` on `[0, 1]`, bit for bit
+  (`props::quad::tests::the_bisection_halves_are_the_retired_doors_to_the_bit`),
+  and `restrict_bernstein` retires. PR 5424's two `split_restrict`
+  carry-overs ride the same PR.
+
+## Closed
+
+Each primitive is resolved: the binomials folded to `pieces::binomial`
+(PRs 5414, 5433); the Bernstein product keeps two homes by precision
+(PR 5439); restriction keeps three by width, with
+`restrict_bernstein` folded onto `restrict_segment` (PR 3). The
+measurements above are the evidence.
