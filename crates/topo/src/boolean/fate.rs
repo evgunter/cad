@@ -103,7 +103,7 @@ impl<T: geom_core::Real> Default for Fates<T> {
 }
 
 /// **A face a boolean holds through a coincident face**
-/// (`BooleanNaming::coincident_fates`): where two operands' faces coincide
+/// (`BooleanNaming::substituted`): where two operands' faces coincide
 /// and the Eq. 15.3 lump keeps one copy of their shared region, the
 /// fragment of the dropped copy that region covers, with the kept face
 /// holding its interior. The dropped face is cut where the region ends
@@ -111,7 +111,7 @@ impl<T: geom_core::Real> Default for Fates<T> {
 /// part. Clone keys, as [`super::DiscardRow::face`]: chase
 /// `face_fragments_a`/`face_fragments_b` for the operand faces.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct CoincidentFate {
+pub struct SubstitutedFace {
     /// The dropped copy's operand.
     pub operand: Operand,
     /// The fragment, in its operand's clone keys.
@@ -139,7 +139,7 @@ pub(crate) struct Chord {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct FateCuts {
     /// Every substituted fragment, sorted and deduplicated.
-    pub substituted: Vec<CoincidentFate>,
+    pub substituted: Vec<SubstitutedFace>,
     /// Every chord, in mint order.
     pub chords: Vec<Chord>,
 }
@@ -1162,9 +1162,9 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
         };
         corners.push((dropped, face, by));
     }
-    let mut substituted: Vec<CoincidentFate> = corners
+    let mut substituted: Vec<SubstitutedFace> = corners
         .into_iter()
-        .map(|(operand, face, by)| CoincidentFate { operand, face, by })
+        .map(|(operand, face, by)| SubstitutedFace { operand, face, by })
         .collect();
     substituted.sort();
     substituted.dedup();
@@ -1186,7 +1186,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
 pub(super) fn uncut<T: geom_core::Real>(
     red: &BooleanReduction<T>,
     discarded: [&std::collections::BTreeSet<FaceKey>; 2],
-) -> Result<Vec<CoincidentFate>, BooleanError> {
+) -> Result<Vec<SubstitutedFace>, BooleanError> {
     let mut pairs = Vec::new();
     for fe in &red.fates.edges {
         pairs.push((fe.holder, fe.kept, fe.face));
@@ -1209,12 +1209,12 @@ pub(super) fn uncut<T: geom_core::Real>(
             Operand::B => (dropped, kept),
         };
         match (discarded[0].contains(&a), discarded[1].contains(&b)) {
-            (false, true) => out.push(CoincidentFate {
+            (false, true) => out.push(SubstitutedFace {
                 operand: Operand::B,
                 face: b,
                 by: a,
             }),
-            (true, false) => out.push(CoincidentFate {
+            (true, false) => out.push(SubstitutedFace {
                 operand: Operand::A,
                 face: a,
                 by: b,

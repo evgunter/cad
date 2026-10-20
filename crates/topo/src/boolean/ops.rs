@@ -303,9 +303,8 @@ pub struct BooleanNaming {
     /// bordered (`boolean::discard`, which says which paths record
     /// rows and why the others have none to record).
     pub discards: Vec<super::DiscardRow>,
-    /// An operand cell's fate over a coincident region: every fragment
-    /// of a coincident face the result holds through the other
-    /// operand's copy ([`super::CoincidentFate`]), sorted and
+    /// Every fragment of a coincident face the result holds through the
+    /// other operand's copy ([`super::SubstitutedFace`]), sorted and
     /// deduplicated. The section path writes each fragment as cut where
     /// the held region ends; the containment fallback, which cuts
     /// nothing, writes whole faces from what its result holds.
@@ -316,7 +315,7 @@ pub struct BooleanNaming {
     /// containment fallback its whole operand is absent
     /// ([`OperandKeys::Absent`]), so no key of the result names it. A
     /// path that never classifies (disjoint boxes) has none.
-    pub coincident_fates: Vec<super::CoincidentFate>,
+    pub substituted: Vec<super::SubstitutedFace>,
     /// Every operand edge piece the classification read beside a vertex,
     /// with its side of the other operand
     /// ([`EdgePieceClass`](super::EdgePieceClass)), sorted: the vertex in
@@ -395,7 +394,7 @@ impl Default for BooleanNaming {
             ),
             reduction_contacts: Default::default(),
             discards: Default::default(),
-            coincident_fates: Default::default(),
+            substituted: Default::default(),
             edge_classes: Default::default(),
             unread_partners: Default::default(),
             chart_cuts: Default::default(),
@@ -998,7 +997,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         reduction_contacts,
         discards: fin.discards,
         carved_lineage: fin.carved_lineage,
-        coincident_fates: substituted,
+        substituted,
         edge_classes,
         unread_partners,
         chart_cuts: [Vec::new(), Vec::new()],
@@ -7194,7 +7193,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 substitutions: output.clone(),
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
-                coincident_fates: super::fate::uncut(red, [&discarded[0], &discarded[1]])?,
+                substituted: super::fate::uncut(red, [&discarded[0], &discarded[1]])?,
                 edge_classes: red.edge_classes.clone(),
                 unread_partners: red.unread_partners.clone(),
                 null_copies: super::null_copy_rows(&red.null_edges),
@@ -7248,7 +7247,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     }
     // No cross-operand pair merges here: one operand is absent from the
     // result. A declared pair that held the absent operand's region
-    // through the kept one is a `coincident_fates` row; the surviving operand's
+    // through the kept one is a `substituted` row; the surviving operand's
     // CARRIED records still apply.
     let mut desc = Descendants::default();
     let (a_view, b_view) = match kind {
@@ -7261,7 +7260,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         BooleanResultKind::OperandA => [faces_outside(&red.a, keep), faces_outside(&red.b, &[])],
         _ => [faces_outside(&red.a, &[]), faces_outside(&red.b, keep)],
     };
-    let coincident_fates = super::fate::uncut(red, [&discarded[0], &discarded[1]])?;
+    let substituted = super::fate::uncut(red, [&discarded[0], &discarded[1]])?;
     let recorded = carried_vertices(
         &body,
         &ledger,
@@ -7295,7 +7294,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             substitutions: output.clone(),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
-            coincident_fates: coincident_fates.clone(),
+            substituted: substituted.clone(),
             edge_classes: red.edge_classes.clone(),
             unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
@@ -7311,7 +7310,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             substitutions: output.clone(),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
-            coincident_fates: coincident_fates.clone(),
+            substituted: substituted.clone(),
             edge_classes: red.edge_classes.clone(),
             unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),

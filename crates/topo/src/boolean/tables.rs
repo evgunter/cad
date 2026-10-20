@@ -88,7 +88,7 @@ pub fn eq15_3_lump(op: BooleanOp, on_side: Operand, relation: PlaneRelation) -> 
 /// Whether the Eq. 15.3 lump of a coincident sector pair keeps exactly
 /// one operand's copy of the shared region, so that the result holds
 /// one face's region through the other face
-/// (`BooleanNaming::coincident_fates`). The other arms keep neither copy.
+/// (`BooleanNaming::substituted`). The other arms keep neither copy.
 pub fn lump_keeps_one(op: BooleanOp, relation: PlaneRelation) -> bool {
     kept_copy(op, relation).is_some()
 }

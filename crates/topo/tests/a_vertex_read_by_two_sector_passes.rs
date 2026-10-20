@@ -1692,7 +1692,7 @@ fn a_partner_tipped_off_the_face_still_ends_the_cut() {
         };
         let rows: Vec<_> = out
             .naming
-            .coincident_fates
+            .substituted
             .iter()
             .map(|c| (c.operand, c.face, out.naming.face_fragments_b.root(c.face)))
             .collect();

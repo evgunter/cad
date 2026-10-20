@@ -29,7 +29,7 @@
 //! coincident kept face holds part of a dropped face's region, the
 //! boolean cut the dropped face where the held part ends, so its
 //! removed fragment borders the kept face there, and the held fragment
-//! is no discard (`topo::BooleanNaming::coincident_fates`). An obstacle that
+//! is no discard (`topo::BooleanNaming::substituted`). An obstacle that
 //! borders two or more
 //! pieces DIVIDES the face; a piece's qualifier is the set of walls —
 //! the faces across its edges — along which it meets a divider, each
