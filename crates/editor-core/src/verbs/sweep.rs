@@ -51,7 +51,7 @@ use std::sync::Arc;
 use geom_core::Decide;
 use sweep::{Extruded, Revolution, RevolveAxis, Revolved};
 use topo::Body;
-use verbs::{Verb, VerbRecord};
+use verbs::{Sweep, VerbRecord};
 
 use crate::eval::NodeErrorKind;
 use crate::names::{self, NameTable};
@@ -89,8 +89,8 @@ pub(crate) type RecordReader<T> = fn(
 pub(crate) struct ProfileVerb<T: Decide, A> {
     /// **Resolved arguments → the kernel verb.** The one place a
     /// document's evaluated distance, or its resolved axis and
-    /// classified revolution, becomes a [`verbs::Verb`] payload.
-    pub(crate) build: fn(A) -> Verb<T>,
+    /// classified revolution, becomes a [`verbs::Sweep`] payload.
+    pub(crate) build: fn(A) -> Sweep<T>,
     /// This verb's record reader — its family's own arm of the closed
     /// channel, its emitter, and its wall export.
     pub(crate) read: RecordReader<T>,
@@ -104,13 +104,13 @@ pub(crate) struct ProfileVerb<T: Decide, A> {
 }
 
 /// The extrude's kernel payload.
-fn build_extrude<T: Decide>((distance, side): (T, sweep::ExtrudeSide)) -> Verb<T> {
-    Verb::Extrude { distance, side }
+fn build_extrude<T: Decide>((distance, side): (T, sweep::ExtrudeSide)) -> Sweep<T> {
+    Sweep::Extrude { distance, side }
 }
 
 /// The revolve's kernel payload.
-fn build_revolve<T: Decide>((axis, revolution): (RevolveAxis<T>, Revolution<T>)) -> Verb<T> {
-    Verb::Revolve { axis, revolution }
+fn build_revolve<T: Decide>((axis, revolution): (RevolveAxis<T>, Revolution<T>)) -> Sweep<T> {
+    Sweep::Revolve { axis, revolution }
 }
 
 /// The extrude family's arm of the record channel. Exhaustive with no
@@ -203,8 +203,8 @@ mod tests {
     /// the blends' module makes for its pair.
     #[test]
     fn each_correspondence_builds_its_own_verb() {
-        let e: Verb<f64> = (extrude::<f64>().build)((1.0, sweep::ExtrudeSide::Along));
-        let r: Verb<f64> = (revolve::<f64>().build)((
+        let e: Sweep<f64> = (extrude::<f64>().build)((1.0, sweep::ExtrudeSide::Along));
+        let r: Sweep<f64> = (revolve::<f64>().build)((
             RevolveAxis {
                 origin: Point2::new(0.0, 0.0),
                 dir: Vec2::new(1.0, 0.0),

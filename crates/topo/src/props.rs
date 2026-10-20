@@ -4562,7 +4562,7 @@ pub trait AtRestPolicy: Decide {
 
     /// **This scalar's shell door, or `None` where it may not form the
     /// call** — the ONE seam the `Some` comes from, read by the verb
-    /// seat's `verbs::Verb::run_shell` and, above it, the document
+    /// seat's `verbs::Shell::run_shell` and, above it, the document
     /// layer's shell lowering.
     ///
     /// `None` is an answer and never a fallback: [`ShellDoor`]'s body
