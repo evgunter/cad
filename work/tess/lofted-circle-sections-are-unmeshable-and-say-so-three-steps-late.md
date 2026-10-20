@@ -2,7 +2,8 @@
 id: lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late
 kind: issue
 title: a lofted Circle section is unmeshable, and the refusal arrives three steps downstream
-status: open
+status: closed
+closed: 2026-10-20
 opened: 2026-09-10
 priority: P0
 cost: H
@@ -147,3 +148,37 @@ lands, a creased face would refuse there, loudly.
 `mass_properties` door (rational walls at ε 1e-12 run out of chase
 budget, as the update above records). Meshing the crease does not
 touch it.
+
+## Closed (2026-10-20): the crease meshes
+
+A lofted `LoopProgram::Circle` tessellates (`tess/lofted-circle-meshes`).
+- **The gate.** The rational arm admits a degree-≥ 2 crease
+  (`geom_brep::patch_bound::patch_cells_across_creases`, the mesher's
+  door): it reads each span's own window, so its cells are those of
+  the two halves (`a_rational_crease_reads_as_two_patches`). The
+  integral arm, and degree-1 creases, still refuse.
+- **The chord point.** An arc rim of `m ≥ 2` sub-arcs rounds its chord
+  count up to a multiple of `m` (`crates/mesh/src/chords.rs`), so a
+  point lands on each joint at the parameter `segment_curve` places
+  the joint knot with: `geom_brep::sub_arc_joint`, the one spelling of
+  `k/m` both read.
+- **The crease lines.** The trimmed lane snaps boundary and grid points
+  within rounding of a crease onto it and chains the points on it into
+  constraints (`crates/mesh/src/trimmed.rs`, `Creases`), so no triangle
+  crosses it. A boundary crossing one off a chord point, and creases in
+  both directions, refuse typed.
+- **The rows** are in `crates/mesh/tests/lofted_circle.rs`, the
+  `trimmed` and `nurbs_cert` unit tests, and the Z1 falsifier's
+  fixtures (`lofted_cylinder`).
+
+**Not every δ meshes**: `work/tess/lofted-rational-walls-refuse-at-some-deltas`
+records the δ bands where a lofted rational wall refuses at a sliver
+away from the crease, a class a crease-free arc loft meets too.
+
+**QUAD's door stays open behind it.** `topo::mass_properties` of
+`sweep::test_support::lofted_cylinder(1.0)` at `Tol::witness()`
+refuses: "a face's certified contribution stayed 1.833e-6 m wide after
+1 refinement round(s), above the 1.024e-6 m this tolerance targets".
+Measured on this branch; meshing does not touch it. The lever QUAD
+names for one wide rational span is
+`work/quad/a-ninety-degree-rational-span-encloses-looser-than-two-forty-five-degree-spans`.
