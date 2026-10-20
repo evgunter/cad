@@ -79,24 +79,15 @@ fn truth(profile: &[(f64, f64)], h: f64, p: [f64; 3]) -> (bool, f64) {
     }
 }
 
-/// **No point about a narrow needle reads wrong**: each corner of the
-/// needle's section and each side's middle, at its foot and half way up,
+/// **No point about a narrow needle reads wrong**, at every ε: each
+/// corner of the needle's section and each side's middle, at its foot and
+/// half way up,
 /// pushed off along eight diagonals by 2.5Kε and 8Kε, at rest and
 /// turned, both ways out. Every point more than 2Kε off the boundary that
 /// reads must read its side.
 #[test]
 fn narrow_needles_read_by_point_containment() {
     let tol = Tol::witness();
-    if ![1e-9, 1e-6]
-        .iter()
-        .any(|e| (tol.eps() - e).abs() < 1e-3 * e)
-    {
-        test_utils::vacuity::stood_down(
-            "eps other than 1e-9 or 1e-6",
-            "the turned needle is no planar prism at 1e-12: its faces' corners round off one plane",
-        );
-        return;
-    }
     let band = Band::linear(tol).expect("the run's band");
     let (e, ke) = (tol.eps(), tol.k() * tol.eps());
     let needles: [(&str, Vec<(f64, f64)>); 2] = [
@@ -119,11 +110,19 @@ fn narrow_needles_read_by_point_containment() {
             ],
         ),
     ];
+    // The needle's length and its pose's offset scale with ε, `1e8·ε`
+    // (0.1 at ε 1e-9): a needle 12ε across turned off the axes holds its
+    // faces' Newell normals to rounding only while its length over its
+    // width stays bounded, and one a unit long is no planar prism at
+    // ε 1e-12.
+    let h = 1e8 * e;
     let poses = [
         ("at rest", (rot([0.0, 0.0, 1.0], 0.0), [0.0; 3])),
-        ("turned", (rot([37.0, -21.0, 13.0], 0.7), [0.3, -0.2, 0.5])),
+        (
+            "turned",
+            (rot([37.0, -21.0, 13.0], 0.7), [0.3 * h, -0.2 * h, 0.5 * h]),
+        ),
     ];
-    let h = 1.0;
     let diagonals: Vec<[f64; 3]> = (0..8)
         .map(|k| {
             let s = |b: usize| if k & b == 0 { 1.0 } else { -1.0 };
