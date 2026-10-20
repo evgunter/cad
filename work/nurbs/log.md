@@ -1573,3 +1573,12 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - FULL reviewer: session_01RsTjMpvtHiPMQ64nQhBY4V.
 - 2026-10-20 00:40Z — **#5424 is up** (build C, the `mul_nonneg` thin step in `split_restrict`, STANDARD, head ece8fbf1, bit-identical). Shelling −7.6%, r1 −11% against main 8c6e959e; independent of #5419, so the two should stack. STANDARD reviewer: session_018C4CWrdSjiRiekkGe59P8T.
   - **Friction:** C reports my `next`-priority messages from ~22:00Z and 00:06Z (the `props.rs` ruling and #5419's latency red) arrived late, all at once. `next` joins the running turn, but C's long background timing loops leave few points where it can. The #5419 red was re-sent at `now` priority. A red on a lane's own PR should go `now` from the start.
+- 2026-10-20 01:55Z — **#5414 merged** (93aa9511; binomials fold PR 1, so pairs with da+db of 55/56 are now served).
+  - **FULL review MERGEABLE, 0 MAJOR:**
+    - the 55/56 cap is exact;
+    - the cap mutants at 54, 55 and 57 go red;
+    - 9 reds at 1e-12/1e-6, each red with the change reverted and all filed.
+  - **Routed:**
+    - MINOR-1 (two test-only copies of the f64 binomial fold, at `ssi.rs:4397` and `m5_pr7_ssi.rs:5535`), the stale prose and the doubled constant go into build A's STANDARD follow-up, with the #5399 items;
+    - the NOTE (the guard mutant survives at `compose/tensor.rs:429`) is filed P3 as `tensor-residual-degree-guard-has-no-row-at-its-edge`.
+  - Reviewer archived.
