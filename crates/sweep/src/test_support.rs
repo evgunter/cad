@@ -1095,6 +1095,28 @@ pub fn loft_prism(tol: Tol) -> Body<f64> {
     loft_prism_at(&PRISM_Z, tol)
 }
 
+/// **A lofted cylinder**: the unit circle as two semicircles (bulge 1)
+/// at `z = 0` and `z = h`, skinned straight at degree 1 — π·h m³.
+///
+/// Each semicircle is two rational quarter arcs joined at a knot of
+/// multiplicity two ([`segment_curve`]), so each of the two lateral
+/// walls carries a C⁰ crease in `u`, at `x = 0`: the class the mesher's
+/// crease lines exist for, and the first corpus body with a crease.
+pub fn lofted_cylinder(h: f64, tol: Tol) -> Body<f64> {
+    let lp = bulge_loop(vec![
+        (Point2::new(1.0, 0.0), 1.0),
+        (Point2::new(-1.0, 0.0), 1.0),
+    ]);
+    crate::loft_body::<f64>(
+        &[vec![lp.clone()], vec![lp]],
+        &stacked_at(&[0.0, h]),
+        1,
+        tol,
+    )
+    .expect("the circle lofts")
+    .body
+}
+
 // ------------------------------------------------------------------
 // Shared assertion helpers for the blend suites — one home each.
 // ------------------------------------------------------------------

@@ -898,8 +898,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     ///
     /// # Errors
     ///
-    /// [`NamingError::Emission`] where one member edge and no seam meet
-    /// no face or several, or as [`Flush::sense_against`].
+    /// [`NamingError::Emission`] where a finished edge at `v` lies on
+    /// none of the member edges it is named for, where one member edge
+    /// and no seam meet no face or several, or as
+    /// [`Flush::sense_against`].
     fn meeting(
         &self,
         v: topo::VertexKey,
@@ -913,12 +915,13 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         for &k in at {
             if let Some(line) = lines.member.get(&k) {
                 let on = self.line_at(v, k, line)?;
+                // The cover and an end point are two band decisions, and a
+                // span set of tied edges leaves `lines_at` empty.
                 if on.is_empty() {
-                    unreachable!(
-                        "finished edge {k:?} at union vertex {v:?} lies on none of the member \
-                         edges it is named for: `Flush::edge_cover` found them covering it, so \
-                         one of their closed segments holds each of its ends"
-                    );
+                    return Err(bug(
+                        "a union's joined edge at a vertex lies on none of the member edges it is \
+                         named for",
+                    ));
                 }
                 along.extend(on);
             } else if let Some(&base) = lines.seam.get(&k) {
@@ -1132,7 +1135,8 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     ///
     /// # Errors
     ///
-    /// As [`Flush::sense_against`].
+    /// As [`Flush::sense_against`]; [`NamingError::Emission`] where two
+    /// edges disagree.
     fn line_sense(
         &self,
         v: topo::VertexKey,
@@ -1158,13 +1162,13 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                      along it: `Flush::sets_per_line` put it there by this same carrier reading"
                 ),
             };
+            // Two independent pairwise judgements, of edges flush only
+            // within `ON_MEMBER_EDGE`: nothing makes them agree.
             if own != sense {
-                unreachable!(
-                    "member edges {head:?} ({sense:?}) and {e:?} ({own:?}), flush on one line, \
-                     disagree on its sense at union vertex {v:?}: each is read against the same \
-                     members' closed bodies at the same point, and one line is in or out of a \
-                     body on each side of it"
-                );
+                return Err(NamingError::Emission {
+                    what: "two member edges flush on one line disagree on its sense at a union \
+                           vertex",
+                });
             }
         }
         Ok(sense)
@@ -1217,8 +1221,9 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// [`NamingError::PartnerUnread`] where no such judgement classed a
     /// side because one read no partner of the member's vertex at `v`
     /// ([`topo::UnreadPartner`]); [`NamingError::Emission`] where no
-    /// judgement classed a side otherwise, or where the edge is a seam
-    /// with no first side to orient a crossing by.
+    /// judgement classed a side otherwise, where two pieces of the line
+    /// are classified at `v`, or where the edge is a seam with no first
+    /// side to orient a crossing by.
     fn sense_against(
         &self,
         v: topo::VertexKey,
@@ -1298,13 +1303,13 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let k = match (piece.next(), piece.next()) {
             (Some(k), None) => k,
             (None, _) => return Err(unclassified()),
-            (Some(a), Some(b)) => unreachable!(
-                "member {n:?}'s pieces {a:?} and {b:?} of the line of {:?} are both classified at \
-                 union vertex {v:?}: two pieces of one line meet only at a vertex of their member, \
-                 and a union vertex there is named for it (`Flush::member_vertices`) before its \
-                 lines are read",
-                name.name()
-            ),
+            // A piece shorter than the band puts both its neighbours'
+            // classes at one point.
+            (Some(_), Some(_)) => {
+                return Err(bug(
+                    "two of a member's pieces of one line are classified at one union vertex",
+                ));
+            }
         };
         let [Some(before), Some(after)] = sides else {
             return Err(unclassified());
@@ -2605,20 +2610,20 @@ fn name_by_parents<T: geom_core::Decide>(
     // Base → (from a tie, its edges).
     let mut seam_groups: BTreeMap<StableName, (bool, Vec<topo::EdgeKey>)> = BTreeMap::new();
     for &k in &seams {
+        // `Incidence` dedups a wrap edge's one face: a wrap edge pierced
+        // at a point and joined back after the boolean is one way in.
         let Some([f0, f1]) = flush.inc.edge_faces.get(&k).map(Vec::as_slice) else {
-            unreachable!(
-                "union seam edge {k:?} lies between faces {:?}, not two: a seam is where a face \
-                 of one member meets a face of another, and a boolean's output stage removes an \
-                 edge with one face on both sides",
-                flush.inc.edge_faces.get(&k)
-            );
+            return Err(NamingError::Emission {
+                what: "a union's seam edge does not lie between two faces",
+            });
         };
+        // A pair that merges A's face with B's links them, but the fold
+        // may skip the same curved group (`SkippedMerge` reads the
+        // group's shape, and the fold's group holds more faces).
         if parents.of_face.get(f0) == parents.of_face.get(f1) {
-            unreachable!(
-                "union seam edge {k:?} lies inside one parent, between its faces {f0:?} and \
-                 {f1:?}: a parent's faces are pieces of member faces a judgement merged, and the \
-                 output stage merges those across every edge between them"
-            );
+            return Err(NamingError::Emission {
+                what: "a union's seam edge lies inside one parent",
+            });
         }
         let (p0, p1) = (parents.face(*f0), parents.face(*f1));
         let (a, b) = if p0.name <= p1.name {
@@ -2912,6 +2917,12 @@ pub(crate) fn member_cells(name: &StableName) -> Vec<(VarId, StableName)> {
     out
 }
 
+/// A ranked run whose least line the collapse made another line: the
+/// collapse does not keep name order, so where its vertices lie along
+/// the new least line no name says.
+const RUN_LEAST_LINE_MOVED: &str = "a ranked edge-crossing run's least line is another line once \
+     rewritten, so nothing says where its vertices lie along it";
+
 /// Two lines of one seam junction collapsed to the same member-space
 /// line: the member-keying rewrite was not one-to-one on the lines.
 const JUNCTION_LINES_COLLIDE: &str =
@@ -3024,8 +3035,10 @@ fn collapse_one<'s>(
     };
     let name = canonical::collapsed(name, oriented, &mut image).map_err(|stop| match stop {
         Stop::Image(stopped) => stopped,
-        Stop::Unrankable(u @ Unrankable::RunLeastLineMoved) => {
-            Stopped::Refused(NamingError::Emission { what: u.what() })
+        Stop::Unrankable(Unrankable::RunLeastLineMoved) => {
+            Stopped::Refused(NamingError::Emission {
+                what: RUN_LEAST_LINE_MOVED,
+            })
         }
         Stop::Unrankable(u @ (Unrankable::Reshaped | Unrankable::RankOutsideCount)) => {
             unreachable!(
@@ -3071,7 +3084,9 @@ fn orient<'s>(
     name: &'s StableName,
     done: &Kept<NameRef>,
 ) -> Result<StableName, Stopped<'s, NamingError>> {
-    let foreign = |at: &StableName, why: &str| -> ! {
+    // `at` is the name or the tail segment that differs from what the
+    // pair emitter mints.
+    let foreign = |at: &dyn core::fmt::Debug, why: &str| -> ! {
         unreachable!(
             "union {node:?}'s fold name {name:?} holds {at:?}, {why}: every row of a fold table \
              is the pair emitter's mint over operands `member_view` keyed under this union, and \
@@ -3228,7 +3243,9 @@ fn orient<'s>(
             // canonicalization re-reads it.
             RoleSeg::Fragment(Qualifier::OrderAlong { .. }) => seg.clone(),
             // A split's qualifier, which no boolean table carries.
-            RoleSeg::Fragment(Qualifier::Keeps(_)) => foreign(name, "a split's qualifier"),
+            RoleSeg::Fragment(Qualifier::Keeps(_)) => {
+                foreign(seg, "a split's qualifier in its tail")
+            }
             // Only a `Fragment` follows the head in a boolean table;
             // anything else in the tail is an emission bug — the head
             // segments above included, which are heads and not
@@ -3245,7 +3262,7 @@ fn orient<'s>(
             | RoleSeg::Crossing { .. }
             | RoleSeg::EdgeCrossing { .. }
             | RoleSeg::Merged(_)
-            | never_in_a_boolean_table!() => foreign(name, "a head segment in a tail"),
+            | never_in_a_boolean_table!() => foreign(seg, "a head segment in its tail"),
         });
     }
     Ok(StableName {
@@ -3278,10 +3295,10 @@ fn seam_line<'s>(
 mod tests {
     //! The rewrite's own rows: a merged face collapses to its flat
     //! member-space set, and a NESTED merged face — a shape the pair
-    //! emitter's flat mint never produces — refuses as an emission bug
-    //! instead of being flattened here. A seam junction's run of lines
+    //! emitter's flat mint never produces — panics as the kernel bug it
+    //! is instead of being flattened here. A seam junction's run of lines
     //! collapses to the sorted set of its member-space lines, and a
-    //! `Seam` outside that leading run is still foreign.
+    //! `Seam` outside that leading run panics as foreign.
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
@@ -3412,7 +3429,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "a head segment in a tail")]
+    #[should_panic(expected = "a head segment in its tail")]
     fn a_seam_after_a_fragment_is_foreign() {
         let union = RecipeNodeId::new(0, 9);
         let line = || seam(from_a(union, member_cap(union, 2)), member_cap(union, 1));
@@ -4062,24 +4079,38 @@ mod tests {
         }
     }
 
-    /// **A rewrite's crossing senses are re-read along the edges it now
-    /// cites, side by side by image** ([`Flush::resensed`]). Members 3,
-    /// 5 and 6 each hold one straight edge on the x axis (3 runs −x, 5
-    /// and 6 run +x) and member 4 one on the y axis.
-    /// - A `Crossing` re-cited from 5's edge to 3's flips its sense, and
-    ///   to 6's keeps it.
-    /// - An `EdgeCrossing` whose sides the rewrite put in name order is
-    ///   matched by image, so each sense stays with its edge.
-    /// - A side that cites a member edge before the rewrite and the line
-    ///   of several flush member edges after it is re-read along the
-    ///   line's least edge.
-    /// - A side re-cited as a set of edges off one line panics, last:
-    ///   `Flush::cited_whole` never makes one.
-    #[test]
-    #[should_panic(expected = "leaves any other line one of none")]
-    fn a_rewrites_crossing_senses_are_reread_side_by_side_along_the_edges_it_cites() {
-        use crate::names::role::Sense;
+    /// A union vertex `Crossing` of `edge` and member 2's cap.
+    fn crossing(
+        union: RecipeNodeId,
+        edge: StableName,
+        sense: crate::names::role::Sense,
+    ) -> StableName {
+        vertex(
+            union,
+            vec![RoleSeg::Crossing {
+                edge: NameRef::new(edge),
+                face: NameRef::new(member_cap(union, 2)),
+                sense,
+            }],
+        )
+    }
 
+    /// The `Merged` set of members `ms`' edges.
+    fn edge_set(union: RecipeNodeId, ms: [u64; 2]) -> StableName {
+        StableName {
+            kind: EntityKind::Edge,
+            node: union,
+            path: vec![RoleSeg::Merged(
+                ms.iter().map(|&m| member_edge(union, m)).collect(),
+            )],
+        }
+    }
+
+    /// Members 3, 5 and 6 each hold one straight edge on the x axis (3
+    /// runs −x, 5 and 6 run +x), member 4 one on the y axis, and member
+    /// 7 one on the x axis past 5's end, running −x: `check` reads the
+    /// `Flush` over them.
+    fn crossing_fixture(check: impl FnOnce(&Flush<'_, f64>, RecipeNodeId)) {
         let union = RecipeNodeId::new(0, 9);
         let line = |p: [f64; 3], q: [f64; 3]| {
             let mut body = topo::Body::<f64>::new();
@@ -4134,99 +4165,117 @@ mod tests {
         let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
         let parents = Parents::empty();
         let flush = Flush::of(union, &body, &members, &parents, bnd).unwrap();
+        check(&flush, union);
+    }
 
-        let crossing = |edge: StableName, sense| {
-            vertex(
-                union,
-                vec![RoleSeg::Crossing {
-                    edge: NameRef::new(edge),
-                    face: NameRef::new(member_cap(union, 2)),
-                    sense,
-                }],
-            )
-        };
-        let was = crossing(member_edge(union, 5), Sense::Enters);
-        let flipped = flush
-            .resensed(&was, None, crossing(member_edge(union, 3), Sense::Enters))
-            .unwrap();
-        assert_eq!(
-            flipped,
-            crossing(member_edge(union, 3), Sense::Leaves),
-            "re-cited along an edge running the other way"
-        );
-        let kept = flush
-            .resensed(&was, None, crossing(member_edge(union, 6), Sense::Enters))
-            .unwrap();
-        assert_eq!(
-            kept,
-            crossing(member_edge(union, 6), Sense::Enters),
-            "re-cited along an edge running the same way"
-        );
-
-        let edge_crossing = |lines: &[(u64, Sense)]| {
-            vertex(
-                union,
-                vec![RoleSeg::EdgeCrossing(
-                    lines
-                        .iter()
-                        .map(|&(m, sense)| RunLine {
-                            line: NameRef::new(member_edge(union, m)),
-                            sense: Some(sense),
-                        })
-                        .collect(),
-                )],
-            )
-        };
-        let was = edge_crossing(&[(5, Sense::Enters), (4, Sense::Leaves)]);
-        let ordered = edge_crossing(&[(4, Sense::Leaves), (5, Sense::Enters)]);
-        assert_eq!(
-            flush.resensed(&was, None, ordered.clone()).unwrap(),
-            ordered,
-            "each sense stays with its line where the run is reordered"
-        );
-
-        let line = StableName {
-            kind: EntityKind::Edge,
-            node: union,
-            path: vec![RoleSeg::Merged(vec![
-                member_edge(union, 3),
-                member_edge(union, 5),
-            ])],
-        };
-        assert_eq!(
-            flush
+    /// **A rewrite's crossing senses are re-read along the edges it now
+    /// cites, side by side by image** ([`Flush::resensed`]), over
+    /// [`crossing_fixture`].
+    /// - A `Crossing` re-cited from 5's edge to 3's flips its sense, and
+    ///   to 6's keeps it.
+    /// - An `EdgeCrossing` whose sides the rewrite put in name order is
+    ///   matched by image, so each sense stays with its edge.
+    /// - A side that cites a member edge before the rewrite and the line
+    ///   of several flush member edges after it is re-read along the
+    ///   line's least edge.
+    #[test]
+    fn a_rewrites_crossing_senses_are_reread_side_by_side_along_the_edges_it_cites() {
+        use crate::names::role::Sense;
+        crossing_fixture(|flush, union| {
+            let was = crossing(union, member_edge(union, 5), Sense::Enters);
+            let flipped = flush
                 .resensed(
-                    &crossing(member_edge(union, 5), Sense::Enters),
+                    &was,
                     None,
-                    crossing(line.clone(), Sense::Enters),
+                    crossing(union, member_edge(union, 3), Sense::Enters),
                 )
-                .unwrap(),
-            crossing(line, Sense::Leaves),
-            "re-cited as a line of flush edges whose least runs the other way"
-        );
-        let set = |ms: [u64; 2]| StableName {
-            kind: EntityKind::Edge,
-            node: union,
-            path: vec![RoleSeg::Merged(
-                ms.iter().map(|&m| member_edge(union, m)).collect(),
-            )],
-        };
-        assert_eq!(
-            flush
+                .unwrap();
+            assert_eq!(
+                flipped,
+                crossing(union, member_edge(union, 3), Sense::Leaves),
+                "re-cited along an edge running the other way"
+            );
+            let kept = flush
                 .resensed(
-                    &crossing(member_edge(union, 7), Sense::Enters),
+                    &was,
                     None,
-                    crossing(set([5, 7]), Sense::Enters),
+                    crossing(union, member_edge(union, 6), Sense::Enters),
                 )
-                .unwrap(),
-            crossing(set([5, 7]), Sense::Leaves),
-            "a span joined end to end lies on one line, read along its least edge"
-        );
-        let _ = flush.resensed(
-            &crossing(member_edge(union, 5), Sense::Enters),
-            None,
-            crossing(set([3, 4]), Sense::Enters),
-        );
+                .unwrap();
+            assert_eq!(
+                kept,
+                crossing(union, member_edge(union, 6), Sense::Enters),
+                "re-cited along an edge running the same way"
+            );
+
+            let edge_crossing = |lines: &[(u64, Sense)]| {
+                vertex(
+                    union,
+                    vec![RoleSeg::EdgeCrossing(
+                        lines
+                            .iter()
+                            .map(|&(m, sense)| RunLine {
+                                line: NameRef::new(member_edge(union, m)),
+                                sense: Some(sense),
+                            })
+                            .collect(),
+                    )],
+                )
+            };
+            let was = edge_crossing(&[(5, Sense::Enters), (4, Sense::Leaves)]);
+            let ordered = edge_crossing(&[(4, Sense::Leaves), (5, Sense::Enters)]);
+            assert_eq!(
+                flush.resensed(&was, None, ordered.clone()).unwrap(),
+                ordered,
+                "each sense stays with its line where the run is reordered"
+            );
+
+            let line = StableName {
+                kind: EntityKind::Edge,
+                node: union,
+                path: vec![RoleSeg::Merged(vec![
+                    member_edge(union, 3),
+                    member_edge(union, 5),
+                ])],
+            };
+            assert_eq!(
+                flush
+                    .resensed(
+                        &crossing(union, member_edge(union, 5), Sense::Enters),
+                        None,
+                        crossing(union, line.clone(), Sense::Enters),
+                    )
+                    .unwrap(),
+                crossing(union, line, Sense::Leaves),
+                "re-cited as a line of flush edges whose least runs the other way"
+            );
+            assert_eq!(
+                flush
+                    .resensed(
+                        &crossing(union, member_edge(union, 7), Sense::Enters),
+                        None,
+                        crossing(union, edge_set(union, [5, 7]), Sense::Enters),
+                    )
+                    .unwrap(),
+                crossing(union, edge_set(union, [5, 7]), Sense::Leaves),
+                "a span joined end to end lies on one line, read along its least edge"
+            );
+        });
+    }
+
+    /// A side re-cited as a set of edges off one line panics:
+    /// `Flush::cited_whole` never makes one.
+    #[test]
+    #[should_panic(expected = "leaves any other line one of none")]
+    fn a_side_re_cited_as_a_set_off_one_line_panics() {
+        use crate::names::role::Sense;
+        crossing_fixture(|flush, union| {
+            let _ = flush.resensed(
+                &crossing(union, member_edge(union, 5), Sense::Enters),
+                None,
+                crossing(union, edge_set(union, [3, 4]), Sense::Enters),
+            );
+        });
     }
 
     /// **A group of several vertices sharing a name that is not one seam

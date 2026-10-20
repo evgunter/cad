@@ -229,6 +229,7 @@ mod tests {
             bulge: 0.0,
             center: Point2::new(0.0, 0.0),
             centre_facts: crate::Facts::Registered,
+            sense: crate::sugar::ArcSweep::Ccw,
             fit_in: Sign::Positive,
             fit_out: Sign::Positive,
             setbacks: sb,

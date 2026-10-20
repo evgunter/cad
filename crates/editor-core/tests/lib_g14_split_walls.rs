@@ -463,10 +463,10 @@ fn node_level_prose_carries_the_emitter_payload() {
     let carried = |e: NamingError| NodeErrorKind::Naming(e).to_string();
 
     let s = carried(NamingError::Emission {
-        what: "section face classified On",
+        what: "a chart cut survives in the result",
     });
     assert!(
-        s.contains("section face classified On"),
+        s.contains("a chart cut survives in the result"),
         "the Emission payload is the diagnosis, and it must survive the \
          node boundary: {s}"
     );
