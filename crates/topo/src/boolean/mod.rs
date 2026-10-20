@@ -6731,6 +6731,10 @@ pub(crate) enum RestTangent<T: Real> {
     /// ([`locus_through_both_faces`]): no span of the line is in both,
     /// so their interiors do not meet along it.
     Apart,
+    /// The two carriers derive no closed-form tangent line
+    /// ([`geom_brep::TangentLocusError::Unsupported`]): the pair is
+    /// outside the line lane.
+    NoLine,
     /// The faces' extents along the line meet over `overlap`; whether
     /// the line lies in the two faces there is the caller's to read
     /// ([`rest_line_in_both_faces`]), and only then whether the table
@@ -6754,8 +6758,8 @@ pub(crate) enum RestTangent<T: Real> {
 ///
 /// [`crate::contact::ContactRefusal::Contradicted`] where the carriers
 /// are definitely not tangent, labelled with the row that refused it;
-/// `Escalated` where a margin is in band; and `NotCertifiable` where no
-/// closed-form locus derives or a face cannot be read (naming why).
+/// `Escalated` where a margin is in band; and `NotCertifiable` where a
+/// face cannot be read (naming why).
 pub(crate) fn tangent_pair_at_rest<T: Decide>(
     body: &Body<T>,
     fa: FaceKey,
@@ -6789,10 +6793,7 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
             });
         }
         Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
-            return Err(ContactRefusal::NotCertifiable {
-                what: "a face-face record on two carriers with no closed-form tangent locus \
-                       (plane x cylinder along a ruling, parallel cylinders)",
-            });
+            return Ok(RestTangent::NoLine);
         }
     };
     let (t0, t1) = line.overlap;
@@ -6855,11 +6856,12 @@ pub(crate) fn rest_line_in_both_faces<'b, T: Decide, E>(
     }))
 }
 
-/// The C4 `Tangent` table of a face–face record on two carriers along
-/// their tangent line, where it runs through both faces
-/// ([`RestLineInBothFaces`]), the declared posture, the record standing
-/// as the declaration ([`contact_verify::tangent_locus_relation`]): the
-/// touch and the material sides.
+/// The C4 `Tangent` table of two faces on two carriers along their
+/// tangent line, where it runs through both faces
+/// ([`RestLineInBothFaces`]) ([`contact_verify::tangent_locus_relation`]):
+/// the touch and the material sides. `declared` is the posture: a
+/// record stands as the declaration; a pair the census discovers is
+/// read as a detector.
 ///
 /// # Errors
 ///
@@ -6869,8 +6871,9 @@ pub(crate) fn rest_line_in_both_faces<'b, T: Decide, E>(
 /// `NotCertifiable` where a face has no surface.
 pub(crate) fn tangent_table_at_rest<T: Decide>(
     line: &RestLineInBothFaces<'_, T>,
+    declared: bool,
     band: Band,
-) -> Result<(), crate::contact::ContactRefusal> {
+) -> Result<crate::contact::ContactVerdict, crate::contact::ContactRefusal> {
     let [fa, fb] = line.faces;
     let ((sa, sense_a), (sb, sense_b)) = (record_face(line.body, fa)?, record_face(line.body, fb)?);
     let (t0, t1) = line.overlap;
@@ -6882,10 +6885,9 @@ pub(crate) fn tangent_table_at_rest<T: Decide>(
         &line.carrier,
         t0,
         t1,
-        true,
+        declared,
         band,
     )
-    .map(|_| ())
 }
 
 /// **The glue door's tangency**: the check ([`verify_tangency`]), and

@@ -56,6 +56,9 @@
 //!   candidates lifted out for ∖'s reading of coincident edges, boxes
 //!   the line edges the same way ([`edge_box`]): a loose box hands the
 //!   parallel screen and the overlap more pairs, which they part.
+//!   `census::sweep_same_solid_tangent_lines` boxes a solid's faces the
+//!   same way ([`face_box`]): a loose box hands the tangent-line reading
+//!   a pair whose carriers it parts.
 //! - `validate`'s check 9 (`ring_pairs`) PRUNES the same way: two
 //!   rings of one face whose hulled edge boxes clear are never handed
 //!   to the contact arms, and whether two rings meet is decided by those
@@ -3858,10 +3861,11 @@ pub(crate) mod tests {
     /// fifth instance gets found by accident.
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
-        // `census.rs` counts TEN: the pre-filter's `face_box` and
+        // `census.rs` counts ELEVEN: the pre-filter's `face_box` and
         // `edge_box` reads, pass 2′'s curved-edge `edge_box` read
-        // (`census::Candidates::build`, the pruning door) and
-        // `collinear_overlaps`' `edge_box` read (the same pruning door),
+        // (`census::Candidates::build`, the pruning door),
+        // `collinear_overlaps`' `edge_box` read and the same-solid
+        // tangent sweep's `face_box` read (the same pruning door),
         // three rule reads of its own and the edge reach's
         // `edge_rule_box` read of the rule it took, and two that are
         // not doors — two rows in its test module call `face_box` to
@@ -3889,7 +3893,7 @@ pub(crate) mod tests {
             ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
-            ("census.rs", 10),
+            ("census.rs", 11),
             ("census/depth_gap.rs", 2),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),

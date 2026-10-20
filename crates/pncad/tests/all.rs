@@ -431,6 +431,11 @@ fn census_contact_is_matchable(contact: CensusContact) -> bool {
         // arm reports a coincidence the census found, and this
         // function answers whether a declaration would certify it —
         // and the difference is that the answer is now readable.
+        // A face–face record of class `Tangent` backs it.
+        CensusContact::FaceFaceTangent { finding } => {
+            named::<ContactFinding>(finding);
+            true
+        }
         CensusContact::ConformalPatch { finding } => {
             named::<ContactFinding>(finding);
             named::<DeclaredContact>(finding.pair);

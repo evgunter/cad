@@ -3173,6 +3173,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CensusUndecidable { .. } => "census_undecidable",
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
+        ValidationError::CuspEdgesMissing { .. } => "cusp_edges_missing",
         ValidationError::DanglingTopology { .. } => "dangling_topology",
         ValidationError::DanglingGeometry { .. } => "dangling_geometry",
         ValidationError::NextPrevMismatch { .. } => "next_prev_mismatch",
@@ -3311,6 +3312,7 @@ pub fn census_contact_tag(contact: &CensusContact) -> &'static str {
         CensusContact::EdgeEdgeCross { .. } => "edge_edge_cross",
         CensusContact::EdgeEdgeOverlap { .. } => "edge_edge_overlap",
         CensusContact::EdgeFaceOverlap { .. } => "edge_face_overlap",
+        CensusContact::FaceFaceTangent { .. } => "face_face_tangent",
         CensusContact::ConformalPatch { .. } => "conformal_patch",
     }
 }
