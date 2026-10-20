@@ -6822,3 +6822,12 @@ Signed (WIRE orchestrator).
   - New rows: bridge-last fold refusal; CITED_GROUP_NOT_ONE_SEAM.
   - Admitted counts recorded in the PR body.
   - OrderAlong is unreachable with planar and cylindrical carriers, noted on its row.
+
+- 2026-10-20 (WIRE orchestrator) PR 5469 (wire-seamorder) is green at 253aefec22.
+  - Seam sides and crossings now come from the boolean's table with their read, in name order. Seams/of_published retire, as do the dead RankRule arms and MergedChord/OffRim.
+  - The both-rims case is a typed Emission: a probe never fired, and nothing citable rules it out.
+  - The vertex rule is narrowed from the designers' version, disclosed.
+  - Names moved: all 30 subtract tables; 5 of 21 unions, via embedded subtracts only.
+  - die_composed_tour.pncad is respelled by a scratch replay. The file is stale on main, filed with intent.
+  - Filed the Borders bare-names row.
+  - FULL review dispatched.
