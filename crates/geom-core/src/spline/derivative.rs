@@ -586,6 +586,20 @@ fn halvings<X>(whole: X, count: usize, halve: impl Fn(&X) -> Option<(X, X)>) -> 
 /// `Σ C(ma,i)C(mb,k−i)·C(na,j)C(nb,l−j)·mul(a_ij, b_{k−i,l−j})` over
 /// `C(ma+mb, k)·C(na+nb, l)`, folded in ascending `(i, j)` then
 /// ascending `b` index (D9). `None` above [`QUOTIENT_MAX_DEGREE`].
+///
+/// **`compose`'s `bern_mul_row` states the same product with the other
+/// association**: a memoized outward quotient weight per term, on
+/// univariate certification rows. Each association is the tighter one
+/// for its own callers, so neither is folded into the other. Here,
+/// exact integer numerators and a division after each coefficient's
+/// sum keep the area, cross and raised terms tightest: a quotient per
+/// term widens them by up to 1470× (`area_raised`), 208×
+/// (`doubled_cross`) and 10× (`cell_pieces`), and on the `f64` lane it
+/// would round every term. Taking this one in `compose` widens its
+/// tensor powers by up to 6×. Both enclose the exact rational product
+/// (`tests::both_bernstein_products_enclose_the_exact_rational_product`);
+/// the measurement is in
+/// `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
 fn product<T: Real, const A: usize, const B: usize, const C: usize>(
     a: &Grid<T, A>,
     b: &Grid<T, B>,
@@ -2484,6 +2498,62 @@ mod tests {
                         None => assert!(!with_area, "the area is absent at {at}"),
                     }
                     assert!(f.area.is_some() == with_area, "the area asked at {at}");
+                }
+            }
+        }
+    }
+
+    /// **Two Bernstein products, one statement.** On integer rows, the
+    /// exact product's coefficient `k` is the rational
+    /// `Σ C(da,i)·C(db,k−i)·a_i·b_{k−i} / C(da+db, k)`. Both homes of
+    /// the Bernstein product (this module's [`super::product`] on
+    /// one-row grids, `compose`'s `bern_mul_row` on certification rows)
+    /// enclose it, each at its own association (`product`'s docs).
+    #[test]
+    fn both_bernstein_products_enclose_the_exact_rational_product() {
+        use super::super::compose::exact_q::Q;
+        let q = |x: i128| Q::from_f64(x as f64);
+        let choose = |n: usize, k: usize| Q::from_f64(super::binomial(n, k));
+        let iv = |x: i128| Interval::from_f64(x as f64);
+        let grid = |r: &[i128]| {
+            super::Grid::new(1, r.iter().map(|&x| super::Vector([iv(x)])).collect())
+                .expect("a one-row grid")
+        };
+        for (da, db) in [(1, 1), (3, 2), (5, 7), (12, 9), (20, 20)] {
+            let a: Vec<i128> = (0..=da).map(|i| ((i * 7 + 3) % 11) as i128 - 5).collect();
+            let b: Vec<i128> = (0..=db).map(|j| ((j * 5 + 1) % 9) as i128 - 4).collect();
+            let rows = (
+                a.iter().map(|&x| iv(x)).collect::<Vec<_>>(),
+                b.iter().map(|&x| iv(x)).collect::<Vec<_>>(),
+            );
+            let compose = super::super::compose::bern_mul_row(&rows.0, &rows.1);
+            let ours = super::product(
+                &grid(&a),
+                &grid(&b),
+                |x: [Interval; 1], y: [Interval; 1]| [x[0] * y[0]],
+            )
+            .expect("a product under the ceiling");
+            assert_eq!(compose.len(), da + db + 1);
+            assert_eq!(ours.c.len(), da + db + 1);
+            for k in 0..=da + db {
+                let exact = (k.saturating_sub(db)..=k.min(da))
+                    .map(|i| {
+                        choose(da, i)
+                            .mul(&choose(db, k - i))
+                            .mul(&q(a[i]))
+                            .mul(&q(b[k - i]))
+                    })
+                    .fold(q(0), |acc, t| acc.add(&t))
+                    .div(&choose(da + db, k));
+                for (home, x) in [("compose", compose[k]), ("derivative", ours.c[k].0[0])] {
+                    use core::cmp::Ordering::{Greater, Less};
+                    assert!(
+                        exact.cmp_f64(x.lo()) != Less && exact.cmp_f64(x.hi()) != Greater,
+                        "{home} misses {:e} at ({da}, {db}) k = {k}: [{:e}, {:e}]",
+                        exact.to_f64_report(),
+                        x.lo(),
+                        x.hi()
+                    );
                 }
             }
         }

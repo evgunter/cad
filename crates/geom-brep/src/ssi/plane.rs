@@ -151,13 +151,49 @@ impl<'a> PlaneSection<'a> {
         domain: SsiDomain,
         band: Band,
     ) -> Result<Self, SsiError> {
-        Self::within(plane, wall, domain, band, SSI_MAX_STEPS)
+        Self::within(
+            plane,
+            (wall, ChartedNurbs::mint),
+            domain,
+            band,
+            SSI_MAX_STEPS,
+        )
     }
 
-    /// [`PlaneSection::of`] under a step budget of `max_steps` a branch.
+    /// [`PlaneSection::of`] with the wall's chart had from `chart`,
+    /// called where [`PlaneSection::of`] mints it (after the operands and
+    /// the domain are checked, so the refusals come in the same order):
+    /// [`ChartedNurbs::mint`] itself, or a chart a caller minted once for
+    /// the operation and hands to every section of that wall. **The
+    /// chart must be of `wall`**, as a mint of it is: the door checks
+    /// that it is the very surface, in every build, and refuses
+    /// otherwise.
+    ///
+    /// # Errors
+    ///
+    /// As [`PlaneSection::of`], with the chart's own refusals where it
+    /// mints, and [`SsiError::WrongLane`] where the chart is of another
+    /// surface.
+    pub fn of_charted(
+        plane: &'a Surface<f64>,
+        (wall, chart): (
+            &'a NurbsSurface<f64>,
+            impl FnOnce(&'a NurbsSurface<f64>) -> Result<ChartedNurbs<'a, f64>, SsiError>,
+        ),
+        domain: SsiDomain,
+        band: Band,
+    ) -> Result<Self, SsiError> {
+        Self::within(plane, (wall, chart), domain, band, SSI_MAX_STEPS)
+    }
+
+    /// [`PlaneSection::of_charted`] under a step budget of `max_steps` a
+    /// branch.
     pub(super) fn within(
         plane: &'a Surface<f64>,
-        wall: &'a NurbsSurface<f64>,
+        (wall, chart): (
+            &'a NurbsSurface<f64>,
+            impl FnOnce(&'a NurbsSurface<f64>) -> Result<ChartedNurbs<'a, f64>, SsiError>,
+        ),
         domain: SsiDomain,
         band: Band,
         max_steps: usize,
@@ -195,7 +231,12 @@ impl<'a> PlaneSection<'a> {
         // the parameter reach — the safe side of a floor. Each floor is
         // minted once over the wall's domain, which refuses one the
         // domain cannot resolve, the proof obligation's first.
-        let charted = ChartedNurbs::mint(wall)?;
+        let charted = chart(wall)?;
+        if !core::ptr::eq(charted.surface(), wall) {
+            return Err(SsiError::WrongLane {
+                expected: "the wall paired with a chart minted from it (`PlaneSection::of_charted`)",
+            });
+        }
         let speed = charted.speeds().max();
         let account_floor =
             SweepFloor::chart(root, domain.floor(band), speed, FloorKind::Accounting)?;
@@ -361,6 +402,54 @@ mod tests {
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// **A plane section of a chart minted once reads as of a fresh
+    /// mint.** [`PlaneSection::of_charted`] handed the wall's chart,
+    /// minted once and shared by two sections in turn (the second reads
+    /// every cell the first formed), answers both seeds with the same
+    /// branches and tubes as [`PlaneSection::of`], bit for bit.
+    #[test]
+    fn a_plane_section_of_a_chart_minted_once_reads_as_a_fresh_mint() {
+        let (plane, wall) = (level(0.1), net(&|i, _| [0.25, -0.25, 0.25][i]));
+        let r = 0.1_f64.sqrt();
+        let read = |mut section: PlaneSection<'_>| {
+            for x in [0.5 - r, 0.5 + r] {
+                section.branch_at(Point3::new(x + 1e-3, 0.4, 0.1)).unwrap();
+            }
+            format!("{:?} {:?}", section.banked.branches, section.banked.tubes)
+        };
+        let fresh = read(PlaneSection::of(&plane, &wall, domain(), band()).unwrap());
+        let chart = super::ChartedNurbs::mint(&wall).unwrap();
+        for turn in 0..2 {
+            let charted =
+                PlaneSection::of_charted(&plane, (&wall, |_| Ok(chart.clone())), domain(), band())
+                    .unwrap();
+            assert!(
+                read(charted) == fresh,
+                "turn {turn}: the charted section reads otherwise"
+            );
+        }
+    }
+
+    /// **A chart of another wall is refused.**
+    /// [`PlaneSection::of_charted`] handed another wall's chart refuses
+    /// with [`SsiError::WrongLane`] in every build, before any reading.
+    #[test]
+    fn a_chart_of_another_wall_is_refused() {
+        let plane = level(0.1);
+        let (wall, other) = (
+            net(&|i, _| [0.25, -0.25, 0.25][i]),
+            net(&|i, _| [0.3, -0.2, 0.3][i]),
+        );
+        let chart = super::ChartedNurbs::mint(&other).unwrap();
+        let got =
+            PlaneSection::of_charted(&plane, (&wall, |_| Ok(chart.clone())), domain(), band());
+        assert!(
+            matches!(got, Err(super::SsiError::WrongLane { .. })),
+            "a mispaired chart came back {:?}",
+            got.err()
+        );
     }
 
     /// **Each seed is answered by the branch through it.** The trough
