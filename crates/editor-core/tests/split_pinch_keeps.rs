@@ -19,7 +19,7 @@ use geom_core::{Point3, Tol};
 
 /// The notched block of `topo/tests/m3_pr3_split.rs`: the V-notch tip
 /// `(4, 1)` has both neighbours above `y = 1`.
-const NOTCHED: &[(f64, f64)] = &[
+pub(crate) const NOTCHED: &[(f64, f64)] = &[
     (0.0, 0.0),
     (8.0, 0.0),
     (8.0, 2.0),
@@ -32,7 +32,7 @@ const NOTCHED: &[(f64, f64)] = &[
 ];
 
 /// Its mirror image: the tip `(4, 1)` has both neighbours below.
-const MIRRORED: &[(f64, f64)] = &[
+pub(crate) const MIRRORED: &[(f64, f64)] = &[
     (0.0, 0.0),
     (3.0, 0.0),
     (4.0, 1.0),
@@ -45,11 +45,13 @@ const MIRRORED: &[(f64, f64)] = &[
 ];
 
 /// The notched pentagon: the apex `(1, 1)` has both neighbours above.
-const PENTAGON: &[(f64, f64)] = &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0, 1.0), (0.0, 2.0)];
+pub(crate) const PENTAGON: &[(f64, f64)] =
+    &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0, 1.0), (0.0, 2.0)];
 
 /// A pentagon whose apex `(2, 1)` has both neighbours above: revolved
 /// a full turn about `y`, the apex sweeps a circle lying in `y = 1`.
-const REVOLVED: &[(f64, f64)] = &[(1.0, 0.0), (3.0, 0.0), (3.0, 2.0), (2.0, 1.0), (1.0, 2.0)];
+pub(crate) const REVOLVED: &[(f64, f64)] =
+    &[(1.0, 0.0), (3.0, 0.0), (3.0, 2.0), (2.0, 1.0), (1.0, 2.0)];
 
 /// How the operand is made from its outline, drawn on the `xy` plane.
 #[derive(Clone, Copy)]
