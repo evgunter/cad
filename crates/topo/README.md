@@ -123,10 +123,9 @@ side clears only
   other's greatest, each bounded through rings and segments that cover
   the face or its convex hull (`census::depth_gap`): the nested walls,
   bores and plugs no direction separates, or
-- where the pair meets, by the touch analysis, which reads every curved
-  face of a touch's star through that box (its corners' signed distances
-  from the candidate plane): a box on its side certifies the Rest, and
-  anything else refuses — it never decides a crossing;
+- where the pair meets, by the touch analysis, which reads planar faces
+  only: a touch a curved face takes part in refuses (`TouchUnreadable`) —
+  it never decides a Rest or a crossing there;
 
 and refuses `CensusUndecidable` otherwise. Same-solid distinct-key curved
 pairs are not detected; they are their constructor's obligation.
@@ -134,7 +133,12 @@ pairs are not detected; they are their constructor's obligation.
 A declaration licenses a coincidence, never a side. Every meeting between
 two solids — found undeclared by a sweep, named by a record, or backed by
 a declared face pair — is read by the one touch analysis, and the pair
-clears only when each meeting reads Rest. A record's certificate licenses
+clears only when each meeting reads Rest. A touch at a point is read
+once for the solid pair and the point, each side the solid's link there
+— every face of it at a vertex on the point's keys, or tied to the
+point by a record or a finding — and every meeting at the point shares
+that verdict. A point two solids share a key at is read whether or not
+anything names it, and an undecided reading there refuses. A record's certificate licenses
 only what it checked (a patch record's opposed conformal interface; a
 vertex record's coincidence), so no record excuses a meeting or a face
 from being read.

@@ -497,6 +497,12 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 /// mapped surfaces — see the module docs for the contract and the
 /// refusal doors.
 ///
+/// # Panics
+///
+/// On a kernel bug: an edge the body stores, re-minted or restated on its
+/// own carrier and interval, whose span or winding reads certainly
+/// refused at the run's band.
+///
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
