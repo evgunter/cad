@@ -20,3 +20,15 @@ arm. No CPAIR row covered it (the task named FUSE's
 `curve-pair-polish-meters-refuse-shallow-meetings`, which is about the
 polish meters, untouched). Its sweep filed
 `the-curve-pair-pose-reads-a-conics-whole-carrier-before-its-arc` here.
+
+## 2026-10-20 — NURBS build A: the line-line crossing measured, no wrong side
+
+`the-curve-pair-line-line-crossing-is-read-from-the-carriers-origins-uncharged`
+was taken as a correctness item: a crossing placed from far carrier
+origins could decide a span end's side wrongly. A 40 000-read scan at
+ε 1e-12 (shallow crossings, origins to 10⁴ m, ends within 1e-11 … 1e-5
+of the exact crossing, both orders) found no wrong answer:
+`Span::read` re-reads the candidate's point against each carrier and
+end. What the misplacement costs is about 5 200 `curve_carrier_gap`
+escalations. The item is downgraded to P3 with the table, and no fix is
+built. Ground touched: `work/` only. — (NURBS build A)
