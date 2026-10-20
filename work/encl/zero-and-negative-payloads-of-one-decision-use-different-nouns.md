@@ -2,7 +2,8 @@
 id: zero-and-negative-payloads-of-one-decision-use-different-nouns
 kind: issue
 title: geom-brep: IntervalNotForward's Zero and Negative payloads use different nouns and signs; the torus ring/spindle and TubeNotSeparated 'along the whole edge' payloads are worded apart from their siblings
-status: dispatched
+status: review
+pr: 5437
 opened: 2026-10-19
 priority: P4
 cost: E
