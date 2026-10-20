@@ -1878,7 +1878,9 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         // never reads need not resolve.
         let refs = References::of(
             body,
-            runs.iter().filter(|r| r.open_at.is_some()).map(|r| r.face),
+            runs.iter()
+                .filter(|r| r.open_at.is_some() || std::env::var("CAD_PROBE_ALLRUNS").is_ok())
+                .map(|r| r.face),
         )
         .map_err(hard)?;
         let resume = |face, round: usize| {
@@ -3069,22 +3071,45 @@ fn shell_reference<T: Decide>(
         body.point_of(vertex, record)
     };
     let shell = crate::live::proven(&body.shells, shell, EntityId::Shell);
+    let rule = match PROBE_RULE.load(std::sync::atomic::Ordering::SeqCst) {
+        0 => std::env::var("CAD_PROBE_RULE").ok().and_then(|v| v.parse().ok()).unwrap_or(0u8),
+        r => r,
+    };
+    let scan_mutant = std::env::var("CAD_PROBE_SCAN").is_ok();
+    if rule == 1 {
+        return Ok(Point3::origin());
+    }
+    if rule == 2 {
+        return Ok(shell
+            .faces
+            .first()
+            .map_or_else(Point3::origin, |&key| start(resolve_face(body, key).0)));
+    }
     for &key in &shell.faces {
         let (face, surface) = resolve_face(body, key);
         // A face whose loops do not flatten is not one the walk reads by
         // quadrature: its own read refuses, typed, in its turn.
+        if std::env::var("CAD_PROBE_SCANERR").is_ok() {
+            face_loops(body, face)?;
+        }
         let quadrature = face_loops(body, face).is_ok_and(|loops| {
             takes_quadrature(surface, loops.iter().flatten().map(|e| &e.carrier))
-        });
+        }) && !(scan_mutant && matches!(surface, Surface::Plane { .. }));
         if quadrature {
             return Ok(start(face));
         }
+    }
+    if std::env::var("CAD_PROBE_FALLBACK").is_ok() {
+        return Ok(Point3::origin());
     }
     Ok(shell
         .faces
         .first()
         .map_or_else(Point3::origin, |&key| start(resolve_face(body, key).0)))
 }
+
+/// PROBE: 0 qfirst, 1 origin, 2 first face (5442).
+pub static PROBE_RULE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
 /// **Each shell's reference** ([`shell_reference`]) over the faces one
 /// walk reads, found once per walk: finding it reads the shell's faces

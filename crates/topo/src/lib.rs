@@ -315,6 +315,21 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
+    pub use crate::props::PROBE_RULE;
+    /// PROBE: rotate every shell's stored face list left by `k`.
+    pub fn probe_rotate_shell_faces<T: Real>(body: &mut Body<T>, k: usize) -> Vec<usize> {
+        body.shells
+            .iter_mut()
+            .map(|(_, s)| {
+                let n = s.faces.len();
+                if n > 0 {
+                    s.faces.rotate_left(k % n);
+                }
+                n
+            })
+            .collect()
+    }
+
     /// The pad a face's reach box takes past the band, and each face's
     /// share of the census's gaps (`boolean::boxes::sweep_pad`): the
     /// spelling a test outside this crate reads it by.

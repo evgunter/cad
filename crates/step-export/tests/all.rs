@@ -77,3 +77,5 @@ mod rev_probe;
 mod review_k4_probe;
 
 test_utils::every_suite_file_is_aggregated!();
+#[path = "review_5495_probes.rs"]
+mod review_5495_probes;
