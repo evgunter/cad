@@ -2511,22 +2511,21 @@ pub(super) fn strip_witnesses<T: Decide>(pieces: &[Piece<'_, T>]) -> Vec<Point3<
 /// covers.
 pub(super) type Piece<'b, T> = (&'b Curve3<T>, (T, T));
 
-/// **An edge's certified carrier as stored**, each way of having none
-/// refused as itself: an edge or a curve row that does not resolve is
-/// [`unresolved`]; a null edge, which has no carrier by type, is
-/// [`scaffolding`].
+/// **An edge's certified carrier as stored** ([`Body::stored_curve`]),
+/// each way of having none refused as itself: an edge that does not
+/// resolve is [`unresolved`]; a null edge, which has no carrier by
+/// type, is [`scaffolding`].
 pub(super) fn certified_curve<T: Real>(
     body: &Body<T>,
     edge: EdgeKey,
 ) -> Result<&topo::EdgeCurve<T>, BlendError> {
     let at = EntityId::Edge(edge);
-    let e = body
-        .get_edge(edge)
-        .ok_or_else(|| unresolved(at, "an edge the blend reads"))?;
-    body.get_curve_geom(e.curve)
-        .ok_or_else(|| unresolved(at, "an edge's curve row"))?
-        .certified()
-        .ok_or_else(|| scaffolding(at, "an edge carries no certified carrier"))
+    body.stored_curve(edge).map_err(|e| match e {
+        topo::EulerOpError::NullScaffoldCurve { .. } => {
+            scaffolding(at, "an edge carries no certified carrier")
+        }
+        _ => unresolved(at, "an edge the blend reads"),
+    })
 }
 
 /// **An edge's stored carrier and window** ([`certified_curve`]): the
@@ -3740,8 +3739,8 @@ pub(super) fn seam_split_param<T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// [`BlendError::BodyNotIntact`] when the edge or its curve row does
-/// not resolve, or it is a null edge;
+/// [`BlendError::BodyNotIntact`] when the edge does not resolve, or it
+/// is a null edge;
 /// [`BlendError::UnsupportedGeometry`] when its carrier has no
 /// closed-form parameter, or a periodic window not under one period.
 pub(super) fn split_param_in_span<T: Decide + Bounds>(

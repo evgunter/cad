@@ -1421,14 +1421,9 @@ impl<T: Decide> Body<T> {
         description: EdgeDescriptionSpec<T>,
         arg: Arg,
     ) -> Result<EdgeCurveSpec<T>, EulerOpError> {
-        let curve_key = lookup(&self.edges, edge, EntityId::Edge, arg)?.curve;
-        let stored = self
-            .edge_curve(edge, curve_key)
-            .certified()
-            .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?;
         Ok(EdgeCurveSpec {
             description,
-            ..stored.restated_spec()
+            ..self.stored_curve_as(edge, arg)?.restated_spec()
         })
     }
 
@@ -1512,14 +1507,9 @@ impl<T: Decide> Body<T> {
             error: CertifyError::Band(e),
         })?;
         let data = lookup(&self.edges, edge, EntityId::Edge, Arg("edge"))?;
-        let curve_key = data.curve;
         let sides = crate::readback::edge_sides_of(self, edge, data);
         let (s_plus, s_minus) = sides.surfaces();
-        let restated = self
-            .edge_curve(edge, curve_key)
-            .certified()
-            .ok_or(EulerOpError::NullScaffoldCurve { curve: curve_key })?
-            .restated_spec();
+        let restated = self.stored_curve(edge)?.restated_spec();
         let rest = crate::rest_locus(
             self,
             [
@@ -4594,6 +4584,46 @@ mod tests {
         );
         body.kfmrh_describing(top, membrane, &carried, tol())
             .unwrap();
+    }
+
+    /// **The stored-curve read borrows the arena's carrier and answers
+    /// each way of having none as itself**: a null edge is
+    /// `NullScaffoldCurve` naming its curve row, a stale key the
+    /// caller's `Stale` edge.
+    #[test]
+    fn the_stored_curve_read_borrows_and_types_each_miss() {
+        let (mut body, _, half, _) = half_cap_on_own_key();
+        let at = outer_cycle(&body, half)[1];
+        let live = body.get_half_edge(at).unwrap().edge;
+        let arena = body
+            .get_curve_geom(body.get_edge(live).unwrap().curve)
+            .and_then(crate::CurveGeom::certified)
+            .unwrap();
+        assert!(
+            core::ptr::eq(body.stored_curve(live).unwrap(), arena),
+            "a live edge reads the arena's own entry"
+        );
+        let null = body
+            .mev_null(
+                crate::MevSite::Fan { he1: at, he2: at },
+                crate::NewVertexSide::Above,
+            )
+            .unwrap();
+        let null_edge = body.get_half_edge(null.he_plus).unwrap().edge;
+        let curve = body.get_edge(null_edge).unwrap().curve;
+        assert_eq!(
+            body.stored_curve(null_edge).unwrap_err(),
+            EulerOpError::NullScaffoldCurve { curve },
+            "a null edge"
+        );
+        assert_eq!(
+            body.stored_curve(EdgeKey::default()).unwrap_err(),
+            EulerOpError::Argument(crate::BadArgument::Stale {
+                role: "edge",
+                key: EntityId::Edge(EdgeKey::default()),
+            }),
+            "a stale key"
+        );
     }
 
     /// **A describing kill refuses a null edge listed**: a null spur

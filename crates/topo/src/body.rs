@@ -78,9 +78,10 @@ use crate::entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell,
     ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
-use crate::euler::RunSite;
+use crate::euler::{EulerOpError, RunSite};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
 use crate::joint::JointElement;
+use crate::live::{Arg, dangling_link, lookup};
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::provenance::Provenance;
 use crate::validate::ValidatorSeal;
@@ -881,9 +882,45 @@ impl<T: Real> Body<T> {
     /// There is deliberately **no** accessor that silently narrows to a
     /// certified [`EdgeCurve`]: consumers that need a real carrier
     /// match on the sum (usually via [`CurveGeom::certified`]) and
-    /// decide loudly what a scaffolding entry means for them.
+    /// decide loudly what a scaffolding entry means for them, or read
+    /// an edge's through [`Body::stored_curve`], which refuses one.
     pub fn get_curve_geom(&self, key: CurveKey) -> Option<&CurveGeom<T>> {
         self.curves.get(key)
+    }
+
+    /// **`edge`'s stored certified curve**, borrowed: its carrier
+    /// ([`EdgeCurve::carrier`]) and parameter interval
+    /// ([`EdgeCurve::params`]) as the arena holds them.
+    ///
+    /// # Errors
+    ///
+    /// [`BadArgument::Stale`] (role `"edge"`) when `edge` does not
+    /// resolve; [`EulerOpError::NullScaffoldCurve`] when it is a null
+    /// edge, which has no carrier by type ([`CurveGeom::NullScaffold`]).
+    ///
+    /// # Panics
+    ///
+    /// When a live edge's curve link does not resolve, which only a
+    /// kernel bug reaches.
+    ///
+    /// [`BadArgument::Stale`]: crate::BadArgument::Stale
+    pub fn stored_curve(&self, edge: EdgeKey) -> Result<&EdgeCurve<T>, EulerOpError> {
+        self.stored_curve_as(edge, Arg("edge"))
+    }
+
+    /// [`Body::stored_curve`], a stale `edge` answered as `from` says.
+    #[track_caller]
+    pub(crate) fn stored_curve_as(
+        &self,
+        edge: EdgeKey,
+        from: Arg,
+    ) -> Result<&EdgeCurve<T>, EulerOpError> {
+        let curve = lookup(&self.edges, edge, EntityId::Edge, from)?.curve;
+        self.curves
+            .get(curve)
+            .unwrap_or_else(|| dangling_link(EntityId::Edge(edge), "curve", GeomRef::Curve(curve)))
+            .certified()
+            .ok_or(EulerOpError::NullScaffoldCurve { curve })
     }
 
     /// The surface geometry at `key`, or `None` if the key is stale;
