@@ -1227,6 +1227,25 @@ Flagged, NOT fixed here (dispositions):
   turn builds. Same arm question as F10; one site,
   `LEDGER_FLAGGED_SITES` 5 → 6.
 
+- **F23** (added by PATHS' stored-arc landing unit)
+  `profile/src/seg.rs` `constructed_landing`, reached from the path
+  door before a chain stores its arcs (`path::arc_lands`): a
+  constructed arc's landing on its end vertex, `‖landing(a) − b‖`
+  (`path_arc_landing`), and where that reads Positive the headroom
+  `K·ε/(16·2⁻⁵²) − scale` (`path_arc_landing_resolution`), both in
+  metres. Both are lengths, so `Margin::of` fits them dimensionally;
+  what keeps them off the logged doors is WHERE they run. The landing
+  is a theorem of each construction, or lands to an inline decision
+  (D1), and this cross-checks the arithmetic that delivered it on the
+  witness lane (`Witness::Inexact`) only: an exact scalar's stored arc
+  encloses the real one, so it has no miss to read, and a row there
+  would re-decide a registered identity on the enclosure's width. A
+  logged point-scalar row would be one a box build cannot have.
+  **Carried as `k_stats::check_unlogged(.., "F23")`**, the door F18,
+  F20 and F21 use; a resolvable Positive refuses
+  `PathError::ArcMissesItsEnd`, and every other answer is silent. Not a
+  `decide_flagged` site; `LEDGER_FLAGGED_SITES` does not move.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

@@ -250,10 +250,16 @@ applies is a fact of the loop's provenance, carried by its type.
   carriers tangent or a leg's fit exact, each made inline at every
   scalar (`Facts::Decided`); every other construction's facts are the
   identities it registers on the values it built (`BuiltArc`,
-  `Facts::Registered`), which an exact
-  scalar's witness checks and a point scalar takes on the construction's
-  proof. Re-deciding them could only confirm Zero or escalate on
-  dependency width, never catch an inconsistency.
+  `Facts::Registered`), which an exact scalar's witness checks. At an
+  exact scalar, re-deciding any of them could only confirm Zero or
+  escalate on dependency width, never catch an inconsistency. A point
+  scalar has no width: what it reads is the arithmetic the
+  construction ran, which can lose the digits its proof is about. So
+  on the witness lane the path door reads every arc's landing on its
+  end vertex before the chain stores it (`seg::constructed_landing`),
+  as a cross-check, not a verdict. A miss past the band, at a
+  magnitude whose rounding stays inside it, refuses
+  `PathError::ArcMissesItsEnd`; any other reading passes.
 - Giving up the provenance (`ConstructedLoop::into_loop`) makes the loop
   a table again, and it is checked.
 
