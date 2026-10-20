@@ -1627,8 +1627,23 @@ pub enum PcurveCheck {
     /// one term over the band on its own ([`EnvelopeTerm`]). A refusal
     /// no single term carries names [`PcurveCheck::Envelope`].
     EnvelopeTerm(EnvelopeTerm),
-    /// The chart winding `β` selection on a periodic chart.
+    /// The placement integer: the whole turns the image constant is
+    /// placed by in its chart's window ([`Placement::turns`]).
     ChartWinding,
+    /// A class or form selection at derivation (D3's lane choice): which
+    /// closed form images the carrier on the chart — a rim, ruling,
+    /// parallel or meridian, a section's nappe or sense, the winding `β`,
+    /// the Villarceau ladder. Zero takes the closed form; in band and
+    /// definite take the general lane, so a refusal under this check is
+    /// one where no general lane is written yet, and it ends lever-only
+    /// "not yet" ([`crate::recourse::not_yet`]), never as a defect or a
+    /// tolerance offer.
+    ChartClass,
+    /// An identity check on a stored image's copied data at check 4: the
+    /// spiric image's scalars, sense and chart premise, the focal
+    /// section's sense, `β` and tube rate. The kernel copies them
+    /// exactly, so a miss is a defect.
+    ImageIdentity,
     /// The pcurve's azimuth extent against one period.
     AzimuthPeriod,
     /// A projected image's tube-angle extent against one period on a
@@ -2398,6 +2413,8 @@ impl PcurveCertifyError {
 enum Routing {
     Sized(SizedDecision),
     Unsized(Unsized),
+    /// A lane choice with no general lane yet ([`PcurveCheck::ChartClass`]).
+    NotYet,
 }
 
 impl PcurveCheck {
@@ -2414,8 +2431,12 @@ impl PcurveCheck {
             Self::AzimuthPeriod | Self::TubePeriod => {
                 Routing::Sized(SpanDecision::Winding.on(StoredContradiction))
             }
-            // The winding the kernel stores exactly: a form selection.
-            Self::ChartWinding | Self::ChartIncidence | Self::Sector => {
+            // A lane choice whose general lane is not written yet (D3):
+            // lever-only "not yet", never a defect, never a tolerance.
+            Self::ChartClass => Routing::NotYet,
+            // The placement integer and the stored copies the kernel
+            // writes exactly.
+            Self::ChartWinding | Self::ImageIdentity | Self::ChartIncidence | Self::Sector => {
                 Routing::Unsized(Unsized::Defect)
             }
             // A sample's residual is the miss at that sample, on a
@@ -2441,6 +2462,7 @@ impl PcurveCheck {
         match self.routing() {
             Routing::Sized(decision) => decision.recourse(arm, reading),
             Routing::Unsized(decision) => decision.recourse(arm, reading),
+            Routing::NotYet => crate::recourse::not_yet(arm, reading),
         }
     }
 
@@ -2490,6 +2512,8 @@ impl PcurveCheck {
             Self::Envelope | Self::EnvelopeTerm(_) => Some(SsiLimb::HullSupChart),
             Self::ParamSpan
             | Self::ChartWinding
+            | Self::ChartClass
+            | Self::ImageIdentity
             | Self::AzimuthPeriod
             | Self::TubePeriod
             | Self::ChartIncidence
@@ -6207,7 +6231,7 @@ fn run_focal_section_checks<T: Decide>(
         Margin::levered(image.sense.abs() - T::one(), arm),
         band,
     )
-    .map_err(esc(PcurveCheck::ChartWinding))?
+    .map_err(esc(PcurveCheck::ImageIdentity))?
     {
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => {
@@ -6221,7 +6245,7 @@ fn run_focal_section_checks<T: Decide>(
         Margin::levered(T::one() - image.beta.abs(), arm),
         band,
     )
-    .map_err(esc(PcurveCheck::ChartWinding))?
+    .map_err(esc(PcurveCheck::ImageIdentity))?
     {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
@@ -6236,7 +6260,7 @@ fn run_focal_section_checks<T: Decide>(
             Margin::levered(image.vl.abs() - T::one(), r),
             band,
         )
-        .map_err(esc(PcurveCheck::ChartWinding))?
+        .map_err(esc(PcurveCheck::ImageIdentity))?
         {
             Sign::Zero => {}
             Sign::Positive | Sign::Negative => {
@@ -6557,7 +6581,7 @@ fn run_spiric_checks<T: Decide>(
         ("pcurve_spiric_minor", d_minor),
         ("pcurve_spiric_offset", d_offset),
     ] {
-        match decide(name, Margin::of(diff), band).map_err(esc(PcurveCheck::ChartWinding))? {
+        match decide(name, Margin::of(diff), band).map_err(esc(PcurveCheck::ImageIdentity))? {
             Sign::Zero => {}
             Sign::Positive | Sign::Negative => {
                 return Err(PcurveCertifyError::ImageMismatch {
@@ -6585,7 +6609,7 @@ fn run_spiric_checks<T: Decide>(
                 Margin::levered(residue, azimuth_lever(surface, reach)),
                 band,
             )
-            .map_err(esc(PcurveCheck::ChartWinding))?
+            .map_err(esc(PcurveCheck::ImageIdentity))?
             {
                 Sign::Zero => residue.abs(),
                 Sign::Positive | Sign::Negative => {
@@ -6646,7 +6670,7 @@ fn run_spiric_checks<T: Decide>(
             match read_identity(gates, reader) {
                 IdentityLadder::Zero(_) => {}
                 IdentityLadder::Undecided(kept) => {
-                    return Err(winding_escalated(kept.refusing_cause()));
+                    return Err(identity_escalated(kept.refusing_cause()));
                 }
                 IdentityLadder::Apart { at, .. } => {
                     // Not the named torus. Only a CENTRE apart can leave
@@ -6678,7 +6702,9 @@ fn run_spiric_checks<T: Decide>(
                                   oval, and the chart is the other",
                         },
                         IdentityLadder::Apart { .. } => neither,
-                        IdentityLadder::Undecided(kept) => winding_escalated(kept.refusing_cause()),
+                        IdentityLadder::Undecided(kept) => {
+                            identity_escalated(kept.refusing_cause())
+                        }
                     });
                 }
             }
@@ -8816,7 +8842,7 @@ fn derive_class<T: Decide>(
                         band,
                     ) {
                         Ok(sign) => winding_of(sign),
-                        Err(cause) => return Err(winding_escalated(cause).into()),
+                        Err(cause) => return Err(class_escalated(cause).into()),
                     };
                     let alpha = place.phase(
                         Along::Azimuth,
@@ -8859,7 +8885,7 @@ fn derive_class<T: Decide>(
         } => {
             let c_ha = half_angle.cos();
             let cv = axis.cross(u_ref);
-            let esc = winding_escalated;
+            let esc = class_escalated;
             match *carrier {
                 Curve3::Line { origin, dir } => {
                     // The RULING class. The azimuth branch IS the
@@ -9193,7 +9219,7 @@ fn derive_class<T: Decide>(
             let (aa, ba, wa) = (form.a.dot(axis), form.b.dot(axis), w.dot(axis));
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let (a_r, b_r, w_r) = (radial(form.a), radial(form.b), radial(w));
-            let esc = winding_escalated;
+            let esc = class_escalated;
             // Which class: does the carrier plane contain the polar
             // axis' direction? (Metered in meters at the chart radius.)
             match decide(
@@ -9413,7 +9439,7 @@ fn derive_class<T: Decide>(
             u_ref,
         } => {
             let cv = axis.cross(u_ref);
-            let esc = winding_escalated;
+            let esc = class_escalated;
             // A bounded surface holds no line, and a torus's plane
             // sections are bicircular quartics, whose conic components
             // are circles. An `Ellipse` is refused by kind, as on the
@@ -9629,11 +9655,21 @@ enum Incidence {
     Off,
 }
 
-/// The escalation every class trilean of the closed-form image arms
-/// raises.
-fn winding_escalated(cause: Indeterminate) -> PcurveCertifyError {
+/// The escalation a class trilean of the closed-form image arms raises
+/// where its reading has no general lane to take ([`PcurveCheck::ChartClass`]).
+fn class_escalated(cause: Indeterminate) -> PcurveCertifyError {
     PcurveCertifyError::Escalated {
-        check: PcurveCheck::ChartWinding,
+        check: PcurveCheck::ChartClass,
+        sample: 0,
+        cause,
+    }
+}
+
+/// The escalation an identity check on a stored image's copied data
+/// raises at check 4 ([`PcurveCheck::ImageIdentity`]).
+fn identity_escalated(cause: Indeterminate) -> PcurveCertifyError {
+    PcurveCertifyError::Escalated {
+        check: PcurveCheck::ImageIdentity,
         sample: 0,
         cause,
     }
@@ -10048,7 +10084,7 @@ fn spiric_chart_pcurve<T: Decide>(
                 Margin::levered(chart_axis.dot(axis), chart_major),
                 band,
             )
-            .map_err(winding_escalated)?
+            .map_err(class_escalated)?
             {
                 Sign::Positive => T::one(),
                 Sign::Negative => T::zero() - T::one(),
@@ -10065,7 +10101,7 @@ fn spiric_chart_pcurve<T: Decide>(
                 Margin::norm3(chart_center - WallTorus::Own.center(center, n, offset)),
                 band,
             )
-            .map_err(winding_escalated)?
+            .map_err(class_escalated)?
             {
                 Sign::Zero => WallTorus::Own,
                 Sign::Positive | Sign::Negative => WallTorus::Mirror,

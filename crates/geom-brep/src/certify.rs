@@ -712,7 +712,13 @@ fn exact_arc_rim_words(iso: Option<crate::pcurve_cache::PcurveCheck>) -> &'stati
             length_noun!()
         ),
         Some(
-            C::ChartWinding | C::AzimuthPeriod | C::TubePeriod | C::ChartIncidence | C::Sector,
+            C::ChartWinding
+            | C::ChartClass
+            | C::ImageIdentity
+            | C::AzimuthPeriod
+            | C::TubePeriod
+            | C::ChartIncidence
+            | C::Sector,
         ) => "its exact boundary-row image's certificate refused it",
     }
 }
