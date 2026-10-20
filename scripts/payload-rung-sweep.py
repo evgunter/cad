@@ -68,8 +68,11 @@ follow one across four documents.
                                            not)
   (f) private struct fields        CLOSED  `payload_identifiers`
   (g) variant names as payloads    CLOSED  `payload_identifiers`
-  (h) crate-aware, not module-     OPEN    `sweep`
-      aware
+  (h) a payload is read as a       OPEN    `sweep` (a CURATED name resolves
+      spelling                             through its `pub use` chain,
+                                           `Resolver`; a payload identifier
+                                           prefers its carrier's module, then
+                                           its crate)
   (i) registry dependencies        OPEN    `dependency_set`
   (j) `cfg`-gated `pub use` items  OPEN    `curated` (a name behind
                                            `#[cfg(feature = "…")]` is read as
@@ -94,8 +97,8 @@ the chunk `payload_identifiers` reads for types. Nothing in this script's own
 report uses it: `crates/pncad-py/tests/test_binding_census.py` does, to ask
 whether the Python namesake of a curated Rust name spells that name's MEMBERS
 or only the name. It lives here because the resolver it needs is this one
-(`dependency_set`, `declarations`, `curated`), and the defect the whole script
-closes is a pattern re-implemented per caller. Its blind spots are this file's,
+(`dependency_set`, `declarations`, `resolve_curated`), and the defect the
+whole script closes is a pattern re-implemented per caller. Its blind spots are this file's,
 stated at the function, and the fixture battery below is where both readers are
 pinned.
 
@@ -256,6 +259,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                              "`pose_admits_tag`, crates/pncad-py/src/errors.rs"),
     "PoseRole": ("argued", "`document::pose`, re-exported whole; Python writes the role "
                            "as `RoleRead`'s word, crates/pncad-py/src/py/pose.rs"),
+    # `coincide::Recourse`, not the curated `Recourse` (`geom_core`'s, which
+    # `editor_core::sentence` re-exports) that shares its word.
+    "Recourse": ("argued", "`document::coincide`, re-exported whole so its `Recourse` "
+                           "keeps its name, crates/pncad/src/document.rs"),
 
     # Blind spot (k)'s rows: a discriminant behind an uncurated struct
     # payload, reported under the carrier `via` the struct.
@@ -277,6 +284,9 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Cell": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "Origin": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "Placed": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    # `topo::coincidence::Relation`, reachable through `document::coincidence`;
+    # the `Relation` `document` carries by name is `editor_core`'s.
+    "Relation": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "RowCell": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "UncrossableCarrier": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
 }
@@ -335,9 +345,6 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Space": ("argued", "the placement vocabulary is `document`'s and is spelled "
                         "once, beside `Evaluation`; the general rule is at the "
                         "payload-rule header of crates/pncad/src/document.rs"),
-    # Blind spot (k): curated on `document`, reached under the prelude's
-    # `BooleanBody` via `Coincidence`.
-    "Relation": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
 }
 
 
@@ -444,11 +451,12 @@ _BARE_PUB_FIELD = re.compile(r"^\s*(?:#\[[^]]*\]\s*)*pub\s")
 class Decl:
     """One `pub enum` / `pub struct` declaration in the dependency set."""
 
-    __slots__ = ("body", "crate", "kind", "line", "name", "path")
+    __slots__ = ("body", "crate", "kind", "line", "module", "name", "path")
 
-    def __init__(self, name, kind, crate, path, line, body):
+    def __init__(self, name, kind, crate, path, line, body, module=()):
         self.name, self.kind, self.crate = name, kind, crate
         self.path, self.line, self.body = path, line, body
+        self.module = module
 
     @property
     def site(self) -> str:
@@ -678,9 +686,22 @@ def declarations(root: Path, crates: dict[str, Path]) -> dict[str, list[Decl]]:
                 line = code.count("\n", 0, m.start()) + 1
                 body = _body_after(code, m.end())
                 index.setdefault(name, []).append(
-                    Decl(name, kind, ident, rel, line, body)
+                    Decl(name, kind, ident, rel, line, body, module_of(src_dir, path))
                 )
     return index
+
+
+def module_of(src_dir: Path, path: Path) -> tuple[str, ...]:
+    """The module path a source file is, read from its place under `src/`.
+
+    `lib.rs` is the crate root, `a/mod.rs` and `a.rs` are `a`, `a/b.rs` is
+    `a::b`. An inline `mod x { … }` is read as the file that holds it, and a
+    `#[path]` attribute is not read at all.
+    """
+    parts = path.relative_to(src_dir).with_suffix("").parts
+    if parts and parts[-1] in ("lib", "main", "mod"):
+        parts = parts[:-1]
+    return tuple(parts)
 
 
 # --- the curated lists -----------------------------------------------------
@@ -688,41 +709,181 @@ def declarations(root: Path, crates: dict[str, Path]) -> dict[str, list[Decl]]:
 _PUB_USE = "pub use "
 
 
-def curated(root: Path, lists: tuple[str, ...]) -> dict[str, dict[str, set[str]]]:
-    """`{name: {list stem: {root crate idents}}}` over the curated lists.
+def use_items(stmt: str) -> list[tuple[str, tuple[str, ...]]]:
+    """`[(name introduced, path it names)]` for one `use` tree.
+
+    A braced group introduces each of its items, nested groups included;
+    `X as Y` introduces `Y` naming `X`; `self` in a group introduces the
+    group's own last segment; a glob introduces `*`, naming the module it
+    globs. `as _` introduces nothing.
+    """
+    out: list[tuple[str, tuple[str, ...]]] = []
+
+    def walk(tree: str, prefix: tuple[str, ...]) -> None:
+        tree = tree.strip()
+        brace = tree.find("{")
+        if brace >= 0 and tree.endswith("}"):
+            head = tuple(p.strip() for p in tree[:brace].split("::") if p.strip())
+            for item in _split_top(tree[brace + 1 : -1]):
+                walk(item, prefix + head)
+            return
+        target, alias = (re.split(r"\s+as\s+", tree, maxsplit=1) + [""])[:2]
+        alias = alias.strip()
+        path = prefix + tuple(p.strip() for p in target.split("::") if p.strip())
+        if path and path[-1] == "self":
+            path = path[:-1]
+        if not path or alias == "_":
+            return
+        out.append((alias or path[-1], path))
+
+    walk(stmt.removeprefix("::"), ())
+    return out
+
+
+def pub_uses(code: str) -> list[tuple[str, tuple[str, ...], bool]]:
+    """`[(name, path, absolute)]` for every `pub use` statement in `code`.
+
+    `absolute` is a leading `::`, which names an extern crate even where a
+    module of that name shadows it.
+    """
+    out = []
+    rest = code
+    while (at := rest.find(_PUB_USE)) >= 0:
+        rest = rest[at + len(_PUB_USE) :]
+        end = rest.find(";")
+        if end < 0:
+            break
+        stmt, rest = rest[:end].strip(), rest[end + 1 :]
+        absolute = stmt.startswith("::")
+        out += [(name, path, absolute) for name, path in use_items(stmt)]
+    return out
+
+
+def curated_paths(
+    root: Path, lists: tuple[str, ...]
+) -> dict[str, dict[str, set[tuple[tuple[str, ...], bool]]]]:
+    """`{name: {list stem: {(path, absolute)}}}` over the curated lists.
 
     The reader is `test_binding_census.py`'s: the leaf of each path item is the
     name that item introduces, and a braced group introduces each of its items.
-    What it adds is the statement's ROOT — `pub use editor_core::{…}` says the
-    names it introduces are `editor_core`'s — which is what lets a carrier be
-    resolved crate-aware rather than by spelling. A leading `::` is stripped
-    first: one list spells its own layer absolutely because that file's module
-    shadows the crate name.
+    What it adds is the PATH each name was introduced through — `pub use
+    editor_core::{…}` says the names it introduces are `editor_core`'s, and
+    `resolve_curated` follows that path to the one declaration it names. A
+    leading `::` is kept as `absolute`: one list spells its own layer
+    absolutely because that file's module shadows the crate name.
 
     BLIND SPOT (c), OPEN: a refusal the façade DECLARES rather than re-exports
     is on no `pub use` statement, so neither it nor its payloads ever enter the
     compared set.
     """
-    out: dict[str, dict[str, set[str]]] = {}
+    out: dict[str, dict[str, set[tuple[tuple[str, ...], bool]]]] = {}
     for stem in lists:
         code = code_only((root / FACADE_SRC / f"{stem}.rs").read_text())
-        rest = code
-        while (at := rest.find(_PUB_USE)) >= 0:
-            rest = rest[at + len(_PUB_USE) :]
-            end = rest.find(";")
-            if end < 0:
-                break
-            stmt, rest = rest[:end].strip(), rest[end + 1 :]
-            stmt = stmt.removeprefix("::")
-            crate_root = stmt.split("::", 1)[0].strip() if "::" in stmt else stmt
-            open_, close = stmt.find("{"), stmt.rfind("}")
-            items = stmt[open_ + 1 : close] if 0 <= open_ < close else stmt.rsplit("::", 1)[-1]
-            for item in items.split(","):
-                item = item.strip()
-                if not item:
-                    continue
-                name = item.rsplit("::", 1)[-1]
-                out.setdefault(name, {}).setdefault(stem, set()).add(crate_root)
+        for name, path, absolute in pub_uses(code):
+            if name == "*":
+                continue
+            out.setdefault(name, {}).setdefault(stem, set()).add((path, absolute))
+    return out
+
+
+class Resolver:
+    """A curated name's declaration, found by following the `pub use` chain
+    that exports it.
+
+    Rust's own reading, over source text: a path's first segment is `crate`,
+    `self`, `super`, an extern crate of the dependency set, or a child module
+    of the module the `use` is written in (which shadows a crate of the same
+    name); its middle segments are modules; and its last segment is a type the target module declares, or one a `pub use`
+    there re-exports by that name (followed in turn), or one a `pub use …::*`
+    there globs in. This is what tells `editor_core::Placed` — re-exported from
+    `mate::pin` — from the `Placed` that `coincide` declares beside it.
+    """
+
+    def __init__(self, root: Path, crates: dict[str, Path], index: dict[str, list[Decl]]):
+        self.crates = crates
+        self.decls: dict[tuple[str, tuple[str, ...], str], list[Decl]] = {}
+        for decls in index.values():
+            for d in decls:
+                self.decls.setdefault((d.crate, d.module, d.name), []).append(d)
+        self.uses: dict[tuple[str, tuple[str, ...]], list] = {}
+        for ident, crate_dir in crates.items():
+            src_dir = crate_dir / "src"
+            for path in sorted(src_dir.rglob("*.rs")):
+                key = (ident, module_of(src_dir, path))
+                self.uses.setdefault(key, []).extend(pub_uses(code_only(path.read_text())))
+
+    def _module(self, crate, module, segments, absolute):
+        """The `(crate, module)` a module path written in `crate::module` names."""
+        if not segments:
+            return crate, module
+        first, rest = segments[0], list(segments[1:])
+        child = (crate, module + (first,)) in self.uses
+        if absolute or (first in self.crates and not child and first != crate):
+            if first not in self.crates:
+                return None
+            crate, module = first, ()
+        elif first == "crate":
+            module = ()
+        elif first == "self":
+            pass
+        elif first == "super":
+            module = module[:-1]
+            while rest and rest[0] == "super":
+                rest, module = rest[1:], module[:-1]
+        else:
+            rest = [first] + rest
+        return crate, module + tuple(rest)
+
+    def resolve(self, crate, module, path, absolute=False, seen=None) -> list[Decl]:
+        """The declarations `path`, written in `crate::module`, names."""
+        seen = set() if seen is None else seen
+        at = self._module(crate, module, path[:-1], absolute)
+        if at is None:
+            return []
+        name = path[-1]
+        if (at, name) in seen:
+            return []
+        seen.add((at, name))
+        if found := self.decls.get((*at, name)):
+            return list(found)
+        uses = self.uses.get(at, [])
+        for leaf, target, abs_ in uses:
+            if leaf == name and (found := self.resolve(*at, target, abs_, seen)):
+                return found
+        for leaf, target, abs_ in uses:
+            if leaf == "*" and (found := self.resolve(*at, target[:-1] + (name,), abs_, seen)):
+                return found
+        return []
+
+
+def resolve_curated(
+    root: Path,
+    lists: tuple[str, ...],
+    crates: dict[str, Path],
+    index: dict[str, list[Decl]],
+) -> dict[str, dict[str, list[Decl]]]:
+    """`{name: {list stem: [declaration]}}`: each curated name, resolved.
+
+    Through the path its `pub use` spells (`Resolver`). Where that chain
+    cannot be followed, the fallback is the crate-aware one: the declarations
+    of that name in the crate the statement named, else every declaration of
+    that spelling (the prelude lifts a few names through a layer that does not
+    declare them).
+    """
+    resolver = Resolver(root, crates, index)
+    facade = tomllib.loads((root / FACADE_CRATE_DIR / "Cargo.toml").read_text())
+    facade = facade["package"]["name"].replace("-", "_")
+    out: dict[str, dict[str, list[Decl]]] = {}
+    for name, where in curated_paths(root, lists).items():
+        for stem, paths in where.items():
+            found: list[Decl] = []
+            for path, absolute in sorted(paths):
+                hits = resolver.resolve(facade, (stem,), path, absolute)
+                if not hits:
+                    hits = [d for d in index.get(name, []) if d.crate == path[0]]
+                    hits = hits or index.get(name, [])
+                found += [d for d in hits if d not in found]
+            out.setdefault(name, {})[stem] = found
     return out
 
 
@@ -787,34 +948,36 @@ def sweep(root: Path, lists: tuple[str, ...]) -> dict:
     """The counts and the rows behind them."""
     crates = dependency_set(root)
     index = declarations(root, crates)
-    names = curated(root, lists)
+    resolved = resolve_curated(root, lists, crates, index)
 
-    # A curated name resolves to the declaration in the crate the statement
-    # that carried it named. That is the crate-awareness: `sweep::BlendError`
-    # and a same-named type in another crate are two carriers, not one. A name
-    # re-exported by a crate that does not declare it (the prelude lifts a few
-    # through the layer that hands them out) falls back to the declaration set
-    # for that spelling.
+    # A curated name resolves to the declaration its `pub use` chain names
+    # (`resolve_curated`), so `sweep::BlendError` and a same-named type in
+    # another crate are two carriers, not one, and so are two same-named types
+    # in one crate. Which lists carry a declaration is asked of the declaration,
+    # not of its spelling: a payload that shares a word with a curated type is
+    # not curated by it.
     #
-    # BLIND SPOT (h), OPEN: this is crate-aware and not MODULE-aware, so two
-    # types with one name inside one crate are indistinguishable here and the
-    # first declaration in path order stands for both.
+    # BLIND SPOT (h), NARROWED AND STILL OPEN: a PAYLOAD identifier is read as
+    # a spelling. It resolves to a declaration in its carrier's own module if
+    # there is one, else in its carrier's crate, else anywhere, and the first in
+    # path order stands for the rest; the carrier file's own `use` items are not
+    # followed.
     #
     # BLIND SPOT (b), OPEN: a payload named only through a type ALIAS or an
-    # associated type. Names are compared as spellings, so a curated list that
-    # carries a declaration under an alias reads as carrying nothing, and the
-    # declaration reads as uncurated: a `false-positive` row's shape
-    # (`CarrierRelation`, carried by the prelude as `PlaneRelation`, held
-    # one until its carrier retired). The alias arm is mechanically
-    # closable and the associated-type arm is not.
+    # associated type. A `pub use … as` rename on a curated list's chain is
+    # followed (the prelude's `PlaneRelation` resolves to `CarrierRelation`);
+    # a `type` alias is not, so a list that carries a declaration under one
+    # reads as carrying nothing, and the declaration reads as uncurated. The
+    # `type` arm is mechanically closable and the associated-type arm is not.
+    on: dict[int, set[str]] = {}
     carriers: list[tuple[Decl, set[str]]] = []
-    for name, where in sorted(names.items()):
-        roots = {r for rs in where.values() for r in rs}
-        decls = [d for d in index.get(name, []) if d.crate in roots]
-        if not decls:
-            decls = index.get(name, [])
-        for decl in decls:
-            carriers.append((decl, set(where)))
+    for name, where in sorted(resolved.items()):
+        for stem, decls in sorted(where.items()):
+            for decl in decls:
+                if id(decl) not in on:
+                    on[id(decl)] = set()
+                    carriers.append((decl, on[id(decl)]))
+                on[id(decl)].add(stem)
 
     raw: list[Row] = []
     cross: list[Row] = []
@@ -826,12 +989,16 @@ def sweep(root: Path, lists: tuple[str, ...]) -> dict:
         for ident in sorted(payload_identifiers(via or decl)):
             if ident in (decl.name, (via or decl).name):
                 continue
-            home = (via or decl).crate
-            same = [d for d in index.get(ident, []) if d.crate == home]
-            hits = same or index.get(ident, [])
+            home = via or decl
+            spelled = index.get(ident, [])
+            hits = (
+                [d for d in spelled if (d.crate, d.module) == (home.crate, home.module)]
+                or [d for d in spelled if d.crate == home.crate]
+                or spelled
+            )
             if not hits:
                 continue
-            hit_lists = set(names.get(ident, {}))
+            hit_lists = on.get(id(hits[0]), set())
             if hit_lists & on_lists:
                 continue  # curated beside its carrier: not a rung at all
             state = "uncurated" if not hit_lists else "cross-list"
@@ -856,7 +1023,7 @@ def sweep(root: Path, lists: tuple[str, ...]) -> dict:
     return {
         "lists": list(lists),
         "counts": {
-            "curated": len(names),
+            "curated": len(resolved),
             "declared": sum(len(v) for v in index.values()),
             "raw": len(raw),
             "narrowed": len(narrow(raw)),
@@ -1008,6 +1175,15 @@ pub(crate) enum Interior { I }
 pub struct Wrapped(pub Rung);
 pub struct Marker;
 const SPELL: &str = "pub enum Bogus { }";
+pub use mate::Twin;
+"""
+
+# A same-word pair in one crate: `early::Twin` is declared first in path order,
+# and the `Twin` the crate exports is `mate::abeta::Twin`, through two `pub use`
+# hops and a child module that shares a crate's name.
+_FIXTURE_EARLY = """
+pub enum Twin { Instance, World }
+pub enum Holder { Has(Twin) }
 """
 
 _FIXTURE_BETA = """
@@ -1018,7 +1194,7 @@ pub enum Rung { Z }
 
 _FIXTURE = {
     "crates/pncad/Cargo.toml": '[package]\nname = "pncad"\n\n[dependencies]\nalpha = { path = "../alpha" }\n',
-    "crates/pncad/src/document.rs": "pub use alpha::DocCarrier;\n",
+    "crates/pncad/src/document.rs": "pub use alpha::{DocCarrier, Twin, early::Holder};\n",
     "crates/pncad/src/select.rs": "pub use alpha::CrossPayload;\n",
     "crates/pncad/src/prelude.rs": "// A bare `pub use alpha::Rung;` would carry the rung, and does not.\n"
                                   "pub use alpha::{Carrier, Shared};\n",
@@ -1032,6 +1208,9 @@ _FIXTURE = {
                                     "pub use alpha::GatedCarrier;\n",
     "crates/alpha/Cargo.toml": '[package]\nname = "alpha"\n\n[dependencies]\nabeta = { path = "../abeta" }\n',
     "crates/alpha/src/lib.rs": _FIXTURE_ALPHA,
+    "crates/alpha/src/early.rs": _FIXTURE_EARLY,
+    "crates/alpha/src/mate.rs": "pub mod abeta;\npub use abeta::Twin;\n",
+    "crates/alpha/src/mate/abeta.rs": "pub struct Twin { pub by: u8 }\n",
     "crates/abeta/Cargo.toml": '[package]\nname = "abeta"\n',
     "crates/abeta/src/lib.rs": _FIXTURE_BETA,
 }
@@ -1058,16 +1237,16 @@ def selftest() -> int:
 
         result = sweep(root, ALL_LISTS)
         counts = result["counts"]
-        want("curated names", counts["curated"], 6)
-        # alpha declares twelve bare-`pub` types — `pub(crate)` is not one, and
+        want("curated names", counts["curated"], 8)
+        # alpha declares fifteen bare-`pub` types — `pub(crate)` is not one, and
         # neither is a name that appears only in a doc comment or a string
         # literal; beta declares three. `Wrapped` and `Marker` are declared and
         # curated by nothing, so they are carriers of nothing and move only
         # this count; they are here as the two member-shape witnesses below.
-        want("declared types", counts["declared"], 17)
+        want("declared types", counts["declared"], 20)
         # `Envelope` and, through it, `Deep` and `Detail` (blind spot (k)).
-        want("raw hits", counts["raw"], 10)
-        want("narrowed", counts["narrowed"], 5)
+        want("raw hits", counts["raw"], 11)
+        want("narrowed", counts["narrowed"], 6)
         want("cross-list raw", result["cross_list"], 1)
         want("cross-list narrowed", len(result["narrowed_cross"]), 1)
 
@@ -1081,7 +1260,22 @@ def selftest() -> int:
                 ("Rung", "Carrier"),
                 ("Rung", "DocCarrier"),
                 ("Rung", "GatedCarrier"),
+                ("Twin", "Holder"),
             ],
+        )
+
+        # A same-word pair in one crate resolves through the `pub use` chain to
+        # the exported one, and the other is not curated by sharing its word.
+        resolved = resolve_curated(root, ALL_LISTS, crates, declarations(root, crates))
+        want(
+            "a curated word two types in one crate share resolves to the exported one",
+            [(d.path, declared_members(d)) for d in resolved["Twin"]["document"]],
+            [("crates/alpha/src/mate/abeta.rs", ["by"])],
+        )
+        want(
+            "a payload sharing a word with a curated type is not curated by it",
+            [(r.hit.path, r.state) for r in result["narrowed"] if r.carrier.name == "Holder"],
+            [("crates/alpha/src/early.rs", "uncurated")],
         )
         want(
             "blind spot (j): a `cfg`-gated `pub use` is read as curated",
@@ -1160,11 +1354,11 @@ def selftest() -> int:
         # shows what it costs: `BetaCarrier` is curated only on the fourth list,
         # so the rung under it is not even looked for.
         three = sweep(root, ("document", "select", "prelude"))
-        want("the fourth list adds a carrier", three["counts"]["curated"], 4)
+        want("the fourth list adds a carrier", three["counts"]["curated"], 6)
         want(
             "and the rung under it",
             sorted((r.hit.name, r.carrier.name) for r in three["narrowed"]),
-            [("Deep", "Carrier"), ("Rung", "Carrier"), ("Rung", "DocCarrier")],
+            [("Deep", "Carrier"), ("Rung", "Carrier"), ("Rung", "DocCarrier"), ("Twin", "Holder")],
         )
 
     for line in failures:

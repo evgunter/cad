@@ -395,21 +395,19 @@ def curated_declarations():
     A curated name enters only if `pncad.pyi` declares it top-level — a
     name in `BOUND_AS` or `NOT_BOUND` is argued WHOLE, with its reason at
     its entry, and the member rule is about what a name match accounts for.
-    The resolution is the sweep's: the declaration in the crate the `pub
-    use` statement named, falling back to the declaration set for that
-    spelling where the carrying crate does not declare it.
+    The resolution is the sweep's (`resolve_curated`): the declaration the
+    `pub use` chain that exports the name leads to.
     """
     sweep = resolver()
-    index = sweep.declarations(REPO, sweep.dependency_set(REPO))
+    crates = sweep.dependency_set(REPO)
+    index = sweep.declarations(REPO, crates)
     lists = tuple(stem.removesuffix(".rs") for stem in FACADE_FILES)
     top, _ = stub_surface()
     found = {}
-    for name, where in sweep.curated(REPO, lists).items():
+    for name, where in sweep.resolve_curated(REPO, lists, crates, index).items():
         if name not in top:
             continue
-        roots = {root for statements in where.values() for root in statements}
-        decls = [d for d in index.get(name, []) if d.crate in roots]
-        decls = decls or index.get(name, [])
+        decls = [d for stem in sorted(where) for d in where[stem]]
         if not decls:
             continue
         members = sweep.declared_members(decls[0])
@@ -4229,14 +4227,6 @@ ARMS_SPELLED_BY_A_PROPERTY = {
 #: gone from this table. The remaining entry cites `G2`, the audit's,
 #: beside `sweep_body` above.
 MEMBERS_NOT_BOUND = {
-    # Two types, one word, in one crate: the resolver takes the first
-    # `Placed` `editor_core` declares, `coincide::Placed` (which copy a
-    # coincidence row's cell is on), where the façade's `Placed` is
-    # `mate::pin::Placed`, the placement gesture's answer, which
-    # Python's `Placed` mirrors (`mate`, `values`, `by`). Its arms have
-    # no Python namesake to be spelled on.
-    "Placed::Instance": SHAPE,
-    "Placed::World": SHAPE,
     # The document a report was taken of, which the kernel's `render`
     # checks it is handed. Python's `McReport` holds that document
     # itself and renders from it, so there is no second document to
