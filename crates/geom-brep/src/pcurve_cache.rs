@@ -11593,7 +11593,7 @@ mod tests {
         let off: [(&str, &str, Curve3<f64>, &Surface<f64>); 6] = [
             (
                 "a line in the cone's apex plane",
-                "a line in the plane through the apex",
+                "not shown off the plane through the apex",
                 Curve3::Line {
                     origin: Point3::new(1.0, 0.0, 0.0),
                     dir: Vec3::unit_y(),
