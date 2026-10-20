@@ -127,8 +127,11 @@ side clears only
   only: a touch a curved face takes part in refuses (`TouchUnreadable`) —
   it never decides a Rest or a crossing there;
 
-and refuses `CensusUndecidable` otherwise. Same-solid distinct-key curved
-pairs are not detected; they are their constructor's obligation.
+and refuses `CensusUndecidable` otherwise. Within one solid, two
+distinct-key curved faces touching along a tangent locus through both
+interiors are discovered like any touch, and refuse `UnrecordedContact`
+where no record backs them; that discovery is the C9 exclusion ring
+for same-solid pairs, unbuilt (Open).
 
 A declaration licenses a coincidence, never a side. Every meeting between
 two solids — found undeclared by a sweep, named by a record, or backed by
@@ -226,9 +229,12 @@ along a locus the witness lane certifies, and says nothing of the
 materials: whether the pair is a contact (a void crescent between the
 sheets), an overlap (a crescent both materials fill), a seam or a nested
 touch is read where it is consumed, by the lump and by the wedge of the
-result's junction (C7). `ContactClass::Tangent`, the record's and the
-mate's class, keeps its material claim, and a shared crescent
-contradicts it.
+result's junction (C7). `ContactClass::Tangent` is the record's and the
+mate's class. A crescent the materials of two distinct solids share is
+interference between them (C6), not a contradicted contact; a crescent
+one solid shares with itself at a point touch is that solid's own
+material, and legal. Inside one solid a shared crescent along a line
+is a missing edge, the op's defect (D1 tier 3's cusp edges).
 
 Verification is `Rest`'s carrier rung with the sense bit reversed:
 carrier non-contradiction through the kind ladder, senses aligned as an
@@ -379,8 +385,10 @@ line runs through a face's interior the touch is a face–face curve
 touch, recorded the same way and bounded by the records of the cells
 its ends lie in; where the two sides are one piece (the operands also
 overlap elsewhere, or a later op joins them), the result is one solid
-pinched along the line, carrying the same record. A pinch is a record,
-never a junction.
+pinched along the line, carrying the same record. A pinch whose
+crescents are void is a record, never a junction; where they are
+material (a bore tangent to a face from inside), the line carries two
+coincident cusp edges, wedge 0, one per cusp, and no face–face record.
 
 The same substrate is the at-rest door: `validate_pseudomanifold` with
 mate declarations landed in `ContactRecords`, no boolean, no zip.
@@ -578,18 +586,24 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    tangent line) and a reflex edge lying in one of its own faces are
    two coincident distinct edges, each classifying separately; an edge
    touching a face from outside its wedge stays one edge, in contact
-   with that face; and where no edge lies on the line, the wedges are a
-   touch between faces, recorded like any touch, and no op cuts edges
-   to make a junction of it. Where the line ends inside a face, that
-   face carries its edges as a zero-area ring, which bounds no hole and
-   whose winding is exempt; where it reaches the face's boundary, as a
-   slit of that loop. The complement pairs the sheets differently, so
-   a door that complements material across such a line re-pairs there.
+   with that face. Where four sheets continue through a tangent line
+   and the crescents beside it are material, each cusp is a creased
+   sector of wedge 0, so the line carries two coincident cusp edges,
+   one per cusp, each classifying separately; where the crescents are
+   void, the wedges are a touch between faces, recorded like any touch,
+   and no op cuts edges to make a junction of it. Where the line ends
+   inside a face, that face carries its edges as a zero-area ring,
+   which bounds no hole and whose winding is exempt; where it reaches
+   the face's boundary, as a slit of that loop. The complement pairs
+   the sheets differently, so a door that complements material across
+   such a line re-pairs there.
    Tier 3′ reads every touch for sides, the coincident edges on one
    line included: touching cells' material lies on opposite sides of
-   each other. Consumers with no wedge-0/2π answer (fillet, offset,
-   mesh sizing, sector classification), and none for a body's
-   curve-touch records, refuse typed at the consumer.
+   each other, except at a touch of one solid at an isolated point,
+   where no crease exists and a shared crescent is legal (C4).
+   Consumers with no wedge-0/2π answer (fillet, offset, mesh sizing,
+   sector classification), and none for a body's curve-touch records,
+   refuse typed at the consumer.
    Also at tier 3: **maximal edges** (a joinable vertex at rest is a
    construction that stopped half-way, `JoinableVertexAtRest`; a
    vertex whose regularity reading lands in the sliver band, so that

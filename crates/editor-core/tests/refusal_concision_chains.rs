@@ -133,11 +133,6 @@ pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
 /// a new prefix on the same row, or the same prefix on another row, is
 /// still red.
 pub(crate) const FILED: &[(&str, &str)] = &[
-    // `geom/src/curves.rs` (#2861): `EllipseInvalid` opens with
-    // "ellipse construction:":
-    // work/chrome/the-refusal-shape-guard-has-blind-spots.md
-    ("Split/Join/Section(Carrier)", "ellipse construction"),
-    ("Boolean/Join/Section(Carrier)", "ellipse construction"),
     // A stage for a subject (`<gerund> … refused:`), each on its
     // owner's row:
     // work/hone/reach-refusals-short-of-the-shape-guard.md
@@ -258,7 +253,6 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
-    "BlendSelectionEmpty",
     "CrossingUnverified",
     "CurvedSolidFrontier",
     "DegenerateDirection",
@@ -309,7 +303,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/ArcViaCollinear",
     "ProfileReplay/Path/CircleSplitCount",
     "ProfileReplay/Path/DegenerateArcCenter",
-    "ProfileReplay/Path/DegenerateArcChord",
     "ProfileReplay/Path/DegenerateArcSpec",
     "ProfileReplay/Path/ArcSweepNotShortOfFullTurn",
     "ProfileReplay/Path/NoCornerForFillet",
@@ -859,7 +852,7 @@ test_utils::f6_variants! {
         VerbArity, Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
         PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, NegativeSpacing, DegenerateSpacing,
         DegenerateStep, FullRangeStep, PlacementsUncertified, PlacementRule, UnschedulableCycle,
-        Naming, UnionFoldStep, BlendSelectionEmpty, Shell, ShellLaneUnsupported,
+        Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
         FaceFrameNotPlanar, FaceFrameReadback, FrameDirection, WitnessBifurcation, Part, Mate,
         SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
         MeasureNotParallel, MeasureUnsupported, PayloadExpr, MeasureClearanceRefused,
@@ -1327,7 +1320,6 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::PlacementsUncertified { .. }
         | NodeErrorKind::UnschedulableCycle
         | NodeErrorKind::UnionFoldStep { .. }
-        | NodeErrorKind::BlendSelectionEmpty { .. }
         | NodeErrorKind::ShellLaneUnsupported { .. }
         | NodeErrorKind::FaceFrameNotPlanar { .. }
         | NodeErrorKind::CrossingUnverified { .. }
@@ -2052,12 +2044,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         ),
         row("UnschedulableCycle", NodeErrorKind::UnschedulableCycle),
         row(
-            "BlendSelectionEmpty",
-            NodeErrorKind::BlendSelectionEmpty {
-                verb: sweep::blend::BlendKind::Fillet,
-            },
-        ),
-        row(
             "ShellLaneUnsupported",
             NodeErrorKind::ShellLaneUnsupported { scalar: "interval" },
         ),
@@ -2666,7 +2652,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             ),
             // The two section refusals a plane-inclusive pair can reach
             // (the join reads no other): a lane bug, and the conic
-            // carrier's own refusal at a near-circular tilt.
+            // carrier's own escalation on its minor semi-axis.
             (
                 "Section",
                 J::Section {
@@ -2680,8 +2666,8 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 "Section(Carrier)",
                 J::Section {
                     face,
-                    source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::CircularAxes(
-                        payloads::named("ellipse_axes_distinct"),
+                    source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(
+                        payloads::named("ellipse_minor_positive"),
                     )),
                 },
             ),
@@ -3055,7 +3041,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
             "lever arm",
             escalated(CertCheck::TransversalityArm, in_band),
             "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
-             tightly there, or, if this length or the gap its faces open is intended, \
+             tightly there, or, if this width or the gap its faces open is intended, \
              tighten the tolerance below 5e-10 m",
         ),
         (
@@ -3065,7 +3051,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                 MarginDiag::enclosure(2.0e-9, 5.0e-9),
             ),
             "Recourse: move the geometry so that edge's faces clearly run farther and none curves \
-             tightly there, or, if this length or the gap its faces open is intended, \
+             tightly there, or, if this width or the gap its faces open is intended, \
              tighten the tolerance below 2e-10 m",
         ),
         (
@@ -3159,7 +3145,7 @@ fn every_certify_refusal_ends_in_its_routed_sentence() {
             assert_eq!(
                 text,
                 "node 000000000005 failed: the transform op refused: an edge the map moved failed \
-                 re-certification: the transversality margin at sample 4 escalated: margin 5e-9 \
+                 re-certification: the crossing angle at sample 4 escalated: margin 5e-9 \
                  lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so the \
                  surfaces cross at a clearer angle, or, if this angle is intended, tighten the \
                  tolerance below 5e-10 m"

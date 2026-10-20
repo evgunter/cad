@@ -565,6 +565,8 @@ mod mass_props;
 mod mass_props_interval;
 #[path = "must_carry_rule.rs"]
 mod must_carry_rule;
+#[path = "near_circular_sections.rs"]
+mod near_circular_sections;
 #[path = "r1_probes_issue1362_donut.rs"]
 mod r1_probes_issue1362_donut;
 #[path = "r2_sense_fold_probes.rs"]

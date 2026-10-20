@@ -7,10 +7,10 @@
 //! resolve their selections through the same ladder, they run through
 //! the same battery and the same surgery, and they come back carrying
 //! the same birth record. Everything that distinguishes them is a
-//! literal: which slot holds the size, which label a selection refusal
-//! carries, which verb the kernel is asked for, and what a missing
-//! birth record is called in the refusal. Two modules here would be two
-//! copies of one declaration differing in four constants — the
+//! literal: which slot holds the size, which verb the kernel is asked
+//! for, and what a missing birth record is called in the refusal. Two
+//! modules here would be two copies of one declaration differing in
+//! three constants — the
 //! near-parallel twin the blend doors themselves already refused to be
 //! (`sweep::blend::BlendRefusal`'s type docs).
 //!
@@ -33,7 +33,6 @@
 
 use std::sync::Arc;
 
-use sweep::blend::BlendKind;
 use sweep::blend::naming::BlendNaming;
 use topo::{Body, EdgeKey};
 #[cfg(test)]
@@ -92,12 +91,6 @@ pub(crate) struct BlendVerb<T: geom_core::Real> {
     /// any other family's — read through
     /// [`super::read_record`], which owns the foreign-family refusal.
     pub(crate) record: fn(VerbRecord<T>) -> Option<Option<BlendNaming>>,
-    /// The label a SELECTION refusal carries. It is the kernel's blend
-    /// door label rather than a `verbs::VerbKind` because the refusal it
-    /// lands in is shared with the kernel's own
-    /// (`NodeErrorKind::Blend`), and one vocabulary there is what keeps
-    /// a refusal's verb from being rendered twice or differently.
-    pub(crate) selection_label: BlendKind,
     /// The size slot and the kernel parameter it is — the scalar-free
     /// half of the correspondence ([`SlotJoin`]), so the content key
     /// can read it without a lane scalar in hand.
@@ -162,7 +155,6 @@ pub(crate) fn fillet<T: geom_core::Real>() -> BlendVerb<T> {
         build: build_fillet,
         emitter: names::name_fillet,
         record: blend_record,
-        selection_label: BlendKind::Fillet,
         slots: FILLET_SLOTS,
         no_records: "the fillet returned a body with no birth records",
         foreign_record: "the fillet returned a record that is not a blend's",
@@ -175,7 +167,6 @@ pub(crate) fn chamfer<T: geom_core::Real>() -> BlendVerb<T> {
         build: build_chamfer,
         emitter: names::name_chamfer,
         record: blend_record,
-        selection_label: BlendKind::Chamfer,
         slots: CHAMFER_SLOTS,
         no_records: "the chamfer returned a body with no birth records",
         foreign_record: "the chamfer returned a record that is not a blend's",
@@ -246,10 +237,6 @@ mod tests {
         assert_ne!(
             f.slots.size_param, c.slots.size_param,
             "both verbs name one kernel scalar parameter"
-        );
-        assert_ne!(
-            f.selection_label, c.selection_label,
-            "both verbs label refusals identically"
         );
         assert_ne!(f.no_records, c.no_records, "both verbs share one sentence");
         assert_ne!(

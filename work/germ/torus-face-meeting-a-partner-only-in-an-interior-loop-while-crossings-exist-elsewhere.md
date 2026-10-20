@@ -63,3 +63,27 @@ gates refused on reach answer their closed forms.
   holds for a coplanar conic only through its neighbours.
 - `torus-onto-the-subtract-and-intersect-roster`: the ∖/∩ torus roster
   admission, which was parked on this item.
+
+## Measured: the rest of the class (GERM measurement lane, 2026-09-28)
+
+- **Cylinder × cylinder is live on main: P0, filed** as
+  `cylinder-wall-pair-meeting-in-an-interior-loop-while-crossings-exist-elsewhere`.
+  - A partial 240° cylinder face meets `cyl(1, 2)`'s wall in a saddle
+    loop, and a planar pin pierces the top cap.
+  - All four ops return valid `Seamed` bodies. ∩ is the pin alone,
+    `0.008` against `0.0900944`. Tilted `0.15` rad, the same.
+  - Without the pin it refuses at `cylinder_extent_gate`.
+- **Sphere × cylinder: nothing escapes the passing clause, because
+  nothing reaches it.** Three fixtures were built:
+  - the dome × an `r = 0.3` rod along `x` in the base plane (two loops,
+    each cut by the dome's rim);
+  - a bored plate (`r = 0.5` bore) × an `r = 0.8` ball, two bore circles;
+  - the dome × a tilted rod.
+
+  All refuse at `CurvedPierceUnsupported` for every op, before the
+  guard: a cylinder line into a sphere face, or a circle against a
+  wall, has no pierce door. So the "event + cylinder partner passes"
+  clause has no reachable instance in these fixtures. N6's survival is
+  consistent with that.
+- **Cone (a preview, with `Cone` on both rosters in a scratch patch).**
+  The class is live there too; see `VERBS-CONE`.
