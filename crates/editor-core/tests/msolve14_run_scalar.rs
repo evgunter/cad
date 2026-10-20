@@ -1565,6 +1565,31 @@ fn a2_a_box_on_a_value_encloses_the_mated_part() {
     );
 }
 
+/// **A box on a spin value places the copy it turns**: evaluated at
+/// `Interval` over a box a twentieth of a radian wide on the spin, the
+/// placement's map is a fold of a mate and values, admitted as the
+/// rigid motion it is at every point of the box, so neither the
+/// placement nor the bolt it places refuses at the rigidity door
+/// (`NodeErrorKind::Motion`), which a widened rotation's enclosure
+/// cannot pass by its seven margins alone. Over a box this wide the
+/// bolt still refuses, at the placed edge's endpoint certification
+/// (`work/shelf/transform-rigid-recertifies-images-enclosed-apart.md`).
+///
+/// *Breaks if* a placement's boxed rotation is decided by its widened
+/// matrix's orthogonality residuals rather than admitted as a rotation.
+#[test]
+fn a2_a_wide_box_on_a_spin_is_no_rigidity_refusal() {
+    let s = slid_bolt("msolve14-a2-spin-wide");
+    let ev = run_at::<Interval>(&s.doc, &boxed(&s.doc, &s.opts, spin(), -0.025, 0.025), None);
+    for (what, node) in [("the placement", s.mate.placement), ("the bolt", s.bolt)] {
+        let kind = ev.node_error(node).map(|e| &e.kind);
+        assert!(
+            !matches!(kind, Some(editor_core::NodeErrorKind::Motion(_))),
+            "{what} refuses at the rigidity door over a boxed spin: {kind:?}"
+        );
+    }
+}
+
 // ---- C2: a clocking with no radius to turn ----
 
 /// **`placement` is refused as overconstrained, naming both of the

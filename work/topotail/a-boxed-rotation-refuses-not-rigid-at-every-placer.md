@@ -2,12 +2,12 @@
 id: a-boxed-rotation-refuses-not-rigid-at-every-placer
 kind: issue
 title: transform_rigid at Interval refuses a boxed placer — a widened rotation NotRigid, a translation boxed wider than about eps at its endpoint certification — so every boxed placer, instance or tilted mate frame refuses in a box run
-status: parked
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: M
 design: true
-blocked_on: [intent-stage3-is-built]
+closed: 2026-10-20
 ---
 
 Found by a designer weighing MSOLVE's plan item 19 (the mate solve on
@@ -89,3 +89,10 @@ What is left here:
   `the-mate-solve-s-representatives-and-inverses-mint-the-rigid-motion`);
 - the boxed translation's endpoint refusal, which is SHELF's
   `transform-rigid-recertifies-images-enclosed-apart`.
+
+## Closed
+
+Closed by INTENT stage 3 D's lane (2026-10-20), checked on D's head. Both halves the 2026-10-12 section left are gone, and the residue it names has its own row:
+- **The placement half (the tilted mate frame).** A placement's map is a fold of mates and values composed as motions, and the evaluation places it as the motion it is (`eval/wire.rs`, the `Folded::Pinned` arm: `composed.motion`), never through the widened matrix's seven margins; a map not composed so is admitted by `mate::solve::admitted`, which re-witnesses an `Undecided` one by Gram–Schmidt. Pinned by `msolve14_run_scalar::a2_a_wide_box_on_a_spin_is_no_rigidity_refusal`: a bolt turned by a spin boxed ±0.025 rad at `Interval` refuses at no rigidity door. With the composed arm sent through `RigidMotion::check_rigid` instead, the row goes red with `Motion(Undecided { transform_rigid_col0_unit, margin ±0.028 })`.
+- **The boxed `Pattern` angle.** A stepped pattern's motion is minted by construction (`eval/wire/stepped.rs`, `stepped_rule_map`: `RigidMotion::rotation_about_axis_by`), so a boxed angle meets no rigidity check. Listed frames are literal and hold no boxed number. Spec §5 sends this half to G, which retires `PatternKind` whole; nothing of it refuses before then.
+- **The boxed translation's endpoint refusal**, which the same row still meets over a box that wide (`Transform(Certify { EndpointEnd, carrier_endpoint_end, margin [0, 0.05] })`), is SHELF's `transform-rigid-recertifies-images-enclosed-apart`, open.
