@@ -266,7 +266,16 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// alone, by tags: its copies are placed at a pose, which mints one id
 /// fewer than standing did, so every tag minted after them moved.
 /// [`NAME_WORDS`] held.
-const SAID_DIGEST: u64 = 0x52bd_9cca_ed78_f9e6;
+///
+/// The identity bundle (FORK-REST) moved it by tags, in the documents
+/// that mint a node after a stand (`heat_sink`, `declared_tangency`,
+/// `kitchen_sink`, `cut_cylinder`, `part_select`, the five rows
+/// `lib_g16_corpus_name_digests` moved): a copy standing where its body
+/// stands is placed by no mate and the constant `0` on every freedom,
+/// written as one `AddValues`, which mints a different number of ids from the plane
+/// mate and three values it replaces, so every tag minted after a stand
+/// moved. [`NAME_WORDS`] held.
+const SAID_DIGEST: u64 = 0x6d75_0566_c546_aab7;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

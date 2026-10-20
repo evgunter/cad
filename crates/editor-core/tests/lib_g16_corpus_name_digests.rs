@@ -235,17 +235,27 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// to hang below the world's xy as its retired `SetExtrudeSide` edit had
 /// them: placed at a pose, the two mint one id fewer than standing did,
 /// so every name minted after them moved.
+///
+/// **Re-pinned for the identity bundle** (FORK-REST), `heat_sink`,
+/// `declared_tangency`, `kitchen_sink`, `cut_cylinder` and
+/// `part_select`: a copy standing where its body stands is placed by no
+/// mate and the constant `0` on every freedom, written as one
+/// `AddValues`, which mints a different number of ids from the plane mate and three
+/// values it replaces, so every node minted after a stand moved its id:
+/// exactly the documents that mint a node after a stand
+/// (`cut_cylinder`'s second half stands after its first). Every
+/// standing copy is bit-identical to its source.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xd996a20e0fd9ee56),
     ("corner_table", 0x29800dc909826450),
-    ("heat_sink", 0x5e4310f396a8c039),
+    ("heat_sink", 0x99d838be7a738b42),
     ("crossing_slots", 0x916f9fa37f640a7b),
     ("nested_islands_105", 0x6c61877172865fd6),
     ("nested_islands_106_depth1", 0xc52eb6cf8b1e5acd),
     ("nested_islands_106_depth2", 0x155d067061c7b7dc),
-    ("declared_tangency", 0x0aa37bea4e18b48c),
-    ("kitchen_sink", 0x75932ba950a7180a),
-    ("cut_cylinder", 0x0ab12dd8c3346081),
+    ("declared_tangency", 0x57d4ee11deccc368),
+    ("kitchen_sink", 0xdc0321cd120eac0c),
+    ("cut_cylinder", 0x89205495cfa42a99),
     ("measured_web", 0x44c4e0d24d38b03c),
     ("boss_union", 0x52aab550bf0ac788),
     ("die_fillet", 0xc57e5803d9b2429a),
@@ -254,7 +264,7 @@ const PINNED: &[(&str, u64)] = &[
     ("heat_sink_fins", 0xc11b5c13358b6b56),
     ("die_tool", 0xdae16a127ee6ecd8),
     ("face_sketch", 0xe1162804a5269b4c),
-    ("part_select", 0x8d1f056e59fabea2),
+    ("part_select", 0x8d9fda8439eaf0a0),
     ("loft_prism", 0x5a473fb46c0284ce),
     ("die_composed", 0x33574884cb7300e9),
     ("die_composed_tour", 0x20b023d1fb63a5b0),

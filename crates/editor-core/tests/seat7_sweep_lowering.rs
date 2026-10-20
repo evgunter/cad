@@ -388,14 +388,24 @@ fn both_sweeps_evaluate_in_one_document() {
 /// their exact values; `kitchen_sink` with its lone block's copies hung
 /// below the world's xy as its retired `SetExtrudeSide` edit had them.
 /// `die` held.
+///
+/// RE-BLESSED, `cut_cylinder` and `kitchen_sink`, for the identity
+/// bundle (FORK-REST): a copy standing where its body stands is placed
+/// by no mate and the constant `0` on every freedom, written as one
+/// `AddValues`, which mints a different number of ids from the plane mate and three
+/// values it replaces. So every node minted after a stand moved its id,
+/// and this digest feeds ids. Where C-5's narrowing ran a standing
+/// copy's map, it is placed by no map again. Every standing copy in the
+/// corpus is bit-identical to its source (measured with a lane probe
+/// over `body_digest`).
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xbd0b_096f_8414_d39a),
         ("corner_table", 0xd125_80bc_7a18_9468),
-        ("cut_cylinder", 0xf94a_75c1_2ef0_6c45),
+        ("cut_cylinder", 0xacfc_bd06_c584_16a7),
         ("boss_union", 0xd486_5e6b_6a43_0069),
-        ("kitchen_sink", 0xacec_93f8_f85f_4578),
+        ("kitchen_sink", 0x5b1f_f3ef_7be3_a94c),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

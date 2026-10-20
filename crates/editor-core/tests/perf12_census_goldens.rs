@@ -32,6 +32,14 @@ use geom_core::Tol;
 
 /// The committed goldens, one per ε row `ci-filter.py` draws — keyed by
 /// `format!("{:e}", eps)`.
+///
+/// Re-blessed at every ε row for the identity bundle (FORK-REST): only
+/// `kitchen_sink`'s at-rest rows moved, and only in the mint digests of
+/// the ids they cite. With every `digest:` masked, each file is
+/// byte-identical to the one before. A copy standing where its body
+/// stands is written as one `AddValues` with no mate, which mints a
+/// different number of ids from the plane mate and three values it
+/// replaces, so the ids minted after a stand moved; no verdict did.
 const CENSUS_GOLDENS: &[(&str, &str, &str)] = &[
     (
         "1e-6",

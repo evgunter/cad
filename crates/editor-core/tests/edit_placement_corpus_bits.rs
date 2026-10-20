@@ -69,6 +69,15 @@ use editor_core::Node;
 /// them moved by one); `corner_table`'s
 /// one with its union's arena order under main's union fold, its points
 /// at their exact values. Every other row held.
+///
+/// **Re-pinned for the identity bundle** (FORK-REST): a copy standing
+/// where its body stands is placed by no mate and the constant `0` on
+/// every freedom, written as one `AddValues`, which mints a different number of ids
+/// from the plane mate and three values it replaces, so every node
+/// minted after a stand moved its id, and this digest feeds ids: the
+/// placements after a stand in `heat_sink`, `declared_tangency`,
+/// `kitchen_sink`, `cut_cylinder` and `part_select`, whose ordinals moved.
+/// Every standing copy is bit-identical to its source.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 122, 0xedc88b0c9768a183),
     ("die", 137, 0x3b18c1950c918b57),
@@ -103,11 +112,11 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("heat_sink", 102, 0xde9f81c590c8c25f),
     ("heat_sink", 121, 0x89c3ef16b6713708),
     ("heat_sink", 140, 0x061244a94671bfea),
-    ("heat_sink", 155, 0x0558f65f45d794e1),
-    ("heat_sink", 172, 0xce5fccdf45b1231c),
-    ("heat_sink", 189, 0x5594dced2c6a56e1),
-    ("heat_sink", 206, 0xf9b6f3020c19795e),
-    ("heat_sink", 223, 0x8bf4ab713219cf96),
+    ("heat_sink", 157, 0x6519f38af27728a2),
+    ("heat_sink", 174, 0xdb9ce54b22fc3bdf),
+    ("heat_sink", 191, 0x151fccc34c36966e),
+    ("heat_sink", 208, 0xa6aa8944480d3fc9),
+    ("heat_sink", 225, 0xd8557bc183d8d5d2),
     ("crossing_slots", 37, 0xb33e8149db30dd57),
     ("crossing_slots", 74, 0x532a33f7f1dbae57),
     ("crossing_slots", 93, 0x02461850bc4c912d),
@@ -125,19 +134,19 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("nested_islands_106_depth2", 148, 0xa7a414ba8b756515),
     ("nested_islands_106_depth2", 167, 0xe3280332ac0be665),
     ("declared_tangency", 58, 0x7e78a08f2a744c2f),
-    ("declared_tangency", 70, 0xc73761c9b161c710),
+    ("declared_tangency", 72, 0x649e278463aeac31),
     ("kitchen_sink", 55, 0x81164dd184014339),
     ("kitchen_sink", 99, 0x8b388459d09064ab),
     ("kitchen_sink", 180, 0xad33562c97bbee17),
     ("kitchen_sink", 196, 0x54439491846c821b),
     ("kitchen_sink", 211, 0x3440a00ca81668f3),
-    ("kitchen_sink", 225, 0xef65c21d15d5ffb3),
-    ("kitchen_sink", 240, 0x9ae6404d2f954552),
-    ("kitchen_sink", 257, 0x8f7d24b7aa7142c2),
-    ("kitchen_sink", 274, 0xcec20ceb3220531b),
-    ("kitchen_sink", 288, 0x7f7bb9fc49a72069),
+    ("kitchen_sink", 225, 0xe0fa040c22e51a93),
+    ("kitchen_sink", 242, 0xa6e43593e9553510),
+    ("kitchen_sink", 259, 0xf8c401b14eee52ae),
+    ("kitchen_sink", 276, 0x56dcadcd6b8d72e6),
+    ("kitchen_sink", 290, 0x311e7b0c71ea9ecd),
     ("cut_cylinder", 38, 0x15a3fea54fe3b8ad),
-    ("cut_cylinder", 50, 0x71f9ca7767225a01),
+    ("cut_cylinder", 52, 0xce579141ff4b8726),
     ("measured_web", 36, 0xa5bbabae356adcca),
     ("measured_web", 56, 0x5d19d653bc1dae6e),
     ("boss_union", 29, 0x23bc53fbff8503fc),
@@ -152,7 +161,7 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("face_sketch", 37, 0x7786f1eb617ac49b),
     ("face_sketch", 53, 0xd5e58b4c5b896c38),
     ("part_select", 42, 0x82790a172f72402b),
-    ("part_select", 54, 0x8a691aaa7d6b2df0),
+    ("part_select", 56, 0xd6c1e39940b5f496),
     ("loft_prism", 51, 0x7b39a360638cd8a1),
     ("die_composed", 36, 0x7fffc8bf1d01dcef),
     ("die_composed", 131, 0xeecdcffddc410554),

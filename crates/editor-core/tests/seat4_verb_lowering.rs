@@ -450,12 +450,20 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// `Transform` (a construction is built in its own coordinates and
 /// placed into the world by a `Place`), so its nodes, their ids and the
 /// names they mint moved.
+///
+/// RE-BLESSED, `heat_sink` only, for the identity bundle (FORK-REST): a
+/// copy standing where its body stands is placed by no mate and the
+/// constant `0` on every freedom, written as one `AddValues`, which
+/// mints a different number of ids from the plane mate and three values it replaces.
+/// So every node minted after a stand moved its id, and this digest
+/// feeds ids. Every standing copy in the corpus is bit-identical to its
+/// source (measured with a lane probe over `body_digest`).
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("crossing_slots", 0x62a0_f03c_c794_d036u64),
-        ("heat_sink", 0x95c9_6321_377d_3723),
+        ("heat_sink", 0xf1a2_5a30_b135_72a2),
         ("kiss_carry", 0xfb95_fe3f_5408_dbd8),
     ] {
         let doc = corpus::documents()
@@ -526,6 +534,11 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// placement): the fixture's profiles carry no frame and its second
 /// operand is placed against the first's root by a `Place`, so its
 /// nodes, their ids and the names they mint moved.
+///
+/// RE-BLESSED for FORK-REST: only the identity bundle as written places
+/// by no map, so the copy placed against `a` at the identity by a plane
+/// mate runs its map, which comes out as the exact identity and which
+/// the at-rest snap had placed by no map.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -564,7 +577,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xaae9_dbe3_41bc_dabd,
+        got, 0xdd05_bcb4_7430_15fb,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

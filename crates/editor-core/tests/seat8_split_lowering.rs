@@ -323,13 +323,22 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// value is neither tree's; `kitchen_sink` with its lone block's copies
 /// hung below the world's xy as its retired `SetExtrudeSide` edit had
 /// them. `part_select` held.
+///
+/// RE-BLESSED, every row, for the identity bundle (FORK-REST): a copy
+/// standing where its body stands is placed by no mate and the constant
+/// `0` on every freedom, written as one `AddValues`, which mints a
+/// different number of ids from the plane mate and three values it replaces. So every
+/// node minted after a stand moved its id, and this digest feeds ids.
+/// Where C-5's narrowing ran a standing copy's map, it is placed by no
+/// map again. Every standing copy in the corpus is bit-identical to its
+/// source (measured with a lane probe over `body_digest`).
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xf94a_75c1_2ef0_6c45u64),
-        ("part_select", 0x36a8_77e8_edb4_8dfb),
-        ("kitchen_sink", 0xacec_93f8_f85f_4578),
+        ("cut_cylinder", 0xacfc_bd06_c584_16a7u64),
+        ("part_select", 0xd94a_a647_45b1_289b),
+        ("kitchen_sink", 0x5b1f_f3ef_7be3_a94c),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
