@@ -309,7 +309,7 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // decision and so does not (and should not)
     // arrive in the `Structure` vocabulary. (It was
     // `arc_diameter_clearance` while that margin read 2r − |a − apex|;
-    // read on the carrier, 2r·(1 − sin(|Δθ|/4)), the box's semicircles
+    // read on the carrier, 2r·cos²(|Δθ|/4)/(1 + sin(|Δθ|/4)), the box's semicircles
     // are decided Positive at every radius in it, and the wall is the
     // next predicate the width reaches.) That distinction is the
     // whole point of asserting the family here: a reader who sees

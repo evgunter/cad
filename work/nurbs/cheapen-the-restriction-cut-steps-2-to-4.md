@@ -2,7 +2,8 @@
 id: cheapen-the-restriction-cut-steps-2-to-4
 kind: issue
 title: Cheapen the restriction cut further: axis-lazy restriction, one window reading shared across doors, batched channels
-status: open
+status: closed
+closed: 2026-10-20
 opened: 2026-10-14
 ---
 
@@ -54,11 +55,13 @@ statistics:
    restriction, 14 of 19 samples are `split_restrict`'s own interval
    arithmetic (each thin step's two products fold four corners) and 1
    is allocation, so batching buys ≲2%. The corner fold's lever is
-   `Interval::mul_nonneg` (#5163) on the step's `[0, 1]` weights, a
-   bit-identical follow-up once it lands.
+   `Interval::mul_nonneg` (#5163) on the step's `[0, 1]` weights.
+   **Done in #5424** (8f1edb5f, bit-identical): shelling −7.6%, r1 −11%.
 4. **A one-piece cut** (no 2×2 halving), only if 1–3 leave the rows over
    target. It must not move any rung count, worst margin or the
    flat-wall row at 1e-9.
 
 The remaining gap to the 2× target is
 `the-slow-ssi-rows-stay-over-twice-their-pre-4954-time`.
+
+**Closed (2026-10-20).** Steps 2–3 are closed as measured, and the thin step's `mul_nonneg` landed in #5424. Step 4 (a one-piece cut) applied only if steps 1–3 left the slow rows over the 2× target. With #5419 and #5424 they sit at shelling 1.66× and r1 1.33× (`the-slow-ssi-rows-stay-over-twice-their-pre-4954-time`), so step 4 is not taken.

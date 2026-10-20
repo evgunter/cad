@@ -88,14 +88,23 @@ fn die_shaped(tol: Tol) -> Die {
         booleans.push(cut);
         body = cut;
     }
+    // One edge-shaped name each: an edge set holds at least one, and
+    // nothing here evaluates, so it need not resolve.
+    let edge = |node| {
+        vec![pncad::prelude::StableName {
+            kind: pncad::prelude::EntityKind::Edge,
+            node,
+            path: Vec::new(),
+        }]
+    };
     let (doc, inner) = common::inserted(
         &doc,
-        Node::fillet(body, common::len(0.001), Vec::new()),
+        Node::fillet(body, common::len(0.001), edge(body)),
         tol,
     );
     let (doc, outer) = common::inserted(
         &doc,
-        Node::fillet(inner, common::len(0.0005), Vec::new()),
+        Node::fillet(inner, common::len(0.0005), edge(inner)),
         tol,
     );
     Die {

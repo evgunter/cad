@@ -1370,8 +1370,20 @@ fn lower_read<P: crate::ProfilePayload>(
     // A selection read here is read in a body this seat admits, whoever
     // authored it: a selection of a pattern's copies, authored at a mate
     // side, is no reader's but a side's (`persist::check` holds the
-    // stored document to the same rule).
+    // stored document to the same rule). And it is in its kind's stored
+    // form, however it was minted: a selection read by id is held to
+    // `Select::fault` as one authored here is.
     if let Some(select) = doc.selection(var) {
+        if let Some(fault) = doc
+            .var(var)
+            .and_then(|held| crate::var::Select::fault(held.kind(), &select.names))
+        {
+            return Err(EditError::SelectionShape {
+                node: spoken(),
+                slot,
+                fault,
+            });
+        }
         let body = select.body;
         check_read(
             doc,
@@ -1745,6 +1757,7 @@ pub fn lower_slot_into<P>(doc: &mut Doc<P>, formula: &Formula) -> Result<VarId, 
 /// # Panics
 ///
 /// If `slot` reads no selection of the names' entity kind.
+#[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 #[track_caller]
 #[allow(clippy::expect_used)]
@@ -3715,13 +3728,20 @@ impl EditError {
                     f,
                     "{node}'s {slot} is not a selection a document stores: {fault}"
                 )?;
-                tail.recourse(
-                    f,
-                    format_args!(
-                        "author the names in the stored order (an edge set sorted, a face set \
-                         naming each face once), as the fillet, chamfer and shell builders do"
+                match fault.count_bound() {
+                    Some((entity, holds)) => tail.recourse(
+                        f,
+                        format_args!("name {holds} {} of the body it reads", entity.noun()),
                     ),
-                )
+                    None => tail.recourse(
+                        f,
+                        format_args!(
+                            "author the names in the stored order (an edge set sorted, a face \
+                             set naming each face once), as the fillet, chamfer and shell \
+                             builders do"
+                        ),
+                    ),
+                }
             }
             Self::OperandUnresolved { node, slot, read } => {
                 write!(

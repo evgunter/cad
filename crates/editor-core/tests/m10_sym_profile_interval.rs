@@ -706,6 +706,19 @@ const PLATE_MAX_TERMS: usize = 28;
 /// calls (686 → 693) and +30 forms, with their digests; the
 /// `*/Decision` lines, the freezes and the largest form hold.
 ///
+/// Check 4 deciding no whole period (PCERT B2b): fidelity's 32 branch
+/// decisions are gone, each a numeric decision checked against the
+/// tier, so `Plain/Assertion` and `Early/Assertion` 693 → 661 calls and
+/// `Door/Decision` 428 → 396; forms and digests move with them, and
+/// `Plain/Decision`'s calls, every freeze and the largest form hold.
+/// Measured on the tree with every move above.
+///
+/// The arc's diameter clearance spelled `2r·cos²(|Δθ|/4)/(1 + sin(|Δθ|/4))`
+/// (`profile`'s `seg::classify`), where `1 − sin(|Δθ|/4)` cancelled near
+/// a full turn: forms `Plain/Assertion` 7013 → 7017, `Early/Assertion`
+/// 8175 → 8179 and `Door/Decision` 9465 → 9471, with their digests;
+/// every call, every freeze and the largest form hold.
+///
 /// INTENT stage 3 D (Transform retires into a placement) re-spells the
 /// plate without datum frames, each construction placed into the world
 /// by a `Place`, and the box lanes' solved map stays tight (a spin set

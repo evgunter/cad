@@ -151,6 +151,19 @@ use crate::m10_9_pins_interval::measured_studies;
 /// finding the row asks for, and its cause is that fix; no dispute
 /// fired.
 ///
+/// Check 4 deciding no whole period (PCERT B2b) takes fidelity's numeric
+/// branch decisions out, measured on the tree with every move above:
+/// plate `numeric` 693 → 661, annulus 431 → 399, link 271 → 255,
+/// bracket 1051 → 1011, pad 1162 → 1114; `symbolic` and `frozen` hold,
+/// and no dispute fired.
+///
+/// A tangent arc's quarter-tangent chosen between its two half-angle
+/// quotients by `select_le_zero` (`profile`'s `sugar::split_half_tan`),
+/// a value the plain walk keeps as one atom: the link's `frozen`
+/// 558 → 559, its decisions held. No dispute fired. The line×line
+/// fillet's half-angle tangent chosen the same way: the pad's `frozen`
+/// 4310 → 4312, its decisions held, the bracket and the link unmoved.
+///
 /// INTENT stage 3 D (Transform retires into a placement, then
 /// FORK-REST: only the identity bundle as written places by no map).
 /// Measured on three trees with the same replay and the freezes'

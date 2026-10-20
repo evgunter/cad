@@ -597,6 +597,13 @@ fn sym_9_what_each_retry_recovers() {
 /// 1311/1043 → 1311/1047, with the ladder and without it alike; no
 /// recovered decision moved.
 ///
+/// Check 4 deciding no whole period (PCERT B2b): fidelity's numeric
+/// branch decisions are gone, with the ladder and without it alike,
+/// measured on the tree with every move above. The plate's `numeric`
+/// 693 → 661, the annulus 431 → 399, the boss 399 → 375, the bracket
+/// 1047 → 1007, the link 687 → 655. `symbolic` and `retried` hold. (The
+/// pad's leaf is `sym_9_the_drive_writes_the_ladders_receipt`'s.)
+///
 /// INTENT stage 3 D places each construction a document combines into
 /// its target's space by a plane mate and its values, and each
 /// placement's chart decides with the ladder and without it alike:
@@ -728,7 +735,15 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
 /// 1208 → 1246. The junction's turn levered by the shorter leg's arm
 /// (#5377's fix pass) moves sixteen more of the leaf's decisions from
 /// `numeric` to `symbolic`: 1246/1294 → 1262/1278 with the ladder and
-/// 1208/1332 → 1224/1316 without it, the thirty-eight held.
+/// 1208/1332 → 1224/1316 without it, the thirty-eight held. Check 4
+/// deciding no whole period (PCERT B2b) takes its 48 numeric branch
+/// decisions off both, measured: 1262/1278 → 1262/1230 with the ladder
+/// and 1224/1316 → 1224/1268 without it;
+/// `symbolic` and `retried` hold. The line×line fillet's half-angle
+/// tangent read by the home's select (`profile`'s `sugar::split_half_tan`)
+/// moves decisions from `numeric` to `symbolic`: 1262/1230 → 1264/1228
+/// with the ladder, which retries thirty-nine, and 1224/1268 →
+/// 1225/1267 without it.
 ///
 /// The row read the filleted bracket, then the link, then the pad as
 /// authored. Since the constructions store the carriers they build,

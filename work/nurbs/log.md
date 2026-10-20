@@ -1566,3 +1566,88 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
     - M1 (the cut side's `shared_pieces` switch was unscheduled) is filed as `cut-side-quotients-halve-the-shared-weight-power-per-axis`, which also carries M2 (`WEIGHT_HALVINGS` counts calls, not halvings);
     - the NIT (the bit row skips `cell_quotients`' arms) and the `halving_counts` switch in `cell_pieces` go to build A's follow-up.
   - Reviewer archived.
+- 2026-10-19 23:45Z — **Mint-once is up as #5419** (build C, FULL, head 019beb75, bit-identical; `limb_three` matches line for line on 4 rows).
+  - **Shelling:** 17 mints of 4 walls become 5. The fifth, in `plane_nurbs_limbs`, runs after the scope drops, by design.
+  - **Timing:** shelling 2.14× → 1.86× of pre-4954 (−13%); r1 flat at 1.49×.
+  - **Deviation from ruling (A), accepted:** a concrete `f64` `OnceCell` slot in `offset_derive::WallCharts`, with no associated type on the lane trait, because the planners are bounded by `T: Decide` only. `props.rs` is untouched, so there's no collision with flux.
+  - FULL reviewer: session_01RsTjMpvtHiPMQ64nQhBY4V.
+- 2026-10-20 00:40Z — **#5424 is up** (build C, the `mul_nonneg` thin step in `split_restrict`, STANDARD, head ece8fbf1, bit-identical). Shelling −7.6%, r1 −11% against main 8c6e959e; independent of #5419, so the two should stack. STANDARD reviewer: session_018C4CWrdSjiRiekkGe59P8T.
+  - **Friction:** C reports my `next`-priority messages from ~22:00Z and 00:06Z (the `props.rs` ruling and #5419's latency red) arrived late, all at once. `next` joins the running turn, but C's long background timing loops leave few points where it can. The #5419 red was re-sent at `now` priority. A red on a lane's own PR should go `now` from the start.
+- 2026-10-20 01:55Z — **#5414 merged** (93aa9511; binomials fold PR 1, so pairs with da+db of 55/56 are now served).
+  - **FULL review MERGEABLE, 0 MAJOR:**
+    - the 55/56 cap is exact;
+    - the cap mutants at 54, 55 and 57 go red;
+    - 9 reds at 1e-12/1e-6, each red with the change reverted and all filed.
+  - **Routed:**
+    - MINOR-1 (two test-only copies of the f64 binomial fold, at `ssi.rs:4397` and `m5_pr7_ssi.rs:5535`), the stale prose and the doubled constant go into build A's STANDARD follow-up, with the #5399 items;
+    - the NOTE (the guard mutant survives at `compose/tensor.rs:429`) is filed P3 as `tensor-residual-degree-guard-has-no-row-at-its-edge`.
+  - Reviewer archived.
+- 2026-10-20 02:35Z — **#5433 up** (build A's STANDARD follow-up to #5399 and #5414, head 47d1d68c). It also folds a third, production copy of the binomial fold (`carrier_net.rs`'s Taylor re-expansion, bit-identical).
+  - **Base red found by A:** topo's `every_public_mutation_path_preserves_tier1` is red on main since ENCL's PR 5418 (`restate_stored_edge` is off the roster). Filed on ENCL's slate with a seam note; NURBS PRs cite it as a base red.
+- 2026-10-20 02:50Z — **#5424 merged** (8f1edb5f; the `mul_nonneg` thin step).
+  - **STANDARD review MERGEABLE:** a probe of 296k real weight pairs (~1.19M steps) found 0 differences, and no weight read `lo < 0`. Suites are green at both ε on head and main; r1 is −8% at opt-level 0.
+  - The MINOR (the "[0,1]" comment is inexact; `s.hi` reaches 1+2⁻⁵²) and the row's missing wide/tiny-t draws ride C's next `split_restrict` PR.
+  - The lever is marked done in `cheapen-the-restriction-cut-steps-2-to-4` and the slow-rows item. Reviewer archived.
+- 2026-10-20 03:16Z — **#5419 partial review** (FULL, at c75c3a2c):
+  - the `limb_three` probe is byte-identical on 4 rows;
+  - geom-brep and mesh are green at default and 1e-6 on both trees;
+  - C's latency fix is test-only, and the swap mutant stays red.
+  - **Ruled into this PR:** the chart/surface pairing check on the `pub` `of_charted` doors was debug-only, and with it stripped a wrong-held-key mutant passed 6 of 8 rows silently. The reviewer graded it MINOR; ruled in because it is a fail-loud gap on a public door, closed by a pointer compare. C makes it a release check and adds a mismatched-chart row.
+  - Two 1e-6 head reds (`cone_operand_rows::an_oblique_rod…`, `r1_lane0_e2e::the_f64_seam…`) await attribution against main's 1e-6 run. The full matrix ETA is 3–4 h.
+- 2026-10-20 03:50Z — **#5433 merged** (10b9dfd5; build A's follow-up to #5399/#5414).
+  - **STANDARD review MERGEABLE, 0 MAJOR:** the `carrier_net` fold is bit-identical (the old fold first differs at C(55,26); this code uses n ≤ 6), and the slow sets match main at both ε.
+  - **Routed:** the minors (three more test-only folds, `polynomial_area_pieces`' hand-written pair, `shared_pieces`' silent fallback) are added to `cut-side-quotients-halve-the-shared-weight-power-per-axis`, build C's next PR, which is now unblocked. Build A moves to the binomial item's PR 2 (the product and blossom homes).
+  - **#5419:** the pairing check now runs in every build (head cd38b6f7, `SsiError::WrongLane`, two mismatched-chart rows). Both 1e-6 head reds are confirmed base reds, identical word for word on main (GERM's oblique rod; ssiedge's `TubeNotOneArc` at the post-frame mint). The reviewer is verifying the delta.
+- 2026-10-20 04:18Z — **Binomial item PR 3, Step A** (build A, read-only). Compared each restriction home's coefficient intervals against the pyramid at every real call (the geom-brep slow set plus sweep shelling/r1/shell_general_door). Worst case, other home vs the pyramid:
+  - section's general cuts, split: up to 98× wider (15% of coefficients by more than 4 ulp);
+  - section's exact halves, halving kernel: up to 2×;
+  - `cut_pieces`, split: up to 417× (absorbed by the cut's meet with the whole cell, #5123).
+  - The pyramid is never meaningfully wider.
+  - **Ruled:** three homes stay, each with its reason stated. The pyramid is section and props' door, `split_restrict` the cut's meet-protected fast form, `Grid::halved` derivative's halving. The one fold: `restrict_bernstein` (sole caller `props/quad.rs:4376`) reroutes to `restrict_segment`, bit-identical, and retires. STANDARD. The table goes into the item's record. Seam note on flux's log.
+- 2026-10-20 04:20Z — **Correction: the #5439 ruling was wrong.**
+  - **What happened:** at ~03:50Z I approved resolving the Bernstein-product half of the binomial item by a stated reason. The reason was that folding would move one side's pinned bits.
+  - **Why it was wrong:** `memories/output-stability-as-justification.md` forbids exactly that: bit-preservation "may never justify keeping a thing: not a second implementation".
+  - **How it was caught:** #5439's STANDARD review raised it as MAJOR and tried the fold. compose's memo holds exact integer numerators, read through `mul_nonneg`. Only the old-association bit rows and the rehearsal golden moved, and that golden's bound got tighter (1.865e-14 → 1.465e-14). Wall time was unchanged.
+  - **Re-ruled:** #5439 does the fold, now at FULL, with the golden re-baselined and the old bit rows retired. The same reviewer re-reviews.
+  - **Friction:** I ruled on a design-shaped question ("two homes, or one?") without re-reading the memory index for a rule that applies. The orchestrator's adjudication docs bind my own judgement too (CLAUDE.md). Before approving any "keep both" resolution, check it against this memory.
+  - PR 3's three homes rest on width and cost, which is allowed. Build A will audit its docs for the "kept because bits would move" tell.
+- 2026-10-20 05:10Z — **Degree elevation: P4 → P3, fix ruled** (build C measured it on main 43b23583).
+  - **The item's 1/g law holds only for p = 3–5.** p = 6–7 is 1/g², p = 8–9 about 1/g³, and the error is silent: p=8 with a 1e-5 interior gap is 1.7 m off after one `elevate_degree(1)`. It depends on a gap's ratio to neighbouring spans, not the absolute gap; uniform knots are clean at every degree. Double elevation compounds (p=5, `elevate_degree(2)`, g=1e-8 → 2.2).
+  - **Callers:**
+    - `skin` and `compose_chain` raise user sections to the maximum degree, so they carry it silently;
+    - `approximate` elevates only from p ≤ 2 (exact);
+    - `review_m5_pr3_attack::f5_*` is a latent ~4e-6 flake with the wrong law in its comment.
+  - **Ruled:** fix, at FULL. A conditioning-aware forward/backward split in elevation's recomposition only. If that doesn't reach ε·scale at p ≥ 6, report; the fallback is a typed refusal, never silent drift. Rows red on main; goldens over elevated geometry re-cut, with what moved stated; SWEEP and curves seam notes if their goldens move.
+- 2026-10-20 05:15Z — **#5446 CI red, base red.** `geom curves::tests::ellipse_constructor_trios` (`SemiAxisNotFinite`) is red on main since GERM's `53967a14` (#5156); build C bisected it. Filed on GERM's slate with a seam note. #5446 merges over it under the standing base-red ruling.
+  - **Friction:** the orchestrator's container hit 99% disk (a 24 GB stale target from earlier timing work) and couldn't build to check. Freed; lanes with warm builds now do base-red checks.
+- 2026-10-20 05:30Z — **#5419: topo's `WrongLane` must panic** (ruled in from the reviewer's cd38b6f7 verification).
+  - **What the reviewer found:** the door's release pairing check refuses every mispairing, but topo absorbed `WrongLane` as an ordinary section refusal, so the wrong-held-key mutant went red on only 3 of 34 slot rows in release; the rest took refusal or fallback paths silently.
+  - **Ruling:** DESIGN `[loud-failure]` ("a bug panics, as early as it is detectable"; "no fallback that answers where a method declined"). Topo builds the pairing, so a `WrongLane` at its call sites is a kernel bug. C makes the two `offset_derive` call sites panic on it; the `pub` doors keep the typed refusal for outside callers.
+  - **Also verified at cd38b6f7:**
+    - no false `WrongLane` (clones keep the surface reference);
+    - the shelling probe is byte-identical;
+    - all 7 topo and sweep 1e-12 reds are filed base reds, word for word.
+  - **#5440:** review MERGEABLE (1450 pieces bit-identical, M2–M7 red, 267 decisions match). It waits on C resolving the item conflict that my aafaa9b2 caused. The two `split_restrict` carry-overs move to build A's PR 3.
+- 2026-10-20 07:25Z — **#5439 resolved: two Bernstein product homes, kept for precision** (build A's measurement under the rule fixed at 04:42Z).
+  - **Decisions:** neither fold direction moves one (the geom-brep and sweep slow sets at both ε, plus the `limb_three` census over 735 rung lines; only margin bits and one box count change).
+  - **Widths:**
+    - B (compose on exact numerators) widens compose's tensor and `ch_mul` and `mul_block` coefficients up to 6× and loses exact zero-width points at `tensor.rs:383/386`, though it is narrower on 7–40% of them;
+    - C (derivative on compose's per-term weights) widens `area_raised` up to 1470× and `doubled_cross` up to 208×.
+  - **Ruled:** rule 3. Each association is tightest for its own callers, so two homes stay, with precision as the stated reason and the table in the item. #5439 drops back to STANDARD: docs, the bit rows kept, the enclosure rows, the review's MINOR and NOTE, no golden moves.
+  - **Lesson:** fixing the rule before the numbers was worth it. The first ruling (bits) was wrong in kind; this one is right in kind and holds to its threshold.
+  - **#5419:** C pushed 67c2d535. Topo's `of_charted` sites panic on `WrongLane`; the release mutant is red on 8 rows by the panic, against 3. The reviewer re-verifies.
+- 2026-10-20 07:45Z — **#5419 merged** (759acedd; mint each wall once per operation).
+  - **FULL review MERGEABLE at 67c2d535:**
+    - the release pairing check refuses mispairings at the `pub` doors, and topo panics on `WrongLane` at its call sites;
+    - the wrong-held-key mutant is red on all 8 mispaired rows by the panic (against 3 before the panic, with 5 silent);
+    - unmutated topo+sweep release pass 6332/6332, and `limb_three` is byte-identical.
+  - **The slow rows are under target:** shelling 1.66×, r1 1.33× (main + #5419, build C). The slow-rows item is closed with those numbers, and `cheapen-the-restriction-cut-steps-2-to-4` closed (step 4 not taken).
+  - **Filed:** `mint-once-is-pinned-only-by-timing` (P3; the review's M3 survives, so a mint-count row is needed), with the review's style tail.
+- 2026-10-20 07:50Z — **#5459 is up** (build C, the degree-elevation fix, FULL, head 60954f25).
+  - **The fix:** `remove_once(.., ChainSplit)`, with elevation on `Conditioned`, which tracks a first-order error estimate per control point and takes the least-error split each pass (midpoint on a tie); knot removal keeps `Midpoint`. The plain α ≥ ½ rule failed on uniform knots, where α ties at ½ and error chained.
+  - **After it:** p ≤ 10 × g ≥ 1e-9 within 3e-15 of scale, the `WeightCollapse` refusals at p ≥ 8 gone, no golden moved, elevation 1.3–2.1× faster.
+  - **Base reds:**
+    - GERM's ellipse row, fixed on main by `2ee8a2ea` (my item is closed);
+    - a new `reader_census` red, filed on ENCL;
+    - ENCL's tier-1 roster red.
+  - **Friction (build C):** one `CARGO_TARGET_DIR` shared across worktrees silently reuses another worktree's build of a workspace package, because cargo's fingerprint checks the source paths of the last build. It made a red-on-main check pass on fixed code twice today, until `cargo clean -p <pkg>`. Lanes taking red-on-main or timing measurements use one target directory per worktree, or clean the switched packages. Raise it as an `[ev]` memory candidate if it recurs.

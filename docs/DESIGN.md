@@ -1571,17 +1571,20 @@ library spelling of.
 
 *From:* [loud-failure], [unrepresentable].
 
-- **The kernel never panics on any INPUT** — every failure an input can
-  reach is a typed error. **A panic is therefore never a refusal: it
-  reports that a bug has already happened.** Read it as *a firing panic
-  is evidence of a bug*, never as *a panic in the source is a defect to
-  remove*. **The converse is a positive obligation: a state that can
-  only be a kernel bug MUST panic**, as loudly and as early as it is
-  detectable (`unreachable!` / `debug_assert`, the taxonomy below);
-  downgrading one to silence, or to a typed error, launders a bug into
-  a supported outcome. The two halves are separate rules over disjoint
+- **The kernel panics on kernel bugs, and only on kernel bugs.** A state
+  that can only be a kernel bug MUST panic, as loudly and as early as it
+  is detectable (`unreachable!` / `debug_assert`, the taxonomy below);
+  downgrading one to silence, or to a typed error, launders a bug into a
+  supported outcome. **No input should be able to lead to a known panic,
+  since bad input is not a kernel bug**: every failure a correct kernel
+  lets input reach is a typed error. Some input triggers every bug, so a
+  check that fails on the kernel's own result reports a bug and panics;
+  it is not a refusal of that input. **A panic is therefore never a
+  refusal: it reports that a bug has already happened.** Read it as *a
+  firing panic is evidence of a bug*, never as *a panic in the source is
+  a defect to remove*. The two halves are separate rules over disjoint
   state classes. Every traversal is bounded: never a hang.
-  The closure property behind the first half: every public mutation
+  The closure property behind the no-known-panic half: every public mutation
   path preserves tier 1, **checked at every observable boundary** —
   the Euler operators by the soundness theorem, the non-operator
   structural mutators by declaring the same debug postcondition, or by
@@ -1650,6 +1653,18 @@ swallowed.
 - *Row 3:* poison flows through **values**, never through decisions
   ([scalars]). `sup_norm_bound` returning NaN on every poison path is the
   pattern.
+- *A site whose firing a correct kernel can reach is not a defect* but
+  a precision limit the model controls (row 1, a lever and
+  `KERNEL_LIMIT_RECOURSE`) or a case not built yet (row 2,
+  `NOT_YET_ENDING`), and it takes that row's ending. A file is input, so
+  a document check, or a check at the import door, is row 1.
+- *A load-bearing check panics in release.* A re-deriving check that
+  ships, because removing it would ship a wrong result (a validate
+  over a Boolean's result), is not row 5: row 5's contract (i) is
+  that a `debug_assert`'s absence changes nothing shipped. It runs in
+  release, and its failing branch is `unreachable!` with row 4's
+  message: what the check re-derived and why a correct kernel always
+  passes it.
 - *Rows 4 and 5 split on re-derivation, not on cost.* `unreachable!` is
   for a state the current best understanding says only a kernel bug
   reaches, however many interacting parts that understanding rests on

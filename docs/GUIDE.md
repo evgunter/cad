@@ -1159,7 +1159,7 @@ next section runs them.
 ```python
 import math
 
-from pncad import Doc, EvaluationError, Formula, Node, evaluate, m
+from pncad import Doc, EditError, Formula, Node, evaluate, m
 
 L, R = 1.0, 0.12
 
@@ -1194,13 +1194,13 @@ body = evaluate(doc).value(blank).body()
 body.validate()
 assert abs(body.mass_properties().volume - want) < 1e-9 * want
 
-# An empty selection is refused by the node, not by the binding.
-empty = doc.insert(Node.fillet(cube, Formula.length_in(R, m), []))
+# A set of edges holds at least one name, so an empty selection is
+# refused where it is written, not by the binding.
 try:
-    evaluate(doc).value(empty)
+    doc.insert(Node.fillet(cube, Formula.length_in(R, m), []))
     raise AssertionError("an empty selection should not blend")
-except EvaluationError as refusal:
-    assert refusal.kind == "fillet_selection_empty"
+except EditError as refusal:
+    assert (refusal.variant, refusal.inner_variant) == ("selection_shape", "name_count")
 ```
 
 ### Narrowing a selection: select, then fillet
@@ -1328,12 +1328,12 @@ a SETBACK, not a radius**: it is measured along each support away from
 the edge, so a chamfer of the same number as a fillet cuts the corner
 the rolling ball would ride around and takes more material.  And **both
 supports must be planes** — an edge between curved faces refuses typed
-at `evaluate` rather than being blended some other way. The refusals
-are the chamfer's own words (`chamfer_selection_empty`), not the
-fillet's: one ladder, but the tag says which verb asked.
+at `evaluate` rather than being blended some other way, in the
+chamfer's own word (`chamfer`), not the fillet's: one ladder, but the
+tag says which verb asked.
 
 ```python
-from pncad import Doc, EvaluationError, Formula, Node, evaluate, m
+from pncad import Doc, Formula, Node, evaluate, m
 
 L, D = 1.0, 0.12
 
@@ -1372,14 +1372,6 @@ assert (
 # The result is a NODE, so its faces are named and a downstream
 # selection can reach them: 6 supports, 12 strips, 8 corner patches.
 assert len(ev.all_faces(flat)) == 26
-
-# An empty selection is refused by the node, in the chamfer's own word.
-nothing = doc.insert(Node.chamfer(cube, Formula.length_in(D, m), []))
-try:
-    evaluate(doc).value(nothing)
-    raise AssertionError("an empty selection should not chamfer")
-except EvaluationError as refusal:
-    assert refusal.kind == "chamfer_selection_empty"
 ```
 
 ### Tubes: a ring from its intent, and the same ring with a wall

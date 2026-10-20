@@ -4,9 +4,9 @@
 //! A selection is a COMMITMENT (the #217 freeze ruling), so a name
 //! that stops resolving is a refusal, never a silent shrink. The
 //! vocabulary is the mid-evaluation N5 ladder's (`eval/wire.rs`
-//! `ladder`), the same refusals `crate::resolve` mints, plus the one a
-//! selection adds: an EMPTY set. A mis-KINDED name is the insert
-//! door's, whether or not it is tied.
+//! `ladder`), the same refusals `crate::resolve` mints. A mis-KINDED
+//! name and an EMPTY set are the insert door's, read off the names as
+//! written.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -404,15 +404,23 @@ fn a_tied_name_of_another_kind_refuses_on_kind_at_the_insert() {
     );
 }
 
-/// **Empty**: a fillet of nothing is not the identity — it is an
-/// unfinished recipe. No op in this kernel silently returns its input.
+/// **Empty**: a set of edges holds at least one name, so a fillet of
+/// nothing refuses at the insert and never reaches evaluation.
 #[test]
-fn an_empty_selection_refuses() {
-    let (doc, fillet) = planted(|_| Vec::new());
-    refuses(&doc, fillet, |kind| {
-        assert!(
-            matches!(kind, NodeErrorKind::BlendSelectionEmpty { .. }),
-            "{kind:?}"
-        );
-    });
+fn an_empty_selection_refuses_at_the_insert() {
+    let (doc, _) = planted(|doc| vec![rim(doc, body(doc), 0)]);
+    let err = fixture::insert_refused(&doc, Node::fillet(body(&doc), len(0.125), Vec::new()));
+    assert!(
+        matches!(
+            err,
+            editor_core::EditError::SelectionShape {
+                fault: editor_core::SelectionFault::Count {
+                    kind: editor_core::VarKind::Edges,
+                    count: 0,
+                },
+                ..
+            }
+        ),
+        "{err:?}"
+    );
 }

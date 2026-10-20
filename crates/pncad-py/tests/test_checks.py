@@ -553,20 +553,16 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         )
 
 
-if __name__ == "__main__":
-    unittest.main()
+class TestAProfileJunctionTheDoorDecides(unittest.TestCase):
+    """D1's profile tangency: a junction's tangency is its turn levered
+    by the shorter of its two legs' arms, one reading the path door and
+    validation both take. So no lattice program reaches a junction that
+    validation decides tangent or one carrier: the door has built it as
+    a corner, or refused it at the verb."""
 
-
-class TestAProfileJunctionDecidedTangent(unittest.TestCase):
-    """D1's profile junctions, as `coincidence_door`'s twins state them:
-    validation decides a joint by the turn the path lattice reads
-    (`path_junction_turn`), so a junction the lattice reads as a corner
-    is a corner to validation too and carries no row, and an undeclared
-    junction the lattice reads as Zero refuses where it is authored
-    (`work/coincide/a-profile-junction-row-has-no-reaching-document.md`)."""
-
-    def test_a_junction_the_lattice_reads_as_a_corner_is_no_row(self):
-        # A line meets an arc at a turn of `sqrt(eps)` at the default eps.
+    def test_a_line_into_an_arc_turning_sqrt_eps_is_a_corner_and_no_row(self):
+        # Turned by sqrt(eps) at the unit arm of both legs: a definite
+        # corner, so the profile carries no `profile_junction` row.
         phi = math.sqrt(1e-9)
         cx, cy = 1.0 - math.sin(phi), math.cos(phi)
         loop = (
@@ -581,15 +577,15 @@ class TestAProfileJunctionDecidedTangent(unittest.TestCase):
         self.assertTrue(ev.succeeded(node))
         self.assertEqual(ev.coincidences(node), [])
 
-    def test_a_junction_on_one_carrier_refuses_where_it_is_written(self):
-        # A leg of 1e-10 m rise over 1 mm turns off the 10 m line by
-        # 1e-7 rad; levered by the shorter leg's arm the lattice reads
-        # that turn as 0.1 eps, Zero, and refuses the undeclared tangent
-        # junction.
-        with self.assertRaises(pncad.PathError) as refused:
-            (
-                Open.at((0 * m, 0 * m))
-                .line_to((10 * m, 0 * m))
-                .line_to((10.001 * m, 1e-10 * m))
-            )
-        self.assertEqual(refused.exception.variant, "junction_tangent")
+    def test_a_leg_on_one_carrier_refuses_at_the_verb(self):
+        # A 1 mm leg rising 1e-10 m off a 10 m line: its turn levered by
+        # the 1 mm arm is 0.1 eps, Zero, so the undeclared tangent
+        # junction refuses at the verb that authored it.
+        tip = Open.at((0 * m, 0 * m)).line_to((10 * m, 0 * m))
+        with self.assertRaises(pncad.PathError) as caught:
+            tip.line_to((10.001 * m, 1e-10 * m))
+        self.assertEqual(caught.exception.variant, "junction_tangent")
+
+
+if __name__ == "__main__":
+    unittest.main()

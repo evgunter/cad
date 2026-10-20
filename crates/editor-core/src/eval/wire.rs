@@ -1943,13 +1943,13 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
 ///
 /// Constant-radius rolling-ball fillets and equal-setback flat
 /// chamfers on a SELECTION of the target's edges. The correspondence
-/// supplies what differs: the size slot, the selection-refusal label,
-/// which verb to build, and what to call a missing record.
+/// supplies what differs: the size slot, which verb to build, and what
+/// to call a missing record.
 ///
 /// # Refusals
 ///
-/// The selection is resolved before this runs ([`select`]); an empty one
-/// refuses [`NodeErrorKind::BlendSelectionEmpty`]. Failure of the op itself is [`NodeErrorKind::Blend`], carrying
+/// The selection is resolved before this runs ([`select`]). Failure of
+/// the op itself is [`NodeErrorKind::Blend`], carrying
 /// the kernel's error unaltered; the input body is never passed
 /// through, so a blend that did not happen reads as a failed node.
 ///
@@ -1972,9 +1972,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let (target_read, target) = (selection.read, selection.at);
     if selection.ents.is_empty() {
-        return Err(NodeErrorKind::BlendSelectionEmpty {
-            verb: verb.selection_label,
-        });
+        unreachable!("an edge set holds at least one name (`Select::fault`), one entity per name");
     }
     let body = finished_operand(results, target, tol)?;
     let size = need_scalar(vals, verb.slots.size_slot)?;
@@ -2227,7 +2225,9 @@ fn select_one<T: Decide>(
         };
         (selected.at, ent)
     }
-    let Some((entity, false)) = doc.var(var).and_then(|held| held.kind().selection()) else {
+    let Some((entity, crate::var::SelectionCount::One)) =
+        doc.var(var).and_then(|held| held.kind().selection())
+    else {
         return Err(NodeErrorKind::UnresolvedRead { slot, var });
     };
     Ok(match entity {

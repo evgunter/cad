@@ -784,13 +784,15 @@ pub enum SessionOp {
     /// that is the freeze rule rather than an omission. Whether a name
     /// still resolves through the target's table is evaluation's
     /// question, answered typed on the node's own badge
-    /// (`NodeErrorKind::SelectResolve`, and
-    /// `BlendSelectionEmpty` for an empty set) — a door that
-    /// pre-screened it would be a second authority on the same fact,
-    /// and would refuse to author the node whose refusal is the honest
-    /// thing to show. The target's KIND is a fact about the committed
-    /// document alone, so that one does refuse here
-    /// ([`Refusal::WrongNodeKind`]).
+    /// (`NodeErrorKind::SelectResolve`) — a door that pre-screened it
+    /// would be a second authority on the same fact, and would refuse
+    /// to author the node whose refusal is the honest thing to show.
+    /// What the names say as written — how many, of what kind, in
+    /// what order — is the edit door's (`Select::fault`: a set of edges
+    /// holds at least one), and the target's KIND is a fact about the
+    /// committed document alone, so both refuse here
+    /// ([`Refusal::WrongNodeKind`], and the insert's own, forwarded
+    /// through [`Refusal::Edit`]).
     AddFillet {
         /// The body whose edges are blended.
         target: RecipeNodeId,

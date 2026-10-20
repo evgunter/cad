@@ -557,7 +557,7 @@ fn a_bicubic_bicubic_composition_completes_within_the_budget() {
 #[test]
 fn a_beyond_budget_composition_refuses_rather_than_rounds() {
     // Degrees (9, 9) against cubic curves: composite numerator degree
-    // 3·(9+9)+3 = 57 > 54 — the binomial row is all-NaN, the composite
+    // 3·(9+9)+3 = 57 > 56 — the binomial row is all-NaN, the composite
     // is refused and the bound is NaN. Loud, never a silently rounded weight.
     let w = elevated_patch(9, 9);
     let (p, c) = (pcurve_data(), carrier_data());

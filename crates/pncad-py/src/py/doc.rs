@@ -2860,10 +2860,11 @@ impl Node {
     ///
     /// Nothing is pre-checked beyond the text being a name at all. A
     /// name of the wrong kind refuses at the insert (`EditError`
-    /// `selection_name_kind`). An EMPTY selection (`fillet_selection_empty`),
-    /// a name that resolves to nothing (`select_resolve`), a tangential
-    /// edge the roller cannot enter (`fillet`) — every one of those is
-    /// the kernel's own typed refusal at `evaluate`.
+    /// `selection_name_kind`), and so does an EMPTY selection
+    /// (`selection_shape`, `name_count`): a set of edges holds at
+    /// least one. A name that resolves to nothing (`select_resolve`)
+    /// and a tangential edge the roller cannot enter (`fillet`) are
+    /// the kernel's own typed refusals at `evaluate`.
     ///
     /// The node is built through Rust's `Node::fillet`, the one
     /// construction door, so the stored set is canonical (sorted,
@@ -2905,10 +2906,11 @@ impl Node {
     ///
     /// Nothing is pre-checked beyond the text being a name at all. A
     /// name of the wrong kind refuses at the insert (`EditError`
-    /// `selection_name_kind`). An EMPTY selection (`chamfer_selection_empty`),
-    /// a name that resolves to nothing (`select_resolve`), an edge
-    /// whose two supports are not both planes (`chamfer`) — every one
-    /// of those is the kernel's own typed refusal at `evaluate`.
+    /// `selection_name_kind`), and so does an EMPTY selection
+    /// (`selection_shape`, `name_count`): a set of edges holds at
+    /// least one. A name that resolves to nothing (`select_resolve`)
+    /// and an edge whose two supports are not both planes (`chamfer`)
+    /// are the kernel's own typed refusals at `evaluate`.
     ///
     /// The node is built through Rust's `Node::chamfer`, the one
     /// construction door, so the stored set is canonical.

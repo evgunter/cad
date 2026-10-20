@@ -121,10 +121,48 @@ impl<'a> Section<'a> {
         domain: SsiDomain,
         band: Band,
     ) -> Result<Self, SsiError> {
+        Self::of_charted(
+            (s1, ChartedNurbs::mint),
+            (s2, ChartedNurbs::mint),
+            domain,
+            band,
+        )
+    }
+
+    /// [`Section::of`] with each surface's chart had from `chart_1` and
+    /// `chart_2`, called where [`Section::of`] mints them (after the
+    /// operands and the domain are checked, so the refusals come in the
+    /// same order): [`ChartedNurbs::mint`] itself, or a chart a caller
+    /// minted once for the operation and hands to every section of that
+    /// surface. **Each chart must be of the surface it is paired with**,
+    /// as a mint of it is: the door checks that it is the very surface,
+    /// in every build, and refuses otherwise.
+    ///
+    /// # Errors
+    ///
+    /// As [`Section::of`], with the charts' own refusals where they mint,
+    /// and [`SsiError::WrongLane`] where a chart is of another surface.
+    pub fn of_charted(
+        (s1, chart_1): (
+            &'a NurbsSurface<f64>,
+            impl FnOnce(&'a NurbsSurface<f64>) -> Result<ChartedNurbs<'a, f64>, SsiError>,
+        ),
+        (s2, chart_2): (
+            &'a NurbsSurface<f64>,
+            impl FnOnce(&'a NurbsSurface<f64>) -> Result<ChartedNurbs<'a, f64>, SsiError>,
+        ),
+        domain: SsiDomain,
+        band: Band,
+    ) -> Result<Self, SsiError> {
         finite_net("first NURBS surface", s1)?;
         finite_net("second NURBS surface", s2)?;
         domain.check()?;
-        let (a, b) = (ChartedNurbs::mint(s1)?, ChartedNurbs::mint(s2)?);
+        let (a, b) = (chart_1(s1)?, chart_2(s2)?);
+        if !(core::ptr::eq(a.surface(), s1) && core::ptr::eq(b.surface(), s2)) {
+            return Err(SsiError::WrongLane {
+                expected: "each surface paired with a chart minted from it (`Section::of_charted`)",
+            });
+        }
         let (sa, sb) = (a.speeds(), b.speeds());
         let speeds = [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()];
         let r = Box4::of_charts(s1, s2);
@@ -439,6 +477,83 @@ mod tests {
         let trough = net((0.0, 1.0), &|i, _| [0.25, -0.25, 0.25][i]);
         let plane = net((-0.2, 1.2), &|_, j| 0.04 + 0.05 * (-0.2 + 0.7 * j as f64));
         (trough, plane)
+    }
+
+    /// **A section of charts minted once reads as one of fresh mints.**
+    /// [`Section::of_charted`] handed one chart per surface, minted once
+    /// and shared by two sections in turn (the second reads every cell
+    /// the first formed), answers a seed with the same branch and tube as
+    /// [`Section::of`], bit for bit (`Debug` prints each `f64` exactly).
+    #[test]
+    fn a_section_of_charts_minted_once_reads_as_fresh_mints() {
+        let (s1, s2) = pair();
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let domain = SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.5),
+            half_extent: 2.0,
+            extent: 1.0,
+            floor_scale: 1.0,
+        };
+        let y = 0.4;
+        let (z, r) = (0.04 + 0.05 * y, (0.04_f64 + 0.05 * y).sqrt());
+        // One seed a section keeps the row inside the new-row time bar;
+        // the second charted turn still reads every cell the first formed.
+        let read = |mut section: Section<'_>| {
+            section.branch_at(Point3::new(0.5 - r, y, z)).unwrap();
+            format!("{:?} {:?}", section.banked.branches, section.banked.tubes)
+        };
+        let fresh = read(Section::of(&s1, &s2, domain, band).unwrap());
+        let (a, b) = (
+            super::ChartedNurbs::mint(&s1).unwrap(),
+            super::ChartedNurbs::mint(&s2).unwrap(),
+        );
+        for turn in 0..2 {
+            let charted = Section::of_charted(
+                (&s1, |_| Ok(a.clone())),
+                (&s2, |_| Ok(b.clone())),
+                domain,
+                band,
+            )
+            .unwrap();
+            assert!(
+                read(charted) == fresh,
+                "turn {turn}: the charted section reads otherwise"
+            );
+        }
+    }
+
+    /// **A chart of another surface is refused.** [`Section::of_charted`]
+    /// handed `s2`'s chart for `s1` (or `s1`'s for `s2`) refuses with
+    /// [`SsiError::WrongLane`] in every build, before any reading:
+    /// computing on with the other surface's chart would answer for the
+    /// wrong wall silently.
+    #[test]
+    fn a_chart_of_another_surface_is_refused() {
+        let (s1, s2) = pair();
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let domain = SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.5),
+            half_extent: 2.0,
+            extent: 1.0,
+            floor_scale: 1.0,
+        };
+        let (a, b) = (
+            super::ChartedNurbs::mint(&s1).unwrap(),
+            super::ChartedNurbs::mint(&s2).unwrap(),
+        );
+        for (first, second) in [(&b, &b), (&a, &a), (&b, &a)] {
+            let got = Section::of_charted(
+                (&s1, |_| Ok(first.clone())),
+                (&s2, |_| Ok(second.clone())),
+                domain,
+                band,
+            );
+            assert!(
+                matches!(got, Err(SsiError::WrongLane { .. })),
+                "a mispaired chart came back {:?}",
+                got.err()
+            );
+        }
     }
 
     /// **The exhaustiveness receipt is red if a branch is dropped.** The

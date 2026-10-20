@@ -2531,7 +2531,10 @@ mod tests {
             },
             SnapshotError::SelectionShape {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
-                fault: crate::var::SelectionFault::Singleton { count: 2 },
+                fault: crate::var::SelectionFault::Count {
+                    kind: crate::VarKind::Edge,
+                    count: 2,
+                },
             },
             SnapshotError::SelectionBody {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
