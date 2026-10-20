@@ -1597,6 +1597,9 @@ fn an_authoring_history_moves_no_name() {
         let n = roles.1.len();
         let forward: Vec<usize> = (0..n).collect();
         let first = by_roles(roles, &forward);
+        if roles.0 == "a block and its copy" {
+            cites_both(&first, ["(one+", "(copy+"]);
+        }
         let case = format!("{} / authored in another order", roles.0);
         for order in decide_alike::orders(n)
             .into_iter()
@@ -1624,34 +1627,24 @@ fn an_authoring_history_moves_no_name() {
     found.settle(ADMITTED_HISTORY, VACUOUS_HISTORY);
 }
 
+/// A body and its exact copy are one body, so every name of their union
+/// but the body's is the same entity in both members and cites both reads (N0's NS4:
+/// two operands with identical tables are told apart by their reads,
+/// never ordered).
+fn cites_both(p: &Published, reads: [&str; 2]) {
+    let Published::Table(t) = p else {
+        panic!("a body and its copy: a table, not {}", outline(p))
+    };
+    for n in t.keys().filter(|n| !n.contains("kind: Body")) {
+        assert!(
+            reads.iter().all(|r| n.contains(r)),
+            "a body and its copy: {n} cites one copy alone"
+        );
+    }
+}
+
 /// The history cases that move today.
-const ADMITTED_HISTORY: &[Admitted] = &[
-    (
-        "a block and its copy / authored in another order",
-        40,
-        COPY_MINTED_FIRST,
-    ),
-    (
-        "a block and its copy, met / authored in another order",
-        40,
-        COPY_MINTED_FIRST,
-    ),
-    (
-        "the plate less a block and its copy / authored in another order",
-        96,
-        COPY_MINTED_FIRST,
-    ),
-    (
-        "plate pinch / authored in another order",
-        18,
-        LEG_MINTED_FIRST,
-    ),
-    (
-        "twins on the plate / authored in another order",
-        18,
-        LEG_MINTED_FIRST,
-    ),
-];
+const ADMITTED_HISTORY: &[Admitted] = &[];
 
 /// The history cases that compare no table today.
 const VACUOUS_HISTORY: &[Vacuous] = &[
@@ -1675,16 +1668,6 @@ const VACUOUS_HISTORY: &[Vacuous] = &[
 /// wedges overlap.
 const LINE_WEDGES: &str =
     "work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md";
-
-/// A boolean of a body and its exact copy names each entity of the
-/// result from the copy minted first.
-const COPY_MINTED_FIRST: &str =
-    "work/wire/a-boolean-of-a-body-and-its-copy-names-its-entities-from-the-copy-minted-first.md";
-
-/// Where two members' legs cross a face at one pinch point, the vertex
-/// is named the crossing of the leg minted first.
-const LEG_MINTED_FIRST: &str =
-    "work/wire/a-pinch-where-two-legs-cross-one-face-is-named-by-the-leg-minted-first.md";
 
 // ------------------------------------------------------------------ //
 // Far features

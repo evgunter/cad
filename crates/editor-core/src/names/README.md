@@ -307,8 +307,9 @@ The qualifier depends on what was split:
   `CrossingVertex` holds it as a field.
   A vertex where two or more lines meet is an `EdgeCrossing` over the run of
   those lines, each with its sense, in name order. Its lines are the edges cut
-  at the vertex, edges that run flush on one line counted once as the least of
-  them, and, at a union, each seam through the vertex whose two faces bound
+  at the vertex, edges that run flush on one line counted once (at a union as
+  the `Merged` set of them, flat and in name order; at a pair boolean as the
+  least of them), and, at a union, each seam through the vertex whose two faces bound
   none of those edges, cited by its faces' parents as a seam edge is. So a
   union vertex no member edge reaches is the run of its seams, and a lone
   member edge through a seam is the run of the edge and the seam. A face
@@ -320,8 +321,9 @@ The qualifier depends on what was split:
   run. A seam in a run carries none. A boolean reads the sense at the step
   that mints the vertex. A union reads it from its members' pairwise
   judgements, a side being inside when any judgement classed it so; a side
-  no judgement classed refuses. Reversing an edge swaps `Enters` and
-  `Leaves` and keeps the other two.
+  no judgement classed refuses. A union's line of several flush edges carries
+  each edge's sense read along its least edge, on which they all agree.
+  Reversing an edge swaps `Enters` and `Leaves` and keeps the other two.
   Crossings of one line by one face with the same sense, and vertices with
   the same run, are ranked along a line they share by its carrier's own
   parameter, in its stored orientation: the run's least edge, or where the
@@ -337,18 +339,23 @@ The qualifier depends on what was split:
   vertex (in a Split, one per half) is its bare name.
 
 No rule reads a plane or a direction, and a union's reading of a seam pair in
-name order changes nothing. Name order spells a set; the flush rule below is
-the one place it chooses an entity.
+name order changes nothing. Name order spells a set, and at a union it
+chooses no entity: what several members hold at once is named for all of
+them (below). The pair boolean's seam vertex still cites the least of several
+flush edges.
 
 **Flush edges at a union.** Each union edge is named for the member edges it
 lies on, read off the finished body and the members' own bodies
 (`emit_union::Flush`), so the name is the same in every member order:
 
-- An edge that lies within one or more member edges, where they run flush, is
-  a piece of the first minted of them (the least in name order, since name
-  order compares the minting node's id first and ids order as minted), so a
-  member added later never takes a stretch from an earlier one, whatever the
-  fold named it. An edge lies within a member edge when it lies within that
+- An edge that lies within one member edge is a piece of it, whatever the
+  fold named it. One that lies within several, where they run flush, is the
+  same edge in each of those members, and is named for the set of them:
+  `Merged` of those member edges, flat and in name order, as a face two
+  members hold coincidently is `Merged` of both (N3). No member's edge is
+  chosen over another's, so the name is the same whichever member was
+  authored first, and two members with identical tables (a body and its
+  exact copy) are told apart by their reads. An edge lies within a member edge when it lies within that
   edge along its carrier and both of its faces descend from that member edge's
   two faces. An edge one of whose member faces was glued away, another
   member's face lying over it, does not: it is the seam of the faces it
@@ -407,11 +414,13 @@ split, the shell and the blend read their joins through one helper
 the image of.
 
 A seam vertex cites an input edge
-whole, `From(m, e)`, never a piece and never a set: the one it lies on,
-the least in name order where several do, a subtract's two seats among
-them, so no seat is preferred. A vertex at a member vertex is that vertex; one
-where a single face crosses or touches a member edge is the `Crossing` of that
-edge and that face; and every other is the `EdgeCrossing` run of the member
+whole, `From(m, e)`, never a piece: the one it lies on, and where several lie
+flush on its line, at a union the `Merged` set of them, at a subtract the
+least in name order, its two seats among them, so no seat is preferred. A
+vertex at a member vertex is that vertex, and at several members' vertices
+(a body glued to its copy) `Merged` of them, flat and in name order. One
+where a single face crosses or touches a member edge, or the set of member
+edges flush on one line, is the `Crossing` of that line and that face; and every other is the `EdgeCrossing` run of the member
 edges and seams through it (N2), read from the finished body and its senses
 from the members' pairwise judgements, never from the fold, so every member
 order spells it alike. A reference to a member edge, or to a piece of one, that no longer

@@ -1328,16 +1328,18 @@ pub enum RoleSeg {
     },
     /// A vertex where two or more lines meet (N2): the RUN of those
     /// lines in name order, each a [`RunLine`]. A line is an edge cut at
-    /// the vertex, edges that run flush on one line counted once as the
-    /// least of them, with its [`Sense`] against the closed bodies of the
-    /// other entries' members; at a union it is also a seam through the
+    /// the vertex, edges that run flush on one line counted once (at a
+    /// union as their `Merged` set, at a pair boolean as the least of
+    /// them), with its [`Sense`] against the closed bodies of the other
+    /// entries' members; at a union it is also a seam through the
     /// vertex whose two faces bound none of those edges, cited as a seam
     /// edge is and carrying no sense. Several vertices with one run carry
     /// a `Fragment(OrderAlong)` along the run's least edge, or where it
     /// holds none along a seam in it whose pieces lie on one open carrier.
     EdgeCrossing(Vec<RunLine>),
-    /// An F7 merged face, or an edge a boolean's output stage joined
-    /// across several operand or member edges (`names/README.md`,
+    /// An F7 merged face, an edge a boolean's output stage joined
+    /// across several operand or member edges, or a union's edge or
+    /// vertex that several members hold at once (`names/README.md`,
     /// "Flush edges at a union"): the sorted, FLAT set of constituent
     /// names retires into this name (N3; canonical order = name order). A
     /// constituent is never itself a BARE merged name, through any
