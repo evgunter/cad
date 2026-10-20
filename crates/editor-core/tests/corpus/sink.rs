@@ -323,7 +323,10 @@ pub fn document() -> CorpusDoc {
     });
 
     // The world, in the order the document's product held it.
-    super::place_instances(&mut r, circular, 2);
+    // The lone block's copies hang below the world's xy, their tops on
+    // it: each slid down the block's height (its `distance`, set to
+    // 0.375 above), clear of the union's blocks, which stand on it.
+    super::place_instances_at(&mut r, circular, 2, &Frame::translation([0.0, 0.0, -0.375]));
     super::place_halves(&mut r, split);
     super::place_instances(&mut r, linear, 3);
     r.in_world(

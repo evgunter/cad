@@ -246,9 +246,17 @@ fn sans_epsilon(t: &str) -> String {
 /// its own coordinates and placed into the world by a `Place`), so its
 /// nodes, their mint preimages, the names they mint and the saved text
 /// all moved.
+///
+/// **Re-pinned merging main into D**: `corner_table`'s and
+/// `declared_tangency`'s persisted text, their tables held — each
+/// placement's values are written from the evaluated geometry its mate
+/// reads, which main's merge moved by rounding (the chord's director
+/// spelled by its components, the union's fold); `kitchen_sink`'s
+/// tables and text, its lone block's copies hung below the world's xy as
+/// its retired `SetExtrudeSide` edit had them.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0xb4db9802b0b606f7, 0x38f5a186cd76aba3),
-    ("corner_table", 0x45e0ac4118bb214d, 0x1b4997dfe95d7ed1),
+    ("corner_table", 0x45e0ac4118bb214d, 0x8716f69f07ef2d45),
     ("heat_sink", 0x1977adda3af1ea89, 0xa0f9f4647024018e),
     ("crossing_slots", 0xa509a00ec2edc86f, 0x87eaee507eb8bad9),
     ("nested_islands_105", 0x6c1987abab93a799, 0xa857c9a8c3ecf1af),
@@ -262,8 +270,8 @@ const PINNED: &[(&str, u64, u64)] = &[
         0x671438aa82666f7f,
         0x33f241571951b831,
     ),
-    ("declared_tangency", 0xd6f945f97903816a, 0xcb48511f21f65ba6),
-    ("kitchen_sink", 0x34938d7def086d3e, 0x594b09778a847434),
+    ("declared_tangency", 0xd6f945f97903816a, 0x17749c9dae4959ae),
+    ("kitchen_sink", 0xb497961308a3acf6, 0xcfc91707da54e218),
     ("cut_cylinder", 0x35e8560f38a2616b, 0xa64a3a972e79d22a),
     ("measured_web", 0xf21138cd48fb53df, 0x5d3466ce2bbccff9),
     ("boss_union", 0xd03552cff4cfc65b, 0xda4802dc62bb811c),

@@ -260,7 +260,13 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// every document, with [`NAME_WORDS`]: the documents were re-spelled
 /// without `Datum` or `Transform`, so every tag moved, and every
 /// operand placed against a first operand's root says that placement.
-const SAID_DIGEST: u64 = 0xe85f_4b74_8286_8e39;
+///
+/// The kitchen sink's lone block hung below the world's xy, as its
+/// retired `SetExtrudeSide` edit had it, moved it in `kitchen_sink`
+/// alone, by tags: its copies are placed at a pose, which mints one id
+/// fewer than standing did, so every tag minted after them moved.
+/// [`NAME_WORDS`] held.
+const SAID_DIGEST: u64 = 0x52bd_9cca_ed78_f9e6;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

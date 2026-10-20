@@ -230,6 +230,11 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// or `Transform` (a construction is built in its own coordinates and
 /// placed into the world by a `Place`), so its nodes, their mint
 /// preimages and every name they mint moved.
+///
+/// **Re-pinned, `kitchen_sink` only**, when its lone block's copies came
+/// to hang below the world's xy as its retired `SetExtrudeSide` edit had
+/// them: placed at a pose, the two mint one id fewer than standing did,
+/// so every name minted after them moved.
 const PINNED: &[(&str, u64)] = &[
     ("die", 0xd996a20e0fd9ee56),
     ("corner_table", 0x29800dc909826450),
@@ -239,7 +244,7 @@ const PINNED: &[(&str, u64)] = &[
     ("nested_islands_106_depth1", 0xc52eb6cf8b1e5acd),
     ("nested_islands_106_depth2", 0x155d067061c7b7dc),
     ("declared_tangency", 0x0aa37bea4e18b48c),
-    ("kitchen_sink", 0xd04f38f5a74e6259),
+    ("kitchen_sink", 0x75932ba950a7180a),
     ("cut_cylinder", 0x0ab12dd8c3346081),
     ("measured_web", 0x44c4e0d24d38b03c),
     ("boss_union", 0x52aab550bf0ac788),

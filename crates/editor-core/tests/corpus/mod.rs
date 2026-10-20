@@ -127,15 +127,17 @@ pub fn place_instances_at(
 
 /// **`doc` with copies `0..count` of its one pattern placed**: the
 /// copies a placement already picks stay, and each further one is
-/// picked and placed. Driving a pattern's count moves no placement, so
-/// a document whose count was driven places the new copies this way.
+/// picked and placed where the document places the ones it picks (the
+/// first such placement's solved motion; the world's identity when it
+/// picks none). Driving a pattern's count moves no placement, so a
+/// document whose count was driven places the new copies this way.
 pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
     let pattern = doc
         .ids()
         .into_iter()
         .find(|&id| matches!(doc.node(id), Some(Node::Pattern { .. })))
         .expect("the document holds a pattern");
-    let placed = doc
+    let placed: Vec<RecipeNodeId> = doc
         .placements()
         .into_iter()
         .filter(|&p| match doc.node(p) {
@@ -148,9 +150,18 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
             }),
             _ => false,
         })
-        .count();
+        .collect();
+    let at = placed.first().map_or(editor_core::Frame::IDENTITY, |&p| {
+        let ev = eval::<f64>(&doc);
+        let value = ev
+            .value(p)
+            .expect("the document's pattern copies are placed");
+        value.motion.map_or(editor_core::Frame::IDENTITY, |motion| {
+            editor_core::Frame::from_affine(motion.to_affine())
+        })
+    });
     let mut doc = doc;
-    for i in i64::try_from(placed).expect("a count")..count {
+    for i in i64::try_from(placed.len()).expect("a count")..count {
         let (next, copy) = crate::fixture::insert(
             doc,
             Node::Part {
@@ -158,7 +169,7 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
                 select: PartSelect::Instance(editor_core::Formula::count(i)),
             },
         );
-        doc = crate::fixture::place(next, copy).0;
+        doc = crate::fixture::in_world(next, copy, &at).0;
     }
     doc
 }

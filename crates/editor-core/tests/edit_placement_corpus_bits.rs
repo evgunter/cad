@@ -60,6 +60,15 @@ use editor_core::Node;
 /// registry holds 118 placements where it held 51 and every document
 /// has rows. The documents were re-spelled without `Datum` or
 /// `Transform`, so every id moved and every word with it.
+///
+/// **Re-pinned merging main into D**: `declared_tangency`'s placement
+/// moved with main's chord director (its components, not `atan2`); the
+/// kitchen sink's eight with its lone block's copies hung below the
+/// world's xy as its retired `SetExtrudeSide` edit had them (placed at
+/// a pose, which mints one id fewer than standing, so the ordinals after
+/// them moved by one); `corner_table`'s
+/// one with its union's arena order under main's union fold, its points
+/// at their exact values. Every other row held.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 122, 0xedc88b0c9768a183),
     ("die", 137, 0x3b18c1950c918b57),
@@ -87,7 +96,7 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("corner_table", 74, 0xa47b8bb17613453b),
     ("corner_table", 111, 0x2f6fbc248977629d),
     ("corner_table", 148, 0xecbb08f6357cbe88),
-    ("corner_table", 167, 0xa68f936e53927d27),
+    ("corner_table", 167, 0xbc01ca62da96a73b),
     ("heat_sink", 45, 0x59eb201168d53e62),
     ("heat_sink", 64, 0x6feed66357f7b1f9),
     ("heat_sink", 83, 0x844acb67c35c5496),
@@ -116,17 +125,17 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("nested_islands_106_depth2", 148, 0xa7a414ba8b756515),
     ("nested_islands_106_depth2", 167, 0xe3280332ac0be665),
     ("declared_tangency", 58, 0x7e78a08f2a744c2f),
-    ("declared_tangency", 70, 0xb0519ed74892c880),
+    ("declared_tangency", 70, 0xc73761c9b161c710),
     ("kitchen_sink", 55, 0x81164dd184014339),
     ("kitchen_sink", 99, 0x8b388459d09064ab),
-    ("kitchen_sink", 180, 0x1970f18c4e711717),
-    ("kitchen_sink", 197, 0xdab15c1e891a7d78),
-    ("kitchen_sink", 212, 0x719895e44b9f1fc7),
-    ("kitchen_sink", 226, 0xa33732e4c78a7254),
-    ("kitchen_sink", 241, 0x614b28f2962bbc43),
-    ("kitchen_sink", 258, 0x44b29a8a548af78e),
-    ("kitchen_sink", 275, 0xb0496e039594fd70),
-    ("kitchen_sink", 289, 0x2d82b259783ed0e2),
+    ("kitchen_sink", 180, 0xad33562c97bbee17),
+    ("kitchen_sink", 196, 0x54439491846c821b),
+    ("kitchen_sink", 211, 0x3440a00ca81668f3),
+    ("kitchen_sink", 225, 0xef65c21d15d5ffb3),
+    ("kitchen_sink", 240, 0x9ae6404d2f954552),
+    ("kitchen_sink", 257, 0x8f7d24b7aa7142c2),
+    ("kitchen_sink", 274, 0xcec20ceb3220531b),
+    ("kitchen_sink", 288, 0x7f7bb9fc49a72069),
     ("cut_cylinder", 38, 0x15a3fea54fe3b8ad),
     ("cut_cylinder", 50, 0x71f9ca7767225a01),
     ("measured_web", 36, 0xa5bbabae356adcca),

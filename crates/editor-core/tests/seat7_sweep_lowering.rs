@@ -380,14 +380,22 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `Transform` (a construction is built in its own coordinates and
 /// placed into the world by a `Place`), so its nodes, their ids and the
 /// names they mint moved.
+///
+/// RE-BLESSED merging main into D: `cut_cylinder` and `boss_union`, the
+/// two rows main's PCERT B1/B2a and PR 5334 re-blessed above, take both
+/// trees' moves, so their values are neither tree's; `corner_table`
+/// with its union's arena order under main's union fold, its points at
+/// their exact values; `kitchen_sink` with its lone block's copies hung
+/// below the world's xy as its retired `SetExtrudeSide` edit had them.
+/// `die` held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xbd0b_096f_8414_d39a),
-        ("corner_table", 0x7c8e_5a0b_26fd_7e14),
-        ("cut_cylinder", 0x793b_d15c_6b53_693b),
-        ("boss_union", 0xe0f2_331b_115d_d319),
-        ("kitchen_sink", 0x1492_3db1_8fdf_f9fd),
+        ("corner_table", 0xd125_80bc_7a18_9468),
+        ("cut_cylinder", 0xf94a_75c1_2ef0_6c45),
+        ("boss_union", 0xd486_5e6b_6a43_0069),
+        ("kitchen_sink", 0xacec_93f8_f85f_4578),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

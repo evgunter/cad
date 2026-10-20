@@ -826,20 +826,20 @@ fn the_place_gesture_reproduces_its_pose() {
     );
 }
 
-/// **The gesture pins where its face's chart has no swing.** A box
-/// placed at a turn of `ε` about `x`: its start cap (the first planar
-/// face no variable reaches, facing `−z`) stands at the chart's one
-/// pole by a chord the band cannot decide (ε levered over the copy's
-/// arm), where no value can be
-/// charted, so `place_at` falls back to the pin (`PlacedBy::Pin`) and
-/// the copy stands at `P`; a turn well clear of the pole writes the
-/// plane mate and its values. The turn is the run's ε, not a literal:
-/// a chord the band decides zero takes the antipode's own chart.
+/// **The gesture flips the copy's side where its face would look down
+/// the world's `z`, so its chart never reads at the swing's pole.** A
+/// box placed at a turn of `ε` about `x`: its start cap (the first
+/// planar face no variable reaches) faces `−z`, a chord the band cannot
+/// tell from the chart's pole. `place_at` mates the cap's `Flip`, whose
+/// normal faces `+z`, so the world plane is charted at its reference:
+/// the plane mate and its values are written (`PlacedBy::PlanarFace`),
+/// and the copy stands at `P`, as it does at a turn well clear of the
+/// pole. The turn is the run's ε, not a literal.
 ///
-/// *Breaks if* the gesture refuses at that band of poses (with a reason
-/// that names no chart) instead of pinning.
+/// *Breaks if* the gesture charts the unflipped face (and refuses or
+/// pins at the pole), or the copy does not stand at `P`.
 #[test]
-fn the_place_gesture_pins_where_its_chart_has_no_swing() {
+fn the_place_gesture_flips_a_face_looking_down_so_its_chart_has_a_swing() {
     let (doc, body) = a_box("s3c_place_pole", 1.0);
     let (doc, placement) = placed(doc, body);
     let shape = match doc.node(placement) {
@@ -854,16 +854,33 @@ fn the_place_gesture_pins_where_its_chart_has_no_swing() {
                 .unwrap_or_else(|refusal| panic!("the gesture places at {angle}: {refusal}"));
         (turn, placed)
     };
-    let (_, clear) = gesture(0.5);
-    assert_eq!(clear.by, editor_core::PlacedBy::PlanarFace);
-    let (turn, near) = gesture(Tol::witness().eps());
-    assert_eq!(near.by, editor_core::PlacedBy::Pin, "{near:?}");
-    let (doc, _) = fixture::constrain_at(doc, placement, near.mate);
-    let at = solved(&doc, placement);
-    assert!(
-        turn_between(at.linear, turn) < 1e-12 && at.translation.norm() < 1e-12,
-        "the copy stands at P: {at:?}"
-    );
+    for angle in [0.5, Tol::witness().eps()] {
+        let (turn, near) = gesture(angle);
+        assert_eq!(
+            near.by,
+            editor_core::PlacedBy::PlanarFace,
+            "{angle}: {near:?}"
+        );
+        assert!(
+            matches!(
+                &near.mate.on,
+                Operand::Pose(p) if matches!(**p, editor_core::pose::PoseDef::Flip { .. })
+            ),
+            "{angle}: the cap looks down, so its copy side is flipped: {:?}",
+            near.mate.on
+        );
+        let (mut doc, mate) = fixture::constrain_at(doc.clone(), placement, near.mate);
+        for (coord, by) in near.values {
+            doc = add_value(doc, placement, mate.id, coord, by)
+                .expect("the gesture's values are its mate's freedoms")
+                .0;
+        }
+        let at = solved(&doc, placement);
+        assert!(
+            turn_between(at.linear, turn) < 1e-12 && at.translation.norm() < 1e-12,
+            "{angle}: the copy stands at P: {at:?}"
+        );
+    }
 }
 
 /// **The migration's pin reproduces its pose.** `pin_at` reads a frame

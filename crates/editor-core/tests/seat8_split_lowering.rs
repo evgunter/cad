@@ -317,13 +317,19 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// no point of the corpus moves at `f64` (`m10_p_fence`'s header), so
 /// what moved is the placed body's `Debug` past its points.
 /// `part_select` held.
+///
+/// RE-BLESSED merging main into D: `cut_cylinder`, which main's PCERT
+/// B2a and PR 5334 re-blessed above, takes both trees' moves, so its
+/// value is neither tree's; `kitchen_sink` with its lone block's copies
+/// hung below the world's xy as its retired `SetExtrudeSide` edit had
+/// them. `part_select` held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xf39f_ac3b_3fa9_c445u64),
+        ("cut_cylinder", 0xf94a_75c1_2ef0_6c45u64),
         ("part_select", 0x36a8_77e8_edb4_8dfb),
-        ("kitchen_sink", 0xe9bd_8264_517c_5acb),
+        ("kitchen_sink", 0xacec_93f8_f85f_4578),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
