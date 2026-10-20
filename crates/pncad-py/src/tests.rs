@@ -2117,9 +2117,6 @@ fn node_error_tags_are_the_published_words() {
         Profile => "profile",
         ProfileReplay => "profile_replay",
         ProfileLaneReplay => "profile_lane_replay",
-        ProfileAnchor => "profile_anchor",
-        ProfilePieces => "profile_pieces",
-        ProfileRecordMissing => "profile_record_missing",
         Extrude => "extrude",
         Revolve => "revolve",
         Tube => "tube",
@@ -2152,7 +2149,6 @@ fn node_error_tags_are_the_published_words() {
         UnderflowedDirection => "underflowed_direction",
         Band => "band",
         MissingSlot => "missing_slot",
-        VerbArity => "verb_arity",
         Escalated => "escalated",
         PoseRead => "pose_read",
         PoseDegenerate => "pose_degenerate",
@@ -5384,10 +5380,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pose_scalar",
             "product_operand",
             "profile",
-            "profile_anchor",
             "profile_lane_replay",
-            "profile_pieces",
-            "profile_record_missing",
             "profile_replay",
             "revolve",
             "seed",
@@ -5405,7 +5398,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "union_fold_step",
             "unresolved_read",
             "unschedulable_cycle",
-            "verb_arity",
             "witness_bifurcation",
             "wrong_operand",
         ],
@@ -5431,7 +5423,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "loft_error_tag",
             "naming_error_tag",
             "param_box_error_tag",
-            "pieces_fault_tag",
             "placement_rule_inner_tag",
             "pose_read_fault_tag",
             "profile_error_tag",
@@ -5541,6 +5532,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "arc_center_not_equidistant",
             "arc_leg_on_open_fillet",
+            "arc_miss_below_scene_resolution",
+            "arc_misses_authored_point",
             "arc_sweep_not_short_of_full_turn",
             "arc_via_collinear",
             "band",
@@ -5593,11 +5586,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tolerance_invalid",
             "unreadable",
         ],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "pieces_fault_tag",
-        values: &["length", "no_ids", "no_record", "no_step_id"],
         delegates: &[],
     },
     TagEntry {
@@ -5696,7 +5684,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "program_refusal_tag",
         values: &[
             "geometry",
-            "pieces",
             "resolve",
             "step_ids",
             "transition",
@@ -6276,6 +6263,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "edge_slot_backpointer_mismatch",
             "emanating_start_mismatch",
             "empty_loop_vertex_with_emanating",
+            "face_through_edge_wedge",
+            "face_through_edge_wedge_undecided",
             "half_edge_multiply_claimed",
             "half_edge_unclaimed",
             "instance_interference",
@@ -6527,8 +6516,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("pcurves", 3),
     // One fact for the boolean and the split: the result sort
     // (`topo::PieceSortError`) could not read a shell's piece, carried
-    // whole by each verb. The profile program's word is a coincidence.
-    ("pieces", 3),
+    // whole by each verb.
+    ("pieces", 2),
     ("pin", 2),
     ("placement_rule_mismatch", 2),
     ("poisoned", 2),

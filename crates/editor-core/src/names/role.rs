@@ -1328,16 +1328,18 @@ pub enum RoleSeg {
     },
     /// A vertex where two or more lines meet (N2): the RUN of those
     /// lines in name order, each a [`RunLine`]. A line is an edge cut at
-    /// the vertex, edges that run flush on one line counted once as the
-    /// least of them, with its [`Sense`] against the closed bodies of the
-    /// other entries' members; at a union it is also a seam through the
+    /// the vertex, edges that run flush on one line counted once (at a
+    /// union as their `Merged` set, at a pair boolean as the least of
+    /// them), with its [`Sense`] against the closed bodies of the other
+    /// entries' members; at a union it is also a seam through the
     /// vertex whose two faces bound none of those edges, cited as a seam
     /// edge is and carrying no sense. Several vertices with one run carry
     /// a `Fragment(OrderAlong)` along the run's least edge, or where it
     /// holds none along a seam in it whose pieces lie on one open carrier.
     EdgeCrossing(Vec<RunLine>),
-    /// An F7 merged face, or an edge a boolean's output stage joined
-    /// across several operand or member edges (`names/README.md`,
+    /// An F7 merged face, an edge a boolean's output stage joined
+    /// across several operand or member edges, or a union's edge or
+    /// vertex that several members hold at once (`names/README.md`,
     /// "Flush edges at a union"): the sorted, FLAT set of constituent
     /// names retires into this name (N3; canonical order = name order). A
     /// constituent is never itself a BARE merged name, through any
@@ -1360,17 +1362,12 @@ pub enum RoleSeg {
     // split role says which half — the variable a reader reads does.
     /// A split output body: the body of the half whose table holds it.
     SplitBody,
-    /// A section face: the split-minted face on the tool plane bounding
-    /// its half; `section` is the position in that half's section
-    /// completion order — a function of the recipe + the recorded
-    /// `split_join_order_*` verdicts (the exact-order sort), so
-    /// covariant in N4's sense (reorderings are recorded flips).
-    SectionFace {
-        /// Position in section completion order (covariance: module
-        /// docs of `topo::splitting::order` — the sort runs through
-        /// named exact-order predicates).
-        section: u32,
-    },
+    /// The tool plane, as the parent of the faces a split's cut drew in
+    /// a half (N2, a Split's section faces): one such face is the bare
+    /// `SectionFace`, several are each told apart by `Fragment(Borders)`,
+    /// and a merged group holding the plane cites it bare among its
+    /// constituents (N3).
+    SectionFace,
     /// A section-boundary edge: where the section meets an operand
     /// face (argument: the operand face's name). Each half owns its own
     /// coincident copy, in its own table.
@@ -1871,7 +1868,7 @@ macro_rules! inert_seg {
             | $crate::names::RoleSeg::Cap(_)
             | $crate::names::RoleSeg::RevolveCap(_)
             | $crate::names::RoleSeg::SplitBody
-            | $crate::names::RoleSeg::SectionFace { .. }
+            | $crate::names::RoleSeg::SectionFace
     };
 }
 
@@ -2496,7 +2493,7 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::Pole(_)
             | $crate::names::RoleSeg::AxisEdge(_)
             | $crate::names::RoleSeg::SplitBody
-            | $crate::names::RoleSeg::SectionFace { .. }
+            | $crate::names::RoleSeg::SectionFace
             | $crate::names::RoleSeg::SectionEdge { .. }
             | $crate::names::RoleSeg::SplitFragment { .. }
             | $crate::names::RoleSeg::CrossingVertex { .. }

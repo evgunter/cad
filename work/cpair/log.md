@@ -21,6 +21,16 @@ arm. No CPAIR row covered it (the task named FUSE's
 polish meters, untouched). Its sweep filed
 `the-curve-pair-pose-reads-a-conics-whole-carrier-before-its-arc` here.
 
+## 2026-10-20 — NURBS build A takes the polish meters
+
+NURBS build A (dispatched by the NURBS orchestrator) claims
+`curve-pair-polish-meters-refuse-shallow-meetings`: the basin meter in
+`geom_brep::curve_pair::pose` (`Polish::closest`,
+`curve_pair_pose_basin`) on shallow meetings with no found meeting
+beside them, the needle at ε 1e-12 its first witness. No CPAIR or BAND
+branch touches `crates/geom-brep/src/curve_pair/` (checked against every
+live remote branch). Plan before code, at the NURBS orchestrator.
+
 ## 2026-10-20 — NURBS build A: one reading of two spans on one line (PR 1 of 4)
 
 `two-spans-projections-on-one-line-are-read-four-ways`, staged in four PRs.
@@ -46,3 +56,5 @@ of the exact crossing, both orders) found no wrong answer:
 end. What the misplacement costs is about 5 200 `curve_carrier_gap`
 escalations. The item is downgraded to P3 with the table, and no fix is
 built. Ground touched: `work/` only. — (NURBS build A)
+- 2026-10-20 — **Seam (NURBS):** PR 5481 merged (`e8912770`). The gap and overlap of two spans on one line now have one home, `geom_core::one_line`, charged for both the projections' rounding and the evaluation of each end (`produced`). `curve_pair::pose::line_line` reads it; `line_conic` keeps its own reading (a different question, filed P3). `rounding_charge` and `SHORT_CHAIN_ULPS` now live in `geom_core`, and `geom_brep::implicit`'s re-export is gone. PRs 2–4 move check 9, `profile::seg` and the census onto the home. (NURBS orchestrator)
+- 2026-10-20 — **Seam (NURBS):** PR 5477 merged (`6a61ea97`). `curve_pair::pose::window` gains a third on reading, `Window::along_b`: a second-order bound carried along the other conic. Fine-ε fillet joints now decide, and the needle and `leaning_prisms` pass at 1e-12. `curve-pair-polish-meters-refuse-shallow-meetings` keeps the meter's own families. The Interval polish is `curve-pair-polish-at-interval-reads-the-iterates-width` (`design: true`). (NURBS orchestrator)

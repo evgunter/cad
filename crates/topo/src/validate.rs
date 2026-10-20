@@ -1916,6 +1916,35 @@ pub enum ValidationError {
         /// The not-yet-supported class, named.
         what: &'static str,
     },
+    /// **Tier 3′: a face passes through an edge's material wedge.** An
+    /// edge lies in a face of its own solid, and on decided readings the
+    /// two cells' material overlaps there: a sheet of the face lies
+    /// inside the edge's wedge, or the wedge inside the face's material.
+    /// The material sectors on one line are disjoint (D1,
+    /// `crates/topo/README.md` tier 3), so no record makes this valid.
+    FaceThroughEdgeWedge {
+        /// The edge.
+        edge: EdgeKey,
+        /// The face it lies in.
+        face: FaceKey,
+        /// Where the two were read, as coordinates.
+        witness: String,
+    },
+    /// **Tier 3′: whether a face passes through an edge's material wedge
+    /// is undecided.** An edge lies in a face of its own solid, and the
+    /// side reading of the two ([`Self::FaceThroughEdgeWedge`]'s) could
+    /// not be taken: `why` says why.
+    FaceThroughEdgeWedgeUndecided {
+        /// The edge.
+        edge: EdgeKey,
+        /// The face it lies in.
+        face: FaceKey,
+        /// Where the two were read, as coordinates.
+        witness: String,
+        /// Why the reading was not taken; the finding renders it with
+        /// its recourse.
+        why: crate::census::TouchUnread,
+    },
     /// Tier 3′: the census read a point at an arc's end that lies
     /// definitely off both of its edge's corners, on a body tier 3 passed
     /// at the same band, which pins every carrier end within the zero
@@ -4249,6 +4278,18 @@ impl fmt::Display for ValidationError {
                     (EntityId::Solid(_), EntityId::Solid(_)) => "two parts",
                     _ => "two parts of the body",
                 }
+            ),
+            Self::FaceThroughEdgeWedge { witness, .. } => write!(
+                f,
+                "an edge lies in a face of its own part at {witness}, and the face passes \
+                 through the material the edge bounds, so the edge pairs two faces with \
+                 the face between them. {DEFECT}"
+            ),
+            Self::FaceThroughEdgeWedgeUndecided { witness, why, .. } => write!(
+                f,
+                "an edge lies in a face of its own part at {witness}, and whether the face \
+                 passes through the material the edge bounds is undecided: {}",
+                why.in_own_face()
             ),
             Self::InstanceInterference { .. } => write!(
                 f,

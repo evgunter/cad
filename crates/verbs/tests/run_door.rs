@@ -7,10 +7,7 @@
 //! makes that checkable: they run both paths on the same fixture and
 //! compare bit-for-bit, so a dispatch that reordered arguments, dropped
 //! a parameter or re-derived a band would red here rather than showing
-//! up as drifted geometry three layers up. The door rows at the end
-//! are the run doors' one own decision — refusing a verb at every door
-//! but the one it declares — exercised in both directions so no
-//! mismatch arm is untested code.
+//! up as drifted geometry three layers up.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -24,7 +21,7 @@ use topo::{
     AtRestBody, Body, BooleanInputs, BooleanOp, BooleanResult, SplitPart, SweepStrategy,
     boolean_op_with, split,
 };
-use verbs::{Arity, PairOut, Verb, VerbError, VerbKind, VerbRecord};
+use verbs::{Blend, Boolean, PairOut, Shell, Split, Sweep, VerbError, VerbRecord};
 
 use crate::fixture::{disc, offset_disc, pinch_plane, pinch_prism, tol, x_axis, z_plane};
 use sweep::test_support::finished;
@@ -81,7 +78,7 @@ fn the_fillet_dispatch_is_the_fillet_door() {
         tol(),
     )
     .unwrap();
-    let via = Verb::Fillet {
+    let via = Blend::Fillet {
         edges: edges.clone(),
         radius: 0.1,
     }
@@ -108,7 +105,7 @@ fn the_chamfer_dispatch_is_the_chamfer_door() {
         tol(),
     )
     .unwrap();
-    let via = Verb::Chamfer {
+    let via = Blend::Chamfer {
         edges: edges.clone(),
         distance: 0.1,
     }
@@ -138,7 +135,7 @@ fn a_refusal_crosses_the_dispatch_unaltered() {
         tol(),
     )
     .unwrap_err();
-    let via = Verb::Chamfer {
+    let via = Blend::Chamfer {
         edges,
         distance: 0.0,
     }
@@ -188,7 +185,7 @@ fn the_boolean_dispatch_is_the_boolean_door() {
         tol(),
     )
     .unwrap();
-    let via = Verb::Boolean {
+    let via = Boolean {
         op: BooleanOp::Union,
         inputs: Box::new(BooleanInputs::default()),
     }
@@ -241,7 +238,7 @@ fn an_empty_boolean_result_crosses_as_the_typed_empty() {
     .unwrap();
     assert!(matches!(door, BooleanResult::Empty));
 
-    let via = Verb::Boolean {
+    let via = Boolean {
         op: BooleanOp::Intersect,
         inputs: Box::new(BooleanInputs::default()),
     }
@@ -270,7 +267,7 @@ fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
         tol(),
     )
     .unwrap_err();
-    let via = Verb::Boolean {
+    let via = Boolean {
         op: BooleanOp::Union,
         inputs: Box::new(BooleanInputs::default()),
     }
@@ -282,258 +279,6 @@ fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
     };
     assert_eq!(format!("{door:?}"), format!("{carried:?}"));
     assert_eq!(door.to_string(), carried.to_string());
-}
-
-/// One representative verb per vocabulary row, payload minimal.
-fn sample(kind: VerbKind) -> Verb<f64> {
-    match kind {
-        VerbKind::Fillet => Verb::Fillet {
-            edges: Vec::new(),
-            radius: 0.1,
-        },
-        VerbKind::Chamfer => Verb::Chamfer {
-            edges: Vec::new(),
-            distance: 0.1,
-        },
-        VerbKind::Extrude => Verb::Extrude {
-            distance: 1.0,
-            side: ExtrudeSide::Along,
-        },
-        VerbKind::Revolve => Verb::Revolve {
-            axis: x_axis(),
-            revolution: Revolution::Full,
-        },
-        VerbKind::Boolean(op) => Verb::Boolean {
-            op,
-            inputs: Box::new(BooleanInputs::default()),
-        },
-        VerbKind::Split => Verb::Split {
-            plane: z_plane(0.5),
-        },
-        // The thickness is nonpositive so that the sample cannot build
-        // a body at any door it is offered to: the mismatch rows below
-        // must be answered by `Arity` before an op runs, and a sample
-        // that could succeed somewhere would make the refusal ambiguous.
-        //
-        // The consequence is that the MATRIX's shell row never runs a
-        // real shell, and that is deliberate rather than a gap: the
-        // matrix exists to exercise the cross-door refusals, and the
-        // real runs — the sealed hollow, the opened one, and the
-        // thickness gate's refusal crossing unaltered — are the
-        // equivalence rows at the bottom of this file.
-        VerbKind::Shell => Verb::Shell {
-            thickness: 0.0,
-            open: Vec::new(),
-        },
-    }
-}
-
-/// **The door matrix**: `verb` run through EVERY door, each under the
-/// row that names it, with the refusal (if any) beside it. This list
-/// is the one place the doors are enumerated by hand — the two rows
-/// below read it, one for the refusals and one for the census.
-fn every_door(
-    verb: &Verb<f64>,
-    a: &AtRestBody<f64>,
-    b: &AtRestBody<f64>,
-    disc: &profile::ValidatedProfile<f64>,
-) -> Vec<(Arity, Option<VerbError<f64>>)> {
-    vec![
-        (Arity::One, verb.run(a, tol()).err()),
-        (
-            Arity::Two,
-            verb.run_pair(a, b, SweepStrategy::Realized, tol()).err(),
-        ),
-        (Arity::Profile, verb.run_profile(disc, tol()).err()),
-        (Arity::Split, verb.run_split(a, tol()).err()),
-        (Arity::Shell, verb.run_shell(a, tol(), shell_door()).err()),
-    ]
-}
-
-/// **Every door row has a door, and every door a row.** `Arity` is
-/// compile-forced nowhere outside its own census: a variant planted
-/// on it builds clean and every dispatch row stays green, because the
-/// only thing tying rows to doors was the hand-written door matrix.
-/// This row ties them: the set of rows the matrix runs is exactly
-/// [`Arity::ALL`], and every verb's declared row is one the matrix
-/// runs. A fifth row without a fifth door reds here; a fifth door
-/// without a row cannot be written (the matrix keys on the enum).
-#[test]
-fn every_arity_row_has_a_door_and_every_door_a_row() {
-    let a = unit_cube();
-    let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
-    let disc = disc(0.5);
-    let doors: std::collections::BTreeSet<Arity> =
-        every_door(&sample(VerbKind::Fillet), &a, &b, &disc)
-            .into_iter()
-            .map(|(door, _)| door)
-            .collect();
-    let rows: std::collections::BTreeSet<Arity> = Arity::ALL.iter().copied().collect();
-    assert_eq!(
-        doors, rows,
-        "the door matrix and Arity::ALL name different sets — a row has no door, or a door no row"
-    );
-    for kind in VerbKind::ALL {
-        assert!(
-            doors.contains(&kind.arity()),
-            "{kind:?} declares {:?}, which no door in the matrix answers",
-            kind.arity()
-        );
-    }
-}
-
-/// **Each door refuses exactly the verbs that do not declare it**,
-/// over the whole vocabulary — the typed mismatch refusal exercised
-/// in both directions, so no door's cross-door arms are untested. The
-/// declared door's behavior is the dispatch rows above; what is
-/// pinned here is that every OTHER door answers `Arity` with the
-/// right verb and the right door, and never runs the op — proven by
-/// the returned variant itself: `Arity` is minted only at the doors'
-/// own mismatch arms, before any op door is reached, so its arrival
-/// IS the non-execution. The split door is the row where this matters
-/// most: a split's operand is one body like a blend's, so the ONE
-/// door is the door a wiring bug would most plausibly hand it to, and
-/// the refusal must name the split door rather than an operand count
-/// that agrees.
-#[test]
-fn each_door_refuses_the_undeclared_arity() {
-    let a = unit_cube();
-    let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
-    let disc = disc(0.5);
-
-    for kind in VerbKind::ALL {
-        let verb = sample(*kind);
-        // Every door but this verb's own, so no shape is left untried:
-        // the refusal must come back from each of them, naming the verb
-        // and the door that refused.
-        let refusals: Vec<(Arity, VerbError<f64>)> = every_door(&verb, &a, &b, &disc)
-            .into_iter()
-            .filter(|(door, _)| *door != kind.arity())
-            .map(|(door, err)| {
-                (
-                    door,
-                    err.unwrap_or_else(|| panic!("{kind:?} ran through the {door:?} door")),
-                )
-            })
-            .collect();
-        assert_eq!(refusals.len(), 4, "there are five doors, not five-plus");
-        for (door, err) in refusals {
-            let VerbError::Arity { verb: who, given } = err else {
-                panic!("{kind:?} at the {door:?} door refused with {err:?}, not Arity");
-            };
-            assert_eq!(who, *kind);
-            assert_eq!(given, door);
-        }
-    }
-}
-
-/// **The door refusal's sentence, pinned byte for byte.**
-///
-/// It is the one refusal string this door owns rather than forwards.
-/// The names in it are the two vocabularies' own `Display`, so what
-/// this row pins is the grammar around them plus the words those
-/// impls say; `verb.rs`'s censuses pin the words against the
-/// vocabularies themselves.
-///
-/// It is written in the doors' own NAMES and nothing else — no reading
-/// of what a row means enters it — because it moved in two consecutive
-/// units while it was written in the vocabulary of the moment ("N
-/// operand(s)", then "declares a … operand"), and a door added to the
-/// enum must not move it again. What a row added to `Arity` changes
-/// is only which names can appear. Pinned exactly, in both directions
-/// of the split's own mismatch, because a split's operand is one body
-/// and the One door is where a wiring bug would most plausibly hand
-/// it.
-#[test]
-fn the_arity_refusal_names_the_declared_operand_and_the_door() {
-    let err = Verb::Fillet {
-        edges: Vec::new(),
-        radius: 0.1_f64,
-    }
-    .run_profile(&disc(0.5), tol())
-    .expect_err("a fillet is not a profile verb");
-    assert_eq!(
-        err.to_string(),
-        "the Fillet verb was run through the Profile door; the door that answers it is One"
-    );
-
-    let cube = sweep::test_support::cube(1.0, tol());
-    let err = Verb::Extrude {
-        distance: 1.0_f64,
-        side: ExtrudeSide::Along,
-    }
-    .run(&finished("the operand", cube.clone(), tol()), tol())
-    .expect_err("an extrude is not a one-body verb");
-    assert_eq!(
-        err.to_string(),
-        "the Extrude verb was run through the One door; the door that answers it is Profile"
-    );
-
-    let err = Verb::Split {
-        plane: z_plane(0.5),
-    }
-    .run(&finished("the operand", cube.clone(), tol()), tol())
-    .expect_err("a split hands back two sides, which the one-body door cannot");
-    assert_eq!(
-        err.to_string(),
-        "the Split verb was run through the One door; the door that answers it is Split"
-    );
-    let err = Verb::Fillet {
-        edges: Vec::new(),
-        radius: 0.1_f64,
-    }
-    .run_split(&unit_cube(), tol())
-    .expect_err("a fillet hands back one body, not two sides");
-    assert_eq!(
-        err.to_string(),
-        "the Fillet verb was run through the Split door; the door that answers it is One"
-    );
-    // The shell's own mismatch, both ways. Its operand is one body like
-    // a blend's, so the One door is where a wiring bug would hand it —
-    // and the sentence must name the SHELL door as the answer, not an
-    // operand shape the two rows agree on.
-    let err = Verb::Shell {
-        thickness: 0.1_f64,
-        open: Vec::new(),
-    }
-    .run(&finished("the operand", cube.clone(), tol()), tol())
-    .expect_err("a shell's door asks more of the scalar than the one-body door does");
-    assert_eq!(
-        err.to_string(),
-        "the Shell verb was run through the One door; the door that answers it is Shell"
-    );
-    let err = Verb::Fillet {
-        edges: Vec::new(),
-        radius: 0.1_f64,
-    }
-    .run_shell(
-        &finished("the operand", cube.clone(), tol()),
-        tol(),
-        shell_door(),
-    )
-    .expect_err("a fillet does not hollow");
-    assert_eq!(
-        err.to_string(),
-        "the Fillet verb was run through the Shell door; the door that answers it is One"
-    );
-
-    // The boolean's rows are the ones whose word is not the variant
-    // identifier: the kernel's production doors there are `union`,
-    // `intersect` and `subtract`, so the sentence names the OP. They
-    // are also the rows that tell this pin apart from the rendering it
-    // replaces — a sentence written through `Debug` says
-    // `Boolean(Subtract)`, which is the enum's coordinate for the verb
-    // and names a `Boolean` door no caller can reach.
-    let err = Verb::Boolean {
-        op: BooleanOp::Subtract,
-        inputs: Box::new(BooleanInputs::default()),
-    }
-    .run(&finished("the operand", cube.clone(), tol()), tol())
-    .expect_err("a boolean takes two operands, not one");
-    assert_eq!(
-        err.to_string(),
-        "the Subtract verb was run through the One door; the door that answers it is Two"
-    );
 }
 
 /// The two sides' dumps, in order, with an empty side as its own
@@ -553,7 +298,7 @@ fn the_split_dispatch_is_the_split_door() {
     let plane = z_plane(0.5);
 
     let door = split(&cube, &plane, tol()).unwrap();
-    let via = Verb::Split { plane }.run_split(&cube, tol()).unwrap();
+    let via = Split { plane }.run_split(&cube, tol()).unwrap();
 
     assert_eq!(
         dump_sides(&door.above, &door.below),
@@ -607,7 +352,7 @@ fn the_split_dispatch_agrees_with_the_door_through_a_pinch_below_the_plane() {
     let plane = pinch_plane();
 
     let door = split(&prism, &plane, tol()).unwrap();
-    let via = Verb::Split { plane }.run_split(&prism, tol()).unwrap();
+    let via = Split { plane }.run_split(&prism, tol()).unwrap();
 
     let (SplitPart::Body(slab), SplitPart::Body(pieces)) = (&via.above, &via.below) else {
         panic!("both sides of the pinch cut are bodies: {via:?}");
@@ -648,7 +393,7 @@ fn an_empty_split_side_crosses_as_the_typed_empty() {
     let door = split(&cube, &plane, tol()).unwrap();
     assert!(matches!(door.above, SplitPart::Empty));
 
-    let via = Verb::Split { plane }.run_split(&cube, tol()).unwrap();
+    let via = Split { plane }.run_split(&cube, tol()).unwrap();
     assert!(
         matches!(via.above, SplitPart::Empty),
         "the dispatch turned the typed empty into {:?}",
@@ -670,7 +415,7 @@ fn a_split_refusal_crosses_the_dispatch_unaltered() {
     let plane = z_plane(0.5);
 
     let door = split(&empty, &plane, tol()).unwrap_err();
-    let via = Verb::Split { plane }.run_split(&empty, tol()).unwrap_err();
+    let via = Split { plane }.run_split(&empty, tol()).unwrap_err();
 
     let VerbError::Split(carried) = via else {
         panic!("a split refusal crossed as another family's: {via:?}");
@@ -691,7 +436,7 @@ fn the_extrude_dispatch_is_the_extrude_door() {
         tol(),
     )
     .unwrap();
-    let via = Verb::Extrude {
+    let via = Sweep::Extrude {
         distance: 1.0,
         side: ExtrudeSide::Along,
     }
@@ -723,7 +468,7 @@ fn the_revolve_dispatch_is_the_revolve_door() {
     // `(p − origin).perp_dot(dir) ≥ 0`, which is `−y`.
     let profile = offset_disc(0.25, 1.0);
     let door = sweep::revolve(&profile, x_axis(), Revolution::Full, tol()).unwrap();
-    let via = Verb::Revolve {
+    let via = Sweep::Revolve {
         axis: x_axis(),
         revolution: Revolution::Full,
     }
@@ -766,7 +511,7 @@ fn a_sweep_refusal_crosses_the_dispatch_unaltered() {
         tol(),
     )
     .unwrap_err();
-    let via = Verb::Extrude {
+    let via = Sweep::Extrude {
         distance: 0.0,
         side: ExtrudeSide::Along,
     }
@@ -780,7 +525,7 @@ fn a_sweep_refusal_crosses_the_dispatch_unaltered() {
 
     let off = offset_disc(0.25, 1.0);
     let door = sweep::revolve(&off, x_axis(), Revolution::Partial(0.0), tol()).unwrap_err();
-    let via = Verb::Revolve {
+    let via = Sweep::Revolve {
         axis: x_axis(),
         revolution: Revolution::Partial(0.0),
     }
@@ -794,7 +539,7 @@ fn a_sweep_refusal_crosses_the_dispatch_unaltered() {
 }
 
 /// **The shell dispatch is the shell door**, in both of its spellings:
-/// the sealed hollow and the opened one. `Verb::Shell` has one variant
+/// the sealed hollow and the opened one. `Shell` is one verb
 /// for both, so the row that matters is that an EMPTY designation
 /// reaches `topo::shell` — which is `shell_open`'s own contract — and a
 /// nonempty one reaches the rim surgery, with the body and every field
@@ -816,7 +561,7 @@ fn the_shell_dispatch_is_the_shell_door() {
             )
         }
         .unwrap_or_else(|e| panic!("the fixture is inside the door: {e}"));
-        let via = Verb::Shell {
+        let via = Shell {
             thickness: 0.1,
             open: open.clone(),
         }
@@ -866,7 +611,7 @@ fn a_shell_refusal_crosses_the_dispatch_unaltered() {
         tol(),
     )
     .unwrap_err();
-    let via = Verb::Shell {
+    let via = Shell {
         thickness: 0.0,
         open: Vec::new(),
     }
