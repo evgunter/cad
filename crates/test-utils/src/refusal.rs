@@ -133,7 +133,7 @@ const QUANTITY_WORDS: &[&str] = &[
     "headroom",
     "width",
     "separation",
-    "difference",
+    "curvature",
     "distance",
     "radius",
     "gap",
@@ -696,8 +696,8 @@ mod tests {
             "the curvature difference at sample 4 escalated",
             "the residual against one of the edge's surfaces at sample 4 escalated",
             "the stored parameter interval's length (not a sampled check) escalated",
-            "the stored parameter interval's headroom to one full turn of its carrier (not a \
-             sampled check) escalated",
+            "the stored arc's headroom to one full turn of its carrier (not a sampled check) \
+             escalated",
             "the fillet at this corner is undecided",
             "an authored leg extent could not be told from zero",
         ] {

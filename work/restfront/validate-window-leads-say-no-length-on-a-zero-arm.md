@@ -40,4 +40,11 @@ PR 5157 merged the geom-brep side: zero-arm payloads now read "not shown …" wi
 
 ## Noted 2026-10-20 (ENCL, `encl/check-word-one-noun`)
 
-The undecided arm has the same second telling: `certify_undecided` (`crates/topo/src/validate.rs`) words each check's escalation by hand. The span and meter reasons already say their decision's noun ("length", "a full turn"). The transversality reason says "its faces meet too nearly tangentially" and the second-order one "its faces curve apart too little", while certify's check words now say "the crossing angle" and "the curvature difference" (`CertCheck`'s `Display`, `crates/geom-brep/src/certify.rs`). Fold them into the same sweep.
+The undecided arm has the same second telling: `certify_undecided` (`crates/topo/src/validate.rs`) words each check's escalation by hand, and only the two span reasons say their check word's quantity ("its length", "its image's length"). The rest name the decision another way than certify's check words (`CertCheck`'s `Display`, `crates/geom-brep/src/certify.rs`):
+
+- `ParamWinding`: "whether its arc stays short of a full turn". It shares the size "arc", but the word is "the stored arc's headroom to one full turn of its carrier".
+- `ParamSpanMeter`: "whether its spline has a measurable length". The word is "the lower bound on the spline carrier's length from its metered knot domain".
+- `Transversality` and `TransversalityTube`: "its faces meet too nearly tangentially". The words are "the crossing angle" and "the uniqueness tube's lower bound on the crossing angle".
+- `TangentSecondOrder` and `TangentTube`: "its faces curve apart too little". The words are "the curvature difference" and "the second-order tube's lower bound on the curvature difference".
+
+Fold them into the same sweep.

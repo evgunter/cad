@@ -177,8 +177,8 @@ pub enum PlaneNurbsRefusal {
         margin: MarginDiag,
     },
     /// The uniqueness tube's lower bound on the crossing angle is not
-    /// clear of the zero band — a genuine sliver of the operand pair along the
-    /// locus at this tolerance (F6: escalate, never guess).
+    /// clear of the zero band — a genuine sliver of the operand pair
+    /// along the locus at this tolerance (F6: escalate, never guess).
     TubeStraddles {
         /// The verdict on the transversality enclosure's **certified
         /// clearance from zero**, levered — NOT a measurement of how far
@@ -1518,9 +1518,9 @@ pub enum AnalyticRung3Refusal {
         operand: geom::SurfaceKind,
     },
     /// The uniqueness tube's lower bound on the crossing angle is not
-    /// clear of the zero band — a sliver of the pair along the carrier at this
-    /// tolerance ([`PlaneNurbsRefusal::TubeStraddles`] reads the same
-    /// verdict).
+    /// clear of the zero band — a sliver of the pair along the carrier
+    /// at this tolerance ([`PlaneNurbsRefusal::TubeStraddles`] reads the
+    /// same verdict).
     TubeStraddles {
         /// The verdict on the transversality's certified clearance.
         verdict: Refused,
@@ -1679,11 +1679,12 @@ impl core::fmt::Display for AnalyticRung3Refusal {
             ),
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
-                "{} is not clear of the zero band over {boxes} boxes of the chain — the \
-                 crossing angle's enclosure straddles zero, from a near-tangency of the two surfaces along the carrier or \
-                 from the enclosure's slack; the bound reads {:e} m, which is what the \
-                 certificate could prove",
+                "{} is not clear of the zero band over {boxes} boxes of the chain — {}'s \
+                 enclosure straddles zero, from a near-tangency of the two surfaces along the \
+                 carrier or from the enclosure's slack; the bound reads {:e} m, which is what \
+                 the certificate could prove",
                 crate::certify::TUBE_CROSSING_BOUND,
+                crate::certify::CROSSING_ANGLE,
                 verdict.margin()
             ),
             Self::TubeNotOneArc { rungs, cause } => write!(

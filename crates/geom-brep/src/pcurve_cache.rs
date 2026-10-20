@@ -11747,7 +11747,7 @@ mod tests {
             escalated.to_string(),
             "pcurve certification: AzimuthPeriod at sample 3 escalated: margin 5e-9 lies inside \
              the ambiguity band (1e-9, 1e-8). Recourse: move the geometry so this arc stays \
-             clearly short of a full turn, or, if this headroom is intended, tighten the tolerance \
+             clearly short of a full turn, or, if this arc is intended, tighten the tolerance \
              below 5e-10 m"
         );
     }

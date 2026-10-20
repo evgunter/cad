@@ -402,13 +402,13 @@ impl SpanDecision {
         }
     }
 
-    /// The quantity its margin measures: the size its ending names, and
-    /// the noun of its check's word and of its payloads.
+    /// The size its ending names ("if this {size} is intended"), which its
+    /// lever moves and its check's word names.
     #[must_use]
     pub const fn size(self) -> &'static str {
         match self {
-            Self::Forward => "length",
-            Self::Winding => "headroom",
+            Self::Forward => crate::certify::length_noun!(),
+            Self::Winding => crate::certify::arc_noun!(),
         }
     }
 
