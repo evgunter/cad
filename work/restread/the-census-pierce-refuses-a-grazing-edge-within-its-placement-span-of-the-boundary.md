@@ -4,7 +4,7 @@ kind: issue
 title: "The census's edge–face pierce refuses a grazing edge whose crossing lies within its placement's span of the face's boundary: residuals read off a far origin place it no closer than their rounding over the lever"
 status: open
 opened: 2026-10-20
-priority: P3
+priority: P2
 cost: M
 ---
 
@@ -40,6 +40,28 @@ Measured with `census::pierce_fuzz`'s grazing draw at ε = 1e-12
   the 438 would still have the span reaching the depth.
 
 At ε = 1e-9 the same draw refuses 66 of 1 200, and at 1e-6 none.
+
+**At `Interval` the refusal is far higher.** A refusal of a valid body
+is a capability loss, hence P2. Seed `0x4e6588c9abba038c`, refused of
+200 per cell (`census::pierce_fuzz::probe::probe_grid`, origin
+3–1 000 m off):
+
+| ε | main, f64 | main, Interval | branch, f64 | branch, Interval |
+| --- | --- | --- | --- | --- |
+| 1e-9 | 0 | 0–21 | 2–22 | 43–125 |
+| 1e-12 | 0 (3–18 wrong) | 49–94 | 60–98 | 166–193 |
+
+On the tilted non-convex caps (`census::pierce_fuzz::tilted`, effort
+20, same seed) main's `Interval` refuses 19 of 582 at 1e-9 and 292 of
+600 at 1e-12; the branch's refuses 557 and 600. f64 refuses 5 and 112.
+Most of those `Interval` refusals are `curve_carrier_gap`, the
+clearance's vertex reading on the span: at `Interval` the span's ends
+`p₀ + chord·(t ∓ reach)` are enclosures as wide as a quarter of the span
+(`t`'s own width is about `δ/4`), so the span's direction is enclosed
+to about a quarter radian and every 3D reading over it escalates. The
+compensated residuals below shrink `δ`, and with it that width; the
+span's ends could also be read as the degenerate outer bounds of the
+fraction's enclosure, which needs `Bounds` at the census's doors.
 
 ## Direction
 

@@ -436,6 +436,9 @@ mod tests {
             _ => panic!("no touch point read: {errors:?}"),
         };
         let off = ((c - at) - exact).norm();
-        assert!(off <= 1e-15, "the touch point stands {off:e} off the circle's");
+        assert!(
+            off <= 1e-15,
+            "the touch point stands {off:e} off the circle's"
+        );
     }
 }

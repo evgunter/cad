@@ -396,8 +396,7 @@ fn a_hole_narrower_than_the_span_is_no_pierce() {
         off: f64,
         band: Band,
     ) -> (Found, Option<PierceSpan<T>>, [Point3<T>; 2]) {
-        let mut body =
-            crate::test_support_fixtures::holed_block::<T>(3.0, &[1.5], Tol::witness());
+        let mut body = crate::test_support_fixtures::holed_block::<T>(3.0, &[1.5], Tol::witness());
         let s = body.get_face(top).unwrap().surface;
         match body.surfaces.get_mut(s).unwrap() {
             geom::Surface::Plane { origin, .. } => {
@@ -431,10 +430,17 @@ fn a_hole_narrower_than_the_span_is_no_pierce() {
             x(hi)
         );
         let height = lever * (hi - lo);
-        assert!(height < 0.8 * band.zero(), "off {off:e}: the span stands {height:e} off");
+        assert!(
+            height < 0.8 * band.zero(),
+            "off {off:e}: the span stands {height:e} off"
+        );
         let (iv_read, ..) = go::<Interval>(top, off, band);
         for (scalar, got) in [("f64", f64_read), ("Interval", iv_read)] {
-            assert_ne!(got, Found::Pierce, "off {off:e}, {scalar}: a pierce in the hole");
+            assert_ne!(
+                got,
+                Found::Pierce,
+                "off {off:e}, {scalar}: a pierce in the hole"
+            );
         }
     }
 }
@@ -487,7 +493,9 @@ fn a_span_standing_past_its_reach_off_the_plane_is_refused_by_its_height() {
     assert!(
         got == Found::Refused
             && !rows.is_empty()
-            && rows.iter().all(|r| r.starts_with("pm_census_ef_pierce_height")),
+            && rows
+                .iter()
+                .all(|r| r.starts_with("pm_census_ef_pierce_height")),
         "a span reaching {reach}ε read {got:?}, refused by {rows:?}"
     );
     let (reach, got, _) = read(21.0);

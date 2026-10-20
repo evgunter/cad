@@ -158,7 +158,9 @@ fn read_pose<T: Decide + crate::props::AtRestPolicy>(
 /// into the polygon.
 fn truth(p: &Pose, [p0, p1]: [Point3<f64>; 2], o: Point3<f64>, n: Vec3<f64>) -> f64 {
     let bn = [n.x, n.y, n.z].map(big);
-    let r = |q: Point3<f64>| big_dot(&[q.x, q.y, q.z].map(big), &bn) - big_dot(&[o.x, o.y, o.z].map(big), &bn);
+    let r = |q: Point3<f64>| {
+        big_dot(&[q.x, q.y, q.z].map(big), &bn) - big_dot(&[o.x, o.y, o.z].map(big), &bn)
+    };
     let (r0, r1) = (r(p0), r(p1));
     let mut den = &r0 - &r1;
     let mut r0 = r0;
@@ -170,17 +172,18 @@ fn truth(p: &Pose, [p0, p1]: [Point3<f64>; 2], o: Point3<f64>, n: Vec3<f64>) -> 
         let (a, b) = ([p0.x, p0.y, p0.z][i], [p1.x, p1.y, p1.z][i]);
         let num = big(a) * &den + (big(b) - big(a)) * &r0;
         let d = &den << 1074_usize;
-        if num < BigInt::from(0) { -ratio(&-num, &d) } else { ratio(&num, &d) }
+        if num < BigInt::from(0) {
+            -ratio(&-num, &d)
+        } else {
+            ratio(&num, &d)
+        }
     });
     let m = motion::<f64>(p);
     let col = |v: Vec3<f64>| {
         let c = m.transform_point(Point3::origin() + v) - Point3::origin();
         c.x * x[0] + c.y * x[1] + c.z * x[2]
     };
-    let local = (
-        col(Vec3::new(1.0, 0.0, 0.0)),
-        col(Vec3::new(0.0, 1.0, 0.0)),
-    );
+    let local = (col(Vec3::new(1.0, 0.0, 0.0)), col(Vec3::new(0.0, 1.0, 0.0)));
     signed(&profile(p.kind, p.w).0, local)
 }
 
@@ -200,8 +203,14 @@ fn draw(r: &mut Rng, eps: f64, far_max: f64) -> Pose {
         w,
         axis,
         angle: r.range(0.1, 3.0),
-        far: (sign(r) * r.log_uniform(0.1, far_max), sign(r) * r.log_uniform(0.1, far_max)),
-        aim: (tip.0 + sign(r) * r.range(0.0, scale), tip.1 + sign(r) * r.range(0.0, scale)),
+        far: (
+            sign(r) * r.log_uniform(0.1, far_max),
+            sign(r) * r.log_uniform(0.1, far_max),
+        ),
+        aim: (
+            tip.0 + sign(r) * r.range(0.0, scale),
+            tip.1 + sign(r) * r.range(0.0, scale),
+        ),
         theta: r.range(0.0, std::f64::consts::TAU),
         half: r.range(0.05, 0.3),
         off: r.log_uniform(1.5 * 10.0 * eps, 1e3 * 10.0 * eps),
