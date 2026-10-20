@@ -6662,3 +6662,8 @@ Signed (WIRE orchestrator).
   - A plain two-prism Union, Subtract, folds and split-then-union all refuse MergedChord, every hit zip-listed. MergedChordOffRim has no witness.
   - The chord row is raised to P2 with the witnesses, and it joins should-pair-seams-take-name-ordered-sides (also P2) in one fork, FORK-PAIRSEAM. The byte is drawn, unread; the designer pair is dispatched.
   - A three-member fold's borders refusal goes on borders' held-edge row as a possible witness.
+
+- 2026-10-20 (WIRE orchestrator) FORK-PAIRSEAM first reports.
+  - Both recommend name order everywhere and retiring Seams, of_published and the MergedChord arms.
+  - Divergent premise: one assumes the sides carry their read, while the other measured bare operand names (a Transform-copy subtract keeps distinct seams apart only by slot, and its four Crossings tie). The other's design is node-space sides, then name order.
+  - Filed a-subtract-of-a-transform-copy-ties-its-seam-crossings (P2). Crossover round 1 sent.
