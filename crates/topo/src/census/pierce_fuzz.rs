@@ -29,7 +29,7 @@ test_utils::gated_to![
     "crates/geom-core/src/predicate.rs",
     "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/k_stats.rs",
-    "crates/geom-brep/src/implicit.rs",
+    "crates/geom-core/src/running.rs",
 ];
 
 use super::segment_fuzz::{big, big_dot, ratio};
@@ -87,6 +87,97 @@ fn found(errors: &[ValidationError]) -> Found {
     }
 }
 
+/// `face`'s plane in `body`, its stored origin moved to `o`.
+fn move_origin<T: Real>(body: &mut Body<T>, face: FaceKey, o: Point3<T>) {
+    let s = body.get_face(face).unwrap().surface;
+    match body.surfaces.get_mut(s).unwrap() {
+        geom::Surface::Plane { origin, .. } => *origin = o,
+        _ => panic!("a planar face"),
+    }
+}
+
+/// An edge from `ends[0]` to `ends[1]` against `face` of `body`, as
+/// pass 4 reads the pair.
+struct Pair<'b, T: Decide> {
+    body: &'b Body<T>,
+    geo: Geo<T>,
+    face: FaceKey,
+    e: EdgeGeo<T>,
+}
+
+impl<'b, T: Decide> Pair<'b, T> {
+    fn new(body: &'b Body<T>, face: FaceKey, [p0, p1]: [Point3<T>; 2]) -> Self {
+        Self {
+            body,
+            geo: snapshot(body),
+            face,
+            e: segment((p0, p1)),
+        }
+    }
+
+    fn f(&self) -> &FaceGeo<T> {
+        self.geo.faces.iter().find(|f| f.key == self.face).unwrap()
+    }
+
+    /// What [`pair_edge_face`] pushes for the pair.
+    fn read(&self, band: Band) -> Vec<ValidationError> {
+        let declared = Declared::index(&self.geo, &ContactRecords::default());
+        let mut errors = Vec::new();
+        let (e, f) = (&self.e, self.f());
+        pair_edge_face(
+            self.body,
+            &self.geo,
+            &declared,
+            band,
+            None,
+            e,
+            f,
+            &mut errors,
+        );
+        errors
+    }
+
+    /// Where [`pierce_span`] places the crossing.
+    fn span(&self, band: Band) -> Option<PierceSpan<T>> {
+        let f = self.f();
+        let r = [self.e.p0, self.e.p1].map(|p| (p - f.origin).dot(f.normal));
+        pierce_span(&self.e, f, r, band, &mut Vec::new())
+    }
+}
+
+/// The residual `(p − o)·n` of `p` off the plane through `o` normal to
+/// `n`, exactly, in units of `2⁻²¹⁴⁸`.
+fn exact_residual(p: Point3<f64>, o: Point3<f64>, n: Vec3<f64>) -> BigInt {
+    let n = [n.x, n.y, n.z].map(big);
+    big_dot(&[p.x, p.y, p.z].map(big), &n) - big_dot(&[o.x, o.y, o.z].map(big), &n)
+}
+
+/// Where the plane through `o` normal to `n` meets the line through
+/// `p0`, `p1`: `p₀ + (p₁ − p₀)·r₀/(r₀ − r₁)`, each coordinate to a few
+/// ulps; `None` for a line in a parallel plane.
+fn exact_crossing(o: Point3<f64>, n: Vec3<f64>, [p0, p1]: [Point3<f64>; 2]) -> Option<Point3<f64>> {
+    let (r0, r1) = (exact_residual(p0, o, n), exact_residual(p1, o, n));
+    let lever = &r0 - &r1;
+    if lever == BigInt::from(0) {
+        return None;
+    }
+    let den = &lever << 1074_usize;
+    let at = |a: f64, b: f64| {
+        let num = big(a) * &lever + (big(b) - big(a)) * &r0;
+        let (num, den) = if den < BigInt::from(0) {
+            (-num, -&den)
+        } else {
+            (num, den.clone())
+        };
+        if num < BigInt::from(0) {
+            -ratio(&-num, &den)
+        } else {
+            ratio(&num, &den)
+        }
+    };
+    Some(Point3::new(at(p0.x, p1.x), at(p0.y, p1.y), at(p0.z, p1.z)))
+}
+
 /// Side face 0's stored origin, moved, and its normal.
 fn plane(pose: &Pose) -> (Point3<f64>, Vec3<f64>) {
     let prism = crate::test_support_fixtures::prism_z::<f64>(&PROFILE, 0.0, 1.0, Tol::witness());
@@ -121,20 +212,10 @@ fn ends(pose: &Pose, normal: Vec3<f64>) -> [Point3<f64>; 2] {
 fn read<T: Decide + crate::props::AtRestPolicy>(pose: &Pose, band: Band) -> Found {
     let mut prism = crate::test_support_fixtures::prism_z::<T>(&PROFILE, 0.0, 1.0, Tol::witness());
     let face = prism.side_faces[0];
-    let s = prism.body.get_face(face).unwrap().surface;
     let (o, n) = plane(pose);
     let lift = |p: Point3<f64>| p.map(T::from_f64);
-    match prism.body.surfaces.get_mut(s).unwrap() {
-        geom::Surface::Plane { origin, .. } => *origin = lift(o),
-        _ => panic!("a prism's side is a plane"),
-    }
-    let geo = snapshot(&prism.body);
-    let f = geo.faces.iter().find(|f| f.key == face).unwrap();
-    let [p0, p1] = ends(pose, n);
-    let e = segment((lift(p0), lift(p1)));
-    let declared = Declared::index(&geo, &ContactRecords::default());
-    let mut errors = Vec::new();
-    pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
+    move_origin(&mut prism.body, face, lift(o));
+    let errors = Pair::new(&prism.body, face, ends(pose, n).map(lift)).read(band);
     let got = found(&errors);
     assert!(
         got != Found::Pierce
@@ -158,26 +239,10 @@ fn exact_depth(pose: &Pose) -> f64 {
 }
 
 /// How far below `z = 1` the plane through `o` normal to `n` meets the
-/// line through `p0`, `p1`: `1 − z₀ − (z₁ − z₀)·r₀/(r₀ − r₁)`, every
-/// `f64` an integer count of `2⁻¹⁰⁷⁴`; `None` for a line in a parallel
-/// plane.
-fn depth_below_top(o: Point3<f64>, n: Vec3<f64>, [p0, p1]: [Point3<f64>; 2]) -> Option<f64> {
-    let n = [n.x, n.y, n.z].map(big);
-    let r = |p: Point3<f64>| {
-        big_dot(&[p.x, p.y, p.z].map(big), &n) - big_dot(&[o.x, o.y, o.z].map(big), &n)
-    };
-    let (r0, r1) = (r(p0), r(p1));
-    let lever = &r0 - &r1;
-    if lever == BigInt::from(0) {
-        return None;
-    }
-    let num = (big(1.0) - big(p0.z)) * &lever - (big(p1.z) - big(p0.z)) * &r0;
-    let den = lever << 1074_usize;
-    Some(if den < BigInt::from(0) {
-        ratio(&-num, &-den)
-    } else {
-        ratio(&num, &den)
-    })
+/// line through `p0`, `p1` ([`exact_crossing`]); `None` for a line in a
+/// parallel plane.
+fn depth_below_top(o: Point3<f64>, n: Vec3<f64>, ends: [Point3<f64>; 2]) -> Option<f64> {
+    exact_crossing(o, n, ends).map(|x| 1.0 - x.z)
 }
 
 /// The pose read at both scalars: `f64`'s reading, and what was wrong,
@@ -325,10 +390,7 @@ fn each_residual_stays_inside_its_charge_and_the_span_holds_the_crossing() {
             };
             let e = segment((p0, p1));
             let read = [e.p0, e.p1].map(|p| (p - o).dot(n));
-            let bn = [n.x, n.y, n.z].map(big);
-            let exact = [p0, p1].map(|p| {
-                big_dot(&[p.x, p.y, p.z].map(big), &bn) - big_dot(&[o.x, o.y, o.z].map(big), &bn)
-            });
+            let exact = [p0, p1].map(|p| exact_residual(p, o, n));
             for i in 0..2 {
                 let charge = geom_core::rounding_charge(([p0, p1][i] - o).norm());
                 let off = (big(read[i]) << 1074_usize) - &exact[i];
@@ -406,8 +468,7 @@ fn the_worst_residual_drawn_stays_inside_half_its_charge() {
         loops: Vec::new(),
         polygon: false,
     };
-    let bn = [n.x, n.y, n.z].map(big);
-    let exact = big_dot(&[p.x, p.y, p.z].map(big), &bn) - big_dot(&[o.x, o.y, o.z].map(big), &bn);
+    let exact = exact_residual(p, o, n);
     let off = (big((p - o).dot(n)) << 1074_usize) - exact;
     let lever = (p - o).norm() * f64::EPSILON / 2.0;
     let err = ratio(&off, &(BigInt::from(1) << 2148_usize)).abs();

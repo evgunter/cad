@@ -325,13 +325,20 @@ struct EdgeGeo<T: Real> {
     f_minus: FaceKey,
 }
 
-/// A straight span: its start, unit direction and length — what
-/// [`collinear_overlap`] reads of an edge.
+/// A straight span: the points `p0 + dir·s` for `s` in `at`, `dir` a
+/// unit direction — what [`collinear_overlap`] reads of an edge
+/// (`at = (0, len)`) or of a stretch of one ([`Stretch`]).
 #[derive(Clone, Copy)]
 struct Span<T: Real> {
     p0: Point3<T>,
     dir: Vec3<T>,
-    len: T,
+    at: (T, T),
+}
+
+impl<T: Real> Span<T> {
+    fn len(&self) -> T {
+        self.at.1 - self.at.0
+    }
 }
 
 /// What has a straight span.
@@ -350,7 +357,24 @@ impl<T: Real> Spans<T> for EdgeGeo<T> {
         Span {
             p0: self.p0,
             dir: self.dir,
-            len: self.len,
+            at: (T::zero(), self.len),
+        }
+    }
+}
+
+/// The stretch `at` of an edge's own line, `s` measured from its start
+/// along its direction: a span read on the edge's stored start and
+/// direction, so its direction is never formed from its own ends.
+struct Stretch<'a, T: Real> {
+    edge: &'a EdgeGeo<T>,
+    at: (T, T),
+}
+
+impl<T: Real> Spans<T> for Stretch<'_, T> {
+    fn span(&self) -> Span<T> {
+        Span {
+            at: self.at,
+            ..self.edge.span()
         }
     }
 }
@@ -2084,22 +2108,24 @@ fn on_edge_interior<T: Decide>(
     on_edge_interior_reading(q, e, band, errors).map(|on| on.is_some())
 }
 
-/// `q` against `e`'s segment by [`Span::contact`], the one point-on-span
-/// reading, at its foot on the line ([`geom::Curve3::foot`]):
+/// `q` against the span `e` (an edge's segment, or a [`Stretch`] of its
+/// line) by [`CarrierSpan::contact`], the one point-on-span reading, at
+/// its foot on the line ([`geom::Curve3::foot`]):
 /// `Some(Some((s, margin)))` on the interior at arc length `s`, by the
 /// margin that put it on the line; `Some(None)` off the interior, an end
 /// included; `None` escalated (pushed).
 fn on_edge_interior_reading<T: Decide>(
     q: Point3<T>,
-    e: &EdgeGeo<T>,
+    e: &impl Spans<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<(T, MarginDiag)>> {
+    let e = e.span();
     let line = geom::Curve3::Line {
         origin: e.p0,
         dir: e.dir,
     };
-    match CarrierSpan::new(&line, (T::zero(), e.len)).contact(q, T::zero(), band) {
+    match CarrierSpan::new(&line, e.at).contact(q, T::zero(), band) {
         Ok(Some(Hit::On { t, margin })) => Some(Some((t, margin))),
         Ok(Some(Hit::End(_)) | None) => Some(None),
         Err(geom::CarrierRefusal::Escalated(cause) | geom::CarrierRefusal::Straddle(cause)) => {
@@ -2774,7 +2800,7 @@ fn residual_charge<T: Real>(f: &FaceGeo<T>, p: Point3<T>) -> T {
 /// **Whether the crossing [`pierce_span`] places is inside the face**:
 /// the point it is reported at where it is, `None` where it is not or a
 /// reading refused (pushed). The crossing lies on the span `S`, the
-/// segment of the edge's line between the enclosure's two ends, of
+/// stretch of the edge's chord between the enclosure's two ends, of
 /// length `L`; the face is read at both ends.
 ///
 /// - **Both `In`**, or both `Out`: each end stands past the band's
@@ -2792,10 +2818,11 @@ fn residual_charge<T: Real>(f: &FaceGeo<T>, p: Point3<T>) -> T {
 ///   the cells the ends read, those cells' passes' (an `OnEdge` the
 ///   edge–edge pass's crossing, an `OnVertex` the vertex–edge pass's).
 ///   Two cells across a longer span are refused below.
-/// - **Refused**: the boundary lies between the ends or may meet `S`, so
-///   the crossing is within `L` of it, and the band's zero more where an
-///   end read on it. That distance, enclosed by `[0, L + ε]`, is read
-///   through the magnitude door: past the band it straddles
+/// - **Refused**: where the half-span's own reading refused, by its
+///   cause. Otherwise the boundary lies between the ends or may meet
+///   `S`, so the crossing is within `L` of it, and the band's zero more
+///   where an end read on it. That distance, enclosed by `[0, L + ε]`,
+///   is read through the magnitude door: past the band it straddles
 ///   (`pm_census_ef_pierce_straddle`), in it escalates
 ///   (`pm_census_ef_pierce_place`), either pushed. It reads at most ε
 ///   only below ε's rounding of `L`, where the ends coincide and an arm
@@ -2818,21 +2845,27 @@ fn pierce_inside<T: Decide>(
     let short = || {
         let half = [T::zero(), length * T::from_f64(0.5)];
         let decide = magnitude_door("pm_census_ef_pierce_span", band);
-        match enclosure_reading(half, "pm_census_ef_pierce_span_straddle", band, decide) {
-            Ok(Enclosed::AtMost(_)) => true,
-            Ok(Enclosed::Above) | Err(_) => false,
-        }
+        enclosure_reading(half, "pm_census_ef_pierce_span_straddle", band, decide)
+            .map(|read| matches!(read, Enclosed::AtMost(_)))
     };
     let on = |at| matches!(at, OnEdge(_) | OnVertex(_));
-    match (at_lo, at_hi) {
+    let half = match (at_lo, at_hi) {
         (In, In) | (Out, Out) => {
-            let stand = (lever * (hi - lo), lever / e.len);
-            if short() || span_clear(geo, f, (q_lo, q_hi), stand, band, errors)? {
+            let half = short();
+            if matches!(half, Ok(true)) || span_clear(geo, e, f, [lo, hi], lever, band, errors)? {
                 return (at_lo == In).then(|| e.p0 + chord * geom::mid_param(lo, hi));
             }
+            half
         }
-        (a, b) if on(a) && on(b) && (a == b || short()) => return None,
-        _ => {}
+        (a, b) if on(a) && on(b) => match if a == b { Ok(true) } else { short() } {
+            Ok(true) => return None,
+            half => half,
+        },
+        _ => Ok(false),
+    };
+    if let Err(cause) = half {
+        errors.push(ValidationError::CensusEscalated { cause });
+        return None;
     }
     let decide = magnitude_door("pm_census_ef_pierce_place", band);
     let reach = length + T::from_f64(band.zero());
@@ -2847,22 +2880,30 @@ fn pierce_inside<T: Decide>(
     None
 }
 
-/// **Whether no boundary of the face `f` meets the span `S`**
-/// (`q_lo`–`q_hi`, longer than `2ε`, its ends read past `Kε` on one side
-/// of the boundary): `Some(false)` where it may, or where `f` is not a
-/// polygon; `None` where a reading refused (pushed).
+/// **Whether no boundary of the face `f` meets the span `S`**, the
+/// stretch `[lo, hi]` of `e`'s chord (longer than `2ε`, its ends read
+/// past `Kε` on one side of the boundary, `lever` an upper bound on
+/// the residual's change along the chord, [`pierce_span`]):
+/// `Some(false)` where it may, or where `f` is not a polygon; `None`
+/// where a reading refused (pushed).
 ///
-/// `stand` is `(h, σ)`: `h` bounds how far `S`'s ends stand off the
-/// plane ([`pierce_span`]'s lever over the fraction's enclosure), and
-/// `σ` the edge's slope off it (the lever over the chord). A boundary
-/// point `b`, within ε of the plane, over a point `s` of `S`, stands
-/// within `g = h + ε` of `s`, and a boundary vertex over `S` has its foot
-/// on `S`'s line within `σg` of `s`. So `b` stands within
-/// `g·(1 + σ) + ε` of `S` along any path below. That reach is read
-/// within `Kε` first: `g·(1 + σ)` through the magnitude door at the band
-/// `[(K − 1)ε, Kε]` (`pm_census_ef_pierce_height`, its straddle
-/// `…_height_straddle`), at most `(K − 1)ε` or refused. Past `Kε`, a
-/// boundary point over `S` could read apart from it.
+/// `S` is read on the edge's own line, at arc lengths `lo·len` to
+/// `hi·len` from its start ([`Stretch`]), so its direction is the
+/// edge's and never one formed from its rounded ends. Its points stand
+/// within a rounding charge `c` of the chord's, and its ends within `c`
+/// of the points the face was read at ([`span_reach`]).
+///
+/// Let `h = ℓ·(hi − lo) + 2c` (`ℓ` the lever), which bounds how far `S`
+/// stands off the plane with `c` to spare, and `σ = ℓ/len` the edge's
+/// slope off it. A boundary point `b`, within ε of the plane, over a
+/// point `s` of `S`, stands within `g = h + ε` of `s`, and a boundary
+/// vertex over `S` has its foot on `S`'s line within `σg` of `s`. So
+/// `b` stands within `g·(1 + σ) + ε` of `S` along any path below. That
+/// reach, `g·(1 + σ)` charged its rounding, is read within `Kε` first:
+/// through the magnitude door at the band `[(K − 1)ε, Kε]`
+/// (`pm_census_ef_pierce_height`, its straddle `…_height_straddle`), at
+/// most `(K − 1)ε` or refused. Past `Kε`, a boundary point over `S`
+/// could read apart from it.
 ///
 /// Then no boundary edge's interior meets `S`'s ([`interiors_meet`]) and
 /// no boundary vertex lies on `S`'s interior ([`on_edge_interior_reading`]).
@@ -2876,26 +2917,29 @@ fn pierce_inside<T: Decide>(
 /// - a reach at most ε from the side's vertex leaves the vertex within
 ///   `g + ε` of `S`'s line, so of `S`, or of its end.
 ///
-/// So no reading calls `b` apart, or an end of `S` stands within `Kε` of
-/// the boundary, against its own reading. That holds for every `K > 1`;
-/// below `K = 2`, `g ≥ ε` already passes `(K − 1)ε` and the span always
-/// refuses. `h` overstates the true height by the residuals' unspent
-/// charge, which covers the reach's own rounding.
+/// So no reading calls `b` apart, or the point read at an end of `S`
+/// stands within `Kε` of the boundary (the end's `c` is in `h`), against
+/// its own reading. That holds for every `K > 1`; at `K ≤ 2`, `g > ε`
+/// already passes `(K − 1)ε` and the clearance always refuses.
 fn span_clear<T: Decide>(
     geo: &Geo<T>,
+    e: &EdgeGeo<T>,
     f: &FaceGeo<T>,
-    span: (Point3<T>, Point3<T>),
-    (height, slope): (T, T),
+    [lo, hi]: [T; 2],
+    lever: T,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<bool> {
+    // `(K − 1)ε` rounds below `Kε` unless K passes 2⁵³; such a band has
+    // no band under it, and its clearance refuses: the caller pushes the
+    // place reading's refusal.
     let Ok(within) = Band::new(band.escalate() - band.zero(), band.escalate()) else {
         return Some(false);
     };
     if !f.polygon {
         return Some(false);
     }
-    let reach = (height + T::from_f64(band.zero())) * (T::from_f64(1.0) + slope);
+    let reach = span_reach(e, [lo, hi], lever, band);
     let decide = magnitude_door("pm_census_ef_pierce_height", within);
     let straddle = "pm_census_ef_pierce_height_straddle";
     match enclosure_reading([T::zero(), reach], straddle, within, decide) {
@@ -2906,7 +2950,10 @@ fn span_clear<T: Decide>(
             return None;
         }
     }
-    let s = segment(span);
+    let s = Stretch {
+        edge: e,
+        at: (lo * e.len, hi * e.len),
+    };
     for ring in &f.loops {
         let at: Vec<Point3<T>> = ring
             .iter()
@@ -2926,6 +2973,19 @@ fn span_clear<T: Decide>(
         }
     }
     Some(true)
+}
+
+/// [`span_clear`]'s reach `g·(1 + σ)`, `g = ℓ·(hi − lo) + 2c + ε`, charged
+/// its rounding. `c` is the rounding charge of `e.p0 + chord·t` against
+/// `e.p0 + dir·(t·len)` over `[lo, hi]`, a few `u` of the point's
+/// coordinates and of `t·len`.
+fn span_reach<T: Real>(e: &EdgeGeo<T>, [lo, hi]: [T; 2], lever: T, band: Band) -> T {
+    let c = geom_core::rounding_charge(
+        (e.p0 - Point3::origin()).norm() + e.len * lo.abs().max(hi.abs()),
+    );
+    let height = lever * (hi - lo) + c * T::from_f64(2.0);
+    let reach = (height + T::from_f64(band.zero())) * (T::one() + lever / e.len);
+    reach + geom_core::rounding_charge(reach)
 }
 
 /// The in-plane overlap lane of pass 4: cut the edge's span at the
@@ -3400,7 +3460,7 @@ enum Meeting<T> {
 /// they meet, `Some(None)` where they do not, `None` where a decision
 /// escalated (pushed). An in-band screen is [`settle_in_band`]'s.
 fn ee_meeting<T: Decide>(
-    ea: &EdgeGeo<T>,
+    ea: &impl Closest<T>,
     eb: &EdgeGeo<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
@@ -3571,7 +3631,7 @@ fn parallel_reading<T: Decide>(
     let (a, b) = (a.span(), b.span());
     gap_is_zero(
         "pm_census_ee_parallel",
-        Margin::levered(a.dir.cross(b.dir).norm(), a.len.min(b.len)),
+        Margin::levered(a.dir.cross(b.dir).norm(), a.len().min(b.len())),
         band,
         errors,
     )
@@ -3834,6 +3894,35 @@ fn ee_lines_closest<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> LinesClosest<T
     }
 }
 
+/// What a crossing is read on ([`crossing_reading`]): a straight span
+/// whose line's closest approach to an edge's is enclosed.
+trait Closest<T: Real>: Spans<T> {
+    fn closest(&self, other: &EdgeGeo<T>) -> LinesClosest<T>;
+}
+
+impl<T: Real> Closest<T> for EdgeGeo<T> {
+    fn closest(&self, other: &EdgeGeo<T>) -> LinesClosest<T> {
+        ee_lines_closest(self, other)
+    }
+}
+
+/// A stretch's reaches are its edge's reach from its start, `s`, moved to
+/// the stretch's ends: `s − at.0` from its start and `at.1 − s` to its
+/// end, each subtraction charged its rounding.
+impl<T: Real> Closest<T> for Stretch<'_, T> {
+    fn closest(&self, other: &EdgeGeo<T>) -> LinesClosest<T> {
+        let mut closest = ee_lines_closest(self.edge, other);
+        let [from, _] = closest.reach[0];
+        let less = |[lo, hi]: [T; 2], by: T| {
+            let charge = geom_core::rounding_charge(by.abs() + lo.abs().max(hi.abs()));
+            [lo - by - charge, hi - by + charge]
+        };
+        let [lo, hi] = less(from, self.at.1);
+        closest.reach[0] = [less(from, self.at.0), [-hi, -lo]];
+        closest
+    }
+}
+
 /// Two edge lines' frame: `n = da × db`, `|n|²` and `s = |n|`.
 fn lines_frame<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> (Vec3<T>, T, T) {
     let n = ea.dir.cross(eb.dir);
@@ -3896,12 +3985,12 @@ fn ee_overlap_midpoint<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> Point3<T> {
 /// none did. The crossing lane and the confirm pass of an edge-edge
 /// record ask this one question.
 fn crossing_reading<T: Decide>(
-    ea: &EdgeGeo<T>,
+    ea: &impl Closest<T>,
     eb: &EdgeGeo<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<MarginDiag>> {
-    let closest = ee_lines_closest(ea, eb);
+    let closest = ea.closest(eb);
     let mut held = Vec::new();
     for reach in closest.reach.into_iter().flatten() {
         match span_reading(reach, band) {
@@ -4065,8 +4154,8 @@ fn collinear_overlap<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<((T, T), MarginDiag)>> {
     let (ea, eb) = (ea.span(), eb.span());
-    let t0 = (eb.p0 - ea.p0).dot(ea.dir);
-    let t1 = t0 + eb.len * eb.dir.dot(ea.dir);
+    let (base, turn) = ((eb.p0 - ea.p0).dot(ea.dir), eb.dir.dot(ea.dir));
+    let (t0, t1) = (base + eb.at.0 * turn, base + eb.at.1 * turn);
     let mut held = Vec::new();
     let span = projected_overlap(&ea, (t0, t1), band, &mut held);
     if matches!(span, Some(None)) {
@@ -4095,8 +4184,8 @@ fn collinear_overlap<T: Decide>(
 /// of the run clear of `eb`'s line, so of `eb`, and off the run `ea`
 /// stands past `eb`'s ends.
 fn overlap_gap<T: Real>(ea: &Span<T>, eb: &Span<T>, (t0, t1): (T, T)) -> Margin<T> {
-    let lo = t0.min(t1).max(T::zero());
-    let run = (t0.max(t1).min(ea.len) - lo).max(T::zero());
+    let lo = t0.min(t1).max(ea.at.0);
+    let run = (t0.max(t1).min(ea.at.1) - lo).max(T::zero());
     let off = |w: Vec3<T>| eb.dir.cross(w.cross(eb.dir));
     let start = off(ea.p0 + ea.dir * lo - eb.p0);
     let turn = off(ea.dir);
@@ -4120,13 +4209,13 @@ fn projected_overlap<T: Decide>(
         core::cmp::Ordering::Greater => (t1, t0),
         _ => (t0, t1),
     };
-    let lo = match tri_cmp(blo, T::zero(), band, errors)? {
+    let lo = match tri_cmp(blo, ea.at.0, band, errors)? {
         core::cmp::Ordering::Greater => blo,
-        _ => T::zero(),
+        _ => ea.at.0,
     };
-    let hi = match tri_cmp(bhi, ea.len, band, errors)? {
+    let hi = match tri_cmp(bhi, ea.at.1, band, errors)? {
         core::cmp::Ordering::Less => bhi,
-        _ => ea.len,
+        _ => ea.at.1,
     };
     match decide("pm_census_ee_overlap", Margin::of(hi - lo), band) {
         Ok(Sign::Positive) => Some(Some((lo, hi))),
@@ -8617,7 +8706,7 @@ fn confirm_edge_edge<T: Decide>(
 /// ([`ee_meeting`]): the question an edge-edge record's confirm pass
 /// asks. `None` where a decision escalated (pushed).
 fn interiors_meet<T: Decide>(
-    ea: &EdgeGeo<T>,
+    ea: &impl Closest<T>,
     eb: &EdgeGeo<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,

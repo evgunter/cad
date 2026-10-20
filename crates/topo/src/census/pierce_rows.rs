@@ -52,22 +52,16 @@ fn cap_read<T: Decide + crate::props::AtRestPolicy>(
         let mut prism =
             crate::test_support_fixtures::prism_z::<T>(profile, 0.0, 1.0, Tol::witness());
         let face = prism.top_face;
-        let s = prism.body.get_face(face).unwrap().surface;
-        match prism.body.surfaces.get_mut(s).unwrap() {
-            geom::Surface::Plane { origin, .. } => {
-                *origin = Point3::new(T::from_f64(far.0), T::from_f64(far.1), T::from_f64(1.0));
-            }
-            _ => panic!(),
-        }
-        let geo = snapshot(&prism.body);
-        let f = geo.faces.iter().find(|f| f.key == face).unwrap();
-        let e = segment((
-            Point3::new(0.2, 0.45, 1.0 + off).map(T::from_f64),
-            Point3::new(0.8, 0.45, 1.0 - off).map(T::from_f64),
-        ));
-        let declared = Declared::index(&geo, &ContactRecords::default());
-        let mut errors = Vec::new();
-        pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
+        move_origin(
+            &mut prism.body,
+            face,
+            Point3::new(far.0, far.1, 1.0).map(T::from_f64),
+        );
+        let ends = [
+            Point3::new(0.2, 0.45, 1.0 + off),
+            Point3::new(0.8, 0.45, 1.0 - off),
+        ];
+        let errors = Pair::new(&prism.body, face, ends.map(|p| p.map(T::from_f64))).read(band);
         (
             found(&errors),
             errors
@@ -161,18 +155,8 @@ fn level_ends(x: (f64, f64), y: f64) -> [Point3<f64>; 2] {
 /// moved to `(30, 30, 1)`, at ε = 1e-12.
 fn far_read(mut body: Body<f64>, face: FaceKey, ends: [Point3<f64>; 2]) -> Found {
     let band = Band::new(1e-12, 1e-11).unwrap();
-    let s = body.get_face(face).unwrap().surface;
-    match body.surfaces.get_mut(s).unwrap() {
-        geom::Surface::Plane { origin, .. } => *origin = Point3::new(30.0, 30.0, 1.0),
-        _ => panic!("a planar face"),
-    }
-    let geo = snapshot(&body);
-    let f = geo.faces.iter().find(|f| f.key == face).unwrap();
-    let e = segment((ends[0], ends[1]));
-    let declared = Declared::index(&geo, &ContactRecords::default());
-    let mut errors = Vec::new();
-    pair_edge_face(&body, &geo, &declared, band, None, &e, f, &mut errors);
-    found(&errors)
+    move_origin(&mut body, face, Point3::new(30.0, 30.0, 1.0));
+    found(&Pair::new(&body, face, ends).read(band))
 }
 
 /// **A crossing on a boundary vertex the span passes through is no
@@ -211,18 +195,16 @@ fn a_strip_whose_sides_hold_the_spans_ends_is_not_read_clear() {
     let strip = |a: f64, b: f64| [(a, 0.0), (b, 0.0), (b, 1.0), (a, 1.0)];
     let mut probe =
         crate::test_support_fixtures::prism_z::<f64>(&strip(0.4, 0.6), 0.0, 1.0, Tol::witness());
-    let s = probe.body.get_face(probe.top_face).unwrap().surface;
-    if let geom::Surface::Plane { origin, .. } = probe.body.surfaces.get_mut(s).unwrap() {
-        *origin = Point3::new(30.0, 30.0, 1.0);
-    }
-    let geo = snapshot(&probe.body);
-    let f = geo.faces.iter().find(|f| f.key == probe.top_face).unwrap();
-    let e = segment((ends[0], ends[1]));
-    let r = [e.p0, e.p1].map(|p| (p - f.origin).dot(f.normal));
+    move_origin(
+        &mut probe.body,
+        probe.top_face,
+        Point3::new(30.0, 30.0, 1.0),
+    );
     let band = Band::new(1e-12, 1e-11).unwrap();
-    let PierceSpan { t: [lo, hi], .. } =
-        pierce_span(&e, f, r, band, &mut Vec::new()).expect("a placed crossing");
-    let x = |t: f64| (e.p0 + (e.p1 - e.p0) * t).x;
+    let PierceSpan { t: [lo, hi], .. } = Pair::new(&probe.body, probe.top_face, ends)
+        .span(band)
+        .expect("a placed crossing");
+    let x = |t: f64| (ends[0] + (ends[1] - ends[0]) * t).x;
     assert!(x(hi) - x(lo) > 1e-4, "a span of {:e}", x(hi) - x(lo));
     let prism = crate::test_support_fixtures::prism_z::<f64>(
         &strip(x(lo), x(hi)),
@@ -298,21 +280,14 @@ fn a_span_standing_off_the_plane_past_the_band_is_not_read_clear() {
             (0.0, 1.0),
         ];
         let mut prism = crate::test_support_fixtures::prism_z::<T>(&slot, 0.0, 1.0, Tol::witness());
-        let s = prism.body.get_face(prism.top_face).unwrap().surface;
-        match prism.body.surfaces.get_mut(s).unwrap() {
-            geom::Surface::Plane { origin, .. } => {
-                *origin = Point3::new(1000.0, -1000.0, 1.0).map(T::from_f64);
-            }
-            _ => panic!("a planar face"),
-        }
-        let geo = snapshot(&prism.body);
-        let f = geo.faces.iter().find(|f| f.key == prism.top_face).unwrap();
-        let [p0, p1] = level_ends((0.25, 0.75), 0.45).map(|p| p.map(T::from_f64));
-        let e = segment((p0, p1));
-        let declared = Declared::index(&geo, &ContactRecords::default());
-        let mut errors = Vec::new();
-        pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
-        found(&errors)
+        let face = prism.top_face;
+        move_origin(
+            &mut prism.body,
+            face,
+            Point3::new(1000.0, -1000.0, 1.0).map(T::from_f64),
+        );
+        let ends = level_ends((0.25, 0.75), 0.45).map(|p| p.map(T::from_f64));
+        found(&Pair::new(&prism.body, face, ends).read(band))
     }
     for (scalar, got) in [("f64", read::<f64>()), ("Interval", read::<Interval>())] {
         assert!(
@@ -349,19 +324,9 @@ pub(super) fn read_ends<T: Decide + crate::props::AtRestPolicy>(
         let mut prism =
             crate::test_support_fixtures::prism_z::<T>(&PROFILE, 0.0, 1.0, Tol::witness());
         let face = prism.side_faces[0];
-        let s = prism.body.get_face(face).unwrap().surface;
         let lift = |p: Point3<f64>| p.map(T::from_f64);
-        match prism.body.surfaces.get_mut(s).unwrap() {
-            geom::Surface::Plane { origin, .. } => *origin = lift(o),
-            _ => panic!(),
-        }
-        let geo = snapshot(&prism.body);
-        let f = geo.faces.iter().find(|f| f.key == face).unwrap();
-        let e = segment((lift(ends[0]), lift(ends[1])));
-        let declared = Declared::index(&geo, &ContactRecords::default());
-        let mut errors = Vec::new();
-        pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
-        found(&errors)
+        move_origin(&mut prism.body, face, lift(o));
+        found(&Pair::new(&prism.body, face, ends.map(lift)).read(band))
     })
     .map_err(|_| "panicked (its message is on stderr)".to_string())
 }
@@ -397,27 +362,19 @@ fn a_hole_narrower_than_the_span_is_no_pierce() {
         band: Band,
     ) -> (Found, Option<PierceSpan<T>>, [Point3<T>; 2]) {
         let mut body = crate::test_support_fixtures::holed_block::<T>(3.0, &[1.5], Tol::witness());
-        let s = body.get_face(top).unwrap().surface;
-        match body.surfaces.get_mut(s).unwrap() {
-            geom::Surface::Plane { origin, .. } => {
-                *origin = Point3::new(100.0, -100.0, 2.0).map(T::from_f64);
-            }
-            _ => panic!("a planar top"),
-        }
-        let geo = snapshot(&body);
-        let f = geo.faces.iter().find(|f| f.key == top).unwrap();
-        assert!(f.polygon && f.loops.len() == 2, "a polygon with one ring");
+        move_origin(
+            &mut body,
+            top,
+            Point3::new(100.0, -100.0, 2.0).map(T::from_f64),
+        );
         let ends = [
             Point3::new(-38.5, 1.0, 2.0 + off).map(T::from_f64),
             Point3::new(41.5, 1.0, 2.0 - off).map(T::from_f64),
         ];
-        let e = segment((ends[0], ends[1]));
-        let r = [e.p0, e.p1].map(|p| (p - f.origin).dot(f.normal));
-        let span = pierce_span(&e, f, r, band, &mut Vec::new());
-        let declared = Declared::index(&geo, &ContactRecords::default());
-        let mut errors = Vec::new();
-        pair_edge_face(&body, &geo, &declared, band, None, &e, f, &mut errors);
-        (found(&errors), span, ends)
+        let pair = Pair::new(&body, top, ends);
+        let f = pair.f();
+        assert!(f.polygon && f.loops.len() == 2, "a polygon with one ring");
+        (found(&pair.read(band)), pair.span(band), ends)
     }
     for off in [1.2e-11, 1.5e-11] {
         let (f64_read, span, [p0, p1]) = go::<f64>(top, off, band);
@@ -460,22 +417,12 @@ fn a_span_standing_past_its_reach_off_the_plane_is_refused_by_its_height() {
     let read = |far: f64| {
         let mut prism =
             crate::test_support_fixtures::prism_z::<f64>(&square, 0.0, 1.0, Tol::witness());
-        let s = prism.body.get_face(prism.top_face).unwrap().surface;
-        match prism.body.surfaces.get_mut(s).unwrap() {
-            geom::Surface::Plane { origin, .. } => *origin = Point3::new(far, -far, 1.0),
-            _ => panic!("a planar cap"),
-        }
-        let geo = snapshot(&prism.body);
-        let f = geo.faces.iter().find(|f| f.key == prism.top_face).unwrap();
-        let [p0, p1] = level_ends((0.25, 0.75), 0.5);
-        let e = segment((p0, p1));
-        let r = [e.p0, e.p1].map(|p| (p - f.origin).dot(f.normal));
-        let PierceSpan { t: [lo, hi], lever } =
-            pierce_span(&e, f, r, band, &mut Vec::new()).expect("a placed crossing");
-        let reach = (lever * (hi - lo) + band.zero()) * (1.0 + lever / e.len);
-        let declared = Declared::index(&geo, &ContactRecords::default());
-        let mut errors = Vec::new();
-        pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
+        let face = prism.top_face;
+        move_origin(&mut prism.body, face, Point3::new(far, -far, 1.0));
+        let pair = Pair::new(&prism.body, face, level_ends((0.25, 0.75), 0.5));
+        let PierceSpan { t, lever } = pair.span(band).expect("a placed crossing");
+        let reach = span_reach(&pair.e, t, lever, band);
+        let errors = pair.read(band);
         let rows: Vec<_> = errors
             .iter()
             .filter_map(|e| match e {
@@ -501,4 +448,82 @@ fn a_span_standing_past_its_reach_off_the_plane_is_refused_by_its_height() {
     let (reach, got, _) = read(21.0);
     assert!(reach < 1.5, "the near span reaches {reach}ε");
     assert_eq!(got, Found::Pierce, "a span reaching {reach}ε");
+}
+
+/// **A span's reach counts the ε a boundary point stands off the plane
+/// and the slope that moves a vertex's foot along it**: the clearance
+/// read on the unit square cap `z = 1` over the middle of a level edge
+/// across it, the boundary a quarter metre off, at ε = 1e-12 (K = 10),
+/// the lever chosen to give the span a height `h` and the edge a slope
+/// `σ`. With `(h + ε)(1 + σ)` within `9ε` it reads clear; past it the
+/// height rows refuse, at `h = 8.5ε, σ = 0.01` only through the ε and
+/// at `h = 7.5ε, σ = 0.5` only through the slope.
+#[test]
+fn a_spans_reach_counts_the_band_and_the_slope() {
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+    let prism = crate::test_support_fixtures::prism_z::<f64>(&square, 0.0, 1.0, Tol::witness());
+    let ends = [Point3::new(0.25, 0.5, 1.0), Point3::new(0.75, 0.5, 1.0)];
+    let pair = Pair::new(&prism.body, prism.top_face, ends);
+    let clear = |height: f64, slope: f64| {
+        let lever = slope * pair.e.len;
+        let half = height * band.zero() / lever / 2.0;
+        let mut errors = Vec::new();
+        let read = span_clear(
+            &pair.geo,
+            &pair.e,
+            pair.f(),
+            [0.5 - half, 0.5 + half],
+            lever,
+            band,
+            &mut errors,
+        );
+        let rows: Vec<_> = errors
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::CensusEscalated { cause } => cause.predicate,
+                _ => None,
+            })
+            .collect();
+        (read, rows)
+    };
+    assert_eq!(clear(5.0, 0.01), (Some(true), vec![]), "h = 5ε, σ = 0.01");
+    for (height, slope) in [(8.5, 0.01), (7.5, 0.5)] {
+        let (read, rows) = clear(height, slope);
+        assert!(
+            read.is_none()
+                && !rows.is_empty()
+                && rows
+                    .iter()
+                    .all(|r| r.starts_with("pm_census_ef_pierce_height")),
+            "h = {height}ε, σ = {slope}: read {read:?}, refused by {rows:?}"
+        );
+    }
+}
+
+/// **A grazing edge far inside a far-origined face is read a pierce at
+/// both scalars**: side face 0's edge crossed 0.3 m below its top, its
+/// stored origin 1, 30 and 300 m off along its plane, the edge's slope
+/// off it from `0.2` down to `2e-5`, at ε = 1e-12. The placement's span
+/// is read on the edge's own line, so at [`Interval`] its rounded ends
+/// do not turn it.
+#[test]
+fn a_grazing_edge_far_inside_a_far_origined_face_is_read_pierced_at_both_scalars() {
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    for far in [1.0, 30.0, 300.0] {
+        for off in [1e-1, 3e-2, 1e-2, 3e-3, 1e-3, 1e-4, 1e-5] {
+            let pose = Pose {
+                far: (far, far),
+                depth: 0.3,
+                off,
+                across: 0.5,
+            };
+            for (scalar, got) in [
+                ("f64", read::<f64>(&pose, band)),
+                ("Interval", read::<Interval>(&pose, band)),
+            ] {
+                assert_eq!(got, Found::Pierce, "{scalar}, {pose:?}");
+            }
+        }
+    }
 }

@@ -1,7 +1,7 @@
 ---
 id: the-census-pierce-refuses-a-grazing-edge-within-its-placement-span-of-the-boundary
 kind: issue
-title: "The census's edge–face pierce refuses a grazing edge whose crossing lies within its placement's span of the face's boundary: residuals read off a far origin place it no closer than their rounding over the lever"
+title: "The census's edge–face pierce refuses a grazing edge whose crossing lies within its placement's span of the face's boundary, at f64 and at Interval alike: residuals read off a far origin place it no closer than their rounding over the lever"
 status: open
 opened: 2026-10-20
 priority: P2
@@ -41,27 +41,40 @@ Measured with `census::pierce_fuzz`'s grazing draw at ε = 1e-12
 
 At ε = 1e-9 the same draw refuses 66 of 1 200, and at 1e-6 none.
 
-**At `Interval` the refusal is far higher.** A refusal of a valid body
-is a capability loss, hence P2. Seed `0x4e6588c9abba038c`, refused of
-200 per cell (`census::pierce_fuzz::probe::probe_grid`, origin
-3–1 000 m off):
+**At `Interval` it refuses about as `f64` does, a little more.** A
+refusal of a valid body is a capability loss, hence P2. The clearance
+reads the span on the edge's own line (`Stretch`), so the span's
+rounded ends no longer turn it. Seed `0x4e6588c9abba038c`, refused of
+200 per cell (`census::pierce_fuzz::probe::probe_grid`, origin 3, 30,
+300 and 1 000 m off):
 
 | ε | main, f64 | main, Interval | branch, f64 | branch, Interval |
 | --- | --- | --- | --- | --- |
-| 1e-9 | 0 | 0–21 | 2–22 | 43–125 |
-| 1e-12 | 0 (3–18 wrong) | 49–94 | 60–98 | 166–193 |
+| 1e-9 | 0 | 0, 5, 17, 21 | 2, 9, 22, 22 | 2, 10, 25, 28 |
+| 1e-12 | 0 (3–18 wrong) | 49, 57, 70, 94 | 60, 67, 77, 98 | 63, 69, 85, 100 |
 
 On the tilted non-convex caps (`census::pierce_fuzz::tilted`, effort
-20, same seed) main's `Interval` refuses 19 of 582 at 1e-9 and 292 of
-600 at 1e-12; the branch's refuses 557 and 600. f64 refuses 5 and 112.
-Most of those `Interval` refusals are `curve_carrier_gap`, the
-clearance's vertex reading on the span: at `Interval` the span's ends
-`p₀ + chord·(t ∓ reach)` are enclosures as wide as a quarter of the span
-(`t`'s own width is about `δ/4`), so the span's direction is enclosed
-to about a quarter radian and every 3D reading over it escalates. The
-compensated residuals below shrink `δ`, and with it that width; the
-span's ends could also be read as the degenerate outer bounds of the
-fraction's enclosure, which needs `Bounds` at the census's doors.
+20, same seed), of 316, 582 and 600 poses at 1e-6, 1e-9 and 1e-12:
+
+| | main | branch |
+| --- | --- | --- |
+| f64 | 0, 0, 0 (1 wrong) | 0, 5, 112 |
+| Interval | 0, 19, 292 | 0, 29, 316 |
+
+What refuses, logged over the whole 1e-12 draw (poses within `2Kε` of
+the profile included):
+
+- At `Interval`, the containment door at the span's ends: 305 times
+  at its near end and 8 at its far end. The clearance's edge–edge
+  reading refuses 32 more.
+- At `f64`, the same door 152 times; the span's ends reading
+  differently 73 times; a boundary edge meeting the span (`span_clear`)
+  46 times, and the clearance's edge–edge reading refusing 3.
+
+The span's end stands up to the span's half-width past the crossing,
+so it reads the face nearer the feature the crossing is near, and at
+`Interval` it is a box as wide as the fraction's own enclosure along
+the chord. Shrinking the span shrinks both.
 
 ## Direction
 
@@ -70,5 +83,6 @@ and dot (`geom_core::exact::two_sum` / `two_product`, as
 `geom-brep/src/ssi/compensated.rs` does for NURBS points), with an
 a-priori bound to charge in place of `rounding_charge`. The span then
 shrinks by about `|p − o|/|ℓ|`, and only crossings within a few ulps
-of the boundary refuse. This has to hold at `Interval` too, and it
-moves `pm_census_ef_pierce_lever`'s k-lint distribution again.
+of the boundary refuse. This has to hold at `Interval` too, where the
+enclosed residuals shrink the span's end boxes with it, and it moves
+`pm_census_ef_pierce_lever`'s k-lint distribution again.

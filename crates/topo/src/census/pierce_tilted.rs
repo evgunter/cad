@@ -9,10 +9,7 @@
 
 use super::*;
 use geom_core::{Interval, RigidMotion, Tol, UnitVec3};
-use num_bigint::BigInt;
 use test_utils::fuzz::Rng;
-
-use super::super::segment_fuzz::{big, big_dot, ratio};
 
 /// A profile with a feature point to aim at.
 fn profile(kind: usize, w: f64) -> (Vec<(f64, f64)>, (f64, f64)) {
@@ -128,53 +125,23 @@ fn read_pose<T: Decide + crate::props::AtRestPolicy>(p: &Pose, band: Band) -> Op
     let m = motion::<T>(p);
     let mut body = crate::transform_rigid(&prism.body, &m, Tol::witness()).ok()?;
     let face = prism.top_face;
-    let s = body.get_face(face).unwrap().surface;
-    let (o, n) = match body.surfaces.get_mut(s).unwrap() {
-        geom::Surface::Plane { origin, normal, .. } => {
-            *origin = m.transform_point(Point3::new(p.far.0, p.far.1, 1.0).map(T::from_f64));
-            (*origin, *normal)
-        }
-        _ => panic!("a planar cap"),
-    };
+    let o = m.transform_point(Point3::new(p.far.0, p.far.1, 1.0).map(T::from_f64));
+    move_origin(&mut body, face, o);
     let ends = local_ends(p).map(|q| m.transform_point(q.map(T::from_f64)));
-    let geo = snapshot(&body);
-    let f = geo.faces.iter().find(|f| f.key == face).unwrap();
-    let e = segment((ends[0], ends[1]));
-    let declared = Declared::index(&geo, &ContactRecords::default());
-    let mut errors = Vec::new();
-    pair_edge_face(&body, &geo, &declared, band, None, &e, f, &mut errors);
-    Some((found(&errors), ends, o, n))
+    let pair = Pair::new(&body, face, ends);
+    let n = pair.f().normal;
+    Some((found(&pair.read(band)), ends, o, n))
 }
 
 /// The exact crossing of the stored plane with the stored ends, in the
 /// profile's local coordinates (to a few ulps), and its signed distance
 /// into the polygon.
-fn truth(p: &Pose, [p0, p1]: [Point3<f64>; 2], o: Point3<f64>, n: Vec3<f64>) -> f64 {
-    let bn = [n.x, n.y, n.z].map(big);
-    let r = |q: Point3<f64>| {
-        big_dot(&[q.x, q.y, q.z].map(big), &bn) - big_dot(&[o.x, o.y, o.z].map(big), &bn)
-    };
-    let (r0, r1) = (r(p0), r(p1));
-    let mut den = &r0 - &r1;
-    let mut r0 = r0;
-    if den < BigInt::from(0) {
-        den = -den;
-        r0 = -r0;
-    }
-    let x = [0, 1, 2].map(|i| {
-        let (a, b) = ([p0.x, p0.y, p0.z][i], [p1.x, p1.y, p1.z][i]);
-        let num = big(a) * &den + (big(b) - big(a)) * &r0;
-        let d = &den << 1074_usize;
-        if num < BigInt::from(0) {
-            -ratio(&-num, &d)
-        } else {
-            ratio(&num, &d)
-        }
-    });
+fn truth(p: &Pose, ends: [Point3<f64>; 2], o: Point3<f64>, n: Vec3<f64>) -> f64 {
+    let x = exact_crossing(o, n, ends).expect("an edge across the plane") - Point3::origin();
     let m = motion::<f64>(p);
     let col = |v: Vec3<f64>| {
         let c = m.transform_point(Point3::origin() + v) - Point3::origin();
-        c.x * x[0] + c.y * x[1] + c.z * x[2]
+        c.dot(x)
     };
     let local = (col(Vec3::new(1.0, 0.0, 0.0)), col(Vec3::new(0.0, 1.0, 0.0)));
     signed(&profile(p.kind, p.w).0, local)
