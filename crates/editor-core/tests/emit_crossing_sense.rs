@@ -173,8 +173,8 @@ fn a_rim_on_the_other_cavitys_floor_meets_its_rim_where_it_meets_its_wall() {
         "every vertex where the slot's rim meets a wall lies on the cavity's rim: {touches:?}"
     );
     assert_eq!(crossings.len(), 4, "{crossings:?}");
-    let mut slot_nodes = std::collections::BTreeSet::new();
-    let mut cavity_nodes = std::collections::BTreeSet::new();
+    let mut slot_reads = std::collections::BTreeSet::new();
+    let mut cavity_reads = std::collections::BTreeSet::new();
     for (run, p) in &crossings {
         let [x, y] = run.as_slice() else {
             panic!("two lines at {p:?}: {run:?}");
@@ -188,13 +188,19 @@ fn a_rim_on_the_other_cavitys_floor_meets_its_rim_where_it_meets_its_wall() {
             (p.z - 0.5).abs() < 1e-12,
             "the rims cross on the floor at {p:?}: {run:?}"
         );
-        slot_nodes.insert(slot.line.node);
-        cavity_nodes.insert(cavity.line.node);
+        // A line is cited as the subtract's table carries it in: the
+        // read it came through says which operand's it is.
+        let read = |line: &StableName| match line.path.first() {
+            Some(RoleSeg::From { read, .. }) => *read,
+            other => panic!("a line carried in through a read: {other:?}"),
+        };
+        slot_reads.insert(read(&slot.line));
+        cavity_reads.insert(read(&cavity.line));
     }
     assert!(
-        slot_nodes.len() == 1 && cavity_nodes.len() == 1 && slot_nodes != cavity_nodes,
+        slot_reads.len() == 1 && cavity_reads.len() == 1 && slot_reads != cavity_reads,
         "the slot's rims are one operand's and the cavity's the other's: \
-         {slot_nodes:?}, {cavity_nodes:?}"
+         {slot_reads:?}, {cavity_reads:?}"
     );
 }
 

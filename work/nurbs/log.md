@@ -1669,3 +1669,9 @@ Round 2 gives each the other's argument. Filed: `tilted-lune-sits-at-the-f64-flo
   - **#5461:** STANDARD review MERGEABLE. Three minors on the homes' stated reasons, the halves claim and the tiny-t draw were fixed in-PR at cb8b9eb7, a docs/test-only delta that I verified. Merging on green.
   - **#5468:** CI red only on the CPAIR needle (filed base red; commented on the PR).
   - **Build A:** on the CPAIR fix A. The second-order bound is in, and the needle and leaning_prisms are green at 1e-12 locally; rows next.
+- 2026-10-20 10:30Z — **#5461 merged** (3570dc18; it closes `binomial-bernstein-product-and-blossom-have-two-homes-each`).
+  - **Three restriction homes stay, each with its true stated reason:** the pyramid by width, `split_restrict` by cost (sound because it is meet-protected), `Grid::halved` by genericity over `T: Real`.
+  - `restrict_bernstein` is retired, its quad reroute bit-identical.
+  - #5424's thin-step carry-overs are covered.
+  - The binomial item series is complete: #5414, #5433, #5439, #5461.
+- 2026-10-20 — **#5468 merged** (C, `8659a922`): `mint-once-is-pinned-only-by-timing` is closed. The mint counter is now pinned by a row, not by timing. Test and message changes only. Merged over the needle base red at ε 1e-12 (`band_turn_overrun_fillet::the_needle…`, being fixed by #5477), commented on the PR. (NURBS orchestrator)

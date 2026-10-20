@@ -1285,34 +1285,32 @@ pub enum RoleSeg {
         of: NameRef,
     },
     /// A zip-minted seam entity: the crossing of an A-operand entity
-    /// and a B-operand entity, by their operand names. An edge is
-    /// face × face. A vertex is face × face (every incident seam line
-    /// agreeing on one face pair); an edge meeting a face is a
-    /// [`RoleSeg::Crossing`], and two edges meeting an
-    /// [`RoleSeg::EdgeCrossing`]. Several pieces of one seam
+    /// and a B-operand entity. An edge is face × face. A vertex is
+    /// face × face (every incident seam line agreeing on one face pair);
+    /// an edge meeting a face is a [`RoleSeg::Crossing`], and two edges
+    /// meeting an [`RoleSeg::EdgeCrossing`]. Several pieces of one seam
     /// edge carry a `Fragment(Ends)` after it. A seam JUNCTION — the
     /// vertex where k ≥ 2 seam lines meet and no operand edge does — is
     /// named by the sorted run of those lines' face × face `Seam`
     /// segments, one segment per line and nothing after them.
     ///
-    /// In a pair boolean's table `a` is the A side and `b` the B side,
-    /// except on a seam between two faces of one operand, which only a
-    /// union makes (the other operand filled the gap between them and
-    /// was consumed): its sides are that operand's, in name order.
-    /// In a UNION's published table they are not: a union has no A
-    /// and B, so the two sides are in name order (`names::canonical`,
-    /// at the collapse and after any rewrite), and `a` is only the
-    /// lesser name. A split mints one too: an edge its join made over
-    /// section chords and whole operand edges across a merged face,
-    /// between that face's `Merged` set and the operand face across it,
-    /// its sides in name order as a union's are; several of one pair in
-    /// a half carry a `Fragment(Ends)`.
+    /// Each side is the parent of the face beside it as the minting
+    /// node's own table names it (N3): an unmerged face's `From` its
+    /// input's read came in through, a merged face's `Merged` set. The
+    /// two sides are in name order at every node — a pair boolean, a
+    /// union (`names::canonical`, at the mint, the collapse and after
+    /// any rewrite), and a split, which mints one for an edge its join
+    /// made over section chords and whole operand edges across a merged
+    /// face, between that face's `Merged` set and the face across it —
+    /// so `a` is the lesser name, and which input a side came from is in
+    /// the side's own name. A seam between two faces of one input, which
+    /// only a union makes (the other input filled the gap between them
+    /// and was consumed), is spelled the same way. Several of one pair
+    /// in a split's half carry a `Fragment(Ends)`.
     Seam {
-        /// The A-side crossing entity's name (the lesser name, in a
-        /// union's table).
+        /// The lesser side's name.
         a: NameRef,
-        /// The B-side crossing entity's name (the greater name, in a
-        /// union's table).
+        /// The greater side's name.
         b: NameRef,
     },
     /// A vertex where an edge of one side of a boolean or union meets a
@@ -2142,7 +2140,7 @@ impl RoleSeg {
     /// through ([`SegRewrite`] says which three).
     ///
     /// A segment rebuilt alone is NOT canonical: its sets, its `Borders`
-    /// walls and a union seam's sides are in whatever order the
+    /// walls and a seam's sides are in whatever order the
     /// rewrite left them, and a rank may lie along a line the rewrite
     /// reversed. So the walk is private to [`StableName::rewrite_path`],
     /// which rebuilds the whole path and puts it in canonical form.
@@ -2328,7 +2326,7 @@ impl StableName {
     ///
     /// The canonical form is `names::canonical`'s, the one the emitters
     /// mint: a rewrite that moves the names in a name-ordered position
-    /// (a set, a `Borders` set, a junction's run, a union seam's two
+    /// (a set, a `Borders` set, a junction's run, a seam's two
     /// sides) can change their order, and a name the emitter would not
     /// mint for the same entity resolves to nothing. A seam whose sides
     /// come out swapped — in this name, or in a name it embeds — reverses

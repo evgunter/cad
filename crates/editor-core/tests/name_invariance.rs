@@ -830,7 +830,7 @@ const ADMITTED_MEMBER_ORDER: &[Admitted] = &[
 ];
 
 /// The member-order cases that compare no table today.
-const VACUOUS_MEMBER_ORDER: &[Vacuous] = &[("two prisms / union", MERGED_CHORD)];
+const VACUOUS_MEMBER_ORDER: &[Vacuous] = &[];
 
 /// `x` and `y` combined by `op` as a pair, in that order, `y` the
 /// union of the members it lists where it lists several.
@@ -928,7 +928,6 @@ const VACUOUS_OPERAND_ORDER: &[Vacuous] = &[
     ),
     ("two bridges / intersect / m2 against the rest", BRIDGES_MET),
     ("two bridges / intersect / m3 against the rest", BRIDGES_MET),
-    ("two prisms / union / m0 against the rest", MERGED_CHORD),
 ];
 
 /// A bridge listed before the union of the wedges and the other bridge
@@ -943,10 +942,6 @@ const BRIDGE_FOLDED_LAST: &str =
 /// A bridge met with the union of the wedges and the other bridge
 /// refuses: vertices share a name that is no single seam.
 const BRIDGES_MET: &str = "work/wire/a-bridge-met-with-the-wedges-and-the-other-bridge-names-vertices-on-no-single-seam-alike.md";
-
-/// A chord between two merged faces within no rim refuses
-/// (`MergedChord`).
-const MERGED_CHORD: &str = "work/wire/a-chord-between-two-merged-faces-within-no-rim-refuses.md";
 
 // ------------------------------------------------------------------ //
 // Merged chords
@@ -1673,7 +1668,6 @@ const VACUOUS_HISTORY: &[Vacuous] = &[
         "the plate less the twins / authored in another order",
         LINE_WEDGES,
     ),
-    ("two prisms / after an unrelated node", MERGED_CHORD),
 ];
 
 /// A plate less blocks that meet on a line through it refuses
@@ -1845,5 +1839,4 @@ const ADMITTED_FAR: &[Admitted] = &[(
 const VACUOUS_FAR: &[Vacuous] = &[
     ("bridging / a far member", BRIDGE_FOLDED_LAST),
     ("pinch and far / a far member", decide_alike::CARRIED_PINCH),
-    ("two prisms / a far member", MERGED_CHORD),
 ];
