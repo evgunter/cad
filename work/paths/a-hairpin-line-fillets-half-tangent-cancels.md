@@ -15,11 +15,21 @@ Not measured yet: the first step is a probe.
 `half_tan = (v₁ × v₂) / (|v₁||v₂| + v₁·v₂)`, tan(φ/2) of the corner's
 turn φ. At a hairpin, φ = π − δ, the denominator's true value is
 `|v₁||v₂|·δ²/2` and its rounding about `|v₁||v₂|·2⁻⁵²`, so `half_tan`
-carries a relative error of about `2⁻⁵¹/δ²`. Since #5403 the fillet's
-stored SWEEP no longer reads it: it is the corner's turn,
-`sugar::split_turn(v₁ × v₂, v₁·v₂)`. The setback, and with it the
-tangent points, still do. `sugar::split_quarter_tan` is the
-cancellation-free reading of tan(φ/2) from the same split.
+carries a relative error of about `2⁻⁵¹/δ²`. The fillet's stored
+sweep (`4·atan` of the bulge read from `half_tan`), its setback and its
+tangent points all read it. Since #5403 it is the first arm of the
+home every construction reads (`sugar::split_half_tan_near`), and the
+home itself (`sugar::split_half_tan`, the select on `v₁·v₂`) is the
+cancellation-free reading of tan(φ/2) from the same split. A fillet
+takes the first arm alone because a select is one atom to the symbolic
+tier's plain walk; the fix weighs what the select costs the pad's and
+the bracket's symbolic decisions.
+
+**Measured (#5403's re-review generator, `rev2_hairpin_dump`).** At
+δ = 3e-3, legs of 1e3 m, r = 1 m, 1e3 m off the origin, the stored
+fillet arc misses its own end vertex by 160 units of 2⁻⁵² times the
+coordinates, about 7e-11 m: under ε, and the one live end-vertex miss
+the re-review's generator found once #5403 lands.
 
 **Why it may matter, by arithmetic.** Both setbacks share `half_tan`,
 so tangency survives, and what moves is the fillet's effective radius:

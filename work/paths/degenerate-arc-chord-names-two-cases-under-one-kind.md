@@ -26,6 +26,15 @@ the variant's data cannot tell the cases apart. So the message now
 names both cases, with recourse for either, and the `chord` it
 reports tells the reader which one it is.
 
+The message is shared by every arc mode, and only a tangent arc has a
+tangent line at its tip (a `Via`, `Center`, `Bulge` or `arc_onto`-close
+leg has none). #5403's re-review found the first merged wording, "one
+end lies on the other's tangent line", false for those legs, so it now
+reads "its ends coincide within tolerance, or a tangent arc's far end
+lies on its tangent line where only a full turn reaches it", true of
+every leg. A separate variant would let each leg's message drop the
+case it cannot reach.
+
 **The candidate question for Ev.** Should the full-turn case be its
 own variant, with its own kind and its own message per verb (the
 tangent line belongs to the tip for `tangent_arc_to` and to the target

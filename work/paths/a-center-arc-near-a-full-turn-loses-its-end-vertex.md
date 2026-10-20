@@ -40,21 +40,32 @@ stored sweep against the end vertex, so the miss passes validation.
 
 ## Outcome
 
-Fixed in #5403's fix pass, in the same home as the tangent arc.
-`sugar::sweep_about` reads the sweep about a known centre as the angle
-between the two radii, wound into the arc's sense:
-`sgn·(π + atan2(−sgn·(va × vb), −va·vb))`. That puts `atan2`'s cut at a
-zero turn, which the chord gate refuses, and no radius is read.
+Fixed in #5403, in the one home every construction reads its arc's
+quarter-tangent from, `sugar::split_half_tan(across, along, len)`: the
+select (`select_le_zero` on `along`) between `across/(len + along)` and
+`(len − along)/across`. `quarter_tan_about` reads it on the centre's
+split `(σ·h, σ·p)` of hypotenuse `r` (`sugar::centre_split`), so past a
+half turn, where `σ·p` is negative, it takes `σ·(r − σ·p)/h`, which
+does not cancel. The sweep stays `4·atan(X)` of a quantity algebraic in
+the authored data, as the README's profile-format clause (D1) rules.
 `path::center_sweep` (the `Center` leg, `family.rs`'s `Center`, a fillet
-side's run) and the arc-carrier fillet's sweep both read it. The
-tangent-chord split is deliberately not used here: an end off the
-carrier by δ moves that angle by δ/|b − a|, and near a full turn the
-chord is the short one. With it, R = 1.36e4 still missed by 1.8e-9.
-`quarter_tan_about` is gone.
+side's run, the extended arc) and `bulge_from_center` read it. The
+arc-carrier fillet keeps the first arm alone: it sweeps under a half
+turn, and a select is one atom to the symbolic tier's plain walk.
 
 The row's three radii now land within 8 ulps of R at f64, where they
-missed by 2.5e-8, 5.0e-6 and 2.1e-4 and validated. They are pinned by
+missed by 2.5e-8, 5.0e-6 and 2.1e-4 and validated, and their Interval
+sweeps stay under 1e-13 wide. They are pinned by
 `tests/tangent_arc_near_a_full_turn.rs`,
 `the_centre_arc_near_a_full_turn_keeps_its_end_vertex`. At 1e-12 the
 Interval lane refuses the 1.36e4 arc's equidistance, which is past
 that row's scene resolution, and the row asserts that reason.
+`bulge_from_center`'s relative error near a full turn is at most 1.92
+units of 2⁻⁵² against the exact value of its arm (the mpmath oracle's
+`C` rows, scales to 1.37e7), so the carrier it implies moves by under
+2 units of 2⁻⁵²·R; through `atan2` it moved by up to 6.6 cm at
+R = 1.37e7.
+
+(The first fix pass read this sweep as an `atan2` angle between the
+radii. That is an angle difference, which D1 rules out, and it cost
+the pad's symbolic tier 56 decisions; it was reverted.)

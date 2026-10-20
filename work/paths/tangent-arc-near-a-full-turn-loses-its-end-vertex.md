@@ -83,6 +83,9 @@ Fixed in #5403 (`paths/tangent-arc-near-full-turn`).
 
 ## Fix pass (single FULL review: APPROVE-WITH-FIXES)
 
+Its `atan2` home was reverted by the second fix pass below; the
+`behind` and filing items stand.
+
 The review falsified two claims above. The select did NOT keep arcs up
 to a half turn form-identical: the plain walk turns a `Select` into an
 opaque atom. It also kept a second spelling of Δθ beside
@@ -120,3 +123,31 @@ opaque atom. It also kept a second spelling of Δθ beside
   as `degenerate-arc-chord-names-two-cases-under-one-kind`.
 - **Filed**: `a-stored-arcs-end-is-never-checked-against-its-authored-vertex`
   (P1, the class).
+
+## Second fix pass (re-review: NOT-MERGEABLE-AS-IS)
+
+The first fix pass's `atan2` home contradicted ratified D1: the crate
+README's profile-format clause stores "the sweep as one `4·atan` of a
+quantity algebraic in the authored data, never an angle difference",
+so the symbolic tier reads the authored shape (`[ev]` #3453). The cost
+was measured: the pad's 56 lost symbolic decisions all came from the
+`atan2` fillet and `Center` sweeps. It is reverted to the D1 spelling.
+
+- **One home** (`sugar::split_half_tan(across, along, len)`):
+  tan(½·atan2(across, along)), spelled as the select on `along`
+  between `across/(len + along)` and `(len − along)/across`. Readers:
+  the tangent arc (`tangent_arc_to`, `arc_onto`), `Via` and
+  `bulge_from_via`, `Center` legs, fillet side runs and
+  `bulge_from_center` (through `quarter_tan_about` on
+  `sugar::centre_split`). The fillets read the first arm alone
+  (`split_half_tan_near`), as on main: they sweep under a half turn.
+  `split_sweep`, `split_turn`, `sweep_about` and `via_quarter_tan` are
+  gone.
+- **Symbolic tier against main.** No symbolic decision is lost
+  anywhere: every `m10_9` study (the pad at main's `(1389, 1102, 4299)`,
+  door shut equal to main), the `sym_9` ladders, the `decide_3` splits
+  and the viewer budgets read main's numbers. What moves: the plate's
+  walk ledger (the clearance form: forms +4, +4, +6) and the link's
+  past-the-ceiling `frozen` 558 → 559 (the select), its decisions held.
+- **Stored bits against main.** One corpus field: `shared coverage
+  corpus 8`'s half turn stores `−π` exactly, at every ε row.

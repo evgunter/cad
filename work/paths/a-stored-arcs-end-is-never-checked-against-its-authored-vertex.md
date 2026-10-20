@@ -4,7 +4,7 @@ kind: issue
 title: paths: nothing checks a stored arc's end against the end vertex it was authored to, so a construction whose arithmetic misses passes validation silently (path.rs's 'verified-never-trusted' promise)
 status: open
 opened: 2026-10-19
-priority: P1
+priority: P2
 ---
 
 
@@ -25,6 +25,13 @@ error at all:
 
 Both are fixed at the construction now, but the next construction
 whose arithmetic misses will pass the same way.
+
+**Why P2.** Once #5403 lands no silent miss past ε is known: the one
+live miss its re-review's generator found is the hairpin fillet's,
+about 7e-11 m (`a-hairpin-line-fillets-half-tangent-cancels`, which
+carries its own derived worst case). This row is the guard against the
+class's next instance, not a fix for a live one, so it sits below a
+live silent wrong answer (P1) and above a cosmetic one.
 
 **Shape of the check.** At storage time, decide
 `‖landing(a) − b‖` (the `arc_landing` margin that `seg.rs` already

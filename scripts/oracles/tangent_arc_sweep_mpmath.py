@@ -62,11 +62,23 @@ def region(turn):
 
 
 def centre_row(row, worst, bad):
-    """An arc about a known centre: the true sweep is the angle between
-    the two radii, wound into the sense `w` — in (0, 2π] or [−2π, 0)."""
+    """An arc about a known centre (`bulge_from_center`, and the `Center`
+    leg's sweep from it). The true sweep is the angle between the two
+    radii, wound into the sense `w` — in (0, 2π] or [−2π, 0). The bulge X
+    is checked against the exact value of the arm the kernel reads (the
+    select's, by the sign of the centre's offset), relatively: the two
+    arms are equal only for ends exactly on one circle, which rounded
+    ends are not, so that value, not tan(θ/4) of the radii's angle, is
+    what an enclosure owes. It is also checked by what it builds: the
+    carrier the chord and X imply, `L·(1 + X²)/(4|X|)`, against the one
+    the exact X implies, in units of 2^-52 times the larger of the radius
+    and the coordinates. (Against the authored radius `|a − o|` it also
+    carries the ends' own rounding, which moves the authored centre off
+    the chord's bisector by `r·δ/L` over a short chord, whatever X is.)"""
     a, o, b, w = row["a"], row["o"], row["b"], row["w"]
-    va = [mpf(a[0]) - mpf(o[0]), mpf(a[1]) - mpf(o[1])]
-    vb = [mpf(b[0]) - mpf(o[0]), mpf(b[1]) - mpf(o[1])]
+    am, om, bm = [[mpf(v) for v in p] for p in (a, o, b)]
+    va = [am[0] - om[0], am[1] - om[1]]
+    vb = [bm[0] - om[0], bm[1] - om[1]]
     turn = atan2(va[0] * vb[1] - va[1] * vb[0], va[0] * vb[0] + va[1] * vb[1])
     wound = w * turn
     if wound <= 0:
@@ -74,15 +86,53 @@ def centre_row(row, worst, bad):
     truth = w * wound
     sweep_err = float(abs(mpf(row["f"]) - truth)) / ULP
     lo, hi = row["i"]
+    # The kernel's split, exactly: (σ·h, σ·p) of hypotenuse r = |a − o|.
+    ch = [bm[0] - am[0], bm[1] - am[1]]
+    length = sqrt(ch[0] ** 2 + ch[1] ** 2)
+    mid = [(am[0] + bm[0]) / 2, (am[1] + bm[1]) / 2]
+    p_off = ((om[0] - mid[0]) * (-ch[1]) + (om[1] - mid[1]) * ch[0]) / length
+    r = sqrt(va[0] ** 2 + va[1] ** 2)
+    across, along = w * length / 2, w * p_off
+    exact_x = across / (r + along) if along >= 0 else (r - along) / across
+    x = mpf(row["x"])
+
+    def implied(x):
+        return length * (1 + x * x) / (4 * abs(x))
+
+    scale = max(float(r), math.hypot(*a), math.hypot(*b), math.hypot(*o))
+    radius_err = float(abs(implied(x) - implied(exact_x))) / (scale * ULP)
+    x_err = float(abs(x - exact_x) / abs(exact_x)) / ULP
+    xlo, xhi = row["xi"]
     key = "centre " + region(row["turn"])
-    cw = worst.setdefault(key, {"sweep": 0.0, "miss": 0.0, "old": 0.0, "width": 0.0, "n": 0})
+    cw = worst.setdefault(
+        key,
+        {"sweep": 0.0, "x": 0.0, "radius": 0.0, "width": 0.0, "xwidth": 0.0, "n": 0},
+    )
+    cw["x"] = max(cw["x"], x_err)
     cw["n"] += 1
     cw["sweep"] = max(cw["sweep"], sweep_err)
+    cw["radius"] = max(cw["radius"], radius_err)
     cw["width"] = max(cw["width"], hi - lo)
-    if not mpf(lo) <= truth <= mpf(hi):
-        bad.append(f"Interval [{lo!r}, {hi!r}] misses the true centre sweep {truth} at {row}")
+    cw["xwidth"] = max(cw["xwidth"], float((mpf(xhi) - mpf(xlo)) / abs(exact_x)))
+    exact_sweep = 4 * mp.atan(exact_x)
+    if not mpf(lo) <= exact_sweep <= mpf(hi):
+        bad.append(
+            f"Interval [{lo!r}, {hi!r}] misses the exact centre sweep {exact_sweep} at {row}"
+        )
+    if x_err > SWEEP_ULPS:
+        bad.append(
+            f"f64 bulge {x_err:.3g} units (relative) off its exact value at {row}"
+        )
+    if not mpf(xlo) <= exact_x <= mpf(xhi):
+        bad.append(
+            f"Interval X [{xlo!r}, {xhi!r}] misses the exact X {exact_x} at {row}"
+        )
     if sweep_err > SWEEP_ULPS:
         bad.append(f"f64 centre sweep {sweep_err:.3g} units off at {row}")
+    if radius_err > MISS_ULPS:
+        bad.append(
+            f"f64 bulge's carrier {radius_err:.3g} units off the radius at {row}"
+        )
 
 
 def main(path):
@@ -113,12 +163,21 @@ def main(path):
         encloses = mpf(lo) <= truth <= mpf(hi)
         width = hi - lo
         key = region(row["turn"])
-        w = worst.setdefault(key, {"sweep": 0.0, "miss": 0.0, "old": 0.0, "width": 0.0, "n": 0})
+        w = worst.setdefault(
+            key, {"sweep": 0.0, "miss": 0.0, "old": 0.0, "width": 0.0, "n": 0}
+        )
         w["n"] += 1
-        for k, val in (("sweep", sweep_err), ("miss", miss_ulps), ("old", old_err), ("width", width)):
+        for k, val in (
+            ("sweep", sweep_err),
+            ("miss", miss_ulps),
+            ("old", old_err),
+            ("width", width),
+        ):
             w[k] = max(w[k], val)
         if not encloses:
-            bad.append(f"Interval [{lo!r}, {hi!r}] misses the true sweep {truth} at {row}")
+            bad.append(
+                f"Interval [{lo!r}, {hi!r}] misses the true sweep {truth} at {row}"
+            )
         if sweep_err > SWEEP_ULPS:
             bad.append(f"f64 sweep {sweep_err:.3g} units off at {row}")
         if miss_ulps > MISS_ULPS:
@@ -128,7 +187,9 @@ def main(path):
         if key.startswith("centre"):
             print(
                 f"{key:>19} ({w['n']}): f64 sweep error {w['sweep']:.3g} units of 2^-52, "
-                f"Interval width {w['width']:.3g}"
+                f"bulge relative error {w['x']:.3g} units, "
+                f"bulge's carrier off the exact one {w['radius']:.3g} units, Interval sweep "
+                f"width {w['width']:.3g}, Interval X relative width {w['xwidth']:.3g}"
             )
             continue
         print(
