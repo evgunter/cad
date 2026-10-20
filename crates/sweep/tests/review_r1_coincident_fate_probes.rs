@@ -138,7 +138,14 @@ fn summary(
         .naming
         .substituted
         .iter()
-        .map(|s| (role(s.operand), fdesc(s.operand, s.face), fdesc(s.operand.other(), s.by)))
+        .map(|s| {
+            let p = [
+                format!("{}:{}", role(s.operand), fdesc(s.operand, s.face)),
+                format!("{}:{}", role(s.operand.other()), fdesc(s.operand.other(), s.by)),
+            ];
+            let (lo, hi) = if p[0] <= p[1] { (p[0].clone(), p[1].clone()) } else { (p[1].clone(), p[0].clone()) };
+            ('-', lo, hi)
+        })
         .collect();
     let cut_rows = out
         .naming
@@ -149,7 +156,7 @@ fn summary(
         .collect();
     let settler = out.naming.settler(&out.body);
     let at = |v| match settler.settle(v) {
-        Ok(topo::Cell::Vertex(w)) => topo::readback::vertex_point(&out.body, w).map(pt),
+        Ok(topo::Cell::Vertex(w)) => topo::readback::vertex_point(&out.body, w).ok().map(pt),
         _ => None,
     };
     let lost = out
@@ -170,6 +177,7 @@ fn summary(
             s.sort();
             (role(r.operand), fdesc(r.operand, r.face), s)
         })
+        .filter(|(_, _, s)| !s.is_empty())
         .collect();
     let opk = [topo::BooleanOp::Union, topo::BooleanOp::Intersect, topo::BooleanOp::Subtract][k];
     let covered: BTreeSet<(FaceKey, FaceKey)> = topo::boolean_reduce(opk, x, y, tol())
@@ -210,6 +218,13 @@ fn summary(
         cut_rows,
         lost,
     };
+    let mut vs: Vec<[i64; 3]> = out
+        .body
+        .vertices()
+        .filter_map(|(v, _)| topo::readback::vertex_point(&out.body, v).ok().map(pt))
+        .collect();
+    vs.sort();
+    println!("VERTS {:?} edges={} {vs:?}", roles, out.body.edges().count());
     Ok(Some((s, format!("{:?}", out.kind))))
 }
 
@@ -246,6 +261,26 @@ fn fixtures() -> Vec<(&'static str, AtRestBody<f64>, AtRestBody<f64>)> {
     v.push(("holed-plate-and-offset", plate.clone(), bx((2.0, 3.0), (2.0, 3.0), (0.5, 1.0))));
     // A plate with a pocket (top ring around a sunk floor) and a box whose
     // top is flush with the plate top and spans the pocket.
+    v.push((
+        "a-inside",
+        bx((0.0, 2.0), (0.0, 1.0), (0.0, 1.0)),
+        bx((0.5, 1.5), (0.0, 1.0), (0.0, 1.0)),
+    ));
+    v.push((
+        "a-on",
+        bx((0.0, 2.0), (0.0, 1.0), (0.0, 1.0)),
+        bx((0.5, 1.5), (0.25, 0.75), (1.0, 2.0)),
+    ));
+    v.push((
+        "a-lid",
+        bx((0.0, 2.0), (0.0, 1.0), (0.0, 1.0)),
+        bx((-1.0, 3.0), (-1.0, 2.0), (1.0, 2.0)),
+    ));
+    v.push((
+        "small-in-big-two-flush",
+        bx((-1.0, 3.0), (-1.0, 1.0), (-1.0, 1.0)),
+        bx((0.0, 2.0), (0.0, 1.0), (0.0, 1.0)),
+    ));
     v.push((
         "big-and-flush-small",
         bx((-1.0, 3.0), (-1.0, 2.0), (-1.0, 1.0)),
