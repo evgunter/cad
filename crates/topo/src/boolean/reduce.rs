@@ -2885,7 +2885,7 @@ fn conic_clearance<T: Decide>(
         let h = geom_brep::conic_cone_harmonics(conic, apex, axis, half_angle);
         let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
         let swing =
-            hypot(h.c1, h.s1) + hypot(h.c2, h.s2) + geom_brep::rounding_charge(h.terms) / h.per;
+            hypot(h.c1, h.s1) + hypot(h.c2, h.s2) + geom_core::rounding_charge(h.terms) / h.per;
         return Some(decide(
             "bool_conic_curved_clearance",
             Margin::of((h.c0 - swing).max(T::zero() - (h.c0 + swing))),
@@ -3910,7 +3910,7 @@ fn line_cone_roots<T: Decide>(
     let (lo, hi) = (t0.min(t1), t0.max(t1));
     for t in roots {
         let terms = (w0.norm() + speed * t.abs()).powi(2);
-        let slack = speed * geom_brep::rounding_charge(terms) / (two * disc.sqrt());
+        let slack = speed * geom_core::rounding_charge(terms) / (two * disc.sqrt());
         let outside = speed * (lo - t).max(t - hi).max(T::zero());
         match decide(
             "bool_line_cone_root_slack",

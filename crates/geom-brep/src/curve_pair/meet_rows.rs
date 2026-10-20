@@ -1624,6 +1624,52 @@ fn meetings_are_neighbours_along_the_span_whatever_order_they_are_found_in() {
     );
 }
 
+/// **Two segments that touch, on carriers far from them, are never read
+/// apart** (the #5481 reviewer's witness). Both carriers run along the
+/// unit `d`, with origins at `∓d·2²⁰`; `a`'s span ends at `t₁` and `b`'s
+/// starts at `t₁ − 2²¹`, every input exact in `f64`, so in Q
+/// `a(t₁) = b(t₁ − 2²¹) = d·(t₁ − 2²⁰)`: the spans touch at one point.
+/// Evaluated in `f64`, `origin + dir·t` rounds at `|t| ≈ 2²⁰` m, and the
+/// two ends land `5.8·10⁻¹¹` apart in `y`, past the band. Charged only at
+/// the ends' own distances from the origin, the projections read that
+/// rounding as a gap of `2.2·10⁻¹¹` past their charge, and `meet`
+/// answered "no meeting" for a touching pair (the PR's first head).
+/// Charged for the evaluation (`geom_core::one_line`, "The charge"), the
+/// pair meets or refuses, in both orders.
+#[test]
+fn two_segments_touching_on_far_carriers_are_never_read_apart() {
+    let fine = Band::new(1e-12, 1e-11).unwrap();
+    let far = 2f64.powi(20);
+    let d = Vec3::new(
+        0.803_992_292_151_306_2,
+        0.499_755_838_673_424_7,
+        -0.322_242_914_387_750_1,
+    );
+    let a = Curve3::Line {
+        origin: Point3::origin() - d * far,
+        dir: d,
+    };
+    let b = Curve3::Line {
+        origin: Point3::origin() + d * far,
+        dir: d,
+    };
+    let t1 = 1_049_576.874_015_081_7;
+    let s0 = t1 - 2.0 * far;
+    assert_eq!(s0, -1_047_575.125_984_918_3, "the touch is exact in f64");
+    let (sa, sb) = (Span::new(&a, (t1 - 1.0, t1)), Span::new(&b, (s0, s0 + 1.0)));
+    for (order, got) in [
+        ("a first", meet(&sa, &sb, fine)),
+        ("b first", meet(&sb, &sa, fine)),
+    ] {
+        if let Ok(got) = got {
+            assert!(
+                got.shared.is_some() || !got.points.is_empty(),
+                "{order}: a touching pair read apart: {got:?}"
+            );
+        }
+    }
+}
+
 /// **A fillet joint between two ellipses across their planes is read by
 /// its window.** A rod's rim cut at 45°, the quarter of its ellipse from
 /// `θ = 0.4636`, and a fillet's ellipse in a plane tilted `26.6°` ending
@@ -1897,11 +1943,14 @@ fn two_segments_on_one_line_far_apart_read_apart_at_interval() {
     assert!(matches!(got, Ok(Pose::Apart)), "{got:?}");
 }
 
-/// **The gap is charged with the rounding its coordinates carry.** At
-/// `ε = 10⁻¹²` a span along `x̂` from `(10⁴, 0, 0)` over `(0, 1)` and one
-/// on the same line over `(1 + g, 2)`: a gap `g = 4·10⁻¹¹`, past the
-/// escalation but within the rounding of coordinates ten kilometres out
-/// (about `9·10⁻¹¹` charged), is not read apart, and `g = 2·10⁻¹⁰` is. Two spans on one carrier
+/// **The gap is charged with the rounding its ends carry**: the
+/// evaluation that produced them from the carrier and their own
+/// coordinates (`geom_core::one_line`, "The charge"). At `ε = 10⁻¹²` a
+/// span along `x̂` from `(10⁴, 0, 0)` over `(0, 1)` and one on the same
+/// line over `(1 + g, 2)`: a gap `g = 4·10⁻¹¹`, past the escalation but
+/// within the rounding of ends evaluated and lying ten kilometres out
+/// (about `1.4·10⁻¹⁰` charged), is not read apart, and `g = 2·10⁻¹⁰` is.
+/// Two spans on one carrier
 /// through the origin, large by their parameter near 1586 m and
 /// `9.8·10⁻¹²` apart, below the escalation, are not read apart either.
 #[test]
