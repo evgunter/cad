@@ -1265,11 +1265,27 @@ enum ChainSplit<'e> {
 
 /// How much worse than the best split [`ChainSplit::Conditioned`] lets
 /// the midpoint's estimated error be before it leaves the midpoint.
-/// Measured: on uniform knots, where the splits rank within a few of
-/// each other, 2 and 4 still moved degree-10 rows off the midpoint's
-/// numbers (by up to 2×, either way), and 8 reads them exactly; a close
-/// pair puts the midpoint `span/g` or more behind, far past any margin.
-const MIDPOINT_MARGIN: f64 = 8.0;
+///
+/// **Empirical**, with no argument for the number beyond what it was
+/// fitted on: one `elevate_degree(1)` of drawn curves (coordinates
+/// ±10, weights 0.2–5) at degrees 3–10, 10–80 interior knots, on
+/// uniform, graded (`t^1.5`), geometric (×1.15 and ×2), jittered
+/// (±30%) and jittered-plus-a-`1e-7`-pair knots, with margins 1, 2, 4
+/// and 8 against the pure midpoint. 2 sat at or within 2× of the best
+/// median on every family. Medians on ±10, degree 10 with 40 knots:
+///
+/// | knots | midpoint | 1 | 2 | 8 |
+/// |---|---|---|---|---|
+/// | uniform | 3.1e-13 | 6.9e-13 | 3.1e-13 | 3.1e-13 |
+/// | graded `t^1.5` | 2.0e-9 | 2.7e-12 | 1.7e-12 | 8.2e-12 |
+/// | geometric ×1.15 | 0.15 | 6.1e-12 | 4.1e-12 | 1.1e-11 |
+/// | geometric ×2 | refuses | 1.1e-13 | 1.1e-13 | 1.7e-11 |
+///
+/// Uniform degree 9 reads 1.6e-13 to 3.0e-13 at 2, where the midpoint
+/// reads 4e-9 at 40 knots and 1.6e-3 at 80. Against the pure midpoint, 2
+/// moves the bits of 90 of 800 uniform shapes (degrees 1–10, 1–80
+/// knots), every one at degree 9 or 10, at equal or lower error.
+const MIDPOINT_MARGIN: f64 = 2.0;
 
 /// One removal pass (fn docs on [`remove_knot_plan`] for the chain
 /// derivation; preconditions established there).
@@ -1454,14 +1470,19 @@ fn remove_once(
 /// Being exact, a removal may leave any one of its equations unused,
 /// and the choice decides its rounding. Piegl–Tiller's midpoint split
 /// divides by `α ≈ g/span` next to a breakpoint a gap `g` from another,
-/// and each removal pass feeds the next its error, so a close pair
-/// amplified rounding by about `(span/g)^k` with `k` growing with
-/// degree: from degree 8, a pair `1e-5` apart moved the curve by the
-/// size of its coordinates. Each pass here keeps the midpoint unless
+/// and each removal pass feeds the next its error, so a gap small
+/// beside its neighbours amplified rounding by about `(span/g)^k`
+/// with `k` growing with degree: from degree 8, a pair `1e-5` apart
+/// moved the curve by the size of its coordinates. Graded knots did
+/// the same with no close pair at all (geometric ×1.15 spacing at
+/// degree 10 off by 1.5% of its coordinates), and so did uniform
+/// knots at degree 9 (1.6e-3 on ±10 at 80 knots). Each pass here keeps the midpoint unless
 /// another split's worst point carries clearly less first-order error,
-/// given what its inputs already carry, and agreement holds at about
-/// `4e-14` of the largest coordinate for every gap and degree the rows
-/// draw. Any split is exact in ℝ, so the choice moves only rounding.
+/// given what its inputs already carry (by an empirical margin).
+/// Agreement holds at about `4e-14` of the largest coordinate at
+/// every close-pair gap and degree the rows draw, and within `1e-12` on
+/// graded knots at degree 10. Any split is exact in ℝ, so the choice
+/// moves only rounding.
 ///
 /// # Errors
 ///
@@ -1581,6 +1602,45 @@ mod tests {
     use super::*;
     use crate::real::Bounds;
     use crate::spline::basis::basis_funs;
+
+    /// On uniform knots the margin keeps the midpoint: at degree 10
+    /// with 40 interior knots, every recomposition pass of the
+    /// elevation splits its unknowns `⌈n/2⌉` forward. The estimate
+    /// reads only the knots, so the choice is exact and the same for
+    /// every curve on them. Red at a margin of 1, which leaves the
+    /// midpoint on near-ties there and doubles the elevation's median
+    /// rounding.
+    #[test]
+    fn uniform_knots_keep_the_midpoint_split_at_every_pass() {
+        let p = 10;
+        let mut ks = vec![0.0; p + 1];
+        ks.extend((1..=40).map(|i| f64::from(i) / 41.0));
+        ks.extend(core::iter::repeat_n(1.0, p + 1));
+        let kv = KnotVector::from_algebra(ks, p);
+        let plans = elevate_plan(&kv, &vec![1.0; kv.control_count()]).unwrap();
+        let mut passes = 0;
+        // The removal passes: every plan after the Bézier stage.
+        let stage = plans
+            .iter()
+            .position(|pl| pl.knots.degree() == p + 1)
+            .unwrap();
+        for (k, plan) in plans[stage + 1..].iter().enumerate() {
+            let (mut forward, mut unknowns) = (0usize, 0usize);
+            for step in &plan.steps {
+                if let Step::Combo { form, .. } = step {
+                    unknowns += 1;
+                    forward += usize::from(matches!(form, Form::UnblendForward(_)));
+                }
+            }
+            assert_eq!(
+                forward,
+                unknowns.div_ceil(2),
+                "pass {k}: {forward} of {unknowns} forward"
+            );
+            passes += 1;
+        }
+        assert_eq!(passes, 40 * (p - 1), "every breakpoint from p down to 2");
+    }
 
     /// 1-D rational evaluation oracle: x(t) = Σ N w x / Σ N w — the
     /// plan machinery is dimension-agnostic, so scalar control points

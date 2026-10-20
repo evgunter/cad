@@ -10,12 +10,16 @@
 //! coordinates, from degree 6–7 by about its square, from degree 8–9 by
 //! about its cube — a pair `1e-5` apart at degree 8 moved the curve by
 //! the size of its coordinates, and some curves refused with
-//! `WeightCollapse` instead. Uniform knots were never affected.
+//! `WeightCollapse` instead. A gap small beside its neighbours is what
+//! does it, close pair or not: geometric ×1.15 knots at degree 10 were
+//! off by 1.5% of the coordinates, geometric ×2 refused from degree 8,
+//! and uniform knots at degree 9 read 1.6e-3 on ±10 at 80 knots.
 //!
 //! Every row reads the sup of `|C(t) − E(t)|` over nine points per
-//! distinct span (the close pair's own span included) against
-//! `1e-12` of the largest control coordinate. Measured after the fix,
-//! the worst close-pair row reads about `4e-14` of it.
+//! distinct span (the close pair's own span included) against a
+//! fraction of the largest control coordinate: `1e-12` for a close pair
+//! (the worst reads about `4e-14`), `1e-11` for graded knots at degree
+//! 10 (the worst reads about `8e-13`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
@@ -162,22 +166,44 @@ fn high_degree_close_pairs_elevate_without_refusing() {
     }
 }
 
-/// Fifty uniform knots, where the midpoint split was already at
-/// rounding: the choice of split must not move them off it. The worst
-/// of 40 drawn curves on main reads about `1.1e-13` of scale at degree
-/// 10 and `2.4e-15` at degree 8. Red on a split forward while
-/// `α ≥ ½`, and on one chosen per pass without the error its inputs
-/// carry: both refused every degree-8 curve with `WeightCollapse`.
+/// Fifty uniform knots. The midpoint split was at rounding there from
+/// degree 6 to 8 and at 10 (main's worst of 40 curves at degree 10:
+/// about `1.1e-13` of scale), but not at 9, where it read about `1e-8`
+/// of scale: the split must keep the first and fix the second. Red on
+/// main at degree 9, on a split forward while `α ≥ ½`, and on one chosen
+/// per pass without the error its inputs carry (both refused every
+/// degree-8 curve with `WeightCollapse`).
 #[test]
 fn uniform_knots_keep_the_midpoint_splits_rounding() {
     const UNIFORM: f64 = 5e-13;
     let mut rng = fuzz::start("elevation_conditioning::uniform");
     let mids: Vec<f64> = (1..=50).map(|i| f64::from(i) / 51.0).collect();
-    for p in [6, 8, 10] {
+    for p in [6, 8, 9, 10] {
         for _ in 0..fuzz::scaled(4) {
             let c = drawn(&mut rng, p, &mids);
             let d = disagreement(&c, &c.elevate_degree(1).unwrap());
             assert!(d <= UNIFORM, "p={p}: {d:e} — {}", fuzz::replay());
         }
+    }
+}
+
+/// Geometric ×1.15 knot spacing at degree 10, no close pair: each gap
+/// is 15% wider than the last, yet the midpoint split read 0.15 on ±10
+/// coordinates with 40 knots.
+#[test]
+fn graded_knots_at_degree_ten_elevate_to_rounding() {
+    const GRADED: f64 = 1e-11;
+    let mut rng = fuzz::start("elevation_conditioning::graded");
+    let total: f64 = (0..=40).map(|i| 1.15f64.powi(i)).sum();
+    let mids: Vec<f64> = (0..40)
+        .scan(0.0, |at, i| {
+            *at += 1.15f64.powi(i) / total;
+            Some(*at)
+        })
+        .collect();
+    for _ in 0..fuzz::scaled(4) {
+        let c = drawn(&mut rng, 10, &mids);
+        let d = disagreement(&c, &c.elevate_degree(1).unwrap());
+        assert!(d <= GRADED, "{d:e} — {}", fuzz::replay());
     }
 }

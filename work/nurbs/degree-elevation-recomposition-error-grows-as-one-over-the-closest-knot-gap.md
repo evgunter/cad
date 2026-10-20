@@ -81,9 +81,16 @@ curves. Each curve has one close interior pair `(a, a + g)` on
 - **Compounding.** Elevating by two compounds by the second step's
   degree: degree 5, `elevate_degree(2)`, `g = 1e-8` is off by 2.2.
 - **The gap is relative.** What matters is a gap's ratio to the spans
-  around it, not its size. Uniform interior knots are clean at every
-  degree: degree 10 with 50 knots reads 7e-13, and degree 3 with
-  1000 knots 1e-3 apart reads 5e-15.
+  around it, not its size: degree 3 with 1000 uniform knots 1e-3 apart
+  reads 5e-15.
+- **Graded knots fail with no close pair at all.** Medians of 30 drawn
+  curves on ±10 coordinates:
+  - geometric ×1.15 spacing at degree 10 with 40 knots: **0.15**;
+  - geometric ×2 spacing: refused from degree 8;
+  - graded `t^1.5` at degree 10: 2e-9.
+- **Uniform knots fail at degree 9.** Degree 9 reads 4e-9 with 40 uniform
+  knots and **1.6e-3** with 80. Degrees 3–8 and 10 are at rounding
+  (degree 10 with 50 knots: 7e-13).
 
 **Callers.**
 - **`NurbsCurve*::approximate`** (`crates/geom/src/curves/fit.rs`)
@@ -102,14 +109,26 @@ curves. Each curve has one close interior pair `(a, a + g)` on
 `elevate_plan`'s recomposition now tracks a first-order error
 estimate per control point. Each removal keeps Piegl–Tiller's midpoint
 unless another forward/backward split's estimated worst error is more
-than 8× smaller. `remove_knot_plan` keeps the midpoint.
+than 2× smaller (`MIDPOINT_MARGIN`). `remove_knot_plan` keeps the
+midpoint.
 
 - **The plain `α ≥ ½` split was not enough.** On uniform knots `α` ties
   at exactly ½, so it chained errors from knot to knot and refused every
   curve at degree ≥ 6 with 50 knots.
-- **The margin of 8.** Margins of 2 and 4 still moved degree-10
-  uniform rows off the midpoint's numbers; 8 reads them exactly.
-- **After the fix:** every degree ≤ 10 and every gap ≥ 1e-9 agrees to
-  about 4e-14 of the largest coordinate, and uniform knots read exactly
-  what the midpoint split read.
+- **The margin is empirical.** It was fitted on uniform, graded,
+  geometric, jittered and close-pair knot families at degrees 3–10
+  (the medians are in the constant's doc).
+  - With no margin, uniform degree-10 near-ties doubled the median
+    rounding.
+  - A margin of 8 left graded rows up to 150× worse than 2.
+  - 2 is at or within 2× of the best on every family.
+- **After the fix:**
+  - close pairs agree to about 4e-14 of the largest coordinate at every
+    degree ≤ 10 and gap ≥ 1e-9;
+  - graded degree-10 knots agree within 1e-12;
+  - uniform degree 9 reads 2–3e-13;
+  - uniform degree 10 reads the midpoint's medians.
+- **Bits.** Against the pure midpoint, the margin moves the bits of 90
+  of 800 uniform shapes (degrees 1–10, 1–80 knots), all at degree 9 or
+  10, at equal or lower error.
 - **Refusals:** the `WeightCollapse` refusals at degree ≥ 8 are gone.
