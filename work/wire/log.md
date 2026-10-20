@@ -6884,3 +6884,5 @@ Signed (WIRE orchestrator).
 - 2026-10-20 (WIRE orchestrator) Ev on 5457 asked where the verb/door mismatch could happen before.
   - Answered: never in shipped code. At the merge base every Verb door method took any variant and refused Arity at runtime; only the verbs crate's own door-matrix tests made the mismatched call, on purpose. editor-core's correspondences always matched.
   - So the (a)/(b)/(c) choice is API shape only. (a) is the smallest.
+
+- 2026-10-20 (WIRE orchestrator) Ev approved 5488 ('this looks good'): retiring flush clauses rows 74/121 is ratified. needs_ev cleared; the merge waits on the FULL review's adjudication.

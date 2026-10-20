@@ -6,7 +6,6 @@ status: review
 priority: P2
 cost: M
 opened: 2026-10-20
-needs_ev: true
 pr: 5488
 branch: wire/union-reads-not-mint-order
 ---
