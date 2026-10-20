@@ -2,10 +2,13 @@
 id: a-boolean-of-a-body-and-its-copy-names-its-entities-from-the-copy-minted-first
 kind: issue
 title: A boolean of a body and its exact copy names each entity of the result from the copy minted first
-status: dispatched
+status: review
 priority: P2
 cost: M
 opened: 2026-10-20
+needs_ev: true
+pr: 5488
+branch: wire/union-reads-not-mint-order
 ---
 
 Filed by WIRE's `wire-nameinv` lane (branch `wire/name-invariance-checks`),

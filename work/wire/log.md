@@ -6854,3 +6854,12 @@ Signed (WIRE orchestrator).
   - Goldens moved for the 3 split documents.
   - The python suite was skipped, and the old swap was not re-measured on main.
   - FULL review dispatched; it presses the kernel verdict log, the python suite, the motivating defect and the three Emissions.
+
+- 2026-10-20 (WIRE orchestrator) Ev on 5455 asked how a boolean gets its inputs.
+  - Answered from main: operands are BodyReads (a VarId, plus a CopyKey or indices); placement happens upstream (Transform, or a placement's copies); the boolean takes no placement info.
+  - What a placement is, and the read-vs-Placed question, are D10's (INTENT).
+- 2026-10-20 (WIRE orchestrator) PR 5488 (wire-mintfirst) is green at 3ec6022478, titled [ev].
+  - Flush stretches, vertices and crossing lines held by several members are now Merged of them in name order.
+  - It retires ratified flush clauses rows 74 and 121 (first-minted / least).
+  - The name_invariance history admissions go to empty, with no golden moved.
+  - Rows needs_ev. Subscribed. FULL review dispatched in parallel.
