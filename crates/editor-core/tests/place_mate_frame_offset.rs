@@ -21,7 +21,7 @@ use crate::p2_gauges::{Parts, block, body_of, cut, min_corner, parts};
 use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocumentId, EditError, EvalOptions, Formula,
-    FreeValue, FreeVar, Mate, MateRef, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SlideAxis,
+    FreeValue, FreeVar, Mate, MateRef, Node, ProfileDoc, ProfileProgram, RecipeNodeId, TargetAxis,
     SlotId, SplitError, Target, Value, VarName, WorldRead, apply,
 };
 use fixture::resolver::with_resolver;
@@ -52,7 +52,7 @@ fn add_value(mate: MateRef, coord: Coord, by: Formula) -> DocEdit<ProfileProgram
     DocEdit::AddValue {
         placement: mate.placement,
         value: Box::new(Value {
-            mate: mate.id,
+            mate: Some(mate.id),
             coord,
             by,
         }),
@@ -70,8 +70,8 @@ fn valued(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> (Profile
 /// target's x, one of `y` along its y, and a spin of zero. Answers the
 /// x slide's address.
 fn plane_values(doc: ProfileDoc, mate: MateRef, x: Formula, y: Formula) -> (ProfileDoc, MateRef) {
-    let (doc, vx) = valued(doc, mate, Coord::Slide(SlideAxis::X), x);
-    let (doc, _) = valued(doc, mate, Coord::Slide(SlideAxis::Y), y);
+    let (doc, vx) = valued(doc, mate, Coord::Slide(TargetAxis::X), x);
+    let (doc, _) = valued(doc, mate, Coord::Slide(TargetAxis::Y), y);
     let (doc, _) = valued(doc, mate, Coord::Spin, ang(0.0));
     (doc, vx)
 }
@@ -291,7 +291,7 @@ fn a_parameter_drives_a_value_and_the_solved_pose_moves() {
             &unvalued,
             &add_value(
                 m,
-                Coord::Slide(SlideAxis::X),
+                Coord::Slide(TargetAxis::X),
                 Formula::named(VarName::from_static(name), Dimension::Length),
             ),
             Tol::witness(),
@@ -464,7 +464,7 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
             .expect("the top's rest")
             .id,
     );
-    let (doc, _) = valued(doc, rest_of_top, Coord::Slide(SlideAxis::X), len(1.5));
+    let (doc, _) = valued(doc, rest_of_top, Coord::Slide(TargetAxis::X), len(1.5));
     let out = editor_core::split(
         &doc,
         &cut(&doc, &[base, top]),
@@ -521,8 +521,8 @@ fn a_constraint_compares_by_bits() {
         editor_core::Constraint::of_value(
             id,
             Value {
-                mate: editor_core::ConstraintId(editor_core::MintId::new(0, 0)),
-                coord: Coord::Slide(SlideAxis::X),
+                mate: Some(editor_core::ConstraintId(editor_core::MintId::new(0, 0))),
+                coord: Coord::Slide(TargetAxis::X),
                 by: len(by),
             },
         )

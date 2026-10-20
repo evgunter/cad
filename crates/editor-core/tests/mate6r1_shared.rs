@@ -17,7 +17,7 @@ use editor_core::Formula;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     AssemblyError, CapEnd, ChecksConfig, ContactClass, Coord, DocEdit, DocRef, DocumentId,
-    EntityKind, Frame, MateRef, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, SlideAxis,
+    EntityKind, Frame, MateRef, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, TargetAxis,
     StableName, Value, assemble, product_recorded, run_checks,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -121,8 +121,8 @@ struct Seat {
 fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, MateRef) {
     let (doc, m) = constrain_at(doc, placement, seat.mate);
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(seat.apart)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(seat.apart)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, ang(0.0)),
     ]
     .into_iter()
@@ -132,7 +132,7 @@ fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDo
             DocEdit::AddValue {
                 placement: m.placement,
                 value: Box::new(Value {
-                    mate: m.id,
+                    mate: Some(m.id),
                     coord,
                     by,
                 }),

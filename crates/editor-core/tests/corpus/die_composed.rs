@@ -51,7 +51,7 @@ use editor_core::Formula;
 use editor_core::{
     CapEnd, Coord, EntityKind, LoopProgram, MeridianEnd, NamePat, NameRef, Node, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SegPat, SegTag, Selector,
-    SlideAxis, StableName,
+    TargetAxis, StableName,
 };
 
 use crate::fixture::{ang, frame_at, len, len2, prism_edges, revolve_about, scl, value_bump};
@@ -334,7 +334,7 @@ pub fn document() -> CorpusDoc {
 
     r.place_part(composed);
 
-    let bump = value_bump(&r.doc, pip, Coord::Slide(SlideAxis::Z), 0.015625);
+    let bump = value_bump(&r.doc, pip, Coord::Slide(TargetAxis::Z), 0.015625);
     CorpusDoc {
         name: "die_composed",
         about: "M6 unit 1: the pipped cube filleted in place — box blends, octants, and the \

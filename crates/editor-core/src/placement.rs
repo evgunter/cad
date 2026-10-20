@@ -3,7 +3,7 @@
 //! index variables.
 
 use geom_core::predicate::Band;
-use geom_core::{Affine3, Decide, Mat3, Real, RigidMotion, RigidMotionError, Vec3};
+use geom_core::{Affine3, Mat3, Real, RigidMotion, RigidMotionError, Vec3};
 
 use crate::eval::{NodeErrorKind, NodeRefusal};
 
@@ -487,26 +487,6 @@ impl<T: Real> Motion<T> {
             Self::Identity => Affine3::identity(),
             Self::Rigid(rigid) => rigid.to_affine(),
             Self::Map(map) => map,
-        }
-    }
-}
-
-impl<T: Decide> Motion<T> {
-    /// **The motion a body is moved by**: `None` for the bit-exact
-    /// identity, which a door that skips the identity (an instance
-    /// placement's fast path) reads; a witness as it is; and a general
-    /// map through the decided door ([`RigidMotion::check_rigid`]).
-    ///
-    /// # Errors
-    ///
-    /// [`NodeErrorKind::Motion`] carrying the decided door's refusal.
-    pub(crate) fn rigid(self, band: Band) -> Result<Option<RigidMotion<T>>, NodeErrorKind> {
-        match self {
-            Self::Identity => Ok(None),
-            Self::Rigid(rigid) => Ok(Some(rigid)),
-            Self::Map(map) => RigidMotion::check_rigid(&map, band)
-                .map(Some)
-                .map_err(NodeErrorKind::Motion),
         }
     }
 }

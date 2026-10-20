@@ -1872,7 +1872,7 @@ impl Doc {
         coord: &super::mate::Coord,
         by: super::expr::SlotArg,
     ) -> PyResult<super::mate::MateRef> {
-        let value = super::mate::MateValue::of(py, mate.0.id, coord.0, &by)?;
+        let value = super::mate::MateValue::of(py, Some(mate.0.id), coord.0, &by)?;
         let edit = d::DocEdit::AddValue {
             placement: mate.0.placement,
             value: Box::new(value.0),
@@ -1886,6 +1886,40 @@ impl Doc {
             .first()
             .unwrap_or_else(|| unreachable!("an accepted value mints its id"));
         Ok(super::mate::MateRef(d::MateRef::new(mate.0.placement, id)))
+    }
+
+    /// **Write `values` onto `placement` as one edit**, and return
+    /// their addresses: the edit `DocEdit.add_values`. A bundle with no
+    /// mate states the copy's whole motion in its values — a slide
+    /// along each of the world's `x`, `y` and `z` (`Coord.slide`) and a
+    /// chain of three spins about its axes, no two in a row about one
+    /// (`Coord.spin_about`), taken in the order written — so it is
+    /// written whole: each `MateValue` names no mate (`None`).
+    ///
+    /// Refuses typed on `EditError` (`mate_refused`): a bundle with no
+    /// mate that leaves a freedom unwritten (`mate_unpinned`), a freedom
+    /// written twice (`mate_overconstrained`), a value naming no mate
+    /// beside a mate or a spin about a mated direction with none
+    /// (`mate_no_chart`).
+    fn add_values(
+        &mut self,
+        py: Python<'_>,
+        placement: &NodeId,
+        values: Vec<super::mate::MateValue>,
+    ) -> PyResult<Vec<super::mate::MateRef>> {
+        let edit = d::DocEdit::AddValues {
+            placement: placement.0,
+            values: values.into_iter().map(|value| value.0).collect(),
+            fresh: Vec::new(),
+        };
+        let applied =
+            d::apply(&self.inner, &edit, Tol::witness()).map_err(|err| edit_err(py, &err))?;
+        let record = self.accept(applied);
+        Ok(record
+            .minted_constraints
+            .iter()
+            .map(|&id| super::mate::MateRef(d::MateRef::new(placement.0, id)))
+            .collect())
     }
 
     /// The label a person gave `node`, or `None` when it has none.
@@ -2425,8 +2459,9 @@ enum Gesture<'a> {
 
 /// **A gesture's constraints added to `placement`** on `action`: the
 /// kernel's door for `how` over the placement's copy (a `Place`'s first
-/// shape, an instance's own output), the mate, then each value naming
-/// it.
+/// shape, an instance's own output), written as `Placed::write` writes
+/// it: the mate, then each value naming it, or the values of a bundle
+/// with no mate as one edit.
 fn gesture(
     py: Python<'_>,
     action: &mut d::Recording<'_, d::ProfileProgram>,
@@ -2464,33 +2499,24 @@ fn gesture(
             format!("the copy cannot be placed over its geometry: {refusal}"),
         )
     })?;
-    let mate = action
-        .apply_recorded(d::DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(placed.mate),
-            fresh: Vec::new(),
-        })
+    let by = placed.by;
+    let mated = placed.mate.is_some();
+    let minted = placed.write(placement, |edit| {
+        action
+            .apply_recorded(edit)
+            .map(|record| record.minted_constraints)
+    });
+    let mut refs = minted
         .map_err(edit_failed)?
-        .minted_constraints[0];
-    let mut values = Vec::with_capacity(placed.values.len());
-    for (coord, by) in placed.values {
-        let record = action
-            .apply_recorded(d::DocEdit::AddValue {
-                placement,
-                value: Box::new(d::Value { mate, coord, by }),
-                fresh: Vec::new(),
-            })
-            .map_err(edit_failed)?;
-        values.push(super::mate::MateRef(d::MateRef::new(
-            placement,
-            record.minted_constraints[0],
-        )));
-    }
+        .into_iter()
+        .map(|id| super::mate::MateRef(d::MateRef::new(placement, id)));
+    let mate = if mated { refs.next() } else { None };
+    let values = refs.collect();
     Ok(super::mate::Placed {
         placement: NodeId(placement),
-        mate: super::mate::MateRef(d::MateRef::new(placement, mate)),
+        mate,
         values,
-        by: placed.by,
+        by,
     })
 }
 
@@ -4488,6 +4514,24 @@ impl DocEdit {
             inner: d::DocEdit::AddValue {
                 placement: placement.0,
                 value: Box::new(value.0.clone()),
+                fresh: Vec::new(),
+            },
+        }
+    }
+
+    /// **Add `values` to `placement`'s bundle as one write**: a bundle
+    /// with no mate, whose values state the copy's whole motion, is
+    /// admitted only whole (`Doc.add_values` answers their addresses).
+    ///
+    /// Refuses typed on `EditError`: `constraint_on_non_placement`, and
+    /// `mate_refused` with the door's fault — `mate_unpinned`,
+    /// `mate_overconstrained`, `mate_no_chart`, and each value's own.
+    #[staticmethod]
+    fn add_values(placement: &NodeId, values: Vec<super::mate::MateValue>) -> Self {
+        Self {
+            inner: d::DocEdit::AddValues {
+                placement: placement.0,
+                values: values.into_iter().map(|value| value.0).collect(),
                 fresh: Vec::new(),
             },
         }

@@ -37,7 +37,7 @@ use std::collections::BTreeMap;
 use editor_core::{
     Attr, AttrKind, BranchCertification, Coord, Dimension, Distribution, DocEdit, EntityKind,
     ExprPath, Formula, Frame, FreeValue, FreeVar, MetaValue, Node, PatternKind, Rgba8, RoleSeg,
-    SlideAxis, SlotId, StableName, UnitSym, VarName, WitnessDatum,
+    TargetAxis, SlotId, StableName, UnitSym, VarName, WitnessDatum,
 };
 use geom_core::Tol;
 use geom_core::predicate::Band;
@@ -334,7 +334,7 @@ pub fn document() -> CorpusDoc {
         &frame_at([-2.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     );
 
-    let bump = value_slot(&r.doc, moved, Coord::Slide(SlideAxis::Y));
+    let bump = value_slot(&r.doc, moved, Coord::Slide(TargetAxis::Y));
     CorpusDoc {
         name: "kitchen_sink",
         about: "every v1 node kind and every DocEdit kind in one document",

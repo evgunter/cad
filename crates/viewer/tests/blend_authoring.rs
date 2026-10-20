@@ -1021,7 +1021,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
                 slot: crate::fixture::value_slot(
                     session.committed_doc(),
                     b,
-                    pncad::document::Coord::Slide(pncad::document::SlideAxis::X),
+                    pncad::document::Coord::Slide(pncad::document::TargetAxis::X),
                 ),
                 value: viewer::props::SlotValue::of(Dimension::Length, SIDE * 2.0)
                     .expect("a finite length is a value"),

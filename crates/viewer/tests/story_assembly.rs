@@ -70,14 +70,14 @@ const SAIL_B_PARK: [f64; 3] = [-0.12, 0.02, 0.0];
 /// its own origin, so a slide of zero centres the copy on its target's
 /// own axis.
 fn rest_choice(slide: [f64; 2], spin: f64) -> viewer::matetool::MateChoice {
-    use pncad::document::{Coord, SlideAxis};
+    use pncad::document::{Coord, TargetAxis};
     viewer::matetool::MateChoice {
         class: pncad::select::ContactClass::Rest,
         kind: pncad::document::VarKind::Plane,
         flip: true,
         values: vec![
-            (Coord::Slide(SlideAxis::X), common::len(slide[0])),
-            (Coord::Slide(SlideAxis::Y), common::len(slide[1])),
+            (Coord::Slide(TargetAxis::X), common::len(slide[0])),
+            (Coord::Slide(TargetAxis::Y), common::len(slide[1])),
             (Coord::Spin, common::ang(spin)),
         ],
     }

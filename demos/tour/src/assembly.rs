@@ -108,7 +108,7 @@ use pncad::document::{
     DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, InlineError,
     LoopProgram, Mate, MateFault, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node,
     OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedFace, SlideAxis, Space, Target, Value, ValuePayload,
+    ProfileProgram, RecipeNodeId, SitedFace, TargetAxis, Space, Target, Value, ValuePayload,
     VarName, WorldRead, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
     parse_formula, pin_at, place_at, product_named, save, solve_document, split, stand,
 };
@@ -351,8 +351,8 @@ fn set_values(
 /// and `y`, in metres, and no spin.
 fn seated_at(x: f64, y: f64) -> [(Coord, Formula); 3] {
     [
-        (Coord::Slide(SlideAxis::X), length(x)),
-        (Coord::Slide(SlideAxis::Y), length(y)),
+        (Coord::Slide(TargetAxis::X), length(x)),
+        (Coord::Slide(TargetAxis::Y), length(y)),
         (
             Coord::Spin,
             Formula::literal(0.0, Dimension::Angle).expect("a zero angle"),

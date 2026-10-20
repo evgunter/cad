@@ -13,7 +13,7 @@ use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
 use crate::fixture::{self, insert, len, point, step, table};
 use editor_core::{
-    Coord, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, SlideAxis, SlotId,
+    Coord, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, TargetAxis, SlotId,
     StableName,
 };
 use geom_core::Tol;
@@ -83,7 +83,7 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
             // The value is charted on the plate's flipped start cap, whose
             // `y` runs along the plate's `−y`: this slides the notch
             // 4 toward `−y`.
-            slot: crate::fixture::value_slot(&doc, tr, Coord::Slide(SlideAxis::Y)),
+            slot: crate::fixture::value_slot(&doc, tr, Coord::Slide(TargetAxis::Y)),
             value: len(4.0).into(),
             fresh: Vec::new(),
         },

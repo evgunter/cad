@@ -24,7 +24,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CapEnd, ContactClass, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId,
     EntityKind, EvalOptions, Formula, FreeValue, FreeVar, MateRef, Node, Operand, PersistError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, SlideAxis, StableName, Value, VarName, apply,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, TargetAxis, StableName, Value, VarName, apply,
     load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -207,8 +207,8 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Form
         ),
     );
     for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), x),
-        (Coord::Slide(SlideAxis::Y), len(1.0)),
+        (Coord::Slide(TargetAxis::X), x),
+        (Coord::Slide(TargetAxis::Y), len(1.0)),
         (Coord::Spin, turn),
     ] {
         doc = with_value(doc, rest, coord, by);
@@ -228,7 +228,7 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
         &DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),

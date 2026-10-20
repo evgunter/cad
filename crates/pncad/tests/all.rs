@@ -2136,12 +2136,12 @@ fn insert(
 }
 
 /// `placement`'s one copy standing where its body stands
-/// ([`pncad::document::stand`]): the mate and its values, added.
+/// ([`pncad::document::stand`]): the identity bundle, written whole.
 fn stood(
     doc: pncad::document::ProfileDoc,
     placement: pncad::document::RecipeNodeId,
 ) -> pncad::document::ProfileDoc {
-    use pncad::document::{DocEdit, Node, Operand, Value};
+    use pncad::document::{Node, Operand};
     let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
         panic!("{placement} is a placement");
     };
@@ -2152,30 +2152,16 @@ fn stood(
         &pncad::document::EvalOptions::default(),
         pncad::tolerance::Tol::witness(),
     )
-    .unwrap_or_else(|e| panic!("the copy stands over its geometry: {e}"));
-    let added = applied(
-        &doc,
-        DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(placed.mate),
-            fresh: Vec::new(),
-        },
-    );
-    let mate = added.record.minted_constraints[0];
+    .unwrap_or_else(|e| panic!("the copy stands: {e}"));
+    let mut doc = doc;
     placed
-        .values
-        .into_iter()
-        .fold(added.doc, |doc, (coord, by)| {
-            applied(
-                &doc,
-                DocEdit::AddValue {
-                    placement,
-                    value: Box::new(Value { mate, coord, by }),
-                    fresh: Vec::new(),
-                },
-            )
-            .doc
+        .write(placement, |edit| {
+            let added = applied(&doc, edit);
+            doc = added.doc;
+            Ok::<_, std::convert::Infallible>(added.record.minted_constraints)
         })
+        .unwrap_or_else(|never| match never {});
+    doc
 }
 
 /// A one-box document under the id `label` derives: square(2)
@@ -2229,7 +2215,7 @@ fn placed_against(
     body: pncad::document::RecipeNodeId,
     at: &pncad::document::Frame,
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
-    use pncad::document::{DocEdit, Node, Operand, Value};
+    use pncad::document::{Node, Operand};
     let placed = pncad::document::place_against(
         &doc,
         &Operand::from(target),
@@ -2243,29 +2229,14 @@ fn placed_against(
         doc,
         Node::place(vec![pncad::document::BodyRead::plain(body)]),
     );
-    let added = applied(
-        &doc,
-        DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(placed.mate),
-            fresh: Vec::new(),
-        },
-    );
-    let mate = added.record.minted_constraints[0];
-    let doc = placed
-        .values
-        .into_iter()
-        .fold(added.doc, |doc, (coord, by)| {
-            applied(
-                &doc,
-                DocEdit::AddValue {
-                    placement,
-                    value: Box::new(Value { mate, coord, by }),
-                    fresh: Vec::new(),
-                },
-            )
-            .doc
-        });
+    let mut doc = doc;
+    placed
+        .write(placement, |edit| {
+            let added = applied(&doc, edit);
+            doc = added.doc;
+            Ok::<_, std::convert::Infallible>(added.record.minted_constraints)
+        })
+        .unwrap_or_else(|never| match never {});
     (doc, placement)
 }
 
@@ -3916,7 +3887,7 @@ fn asm_r2a_mated_assembly(
     Vec<pncad::document::RecipeNodeId>,
 ) {
     use pncad::document::{
-        Coord, DocEdit, Formula, Mate, Node, Operand, SlideAxis, Target, Value, pose::PoseDef,
+        Coord, DocEdit, Formula, Mate, Node, Operand, TargetAxis, Target, Value, pose::PoseDef,
     };
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
@@ -3957,8 +3928,8 @@ fn asm_r2a_mated_assembly(
     );
     let length = |m: f64| Formula::literal(m, pncad::document::Dimension::Length).expect("finite");
     let values = [
-        (Coord::Slide(SlideAxis::X), length(30.0)),
-        (Coord::Slide(SlideAxis::Y), length(0.0)),
+        (Coord::Slide(TargetAxis::X), length(30.0)),
+        (Coord::Slide(TargetAxis::Y), length(0.0)),
         (
             Coord::Spin,
             Formula::zero(pncad::document::Dimension::Angle),

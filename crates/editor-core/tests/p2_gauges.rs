@@ -28,7 +28,7 @@ use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation,
     Formula, Frame, FreeValue, FreeVar, Maintenance, MateRef, MeasurePrimitive, Node,
     NodeErrorKind, Operand, PartResolver, PersistError, PoseRefusal, ProfileDoc, ProfileProgram,
-    RecipeNodeId, SitedFace, SitedRef, SlideAxis, Space, StableName, Target, Value, ValuePayload,
+    RecipeNodeId, SitedFace, SitedRef, TargetAxis, Space, StableName, Target, Value, ValuePayload,
     VarName, WorldRead, apply, apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -208,8 +208,8 @@ pub(crate) fn seat_edits(
     let mate = MateRef::new(placement, applied.record.minted_constraints[0]);
     let mut edits = vec![rest];
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(at[0])),
-        (Coord::Slide(SlideAxis::Y), len(at[1])),
+        (Coord::Slide(TargetAxis::X), len(at[0])),
+        (Coord::Slide(TargetAxis::Y), len(at[1])),
         (Coord::Spin, ang(0.0)),
     ]
     .into_iter()
@@ -217,7 +217,7 @@ pub(crate) fn seat_edits(
         let edit = DocEdit::AddValue {
             placement,
             value: Box::new(Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),

@@ -263,15 +263,15 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
         "the mate reads the world: {mate:?}"
     );
     {
-        use pncad::document::{Coord, SlideAxis};
+        use pncad::document::{Coord, TargetAxis};
         assert_eq!(
             values
                 .iter()
                 .map(|c| c.value().map(|v| (v.mate, v.coord)))
                 .collect::<Vec<_>>(),
             vec![
-                Some((mate.id, Coord::Slide(SlideAxis::X))),
-                Some((mate.id, Coord::Slide(SlideAxis::Y))),
+                Some((mate.id, Coord::Slide(TargetAxis::X))),
+                Some((mate.id, Coord::Slide(TargetAxis::Y))),
                 Some((mate.id, Coord::Spin)),
             ],
             "the three freedoms a plane mate leaves, each set"

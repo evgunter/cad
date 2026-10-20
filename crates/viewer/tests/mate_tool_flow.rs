@@ -156,7 +156,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
 /// (`Coord::admitted_by`).
 #[test]
 fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
-    use pncad::document::{Coord, FreedomRefusal, SlideAxis, VarKind};
+    use pncad::document::{Coord, FreedomRefusal, TargetAxis, VarKind};
     let tol = Tol::witness();
     let bench = asm::bench("matetable", tol);
     let session = asm::open_bench(&bench, tol);
@@ -194,7 +194,7 @@ fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
     assert_eq!(
         (coord, kind, refusal),
         (
-            Coord::Slide(SlideAxis::X),
+            Coord::Slide(TargetAxis::X),
             VarKind::Axis,
             FreedomRefusal::NotAFreedom
         )

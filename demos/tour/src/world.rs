@@ -246,7 +246,7 @@ pub fn against_on_axis(
     };
     let values = vec![
         (
-            Coord::Slide(pncad::document::SlideAxis::Z),
+            Coord::Slide(pncad::document::TargetAxis::Z),
             Formula::zero(pncad::document::Dimension::Length),
         ),
         (

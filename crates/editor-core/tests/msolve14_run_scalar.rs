@@ -40,7 +40,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
     EvalOptions, Evaluation, Formula, FreeVar, Mate, MateRef, NameRef, Node, NodeResult, Operand,
-    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, SlideAxis, StableName,
+    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, TargetAxis, StableName,
     Target, Value, VarName, WorldRead, all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
@@ -258,7 +258,7 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
         &DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),
@@ -293,8 +293,8 @@ fn seat(
         ),
     );
     let doc = [
-        (Coord::Slide(SlideAxis::X), x),
-        (Coord::Slide(SlideAxis::Y), y),
+        (Coord::Slide(TargetAxis::X), x),
+        (Coord::Slide(TargetAxis::Y), y),
         (Coord::Spin, spin),
     ]
     .into_iter()
@@ -572,7 +572,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let doc = with_value(
         doc,
         coaxial,
-        Coord::Slide(SlideAxis::Z),
+        Coord::Slide(TargetAxis::Z),
         len(SLAB_HEIGHT + 0.25),
     );
     let doc = with_value(doc, coaxial, Coord::Spin, ang(0.3));

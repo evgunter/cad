@@ -754,7 +754,7 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
                 value(
                     3,
                     editor_core::Value {
-                        mate: editor_core::ConstraintId(editor_core::MintId::new(0, 2)),
+                        mate: Some(editor_core::ConstraintId(editor_core::MintId::new(0, 2))),
                         coord: editor_core::Coord::Spin,
                         by: ang(0.5),
                     },
@@ -762,8 +762,8 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
                 value(
                     4,
                     editor_core::Value {
-                        mate: editor_core::ConstraintId(editor_core::MintId::new(0, 2)),
-                        coord: editor_core::Coord::Slide(editor_core::SlideAxis::Z),
+                        mate: Some(editor_core::ConstraintId(editor_core::MintId::new(0, 2))),
+                        coord: editor_core::Coord::Slide(editor_core::TargetAxis::Z),
                         by: len(0.5),
                     },
                 ),

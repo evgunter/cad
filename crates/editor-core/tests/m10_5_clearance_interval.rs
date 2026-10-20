@@ -200,7 +200,7 @@ pub(crate) fn slid_by(
     body: RecipeNodeId,
     by: [Formula; 3],
 ) -> RecipeNodeId {
-    use editor_core::{BodyRead, Coord, Operand, SlideAxis, Target, pose::PoseDef};
+    use editor_core::{BodyRead, Coord, Operand, TargetAxis, Target, pose::PoseDef};
     let target_read = fixture::body_read(&r.doc, target.into());
     let read = fixture::body_read(&r.doc, body.into());
     r.evaluated();
@@ -224,8 +224,12 @@ pub(crate) fn slid_by(
             panic!("the probe's {n} is written as ±{n}: {written:?}")
         }
     };
-    let Target::Pose(Operand::Pose(def)) = &mut placed.mate.to else {
-        panic!("a plane mate to a pose: {:?}", placed.mate.to)
+    let Some(editor_core::Mate {
+        to: Target::Pose(Operand::Pose(def)),
+        ..
+    }) = &mut placed.mate
+    else {
+        panic!("a plane mate to a pose: {:?}", placed.mate)
     };
     let PoseDef::Slide { by: along, .. } = &mut **def else {
         panic!("the target's plane slid along its normal: {def:?}")
@@ -233,13 +237,13 @@ pub(crate) fn slid_by(
     *along = signed(along, probe[2], &by[2]);
     for (coord, value) in &mut placed.values {
         match coord {
-            Coord::Slide(SlideAxis::X) => *value = signed(value, probe[0], &by[0]),
-            Coord::Slide(SlideAxis::Y) => *value = signed(value, probe[1], &by[1]),
+            Coord::Slide(TargetAxis::X) => *value = signed(value, probe[0], &by[0]),
+            Coord::Slide(TargetAxis::Y) => *value = signed(value, probe[1], &by[1]),
             _ => {}
         }
     }
     let placement = r.insert(Node::place(vec![BodyRead::plain(read)]));
-    r.constrain(placement, placed.mate, placed.values);
+    r.write(placement, placed);
     placement
 }
 

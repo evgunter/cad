@@ -18,7 +18,7 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, Frame, MateRef, Node, ProfileDoc,
-    RecipeNodeId, SlideAxis, StableName, Value, WorldRead, inline,
+    RecipeNodeId, TargetAxis, StableName, Value, WorldRead, inline,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, offset_of, on_frame, square};
@@ -52,8 +52,8 @@ fn stacked(doc: ProfileDoc, a: StableName, b: StableName) -> (ProfileDoc, MateRe
         fixture::rest(fixture::head(b), fixture::head(a), ContactClass::Rest),
     );
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(0.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, fixture::ang(0.0)),
     ]
     .into_iter()
@@ -63,7 +63,7 @@ fn stacked(doc: ProfileDoc, a: StableName, b: StableName) -> (ProfileDoc, MateRe
             DocEdit::AddValue {
                 placement: joint.placement,
                 value: Box::new(Value {
-                    mate: joint.id,
+                    mate: Some(joint.id),
                     coord,
                     by,
                 }),

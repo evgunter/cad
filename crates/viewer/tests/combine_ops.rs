@@ -673,11 +673,11 @@ fn the_transform_door_places_a_body_with_values() {
     // Its values are the placement's slots: two slides and a spin.
     for (coord, dim) in [
         (
-            pncad::document::Coord::Slide(pncad::document::SlideAxis::X),
+            pncad::document::Coord::Slide(pncad::document::TargetAxis::X),
             Dimension::Length,
         ),
         (
-            pncad::document::Coord::Slide(pncad::document::SlideAxis::Y),
+            pncad::document::Coord::Slide(pncad::document::TargetAxis::Y),
             Dimension::Length,
         ),
         (pncad::document::Coord::Spin, Dimension::Angle),

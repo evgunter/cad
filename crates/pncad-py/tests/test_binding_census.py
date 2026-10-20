@@ -1106,7 +1106,7 @@ BOUND_AS = {
     # leaves a value no freedom crosses as the fault's own word
     # (`mate_not_a_freedom`, `mate_no_chart`), and why one has no chart
     # as `MateFault.why`.
-    "SlideAxis": "Coord.slide",
+    "TargetAxis": "Coord.slide",
     "FreedomRefusal": "MateFault.variant",
     "NoChartWhy": "MateFault.why",
     # Why a world read is no pose: the word `mate_world_read` carries

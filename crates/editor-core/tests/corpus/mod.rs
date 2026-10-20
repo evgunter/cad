@@ -716,6 +716,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::AddConstraint { .. } => "AddConstraint",
         DocEdit::RemoveConstraint { .. } => "RemoveConstraint",
         DocEdit::AddValue { .. } => "AddValue",
+        DocEdit::AddValues { .. } => "AddValues",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",
     }

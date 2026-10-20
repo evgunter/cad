@@ -115,11 +115,11 @@ fn place_at(doc: ProfileDoc, body: RecipeNodeId, pose: &Frame) -> (ProfileDoc, R
 fn zero_values(doc: ProfileDoc, mate: MateRef) -> ProfileDoc {
     [
         (
-            editor_core::Coord::Slide(editor_core::SlideAxis::X),
+            editor_core::Coord::Slide(editor_core::TargetAxis::X),
             len(0.0),
         ),
         (
-            editor_core::Coord::Slide(editor_core::SlideAxis::Y),
+            editor_core::Coord::Slide(editor_core::TargetAxis::Y),
             len(0.0),
         ),
         (editor_core::Coord::Spin, fixture::ang(0.0)),
@@ -131,7 +131,7 @@ fn zero_values(doc: ProfileDoc, mate: MateRef) -> ProfileDoc {
             DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(editor_core::Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),
@@ -635,8 +635,8 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
         &DocEdit::AddValue {
             placement: c,
             value: Box::new(editor_core::Value {
-                mate: direction.id,
-                coord: editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                mate: Some(direction.id),
+                coord: editor_core::Coord::Slide(editor_core::TargetAxis::X),
                 by: len(0.1),
             }),
             fresh: Vec::new(),

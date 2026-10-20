@@ -2681,6 +2681,7 @@ pub fn apply_with_names<T: Decide>(
         DocEdit::DeleteNode { .. }
         // A value reads its mate by id and holds a number.
         | DocEdit::AddValue { .. }
+        | DocEdit::AddValues { .. }
         // A list of node ids carries no name.
         | DocEdit::SetMembers { .. }
         // A program and its step ids carry no name, and the door

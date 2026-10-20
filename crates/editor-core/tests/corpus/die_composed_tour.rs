@@ -85,7 +85,7 @@
 use std::path::Path;
 
 use editor_core::{
-    Coord, DocEdit, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SlideAxis, load, save,
+    Coord, DocEdit, Node, ProfileDoc, ProfileProgram, RecipeNodeId, TargetAxis, load, save,
 };
 use geom_core::Tol;
 
@@ -214,7 +214,7 @@ pub fn document() -> CorpusDoc {
          this document's `result` names the wrong node"
     );
     let pip = first_pip(&doc);
-    let bump = value_bump(&doc, pip, Coord::Slide(SlideAxis::Z), PIP_SLIDE);
+    let bump = value_bump(&doc, pip, Coord::Slide(TargetAxis::Z), PIP_SLIDE);
 
     CorpusDoc {
         name: "die_composed_tour",

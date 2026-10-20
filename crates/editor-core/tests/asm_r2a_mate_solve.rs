@@ -27,7 +27,7 @@ use editor_core::CapEnd;
 use editor_core::{
     ContactClass, Coord, DocEdit, DocumentId, EditError, EntityKind, EvalOptions, Evaluation,
     Frame, Maintenance, Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind,
-    NodeResult, Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, SlideAxis, Space,
+    NodeResult, Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, TargetAxis, Space,
     StableName, Value, apply, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
@@ -197,7 +197,7 @@ fn add_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Profi
         DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),
@@ -280,7 +280,7 @@ fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, Kit, MateRef) {
     let (doc, ids, kit) = assembly("asm-r2a-row1", 2);
     let (doc, coaxial) = add(doc, ids[1], pin(&kit, ids[0], ids[1], 0, 0));
     let doc = add_value(doc, coaxial, Coord::Spin, ang(0.0));
-    let doc = add_value(doc, coaxial, Coord::Slide(SlideAxis::Z), len(2.0));
+    let doc = add_value(doc, coaxial, Coord::Slide(TargetAxis::Z), len(2.0));
     (doc, ids, kit, coaxial)
 }
 
@@ -1113,7 +1113,7 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             "a plane's normal slide",
             &planed,
             rest,
-            Coord::Slide(SlideAxis::Z),
+            Coord::Slide(TargetAxis::Z),
             len(0.5),
             editor_core::VarKind::Plane,
         ),
@@ -1123,7 +1123,7 @@ fn row7a_a_value_on_a_freedom_its_mate_fixes_refuses_typed() {
             &DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),

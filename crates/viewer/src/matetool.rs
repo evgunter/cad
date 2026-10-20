@@ -79,7 +79,7 @@
 
 use pncad::document::{
     CLASS_DEFERRAL, ClassAdmission, Coord, Doc, Evaluation, Formula, FreedomRefusal, Mate,
-    MateSide, Node, NotAFaceName, ProfileProgram, RecipeNodeId, SitedFace, SlideAxis, SpokenNode,
+    MateSide, Node, NotAFaceName, ProfileProgram, RecipeNodeId, SitedFace, TargetAxis, SpokenNode,
     Target, VarKind, class_admission, member_of, pose,
 };
 use pncad::select::{ContactClass, Resolution};
@@ -129,9 +129,9 @@ impl MateFreedom {
     #[must_use]
     pub fn coord(self) -> Coord {
         match self {
-            Self::SlideX => Coord::Slide(SlideAxis::X),
-            Self::SlideY => Coord::Slide(SlideAxis::Y),
-            Self::SlideZ => Coord::Slide(SlideAxis::Z),
+            Self::SlideX => Coord::Slide(TargetAxis::X),
+            Self::SlideY => Coord::Slide(TargetAxis::Y),
+            Self::SlideZ => Coord::Slide(TargetAxis::Z),
             Self::Spin => Coord::Spin,
         }
     }
@@ -140,9 +140,9 @@ impl MateFreedom {
     #[must_use]
     pub fn of(coord: Coord) -> Self {
         match coord {
-            Coord::Slide(SlideAxis::X) => Self::SlideX,
-            Coord::Slide(SlideAxis::Y) => Self::SlideY,
-            Coord::Slide(SlideAxis::Z) => Self::SlideZ,
+            Coord::Slide(TargetAxis::X) => Self::SlideX,
+            Coord::Slide(TargetAxis::Y) => Self::SlideY,
+            Coord::Slide(TargetAxis::Z) => Self::SlideZ,
             Coord::Spin => Self::Spin,
         }
     }

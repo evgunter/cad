@@ -653,81 +653,17 @@ fn body_reach<T: crate::mate::SolveScalar>(
         .map_err(|refusal| crate::mate::LeverRefusal::Shape { shape: at, refusal })
 }
 
-/// **Whether placement `id`'s bundle reads a variable**: a declared or
-/// toleranced free variable reached from its constraints' numbers or
-/// its mates' reads, through definitions and through the operations
-/// whose outputs they read: a target copy's own placement, and a face
-/// or axis of the copy a mate reads where its own parameters move it.
-/// The copied shapes themselves are not the bundle.
-fn bundle_reads_a_variable(doc: &crate::doc::Doc<ProfileProgram>, id: RecipeNodeId) -> bool {
-    let Some(node) = doc.node(id) else {
-        return false;
-    };
-    let mut stack: Vec<crate::VarId> = node.exprs().into_iter().copied().collect();
-    stack.extend(
-        node.operand_rows()
-            .into_iter()
-            .filter(|(slot, _)| !matches!(slot, crate::OperandSlot::Shape(_)))
-            .map(|(_, var)| var),
-    );
-    let (mut seen, mut ops) = (
-        std::collections::BTreeSet::new(),
-        std::collections::BTreeSet::new(),
-    );
-    let copied: std::collections::BTreeSet<crate::VarId> = node
-        .operand_rows()
-        .into_iter()
-        .filter(|(slot, _)| matches!(slot, crate::OperandSlot::Shape(_)))
-        .map(|(_, var)| var)
-        .collect();
-    // A selection of the copied body's own entities that the recipe
-    // decides no variable moves (`mate::anchor`) reads nothing.
-    let unmoved = |var: crate::VarId| match doc.var(var).map(crate::Var::def) {
-        Some(crate::VarDef::Select(sel)) if copied.contains(&sel.body) => {
-            doc.operation_of(sel.body).is_some_and(|op| {
-                let anchors = crate::mate::anchor::Anchors::of(doc, op);
-                sel.names.iter().all(|name| anchors.fixed(name))
-            })
-        }
-        _ => false,
-    };
-    while let Some(var) = stack.pop() {
-        if !seen.insert(var) || unmoved(var) {
-            continue;
-        }
-        // A written number is an anonymous free variable no lane
-        // varies unless it carries a tolerance; a declared one, or a
-        // toleranced one, is what a box or a seed moves.
-        let varies = match doc.free(var) {
-            Some(crate::FreeVar::Continuous { distribution, .. }) => {
-                distribution.is_some() || doc.var_name(var).is_some()
-            }
-            Some(crate::FreeVar::Count { .. }) => doc.var_name(var).is_some(),
-            None => false,
-        };
-        if varies {
-            return true;
-        }
-        stack.extend(doc.definition_reads(var));
-        if let Some(op) = doc.operation_of(var).filter(|op| ops.insert(*op))
-            && let Some(n) = doc.node(op)
-        {
-            stack.extend(n.exprs().into_iter().copied());
-            stack.extend(n.operand_rows().into_iter().map(|(_, v)| v));
-        }
-    }
-    false
-}
-
 /// **A placement's bundle, folded where it evaluates** (INTENT stage 3
 /// C), its `on` poses read in `on_results` (an instance's own copy
 /// before placement among them) and its `to` poses in `to_results`.
 /// Each mate's `on` is read off the copied shapes before placement, in
 /// their own coordinates, and its `to` off the target space's geometry,
 /// or the world read inside the mate; the bundle folded
-/// ([`crate::mate::solve::solve_bundle`]). Answers the copy's motion in
-/// its target space's coordinates (`None` the identity) and the space
-/// it joins: a loose copy roots its own.
+/// ([`crate::mate::solve::solve_bundle`]). A bundle with no mate places
+/// its copy in the world by its values alone. Answers the copy's motion
+/// in its target space's coordinates (`None` for the identity bundle,
+/// the one placement placed by no map) and the space it joins: a loose
+/// copy roots its own.
 ///
 /// # Errors
 ///
@@ -763,7 +699,9 @@ where
             crate::mate::ConstraintKind::Value(v) => {
                 let slot = match v.coord {
                     crate::mate::Coord::Slide(_) => SlotId::ValueSlide { constraint: c.id },
-                    crate::mate::Coord::Spin => SlotId::ValueSpin { constraint: c.id },
+                    crate::mate::Coord::Spin | crate::mate::Coord::SpinAbout(_) => {
+                        SlotId::ValueSpin { constraint: c.id }
+                    }
                 };
                 let by = crate::expr::eval_var(v.by, v.coord.dimension(), params)
                     .map_err(|source| NodeErrorKind::Expr { slot, source })?;
@@ -867,15 +805,31 @@ where
         charted.push((c.id, on.clone(), to.clone(), flipped, body));
         mates.push(crate::mate::solve::ReadMate { mate, on, to });
     }
+    let equations = crate::mate::solve::equations_of(doc, constraints);
     if mates.is_empty() {
-        // A value names a mate of its bundle; with none, its own.
-        if let Some(v) = values.first() {
-            return Err(fault(MateFault::ValueNamesNoMate {
-                value: v.value,
-                mate: v.mate,
-            }));
-        }
-        return Ok((None, Space::Loose { root: id }));
+        // With no mate, the values state the whole motion in the world;
+        // the identity bundle places by no map.
+        return match crate::mate::solve::solve_bundle(
+            id,
+            &equations,
+            &mates,
+            &values,
+            &std::collections::BTreeMap::new(),
+        )? {
+            crate::mate::solve::Folded::Unmated
+                if crate::mate::solve::identity_bundle(doc, constraints) =>
+            {
+                Ok((None, Space::World))
+            }
+            crate::mate::solve::Folded::Unmated => Ok((
+                Some(crate::mate::value::unmated_motion(&values)?),
+                Space::World,
+            )),
+            crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
+            crate::mate::solve::Folded::Pinned(..) => {
+                unreachable!("a bundle with no mate folds no coset")
+            }
+        };
     }
     let reach = reach.map_err(|refusal| {
         fault(MateFault::Unleverable {
@@ -887,7 +841,7 @@ where
     // A chart is read only for a mate a value names.
     let mut charts = std::collections::BTreeMap::new();
     for (mate, on, to, flipped, (body, own)) in charted {
-        let Some(value) = values.iter().find(|v| v.mate == mate) else {
+        let Some(value) = values.iter().find(|v| v.mate == Some(mate)) else {
             continue;
         };
         let body = body.map_err(|why| {
@@ -901,63 +855,22 @@ where
             crate::mate::value::Chart::of(&on, &to, own.as_ref(), flipped, &body, arm, b)?,
         );
     }
-    match crate::mate::solve::solve_bundle(
-        id,
-        &crate::mate::solve::equations_of(doc, constraints),
-        &mates,
-        &values,
-        &charts,
-    )? {
+    match crate::mate::solve::solve_bundle(id, &equations, &mates, &values, &charts)? {
         crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
-        crate::mate::solve::Folded::Pinned(rep, rigid) => {
-            // The one at-rest verdict, decided once (fork C-5), and only
-            // for a bundle that reads no variable: one that does runs its
-            // map at every value, so no lane's snap at the nominal makes
-            // its decisions differ from another's. Where the map is kept
-            // as the solve composed it, the motion the composition made is
-            // the copy's.
-            let varies = bundle_reads_a_variable(doc, id);
-            let placed = if varies {
-                Some((rep, rigid.map(|c| (c, false))))
-            } else {
-                match crate::mate::solve::rest_verdict(&rep, reach, b) {
-                    Some(true) if T::carries_no_variation(&rep) => None,
-                    Some(true) => match T::identity_varying_as(&rep) {
-                        Some(map) => Some((map, None)),
-                        None => Some((rep, rigid.map(|c| (c, false)))),
-                    },
-                    // A box the band cannot decide at rest spans points the
-                    // value lane snaps and points it keeps: its map holds
-                    // both.
-                    None if T::holds_rest(&rep) => Some((rep, rigid.map(|c| (c, false)))),
-                    None => match rigid.and_then(|c| c.at_rest().map(|map| (c, map))) {
-                        Some((c, map)) if T::holds_rest(&map) => Some((map, Some((c, true)))),
-                        _ => Some((T::with_rest(&rep).unwrap_or(rep), None)),
-                    },
-                    Some(false) => Some((rep, rigid.map(|c| (c, false)))),
-                }
-            };
-            // A map the solve composed as motions is placed as the motion
-            // it is; any other is admitted from its entries, and a varying
-            // bundle's map as a map even at the stored identity.
-            let motion =
-                |map, composed: Option<(crate::mate::value::Composed<T>, bool)>| match composed
-                    .and_then(|(c, rest)| c.motion(rest, b))
-                {
-                    Some(motion) => Ok(Some(motion)),
-                    None if varies => {
-                        crate::mate::solve::admitted(crate::placement::Motion::Map(map), b)
-                    }
-                    None => crate::mate::solve::admitted(crate::mate::solve::marked(map), b),
-                };
-            Ok((
-                match placed {
-                    Some((map, composed)) => motion(map, composed)?,
-                    None => None,
-                },
-                target_space.unwrap_or(Space::World),
-            ))
+        crate::mate::solve::Folded::Unmated => {
+            unreachable!("a bundle holding a mate is folded by its mates")
         }
+        // Every placement but the identity bundle runs its map, at every
+        // value and in every lane: a map the solve composed as motions
+        // is placed as the motion it is, any other admitted from its
+        // entries, by one door.
+        crate::mate::solve::Folded::Pinned(map, composed) => Ok((
+            Some(match composed {
+                Some(composed) => composed.motion(b)?,
+                None => crate::mate::solve::admitted(&map, b)?,
+            }),
+            target_space.unwrap_or(Space::World),
+        )),
     }
 }
 

@@ -574,13 +574,33 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         fresh: Vec<FreshEntry>,
     },
+    /// **Add several values to a placement as one write** (D10
+    /// `[placement.values]`): each as [`DocEdit::AddValue`] adds one, its
+    /// id minted in order, the bundle admitted once they are all in. A
+    /// bundle with no mate, whose values state the whole motion, is
+    /// admitted only whole ([`crate::MateFault::Unpinned`]), so it is
+    /// written by this edit.
+    ///
+    /// Refuses what [`DocEdit::AddValue`] refuses of each value, and a
+    /// bundle the values leave with no mate and a freedom unwritten.
+    AddValues {
+        /// The placement.
+        placement: RecipeNodeId,
+        /// The values, as authored, in order.
+        values: Vec<crate::mate::Value<Formula>>,
+        /// The edit's fresh table (VR6), as [`DocEdit::InsertNode`]'s.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        fresh: Vec<FreshEntry>,
+    },
     /// **Remove a constraint from a placement**: the bundle without it.
     /// What it pinned is recomputed from what remains — a copy whose
-    /// bundle no longer pins it is a loose copy, never a refusal.
+    /// mates no longer pin it is a loose copy, never a refusal.
     ///
     /// Refuses a node that is no placement
-    /// ([`EditError::ConstraintOnNonPlacement`]) and an id the bundle
-    /// does not hold ([`EditError::UnknownConstraint`]).
+    /// ([`EditError::ConstraintOnNonPlacement`]), an id the bundle
+    /// does not hold ([`EditError::UnknownConstraint`]), and a value of
+    /// a bundle with no mate, which states the copy's whole motion
+    /// ([`crate::MateFault::Unpinned`]).
     RemoveConstraint {
         /// The placement.
         placement: RecipeNodeId,
@@ -659,7 +679,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
         };
         let named = bundle
             .iter()
-            .filter(|c| target.mate().is_some() && c.value().is_some_and(|v| v.mate == at.id));
+            .filter(|c| target.mate().is_some() && c.value().is_some_and(|v| v.mate == Some(at.id)));
         named
             .chain(std::iter::once(target))
             .map(|c| Self::RemoveConstraint {
@@ -667,6 +687,27 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
                 constraint: c.id,
             })
             .collect()
+    }
+
+    /// **The values of a bundle with no mate, written whole**
+    /// ([`DocEdit::AddValues`]): each a freedom of the target space's own
+    /// axes and its number, in order — what [`crate::stand`] answers.
+    pub fn unmated(
+        placement: RecipeNodeId,
+        values: Vec<(crate::mate::Coord, Formula)>,
+    ) -> Self {
+        Self::AddValues {
+            placement,
+            values: values
+                .into_iter()
+                .map(|(coord, by)| crate::mate::Value {
+                    mate: None,
+                    coord,
+                    by,
+                })
+                .collect(),
+            fresh: Vec::new(),
+        }
     }
 
     /// **One copy of each of `shapes`, placed by `constraints`** (D10):
@@ -708,7 +749,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             Self::InsertNode { node, .. } => {
                 crate::mate::solve::bundle_of(&**node).is_some_and(|bundle| !bundle.is_empty())
             }
-            Self::AddConstraint { .. } | Self::AddValue { .. } => true,
+            Self::AddConstraint { .. } | Self::AddValue { .. } | Self::AddValues { .. } => true,
             Self::SetParam { slot, .. } => {
                 matches!(slot, SlotId::Operand(crate::OperandSlot::Side { .. }))
             }
@@ -6225,18 +6266,22 @@ impl Recording<'_, crate::ProfileProgram> {
         let mate = record.minted_constraints[0];
         for (coord, by) in [
             (
-                crate::Coord::Slide(crate::SlideAxis::X),
+                crate::Coord::Slide(crate::TargetAxis::X),
                 Formula::zero(crate::expr::Dimension::Length),
             ),
             (
-                crate::Coord::Slide(crate::SlideAxis::Y),
+                crate::Coord::Slide(crate::TargetAxis::Y),
                 Formula::zero(crate::expr::Dimension::Length),
             ),
             (crate::Coord::Spin, spin),
         ] {
             self.apply(DocEdit::AddValue {
                 placement,
-                value: Box::new(crate::Value { mate, coord, by }),
+                value: Box::new(crate::Value {
+                    mate: Some(mate),
+                    coord,
+                    by,
+                }),
                 fresh: Vec::new(),
             })?;
         }
@@ -6672,10 +6717,11 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
 }
 
 /// **A placement's bundle as a whole, at the edit door**, asked by
-/// every edit that writes a constraint into a bundle: no constraint
-/// fixes an equation the rest already fix
-/// ([`crate::mate::solve::overconstrained`], read off the bundle's
-/// definitions, measuring nothing).
+/// every edit that writes a constraint into a bundle or takes one out:
+/// no constraint fixes an equation the rest already fix
+/// ([`crate::mate::solve::overconstrained`]), and a bundle with no mate
+/// writes every freedom ([`crate::mate::solve::unpinned`]), each read
+/// off the bundle's definitions, measuring nothing.
 fn admit_bundle_make_up<P: crate::ProfilePayload>(
     new: &Doc<P>,
     placement: RecipeNodeId,
@@ -6687,7 +6733,9 @@ fn admit_bundle_make_up<P: crate::ProfilePayload>(
     else {
         return Ok(());
     };
-    crate::mate::solve::overconstrained(placement, &crate::mate::solve::equations_of(new, bundle))
+    let equations = crate::mate::solve::equations_of(new, bundle);
+    crate::mate::solve::overconstrained(placement, &equations)
+        .and_then(|()| crate::mate::solve::unpinned(placement, &equations))
         .map_err(|fault| EditError::MateRefused {
             node: new.spoken(placement),
             held: crate::spoken::held_by(&*fault, new),
@@ -6706,18 +6754,19 @@ fn bundle_of_mut<P>(node: &mut Node<P>) -> Option<&mut Vec<crate::mate::Constrai
     }
 }
 
-/// **The door of [`DocEdit::AddConstraint`]**: `mate` lowered as an
-/// insert lowers its node, its id minted, appended to `placement`'s
-/// bundle, and admitted against the bundle before it. The record's id
-/// and the fresh table's variables come back.
-fn add_constraint<P: Clone + crate::ProfilePayload>(
+/// **The door of [`DocEdit::AddConstraint`], [`DocEdit::AddValue`] and
+/// [`DocEdit::AddValues`]**: `kinds` lowered as an insert lowers its
+/// node, each id minted in order, appended to `placement`'s bundle,
+/// and admitted against the bundle before them as one write. The
+/// record's ids and the fresh table's variables come back.
+fn add_constraints<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     new: &mut Doc<P>,
     placement: RecipeNodeId,
-    kind: crate::mate::ConstraintKind<Formula>,
+    kinds: Vec<crate::mate::ConstraintKind<Formula>>,
     fresh: &[FreshEntry],
     tol: Tol,
-) -> Result<(crate::node::ConstraintId, Vec<VarId>), EditError> {
+) -> Result<(Vec<crate::node::ConstraintId>, Vec<VarId>), EditError> {
     match new.nodes.get(&placement) {
         Some(node) if crate::mate::solve::bundle_of(node).is_some() => {}
         Some(_) => {
@@ -6731,48 +6780,49 @@ fn add_constraint<P: Clone + crate::ProfilePayload>(
             });
         }
     }
-    // The mate lowered as a constraint of a bundle of its own: its
-    // reads at their seats, its offsets' steps as slots, under a
-    // placeholder id the mint replaces.
+    // The constraints lowered as a bundle of their own: their reads at
+    // their seats, their offsets' steps as slots, under placeholder ids
+    // the mint replaces.
     let placeholder = crate::node::ConstraintId(crate::MintId::new(0, 0));
     let carrier: Node<P::Authored, Formula> = Node::Place {
         shapes: Vec::new(),
-        constraints: vec![crate::mate::Constraint {
-            id: placeholder,
-            kind,
-        }],
+        constraints: kinds
+            .into_iter()
+            .map(|kind| crate::mate::Constraint {
+                id: placeholder,
+                kind,
+            })
+            .collect(),
     };
     let lowering = Lowering::start(new, fresh)?;
     let lowered = lower_node(new, &lowering, &carrier, tol, || doc.spoken(placement))?;
-    let Node::Place {
-        mut constraints, ..
-    } = lowered
-    else {
+    let Node::Place { constraints, .. } = lowered else {
         unreachable!("a placement lowers to a placement")
     };
-    let Some(mut constraint) = constraints.pop() else {
-        unreachable!("the carrier holds the one constraint")
-    };
-    constraint.id = new.mint.add_constraint(placement, &constraint.kind);
-    let id = constraint.id;
-    let Some(node) = new.nodes.get_mut(&placement).and_then(bundle_of_mut) else {
-        unreachable!("the placement was checked above")
-    };
-    node.push(constraint);
+    let mut ids = Vec::with_capacity(constraints.len());
+    for mut constraint in constraints {
+        constraint.id = new.mint.add_constraint(placement, &constraint.kind);
+        ids.push(constraint.id);
+        let Some(node) = new.nodes.get_mut(&placement).and_then(bundle_of_mut) else {
+            unreachable!("the placement was checked above")
+        };
+        node.push(constraint);
+    }
     let Some(written) = new.nodes.get(&placement).cloned() else {
         unreachable!("the placement was checked above")
     };
     check_written_node(doc, new, placement, &written, Writes::Node, tol)?;
     let fresh = lowering.finish(new)?;
-    // The constraint's own admission speaks before the cycle check: a
+    // Each constraint's own admission speaks before the cycle check: a
     // mate whose `on` reads a copy through its own placement is no
     // mate of that copy, which is the more specific refusal.
-    admit_written_constraint(new, placement, id)?;
+    for &id in &ids {
+        admit_written_constraint(new, placement, id)?;
+    }
     check_acyclic(new)?;
-    // Last, the bundle's make-up: no constraint fixes an equation the
-    // rest already fix.
+    // Last, the bundle's make-up.
     admit_bundle_make_up(new, placement)?;
-    Ok((id, fresh))
+    Ok((ids, fresh))
 }
 
 /// **The admission of a constraint an edit just wrote** (A11 rule 1),
@@ -6811,7 +6861,7 @@ fn admit_written_constraint<P: Clone + crate::ProfilePayload>(
                     .iter()
                     .filter_map(|c| {
                         c.value()
-                            .filter(|v| v.mate == constraint)
+                            .filter(|v| v.mate == Some(constraint))
                             .map(|v| (c.id, v))
                     })
                     .try_for_each(|(id, value)| {
@@ -7663,10 +7713,10 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             fresh,
         } => {
             let kind = crate::mate::ConstraintKind::Mate((**mate).clone());
-            let (id, fresh) = add_constraint(doc, new, *placement, kind, fresh, tol)?;
+            let (ids, fresh) = add_constraints(doc, new, *placement, vec![kind], fresh, tol)?;
             EditRecord {
                 minted: None,
-                minted_constraints: vec![id],
+                minted_constraints: ids,
                 minted_var: None,
                 structural: true,
                 fresh,
@@ -7679,10 +7729,29 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             fresh,
         } => {
             let kind = crate::mate::ConstraintKind::Value((**value).clone());
-            let (id, fresh) = add_constraint(doc, new, *placement, kind, fresh, tol)?;
+            let (ids, fresh) = add_constraints(doc, new, *placement, vec![kind], fresh, tol)?;
             EditRecord {
                 minted: None,
-                minted_constraints: vec![id],
+                minted_constraints: ids,
+                minted_var: None,
+                structural: true,
+                fresh,
+                outputs: Vec::new(),
+            }
+        }
+        DocEdit::AddValues {
+            placement,
+            values,
+            fresh,
+        } => {
+            let kinds = values
+                .iter()
+                .map(|value| crate::mate::ConstraintKind::Value(value.clone()))
+                .collect();
+            let (ids, fresh) = add_constraints(doc, new, *placement, kinds, fresh, tol)?;
+            EditRecord {
+                minted: None,
+                minted_constraints: ids,
                 minted_var: None,
                 structural: true,
                 fresh,
@@ -7718,7 +7787,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // freedom would be no freedom of anything.
             if let Some(value) = bundle
                 .iter()
-                .find(|c| c.value().is_some_and(|v| v.mate == *constraint))
+                .find(|c| c.value().is_some_and(|v| v.mate == Some(*constraint)))
             {
                 return Err(EditError::MateNamedByValue {
                     node: doc.spoken(*placement),
@@ -7729,6 +7798,9 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // Its reads go with it: every anonymous variable it alone
             // read is retired by the door's VR7 pass.
             bundle.remove(at);
+            // A bundle with no mate stays whole: its values state the
+            // copy's whole motion.
+            admit_bundle_make_up(new, *placement)?;
             EditRecord {
                 minted: None,
                 minted_constraints: Vec::new(),
@@ -8139,7 +8211,7 @@ mod tests {
             DocEdit::AddValue {
                 placement: id,
                 value: Box::new(crate::mate::Value {
-                    mate: constraint,
+                    mate: Some(constraint),
                     coord: crate::mate::Coord::Spin,
                     by: crate::test_support::ang(0.5),
                 }),

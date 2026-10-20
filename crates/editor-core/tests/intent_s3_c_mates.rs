@@ -23,7 +23,7 @@ use editor_core::mate::coset::{Coset, Subgroup, intersect};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BodyRead, ConstraintId, ContactClass, Coord, DocEdit, EditError, EvalOptions, Formula, Mate,
-    MateFault, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, SlideAxis,
+    MateFault, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, TargetAxis,
     StableName, Target, Value, WorldRead,
 };
 use geom_core::Tol;
@@ -309,7 +309,7 @@ fn add_value(
     let applied = doc.apply(
         &DocEdit::AddValue {
             placement,
-            value: Box::new(Value { mate, coord, by }),
+            value: Box::new(Value { mate: Some(mate), coord, by }),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -322,7 +322,7 @@ fn add_value(
 fn number(coord: Coord, v: f64) -> Formula {
     match coord {
         Coord::Slide(_) => len(v),
-        Coord::Spin => ang(v),
+        Coord::Spin | Coord::SpinAbout(_) => ang(v),
     }
 }
 
@@ -373,8 +373,8 @@ fn box_resting_on(
         },
     );
     let coords = [
-        Coord::Slide(SlideAxis::X),
-        Coord::Slide(SlideAxis::Y),
+        Coord::Slide(TargetAxis::X),
+        Coord::Slide(TargetAxis::Y),
         Coord::Spin,
     ];
     for k in order {
@@ -507,7 +507,7 @@ fn a_slide_set_twice_refuses_though_a_turn_is_free() {
         doc,
         placement,
         mate.id,
-        Coord::Slide(SlideAxis::X),
+        Coord::Slide(TargetAxis::X),
         len(1.0),
     )
     .expect("a plane mate leaves the slide");
@@ -515,7 +515,7 @@ fn a_slide_set_twice_refuses_though_a_turn_is_free() {
         doc,
         placement,
         mate.id,
-        Coord::Slide(SlideAxis::X),
+        Coord::Slide(TargetAxis::X),
         len(2.0),
     ) {
         Err(EditError::MateRefused { fault, .. }) => assert!(
@@ -564,8 +564,8 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
     );
     let mut doc = doc;
     for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(0.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, ang(30.0_f64.to_radians())),
     ] {
         doc = add_value(doc, placement, mate.id, coord, by)
@@ -696,8 +696,8 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
         },
     );
     for coord in [
-        Coord::Slide(SlideAxis::X),
-        Coord::Slide(SlideAxis::Y),
+        Coord::Slide(TargetAxis::X),
+        Coord::Slide(TargetAxis::Y),
         Coord::Spin,
     ] {
         doc = add_value(doc, placement, mate.id, coord, number(coord, 0.0))
@@ -813,7 +813,8 @@ fn the_place_gesture_reproduces_its_pose() {
         "the values are computed from P, not assumed zero: {:?}",
         placed_by.values
     );
-    let (mut doc, mate) = fixture::constrain_at(doc, placement, placed_by.mate);
+    let mate = placed_by.mate.expect("the gesture writes a plane mate");
+    let (mut doc, mate) = fixture::constrain_at(doc, placement, mate);
     for (coord, by) in placed_by.values {
         doc = add_value(doc, placement, mate.id, coord, by)
             .expect("the gesture's values are its mate's freedoms")
@@ -861,15 +862,16 @@ fn the_place_gesture_flips_a_face_looking_down_so_its_chart_has_a_swing() {
             editor_core::PlacedBy::PlanarFace,
             "{angle}: {near:?}"
         );
+        let mate = near.mate.expect("the gesture writes a plane mate");
         assert!(
             matches!(
-                &near.mate.on,
+                &mate.on,
                 Operand::Pose(p) if matches!(**p, editor_core::pose::PoseDef::Flip { .. })
             ),
             "{angle}: the cap looks down, so its copy side is flipped: {:?}",
-            near.mate.on
+            mate.on
         );
-        let (mut doc, mate) = fixture::constrain_at(doc.clone(), placement, near.mate);
+        let (mut doc, mate) = fixture::constrain_at(doc.clone(), placement, mate);
         for (coord, by) in near.values {
             doc = add_value(doc, placement, mate.id, coord, by)
                 .expect("the gesture's values are its mate's freedoms")
@@ -1096,8 +1098,8 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
         editor_core::Dimension::Length,
     );
     for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), slide),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), slide),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, ang(0.0)),
     ] {
         doc = add_value(doc, placement, mate.id, coord, by)
@@ -1236,8 +1238,8 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
         editor_core::Dimension::Angle,
     );
     for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(0.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, turn),
     ] {
         doc = add_value(doc, placement, mate.id, coord, by)
@@ -1318,8 +1320,8 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
         editor_core::Dimension::Angle,
     );
     for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(0.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, turn),
     ] {
         doc = add_value(doc, placement, mate.id, coord, by)

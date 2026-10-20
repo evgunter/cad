@@ -148,11 +148,11 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
         },
         vec![
             (
-                editor_core::Coord::Slide(editor_core::SlideAxis::X),
+                editor_core::Coord::Slide(editor_core::TargetAxis::X),
                 Formula::zero(Dimension::Length),
             ),
             (
-                editor_core::Coord::Slide(editor_core::SlideAxis::Y),
+                editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
             (editor_core::Coord::Spin, Formula::zero(Dimension::Angle)),

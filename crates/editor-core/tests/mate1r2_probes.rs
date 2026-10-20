@@ -19,7 +19,7 @@ use crate::fixture;
 
 use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame,
-    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, SlideAxis,
+    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, TargetAxis,
     Space, StableName, Value, assemble,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -107,8 +107,8 @@ fn seat(
         ),
     );
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(slide[0])),
-        (Coord::Slide(SlideAxis::Y), len(slide[1])),
+        (Coord::Slide(TargetAxis::X), len(slide[0])),
+        (Coord::Slide(TargetAxis::Y), len(slide[1])),
         (Coord::Spin, ang(0.0)),
     ]
     .into_iter()
@@ -118,7 +118,7 @@ fn seat(
             DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),

@@ -12,7 +12,7 @@
 use crate::fixture;
 use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, Formula, Mate, MateRef,
-    MintRefusal, Node, OperandSlot, ProfileDoc, RecipeNodeId, RefusedRef, SlideAxis, SplitError,
+    MintRefusal, Node, OperandSlot, ProfileDoc, RecipeNodeId, RefusedRef, TargetAxis, SplitError,
     Value, assemble, product_recorded, relative_freedom_components,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -58,8 +58,8 @@ fn seat(
 fn seated(doc: ProfileDoc, mate: Mate<Formula>) -> (ProfileDoc, MateRef) {
     let (doc, mate) = fixture::constrain(doc, mate);
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(0.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, fixture::ang(0.0)),
     ]
     .into_iter()
@@ -69,7 +69,7 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>) -> (ProfileDoc, MateRef) {
             DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),

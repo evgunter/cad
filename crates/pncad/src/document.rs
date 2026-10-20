@@ -404,20 +404,24 @@ pub use editor_core::{
 // `MateRef`), each a `Mate` of two poses of one kind — `on` read off
 // the copy's geometry, `to` a `Target`: a pose of the space the copy
 // joins, or the world read inside the mate (`WorldRead`) — or a
-// `Value` setting one freedom (`Coord`, a `SlideAxis` or the spin) its
-// mate leaves. The solve's outcome (`SolvedPoses`, each copy's
+// `Value` setting one freedom (`Coord`: a slide along a `TargetAxis`,
+// the spin about the mated direction, or a spin about a `TargetAxis`)
+// its mate leaves, or, naming no mate, one of the target space's own
+// axes. The solve's outcome (`SolvedPoses`, each copy's
 // `Space`; a pose kind's symmetry `Subgroup` and its `SubgroupFamily`,
 // whose meeting decides a bundle), and `MateFault` — the typed refusal
-// every door carries. `pin_at` pins a copy to the world at a pose over
-// its own geometry; `place_at` is the "place part" gesture's
+// every door carries. `stand` writes the identity bundle, no mate and
+// the constant `0` on every freedom; `pin_at` pins a copy to the world
+// at a pose over its own geometry; `place_at` is the "place part" gesture's
 // constraints (`PlacedBy` saying whether the copy had a planar face to
 // rest). `unobservable` reports each number an evaluation shows moves
 // nothing (`Unobservable`): a pose move inside its pose's own symmetry,
 // a spin value about a line its copy is round about. `member_of` is A11's member vocabulary itself
 // (`Member` is its answer); `member_reading` is the same walk with the
 // name it reached at the member's instance, and `head_face` the face
-// of the member's part a head names. `OVERCONSTRAINED_RECOURSE` is the
-// recourse sentence a bundle's refusal ends on.
+// of the member's part a head names. `OVERCONSTRAINED_RECOURSE` and
+// `UNPINNED_RECOURSE` are the recourse sentences a bundle's refusals
+// end on.
 /// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `VerbKind`.
@@ -440,8 +444,9 @@ pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Constraint, ConstraintKind, Coord, FreedomRefusal, MAX_WORLD_READ_DEPTH, Mate, MateFault,
     MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, PlacedBy, Placing,
-    PoseRefusal, PoseSymmetry, ReachRefusal, SlideAxis, SolvedPoses, Space, Subgroup,
-    SubgroupFamily, Target, Unobservable, Value, WorldRead, WorldReadFault, frame_at, frame_at_in,
+    PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Space, Subgroup, SubgroupFamily, Target,
+    TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead, WorldReadFault, frame_at,
+    frame_at_in,
     head_face, head_of, member_of, member_reading, pin_at, pin_at_in, place_against,
     place_against_in, place_at, place_at_in, reference_about, relative_freedom_components,
     solve_document, stand, stand_in, unobservable,

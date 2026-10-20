@@ -541,6 +541,27 @@ fn carry<E>(
     // id the mate's add minted here; a value of a mate `settle` dropped
     // goes with it.
     for (old, new, bundle) in bundles {
+        // A bundle with no mate is admitted only whole: its values are
+        // carried as one write.
+        if unmated_bundle(&bundle) {
+            let whole = Node::Place {
+                shapes: Vec::new(),
+                constraints: bundle,
+            };
+            let (carried, selects) =
+                remap_with_selects(source, &whole, vars, (&node_map, &step_map, &out_map))
+                    .map_err(|error| miss(old, error))?;
+            let (authored, fresh) = vars.author(&carried, &selects);
+            let record = target
+                .apply_recorded(DocEdit::AddValues {
+                    placement: new,
+                    values: values_of(authored),
+                    fresh: fresh.fresh.clone(),
+                })
+                .map_err(&edit)?;
+            vars.minted(fresh, &record.fresh);
+            continue;
+        }
         let mut ids: BTreeMap<crate::node::ConstraintId, crate::node::ConstraintId> =
             BTreeMap::new();
         for mut constraint in bundle {
@@ -571,10 +592,10 @@ fn carry<E>(
             let mut mate = match authored.kind {
                 crate::mate::ConstraintKind::Mate(mate) => mate,
                 crate::mate::ConstraintKind::Value(mut value) => {
-                    let Some(&mate) = ids.get(&value.mate) else {
+                    let Some(&mate) = value.mate.and_then(|mate| ids.get(&mate)) else {
                         continue;
                     };
-                    value.mate = mate;
+                    value.mate = Some(mate);
                     let record = target
                         .apply_recorded(DocEdit::AddValue {
                             placement: new,
@@ -622,6 +643,34 @@ fn carry<E>(
         }
     }
     Ok((node_map, step_map, out_map))
+}
+
+/// Whether `bundle` is a placement's bundle with no mate: values alone,
+/// which state the copy's whole motion and are written whole.
+fn unmated_bundle(bundle: &[crate::mate::Constraint]) -> bool {
+    !bundle.is_empty()
+        && bundle
+            .iter()
+            .all(|c| c.value().is_some_and(|v| v.mate.is_none()))
+}
+
+/// The values an authored carrier of a bundle with no mate holds, in
+/// order.
+fn values_of(
+    carrier: AuthoredNode,
+) -> Vec<crate::mate::Value<Formula>> {
+    let Node::Place { constraints, .. } = carrier else {
+        unreachable!("a placement carrier stays one")
+    };
+    constraints
+        .into_iter()
+        .map(|c| match c.kind {
+            crate::mate::ConstraintKind::Value(value) => value,
+            crate::mate::ConstraintKind::Mate(_) => {
+                unreachable!("a bundle with no mate holds values alone")
+            }
+        })
+        .collect()
 }
 
 /// **`node` remapped for the target, with each selection it reads
@@ -3083,7 +3132,7 @@ pub fn split(
             .is_some_and(|bundle| {
                 bundle
                     .iter()
-                    .any(|c| c.value().is_some_and(|v| v.mate == constraint))
+                    .any(|c| c.value().is_some_and(|v| v.mate == Some(constraint)))
             });
         if !valued {
             continue;
@@ -3518,27 +3567,13 @@ pub fn split(
             )
             .map_err(|_| SplitError::InstanceUnstood)
         })?;
-    let mate = remainder
-        .apply_recorded(DocEdit::AddConstraint {
-            placement: instance,
-            mate: Box::new(stood.mate),
-            fresh: Vec::new(),
-        })
-        .map_err(rem_refused)?
-        .minted_constraints
-        .first()
-        .copied()
-        .unwrap_or_else(|| unreachable!("a mate mints its id"));
-    for (coord, by) in stood.values {
-        rem_apply(
-            &mut remainder,
-            DocEdit::AddValue {
-                placement: instance,
-                value: Box::new(crate::mate::Value { mate, coord, by }),
-                fresh: Vec::new(),
-            },
-        )?;
-    }
+    let crate::mate::Placed {
+        mate: None, values, ..
+    } = stood
+    else {
+        unreachable!("stand writes the identity bundle, which has no mate")
+    };
+    rem_apply(&mut remainder, DocEdit::unmated(instance, values))?;
     let copies = remainder
         .doc()
         .output(instance, 0)
@@ -4034,7 +4069,7 @@ pub fn inline(
             };
             let Some(value) = bundle
                 .iter()
-                .find(|c| c.value().is_some_and(|v| on_world(v.mate)))
+                .find(|c| c.value().is_some_and(|v| v.mate.is_some_and(on_world)))
             else {
                 continue;
             };
@@ -4543,7 +4578,21 @@ pub fn inline(
         let host_vars = VarCarry::new(doc);
         let mut ids: BTreeMap<crate::node::ConstraintId, crate::node::ConstraintId> =
             BTreeMap::new();
-        for constraint in bundle {
+        if unmated_bundle(&bundle) {
+            let whole = Node::Place {
+                shapes: Vec::new(),
+                constraints: bundle.clone(),
+            };
+            let (authored, fresh) = host_vars.author(&whole, &BTreeMap::new());
+            current
+                .apply_recorded(DocEdit::AddValues {
+                    placement: carried_root,
+                    values: values_of(authored),
+                    fresh: fresh.fresh,
+                })
+                .map_err(refused)?;
+        }
+        for constraint in bundle.iter().filter(|_| !unmated_bundle(&bundle)) {
             let one = Node::Place {
                 shapes: Vec::new(),
                 constraints: vec![constraint.clone()],
@@ -4590,10 +4639,10 @@ pub fn inline(
                     fresh: fresh.fresh,
                 },
                 crate::mate::ConstraintKind::Value(mut value) => {
-                    let Some(&mate) = ids.get(&value.mate) else {
+                    let Some(&mate) = value.mate.and_then(|mate| ids.get(&mate)) else {
                         unreachable!("a value's mate is in its bundle, ahead of it or not")
                     };
-                    value.mate = mate;
+                    value.mate = Some(mate);
                     DocEdit::AddValue {
                         placement: carried_root,
                         value: Box::new(value),

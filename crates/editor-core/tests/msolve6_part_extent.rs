@@ -23,7 +23,7 @@ use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate,
     MateFault, MateRef, Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal,
-    RecipeNodeId, ResolveFault, SlideAxis, Target, Value, WorldRead, content_pin, product,
+    RecipeNodeId, ResolveFault, TargetAxis, Target, Value, WorldRead, content_pin, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, on_frame, revolve_about, run, solve};
@@ -161,7 +161,7 @@ fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> Prof
         &DocEdit::AddValue {
             placement: mate.placement,
             value: Box::new(Value {
-                mate: mate.id,
+                mate: Some(mate.id),
                 coord,
                 by,
             }),
@@ -192,8 +192,8 @@ fn seat(
         ),
     );
     let doc = [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(0.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, ang(0.0)),
     ]
     .into_iter()
@@ -464,8 +464,8 @@ fn seated(
     );
     let mut seat = vec![rest];
     for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(0.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, ang(0.0)),
     ] {
         let id = push(
@@ -473,7 +473,7 @@ fn seated(
             DocEdit::AddValue {
                 placement: b,
                 value: Box::new(Value {
-                    mate: rest.id,
+                    mate: Some(rest.id),
                     coord,
                     by,
                 }),

@@ -395,7 +395,7 @@ fn unread(
     pncad::document::Mate<Formula>,
     Vec<(pncad::document::Coord, Formula)>,
 ) {
-    use pncad::document::{Coord, SlideAxis, Target, WorldRead};
+    use pncad::document::{Coord, TargetAxis, Target, WorldRead};
     let face = StableName {
         kind: EntityKind::Face,
         node,
@@ -410,8 +410,8 @@ fn unread(
         class: pncad::select::ContactClass::Rest,
     };
     let zero = vec![
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::X), len(0.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
         (Coord::Spin, ang(0.0)),
     ];
     (mate, zero)

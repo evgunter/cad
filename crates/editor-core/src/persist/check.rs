@@ -1179,6 +1179,7 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         // door lowers.
         | DocEdit::AddConstraint { .. }
         | DocEdit::AddValue { .. }
+        | DocEdit::AddValues { .. }
         // A constraint's id is minted, not a float.
         | DocEdit::RemoveConstraint { .. }
         // A label is text.
