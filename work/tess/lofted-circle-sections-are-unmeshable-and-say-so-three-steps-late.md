@@ -174,3 +174,11 @@ A lofted `LoopProgram::Circle` tessellates (`tess/lofted-circle-meshes`).
 **Not every δ meshes**: `work/tess/lofted-rational-walls-refuse-at-some-deltas`
 records the δ bands where a lofted rational wall refuses at a sliver
 away from the crease, a class a crease-free arc loft meets too.
+
+**QUAD's door stays open behind it.** `topo::mass_properties` of
+`sweep::test_support::lofted_cylinder(1.0)` at `Tol::witness()`
+refuses: "a face's certified contribution stayed 1.833e-6 m wide after
+1 refinement round(s), above the 1.024e-6 m this tolerance targets".
+Measured on this branch; meshing does not touch it. The lever QUAD
+names for one wide rational span is
+`work/quad/a-ninety-degree-rational-span-encloses-looser-than-two-forty-five-degree-spans`.
