@@ -2,12 +2,13 @@
 id: a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face
 kind: unit
 title: A ray that passes within the band of an edge meets it, half a crossing for each face the edge bounds, and reads the role off its signed count (D10, Ev on PR 5119)
-status: review
+status: closed
 opened: 2026-10-15
 priority: P2
 cost: H
 branch: flush/edge-meeting-ray
 pr: 5422
+closed: 2026-10-20
 ---
 
 
@@ -185,3 +186,27 @@ reader's aimed rays per solid through `test_support::aimed_rays`, and
 The curved faces. A seam split's one comparison and a carrier pair's
 signed offset are
 `a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim`.
+
+## Resolution (2026-10-20, PR 5422)
+
+The planar half landed:
+- A ray within the band of a line edge between two planar faces meets it once, half a crossing for each face. The read is the census's `ee_lines_closest`, behind `census::line_passes`.
+- A face met at two of its edges is a wedge and reads nothing; a vertex in band is a corner.
+- A pair's parties are read where the ray meets their faces.
+- `point_in_solid` reads through the same walk, which closes CLEAVE's point-in-solid row.
+- The needles of 21ε and 30ε and `brick ∩ brick` at 3Kε read by ray. Needles under 2Kε are read by the volume, as D10 allows where no ray reads.
+
+**Review.** A dual concurrent review found no MAJOR. Its fix pass:
+- the wedge rule's false reason replaced, the rule narrowed and pinned on R1's witnesses;
+- two false pairs fixed and pinned: definite-apart cubes, and an oblique carrier crossing;
+- marks before pairs documented;
+- the vertex read enclosed.
+
+The second reviewer's re-checks approved. Batteries: 0 lines moved.
+
+**Residues:**
+- `a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim` (P2, H), the curved half;
+- `a-small-toruss-aims-land-on-its-faces-shared-seam-where-the-quartic-reads-in-band` (FLUSHTAIL);
+- `d10-says-no-word-on-what-a-wedge-is-or-how-far-a-rays-refusal-reaches` (FLUSHTAIL, design): the wedge's definition, the ~3Kε refusal reach and the winding-number question, for Ev;
+- the aims' exact ties, parked on the curved half.
+
