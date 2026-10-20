@@ -63,7 +63,10 @@ fn probe_needles_aimed_rays() {
                 } else {
                     body
                 };
-                for r in topo::test_support::aimed_rays(&body, tol) {
+                for r in topo::test_support::aimed_rays(
+                    &body,
+                    Band::linear(tol).expect("the run's band"),
+                ) {
                     println!(
                         "EMR needle eps={:e} m={m} turned={turned} inverted={inverted}: {}",
                         tol.eps(),
@@ -108,7 +111,10 @@ fn probe_boolean_needles_aimed_rays() {
             match topo::intersect(&a, &b, tol) {
                 Ok(result) => match result.body() {
                     Some(body) => {
-                        for r in topo::test_support::aimed_rays(&body.body, tol) {
+                        for r in topo::test_support::aimed_rays(
+                            &body.body,
+                            Band::linear(tol).expect("the run's band"),
+                        ) {
                             println!("EMR brick∩brick {what}: {}", short(&r));
                         }
                     }
@@ -182,7 +188,7 @@ fn probe_one_needle() {
         .and_then(|x| x.parse().ok())
         .unwrap_or(30.0);
     let body = needle(m * tol.eps(), false, tol).revert().expect("reverts");
-    for r in topo::test_support::aimed_rays(&body, tol) {
+    for r in topo::test_support::aimed_rays(&body, Band::linear(tol).expect("the run's band")) {
         println!("EMR one needle m={m}: {}", short(&r));
     }
 }

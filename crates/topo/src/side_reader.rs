@@ -307,20 +307,23 @@ fn aim_at<T: Decide>(
 /// `None` for a loop with a curved edge, or one that does not walk.
 fn line_loop_mean<T: geom_core::Real>(body: &Body<T>, face: FaceKey) -> Option<Point3<T>> {
     let outer = body.get_face(face)?.outer;
-    let LoopBoundary::Cycle { first } = body.get_loop(outer)?.boundary else {
-        return None;
+    let first = match body.get_loop(outer)?.boundary {
+        LoopBoundary::Cycle { first } => first,
+        // An outer loop with no edge has no points to take the mean of;
+        // the certified interior point, asked next, reads the same face.
+        LoopBoundary::Empty { .. } => return None,
     };
-    let (mut sum, mut n) = (Vec3::zero(), 0_u32);
+    let origin = Point3::new(T::zero(), T::zero(), T::zero());
+    let (mut sum, mut n) = (Vec3::zero(), T::zero());
     for h in body.loop_walk(first).closed("loop", first) {
         let he = body.get_half_edge(h)?;
         if !crate::census::edge_is_line(body, he.edge) {
             return None;
         }
-        let p = *body.get_point(body.get_vertex(he.start)?.point)?;
-        sum = sum + (p - Point3::new(T::zero(), T::zero(), T::zero()));
-        n += 1;
+        sum = sum + (*body.get_point(body.get_vertex(he.start)?.point)? - origin);
+        n = n + T::one();
     }
-    (n > 0).then(|| Point3::new(T::zero(), T::zero(), T::zero()) + sum / T::from_f64(f64::from(n)))
+    Some(origin + sum / n)
 }
 
 /// **How far from `aim` any face of the selection reaches**: the loops'

@@ -428,8 +428,8 @@ impl<T: Decide, H> Crossings<T, H> {
         sideless: impl FnOnce(&[&H]) -> RayFault<E>,
     ) -> Result<Option<Sign>, RayFault<E>> {
         let n = self.ahead.len();
-        let mut decided: Vec<Option<Result<Sign, Indeterminate>>> = vec![None; n * n];
-        let mut spanned: Vec<Option<Result<Sign, Indeterminate>>> = vec![None; n * n];
+        let mut decided: Vec<Option<Result<Sign, Indeterminate>>> = vec![None; n.pow(2)];
+        let mut spanned: Vec<Option<Result<Sign, Indeterminate>>> = vec![None; n.pow(2)];
         // `k`'s advance less `b`'s, decided once per pair.
         let mut gap = |k: usize, b: usize| {
             let (lo, hi, flip) = if k < b { (k, b, false) } else { (b, k, true) };

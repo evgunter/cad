@@ -4725,8 +4725,11 @@ fn crosses_by_turn<T: Decide>(
         .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?;
     let mut turn = T::zero();
     for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let Some(LoopBoundary::Cycle { first }) = body.get_loop(l).map(|lp| lp.boundary) else {
-            continue;
+        let first = match body.get_loop(l).map(|lp| lp.boundary) {
+            Some(LoopBoundary::Cycle { first }) => first,
+            // A lone ring vertex bounds no area and turns nothing.
+            Some(LoopBoundary::Empty { .. }) => continue,
+            None => return Err(RayFault::Fatal(PointInSolidError::CorruptFace { face })),
         };
         for h in body.loop_walk(first).closed("loop", first) {
             let ends = body.get_half_edge(h).and_then(|he| {

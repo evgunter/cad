@@ -576,7 +576,10 @@ fn p3b_probe_the_tori_aimed_rays() {
             rev.body.clone(),
             rev.body.revert().expect("the torus reverts"),
         ] {
-            for r in topo::test_support::aimed_rays(&body, tol()) {
+            for r in topo::test_support::aimed_rays(
+                &body,
+                geom_core::Band::linear(tol()).expect("the run's band"),
+            ) {
                 eprintln!(
                     "EMR torus eps={:e} R={major:e}: {}",
                     tol().eps(),
