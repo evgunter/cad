@@ -2,7 +2,8 @@
 id: a-hairpin-line-fillets-half-tangent-cancels
 kind: issue
 title: paths: the line x line fillet's half-angle tangent divides by |v1||v2| + v1.v2, which cancels at a hairpin corner and moves the fillet's effective radius
-status: open
+status: dispatched
+branch: paths/hairpin-fillet-half-tan
 opened: 2026-10-19
 priority: P2
 ---
