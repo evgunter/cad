@@ -110,17 +110,19 @@ impl VarKind {
         })
     }
 
-    /// **The entity kind a selection of this kind names**, and whether
-    /// it is a set: `None` for a kind that is not a selection.
+    /// **The entity kind a selection of this kind names**, and how
+    /// many names it holds ([`Select`]): `None` for a kind that is not
+    /// a selection.
     #[must_use]
-    pub fn selection(self) -> Option<(crate::names::EntityKind, bool)> {
+    pub fn selection(self) -> Option<(crate::names::EntityKind, SelectionCount)> {
         use crate::names::EntityKind;
+        use SelectionCount::{Any, AtLeastOne, One};
         match self {
-            Self::Face => Some((EntityKind::Face, false)),
-            Self::Edge => Some((EntityKind::Edge, false)),
-            Self::Vertex => Some((EntityKind::Vertex, false)),
-            Self::Faces => Some((EntityKind::Face, true)),
-            Self::Edges => Some((EntityKind::Edge, true)),
+            Self::Face => Some((EntityKind::Face, One)),
+            Self::Edge => Some((EntityKind::Edge, One)),
+            Self::Vertex => Some((EntityKind::Vertex, One)),
+            Self::Faces => Some((EntityKind::Face, Any)),
+            Self::Edges => Some((EntityKind::Edge, AtLeastOne)),
             Self::Length
             | Self::Angle
             | Self::Scalar
@@ -252,7 +254,10 @@ pub enum VarDef {
 /// set sorted and deduplicated, so two selections of the same edges are
 /// equal; a `Faces` set in designation order, first occurrence kept
 /// (a shell's rim inherits its first designated face, so the order is
-/// authored data); a singleton holds exactly one.
+/// authored data); a singleton holds exactly one. An `Edges` set holds
+/// at least one name, since no reader gives a blend of no edges a
+/// meaning; a `Faces` set holds any number, and empty is the sealed
+/// hollow.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Select {
@@ -264,9 +269,10 @@ pub struct Select {
 
 impl Select {
     /// **Why `names` is not a stored selection of `kind`**, or `None`:
-    /// a kind that is not a selection, a singleton not holding exactly
-    /// one name, a name of another entity kind than the selection's, or
-    /// a set out of its stored order ([`Select`]).
+    /// a kind that is not a selection, a count of names the kind does
+    /// not hold ([`SelectionCount`]), a name of another entity kind
+    /// than the selection's, or a set out of its stored order
+    /// ([`Select`]).
     ///
     /// What a name denotes is its own `kind`: the name table's seating
     /// doors refuse a row whose entity is of another kind
@@ -274,11 +280,14 @@ impl Select {
     /// this passes resolves only to entities of its kind.
     #[must_use]
     pub fn fault(kind: VarKind, names: &[crate::names::StableName]) -> Option<SelectionFault> {
-        let Some((entity, set)) = kind.selection() else {
+        let Some((entity, holds)) = kind.selection() else {
             return Some(SelectionFault::NotASelection { kind });
         };
-        if !set && names.len() != 1 {
-            return Some(SelectionFault::Singleton { count: names.len() });
+        if !holds.admits(names.len()) {
+            return Some(SelectionFault::Count {
+                kind,
+                count: names.len(),
+            });
         }
         if let Some((at, name)) = names.iter().enumerate().find(|(_, n)| n.kind != entity) {
             return Some(SelectionFault::Kind {
@@ -329,6 +338,41 @@ impl Select {
     }
 }
 
+/// **How many names a selection of a kind holds**
+/// ([`VarKind::selection`], [`Select`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectionCount {
+    /// A singleton: exactly one.
+    One,
+    /// An `Edges` set: at least one.
+    AtLeastOne,
+    /// A `Faces` set: any number, none included.
+    Any,
+}
+
+impl SelectionCount {
+    /// Whether a selection of this count holds `count` names.
+    #[must_use]
+    pub fn admits(self, count: usize) -> bool {
+        match self {
+            Self::One => count == 1,
+            Self::AtLeastOne => count >= 1,
+            Self::Any => true,
+        }
+    }
+}
+
+/// The count as prose reads it: "exactly one", "at least one".
+impl core::fmt::Display for SelectionCount {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::One => "exactly one",
+            Self::AtLeastOne => "at least one",
+            Self::Any => "any number",
+        })
+    }
+}
+
 /// **Why a list of names is not a stored selection** ([`Select::fault`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectionFault {
@@ -352,9 +396,12 @@ pub enum SelectionFault {
         /// The entity kind the names name.
         entity: crate::names::EntityKind,
     },
-    /// A singleton holding other than one name.
-    Singleton {
-        /// How many it holds.
+    /// A selection holding a count of names its kind does not hold
+    /// ([`VarKind::selection`]).
+    Count {
+        /// The selection's kind.
+        kind: VarKind,
+        /// How many names it holds.
         count: usize,
     },
     /// An edge set not strictly increasing at `at`: a swap or a repeat
@@ -386,6 +433,23 @@ pub enum SelectionFault {
     OtherBody,
 }
 
+impl SelectionFault {
+    /// **What a count fault's kind holds**: its entity kind and how many
+    /// names, `None` for a fault that is not about the count.
+    #[must_use]
+    pub fn count_bound(&self) -> Option<(crate::names::EntityKind, SelectionCount)> {
+        match self {
+            Self::Count { kind, .. } => kind.selection(),
+            Self::NotASelection { .. }
+            | Self::Seat { .. }
+            | Self::NotCanonical { .. }
+            | Self::Kind { .. }
+            | Self::Repeated { .. }
+            | Self::OtherBody => None,
+        }
+    }
+}
+
 impl core::fmt::Display for SelectionFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -398,9 +462,17 @@ impl core::fmt::Display for SelectionFault {
                     entity.noun()
                 )
             }
-            Self::Singleton { count } => {
-                write!(f, "a selection of one entity holds {count} names")
-            }
+            Self::Count { kind, count } => match kind.selection() {
+                // A singleton's kind is its entity's noun ("an edge"); a
+                // set's is "set of …".
+                Some((entity, holds @ SelectionCount::One)) => write!(
+                    f,
+                    "{} {kind} holds {holds} name, not {count}",
+                    entity.article()
+                ),
+                Some((_, holds)) => write!(f, "a {kind} holds {holds} name, not {count}"),
+                None => write!(f, "a {kind} is not a selection"),
+            },
             Self::OtherBody => f.write_str("the body named is not the body read"),
             Self::NotCanonical { at } => write!(
                 f,

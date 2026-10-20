@@ -1666,3 +1666,12 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Seam:** CARVE/STRUT files were touched (call-site swaps, `stored_carrier`, docs).
   (ENCL orchestrator)
 - 2026-10-20 02:35Z — **Seam note from NURBS: main red after PR 5418.** `topo::review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` fails on main `911e0c18`, naming `Body::restate_stored_edge` (`attach.rs:1362`), which has no tier-1 postcondition and isn't on the allowlist. Filed as `main-red-restate-stored-edge-is-off-the-tier1-mutation-roster` (ENCL's). NURBS PRs will cite it as a base red until it's fixed.
+- 2026-10-20 — **Merged PR 5428** (`unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`, closed). A gate's rejected sign is told in the payload: "a decided sign this decision cannot use" is appended only where `MarginDiag::rejected_sign()` is Positive or Negative. That word has one home (`Indeterminate::payload_word`), so every `payload()`-plus-ending composition carries it.
+  - An untagged reading past the band, i.e. a reported bound such as `CarrierEqError::Unsettled`, carries no word. Its tail on main had said one.
+  - The `Unsized` table is unchanged; `Fit` stays an approximation limit, pinned through props `Converged` and at every door.
+  - **Review:** two MAJORs on the first head, both from a number-based `verdict()`:
+    - props `Converged` regressed to a defect ending;
+    - a false word appeared on open declared-pair bounds.
+    The fix pass removed `verdict()` and `RefusedArm::read` and keyed the word on the tag.
+  - **Rows:** evidence added to pcert `band-scale-torus-geometry-ends-as-a-kernel-defect`; the Villarceau pin is renamed to show it pins a known-wrong ending. Evidence also added to restfront `an-at-rest-certify-lead-calls-a-gates-definite-rejection-undecided`.
+  (ENCL orchestrator)

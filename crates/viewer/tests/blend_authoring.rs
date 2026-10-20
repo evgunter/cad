@@ -34,7 +34,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
 use viewer::blend::FREEZE_NOTE;
-use viewer::blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool};
+use viewer::blend::{BlendEvent, BlendKindChoice, BlendTarget, BlendTool};
 use viewer::display::DisplayView;
 use viewer::pickindex::PickKinds;
 use viewer::session::{
@@ -500,12 +500,9 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     assert_eq!(*edges, BOX_EDGES);
     assert_eq!(blend(&tools).count(), 0);
     assert_eq!(blend(&tools).target(), None);
-    assert_eq!(
-        blend(&tools)
-            .fillet_op(len(BLEND))
-            .expect_err("a tool holding no edges refuses"),
-        BlendError::NoEdges,
-        "and the commit door refuses rather than authoring an empty blend"
+    assert!(
+        blend(&tools).fillet_op(len(BLEND)).is_none(),
+        "and a tool holding no edges has no op to commit"
     );
 }
 
@@ -704,12 +701,13 @@ fn the_blend_door_refuses_a_target_that_is_not_a_body() {
     }
 }
 
-/// **An empty set refuses at the TOOL door**, before an op exists —
-/// and the document-level rule is untouched: an empty selection that
-/// reaches a node refuses at evaluation on its badge, so a
-/// hand-written recipe gets the same answer.
+/// **An empty set has no op at the tool, and refuses at the insert**:
+/// a tool holding no edges holds no body, so it authors nothing, and
+/// an op that names a body and no edges is the edit door's refusal (a
+/// set of edges holds at least one name), forwarded whole — the answer
+/// a hand-written recipe gets too.
 #[test]
-fn an_empty_set_refuses_at_the_tool_and_at_evaluation() {
+fn an_empty_set_has_no_op_and_refuses_at_the_insert() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let target = common::xy_box_in(&mut session, [SIDE; 3]);
@@ -717,47 +715,44 @@ fn an_empty_set_refuses_at_the_tool_and_at_evaluation() {
 
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
-    assert_eq!(
-        blend(&tools)
-            .fillet_op(len(BLEND))
-            .expect_err("a tool holding no edges refuses"),
-        BlendError::NoEdges
+    assert!(
+        blend(&tools).fillet_op(len(BLEND)).is_none(),
+        "no fillet op"
     );
-    assert_eq!(
-        blend(&tools)
-            .chamfer_op(len(BLEND))
-            .expect_err("a tool holding no edges refuses"),
-        BlendError::NoEdges
-    );
-    assert_eq!(
-        blend(&tools)
-            .fillet_op(len(BLEND))
-            .expect_err("a tool holding no edges refuses")
-            .to_string(),
-        "no edges picked yet"
+    assert!(
+        blend(&tools).chamfer_op(len(BLEND)).is_none(),
+        "no chamfer op"
     );
 
-    // The op door itself admits one — a recipe is allowed to be
-    // unfinished — and evaluation is where it refuses.
-    let fillet = session_insert(
-        &mut session,
+    for op in [
         SessionOp::AddFillet {
             target,
             radius: len(BLEND),
             selection: Vec::new(),
         },
-    );
-    session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
-    assert!(
-        matches!(
-            eval.result(fillet)
-                .and_then(NodeResult::error)
-                .map(|e| &e.kind),
-            Some(NodeErrorKind::BlendSelectionEmpty { .. })
-        ),
-        "an empty selection refuses at evaluation"
-    );
+        SessionOp::AddChamfer {
+            target,
+            distance: len(BLEND),
+            selection: Vec::new(),
+        },
+    ] {
+        let outcome = session.perform(op);
+        assert!(outcome.committed.is_empty(), "nothing was authored");
+        assert!(
+            matches!(
+                outcome.refusal.as_ref(),
+                Some(Refusal::Edit(edit)) if matches!(
+                    edit.as_ref(),
+                    pncad::document::EditError::SelectionShape {
+                        fault: pncad::document::SelectionFault::Count { count: 0, .. },
+                        ..
+                    }
+                )
+            ),
+            "an empty selection refuses at the insert, got {:?}",
+            outcome.refusal
+        );
+    }
 }
 
 /// **The blend tool is one of the modal tools**: it narrows the cursor
@@ -1202,12 +1197,7 @@ fn an_emptied_set_releases_its_target() {
     assert!(pick(&mut tools, session.committed_doc(), &one).is_empty());
     assert_eq!(blend(&tools).count(), 0);
     assert_eq!(blend(&tools).target(), None, "an empty set holds no target");
-    assert_eq!(
-        blend(&tools)
-            .fillet_op(len(BLEND))
-            .expect_err("a tool holding no edges refuses"),
-        BlendError::NoEdges
-    );
+    assert!(blend(&tools).fillet_op(len(BLEND)).is_none(), "and no op");
     // And the next click starts wherever the user aims it.
     assert!(pick(&mut tools, session.committed_doc(), &other).is_empty());
     assert_eq!(blend(&tools).target(), Some(whole(&session, second)));
