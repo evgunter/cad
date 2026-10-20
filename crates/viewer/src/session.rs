@@ -3400,6 +3400,7 @@ impl DocSession {
             | DocEdit::AddValue { .. }
             | DocEdit::AddValues { .. }
             | DocEdit::RemoveConstraint { .. }
+            | DocEdit::RemoveConstraints { .. }
             // The variable doors that are not the value or the
             // notation half. A declare mints a variable and a
             // definition replaces one whole: each is an act the door

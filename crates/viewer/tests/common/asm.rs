@@ -210,16 +210,26 @@ pub fn instance_posed(
     instance
 }
 
-/// **The world pin `placement`'s bundle holds**, by its address.
+/// **What places `placement` in the world**, by its address: the one
+/// mate its bundle holds reading the world, or, for a bundle with no
+/// mate (the identity bundle the place gesture writes), its first value,
+/// whose removal takes the bundle whole (`DocEdit::removing`).
 ///
 /// # Panics
 ///
-/// Unless the bundle holds exactly one mate reading the world.
+/// Unless the bundle holds exactly one mate reading the world, or is a
+/// bundle with no mate.
 pub fn world_pin_of(
     doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
     placement: RecipeNodeId,
 ) -> pncad::document::MateRef {
-    let pins: Vec<_> = crate::fixture::bundle(doc, placement)
+    let bundle = crate::fixture::bundle(doc, placement);
+    if let Some(first) = bundle.first()
+        && bundle.iter().all(|c| c.value().is_some_and(|v| v.mate.is_none()))
+    {
+        return pncad::document::MateRef::new(placement, first.id);
+    }
+    let pins: Vec<_> = bundle
         .into_iter()
         .filter(|constraint| {
             constraint

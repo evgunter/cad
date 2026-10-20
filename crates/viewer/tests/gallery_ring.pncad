@@ -3,7 +3,7 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
   "snapshot": {
     "id": "1c20a55875fd2760f4d43eb67ee0d135",
     "mint": {
-      "chain": "4e3d2be2c756391feaf5182677bd7436aa70ab1e3f1db334c879d1188dc471a6",
+      "chain": "f638d840d9fec7c68ab5cdb7671861b8ff0db83b7cf21c4e866e3d7613907129",
       "log": [
         {
           "var": "1:aec2bdcb4d5191ab"
@@ -63,22 +63,40 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           "var": "19:cbd57f34eb734417"
         },
         {
-          "var": "20:72d23ba3d9181405"
+          "var": "20:637bb2453600ba20"
         },
         {
-          "constraint": "21:62a64fe2e5a777ae"
+          "var": "21:7e83d30e868643a2"
         },
         {
-          "var": "22:eb051dc69b507f34"
+          "var": "22:27daaec3a3cc478c"
         },
         {
-          "constraint": "23:ac2d23e725f86e87"
+          "var": "23:25dc09ab2928e9f7"
         },
         {
-          "var": "24:3f6c8147e7c11f56"
+          "var": "24:a9deaa0c47d3988f"
         },
         {
-          "constraint": "25:4e3d2be2c756391f"
+          "var": "25:5a3e089cd4164f16"
+        },
+        {
+          "constraint": "26:9a0021680a842445"
+        },
+        {
+          "constraint": "27:6e8fc2ada691197c"
+        },
+        {
+          "constraint": "28:39568115d114984c"
+        },
+        {
+          "constraint": "29:317ce9b66a48aa21"
+        },
+        {
+          "constraint": "30:41370f29e7c5e29f"
+        },
+        {
+          "constraint": "31:f638d840d9fec7c6"
         }
       ]
     },
@@ -133,52 +151,68 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           ],
           "constraints": [
             {
-              "id": "21:62a64fe2e5a777ae",
+              "id": "26:9a0021680a842445",
               "kind": {
-                "mate": {
-                  "on": "17:2ac47b3996e7171e",
-                  "to": {
-                    "world": {
-                      "spin": {
-                        "pose": {
-                          "role": {
-                            "pose": "frame",
-                            "role": "X"
-                          }
-                        },
-                        "about": {
-                          "role": {
-                            "pose": "frame",
-                            "role": "Z"
-                          }
-                        },
-                        "by": "20:72d23ba3d9181405"
-                      }
-                    }
+                "value": {
+                  "coord": {
+                    "slide": "x"
                   },
-                  "class": "rest"
+                  "by": "20:637bb2453600ba20"
                 }
               }
             },
             {
-              "id": "23:ac2d23e725f86e87",
+              "id": "27:6e8fc2ada691197c",
               "kind": {
                 "value": {
-                  "mate": "21:62a64fe2e5a777ae",
+                  "coord": {
+                    "slide": "y"
+                  },
+                  "by": "21:7e83d30e868643a2"
+                }
+              }
+            },
+            {
+              "id": "28:39568115d114984c",
+              "kind": {
+                "value": {
                   "coord": {
                     "slide": "z"
                   },
-                  "by": "22:eb051dc69b507f34"
+                  "by": "22:27daaec3a3cc478c"
                 }
               }
             },
             {
-              "id": "25:4e3d2be2c756391f",
+              "id": "29:317ce9b66a48aa21",
               "kind": {
                 "value": {
-                  "mate": "21:62a64fe2e5a777ae",
-                  "coord": "spin",
-                  "by": "24:3f6c8147e7c11f56"
+                  "coord": {
+                    "spin_about": "x"
+                  },
+                  "by": "23:25dc09ab2928e9f7"
+                }
+              }
+            },
+            {
+              "id": "30:41370f29e7c5e29f",
+              "kind": {
+                "value": {
+                  "coord": {
+                    "spin_about": "y"
+                  },
+                  "by": "24:a9deaa0c47d3988f"
+                }
+              }
+            },
+            {
+              "id": "31:f638d840d9fec7c6",
+              "kind": {
+                "value": {
+                  "coord": {
+                    "spin_about": "z"
+                  },
+                  "by": "25:5a3e089cd4164f16"
                 }
               }
             }
@@ -339,23 +373,7 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           }
         }
       },
-      "20:72d23ba3d9181405": {
-        "kind": "Angle",
-        "def": {
-          "Defined": {
-            "Div": [
-              "Turn",
-              {
-                "Ratio": {
-                  "num": 4,
-                  "den": 1
-                }
-              }
-            ]
-          }
-        }
-      },
-      "22:eb051dc69b507f34": {
+      "20:637bb2453600ba20": {
         "kind": "Length",
         "def": {
           "Defined": {
@@ -363,7 +381,39 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           }
         }
       },
-      "24:3f6c8147e7c11f56": {
+      "21:7e83d30e868643a2": {
+        "kind": "Length",
+        "def": {
+          "Defined": {
+            "Zero": "Length"
+          }
+        }
+      },
+      "22:27daaec3a3cc478c": {
+        "kind": "Length",
+        "def": {
+          "Defined": {
+            "Zero": "Length"
+          }
+        }
+      },
+      "23:25dc09ab2928e9f7": {
+        "kind": "Angle",
+        "def": {
+          "Defined": {
+            "Zero": "Angle"
+          }
+        }
+      },
+      "24:a9deaa0c47d3988f": {
+        "kind": "Angle",
+        "def": {
+          "Defined": {
+            "Zero": "Angle"
+          }
+        }
+      },
+      "25:5a3e089cd4164f16": {
         "kind": "Angle",
         "def": {
           "Defined": {

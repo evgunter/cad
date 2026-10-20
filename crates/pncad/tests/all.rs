@@ -2865,6 +2865,14 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 /// sweep — so ε is the one line that legitimately varies per run and
 /// is excluded from the comparison. The checked-in fixture carries
 /// the default ε (regenerate under a default environment).
+///
+/// Re-blessed for the identity bundle (FORK-REST): the plate's
+/// placement stands where its body stands by `stand`, which now writes
+/// no mate and the constant `0` on the three slides and three spins as
+/// one `AddValues`, where it wrote a plane mate on the plate's start
+/// cap to the world's xy and three values naming it. The bundle and the
+/// ids minted from it on moved; the profile, the operations and the
+/// evaluated volume did not.
 #[test]
 fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     use pncad::document::BooleanValue;

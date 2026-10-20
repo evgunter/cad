@@ -263,6 +263,14 @@ pub fn placed_at(
 /// schema break makes this file unreadable, and the fix is to
 /// regenerate it from `demo-tour gallery` and rename, never to teach
 /// the loader about an old shape.
+///
+/// Regenerated for the identity bundle (FORK-REST): the tour stands its
+/// ring by `stand`, which writes no mate and the constant `0` on the
+/// three slides and three spins, where it wrote an `Axis` mate to the
+/// world's x axis turned by the revolve's heading and slid by its axis
+/// numbers. The ring's placement holds six values and no mate, so its
+/// ids from the placement on moved; the profile and the revolve did
+/// not.
 pub const GALLERY_RING: &str = include_str!("../gallery_ring.pncad");
 
 /// **ε is a run parameter, and a saved document records the one it was
@@ -319,7 +327,7 @@ use viewer::session::{DocSession, FaceSelection, SessionOp};
 /// insert, for an op whose node is one — and every other edit places
 /// bodies (A10, D10): the operands a combine places against its first
 /// operand's root before it reads them, the new body's world placement
-/// and the mate and values that place it, or the target's placements
+/// and the bundle that places it, or the target's placements
 /// re-pointed or withdrawn.
 ///
 /// This is the op vocabulary's door, and it holds the session's
@@ -364,7 +372,9 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
                 } | DocEdit::DeleteNode { .. }
                     | DocEdit::AddConstraint { .. }
                     | DocEdit::AddValue { .. }
+                    | DocEdit::AddValues { .. }
                     | DocEdit::RemoveConstraint { .. }
+                    | DocEdit::RemoveConstraints { .. }
             ),
             "every other edit places bodies: {edit:?}"
         );

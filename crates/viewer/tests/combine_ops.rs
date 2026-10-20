@@ -2481,9 +2481,9 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        7,
+        4,
         "a pattern of two, its copy's projection, and that projection's placement with its \
-         mate and three values"
+         identity bundle, written as one edit"
     );
     let minted = outcome.minted.clone();
     let [pattern, copy, placement] = minted[..] else {
