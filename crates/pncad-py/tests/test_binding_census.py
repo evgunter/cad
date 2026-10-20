@@ -4061,6 +4061,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::CensusUndecidable": "ValidationFinding.variant",
     "ValidationError::ArcEndOffCorner": "ValidationFinding.variant",
     "ValidationError::InstanceInterference": "ValidationFinding.variant",
+    "ValidationError::CuspEdgesMissing": "ValidationFinding.variant",
     "ValidationError::DanglingTopology": "ValidationFinding.variant",
     "ValidationError::DanglingGeometry": "ValidationFinding.variant",
     "ValidationError::NextPrevMismatch": "ValidationFinding.variant",

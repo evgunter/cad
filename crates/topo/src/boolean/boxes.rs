@@ -56,9 +56,9 @@
 //!   candidates lifted out for ∖'s reading of coincident edges, boxes
 //!   the line edges the same way ([`edge_box`]): a loose box hands the
 //!   parallel screen and the overlap more pairs, which they part.
-//!   `census::sweep_same_solid_tangent_lines` boxes a solid's faces the
-//!   same way ([`face_box`]): a loose box hands the tangent-line reading
-//!   a pair whose carriers it parts.
+//!   Its every-face class (`census::Trees::every_face`, [`face_box`] of
+//!   each face) reads the same direction for the same-solid tangent-line
+//!   pass: a loose box hands that reading a pair whose carriers it parts.
 //! - `validate`'s check 9 (`ring_pairs`) PRUNES the same way: two
 //!   rings of one face whose hulled edge boxes clear are never handed
 //!   to the contact arms, and whether two rings meet is decided by those
@@ -3864,8 +3864,8 @@ pub(crate) mod tests {
         // `census.rs` counts ELEVEN: the pre-filter's `face_box` and
         // `edge_box` reads, pass 2′'s curved-edge `edge_box` read
         // (`census::Candidates::build`, the pruning door),
-        // `collinear_overlaps`' `edge_box` read and the same-solid
-        // tangent sweep's `face_box` read (the same pruning door),
+        // `collinear_overlaps`' `edge_box` read and the every-face
+        // class's `face_box` read (the same pruning door),
         // three rule reads of its own and the edge reach's
         // `edge_rule_box` read of the rule it took, and two that are
         // not doors — two rows in its test module call `face_box` to

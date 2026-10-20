@@ -577,6 +577,9 @@ struct Trees {
     /// The curved edges, in arena order — pass 2′'s answering side, and
     /// pass 5′'s query side, self-joined for its curved pairs.
     curved: Class,
+    /// Every face, curved or planar, in arena order — self-joined by the
+    /// same-solid tangent-line pass.
+    every_face: Class,
 }
 
 /// One entity class under the strategy: its padded boxes in snapshot
@@ -643,7 +646,7 @@ fn empty_box() -> Aabb {
 }
 
 /// The candidate pairs every sweep examines, under one strategy: the
-/// three snapshot classes and the curved edges, and a door for the
+/// three snapshot classes, the curved edges and every face, and a door for the
 /// classes the backstop
 /// builds over its own boxes.
 struct Candidates {
@@ -651,6 +654,8 @@ struct Candidates {
     trees: Trees,
     /// The curved edges [`Trees::curved`] indexes, in its order.
     curved: Vec<EdgeKey>,
+    /// The faces [`Trees::every_face`] indexes, in its order.
+    every_face: Vec<FaceKey>,
 }
 
 /// The item of a snapshot slice at a candidate index. The index is
@@ -717,6 +722,17 @@ impl Candidates {
             spline.map_or_else(|| edge_box(body, k, pad), |hull| hull.padded(pad))
         };
         let curved_boxes = curved.iter().map(|&k| curved_box(k)).collect();
+        let every_face: Vec<FaceKey> = body.faces.keys().collect();
+        let every_face_boxes = every_face
+            .iter()
+            .map(|&k| {
+                if plant == Some(k) {
+                    empty_box()
+                } else {
+                    face_box(body, k, pad, band).unwrap_or_else(|_| Aabb::poison())
+                }
+            })
+            .collect();
         Self {
             strategy,
             trees: Trees {
@@ -724,8 +740,10 @@ impl Candidates {
                 edges: Class::build(strategy, edge_boxes),
                 faces: Class::build(strategy, face_boxes),
                 curved: Class::build(strategy, curved_boxes),
+                every_face: Class::build(strategy, every_face_boxes),
             },
             curved,
+            every_face,
         }
     }
 
@@ -901,7 +919,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
         &mut errors,
     );
     sweep_conformal_patches(body, &geo, &declared, band, region, &mut errors);
-    sweep_same_solid_tangent_lines(body, &geo, &declared, band, &mut errors);
+    sweep_same_solid_tangent_lines(body, &geo, &declared, band, &cands, &mut errors);
     sweep_cross_solid_backstop(body, &geo, &declared, band, tol, &cands, trace, &mut errors);
     confirm_records(body, &geo, contacts, band, region, &mut errors);
     errors
@@ -4187,47 +4205,42 @@ fn sweep_conformal_patches<T: Decide>(
 /// line touch to read; a pair the records name is the confirm pass's.
 /// A touch at an isolated point, where a crescent one solid shares with
 /// itself is legal, is not this arm's.
-fn sweep_same_solid_tangent_lines<T: Decide + Bounds>(
+fn sweep_same_solid_tangent_lines<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    cands: &Candidates,
     errors: &mut Vec<ValidationError>,
 ) {
     if geo.curved_faces.is_empty() {
         return;
     }
-    let pad = sweep_pad(band);
     let curved: BTreeSet<FaceKey> = geo.curved_faces.iter().copied().collect();
-    let faces: Vec<(FaceKey, crate::SolidKey, Aabb, BTreeSet<EdgeKey>)> = body
-        .faces
-        .iter()
-        .filter_map(|(key, face)| {
-            let solid = body.solid_of_face(key)?;
-            let edges = face_cycles(body, face)
+    let face_edges = |f: FaceKey| -> BTreeSet<EdgeKey> {
+        body.get_face(f).map_or_else(BTreeSet::new, |face| {
+            face_cycles(body, face)
                 .filter_map(Result::ok)
                 .flatten()
                 .filter_map(|he| body.half_edges.get(he).map(|h| h.edge))
-                .collect();
-            let boxed = face_box(body, key, pad, band).unwrap_or_else(|_| Aabb::poison());
-            Some((key, solid, boxed, edges))
+                .collect()
         })
-        .collect();
-    for (i, (a, solid_a, box_a, edges_a)) in faces.iter().enumerate() {
-        for (b, solid_b, box_b, edges_b) in &faces[i + 1..] {
-            let (a, b) = (*a, *b);
-            if solid_a != solid_b
-                || !(curved.contains(&a) || curved.contains(&b))
-                || !box_a.overlaps(box_b)
-                || !edges_a.is_disjoint(edges_b)
-                || declared.faces.contains(&(a, b))
-            {
-                continue;
-            }
+    };
+    for (i, &a) in cands.every_face.iter().enumerate() {
+        let edges_a = face_edges(a);
+        for j in cands.trees.every_face.later(i) {
+            let b = *candidate(&cands.every_face, j);
             let (Some(fa), Some(fb)) = (body.get_face(a), body.get_face(b)) else {
                 continue;
             };
-            if fa.surface == fb.surface {
+            let solid = body.solid_of_face(a);
+            if solid.is_none()
+                || solid != body.solid_of_face(b)
+                || !(curved.contains(&a) || curved.contains(&b))
+                || fa.surface == fb.surface
+                || declared.faces.contains(&(a, b))
+                || !edges_a.is_disjoint(&face_edges(b))
+            {
                 continue;
             }
             same_solid_tangent_pair(body, a, b, band, errors);
