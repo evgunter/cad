@@ -30,3 +30,12 @@ Left by all three lanes of `names-emission-raises-panic-or-take-their-true-endin
 **Panics inside closures.** A panic inside an `unwrap_or_else` or `map` closure defeats `#[track_caller]`: PR 5503's review showed the location reported is the helper's own line. Use `match` or `let … else`.
 
 **K and ε.** A row-4 argument must hold for every K > 1 and every ε that `Tolerance` accepts (`geom-core/src/tolerance.rs`). Probe with `CAD_AMBIGUITY_K=1.5` and with `CAD_TOLERANCE_EPS=1e-6`.
+
+## Also in emit.rs, waiting on the D10 hold (2026-10-20)
+
+`wire-emis-rest` (PR 5502) left four more raises in `names/emit.rs`, because they are on placement, pattern and instance ground:
+- `flat_body_index` (2);
+- `name_placed_union`;
+- `name_in_part`.
+
+They are listed here so the parent row can close. Convert them when the D10 hold lifts, under the same ladder.

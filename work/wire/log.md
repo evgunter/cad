@@ -6960,3 +6960,4 @@ Signed (WIRE orchestrator).
   - Priced on the way: the tied joined set P3/M, the loft count P3/E, and the variant-less emit_topo raises P2/M.
   - Recorded in docs/MODEL-AB-LOG.md, with four live bands (13800–14199) the roster had missed.
 - 2026-10-20 (WIRE orchestrator) Dispatched `wire-docserde` (wire/doc-deserialize-door: Doc's public Deserialize goes through the load door; STYLE+correctness review) and `wire-splitvertex` (wire/split-wall-vertex-crossing: root-cause the vertex-touching moat refusal; FULL review). State sync PR 5509 opened.
+- 2026-10-20 (WIRE orchestrator) PR 5501's fix pass was read by the orchestrator. Five band- and pair-dependent sites went back to typed, the variant rows were merged into one (24 raises), and the test was split. CI green, merged at 43d115ee1a. The parent Emission row is closed. The 4 D10-held emit.rs raises are noted on the emit.rs helpers row.
