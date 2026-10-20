@@ -3344,7 +3344,7 @@ fn trig_at_rational_pi(op: SymOp, a: &Form) -> Option<Form> {
     let (rational::Int::Small(num), rational::Int::Small(den)) = (&q.num, &q.den) else {
         return None;
     };
-    let shift = u32::try_from(q.exp2.unsigned_abs()).ok()?;
+    let shift = q.exp2.unsigned_abs();
     let (p, s) = if q.exp2 >= 0 {
         (num.checked_mul(1i128.checked_shl(shift)?)?, *den)
     } else {
@@ -6963,10 +6963,12 @@ mod tests {
 
     /// **Rule D's third fold: `sin`/`cos` at an exact half-multiple of
     /// π** — `cos π = −1`, `sin π = 0`, `cos(π/2) = 0`, `sin(3π/2) =
-    /// −1`, `cos(2π) = 1` decide as theorems; `cos(π/3)` and
+    /// −1`, `cos(2π) = 1` decide as theorems. So does `cos(π/3) = 1/2`,
+    /// by the fold of a rational multiple of π whose value is rational
+    /// (`trig_at_rational_pi`). `cos(π/5)`, which is irrational, and
     /// `cos(π + atan X)` never fold.
     #[test]
-    fn rule_d_folds_trig_at_half_multiples_of_pi_and_nothing_else() {
+    fn rule_d_folds_trig_at_rational_multiples_of_pi_and_nothing_else() {
         let (rows, counts) = with_session(budget(), || {
             let pi = Sym::<f64>::pi();
             let one = Sym::from_f64(1.0);
@@ -6977,16 +6979,18 @@ mod tests {
                 how((pi * half).sin_cos().1),
                 how((pi * Sym::from_f64(1.5)).sin_cos().0 + one),
                 how(Sym::tau().sin_cos().1 - one),
+                how((pi / Sym::from_f64(3.0)).sin_cos().1 - half),
             ]
         });
-        assert_eq!(rows, ["proven"; 5], "{counts:?}");
+        assert_eq!(rows, ["proven"; 6], "{counts:?}");
         let (rows, _) = with_session(budget(), || {
             let pi = Sym::<f64>::pi();
             let x = p("x", 0.3);
             // A value-equal spelling on the other side keeps each row
             // a genuine identity that must stay NUMERIC.
             [
-                how((pi / Sym::from_f64(3.0)).sin_cos().1 - Sym::from_f64(0.5)),
+                how((pi / Sym::from_f64(5.0)).sin_cos().1
+                    + (pi * Sym::from_f64(4.0) / Sym::from_f64(5.0)).sin_cos().1),
                 how((pi + x.atan()).sin_cos().1 + x.atan().sin_cos().1),
             ]
         });

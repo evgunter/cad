@@ -253,6 +253,7 @@ impl<T: Real> Angle<T> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{Angle, Turns};
     use crate::{Bounds, Interval, Real};

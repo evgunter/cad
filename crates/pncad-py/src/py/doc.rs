@@ -14,6 +14,14 @@ use crate::tags::{edit_error_tag, edit_inner_variant_tag, persist_error_tag, wor
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
+/// A point given as three lengths, as `Doc.corner_frame` takes each of
+/// its corners.
+type Lengths3 = (
+    super::quantity::Length,
+    super::quantity::Length,
+    super::quantity::Length,
+);
+
 /// The refusing ARM's word, as an `EditError` carries it: the inner
 /// refusal's own discriminant beside the carrier's, `None` where the
 /// arm holds no inner refusal.
@@ -1791,14 +1799,12 @@ impl Doc {
         &self,
         py: Python<'_>,
         body: OperandArg,
-        corner: (super::quantity::Length, super::quantity::Length, super::quantity::Length),
-        up: (super::quantity::Length, super::quantity::Length, super::quantity::Length),
-        toward: (super::quantity::Length, super::quantity::Length, super::quantity::Length),
+        corner: Lengths3,
+        up: Lengths3,
+        toward: Lengths3,
         resolver: Option<&super::store::Workspace>,
     ) -> PyResult<super::pose::PoseDef> {
-        let at = |v: (super::quantity::Length, super::quantity::Length, super::quantity::Length)| {
-            [v.0.0.meters(), v.1.0.meters(), v.2.0.meters()]
-        };
+        let at = |v: Lengths3| [v.0.0.meters(), v.1.0.meters(), v.2.0.meters()];
         let opts = d::EvalOptions {
             resolver: seam(resolver),
             ..d::EvalOptions::default()

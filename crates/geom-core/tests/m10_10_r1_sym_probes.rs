@@ -317,25 +317,35 @@ fn r1_the_atan2_fold_refuses_everything_it_says_it_refuses() {
 
 // ------------------------------------------ A1: the half-π fold (D14)
 
-/// **The half-π fold takes `k·π/2` and nothing else** — including
-/// nothing that is only NUMERICALLY a half-multiple of π: a `π` spelled
-/// as the `f64` literal is a `Lit` node, not the form's own `π`
-/// indeterminate, and must stay an atom.
+/// **The half-π fold takes `k·π/2`, and the rational fold takes `q·π`
+/// where its value is rational (`cos(π/3) = ½`), and nothing else** —
+/// not `cos(π/5)`, which is irrational, and nothing that is only
+/// NUMERICALLY a multiple of π: a `π` spelled as the `f64` literal is a
+/// `Lit` node, not the form's own `π` indeterminate, and must stay an
+/// atom.
 #[test]
 fn r1_the_half_pi_fold_takes_the_indeterminate_and_not_the_literal() {
     let exact = how(|| Sym::<Interval>::pi().cos() + Sym::from_f64(1.0));
     let three_halves =
         how(|| (Sym::from_f64(1.5) * Sym::<Interval>::pi()).sin() + Sym::from_f64(1.0));
     let third = how(|| (Sym::<Interval>::pi() / Sym::from_f64(3.0)).cos() - Sym::from_f64(0.5));
+    let fifth = how(|| {
+        (Sym::<Interval>::pi() / Sym::from_f64(5.0)).cos()
+            + (Sym::<Interval>::pi() * Sym::from_f64(4.0) / Sym::from_f64(5.0)).cos()
+    });
     let literal =
         how(|| Sym::<Interval>::from_f64(core::f64::consts::PI).cos() + Sym::from_f64(1.0));
     println!(
         "R1: cos π + 1 => {exact}; sin(3π/2) + 1 => {three_halves}; \
-         cos(π/3) − ½ => {third}; cos(LIT π) + 1 => {literal}"
+         cos(π/3) − ½ => {third}; cos(π/5) + cos(4π/5) => {fifth}; cos(LIT π) + 1 => {literal}"
     );
     assert_eq!(exact, "proven", "cos π = −1");
     assert_eq!(three_halves, "proven", "sin(3π/2) = −1");
-    assert_ne!(third, "proven", "cos(π/3) is not a half-multiple");
+    assert_eq!(third, "proven", "cos(π/3) = ½, a rational value");
+    assert_ne!(
+        fifth, "proven",
+        "cos(π/5) is irrational and folds to no constant"
+    );
     assert_ne!(
         literal, "proven",
         "a numerically-close literal π is not the form's π"

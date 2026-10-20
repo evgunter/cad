@@ -1336,4 +1336,3 @@ const REACH: f64 = 1.48;
 /// winning triangle's exact test rounds it. Re-derive from the
 /// probe's failure message if the ring's tessellation changes.
 const RING_CORNER_T: f64 = 1.48;
-
