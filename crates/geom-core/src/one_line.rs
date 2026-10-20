@@ -126,7 +126,7 @@ on_one_line!(
 );
 
 on_one_line!(
-    /// [`on_one_line`] in the plane.
+    /// [`on_one_line`](fn@on_one_line) in the plane.
     on_one_line_2d,
     Point2,
     Vec2

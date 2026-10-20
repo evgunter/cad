@@ -571,7 +571,7 @@ pub const ARC_RESIDUAL_SAMPLES: usize = 256;
 /// `(aa − bb)/2`, to the sum beside it that dominates it. To first order
 /// the ceiling is off by well under `32u`, and `64u` doubles that for
 /// the second-order terms. A ROUNDING estimate, as
-/// [`SHORT_CHAIN_ULPS`] is.
+/// [`geom_core::SHORT_CHAIN_ULPS`] is.
 const CEILING_PAD: f64 = 1.0 + 64.0 * geom_core::UNIT_ROUNDOFF;
 
 /// `|F″|` over the whole carrier for a harmonic residual: the true
