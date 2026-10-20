@@ -6692,3 +6692,10 @@ Signed (WIRE orchestrator).
   - Divergent: a merged group's spelling (one plane-piece constituent, or each section by name), and the kernel record (O: absorbed sections lose their walls, so record them at completion).
   - Round 1 sent.
   - Found: fork-log row 163's Ev/match columns are a copy of row 165's. Fixing them in the next WIRE PR to touch the log: Ev 'sure, sounds good' (PR 5306, 2026-10-19), match both.
+
+- 2026-10-20 (WIRE orchestrator) FORK-SECTIONID converged in two rounds.
+  - The shape: bare when alone, Borders when several, ties per N4.
+  - The merged group cites the plane once (O moved to F's principle, F to O's outside-the-set form).
+  - The kernel record is the ring-to-island export plus the emitter's plane group (the orchestrator checked emit_topo ~503: the split records its other groups).
+  - Premise checked against N4 and N2's ratified words.
+  - [ev] PR 5426, fork-log row 179. Subscribed.
