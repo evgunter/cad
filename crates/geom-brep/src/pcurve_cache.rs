@@ -2233,14 +2233,8 @@ impl core::fmt::Display for PcurveCertifyError {
             // asks `ending` instead of rendering this.
             Self::FittedEscalated { decision, cause } => write!(
                 f,
-                concat!(
-                    "pcurve certification: the fitted lane's certificate escalated — {}",
-                    geom_core::undecided!(),
-                    ": {}. {}"
-                ),
-                decision,
-                cause.payload(),
-                decision.ending(cause, Reading::Build)
+                "pcurve certification: the fitted lane's certificate escalated — {}",
+                cause.undecided(decision, decision.ending(cause, Reading::Build))
             ),
             Self::IntervalNotForward => write!(
                 f,
@@ -10486,6 +10480,47 @@ mod tests {
                 "in band, {reading:?}"
             );
         }
+    }
+
+    /// **Both escalation arms tell a gate's rejected sign.** Each renders
+    /// its cause's payload before its decision's ending, and the payload
+    /// carries the word of a reading a verdict was reached on: a gate's
+    /// rejection past the band reads "a decided sign this decision cannot
+    /// use" there, whatever ending follows.
+    #[test]
+    fn both_escalation_arms_tell_a_gates_rejected_sign() {
+        use crate::ssi::{SsiDecision, TraceDecision};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cause = geom_core::k_stats::gate_rejection(
+            "pcurve_test_gate",
+            geom_core::Decided {
+                sign: geom_core::Sign::Negative,
+                margin: geom_core::MarginDiag::value(-5e-8),
+            },
+            band,
+            geom_core::SizedPass::Positive,
+        );
+        let told = "margin -5e-8 lies past the ambiguity band (1e-9, 1e-8) — a decided sign this \
+                    decision cannot use. ";
+        let escalated = PcurveCertifyError::Escalated {
+            check: PcurveCheck::ChartIncidence,
+            sample: 0,
+            cause,
+        }
+        .to_string();
+        assert!(
+            escalated.contains(&format!("escalated: {told}There is no way through")),
+            "`Escalated`: {escalated}"
+        );
+        let fitted = PcurveCertifyError::FittedEscalated {
+            decision: SsiDecision::Trace(TraceDecision::ClosureReturn),
+            cause,
+        }
+        .to_string();
+        assert!(
+            fitted.contains(&format!(" is undecided: {told}")),
+            "`FittedEscalated`: {fitted}"
+        );
     }
 
     /// A unit-frame cylinder of radius `r` about `+z`, seam at `+x`.
