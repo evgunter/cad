@@ -6949,3 +6949,7 @@ Signed (WIRE orchestrator).
   - Both runs_with Zero arms refuse typed, with K=1.5 regressions. UNCLASSIFIED_SIDE is typed again. The helpers use match, so track_caller works.
   - A local merge with main (which carries 5502) passes `cargo check -p editor-core --all-targets`. CI green; merged at 864aa4e786.
   - The stored-curve row is closed. The parent Emission row waits on 5501.
+- 2026-10-20 (WIRE orchestrator) PR 5501 FULL review: MERGEABLE WITH MINORS. No panic reached under the defaults, K=1.5 or ε=1e-6, including on the three-way merge (one conflict, in wire.rs in_member_space).
+  - Ruling: the three row-4 sites whose argument rests on independent tolerance decisions agreeing go back to typed: name_by_parents' one-parent seam, Flush::line_sense, and sense_against/meeting.
+  - The class note now reads: a row-4 argument holds for every accepted K and ε, and does not rest on two independent decisions agreeing.
+  - Fix pass sent: merge main with the conflict resolution; fold the two variant-less rows into one; split the panicking test; stale prose (including a quote in a perf row); orient's message.
