@@ -1528,7 +1528,7 @@ struct Wedge<T: Real> {
 ///
 /// The Boolean's result gate runs it over every line where coincident
 /// edges lie; it is the reading tier 3′'s side check owes there too
-/// (restread's `census-passes-a-face-inside-an-edges-material-wedge`):
+/// (restread's `tier-3-prime-reads-no-side-between-coincident-edges-on-one-line`):
 /// coincident edges' material must lie on opposite sides. A face that
 /// crosses the line with no edge of its own there is not read: it holds
 /// no sheet at the line, and finding it is that check's point-in-face
@@ -2582,7 +2582,9 @@ trait Branch {
     /// every refusal and defect the branch met, each of which reads the
     /// body's own cells or can only add to that escalation. An unrecorded
     /// contact, or a cut, holds only under the branch's reading, and is
-    /// dropped.
+    /// dropped. A face read through an edge's wedge holds only where the
+    /// branch lays the edge in the face, so it is carried as undecided
+    /// in band.
     fn carries(self) -> Vec<ValidationError>;
 }
 
@@ -2593,7 +2595,20 @@ impl Branch for Vec<ValidationError> {
     }
     fn carries(self) -> Vec<ValidationError> {
         self.into_iter()
-            .filter(|e| !matches!(e, ValidationError::UnrecordedContact { .. }))
+            .filter_map(|e| match e {
+                ValidationError::UnrecordedContact { .. } => None,
+                ValidationError::FaceThroughEdgeWedge {
+                    edge,
+                    face,
+                    witness,
+                } => Some(ValidationError::FaceThroughEdgeWedgeUndecided {
+                    edge,
+                    face,
+                    witness,
+                    why: TouchUnread::InBand,
+                }),
+                e => Some(e),
+            })
             .collect()
     }
 }
@@ -2702,6 +2717,8 @@ impl<T: Decide> EfPair<'_, T> {
 /// The in-plane overlap lane of pass 4: cut the edge's span at the
 /// face's coincident boundary vertices and where its boundary crosses
 /// the edge, probe each cell midpoint, and D3-certify every `In` cell.
+/// A backed cell whose edge and face belong to one solid is then read
+/// for sides at its midpoint ([`edge_in_own_face`]).
 #[allow(clippy::too_many_arguments)] // the lane's whole state, the region door riding to the rung
 fn ef_overlap_lane<T: Decide>(
     body: &Body<T>,
@@ -4884,9 +4901,14 @@ impl Named {
                 }
             },
             ValidationError::CensusUndecidable { a, b, .. } => Self::Two(*a, *b, Said::Unexamined),
-            // A touch inside one solid, read for sides where it is found
-            // ([`edge_in_own_face`]): an edge's pairing, which no face
-            // crossing and no placement reading of another solid rests on.
+            // A touch inside one solid ([`edge_in_own_face`]), which
+            // blocks no other pair. A face sheet inside the edge's wedge
+            // leaves the material a set with a bounded side, wrongly
+            // paired at the edge, so placement reads against it. A wedge
+            // inside the face's material winds the region there to two;
+            // a touch pushes off without crossing, so such a shell
+            // crosses itself elsewhere, and that crossing stands as its
+            // own `Pierce` or `EdgeCross`, which blocks.
             ValidationError::FaceThroughEdgeWedge { edge, face, .. }
             | ValidationError::FaceThroughEdgeWedgeUndecided { edge, face, .. } => Self::Two(
                 EntityId::Edge(*edge),
@@ -5063,6 +5085,17 @@ enum TouchVerdict {
     /// The two materials' interiors meet at the touch, on decided
     /// readings: the touch is the degenerate shape of a crossing.
     Crossing,
+    /// No side read, for the reason named.
+    Unread(TouchUnread),
+}
+
+/// **Why the touch analysis read no side** at a touch: the one home of
+/// its refusal reasons, which a cross-solid touch renders as
+/// [`Undecided`] and an edge lying in a face of its own solid as
+/// [`ValidationError::FaceThroughEdgeWedgeUndecided`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
+pub enum TouchUnread {
     /// A sign the analysis needed is in band.
     InBand,
     /// A face's piece at the touch did not build: a choice in building
@@ -5088,19 +5121,71 @@ enum TouchVerdict {
     Corrupt,
 }
 
+impl From<TouchUnread> for TouchVerdict {
+    fn from(why: TouchUnread) -> Self {
+        Self::Unread(why)
+    }
+}
+
+impl TouchUnread {
+    /// The cross-solid backstop's reason for a touch left unread.
+    fn refusal(self) -> Undecided {
+        match self {
+            Self::InBand => Undecided::TouchInBand,
+            Self::PieceInBand => Undecided::TouchPieceInBand,
+            Self::Unreadable => Undecided::TouchUnreadable,
+            Self::Unanalysed => Undecided::TouchUnanalysed,
+            Self::Degenerate => Undecided::TouchDegenerate,
+            Self::ChordScale => Undecided::TouchChordScale,
+            Self::Corrupt => Undecided::CorruptInstance,
+        }
+    }
+
+    /// The reason and its recourse, where an edge lies in a face of its
+    /// own solid ([`ValidationError::FaceThroughEdgeWedgeUndecided`]).
+    pub(crate) fn in_own_face(self) -> &'static str {
+        match self {
+            Self::InBand => concat!(
+                geom_core::undecided!("which side of each other their material lies on"),
+                ". There is no way through yet for this shape"
+            ),
+            Self::PieceInBand => {
+                "a face there has corners or edges too nearly in line, seen from the point, \
+                 to trace at this tolerance, so no side reads. There is no way through yet \
+                 for this shape"
+            }
+            Self::Unreadable => {
+                "a curved face meets the point, and the check cannot yet read which side of \
+                 a curved face material lies on. There is no way through yet for this shape"
+            }
+            Self::Unanalysed => {
+                "the part's faces there meet the point along an edge and again, or do not \
+                 close around it, so no side reads. There is no way through yet for this \
+                 shape"
+            }
+            Self::Degenerate => {
+                "two faces of the part lie on each other there, as a slit or a doubled face \
+                 does, so no side reads. There is no way through yet for this shape"
+            }
+            Self::ChordScale => {
+                "an edge there is too long or too short to measure. Recourse: rescale the \
+                 model so every edge length is an ordinary number"
+            }
+            Self::Corrupt => concat!(
+                "the part's topology there could not be walked. ",
+                geom_core::kernel_or_file_defect_ending!()
+            ),
+        }
+    }
+}
+
 impl TouchVerdict {
     /// The refusal a verdict pushes, or `None` for a rest.
     fn refusal(&self) -> Option<Undecided> {
         match self {
             Self::Rest(_) => None,
             Self::Crossing => Some(Undecided::MixedTouch),
-            Self::InBand => Some(Undecided::TouchInBand),
-            Self::PieceInBand => Some(Undecided::TouchPieceInBand),
-            Self::Unreadable => Some(Undecided::TouchUnreadable),
-            Self::Unanalysed => Some(Undecided::TouchUnanalysed),
-            Self::Degenerate => Some(Undecided::TouchDegenerate),
-            Self::ChordScale => Some(Undecided::TouchChordScale),
-            Self::Corrupt => Some(Undecided::CorruptInstance),
+            Self::Unread(why) => Some(why.refusal()),
         }
     }
 
@@ -5257,14 +5342,16 @@ impl TouchSite {
             Self::VertexOnEdge(v, _) | Self::VertexOnFace(v, _) => vec![v],
             Self::EdgeEdge(..) | Self::EdgeInFace(..) | Self::EdgeCross(..) => return Ok(None),
         };
-        let keys = touch_keys(geo, ties, &seed).ok_or(TouchVerdict::Corrupt)?;
+        let keys =
+            touch_keys(geo, ties, &seed).ok_or(TouchVerdict::Unread(TouchUnread::Corrupt))?;
         let at = geo
             .vmap
             .get(&seed[0])
             .copied()
-            .ok_or(TouchVerdict::Corrupt)?;
+            .ok_or(TouchVerdict::Unread(TouchUnread::Corrupt))?;
         let (x, y) = self.entities();
-        let solid = |id| census_entity_solid(body, id).ok_or(TouchVerdict::Corrupt);
+        let solid =
+            |id| census_entity_solid(body, id).ok_or(TouchVerdict::Unread(TouchUnread::Corrupt));
         Ok(Some((keys, at, (solid(x)?, solid(y)?))))
     }
 
@@ -5308,7 +5395,7 @@ impl TouchSite {
             })
             .collect();
         if all.is_empty() {
-            return TouchVerdict::InBand;
+            return TouchVerdict::Unread(TouchUnread::InBand);
         }
         let pick = all
             .iter()
@@ -5332,7 +5419,10 @@ impl TouchSite {
             let side = |s| Link::at_point(body, geo, ties, s, &keys, at, band);
             return Ok(vec![(side(sa), side(sb))]);
         }
-        let edge = |e: EdgeKey| geo.line_edge(e).ok_or(TouchVerdict::Unreadable);
+        let edge = |e: EdgeKey| {
+            geo.line_edge(e)
+                .ok_or(TouchVerdict::Unread(TouchUnread::Unreadable))
+        };
         let on_edge = |e: EdgeKey, p: Point3<T>| Link::on_edge(body, geo, e, p, band);
         let in_face = |f: FaceKey, p: Point3<T>| Link::in_face(body, geo, f, p, band);
         Ok(match self {
@@ -5344,11 +5434,12 @@ impl TouchSite {
                 // Every cell of the overlap the finding reports,
                 // re-derived by the same walk. A refusal on the way is
                 // this touch's own.
-                let fg = planar_face(geo, f).ok_or(TouchVerdict::Unreadable)?;
+                let fg =
+                    planar_face(geo, f).ok_or(TouchVerdict::Unread(TouchUnread::Unreadable))?;
                 let mut refused = Vec::new();
                 let cells = ef_overlap_cells(body, edge(e)?, fg, geo, band, &mut refused);
                 if !refused.is_empty() {
-                    return Err(TouchVerdict::InBand);
+                    return Err(TouchVerdict::Unread(TouchUnread::InBand));
                 }
                 cells
                     .iter()
@@ -5360,7 +5451,7 @@ impl TouchSite {
                 vec![(on_edge(a, q), on_edge(b, q))]
             }
             Self::VertexVertex(..) | Self::VertexOnEdge(..) | Self::VertexOnFace(..) => {
-                return Err(TouchVerdict::Corrupt);
+                return Err(TouchVerdict::Unread(TouchUnread::Corrupt));
             }
         })
     }
@@ -5417,70 +5508,19 @@ fn edge_in_own_face<T: Decide>(
         (Ok(a), Ok(b)) => rest::judge(&a, &b, band),
         (Err(v), _) | (_, Err(v)) => v,
     };
-    let unread = match verdict {
-        TouchVerdict::Rest(_) => return None,
-        TouchVerdict::Crossing => {
-            return Some(ValidationError::FaceThroughEdgeWedge {
-                edge,
-                face,
-                witness: witness(p),
-            });
-        }
-        TouchVerdict::InBand | TouchVerdict::PieceInBand => WedgeSideUnread::InBand,
-        TouchVerdict::Unreadable => WedgeSideUnread::Curved,
-        TouchVerdict::Unanalysed | TouchVerdict::Degenerate => WedgeSideUnread::Unanalysed,
-        TouchVerdict::ChordScale => WedgeSideUnread::ChordScale,
-        TouchVerdict::Corrupt => WedgeSideUnread::Corrupt,
-    };
-    Some(ValidationError::FaceThroughEdgeWedgeUndecided {
-        edge,
-        face,
-        witness: witness(p),
-        what: unread.what(),
-    })
-}
-
-/// Why [`edge_in_own_face`] read no side.
-#[derive(Clone, Copy, Debug)]
-#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
-pub(crate) enum WedgeSideUnread {
-    /// A sign the reading needed is in band.
-    InBand,
-    /// A curved face or edge takes part.
-    Curved,
-    /// The faces there fold onto each other, or do not close.
-    Unanalysed,
-    /// An edge's length there is not a number.
-    ChordScale,
-    /// The topology there does not read.
-    Corrupt,
-}
-
-impl WedgeSideUnread {
-    /// The reason and its recourse, as the finding renders them.
-    pub(crate) fn what(self) -> &'static str {
-        match self {
-            Self::InBand => concat!(
-                geom_core::undecided!("which side of each other their material lies on"),
-                ". There is no way through yet for this shape"
-            ),
-            Self::Curved => {
-                "a curved face meets the point, and the check cannot yet read which side of \
-                 a curved face material lies on. There is no way through yet for this shape"
-            }
-            Self::Unanalysed => {
-                "the part's faces there fold onto each other or do not close around the \
-                 point, so no side reads. There is no way through yet for this shape"
-            }
-            Self::ChordScale => {
-                "an edge there is too long or too short to measure. Recourse: rescale the \
-                 model so every edge length is an ordinary number"
-            }
-            Self::Corrupt => concat!(
-                "the part's topology there could not be walked. ",
-                geom_core::kernel_or_file_defect_ending!()
-            ),
-        }
+    match verdict {
+        TouchVerdict::Rest(_) => None,
+        TouchVerdict::Crossing => Some(ValidationError::FaceThroughEdgeWedge {
+            edge,
+            face,
+            witness: witness(p),
+        }),
+        TouchVerdict::Unread(why) => Some(ValidationError::FaceThroughEdgeWedgeUndecided {
+            edge,
+            face,
+            witness: witness(p),
+            why,
+        }),
     }
 }
 
@@ -5582,14 +5622,14 @@ fn pairing<T: Decide>(
 }
 
 /// A chord from the touch point to `q`, as its length: a number, or a
-/// [`TouchVerdict::ChordScale`] refusal for an edge too long or too
+/// [`TouchUnread::ChordScale`] refusal for an edge too long or too
 /// short to measure. The one home of that question in the analysis.
 fn chord<T: Real>(p: Point3<T>, q: Point3<T>) -> Result<T, TouchVerdict> {
     let v = q - p;
     let len = v.norm();
     if !geom_core::is_finite_length(len) || geom_core::is_underflowed_length(len, v.norm_witness())
     {
-        return Err(TouchVerdict::ChordScale);
+        return Err(TouchVerdict::Unread(TouchUnread::ChordScale));
     }
     Ok(len)
 }
@@ -5652,7 +5692,7 @@ enum Turn {
 ///
 /// Every choice is decided in metres, through [`metric`]. A choice in
 /// band, or readings that contradict each other within ε, build no
-/// piece ([`TouchVerdict::PieceInBand`]): the smallest piece of all,
+/// piece ([`TouchUnread::PieceInBand`]): the smallest piece of all,
 /// which costs a refusal and never a rest. A turn read Zero is a
 /// direction shared within ε, and an edge read as blocking within ε
 /// blocks: both only make the piece smaller. An edge whose both ends lie
@@ -5708,7 +5748,12 @@ fn face_piece<T: Decide>(
             let n = rings[r].len();
             (rings[r][(k + 1) % n], Some(rings[r][k]))
         }
-        PieceAt::Inside => (*points.first().ok_or(TouchVerdict::Corrupt)?, None),
+        PieceAt::Inside => (
+            *points
+                .first()
+                .ok_or(TouchVerdict::Unread(TouchUnread::Corrupt))?,
+            None,
+        ),
     };
     let turn = |q: Point3<T>| -> Result<Turn, TouchVerdict> {
         Ok(match side(start, q) {
@@ -5717,9 +5762,9 @@ fn face_piece<T: Decide>(
             Some(Sign::Zero) => match ahead(p, start, q, rd) {
                 Some(Sign::Positive) => Turn::Ahead,
                 Some(Sign::Negative) => Turn::Back,
-                _ => return Err(TouchVerdict::PieceInBand),
+                _ => return Err(TouchVerdict::Unread(TouchUnread::PieceInBand)),
             },
-            None => return Err(TouchVerdict::PieceInBand),
+            None => return Err(TouchVerdict::Unread(TouchUnread::PieceInBand)),
         })
     };
     // The order of two points' turns about `p`.
@@ -5735,7 +5780,7 @@ fn face_piece<T: Decide>(
                 Some(Sign::Positive) => Less,
                 Some(Sign::Negative) => Greater,
                 Some(Sign::Zero) => Equal,
-                None => return Err(TouchVerdict::PieceInBand),
+                None => return Err(TouchVerdict::Unread(TouchUnread::PieceInBand)),
             })
         };
     let mut sorted: Vec<(Turn, Point3<T>)> = Vec::with_capacity(points.len());
@@ -5791,26 +5836,26 @@ fn face_piece<T: Decide>(
     if end.is_none() {
         match (rays.first(), rays.last()) {
             (Some(&first), Some(&last)) if rays.len() > 1 => gaps.push((last.1, first.1)),
-            _ => return Err(TouchVerdict::Unanalysed),
+            _ => return Err(TouchVerdict::Unread(TouchUnread::Unanalysed)),
         }
     }
     if gaps.is_empty() {
-        return Err(TouchVerdict::Unanalysed);
+        return Err(TouchVerdict::Unread(TouchUnread::Unanalysed));
     }
     let mut piece = Vec::with_capacity(2 * gaps.len());
     for (qa, qb) in gaps {
         // Under half a turn apart, so the bisector lies between them.
         match side(qa, qb) {
             Some(Sign::Positive) => {}
-            Some(_) => return Err(TouchVerdict::Unanalysed),
-            None => return Err(TouchVerdict::PieceInBand),
+            Some(_) => return Err(TouchVerdict::Unread(TouchUnread::Unanalysed)),
+            None => return Err(TouchVerdict::Unread(TouchUnread::PieceInBand)),
         }
         // Empty: no vertex strictly left of `ua` and right of `ub`.
         for &q in &points {
             match (side(qa, q), side(qb, q)) {
                 (Some(Sign::Negative | Sign::Zero), _) | (_, Some(Sign::Positive | Sign::Zero)) => {
                 }
-                _ => return Err(TouchVerdict::PieceInBand),
+                _ => return Err(TouchVerdict::Unread(TouchUnread::PieceInBand)),
             }
         }
         // The bisecting ray, as a point at the nearer bound's reach along
@@ -5835,7 +5880,7 @@ fn face_piece<T: Decide>(
             }
             let cross = match (sx, sy) {
                 (None, _) | (_, None) | (Some(Sign::Zero), Some(Sign::Zero)) => {
-                    return Err(TouchVerdict::PieceInBand);
+                    return Err(TouchVerdict::Unread(TouchUnread::PieceInBand));
                 }
                 (Some(Sign::Zero), _) => x,
                 (_, Some(Sign::Zero)) => y,
@@ -5844,7 +5889,7 @@ fn face_piece<T: Decide>(
             match front(cross) {
                 Some(Sign::Positive) => {}
                 Some(Sign::Negative) => continue,
-                _ => return Err(TouchVerdict::PieceInBand),
+                _ => return Err(TouchVerdict::Unread(TouchUnread::PieceInBand)),
             }
             first = match first {
                 None => Some(((x, y), cross)),
@@ -5852,12 +5897,12 @@ fn face_piece<T: Decide>(
                     match sign(TOUCH_PIECE_REACH, Distance::of(cross, c, probe), band) {
                         Some(Sign::Negative) => Some(((x, y), cross)),
                         Some(_) => Some((e, c)),
-                        None => return Err(TouchVerdict::PieceInBand),
+                        None => return Err(TouchVerdict::Unread(TouchUnread::PieceInBand)),
                     }
                 }
             };
         }
-        let ((x, y), _) = first.ok_or(TouchVerdict::Unanalysed)?;
+        let ((x, y), _) = first.ok_or(TouchVerdict::Unread(TouchUnread::Unanalysed))?;
         // Where the ray through `u` meets that edge: on it, each end
         // read along the edge, or the piece does not build.
         let along = (y - x).normalize();
@@ -5867,7 +5912,7 @@ fn face_piece<T: Decide>(
             let past_y = sign(TOUCH_PIECE_MEET, Distance::of(q, y, -along), band);
             match (past_x, past_y) {
                 (Some(Sign::Positive | Sign::Zero), Some(Sign::Positive | Sign::Zero)) => Ok(q),
-                _ => Err(TouchVerdict::PieceInBand),
+                _ => Err(TouchVerdict::Unread(TouchUnread::PieceInBand)),
             }
         };
         piece.push(meet(qa)?);
@@ -5944,24 +5989,31 @@ impl<T: Decide> Sector<T> {
         holds: &[Hold],
         band: Band,
     ) -> Result<Vec<Self>, TouchVerdict> {
-        let fg = planar_face(geo, f).ok_or(TouchVerdict::Unreadable)?;
+        let fg = planar_face(geo, f).ok_or(TouchVerdict::Unread(TouchUnread::Unreadable))?;
         if !fg.polygon {
-            return Err(TouchVerdict::Unreadable);
+            return Err(TouchVerdict::Unread(TouchUnread::Unreadable));
         }
-        let face = body.get_face(f).ok_or(TouchVerdict::Corrupt)?;
+        let face = body
+            .get_face(f)
+            .ok_or(TouchVerdict::Unread(TouchUnread::Corrupt))?;
         let surface = body
             .get_surface(face.surface)
             .cloned()
-            .ok_or(TouchVerdict::Corrupt)?;
+            .ok_or(TouchVerdict::Unread(TouchUnread::Corrupt))?;
         let outward = crate::face_normal::face_outward_normal(body, f)
-            .ok_or(TouchVerdict::Unreadable)?
+            .ok_or(TouchVerdict::Unread(TouchUnread::Unreadable))?
             .vec();
         let rings = fg
             .loops
             .iter()
             .map(|ring| {
                 ring.iter()
-                    .map(|v| geo.vmap.get(v).copied().ok_or(TouchVerdict::Corrupt))
+                    .map(|v| {
+                        geo.vmap
+                            .get(v)
+                            .copied()
+                            .ok_or(TouchVerdict::Unread(TouchUnread::Corrupt))
+                    })
                     .collect::<Result<Vec<_>, _>>()
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -6020,8 +6072,8 @@ impl<T: Decide> Sector<T> {
                 .collect(),
             ([], &[(r, k)], _) => Ok(vec![sector(p, PieceAt::Edge(r, k), &[])?]),
             ([], [], true) if named_corners == 0 => Ok(vec![sector(p, PieceAt::Inside, &[])?]),
-            ([], [], _) => Err(TouchVerdict::Corrupt),
-            _ => Err(TouchVerdict::Unanalysed),
+            ([], [], _) => Err(TouchVerdict::Unread(TouchUnread::Corrupt)),
+            _ => Err(TouchVerdict::Unread(TouchUnread::Unanalysed)),
         }
     }
 
@@ -6098,7 +6150,7 @@ impl<T: Decide> Link<T> {
     /// A link from its sectors.
     fn of(p: Point3<T>, sectors: Vec<Sector<T>>) -> Result<Self, TouchVerdict> {
         if sectors.is_empty() {
-            return Err(TouchVerdict::Corrupt);
+            return Err(TouchVerdict::Unread(TouchUnread::Corrupt));
         }
         let wedges = || sectors.iter().flat_map(|s| &s.wedges);
         let reach = wedges()
@@ -6156,7 +6208,11 @@ impl<T: Decide> Link<T> {
         let mut holds: std::collections::BTreeMap<FaceKey, Vec<Hold>> =
             std::collections::BTreeMap::new();
         for &v in &verts {
-            for &f in geo.vertex_faces.get(&v).ok_or(TouchVerdict::Corrupt)? {
+            for &f in geo
+                .vertex_faces
+                .get(&v)
+                .ok_or(TouchVerdict::Unread(TouchUnread::Corrupt))?
+            {
                 holds.entry(f).or_default().push(Hold::Corner(v));
             }
         }
@@ -6164,7 +6220,9 @@ impl<T: Decide> Link<T> {
             if !on(v) || !mine(EntityId::Edge(*e)) {
                 continue;
             }
-            let edge = geo.line_edge(*e).ok_or(TouchVerdict::Unreadable)?;
+            let edge = geo
+                .line_edge(*e)
+                .ok_or(TouchVerdict::Unread(TouchUnread::Unreadable))?;
             if verts.contains(&edge.v0) || verts.contains(&edge.v1) {
                 continue;
             }
@@ -6201,7 +6259,9 @@ impl<T: Decide> Link<T> {
         p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchVerdict> {
-        let edge = geo.line_edge(e).ok_or(TouchVerdict::Unreadable)?;
+        let edge = geo
+            .line_edge(e)
+            .ok_or(TouchVerdict::Unread(TouchUnread::Unreadable))?;
         let mut keys = vec![edge.f_plus];
         if edge.f_minus != edge.f_plus {
             keys.push(edge.f_minus);
@@ -6320,11 +6380,11 @@ impl<T: Decide> Link<T> {
                         (Some(Positive), Some(Negative)) => true,
                         (Some(Zero), Some(Negative)) | (Some(Positive), Some(Zero)) => false,
                         _ if outside => false,
-                        _ => return Err(TouchVerdict::InBand),
+                        _ => return Err(TouchVerdict::Unread(TouchUnread::InBand)),
                     },
                     Some(_) => false,
                     None if outside => false,
-                    None => return Err(TouchVerdict::InBand),
+                    None => return Err(TouchVerdict::Unread(TouchUnread::InBand)),
                 };
                 if !inside {
                     continue;
@@ -6340,7 +6400,7 @@ impl<T: Decide> Link<T> {
                             slot = usize::MAX;
                             break;
                         }
-                        None => return Err(TouchVerdict::InBand),
+                        None => return Err(TouchVerdict::Unread(TouchUnread::InBand)),
                     }
                 }
                 if slot != usize::MAX {
@@ -6494,7 +6554,8 @@ pub(crate) fn bare_cone_reads(
 /// held, once.
 mod rest {
     use super::{
-        Band, Decide, Link, Material, Place, Point3, Reading, Segment, Sign, TouchVerdict,
+        Band, Decide, Link, Material, Place, Point3, Reading, Segment, Sign, TouchUnread,
+        TouchVerdict,
     };
     use super::{TOUCH_NORMAL, ahead, on_plane, pairing, wedge_side, within};
 
@@ -6572,9 +6633,9 @@ mod rest {
     ///
     /// A crossing is claimed on decided readings only; any other
     /// reading the test needed in band, or a sector whose pieces did not
-    /// cut, leaves the touch [`TouchVerdict::InBand`] (or the cut's own
+    /// cut, leaves the touch [`TouchUnread::InBand`] (or the cut's own
     /// refusal), and a probe lying on another face of its own link (a
-    /// slit, or a face doubled) leaves it [`TouchVerdict::Degenerate`] —
+    /// slit, or a face doubled) leaves it [`TouchUnread::Degenerate`] —
     /// never a crossing and never a rest.
     pub(super) fn judge<T: Decide>(a: &Link<T>, b: &Link<T>, band: Band) -> TouchVerdict {
         // Every reading over the pair is taken about `p`, while each
@@ -6595,8 +6656,8 @@ mod rest {
         for link in [a, b] {
             match link.closes(rd) {
                 Some(true) => {}
-                Some(false) => return TouchVerdict::Unanalysed,
-                None => return TouchVerdict::InBand,
+                Some(false) => return TouchVerdict::Unread(TouchUnread::Unanalysed),
+                None => return TouchVerdict::Unread(TouchUnread::InBand),
             }
         }
         let mut notes = Notes::default();
@@ -6701,9 +6762,9 @@ mod rest {
         if let Some(v) = refused {
             v
         } else if notes.degenerate {
-            TouchVerdict::Degenerate
+            TouchVerdict::Unread(TouchUnread::Degenerate)
         } else if notes.in_band {
-            TouchVerdict::InBand
+            TouchVerdict::Unread(TouchUnread::InBand)
         } else {
             TouchVerdict::Rest(Rest { _sealed: () })
         }
@@ -11953,7 +12014,7 @@ mod tests {
                 TouchSite::VertexVertex(mine, theirs).verdict(&body, &geo, &Ties::default(), band);
             let got = crate::validate_pseudomanifold(&body, &ContactRecords::default(), tol);
             if label == "in band" {
-                assert_eq!(verdict, TouchVerdict::InBand);
+                assert_eq!(verdict, TouchVerdict::Unread(TouchUnread::InBand));
                 assert!(got.is_err(), "{label}: an in-band shared point clears");
             } else {
                 assert!(
@@ -12097,7 +12158,7 @@ mod tests {
     /// corner with the long edge's far end standing off the wall by the
     /// geometric mean of the band's two thresholds: read at its own
     /// length that is in band, so both vertex-on-face touches are
-    /// [`TouchVerdict::InBand`]. (End to end the exact sweeps escalate
+    /// [`TouchUnread::InBand`]. (End to end the exact sweeps escalate
     /// on that far point first; this row pins the analysis's reading.)
     #[test]
     fn a_ray_whose_far_point_is_in_band_reads_in_band() {
@@ -12115,7 +12176,11 @@ mod tests {
             .map(|(_, v)| v)
             .collect();
         assert!(!vf.is_empty(), "{vf:?}");
-        assert!(vf.iter().all(|v| *v == TouchVerdict::InBand), "{vf:?}");
+        assert!(
+            vf.iter()
+                .all(|v| *v == TouchVerdict::Unread(TouchUnread::InBand)),
+            "{vf:?}"
+        );
     }
 
     // ---- Far dips, pinned per site where a direction read at a short
@@ -12779,7 +12844,7 @@ mod tests {
         ));
         assert_eq!(
             rest::judge(&pyramid(Some(0)), &floor_link(band), band),
-            TouchVerdict::Unanalysed
+            TouchVerdict::Unread(TouchUnread::Unanalysed)
         );
     }
 
@@ -12811,7 +12876,7 @@ mod tests {
         assert!(face.tie > 0.0);
         assert_eq!(
             rest::judge(&face, &floor_link(band), band),
-            TouchVerdict::InBand
+            TouchVerdict::Unread(TouchUnread::InBand)
         );
     }
 
@@ -12849,7 +12914,7 @@ mod tests {
         let floor = floor_link(band);
         assert_eq!(
             rest::judge(&link((x, vec![vec![0, 1, 2, 3]])), &floor, band),
-            TouchVerdict::Degenerate
+            TouchVerdict::Unread(TouchUnread::Degenerate)
         );
         assert_eq!(
             rest::judge(&link((-x, vec![vec![0, 1, 4, 5]])), &floor, band),
@@ -12860,7 +12925,7 @@ mod tests {
     /// **A corner whose edges are not numbers refuses on scale.** A
     /// brick shrunk to 1e-170 m (its chords underflow) and one blown up
     /// to 1e200 m (they overflow): the corner's link refuses as
-    /// [`TouchVerdict::ChordScale`], the rescale recourse.
+    /// [`TouchUnread::ChordScale`], the rescale recourse.
     #[test]
     fn a_corner_out_of_scale_refuses_on_scale() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -12879,7 +12944,7 @@ mod tests {
             assert!(
                 matches!(
                     vertex_link(&body, &geo, v, band),
-                    Err(TouchVerdict::ChordScale)
+                    Err(TouchVerdict::Unread(TouchUnread::ChordScale))
                 ),
                 "{scale}"
             );
@@ -13770,12 +13835,14 @@ mod tests {
                     })
                     .collect();
                 assert!(
-                    verdicts.iter().all(|v| *v == TouchVerdict::InBand),
+                    verdicts
+                        .iter()
+                        .all(|v| *v == TouchVerdict::Unread(TouchUnread::InBand)),
                     "each cell reads the dip in band: {verdicts:?}"
                 );
                 let site = TouchSite::EdgeInFace(e.key, top.key);
                 let verdict = site.verdict(&body, &geo, &Ties::default(), band);
-                assert_eq!(verdict, TouchVerdict::InBand);
+                assert_eq!(verdict, TouchVerdict::Unread(TouchUnread::InBand));
             }
         }
 

@@ -169,7 +169,8 @@ fn volume(b: &AtRestBody<f64>) -> f64 {
 /// (`work/contacthold/a-booleans-records-are-complete-only-relative-to-the-records-passed-in.md`);
 /// an edge of the other operand through the rectangle's interior is not
 /// admitted. Where `rider`, the cell is one [`RIDER`] names, and its
-/// `FaceThroughEdgeWedge` is admitted. Returns whether 3′ held.
+/// `FaceThroughEdgeWedge` is admitted and required: a pinned cell that
+/// stops refusing it is a pin gone stale. Returns whether 3′ held.
 fn three_prime(
     what: &str,
     r: &topo::BooleanBody<f64>,
@@ -179,9 +180,19 @@ fn three_prime(
     glued: Option<[[f64; 3]; 4]>,
     rider: bool,
 ) -> bool {
-    let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) else {
+    let errors = validate_pseudomanifold(&r.body, &r.contacts, t())
+        .err()
+        .unwrap_or_default();
+    assert!(
+        !rider
+            || errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::FaceThroughEdgeWedge { .. })),
+        "{what}: no FaceThroughEdgeWedge, where RIDER pins one: {errors:?}"
+    );
+    if errors.is_empty() {
         return true;
-    };
+    }
     let meet = at(pose.at(MEET));
     let at_meet = |v| at(readback::vertex_point(&r.body, v).unwrap()) == meet;
     let far = ray.map(|c| pose.at([0, 1, 2].map(|k| MEET[k] + c[k])));
@@ -494,6 +505,10 @@ fn builds_where(
             }
             Ok(BooleanResult::Empty) => {
                 not_pinned(label, op);
+                assert!(
+                    !RIDER.contains(&format!("{label}, {op}").as_str()),
+                    "{what}: empty, where RIDER pins a body tier 3′ refuses"
+                );
                 material_holds(&what, keep, None, &probes);
                 Some(0.0)
             }

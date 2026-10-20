@@ -1006,8 +1006,10 @@ reads as an interference between two copies at rest, so no bool may
 stand there. `Undecided` escalates
 `CensusEscalated`. The side is read by handing both faces' `Face::sense`
 bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
-establishes the smooth precondition; the census is otherwise
-sense-invariant.
+establishes the smooth precondition. The census's one other side
+reading is pass 4's, of an edge lying in a face of its own solid
+(`edge_in_own_face`, through the touch analysis's `rest::judge`); its
+coincidence sweeps are sense-invariant.
 
 **Grandfathered rungs.** `vv_face_backed`, `vf_face_backed`,
 `ve_face_backed`, `ee_face_backed` (which stands in for a collinear

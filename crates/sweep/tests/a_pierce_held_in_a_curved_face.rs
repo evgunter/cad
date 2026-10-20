@@ -412,9 +412,12 @@ struct Closed<'a> {
 /// the two closed forms, `common` their common part's volume,
 /// `read_pct`% of the probes read. Each passes tier 3′ on the op's
 /// records, but for what the census cannot yet decide and the line
-/// contact an op `drops_line` names leaves unrecorded. Each that `meshes` names for its op and order tessellates to
-/// a mesh `check_mesh` passes, or refuses typed; the others meet a known
+/// contact an op `drops_line` names leaves unrecorded; an op `curved`
+/// names refuses [`curved_unread`], and no other does. Each that
+/// `meshes` names for its op and order tessellates to a mesh
+/// `check_mesh` passes, or refuses typed; the others meet a known
 /// tessellator panic.
+#[allow(clippy::too_many_arguments)] // the row's closed forms and its three pinned run sets
 fn every_op(
     what: &str,
     held: &Closed,
@@ -423,6 +426,7 @@ fn every_op(
     read_pct: usize,
     meshes: &dyn Fn(&str, bool) -> bool,
     drops_line: &dyn Fn(&str, bool) -> bool,
+    curved: &dyn Fn(&str, bool) -> bool,
 ) {
     for (name, op, material) in OPS {
         for held_first in [true, false] {
@@ -478,6 +482,11 @@ fn every_op(
                 }) && unrecorded == usize::from(drops_line(name, held_first)),
                 "{what}: tier 3′: {findings:?}"
             );
+            assert_eq!(
+                findings.iter().any(curved_unread),
+                curved(name, held_first),
+                "{what}: tier 3′ reads no side of an edge with a curved face: {findings:?}"
+            );
             if meshes(name, held_first)
                 && let Ok(mesh) = mesh::tessellate(body, 1e-4, tol())
             {
@@ -506,8 +515,9 @@ fn every_op(
 /// **The fold of `members` by union in every member order, carried**:
 /// each step's records serve the next, so tier 3′ reads every contact
 /// the fold made. Each order builds a body [`sound`] against `holds` and
-/// `volume`, `read_pct`% of the probes read, that passes tier 3′; or
-/// refuses at a step the kind `refuses` names for its order.
+/// `volume`, `read_pct`% of the probes read, that passes tier 3′, or
+/// where `curved` refuses only [`curved_unread`]; or refuses at a step
+/// the kind `refuses` names for its order.
 fn every_order(
     what: &str,
     members: &[AtRestBody<f64>],
@@ -515,6 +525,7 @@ fn every_order(
     volume: f64,
     read_pct: usize,
     refuses: &dyn Fn(&[usize]) -> Option<BooleanErrorKind>,
+    curved: bool,
 ) {
     'order: for order in topo::test_support::meeting::orders(members.len()) {
         let what = format!("{what}, member order {order:?}");
@@ -555,6 +566,11 @@ fn every_order(
             errors.iter().all(curved_unread),
             "{what}: tier 3′: {errors:?}"
         );
+        assert_eq!(
+            !errors.is_empty(),
+            curved,
+            "{what}: tier 3′ reads no side of an edge with a curved face: {errors:?}"
+        );
     }
 }
 
@@ -564,8 +580,10 @@ fn every_order(
 fn curved_unread(e: &topo::ValidationError) -> bool {
     matches!(
         e,
-        topo::ValidationError::FaceThroughEdgeWedgeUndecided { what, .. }
-            if what.starts_with("a curved face meets the point")
+        topo::ValidationError::FaceThroughEdgeWedgeUndecided {
+            why: topo::TouchUnread::Unreadable,
+            ..
+        }
     )
 }
 
@@ -607,6 +625,7 @@ fn a_cylinder_wall_holding_the_pierce_builds_in_every_op_and_order() {
                 99,
                 &|_, _| true,
                 &|_, _| false,
+                &|_, _| false,
             );
         }
         every_order(
@@ -616,6 +635,7 @@ fn a_cylinder_wall_holding_the_pierce_builds_in_every_op_and_order() {
             6.0 + rod_volume + sq_volume - common,
             99,
             &|_| None,
+            false,
         );
     }
 }
@@ -670,6 +690,10 @@ fn a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order(
                 read_pct,
                 &|_, _| true,
                 &|name, held_first| name == "intersection" || (name == "subtraction" && held_first),
+                // The pair's edge with a face on the cylinder, lying in
+                // a plane face of the result, whose side tier 3′ cannot
+                // read (the curved row of `curved_unread`).
+                &|name, held_first| name == "union" || (name == "subtraction" && !held_first),
             );
         }
         // Members 0 and 1 are the prisms, 2 the cylinder: over the whole
@@ -683,6 +707,7 @@ fn a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order(
             lying_volume + prisms_volume - common,
             read_pct,
             &|order| rings_first(order).then_some(BooleanErrorKind::CurvedPierceUnsupported),
+            true,
         );
     }
 }
@@ -804,6 +829,7 @@ fn a_wall_the_ruling_pierces_twice_builds_in_every_op_and_order() {
                 // held pierces.
                 &|name, held_first| !(name == "subtraction" && !held_first),
                 &|_, _| false,
+                &|_, _| false,
             );
         }
         every_order(
@@ -813,6 +839,7 @@ fn a_wall_the_ruling_pierces_twice_builds_in_every_op_and_order() {
             slab_volume + rod_volume + sq_volume - common,
             99,
             &|_| None,
+            false,
         );
     }
 }

@@ -38,3 +38,17 @@ certifies a collinear overlap, and refuse an overlap typed beside
 `FaceThroughEdgeWedge`. Witnesses: a reverted slit body handed to
 `validate_pseudomanifold` directly, and the `insert_voids` graft
 above with its records.
+
+## Evidence: two readers of wedge overlap on a line
+
+PR 5431 added a second reader of whether two material wedges about one
+line overlap. `census::line_wedges` (CLEAVE) reads two coincident
+edges' wedges through tier 3's pinch-corner reading
+(`validate::wedge_holds_named`) at the middle of their shared span;
+`census::edge_in_own_face` reads an edge's wedge against a face of its
+own solid lying through the line through the touch analysis
+(`Link::on_edge`, `Link::in_face`, `rest::judge`). With tier 3's own
+pinch-corner check and the cross-solid touch analysis these are four
+spellings of one question. Running `line_wedges` in the census (the fix
+above) is the place to choose one: either `rest::judge` over two
+`Link::on_edge` links, or `line_wedges` extended to a face's two sheets.

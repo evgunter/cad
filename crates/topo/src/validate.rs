@@ -1940,8 +1940,9 @@ pub enum ValidationError {
         face: FaceKey,
         /// Where the two were read, as coordinates.
         witness: String,
-        /// Why the reading was not taken, and the recourse.
-        what: &'static str,
+        /// Why the reading was not taken; the finding renders it with
+        /// its recourse.
+        why: crate::census::TouchUnread,
     },
     /// Tier 3′: the census read a point at an arc's end that lies
     /// definitely off both of its edge's corners, on a body tier 3 passed
@@ -4255,10 +4256,11 @@ impl fmt::Display for ValidationError {
                  through the material the edge bounds, so the edge pairs two faces with \
                  the face between them. {DEFECT}"
             ),
-            Self::FaceThroughEdgeWedgeUndecided { witness, what, .. } => write!(
+            Self::FaceThroughEdgeWedgeUndecided { witness, why, .. } => write!(
                 f,
                 "an edge lies in a face of its own part at {witness}, and whether the face \
-                 passes through the material the edge bounds is undecided: {what}"
+                 passes through the material the edge bounds is undecided: {}",
+                why.in_own_face()
             ),
             Self::InstanceInterference { .. } => write!(
                 f,

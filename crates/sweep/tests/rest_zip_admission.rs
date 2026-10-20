@@ -51,22 +51,58 @@ fn join_refuses(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> bool {
         .is_some()
 }
 
-/// Tier 3′ on `bb` passes, or refuses only that it cannot read the side
-/// of an edge with a curved face lying in a face of its own solid
+/// Tier 3′ on `bb` passes, or, for a run [`CURVED`] names, refuses only
+/// that it cannot read the side of an edge with a curved face lying in a
+/// face of its own solid
 /// (`work/restread/tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face.md`).
 fn three_prime_or_curved_unread(what: &str, bb: &topo::BooleanBody<f64>) {
-    let Err(errors) = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()) else {
-        return;
-    };
+    let errors = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+        .err()
+        .unwrap_or_default();
     assert!(
         errors.iter().all(|e| matches!(
             e,
-            topo::ValidationError::FaceThroughEdgeWedgeUndecided { what, .. }
-                if what.starts_with("a curved face meets the point")
+            topo::ValidationError::FaceThroughEdgeWedgeUndecided {
+                why: topo::TouchUnread::Unreadable,
+                ..
+            }
         )),
         "{what}: tier 3′: {errors:?}"
     );
+    assert_eq!(
+        !errors.is_empty(),
+        CURVED.contains(&what),
+        "{what}: tier 3′ refuses where CURVED pins it, and only there: {errors:?}"
+    );
 }
+
+/// The runs whose union tier 3′ refuses for an edge with a curved face
+/// lying in a plane face of its own solid, whose side it cannot read.
+/// Every other run passes.
+const CURVED: &[&str] = &[
+    "dUp (0.25, 0.25) a ∪ b′",
+    "dUp (0.25, 0.25) b′ ∪ a",
+    "dUp (0.5, 0.5) a ∪ b′",
+    "dUp (0.5, 0.5) b′ ∪ a",
+    "dLeft (-0.5, -0.5) a ∪ b′",
+    "dLeft (-0.5, -0.5) b′ ∪ a",
+    "dLeft (-0.25, 0.25) a ∪ b′",
+    "dLeft (-0.25, 0.25) b′ ∪ a",
+    "dLeft (-0.1, -0.1) a ∪ b′",
+    "dLeft (-0.1, -0.1) b′ ∪ a",
+    "dLeft (-1, -1) a ∪ b′",
+    "dLeft (-1, -1) b′ ∪ a",
+    "dDown (-0.5, -0.5) a ∪ b′",
+    "dDown (-0.5, -0.5) b′ ∪ a",
+    "dDown (-0.1, -0.1) a ∪ b′",
+    "dDown (-0.1, -0.1) b′ ∪ a",
+    "dDown (-1, -1) a ∪ b′",
+    "dDown (-1, -1) b′ ∪ a",
+    "dRight (0.25, 0.25) a ∪ b′",
+    "dRight (0.25, 0.25) b′ ∪ a",
+    "pure dRight (0.5, 0.5), p ∪ q",
+    "pure dRight (0.5, 0.5), q ∪ p",
+];
 
 /// `r` refused, or is a body that has volume `want`, passes tiers 2
 /// and 3′ (but for [`three_prime_or_curved_unread`]'s one refusal) and
