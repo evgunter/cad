@@ -467,7 +467,8 @@ impl Across {
 /// pierced where it pierces**: a cap with a V notch or a strip as thin
 /// as a micrometre (the fixture's shortest edge) to a centimetre, the
 /// crossing within a few widths of it, the origin up to 30 m off, the
-/// ends a few `Kε` to a tenth off the plane.
+/// ends a few `Kε` to `1e4·Kε` off the plane, where the span can
+/// outreach the feature.
 /// Each crossing is measured exactly and read only `2Kε` clear of the
 /// feature's sides; a pierce read where it is not, or none where it is,
 /// at either scalar, is wrong.
@@ -493,7 +494,7 @@ fn a_grazing_edge_across_a_thin_feature_is_read_pierced_where_it_pierces() {
                 far: (r.range(-30.0, 30.0), r.range(-30.0, 30.0)),
                 y: r.range(0.1, 0.45),
                 x: (aim - half, aim + half),
-                off: r.log_uniform(1.5 * K * eps, 0.1),
+                off: r.log_uniform(1.5 * K * eps, 1e4 * K * eps),
             };
             let inside = thin.inside(pose.crossing(), pose.y);
             let margin = 2.0 * band.escalate();
@@ -522,5 +523,52 @@ fn a_grazing_edge_across_a_thin_feature_is_read_pierced_where_it_pierces() {
         bad.len(),
         test_utils::fuzz::replay(),
         bad[..bad.len().min(8)].join("\n")
+    );
+}
+
+/// **A residual rounded 2.7u of its lever stays inside half its
+/// charge**: the worst of 300 000 random residuals `(p − o)·n`, `o` up
+/// to a kilometre off, measured exactly. Its rounding is `2.67u·|p − o|`
+/// against [`residual_charge`]'s `16u`, so the charge has sixfold
+/// headroom here and the reading has under half of it.
+#[test]
+fn the_worst_residual_drawn_stays_inside_half_its_charge() {
+    let p = Point3::new(
+        -2.367_246_549_859_963,
+        -0.825_544_484_523_304_9,
+        2.735_809_625_235_145,
+    );
+    let o = Point3::new(
+        -611.180_671_475_044_7,
+        76.180_933_621_736_81,
+        -136.522_140_914_879_97,
+    );
+    let n = Vec3::new(
+        -0.988_106_083_684_830_1,
+        0.035_422_402_105_880_754,
+        0.149_638_299_957_186_22,
+    );
+    let f = FaceGeo {
+        key: FaceKey::default(),
+        origin: o,
+        normal: n,
+        boundary: BTreeSet::new(),
+        loops: Vec::new(),
+        polygon: false,
+    };
+    let bn = [n.x, n.y, n.z].map(big);
+    let exact = big_dot(&[p.x, p.y, p.z].map(big), &bn) - big_dot(&[o.x, o.y, o.z].map(big), &bn);
+    let off = (big((p - o).dot(n)) << 1074_usize) - exact;
+    let lever = (p - o).norm() * f64::EPSILON / 2.0;
+    let err = ratio(&off, &(BigInt::from(1) << 2148_usize)).abs();
+    assert!(
+        err > 2.6 * lever,
+        "the pose rounds {:.2}u, not its 2.67u",
+        err / lever
+    );
+    assert!(
+        err <= residual_charge(&f, p) / 2.0,
+        "{err:e} past half the charge {:e}",
+        residual_charge(&f, p)
     );
 }

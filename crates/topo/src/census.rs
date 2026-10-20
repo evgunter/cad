@@ -2704,7 +2704,7 @@ fn pierce_span<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<[T; 2]> {
-    let [c0, c1] = [e.p0, e.p1].map(|p| geom_brep::rounding_charge((p - f.origin).norm()));
+    let [c0, c1] = [e.p0, e.p1].map(|p| residual_charge(f, p));
     let lever = r0 - r1;
     let (size, slack) = (lever.abs(), c0 + c1);
     let decide = magnitude_door("pm_census_ef_pierce_lever", band);
@@ -2721,6 +2721,14 @@ fn pierce_span<T: Decide>(
     let moved = (c0 * r1.abs() + c1 * r0.abs()) / (size * (size - slack));
     let reach = moved + geom_brep::rounding_charge(t.abs());
     Some([t - reach, t + reach])
+}
+
+/// The rounding charged to the residual `(p − o)·n` of `p` off `f`'s
+/// plane, [`geom_brep::rounding_charge`] of `|p − o|`: `p − o` rounds
+/// each coordinate `u`-relative and the dot against the unit normal
+/// adds a few `u` of `|p − o|` more, four times under the charge.
+fn residual_charge<T: Real>(f: &FaceGeo<T>, p: Point3<T>) -> T {
+    geom_brep::rounding_charge((p - f.origin).norm())
 }
 
 /// **Whether the crossing [`pierce_span`] places is inside the face**:
