@@ -6761,3 +6761,8 @@ Signed (WIRE orchestrator).
   - Filed intent/a-placement-adds-no-name-segment-is-said-three-ways (a RoleSeg::Placed inconsistency, D10).
   - Dispatched FORK-NAMESTRATEGY (designer pair; byte drawn, unread).
   - Dispatched wire-nameinv (wire/name-invariance-checks; STYLE review), six perturbations over a contact-heavy corpus with findings filed and admitted both ways.
+
+- 2026-10-20 (WIRE orchestrator) FORK-NAMESTRATEGY first reports. They converge on five principles, a derivation for new entities, no reversal of 158–179, and dropping OrderAlong.of (filed P2).
+  - O found that the principle is ratified already, in Ev's words: DESIGN.md [intrinsic.contingent], 436489e58b, 2026-10-17. Naming is missing from its 'Instantiated in' list, and N4's agent-written invariant predates it and is looser.
+  - Crossover round 1 sent on: the framing; the grammar (4 forms vs a 6-case ladder plus a type gate); checks P8 and the denotation verifier; the coincidence-row scope; the one-namer code-level cause.
+  - Passed perturbations 7 (insertion history) and 8 (arena permutation, only if a helper exists) to wire-nameinv.
