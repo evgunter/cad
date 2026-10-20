@@ -3693,10 +3693,12 @@ pub enum BooleanError {
     },
     /// The other solid's edges cross the two coincident edges of an
     /// operand's slit or zero-area ring where the solids meet along
-    /// it: two germs along one ray of the vertex pair at the slit's tip
-    /// (`recl::recl_edges`), which the insertion does not yet place
-    /// apart. [`BooleanError::CrossingsAlongAContactLine`] where the
-    /// line is the operand's own slit, which no piece of it makes: a
+    /// it, and the result keeps only the slit's face there, on both
+    /// sides (`recl::recl_edges`): it closes that face across the line,
+    /// which the join does not yet build. Or one material about the
+    /// line crosses twice at the slit's tip.
+    /// [`BooleanError::CrossingsAlongAContactLine`] where the line is
+    /// the operand's own slit, which no piece of it makes: a
     /// construction gap, with no lever.
     SlitLineCrossed {
         /// The operand holding the slit.
@@ -5015,8 +5017,9 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the {} solid holds a slit or zero-area ring in face {face:?} ending at vertex \
                  {vertex:?}, where the solids meet along it, and the other solid's edges cross \
-                 its two coincident edges there, which the Boolean does not yet place apart \
-                 along the line. {}",
+                 its two coincident edges there so that the result closes that face across the \
+                 line, or crosses one material twice at the tip, which the Boolean does not yet \
+                 build. {}",
                 operand_word(*operand),
                 geom_core::NOT_YET_ENDING
             ),

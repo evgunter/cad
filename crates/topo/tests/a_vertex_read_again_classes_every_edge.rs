@@ -1590,9 +1590,10 @@ const PARTNERS_OVERLAPPING: &[(f64, usize)] = &[(1e-9, 40), (1e-6, 26), (1e-12, 
 /// refuse a construction gap of the slit form, at each ε a CI row runs,
 /// as `(ε, SlitLineCrossed, EdgeInFace)`. A void under the top whose ray
 /// lies on it is a zero-area ring of the top, and a partner with an edge
-/// along the ray crosses its two coincident edges there
-/// (`work/cleave/a-boolean-places-two-germs-along-a-slit-line.md`); a
+/// along the ray crosses its two coincident edges there; their union
+/// keeps only the top there and closes it across the line
+/// (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`). A
 /// half-turn partner's edge inside the along face runs on past it
 /// (`work/cleave/a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted.md`).
 /// They move with ε as [`PARTNERS_OVERLAPPING`] does.
-const PARTNERS_SLIT_GAPS: &[(f64, usize, usize)] = &[(1e-9, 60, 8), (1e-6, 54, 3), (1e-12, 60, 7)];
+const PARTNERS_SLIT_GAPS: &[(f64, usize, usize)] = &[(1e-9, 20, 8), (1e-6, 18, 3), (1e-12, 20, 7)];

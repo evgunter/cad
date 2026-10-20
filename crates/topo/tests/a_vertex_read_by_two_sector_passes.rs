@@ -402,10 +402,11 @@ fn builds_along(
 /// - `SlitLineCrossed`: the plate less the void lying under the top
 ///   holds the void's ray as a zero-area ring of the top, and a partner
 ///   round the lying pyramid has an edge along it, so three sheets meet
-///   on the ring's line and two germs lie along its ray
-///   (`work/cleave/a-boolean-places-two-germs-along-a-slit-line.md`).
-///   On main the ring was one edge, wall | wall, lying in the top, its
-///   wedge claiming the top's material (the rider form).
+///   on the ring's line. Their union keeps only the top there, on both
+///   sides of the ring: it closes the top across the line, which the
+///   join does not build
+///   (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`).
+///   The other ops place the two germs apart and build.
 /// - `EdgeInFace`: an edge lies in a face whose material parts it, and
 ///   the parting is not built. A pyramid on the void's face, in the arch
 ///   or round its island: `y − x` leaves the pyramid's edge in the
@@ -430,27 +431,11 @@ const REFUSING: &[(&str, BooleanErrorKind)] = &[
         BooleanErrorKind::LineWedges,
     ),
     (
-        "around the lying pyramid, mirrored into the void, x − y",
-        BooleanErrorKind::SlitLineCrossed,
-    ),
-    (
-        "around the lying pyramid, mirrored into the void, y − x",
-        BooleanErrorKind::SlitLineCrossed,
-    ),
-    (
         "around the lying pyramid, mirrored into the void, x ∪ y",
         BooleanErrorKind::SlitLineCrossed,
     ),
     (
         "around the lying pyramid, mirrored into the void, y ∪ x",
-        BooleanErrorKind::SlitLineCrossed,
-    ),
-    (
-        "around the lying pyramid, mirrored into the void, x ∩ y",
-        BooleanErrorKind::SlitLineCrossed,
-    ),
-    (
-        "around the lying pyramid, mirrored into the void, y ∩ x",
         BooleanErrorKind::SlitLineCrossed,
     ),
     (
