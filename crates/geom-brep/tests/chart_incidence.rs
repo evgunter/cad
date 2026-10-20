@@ -4,7 +4,7 @@
 //! and the cone's reads one (a rim: ⊥ the axis, centred on it). Every
 //! carrier failing them is decided by an incidence test
 //! (`pcurve_sphere_chart_incident`, `pcurve_cone_chart_incident`): on
-//! the chart, its image, an uncovered class or a grazing circle; off
+//! the chart, its image, or a class with no general lane yet; off
 //! it, a carrier off the chart. A
 //! gate that reads a SECOND, amplified quantity after an in-band first
 //! one — or a first-order quantity for a second-order departure — must
@@ -157,8 +157,9 @@ fn each_harmonic_group_of_the_cone_residual_decides_alone() {
 /// `≈ tan α · ε/2` off the axis: inside the centring band on a needle
 /// cone, where it is a rim and images in closed form, and past it on a
 /// wide one, where the centring gate fails. There the incidence test,
-/// not the gate, decides — and the circle is on the cone, grazing it:
-/// a cone holds no circle but its rims.
+/// not the gate, decides — and the circle is not shown off the cone, a
+/// circle that is none of its rims (a cone holds no other circle), whose
+/// general lane is not written yet.
 #[test]
 fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
     let e = eps();
@@ -507,11 +508,14 @@ fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
 /// circle tilted on the sphere so its axial reading is in the band:
 /// still exactly on the sphere, so incidence reads it on.
 ///
-/// On the harmonic lane the map residual and the class reading measure
-/// the one displacement (the tilt at the circle's radius), so the
-/// residual's own escalation is what check 4 reads first: typed, and
-/// undecided. The class re-read behind it is pinned at the door check 4
-/// re-derives through (`pcurve_cache::tests::check_4s_re_derivation_of_an_in_band_class_is_undecided`).
+/// The two lanes read different checks first, each pinned. At `f64`
+/// (an inexact witness) certification runs check 3's schedule as the
+/// closed form's cross-check before check 4, and its first sample reads
+/// the tilt at the circle's radius in band: `MapResidual`. At `Interval`
+/// (an exact witness) the schedule is not run, so check 4's
+/// re-derivation reads the class in band: `ChartClass`, "not yet". The
+/// class re-read is also pinned at the door check 4 re-derives through
+/// (`pcurve_cache::check_4_class_rows::check_4s_re_derivation_of_an_in_band_class_is_undecided`).
 #[test]
 fn a_closed_form_re_read_with_its_class_in_band_is_undecided() {
     use geom_brep::PcurveCache;
@@ -544,8 +548,14 @@ fn a_closed_form_re_read_with_its_class_in_band_is_undecided() {
     let tau = core::f64::consts::TAU;
     let got = PcurveCache::certify(image, 0.0, tau, &tilted, &sphere, band());
     assert!(
-        matches!(got, Err(PcurveCertifyError::Escalated { .. })),
-        "f64: undecided, typed: {got:?}"
+        matches!(
+            got,
+            Err(PcurveCertifyError::Escalated {
+                check: geom_brep::PcurveCheck::MapResidual,
+                ..
+            })
+        ),
+        "f64: check 3's cross-check reads the tilt first: {got:?}"
     );
     let at = <Interval as Real>::from_f64;
     let sphere_i = sphere.map_scalar(at);
@@ -559,8 +569,14 @@ fn a_closed_form_re_read_with_its_class_in_band_is_undecided() {
         band(),
     );
     assert!(
-        matches!(got, Err(PcurveCertifyError::Escalated { .. })),
-        "Interval: undecided, typed: {got:?}"
+        matches!(
+            got,
+            Err(PcurveCertifyError::Escalated {
+                check: geom_brep::PcurveCheck::ChartClass,
+                ..
+            })
+        ),
+        "Interval: check 4 re-reads the class in band: {got:?}"
     );
 }
 

@@ -58,6 +58,13 @@ this order:
 - **E1b**: incidence ends by `EdgeAuthority`. It threads the authority
   into topo's ending function and the mint's routes. E1 keeps today's
   `CarrierOffChart` / `ChartIncidence` endings.
+- **E1c**: the plane and cylinder mints read incidence. Today they image
+  any carrier and meter its miss as a residual at the samples, so a
+  carrier off a plane or cylinder face ends as `ChartResidual`'s defect
+  whoever placed it, and E1b's authority routing never sees it
+  (`work/pcert/plane-and-cylinder-mints-meter-incidence-as-a-residual.md`,
+  filed with E1b). D3's incidence clause is finished only on the charts
+  whose mint reads incidence (sphere, cone, torus) until it lands.
 - **E2**: a cylinder line gets a projected lane, together with the
   cylinder `pcurve_chart_radial_moving` tie-break and
   `chart_iso_family`'s re-read. D3's "own envelope carries the miss"
@@ -67,6 +74,13 @@ this order:
   (`a-circles-general-lane-is-written-only-on-the-sphere`). Until it
   lands, such a circle refuses `GeneralLaneUnwritten` "not yet", and
   D3's "every class has one" is still owed.
+- **E5**: the mint-side class picks on a spline chart (`pick_arc_rim`,
+  `iso_schedule`'s `probe_pick`, the arc-rim closure) take the general
+  lane in band
+  (`work/pcert/a-mint-side-class-pick-escalates-in-band-where-its-general-lane-exists.md`).
+  Independent of E1b–E4: it reads no carrier's incidence and no circle
+  lane, so it can run beside any of them; it is placed last only because
+  nothing waits on it.
 
 ## Review posture
 

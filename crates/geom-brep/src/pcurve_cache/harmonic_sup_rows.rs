@@ -647,11 +647,13 @@ fn projected_circle_an_off_sphere_pair_reads_once() {
 /// in the band at the gate: a sphere parallel, a cone rim and a torus
 /// parallel. A class reading in band is a lane choice not shown (D3), so
 /// no class is decided on the in-band margin. These tilted circles also
-/// leave their charts at first order, so the incidence test, read before
-/// any lane, escalates on its own (the sphere's and cone's here), or the
-/// class gate escalates lever-only "not yet" where it is reached (a
-/// circle's general lane on a torus is not written yet). An on-chart
-/// circle's general lane is `an_in_band_class_on_the_sphere_takes_the_projected_lane`'s.
+/// leave the sphere and the cone at first order, so there the incidence
+/// test, read before any lane, escalates on its own (`ChartIncidence`);
+/// the torus parallel stays within the band of its torus, so its class
+/// gate is reached and escalates lever-only "not yet" (`ChartClass`: a
+/// circle's general lane on a torus is not written yet). Pinned per pose,
+/// at `f64` and at `Interval`. An on-chart circle's general lane is
+/// `an_in_band_class_on_the_sphere_takes_the_projected_lane`'s.
 #[test]
 fn a_tilt_in_the_band_decides_no_class() {
     let (center, axis, u_ref) = z_frame();
@@ -670,33 +672,46 @@ fn a_tilt_in_the_band_decides_no_class() {
         u_ref,
     };
     let off = 0.8 * band().escalate();
-    for (what, surface, rim_center, radius) in [
+    for (what, surface, rim_center, radius, want) in [
         (
             "cone rim",
             &cone,
             Point3::new(0.0, 0.0, 1.0),
             half_angle.tan(),
+            PcurveCheck::ChartIncidence,
         ),
         (
             "sphere parallel",
             &unit_sphere(),
             Point3::new(0.0, 0.0, 0.6),
             0.8,
+            PcurveCheck::ChartIncidence,
         ),
-        ("torus parallel", &torus, center, 1.25),
+        (
+            "torus parallel",
+            &torus,
+            center,
+            1.25,
+            PcurveCheck::ChartClass,
+        ),
     ] {
         let carrier = tilted_circle(rim_center, radius, (off / radius).asin());
-        let got = chart_pcurve(&carrier, surface, band());
-        assert!(
-            matches!(
-                got,
-                Err(PcurveCertifyError::Escalated {
-                    check: PcurveCheck::ChartClass | PcurveCheck::ChartIncidence,
-                    ..
-                })
+        let at = geom_core::Interval::from_f64;
+        for (lane, got) in [
+            ("f64", chart_pcurve(&carrier, surface, band()).map(|_| ())),
+            (
+                "Interval",
+                chart_pcurve(&carrier.map_scalar(at), &surface.map_scalar(at), band()).map(|_| ()),
             ),
-            "{what}: a tilt of 0.8·escalate decides no class: {got:?}"
-        );
+        ] {
+            assert!(
+                matches!(
+                    got,
+                    Err(PcurveCertifyError::Escalated { check, .. }) if check == want
+                ),
+                "{what} at {lane}: a tilt of 0.8·escalate decides no class, as {want:?}: {got:?}"
+            );
+        }
     }
 }
 

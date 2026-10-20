@@ -579,13 +579,17 @@ are discharged). Each refuses typed with a message naming its blocker
   general circle) stores its projected image (C4), so the
   oblique-trihedron octant faces store their rows; a torus's
   Villarceau circle and a cone's tilted section mint their exact image
-  (`Pcurve::FocalSection`), and a circle within the band of a cone or
-  torus that is none of its circles refuses as a defect
-  (`CarrierGrazesChart`); a spiric on its torus's mirror through the
+  (`Pcurve::FocalSection`), and a circle not shown off a cone or torus
+  that is none of its circles, or whose class reading is in band, has
+  no general lane yet and refuses lever-only "not yet"
+  (`GeneralLaneUnwritten`, `PcurveCheck::ChartClass`; unit E4 in
+  `work/pcert/plan.md`), as does a line or ellipse whose class reading
+  is in band (unit E2); a spiric on its torus's mirror through the
   cutting plane mints the wall image with its azimuth sign opposed
-  (`SpiricImage::Wall`, tagged `WallTorus::Mirror`). Every class an
-  analytic chart can hold has a route, so C4's exemption excuses no
-  class; a face is left uncached only at a scalar with no fitted door.
+  (`SpiricImage::Wall`, tagged `WallTorus::Mirror`). C4's exemption
+  excuses no class; a face whose class has no general lane yet is
+  refused typed rather than left uncached, and a face is left uncached
+  only at a scalar with no fitted door.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Projected` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing

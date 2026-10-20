@@ -3242,14 +3242,22 @@ fn run_azimuth_images<T: Decide>(
                 base.shift_branch(k, geom_brep::Period::new(tau))
             }
         };
-        // A general image (the class read in band on a sphere takes the
-        // projected lane) has no closed-form azimuth box: the walk's lane
-        // for it is not written, which is no invariant break.
-        let (lo, hi) =
-            chart_azimuth_range(&pcurve, t0, t1).ok_or(SplitJoinError::RunImageNotYet {
+        // A general-lane image (the class read in band on a sphere takes
+        // the projected lane) has no closed-form azimuth box: the walk's
+        // lane for it is not written, which is no invariant break. A
+        // fitted image never comes out of the derivation above, so one
+        // here still is.
+        let (lo, hi) = chart_azimuth_range(&pcurve, t0, t1).ok_or(match &pcurve {
+            Pcurve::Projected(_) | Pcurve::General(_) => SplitJoinError::RunImageNotYet {
                 face,
                 kind: surface.kind(),
-            })?;
+            },
+            _ => SplitJoinError::SectionInvariant {
+                face,
+                what: "a boundary edge's chart image is FITTED — the window walk reads a \
+                       closed-form azimuth",
+            },
+        })?;
         let exit = pcurve.eval(exit_t).x;
         images.push(AzimuthImage {
             he,

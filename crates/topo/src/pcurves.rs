@@ -40,18 +40,19 @@
 //!   the cylinder's; the sphere walk additionally knows the chart's
 //!   involution twin and the poles where azimuth names no point (see
 //!   `sphere_twin`/[`singular_at`]). A sphere's GENERAL circle (neither
-//!   polar nor meridian) and a spline carrier on any analytic chart have
-//!   no closed form and store their projected image
-//!   ([`geom_brep::Pcurve::Projected`], `ψ(C(t))` in the chart frame),
-//!   derived and certified by [`geom_brep::chart_pcurve_over`]
-//!   (`analytic_derive`). A cone's tilted section and a torus's
-//!   Villarceau circle take their exact focal-section image
-//!   ([`geom_brep::Pcurve::FocalSection`]). Every carrier that can lie
-//!   on an analytic chart has one of these routes. A carrier that
-//!   cannot lie on its face ([`PcurveCertifyError::CarrierOffChart`])
-//!   is refused. A circle on a cone or torus that is none of its circles,
-//!   or whose class reading is in band, takes the general (projected)
-//!   lane (D3's lane choice).
+//!   polar nor meridian, or with its class reading in band) and a spline
+//!   carrier on any analytic chart have no closed form and store their
+//!   projected image ([`geom_brep::Pcurve::Projected`], `ψ(C(t))` in the
+//!   chart frame), derived and certified by
+//!   [`geom_brep::chart_pcurve_over`] (`analytic_derive`). A cone's
+//!   tilted section and a torus's Villarceau circle take their exact
+//!   focal-section image ([`geom_brep::Pcurve::FocalSection`]). A carrier
+//!   its face's incidence test shows off it
+//!   ([`PcurveCertifyError::CarrierOffChart`]) is refused. A circle on a
+//!   cone or torus that is none of its circles, or whose class reading is
+//!   in band, has no general lane yet and refuses lever-only "not yet"
+//!   (unit E4); so does a line or ellipse whose class reading is in band
+//!   (unit E2).
 //! - **Described NURBS charts mint** their iso lane (M6-3,
 //!   `nurbs_iso_derive`) — RATIONAL ones too since M8-3, whose ARC cap
 //!   rims map through the chart's own rational-quadratic parameter

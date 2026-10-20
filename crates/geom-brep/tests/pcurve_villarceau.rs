@@ -680,7 +680,7 @@ fn the_tube_rate_gate_refuses_typed_and_a_swept_tube_is_no_image() {
 /// section: a ladder that read an in-band gate as Zero would image it as
 /// the Villarceau circle it is not shown to be.
 #[test]
-fn a_plane_gate_in_band_near_the_horn_takes_the_general_lane() {
+fn a_plane_gate_in_band_near_the_horn_refuses_not_yet_never_as_the_focal_section() {
     let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
     let big = 2.0;
     let r = big - 1e-6;

@@ -12,16 +12,17 @@ rewrite of the pcurve derivation.
 
 ## What
 
-D3 (`docs/DESIGN.md`, [verdicts.consumers]): a lane choice takes the
-closed form on Zero and the general lane on in band and definite, "and
-every class a lane choice reads has one". For a circle carrier the
+D3 (`docs/DESIGN.md`, `[verdicts.consumers]`) says every class a lane
+choice reads has a general lane. For a circle carrier the
 general lane is the projected image (`pcurve_cache/projected.rs`). Its
 check 4 builds the envelope's `Incidence` term from a certified sup of
 the circle's distance from the chart, and that sup is written for the
-sphere only: `crate::sphere_circle::off_sphere_sup`, at
-`projected.rs:1969` ("a circle's projected image is written for a
-sphere"). The check-4 carrier gate at `projected.rs:2198` admits a
-circle on a sphere only, for the same reason.
+sphere only: `crate::sphere_circle::off_sphere_sup`. The pairs the
+lane is written for have one home, `projected::has_lane`, which the
+mint's lane choice (`chart_image`) and check 4's two gates in
+`projected.rs` (the circle arm of `projected_envelope`, "a circle's
+projected image is written for a sphere", and its carrier gate) read;
+E4 widens it there.
 
 So on a cone, torus or cylinder, a circle whose class reading is in
 band, or that is on the chart but none of its own circles (a cone
