@@ -925,17 +925,17 @@ fn shared_pieces<T: Real, const D: usize, const N: usize>(
         .iter()
         .map(|d| d.c.iter().map(|w| w.0[0]).collect())
         .collect();
-    let lists = numers.map(|numer| -> Option<Vec<_>> {
-        grid_pieces(numer, counts)?
+    // Each numerator's list is filled or the whole reading refuses: no
+    // slot is left at a default.
+    let mut lists: [Vec<QuotientPiece<T, D>>; N] = core::array::from_fn(|_| Vec::new());
+    for (list, numer) in lists.iter_mut().zip(numers) {
+        *list = grid_pieces(numer, counts)?
             .iter()
             .zip(&denoms)
             .map(|(n, d)| QuotientPiece::new(n.arrays(), d.clone()))
-            .collect()
-    });
-    if lists.iter().any(Option::is_none) {
-        return None;
+            .collect::<Option<_>>()?;
     }
-    Some(lists.map(Option::unwrap_or_default))
+    Some(lists)
 }
 
 /// [`CellQuotients`] before it is cut.
@@ -1257,7 +1257,7 @@ pub fn polynomial_area_pieces<T: Real>(
     let numer = product(&du, &dv, cross)?;
     let (mu, mv) = numer.degree();
     let denom = Grid::new(mv + 1, vec![Vector([T::one()]); (mu + 1) * (mv + 1)])?;
-    Raised { numer, denom }.pieces((halving_count(splits.0), halving_count(splits.1)))
+    Raised { numer, denom }.pieces(halving_counts(splits))
 }
 
 #[allow(clippy::type_complexity)]
@@ -2071,7 +2071,7 @@ mod tests {
             if i > n {
                 return 0.0;
             }
-            let binom = (0..i).fold(1.0, |b, k| b * (n - k) as f64 / (k + 1) as f64);
+            let binom = super::super::pieces::binomial(n, i);
             binom * t.powi(i as i32) * (1.0 - t).powi((n - i) as i32)
         }
         fn dbern(n: usize, i: usize, t: f64) -> f64 {
