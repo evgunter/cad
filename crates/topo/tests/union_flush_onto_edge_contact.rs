@@ -12,7 +12,7 @@ use geom_core::Tol;
 use topo::SideCode;
 use topo::{
     AtRestBody, Body, BooleanBody, BooleanError, BooleanInputs, BooleanOp, BooleanResult,
-    ValidationError, mass_properties, subtract, union, validate_pseudomanifold,
+    mass_properties, subtract, union, validate_pseudomanifold,
 };
 
 /// `op` on `a` and `b`, carrying `inputs`' records.
@@ -2252,10 +2252,8 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
 /// (`vtxfac::tie_breaks_after`). With the face's normal at slopes 0.5
 /// (either side) and 2 the join cannot wind a run round the corner of no
 /// angle the tie leaves, and every op refuses typed `PinchRaysInAFace`,
-/// not as the kernel's defect. At slope −0.5 every op builds, and all but
-/// `cutter ∖` pass 3′: the unions 33, `pinch ∖` and both `∩`s 1, `cutter ∖`
-/// 31, which keeps the pinch edge of the brick inside the cutter one reflex
-/// edge lying in the near face, and refuses `FaceThroughEdgeWedge`.
+/// not as the kernel's defect. At slope −0.5 every op builds, passing 3′:
+/// the unions 33, `pinch ∖` and both `∩`s 1, `cutter ∖` 31.
 #[test]
 fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
     let tol = Tol::witness();
@@ -2333,21 +2331,7 @@ fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
                 };
                 assert!((v - want).abs() < 1e-9, "{pose}: volume {v}, want {want}");
                 let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
-                if what == "cutter ∖ pinch" {
-                    // The brick inside the cutter leaves its pinch edge
-                    // one reflex edge lying in the near face, the face
-                    // through its wedge: the keel-in-face form
-                    // (`work/cleave/a-boolean-builds-a-reflex-edge-lying-inside-a-face.md`).
-                    let errors = verdict.expect_err(&format!("{pose}: 3′ refuses the keel"));
-                    assert!(
-                        errors
-                            .iter()
-                            .all(|e| matches!(e, ValidationError::FaceThroughEdgeWedge { .. })),
-                        "{pose}: only the pinch edge's wedge refuses: {errors:?}"
-                    );
-                } else {
-                    assert!(verdict.is_ok(), "{pose}: 3′ refused {:?}", verdict.err());
-                }
+                assert!(verdict.is_ok(), "{pose}: 3′ refused {:?}", verdict.err());
             } else {
                 assert!(
                     matches!(r, Err(BooleanError::PinchRaysInAFace { .. })),

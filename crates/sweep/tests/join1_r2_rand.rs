@@ -113,7 +113,6 @@ fn r2_random_zprism_pairs() {
         (s >> 33) % m
     };
     let mut wrong = Vec::new();
-    let mut riders = Vec::new();
     let mut built = Vec::new();
     let mut refusals = std::collections::BTreeMap::<String, usize>::new();
     for case in 0..n {
@@ -154,10 +153,6 @@ fn r2_random_zprism_pairs() {
             // The shared judge, and the volume to the exact oracle's 1e-9.
             let j = judged(r, Some(want), tol());
             let exact = j.volume.is_some_and(|v| (v - want).abs() <= 1e-9);
-            if matches!(j.verdict, Verdict::Rider) && exact {
-                riders.push(what);
-                continue;
-            }
             if !(matches!(j.verdict, Verdict::Sound | Verdict::EmptyOk) && exact) {
                 wrong.push(format!("{what}: {}", j.line));
             }
@@ -166,19 +161,6 @@ fn r2_random_zprism_pairs() {
     println!("[r2-rand] built {} : {built:?}", built.len());
     println!("[r2-rand] refusals {refusals:#?}");
     assert!(wrong.is_empty(), "WRONG BODIES:\n{}", wrong.join("\n"));
-    // The default draw's keel-in-face bodies: a tool prism's vertical
-    // edge left lying in a side face of the result as one reflex edge,
-    // which tier 3′ refuses `FaceThroughEdgeWedge`. They read `Sound`
-    // once the boolean builds the slit form
-    // (`work/cleave/a-boolean-builds-a-reflex-edge-lying-inside-a-face.md`).
-    if std::env::var_os("R2_SEED").is_none() && std::env::var_os("R2_N").is_none() {
-        assert_eq!(
-            riders.len(),
-            10,
-            "the keel-in-face bodies:\n{}",
-            riders.join("\n")
-        );
-    }
 }
 
 /// Seed 2, case 390: at JOIN-1's head the union builds a body that

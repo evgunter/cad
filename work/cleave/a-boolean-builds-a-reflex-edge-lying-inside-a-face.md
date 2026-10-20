@@ -74,33 +74,14 @@ evidence is on
 `a-curved-slit-fails-tier-3-prime-on-its-two-coincident-arcs`. The
 editor names all three extents, the two keel edges apart.
 
-## Note from RESTREAD (2026-10-19): tier 3′ refuses the rider form
+## Note from RESTREAD (2026-10-20): tier 3′ refuses the rider form
 
 Branch `restread/face-in-edge-wedge`: tier 3′ reads an edge lying in a
 face of its own solid for sides and refuses this row's form
-`FaceThroughEdgeWedge`. Every test that now expects that refusal, and
-that this row's fix should turn back to passing:
-
-- topo `a_face_inside_an_edges_wedge_refuses_at_tier_3_prime`: the
-  three trenches and the glued tip subtracted with its records (pinned
-  refusals; flip them to pass);
-- topo `a_vertex_read_by_two_sector_passes`, the `RIDER` cells (all
-  `y − x`, at every pose): the pyramid through the glued faces out the
-  side, out the bottom and out a far corner; around the lying pyramid
-  mirrored into the void; on the void's face in the arch, and the
-  pyramid there; on the void's face with the island in it. Tests:
-  `an_edge_through_two_blocks_glued_faces_builds_{at_rest,in_every_op}`,
-  `a_touching_vertex_beside_a_partner_along_the_face_builds_sound_in_every_op`,
-  `a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once`,
-  `every_scene_builds_sound_or_refuses_typed_at_every_pose`;
-- topo `union_flush_onto_edge_contact::a_face_holding_the_pinch_line_ties_the_pierces_germs`:
-  `cutter ∖ pinch` at slope −0.5;
-- sweep `join1_r2_rand::r2_random_zprism_pairs`: 10 `∖` cases of the
-  default draw, pinned as a count (`Verdict::Rider`);
-- sweep `join_pierce_runs_sweep::the_sweep_subset_ships_no_bad_body`: 8
-  edge and corner lines, pinned as a count (`RIDERS`);
-- sweep `near_tangent_pierce_poses::near_tangent_pierce_poses_build_their_closed_form_or_refuse_typed`:
-  7 runs at ε = 1e-6 and 7 at 1e-12 (`w345` and `convex` poses whose
-  near-tangent edge the op decided onto the other's face, `∖` either
-  way round), pinned as counts per ε (`RIDERS`); the edge and germ
-  witness tests accept the same lines.
+`FaceThroughEdgeWedge`
+(`crates/topo/tests/a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs`,
+the keel in the floor built as one prism). Merged with the slit
+parting, none of the results that branch had pinned in the rider form
+reaches tier 3′ in it: the trenches and the glued tip build the slit
+form, which tier 3′ passes, and the others build without the refusal
+or refuse `EdgeInFace`.

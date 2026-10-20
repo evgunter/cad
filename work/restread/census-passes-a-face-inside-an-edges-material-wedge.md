@@ -138,20 +138,25 @@ reading that does not decide refuses `FaceThroughEdgeWedgeUndecided`,
 naming why (`TouchUnread`). Arm 2 reads either as a touch inside one
 solid.
 
-- Pinned refusals: the three keel-in-face trenches and the glued tip
-  subtracted with its records; a ridge resting on its own floor passes
+- Pinned refusal: the keel in the floor, the slab less a wall-to-wall
+  V-trench built as one prism with the records its contacts need. The
+  Boolean's slit form of the three trenches and of the glued tip
+  subtracted with its records passes, and so does a ridge resting on
+  its own floor
   (`crates/topo/tests/a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs`).
-- Shipped results re-baselined to the decided refusal, all of CLEAVE's
-  `a-boolean-builds-a-reflex-edge-lying-inside-a-face` (listed on that
-  row): seven `y − x` cells of `a_vertex_read_by_two_sector_passes`,
-  `cutter ∖ pinch` in `union_flush_onto_edge_contact`, 10 cases of
-  `join1_r2_rand`, 8 lines of `join_pierce_runs_sweep`, and 7 runs each
-  at ε = 1e-6 and 1e-12 of `near_tangent_pierce_poses`.
+- No shipped result refuses decided. Since the Boolean parts an edge
+  lying in a face (`topo::boolean::slit`, CLEAVE's
+  `a-boolean-builds-a-reflex-edge-lying-inside-a-face`), the results
+  that kept the keel-in-face form build the slit form or refuse
+  `EdgeInFace`, and measured on the merge none reaches tier 3′:
+  `a_vertex_read_by_two_sector_passes`, `union_flush_onto_edge_contact`,
+  `join1_r2_rand`, `join_pierce_runs_sweep` and
+  `near_tangent_pierce_poses` at ε = 1e-6 and 1e-12 carry no rider pin.
 - Refused undecided, a curved face of the edge's own
   (`tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face`):
-  42 results of `a_pierce_held_in_a_curved_face`'s plane-face row and
-  two `rest_zip_admission` tests, 38 of them presumably valid, each
-  pinned by run.
+  38 results of `a_pierce_held_in_a_curved_face`'s plane-face row and
+  two `rest_zip_admission` tests, presumably valid, each pinned by
+  run.
 - Refused undecided in band with no `CensusEscalated` beside it: pose
   `Lbot nt e0 a12` at `d = −1e-9` (ε = 1e-9) and `d = −1e-6`
   (ε = 1e-6), both orders of `prism ∪ cube`, which passed before;

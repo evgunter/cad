@@ -693,7 +693,7 @@ fn a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order(
                 // The pair's edge with a face on the cylinder, lying in
                 // a plane face of the result, whose side tier 3′ cannot
                 // read (the curved row of `curved_unread`).
-                &|name, held_first| name == "union" || (name == "subtraction" && !held_first),
+                &|name, _| name == "union",
             );
         }
         // Members 0 and 1 are the prisms, 2 the cylinder: over the whole

@@ -69,11 +69,13 @@ only such events: face A, the triangle `(0,0,0), (4,1,1), (4,-1,-1)`
 in `y = z`, and face B, `(2,0,0), (-2,2,0), (-2,-2,0)` in `z = 0`,
 cross along `[(0,0,0), (2,0,0)]` with no edge piercing or crossing,
 each with a vertex in the other's interior. A `FaceThroughEdgeWedge`
-whose wedge lies inside the face's material forces such a
-self-crossing elsewhere, so where it takes this form no finding blocks
+whose wedge lies inside the face's material forces a self-crossing
+elsewhere, and where that crossing takes this form no finding blocks
 the solid's pairs in arm 2. The body is still refused by its own
 `FaceThroughEdgeWedge`, and by `UnrecordedContact` unless the touches
 are recorded; the gap is the secondary cross-solid finding, not a
-silent pass. `sweep/tests/common/differential.rs`'s `Verdict::Rider`
-judge reads a body refused by `FaceThroughEdgeWedge` alone as a rider,
-so it would hide that finding's absence.
+silent pass. No test asserts that finding:
+`sweep/tests/common/differential.rs` reads every tier 3′ refusal as
+`Bad`. A judge that admits a body refused by `FaceThroughEdgeWedge`
+alone, as the `Verdict::Rider` this branch carried until the slit
+parting reached it did, hides the finding's absence.

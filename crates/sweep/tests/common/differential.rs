@@ -202,12 +202,6 @@ pub enum Verdict {
     Sound,
     /// A body passing every check but the volume, with no closed form.
     Unjudged,
-    /// A body passing every check but tier 3′, which refuses it only
-    /// `FaceThroughEdgeWedge`: an edge lying in a face of its own solid
-    /// with the face through its wedge, the keel-in-face form
-    /// (`work/cleave/a-boolean-builds-a-reflex-edge-lying-inside-a-face.md`).
-    /// Its volume holds where there is a closed form.
-    Rider,
     /// A body failing a check.
     Bad,
     /// A body whose volume could not be measured.
@@ -271,13 +265,7 @@ fn judge(
             },
             Some(bb) => {
                 let t2 = topo::validate_closed(&bb.body).is_ok();
-                let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol);
-                let rider = t3.as_ref().is_err_and(|errors| {
-                    errors
-                        .iter()
-                        .all(|e| matches!(e, topo::ValidationError::FaceThroughEdgeWedge { .. }))
-                });
-                let t3 = t3.is_ok();
+                let t3 = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol).is_ok();
                 let cert = topo::validate_geometric_certificate(&bb.body, tol).is_ok();
                 let far = finished(
                     "the far brick",
@@ -288,17 +276,15 @@ fn judge(
                 match topo::mass_properties(&bb.body, tol).map(|m| (m.volume, m.volume_pad)) {
                     Ok((v, pad)) => {
                         let verdict = match want {
-                            _ if !(t2 && (t3 || rider) && cert && operand && extra) => Verdict::Bad,
+                            _ if !(t2 && t3 && cert && operand && extra) => Verdict::Bad,
                             _ if pad > VOLUME_PAD_BUDGET => Verdict::Bad,
-                            Some(w) if (v - w).abs() > VOLUME_CLAIM + pad => Verdict::Bad,
-                            _ if rider => Verdict::Rider,
                             None => Verdict::Unjudged,
-                            Some(_) => Verdict::Sound,
+                            Some(w) if (v - w).abs() <= VOLUME_CLAIM + pad => Verdict::Sound,
+                            Some(_) => Verdict::Bad,
                         };
                         let word = match verdict {
                             Verdict::Sound => "SOUND",
                             Verdict::Unjudged => "UNJUDGED",
-                            Verdict::Rider => "RIDER",
                             _ => "BAD",
                         };
                         let pad_col = if pad > 0.0 {

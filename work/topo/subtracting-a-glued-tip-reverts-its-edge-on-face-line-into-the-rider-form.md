@@ -50,10 +50,11 @@ a defect.
 
 **Unblocked (CLEAVE, 2026-10-19).** `[ev]` PR 4795 merged (`0a702a9bc1`). Ev ratified the D1 sentence in `crates/topo/README.md` tier 3: where more than two sheets meet on a line, the material decides the edges, and the complement re-pairs. Radial edges were declined.
 
-## Note from RESTREAD (2026-10-19): tier 3′ refuses it
+## Note from RESTREAD (2026-10-20): tier 3′ reads it
 
-Branch `restread/face-in-edge-wedge`: both results (the slab and the
-box round the tool) now refuse tier 3′ `FaceThroughEdgeWedge`, pinned in
-`crates/topo/tests/a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs`
-(`a_glued_tip_subtracted_with_its_records_refuses_at_tier_3_prime`). So
-"every tier passes it" no longer holds for 3′. The door still builds it.
+Branch `restread/face-in-edge-wedge`: tier 3′ refuses the rider form
+`FaceThroughEdgeWedge`. Merged with the Boolean's slit parting
+(`topo::boolean::slit`), both results (the slab and the box round the
+tool) build and pass tier 3′
+(`crates/topo/tests/a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs`,
+`a_glued_tip_subtracted_with_its_records_passes_tier_3_prime`).

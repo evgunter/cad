@@ -176,9 +176,7 @@ const SLIT_TOUCH: &str = "they touch where a face of one meets it along an edge 
 /// op called without them does not carry
 /// (`work/contacthold/a-booleans-records-are-complete-only-relative-to-the-records-passed-in.md`);
 /// an edge of the other operand through the rectangle's interior is not
-/// admitted. Where `rider`, the cell is one [`RIDER`] names, and its
-/// `FaceThroughEdgeWedge` is admitted and required: a pinned cell that
-/// stops refusing it is a pin gone stale. Returns whether 3′ held.
+/// admitted. Returns whether 3′ held.
 fn three_prime(
     what: &str,
     r: &topo::BooleanBody<f64>,
@@ -186,21 +184,10 @@ fn three_prime(
     along: bool,
     ray: Option<[f64; 3]>,
     glued: Option<[[f64; 3]; 4]>,
-    rider: bool,
 ) -> bool {
-    let errors = validate_pseudomanifold(&r.body, &r.contacts, t())
-        .err()
-        .unwrap_or_default();
-    assert!(
-        !rider
-            || errors
-                .iter()
-                .any(|e| matches!(e, ValidationError::FaceThroughEdgeWedge { .. })),
-        "{what}: no FaceThroughEdgeWedge, where RIDER pins one: {errors:?}"
-    );
-    if errors.is_empty() {
+    let Err(errors) = validate_pseudomanifold(&r.body, &r.contacts, t()) else {
         return true;
-    }
+    };
     let meet = at(pose.at(MEET));
     let at_meet = |v| at(readback::vertex_point(&r.body, v).unwrap()) == meet;
     let far = ray.map(|c| pose.at([0, 1, 2].map(|k| MEET[k] + c[k])));
@@ -263,7 +250,6 @@ fn three_prime(
                 CensusContact::EdgeFaceOverlap { edge, .. } => along || on_ray(edge),
                 _ => false,
             },
-            ValidationError::FaceThroughEdgeWedge { .. } => rider,
             ValidationError::CensusUndecidable { a, b, what: class } => {
                 (class.starts_with("one passes into the other where they touch")
                     || class.starts_with(SLIT_TOUCH))
@@ -493,21 +479,6 @@ fn pinned(label: &str, op: &str, e: &BooleanError) -> bool {
         .any(|&(cell, kind)| cell == key && e.kind() == kind)
 }
 
-/// The cells whose result tier 3′ refuses `FaceThroughEdgeWedge`, by
-/// scene label and op: the result keeps an edge of one operand lying in
-/// a face of the other as one reflex edge, the face through its wedge
-/// (the keel-in-face form). They pass with the slit form
-/// (`work/cleave/a-boolean-builds-a-reflex-edge-lying-inside-a-face.md`).
-const RIDER: &[&str] = &[
-    "a pyramid on the void's face in the arch, y − x",
-    "a pyramid through the glued faces, out a far corner, y − x",
-    "a pyramid through the glued faces, out the bottom, y − x",
-    "a pyramid through the glued faces, out the side, y − x",
-    "around the lying pyramid, mirrored into the void, y − x",
-    "on the void's face in the arch, y − x",
-    "on the void's face, the island in it, y − x",
-];
-
 /// A cell [`REFUSING`] names that builds is a pin gone stale.
 fn not_pinned(label: &str, op: &str) {
     let key = format!("{label}, {op}");
@@ -558,16 +529,11 @@ fn builds_where(
                 assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
                 material_holds(&what, keep, Some(&r.body), &probes);
                 classes_hold(&what, &r, a, b, pose);
-                let rider = RIDER.contains(&format!("{label}, {op}").as_str());
-                held += usize::from(three_prime(&what, &r, pose, along, ray, glued, rider));
+                held += usize::from(three_prime(&what, &r, pose, along, ray, glued));
                 Some(volume(&r.body))
             }
             Ok(BooleanResult::Empty) => {
                 not_pinned(label, op);
-                assert!(
-                    !RIDER.contains(&format!("{label}, {op}").as_str()),
-                    "{what}: empty, where RIDER pins a body tier 3′ refuses"
-                );
                 material_holds(&what, keep, None, &probes);
                 Some(0.0)
             }
@@ -1538,7 +1504,7 @@ fn a_pyramid_resting_where_a_solid_touches_itself_holds_tier_three_prime() {
                 })
                 .collect();
             assert!(pairs.is_empty(), "{what}: {errors:?}");
-            three_prime(&what, &r, &pose, false, None, None, false);
+            three_prime(&what, &r, &pose, false, None, None);
         }
     }
 }
@@ -1568,7 +1534,7 @@ fn standing_pyramids_folded_onto_the_plate_build_in_every_member_order() {
             }
             let last = last.unwrap();
             assert_eq!(validate_geometric(&body, t()), Ok(()), "{what}: tier 3");
-            three_prime(&what, &last, &pose, false, None, None, false);
+            three_prime(&what, &last, &pose, false, None, None);
             let v = volume(&body);
             assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
         }
@@ -1602,7 +1568,7 @@ fn five_members_fold_onto_the_plate_in_sampled_member_orders() {
                 }
             }
             assert_eq!(validate_geometric(&body, t()), Ok(()), "{what}: tier 3");
-            three_prime(&what, &last.unwrap(), pose, false, None, None, false);
+            three_prime(&what, &last.unwrap(), pose, false, None, None);
             let v = volume(&body);
             assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
         }
