@@ -6892,3 +6892,5 @@ Signed (WIRE orchestrator).
   - Handled by disclosure: told Ev on the PR. The fix pass rewords the sentence to 'one of its edges; which is open', raises the row to P2 with the fixture measured and admitted, and fixes the citation (row 124, not 121).
   - Also: line_head's unchecked flush assumption; stale docs; cites_both on the head; a locality assert; the tied flag; three rows (N5 two-hop offers, subtract seats via the least, the duplicated grouping helper).
   - Class note: before merging a text Ev approved, check that the review didn't find the approved sentence itself false. If it did, narrow the text and tell Ev; don't merge it as ratified.
+
+- 2026-10-20 (WIRE orchestrator) Ev on 5457: '(a) works though the stakes seem low'. The lane finishes item 1: delete Verb<T>/Arity/VerbKind::arity, keep VerbKind closed, reword V1. Merge follows.
