@@ -48,6 +48,7 @@ pub(crate) fn bordered_edges(out: &BooleanBody<f64>) -> Vec<Vec<Stretch>> {
         .map(|d| {
             d.bordered
                 .iter()
+                .chain(&d.bordered_through)
                 .map(|&(u, w)| {
                     let (us, ws) = (settle(u), settle(w));
                     let mut found = Vec::new();

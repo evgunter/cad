@@ -131,7 +131,12 @@ and refuses `CensusUndecidable` otherwise. Within one solid, two
 distinct-key curved faces touching along a tangent locus through both
 interiors are discovered like any touch, and refuse `UnrecordedContact`
 where no record backs them; that discovery is the C9 exclusion ring
-for same-solid pairs, unbuilt (Open).
+for same-solid pairs. Its line lane is built
+(`census::sweep_same_solid_tangent_lines`): faces of one solid sharing
+no edge, on distinct carriers whose closed-form tangent line runs
+through both, read on the lane that confirms a two-carrier face–face
+record, where a material crescent is `CuspEdgesMissing` (C4); the
+rest of the ring is Open.
 
 A declaration licenses a coincidence, never a side. Every meeting between
 two solids — found undeclared by a sweep, named by a record, or backed by
@@ -653,9 +658,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      certifier on one carrier or two planes and the jet schedule
      along the closed-form tangent line on two other carriers,
      cross-solid pairs with a curved
-     side in reach refuse as undecidable, and same-solid distinct-key
-     curved pairs stay undetected until C9/C6 (`topo::census` module
-     docs). A record or candidate outside a certifier's lane refuses
+     side in reach refuse as undecidable, same-solid distinct-key
+     pairs touching along a closed-form tangent line are discovered
+     (C2), and the other same-solid distinct-key curved pairs stay
+     undetected until C9/C6 (`topo::census` module docs). A record or candidate outside a certifier's lane refuses
      typed `CensusUnsupported`, never samples. Every comparison is a
      named trilean ([verdicts]); indeterminates surface as typed
      `CensusEscalated`, never a silent skip.
@@ -1076,4 +1082,4 @@ left).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse
   `ChartDivergence`; the C9 exclusion ring for same-solid distinct-key
-  curved pairs is unbuilt.
+  curved pairs is built for the closed-form tangent line only (C2).

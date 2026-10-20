@@ -33,7 +33,7 @@ use geom_core::{Band, Decide};
 use slotmap::SecondaryMap;
 
 use super::combine::{GraftMap, graft_solid};
-use super::discard::{DiscardRow, HeldInto, discard_row};
+use super::discard::{ChordsAcross, DiscardRow, discard_row};
 use super::join::CompletedPolygonPair;
 use super::shell_witness::{
     ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
@@ -400,7 +400,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         &a_kept_shells,
         (&a_sides, &a_in_out),
         (Operand::A, &a_kept),
-        (&connected.a_fragments, &b_kept),
+        (&connected.fates, &b_kept),
     )?;
     discards.extend(discarded(
         &red,
@@ -408,7 +408,7 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         &b_kept_shells,
         (&b_sides, &b_in_out),
         (Operand::B, &b_kept),
-        (&connected.b_fragments, &a_kept),
+        (&connected.fates, &a_kept),
     )?);
 
     Ok(FinishOut {
@@ -467,9 +467,9 @@ fn section_boundary<T: Decide>(
 /// corner tilted 1e-6 off an edge, in PR 4026's review), and a section
 /// face that passes one vertex twice (a curved wall's arc and a line
 /// between the same two points), where the twin also passes several
-/// copies of an end. `held` is this operand's chord-split rows
-/// and the other operand's vertices in result keys, for the held
-/// stretches (`DiscardRow::held`).
+/// copies of an end. `chords` is the fate cuts and the other operand's
+/// vertices in result keys, for the stretches a face borders across a
+/// one-sided chord ([`ChordsAcross`]).
 #[allow(clippy::type_complexity)]
 fn discarded<T: Decide>(
     red: &BooleanReduction<T>,
@@ -477,15 +477,15 @@ fn discarded<T: Decide>(
     kept: &[ShellKey],
     (sides, in_out): (&SecondaryMap<FaceKey, SideCode>, &[(FaceKey, FaceKey)]),
     (operand, kept_vertex): (Operand, &dyn Fn(VertexKey) -> Option<VertexKey>),
-    held: (
-        &crate::lineage::FaceDivisions,
+    chords: (
+        &super::fate::FateCuts,
         &dyn Fn(VertexKey) -> Option<VertexKey>,
     ),
 ) -> Result<Vec<DiscardRow>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let (body, holder_op, holder) = match operand {
-        Operand::A => (&red.a, Operand::B, &red.b),
-        Operand::B => (&red.b, Operand::A, &red.a),
+    let body = match operand {
+        Operand::A => &red.a,
+        Operand::B => &red.b,
     };
     let copy = super::NullCopies::of_operand(&red.null_edges, operand);
     let on_face = |face: FaceKey| -> Result<BTreeSet<VertexKey>, BooleanError> {
@@ -553,13 +553,43 @@ fn discarded<T: Decide>(
         kept(start, &us).zip(kept(end, &ws)).ok_or_else(refuse)
     };
     let kept_across = |f: FaceKey| sides.contains_key(f);
-    let held = HeldInto {
-        entries: &red.held,
-        fragments: held.0,
-        holder_op,
-        holder,
-        to_result: held.1,
-        copies: &copy,
+    // A vertex of this operand in result keys: the one copy of it the
+    // result keeps, or where it keeps none, the one vertex of the other
+    // operand it meets there.
+    let theirs = super::NullCopies::of_operand(&red.null_edges, operand.other());
+    let own_to_result = |v: VertexKey| -> Option<VertexKey> {
+        let one = |mut rs: Vec<VertexKey>| {
+            rs.sort();
+            rs.dedup();
+            match rs.as_slice() {
+                [r] => Some(*r),
+                _ => None,
+            }
+        };
+        let copies = copy.of(v);
+        let kept: Vec<VertexKey> = copies.iter().filter_map(|&k| kept_vertex(k)).collect();
+        if !kept.is_empty() {
+            return one(kept);
+        }
+        one(red
+            .contacts
+            .vv
+            .iter()
+            .filter_map(|c| {
+                let (mine, other) = match operand {
+                    Operand::A => (c.a, c.b),
+                    Operand::B => (c.b, c.a),
+                };
+                copies.contains(&mine).then_some(other)
+            })
+            .flat_map(|o| theirs.of(o))
+            .filter_map(|k| (chords.1)(k))
+            .collect())
+    };
+    let chords = ChordsAcross {
+        cuts: chords.0,
+        to_result: chords.1,
+        own_to_result: &own_to_result,
     };
     let mut out = Vec::new();
     for &shell in body
@@ -574,14 +604,14 @@ fn discarded<T: Decide>(
             .ok_or_else(|| desync("a discarded shell no longer resolves"))?
             .faces
         {
-            if !sides.contains_key(face) {
+            if !sides.contains_key(face) && !chords.cuts.is_substituted(operand, face) {
                 out.push(discard_row(
                     body,
                     face,
                     operand,
                     &kept_across,
                     &kept_ends,
-                    Some(&held),
+                    Some(&chords),
                 )?);
             }
         }

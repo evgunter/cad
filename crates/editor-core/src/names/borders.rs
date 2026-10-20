@@ -15,7 +15,7 @@
 //! - a later step discarded the region across an earlier step's seam,
 //!   its boundary descending from that seam (`Discard::touches`);
 //! - they meet at a point the result holds as a vertex: one ends a
-//!   bordered or held stretch there, and an edge at it is, or descends
+//!   bordered stretch there, and an edge at it is, or descends
 //!   from, an edge the other borders end to end, of its own step or an
 //!   earlier one (`Discard::meets`);
 //! - they meet at a point the output stage joined away: a piece edge
@@ -25,10 +25,12 @@
 //! Each piece edge is chased to the stretch a discard recorded along it,
 //! through the edge's split lineage (kept across the steps that killed
 //! its ancestors) and the edges a later step's join made it of, and so
-//! to its obstacle; discards one edge reaches are one obstacle. A face
-//! discarded where a coincident kept face holds part of its region
-//! borders that face where the held part ends
-//! (`topo::DiscardRow::held`). An obstacle that borders two or more
+//! to its obstacle; discards one edge reaches are one obstacle. Where a
+//! coincident kept face holds part of a dropped face's region, the
+//! boolean cut the dropped face where the held part ends, so its
+//! removed fragment borders the kept face there, and the held fragment
+//! is no discard (`topo::BooleanNaming::substituted`). An obstacle that
+//! borders two or more
 //! pieces DIVIDES the face; a piece's qualifier is the set of walls —
 //! the faces across its edges — along which it meets a divider, each
 //! cited by its parent's name. Nothing beyond a piece's own boundary is
@@ -168,8 +170,9 @@ impl<K: Ord + Clone> Obstacles<K> {
         }
         let settler = naming.settler(body);
         // A bordered stretch settles on a seam edge: the zip made the
-        // kept face's section edge one edge with the wall's. A held
-        // stretch settles on the kept face's own edge, whichever it is.
+        // kept face's section edge one edge with the wall's. A stretch
+        // read through a substituted fragment settles on the kept face's
+        // own edge, whichever it is.
         let seam_edges: BTreeSet<EdgeKey> = naming
             .seam_edges
             .iter()
@@ -268,7 +271,7 @@ impl<K: Ord + Clone> Obstacles<K> {
             // along the edge the join made.
             for (stretches, edges, seam_only) in [
                 (&row.bordered, &by_ends, true),
-                (&row.held, &any_by_ends, false),
+                (&row.bordered_through, &any_by_ends, false),
             ] {
                 // An end the zip split per cone lies at each of its
                 // copies, so the stretch is read between every pair of
