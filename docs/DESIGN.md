@@ -535,7 +535,7 @@ stored geometry tells the lever story at a build. At the import door
 it is the file's: the import refuses typed, naming the file. Every
 defect ending a bad file reaches there past ε_in names the file,
 whether the reading compares a value the file stored or one adoption
-derived from it; a sound file such a refusal reaches is a kernel bug to
+derived from it; a sound file such an ending reaches is a kernel bug to
 fix. Past the import door no state is reachable only through import
 ([import]), so only a kernel bug reaches it, and it panics ([failure]).
 A side no kernel construction produces panics at a build and past the

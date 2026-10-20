@@ -188,15 +188,10 @@ impl TransformError {
     /// This refusal's text read at `at`: a nested certification or
     /// pcurve refusal renders at that door, and a defect ends in the
     /// door's defect ending ([`geom_brep::recourse::defect_ending`]).
-    /// `Display` reads the nested refusals at a build, the map that
-    /// moved them, and a defect at rest.
     #[must_use]
     pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
         let at = at.into();
-        self.text(at, geom_brep::recourse::defect_ending(at))
-    }
-
-    fn text(&self, at: geom_brep::recourse::ReadAt, defect: &str) -> String {
+        let defect = geom_brep::recourse::defect_ending(at);
         match self {
             Self::Pcurve { source } => source.render(at),
             Self::Band(e) => e.to_string(),
@@ -237,12 +232,10 @@ impl TransformError {
     }
 }
 
+/// Read at a build: the map is the operation that built what it moved.
 impl core::fmt::Display for TransformError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.text(
-            geom_brep::recourse::Reading::Build.into(),
-            geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
-        ))
+        f.write_str(&self.render(geom_brep::recourse::Reading::Build))
     }
 }
 

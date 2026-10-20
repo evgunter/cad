@@ -735,30 +735,22 @@ impl JoinRefusal {
 }
 
 impl JoinRefusal {
-    /// This refusal's text read at `at`, by a door over stored geometry:
-    /// a reading in band ends in the join's lever, a poisoned one with
-    /// the door's unreadable-margin note
-    /// ([`geom_brep::recourse::unreadable_margin_note`]), and a defect in
-    /// the door's defect ending ([`geom_brep::recourse::defect_ending`]):
-    /// the kernel or the file at rest, the file at the import door.
+    /// This refusal's text read at `at`: a reading in band ends in the
+    /// join's lever, a poisoned one with the door's unreadable-margin
+    /// note ([`geom_brep::recourse::unreadable_margin_note`]), and a
+    /// defect in the door's defect ending
+    /// ([`geom_brep::recourse::defect_ending`]).
     #[must_use]
     pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
+        use geom_brep::recourse::{ReadAt, Reading, defect_ending, unreadable_margin_note};
         let at = at.into();
-        self.text(
-            |diag| diag.ending_noted(JOIN_LEVER, geom_brep::recourse::unreadable_margin_note(at)),
-            geom_brep::recourse::defect_ending(at),
-        )
-    }
-
-    /// The text, its undecided reading ended by `undecided` and a defect
-    /// by `defect`.
-    fn text(&self, undecided: impl Fn(&Indeterminate) -> String, defect: &str) -> String {
+        let defect = defect_ending(at);
         let undecided = |diag: &Indeterminate| {
-            format!(
-                "{JOIN_SUBJECT} is undecided ({}). {}",
-                diag.payload(),
-                undecided(diag)
-            )
+            let ending = match at {
+                ReadAt::Run(Reading::Build) => diag.ending(JOIN_LEVER),
+                _ => diag.ending_noted(JOIN_LEVER, unreadable_margin_note(at)),
+            };
+            format!("{JOIN_SUBJECT} is undecided ({}). {ending}", diag.payload())
         };
         match self {
             Self::Undecided(JoinUndecided {
@@ -795,12 +787,11 @@ impl JoinRefusal {
     }
 }
 
+/// Read at a build: every operation that reports it joins the edges of
+/// a body it built.
 impl core::fmt::Display for JoinRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(&self.text(
-            |diag| diag.ending(JOIN_LEVER),
-            geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
-        ))
+        f.write_str(&self.render(geom_brep::recourse::Reading::Build))
     }
 }
 

@@ -1353,8 +1353,10 @@ pub const UNREADABLE_STORED_MARGIN_NOTE: &str =
 /// What an unreadable margin may mean at the STEP import door, which a
 /// damaged file reaches (a Part 21 real that overflows to ±inf among
 /// them): [`UNREADABLE_MARGIN_NOTE`]'s twin there.
-pub const UNREADABLE_FILE_MARGIN_NOTE: &str =
-    "an unreadable margin may indicate a damaged file worth reporting to the program that wrote it";
+pub const UNREADABLE_FILE_MARGIN_NOTE: &str = concat!(
+    "an unreadable margin may indicate a damaged file worth reporting ",
+    crate::to_the_files_writer!()
+);
 
 /// **The recourse, labelled**: `Recourse: {action}`, the one spelling
 /// of the label a refusal's way through opens with.
@@ -1612,9 +1614,12 @@ impl FileCoincidence {
                 format!("{head}, to which alone the file's data claims to agree. {stopgap}")
             }
             (MissSource::File, Within::Partly) => format!(
-                "{head}, to which alone the file's data claims to agree. {stopgap}; a miss that \
-                 persists there means the file is damaged, worth reporting to the program that \
-                 wrote it"
+                concat!(
+                    "{}, to which alone the file's data claims to agree. {}; a miss that persists \
+                     there means the file is damaged, worth reporting ",
+                    crate::to_the_files_writer!()
+                ),
+                head, stopgap
             ),
             (MissSource::Fit, _) => format!(
                 "{head}, and may be the kernel's own approximation. {stopgap}; this refusal may \
@@ -2355,7 +2360,22 @@ macro_rules! kernel_or_file_defect_ending {
 #[macro_export]
 macro_rules! damaged_file_ending {
     () => {
-        "There is no way through: the file is damaged; report it to the program that wrote it"
+        concat!(
+            "There is no way through: the file is damaged; report it ",
+            $crate::to_the_files_writer!()
+        )
+    };
+}
+
+/// Whom a damaged file is reported to, as a literal for `concat!`: the
+/// one spelling every sentence that names a damaged file shares
+/// ([`DAMAGED_FILE_ENDING`], [`UNREADABLE_FILE_MARGIN_NOTE`], and the
+/// import door's miss that may persist past ε_in).
+#[doc(hidden)]
+#[macro_export]
+macro_rules! to_the_files_writer {
+    () => {
+        "to the program that wrote it"
     };
 }
 

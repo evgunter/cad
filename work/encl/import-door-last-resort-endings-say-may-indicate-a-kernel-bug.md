@@ -19,6 +19,12 @@ Ev ruled on PR 5464 that the import door names the file for every defect ending 
 
 A file whose geometry is off by more than the kernel's approximation can reach each of these. For example, a NURBS wall and a plane whose stated intersection is off makes `PlaneNurbsOnLocus`'s fit miss, and the import door then suggests a kernel bug.
 
-## Question
+## Finding
 
-Is the kernel-bug note on a last resort at the import door the honest reading? It does admit that the approximation may be at fault. Or should the import door's last resort name the file beside it? D4 ¶1 (i)'s last resort exists because no lever reaches a kernel approximation's limit. A bad file is a second cause the door cannot tell apart from that limit.
+The last resort's kernel-bug note is honest about one of its two causes at the import door. D4 ¶1 (i) gives the last resort because no lever reaches a kernel approximation's limit. At the import door a bad file is a second cause, and the door cannot tell the two apart. The note names only the first.
+
+## Options
+
+- **A. Leave it.** The last resort names the approximation's limit and loosening ε, both true at the door. A bad file is not excluded, only unnamed.
+- **B. Name the file beside the kernel at the import door.** For example, an import-door last resort ending "…this refusal may indicate a kernel bug or a damaged file". It would read the door through `ReadAt::culprit`, as the defect endings do.
+- **C. Name the file alone at the import door, as the defect endings now do.** This drops the approximation's limit, which is still a live cause, so it says less than is known.

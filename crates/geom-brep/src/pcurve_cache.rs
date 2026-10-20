@@ -2132,8 +2132,10 @@ pub enum PcurveCertifyError {
     Band(BandError),
 }
 
-impl core::fmt::Display for PcurveCertifyError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl PcurveCertifyError {
+    /// Every arm's text but an escalation's, whose ending reads the door
+    /// ([`PcurveCertifyError::render`]).
+    fn write_payload(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::UnsupportedChart { chart } => write!(
                 f,
@@ -2229,11 +2231,8 @@ impl core::fmt::Display for PcurveCertifyError {
                 "pcurve certification: the fitted lane's certificate refused at limb 2 — \
                  {refusal}"
             ),
-            // Each escalation ends in its decision's own labelled
-            // ending, read at a build: a door over stored geometry
-            // renders it at its own door ([`PcurveCertifyError::render`]).
             Self::FittedEscalated { .. } | Self::Escalated { .. } => {
-                f.write_str(&self.render(Reading::Build))
+                unreachable!("`render` writes an escalation")
             }
             Self::IntervalNotForward => write!(
                 f,
@@ -2304,6 +2303,14 @@ impl core::fmt::Display for PcurveCertifyError {
     }
 }
 
+/// Read at a build: the mint or certification a body's own operation
+/// runs.
+impl core::fmt::Display for PcurveCertifyError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.render(Reading::Build))
+    }
+}
+
 impl std::error::Error for PcurveCertifyError {}
 
 impl PcurveCertifyError {
@@ -2371,7 +2378,7 @@ impl PcurveCertifyError {
 
     /// This refusal's text read at `at`: an escalation, whose text
     /// carries its ending, ends as its decision does there; every other
-    /// refusal is its `Display`, the payload alone.
+    /// refusal is its payload alone.
     #[must_use]
     pub fn render(&self, at: impl Into<ReadAt>) -> String {
         let at = at.into();
@@ -2389,7 +2396,7 @@ impl PcurveCertifyError {
                 cause.payload(),
                 check.recourse(RefusedArm::Undecided(cause), at)
             ),
-            _ => self.to_string(),
+            _ => core::fmt::from_fn(|f| self.write_payload(f)).to_string(),
         }
     }
 

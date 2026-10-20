@@ -598,3 +598,65 @@ mod join_text {
         );
     }
 }
+
+#[cfg(test)]
+mod nested_at_the_door {
+    //! **A nested refusal the import door renders reads that door**: the
+    //! placement's re-certification and the pcurve re-mint's escalation,
+    //! each past the file's ε_in, end in the damaged file's ending. Red if
+    //! the door renders the nested refusal's `Display` (a build) or reads
+    //! it at rest.
+    #![allow(clippy::unwrap_used)]
+
+    use geom_core::{Band, DAMAGED_FILE_ENDING, FileCoincidence, Indeterminate, MarginDiag};
+
+    use super::StepImportError;
+
+    #[test]
+    fn a_placements_refused_recertification_names_the_file() {
+        let error = StepImportError::Placement {
+            transform: 9,
+            source: topo::TransformError::Certify {
+                edge: topo::EdgeKey::default(),
+                source: geom_brep::CertifyError::ResidualExceeded {
+                    check: geom_brep::CertCheck::EndpointStart,
+                    sample: 0,
+                    margin: MarginDiag::value(2e-6),
+                },
+            },
+            file: FileCoincidence::new(1e-6),
+        };
+        let text = error.to_string();
+        assert!(
+            text.starts_with("step import: the assembly placement stated at #9 refused")
+                && text.ends_with(DAMAGED_FILE_ENDING),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_pcurve_remints_escalation_names_the_file() {
+        let error = StepImportError::Pcurves {
+            source: topo::PcurveMintError::Certify {
+                half_edge: topo::HalfEdgeKey::default(),
+                error: geom_brep::PcurveCertifyError::Escalated {
+                    check: geom_brep::PcurveCheck::ChartWinding,
+                    sample: 0,
+                    cause: Indeterminate {
+                        margin: MarginDiag::value(5e-9),
+                        band: Band::new(1e-9, 1e-8).unwrap(),
+                        predicate: None,
+                        terminal_sliver: false,
+                    },
+                },
+            },
+            file: FileCoincidence::new(1e-6),
+        };
+        let text = error.to_string();
+        assert!(
+            text.starts_with("step import: pcurve re-mint on the adopted body:")
+                && text.ends_with(DAMAGED_FILE_ENDING),
+            "{text}"
+        );
+    }
+}
