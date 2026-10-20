@@ -247,7 +247,7 @@ fn a_wall_crossed_twice_names_its_same_side_pieces_by_the_edges_they_keep() {
         .filter(|(n, _)| {
             !matches!(
                 n.path.as_slice(),
-                [RoleSeg::Cap(_)] | [RoleSeg::SplitFragment { .. }] | [RoleSeg::SectionFace { .. }]
+                [RoleSeg::Cap(_)] | [RoleSeg::SplitFragment { .. }] | [RoleSeg::SectionFace]
             )
         })
         .map(|(n, _)| n.clone())
