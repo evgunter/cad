@@ -157,14 +157,16 @@ fn bounds<T: Decide>(p: &TrigPoly<T>, m: T, w: T, noise: T) -> Bounds<T> {
     }
 }
 
-/// `x`, non-negative and computed in `n` roundings to nearest, raised to
+/// `x`, non-negative and computed in `N` roundings to nearest, raised to
 /// an upper bound on the real value it stands for. Each rounding is
-/// within `u = ε/2` relative, so `x ≥ x̂/(1 − u)ⁿ` fails only below
-/// `x̂·(1 + (n + 1)·2u)` rounded: `x̂·c·(1 − u) ≥ x·(1 − (n + 1)·u)·(1 +
-/// 2(n + 1)·u) ≥ x` while `(n + 1)·u ≤ ½`. At an enclosure the product
-/// is outward already, and this only widens it.
-fn up<T: Decide>(x: T, n: u32) -> T {
-    x * T::from_f64(1.0 + f64::from(n + 1) * f64::EPSILON)
+/// within `u = ε/2` relative, so `x̂ ≥ x·(1 − u)ᴺ`, and the factor
+/// `c = 1 + (N + 1)·2u`, a constant exact in `f64` for any `N` short of
+/// `2⁵¹`, lifts it past `x` in one more rounding:
+/// `x̂·c·(1 − u) ≥ x·(1 − (N + 1)·u)·(1 + 2(N + 1)·u) ≥ x` while
+/// `(N + 1)·u ≤ ½`. At an enclosure `c` is a point and the product is
+/// outward already, so this only widens it.
+fn up<const N: u32, T: Decide>(x: T) -> T {
+    x * T::from_f64(1.0 + f64::EPSILON * (N + 1) as f64)
 }
 
 /// **The bend term** `(A + k²·B)·w²/2` of the on reading along `b`
@@ -172,7 +174,7 @@ fn up<T: Decide>(x: T, n: u32) -> T {
 /// roundings (`k²`, `·B`, `+ A`, `w²`, the product, the halving, inexact
 /// only below the normal range), raised past them.
 fn bent<T: Decide>(a: T, b: T, k: T, w: T) -> T {
-    up((a + k * k * b) * (w * w) * T::from_f64(0.5), 6)
+    up::<6, _>((a + k.powi(2) * b) * w.powi(2) * T::from_f64(0.5))
 }
 
 /// Whether `x` is definitely positive, read exactly
@@ -287,14 +289,11 @@ impl<T: Decide> Window<'_, T> {
         let (sa, sb) = (self.a.speed_hi(), self.b.speed_hi());
         // `m` and `w` are each within two roundings of `(l ± r)/2`, so
         // the piece lies within `w·(1 + 3ε) + 2ε·|m|` of `m`.
-        let reach = up(up(w, 2) + T::from_f64(2.0) * eps * m.abs(), 1);
+        let reach = up::<1, _>(up::<2, _>(w) + T::from_f64(2.0) * eps * m.abs());
         // Each velocity's coordinates are a handful of roundings of
         // products at most its larger semi-axis.
-        let skew = up(
-            (va - vb * k).norm() + T::from_f64(16.0) * eps * (sa + k.abs() * sb),
-            4,
-        );
-        up(foot.gap() + up(skew * reach, 1) + bent(sa, sb, k, reach), 2)
+        let skew = up::<4, _>((va - vb * k).norm() + T::from_f64(16.0) * eps * (sa + k.abs() * sb));
+        up::<2, _>(foot.gap() + up::<1, _>(skew * reach) + bent(sa, sb, k, reach))
     }
 
     /// A seed for `q`'s foot on `b`: its angle about `b`'s centre in
