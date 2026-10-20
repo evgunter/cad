@@ -34,8 +34,8 @@
 //!
 //! # Where an operand's expected-kind label lives, by convention
 //!
-//! Three labels of this shape exist and they are three different
-//! things, which is why they have three homes.
+//! Two labels of this shape exist and they are two different things,
+//! which is why they have two homes.
 //!
 //! **The convention is about which DECLARATION carries the label, not
 //! about who picks the word.** `tool_expected` is correspondence DATA
@@ -44,13 +44,9 @@
 //! label the refusal carries. The profile lowering's
 //! `expected: family::PROFILE` is the LOWERING's, because every
 //! profile verb takes a profile — the operand contract belongs to
-//! `wire_swept`, not to any one correspondence. The blends'
-//! `selection_label` is not an operand label at all: it is the kernel
-//! refusal label a SELECTION failure carries (`BlendKind`), shared
-//! with the kernel's own refusal so a verb is never rendered twice.
-//! The rule: a label is data on the correspondence that owns the
-//! reading it names, and inline in the lowering that owns the
-//! contract it names.
+//! `wire_swept`, not to any one correspondence. The rule: a label is
+//! data on the correspondence that owns the reading it names, and
+//! inline in the lowering that owns the contract it names.
 //!
 //! **The WORD is never a home's to invent, this one included.** Every
 //! `expected:` in the evaluation comes from `crate::eval::family` or
