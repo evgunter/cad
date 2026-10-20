@@ -1146,6 +1146,92 @@ fn a_patch_with_more_spans_than_the_cap_seeds_refuses_before_round_0() {
     }
 }
 
+/// **A knot span a few ulps wide refuses on the span**
+/// (`geom_brep::recourse::NARROW_SPAN`), one row per arm it reaches
+/// through the fit door: `[1e15, 1e15 + 1]` holds nine `f64` values,
+/// so a quadratic's refinement overflows and a cubic's refined vector
+/// is discontinuous; two one-ulp spans on `[4e15, 4e15 + 1]` seed three
+/// distinct parameters under a cubic's four; one two-ulp rational span
+/// on `[1, 1 + 2ε]` seeds a repeated one. Each names the span as its
+/// lever and never the kernel-defect dead end, and none reaches the
+/// fit's spline assembly, whose averaged knots a far domain was feared
+/// to collapse.
+#[test]
+fn a_knot_span_a_few_ulps_wide_refuses_on_its_span() {
+    let face = |lo: f64, p: usize, interior: &[f64]| {
+        let mut knots = vec![lo; p + 1];
+        knots.extend(interior.iter().map(|t| lo + t));
+        knots.extend(vec![lo + 1.0; p + 1]);
+        let ku = KnotVector::clamped(knots, p).unwrap();
+        let kv = KnotVector::clamped([vec![0.0; p + 1], vec![1.0; p + 1]].concat(), p).unwrap();
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let mut control = Vec::with_capacity(nu * nv);
+        for i in 0..nu {
+            for j in 0..nv {
+                #[allow(clippy::cast_precision_loss)]
+                let (x, y) = (i as f64 / (nu - 1) as f64, j as f64 / (nv - 1) as f64);
+                control.push(Point3::new(
+                    x,
+                    y,
+                    0.3 * (3.0 * x).sin() * (2.0 * y + 0.4).cos(),
+                ));
+            }
+        }
+        NurbsSurface::new(ku, kv, control, vec![1.0; nu * nv]).unwrap()
+    };
+    // Degree 1 in `u` over `[1, 1 + 2ε]`, `x` at its Grevilles so the
+    // `u` speed is one, rational so the patch bound reads it unrefined.
+    let two_ulps = {
+        let (a, b) = (1.0, 1.0 + 2.0 * f64::EPSILON);
+        let ku = KnotVector::clamped(vec![a, a, b, b], 1).unwrap();
+        let mut control = Vec::new();
+        for x in [a, b] {
+            for (y, z) in [(0.0, 0.0), (0.5, 0.2), (1.0, 0.0)] {
+                control.push(Point3::new(x, y, z));
+            }
+        }
+        NurbsSurface::new(ku, kv2(), control, vec![1.0, 0.9, 1.0, 1.0, 0.9, 1.0]).unwrap()
+    };
+    type Arm = fn(&OffsetFitError) -> bool;
+    let rows: [(&str, NurbsSurface<f64>, Arm); 4] = [
+        ("insertion chain", face(1e15, 2, &[]), |e| {
+            matches!(
+                e,
+                OffsetFitError::PatchBound(PatchBoundError::RefinementFailed)
+            )
+        }),
+        ("refined vector", face(1e15, 3, &[]), |e| {
+            matches!(e, OffsetFitError::PatchBound(PatchBoundError::DerivedKnots))
+        }),
+        ("seed", face(4e15, 2, &[0.5]), |e| {
+            matches!(
+                e,
+                OffsetFitError::Fit(geom::curves::fit::FitError::TooFewPoints { .. })
+            )
+        }),
+        ("repeated seed", two_ulps, |e| {
+            matches!(
+                e,
+                OffsetFitError::Fit(geom::curves::fit::FitError::ParamCountMismatch { .. })
+            )
+        }),
+    ];
+    for (name, base, arm) in rows {
+        match fit_offset_at(&base, 0.01, 1e-4, band()) {
+            Err(e) => {
+                assert!(arm(&e), "{name}: refused on another arm: {e:?}");
+                let msg = e.to_string();
+                assert!(
+                    msg.contains(geom_brep::recourse::NARROW_SPAN)
+                        && msg.ends_with(geom_brep::recourse::NARROW_SPAN_RECOURSE),
+                    "{name}: not the narrow span's story: {msg}"
+                );
+            }
+            Ok((_, cert)) => panic!("{name}: a span of a few ulps fitted: {cert:?}"),
+        }
+    }
+}
+
 /// **A bound found and then lost.** The quarter cylinder at
 /// `d = -2e-8` and `1e-15` reaches a finite bound on a coarser grid and
 /// loses it on the finer one the cap stops at, so the not-finite face
