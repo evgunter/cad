@@ -274,6 +274,63 @@ fn a_rejection_tells_the_decided_margin_it_carries() {
     }
 }
 
+/// **A verdict's word rides the payload, and is said once.** Where a
+/// gate rejected a decided sign, its payload says what that reading is
+/// after the placement, so a door that composes the payload with its
+/// own decision's ending tells it ([`Indeterminate::undecided`]), and
+/// the escalation's own sentence says it once. A reading inside the
+/// band carries no verdict, and its word stays the tail's.
+#[test]
+fn a_verdicts_word_rides_the_payload_once() {
+    let b = band();
+    let rejected = |margin: f64| decide_positive("gate_word", Margin::of(margin), b).unwrap_err();
+    let decided = "a decided sign this decision cannot use";
+    let near = "a near-coincidence";
+    for (cause, verdict, word) in [
+        (rejected(0.5 * b.zero()), Sign::Zero, near),
+        (rejected(-1.0), Sign::Negative, decided),
+        (
+            decide_positive(
+                "gate_word",
+                Margin::of(Interval::from_bounds(-2.0, -1.0)),
+                b,
+            )
+            .unwrap_err(),
+            Sign::Negative,
+            decided,
+        ),
+    ] {
+        let payload = cause.payload().to_string();
+        let whole = cause.to_string();
+        assert_eq!(cause.verdict(), Some(verdict), "the verdict: {payload}");
+        assert!(
+            payload.ends_with(&format!(" — {word}")),
+            "the payload: {payload}"
+        );
+        assert_eq!(whole.matches(word).count(), 1, "said once: {whole}");
+        assert!(
+            whole.starts_with(&format!("{payload}; ")),
+            "the tail: {whole}"
+        );
+        assert_eq!(
+            cause.undecided("whether S", "E").to_string(),
+            format!("whether S is undecided: {payload}. E"),
+            "a composed ending"
+        );
+    }
+    let in_band = rejected(f64::midpoint(b.zero(), b.escalate()));
+    let payload = in_band.payload().to_string();
+    assert_eq!(in_band.verdict(), None, "in band: {payload}");
+    assert!(
+        !payload.contains(" — "),
+        "no word in the payload: {payload}"
+    );
+    assert!(
+        in_band.to_string().contains(&format!(" — {near}; ")),
+        "the tail's word: {in_band}"
+    );
+}
+
 /// **The magnitude door** answers `Zero` or `Positive` and records the
 /// verdict as `decide` does; a margin it cannot call escalates through
 /// the funnel, once.

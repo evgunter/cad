@@ -738,3 +738,56 @@ fn a_plane_gate_in_band_near_the_horn_escalates_on_it() {
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
+
+/// **A gate's rejection on a Villarceau tangent part is told with its
+/// reading's word.** On `R = 2`, `r = 1.8e-9`, band `(1e-9, 2e-9)`, the
+/// radius-2 circle centred `2.5e-9` along `x`, its normal tilted
+/// `0.9e-9/2` toward `y`, reaches `torus_oblique_circle` on the parallel
+/// arm, where `decide_positive` rejects the tube-rate part's magnitude
+/// as a decided Zero. `ChartIncidence` ends it as an unsized defect, and
+/// the payload still says what that reading is.
+#[test]
+fn a_tube_rate_gates_rejected_zero_is_told_with_its_word() {
+    let band = geom_core::Band::new(1e-9, 2e-9).unwrap();
+    let surface = Surface::Torus {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        major_radius: 2.0,
+        minor_radius: 1.8e-9,
+        u_ref: Vec3::unit_x(),
+    };
+    let axis = Vec3::new(0.0, 0.9e-9 / 2.0, 1.0).normalize();
+    let seed = Vec3::unit_x();
+    let carrier = Curve3::Circle {
+        center: Point3::new(2.5e-9, 0.0, 0.0),
+        axis,
+        radius: 2.0,
+        u_ref: (seed - axis * seed.dot(axis)).normalize(),
+    };
+    let got = chart_pcurve(&carrier, &surface, band);
+    let Err(
+        refusal @ PcurveCertifyError::Escalated {
+            check: PcurveCheck::ChartIncidence,
+            cause,
+            ..
+        },
+    ) = &got
+    else {
+        panic!("the tube-rate gate's rejection: {got:?}");
+    };
+    assert_eq!(
+        (cause.predicate, cause.margin.rejected_sign()),
+        (
+            Some("pcurve_torus_villarceau_tube_rate"),
+            Some(geom_core::Sign::Zero)
+        ),
+        "the gate that rejected: {cause:?}"
+    );
+    assert_eq!(
+        refusal.to_string(),
+        "pcurve certification: ChartIncidence at sample 0 escalated: margin 9e-10 lies within \
+         the zero band (±1e-9) — a near-coincidence. There is no way through: this is a kernel \
+         defect; report it",
+        "the rendered refusal"
+    );
+}

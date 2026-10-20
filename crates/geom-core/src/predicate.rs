@@ -1772,6 +1772,23 @@ impl MarginDiag {
         }
     }
 
+    /// The verdict reached on this reading against `band`, where one
+    /// was ([`Indeterminate::verdict`]).
+    fn verdict(self, band: Band) -> Option<Sign> {
+        let positive = match self.0 {
+            Reading::Value(m, ..) => m > 0.0,
+            Reading::Enclosure { lo, .. } => lo > 0.0,
+            Reading::Invalid => return None,
+        };
+        match self.placement(band) {
+            Placement::ZeroBand => Some(Sign::Zero),
+            Placement::Past if positive => Some(Sign::Positive),
+            Placement::Past => Some(Sign::Negative),
+            Placement::Undecided if self.proven() => Some(Sign::Zero),
+            Placement::Undecided | Placement::Invalid => None,
+        }
+    }
+
     /// The sign the classifier decided, where this reading is a gate's
     /// rejection of it; `None` for every other reading (in band,
     /// straddling, poisoned). A verdict, read as a sign — never the
@@ -2380,6 +2397,13 @@ impl fmt::Display for MissingRecourse<'_> {
 /// [`COINCIDENCE_RECOURSE`]) and must not double the recourse; the
 /// bare [`Indeterminate`] Display is this payload plus the shared
 /// tail.
+///
+/// Where a verdict was reached on the reading
+/// ([`Indeterminate::verdict`]) — a gate's rejection of a decided sign, a
+/// proved zero — the payload says what its reading is after the
+/// placement, " — {word}" ([`Indeterminate::reading`]), so every
+/// composition of a payload and an ending tells it, whoever's ending
+/// follows.
 #[derive(Debug, Clone, Copy)]
 pub struct IndeterminatePayload<'a>(&'a Indeterminate);
 
@@ -2471,6 +2495,10 @@ impl fmt::Display for IndeterminatePayload<'_> {
                 "margin is invalid (NaN or a refused enclosure) against the ambiguity \
                  band ({zero:e}, {escalate:e})"
             ),
+        }?;
+        match self.0.payload_word() {
+            Some(word) => write!(f, " — {word}"),
+            None => Ok(()),
         }
     }
 }
@@ -2616,9 +2644,10 @@ impl Indeterminate {
     /// — the word read from what the margin shows the refused decision
     /// ([`MarginDiag::shows`]) and its kind alone, never from which route
     /// carried it, so a class says one thing and its ending
-    /// ([`Indeterminate::ending`], the same class) agrees. Read by
-    /// [`UnderTail`] for the word and by [`Indeterminate::ending`] for the
-    /// lever.
+    /// ([`Indeterminate::ending`], the same class) agrees. Read for the
+    /// word by the payload, where a verdict was reached on the reading,
+    /// and by [`UnderTail`] otherwise; and by [`Indeterminate::ending`]
+    /// for the lever.
     ///
     /// A decided nonzero sign is sign-certain. A reading that shows no
     /// size stays off every sign the decision passes at any smaller
@@ -2672,6 +2701,26 @@ impl Indeterminate {
     /// could not rule out).
     fn passes(&self) -> SizedPass {
         self.margin.tag().map_or(SizedPass::NonZero, |r| r.passes)
+    }
+
+    /// **The verdict reached on this reading**, where one was: Zero in
+    /// the zero band or where the symbolic tier proved it, a sign past
+    /// the ambiguity band. `None` for a reading inside the band, an
+    /// enclosure the band leaves undecided, and a poisoned margin. Read
+    /// from the number, never from the route that carried it, it is the
+    /// test a reading is told by as decided: its payload says its word
+    /// ([`Indeterminate::payload`]), and a decision's table ends it as
+    /// the decided arm it is (`geom_brep::recourse::Unsized`).
+    #[must_use]
+    pub fn verdict(&self) -> Option<Sign> {
+        self.margin.verdict(self.band)
+    }
+
+    /// The word this escalation's payload says after its placement: its
+    /// reading's ([`Indeterminate::reading`]), wherever a verdict was
+    /// reached on it.
+    fn payload_word(&self) -> Option<&'static str> {
+        self.verdict().and(self.reading().0)
     }
 
     /// Whether [`Indeterminate::ending`] offers a tolerance: a smaller
@@ -2739,9 +2788,10 @@ impl fmt::Display for IndeterminateUnder<'_> {
 impl fmt::Display for UnderTail<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let UnderTail(under) = self;
-        f.write_str(" — ")?;
-        if let (Some(reading), _) = under.diag.reading() {
-            write!(f, "{reading}; ")?;
+        match (under.diag.payload_word(), under.diag.reading().0) {
+            (Some(_), _) => f.write_str("; ")?,
+            (None, Some(reading)) => write!(f, " — {reading}; ")?,
+            (None, None) => f.write_str(" — ")?,
         }
         f.write_str(&under.diag.ending(under.recourse))
     }

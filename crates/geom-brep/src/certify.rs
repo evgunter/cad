@@ -7001,8 +7001,8 @@ mod tests {
             }
             .render(Reading::Build),
             "the stored interval's span at sample 0 escalated: margin 2e-12 lies within the zero \
-             band (±1e-9). Recourse: move the geometry so this edge runs forward over a clear \
-             length; no tolerance a run admits decides this length",
+             band (±1e-9) — a near-coincidence. Recourse: move the geometry so this edge runs \
+             forward over a clear length; no tolerance a run admits decides this length",
             "the whole sentence, so a second statement of the floor goes red"
         );
         for cause in [rejected, in_band] {
