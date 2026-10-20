@@ -9,8 +9,8 @@
 //! the bottom `(0, 0.2, −0.6)` the fan's face on the fin's long edge
 //! `c0 c1` leans across the slit and cuts through the faces beyond it,
 //! and the boundary winds −1 near the slit's mouth: no solid. Check 7
-//! reads that crown by every aim that decides, and where two of its rays
-//! read opposite sides the at-rest gate refuses it
+//! reads that crown by every aim that decides, and two of its rays read
+//! opposite sides, so the at-rest gate refuses it
 //! (`ValidationError::OrientationOpposed`), whatever face order meets
 //! first.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -210,40 +210,29 @@ fn every_union_of_the_fin_crown_with_its_probes_winds_as_a_solid() {
     assert_eq!(read, 30, "every union is read");
 }
 
-/// **A crown wound against itself refuses at rest where two aimed rays
-/// read opposite sides**, which check 7 finds by reading every aim that
-/// decides, whatever face order meets first. The crown on the bottom
+/// **A crown wound against itself refuses at rest, on two aimed rays
+/// that read opposite sides**, at every pose: check 7 reads every aim
+/// that decides, whatever face order meets first. The crown on the bottom
 /// `(0, 0.2, −0.6)` passed at every pose while the first ray that
-/// decided answered. At the two flipped poses no aimed ray's closest
-/// crossing enters the −1 region, so every one reads `Out` and the crown
-/// passes: check 7 reads a side, it does not look for a boundary that
-/// passes through itself.
+/// decided answered.
 #[test]
 fn a_crown_wound_against_itself_refuses_at_rest_by_two_opposed_rays() {
     if !fin_builds() {
         return;
     }
-    let opposed: Vec<_> = poses()
-        .into_iter()
-        .filter(|pose| {
-            let read = posed_crown_kept(&fin(), [0.0, 0.2, -0.6], pose, t());
-            let errors = read.err().unwrap_or_default();
-            assert!(
-                errors
-                    .iter()
-                    .all(|e| matches!(e, ValidationError::OrientationOpposed { .. })),
-                "{}: the crown refuses only on two opposed rays, read {errors:?}",
-                pose.label
-            );
-            !errors.is_empty()
-        })
-        .map(|pose| pose.label)
-        .collect();
-    assert_eq!(
-        opposed,
-        ["at rest", "turned about z", "turned"],
-        "the poses at which two aimed rays read opposite sides"
-    );
+    for pose in poses() {
+        let read = posed_crown_kept(&fin(), [0.0, 0.2, -0.6], &pose, t());
+        let errors = read.err().unwrap_or_default();
+        assert!(
+            matches!(
+                &errors[..],
+                [ValidationError::OrientationOpposed { rays, .. }]
+                    if rays.inside_out.aimed != rays.outside.aimed
+            ),
+            "{}: the crown refuses on two opposed rays aimed at two faces, read {errors:?}",
+            pose.label
+        );
+    }
 }
 
 /// **What reading every aim costs**: the at-rest validation of a prism

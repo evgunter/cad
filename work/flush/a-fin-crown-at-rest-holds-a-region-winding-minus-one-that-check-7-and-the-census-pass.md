@@ -103,18 +103,18 @@ union carried it unchanged.
   (`crates/topo/tests/the_fin_crown_winds_as_a_solid.rs`). Every fin
   scene of `a_vertex_read_again_classes_every_edge` now builds, with no
   wrong, missing or doubled row: probes 2 and 4 build 30 cells each,
-  where main refused 3 and built 27. `KNOWN_INSIDE_OUT` and
-  `KNOWN_WRONG` are empty and gone.
+  where main refused 5 (`x ∪ y` at every pose) and built 25.
+  `KNOWN_INSIDE_OUT` and `KNOWN_WRONG` are empty and gone.
 - **Check 7 reads every aim that decides**
   (`side_reader::side_at_infinity_by_every_aim`, one caster, `cast_aims`,
   with an `Aims` mode). Every ray that decides is read; two that read
   opposite sides refuse `ValidationError::OrientationOpposed`, naming
-  both rays, their aims and the faces they crossed. Rays set aside, and
-  rays that read in band, change nothing. The role readers keep the first
-  ray that decides. On the old crown the gate now refuses at three poses
-  of five; at the two flipped poses no aimed ray's closest crossing
-  enters the −1 region, and it still passes (filed on RESTFRONT,
-  `the-at-rest-gate-passes-a-planar-body-whose-boundary-passes-through-itself`).
+  both rays by the faces they were aimed at and their aims. Rays set
+  aside, and rays that read in band, change nothing. The role readers
+  keep the first ray that decides. The old crown, which passed the gate
+  at every pose with the first ray answering, now refuses at all five
+  (the ray aimed at `4v1` counts its way into the material, the one at
+  `1v1` out of it).
 - **The cost.** Every aim is cast on a valid body, so check 7 is
-  quadratic in faces: 71 ms against 2.7 s at 1026 faces (filed,
+  quadratic in faces: 47 ms against 5.7 s at 1026 faces (filed,
   `check-7-casts-a-ray-per-face-so-the-at-rest-gate-is-quadratic-in-faces`).

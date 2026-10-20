@@ -22,17 +22,17 @@ by any reading is invalid).
 
 | faces | first ray that decides | every aim |
 |---|---|---|
-| 18 | 1.5 ms | 2.1 ms |
-| 66 | 2.6 ms | 11 ms |
-| 258 | 7.4 ms | 162 ms |
-| 1026 | 71 ms | 2.7 s |
+| 18 | 1.6 ms | 2.5 ms |
+| 66 | 1.7 ms | 12 ms |
+| 258 | 6.6 ms | 231 ms |
+| 1026 | 47 ms | 5.7 s |
 
 A valid body's rays all read one side, so every face that offers an aim
 casts one, and each ray asks every face of the selection
 (`boolean::solid_contain::ray_crossings`: the plane hit, then
 `point_in_face`) and measures the selection's reach from its aim twice
 (`side_reader::beyond`, `selection_reach`). Both are linear in the
-faces, so the gate is quadratic in them. About 2.6 ms a ray at 1026
+faces, so the gate is quadratic in them: about 5.5 ms a ray at 1026
 faces. Extrapolated, a 10 000-face import would spend minutes in
 check 7.
 
