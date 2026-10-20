@@ -815,4 +815,48 @@ mod tests {
             }
         }
     }
+
+    /// The exact-binomial guard at its edge. `KnotVector` refuses
+    /// degree 0, so no public composition reaches it: every real curve
+    /// composes to rows of degree `q_p·(m_u+m_v) > BINOM_EXACT_MAX` past
+    /// the cap, which refuse on their own. Degree-0 rows (one coefficient
+    /// each) never overflow, so the guard alone decides. The degrees are
+    /// split near-evenly so each `binom_row` stays inside the table:
+    /// `mu + mv = BINOM_EXACT_MAX` is served, `+ 1` refused. Red on the
+    /// guard's `+ 1` and `+ 2` mutants.
+    #[test]
+    fn a_degree_zero_pair_is_served_at_the_binomial_cap_and_refused_past_it() {
+        let cell = |mu: usize, mv: usize| {
+            let channel = |c: f64| TensorSpans {
+                deg_u: mu,
+                deg_v: mv,
+                breaks_u: vec![0.0, 1.0],
+                breaks_v: vec![0.0, 1.0],
+                patches: vec![vec![vec![Interval::point(c); (mu + 1) * (mv + 1)]]],
+            };
+            let (x, y, z, w) = (channel(1.0), channel(2.0), channel(3.0), channel(1.0));
+            let one = [Interval::point(1.0)];
+            let half = [Interval::point(0.5)];
+            let ac = [[Interval::point(1.0)], [Interval::point(2.0)], [Interval::point(2.0)]];
+            let rows = SpanRows {
+                u: &half,
+                v: &half,
+                wp: &one,
+                ac: [&ac[0], &ac[1], &ac[2]],
+                wc: &one,
+            };
+            cell_residual(&[&x, &y, &z, &w], 0, 0, &rows)
+        };
+        let cap = super::super::BINOM_EXACT_MAX;
+        let (mu, mv) = (cap / 2, cap - cap / 2);
+        let served = cell(mu, mv);
+        // S is the constant (1, 2, 3), C the constant (1, 2, 2): |S − C| = 1.
+        assert!(served.bound.is_finite() && served.bound >= 1.0, "{}", served.bound);
+        for end in served.ends {
+            assert!(end.is_certified() && end.lo() <= 1.0 && 1.0 <= end.hi(), "{end:?}");
+        }
+        let refused = cell(mu, mv + 1);
+        assert!(refused.bound.is_nan());
+        assert!(refused.ends.iter().all(|e| !e.is_certified()));
+    }
 }
