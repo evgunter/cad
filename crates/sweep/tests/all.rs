@@ -949,6 +949,8 @@ mod r1_probes_m9_3;
 #[path = "curved_mergedoor.rs"]
 mod curved_mergedoor;
 
+#[path = "curved_coincident_fates.rs"]
+mod curved_coincident_fates;
 #[path = "curved_notch_pinch.rs"]
 mod curved_notch_pinch;
 

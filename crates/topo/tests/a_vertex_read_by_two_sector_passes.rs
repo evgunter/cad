@@ -1713,7 +1713,7 @@ fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
 /// holds no vertex. `flush − y` keeps the flush pyramid's face over the
 /// top and cuts the top where that face ends (`boolean::fate`, a lone
 /// vertex minted at the apex): the row names a fragment of the top, not
-/// the top whole.
+/// the top whole, and the body holds tiers 3 and 3′ (`three_prime`).
 #[test]
 fn a_partner_tipped_off_the_face_still_ends_the_cut() {
     let eps = t().eps();
@@ -1738,5 +1738,8 @@ fn a_partner_tipped_off_the_face_still_ends_the_cut() {
             "{}: one row, a fragment cut from y's top, got {rows:?}",
             pose.label
         );
+        let what = format!("{}: flush − y", pose.label);
+        assert_eq!(validate_geometric(&out.body, t()), Ok(()), "{what}: tier 3");
+        three_prime(&what, &out, &pose, false, None, None);
     }
 }

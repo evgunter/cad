@@ -1811,6 +1811,44 @@ fn a_pocket_floor_held_inside_a_dropped_face_names_alike() {
     }
 }
 
+/// `node`'s face pieces named by their walls, each as its own plane
+/// with its walls' planes, sorted (a tied row counts once per
+/// candidate): [`splits`] read by geometry, for members whose names
+/// [`label`] does not read.
+fn plane_splits(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<(String, Vec<String>)> {
+    let mut out = Vec::new();
+    for (name, entry) in table(ev, node).iter() {
+        let Some(RoleSeg::Fragment(Qualifier::Borders(walls))) = name.path.last() else {
+            continue;
+        };
+        if name.kind != EntityKind::Face {
+            continue;
+        }
+        let mut set: Vec<String> = walls.iter().map(|w| named_plane(ev, w)).collect();
+        set.sort();
+        let count = match entry {
+            Entry::Unique(_) => 1,
+            Entry::Tied(es) => es.len(),
+        };
+        for _ in 0..count {
+            out.push((plane_label(ev, node, name), set.clone()));
+        }
+    }
+    out.sort();
+    out
+}
+
+/// The plane of the face `n` names, read in the table of the node that
+/// minted it, or through the read it was taken from where that table
+/// does not hold it.
+fn named_plane(ev: &Evaluation<f64>, n: &StableName) -> String {
+    match (table(ev, n.node).lookup(n), n.path.as_slice()) {
+        (Some(_), _) => plane_label(ev, n.node, n),
+        (None, [RoleSeg::From { of, .. }]) => named_plane(ev, of),
+        (None, _) => panic!("{n:?} is named by no table it cites"),
+    }
+}
+
 /// One letterform prism: `poly` on the frame `(u, v)` through the
 /// origin, extruded `depth` along its normal.
 fn letter(
@@ -1838,7 +1876,8 @@ fn letter(
 /// and the stem between is lost and borders both. Red when a sector
 /// the C holds is read off a wide corner's other half: the lost stem
 /// was recorded as held, and the arm tips' pieces bordered no discard
-/// between them.
+/// between them. Each member order builds and names its pieces by the
+/// same walls, read by their planes.
 #[test]
 fn the_silhouette_letters_name_through_an_intersect_of_an_intersect() {
     let h = [
@@ -1879,25 +1918,52 @@ fn the_silhouette_letters_name_through_an_intersect_of_an_intersect() {
     let (doc, h) = letter(doc, &h, ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]), 3.0);
     let (doc, t) = letter(doc, &t, ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0]), 2.0);
     let (doc, c) = letter(doc, &c, ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0]), 3.0);
-    let (doc, two) = insert(
-        doc,
-        Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![h.into(), t.into()]),
-        },
-    );
-    let (doc, three) = insert(
-        doc,
-        Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![c.into(), two.into()]),
-        },
-    );
-    let ev = run(&doc);
-    assert!(failure(&ev, two).is_none(), "two: {:?}", failure(&ev, two));
-    assert!(
-        failure(&ev, three).is_none(),
-        "three: {:?}",
-        failure(&ev, three)
-    );
+    // Each member order of the outer intersect, and of the inner one under
+    // the first. Both swapped differ, as on the frozen head of PR 5368
+    // (`work/flush/an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order.md`).
+    let mut sets = Vec::new();
+    for (hs, cs) in [(false, false), (true, false), (false, true)] {
+        let (doc, two) = insert(
+            doc.clone(),
+            Node::Intersect {
+                members: editor_core::Bodies::Spelled(if hs {
+                    vec![t.into(), h.into()]
+                } else {
+                    vec![h.into(), t.into()]
+                }),
+            },
+        );
+        let (doc, three) = insert(
+            doc,
+            Node::Intersect {
+                members: editor_core::Bodies::Spelled(if cs {
+                    vec![two.into(), c.into()]
+                } else {
+                    vec![c.into(), two.into()]
+                }),
+            },
+        );
+        let ev = run(&doc);
+        let at = format!(
+            "{}, {}",
+            if hs { "T ∩ H" } else { "H ∩ T" },
+            if cs { "two ∩ C" } else { "C ∩ two" }
+        );
+        assert!(
+            failure(&ev, two).is_none(),
+            "{at}: two: {:?}",
+            failure(&ev, two)
+        );
+        assert!(
+            failure(&ev, three).is_none(),
+            "{at}: three: {:?}",
+            failure(&ev, three)
+        );
+        sets.push((at, plane_splits(&ev, three)));
+    }
+    for (at, got) in &sets[1..] {
+        assert_eq!(got, &sets[0].1, "{at} against {}: the wall sets", sets[0].0);
+    }
 }
 
 /// A stepped plate, `[0,3] × [0,2] × [0,2]` less an L pocket above

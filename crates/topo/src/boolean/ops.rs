@@ -7293,6 +7293,13 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         _ => [faces_outside(&red.a, &[]), faces_outside(&red.b, keep)],
     };
     let substituted = super::fate::uncut(red, [&discarded[0], &discarded[1]])?;
+    // The lump keeps operand A's copy of a coincident pair
+    // (`tables::kept_copy`), so a shell holding one is kept: a fallback
+    // that keeps B whole drops no such pair.
+    debug_assert!(
+        substituted.is_empty() || kind == BooleanResultKind::OperandA,
+        "a containment fallback keeping operand B whole holds a coincident pair"
+    );
     let recorded = carried_vertices(
         &body,
         &ledger,

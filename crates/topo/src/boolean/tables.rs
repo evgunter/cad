@@ -183,6 +183,21 @@ mod tests {
         }
     }
 
+    /// Where the lump keeps one copy, it keeps operand A's: B's copy is
+    /// the one dropped in every op. So a containment fallback that keeps
+    /// B whole drops no copy of a pair it holds (`fate::uncut`).
+    #[test]
+    fn the_lump_keeps_operand_as_copy_where_it_keeps_one() {
+        for op in [Union, Intersect, Subtract] {
+            for rel in [Plus, Minus] {
+                assert!(
+                    matches!(kept_copy(op, rel), None | Some(A)),
+                    "{op:?} {rel:?}"
+                );
+            }
+        }
+    }
+
     /// Eq. 15.3, every cell of the BOOK's table (the adjudicated one;
     /// module docs for the ∖-row misprint record).
     #[test]
