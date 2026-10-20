@@ -1324,3 +1324,7 @@ Signed (CLEAVE orchestrator).
   - Builds 20/30 void-ray and 40/60 partner cells; all 3′-ok; 15 are the same as before 5380.
   - The unions (face closing across the line) still refuse. Filed P1 `a-boolean-closes-a-slits-face-across-its-line` and told the join sibling it's the mirror of its case.
   - Full review dispatched.
+- 2026-10-20 — The glued-slit P1 is up as PR 5505 (`35c9fccc1f`, gate ok).
+  - The join merges a glued slit's sliver into one wall|wall edge (`merge_glued_slits` via `kef`; the sliver side reads Out). All 100 cells per ε build at closed form, 3′ ok; no new refusals; 34 `union_flush` LineWedges re-pinned to builds.
+  - Filed FLUSH P1 `a-fate-cut-refuses-a-slit-floor-flush-with-an-inner-slab` (a main red since 5368).
+  - Full review dispatched; focus on whether the merge hides a true overlap.

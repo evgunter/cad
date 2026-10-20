@@ -2,7 +2,7 @@
 id: a-boolean-glues-away-the-face-a-slit-lies-in
 kind: issue
 title: A Boolean that glues away the face a slit or ring lies in refuses SlitFaceGlued or LineWedges: the join does not merge the slit's two edges into one wall | wall edge
-status: dispatched
+status: review
 opened: 2026-10-20
 priority: P1
 cost: M
