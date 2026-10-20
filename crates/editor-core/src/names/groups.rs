@@ -343,8 +343,9 @@ impl FragmentGroups {
     /// Each group's count under `base`, one per group (two tied parents
     /// give two), empty when no group is. `None` when no one parent's
     /// count is on record: a group tied parents share, a union's base
-    /// the collapse cannot read, or two of one fold step's bases that
-    /// publish as one.
+    /// the collapse refuses (a ranked run whose least line it moves, a
+    /// junction whose lines it collides), or two of one fold step's bases
+    /// that publish as one.
     ///
     /// A union's base can be spelled by more than one step: a step that
     /// leaves an entity whole spells a group of one, and a later step

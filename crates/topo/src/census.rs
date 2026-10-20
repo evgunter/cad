@@ -1472,6 +1472,36 @@ pub(crate) fn collinear_overlaps<T: Decide + Bounds>(
     Ok(found)
 }
 
+/// **Whether a line edge of `body` other than `pair` overlaps `pair[0]`
+/// along its line**, read as [`collinear_overlaps`] reads each pair (its
+/// parallel screen, then the overlap), against every other line edge
+/// rather than the sweep's candidates. `pair[0]` not a line edge reads
+/// `true`: nothing says its line is clear.
+///
+/// # Errors
+///
+/// The first pair a decision could not read, with the escalation.
+pub(crate) fn line_holds_another_edge<T: Decide>(
+    body: &Body<T>,
+    pair: [EdgeKey; 2],
+    band: Band,
+) -> Result<bool, ([EdgeKey; 2], Indeterminate)> {
+    let edges = line_edges(body);
+    let Some(ea) = edges.iter().find(|e| e.key == pair[0]) else {
+        return Ok(true);
+    };
+    for eb in edges.iter().filter(|e| !pair.contains(&e.key)) {
+        let mut errors = Vec::new();
+        let Some(overlap) = parallel_overlap(ea, eb, band, &mut errors) else {
+            return Err(([ea.key, eb.key], escalation_pushed(errors)));
+        };
+        if overlap.is_some() {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 /// The escalation a reading pushed where it returned escalated: the
 /// parallel screen and the overlap push only their escalations.
 fn escalation_pushed(errors: Vec<ValidationError>) -> Indeterminate {
