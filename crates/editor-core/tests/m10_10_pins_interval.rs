@@ -323,13 +323,12 @@ fn m10_10_the_plates_ceiling_is_the_flip() {
 
 /// **THE WALKED ROWS' ENVELOPE IS A THEOREM OVER THE PLATE'S BOX** (the
 /// row that closed `work/pcert/loop-walk-branch-is-an-opaque-floor-atom`).
-/// The loop walk stores each wall row's whole-period branch as a literal
-/// `k` (`geom_brep::Period::decide`, decided once from the joint's margin
-/// as `pcurve_loop_branch`), and check 4's fidelity reads the branch the
-/// same way (`pcurve_fidelity_branch`). So the stored azimuth is
-/// `α + k·τ` with `k` a constant, and the stored image minus the one
-/// check 4 re-derives from the carrier is the zero polynomial on every
-/// row, each loop's first and the twelve walked after them alike. Each
+/// Each wall row is its placed image (C4), and the loop walk decides each
+/// joint's whole periods as a literal `k` (`geom_brep::Period::decide`,
+/// once from the joint's margin, as `pcurve_loop_branch`), never a
+/// value in the row. So the stored image minus the one check 4
+/// re-derives from the carrier is the zero polynomial on every row,
+/// each loop's first and the twelve walked after them alike. Each
 /// term of the envelope is then a theorem (`EnvelopeTerm`), and so is
 /// their sum: `pcurve_envelope` is 16/0/0/0 over the box at `s = 0.2`
 /// of the real study, where the plate certifies whole. While `k` was a
@@ -343,9 +342,10 @@ fn m10_10_the_walked_rows_envelope_is_a_theorem_over_the_box() {
     let (shapes, _, _) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
     let split = crate::m10_8_harness::split(&shapes);
     assert_eq!(split.get("pcurve_envelope"), Some(&[16, 0]));
-    // The branches themselves are definite sign decisions read off the
-    // value: 32 for check 4's fidelity, 34 for the walk, which decides
-    // each loop's closure joint as it does every other.
-    assert_eq!(split.get("pcurve_fidelity_branch"), Some(&[0, 32]));
+    // The walk's branches are definite sign decisions read off the
+    // value, 34, deciding each loop's closure joint as it does every
+    // other. Check 4 decides no whole period (PCERT B2b: a row is its
+    // placed image), so fidelity's 32 branch decisions are gone.
+    assert_eq!(split.get("pcurve_fidelity_branch"), None);
     assert_eq!(split.get("pcurve_loop_branch"), Some(&[0, 34]));
 }
