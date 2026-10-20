@@ -2465,6 +2465,7 @@ test_utils::f6_variants! {
         SeamVertexParentage,
         SeamVertexPartners,
         SharedRim,
+        ChordOffRim,
         MemberEdgeTied,
         ConventionalVertex,
         ClosedCarrierUnread,
@@ -2679,6 +2680,14 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 "of the profile step 000000000000 of node 000000000003",
                 "of the profile step 000000000000 of node 000000000004",
             ],
+        ),
+        (
+            NamingError::ChordOffRim {
+                edge,
+                node: RecipeNodeId::new(0, tagged(29)),
+                face: topo::FaceKey::default(),
+            },
+            vec!["two pieces of face", "operand node 00000000001d"],
         ),
         (
             NamingError::ClosedCarrierUnread {

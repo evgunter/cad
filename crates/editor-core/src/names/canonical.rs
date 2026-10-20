@@ -162,7 +162,14 @@ impl RankRule {
                 // side is a face, and a seam vertex's sides are faces.
                 let edge_now = if is_edge(a2) { a2 } else { b2 };
                 match (is_edge(a), is_edge(b)) {
-                    (true, _) => Self::along(a, edge_now, image),
+                    (true, true) => unreachable!(
+                        "a seam vertex's pair {was:?} holds two edges: every mint of a vertex \
+                         headed `Crossing` pairs an edge with the face across \
+                         (`emit_topo::name_boolean_vertices`, `emit_union`'s flush meeting), one \
+                         headed `Seam` pairs two face sides, and the collapse and every rewrite \
+                         carry an embedded name to an image of its own kind"
+                    ),
+                    (true, false) => Self::along(a, edge_now, image),
                     (false, true) => Self::along(b, edge_now, image),
                     (false, false) => Ok(Self::Keep),
                 }

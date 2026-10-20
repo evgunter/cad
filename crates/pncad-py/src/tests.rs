@@ -5287,6 +5287,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "naming_error_tag",
         values: &[
             "carrier_unplaced",
+            "chord_off_rim",
             "closed_carrier_unread",
             "conventional_vertex",
             "duplicate",

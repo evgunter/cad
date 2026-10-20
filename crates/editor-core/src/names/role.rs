@@ -2140,7 +2140,7 @@ impl RoleSeg {
     /// through ([`SegRewrite`] says which three).
     ///
     /// A segment rebuilt alone is NOT canonical: its sets, its `Borders`
-    /// walls and a union seam's sides are in whatever order the
+    /// walls and a seam's sides are in whatever order the
     /// rewrite left them, and a rank may lie along a line the rewrite
     /// reversed. So the walk is private to [`StableName::rewrite_path`],
     /// which rebuilds the whole path and puts it in canonical form.
@@ -2326,7 +2326,7 @@ impl StableName {
     ///
     /// The canonical form is `names::canonical`'s, the one the emitters
     /// mint: a rewrite that moves the names in a name-ordered position
-    /// (a set, a `Borders` set, a junction's run, a union seam's two
+    /// (a set, a `Borders` set, a junction's run, a seam's two
     /// sides) can change their order, and a name the emitter would not
     /// mint for the same entity resolves to nothing. A seam whose sides
     /// come out swapped — in this name, or in a name it embeds — reverses

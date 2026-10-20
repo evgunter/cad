@@ -1887,15 +1887,23 @@ fn name_boolean_edges<T: Decide>(
     };
     // A merged face's seam side is its parent, the `Merged` set, never a
     // constituent (N3).
-    let merged_side = |f: FaceKey| -> Result<SeamSide, NamingError> {
-        let (name, tied) = merged_names
-            .get(&f)
-            .ok_or(bug("a merged face has no parent name"))?;
-        Ok(SeamSide {
+    // Called only for a face `merged_descents` holds, and the merge loop
+    // inserts its name and its descents (the kept face's among them, so
+    // never none) together.
+    let merged_side = |f: FaceKey| -> SeamSide {
+        let (Some((name, tied)), Some(holds)) = (merged_names.get(&f), merged_descents.get(&f))
+        else {
+            unreachable!(
+                "merged face {f:?} lacks its parent name or its descents: a chord's face is read \
+                 as merged only where `merged_descents` holds it, and the merge loop records both \
+                 for every kept face, its own descent among them"
+            )
+        };
+        SeamSide {
             name: name.clone(),
             tied: *tied,
-            holds: merged_descents.get(&f).cloned().unwrap_or_default(),
-        })
+            holds: holds.clone(),
+        }
     };
     // The faces of operand `side` a merged face holds, in key order.
     let constituents_on = |f: FaceKey, side: topo::Operand| -> Vec<FaceKey> {
@@ -1929,11 +1937,8 @@ fn name_boolean_edges<T: Decide>(
     // not: the chord's rim is the one rim of that operand, between a face
     // on one side of it and a face on the other, it lies within
     // ([`rim_among`]); a merged face offers every face of that operand
-    // it holds. A union's chord between two faces of one operand that
-    // lies within no rim they share is where the other operand filled
-    // the gap between them and was consumed: their seam. A subtract or
-    // an intersect keeps only the operand's material, so it never holds
-    // that gap, and such a chord there is an emission bug.
+    // it holds. What a reading that holds no rim means is
+    // [`one_operand_chord`]'s.
     let chord_kind = |e: EdgeKey| -> Result<ChordKind, NamingError> {
         let faces = inc
             .edge_faces
@@ -1952,29 +1957,41 @@ fn name_boolean_edges<T: Decide>(
             let d = descend_face(f)?;
             let side = d.operand();
             if !constituents_on(m, side.other()).is_empty() {
-                return Ok(seam(plain(d)?, merged_side(m)?, None));
+                return Ok(seam(plain(d)?, merged_side(m), None));
             }
             let (ctx, fd) = d.of(a, b);
             let held = constituents_on(m, side);
             let pairs: Vec<(FaceKey, FaceKey)> = held.iter().map(|&c| (c, fd)).collect();
-            match rim_among(body, e, ctx, &pairs, bnd)? {
-                RimPick::Holds(rim) => Ok(same(side, rim)),
-                RimPick::Escalated(err) => Err(err),
-                RimPick::Off | RimPick::NoRim(_) | RimPick::Several(_)
-                    if union && !held.contains(&fd) =>
-                {
-                    Ok(seam(merged_side(m)?, plain(d)?, Some(side)))
-                }
-                RimPick::Off => Err(bug(MERGED_BESIDE_OFF_RIM)),
-                RimPick::NoRim(err) | RimPick::Several(err) => Err(err),
-            }
+            let shared = held.contains(&fd).then_some(fd);
+            let pick = rim_among(body, e, ctx, &pairs, bnd)?;
+            Ok(match one_operand_chord(pick, e, ctx, shared, union)? {
+                OneOperand::Rim(rim) => same(side, rim),
+                OneOperand::Gap => seam(merged_side(m), plain(d)?, Some(side)),
+            })
         };
-        // Two merged faces: read against every rim of BOTH operands
-        // between the faces they hold. One holding is a piece of that
-        // rim; none is the seam of the two parents, as a crossing between
-        // them is, except where both hold faces of one operand only:
-        // the union's gap seam, and an emission bug anywhere else.
+        // Two merged faces. Each holding faces of the same one operand,
+        // the chord is read against that operand's rims as two unmerged
+        // faces' is. Otherwise it is read against every rim of BOTH
+        // operands between the faces they hold: one holding is a piece of
+        // that rim, and none is the seam of the two parents, as a
+        // crossing between them is.
         let merged_chord = |m0: FaceKey, m1: FaceKey| -> Result<ChordKind, NamingError> {
+            if let (Some(x), Some(y)) = (only_operand(m0), only_operand(m1))
+                && x == y
+            {
+                let (c0, c1) = (constituents_on(m0, x), constituents_on(m1, x));
+                let pairs: Vec<(FaceKey, FaceKey)> = c0
+                    .iter()
+                    .flat_map(|&f0| c1.iter().map(move |&f1| (f0, f1)))
+                    .collect();
+                let shared = c0.iter().find(|f| c1.contains(f)).copied();
+                let ctx = OpSide::on(x, ()).of(a, b).0;
+                let pick = rim_among(body, e, ctx, &pairs, bnd)?;
+                return Ok(match one_operand_chord(pick, e, ctx, shared, union)? {
+                    OneOperand::Rim(rim) => same(x, rim),
+                    OneOperand::Gap => seam(merged_side(m0), merged_side(m1), Some(x)),
+                });
+            }
             let (ca0, ca1) = (
                 constituents_on(m0, topo::Operand::A),
                 constituents_on(m1, topo::Operand::A),
@@ -1987,17 +2004,10 @@ fn name_boolean_edges<T: Decide>(
                 (topo::Operand::A, a, ca0.as_slice(), ca1.as_slice()),
                 (topo::Operand::B, b, cb0.as_slice(), cb1.as_slice()),
             ];
-            if let Some((side, rim)) = merged_chord_rim(body, e, sides, bnd)? {
-                return Ok(same(side, rim));
-            }
-            let one = match (only_operand(m0), only_operand(m1)) {
-                (Some(x), Some(y)) if x == y => Some(x),
-                _ => None,
-            };
-            if one.is_some() && !union {
-                return Err(bug(MERGED_CHORD_ONE_OPERAND));
-            }
-            Ok(seam(merged_side(m0)?, merged_side(m1)?, one))
+            Ok(match merged_chord_rim(body, e, sides, bnd)? {
+                Some((side, rim)) => same(side, rim),
+                None => seam(merged_side(m0), merged_side(m1), None),
+            })
         };
         let merged0 = merged_descents.contains_key(&faces[0]);
         let merged1 = merged_descents.contains_key(&faces[1]);
@@ -2015,15 +2025,13 @@ fn name_boolean_edges<T: Decide>(
         };
         let side = d0.operand();
         let ctx = d0.of(a, b).0;
-        match rim_among(body, e, ctx, &[(f0, f1)], bnd)? {
-            RimPick::Holds(rim) => Ok(same(side, rim)),
-            RimPick::Escalated(err) => Err(err),
-            RimPick::Off | RimPick::NoRim(_) | RimPick::Several(_) if union && f0 != f1 => {
-                Ok(seam(plain(d0)?, plain(d1)?, Some(side)))
-            }
-            RimPick::Off => Err(bug(UNMERGED_OFF_RIM)),
-            RimPick::NoRim(err) | RimPick::Several(err) => Err(err),
-        }
+        let pick = rim_among(body, e, ctx, &[(f0, f1)], bnd)?;
+        Ok(
+            match one_operand_chord(pick, e, ctx, (f0 == f1).then_some(f0), union)? {
+                OneOperand::Rim(rim) => same(side, rim),
+                OneOperand::Gap => seam(plain(d0)?, plain(d1)?, Some(side)),
+            },
+        )
     };
     // Group value: (descends-from-a-tie, edges). Two tied operand
     // faces answer to ONE name, so their seam chords land in one
@@ -2271,29 +2279,6 @@ fn name_boolean_edges<T: Decide>(
 /// A seam side's name → the operand faces the parent it names holds:
 /// one for an unmerged face's parent, a merged face's every constituent.
 type SideHolds = BTreeMap<NameRef, Vec<OpSide<FaceKey>>>;
-
-/// A chord between two unmerged faces of one operand off the rim they
-/// share: only a union holds the gap between them, and only between two
-/// faces.
-const UNMERGED_OFF_RIM: &str =
-    "a chord between two unmerged faces of one operand lies off the rim they share";
-
-/// The merged twin of [`UNMERGED_OFF_RIM`]: a merged face holding faces of
-/// one operand only, beside a face of that operand.
-const MERGED_BESIDE_OFF_RIM: &str = "a chord between a merged face and a face of the one operand it holds lies off every rim \
-     they share";
-
-/// Two merged faces each holding faces of the same one operand, meeting
-/// along a chord within none of its rims: only a union holds the gap.
-const MERGED_CHORD_ONE_OPERAND: &str = "a chord between two merged faces of one operand lies off \
-     every rim they share";
-
-/// A chord between two merged faces within a rim of each operand: two
-/// operand edges flush along it, which the boolean carries as a piece of
-/// one of them, or the join names ([`joined_cover`]), before any chord
-/// is read.
-const MERGED_CHORD_BOTH_RIMS: &str = "a chord between two merged faces lies within a rim of each \
-     operand, an edge no carry or join named";
 
 /// What an edge the output stage's joins made lies along.
 enum JoinedCover {
@@ -4304,9 +4289,12 @@ type MergedSides<'o, 'a, T> = (
 ///
 /// # Errors
 ///
-/// As [`rim_among`] refuses; a pair whose reading escalated where no
-/// rim holds the chord, that pair's escalation; and a rim of each
-/// operand holding it, as the emission bug it is.
+/// As [`rim_among`] refuses, and a pair whose reading escalated where
+/// no rim holds the chord, that pair's escalation.
+///
+/// # Panics
+///
+/// Where a rim of each operand holds the chord, a kernel bug.
 fn merged_chord_rim<T: Decide>(
     body: &Body<T>,
     chord: EdgeKey,
@@ -4329,6 +4317,10 @@ fn merged_chord_rim<T: Decide>(
             RimPick::Escalated(err) => {
                 escalated.get_or_insert(err);
             }
+            // Each merged face holds faces of both operands, so the chord
+            // may lie within neither's rims: it may cross between the
+            // parents. A side whose pairs it lies off, or whose pairs
+            // share no one rim, says only that it is not that side's rim.
             RimPick::Off | RimPick::NoRim(_) => {}
         }
     }
@@ -4336,9 +4328,70 @@ fn merged_chord_rim<T: Decide>(
         ([one], _) => Ok(Some(*one)),
         ([], Some(err)) => Err(err),
         ([], None) => Ok(None),
-        _ => Err(NamingError::Emission {
-            what: MERGED_CHORD_BOTH_RIMS,
-        }),
+        _ => unreachable!(
+            "chord {chord:?} between two merged faces lies within a rim of each operand \
+             ({held:?}): two operand edges flush along one line are carried as a piece of one \
+             of them, and an edge the join made over them is named by `joined_cover` before \
+             any chord is read, so no zip-listed or derived chord lies along both"
+        ),
+    }
+}
+
+/// What a chord between faces of one operand is ([`one_operand_chord`]).
+enum OneOperand {
+    /// A piece of that operand's rim.
+    Rim(EdgeKey),
+    /// The seam of the two faces' parents: a union's gap.
+    Gap,
+}
+
+/// **What a chord between faces of one operand reads as**, from its
+/// [`RimPick`] over the pairs it may lie between, at the op `union` or
+/// not, `shared` the operand face on both sides of it if one is.
+///
+/// - One rim holding it is a piece of that rim; an escalation refuses.
+/// - A union's chord between DISTINCT faces lying within no rim is
+///   where the other operand filled the gap between them and was
+///   consumed: their seam ([`OneOperand::Gap`]).
+/// - Pieces of one face (`shared`) lying off its rims are pieces the
+///   output stage's merge left apart (a group it skipped,
+///   `topo`'s `finish_output`), which a correct result holds and no rule
+///   names: [`NamingError::ChordOffRim`].
+/// - A subtract's or an intersect's chord between distinct faces lying
+///   off their one rim is a kernel bug (row 4 below).
+///
+/// # Errors
+///
+/// The pick's own refusal, an escalation, or [`NamingError::ChordOffRim`].
+fn one_operand_chord<T: Decide>(
+    pick: RimPick,
+    chord: EdgeKey,
+    op: &OperandCtx<'_, T>,
+    shared: Option<FaceKey>,
+    union: bool,
+) -> Result<OneOperand, NamingError> {
+    match pick {
+        RimPick::Holds(rim) => Ok(OneOperand::Rim(rim)),
+        RimPick::Escalated(err) => Err(err),
+        RimPick::Off | RimPick::NoRim(_) | RimPick::Several(_) if union && shared.is_none() => {
+            Ok(OneOperand::Gap)
+        }
+        RimPick::Off => match shared {
+            Some(face) => Err(NamingError::ChordOffRim {
+                edge: chord,
+                node: op.node,
+                face,
+            }),
+            None => unreachable!(
+                "chord {chord:?} between distinct faces of operand {:?} lies off the one rim each \
+                 pair of them shares, at a subtract or an intersect: such a result keeps only \
+                 pieces of the operands' faces, two pieces of distinct faces of one operand \
+                 meet only along an edge those faces share, and a certified reading off that \
+                 edge contradicts it",
+                op.node
+            ),
+        },
+        RimPick::NoRim(err) | RimPick::Several(err) => Err(err),
     }
 }
 
@@ -6373,25 +6426,21 @@ mod tests {
         }
     }
 
-    /// **A chord within a rim of each operand is an emission bug**: two
+    /// **A chord within a rim of each operand is a kernel bug**: two
     /// operand edges flush along it are carried or joined before any
     /// chord is read. The cube read as both operands, the merged faces
     /// holding its top and front on each side.
     #[test]
-    fn a_chord_within_a_rim_of_each_operand_refuses_as_an_emission_bug() {
+    #[should_panic(expected = "lies within a rim of each operand")]
+    fn a_chord_within_a_rim_of_each_operand_is_a_kernel_bug() {
         let cube = CubeOperand::new();
         let top = cube.built.top;
-        for got in every_order(
+        let _ = every_order(
             &cube,
             [[0.2, 0.0, 1.0], [0.6, 0.0, 1.0]],
             (&[top], &[cube.front]),
             (&[top], &[cube.front]),
-        ) {
-            assert!(
-                matches!(got, Err(NamingError::Emission { what }) if what == MERGED_CHORD_BOTH_RIMS),
-                "{got:?}"
-            );
-        }
+        );
     }
 
     /// **The rim may be either operand's**: the same chord, the merged

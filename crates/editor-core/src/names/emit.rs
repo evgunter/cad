@@ -37,7 +37,7 @@ use crate::node::RecipeNodeId;
 ///    stands on — *nothing about the result body is wrong here*.
 /// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
-///    [`Self::MemberEdgeTied`],
+///    [`Self::ChordOffRim`], [`Self::MemberEdgeTied`],
 ///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`],
 ///    [`Self::CarrierUnplaced`] and [`Self::PartnerUnread`],
 ///    reached from recipes nothing is wrong with,
@@ -240,6 +240,20 @@ pub enum NamingError {
         other: FaceKey,
         /// What the walk found instead of one edge.
         found: RimShare,
+    },
+    /// A boolean's chord between two faces of one operand, merged or not,
+    /// that lies off the one rim each pair of them shares, where one face
+    /// of that operand is on both sides: two pieces of it meet along the
+    /// chord. Pieces of one face the output stage's merge left apart (a
+    /// group it skipped, `topo`'s `finish_output`) meet so in a correct
+    /// result, and no rule names a chord within one operand face.
+    ChordOffRim {
+        /// The result-body edge.
+        edge: EdgeKey,
+        /// The operand node whose face the chord lies within.
+        node: RecipeNodeId,
+        /// That face, in the operand's body.
+        face: FaceKey,
     },
     /// A **conventional vertex** (`topo::is_conventional_vertex`: its
     /// only edge is one closed edge, at both its ends) that a table
@@ -498,6 +512,13 @@ impl crate::spoken::Say for NamingError {
                  exactly one",
                 by.node(*node)
             ),
+            Self::ChordOffRim { edge, node, face } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam chord {edge:?} lies between two pieces of face {face:?} \
+                 of operand {}'s body, off every rim the faces beside it share, and no rule \
+                 names a chord within one operand face",
+                by.node(*node)
+            ),
             Self::SeamVertexPartners { vertex, candidates } => write!(
                 f,
                 "{UNRULED_FRAMING}: seam vertex {vertex:?} coincides, in the boolean's contact \
@@ -637,6 +658,7 @@ impl NamingError {
             Self::SeamVertexParentage { .. }
             | Self::SeamVertexPartners { .. }
             | Self::SharedRim { .. }
+            | Self::ChordOffRim { .. }
             | Self::ConventionalVertex { .. }
             | Self::ClosedCarrierUnread { .. }
             | Self::CarrierUnplaced { .. }
@@ -2003,6 +2025,19 @@ mod display_tests {
                     "already names",
                 ],
             ),
+            (
+                NamingError::ChordOffRim {
+                    edge: two_edges().0,
+                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(29)),
+                    face: pair.0,
+                },
+                vec![
+                    face0.as_str(),
+                    "00000000001d",
+                    "two pieces of face",
+                    "within one operand face",
+                ],
+            ),
         ];
         // The category is `NamingError::category`'s, which also chooses
         // the ending. Which framing each arm's `Display` interpolates is
@@ -2036,6 +2071,7 @@ mod display_tests {
                 NamingError::KindMismatch { .. } => 16,
                 NamingError::ShortTie { .. } => 17,
                 NamingError::EntityNamed { .. } => 18,
+                NamingError::ChordOffRim { .. } => 19,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

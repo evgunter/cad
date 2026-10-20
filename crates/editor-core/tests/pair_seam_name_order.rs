@@ -8,19 +8,21 @@
 //!   two merged faces (A's top and B's front each hold a coincident face
 //!   pair), in every symmetry of the square, in both member orders, in a
 //!   three-member union in every order, and with one prism split first:
-//!   each builds, and the chord is the seam of the two `Merged` parents;
+//!   each builds, the chord is the seam of the two `Merged` parents beside
+//!   it, and the symmetries and member orders name it alike;
 //! - a subtract that meets the same kind of chord, in every symmetry of
-//!   the square: it builds;
+//!   the square: it builds, and names its seams beside merged parents
+//!   alike;
 //! - a box less a rotated `Transform` copy of itself, whose two operands
 //!   hold the same names: its four `Crossing` vertices and the edges
 //!   ending at them are each one entity's name, none tied.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, failure, run};
-use crate::fixture::{insert, len, on_frame, scl, table, xform};
+use crate::fixture::{ends, face_vertices, insert, len, on_frame, out, point, scl, table, xform};
 use editor_core::{
-    Bodies, Datum, EntityKind, Entry, ExtrudeSide, Node, Operand, ProfileDoc, RecipeNodeId,
-    RoleSeg, SplitHalf, StableName,
+    Bodies, Datum, EntityKey, EntityKind, Entry, ExtrudeSide, Node, Operand, ProfileDoc,
+    RecipeNodeId, RoleSeg, SplitHalf, StableName,
 };
 use geom_core::Tol;
 
@@ -50,6 +52,13 @@ impl Sym {
     fn apply(self, [x, y, z]: [f64; 3]) -> [f64; 3] {
         let (x, y) = if self.swap { (y, x) } else { (x, y) };
         [self.sx * x, self.sy * y, z]
+    }
+
+    /// The point `p` maps to under `self`'s inverse.
+    fn unapply(self, [x, y, z]: [f64; 3]) -> [f64; 3] {
+        let (x, y) = (x / self.sx, y / self.sy);
+        let (x, y) = if self.swap { (y, x) } else { (x, y) };
+        [x, y, z]
     }
 
     /// Whether the map reverses orientation.
@@ -109,23 +118,120 @@ fn spelled<R>(members: Vec<R>) -> Bodies<R> {
     Bodies::Spelled(members)
 }
 
-/// The seam edges of `id`'s table whose two sides are both merged
-/// parents, each checked to be in name order.
-fn merged_seams(t: &editor_core::NameTable) -> Vec<StableName> {
-    let mut out = Vec::new();
-    for (n, _) in t.iter() {
-        if n.kind != EntityKind::Edge {
-            continue;
-        }
-        if let Some(RoleSeg::Seam { a, b }) = n.path.first() {
-            assert!(a <= b, "a seam's sides are in name order: {n:?}");
-            let merged = |s: &StableName| matches!(s.path.first(), Some(RoleSeg::Merged(_)));
-            if merged(a) && merged(b) {
-                out.push(n.clone());
+/// A name with its trailing `Fragment` discriminators taken off: the
+/// parent a piece is a piece of.
+fn base(n: &StableName) -> StableName {
+    let mut b = n.clone();
+    while matches!(b.path.last(), Some(RoleSeg::Fragment(_))) && b.path.len() > 1 {
+        b.path.pop();
+    }
+    b
+}
+
+/// One seam edge as the symmetry does not move it: its two ends and,
+/// per side, the plane of the face beside it and the operand reads the
+/// side's name cites, all in the unmapped frame and in a fixed order.
+type SeamSig = (Vec<String>, Vec<(String, bool, Vec<char>)>);
+
+/// **The seam edges of `id`, each checked against the body and read as
+/// [`SeamSig`]s**, `pred` choosing which. Each one's two sides are the
+/// parents of the two faces beside it, as `id`'s table names those
+/// faces: a stable but wrong side fails here, whatever the symmetry.
+/// `reads` letters each operand read a side may cite.
+fn seam_sigs(
+    ev: &editor_core::Evaluation<f64>,
+    id: RecipeNodeId,
+    sym: Sym,
+    reads: &[(editor_core::VarId, char)],
+    pred: impl Fn(&StableName, &StableName) -> bool,
+) -> Vec<SeamSig> {
+    let t = table(ev, id);
+    let body = crate::corpus::body_of(ev, id);
+    let face_name = |f: topo::FaceKey| -> StableName {
+        let rows: Vec<&StableName> = t
+            .iter()
+            .filter_map(|(n, e)| match e {
+                Entry::Unique(r) if r.key == EntityKey::Face(f) => Some(n),
+                _ => None,
+            })
+            .collect();
+        let [n] = rows[..] else {
+            panic!("face {f:?} has {} rows", rows.len());
+        };
+        n.clone()
+    };
+    let at = |p: geom_core::Point3<f64>| {
+        // `+ 0.0` reads a negative zero as zero.
+        let [x, y, z] = sym.unapply(p.to_array()).map(|c| c + 0.0);
+        format!("({x:.6}, {y:.6}, {z:.6})")
+    };
+    // The one coordinate a planar face holds constant, unmapped.
+    let plane = |f: topo::FaceKey| -> String {
+        let pts: Vec<[f64; 3]> = face_vertices(body, f)
+            .into_iter()
+            .map(|v| sym.unapply(point(body, v).to_array()))
+            .collect();
+        for (axis, i) in [('x', 0), ('y', 1), ('z', 2)] {
+            if pts.iter().all(|q| (q[i] - pts[0][i]).abs() < 1e-9) {
+                return format!("{axis} = {:.6}", pts[0][i] + 0.0);
             }
         }
+        panic!("face {f:?} is not axis-planar: {pts:?}")
+    };
+    let letters = |side: &StableName| -> Vec<char> {
+        // Every read the name cites, at any depth, spells itself in it.
+        let said = format!("{side:?}");
+        let mut out: Vec<char> = reads
+            .iter()
+            .filter(|(v, _)| said.contains(&format!("{v:?}")))
+            .map(|&(_, c)| c)
+            .collect();
+        out.sort_unstable();
+        out
+    };
+    let mut out = Vec::new();
+    for (n, e) in t.iter() {
+        let (Some(RoleSeg::Seam { a, b }), Entry::Unique(r)) = (n.path.first(), e) else {
+            continue;
+        };
+        if n.kind != EntityKind::Edge || !pred(a, b) {
+            continue;
+        }
+        assert!(a <= b, "a seam's sides are in name order: {n:?}");
+        let EntityKey::Edge(edge) = r.key else {
+            panic!("an edge row holds an edge: {n:?}");
+        };
+        let (f0, f1) = topo::readback::edge_sides(body, edge).unwrap().faces();
+        let mut beside = [base(&face_name(f0)), base(&face_name(f1))];
+        beside.sort();
+        assert_eq!(
+            beside,
+            [(**a).clone(), (**b).clone()],
+            "{n:?}: the seam's sides are not the parents of the faces beside it"
+        );
+        let mut ends: Vec<String> = ends(body, edge)
+            .iter()
+            .map(|&v| at(point(body, v)))
+            .collect();
+        ends.sort();
+        let mut sides: Vec<(String, bool, Vec<char>)> = [f0, f1]
+            .iter()
+            .map(|&f| {
+                let side = base(&face_name(f));
+                let merged = matches!(side.path.first(), Some(RoleSeg::Merged(_)));
+                (plane(f), merged, letters(&side))
+            })
+            .collect();
+        sides.sort();
+        out.push((ends, sides));
     }
+    out.sort();
     out
+}
+
+fn both_merged(a: &StableName, b: &StableName) -> bool {
+    let merged = |s: &StableName| matches!(s.path.first(), Some(RoleSeg::Merged(_)));
+    merged(a) && merged(b)
 }
 
 fn assert_built(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId, what: &str) {
@@ -139,6 +245,7 @@ fn assert_built(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId, what: &str)
 /// square, and the union names it alike in both member orders.
 #[test]
 fn a_chord_between_two_merged_faces_is_the_seam_of_their_parents() {
+    let (mut union_sigs, mut meet_sigs) = (None, None);
     for sym in Sym::all() {
         let doc = ProfileDoc::empty_derived("pair_seam_name_order_union", Tol::witness());
         let (doc, a, b) = two_prisms(doc, sym);
@@ -164,11 +271,23 @@ fn a_chord_between_two_merged_faces_is_the_seam_of_their_parents() {
         for (id, what) in [(ab, "union"), (ba, "union, b first"), (both, "intersect")] {
             assert_built(&ev, id, &format!("{what} {sym:?}"));
         }
-        for (id, what) in [(ab, "union"), (both, "intersect")] {
+        let reads = [(out(&doc, a), 'a'), (out(&doc, b), 'b')];
+        for (id, what, slot) in [
+            (ab, "union", &mut union_sigs),
+            (both, "intersect", &mut meet_sigs),
+        ] {
+            let sigs = seam_sigs(&ev, id, sym, &reads, both_merged);
             assert!(
-                !merged_seams(table(&ev, id)).is_empty(),
+                !sigs.is_empty(),
                 "{what} {sym:?}: no seam between two merged parents"
             );
+            match slot {
+                None => *slot = Some(sigs),
+                Some(first) => assert_eq!(
+                    *first, sigs,
+                    "{what} {sym:?}: the chord is named otherwise than in the first symmetry"
+                ),
+            }
         }
         let (ab_id, ba_id) = (format!("{ab:?}"), format!("{ba:?}"));
         let names = |id| -> Vec<String> {
@@ -183,10 +302,22 @@ fn a_chord_between_two_merged_faces_is_the_seam_of_their_parents() {
             "{sym:?}: the union's names depend on member order"
         );
     }
+    // The chord itself: A's top meets B's front along y = 0, z = 1.
+    let chord = vec![
+        "(1.000000, 0.000000, 1.000000)".to_owned(),
+        "(2.000000, 0.000000, 1.000000)".to_owned(),
+    ];
+    let union_sigs = union_sigs.unwrap();
+    assert!(
+        union_sigs.iter().any(|(ends, _)| *ends == chord),
+        "the union names no seam along the chord: {union_sigs:#?}"
+    );
 }
 
 /// **A three-member union meets the chord at a fold step**, in every
-/// member order, and with one prism split first: each builds.
+/// member order, and with one prism split first: each builds, the
+/// chord is the seam of the parents beside it, and every member order
+/// publishes one table.
 #[test]
 fn a_chord_between_two_merged_faces_builds_in_a_fold_and_after_a_split() {
     let doc = ProfileDoc::empty_derived("pair_seam_name_order_fold", Tol::witness());
@@ -226,6 +357,9 @@ fn a_chord_between_two_merged_faces_builds_in_a_fold_and_after_a_split() {
         },
     );
     let below = Operand::output(split, SplitHalf::Below.port());
+    let below_read = doc
+        .output(split, SplitHalf::Below.port())
+        .expect("the split defines its lower half");
     let (doc, after) = insert(
         doc,
         Node::Union {
@@ -236,18 +370,51 @@ fn a_chord_between_two_merged_faces_builds_in_a_fold_and_after_a_split() {
     for (u, order) in &unions {
         assert_built(&ev, *u, &format!("the union in order {order:?}"));
     }
+    // One table in every member order, read with the union's own id
+    // masked, and its chord the seam of the parents beside it.
+    let sym = Sym::all()[0];
+    let reads = [
+        (out(&doc, a), 'a'),
+        (out(&doc, b), 'b'),
+        (out(&doc, c), 'c'),
+    ];
+    let (first, _) = unions[0];
+    let first_id = format!("{first:?}");
+    let names = |u: RecipeNodeId| -> Vec<String> {
+        let id = format!("{u:?}");
+        let mut v: Vec<String> = table(&ev, u)
+            .iter()
+            .map(|(n, _)| format!("{n:?}").replace(&id, &first_id))
+            .collect();
+        v.sort();
+        v
+    };
+    for (u, order) in &unions {
+        assert!(
+            !seam_sigs(&ev, *u, sym, &reads, both_merged).is_empty(),
+            "the union in order {order:?} holds no seam between two merged parents"
+        );
+        assert_eq!(
+            names(*u),
+            names(first),
+            "{order:?}: the union's names depend on member order"
+        );
+    }
     assert_built(&ev, after, "the union of a split half");
+    let split_reads = [(below_read, 'a'), (out(&doc, b), 'b')];
     assert!(
-        !merged_seams(table(&ev, after)).is_empty(),
+        !seam_sigs(&ev, after, sym, &split_reads, both_merged).is_empty(),
         "the split half's union holds no seam between two merged parents"
     );
 }
 
 /// **A subtract meets a chord between two merged faces**, the L-prism
 /// joined to a bar less a prism through both, in every symmetry of the
-/// square: it builds.
+/// square: it builds, each seam beside a merged parent cites the
+/// parents of the faces beside it, and the symmetries name them alike.
 #[test]
-fn a_subtracts_chord_between_two_merged_faces_builds() {
+fn a_subtracts_chord_between_two_merged_faces_is_named_alike_in_every_symmetry() {
+    let mut first = None;
     for sym in Sym::all() {
         let doc = ProfileDoc::empty_derived("pair_seam_name_order_subtract", Tol::witness());
         let l_loop = [(0., -1.), (2., -1.), (2., 0.), (4., 0.), (4., 2.), (0., 2.)];
@@ -280,6 +447,22 @@ fn a_subtracts_chord_between_two_merged_faces_builds() {
         );
         let ev = run(&doc);
         assert_built(&ev, cut, &format!("the subtract {sym:?}"));
+        let reads = [(out(&doc, from), 'f'), (out(&doc, tool), 't')];
+        let merged_beside = |a: &StableName, b: &StableName| {
+            [a, b]
+                .iter()
+                .any(|s| matches!(s.path.first(), Some(RoleSeg::Merged(_))))
+        };
+        let sigs = seam_sigs(&ev, cut, sym, &reads, merged_beside);
+        assert!(!sigs.is_empty(), "{sym:?}: no seam beside a merged parent");
+        match &first {
+            None => first = Some(sigs),
+            Some(f) => assert_eq!(
+                *f, sigs,
+                "{sym:?}: the seams beside merged parents are named otherwise than in the first \
+                 symmetry"
+            ),
+        }
     }
 }
 

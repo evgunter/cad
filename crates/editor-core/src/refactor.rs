@@ -5159,15 +5159,17 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
         assert_eq!(
             out.path,
             vec![seam(face(30), face(32)), seam(face(31), face(32))],
-            "the run re-sorted, each line A-first"
+            "the run re-sorted, each line in name order"
         );
-        // A pair boolean's seam is in name order as a union's is; its
-        // edge lies on no seam line, so the rank keeps its reading.
-        let (edge, face) = (cap(EntityKind::Edge, 1), face(2));
-        let crossing = name(EntityKind::Vertex, 5, vec![seam(edge, face), rank(0, 3)]);
-        let out =
-            remap_name(&crossing, &map(), &StepMap::new(), &mirrored_reads()).expect("covered");
-        let (x, y) = (cap(EntityKind::Edge, 31), cap(EntityKind::Face, 30));
+        // A pair boolean's seam vertex is in name order as a union's is;
+        // its two sides are faces, so the rank keeps its reading.
+        let ranked = name(
+            EntityKind::Vertex,
+            5,
+            vec![seam(face(2), face(1)), rank(0, 3)],
+        );
+        let out = remap_name(&ranked, &map(), &StepMap::new(), &mirrored_reads()).expect("covered");
+        let (x, y) = (face(31), face(30));
         let (x, y) = if x < y { (x, y) } else { (y, x) };
         assert_eq!(
             out.path,
