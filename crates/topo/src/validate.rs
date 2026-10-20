@@ -8981,6 +8981,19 @@ fn segments_meet<T: Decide>(
     }
 }
 
+/// Whether `[b0, b1]`'s projection on the unit `ea` lies apart from
+/// `[a0, a1]`'s past the band (the **`ring_outer_meet_gap`** row,
+/// [`lines_meet`]).
+fn gaps_apart<T: Decide>(
+    ea: geom_core::Vec3<T>,
+    a: (geom_core::Point3<T>, geom_core::Point3<T>),
+    b: (geom_core::Point3<T>, geom_core::Point3<T>),
+    band: Band,
+) -> bool {
+    let along = on_one_line(ea, a, b, T::zero());
+    decide("ring_outer_meet_gap", Margin::of(along.apart()), band) == Ok(Sign::Positive)
+}
+
 /// Two straight edges `[a0, a1]` and `[b0, b1]` in one plane. First the
 /// gap between their projections on `a`'s axis
 /// ([`geom_core::one_line`]): projections apart past the band hold every
@@ -9003,8 +9016,7 @@ fn lines_meet<T: Decide>(
 ) -> EdgePair {
     let ea = (a1 - a0).normalize();
     let eb = (b1 - b0).normalize();
-    let along = on_one_line(ea, (a0, a1), (b0, b1), T::zero());
-    if decide("ring_outer_meet_gap", Margin::of(along.apart()), band) == Ok(Sign::Positive) {
+    if gaps_apart(ea, (a0, a1), (b0, b1), band) {
         return EdgePair::Apart;
     }
     let side = |p: geom_core::Point3<T>, o: geom_core::Point3<T>, e: geom_core::Vec3<T>| {
@@ -10791,6 +10803,9 @@ fn shell_component<T: Real>(
         rings,
     })
 }
+
+#[cfg(test)]
+mod gap_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
