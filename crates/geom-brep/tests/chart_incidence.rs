@@ -16,7 +16,7 @@
 use crate::shared::surf::off_cone;
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
-use geom_brep::{Grazer, Pcurve, PcurveCertifyError, chart_pcurve};
+use geom_brep::{Pcurve, PcurveCertifyError, chart_pcurve};
 use geom_core::spline::KnotVector;
 use geom_core::{Interval, Point3, Real, Tol, Vec3};
 
@@ -187,15 +187,9 @@ fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
                 centre.x
             );
             assert!(
-                matches!(
-                    got,
-                    Err(PcurveCertifyError::CarrierGrazesChart {
-                        grazer: Grazer::ConeCircle,
-                        ..
-                    })
-                ),
-                "alpha = {alpha}: an on-cone circle that is no rim grazes the chart, never off \
-                 it: {got:?}"
+                matches!(got, Err(PcurveCertifyError::GeneralLaneUnwritten { .. })),
+                "alpha = {alpha}: an on-cone circle that is no rim refuses not yet (its general \
+                 lane is unwritten), never off the chart: {got:?}"
             );
         }
     }
@@ -454,4 +448,179 @@ fn a_plane_chart_box_covers_every_span_of_its_net() {
         },
         "Interval",
     );
+}
+
+/// **A rim whose height is not shown away from the apex's refuses as
+/// not shown, quoting its margin** (`pcurve_cone_chart_nappe`'s Zero
+/// arm). A circle ⊥ the axis, centred on it at a height inside the zero
+/// band, passes the rim gates and reaches the nappe: a band-decided Zero
+/// is not an exact one, so the refusal says the height "is not shown
+/// away from the apex's" and carries the margin the decision read, never
+/// the bare fact that the apex plane meets the cone only at the apex.
+/// Read at `f64` and at `Interval`.
+#[test]
+fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
+    let surface = cone(0.5);
+    let Surface::Cone {
+        apex, axis, u_ref, ..
+    } = surface
+    else {
+        unreachable!()
+    };
+    let rim = Curve3::Circle {
+        center: apex + axis * (0.2 * eps()),
+        axis,
+        radius: 0.3,
+        u_ref,
+    };
+    let check = |got: Result<String, PcurveCertifyError>, lane: &str| match got {
+        Err(PcurveCertifyError::CarrierOffChart {
+            why,
+            margin: Some(_),
+            ..
+        }) => {
+            assert!(
+                why.contains("is not shown away from the apex"),
+                "{lane}: {why}"
+            );
+        }
+        other => panic!("{lane}: a rim at the apex's height: {other:?}"),
+    };
+    let got = chart_pcurve(&rim, &surface, band());
+    if let Err(e) = &got {
+        assert!(e.to_string().contains("(margin "), "{e}");
+    }
+    check(got.map(|p| format!("{p:?}")), "f64");
+    let rim_i: Curve3<Interval> = rim.map_scalar(Interval::from_f64);
+    let surface_i: Surface<Interval> = surface.map_scalar(Interval::from_f64);
+    check(
+        chart_pcurve(&rim_i, &surface_i, band()).map(|p| format!("{p:?}")),
+        "Interval",
+    );
+}
+
+/// **A closed form minted at Zero, re-read with its class reading in
+/// band, is undecided at check 4: typed, escalating, never a pass and
+/// never a defect** (D3; only a definite contradiction of what is stored
+/// is a defect). The image is a sphere parallel's, minted where the
+/// axial gate reads Zero. The carrier it is re-read against is the same
+/// circle tilted on the sphere so its axial reading is in the band:
+/// still exactly on the sphere, so incidence reads it on.
+///
+/// On the harmonic lane the map residual and the class reading measure
+/// the one displacement (the tilt at the circle's radius), so the
+/// residual's own escalation is what check 4 reads first: typed, and
+/// undecided. The class re-read behind it is pinned at the door check 4
+/// re-derives through (`pcurve_cache::tests::check_4s_re_derivation_of_an_in_band_class_is_undecided`).
+#[test]
+fn a_closed_form_re_read_with_its_class_in_band_is_undecided() {
+    use geom_brep::PcurveCache;
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let (h, rho) = (0.6, 0.8);
+    let parallel = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, h),
+        axis: Vec3::unit_z(),
+        radius: rho,
+        u_ref: Vec3::unit_x(),
+    };
+    let image = chart_pcurve(&parallel, &sphere, band()).unwrap();
+    // Tilt the circle's plane about `x` through the sphere's centre, so
+    // it stays on the sphere; the axial reading is `ρ·sin θ`.
+    let mid = 0.5 * (band().zero() + band().escalate());
+    let theta = (mid / rho).asin();
+    let (s, c) = theta.sin_cos();
+    let n = Vec3::new(0.0, -s, c);
+    let tilted = Curve3::Circle {
+        center: Point3::origin() + n * h,
+        axis: n,
+        radius: rho,
+        u_ref: Vec3::unit_x(),
+    };
+    let tau = core::f64::consts::TAU;
+    let got = PcurveCache::certify(image, 0.0, tau, &tilted, &sphere, band());
+    assert!(
+        matches!(got, Err(PcurveCertifyError::Escalated { .. })),
+        "f64: undecided, typed: {got:?}"
+    );
+    let at = <Interval as Real>::from_f64;
+    let sphere_i = sphere.map_scalar(at);
+    let image_i = chart_pcurve(&parallel.map_scalar(at), &sphere_i, band()).unwrap();
+    let got = PcurveCache::certify(
+        image_i,
+        at(0.0),
+        at(tau),
+        &tilted.map_scalar(at),
+        &sphere_i,
+        band(),
+    );
+    assert!(
+        matches!(got, Err(PcurveCertifyError::Escalated { .. })),
+        "Interval: undecided, typed: {got:?}"
+    );
+}
+
+/// **An edge described on a chart whose general lane is unwritten for
+/// its carrier ends lever-only "not yet" at the edge certificate, never
+/// as the description's defect** (D3). The carrier is the on-cone
+/// circle that is no rim (`a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone`'s
+/// wide cone): the mint refuses `GeneralLaneUnwritten`, and the edge
+/// certificate carries it as its own `GeneralLaneUnwritten` under the
+/// class check, not folded into `ChartImageUnavailable`'s defect. Read
+/// at a build and at rest.
+#[test]
+fn an_edge_on_a_chart_with_no_general_lane_ends_not_yet() {
+    use geom_brep::recourse::Reading;
+    use geom_brep::{CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+    let e = eps();
+    let alpha = 1.55_f64;
+    let h = 1.0;
+    let theta = 0.5 * e / (h * alpha.tan());
+    let (centre, axis, u_ref, major, minor) = section(alpha, h, theta);
+    let circle = Curve3::Circle {
+        center: centre,
+        axis,
+        radius: (major * minor).sqrt(),
+        u_ref,
+    };
+    let (keys, lookup) = crate::shared::surf::table(vec![cone(alpha)]);
+    let (t0, t1) = (0.0, 1.0);
+    let err = EdgeCurve::certify(
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::chart(keys[0]),
+            carrier: circle.clone(),
+            param_start: t0,
+            param_end: t1,
+        },
+        circle.eval(t0),
+        circle.eval(t1),
+        &lookup,
+        1.0,
+        band(),
+    )
+    .expect_err("an on-cone circle that is no rim has no image yet");
+    assert!(
+        matches!(err, CertifyError::GeneralLaneUnwritten { .. }),
+        "{err:?}"
+    );
+    assert_eq!(
+        err.decision().map(|(check, _)| check),
+        Some(CertCheck::ChartClass)
+    );
+    for reading in [Reading::Build, Reading::AtRest] {
+        let ending = err
+            .ending(reading)
+            .expect("a decision's refusal has an ending");
+        assert!(
+            ending.starts_with(geom_core::NOT_YET_ENDING),
+            "{reading:?}: {ending}"
+        );
+        for word in ["defect", "tolerance", "Recourse:"] {
+            assert!(!ending.contains(word), "{reading:?}: {word}: {ending}");
+        }
+    }
 }

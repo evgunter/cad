@@ -644,14 +644,16 @@ fn projected_circle_an_off_sphere_pair_reads_once() {
 
 /// The axial class gates read the tilt at its exact sup, so a tilt in
 /// `[escalate/√2, escalate)`, which the sum read past `escalate`, is
-/// now in the band and escalates at the gate: a sphere parallel and a
-/// cone rim, which the sum sent to the general-circle arm's incidence
-/// escalation, and a torus parallel, which it sent to the oblique arm's
-/// `CarrierGrazesChart { TorusCircle }`. The gate decides first, and
-/// reaching the torus's typed refusal from here would decide the class
-/// on an in-band margin.
+/// in the band at the gate: a sphere parallel, a cone rim and a torus
+/// parallel. A class reading in band is a lane choice not shown (D3), so
+/// no class is decided on the in-band margin. These tilted circles also
+/// leave their charts at first order, so the incidence test, read before
+/// any lane, escalates on its own (the sphere's and cone's here), or the
+/// class gate escalates lever-only "not yet" where it is reached (a
+/// circle's general lane on a torus is not written yet). An on-chart
+/// circle's general lane is `an_in_band_class_on_the_sphere_takes_the_projected_lane`'s.
 #[test]
-fn a_tilt_in_the_band_escalates_its_class_gate() {
+fn a_tilt_in_the_band_decides_no_class() {
     let (center, axis, u_ref) = z_frame();
     let half_angle: f64 = 0.45;
     let cone = Surface::Cone {
@@ -689,11 +691,11 @@ fn a_tilt_in_the_band_escalates_its_class_gate() {
             matches!(
                 got,
                 Err(PcurveCertifyError::Escalated {
-                    check: PcurveCheck::ChartWinding,
+                    check: PcurveCheck::ChartClass | PcurveCheck::ChartIncidence,
                     ..
                 })
             ),
-            "{what}: a tilt of 0.8·escalate escalates its class gate: {got:?}"
+            "{what}: a tilt of 0.8·escalate decides no class: {got:?}"
         );
     }
 }
@@ -745,6 +747,50 @@ fn the_closed_forms_are_the_sampled_sup() {
             decide("harmonic_sup_rows", Margin::of(value), band()),
             Ok(Sign::Zero),
             "{what}: a rounding-width pair decides Zero"
+        );
+    }
+}
+
+/// **An in-band class on the sphere takes the projected lane** (D3's lane
+/// choice): a circle exactly on the sphere, tilted off a parallel so its
+/// axial reading (`pcurve_sphere_chart_axial`) sits mid-band, is neither
+/// decided a parallel on that margin nor refused: the incidence test
+/// reads it on the sphere, and it takes the general lane, the projected
+/// image, which certifies over the turn, at `f64` and at `Interval`.
+#[test]
+fn an_in_band_class_on_the_sphere_takes_the_projected_lane() {
+    fn read<T: geom_core::Decide>(at: impl Fn(f64) -> T) -> Result<Pcurve<T>, PcurveCertifyError> {
+        let (h, rho) = (0.6, 0.8);
+        let mid = 0.5 * (band().zero() + band().escalate());
+        let theta = (mid / rho).asin();
+        let (s, c) = theta.sin_cos();
+        let n = Vec3::new(0.0, -s, c);
+        let carrier = Curve3::Circle {
+            center: Point3::origin() + n * h,
+            axis: n,
+            radius: rho,
+            u_ref: Vec3::unit_x(),
+        }
+        .map_scalar(&at);
+        let sphere = unit_sphere().map_scalar(&at);
+        let image = chart_pcurve(&carrier, &sphere, band())?;
+        let tau = at(core::f64::consts::TAU);
+        PcurveCache::certify(image.clone(), at(0.0), tau, &carrier, &sphere, band())?;
+        Ok(image)
+    }
+    for (lane, projected) in [
+        ("f64", matches!(read(|x| x), Ok(Pcurve::Projected(_)))),
+        (
+            "Interval",
+            matches!(
+                read(<geom_core::Interval as geom_core::Real>::from_f64),
+                Ok(Pcurve::Projected(_))
+            ),
+        ),
+    ] {
+        assert!(
+            projected,
+            "{lane}: the in-band class takes the projected lane"
         );
     }
 }

@@ -465,6 +465,10 @@ fn certify_errors() -> Vec<CertifyError> {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Ellipse,
         },
+        CertifyError::GeneralLaneUnwritten {
+            chart: geom::SurfaceKind::Torus,
+            carrier: geom::CurveKind::Circle,
+        },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
         CertifyError::NurbsLaneNotSupplied,
@@ -627,15 +631,22 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Torus,
         },
-        PcurveCertifyError::CarrierGrazesChart {
+        PcurveCertifyError::GeneralLaneUnwritten {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
-            grazer: geom_brep::Grazer::TorusCircle,
         },
         PcurveCertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Line,
             why: "a sphere holds no line",
+            margin: None,
+        },
+        PcurveCertifyError::CarrierOffChart {
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Circle,
+            why: "the rim's height is not shown away from the apex's, where the apex plane \
+                  meets the cone only at the apex",
+            margin: Some(geom_core::MarginDiag::value(4e-10)),
         },
         PcurveCertifyError::ImageMismatch {
             image: geom_brep::PcurveKind::General,

@@ -706,7 +706,7 @@ fn a_chart_gate_decided_apart_answers_past_an_in_band_one() {
     if !matches!(
         got,
         Err(PcurveCertifyError::Escalated {
-            check: geom_brep::PcurveCheck::ChartWinding,
+            check: geom_brep::PcurveCheck::ImageIdentity,
             cause: geom_core::Indeterminate {
                 predicate: Some("pcurve_spiric_chart_major"),
                 ..

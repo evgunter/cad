@@ -2005,6 +2005,7 @@ pub(crate) fn every_euler_op_error_once()
                 chart: geom::SurfaceKind::Torus,
                 carrier: geom::CurveKind::Spiric,
                 why: "the spiric lies on neither its own torus nor that torus's mirror",
+                margin: None,
             },
         },
         EulerOpError::PcurveMint {
