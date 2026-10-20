@@ -72,8 +72,8 @@ use crate::band_turn_overrun_probe::{
 use crate::band_turn_overrun_verdict::{corner, far_band};
 use crate::common::cavity::brick;
 use crate::common::operands::{
-    edge_between, leaning_turn, leaning_turn_at, leaning_turn_in_band, parallelepiped,
-    parallelepiped_at,
+    edge_between, lean_in_band, leaning_turn, leaning_turn_at, leaning_turn_in_band,
+    parallelepiped, parallelepiped_at,
 };
 use crate::common::poses::poses;
 use crate::common::quadrature::gk15;
@@ -376,7 +376,7 @@ fn runs_into_another_face(p: &Poly, q: Req, r: f64) -> bool {
 }
 
 /// [`taken`] on a [`Poly`]'s requests.
-fn poly_taken(p: &Poly, reqs: &[Req], r: f64) -> f64 {
+pub(crate) fn poly_taken(p: &Poly, reqs: &[Req], r: f64) -> f64 {
     let reqs: Vec<(Req, V, V)> = reqs
         .iter()
         .map(|q| {
@@ -1090,7 +1090,8 @@ fn a_void_in_the_overruns_volume_refuses() {
 /// **The chamfer's band is not the fillet's**: the leaning prism at a
 /// lean its chamfer turn reads in band builds the fillet's overrun, its
 /// cut-off at the near face (a face tilted by the lean off the far
-/// band's axis) the exact ellipse however near-circular; a `60°` corner
+/// band's axis) the exact ellipse however near-circular, at the
+/// oracle's `ΔV`; a `60°` corner
 /// skewed by a few millionths of a degree escalates on the turn's own
 /// readings. The near-T needle is `band_turn_overrun_verdict`'s.
 #[test]
@@ -1105,6 +1106,8 @@ fn a_fillet_turn_builds_at_the_chamfers_band_and_escalates_in_its_own() {
             .any(|r| r.relation == topo::Relation::CommonFoot),
         "the leaning prism in band: the overrun, not the mitre"
     );
+    let want = poly_taken(&leaning(lean_in_band(tol()), 1.0, 1.0), &TURN, D);
+    assert_delta(&body, &out.body, want, 1e-11, "the leaning prism in band");
     let z = geom_core::Band::linear(tol())
         .expect("the run's band")
         .zero()

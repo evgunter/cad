@@ -3,7 +3,8 @@
 //! a section whose tilt the table reads definitely off square is the
 //! exact `Ellipse`, however near-circular its semi-axes.
 //!
-//! Three tilts per scale `r ∈ {1e-2, 1, 1e2}`, at the run's ε, all past
+//! Three tilts per scale `r ∈ {1e-2, 1, 1e2}` (and `1e3` for the
+//! section rows), at the run's ε, all past
 //! the pose's own band and all where the semi-axes differ by at most
 //! about Kε/4, far inside the band: just clear of the
 //! pose band, where `a − b ≈ ε/2`, and where `a − b ≈ Kε/4`. At each the
@@ -13,6 +14,14 @@
 //! their closed-form volumes, and a Boolean of the tilted operand
 //! against a box builds at its closed-form volume. A tilt in the pose's
 //! band still refuses, naming the pose's own predicate.
+//!
+//! Each section row stands its configuration in three frames (as built,
+//! turned about a generic axis, and turned then carried about 1 km off),
+//! and the body rows are repeated densely in the turned frame: an
+//! axis-aligned frame rounds most of the section's products exactly,
+//! which a carrier's frame cannot count on. A sliver crossing of equal
+//! walls serves its long bisector semi-axis to a few `u`, down to where
+//! `1 − cos φ` rounds to nothing.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -37,6 +46,12 @@ fn band() -> Band {
 
 const SCALES: [f64; 3] = [1e-2, 1.0, 1e2];
 
+/// The section rows' scales: [`SCALES`] and a wall a kilometre across.
+const SECTION_SCALES: [f64; 4] = [1e-2, 1.0, 1e2, 1e3];
+
+/// The body rows' scales in the turned frame.
+const TURNED_SCALES: [f64; 7] = [1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0];
+
 /// The sines of the three tilts across the old gap for a section
 /// whose pose margin is `sin θ` levered at `lever` and whose semi-axes
 /// differ by `spread·sin²θ`: just clear of the pose band, where the
@@ -53,6 +68,17 @@ fn gap_sines(lever: f64, spread: f64) -> [f64; 3] {
         "lever {lever:e}: the gap is open at this ε ({s:?})"
     );
     s
+}
+
+/// [`gap_sines`] and, where the frame's rounding is largest against
+/// the tilt, five more just past the pose band.
+fn dense_sines(lever: f64, spread: f64) -> Vec<f64> {
+    let hi = band().escalate();
+    [6.0, 10.0, 16.0, 25.0, 40.0]
+        .map(|k| k * hi / lever)
+        .into_iter()
+        .chain(gap_sines(lever, spread))
+        .collect()
 }
 
 /// The sine of a tilt in the pose's band at `lever`.
@@ -174,8 +200,8 @@ fn off_surface(p: Point3<f64>, s: &Surface<f64>) -> f64 {
 
 /// The largest miss of `curve` off each of `surfaces`, over its whole
 /// period, against the rounding of its own evaluation: a multiple of
-/// the unit roundoff at the curve's own coordinate scale (measured
-/// at most 1.5 of it at every ε row).
+/// the unit roundoff at the curve's own coordinate scale. A non-finite
+/// semi-axis, sample or miss fails the row.
 fn assert_on(
     what: &str,
     curve: &Curve3<f64>,
@@ -203,6 +229,10 @@ fn assert_on_within(
     else {
         panic!("{what}: an ellipse, got {curve:?}");
     };
+    assert!(
+        semi_u.is_finite() && semi_v.is_finite(),
+        "{what}: the served semi-axes are {semi_u:e} and {semi_v:e}"
+    );
     let scale = (center - Point3::origin()).norm() + semi_u.abs().max(semi_v.abs()).min(reach);
     let rounding = 8.0 * f64::EPSILON * scale;
     let (mut worst_plane, mut worst, mut read) = (0.0_f64, 0.0_f64, 0);
@@ -227,15 +257,25 @@ fn assert_on_within(
     };
     for t in ts {
         let p = curve.eval(t);
+        assert!(
+            p.x.is_finite() && p.y.is_finite() && p.z.is_finite(),
+            "{what}: the carrier evaluates to {p:?} at {t}"
+        );
         if (p - center).norm() > reach {
             continue;
         }
         read += 1;
-        if let Some((q, n)) = plane {
-            worst_plane = worst_plane.max(off_plane(p, q, n));
-        }
-        for s in surfaces {
-            worst = worst.max(off_surface(p, s));
+        let misses = plane
+            .map(|(q, n)| off_plane(p, q, n))
+            .into_iter()
+            .chain(surfaces.iter().map(|s| off_surface(p, s)));
+        for (i, miss) in misses.enumerate() {
+            assert!(miss.is_finite(), "{what}: a miss of {miss:e} at {t}");
+            if i == 0 && plane.is_some() {
+                worst_plane = worst_plane.max(miss);
+            } else {
+                worst = worst.max(miss);
+            }
         }
     }
     assert!(read > 64, "{what}: {read} samples within the reach");
@@ -283,12 +323,74 @@ fn assert_volume(what: &str, body: &Body<f64>, want: f64) {
 }
 
 fn rotated(body: &Body<f64>, about: Vec3<f64>, angle: f64) -> AtRestBody<f64> {
-    let map = Affine3::rotation_about_axis(Point3::origin(), about, angle);
+    moved_body(
+        body,
+        &Affine3::rotation_about_axis(Point3::origin(), about, angle),
+    )
+}
+
+fn moved_body(body: &Body<f64>, map: &Affine3<f64>) -> AtRestBody<f64> {
     finished(
-        "the turned body",
-        topo::transform_rigid(body, &geom_core::test_support::rigid(&map, tol()), tol()).unwrap(),
+        "the moved body",
+        topo::transform_rigid(body, &geom_core::test_support::rigid(map, tol()), tol()).unwrap(),
         tol(),
     )
+}
+
+/// A turn about a generic axis, which no coordinate of a row's
+/// configuration survives exactly.
+fn turn() -> Affine3<f64> {
+    Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.3, -0.5, 0.8).normalize(), 0.7)
+}
+
+/// The frames a section row stands its configuration in.
+fn frames() -> [(&'static str, Affine3<f64>); 3] {
+    [
+        ("as built", Affine3::identity()),
+        ("turned", turn()),
+        (
+            "far",
+            Affine3::translation(Vec3::new(700.0, -500.0, 400.0)) * turn(),
+        ),
+    ]
+}
+
+fn moved(map: &Affine3<f64>, s: &Surface<f64>) -> Surface<f64> {
+    let (p, v) = (|x| map.transform_point(x), |x| map.transform_vec(x));
+    match *s {
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => Surface::Plane {
+            origin: p(origin),
+            normal: v(normal),
+            u_ref: v(u_ref),
+        },
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => Surface::Cylinder {
+            origin: p(origin),
+            axis: v(axis),
+            radius,
+            u_ref: v(u_ref),
+        },
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        } => Surface::Cone {
+            apex: p(apex),
+            axis: v(axis),
+            half_angle,
+            u_ref: v(u_ref),
+        },
+        _ => unreachable!("a plane, a cylinder or a cone"),
+    }
 }
 
 // ---- plane × cylinder ----
@@ -315,37 +417,44 @@ fn tilted_z(s: f64) -> Vec3<f64> {
     Vec3::new(s, 0.0, (1.0 - s * s).sqrt())
 }
 
-/// The table serves the tilted ellipse, on both surfaces to rounding.
+/// The table serves the tilted ellipse, on both surfaces to rounding,
+/// in every frame.
 #[test]
 fn a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse() {
-    for r in SCALES {
-        let cyl = wall(r);
-        let q = Point3::new(0.0, 0.0, 0.5 * r);
-        let reach = Reach::Measured {
-            at: q,
-            lever: 5.0_f64.sqrt() * r,
-        };
-        let section = |s: f64| {
-            let plane = Surface::Plane {
-                origin: q,
-                normal: tilted_z(s),
-                u_ref: Vec3::unit_y(),
+    for (frame, map) in frames() {
+        for r in SECTION_SCALES {
+            let cyl = moved(&map, &wall(r));
+            let q = map.transform_point(Point3::new(0.0, 0.0, 0.5 * r));
+            let reach = Reach::Measured {
+                at: q,
+                lever: 5.0_f64.sqrt() * r,
             };
-            plane_cylinder_section(&plane, &cyl, &reach, band())
-        };
-        for s in gap_sines(r, r / 2.0) {
-            let what = format!("r {r:e}, sin θ {s:e}");
-            let got = section(s);
-            let Ok(PlaneCylinderSection::TiltedEllipse(e)) = &got else {
-                panic!("{what}: the tilted ellipse, got {got:?}");
+            let section = |s: f64| {
+                let plane = moved(
+                    &map,
+                    &Surface::Plane {
+                        origin: Point3::new(0.0, 0.0, 0.5 * r),
+                        normal: tilted_z(s),
+                        u_ref: Vec3::unit_y(),
+                    },
+                );
+                plane_cylinder_section(&plane, &cyl, &reach, band())
             };
-            assert_on(&what, e, Some((q, tilted_z(s))), &[&cyl]);
+            for s in gap_sines(r, r / 2.0) {
+                let what = format!("{frame}, r {r:e}, sin θ {s:e}");
+                let got = section(s);
+                let Ok(PlaneCylinderSection::TiltedEllipse(e)) = &got else {
+                    panic!("{what}: the tilted ellipse, got {got:?}");
+                };
+                let n = map.transform_vec(tilted_z(s));
+                assert_on(&what, e, Some((q, n)), &[&cyl]);
+            }
+            let got = section(banded_sine(r));
+            assert!(
+                matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some("pc_rim_alignment")),
+                "{frame}, r {r:e} in the pose's band: got {got:?}"
+            );
         }
-        let got = section(banded_sine(r));
-        assert!(
-            matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some("pc_rim_alignment")),
-            "r {r:e} in the pose's band: got {got:?}"
-        );
     }
 }
 
@@ -465,36 +574,44 @@ fn cone_spread(rho: f64) -> f64 {
 
 #[test]
 fn a_near_square_plane_cuts_a_frustum_in_its_exact_ellipse() {
-    for scale in SCALES {
-        let f = frustum(scale);
-        let q = Point3::new(0.0, 0.5 * scale, 0.0);
-        let rim = 0.5 * (f.r0 + f.r1);
-        let lever = (2.0 * f.r0).max((scale * scale + (f.r0 + f.r1).powi(2)).sqrt());
-        let reach = Reach::Measured {
-            at: Point3::new(0.0, f.apex, 0.0),
-            lever,
-        };
-        let section = |s: f64| {
-            let plane = Surface::Plane {
-                origin: q,
-                normal: tilted_y(s),
-                u_ref: Vec3::unit_z(),
+    for (frame, map) in frames() {
+        for scale in SECTION_SCALES {
+            let f = frustum(scale);
+            let cone = moved(&map, &f.cone);
+            let q0 = Point3::new(0.0, 0.5 * scale, 0.0);
+            let q = map.transform_point(q0);
+            let rim = 0.5 * (f.r0 + f.r1);
+            let lever = (2.0 * f.r0).max((scale * scale + (f.r0 + f.r1).powi(2)).sqrt());
+            let reach = Reach::Measured {
+                at: map.transform_point(Point3::new(0.0, f.apex, 0.0)),
+                lever,
             };
-            plane_cone_section(&plane, &f.cone, &reach, band())
-        };
-        for s in gap_sines(f.r1, cone_spread(rim)) {
-            let what = format!("scale {scale:e}, sin θ {s:e}");
-            let got = section(s);
-            let Ok(PlaneConeSection::TiltedEllipse(e)) = &got else {
-                panic!("{what}: the tilted ellipse, got {got:?}");
+            let section = |s: f64| {
+                let plane = moved(
+                    &map,
+                    &Surface::Plane {
+                        origin: q0,
+                        normal: tilted_y(s),
+                        u_ref: Vec3::unit_z(),
+                    },
+                );
+                plane_cone_section(&plane, &cone, &reach, band())
             };
-            assert_on(&what, e, Some((q, tilted_y(s))), &[&f.cone]);
+            for s in gap_sines(f.r1, cone_spread(rim)) {
+                let what = format!("{frame}, scale {scale:e}, sin θ {s:e}");
+                let got = section(s);
+                let Ok(PlaneConeSection::TiltedEllipse(e)) = &got else {
+                    panic!("{what}: the tilted ellipse, got {got:?}");
+                };
+                let n = map.transform_vec(tilted_y(s));
+                assert_on(&what, e, Some((q, n)), &[&cone]);
+            }
+            let got = section(banded_sine(lever));
+            assert!(
+                matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some("pn_axis_normal")),
+                "{frame}, scale {scale:e} in the pose's band: got {got:?}"
+            );
         }
-        let got = section(banded_sine(lever));
-        assert!(
-            matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some("pn_axis_normal")),
-            "scale {scale:e} in the pose's band: got {got:?}"
-        );
     }
 }
 
@@ -561,48 +678,171 @@ fn a_near_square_frustum_minus_a_box_builds() {
 /// near-circular ellipse (semi-axes `r/cos(φ/2)` and `r`), the one along
 /// them the long one (`r/sin(φ/2)` and `r`). Both are served; each
 /// misses both walls by rounding, the near-circular one along its whole
-/// length and the long one over the walls' reach.
+/// length and the long one over the walls' reach, in every frame.
 #[test]
 fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_ellipses() {
-    for r in SCALES {
-        let reach = Reach::Measured {
-            at: Point3::origin(),
-            lever: r,
-        };
-        let walls = |phi: f64| {
-            let turned = Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::new(phi.sin(), 0.0, phi.cos()),
-                radius: r,
-                u_ref: Vec3::unit_y(),
-            };
-            (wall(r), turned)
-        };
-        // a − b = r·(sec(φ/2) − 1) ≈ r·sin²φ/8.
-        for s in gap_sines(r, r / 8.0) {
-            let what = format!("r {r:e}, sin φ {s:e}");
-            let (a, b) = walls(s.asin());
-            let got = cylinder_cylinder_section(&a, &b, &reach, band());
-            let Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) = &got else {
-                panic!("{what}: the two bisector ellipses, got {got:?}");
-            };
-            let near = |e: &Curve3<f64>| match *e {
-                Curve3::Ellipse { semi_u, semi_v, .. } => (semi_u - semi_v).abs() < r,
-                _ => false,
-            };
-            let (round, long) = if near(e1) { (e1, e2) } else { (e2, e1) };
-            assert!(
-                near(round) && !near(long),
-                "{what}: one near-circular, one long"
-            );
-            assert_on(&format!("{what}, across"), round, None, &[&a, &b]);
-            assert_on_within(&format!("{what}, along"), long, None, &[&a, &b], 4.0 * r);
+    for (frame, map) in frames() {
+        for r in SECTION_SCALES {
+            bisector_rows(frame, &map, r);
         }
-        let (a, b) = walls(banded_sine(r).asin());
+    }
+}
+
+/// Equal walls of radius `r` about `z` and about `z` turned `φ` about
+/// `y`, through the origin, carried by `map`.
+fn sliver_walls(map: &Affine3<f64>, r: f64, phi: f64) -> (Surface<f64>, Surface<f64>) {
+    let turned = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::new(phi.sin(), 0.0, phi.cos()),
+        radius: r,
+        u_ref: Vec3::unit_y(),
+    };
+    (moved(map, &wall(r)), moved(map, &turned))
+}
+
+fn bisector_rows(frame: &str, map: &Affine3<f64>, r: f64) {
+    let reach = Reach::Measured {
+        at: map.transform_point(Point3::origin()),
+        lever: r,
+    };
+    let walls = |phi: f64| sliver_walls(map, r, phi);
+    // a − b = r·(sec(φ/2) − 1) ≈ r·sin²φ/8.
+    for s in gap_sines(r, r / 8.0) {
+        let what = format!("{frame}, r {r:e}, sin φ {s:e}");
+        let (a, b) = walls(s.asin());
         let got = cylinder_cylinder_section(&a, &b, &reach, band());
+        let Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) = &got else {
+            panic!("{what}: the two bisector ellipses, got {got:?}");
+        };
+        let near = |e: &Curve3<f64>| match *e {
+            Curve3::Ellipse { semi_u, semi_v, .. } => (semi_u - semi_v).abs() < r,
+            _ => false,
+        };
+        let (round, long) = if near(e1) { (e1, e2) } else { (e2, e1) };
         assert!(
-            matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some("cc_axes_parallel")),
-            "r {r:e} in the pose's band: got {got:?}"
+            near(round) && !near(long),
+            "{what}: one near-circular, one long"
         );
+        assert_on(&format!("{what}, across"), round, None, &[&a, &b]);
+        assert_on_within(&format!("{what}, along"), long, None, &[&a, &b], 4.0 * r);
+    }
+    let (a, b) = walls(banded_sine(r).asin());
+    let got = cylinder_cylinder_section(&a, &b, &reach, band());
+    assert!(
+        matches!(&got, Err(SectionError::Escalated(d)) if d.predicate == Some("cc_axes_parallel")),
+        "{frame}, r {r:e} in the pose's band: got {got:?}"
+    );
+}
+
+/// `r / sin(φ/2)` for the stored axes `a` and `b`, `φ` their angle,
+/// in double-double: half the length of `â − b̂`.
+fn long_semi_axis(r: f64, a: Vec3<f64>, b: Vec3<f64>) -> f64 {
+    let unit = |x: Vec3<f64>| {
+        let x = v(x);
+        axb(x, Dd::of(1.0).div(dot(x, x).sqrt()))
+    };
+    let d = minus(unit(a), unit(b));
+    Dd::of(2.0 * r).div(dot(d, d).sqrt()).value()
+}
+
+/// A sliver crossing of equal walls, `φ` down to where `1 − cos φ`
+/// rounds to nothing: the long bisector ellipse's semi-axis is
+/// `r / sin(φ/2)` to a few `u` of the stored axes' own angle, in every
+/// frame, or the pose reads the axes parallel or refuses in its band.
+#[test]
+fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
+    for (frame, map) in frames() {
+        let mut served = 0;
+        for (r, phi) in [1.0, 4.0]
+            .into_iter()
+            .flat_map(|r| [2e-9, 8e-9, 4e-8, 1e-6, 1e-4].map(|phi| (r, phi)))
+        {
+            let what = format!("{frame}, r {r:e}, φ {phi:e}");
+            let (a, b) = sliver_walls(&map, r, phi);
+            let reach = Reach::Measured {
+                at: map.transform_point(Point3::origin()),
+                lever: r,
+            };
+            let got = cylinder_cylinder_section(&a, &b, &reach, band());
+            let (Surface::Cylinder { axis: aa, .. }, Surface::Cylinder { axis: ab, .. }) = (&a, &b)
+            else {
+                unreachable!("two cylinders");
+            };
+            match &got {
+                Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) => {
+                    let semi = |e: &Curve3<f64>| match *e {
+                        Curve3::Ellipse { semi_u, semi_v, .. } => semi_u.max(semi_v),
+                        _ => panic!("{what}: an ellipse, got {e:?}"),
+                    };
+                    let long = semi(e1).max(semi(e2));
+                    let want = long_semi_axis(r, *aa, *ab);
+                    assert!(
+                        long.is_finite() && (long - want).abs() <= 8.0 * f64::EPSILON * want,
+                        "{what}: the long semi-axis is {long:e}, against {want:e}"
+                    );
+                    served += 1;
+                }
+                Err(SectionError::Escalated(d))
+                    if d.predicate == Some("cc_axes_parallel")
+                        && phi * r < 2.0 * band().escalate() => {}
+                // Parallel by the pose, through one origin: one wall.
+                Err(SectionError::CoincidentSurfaces) if phi * r < 2.0 * band().escalate() => {}
+                _ => panic!("{what}: the bisector ellipses, got {got:?}"),
+            }
+        }
+        // φ = 1e-4 is past the pose's band at every ε row, at both radii.
+        assert!(served >= 2, "{frame}: {served} crossings served");
+    }
+}
+
+/// [`a_near_square_split_of_a_rod_validates_its_halves`] densely over
+/// the scale and the tilt, in the turned frame.
+#[test]
+fn a_turned_near_square_split_of_a_rod_validates_its_halves() {
+    let map = turn();
+    for r in TURNED_SCALES {
+        let body = moved_body(&rod(r), &map);
+        let q = map.transform_point(Point3::new(0.0, 0.0, 0.5 * r));
+        let half = PI * r * r * r / 2.0;
+        for s in dense_sines(r, r / 2.0) {
+            validated_halves(
+                &format!("turned, r {r:e}, sin θ {s:e}"),
+                &body,
+                q,
+                map.transform_vec(tilted_z(s)),
+                [half, half],
+            );
+        }
+    }
+}
+
+/// [`a_near_square_rod_minus_a_box_builds`] densely over the scale and
+/// the tilt, in the turned frame.
+#[test]
+fn a_turned_near_square_rod_minus_a_box_builds() {
+    let map = turn();
+    for r in TURNED_SCALES {
+        let cutter = moved_body(
+            &brick(
+                (-2.0 * r, 2.0 * r),
+                (-2.0 * r, 2.0 * r),
+                (0.5 * r, 2.0 * r),
+                tol(),
+            ),
+            &map,
+        );
+        for s in dense_sines(r, r / 2.0) {
+            let what = format!("turned, r {r:e}, sin θ {s:e}");
+            let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), s.asin());
+            let rod = moved_body(&rod(r), &(map * tilt));
+            let got = topo::subtract(&rod, &cutter, tol())
+                .unwrap_or_else(|e| panic!("{what}: the subtract refused: {e}"));
+            let cos = (1.0 - s * s).sqrt();
+            assert_volume(
+                &what,
+                &got.body().expect("a body").body,
+                PI * r * r * (0.5 * r / cos),
+            );
+        }
     }
 }

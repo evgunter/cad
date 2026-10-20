@@ -454,8 +454,9 @@ fn the_verdict_escalates_only_in_a_narrow_band_around_a_coincidence() {
 /// fillet's surgery does there is
 /// `band_turn_overrun_fillet::the_needle_builds_then_refuses_at_the_turn_as_it_flattens`.
 #[test]
-fn a_flattening_turns_needle_escalates_and_never_mitres() {
+fn a_flattening_needle_escalates_its_chamfer_and_mitres_its_fillet_only_at_zero() {
     let band = Band::linear(tol()).expect("the run's band");
+    let mut fillet_mitres = Vec::new();
     let r = (band.zero() / 1e-9).sqrt();
     let flat = |eps: f64| {
         let e = eps.to_radians();
@@ -489,14 +490,22 @@ fn a_flattening_turns_needle_escalates_and_never_mitres() {
                 "the needle: gap {gap:e} Zero, chords {chords:?} outside the band"
             );
         }
-        if outcome(&body, edges, Verb::Fillet) == Outcome::Mitre {
-            let (gap, chords) = turn_readings(&body, edges, D, BlendKind::Fillet, tol());
-            assert!(
-                gap.abs() < band.zero() && chords[0].max(chords[1]) < band.zero(),
-                "fillet at {eps}°: mitres only where its gap {gap:e} and chords {chords:?} \
-                 are Zero"
-            );
-        }
+        let mitres = outcome(&body, edges, Verb::Fillet) == Outcome::Mitre;
+        let (gap, chords) = turn_readings(&body, edges, D, BlendKind::Fillet, tol());
+        assert_eq!(
+            mitres,
+            gap.abs() < band.zero() && chords[0].max(chords[1]) < band.zero(),
+            "fillet at {eps}°: mitres exactly where its gap {gap:e} and chords {chords:?} \
+             are Zero"
+        );
+        fillet_mitres.push(mitres);
+    }
+    if tol().eps() == geom_core::tolerance::DEFAULT_EPS {
+        assert_eq!(
+            fillet_mitres,
+            [false, false, false, true],
+            "the fillet mitres at the flattest turn alone at the default band"
+        );
     }
 }
 

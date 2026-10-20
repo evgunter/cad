@@ -2503,8 +2503,9 @@ pub(crate) fn turn_reading<T: Decide>(
 ///
 /// [`BlendError::Escalated`] on an in-band departure
 /// ([`BlendDecision::CapTransverse`]); [`BlendError::SurgeryInvariant`]
-/// if the ellipse door refuses the semi-axes, which are the radius the
-/// size gate passed and that radius over a cosine.
+/// if the ellipse door refuses the semi-axes, which are the radius
+/// `fillet3_radius_headroom` decided definitely positive (its margin
+/// `(1 − r·κ)·r` is) and that radius over a cosine.
 pub fn cap_transverse<T: Decide + Bounds>(
     vertex: VertexKey,
     cap_normal: Vec3<T>,
@@ -2522,18 +2523,17 @@ pub fn cap_transverse<T: Decide + Bounds>(
         // The margin is a norm: Negative is unreachable, and both
         // definite verdicts are the departure.
         Sign::Positive | Sign::Negative => {
-            // The minor axis runs across the tilt, the major along its
-            // trace in the end plane — `plane_cylinder_section`'s frame.
-            let u_major = (tilt / tilt.norm()).cross(n);
+            let u_major = geom_brep::tilted_section_major(n, tilt);
             let major = radius / n.dot(tau).abs();
             let origin = Point3::new(T::zero(), T::zero(), T::zero());
             Curve3::ellipse(origin, n, major, radius, u_major, band)
                 .map(EndSection::Ellipse)
                 .map_err(|_: EllipseInvalid| BlendError::SurgeryInvariant {
                     at: EntityId::Vertex(vertex),
-                    detail: "an oblique end face's ellipse came out with a minor semi-axis \
-                             not definitely positive, though it is the radius the size gate \
-                             passed",
+                    detail: "an oblique end face's ellipse came out with a semi-axis not \
+                             definitely positive or not finite, though it is the radius \
+                             fillet3_radius_headroom decided positive, over a cosine the \
+                             tilt gate read definite",
                 })
         }
     }

@@ -21,7 +21,7 @@ far under ε) that sign is rounding, so the reported `u_ref` can turn a
 quarter turn between two poses that differ by nothing a caller can
 see. The pose's own major direction is well defined: the section
 table sets the stored `u_ref` from the surface axis
-(`u_major = v_minor × n`), and `Curve3::section_frame(axis)` reads it
+(`geom_brep::tilted_section_major`), and `Curve3::section_frame(axis)` reads it
 from the axis, never from the semi-axes.
 
 No in-repo consumer reads `u_ref` of an ellipse pose today

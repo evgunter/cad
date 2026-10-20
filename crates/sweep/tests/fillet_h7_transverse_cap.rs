@@ -769,6 +769,18 @@ fn the_cap_lever_is_the_links_extent() {
         };
         let creases = rod_creases(below);
         assert_eq!(creases.len(), 2, "L = {len}: two creases");
+        // The oblique cap's centroid closed form
+        // ([`an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse`]):
+        // the tilt is about `y`, so only the `x` moment enters.
+        let n = Vec3::new(phi.sin(), 0.0, phi.cos());
+        let removed = rod_section_cut(ROD_R, ROD_FLAT, R) * 0.6 * len
+            - n.x * rod_section_moment(ROD_R, ROD_FLAT, R, (1.0, 0.0)) / n.z;
+        let enclosure = |body: &Body<f64>| {
+            let p = mass_properties(body, tol())
+                .unwrap_or_else(|e| panic!("L = {len}: certified props, got {e:?}"));
+            (p.volume, p.volume_pad)
+        };
+        let (vol0, pad0) = enclosure(below);
         for e in creases {
             let out = fillet_edges(
                 &sweep::test_support::at_rest(below, tol()),
@@ -778,6 +790,15 @@ fn the_cap_lever_is_the_links_extent() {
             )
             .unwrap_or_else(|err| panic!("L = {len}: the door builds, got {:?}", err.error));
             validate_geometric(&out.body, tol()).expect("tier 3");
+            let (vol1, pad1) = enclosure(&out.body);
+            let (dv, pad) = (vol0 - vol1, pad0 + pad1);
+            // The long rod's enclosure runs a hair past the ceiling the
+            // carve rows hold, so its midpoint is what is held.
+            assert!(
+                (dv - removed).abs() < 1e-12 + pad
+                    && (dv - removed).abs() < crate::band_planar_cut_off::midpoint_tol(),
+                "L = {len}: ΔV {dv} ± {pad} vs the closed form {removed}"
+            );
             let verdict = run_battery(
                 &BlendRequest {
                     body: below,

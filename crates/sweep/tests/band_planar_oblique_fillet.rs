@@ -9,6 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::interval::iv;
+use core::f64::consts::PI;
 use geom::Curve3;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Sign, Vec3};
 use sweep::blend::BlendError;
@@ -373,7 +374,10 @@ fn steep_walls_cut_off_at_the_closed_form() {
 /// fillet at a wall drafted 0.25° and 0.5° off square. The tilt is
 /// definite, so the end is the exact ellipse, though at 0.25° its
 /// semi-axes differ by `r·(sec θ − 1) ≈ 9.5e-9 m`, inside the default
-/// band: both drafts build, tier-3 valid, ending in ellipses.
+/// band: both drafts build, tier-3 valid, ending in ellipses, and remove
+/// the fillet's section times the length between the walls at its
+/// centroid (the walls `x = s·y` and `x = 2 − s·y` stand `2 − 2·s·ȳ`
+/// apart there).
 #[test]
 fn a_drafted_wall_builds_its_ellipse() {
     let r = 1e-3;
@@ -398,6 +402,15 @@ fn a_drafted_wall_builds_its_ellipse() {
         )
         .unwrap_or_else(|e| panic!("a {deg}° draft builds, got {}", e.error));
         validate_geometric(&out.body, tol()).expect("tier 3");
+        let section = r * r * (1.0 - PI / 4.0);
+        let centroid = r * (10.0 - 3.0 * PI) / (12.0 - 3.0 * PI);
+        let removed = section * (2.0 - 2.0 * s * centroid);
+        let ((v0, pad0), (v1, pad1)) = (volume_enclosure(&body), volume_enclosure(&out.body));
+        let (dv, pad) = (v0 - v1, pad0 + pad1);
+        assert!(
+            pad < pad_ceiling() && (dv - removed).abs() < 1e-12 + pad,
+            "{deg}°: ΔV {dv:e} ± {pad:e} vs the closed form {removed:e}"
+        );
         let arcs = &out.naming.as_ref().expect("births").arcs;
         assert!(!arcs.is_empty(), "{deg}°: the band ends in arcs");
         for (arc, _, _) in arcs {

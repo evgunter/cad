@@ -430,9 +430,9 @@ reconcile the two specs.
 6. **The lever:** a frustum far from its apex escalates a near-parabola
    whose margin is in the band at the face's reach and clear of it at
    `|at − apex|` or at ten times the reach (Q4).
-7. **The near-circular tilt** (retired): the axis-normal row is the
+7. **The near-circular tilt:** the axis-normal row is the
    one decision of circle against ellipse, so a tilt it reads as
-   definite is the ellipse's own frame however near-circular, and only
+   definite is the exact ellipse however near-circular, and only
    a tilt in that row's band escalates, on the cone and on the
    cylinder arm alike.
 

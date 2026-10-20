@@ -3800,9 +3800,13 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
         ) => Ok(None),
         // Refusals two cylinders read apart cannot raise: the kinds
         // were matched above, the coaxial pose answered parallel, no
-        // torus question is asked, and no extent is handed to this pair.
+        // torus question is asked, no extent is handed to this pair, and
+        // a bisector's semi-axes are a radius over a half-angle's sine or
+        // cosine read off `a1 ∓ a2`, which are finite at any radius in
+        // the box.
         Err(
-            geom_brep::SectionError::WrongLane { .. }
+            geom_brep::SectionError::Carrier(geom::EllipseInvalid::SemiAxisNotFinite)
+            | geom_brep::SectionError::WrongLane { .. }
             | geom_brep::SectionError::BeyondOperandExtent { .. }
             | geom_brep::SectionError::CoincidentSurfaces
             | geom_brep::SectionError::DegenerateTorus
@@ -3917,7 +3921,7 @@ fn intersecting_cylinder_axes<T: Decide>(
         // coaxial-equal-radius pose was refused at the parallelism
         // gate, no torus question is asked of two cylinders with
         // meeting axes, the bisector ellipses' semi-axes are decided
-        // positive, and no arm this pair reaches states
+        // positive and finite, and no arm this pair reaches states
         // a locus off the extent it was handed (the cylinder pair's
         // ellipses stand on the operands themselves).
         Err(
@@ -3927,7 +3931,9 @@ fn intersecting_cylinder_axes<T: Decide>(
             | geom_brep::SectionError::CoincidentSurfaces
             | geom_brep::SectionError::DegenerateTorus
             | geom_brep::SectionError::BeyondOperandExtent { .. }
-            | geom_brep::SectionError::Carrier(geom::EllipseInvalid::MinorNotPositive)
+            | geom_brep::SectionError::Carrier(
+                geom::EllipseInvalid::MinorNotPositive | geom::EllipseInvalid::SemiAxisNotFinite,
+            )
             | geom_brep::SectionError::Spiric(_),
         ) => FrameError::Desync(
             "the equal-radius cylinder section refused at the germ pair with a refusal this \

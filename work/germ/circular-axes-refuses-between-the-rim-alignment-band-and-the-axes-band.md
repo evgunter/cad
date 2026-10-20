@@ -24,7 +24,8 @@ enough off square" at ε = 1e-9 or so.
 
 ## Measured (2026-10-14, main at the branch's base)
 
-`crates/sweep/examples/circular_axes_gap_probe.rs` sweeps
+`crates/sweep/examples/circular_axes_gap_probe.rs` (deleted once the
+gap closed; its last tree is `5ada12a58`) sweeps
 sin θ ∈ [ε/(4r), 4·√(2Kε/r)] (25 tilts, log-spaced) at r ∈ {1e-2, 1, 1e2}
 and ε ∈ {1e-6, 1e-9, 1e-12}, reading the section table
 (`geom_brep::intersect::plane_cylinder_section`, `plane_cone_section`)
@@ -144,10 +145,16 @@ equal-cylinder frame, `sweep` `cap_transverse` → `CapEllipse` and
 `FILLET3_CAP_ELLIPSE_RECOURSE`). The plane × cylinder, plane × cone and
 equal-cylinder bisector arms serve the exact ellipse at every tilt the
 pose reads definite; `crates/sweep/tests/near_circular_sections.rs`
-pins the table, the served carrier's miss off both surfaces (≤ 1.5
-units of roundoff at its coordinate scale, at all three ε rows), a
-split, and a Boolean at three tilts across the old gap at three scales,
-each red with the gate restored. The pose's own band still refuses
+pins the table, the served carrier's miss off both surfaces (measured
+at most 2.8 `f64::EPSILON` at its coordinate scale, held to 8, at all
+three ε rows and in three frames: as built, turned about a generic
+axis, and turned then carried about 1 km off), a split, and a Boolean
+at three tilts across the old gap at three scales, each red with the
+gate restored, and the split and the Boolean again densely in the
+turned frame. The miss holds in a general frame because the ellipse's
+frame is built orthonormal (`geom_brep::tilted_section_major`); the
+bisector's half-angle is read off `â₁ ∓ â₂` without cancellation, so
+its long semi-axis is `r / sin(φ/2)` to a few u at any served `φ`. The pose's own band still refuses
 (`pc_rim_alignment`, `pn_axis_normal`, `cc_axes_parallel`), pinned in
 the same file and in `topo` `cone_frame_rows.rs`.
 

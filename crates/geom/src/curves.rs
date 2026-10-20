@@ -491,6 +491,10 @@ pub enum EllipseInvalid {
     /// The smaller semi-axis is not definitely positive (zero or
     /// negative: a degenerate segment, not an ellipse).
     MinorNotPositive,
+    /// A semi-axis is infinite or NaN: the configuration's ellipse is
+    /// past what the representation carries (a cosine that flushed to
+    /// zero, an overflowing quotient).
+    SemiAxisNotFinite,
     /// `ellipse_minor_positive` landed in the ambiguity band or was
     /// poisoned: the configuration is too close to the degenerate
     /// segment to name soundly.
@@ -519,6 +523,11 @@ impl core::fmt::Display for EllipseInvalid {
                 f,
                 "ellipse construction: the minor semi-axis is not positive (a degenerate \
                  segment, not an ellipse)"
+            ),
+            Self::SemiAxisNotFinite => write!(
+                f,
+                "ellipse construction: a semi-axis is not finite (the section's ellipse is \
+                 past what f64 carries; turn the surfaces off this pose)"
             ),
             Self::Escalated(diag) => write!(
                 f,
@@ -844,8 +853,9 @@ impl<T: Real> Curve3<T> {
 
 impl<T: Decide> Curve3<T> {
     /// The one deciding door into [`Curve3::Ellipse`]: refuses a
-    /// non-positive minor semi-axis through a named Q1 trilean, and
-    /// nothing else. Equal or near-equal semi-axes are a genuine
+    /// non-finite semi-axis ([`EllipseInvalid::SemiAxisNotFinite`], a
+    /// value-channel read, no band) and a non-positive minor semi-axis
+    /// through a named Q1 trilean, and nothing else. Equal or near-equal semi-axes are a genuine
     /// `Ellipse`: the caller's pose decides the kind once (a square
     /// section is its `Circle`, a definitely-off-square one this door's
     /// `Ellipse`, however near-circular). The semi-axes come in either
@@ -873,6 +883,9 @@ impl<T: Decide> Curve3<T> {
         u_ref: Vec3<T>,
         band: Band,
     ) -> Result<Self, EllipseInvalid> {
+        if !(geom_core::is_finite_length(semi_u) && geom_core::is_finite_length(semi_v)) {
+            return Err(EllipseInvalid::SemiAxisNotFinite);
+        }
         let minor = semi_u.min(semi_v);
         match geom_core::k_stats::decide("ellipse_minor_positive", Margin::of(minor), band) {
             Ok(Sign::Positive) => {}

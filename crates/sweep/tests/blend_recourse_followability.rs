@@ -639,6 +639,25 @@ fn fillet_turn_recourse_at_a_box_corner() {
                 .any(|c| c.relation == topo::Relation::CommonFoot),
             "{what}: the overrun"
         );
+        // The leaning prism is `band_turn_overrun_oracles::leaning` at
+        // unit height and scale, so its overrun oracle reads the build.
+        let s = deg.to_radians().tan();
+        let want = crate::band_turn_overrun_fillet::poly_taken(
+            &crate::band_turn_overrun_oracles::leaning(s, 1.0, 1.0),
+            &crate::band_turn_overrun_oracles::TURN,
+            r,
+        );
+        let ((v0, p0), (v1, p1)) = (
+            crate::band_planar_cut_off::volume_enclosure(&lean(deg).0),
+            crate::band_planar_cut_off::volume_enclosure(&out.body),
+        );
+        assert!(
+            p0 + p1 < crate::band_planar_cut_off::pad_ceiling()
+                && (v0 - v1 - want).abs() < 1e-11 + crate::band_planar_cut_off::midpoint_tol(),
+            "{what}: ΔV {} ± {:e} against the oracle's {want}",
+            v0 - v1,
+            p0 + p1
+        );
     }
     let out = fillet(0.0, 0.1).unwrap_or_else(|e| panic!("squared: builds, got {:?}", e.error));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("squared: tier 3, got {e:?}"));

@@ -38,6 +38,21 @@ above), which uncovers this. The range `φ ∈ (√(8ε/r), 2r·u/ε)` (about
 `2.8e-6` to `2e-4` rad at ε = 1e-12, `r = 1`) reached this on main
 already.
 
+What PR 5156's fix pass settled, and what it did not: the long
+semi-axis itself is no longer part of this. The table read the
+half-angle's sine as `a₁·n₁`, off `1 − cos φ`, so it served `inf`
+where that rounded to zero (`φ ≲ 1e-8`, any frame that keeps the axes'
+products exact) and a semi-axis off by about `u/φ²` elsewhere
+(`5.15e7` for `5e7` at `r = 1`, `φ = 4e-8`). It now reads the sine and
+cosine as half the lengths of `â₁ ∓ â₂`, the shorter made ⊥ the longer,
+so the semi-axis is `r / sin(φ/2)` to a few `u` of the stored axes'
+angle at every `φ` the pose serves (`sweep`
+`near_circular_sections::a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u`),
+and `Curve3::ellipse` refuses a non-finite semi-axis typed
+(`EllipseInvalid::SemiAxisNotFinite`). What remains is the
+evaluation error of an accurately stated long carrier, `a·u` against
+the band, as above.
+
 The question (`design: true`): where the long carrier's
 representability is decided. The table could read it as a margin of
 its own (the carrier's evaluation error against the band, levered at

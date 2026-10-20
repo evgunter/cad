@@ -16,3 +16,17 @@ Found by RESTREAD: PR 5363's CI (run 39237439563, job `test`) went red on it, an
 **Not measured.** Which merge turned it red. The test was last touched by PR 5162 (022dad8974). The 2026-10-19 nightly (run 39205007024) shows `reach_cone_split`'s steep frustum red at 1e-12 (`steep-frustum-operand-refuses-its-own-gate-at-1e-12-since-5038`, this slate), and its log tail did not show this row. So this may have turned red after that nightly. Bisect on main's first-parent line from 20a9d7928f back.
 
 **Owed.** Decide whether a ring whose winding sums to rounding should read as whole at this ε. If it should, fix the closure read. If not, re-pin the row to the refusal, with its reason.
+
+**A second witness, with no ring and no near-tie** (germ, PR 5156's
+fix pass, 2026-10-20). The `sweep` `near_circular_sections` frustum
+(scale `S`: `r0 = S`, `r1 = S/2`, height `S`, half-angle `atan ½`)
+turned `0.7` rad about `(0.3, −0.5, 0.8)` and split at mid-height by a
+plane at tilt `0.3` rad (far from any band) refuses at ε = 1e-12 from
+`S = 50`: `Finish(ResultNotAtRest { side: Above, errors: [VolumeUncomputable
+{ face: FaceKey(5v1), source: Escalated { Indeterminate { margin:
+Enclosure { lo: 0.0, hi: 2.44e-12 }, predicate: "props_chart_loop_whole" } } }] })`.
+The same split as built (axis along `y`) builds, and so does every
+scale at ε = 1e-9. Turned frustum − box refuses the same way from
+`S = 50` at 1e-12. The closure margin enclosing zero to about `2e-12`
+on a cone face of extent 100 looks like the read's rounding is not
+scaled to the face, rather than anything about this ring.
