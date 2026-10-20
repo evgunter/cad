@@ -12,6 +12,12 @@
 //! crossing stands at least `2Kε` inside or outside the face's top
 //! edge. A pierce read where it is not, or none read and nothing
 //! escalated where it is, is wrong; an escalation never is.
+//!
+//! Beside it: the same edge across a thin notch or strip of a
+//! non-convex cap face, where the placement's span can outreach the
+//! feature; and the closed form's own readings, each residual against
+//! its charge and the placement's enclosure against the exact crossing.
+//! The two review probes ([`probe`], [`probe_notch`]) print only.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -26,7 +32,7 @@ test_utils::gated_to![
     "crates/geom-brep/src/implicit.rs",
 ];
 
-use super::segment_fuzz::{big, big_dot};
+use super::segment_fuzz::{big, big_dot, ratio};
 use super::*;
 use geom_core::{Interval, Tol};
 use num_bigint::BigInt;
@@ -150,17 +156,11 @@ fn exact_depth(pose: &Pose) -> f64 {
     let lever = &r0 - &r1;
     let num = (big(1.0) - big(p0.z)) * &lever - (big(p1.z) - big(p0.z)) * &r0;
     let den = lever << 1074_usize;
-    let (num, den) = if den < BigInt::from(0) {
-        (-num, -den)
+    if den < BigInt::from(0) {
+        ratio(&-num, &-den)
     } else {
-        (num, den)
-    };
-    let head = |x: &BigInt| {
-        let shift = x.bits().saturating_sub(62);
-        (i64::try_from(x >> shift).unwrap() as f64, shift as i32)
-    };
-    let ((n, sn), (d, sd)) = (head(&num), head(&den));
-    n / d * 2f64.powi(sn - sd)
+        ratio(&num, &den)
+    }
 }
 
 /// The pose read at both scalars: `f64`'s reading, and what was wrong,
@@ -274,3 +274,253 @@ mod probe;
 #[cfg(test)]
 #[path = "pierce_probe_notch.rs"]
 mod probe_notch;
+
+/// **Each residual's rounding stays inside half its charge, and the
+/// placement's enclosure holds the exact crossing**: poses as the
+/// grazing fuzzer draws them, the origin up to a kilometre off, each
+/// residual and the fraction `r₀/(r₀ − r₁)` measured exactly against
+/// what [`pierce_span`] reads at `f64`.
+#[test]
+fn each_residual_stays_inside_its_charge_and_the_span_holds_the_crossing() {
+    let label = "census_pierce_span_encloses";
+    let mut r = test_utils::fuzz::start(label);
+    let mut bad = Vec::new();
+    let mut placed = 0usize;
+    for eps in EPS {
+        let band = Band::new(eps, K * eps).unwrap();
+        for _ in 0..test_utils::fuzz::scaled(4 * COUNT) {
+            let mut pose = draw(&mut r, eps);
+            let scale = r.log_uniform(1.0, 1e3);
+            pose.far = (pose.far.0 * scale / 30.0, pose.far.1 * scale / 30.0);
+            let (o, n) = plane(&pose);
+            let [p0, p1] = ends(&pose, n);
+            let f = FaceGeo {
+                key: FaceKey::default(),
+                origin: o,
+                normal: n,
+                boundary: BTreeSet::new(),
+                loops: Vec::new(),
+                polygon: false,
+            };
+            let e = segment((p0, p1));
+            let read = [e.p0, e.p1].map(|p| (p - o).dot(n));
+            let bn = [n.x, n.y, n.z].map(big);
+            let exact = [p0, p1].map(|p| {
+                big_dot(&[p.x, p.y, p.z].map(big), &bn) - big_dot(&[o.x, o.y, o.z].map(big), &bn)
+            });
+            for i in 0..2 {
+                let charge = geom_brep::rounding_charge(([p0, p1][i] - o).norm());
+                let off = (big(read[i]) << 1074_usize) - &exact[i];
+                let room = big(charge / 2.0) << 1074_usize;
+                if off.magnitude() > room.magnitude() {
+                    bad.push(format!(
+                        "ε {eps:e} {pose:?}: residual {i} off past half its charge"
+                    ));
+                }
+            }
+            let mut errors = Vec::new();
+            let Some([lo, hi]) = pierce_span(&e, &f, read, band, &mut errors) else {
+                continue;
+            };
+            placed += 1;
+            let lever = &exact[0] - &exact[1];
+            let (num, lever) = if lever < BigInt::from(0) {
+                (-&exact[0] << 1074_usize, -lever)
+            } else {
+                (exact[0].clone() << 1074_usize, lever)
+            };
+            if !(big(lo) * &lever <= num && num <= big(hi) * &lever) {
+                bad.push(format!(
+                    "ε {eps:e} {pose:?}: [{lo:e}, {hi:e}] misses the crossing"
+                ));
+            }
+        }
+    }
+    println!("[fuzz] {label}: {placed} spans placed");
+    assert!(
+        bad.is_empty(),
+        "{label}: {} readings outside their charge; {}:\n{}",
+        bad.len(),
+        test_utils::fuzz::replay(),
+        bad[..bad.len().min(8)].join("\n")
+    );
+}
+
+/// A cap face with a thin feature at `x = 0.5`, its plane `z = 1`, its
+/// stored origin moved to `(far, 1)`.
+#[derive(Clone, Copy, Debug)]
+enum Thin {
+    /// The unit square less a V notch from the bottom edge, half as wide
+    /// as `w` at `y = 0`, closing at `(0.5, 0.5)`.
+    Notch(f64),
+    /// The strip `|x − 0.5| < h`, `y` over `[0, 1]`.
+    Strip(f64),
+}
+
+impl Thin {
+    fn profile(self) -> Vec<(f64, f64)> {
+        match self {
+            Thin::Notch(w) => vec![
+                (0.0, 0.0),
+                (0.5 - w, 0.0),
+                (0.5, 0.5),
+                (0.5 + w, 0.0),
+                (1.0, 0.0),
+                (1.0, 1.0),
+                (0.0, 1.0),
+            ],
+            Thin::Strip(h) => vec![
+                (0.5 - h, 0.0),
+                (0.5 + h, 0.0),
+                (0.5 + h, 1.0),
+                (0.5 - h, 1.0),
+            ],
+        }
+    }
+
+    /// How far inside the face the point `(x, y)` of its plane stands
+    /// across `x` (negative outside), to a few ulps: the horizontal gap
+    /// to the feature's sides, no more than the distance to them.
+    fn inside(self, x: f64, y: f64) -> f64 {
+        match self {
+            Thin::Notch(w) => {
+                let half = if y < 0.5 { w * (1.0 - y / 0.5) } else { 0.0 };
+                ((x - 0.5).abs() - half).min(x).min(1.0 - x)
+            }
+            Thin::Strip(h) => h - (x - 0.5).abs(),
+        }
+    }
+}
+
+/// A grazing edge across the cap along `x` at height `y`, its ends at
+/// `x₀`, `x₁` and `±off` off the plane.
+#[derive(Clone, Copy, Debug)]
+struct Across {
+    thin: Thin,
+    far: (f64, f64),
+    y: f64,
+    x: (f64, f64),
+    off: f64,
+}
+
+impl Across {
+    fn ends(self) -> [Point3<f64>; 2] {
+        [
+            Point3::new(self.x.0, self.y, 1.0 + self.off),
+            Point3::new(self.x.1, self.y, 1.0 - self.off),
+        ]
+    }
+
+    /// Where the edge meets `z = 1`, exactly to a few ulps: the plane's
+    /// normal is `+z`, so each residual is `z − 1` exactly.
+    fn crossing(self) -> f64 {
+        let [p0, p1] = self.ends();
+        let r = |p: Point3<f64>| big(p.z) - big(1.0);
+        let (r0, r1) = (r(p0), r(p1));
+        let num = big(p0.x) * (&r0 - &r1) + (big(p1.x) - big(p0.x)) * &r0;
+        let den = (&r0 - &r1) << 1074_usize;
+        if den < BigInt::from(0) {
+            ratio(&-num, &-den)
+        } else {
+            ratio(&num, &den)
+        }
+    }
+
+    fn read<T: Decide + crate::props::AtRestPolicy>(self, band: Band) -> Found {
+        let mut prism = crate::test_support_fixtures::prism_z::<T>(
+            &self.thin.profile(),
+            0.0,
+            1.0,
+            Tol::witness(),
+        );
+        let face = prism.top_face;
+        let s = prism.body.get_face(face).unwrap().surface;
+        match prism.body.surfaces.get_mut(s).unwrap() {
+            geom::Surface::Plane { origin, .. } => {
+                *origin = Point3::new(self.far.0, self.far.1, 1.0).map(T::from_f64);
+            }
+            _ => panic!("a prism's cap is a plane"),
+        }
+        let geo = snapshot(&prism.body);
+        let f = geo.faces.iter().find(|f| f.key == face).unwrap();
+        let [p0, p1] = self.ends();
+        let e = segment((p0.map(T::from_f64), p1.map(T::from_f64)));
+        let declared = Declared::index(&geo, &ContactRecords::default());
+        let mut errors = Vec::new();
+        pair_edge_face(&prism.body, &geo, &declared, band, None, &e, f, &mut errors);
+        if errors.iter().any(|e| {
+            matches!(
+                e,
+                ValidationError::CensusEscalated { .. } | ValidationError::CensusUnsupported { .. }
+            )
+        }) {
+            Found::Refused
+        } else if errors.is_empty() {
+            Found::Nothing
+        } else {
+            Found::Pierce
+        }
+    }
+}
+
+/// **A grazing edge across a thin feature of a non-convex face is
+/// pierced where it pierces**: a cap with a V notch or a strip as thin
+/// as a micrometre (the fixture's shortest edge) to a centimetre, the
+/// crossing within a few widths of it, the origin up to 30 m off, the
+/// ends a few `Kε` to a tenth off the plane.
+/// Each crossing is measured exactly and read only `2Kε` clear of the
+/// feature's sides; a pierce read where it is not, or none where it is,
+/// at either scalar, is wrong.
+#[test]
+fn a_grazing_edge_across_a_thin_feature_is_read_pierced_where_it_pierces() {
+    let label = "census_thin_pierce";
+    let mut r = test_utils::fuzz::start(label);
+    let mut bad = Vec::new();
+    for eps in EPS {
+        let band = Band::new(eps, K * eps).unwrap();
+        let (mut read, mut held) = (0usize, 0usize);
+        for _ in 0..test_utils::fuzz::scaled(COUNT / 2) {
+            let width = r.log_uniform(1e-6, 1e-2);
+            let thin = if r.below(2) == 0 {
+                Thin::Notch(2.0 * width)
+            } else {
+                Thin::Strip(width)
+            };
+            let aim = 0.5 + r.range(-3.0, 3.0) * width;
+            let half = r.range(0.05, 0.3);
+            let pose = Across {
+                thin,
+                far: (r.range(-30.0, 30.0), r.range(-30.0, 30.0)),
+                y: r.range(0.1, 0.45),
+                x: (aim - half, aim + half),
+                off: r.log_uniform(1.5 * K * eps, 0.1),
+            };
+            let inside = thin.inside(pose.crossing(), pose.y);
+            let margin = 2.0 * band.escalate();
+            let truth = if inside >= margin {
+                Found::Pierce
+            } else if inside <= -margin {
+                Found::Nothing
+            } else {
+                continue;
+            };
+            let (f, iv) = (pose.read::<f64>(band), pose.read::<Interval>(band));
+            read += 1;
+            held += usize::from(f == Found::Refused);
+            let wrong = |got: Found| got != Found::Refused && got != truth;
+            if wrong(f) || wrong(iv) {
+                bad.push(format!(
+                    "ε {eps:e} {pose:?}: {inside:e} inside, f64 {f:?}, Interval {iv:?}"
+                ));
+            }
+        }
+        println!("[fuzz] {label} at ε {eps:e}: {read} poses read, {held} refused at f64");
+    }
+    assert!(
+        bad.is_empty(),
+        "{label}: {} readings wrong; {}:\n{}",
+        bad.len(),
+        test_utils::fuzz::replay(),
+        bad[..bad.len().min(8)].join("\n")
+    );
+}

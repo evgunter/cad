@@ -1,4 +1,6 @@
-//! Review probes for PR 5421 (not part of the PR).
+//! Printing probes of the pierce lane over far origins, tilted edges
+//! and edges in the plane (ignored), and the tilted-edge fixtures the
+//! in-plane row reads.
 use super::*;
 
 pub(super) fn tilted_ends(pose: &Pose, normal: Vec3<f64>, tilt: f64) -> [Point3<f64>; 2] {

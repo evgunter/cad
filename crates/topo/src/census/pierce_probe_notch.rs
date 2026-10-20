@@ -1,4 +1,5 @@
-//! Review probe for PR 5421: a notched cap face (not part of the PR).
+//! A grazing edge across a thin notch or strip of a cap face: its rows,
+//! and a printing probe (ignored).
 use super::*;
 
 fn classify(errors: &[ValidationError]) -> Found {
@@ -141,10 +142,10 @@ fn probe_notch() {
 /// **A grazing edge crossing a face's plane inside a thin notch is no
 /// pierce**: the crossing stands `1e-5` (`2e-4` with the origin 42 m
 /// off) inside the notch, far past `2Kε` from its sides; both ends of
-/// the placement's span read `In` beyond the notch. Red at PR 5421's
-/// head (a pierce, witnessed inside the notch); main reads nothing.
+/// the placement's span read `In` beyond the notch, so they answer
+/// only once the notch's sides are read clear of the span.
 #[test]
-fn review_5421_a_crossing_inside_a_thin_notch_is_no_pierce() {
+fn a_crossing_inside_a_thin_notch_is_no_pierce() {
     let band = Band::new(1e-12, 1e-11).unwrap();
     for (w, far) in [(1e-4, (0.0, 0.0)), (2e-3, (30.0, 30.0))] {
         for (scalar, got) in [
@@ -165,10 +166,10 @@ fn review_5421_a_crossing_inside_a_thin_notch_is_no_pierce() {
 
 /// **A grazing edge crossing a thin strip face's plane at the strip's
 /// middle pierces it**: `2e-4` (`1e-5` near the origin) inside each
-/// side; both ends of the placement's span read `Out` past the strip.
-/// Red at PR 5421's head (no pierce); main reads the pierce.
+/// side; both ends of the placement's span read `Out` past the strip,
+/// so they answer only once its sides are read clear of the span.
 #[test]
-fn review_5421_a_crossing_inside_a_thin_strip_is_a_pierce() {
+fn a_crossing_inside_a_thin_strip_is_a_pierce() {
     let band = Band::new(1e-12, 1e-11).unwrap();
     for (h, far, off) in [(2e-4, (30.0, 30.0), 1.5e-11), (1e-5, (0.0, 0.0), 1.5e-11)] {
         for (scalar, got) in [
@@ -188,11 +189,10 @@ fn review_5421_a_crossing_inside_a_thin_strip_is_a_pierce() {
 
 /// **An edge lying in a face's plane, the plane's origin 950 m off,
 /// does not panic at `Interval`**: both residuals' enclosures straddle
-/// zero past the band's zero, so the `[P, N]` branch is read, and the
-/// chord-form lever, intersected in, reads at most ε. Red at PR 5421's
-/// head (`pierce_span`'s `unreachable!`); main refuses.
+/// zero past the band's zero, so the `[P, N]` branch is read, and a
+/// lever that reads at most ε there rules that branch out.
 #[test]
-fn review_5421_an_edge_in_a_far_origined_plane_does_not_panic_at_interval() {
+fn an_edge_in_a_far_origined_plane_does_not_panic_at_interval() {
     let band = Band::new(1e-12, 1e-11).unwrap();
     let pose = Pose {
         far: (-947.176_348_895_219_8, 88.292_226_138_031_99),
