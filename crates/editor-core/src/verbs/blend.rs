@@ -87,7 +87,7 @@ pub(crate) struct BlendVerb<T: geom_core::Real> {
     pub(crate) emitter: Emitter<T>,
     /// **This family's arm of the closed record channel**, as a
     /// projection: `Some` for a blend's record (the door's own
-    /// `Option`, whose `None` is the `no_records` refusal), `None` for
+    /// `Option`, whose `None` is the `no_records` panic), `None` for
     /// any other family's — read through
     /// [`super::read_record`], which owns the foreign-family refusal.
     pub(crate) record: fn(VerbRecord<T>) -> Option<Option<BlendNaming>>,
@@ -96,8 +96,8 @@ pub(crate) struct BlendVerb<T: geom_core::Real> {
     /// can read it without a lane scalar in hand.
     pub(crate) slots: SlotJoin,
     /// What a missing birth record is called when this verb's result
-    /// arrives without one. A kernel bug either way; the sentence names
-    /// the door that produced it.
+    /// arrives without one, a kernel bug the lowering panics on; the
+    /// sentence names the door that produced it.
     pub(crate) no_records: &'static str,
     /// What a WRONG-FAMILY record is called when this verb's result
     /// arrives carrying another family's channel

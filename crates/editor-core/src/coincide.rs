@@ -808,10 +808,16 @@ pub(crate) struct RowInputs<'a> {
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] for a cell no input of the node holds by
-/// one name: the kernel recorded a cell of a body it did not read, or
-/// ([`ROW_CELL_NOT_IN_TABLE`]) one the input's table does not name,
-/// which is a kernel bug.
+/// [`NamingError::Emission`] for a tool cell of a node that reads no
+/// tool (`work/intent/a-pose-defined-split-tool-names-no-tool-cell.md`),
+/// or ([`ROW_CELL_NOT_IN_TABLE`]) a cell the input's table does not
+/// name.
+///
+/// # Panics
+///
+/// For a cell of a body the node did not read: a result cell, which
+/// only the at-rest census records, or operand B's of a node that reads
+/// one body. The kernel records only the operands it was handed.
 pub(crate) fn name_rows(
     rows: &[topo::Coincidence],
     inputs: &RowInputs<'_>,
@@ -827,13 +833,20 @@ pub(crate) fn name_rows(
                     role: read.role,
                 })
                 .ok_or_else(unnamed),
-            topo::RowCell::Result { .. } => Err(unnamed()),
+            topo::RowCell::Result { cell } => unreachable!(
+                "a node's coincidence row names result cell {cell:?}, though only the at-rest \
+                 census records a result cell and a node's rows are its operation's"
+            ),
             topo::RowCell::Input { input, cell } => {
                 let (node, table) = match input {
-                    topo::Operand::A => Some(inputs.a),
-                    topo::Operand::B => inputs.b,
-                }
-                .ok_or_else(unnamed)?;
+                    topo::Operand::A => inputs.a,
+                    topo::Operand::B => inputs.b.unwrap_or_else(|| {
+                        unreachable!(
+                            "a coincidence row names operand B's {cell:?} for a node that reads \
+                             one body, though the kernel records only the operands it is handed"
+                        )
+                    }),
+                };
                 let key = match cell {
                     topo::Cell::Vertex(v) => EntityKey::Vertex(v),
                     topo::Cell::Edge(e) => EntityKey::Edge(e),
@@ -880,27 +893,32 @@ pub(crate) fn name_rows(
 /// its two cells the pieces the arriving and leaving segments are. The
 /// rows come in canonical order: loops outer first, joints ascending.
 ///
-/// # Errors
+/// # Panics
 ///
-/// [`NamingError::Emission`] for a canonical segment `pieces` does not
-/// name: the pieces and the validated profile were built from one
-/// program by one pass, so this is a kernel bug.
+/// For a canonical segment `pieces` does not name: the pieces and the
+/// validated profile were built from one program by one pass, so this
+/// is a kernel bug.
 pub(crate) fn name_junctions<T: geom_core::Real>(
     profile: RecipeNodeId,
     validated: &profile::ValidatedProfile<T>,
     pieces: &crate::eval::ProfilePieces,
-) -> Result<Vec<NamedCoincidence>, NamingError> {
-    const UNNAMED: &str = "a profile junction row names a segment the profile's pieces do not";
+) -> Vec<NamedCoincidence> {
     let mut rows = Vec::new();
     for (loop_index, lp) in validated.loops().iter().enumerate() {
         let n = lp.segments().len();
-        let piece = |segment: usize| -> Result<NamedCell, NamingError> {
-            pieces
+        let piece = |segment: usize| -> NamedCell {
+            let Some(&piece) = pieces
                 .edges
                 .get(loop_index)
                 .and_then(|edges| edges.get(segment))
-                .map(|&piece| NamedCell::Piece { profile, piece })
-                .ok_or(NamingError::Emission { what: UNNAMED })
+            else {
+                unreachable!(
+                    "profile {profile:?}'s junction names segment {segment} of loop {loop_index}, \
+                     which its pieces do not hold, though the pieces and the validated profile \
+                     are built from one program by one pass"
+                )
+            };
+            NamedCell::Piece { profile, piece }
         };
         for decided in lp.decided_joints() {
             let joint = decided.joint;
@@ -911,7 +929,7 @@ pub(crate) fn name_junctions<T: geom_core::Real>(
                 },
             };
             rows.push(NamedCoincidence {
-                cells: vec![piece((joint + n - 1) % n)?, piece(joint)?],
+                cells: vec![piece((joint + n - 1) % n), piece(joint)],
                 relation,
                 site: topo::DecisionSite::ProfileJunction,
                 margin: decided.margin,
@@ -920,5 +938,5 @@ pub(crate) fn name_junctions<T: geom_core::Real>(
             });
         }
     }
-    Ok(rows)
+    rows
 }
