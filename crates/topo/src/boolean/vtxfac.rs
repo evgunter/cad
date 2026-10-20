@@ -1267,7 +1267,11 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 let inside = super::fate::bisector(s, band)?;
                 fates.corners.push(super::fate::FateCorner {
                     holder: pierced_op,
-                    dropped: (s.he, inside),
+                    dropped: super::fate::SectorAt {
+                        he: s.he,
+                        face: s.face,
+                        dir: inside,
+                    },
                     kept: super::fate::KeptAt::Pierced(contact.face, vertex, inside),
                 });
             }

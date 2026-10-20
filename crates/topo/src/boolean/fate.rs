@@ -59,14 +59,27 @@ pub(crate) struct FateEdge {
     pub aligned: bool,
 }
 
+/// A sector the classification read at a vertex, kept as it read it: the
+/// join divides its face and re-links its vertex after, so neither the
+/// half-edge's face then nor the face's own key names the piece.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct SectorAt<T: geom_core::Real> {
+    /// The orbit half-edge it follows, which starts at its vertex.
+    pub he: HalfEdgeKey,
+    /// Its face, as the classification read it.
+    pub face: FaceKey,
+    /// A unit direction inside it.
+    pub dir: Vec3<T>,
+}
+
 /// Where a kept copy holds a dropped sector's region.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum KeptAt<T: geom_core::Real> {
-    /// At the kept copy's own sector, by the orbit half-edge it follows
-    /// in the holder's clone and a unit direction inside the dropped
-    /// sector, which the kept one holds: the kept sector's own direction
-    /// may lie in a piece of its face the join divides off.
-    Sector(HalfEdgeKey, Vec3<T>),
+    /// At the kept copy's own sector, in the holder's clone, its
+    /// direction the dropped sector's, which the kept one holds: the
+    /// kept sector's own direction may lie in a piece of its face the
+    /// join divides off.
+    Sector(SectorAt<T>),
     /// On the pierced face, in the holder's clone keys, at the dropped
     /// operand's piercing vertex, the dropped sector's interior along
     /// the unit direction.
@@ -78,11 +91,10 @@ pub(crate) enum KeptAt<T: geom_core::Real> {
 pub(crate) struct FateCorner<T: geom_core::Real> {
     /// The operand of the kept copy.
     pub holder: Operand,
-    /// The dropped sector, by the orbit half-edge it follows in the
-    /// other operand's clone and a unit direction inside it: a wide
-    /// corner is read as two sectors that follow one half-edge, so the
-    /// half-edge alone does not say which.
-    pub dropped: (HalfEdgeKey, Vec3<T>),
+    /// The dropped sector, in the other operand's clone: a wide corner
+    /// is read as two sectors that follow one half-edge, so the
+    /// half-edge alone does not say which; its direction does.
+    pub dropped: SectorAt<T>,
     /// Where the kept copy holds it.
     pub kept: KeptAt<T>,
 }
@@ -907,22 +919,8 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
         .ok_or_else(|| desync("a fate cut's chord does not start at its end"))
 }
 
-/// The face of the sector following orbit half-edge `he`: the face of
-/// its mate, which ends at the sector's vertex
-/// (`crate::sector_face::face_of`), or the piece of it beside `he`'s
-/// edge where a cut divided it since.
-fn sector_face<T: geom_core::Real>(
-    body: &Body<T>,
-    he: HalfEdgeKey,
-) -> Result<FaceKey, BooleanError> {
-    let mate = body.mate(he).ok_or(BooleanError::JoinDesync {
-        what: "a sector's half-edge has no mate",
-    })?;
-    face_of_he(body, mate)
-}
-
-/// The piece of the face divided from the sector `he` follows that
-/// holds the sector's direction `d` at its vertex ([`place`]).
+/// The piece of the sector's face, as divided since, that holds the
+/// sector's direction at its vertex ([`place`]).
 ///
 /// # Errors
 ///
@@ -931,25 +929,26 @@ fn sector_face<T: geom_core::Real>(
 /// [`BooleanError::ClassificationInvariant`].
 fn sector_piece<T: Decide>(
     body: &Body<T>,
-    (he, d): (HalfEdgeKey, Vec3<T>),
+    s: SectorAt<T>,
     (divisions, copies): (&FaceDivisions, &NullCopies),
     band: Band,
 ) -> Result<FaceKey, BooleanError> {
-    let face = sector_face(body, he)?;
+    let (he, face, d) = (s.he, s.face, s.dir);
     let v = body
         .get_half_edge(he)
         .ok_or(BooleanError::JoinDesync {
             what: "a sector's half-edge no longer resolves",
         })?
         .start;
-    match place(
+    let placed = place(
         body,
         (&copies.of(v), &[]),
         divisions.root(face),
         divisions,
         Leaving::bisector(d),
         band,
-    )? {
+    );
+    match placed? {
         Some(Place::Corner(h)) => face_of_he(body, h),
         Some(Place::Lone(l, _)) => {
             body.get_loop(l)
@@ -1225,7 +1224,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
         let copies = [dropped, fc.holder].map(|o| NullCopies::of_operand(&red.null_edges, o));
         let face = sector_piece(body, fc.dropped, (div_d, &copies[0]), band)?;
         let by = match fc.kept {
-            KeptAt::Sector(he, d) => sector_piece(kept_body, (he, d), (div_k, &copies[1]), band)?,
+            KeptAt::Sector(s) => sector_piece(kept_body, s, (div_k, &copies[1]), band)?,
             KeptAt::Pierced(f, at, d) => {
                 let root = div_k.root(f);
                 let ring = red.pierce_rings.iter().find(|r| {
@@ -1282,30 +1281,22 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
 /// coincident pair the classification found, written from what the
 /// result holds. The face of the pair `discarded` lists is the dropped
 /// one, held whole by the other; a pair whose faces the result holds
-/// both or neither of has no row.
-///
-/// # Errors
-///
-/// [`BooleanError::JoinDesync`] where a recorded key no longer
-/// resolves.
+/// both or neither of has no row. The pairs are the faces the
+/// classification read, which a path that cuts nothing leaves whole.
 pub(super) fn uncut<T: geom_core::Real>(
     red: &BooleanReduction<T>,
     discarded: [&std::collections::BTreeSet<FaceKey>; 2],
-) -> Result<Vec<SubstitutedFace>, BooleanError> {
+) -> Vec<SubstitutedFace> {
     let mut pairs = Vec::new();
     for fe in &red.fates.edges {
         pairs.push((fe.holder, fe.kept, fe.face));
     }
     for fc in &red.fates.corners {
-        let (body, kept_body) = match fc.holder {
-            Operand::A => (&red.b, &red.a),
-            Operand::B => (&red.a, &red.b),
-        };
         let kept = match fc.kept {
-            KeptAt::Sector(he, _) => sector_face(kept_body, he)?,
+            KeptAt::Sector(s) => s.face,
             KeptAt::Pierced(f, ..) => f,
         };
-        pairs.push((fc.holder, kept, sector_face(body, fc.dropped.0)?));
+        pairs.push((fc.holder, kept, fc.dropped.face));
     }
     let mut out = Vec::new();
     for (holder, kept, dropped) in pairs {
@@ -1329,5 +1320,5 @@ pub(super) fn uncut<T: geom_core::Real>(
     }
     out.sort();
     out.dedup();
-    Ok(out)
+    out
 }

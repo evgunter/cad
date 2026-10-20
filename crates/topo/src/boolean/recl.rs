@@ -470,8 +470,16 @@ pub(super) fn recl_sectors<T: Decide>(
                 let inside = super::fate::bisector(other, band)?;
                 fates.corners.push(super::fate::FateCorner {
                     holder: keeper,
-                    dropped: (other.he, inside),
-                    kept: super::fate::KeptAt::Sector(own.he, inside),
+                    dropped: super::fate::SectorAt {
+                        he: other.he,
+                        face: other.face,
+                        dir: inside,
+                    },
+                    kept: super::fate::KeptAt::Sector(super::fate::SectorAt {
+                        he: own.he,
+                        face: own.face,
+                        dir: inside,
+                    }),
                 });
             }
         }

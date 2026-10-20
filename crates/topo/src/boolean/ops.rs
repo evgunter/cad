@@ -7225,7 +7225,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 substitutions: output.clone(),
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
-                substituted: super::fate::uncut(red, [&discarded[0], &discarded[1]])?,
+                substituted: super::fate::uncut(red, [&discarded[0], &discarded[1]]),
                 edge_classes: red.edge_classes.clone(),
                 unread_partners: red.unread_partners.clone(),
                 null_copies: super::null_copy_rows(&red.null_edges),
@@ -7292,7 +7292,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         BooleanResultKind::OperandA => [faces_outside(&red.a, keep), faces_outside(&red.b, &[])],
         _ => [faces_outside(&red.a, &[]), faces_outside(&red.b, keep)],
     };
-    let substituted = super::fate::uncut(red, [&discarded[0], &discarded[1]])?;
+    let substituted = super::fate::uncut(red, [&discarded[0], &discarded[1]]);
     // The lump keeps operand A's copy of a coincident pair
     // (`tables::kept_copy`), so a shell holding one is kept: a fallback
     // that keeps B whole drops no such pair.
