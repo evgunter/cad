@@ -41,3 +41,14 @@ visiting order (a frame, a pairing, a tie-break) does it. Nothing
 reports or pins which section face carries which index today — no
 test, no golden — so such a change lands without anyone seeing names
 move.
+
+## The `SectionFace` half is gone (WIRE, 2026-10-20)
+
+`SectionFace` no longer carries an index: one plane piece in a half is
+the bare `SectionFace`, several are `SectionFace` + `Fragment(Borders)`
+over the operand faces across their edges (`names/README.md`, N2's "A
+Split's section faces", approved on PR 5426;
+`work/wire/a-section-faces-index-is-its-completion-order-not-its-identity.md`).
+Nothing in a section's name reads the join's visiting order, so a
+change to it re-points no section name. `HoleRim { hole }`, numbered in the shell's pairing order
+(`names/emit_shell.rs`), is what this row still asks about.

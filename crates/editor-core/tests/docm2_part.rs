@@ -974,12 +974,15 @@ fn project_narrows_a_tie_by_the_flush_rule() {
     assert_eq!(keys.len(), 4);
     let face = |k: usize| EntityKey::Face(keys[k]);
     let ent = |body: u32, key: EntityKey| EntityRef { body, key };
-    let name = |section: u32| StableName {
+    let name = |path: Vec<RoleSeg>| StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId::new(0, 7),
-        path: vec![RoleSeg::SectionFace { section }],
+        path,
     };
-    let (inside, outside) = (name(0), name(1));
+    let (inside, outside) = (
+        name(vec![RoleSeg::SectionFace]),
+        name(vec![RoleSeg::Cap(editor_core::CapEnd::End)]),
+    );
 
     let mut t = NameTable::new();
     t.insert_tied(inside.clone(), vec![ent(0, face(0)), ent(0, face(1))])

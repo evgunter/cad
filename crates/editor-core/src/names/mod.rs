@@ -42,6 +42,7 @@ pub(crate) mod merged;
 mod nest;
 #[cfg(test)]
 mod nest_reference;
+mod plane_pieces;
 pub(crate) mod role;
 mod seam_pair;
 mod select;

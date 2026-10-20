@@ -226,6 +226,7 @@ mod window;
 
 use geom::{Curve3, CurveKind};
 use geom_core::k_stats::{decide, straddle};
+use geom_core::one_line::{OnOneLine, on_one_line};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::span::Span;
@@ -688,28 +689,6 @@ impl<T: Decide> Polish<'_, T> {
     }
 }
 
-/// The overlap, along a unit from a point, of two projections (module
-/// docs, "The router").
-#[derive(Clone, Copy, Debug)]
-struct Overlap<T> {
-    /// Its middle.
-    mid: T,
-    /// Its signed length: the gap between the projections, negated,
-    /// where they are disjoint.
-    extent: T,
-}
-
-/// The [`Overlap`] of the projections `a` and `b`, each a pair of ends in
-/// either order.
-fn overlap<T: Decide>(a: (T, T), b: (T, T)) -> Overlap<T> {
-    let lo = a.0.min(a.1).max(b.0.min(b.1));
-    let hi = a.0.max(a.1).min(b.0.max(b.1));
-    Overlap {
-        mid: (lo + hi) * T::from_f64(0.5),
-        extent: hi - lo,
-    }
-}
-
 /// The metres `s`'s two ends lie from the origin, as evaluated.
 fn ends<T: Decide>(s: &Span<'_, T>) -> T {
     let (t0, t1) = s.params();
@@ -744,9 +723,9 @@ enum Route {
 /// docs, "The router"): `tilt` the sine of the pair's angle, `rate` the
 /// most metres the offset moves per metre along the first line, `offset`
 /// the second's distance (or the plane's height) at the overlap's middle,
-/// `at` the overlap, `lever` the longer span's metres and `noise` the
-/// rounding the offset and the projections carry, charged against both
-/// screens' margins.
+/// `at` the overlap ([`OnOneLine`], carrying its own rounding), `lever`
+/// the longer span's metres and `noise` the rounding the offset carries,
+/// charged against the parallel screen's margin.
 ///
 /// The parallel argument runs first: where the offset less its most
 /// variation over the overlap and the escalation either side decides
@@ -766,18 +745,18 @@ fn route<T: Decide>(
     tilt: T,
     rate: T,
     offset: T,
-    at: Overlap<T>,
+    at: OnOneLine<T>,
     (lever, noise): (T, T),
     band: Band,
 ) -> Result<Route, MeetFault> {
-    let length = at.extent.max(T::zero());
+    let length = at.extent().max(T::zero());
     let e = T::from_f64(band.escalate());
     let half = length * T::from_f64(0.5) + e;
     let parallel = Margin::of(offset - rate * half - noise);
     if decide(row::PARALLEL, parallel, band) == Ok(Sign::Positive) {
         return Ok(Route::Parallel);
     }
-    if decide(row::GAP, Margin::of(-at.extent - noise), band) == Ok(Sign::Positive) {
+    if decide(row::GAP, Margin::of(at.apart()), band) == Ok(Sign::Positive) {
         return Ok(Route::Apart);
     }
     let level = decide(row::TILT, Margin::levered(tilt, length + e + e), band) == Ok(Sign::Zero)
@@ -830,13 +809,26 @@ fn line_line<T: Decide>(
     let (u1, u2) = (unit(d1), unit(d2));
     let n = u1.cross(u2);
     let s = n.norm();
-    let first = (o1, u1);
-    let at = overlap(on_line(first, a), on_line(first, b));
-    let w = o1 + u1 * at.mid - o2;
+    // Read from `a`'s span start along its carrier, never from either
+    // carrier's origin, and charged for how each end was evaluated:
+    // `origin + dir·t` rounds at `|origin| + |dir|·|t|`, which a far
+    // origin makes far larger than the end's own distance
+    // (`geom_core::one_line`, "The charge").
+    let ends_of = |s: &Span<'_, T>| {
+        let (t0, t1) = s.params();
+        (s.carrier().eval(t0), s.carrier().eval(t1))
+    };
+    let produced = |(o, d): (Point3<T>, Vec3<T>), s: &Span<'_, T>| {
+        let (t0, t1) = s.params();
+        (o - Point3::origin()).norm() * T::from_f64(2.0) + d.norm() * (t0.abs() + t1.abs())
+    };
+    let (a0, a1) = ends_of(a);
+    let at = on_one_line(u1, (a0, a1), ends_of(b), produced(la, a) + produced(lb, b));
+    let w = a0 + u1 * at.mid() - o2;
     let off = (w - u2 * w.dot(u2)).norm();
     let lever = reach(a).max(reach(b));
     let origin = Point3::origin();
-    let noise = crate::rounding_charge(
+    let noise = geom_core::rounding_charge(
         (o1 - origin).norm() + (o2 - origin).norm() + ends(a) + ends(b) + lever + lever,
     );
     let crossing = || {
@@ -880,14 +872,20 @@ fn line_conic<T: Decide>(
     // Where they can meet (module docs): the line's span and the conic's
     // extent, both projected on the line.
     let c = (k.center - o).dot(u);
-    let at = overlap(on_line((o, u), a), (c - k.speed_hi(), c + k.speed_hi()));
     let lever = reach(a).max(k.speed_hi());
     let origin = Point3::origin();
-    let noise = crate::rounding_charge(
+    let noise = geom_core::rounding_charge(
         (o - origin).norm() + (k.center - origin).norm() + lever + k.speed_hi(),
     );
-    let height = (o + u * at.mid - k.center).dot(n);
-    let screened = noise + crate::rounding_charge(ends(a));
+    let screened = noise + geom_core::rounding_charge(ends(a));
+    // A conic's extent is no second span: its projection is read from the
+    // line's origin, charged as the router's screens are.
+    let at = OnOneLine::of(
+        on_line((o, u), a),
+        (c - k.speed_hi(), c + k.speed_hi()),
+        screened,
+    );
+    let height = (o + u * at.mid() - k.center).dot(n);
     match route(den, den.abs(), height.abs(), at, (lever, screened), band)? {
         Route::Apart => return Ok(Pose::Apart),
         Route::Parallel => return Ok(Pose::Parallel),
@@ -970,7 +968,7 @@ fn conic_conic<T: Decide>(
     let (ka, kb) = (conic_of(a.carrier())?, conic_of(b.carrier())?);
     let lever = ka.speed_hi().max(kb.speed_hi());
     let origin = Point3::origin();
-    let noise = crate::rounding_charge(
+    let noise = geom_core::rounding_charge(
         (ka.center - origin).norm() + (kb.center - origin).norm() + lever + lever,
     );
     let ha = height(&ka, kb.center, kb.axis);
@@ -1052,13 +1050,13 @@ pub(super) fn one_curve<T: Decide>(
 /// computed `Q`'s columns are unit to within about `4.5u`, and its
 /// products and the norms round by `4u·m` and `5u·g`: within
 /// `12.1u·(m_e + m_f) + 5u·g` of a gap the bound holds for, inside
-/// [`crate::rounding_charge`]`(m_e + m_f + g)`. A degenerate side (a zero
+/// [`geom_core::rounding_charge`]`(m_e + m_f + g)`. A degenerate side (a zero
 /// semi-axis, or `a·b·a′·b′` underflowing) has no way up, and its gap
 /// is NaN: the reading escalates.
 pub(super) fn one_curve_gap<T: Decide>(e: &Conic<T>, f: &Conic<T>) -> T {
     let reach = |k: &Conic<T>| k.semi_u.abs().max(k.semi_v.abs());
     let gap = (e.center - f.center).norm() + frame_gap(e, f).max(frame_gap(f, e));
-    gap + crate::rounding_charge(reach(e) + reach(f) + gap)
+    gap + geom_core::rounding_charge(reach(e) + reach(f) + gap)
 }
 
 /// `‖L_e − L_f·Q‖`, the operator norm, for the `Q` that turns `f`'s
@@ -1249,7 +1247,7 @@ fn coplanar_ellipse_circle<T: Decide>(
         t0,
         t1,
         speed_hi: ke.speed_hi(),
-        noise: crate::rounding_charge(terms),
+        noise: geom_core::rounding_charge(terms),
         f_per_metre: r,
         f_per_metre_hi: T::from_f64(3.0) * r,
         residual_reach: Some(r),
@@ -1310,7 +1308,7 @@ fn coplanar_ellipses<T: Decide>(
         t0,
         t1,
         speed_hi: ka.speed_hi(),
-        noise: crate::rounding_charge(terms),
+        noise: geom_core::rounding_charge(terms),
         // `g` vanishes at the second's centre: no floor but zero holds.
         f_per_metre: T::zero(),
         f_per_metre_hi: ceiling,

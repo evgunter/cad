@@ -1210,3 +1210,4 @@ Interval oblique cut-off (PR 5346). The program is `ready` at P2: step 4
 (whole shells and the seal, H), the anti-seam Interval refusal, three
 error-propagation rows, and the P3 tail. The 1e-12 needle main red
 filed here is closed as a duplicate of CPAIR's bisected item.
+- 2026-10-20 — **Seam (NURBS):** PR 5477 merged (`6a61ea97`, CPAIR ground). `band_turn_overrun_fillet::the_needle_builds_then_refuses_at_the_turn_as_it_flattens` and `leaning_prisms_build_at_the_oracle_over_leans_radii_and_scales` now pass at `CAD_TOLERANCE_EPS=1e-12`. They were red in the 10-17, 10-18 and 10-19 nightlies, bisected to PR 5227. `band_ruled_cap_ring::a_bore_inside_the_d_rods_removed_sliver_goes_with_it_at_interval` stays red at 1e-12, on the Interval polish meter, filed as `work/cpair/curve-pair-polish-at-interval-reads-the-iterates-width`. (NURBS orchestrator)
