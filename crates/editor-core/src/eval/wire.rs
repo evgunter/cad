@@ -3476,9 +3476,8 @@ fn judged_at(
 /// # Errors
 ///
 /// [`UNION_FOLD_ROW_FOREIGN_CELL`] for a cell named outside the node's
-/// own space, [`UNION_FOLD_ROW_UNSTATED`] for any other decision (a
-/// carrier pair's) whose cells are not one member cell each, and
-/// [`names::member_cells`]'s refusals.
+/// own space, and [`UNION_FOLD_ROW_UNSTATED`] for any other decision (a
+/// carrier pair's) whose cells are not one member cell each.
 fn in_member_space(
     row: crate::coincide::NamedCoincidence,
     own_read: crate::VarId,
@@ -3490,7 +3489,9 @@ fn in_member_space(
         .cells
         .iter()
         .map(|cell| match cell {
-            NamedCell::Entity { input, name } if *input == own_read => names::member_cells(name),
+            NamedCell::Entity { input, name } if *input == own_read => {
+                Ok(names::member_cells(name))
+            }
             _ => Err(bug(UNION_FOLD_ROW_FOREIGN_CELL)),
         })
         .collect::<Result<Vec<_>, _>>()?;

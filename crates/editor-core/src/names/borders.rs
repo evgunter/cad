@@ -162,11 +162,11 @@ impl<K: Ord + Clone> Obstacles<K> {
                     ..Self::new()
                 };
             }
-            _ => {
-                return Err(bug(
-                    "a boolean's result holds its operands in a key layout it has no reading for",
-                ));
-            }
+            layout => unreachable!(
+                "a boolean recorded operand key layout {layout:?}: every boolean result is A's \
+                 clone with B grafted or absent, or B's clone with A absent (`BooleanNaming`'s \
+                 constructors)"
+            ),
         }
         let settler = naming.settler(body);
         // A bordered stretch settles on a seam edge: the zip made the
@@ -181,13 +181,18 @@ impl<K: Ord + Clone> Obstacles<K> {
         let mut by_ends: BTreeMap<(VertexKey, VertexKey), Vec<EdgeKey>> = BTreeMap::new();
         let mut any_by_ends: BTreeMap<(VertexKey, VertexKey), Vec<EdgeKey>> = BTreeMap::new();
         for (k, e) in body.edges() {
+            let torn = || -> ! {
+                unreachable!(
+                    "result edge {k:?}'s half-edge {:?} or its end does not resolve: every door \
+                     keeps a body tier-1-valid",
+                    e.he_plus
+                )
+            };
             let s = body
                 .get_half_edge(e.he_plus)
-                .ok_or_else(|| bug("a result edge's half-edge is dangling"))?
+                .unwrap_or_else(|| torn())
                 .start;
-            let t = body
-                .half_edge_end(e.he_plus)
-                .ok_or_else(|| bug("a result edge has no end"))?;
+            let t = body.half_edge_end(e.he_plus).unwrap_or_else(|| torn());
             if seam_edges.contains(&k) {
                 by_ends.entry((s.min(t), s.max(t))).or_default().push(k);
             }
@@ -237,9 +242,12 @@ impl<K: Ord + Clone> Obstacles<K> {
             && (naming.a_keys, naming.b_keys)
                 != (topo::OperandKeys::Direct, topo::OperandKeys::Grafted)
         {
-            return Err(bug(
-                "a boolean recorded discards in a key layout it has no rows for",
-            ));
+            unreachable!(
+                "a boolean recorded {} discards under operand key layout {:?}: only the graft \
+                 path discards, and it holds A direct and B grafted",
+                naming.discards.len(),
+                (naming.a_keys, naming.b_keys)
+            );
         }
         let grafted: BTreeMap<EdgeKey, EdgeKey> = naming
             .graft_edges
@@ -337,10 +345,12 @@ impl<K: Ord + Clone> Obstacles<K> {
             // closure.
             let mut at_ends = Vec::new();
             for v in r.ends {
-                at_ends.extend(
-                    body.edges_of_vertex(v)
-                        .ok_or_else(|| bug("a stretch end's star does not resolve"))?,
-                );
+                at_ends.extend(body.edges_of_vertex(v).unwrap_or_else(|| {
+                    unreachable!(
+                        "stretch end {v:?}'s star does not resolve in the result: a stretch end \
+                         is read off the result's own live edges"
+                    )
+                }));
             }
             let meets = self.lineage_hits(body, at_ends, &whole_so_far);
             let row = r.row;
@@ -493,20 +503,32 @@ impl<K: Ord + Clone> Obstacles<K> {
         let mut boundaries = Vec::with_capacity(copies.len());
         for &v in copies {
             let mut at = Vec::new();
-            let star = body
-                .edges_of_vertex(v)
-                .ok_or_else(|| bug("a corner copy's star does not resolve"))?;
+            let star = body.edges_of_vertex(v).unwrap_or_else(|| {
+                unreachable!(
+                    "corner copy {v:?}'s star does not resolve: its caller read the copy off \
+                     this body's live vertices"
+                )
+            });
             if star.is_empty() {
-                return Err(bug("a corner copy has no edge"));
+                unreachable!(
+                    "corner copy {v:?} has no edge: a copy is a vertex of a boolean's result, \
+                     a solid's boundary, where every vertex bounds an edge"
+                );
             }
             for e in star {
-                let edge = body
-                    .get_edge(e)
-                    .ok_or_else(|| bug("a corner copy's edge is dangling"))?;
+                let edge = body.get_edge(e).unwrap_or_else(|| {
+                    unreachable!(
+                        "corner copy {v:?}'s edge {e:?} is dangling: a vertex's star lists \
+                         live edges of a body every door keeps tier-1-valid"
+                    )
+                });
                 for he in [edge.he_plus, edge.he_minus] {
-                    let f = body
-                        .face_of_half_edge(he)
-                        .ok_or_else(|| bug("a corner copy's half-edge has no face"))?;
+                    let f = body.face_of_half_edge(he).unwrap_or_else(|| {
+                        unreachable!(
+                            "corner copy {v:?}'s half-edge {he:?} has no face: every half-edge \
+                             of a tier-1-valid body lies in a loop of a face"
+                        )
+                    });
                     if pieces.contains(&f) {
                         at.push(he);
                     }
@@ -625,7 +647,12 @@ impl<K: Ord + Clone> Obstacles<K> {
             for &he in hes {
                 let edge = body
                     .get_half_edge(he)
-                    .ok_or_else(|| bug("a piece's half-edge is dangling"))?
+                    .unwrap_or_else(|| {
+                        unreachable!(
+                            "piece half-edge {he:?} is dangling: a boundary is read off this \
+                             body's live faces' loops"
+                        )
+                    })
                     .edge;
                 let ds = reached(edge);
                 let Some(&first) = ds.first() else {
@@ -637,7 +664,13 @@ impl<K: Ord + Clone> Obstacles<K> {
                 let across = body
                     .mate(he)
                     .and_then(|m| body.face_of_half_edge(m))
-                    .ok_or_else(|| bug("a piece edge has no face across it"))?;
+                    .unwrap_or_else(|| {
+                        unreachable!(
+                            "piece half-edge {he:?} has no face across it: every half-edge of a \
+                             tier-1-valid body has a mate, and every half-edge lies in a face's \
+                             loop"
+                        )
+                    });
                 sides.push((ds, p, across));
             }
         }
