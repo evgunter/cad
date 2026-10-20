@@ -211,6 +211,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::DegenerateArcChord => "degenerate_arc_chord",
         PathErrorKind::ArcCenterNotEquidistant => "arc_center_not_equidistant",
         PathErrorKind::DegenerateArcCenter => "degenerate_arc_center",
+        PathErrorKind::ArcMissesItsEnd => "arc_misses_its_end",
         PathErrorKind::FarEndAnchorWithoutFillet => "far_end_anchor_without_fillet",
         PathErrorKind::Escalated => "escalated",
         PathErrorKind::Band => "band",

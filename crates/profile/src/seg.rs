@@ -19,7 +19,7 @@
 //! carrier), or nothing. Ray casting ([`ray_crossings`]) reuses the same
 //! carrier closed forms for the containment forest's parity test.
 
-use geom_core::k_stats::{decide, decide_reported};
+use geom_core::k_stats::{check_unlogged, decide, decide_reported};
 use geom_core::{
     Arc2, Band, Circles2, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Real, Sign,
     Vec2,
@@ -560,8 +560,11 @@ fn resolves<T: Decide>(
     ulps: f64,
     band: Band,
 ) -> Result<(), SegIssue<T>> {
-    let headroom = T::from_f64(band.escalate() / (ulps * f64::EPSILON)) - scale;
-    let gate = decide_reported("arc_carrier_resolution", Margin::of(headroom), band)
+    let gate = decide_reported(
+        "arc_carrier_resolution",
+        Margin::of(resolution_headroom(scale, ulps, band)),
+        band,
+    )
         .map_err(SegIssue::escalated)?;
     match gate.sign {
         Sign::Positive => Ok(()),
@@ -571,6 +574,11 @@ fn resolves<T: Decide>(
             headroom: gate.margin,
         }),
     }
+}
+
+/// [`resolves`]'s margin: K·ε/(ulps·2⁻⁵²) − `scale`, meters.
+fn resolution_headroom<T: Real>(scale: T, ulps: f64, band: Band) -> T {
+    T::from_f64(band.escalate() / (ulps * f64::EPSILON)) - scale
 }
 
 /// Validation's two difference checks of a stored arc against its
@@ -620,6 +628,58 @@ fn check_carrier<T: Decide>(
         }
     }
     Ok(())
+}
+
+/// A constructed arc whose landing a point scalar read off its end
+/// vertex past the band, at a magnitude whose rounding cannot account
+/// for it ([`constructed_landing`]).
+pub(crate) struct LandingMiss<T: Real> {
+    /// ‖landing(a) − b‖, meters.
+    pub(crate) miss: T,
+    /// The magnitude the landing was read at, meters.
+    pub(crate) scale: T,
+}
+
+/// **A constructed arc's landing, cross-checked at a point scalar**
+/// (audit row F23): margin ‖landing(a) − b‖ (`path_arc_landing`, meters,
+/// direct), and where that reads Positive, [`resolves`]'s headroom at
+/// [`LANDING_ULPS`] (`path_arc_landing_resolution`). A construction
+/// states its arc's endpoint facts as theorems of the reals, or lands
+/// them to an inline decision; this reads whether the arithmetic it
+/// ran delivered them. A miss past the band at a magnitude where the
+/// landing's rounding stays inside it is no rounding of a sound
+/// construction: it is the construction's arithmetic losing digits,
+/// and refuses ([`LandingMiss`]).
+///
+/// Run on the witness lane (`Witness::Inexact`) only. An exact
+/// scalar's stored arc encloses the arc its construction proved, so
+/// its reading of the landing can confirm Zero or escalate on the
+/// enclosure's width and never catch a miss; the lowering's registered
+/// identities are what that scalar checks. Not a verdict
+/// (`k_stats::check_unlogged`): a box leaf has no row for it. Silent
+/// where the reading is not that proof: in the band, poisoned, or at a
+/// magnitude whose rounding reaches the band.
+pub(crate) fn constructed_landing<T: Decide>(
+    arc: Arc2<T>,
+    a: Point2<T>,
+    b: Point2<T>,
+    band: Band,
+) -> Result<(), LandingMiss<T>> {
+    match T::WITNESS {
+        geom_core::Witness::Exact => return Ok(()),
+        geom_core::Witness::Inexact => {}
+    }
+    let miss = arc.landing(a).distance(b);
+    match check_unlogged("path_arc_landing", miss, band, "F23") {
+        Ok(Sign::Positive | Sign::Negative) => {}
+        Ok(Sign::Zero) | Err(_) => return Ok(()),
+    }
+    let scale = arc.radius.max(reach(arc.centre)).max(reach(a)).max(reach(b));
+    let headroom = resolution_headroom(scale, LANDING_ULPS, band);
+    match check_unlogged("path_arc_landing_resolution", headroom, band, "F23") {
+        Ok(Sign::Positive) => Err(LandingMiss { miss, scale }),
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => Ok(()),
+    }
 }
 
 /// Validation's third consistency check, `arc_sweep_range`, of a stored

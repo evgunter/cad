@@ -978,7 +978,8 @@ mod kernel {
             NonpositiveCircleRadius, DegenerateArcSpec, ArcSweepNotShortOfFullTurn,
             CircleSplitCount, PolygonTooFewVertices, ZeroDirection, NonFiniteDirection,
             UnderflowedDirection, ArcViaCollinear, DegenerateArcChord,
-            ArcCenterNotEquidistant, DegenerateArcCenter, FarEndAnchorWithoutFillet,
+            ArcCenterNotEquidistant, DegenerateArcCenter, ArcMissesItsEnd,
+            FarEndAnchorWithoutFillet,
             Escalated, Band, Structure, UnderdeterminedLeg, OverdeterminedJunction,
         ];
     }
@@ -4166,6 +4167,13 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         (
             "DegenerateArcCenter",
             P::DegenerateArcCenter { radius: 1e-12 },
+        ),
+        (
+            "ArcMissesItsEnd",
+            P::ArcMissesItsEnd {
+                miss: 3.4e-8,
+                scale: 1.36e4,
+            },
         ),
         ("FarEndAnchorWithoutFillet", P::FarEndAnchorWithoutFillet),
         (

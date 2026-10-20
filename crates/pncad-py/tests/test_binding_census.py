@@ -3887,6 +3887,7 @@ MEMBERS_BOUND_AS = {
     "PathError::DegenerateArcChord": "PathError.variant",
     "PathError::ArcCenterNotEquidistant": "PathError.variant",
     "PathError::DegenerateArcCenter": "PathError.variant",
+    "PathError::ArcMissesItsEnd": "PathError.variant",
     "PathError::FarEndAnchorWithoutFillet": "PathError.variant",
     "PathError::Escalated": "PathError.variant",
     "PathError::Band": "PathError.variant",
