@@ -346,78 +346,352 @@ pub(crate) fn tessellate_trimmed(
     // falsifier that stops watching a case is the defect it exists to
     // catch. So `worst_ratio` accumulates across attempts and is
     // handed over once, at the end.
-    let (mut worst_ratio, mut ratio_samples) = (f64::NAN, 0u64);
+    let mut falsification = Falsification {
+        worst_ratio: f64::NAN,
+        ratio_samples: 0,
+    };
     // The CSV's deviation columns and the face's worst certificate.
     // These describe ONE attempt — the one the face exits on — and are
     // reset at the top of each; `worst_ratio` above deliberately is
     // not. They live out here so the single hand-off below can read
     // them whichever way the loop ends.
-    let (mut worst_dev, mut worst_dev_cert) = (f64::NAN, f64::NAN);
-    let (mut dev_samples, mut worst) = (0u64, 0.0f64);
+    let mut measure = AttemptMeasure::fresh();
     // THE FACE'S ONE EXIT. Every path out of the retry loop lands
     // here, so the measurement hand-off below is on all of them —
     // including the two typed REFUSALS, which is the case the
     // falsification accumulator above exists for. `None` after the
     // loop is the retries-exhausted path.
     let mut outcome: Option<Result<Patch, TessellateError>> = None;
-    'retry: for attempt in 0..=MAX_GRID_RETRIES {
+    let trimmed = TrimmedFace {
+        fk,
+        surface,
+        lane: &lane,
+        polygon: &polygon,
+        creases: creases.as_ref(),
+        shared,
+        tol,
+    };
+    for attempt in 0..=MAX_GRID_RETRIES {
         // THIS ATTEMPT's columns, cleared at its FIRST line: a
         // discarded attempt's triangles must not contribute to numbers
         // that describe the mesh the face exits on, and every path out
         // of this loop — including the ones that leave before the emit
         // pass — reaches the hand-off below. (`worst_ratio` is
         // deliberately not among them; see above.)
-        worst = 0.0;
-        (worst_dev, worst_dev_cert) = (f64::NAN, f64::NAN);
-        dev_samples = 0;
+        measure = AttemptMeasure::fresh();
+        match trimmed.attempt(
+            attempt,
+            &mut candidates,
+            &mut dropped,
+            &mut measure,
+            &mut falsification,
+        ) {
+            Ok(Next::Rebuild) => {}
+            Ok(Next::Accept(patch)) => {
+                outcome = Some(Ok(patch));
+                break;
+            }
+            Err(e) => {
+                outcome = Some(Err(e));
+                break;
+            }
+        }
+    }
+
+    // BUDGET METER (dead in normal runs): this face's measurements,
+    // handed over ONCE, however the face ENDED — everything derivable
+    // downstream is derived downstream (`crate::budget`, issue #320 /
+    // TESS-SPAN). The certified bounds are the ones the sizing above
+    // already read; nothing is recomputed for the meter.
+    //
+    // A refused face is measured too, and that is the point: the
+    // falsification `worst_ratio` carries is about every triangle this
+    // face TESSELLATED, and a face whose certificate was exceeded is
+    // the likeliest carrier of a violating sample there is. The other
+    // columns describe the attempt the face exited on — for a refusal
+    // that is the attempt that lost, which is the only mesh there was.
+    if crate::budget::armed()
+        && let (Some(stats), Lane::Nurbs { grid, patch }) = (nurbs_stats, &lane)
+    {
+        crate::budget::note_face(crate::budget::FaceMeasure {
+            face: fk,
+            u: (u0, u1),
+            v: (v0, v1),
+            delta_s: tol.delta_s,
+            grid_cells: stats.grid_cells,
+            bands: stats.bands,
+            cap_bands: stats.cap_bands,
+            snap_bands: stats.snap_bands,
+            realized_aspect: stats.realized_aspect,
+            muu: patch.muu,
+            muv: patch.muv,
+            mvv: patch.mvv,
+            mu1: patch.mu1,
+            mv1: patch.mv1,
+            patch_steps: patch.grid_steps(tol.delta_s),
+            cells: grid
+                .cells()
+                .map(|c| crate::budget::CellMeasure {
+                    u: c.u,
+                    v: c.v,
+                    muu: c.bound.muu,
+                    muv: c.bound.muv,
+                    mvv: c.bound.mvv,
+                    mu1: c.bound.mu1,
+                    mv1: c.bound.mv1,
+                    steps: c.bound.grid_steps(tol.delta_s),
+                })
+                .collect(),
+            worst_cert: measure.worst,
+            worst_dev: measure.worst_dev,
+            worst_dev_cert: measure.worst_dev_cert,
+            worst_ratio: falsification.worst_ratio,
+            dev_samples: measure.dev_samples,
+        });
+    }
+    // The retries-exhausted path leaves no verdict of its own.
+    outcome.unwrap_or(Err(TessellateError::Triangulation { face: fk }))
+}
+
+/// Each realised boundary edge's crossing count (the planar #116
+/// pattern), keyed by [`edge_key`].
+type Crossings = HashMap<(usize, usize), u32>;
+
+/// Handle-index → (mesh id or grid candidate index, uv).
+#[derive(Clone, Copy)]
+enum Slot {
+    Boundary(u32),
+    Grid(usize),
+}
+
+/// The falsification accumulator [`tessellate_trimmed`] carries across
+/// attempts (its comment there says why it is never reset).
+struct Falsification {
+    worst_ratio: f64,
+    ratio_samples: u64,
+}
+
+/// One attempt's measurements: the budget CSV's deviation columns and
+/// the face's worst certificate, reset at the top of each attempt.
+struct AttemptMeasure {
+    worst: f64,
+    worst_dev: f64,
+    worst_dev_cert: f64,
+    dev_samples: u64,
+}
+
+impl AttemptMeasure {
+    fn fresh() -> Self {
+        Self {
+            worst: 0.0,
+            worst_dev: f64::NAN,
+            worst_dev_cert: f64::NAN,
+            dev_samples: 0,
+        }
+    }
+}
+
+/// What an attempt that did not refuse asks of the retry loop.
+enum Next {
+    /// Rebuild: a grid point dropped, or refinement candidates were
+    /// appended.
+    Rebuild,
+    /// The attempt's patch, accepted.
+    Accept(Patch),
+}
+
+/// What every attempt on one face reads and none changes.
+struct TrimmedFace<'a> {
+    fk: FaceKey,
+    surface: &'a Surface<f64>,
+    lane: &'a Lane,
+    polygon: &'a [(f64, f64, u32)],
+    creases: Option<&'a Creases>,
+    shared: &'a [Point3<f64>],
+    tol: &'a SizingTols,
+}
+
+/// One attempt's triangulation, between inserting its points and
+/// emitting its triangles.
+struct Cdt {
+    cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
+    // The first entry's slot at each handle; [`Pinches`] overrides
+    // a boundary slot per triangle at a pinch handle.
+    meta: Vec<(f64, f64, Slot)>,
+    handles: Vec<FixedVertexHandle>,
+    // Every vertex exactly on a crease, with the crease and its
+    // position along it: the crease lines' constraint chain.
+    on_crease: Vec<(f64, f64, FixedVertexHandle)>,
+    pinches: Pinches,
+}
+
+/// What the emit pass hands back: the attempt's patch, unless
+/// refinement takes another round.
+struct Emitted {
+    interior: Vec<Point3<f64>>,
+    triangles: Vec<[PatchVertex; 3]>,
+    refine: Vec<(f64, f64)>,
+}
+
+impl TrimmedFace<'_> {
+    /// One attempt of the retry loop (module docs): the points, the
+    /// boundary constraints, the crease chain, the emit pass, then
+    /// refinement or the verdict.
+    fn attempt(
+        &self,
+        attempt: usize,
+        candidates: &mut Vec<(f64, f64)>,
+        dropped: &mut HashSet<usize>,
+        measure: &mut AttemptMeasure,
+        falsification: &mut Falsification,
+    ) -> Result<Next, TessellateError> {
+        let fk = self.fk;
+        let mut at = self.insert_points(candidates, dropped)?;
+        let (crossings, mut split_offender) = self.constrain_boundary(&mut at, dropped)?;
+        split_offender |= self.chain_crease_lines(&mut at, dropped)?;
+        if split_offender {
+            if attempt == MAX_GRID_RETRIES {
+                return Err(TessellateError::Triangulation { face: fk });
+            }
+            return Ok(Next::Rebuild);
+        }
+        let Emitted {
+            interior,
+            triangles,
+            refine,
+        } = self.emit(&at, &crossings, candidates, measure, falsification)?;
+        // Refinement retry (module docs): a centroid is strictly
+        // interior to its kept triangle, hence inside the trim polygon;
+        // splitting an offending triangle shrinks the empty region its
+        // circumcircle spanned. Fires only for a triangle that would
+        // otherwise REFUSE (bound > δ) — a RARE backstop: the schedule's
+        // malign-band alignment (`band_schedule`) is the load-bearing
+        // sliver cure, because an unaligned insertion cannot converge
+        // against a wide anisotropic strip (measured — anchors and
+        // centroids each re-admit the empty circle beside themselves).
+        // Appending keeps every existing candidate index (the `dropped`
+        // set stays valid); a refinement point landing exactly on a
+        // constraint is caught by the same intermediate-vertex
+        // classification as any candidate.
+        if !refine.is_empty() && !measure.worst.is_nan() && attempt < MAX_GRID_RETRIES {
+            candidates.extend(refine);
+            return Ok(Next::Rebuild);
+        }
+        if measure.worst.is_nan() || measure.worst > self.tol.delta {
+            return Err(TessellateError::CertificateExceeded {
+                face: fk,
+                bound: measure.worst,
+                requested: self.tol.delta,
+            });
+        }
+        // D2 addendum row 5, the same re-derivation `curved`'s emit
+        // pass makes and for the same class (issue 897): an edge
+        // incident to a vertex this walk placed at two distinct UV
+        // locations, used more than twice inside ONE patch, is the
+        // non-manifold state the duplicate-id drop above is claimed
+        // never to produce. This lane's only source of such a vertex
+        // is the full-2π seam double-traversal — no chart singularity
+        // reaches it — so on every other face the set is empty and the
+        // census returns on one branch.
+        let patch = Patch {
+            interior,
+            triangles,
+        };
+        #[cfg(debug_assertions)]
+        {
+            let identified =
+                crate::walk::ids_at_two_uvs(self.polygon.iter().map(|&(u, v, id)| (u, v, id)));
+            // NOTHING IDENTIFIED, NOTHING MATERIALISED: `census_ids`
+            // copies the whole patch, and this block runs in every
+            // build with debug assertions on — the shipped release
+            // profile included. On every face but a full-2π seam the
+            // set is empty and this branch is the whole cost.
+            if !identified.is_empty() {
+                let over = crate::walk::overused_identified_edge_in(
+                    &identified,
+                    &patch.census_ids(self.shared),
+                );
+                debug_assert!(
+                    over.is_none(),
+                    "face {fk:?}: identified-vertex fan edge {:?} used {} times in one trimmed \
+                     patch; the duplicate-id drop left something other than a fan — see \
+                     curved::pole_columns, issue #678",
+                    over.map(|(e, _)| e),
+                    over.map_or(0, |(_, n)| n)
+                );
+            }
+        }
+        Ok(Next::Accept(patch))
+    }
+
+    /// The trim polygon's points, then the kept grid candidates, into a
+    /// fresh triangulation, noting every point on a crease.
+    fn insert_points(
+        &self,
+        candidates: &[(f64, f64)],
+        dropped: &HashSet<usize>,
+    ) -> Result<Cdt, TessellateError> {
+        let fk = self.fk;
         let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
             ConstrainedDelaunayTriangulation::new();
-        // Handle-index → (mesh id or grid candidate index, uv).
-        #[derive(Clone, Copy)]
-        enum Slot {
-            Boundary(u32),
-            Grid(usize),
-        }
-        // The first entry's slot at each handle; [`Pinches`] overrides
-        // a boundary slot per triangle at a pinch handle.
         let mut meta: Vec<(f64, f64, Slot)> = Vec::new();
-        let mut handles = Vec::with_capacity(polygon.len());
-        // Every vertex exactly on a crease, with the crease and its
-        // position along it: the crease lines' constraint chain.
+        let mut handles = Vec::with_capacity(self.polygon.len());
         let mut on_crease = Vec::new();
         let mut walk = Walk::new();
-        for &(u, v, id) in &polygon {
+        for &(u, v, id) in self.polygon {
             let Ok(h) = cdt.insert(SpadePoint::new(u, v)) else {
-                outcome = Some(Err(TessellateError::Triangulation { face: fk }));
-                break 'retry;
+                return Err(TessellateError::Triangulation { face: fk });
             };
             walk.enter(&mut meta, h, (u, v, Slot::Boundary(id)), id);
             handles.push(h);
-            if let Some(c) = &creases {
+            if let Some(c) = self.creases {
                 c.note(&mut on_crease, (u, v), h);
             }
         }
-        let mut pinches = Pinches::of(&walk, fk);
+        let pinches = Pinches::of(&walk, fk);
         for (k, &(u, v)) in candidates.iter().enumerate() {
             if dropped.contains(&k) {
                 continue;
             }
             let Ok(h) = cdt.insert(SpadePoint::new(u, v)) else {
-                outcome = Some(Err(TessellateError::Triangulation { face: fk }));
-                break 'retry;
+                return Err(TessellateError::Triangulation { face: fk });
             };
             if h.index() == meta.len() {
                 meta.push((u, v, Slot::Grid(k)));
             }
-            if let Some(c) = &creases {
+            if let Some(c) = self.creases {
                 c.note(&mut on_crease, (u, v), h);
             }
         }
+        Ok(Cdt {
+            cdt,
+            meta,
+            handles,
+            on_crease,
+            pinches,
+        })
+    }
 
+    /// The trim polygon's sides as constraints, with crossing counts
+    /// (the planar #116 pattern); answers the counts and whether a grid
+    /// point dropped.
+    fn constrain_boundary(
+        &self,
+        at: &mut Cdt,
+        dropped: &mut HashSet<usize>,
+    ) -> Result<(Crossings, bool), TessellateError> {
+        let fk = self.fk;
+        let Cdt {
+            cdt,
+            meta,
+            handles,
+            pinches,
+            ..
+        } = at;
         // Constraints with crossing counts (the planar #116 pattern);
         // a constraint realised through an intermediate vertex means a
         // grid point sits exactly on it — drop and rebuild.
-        let mut crossings: HashMap<(usize, usize), u32> = HashMap::new();
+        let mut crossings: Crossings = HashMap::new();
         let mut split_offender = false;
         for i in 0..handles.len() {
             let (a, b) = (handles[i], handles[(i + 1) % handles.len()]);
@@ -426,8 +700,7 @@ pub(crate) fn tessellate_trimmed(
             }
             let realised = cdt.try_add_constraint(a, b);
             if realised.is_empty() {
-                outcome = Some(Err(TessellateError::Triangulation { face: fk }));
-                break 'retry;
+                return Err(TessellateError::Triangulation { face: fk });
             }
             if realised.len() > 1 {
                 // Classify every intermediate vertex (a vertex of a
@@ -454,9 +727,7 @@ pub(crate) fn tessellate_trimmed(
                                 split_offender = true;
                             }
                             Slot::Boundary(_) => {
-                                outcome =
-                                    Some(Err(TessellateError::SelfTouchingTrimLoop { face: fk }));
-                                break 'retry;
+                                return Err(TessellateError::SelfTouchingTrimLoop { face: fk });
                             }
                         }
                     }
@@ -464,49 +735,65 @@ pub(crate) fn tessellate_trimmed(
             }
             for e in realised {
                 let e = cdt.directed_edge(e);
-                if let Err(refused) = pinches.note_side(e, (a, i), (b, (i + 1) % handles.len())) {
-                    outcome = Some(Err(refused));
-                    break 'retry;
-                }
+                pinches.note_side(e, (a, i), (b, (i + 1) % handles.len()))?;
                 *crossings.entry(edge_key(e)).or_insert(0) += 1;
             }
         }
-        // THE CREASE LINES (`Creases`): each crease is a chain of
-        // constraints through its vertices in order along it, so no
-        // triangle crosses it. Boundary crossings of a crease are
-        // vertices of the chain (`trim_polygon` refuses any other), so
-        // a link never crosses a boundary constraint. A link through an
-        // intermediate vertex has a grid point exactly on it, which
-        // drops as on a boundary segment. The links stay out of
-        // `crossings`: a crease is not a side of the face.
-        let Some(through) = chain_creases(&mut cdt, &mut on_crease) else {
-            outcome = Some(Err(TessellateError::Triangulation { face: fk }));
-            break 'retry;
+        Ok((crossings, split_offender))
+    }
+
+    /// THE CREASE LINES (`Creases`): each crease is a chain of
+    /// constraints through its vertices in order along it, so no
+    /// triangle crosses it. Boundary crossings of a crease are
+    /// vertices of the chain (`trim_polygon` refuses any other), so
+    /// a link never crosses a boundary constraint. A link through an
+    /// intermediate vertex has a grid point exactly on it, which
+    /// drops as on a boundary segment. The links stay out of
+    /// `crossings`: a crease is not a side of the face. Answers whether
+    /// a grid point dropped.
+    fn chain_crease_lines(
+        &self,
+        at: &mut Cdt,
+        dropped: &mut HashSet<usize>,
+    ) -> Result<bool, TessellateError> {
+        let fk = self.fk;
+        let mut split_offender = false;
+        let Some(through) = chain_creases(&mut at.cdt, &mut at.on_crease) else {
+            return Err(TessellateError::Triangulation { face: fk });
         };
         for h in through {
-            match meta[h.index()].2 {
+            match at.meta[h.index()].2 {
                 Slot::Grid(k) => {
                     dropped.insert(k);
                     split_offender = true;
                 }
                 Slot::Boundary(_) => {
-                    outcome = Some(Err(TessellateError::Triangulation { face: fk }));
-                    break 'retry;
+                    return Err(TessellateError::Triangulation { face: fk });
                 }
             }
         }
-        if split_offender {
-            if attempt == MAX_GRID_RETRIES {
-                outcome = Some(Err(TessellateError::Triangulation { face: fk }));
-                break 'retry;
-            }
-            continue 'retry;
-        }
+        Ok(split_offender)
+    }
 
+    /// The emit pass: even-odd interior flags, the kept grid points
+    /// numbered, and every kept triangle certified, measured and
+    /// queued for refinement when it certifies above δ.
+    fn emit(
+        &self,
+        at: &Cdt,
+        crossings: &Crossings,
+        candidates: &[(f64, f64)],
+        measure: &mut AttemptMeasure,
+        falsification: &mut Falsification,
+    ) -> Result<Emitted, TessellateError> {
+        let Cdt {
+            cdt, meta, pinches, ..
+        } = at;
+        let (surface, shared, tol) = (self.surface, self.shared, self.tol);
         // Even-odd interior flags, then emission with certificates.
-        let inside = classify_faces(&cdt, &crossings);
+        let inside = classify_faces(cdt, crossings);
         let flip = {
-            let poly2: Vec<[f64; 2]> = polygon.iter().map(|&(u, v, _)| [u, v]).collect();
+            let poly2: Vec<[f64; 2]> = self.polygon.iter().map(|&(u, v, _)| [u, v]).collect();
             shoelace2(&poly2) < 0.0
         };
         // Pass 1: which grid candidates the kept triangles use; number
@@ -555,7 +842,7 @@ pub(crate) fn tessellate_trimmed(
         // Left open rather than closed here because closing it changes
         // what a `FaceMeasure` means, which reaches the consumers of
         // `budget` in `tools/`.
-        let dev_samples_per_edge = if matches!(lane, Lane::Nurbs { .. }) {
+        let dev_samples_per_edge = if matches!(self.lane, Lane::Nurbs { .. }) {
             crate::budget::deviation_samples()
         } else {
             None
@@ -566,7 +853,7 @@ pub(crate) fn tessellate_trimmed(
         // their UV centroid queued as a new candidate for the next
         // round.
         let mut refine: Vec<(f64, f64)> = Vec::new();
-        let refine_lane = matches!(lane, Lane::Nurbs { .. });
+        let refine_lane = matches!(self.lane, Lane::Nurbs { .. });
         for f in cdt.inner_faces() {
             if !inside[f.fix().index()] {
                 continue;
@@ -585,8 +872,7 @@ pub(crate) fn tessellate_trimmed(
                     Ok(Some(id)) => ids[k] = PatchVertex::Shared(id),
                     Ok(None) => {}
                     Err(e) => {
-                        outcome = Some(Err(e));
-                        break 'retry;
+                        return Err(e);
                     }
                 }
             }
@@ -623,7 +909,7 @@ pub(crate) fn tessellate_trimmed(
                 ids[1].position(shared, &interior),
                 ids[2].position(shared, &interior),
             ];
-            let bound = match lane {
+            let bound = match *self.lane {
                 Lane::Cylinder {
                     origin,
                     axis,
@@ -688,21 +974,24 @@ pub(crate) fn tessellate_trimmed(
                         // because a `>` comparison silently DROPS a
                         // NaN and a NaN here is the loudest reading
                         // there is.
-                        if dev_samples == 0 || d.is_nan() || d > worst_dev {
-                            worst_dev = d;
-                            worst_dev_cert = bound;
+                        if measure.dev_samples == 0 || d.is_nan() || d > measure.worst_dev {
+                            measure.worst_dev = d;
+                            measure.worst_dev_cert = bound;
                         }
-                        if ratio_samples == 0 || r.is_nan() || r > worst_ratio {
-                            worst_ratio = r;
+                        if falsification.ratio_samples == 0
+                            || r.is_nan()
+                            || r > falsification.worst_ratio
+                        {
+                            falsification.worst_ratio = r;
                         }
-                        ratio_samples += 1;
-                        dev_samples += 1;
+                        falsification.ratio_samples += 1;
+                        measure.dev_samples += 1;
                     }
                 }
             }
             // Sticky-NaN accumulation (the curved lane's rule).
-            if bound.is_nan() || worst.is_nan() || bound > worst {
-                worst = bound;
+            if bound.is_nan() || measure.worst.is_nan() || bound > measure.worst {
+                measure.worst = bound;
             }
             if refine_lane && bound > tol.delta {
                 refine.push((
@@ -712,125 +1001,13 @@ pub(crate) fn tessellate_trimmed(
             }
             triangles.push(if flip { [ids[0], ids[2], ids[1]] } else { ids });
         }
-        // Refinement retry (module docs): a centroid is strictly
-        // interior to its kept triangle, hence inside the trim polygon;
-        // splitting an offending triangle shrinks the empty region its
-        // circumcircle spanned. Fires only for a triangle that would
-        // otherwise REFUSE (bound > δ) — a RARE backstop: the schedule's
-        // malign-band alignment (`band_schedule`) is the load-bearing
-        // sliver cure, because an unaligned insertion cannot converge
-        // against a wide anisotropic strip (measured — anchors and
-        // centroids each re-admit the empty circle beside themselves).
-        // Appending keeps every existing candidate index (the `dropped`
-        // set stays valid); a refinement point landing exactly on a
-        // constraint is caught by the same intermediate-vertex
-        // classification as any candidate.
-        if !refine.is_empty() && !worst.is_nan() && attempt < MAX_GRID_RETRIES {
-            candidates.extend(refine);
-            continue 'retry;
-        }
-        if worst.is_nan() || worst > tol.delta {
-            outcome = Some(Err(TessellateError::CertificateExceeded {
-                face: fk,
-                bound: worst,
-                requested: tol.delta,
-            }));
-            break 'retry;
-        }
-        // D2 addendum row 5, the same re-derivation `curved`'s emit
-        // pass makes and for the same class (issue 897): an edge
-        // incident to a vertex this walk placed at two distinct UV
-        // locations, used more than twice inside ONE patch, is the
-        // non-manifold state the duplicate-id drop above is claimed
-        // never to produce. This lane's only source of such a vertex
-        // is the full-2π seam double-traversal — no chart singularity
-        // reaches it — so on every other face the set is empty and the
-        // census returns on one branch.
-        let patch = Patch {
+
+        Ok(Emitted {
             interior,
             triangles,
-        };
-        #[cfg(debug_assertions)]
-        {
-            let identified =
-                crate::walk::ids_at_two_uvs(polygon.iter().map(|&(u, v, id)| (u, v, id)));
-            // NOTHING IDENTIFIED, NOTHING MATERIALISED: `census_ids`
-            // copies the whole patch, and this block runs in every
-            // build with debug assertions on — the shipped release
-            // profile included. On every face but a full-2π seam the
-            // set is empty and this branch is the whole cost.
-            if !identified.is_empty() {
-                let over = crate::walk::overused_identified_edge_in(
-                    &identified,
-                    &patch.census_ids(shared),
-                );
-                debug_assert!(
-                    over.is_none(),
-                    "face {fk:?}: identified-vertex fan edge {:?} used {} times in one trimmed \
-                     patch; the duplicate-id drop left something other than a fan — see \
-                     curved::pole_columns, issue #678",
-                    over.map(|(e, _)| e),
-                    over.map_or(0, |(_, n)| n)
-                );
-            }
-        }
-        outcome = Some(Ok(patch));
-        break 'retry;
+            refine,
+        })
     }
-
-    // BUDGET METER (dead in normal runs): this face's measurements,
-    // handed over ONCE, however the face ENDED — everything derivable
-    // downstream is derived downstream (`crate::budget`, issue #320 /
-    // TESS-SPAN). The certified bounds are the ones the sizing above
-    // already read; nothing is recomputed for the meter.
-    //
-    // A refused face is measured too, and that is the point: the
-    // falsification `worst_ratio` carries is about every triangle this
-    // face TESSELLATED, and a face whose certificate was exceeded is
-    // the likeliest carrier of a violating sample there is. The other
-    // columns describe the attempt the face exited on — for a refusal
-    // that is the attempt that lost, which is the only mesh there was.
-    if crate::budget::armed()
-        && let (Some(stats), Lane::Nurbs { grid, patch }) = (nurbs_stats, &lane)
-    {
-        crate::budget::note_face(crate::budget::FaceMeasure {
-            face: fk,
-            u: (u0, u1),
-            v: (v0, v1),
-            delta_s: tol.delta_s,
-            grid_cells: stats.grid_cells,
-            bands: stats.bands,
-            cap_bands: stats.cap_bands,
-            snap_bands: stats.snap_bands,
-            realized_aspect: stats.realized_aspect,
-            muu: patch.muu,
-            muv: patch.muv,
-            mvv: patch.mvv,
-            mu1: patch.mu1,
-            mv1: patch.mv1,
-            patch_steps: patch.grid_steps(tol.delta_s),
-            cells: grid
-                .cells()
-                .map(|c| crate::budget::CellMeasure {
-                    u: c.u,
-                    v: c.v,
-                    muu: c.bound.muu,
-                    muv: c.bound.muv,
-                    mvv: c.bound.mvv,
-                    mu1: c.bound.mu1,
-                    mv1: c.bound.mv1,
-                    steps: c.bound.grid_steps(tol.delta_s),
-                })
-                .collect(),
-            worst_cert: worst,
-            worst_dev,
-            worst_dev_cert,
-            worst_ratio,
-            dev_samples,
-        });
-    }
-    // The retries-exhausted path leaves no verdict of its own.
-    outcome.unwrap_or(Err(TessellateError::Triangulation { face: fk }))
 }
 
 /// Whether any mesh id appears at two DIFFERENT UV locations in the
