@@ -6686,3 +6686,9 @@ Signed (WIRE orchestrator).
   - The 'unfinished recipe' premise is agent text (e2985861f0); no flow grows a selection.
   - No ratified text changes, so no [ev]. Each designer's optional doc sentence is left out.
   - Build dispatched: wire-blend (wire/empty-blend-at-the-door; STYLE review). The fork-log row lands with the build PR, its A/B filled at merge.
+
+- 2026-10-20 (WIRE orchestrator) FORK-SECTIONID first reports converged on the shape: bare when alone, Borders when several, ties per N4, the index gone.
+  - O measured that a 0.06° tilt swaps indices on NOTCHED with no topology change.
+  - Divergent: a merged group's spelling (one plane-piece constituent, or each section by name), and the kernel record (O: absorbed sections lose their walls, so record them at completion).
+  - Round 1 sent.
+  - Found: fork-log row 163's Ev/match columns are a copy of row 165's. Fixing them in the next WIRE PR to touch the log: Ev 'sure, sounds good' (PR 5306, 2026-10-19), match both.
