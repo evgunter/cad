@@ -410,4 +410,31 @@ mod tests {
             "the touch point stands {off:e} off the circle's"
         );
     }
+
+    /// Review 2 probe: the same circle with its axis stored reversed
+    /// (`a·n < 0`, the `n + a` arm), read to the same few ulps.
+    #[test]
+    fn review2_a_circle_facing_away_is_touched_where_it_touches() {
+        let n = Vec3::new(0.347_008_881_792_054_3, -0.937_861_842_681_227_9, 0.0);
+        let a = -Vec3::new(
+            0.347_008_881_788_918_5,
+            -0.937_861_842_682_388_1,
+            -2.981_308_812_513_786_4e-11,
+        );
+        let exact = Vec3::new(
+            0.104_527_924_895_754_38,
+            0.038_675_332_179_441_47,
+            0.993_769_657_213_278_7,
+        );
+        let sin = 2.999_999_839_876_325_4e-11;
+        let c = Point3::origin();
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let mut errors = Vec::new();
+        let at = match circle_plane((c, a, 1.0), (c - n * sin, n), band, &mut errors) {
+            Some(Locus::Touch(Touch::At(p))) => p,
+            _ => panic!("no touch point read: {errors:?}"),
+        };
+        let off = ((c - at) - exact).norm();
+        assert!(off <= 1e-15, "the touch point stands {off:e} off the circle's");
+    }
 }

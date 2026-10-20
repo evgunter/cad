@@ -275,6 +275,10 @@ mod probe;
 #[path = "pierce_probe_notch.rs"]
 mod probe_notch;
 
+#[cfg(test)]
+#[path = "pierce_review2.rs"]
+mod review2;
+
 /// **Each residual's rounding stays inside half its charge, and the
 /// placement's enclosure holds the exact crossing**: poses as the
 /// grazing fuzzer draws them, the origin up to a kilometre off, each
