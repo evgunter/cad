@@ -190,6 +190,20 @@ So running the map at the nominal does not by itself make the lanes' decision li
 
 **Uncommitted:** nothing. The local `zz_*` probe roots and their `Cargo.toml` entries were removed at handoff, so `every_suite_file_is_aggregated` passes again.
 
+**Lane of 2026-10-19/20** (head after its last commit; nothing uncommitted)
+- **origin/main merged again** (merge `0a1d95321e`, 205 first-parent commits: #5068's Ruling A — `ProfileLift` retires, the `f64` lane is pass 1, every lane elaborates guided — OpInput, the union decision log's k-ary `Meet` rows, PCERT B1/B2a, the joint's turn #5354/#5377, the D-rod fixtures). Main's frame-plane mint (`FramePlacement`, `mint_frame_placement`, `profile_plane_f64`, `frame_plane_lane`) and its datum builders stay retired: a profile is on its own `xy`, `prepare_profile`/`wire_profile` take no plane. Main's new rows that author frames, datum planes, `ExtrudeSide` or a block at a height are re-spelled as constructions placed against the first operand (`emit_union_seam_rank`, `union_fold_face_face_touch`, `emit_boolean_vertex_keys`, `split_pinch_keeps`, `edit_strip_mouth_cups`, `intent_part_census_seam`, `a_keel_ring…`, `f64_lane_validates_once`, `docm6`, and others). Counts both sides moved were re-measured; `m10_8` and `asm2a` hold additively. The empty `wire_frame_placement_carry.rs` and its `all.rs` entry are deleted.
+- **Probe compile** (`--features probe`): `m4_pr8_k_probe`'s `FramePlacement` compare retires with its subject; `parts_entered_before_the_map`'s lone block is drawn about its centre. Both pass.
+- **`InlineError::CopyPinnedToConstruction` retired** (refactor.rs, the pncad-py tag, census rows and stub text): a placement mated to a construction lives in that construction's loose space, which inline skips, so the check could not fire.
+- **pncad-py green (932 run)**: die_tool's Python authoring writes the revolve axis as `Formula.zero("length")`, as the corpus writes it (the only semantic difference between the two saves was `0 m` vs the constant zero); the teapot's placed caps are read under `Placed`; the failed-node pose row's cause is a world read slid by `1 m / gap` with `gap = 0` (F's door refuses the old over-constrained bundle); main's new `test_interference` rows and `test_checks`' two junction rows (red on main: #5354 restated their Rust twins, not these) re-spelled; the shared-tag roster's `band` takes main's 17.
+- **Viewer green but one (769/770)**: the 7 probe/pick rows were the pick index drawing world placements only (D's WIP filter), so a free-moved loose copy was never drawn; it now draws each loose copy's space too. `door_at_rest` pins the composed die's 3 unproven rows (main's two `Meet` rows). The corpus walks (`review_pick_r2`, `display_budget`) silently skipped a bump that sets a variable (`cut_cylinder`, `part_select`); they take it now, and both goldens are re-pinned with what moved in their files.
+- **editor-core fixed**: two corpus port defects — the kitchen sink's lone block extruded up once `SetExtrudeSide` retired (its copies now hang below the xy, as before; this was most of perf12's kitchen_sink move), and `corpus::place_pattern_to` placed a driven heat sink's further fins at the identity, a foot low (it now places them where the document places its fins; this was all of heat_sink's 125 → 157). The place gesture's row is restated: the Flip on a face looking down means the chart never reads at its pole, so it charts rather than pins. Re-pinned, each with its reason in its file: perf12 (all ε), intent_s2_c_world, edit_placement_corpus_bits, perf2, lib_g16, name_words' digest, seat7, seat8.
+- **Mechanisms found**: perf12's remaining kitchen_sink moves (1e-33 margins, one curved pair out of reach) and m10_di_dual's 16 `curve_pair_pose_root_gap` escalations at Interval are both `a-turn-by-the-nearest-quarter-turn-rounds` (evidence appended to that item): quarter-turn placement maps carry `6.1e-17` residues at f64 and `~1e-14`-wide enclosures at Interval, and the census's root gap turns that into `[0, ~1e-6]`. Not the snap: no such placement is at rest.
+- **Reds left, editor-core** (final run of this lane: 2576 of 2591 pass, 15 red):
+  - Snap-fenced, left as measured (each moves with C-5's narrowing composed with main's new predicates, or is in the fence by name): `m10_9` ×3 (annulus symbolic 632, pad shut (1546, 1324, 3024), bracket shut (1566, 1456); pins restored to D's last values), `m10_bulge` ×2 (main's pcurve rows ×5/3 where the boss and parameter D-tab run their maps: cut_side 26 → 42, placement 52 → 84, …), `m10_p_fence` ×3, `m10_sym_profile` (the slab moves additively, Plain/Assertion 524 calls 2724 forms), `sym11` (plate [945, 701, 161], annulus [632, 605, 844], link [295, 269, 263], bracket [1630, 1401, 2409], pad [1570, 1336, 3035]), `sym_9` ×2 (e.g. plate [1009, 662] → [945, 701]; drive leaf [1419, 1452, 34]), `m10_6_ci`'s certifying keys, `revalue_boss_union` (`bool_pair_gap` re-values away).
+  - Other: `m10_di_dual_corpus::assemble_census_verdicts_match_f64_at_interval` (the quarter-turn class above; fixing it is that item's).
+- **Red left, viewer**: `creation_ops::the_ring_stream…`. The viewer's gesture places a new body by `place_at` at the identity and the tour stands it by `stand`; switching the gesture to `stand` exposes that `stand` shares a revolve's written axis numbers, which the edit door refuses. Filed `a-stand-on-a-revolve-shares-its-written-axis-numbers` (P1, design): it needs a ruling.
+- **Checks**: `cargo clippy --workspace --all-targets` (and `--all-features`) `-D warnings` clean; demos/tour and demos/wild clippy clean; benches and tools/* check; rustfmt clean; `work.py lint` ok.
+
 **Next, for a fresh lane**
 1. `git fetch origin && git checkout intent/s3-d-transform-retires-into-a-placement && git pull`, then `export CARGO_TARGET_DIR=<one target dir> CARGO_INCREMENTAL=0`, then `cargo nextest run -p editor-core --test all --no-fail-fast` and `cargo nextest run -p viewer --features app,test-support --test all --no-fail-fast`. Settle each red per the three lane logs. The logs live in `/home/user` and do not survive the container, so this section names what each said.
 2. Merge origin/main again if it has moved, then run `cargo clippy --workspace --all-targets -- -D warnings`, demos/tour's clippy and certified lane, and `python3 scripts/work.py lint`.
@@ -291,13 +305,14 @@ TODO from lanes.
 
 #### Goldens re-blessed
 
-TODO: what moved and why.
+TODO: what moved and why (the re-bless lane's log). The lane of 2026-10-19/20 re-pinned perf12 (all ε), intent_s2_c_world, edit_placement_corpus_bits, perf2, lib_g16, name_words' digest, seat7, seat8, display_budget and review_pick_r2, each with its reason in its file.
 
 #### Items filed
 
 - `a-value-charted-on-the-target-reads-frame-carries-the-datum-chain` (P2): the (B) lever.
 - `an-inline-at-a-moved-landing-reading-a-variable-refuses` (P2): the narrowing above.
 - `a-loft-set-members-cannot-add-a-section` (P2): a members edit that adds a section has no station.
+- `a-stand-on-a-revolve-shares-its-written-axis-numbers` (P1, design): `stand` shares a revolve's written axis numbers, which the edit door refuses; the viewer's ring stream waits on it.
 - TODO: from lanes.
 
 #### The anchor census (for the record)
