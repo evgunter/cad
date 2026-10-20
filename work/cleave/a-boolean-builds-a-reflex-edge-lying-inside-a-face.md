@@ -73,4 +73,9 @@ that this row's fix should turn back to passing:
 - sweep `join1_r2_rand::r2_random_zprism_pairs`: 10 `∖` cases of the
   default draw, pinned as a count (`Verdict::Rider`);
 - sweep `join_pierce_runs_sweep::the_sweep_subset_ships_no_bad_body`: 8
-  edge and corner lines, pinned as a count (`RIDERS`).
+  edge and corner lines, pinned as a count (`RIDERS`);
+- sweep `near_tangent_pierce_poses::near_tangent_pierce_poses_build_their_closed_form_or_refuse_typed`:
+  7 runs at ε = 1e-6 and 7 at 1e-12 (`w345` and `convex` poses whose
+  near-tangent edge the op decided onto the other's face, `∖` either
+  way round), pinned as counts per ε (`RIDERS`); the edge and germ
+  witness tests accept the same lines.

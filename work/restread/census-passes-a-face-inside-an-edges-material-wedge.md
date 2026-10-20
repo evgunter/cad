@@ -129,7 +129,8 @@ naming why. Arm 2 reads either as a touch inside one solid.
   `a-boolean-builds-a-reflex-edge-lying-inside-a-face` (listed on that
   row): seven `y − x` cells of `a_vertex_read_by_two_sector_passes`,
   `cutter ∖ pinch` in `union_flush_onto_edge_contact`, 10 cases of
-  `join1_r2_rand` and 8 lines of `join_pierce_runs_sweep`.
+  `join1_r2_rand`, 8 lines of `join_pierce_runs_sweep`, and 7 runs each
+  at ε = 1e-6 and 1e-12 of `near_tangent_pierce_poses`.
 - Valid bodies now refused undecided, a curved face of the edge's own
   (`tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face`):
   `a_pierce_held_in_a_curved_face`'s plane-face row and two
