@@ -6909,3 +6909,9 @@ Signed (WIRE orchestrator).
   - topo now defines a half's plane pieces (SplitNaming::plane_pieces); record_islands runs post-merge with new verdicts on ringed sides; the moat witness evaluates.
   - The three Emissions are now unreachable!. A completion-index mutant reds both tilt rows. The tie flag is per wall set.
   - Because the kernel part was rebuilt, a focused FULL re-review of the fix delta is dispatched.
+- 2026-10-20 (WIRE orchestrator) PR 5486 re-review (FULL, fix delta): MERGEABLE.
+  - Both MAJORs are closed by execution: the moat witness evaluates, including a two-pin variant, and the python count is exact (14/14).
+  - Mutant reds re-confirmed. No golden moved beyond the disclosed spelling change.
+  - Merged at 4ea2aa382f. The section-face row is closed.
+  - Filed `a-split-touching-a-wall-at-a-vertex-refuses-a-crossing-vertex-emission` (P2; pre-existing, legal input reaching an Emission) and `a-halfs-plane-has-two-definitions-and-n3-linking-two-homes` (P3; S1–S3, m1, m2 and nits).
+  - topo's `every_public_mutation_path_preserves_tier1` red is inherited from main and already filed (encl).
