@@ -2,10 +2,11 @@
 id: the-in-band-sweep-fuzz-finds-a-miss-answered-inside-the-escalation-gap
 kind: issue
 title: GERM's in-band sweep fuzz finds a circle clear of a wall by 9.991ε answered Miss inside the escalation gap at ε = 1e-6
-status: review
+status: closed
 branch: germ/in-band-sweep-gap-miss
 pr: 4964
 opened: 2026-10-11
+closed: 2026-10-13
 priority: P1
 ---
 

@@ -134,6 +134,11 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// `pcurve_chart_cut_side` 0/0/0/26, the side of the principal window's
 /// cut line each of the 26 azimuths lies on.
 ///
+/// **Check 4 decides no whole period** (PCERT B2b): a row is its
+/// placed image, so fidelity reads its offsets raw and
+/// `pcurve_fidelity_branch` 0/0/0/24 decides nothing now, on every
+/// spelling; no other row moves.
+///
 /// **The circles store their authored carrier.** Each hole's rim is the
 /// authored centre and `|r|`, so the rim at a vertex folds onto the
 /// radius as the tier's own algebra: 8 of `carrier_endpoint_end`'s and
@@ -218,7 +223,6 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 2])] = &[
     ("pcurve_chart_placement", [0, 52]),
     ("pcurve_chart_radial_moving", [14, 12]),
     ("pcurve_envelope", [8, 4]),
-    ("pcurve_fidelity_branch", [0, 24]),
     ("pcurve_interval_forward", [0, 12]),
     ("pcurve_loop_branch", [0, 25]),
     ("pcurve_map_residual", [18, 0]),
@@ -350,7 +354,6 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_chart_placement", [0, 52]),
             ("pcurve_chart_radial_moving", [14, 12]),
             ("pcurve_envelope", [12, 0]),
-            ("pcurve_fidelity_branch", [0, 24]),
             ("pcurve_interval_forward", [0, 12]),
             ("pcurve_loop_branch", [0, 25]),
             ("pcurve_map_residual", [18, 0]),

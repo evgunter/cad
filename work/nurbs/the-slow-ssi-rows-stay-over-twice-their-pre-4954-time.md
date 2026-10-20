@@ -73,9 +73,9 @@ about −6%):
   formations: most of the 23% bucket above. This is a lifetime, not a
   window cache (the value already exists and is shared by clone); the
   seam is topo's offset derivation and ssi's section doors.
-- **`Interval::mul_nonneg` in the thin step** (#5163, once it lands):
-  the restriction's arithmetic, 12% above; the step's weights are in
-  `[0, 1]`, so it is bit-identical by #5163's proof.
+- **`Interval::mul_nonneg` in the thin step:** the restriction's
+  arithmetic, 12% above. **Done in #5424** (8f1edb5f, bit-identical):
+  shelling −7.6%, r1 −11% against main 8c6e959e.
 - **#5163 itself** in the offset fit (about 9% there).
 - **`rect_box`** (15%): not yet split.
 

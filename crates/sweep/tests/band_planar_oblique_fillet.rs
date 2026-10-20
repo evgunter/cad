@@ -9,10 +9,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::interval::iv;
+use core::f64::consts::PI;
 use geom::Curve3;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Sign, Vec3};
+use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendDecision, BlendError, FILLET3_CAP_ELLIPSE_RECOURSE};
 use sweep::test_support::{
     assert_naming_totality, block, brick, finished, prism, prism_on, realized, sketch_from_axes,
 };
@@ -98,13 +99,13 @@ fn a_pocket_floor_edge_at_slanted_walls_adds_its_section_on_both_verbs() {
 
 /// **The near-perpendicular sliver band, through the door**: a
 /// trapezoid prism whose end walls lean by `s` off the top front
-/// edge's normal plane. A lean definite at the edge's lever whose
-/// ellipse's axes, `r·s²/2` apart, are one circle escalates as
-/// `CapEllipse`, on the ellipse door's `ellipse_axes_distinct`; a lean
-/// inside the zero band decides the circle and builds. Both leans are
-/// read off the run's band, so the row holds at every eps row.
+/// edge's normal plane. A lean definite at the edge's lever is the
+/// exact ellipse, though its axes are `r·s²/2` apart, far inside the
+/// band: it builds at the closed form, its arcs ellipses. A lean inside
+/// the zero band decides the circle and builds. Both leans are read off
+/// the run's band, so the row holds at every eps row.
 #[test]
-fn a_near_perpendicular_end_escalates_or_decides_the_circle() {
+fn a_near_perpendicular_end_builds_its_ellipse_or_decides_the_circle() {
     let band = Band::linear(tol()).expect("the door's band");
     let trapezoid = |s: f64| {
         prism(
@@ -119,20 +120,32 @@ fn a_near_perpendicular_end_escalates_or_decides_the_circle() {
         )
     };
     let top = |body: &Body<f64>| edge(body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let carrier = |out: &sweep::blend::build::Blended<f64>, arc: EdgeKey| {
+        let c = out.body.get_edge(arc).unwrap().curve;
+        out.body
+            .get_curve_geom(c)
+            .and_then(|g| g.certified())
+            .map(|c| c.carrier().clone())
+    };
     let s = 20.0 * band.escalate();
     assert!(
         D * s * s / 2.0 < band.zero(),
-        "the axes are one circle at s = {s}"
+        "the axes are within the zero band at s = {s}"
     );
     let body = trapezoid(s);
-    match Verb::Fillet.run(&body, &[top(&body)]) {
-        Err(BlendError::Escalated {
-            decision, source, ..
-        }) => {
-            assert_eq!(decision, BlendDecision::CapEllipse);
-            assert_eq!(source.predicate, Some("ellipse_axes_distinct"));
-        }
-        other => panic!("s = {s}: the sliver band escalates, got {other:?}"),
+    let removed = Verb::Fillet.section() * (2.0 - 2.0 * s * Verb::Fillet.centroid());
+    let out = carve(
+        &body,
+        &[top(&body)],
+        Verb::Fillet,
+        removed,
+        &format!("a definite lean of {s}"),
+    );
+    for (arc, _, _) in &out.naming.as_ref().expect("births").arcs {
+        assert!(
+            matches!(carrier(&out, *arc), Some(Curve3::Ellipse { .. })),
+            "a definite lean of {s} is the ellipse"
+        );
     }
     // Decided Zero, the circle stands for the section to within the
     // lean: the band's trim reads it as the spine's normal section and
@@ -358,21 +371,18 @@ fn steep_walls_cut_off_at_the_closed_form() {
 }
 
 /// **A draft-angle end wall, in the user's terms**: a one-millimetre
-/// fillet at a wall drafted 0.25° off square. The tilt is definite, but
-/// the ellipse's semi-axes differ by `r·(sec θ − 1) ≈ 9.5e-9 m`, inside
-/// the default band, so the end escalates on that difference — the
-/// subject names the semi-axes, the margin is that difference, and the
-/// recourse is the tilt that clears the band, about `√(2e/r)`, or
-/// squaring the wall. At 0.5°, past that tilt, the fillet builds. Each
-/// draft is read against the run's band: a difference short of its
-/// upper edge escalates so, and one past it builds.
+/// fillet at a wall drafted 0.25° and 0.5° off square. The tilt is
+/// definite, so the end is the exact ellipse, though at 0.25° its
+/// semi-axes differ by `r·(sec θ − 1) ≈ 9.5e-9 m`, inside the default
+/// band: both drafts build, tier-3 valid, ending in ellipses, and remove
+/// the fillet's section times the length between the walls at its
+/// centroid (the walls `x = s·y` and `x = 2 − s·y` stand `2 − 2·s·ȳ`
+/// apart there).
 #[test]
-fn a_drafted_wall_escalates_on_its_ellipses_axes() {
-    let band = Band::linear(tol()).expect("the door's band");
+fn a_drafted_wall_builds_its_ellipse() {
     let r = 1e-3;
     for deg in [0.25f64, 0.5] {
-        let theta = deg.to_radians();
-        let s = theta.tan();
+        let s = deg.to_radians().tan();
         let body = prism(
             vec![
                 (Point2::new(0.0, 0.0), 0.0),
@@ -384,46 +394,38 @@ fn a_drafted_wall_escalates_on_its_ellipses_axes() {
             tol(),
         );
         let top = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-        let apart = r * (1.0 / theta.cos() - 1.0);
-        let result = fillet_edges(
+        let out = fillet_edges(
             &sweep::test_support::at_rest(&body, tol()),
             &[top],
             r,
             tol(),
+        )
+        .unwrap_or_else(|e| panic!("a {deg}° draft builds, got {}", e.error));
+        validate_geometric(&out.body, tol()).expect("tier 3");
+        let section = r * r * (1.0 - PI / 4.0);
+        let centroid = r * (10.0 - 3.0 * PI) / (12.0 - 3.0 * PI);
+        let removed = section * (2.0 - 2.0 * s * centroid);
+        let ((v0, pad0), (v1, pad1)) = (volume_enclosure(&body), volume_enclosure(&out.body));
+        let (dv, pad) = (v0 - v1, pad0 + pad1);
+        assert!(
+            pad < pad_ceiling() && (dv - removed).abs() < 1e-12 + pad,
+            "{deg}°: ΔV {dv:e} ± {pad:e} vs the closed form {removed:e}"
         );
-        if apart > band.escalate() {
-            let out = result.unwrap_or_else(|e| panic!("a {deg}° draft builds, got {}", e.error));
-            validate_geometric(&out.body, tol()).expect("tier 3");
-            continue;
+        let arcs = &out.naming.as_ref().expect("births").arcs;
+        assert!(!arcs.is_empty(), "{deg}°: the band ends in arcs");
+        for (arc, _, _) in arcs {
+            let c = out.body.get_edge(*arc).unwrap().curve;
+            assert!(
+                matches!(
+                    out.body
+                        .get_curve_geom(c)
+                        .and_then(|g| g.certified())
+                        .map(|c| c.carrier()),
+                    Some(Curve3::Ellipse { .. })
+                ),
+                "{deg}°: a definite draft ends in the ellipse"
+            );
         }
-        let err = result
-            .map(|_| ())
-            .expect_err("a draft whose axes are within the band escalates");
-        let BlendError::Escalated {
-            decision, source, ..
-        } = &err.error
-        else {
-            panic!("a {deg}° draft escalates, got {}", err.error);
-        };
-        assert_eq!(*decision, BlendDecision::CapEllipse, "{deg}°");
-        let geom_core::ErrorTextReading::Value(margin) =
-            source.margin.diagnostic_f64_for_error_text()
-        else {
-            panic!("{deg}°: a point margin, got {source:?}");
-        };
-        assert!(
-            (margin - apart).abs() < 1e-3 * apart,
-            "{deg}°: the margin is the semi-axes' difference {apart}, got {margin}"
-        );
-        let text = err.error.to_string();
-        assert!(
-            text.contains("semi-axes differ") && text.contains(FILLET3_CAP_ELLIPSE_RECOURSE),
-            "{deg}°: the refusal names the semi-axes and the tilt that clears them: {text}"
-        );
-        assert!(
-            !text.contains(sweep::blend::FILLET3_CORNER_RECOURSE),
-            "{deg}°: a plane end face is not told to end in a plane end face: {text}"
-        );
     }
 }
 

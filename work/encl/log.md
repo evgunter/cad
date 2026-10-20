@@ -1658,3 +1658,31 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **Review:** no MAJOR. The fix pass followed the orchestrator's adjudication (doors enforce restatement by their shape, rows guard both directions).
   - **Next:** `cross-crate-restatements-of-stored-edges-certify-as-callers` (sweep, including `extrude.rs` struts).
   (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5418** (`cross-crate-restatements-of-stored-edges-certify-as-callers`, closed).
+  - **New door:** `pub` `topo::Body::restate_stored_edge(edge, description, tol)` takes only a description, names `Kernels(StoredRestatement)` itself, and panics only when a stored edge's own span or winding reads certainly refused.
+  - **Sweep:** its seven restatements route through the door: swept wrap and rim, extrude rim and struts (now read from the stored strut, bitwise as before), and revolve. A sweep source census pins `set_edge_curve` to computed-carrier callers (loft, blend). Loft, blend and step-import stay `Callers`.
+  - **Review:** no MAJOR. Input cannot reach the door's panic: a stale key is a typed error, the description never changes check 2, and `Tol` has one inhabitant. The orchestrator fixed loft's `# Panics` and the stale sweep module docs.
+  - **Filed:** `the-stored-curve-read-ladder-is-written-three-times`.
+  - **Seam:** CARVE/STRUT files were touched (call-site swaps, `stored_carrier`, docs).
+  (ENCL orchestrator)
+- 2026-10-20 02:35Z — **Seam note from NURBS: main red after PR 5418.** `topo::review_m1_pr5_internal::every_public_mutation_path_preserves_tier1` fails on main `911e0c18`, naming `Body::restate_stored_edge` (`attach.rs:1362`), which has no tier-1 postcondition and isn't on the allowlist. Filed as `main-red-restate-stored-edge-is-off-the-tier1-mutation-roster` (ENCL's). NURBS PRs will cite it as a base red until it's fixed.
+- 2026-10-20 — **Merged PR 5428** (`unsized-recourse-takes-a-gate-tagged-arm-and-renders-no-gate-word`, closed). A gate's rejected sign is told in the payload: "a decided sign this decision cannot use" is appended only where `MarginDiag::rejected_sign()` is Positive or Negative. That word has one home (`Indeterminate::payload_word`), so every `payload()`-plus-ending composition carries it.
+  - An untagged reading past the band, i.e. a reported bound such as `CarrierEqError::Unsettled`, carries no word. Its tail on main had said one.
+  - The `Unsized` table is unchanged; `Fit` stays an approximation limit, pinned through props `Converged` and at every door.
+  - **Review:** two MAJORs on the first head, both from a number-based `verdict()`:
+    - props `Converged` regressed to a defect ending;
+    - a false word appeared on open declared-pair bounds.
+    The fix pass removed `verdict()` and `RefusedArm::read` and keyed the word on the tag.
+  - **Rows:** evidence added to pcert `band-scale-torus-geometry-ends-as-a-kernel-defect`; the Villarceau pin is renamed to show it pins a known-wrong ending. Evidence also added to restfront `an-at-rest-certify-lead-calls-a-gates-definite-rejection-undecided`.
+  (ENCL orchestrator)
+- 2026-10-20 — **Merged PR 5437** (rows `the-dihedral-arm-noun-is-spelled-twice-…` and `zero-and-negative-payloads-of-one-decision-use-different-nouns`, both closed).
+  - The dihedral arm is a "width" in its check noun, its size word and its clause.
+  - The forward-span sentence has one home, `StatedSpan::tell`, which takes the subject (`STORED_INTERVAL` / `GIVEN_INTERVAL`). "Runs backwards by" appears only on a decided Negative.
+  - `WindingExceeded` says "turn".
+  - Plane×NURBS `NotTransverse` renders through certify's sentence, with its margin.
+  - The torus spindle clause is dropped, and `TubeNotSeparated` is reordered.
+  - Review: no MAJOR. The fix pass unified the arm's noun and replaced self-pins with literal pins.
+  - Filed: `a-certify-checks-word-and-its-definite-payload-name-one-decision-apart`.
+  - Notes added to iso `plane-nurbs-not-transverse…` (half fixed), ssimarch, and restfront `validate-window-leads…` (`classify_certify` is a hand-written second telling; sweep it as a class).
+  - A container restart mid-fix-pass was resumed without loss.
+  (ENCL orchestrator)

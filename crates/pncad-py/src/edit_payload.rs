@@ -93,7 +93,8 @@ pub struct EditPayload<'a> {
     pub found_kind: Option<EntityKind>,
     /// The entity kind the seat READS, beside [`Self::found_kind`].
     pub expected_kind: Option<EntityKind>,
-    /// A count the refusal names: the nodes a definition expands to.
+    /// A count the refusal names: the nodes a definition expands to,
+    /// or the names a selection holds.
     pub count: Option<usize>,
     /// The position a selection's shape fault is reported at. The
     /// fault decides which position it is: a repeated face's first
@@ -331,7 +332,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             let (first, again, count) = match fault {
                 F::Repeated { first, again } => (Some(*first), Some(*again), None),
                 F::NotCanonical { at } | F::Kind { at, .. } => (Some(*at), None, None),
-                F::Singleton { count } => (None, None, Some(*count)),
+                F::Count { count, .. } => (None, None, Some(*count)),
                 F::NotASelection { .. } | F::Seat { .. } | F::OtherBody => (None, None, None),
             };
             let (found_kind, expected_kind) = match fault {
@@ -341,7 +342,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
                 F::Seat { entity } => (Some(*entity), None),
                 F::Repeated { .. }
                 | F::NotCanonical { .. }
-                | F::Singleton { .. }
+                | F::Count { .. }
                 | F::NotASelection { .. }
                 | F::OtherBody => (None, None),
             };
