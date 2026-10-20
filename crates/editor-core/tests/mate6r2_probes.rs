@@ -28,7 +28,7 @@ use editor_core::Formula;
 
 use editor_core::{
     AssemblyError, CapEnd, ChecksConfig, ContactClass, Coord, DocEdit, DocRef, DocumentId,
-    EntityKind, Frame, MateRef, Node, ProfileDoc, RecipeNodeId, RoleSeg, TargetAxis, StableName,
+    EntityKind, Frame, MateRef, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis,
     Value, assemble, run_checks,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};

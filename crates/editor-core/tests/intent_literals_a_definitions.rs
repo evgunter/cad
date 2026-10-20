@@ -1087,7 +1087,7 @@ fn inline_carries_a_definition_at_the_carried_ids() {
 /// is `|param − 0|` with no geometry standing between the variable and
 /// the reading. Returns the measure.
 fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
-    use editor_core::{CapEnd, Coord, Dimension, Formula, RoleSeg, TargetAxis, StableName};
+    use editor_core::{CapEnd, Coord, Dimension, Formula, RoleSeg, StableName, TargetAxis};
     let name = editor_core::VarName::new(param).expect("a valid name");
     let profile = r.profile(
         [0.0, 0.0, 0.0],
@@ -1118,7 +1118,10 @@ fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
                 Coord::Slide(TargetAxis::X),
                 Formula::named(name, Dimension::Length),
             ),
-            (Coord::Slide(TargetAxis::Y), Formula::zero(Dimension::Length)),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
             (Coord::Spin, Formula::zero(Dimension::Angle)),
         ],
     );

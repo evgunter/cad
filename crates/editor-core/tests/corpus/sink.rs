@@ -37,7 +37,7 @@ use std::collections::BTreeMap;
 use editor_core::{
     Attr, AttrKind, BranchCertification, Coord, Dimension, Distribution, DocEdit, EntityKind,
     ExprPath, Formula, Frame, FreeValue, FreeVar, MetaValue, Node, PatternKind, Rgba8, RoleSeg,
-    TargetAxis, SlotId, StableName, UnitSym, VarName, WitnessDatum,
+    SlotId, StableName, TargetAxis, UnitSym, VarName, WitnessDatum,
 };
 use geom_core::Tol;
 use geom_core::predicate::Band;

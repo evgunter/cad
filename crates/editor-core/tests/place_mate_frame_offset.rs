@@ -21,8 +21,8 @@ use crate::p2_gauges::{Parts, block, body_of, cut, min_corner, parts};
 use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocumentId, EditError, EvalOptions, Formula,
-    FreeValue, FreeVar, Mate, MateRef, Node, ProfileDoc, ProfileProgram, RecipeNodeId, TargetAxis,
-    SlotId, SplitError, Target, Value, VarName, WorldRead, apply,
+    FreeValue, FreeVar, Mate, MateRef, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId,
+    SplitError, Target, TargetAxis, Value, VarName, WorldRead, apply,
 };
 use fixture::resolver::with_resolver;
 use fixture::round_trip::{composed, same_up_to_ids};

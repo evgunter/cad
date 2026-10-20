@@ -677,9 +677,9 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
         let Some(target) = bundle.iter().find(|c| c.id == at.id) else {
             return Vec::new();
         };
-        let named = bundle
-            .iter()
-            .filter(|c| target.mate().is_some() && c.value().is_some_and(|v| v.mate == Some(at.id)));
+        let named = bundle.iter().filter(|c| {
+            target.mate().is_some() && c.value().is_some_and(|v| v.mate == Some(at.id))
+        });
         named
             .chain(std::iter::once(target))
             .map(|c| Self::RemoveConstraint {
@@ -692,10 +692,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
     /// **The values of a bundle with no mate, written whole**
     /// ([`DocEdit::AddValues`]): each a freedom of the target space's own
     /// axes and its number, in order — what [`crate::stand`] answers.
-    pub fn unmated(
-        placement: RecipeNodeId,
-        values: Vec<(crate::mate::Coord, Formula)>,
-    ) -> Self {
+    pub fn unmated(placement: RecipeNodeId, values: Vec<(crate::mate::Coord, Formula)>) -> Self {
         Self::AddValues {
             placement,
             values: values

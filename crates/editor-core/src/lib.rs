@@ -162,11 +162,10 @@ pub use mate::{
     CLASS_DEFERRAL, ClassAdmission, Constraint, ConstraintKind, Coord, Coset, FreedomRefusal,
     LeverRefusal, MAX_WORLD_READ_DEPTH, Mate, MateFault, MateRef, MateSide, Member,
     NO_AT_REST_RECORD_RECOURSE, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, PlacedBy,
-    Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Space, Subgroup,
-    SubgroupFamily, Target, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead,
-    WorldReadFault, class_admission,
-    frame_at, frame_at_in, head_face, head_of, member_of, member_reading, pin_at, pin_at_in,
-    place_against, place_against_in, place_at, place_at_in, reference_about,
+    Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Space, Subgroup, SubgroupFamily,
+    Target, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead, WorldReadFault,
+    class_admission, frame_at, frame_at_in, head_face, head_of, member_of, member_reading, pin_at,
+    pin_at_in, place_against, place_against_in, place_at, place_at_in, reference_about,
     relative_freedom_components, solve_document, stand, stand_in, unobservable,
 };
 pub use mc::{

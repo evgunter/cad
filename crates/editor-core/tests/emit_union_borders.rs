@@ -31,8 +31,8 @@ use crate::fixture::{frame_at, slid, value_slot};
 
 use editor_core::{
     Coord, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamingError,
-    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, TargetAxis,
-    StableName,
+    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, StableName,
+    TargetAxis,
 };
 use geom_core::Tol;
 

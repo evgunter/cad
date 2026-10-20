@@ -200,7 +200,7 @@ pub(crate) fn slid_by(
     body: RecipeNodeId,
     by: [Formula; 3],
 ) -> RecipeNodeId {
-    use editor_core::{BodyRead, Coord, Operand, TargetAxis, Target, pose::PoseDef};
+    use editor_core::{BodyRead, Coord, Operand, Target, TargetAxis, pose::PoseDef};
     let target_read = fixture::body_read(&r.doc, target.into());
     let read = fixture::body_read(&r.doc, body.into());
     r.evaluated();

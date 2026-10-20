@@ -13,8 +13,8 @@ use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
 use crate::fixture::{self, insert, len, point, step, table};
 use editor_core::{
-    Coord, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, TargetAxis, SlotId,
-    StableName,
+    Coord, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, SlotId, StableName,
+    TargetAxis,
 };
 use geom_core::Tol;
 

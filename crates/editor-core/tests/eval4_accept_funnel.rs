@@ -18,7 +18,7 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, Frame, MateRef, Node, ProfileDoc,
-    RecipeNodeId, TargetAxis, StableName, Value, WorldRead, inline,
+    RecipeNodeId, StableName, TargetAxis, Value, WorldRead, inline,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, offset_of, on_frame, square};

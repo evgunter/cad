@@ -21,8 +21,8 @@ use editor_core::Formula;
 
 use editor_core::{
     AssemblyError, Attribution, CapEnd, ContactClass, Coord, DocEdit, DocRef, DocumentId,
-    EntityKind, Frame, MateRef, MintRefusal, Node, ProfileDoc, RecipeNodeId, RoleSeg, TargetAxis,
-    StableName, Value, assemble, product_recorded,
+    EntityKind, Frame, MateRef, MintRefusal, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    TargetAxis, Value, assemble, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, mated_instance, on_frame, run};

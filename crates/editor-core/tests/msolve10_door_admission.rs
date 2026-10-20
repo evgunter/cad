@@ -31,7 +31,7 @@ use editor_core::Formula;
 
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault, MateRef,
-    Node, PersistError, ProfileDoc, RecipeNodeId, TargetAxis, SnapshotError, Target, VarKind,
+    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, Target, TargetAxis, VarKind,
     WorldRead, WorldReadFault, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -150,7 +150,11 @@ fn add_value(
 ) -> DocEdit<editor_core::ProfileProgram> {
     DocEdit::AddValue {
         placement,
-        value: Box::new(editor_core::Value { mate: Some(mate), coord, by }),
+        value: Box::new(editor_core::Value {
+            mate: Some(mate),
+            coord,
+            by,
+        }),
         fresh: Vec::new(),
     }
 }

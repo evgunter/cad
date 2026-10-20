@@ -23,7 +23,7 @@ use crate::docm8_flat_merged::split_fixture;
 use crate::fixture::{insert, len, point, step, table, value_slot};
 use editor_core::{
     Bodies, Coord, DocEdit, EntityKey, Entry, NamingError, Node, NodeErrorKind, ProfileDoc,
-    Qualifier, RecipeNodeId, RoleSeg, TargetAxis, StableName,
+    Qualifier, RecipeNodeId, RoleSeg, StableName, TargetAxis,
 };
 use geom_core::{Point3, Tol};
 use std::collections::BTreeSet;

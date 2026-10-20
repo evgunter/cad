@@ -656,9 +656,7 @@ fn unmated_bundle(bundle: &[crate::mate::Constraint]) -> bool {
 
 /// The values an authored carrier of a bundle with no mate holds, in
 /// order.
-fn values_of(
-    carrier: AuthoredNode,
-) -> Vec<crate::mate::Value<Formula>> {
+fn values_of(carrier: AuthoredNode) -> Vec<crate::mate::Value<Formula>> {
     let Node::Place { constraints, .. } = carrier else {
         unreachable!("a placement carrier stays one")
     };

@@ -418,7 +418,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                             Formula::neg(joint).expect("an angle negates")
                         }
                     }),
-                    Coord::Slide(_) => (coord, by),
+                    Coord::Slide(_) | Coord::SpinAbout(_) => (coord, by),
                 })
                 .collect()
         }

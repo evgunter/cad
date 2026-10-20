@@ -25,7 +25,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation,
     MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId,
-    SitedFace, TargetAxis, Space, Value, evaluate,
+    SitedFace, Space, TargetAxis, Value, evaluate,
 };
 use fixture::{ang, insert, len, on_frame, solve, step};
 use geom_core::Tol;

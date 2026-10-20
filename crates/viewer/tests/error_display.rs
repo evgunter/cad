@@ -228,7 +228,10 @@ fn mate_tool_error_names_the_freedom_a_kind_fixes() {
     }
     .to_string();
     assert!(outer.contains(&VarKind::Axis.to_string()), "{outer}");
-    assert!(outer.contains(Coord::Slide(TargetAxis::X).name()), "{outer}");
+    assert!(
+        outer.contains(Coord::Slide(TargetAxis::X).name()),
+        "{outer}"
+    );
     prose(&outer, "NotAFreedom");
 }
 

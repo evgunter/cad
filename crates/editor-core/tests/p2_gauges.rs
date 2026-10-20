@@ -28,7 +28,7 @@ use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation,
     Formula, Frame, FreeValue, FreeVar, Maintenance, MateRef, MeasurePrimitive, Node,
     NodeErrorKind, Operand, PartResolver, PersistError, PoseRefusal, ProfileDoc, ProfileProgram,
-    RecipeNodeId, SitedFace, SitedRef, TargetAxis, Space, StableName, Target, Value, ValuePayload,
+    RecipeNodeId, SitedFace, SitedRef, Space, StableName, Target, TargetAxis, Value, ValuePayload,
     VarName, WorldRead, apply, apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};

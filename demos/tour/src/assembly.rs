@@ -108,7 +108,7 @@ use pncad::document::{
     DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, InlineError,
     LoopProgram, Mate, MateFault, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node,
     OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedFace, TargetAxis, Space, Target, Value, ValuePayload,
+    ProfileProgram, RecipeNodeId, SitedFace, Space, Target, TargetAxis, Value, ValuePayload,
     VarName, WorldRead, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
     parse_formula, pin_at, place_at, product_named, save, solve_document, split, stand,
 };
@@ -336,7 +336,7 @@ fn set_values(
             &DocEdit::AddValue {
                 placement: mate.placement,
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),
@@ -385,19 +385,29 @@ fn place_in_world(
 ) {
     let placed = place_at(doc, &copy_read(doc, placement), pose, opts, tol)
         .unwrap_or_else(|refusal| panic!("the copy places over its geometry: {refusal}"));
-    let mate = constrain(doc, placement, placed.mate, tol);
+    let mate = constrain(
+        doc,
+        placement,
+        placed.mate.expect("the gesture places by a mate"),
+        tol,
+    );
     set_values(doc, mate, placed.values, tol);
 }
 
 /// Places one copy of `body` in the world where it stands
-/// ([`stand`]: a plane mate on a face no variable reaches, with
-/// constant-zero values) and returns the placement's id.
+/// ([`stand`]: the identity bundle, no mate and the constant `0` on
+/// every freedom) and returns the placement's id.
 fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     let placed = stand(doc, &body.into(), &EvalOptions::default(), tol)
-        .unwrap_or_else(|refusal| panic!("the copy stands over its geometry: {refusal}"));
+        .unwrap_or_else(|refusal| panic!("the copy stands: {refusal}"));
     let placement = insert(doc, Node::place(vec![body.into()]), tol);
-    let mate = constrain(doc, placement, placed.mate, tol);
-    set_values(doc, mate, placed.values, tol);
+    placed
+        .write(placement, |e| {
+            let applied = apply(doc, &e, tol)?;
+            *doc = applied.doc;
+            Ok::<_, pncad::document::EditError>(applied.record.minted_constraints)
+        })
+        .unwrap_or_else(|err| panic!("the identity bundle is admitted: {err:?}"));
     placement
 }
 
@@ -1174,7 +1184,7 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
             bundle(doc, mate.placement)
                 .iter()
                 .filter_map(|c| c.value())
-                .all(|v| v.mate == mate.id),
+                .all(|v| v.mate == Some(mate.id)),
             "{what}'s values each set a freedom of that mate"
         );
         assert!(

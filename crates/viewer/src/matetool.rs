@@ -79,8 +79,8 @@
 
 use pncad::document::{
     CLASS_DEFERRAL, ClassAdmission, Coord, Doc, Evaluation, Formula, FreedomRefusal, Mate,
-    MateSide, Node, NotAFaceName, ProfileProgram, RecipeNodeId, SitedFace, TargetAxis, SpokenNode,
-    Target, VarKind, class_admission, member_of, pose,
+    MateSide, Node, NotAFaceName, ProfileProgram, RecipeNodeId, SitedFace, SpokenNode, Target,
+    TargetAxis, VarKind, class_admission, member_of, pose,
 };
 use pncad::select::{ContactClass, Resolution};
 
@@ -107,7 +107,9 @@ vocabulary! {
     /// the panel offers those alone. It mirrors the kernel's [`Coord`]
     /// both ways, by two exhaustive matches ([`Self::coord`],
     /// [`Self::of`]), so a freedom the kernel grows does not build here
-    /// until the panel offers it.
+    /// until the panel offers it or says why not: a spin about the
+    /// target's own axis names no mate, and a mate's panel writes values
+    /// that name its mate.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum MateFreedom {
         /// A slide along the chart's `x`.
@@ -136,14 +138,16 @@ impl MateFreedom {
         }
     }
 
-    /// The panel's freedom for the kernel's.
+    /// The panel's freedom for the kernel's, `None` for a spin about the
+    /// target's own axis, which no mate's value sets.
     #[must_use]
-    pub fn of(coord: Coord) -> Self {
+    pub fn of(coord: Coord) -> Option<Self> {
         match coord {
-            Coord::Slide(TargetAxis::X) => Self::SlideX,
-            Coord::Slide(TargetAxis::Y) => Self::SlideY,
-            Coord::Slide(TargetAxis::Z) => Self::SlideZ,
-            Coord::Spin => Self::Spin,
+            Coord::Slide(TargetAxis::X) => Some(Self::SlideX),
+            Coord::Slide(TargetAxis::Y) => Some(Self::SlideY),
+            Coord::Slide(TargetAxis::Z) => Some(Self::SlideZ),
+            Coord::Spin => Some(Self::Spin),
+            Coord::SpinAbout(_) => None,
         }
     }
 }

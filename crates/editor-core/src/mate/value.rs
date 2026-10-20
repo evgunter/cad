@@ -315,7 +315,9 @@ pub(crate) fn unmated_motion<T: SolveScalar>(
             Coord::Slide(TargetAxis::X) => shift.x = v.by,
             Coord::Slide(TargetAxis::Y) => shift.y = v.by,
             Coord::Slide(TargetAxis::Z) => shift.z = v.by,
-            Coord::Spin => unreachable!("the bundle rule admits no spin about a mated direction here"),
+            Coord::Spin => {
+                unreachable!("the bundle rule admits no spin about a mated direction here")
+            }
         }
     }
     let slid = RigidMotion::translation(shift).map_err(NodeErrorKind::Motion)?;

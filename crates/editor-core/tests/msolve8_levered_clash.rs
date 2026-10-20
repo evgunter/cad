@@ -17,8 +17,8 @@ use editor_core::Formula;
 
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, MateFault, MateRef, Node,
-    NodeErrorClass, Operand, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, TargetAxis, Space,
-    StableName, Value,
+    NodeErrorClass, Operand, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, Space, StableName,
+    TargetAxis, Value,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, run, solve};

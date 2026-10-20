@@ -1505,7 +1505,7 @@ pub fn withdrawal_notices(
 /// tree row says what the bundle holds, not why.
 pub fn place_notice(report: &crate::session::PlaceReport) -> Option<Message> {
     let text = match &report.by {
-        Ok(editor_core::PlacedBy::PlanarFace) => return None,
+        Ok(editor_core::PlacedBy::Identity | editor_core::PlacedBy::PlanarFace) => return None,
         Ok(editor_core::PlacedBy::Axis) => "the copy has no planar face, so it is placed by its \
                                            own axis, its values moving it along and about it"
             .to_owned(),

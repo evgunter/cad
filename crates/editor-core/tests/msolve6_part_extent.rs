@@ -23,7 +23,7 @@ use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate,
     MateFault, MateRef, Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal,
-    RecipeNodeId, ResolveFault, TargetAxis, Target, Value, WorldRead, content_pin, product,
+    RecipeNodeId, ResolveFault, Target, TargetAxis, Value, WorldRead, content_pin, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, on_frame, revolve_about, run, solve};

@@ -60,7 +60,7 @@ fn at_origin(session: &DocSession, node: RecipeNodeId) -> bool {
     let placed_by_gesture = matches!(bundle.as_slice(), [mate, values @ ..]
         if mate.mate().is_some_and(|m| matches!(m.to, pncad::document::Target::World(_)))
             && values.len() == 3
-            && values.iter().all(|v| v.value().is_some_and(|v| v.mate == mate.id)));
+            && values.iter().all(|v| v.value().is_some_and(|v| v.mate == Some(mate.id))));
     placed_by_gesture && common::solve(session, doc, Tol::witness()).at_identity(node)
 }
 

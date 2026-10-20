@@ -410,8 +410,10 @@ pub use editor_core::{
 // axes. The solve's outcome (`SolvedPoses`, each copy's
 // `Space`; a pose kind's symmetry `Subgroup` and its `SubgroupFamily`,
 // whose meeting decides a bundle), and `MateFault` — the typed refusal
-// every door carries. `stand` writes the identity bundle, no mate and
-// the constant `0` on every freedom; `pin_at` pins a copy to the world
+// every door carries. A gesture's answer is a `Placed` — its mate, if
+// any, its values and how it placed the copy (`PlacedBy`) — which
+// `Placed::write` writes onto a placement. `stand` writes the identity
+// bundle, no mate and the constant `0` on every freedom; `pin_at` pins a copy to the world
 // at a pose over its own geometry; `place_at` is the "place part" gesture's
 // constraints (`PlacedBy` saying whether the copy had a planar face to
 // rest). `unobservable` reports each number an evaluation shows moves
@@ -443,13 +445,12 @@ pub use editor_core::{
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Constraint, ConstraintKind, Coord, FreedomRefusal, MAX_WORLD_READ_DEPTH, Mate, MateFault,
-    MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, PlacedBy, Placing,
-    PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Space, Subgroup, SubgroupFamily, Target,
-    TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead, WorldReadFault, frame_at,
-    frame_at_in,
-    head_face, head_of, member_of, member_reading, pin_at, pin_at_in, place_against,
-    place_against_in, place_at, place_at_in, reference_about, relative_freedom_components,
-    solve_document, stand, stand_in, unobservable,
+    MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, PlacedBy,
+    Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Space, Subgroup, SubgroupFamily,
+    Target, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead, WorldReadFault,
+    frame_at, frame_at_in, head_face, head_of, member_of, member_reading, pin_at, pin_at_in,
+    place_against, place_against_in, place_at, place_at_in, reference_about,
+    relative_freedom_components, solve_document, stand, stand_in, unobservable,
 };
 
 // The class-admission table (`ClassAdmission`, read through

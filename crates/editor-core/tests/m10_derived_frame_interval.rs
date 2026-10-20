@@ -135,8 +135,14 @@ fn failures<T: geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
 fn at_rest() -> Vec<(editor_core::Coord, Formula)> {
     use editor_core::{Coord, TargetAxis};
     vec![
-        (Coord::Slide(TargetAxis::X), Formula::zero(Dimension::Length)),
-        (Coord::Slide(TargetAxis::Y), Formula::zero(Dimension::Length)),
+        (
+            Coord::Slide(TargetAxis::X),
+            Formula::zero(Dimension::Length),
+        ),
+        (
+            Coord::Slide(TargetAxis::Y),
+            Formula::zero(Dimension::Length),
+        ),
         (Coord::Spin, Formula::zero(Dimension::Angle)),
     ]
 }

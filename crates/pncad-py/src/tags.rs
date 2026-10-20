@@ -136,8 +136,8 @@ use pncad::document::{
     MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass, NodeErrorKind,
     NodeStanding, ParseError, PersistError, PiecesFault, PinRefusal, PlacedBy, PlacementRuleFault,
     ProgramFault, ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation,
-    ResolveFault, ShellClassifyError, TargetAxis, SlotId, SnapshotError, SplitError,
-    StepHandleRefusal, StepIdFault, Unlocalized, UpdateError, WorldReadFault,
+    ResolveFault, ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal,
+    StepIdFault, TargetAxis, Unlocalized, UpdateError, WorldReadFault,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;

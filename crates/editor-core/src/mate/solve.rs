@@ -1438,10 +1438,7 @@ pub(crate) fn admit_value<P>(
         .find(|c| c.id == named)
         .and_then(super::Constraint::mate)
     else {
-        return Err(Box::new(MateFault::ValueNamesNoMate {
-            value,
-            mate: named,
-        }));
+        return Err(Box::new(MateFault::ValueNamesNoMate { value, mate: named }));
     };
     if let Some(kind) = doc.var(mate.on).map(crate::Var::kind) {
         data.coord
@@ -1693,13 +1690,14 @@ mod tests {
             }
             bundle
         };
-        let unwritten = |bundle: &[(ConstraintId, Equations)]| {
-            match unpinned(RecipeNodeId::WORLD, bundle).map_err(|f| *f) {
+        let unwritten =
+            |bundle: &[(ConstraintId, Equations)]| match unpinned(RecipeNodeId::WORLD, bundle)
+                .map_err(|f| *f)
+            {
                 Ok(()) => None,
                 Err(MateFault::Unpinned { free, .. }) => Some(free),
                 Err(other) => panic!("unpinned refuses only Unpinned, got {other:?}"),
-            }
-        };
+            };
         for axes in [[X, Y, Z], [Z, X, Z], [Z, Y, X]] {
             let bundle = chain(&axes);
             assert_eq!(verdict(&bundle), Ok(true), "{axes:?} pins its copy");

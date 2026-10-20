@@ -19,8 +19,8 @@ use crate::fixture;
 
 use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame,
-    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, TargetAxis,
-    Space, StableName, Value, assemble,
+    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, Space,
+    StableName, TargetAxis, Value, assemble,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, constrain, in_copy, insert, len, on_frame, run, scl, solve, step};

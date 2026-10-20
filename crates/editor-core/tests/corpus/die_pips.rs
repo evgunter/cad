@@ -77,7 +77,8 @@
 use super::PlacePart;
 use editor_core::Formula;
 use editor_core::{
-    Coord, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, TargetAxis,
+    Coord, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    TargetAxis,
 };
 
 use crate::fixture::{ang, frame_at, len, len2, revolve_about, scl, value_bump};

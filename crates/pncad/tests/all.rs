@@ -3887,7 +3887,7 @@ fn asm_r2a_mated_assembly(
     Vec<pncad::document::RecipeNodeId>,
 ) {
     use pncad::document::{
-        Coord, DocEdit, Formula, Mate, Node, Operand, TargetAxis, Target, Value, pose::PoseDef,
+        Coord, DocEdit, Formula, Mate, Node, Operand, Target, TargetAxis, Value, pose::PoseDef,
     };
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
@@ -3941,7 +3941,7 @@ fn asm_r2a_mated_assembly(
             &DocEdit::AddValue {
                 placement: ids[1],
                 value: Box::new(Value {
-                    mate: mate.id,
+                    mate: Some(mate.id),
                     coord,
                     by,
                 }),
@@ -4986,10 +4986,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-/// - **The "place part" gesture's answer** (`Placed`): the mate, its
-///   values and how the copy was placed, which `place_at` (carried)
-///   answers; a consumer reads its fields and never names the type.
-const NOT_CARRIED: [&str; 99] = [
+const NOT_CARRIED: [&str; 98] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceKey",
@@ -5033,7 +5030,6 @@ const NOT_CARRIED: [&str; 99] = [
     "NodeVerdicts",
     "PairingViolation",
     "ParamValue",
-    "Placed",
     "PredicateDivergence",
     "ProfileLane",
     "ProfilePayload",

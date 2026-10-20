@@ -355,7 +355,7 @@ fn shelf_on(
     let mut choice = asm::seat_choice();
     for (coord, by) in &mut choice.values {
         *by = match coord {
-            pncad::document::Coord::Spin => ang(0.0),
+            pncad::document::Coord::Spin | pncad::document::Coord::SpinAbout(_) => ang(0.0),
             pncad::document::Coord::Slide(_) => len(0.0),
         };
     }

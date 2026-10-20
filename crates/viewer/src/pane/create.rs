@@ -533,7 +533,9 @@ impl ViewerBehavior<'_> {
                 ui.checkbox(set, coord.name());
                 let (unit, speed) = match coord {
                     Coord::Slide(_) => (self.notation.length.def(), FIELD_DRAG_SPEED),
-                    Coord::Spin => (self.notation.angle.def(), ANGLE_DRAG_SPEED),
+                    Coord::Spin | Coord::SpinAbout(_) => {
+                        (self.notation.angle.def(), ANGLE_DRAG_SPEED)
+                    }
                 };
                 unit_field(ui, unit, speed, value);
             });
@@ -550,7 +552,7 @@ impl ViewerBehavior<'_> {
                     .map(|(coord, (_, value))| {
                         match coord {
                             Coord::Slide(_) => self.notation.length_literal(value),
-                            Coord::Spin => self.notation.angle_literal(value),
+                            Coord::Spin | Coord::SpinAbout(_) => self.notation.angle_literal(value),
                         }
                         .map(|by| (coord, by))
                     })

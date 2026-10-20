@@ -144,11 +144,7 @@ pub(crate) fn moved_to(
         Tol::witness(),
     )
     .expect("the copy places against its target");
-    let Some(Operand::Pose(def)) = again
-        .mate
-        .as_ref()
-        .and_then(|mate| mate.to.pose())
-    else {
+    let Some(Operand::Pose(def)) = again.mate.as_ref().and_then(|mate| mate.to.pose()) else {
         panic!("a pose target")
     };
     let PoseDef::Slide { by: slide, .. } = &**def else {

@@ -100,7 +100,11 @@ pub(crate) fn against_with(
                 doc,
                 DocEdit::AddValue {
                     placement,
-                    value: Box::new(editor_core::Value { mate: Some(mate), coord, by }),
+                    value: Box::new(editor_core::Value {
+                        mate: Some(mate),
+                        coord,
+                        by,
+                    }),
                     fresh: Vec::new(),
                 },
             )

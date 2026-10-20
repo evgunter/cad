@@ -1596,7 +1596,11 @@ impl Recorder {
         for (coord, by) in values {
             self.push(DocEdit::AddValue {
                 placement,
-                value: Box::new(editor_core::Value { mate: Some(mate), coord, by }),
+                value: Box::new(editor_core::Value {
+                    mate: Some(mate),
+                    coord,
+                    by,
+                }),
                 fresh: Vec::new(),
             });
         }

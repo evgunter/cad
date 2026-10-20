@@ -3366,7 +3366,6 @@ impl crate::mate::SolveScalar for geom_core::Interval {
             y.atan2(x)
         }
     }
-
 }
 
 /// The seed lane's solve: a refusal quotes the value channel — the
@@ -3401,7 +3400,6 @@ where
             deriv: angle.deriv,
         }
     }
-
 }
 
 /// The symbolic tier's solve: its lane scalar's quote, and the tier's
@@ -3433,7 +3431,6 @@ where
     fn solve_atan2(y: Self, x: Self) -> Self {
         geom_core::Real::atan2(y, x)
     }
-
 }
 
 impl Default for EvalOptions {
@@ -7019,7 +7016,7 @@ mod bundle_key {
     //! served the other's placement.
 
     use super::{KeyHasher, feed_bundle};
-    use crate::mate::{Constraint, Coord, Mate, TargetAxis, Target, Value, WorldRead};
+    use crate::mate::{Constraint, Coord, Mate, Target, TargetAxis, Value, WorldRead};
     use crate::node::ConstraintId;
     use crate::pose::PoseRole;
 

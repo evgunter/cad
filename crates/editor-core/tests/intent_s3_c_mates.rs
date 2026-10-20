@@ -23,8 +23,8 @@ use editor_core::mate::coset::{Coset, Subgroup, intersect};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BodyRead, ConstraintId, ContactClass, Coord, DocEdit, EditError, EvalOptions, Formula, Mate,
-    MateFault, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, TargetAxis,
-    StableName, Target, Value, WorldRead,
+    MateFault, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, StableName,
+    Target, TargetAxis, Value, WorldRead,
 };
 use geom_core::Tol;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
@@ -309,7 +309,11 @@ fn add_value(
     let applied = doc.apply(
         &DocEdit::AddValue {
             placement,
-            value: Box::new(Value { mate: Some(mate), coord, by }),
+            value: Box::new(Value {
+                mate: Some(mate),
+                coord,
+                by,
+            }),
             fresh: Vec::new(),
         },
         Tol::witness(),

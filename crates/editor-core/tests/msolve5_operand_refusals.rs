@@ -25,7 +25,7 @@ use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, Entry,
     EvalOptions, Evaluation, Formula, MateFault, MateRef, MateSide, Node, NodeErrorKind,
     NodeResult, NodeStanding, PartFault, PatternKind, ProductError, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedFace, TargetAxis, StableName, Value,
+    RoleSeg, SitedFace, StableName, TargetAxis, Value,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, gate, insert, len, on_frame, run, scl};

@@ -441,6 +441,27 @@ pub struct Placed {
 }
 
 impl Placed {
+    /// **The identity bundle** (D10 `[placement.values]`): no mate, and
+    /// the constant `0` on the slides along the target space's `x`, `y`
+    /// and `z` and on a spin about each, in that order. It reads
+    /// nothing, so it is the same for every copy.
+    #[must_use]
+    pub fn identity() -> Self {
+        use super::{Coord, TargetAxis};
+        let axes = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z];
+        let slides = axes
+            .into_iter()
+            .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)));
+        let spins = axes
+            .into_iter()
+            .map(|axis| (Coord::SpinAbout(axis), Formula::zero(Dimension::Angle)));
+        Self {
+            mate: None,
+            values: slides.chain(spins).collect(),
+            by: PlacedBy::Identity,
+        }
+    }
+
     /// **The edits that write this bundle onto `placement`**, each
     /// handed to `apply` in order, which answers the constraint ids the
     /// edit minted: the mate ([`crate::DocEdit::AddConstraint`]) and
@@ -659,20 +680,8 @@ pub fn stand_in(
     ev: &Evaluation<f64>,
     body: &Operand,
 ) -> Result<Placed, PinRefusal> {
-    use super::{Coord, TargetAxis};
     copy_of(doc, ev, body)?;
-    let axes = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z];
-    let slides = axes
-        .into_iter()
-        .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)));
-    let spins = axes
-        .into_iter()
-        .map(|axis| (Coord::SpinAbout(axis), Formula::zero(Dimension::Angle)));
-    Ok(Placed {
-        mate: None,
-        values: slides.chain(spins).collect(),
-        by: PlacedBy::Identity,
-    })
+    Ok(Placed::identity())
 }
 
 /// **A plane-less construction's own axis**: the construction carried

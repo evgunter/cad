@@ -24,7 +24,7 @@ use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     CapEnd, ContactClass, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId,
     EntityKind, EvalOptions, Formula, FreeValue, FreeVar, MateRef, Node, Operand, PersistError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, TargetAxis, StableName, Value, VarName, apply,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis, Value, VarName, apply,
     load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};

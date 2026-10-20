@@ -111,16 +111,17 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
     (session, revolve)
 }
 
-/// **A body with no planar face is placed by its own axis, and the
-/// gesture says so.** The revolve gesture places the ring it made; a
-/// ring of revolution has no planar face to rest a plane mate on, so
-/// the "place part" gesture mates its own axis to the world's — one
-/// mate to the world and the two values it leaves, the copy where it
-/// was made — and the outcome's notice says so. Breaks if the copy is
-/// left loose, is placed by anything but its axis, stands anywhere but
-/// where it was made, or goes unsaid.
+/// **A revolve stands where it was made, as every body does, and the
+/// gesture has nothing more to say.** The revolve gesture places the
+/// ring it made by the identity bundle — no mate, and the constant `0`
+/// on the three slides and the three spins — which reads nothing of the
+/// ring, so an axis written in numbers (`0 m`, which a mate could not
+/// share) is no obstacle. Breaks if the copy is left loose, is placed by
+/// a mate read off its geometry, stands anywhere but where it was made,
+/// or the outcome carries a notice for the ordinary answer.
 #[test]
-fn a_body_with_no_planar_face_is_placed_by_its_own_axis_and_the_gesture_says_so() {
+fn a_revolve_stands_by_the_identity_bundle_whatever_its_axis_reads() {
+    use pncad::document::{Coord, TargetAxis};
     let tol = Tol::witness();
     let mut session = session(tol);
     let profile = session_insert(
@@ -134,10 +135,7 @@ fn a_body_with_no_planar_face_is_placed_by_its_own_axis_and_the_gesture_says_so(
     );
     let outcome = session.perform(SessionOp::AddRevolve {
         profile,
-        axis_through: [
-            Formula::zero(Dimension::Length),
-            Formula::zero(Dimension::Length),
-        ],
+        axis_through: [len(0.0), len(0.0)],
         axis_heading: Formula::turn_over(4).expect("a quarter turn"),
         angle: ang(TAU),
     });
@@ -149,28 +147,33 @@ fn a_body_with_no_planar_face_is_placed_by_its_own_axis_and_the_gesture_says_so(
         outcome.placed,
         vec![viewer::session::PlaceReport {
             placement,
-            by: Ok(editor_core::PlacedBy::Axis),
+            by: Ok(editor_core::PlacedBy::Identity),
         }],
-        "the ring is placed by its own axis: it has no planar face"
+        "the ring stands by the identity bundle"
     );
-    let notices: Vec<String> = viewer::frame::outcome_notices(&outcome)
-        .map(|notice| notice.text().to_owned())
-        .collect();
-    assert!(
-        notices
-            .iter()
-            .any(|text| text.contains("no planar face") && text.contains("its own axis")),
-        "the gesture says how it placed the copy: {notices:?}"
+    assert_eq!(
+        viewer::frame::outcome_notices(&outcome).count(),
+        0,
+        "the ordinary answer carries no notice"
     );
     session.pump();
     let doc = session.committed_doc();
     let bundle = crate::fixture::bundle(doc, placement);
-    assert!(
-        matches!(bundle.as_slice(), [axis, along, about]
-            if axis.mate().is_some_and(|m| matches!(m.to, pncad::document::Target::World(_)))
-                && along.value().is_some_and(|v| v.mate == axis.id)
-                && about.value().is_some_and(|v| v.mate == axis.id)),
-        "one mate to the world and its two values: {bundle:?}"
+    let written: Vec<_> = bundle
+        .iter()
+        .map(|c| c.value().map(|v| (v.mate, v.coord)))
+        .collect();
+    assert_eq!(
+        written,
+        [
+            Some((None, Coord::Slide(TargetAxis::X))),
+            Some((None, Coord::Slide(TargetAxis::Y))),
+            Some((None, Coord::Slide(TargetAxis::Z))),
+            Some((None, Coord::SpinAbout(TargetAxis::X))),
+            Some((None, Coord::SpinAbout(TargetAxis::Y))),
+            Some((None, Coord::SpinAbout(TargetAxis::Z))),
+        ],
+        "six values naming no mate: {bundle:?}"
     );
     assert!(
         common::solve(&session, doc, tol).at_identity(placement),
@@ -218,14 +221,13 @@ fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
 }
 
 /// **A creation gesture places what it made, in the same action**
-/// (A10): the extrude and its world placement — a plane mate on the
-/// extrude's planar face to the world and the three values naming it,
-/// solved to the identity — are one recorded action: the world is
-/// `[extrude]`, the tree badges the extrude, the outcome says the copy
-/// was placed on a planar face, and ONE undo takes both. Breaks if the
-/// gesture leaves the body unplaced (nothing is drawn), pins it with no
-/// values to move it by, places it anywhere but where it was made,
-/// records the placement as a second action, or places something else.
+/// (A10): the extrude and its world placement — the identity bundle,
+/// which stands the copy where its body stands — are one recorded
+/// action: the world is `[extrude]`, the tree badges the extrude, the
+/// outcome says the copy stands by the identity bundle, and ONE undo
+/// takes both. Breaks if the gesture leaves the body unplaced (nothing
+/// is drawn), places it anywhere but where it was made, records the
+/// placement as a second action, or places something else.
 #[test]
 fn a_creation_gesture_places_what_it_made_in_one_action() {
     let tol = Tol::witness();
@@ -254,34 +256,29 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
         matches!(shapes.as_slice(), [shape] if Some(shape.read) == doc.output(extrude, 0)),
         "the placement copies the extrude: {shapes:?}"
     );
-    let [mate, values @ ..] = constraints.as_slice() else {
-        panic!("a mate and its values: {constraints:?}")
-    };
-    assert!(
-        mate.mate()
-            .is_some_and(|m| matches!(m.to, pncad::document::Target::World(_))),
-        "the mate reads the world: {mate:?}"
-    );
     {
         use pncad::document::{Coord, TargetAxis};
         assert_eq!(
-            values
+            constraints
                 .iter()
                 .map(|c| c.value().map(|v| (v.mate, v.coord)))
                 .collect::<Vec<_>>(),
             vec![
-                Some((mate.id, Coord::Slide(TargetAxis::X))),
-                Some((mate.id, Coord::Slide(TargetAxis::Y))),
-                Some((mate.id, Coord::Spin)),
+                Some((None, Coord::Slide(TargetAxis::X))),
+                Some((None, Coord::Slide(TargetAxis::Y))),
+                Some((None, Coord::Slide(TargetAxis::Z))),
+                Some((None, Coord::SpinAbout(TargetAxis::X))),
+                Some((None, Coord::SpinAbout(TargetAxis::Y))),
+                Some((None, Coord::SpinAbout(TargetAxis::Z))),
             ],
-            "the three freedoms a plane mate leaves, each set"
+            "the identity bundle: every freedom, no mate"
         );
     }
     assert_eq!(
         outcome.placed,
         vec![viewer::session::PlaceReport {
             placement,
-            by: Ok(editor_core::PlacedBy::PlanarFace),
+            by: Ok(editor_core::PlacedBy::Identity),
         }],
         "the outcome says how the copy was placed"
     );

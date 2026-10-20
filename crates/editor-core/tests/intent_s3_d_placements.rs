@@ -15,7 +15,7 @@ use crate::fixture::{self, ang, insert, len};
 use editor_core::pose::{PoseDef, PoseRole};
 use editor_core::{
     BodyRead, Coord, EvalOptions, Formula, LoftSection, Mate, Node, NodeResult, Operand,
-    ProfileDoc, RecipeNodeId, TargetAxis, StationMove, Target, TubeWindow, ValuePayload, WorldRead,
+    ProfileDoc, RecipeNodeId, StationMove, Target, TargetAxis, TubeWindow, ValuePayload, WorldRead,
 };
 use geom_core::Tol;
 
@@ -248,7 +248,11 @@ fn every_copy_stands_by_the_identity_bundle() {
         );
         let (next, placement) = insert(doc, Node::place(vec![BodyRead::plain(read)]));
         doc = fixture::written(next, placement, stood);
-        assert_eq!(vertices(&doc, placement), own, "{body}: the copy is its body");
+        assert_eq!(
+            vertices(&doc, placement),
+            own,
+            "{body}: the copy is its body"
+        );
         assert!(
             fixture::solve(&doc, &EvalOptions::default(), Tol::witness()).at_identity(placement),
             "{body}: the identity bundle is read as the identity"
@@ -328,7 +332,11 @@ fn a_bundle_with_no_mate_places_by_its_chain_in_written_order() {
         )
         .collect();
     let (doc, b, p) = unmated(typed);
-    assert_eq!(vertices(&doc, p), vertices(&doc, b), "typed zeros move nothing");
+    assert_eq!(
+        vertices(&doc, p),
+        vertices(&doc, b),
+        "typed zeros move nothing"
+    );
     assert!(
         !fixture::solve(&doc, &EvalOptions::default(), Tol::witness()).at_identity(p),
         "typed zeros are numbers, so the bundle is no identity bundle and runs its map"
@@ -351,16 +359,21 @@ fn a_bundle_with_no_mate_places_by_its_chain_in_written_order() {
 fn the_door_admits_a_bundle_with_no_mate_only_whole() {
     use editor_core::TargetAxis::{X, Y, Z};
     use editor_core::{DocEdit, EditError, MateFault, NoChartWhy};
-    let fault = |result: Result<editor_core::Applied<editor_core::ProfileProgram>, EditError>| {
-        match result {
+    let fault =
+        |result: Result<editor_core::Applied<editor_core::ProfileProgram>, EditError>| match result
+        {
             Err(EditError::MateRefused { fault, .. }) => *fault,
             other => panic!("the door refuses with a mate fault: {other:?}"),
-        }
-    };
+        };
     let six = |spins: &[editor_core::TargetAxis]| {
         [X, Y, Z]
             .into_iter()
-            .map(|axis| (Coord::Slide(axis), Formula::zero(editor_core::Dimension::Length)))
+            .map(|axis| {
+                (
+                    Coord::Slide(axis),
+                    Formula::zero(editor_core::Dimension::Length),
+                )
+            })
             .chain(spins.iter().map(|&axis| {
                 (
                     Coord::SpinAbout(axis),
@@ -383,7 +396,10 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
         fresh: Vec::new(),
     };
     assert!(
-        matches!(fault(doc.apply(&one, tol)), MateFault::Unpinned { free: 5, .. }),
+        matches!(
+            fault(doc.apply(&one, tol)),
+            MateFault::Unpinned { free: 5, .. }
+        ),
         "a value alone leaves five freedoms"
     );
     assert!(
@@ -718,8 +734,8 @@ fn an_instance_stands_by_the_identity_bundle() {
         doc.output(instance, 0)
             .expect("an instance defines its copies"),
     );
-    let stood = editor_core::stand(&doc, &copies, &opts, Tol::witness())
-        .expect("the instance stands");
+    let stood =
+        editor_core::stand(&doc, &copies, &opts, Tol::witness()).expect("the instance stands");
     assert_eq!(stood.by, editor_core::PlacedBy::Identity);
     assert_eq!(stood.mate, None, "nothing of the part is read");
     let doc = fixture::written(doc, instance, stood);

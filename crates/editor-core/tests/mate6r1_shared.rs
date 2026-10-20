@@ -17,8 +17,8 @@ use editor_core::Formula;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     AssemblyError, CapEnd, ChecksConfig, ContactClass, Coord, DocEdit, DocRef, DocumentId,
-    EntityKind, Frame, MateRef, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, TargetAxis,
-    StableName, Value, assemble, product_recorded, run_checks,
+    EntityKind, Frame, MateRef, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    TargetAxis, Value, assemble, product_recorded, run_checks,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, constrain_at, insert, len, mated_instance, on_frame, run, step};

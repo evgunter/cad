@@ -12,7 +12,7 @@
 use crate::fixture;
 use editor_core::{
     AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, Formula, Mate, MateRef,
-    MintRefusal, Node, OperandSlot, ProfileDoc, RecipeNodeId, RefusedRef, TargetAxis, SplitError,
+    MintRefusal, Node, OperandSlot, ProfileDoc, RecipeNodeId, RefusedRef, SplitError, TargetAxis,
     Value, assemble, product_recorded, relative_freedom_components,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
